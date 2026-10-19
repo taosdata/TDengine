@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
@@ -40,6 +44,7 @@ class TestShowTransactionDetail:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -94,7 +99,7 @@ class TestShowTransactionDetail:
             #tdLog.info(f"show transaction {tranId2}, {oper2}")
         
             rows = tdSql.query(f"show transaction {tranId1}", queryTimes=1)
-            if rows != 120 and rows != 176:
+            if rows != 160 and rows != 176:
                 tdLog.exit(f"show transaction detial error, rows={rows}")
                 return False
 
@@ -107,7 +112,7 @@ class TestShowTransactionDetail:
         rows = tdSql.query(f"select * from information_schema.ins_transaction_details", queryTimes=1)
         tdLog.info(tdSql.queryResult)
 
-        if rows != 296 and rows != 176 and rows != 120:
+        if rows != 336 and rows != 176 and rows != 160:
             tdLog.exit(f"show transaction detial error, rows={rows}")
             return False
 

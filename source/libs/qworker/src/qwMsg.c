@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "qwMsg.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
@@ -6,6 +23,7 @@
 #include "qwInt.h"
 #include "qworker.h"
 #include "tcommon.h"
+#include "tdatablock.h"
 #include "tmsg.h"
 #include "tname.h"
 #include "tgrant.h"
@@ -47,7 +65,24 @@ void qwFreeFetchRsp(SQWTaskCtx *ctx, void *msg) {
   if (NULL == msg) {
     return;
   }
-  
+
+  if (ctx != NULL && ctx->localBlockSink) {
+    SLocalFetchBlock* pLocal = msg;
+    if (pLocal->magic == LOCAL_FETCH_BLOCK_MAGIC) {
+      if (pLocal->blockIsBorrowed) {
+        blockDataRecycle(pLocal->pBlock);
+      } else {
+        blockDataDestroy(pLocal->pBlock);
+      }
+    }
+    if (ctx->localExec) {
+      taosMemoryFree(msg);
+    } else {
+      rpcFreeCont(msg);
+    }
+    return;
+  }
+
   if (NULL == ctx || !ctx->localExec) {
     rpcFreeCont(msg);
   }
@@ -205,6 +240,12 @@ int32_t qwChkSaveNonScalarSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, in
 }
 
 int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
+  if (QW_IS_SUBQ(ctx) && ctx->localBlockSink) {
+    // Local-block responses are SLocalFetchBlock wrappers, not serialized
+    // SRetrieveTableRsp payloads. They cannot be retained in subquery rspList.
+    QW_TASK_ELOG("local-block sink cannot be used for subquery response caching, task:%p", ctx->taskHandle);
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   return QW_IS_SCALAR_SUBQ(ctx) ? qwChkSaveScalarSubQRsp(QW_FPARAMS(), ctx, rsp, dataLen, code, queryEnd) : qwChkSaveNonScalarSubQRsp(QW_FPARAMS(), ctx, rsp, dataLen, code, queryEnd);
 }
 
@@ -230,11 +271,23 @@ int32_t qwBuildAndSendQueryRsp(int32_t rspType, SRpcHandleInfo *pConn, int32_t c
   rsp.affectedRows = affectedRows;
   rsp.tbVerInfo = ctx->tbInfo;
 
-  // Propagate federated query remote-side error message when available
-  if (ctx && ctx->taskHandle) {
-    const char* extMsg = qGetExtErrMsg(ctx->taskHandle);
+  // Propagate the executor's detailed error message when available.
+  // Snapshot under extErrLock (dedicated latch, never nested in ctx->lock);
+  // the serializer runs after unlock on the local copy.
+  char extBuf[512] = {0};
+  if (ctx) {
+    QW_LOCK(QW_READ, &ctx->extErrLock);
+    const char* extMsg = ctx->taskHandle ? qGetExtErrMsg(ctx->taskHandle) : ctx->extErrMsg;
     if (extMsg && extMsg[0] != '\0') {
-      rsp.extErrMsg = (char*)extMsg;  // serializer only reads; task outlives this function
+      tstrncpy(extBuf, extMsg, sizeof(extBuf));
+    }
+    QW_UNLOCK(QW_READ, &ctx->extErrLock);
+    if (extBuf[0] != '\0') {
+      rsp.extErrMsg = extBuf;  // serializer only reads
+    }
+    const SExtPushdownDiagnostic* extDiag = qGetExtPushdownDiagnostic(ctx->taskHandle);
+    if (extDiag != NULL) {
+      rsp.extPushdownDiag = (SExtPushdownDiagnostic*)extDiag;  // serializer only reads
     }
   }
 
@@ -331,26 +384,53 @@ int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
+int32_t qwBuildAndSendFetchRsp(SQWTaskCtx *ctx, int32_t rspType, SRpcHandleInfo *pConn, void *pRsp, int32_t dataLength,
                                int32_t code) {
+  bool localBlockFetch = ctx != NULL && ctx->localBlockSink;
+  // Snapshot under extErrLock (dedicated latch, never nested in ctx->lock)
+  char extErrBuf[512] = {0};
+  if (ctx != NULL && code != TSDB_CODE_SUCCESS) {
+    QW_LOCK(QW_READ, &ctx->extErrLock);
+    if (ctx->extErrMsg[0] != '\0') {
+      tstrncpy(extErrBuf, ctx->extErrMsg, sizeof(extErrBuf));
+    }
+    QW_UNLOCK(QW_READ, &ctx->extErrLock);
+  }
+  const char* extErrMsg = (extErrBuf[0] != '\0') ? extErrBuf : NULL;
+  int32_t     extErrLen = extErrMsg ? (int32_t)strlen(extErrMsg) + 1 : 0;
+
+  if (localBlockFetch && code != TSDB_CODE_SUCCESS && pRsp != NULL) {
+    // Error responses use an empty SRetrieveTableRsp. Do not pass a local
+    // block wrapper through that layout or leave its block ownership behind.
+    qwFreeFetchRsp(ctx, pRsp);
+    pRsp = NULL;
+    dataLength = 0;
+  }
   if (NULL == pRsp) {
-    pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
+    // Error fetch responses carry optional NUL-terminated detail text after the fixed header.
+    pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp) + extErrLen);
     if (NULL == pRsp) {
       QW_RET(terrno);
     }
     TAOS_MEMSET(pRsp, 0, sizeof(SRetrieveTableRsp));
-    dataLength = 0;
+    if (extErrLen > 0) {
+      memcpy(((SRetrieveTableRsp *)pRsp)->data, extErrMsg, extErrLen);
+    }
+    dataLength = extErrLen;
   }
 
   SRpcMsg rpcRsp = {
       .msgType = rspType,
       .pCont = pRsp,
-      .contLen = sizeof(*pRsp) + dataLength,
+      .contLen = localBlockFetch && code == TSDB_CODE_SUCCESS ? sizeof(SLocalFetchBlock)
+                                                               : sizeof(SRetrieveTableRsp) + dataLength,
       .code = code,
       .info = *pConn,
   };
 
-  rpcRsp.info.compressed = pRsp->compressed;
+  if (!localBlockFetch || code != TSDB_CODE_SUCCESS) {
+    rpcRsp.info.compressed = ((SRetrieveTableRsp*)pRsp)->compressed;
+  }
   tmsgSendRsp(&rpcRsp);
 
   if (NULL != ctx) {
@@ -606,6 +686,16 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGran
 
   SQWMsg qwMsg = {
       .msgType = pMsg->msgType, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgMask = msg.msgMask, .subQType = msg.subQType};
+  qwMsg.pCorrelation = &msg.correlation;
+  qwMsg.pCorrelationParamDefs = msg.pCorrelationParamDefs;
+  qwMsg.pCorrelationParamValues = msg.pCorrelationParamValues;
+  qwMsg.pCorrelationTemplates = msg.pCorrelationTemplates;
+  qwMsg.correlationTemplatesLen = msg.correlationTemplatesLen;
+  qwMsg.pCorrelationTimeInit = msg.pCorrelationTimeInit;
+  qwMsg.correlationTimeInitLen = msg.correlationTimeInitLen;
+  qwMsg.pCorrelationNodeList = msg.pCorrelationNodeList;
+  qwMsg.txnId = msg.txnId;
+  qwMsg.firstDayOfWeek = msg.firstDayOfWeek;
 
   QW_SCH_TASK_DLOG("prerocessQuery start, handle:%p, SQL:%s", pMsg->info.handle, msg.sql);
   code = qwPreprocessQuery(QW_FPARAMS(), &qwMsg);
@@ -670,6 +760,16 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   int32_t  eId = msg.execId;
 
   SQWMsg qwMsg = {.node = node, .msg = msg.msg, .msgLen = msg.msgLen, .connInfo = pMsg->info, .msgType = pMsg->msgType, .code = pMsg->code, .subEndPoints = &msg.subEndPoints};
+  qwMsg.pCorrelation = &msg.correlation;
+  qwMsg.pCorrelationParamDefs = msg.pCorrelationParamDefs;
+  qwMsg.pCorrelationParamValues = msg.pCorrelationParamValues;
+  qwMsg.pCorrelationTemplates = msg.pCorrelationTemplates;
+  qwMsg.correlationTemplatesLen = msg.correlationTemplatesLen;
+  qwMsg.pCorrelationTimeInit = msg.pCorrelationTimeInit;
+  qwMsg.correlationTimeInitLen = msg.correlationTimeInitLen;
+  qwMsg.pCorrelationNodeList = msg.pCorrelationNodeList;
+  qwMsg.txnId = msg.txnId;
+  qwMsg.firstDayOfWeek = msg.firstDayOfWeek;
   qwMsg.msgInfo.explain = msg.explain;
   qwMsg.msgInfo.taskType = msg.taskType;
   qwMsg.msgInfo.needFetch = msg.needFetch;
@@ -756,6 +856,42 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
 
   SQWMsg qwMsg = {.req = &req, .node = node, .msg = req.pOpParam, .msgLen = 0, .connInfo = pMsg->info, .msgType = pMsg->msgType};
 
+  if (req.phase2Rescan) {
+    SQWTaskCtx *ctx = NULL;
+    int32_t rcode = qwAcquireTaskCtx(QW_FPARAMS(), &ctx);
+    if (rcode != TSDB_CODE_SUCCESS || NULL == ctx) {
+      // Not silently ignored: without this log a lost rescan is undiagnosable.
+      QW_TASK_WLOG("phase2Rescan fetch failed to acquire task ctx since %s, drop the op param",
+                   TSDB_CODE_SUCCESS == rcode ? "ctx is null" : tstrerror(rcode));
+      // tDestroySResFetchReq does not free pOpParam and qwProcessFetch skips the destroy
+      // once msg is NULL -- free it here or it leaks (same convention as the
+      // not-consumed paths in qwStartTwoPassRescanExec).
+      qDestroyOperatorParam(qwMsg.msg);
+      qwMsg.msg = NULL;
+    } else {
+      // Only two-pass origin tasks (kept alive past phase-1 EOF via noQuickFree) may be
+      // re-armed. Anything else: drop the op param explicitly -- passing it through would
+      // let qwProcessFetch's generic STEP_DONE branch (qwUpdateTaskOperatorParamFromMsg)
+      // apply the two-pass rescan TableScan params to a non-two-pass task.
+      if (NULL == qwMsg.msg) {
+        // The coordinator always builds the flag and the rescan param together; a
+        // param-less phase2Rescan fetch is an invalid combination. Arming the pending
+        // flag here would misroute a later param-carrying fetch on this task into
+        // qwStartTwoPassRescanExec -- leave it disarmed; the fetch falls through to the
+        // normal path.
+        QW_TASK_WLOG_E("phase2Rescan fetch without operator param, not arming the rescan");
+      } else if (atomic_load_8(&ctx->noQuickFree)) {
+        atomic_store_8(&ctx->phase2RescanPending,
+                       true);  // picked up by qwProcessFetch's qwStartTwoPassRescanExec
+      } else {
+        QW_TASK_WLOG_E("phase2Rescan fetch on a task without noQuickFree, drop the op param");
+        qDestroyOperatorParam(qwMsg.msg);
+        qwMsg.msg = NULL;
+      }
+      qwReleaseTaskCtx(mgmt, ctx);
+    }
+  }
+
   QW_SCH_TASK_DLOG("processFetch start, node:%p, handle:%p", node, pMsg->info.handle);
 
   int32_t code = qwProcessFetch(QW_FPARAMS(), &qwMsg);
@@ -767,14 +903,14 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
+int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SEpSet *pEpSet, int64_t ts) {
   SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
   if (mgmt) {
     QW_ERR_RET(qwUpdateTimeInQueue(mgmt, ts, FETCH_QUEUE));
     QW_STAT_INC(mgmt->stat.msgStat.rspProcessed, 1);
   }
 
-  qProcessRspMsg(NULL, pMsg, NULL);
+  qProcessRspMsg(NULL, pMsg, pEpSet);
   pMsg->pCont = NULL;
   return TSDB_CODE_SUCCESS;
 }

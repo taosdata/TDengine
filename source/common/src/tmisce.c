@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -466,6 +468,18 @@ int32_t dumpConfToDataBlock(SSDataBlock* pBlock, int32_t startCol, char* likePat
       TAOS_CHECK_GOTO(code, NULL, _exit);
     }
     TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, info, false), NULL, _exit);
+
+    char reboot[TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE] = {0};
+    TAOS_CHECK_GOTO(cfgDumpItemRestart(pItem, &reboot[VARSTR_HEADER_SIZE], TSDB_CONFIG_REBOOT_LEN, &valueLen), NULL,
+                    _exit);
+    varDataSetLen(reboot, valueLen);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, col++);
+    if (pColInfo == NULL) {
+      code = terrno;
+      TAOS_CHECK_GOTO(code, NULL, _exit);
+    }
+    TAOS_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, reboot, false), NULL, _exit);
 
     numOfRows++;
     if (index > 0 && index <= exSize) {

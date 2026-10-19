@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,6 +16,8 @@
  */
 
 #include "catalogInt.h"
+#include <ctype.h>
+#include "extDialect.h"
 #include "query.h"
 #include "systable.h"
 #include "tname.h"
@@ -202,7 +206,6 @@ _return:
 
 int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
   int32_t           code = 0;
-  int32_t           line = 0;
   STableMetaOutput* output = NULL;
 
   CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
@@ -226,38 +229,26 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
     }
 
     if (CTG_IS_META_VBOTH(output->metaType)) {
-      int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
-      int32_t tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
       if (output->tbMeta) {
-        int32_t metaSize = CTG_META_SIZE(output->tbMeta);
-        int32_t schemaExtSize = 0;
-        if (withExtSchema(output->tbMeta->tableType) && output->tbMeta->schemaExt) {
-          schemaExtSize = output->tbMeta->tableInfo.numOfColumns * sizeof(SSchemaExt);
-        }
-        output->tbMeta = taosMemoryRealloc(output->tbMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-        QUERY_CHECK_NULL(output->tbMeta, code, line, _return, terrno);
+        // output->tbMeta is caller-owned (cloned by ctgCloneMetaOutput), never a cache
+        // object; the merge reallocs it and inserts the vchild own columns in place.
         TAOS_MEMCPY(output->tbMeta, output->vctbMeta, sizeof(SVCTableMeta));
-        if (schemaExtSize > 0) {
-          output->tbMeta->schemaExt = (SSchemaExt *)((char *)output->tbMeta + metaSize);
-        } else {
-          output->tbMeta->schemaExt = NULL;
-        }
-        output->tbMeta->colRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize);
-        TAOS_MEMCPY(output->tbMeta->colRef, output->vctbMeta->colRef, colRefSize);
-        if (output->vctbMeta->tagRef && tagRefSize > 0) {
-          output->tbMeta->tagRef = (SColRef *)((char *)output->tbMeta + metaSize + schemaExtSize + colRefSize);
-          TAOS_MEMCPY(output->tbMeta->tagRef, output->vctbMeta->tagRef, tagRefSize);
-        } else {
-          output->tbMeta->tagRef = NULL;
+        code = ctgMergeVctbOwnMeta(&output->tbMeta, output->vctbMeta);
+        if (code != TSDB_CODE_SUCCESS) {
+          // Merge failed before taking ownership: both blocks are still wholly ours.
+          // The sizeof(SVCTableMeta) memcpy above makes tbMeta->colRef alias
+          // vctbMeta->colRef, so the shared tagCondJson strings must be freed exactly
+          // once (via tbMeta here) before dropping both blocks.
+          queryFreeTableMeta(output->tbMeta);
+          output->tbMeta = NULL;
+          taosMemoryFreeClear(output->vctbMeta);
+          goto _return;
         }
       } else {
         ctgError("tb:%s, tbmeta got, but tbMeta is NULL", output->tbName);
         taosMemoryFreeClear(output->vctbMeta);
         CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
       }
-      output->tbMeta->rversion = output->vctbMeta->rversion;
-      output->tbMeta->numOfColRefs = output->vctbMeta->numOfColRefs;
-      output->tbMeta->numOfTagRefs = output->vctbMeta->numOfTagRefs;
       taosMemoryFreeClear(output->vctbMeta);
       *pTableMeta = output->tbMeta;
       goto _return;
@@ -286,32 +277,22 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
     if (CTG_IS_META_CTABLE(output->metaType)) {
       TAOS_MEMCPY(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
     } else if (CTG_IS_META_VCTABLE(output->metaType)) {
-      int32_t colRefSize = output->vctbMeta->numOfColRefs * sizeof(SColRef);
-      int32_t tagRefSize = output->vctbMeta->numOfTagRefs * sizeof(SColRef);
-      int32_t metaSize = CTG_META_SIZE(*pTableMeta);
-      int32_t schemaExtSize = 0;
-      if (withExtSchema((*pTableMeta)->tableType) && (*pTableMeta)->schemaExt) {
-        schemaExtSize = (*pTableMeta)->tableInfo.numOfColumns * sizeof(SSchemaExt);
-      }
-      (*pTableMeta) = taosMemoryRealloc(*pTableMeta, metaSize + schemaExtSize + colRefSize + tagRefSize);
-      QUERY_CHECK_NULL(*pTableMeta, code , line, _return, terrno);
+      // *pTableMeta is a fresh clone of the cached vstb meta (cloneTableMeta via
+      // ctgReadTbMetaFromCache), so the merge may realloc/extend it in place without
+      // touching the shared vstb cache entry.
       TAOS_MEMCPY(*pTableMeta, output->vctbMeta, sizeof(SVCTableMeta));
-      if (schemaExtSize > 0) {
-        (*pTableMeta)->schemaExt = (SSchemaExt *)((char *)(*pTableMeta) + metaSize);
-      } else {
-        (*pTableMeta)->schemaExt = NULL;
+      code = ctgMergeVctbOwnMeta(pTableMeta, output->vctbMeta);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Merge failed before taking ownership: *pTableMeta (a fresh vstb clone with the
+        // SVCTableMeta header copied in) and output->vctbMeta are still wholly ours.
+        // (*pTableMeta)->colRef aliases vctbMeta->colRef via the memcpy above, so the
+        // shared tagCondJson strings must be freed exactly once (via *pTableMeta here)
+        // before dropping both blocks.
+        queryFreeTableMeta(*pTableMeta);
+        *pTableMeta = NULL;
+        taosMemoryFreeClear(output->vctbMeta);
+        goto _return;
       }
-      (*pTableMeta)->colRef = (SColRef *)((char *)(*pTableMeta) + metaSize + schemaExtSize);
-      TAOS_MEMCPY((*pTableMeta)->colRef, output->vctbMeta->colRef, colRefSize);
-      if (output->vctbMeta->tagRef && tagRefSize > 0) {
-        (*pTableMeta)->tagRef = (SColRef *)((char *)(*pTableMeta) + metaSize + schemaExtSize + colRefSize);
-        TAOS_MEMCPY((*pTableMeta)->tagRef, output->vctbMeta->tagRef, tagRefSize);
-      } else {
-        (*pTableMeta)->tagRef = NULL;
-      }
-      (*pTableMeta)->numOfColRefs = output->vctbMeta->numOfColRefs;
-      (*pTableMeta)->numOfTagRefs = output->vctbMeta->numOfTagRefs;
-      (*pTableMeta)->rversion = output->vctbMeta->rversion;
     }
 
     taosMemoryFreeClear(output->tbMeta);
@@ -502,7 +483,7 @@ int32_t ctgGetTbCfg(SCatalog* pCtg, SRequestConnInfo* pConn, SName* pTableName, 
   int32_t code = ctgGetTbType(pCtg, pConn, pTableName, &tbType);
 
   // batch meta txn: if table type lookup fails (PRE_CREATE invisible), assume non-super-table
-  // and go directly to VNode — super tables are on MNode, never part of batch meta txn
+  // and go directly to VNode  -  super tables are on MNode, never part of batch meta txn
   if (pConn->txnId > 0 && (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST)) {
     tbType = 0;
     code = TSDB_CODE_SUCCESS;
@@ -802,7 +783,7 @@ static void ctgResetCacheTimerImpl(void) {
   }
 
   if (taosTmrReset(ctgProcessTimerEvent, CTG_DEFAULT_CACHE_MON_MSEC, NULL, gCtgMgmt.timer, &gCtgMgmt.cacheTimer)) {
-    qError("reset catalog cache monitor timer error, timer stoppped");
+    qError("reset catalog cache monitor timer error, timer stopped");
   }
 }
 
@@ -1672,14 +1653,14 @@ _return:
 
   if (pJob) {
     int32_t code2 = taosReleaseRef(gCtgMgmt.jobPool, pJob->refId);
-    if (TSDB_CODE_SUCCESS) {
-      qError("release catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
+    if (code2 != TSDB_CODE_SUCCESS) {
+      qError("release catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
     }
 
     if (code) {
       code2 = taosRemoveRef(gCtgMgmt.jobPool, pJob->refId);
-      if (TSDB_CODE_SUCCESS) {
-        qError("remove catalog job refId:%" PRId64 " falied, error:%s", pJob->refId, tstrerror(code2));
+      if (code2 != TSDB_CODE_SUCCESS) {
+        qError("remove catalog job refId:%" PRId64 " failed, error:%s", pJob->refId, tstrerror(code2));
       }
     }
   }
@@ -1850,6 +1831,51 @@ int32_t catalogGetVstLeaves(SCatalog* pCtg, SRequestConnInfo* pConn, const char*
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tDeserializeSVstLeavesRsp(rpcRsp.pCont, rpcRsp.contLen, pRsp);
+  }
+  rpcFreeCont(rpcRsp.pCont);
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                               const char* colName) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pConn || NULL == tbFName || NULL == colName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SMndCheckColRefReq req = {0};
+  tstrncpy(req.tbFName, tbFName, sizeof(req.tbFName));
+  req.colId = colId;
+  tstrncpy(req.colName, colName, sizeof(req.colName));
+
+  int32_t reqLen = tSerializeSMndCheckColRefReq(NULL, 0, &req);
+  if (reqLen < 0) {
+    CTG_API_LEAVE(reqLen);
+  }
+  char* msg = rpcMallocCont(reqLen);
+  if (NULL == msg) {
+    CTG_API_LEAVE(terrno);
+  }
+  if (tSerializeSMndCheckColRefReq(msg, reqLen, &req) < 0) {
+    rpcFreeCont(msg);
+    CTG_API_LEAVE(TSDB_CODE_INVALID_MSG);
+  }
+
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_CHECK_COL_REF_BY_PRIV, .pCont = msg, .contLen = reqLen};
+  SRpcMsg rpcRsp = {0};
+
+  int32_t code = rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rpcRsp.code;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SMndCheckColRefRsp rsp = {0};
+    code = tDeserializeSMndCheckColRefRsp(rpcRsp.pCont, rpcRsp.contLen, &rsp);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = rsp.code;
+    }
   }
   rpcFreeCont(rpcRsp.pCont);
 
@@ -2300,10 +2326,142 @@ int32_t catalogClearCache(void) {
   CTG_API_LEAVE_NOLOCK(code);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query: ext-source catalog public APIs
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
+static void ctgNormalizeExtFuncName(const char* pIn, char* pOut, int32_t outLen) {
+  if (NULL == pOut || outLen <= 0) {
+    return;
+  }
+
+  pOut[0] = '\0';
+  if (NULL == pIn) {
+    return;
+  }
+
+  int32_t i = 0;
+  for (; i < outLen - 1 && pIn[i] != '\0'; ++i) {
+    pOut[i] = (char)tolower((unsigned char)pIn[i]);
+  }
+  pOut[i] = '\0';
+}
+
+static int32_t ctgCloneExtCapabilityFromCache(SCatalog* pCtg, const char* sourceName,
+                                              SExtSourceCapability* pCap, int64_t* pCapFetchedAt,
+                                              bool* pFound) {
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  if (NULL != pFound) {
+    *pFound = false;
+  }
+  if (NULL != pCapFetchedAt) {
+    *pCapFetchedAt = 0;
+  }
+
+  SHashObj*             pHash = NULL;
+  void*                 pHandle = NULL;
+  SExtSourceCacheEntry* pEntry = NULL;
+  int32_t               code = ctgAcquireExtSource(pCtg, sourceName, &pHash, &pHandle, &pEntry);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (NULL == pEntry) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_LOCK(CTG_READ, &pEntry->entryLock);
+  code = extCapClone(&pEntry->capability, pCap);
+  if (TSDB_CODE_SUCCESS == code && NULL != pCapFetchedAt) {
+    *pCapFetchedAt = pEntry->capFetchedAt;
+  }
+  CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
+  ctgReleaseExtSource(pCtg, pHash, pHandle);
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pFound) {
+    *pFound = true;
+  }
+
+  return code;
+}
+
+static void ctgClearExtCapabilityDemotions(SExtSourceCapability* pCap) {
+  if (NULL == pCap) {
+    return;
+  }
+
+  if (NULL != pCap->disabledFuncs) {
+    taosHashClear(pCap->disabledFuncs);
+  }
+  if (NULL != pCap->disabledOps) {
+    taosHashClear(pCap->disabledOps);
+  }
+  if (NULL != pCap->disabledTypes) {
+    taosHashClear(pCap->disabledTypes);
+  }
+  if (NULL != pCap->disabledClauses) {
+    taosHashClear(pCap->disabledClauses);
+  }
+}
+
+static int32_t ctgClearExtCapabilityDemoteEntry(SExtSourceCapability* pCap, const SExtCapDemoteSpec* pSpec) {
+  if (NULL == pCap || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  SHashObj*     pHash = NULL;
+  const void*   pKey = NULL;
+  int32_t       keyLen = 0;
+  char          funcName[TSDB_FUNC_NAME_LEN] = {0};
+
+  switch (pSpec->kind) {
+    case EXT_DEMOTE_KIND_FUNC:
+      if ('\0' == pSpec->detail.funcName[0]) {
+        return TSDB_CODE_CTG_INVALID_INPUT;
+      }
+      pHash = pCap->disabledFuncs;
+      ctgNormalizeExtFuncName(pSpec->detail.funcName, funcName, sizeof(funcName));
+      if ('\0' == funcName[0]) {
+        return TSDB_CODE_CTG_INVALID_INPUT;
+      }
+      pKey = funcName;
+      keyLen = (int32_t)strlen(funcName) + 1;
+      break;
+    case EXT_DEMOTE_KIND_OP:
+      pHash = pCap->disabledOps;
+      pKey = &pSpec->detail.opType;
+      keyLen = (int32_t)sizeof(EOperatorType);
+      break;
+    case EXT_DEMOTE_KIND_CLAUSE:
+      pHash = pCap->disabledClauses;
+      pKey = &pSpec->detail.clauseKind;
+      keyLen = (int32_t)sizeof(EExtClauseKind);
+      break;
+    case EXT_DEMOTE_KIND_TYPE:
+      pHash = pCap->disabledTypes;
+      pKey = &pSpec->detail.tsdbTypeCode;
+      keyLen = (int32_t)sizeof(int8_t);
+      break;
+    default:
+      return TSDB_CODE_CTG_INVALID_INPUT;
+  }
+
+  if (NULL == pHash || NULL == pKey || keyLen <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == taosHashGet(pHash, pKey, keyLen)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 != taosHashRemove(pHash, pKey, keyLen)) {
+    return terrno;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 int32_t catalogIsExtSource(SCatalog* pCtg, const char* sourceName, bool* pIsExtSource) {
   CTG_API_ENTER();
   if (NULL == pCtg || NULL == sourceName || NULL == pIsExtSource) {
@@ -2361,10 +2519,14 @@ int32_t catalogGetExtSourceInfo(SCatalog* pCtg, const char* sourceName, SExtSour
   tstrncpy(pInfo->options, pEntry->source.options, sizeof(pInfo->options));
   pInfo->meta_version = pEntry->source.meta_version;
   pInfo->create_time  = pEntry->source.create_time;
-  pInfo->capability   = pEntry->capability;
+  code = extCapClone(&pEntry->capability, &pInfo->capability);
   CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
 
   ctgReleaseExtSource(pCtg, pHash, pHandle);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosMemoryFree(pInfo);
+    CTG_API_LEAVE(code);
+  }
   *ppInfo = pInfo;
 
 _return:
@@ -2389,7 +2551,7 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  // Cache miss — sync fetch from mnode.
+  // Cache miss  -  sync fetch from mnode.
   SGetExtSourceRsp rsp = {0};
   code = ctgGetExtSourceFromMnode(pCtg, pConn, sourceName, &rsp, NULL);
   if (TSDB_CODE_SUCCESS != code) {
@@ -2417,12 +2579,16 @@ int32_t catalogSyncGetExtSourceInfo(SCatalog* pCtg, SRequestConnInfo* pConn, con
   tstrncpy(pInfo->options, rsp.options, sizeof(pInfo->options));
   pInfo->meta_version = rsp.meta_version;
   pInfo->create_time  = rsp.create_time;
-  pInfo->capability   = (SExtSourceCapability){0};
+  code = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+  if (TSDB_CODE_SUCCESS != code) {
+    extCapDestroy(&pInfo->capability);
+    taosMemoryFree(pInfo);
+    CTG_API_LEAVE(code);
+  }
 
   *ppInfo = pInfo;
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
-
 int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
   CTG_API_ENTER();
   if (NULL == pCtg || NULL == sourceName) {
@@ -2474,7 +2640,6 @@ int32_t catalogGetExtTableMetaFromCache(SCatalog* pCtg, const char* sourceName, 
 _return:
   CTG_API_LEAVE(code);
 }
-
 int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
                                           const SExtSourceCapability* pCap, int64_t capFetchedAt) {
   CTG_API_ENTER();
@@ -2484,6 +2649,109 @@ int32_t catalogUpdateExtSourceCapability(SCatalog* pCtg, const char* sourceName,
   CTG_API_LEAVE(ctgUpdateExtCapEnqueue(pCtg, sourceName, pCap, capFetchedAt, true));
 }
 
+int32_t catalogDemoteExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  code = extCapDemoteApply(&cap, pSpec);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetExtSourceCapability(SCatalog* pCtg, const char* sourceName,
+                                      SExtSourceCapability* pCap, bool* pFound) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pCap) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  bool    found = false;
+  int32_t code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, pCap, NULL, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    extCapDestroy(pCap);
+    CTG_API_LEAVE(code);
+  }
+
+  if (NULL != pFound) {
+    *pFound = found;
+  }
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  ctgClearExtCapabilityDemotions(&cap);
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
+                                         const SExtCapDemoteSpec* pSpec) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == sourceName || NULL == pSpec || EXT_DEMOTE_KIND_NONE == pSpec->kind) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  code = ctgClearExtCapabilityDemoteEntry(&cap, pSpec);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
+}
 int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
   CTG_API_ENTER();
   if (NULL == pCtg || NULL == pGlobalVer) {
@@ -2514,21 +2782,56 @@ int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pS
   CTG_API_LEAVE(code);
 }
 
-// Phase 1 stubs: pushdown capability disable/restore are not triggered because
-// capability bits are initialised to 0 (no pushdown).  The framework is wired
-// so the logic compiles and is ready for Phase 2.
 int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
   CTG_API_ENTER();
-  (void)pCtg;
-  (void)sourceName;
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SExtSourceCapability cap = {0};
+  bool                 found = false;
+  int64_t              capFetchedAt = 0;
+  int32_t              code = ctgCloneExtCapabilityFromCache(pCtg, sourceName, &cap, &capFetchedAt, &found);
+  if (TSDB_CODE_SUCCESS != code) {
+    goto _return;
+  }
+  if (!found) {
+    goto _return;
+  }
+
+  SExtCapDemoteSpec spec = {.kind = EXT_DEMOTE_KIND_CLAUSE, .reasonCode = EXT_DEMOTE_REASON_USER_FORCED};
+  spec.detail.clauseKind = EXT_CLAUSE_FILTER;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_PROJECTION;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_AGG;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_ORDER;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_LIMIT;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+  spec.detail.clauseKind = EXT_CLAUSE_JOIN;
+  code = extCapDemoteApply(&cap, &spec);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+
+  code = ctgUpdateExtCapEnqueue(pCtg, sourceName, &cap, capFetchedAt, true);
+
+_return:
+  extCapDestroy(&cap);
+  CTG_API_LEAVE(code);
 }
 
 int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName) {
   CTG_API_ENTER();
-  (void)pCtg;
-  (void)sourceName;
-  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+  if (NULL == pCtg || NULL == sourceName) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  CTG_API_LEAVE(catalogClearExtSourceDemotions(pCtg, sourceName));
 }
 
 void catalogDestroy(void) {
@@ -2570,7 +2873,7 @@ void catalogDestroy(void) {
    * no new ctgProcessTimerEvent() can be scheduled; take the catalog write lock
    * once more to wait for any in-flight callback that already entered under the
    * read lock to leave the catalog cache critical section before we free the
-   * cache objects below.  (The barrier must come AFTER taosTmrCleanUp — placing
+   * cache objects below.  (The barrier must come AFTER taosTmrCleanUp  -  placing
    * it before would still let a dispatched callback re-enter and touch
    * pCluster after taosHashCleanup().)
    */

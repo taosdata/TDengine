@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,7 +22,7 @@
 #include "tmsg.h"
 
 // Forward declaration: SExtColTypeMapping is defined in plannodes.h.
-// Declared here to avoid a common → nodes layer dependency.
+// Declared here to avoid a common  ->  nodes layer dependency.
 typedef struct SExtColTypeMapping SExtColTypeMapping;
 #include "tjson.h"
 
@@ -64,13 +66,77 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_CONTEXT_POLICY_FRAME_VERSION 1
 #define STREAM_ANCESTOR_CONTEXT_VERSION     2
 #define STREAM_ANCESTOR_FRAME_VERSION      1
+#define STREAM_FETCH_RESET_MODE_FRAME_VERSION 1
+#define STREAM_TWO_PASS_RESCAN_FRAME_VERSION  1
+#define STREAM_RUNNER_FETCH_FRAME_VERSION     1
+#define STREAM_READER_FETCH_ID_FRAME_VERSION   1
+#define STREAM_READER_FETCH_ID_FRAME_MAGIC     UINT32_C(0x4e575246)
+#define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
+#define STREAM_READER_DIMENSION_BATCH_FRAME_VERSION 1
+#define STREAM_RUNNER_EOG_BATCH_FRAME_VERSION  1
+#define STREAM_RUNNER_FETCH_BATCH_VERSION      1
+#define STREAM_RUNNER_EOG_BATCH_MAX            64
+#define STREAM_READER_FETCH_BATCH_VERSION      1
 #define STREAM_WINDOW_MAX_LAYERS           8
 #define STREAM_NESTED_TRIGGER_ID_LEN       33
+#define STREAM_CALC_REQ_MAX_WIN_NUM           40960
 #define STREAM_WINDOW_PLAN_FRAME_MAGIC     UINT32_C(0x4e57504c)
 #define STREAM_CONTEXT_POLICY_FRAME_MAGIC   UINT32_C(0x4e574350)
 #define STREAM_ANCESTOR_FRAME_MAGIC        UINT32_C(0x4e574354)
+#define STREAM_FETCH_RESET_MODE_FRAME_MAGIC   UINT32_C(0x4e574652)
+#define STREAM_TWO_PASS_RESCAN_FRAME_MAGIC    UINT32_C(0x4e575052)
+#define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
+#define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
+#define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
+#define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
+
+typedef enum EStreamRunnerFetchType {
+  STREAM_RUNNER_FETCH_LEGACY = 0,
+  STREAM_RUNNER_FETCH_DATA = 1,
+  STREAM_RUNNER_FETCH_EOG = 2,
+  STREAM_READER_FETCH_BATCH = 3,
+  STREAM_RUNNER_FETCH_BATCH = 4,
+} EStreamRunnerFetchType;
+
+typedef struct {
+  int8_t       type;
+  uint64_t     baseGId;
+  SSDataBlock* pBlock;  // owned for DATA, NULL for EOG
+} SStreamReaderFetchItem;
+
+/** Decodes an exact Reader batch payload. The returned array owns all DATA blocks. */
+int32_t tDecodeStreamReaderFetchBatch(const void* pData, int32_t len, SArray** ppItems);
+void    tDestroyStreamReaderFetchItem(void* pItem);
+
+typedef struct SStreamRunnerFetchFrame {
+  EStreamRunnerFetchType type;
+  uint64_t               baseGId;
+  SArray*                pLineage;  // owned SArray<int64_t>, DATA only
+} SStreamRunnerFetchFrame;
+
+int32_t tSerializeSStreamRunnerFetchFrame(void* buf, int32_t bufLen, const SStreamRunnerFetchFrame* pFrame);
+/**
+ * pFrame must be zero-initialized or initialized by a previous call to this function. Any owned state is released
+ * before decoding, and pFrame is left empty on failure.
+ */
+int32_t tDeserializeSStreamRunnerFetchFrame(const void* buf, int32_t bufLen, SStreamRunnerFetchFrame* pFrame);
+int32_t tValidateSStreamRunnerFetchFrame(const SStreamRunnerFetchFrame* pFrame, int64_t rows);
+void    tDestroySStreamRunnerFetchFrame(SStreamRunnerFetchFrame* pFrame);
+
+/** Owns at most one DATA block with its lineage, followed by EOG gids. */
+typedef struct SStreamRunnerFetchBatch {
+  SSDataBlock*            pBlock;
+  SStreamRunnerFetchFrame dataFrame;
+  SArray*                 pEogGids;  // owned SArray<uint64_t>
+} SStreamRunnerFetchBatch;
+
+int32_t tValidateSStreamRunnerFetchBatch(const SStreamRunnerFetchBatch* pBatch);
+int32_t tSerializeSStreamRunnerFetchBatch(void* buf, int32_t bufLen, const SStreamRunnerFetchBatch* pBatch);
+/** pBatch must be initialized; prior owned state is released, and any decode failure leaves it empty. */
+int32_t tDeserializeSStreamRunnerFetchBatch(const void* buf, int32_t bufLen, SStreamRunnerFetchBatch* pBatch);
+void    tDestroySStreamRunnerFetchBatch(SStreamRunnerFetchBatch* pBatch);
 
 #define PLACE_HOLDER_NONE             0
 #define PLACE_HOLDER_PREV_TS          BIT_FLAG_MASK(0)
@@ -86,11 +152,12 @@ typedef struct STokenBucket       STokenBucket;
 #define PLACE_HOLDER_PARTITION_IDX    BIT_FLAG_MASK(10)
 #define PLACE_HOLDER_PARTITION_TBNAME BIT_FLAG_MASK(11)
 #define PLACE_HOLDER_PARTITION_ROWS   BIT_FLAG_MASK(12)
-#define PLACE_HOLDER_GRPID            BIT_FLAG_MASK(13)
-#define PLACE_HOLDER_IDLE_START       BIT_FLAG_MASK(14)
-#define PLACE_HOLDER_IDLE_END         BIT_FLAG_MASK(15)
-#define PLACE_HOLDER_ROLLUP_TAG       BIT_FLAG_MASK(16)
-#define PLACE_HOLDER_ROLLUP_TBCOUNT   BIT_FLAG_MASK(17)
+#define PLACE_HOLDER_GRPID                BIT_FLAG_MASK(13)
+#define PLACE_HOLDER_IDLE_START           BIT_FLAG_MASK(14)
+#define PLACE_HOLDER_IDLE_END             BIT_FLAG_MASK(15)
+#define PLACE_HOLDER_ROLLUP_TAG           BIT_FLAG_MASK(16)
+#define PLACE_HOLDER_ROLLUP_TBCOUNT       BIT_FLAG_MASK(17)
+#define PLACE_HOLDER_EVENT_CONDITION_PATH BIT_FLAG_MASK(18)
 
 #define CREATE_STREAM_FLAG_NONE                     0
 #define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
@@ -192,6 +259,11 @@ typedef union {
   SPeriodTrigger   period;
 } SStreamTrigger;
 
+typedef struct SStreamTimeConfig {
+  char   timezone[TD_TIMEZONE_LEN];
+  int8_t firstDayOfWeek;
+} SStreamTimeConfig;
+
 typedef struct {
   int16_t tsSlotId;
   int16_t pkSlotId;
@@ -273,6 +345,7 @@ typedef struct {
 typedef struct {
   SArray* pParamContexts;
   SArray* pReadScopeBindings;
+  SSHashObj* pParamIndex;
 } SStreamAncestorContext;
 
 typedef enum {
@@ -289,6 +362,19 @@ typedef struct {
 typedef struct {
   SArray* pEntries;
 } SStreamContextPolicy;
+
+typedef struct SStreamContextFrames {
+  int32_t                       size;
+  void*                         pData;
+  const SStreamContextPolicy*   pContextPolicy;    // borrowed identity anchor
+  const SStreamAncestorContext* pAncestorContext;  // borrowed identity anchor
+  SArray*                       pPolicyRefs;
+  SArray*                       pParamRefs;
+  SArray*                       pBindingRefs;
+} SStreamContextFrames;
+
+typedef struct SStreamPreparedFetchContext  SStreamPreparedFetchContext;
+typedef struct SStreamFetchContextSelection SStreamFetchContextSelection;
 
 typedef struct {
   bool    isExtTrigger;
@@ -353,6 +439,8 @@ typedef struct {
   void*          partitionCols;         // nodelist of SColumnNode
   void*          rollupTagCols;         // serialized SNodeList* of SColumnNode; NULL = not rollup
   SArray*        outCols;               // array of SFieldWithOptions
+  SArray*        outStbFullCols;        // full out stb columns when outStbExists
+  SArray*        outStbFullColCids;      // colIds for outStbFullCols
   SArray*        outTags;               // array of SFieldWithOptions
   int64_t        maxDelay;              // precision is ms
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
@@ -402,6 +490,7 @@ typedef struct {
   SArray* colCids;       // array of SStreamCidCol, only available when colCids is not empty
   SArray* tagCids;       // array of SStreamCidTag, only available when tagCids is not empty
   int8_t  nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = default
+  SStreamTimeConfig timeConfig;
 
   // Federated query: external source trigger / calc reader specs.
   // Built by parser (Pt A4) when the stream references any EXTERNAL SOURCE
@@ -412,6 +501,23 @@ typedef struct {
   int32_t numOfExtSpecs;
   SArray* extSpecs;
   SStreamWindowPlan* pWindowPlan;
+
+  // batch-meta-txn (stream phase 2): owning txn, 0 = not in a txn. Encoded in the
+  // outer frame of tSerializeSCMCreateStreamReq, NOT in the JSON body, because the
+  // JSON body is what gets persisted into SDB as part of SStreamObj.pCreate - a
+  // txnId baked in there would outlive the txn. The authoritative persisted copy
+  // is SStreamObj.txnId.
+  txn_id_t txnId;
+
+  // batch-meta-txn (stream phase 2): 1 when the INTO target already exists, whatever
+  // its type. Needed because outStbExists above is only set for an existing SUPER
+  // table - translateStreamOutTable leaves it 0 for an existing NORMAL table - so it
+  // cannot answer "does the target exist?". The txn path must not try to create an
+  // existing table: unlike the non-txn path it does not honour TD_CREATE_IF_NOT_EXISTS
+  // (vnodeSvr.c takes metaCreateTable2's return code as final when txnId != 0), so the
+  // CREATE STREAM would fail with TABLE_ALREADY_EXIST inside a txn while succeeding
+  // outside one. Encoded in the outer frame, same reasoning as txnId above.
+  int8_t outTblExists;
 } SCMCreateStreamReq;
 
 typedef enum SStreamMsgType {
@@ -421,6 +527,9 @@ typedef enum SStreamMsgType {
   STREAM_MSG_UPDATE_RUNNER,
   STREAM_MSG_USER_RECALC,
   STREAM_MSG_RUNNER_ORIGTBL_READER,
+  STREAM_MSG_EXT_ORIGTBL_READER_INFO,
+  STREAM_MSG_EXT_SOURCE_IDENTITY_INFO,
+  STREAM_MSG_MIXED_ORIGTBL_READER_INFO,
 } SStreamMsgType;
 
 typedef struct SStreamMsg {
@@ -468,10 +577,10 @@ typedef enum EStreamTaskType {
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
 /* External source trigger spec, carried for each EXT reader task in
- * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>) — this is the
+ * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>)  -  this is the
  * sole persisted home; SStreamObj itself does not keep a separate copy.
  * Serialized as JSON via extTriggerSpecToJson/jsonToExtTriggerSpec
- * (streamJson.c). See DS §6.2.1 for the full field semantics. */
+ * (streamJson.c). See DS section 6.2.1 for the full field semantics. */
 typedef struct SStreamExtTriggerSpec {
   char        sourceName[TSDB_EXT_SOURCE_NAME_LEN];  // External source name
   int8_t      sourceType;                            // EExtSourceType (tmsg.h:225): MySQL/PostgreSQL/InfluxDB/TDengine.
@@ -482,6 +591,7 @@ typedef struct SStreamExtTriggerSpec {
   char        extSchema[TSDB_EXT_SOURCE_SCHEMA_LEN]; // Default schema (PG only; empty for MySQL/InfluxDB)
   char        extTable[TSDB_TABLE_NAME_LEN];         // External table name
   char        tsColumn[TSDB_COL_NAME_LEN];           // Resolved ts column
+  int8_t      precision;                             // Stream trigger table precision for returned timestamp columns
   SArray*     triggerColumns;                        // col names referenced by trigger (SArray<char[TSDB_COL_NAME_LEN]>)
   // Column type mappings for triggerColumns: one SExtColTypeMapping entry per
   // triggerColumns element, in the same order.  Built from SColumnNode.resType
@@ -509,6 +619,8 @@ typedef struct SStreamExtTriggerSpec {
   // path).  NULL/empty means no pre-filter for the trigger reader.
   // Null-terminated C string; its length is self-describing via strlen.
   char*       triggerPrefilter;
+  int32_t     tagCondLen;
+  char*       tagCondJson;
   // --- Connection snapshot (sized via the SCreateExtSourceReq / SGetExtSourceRsp
   //     field set in tmsg.h:235-248) ---
   char        host[TSDB_EXT_SOURCE_HOST_LEN];        // External source host/IP
@@ -580,8 +692,124 @@ void    tFreeSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec);
 #define INFLUXDB_PARTITION_BY_TBNAME "__tbname__"
 typedef enum SStreamMgmtReqType {
   STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER = 0,
-  STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER
+  STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER,
+  STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER,
+  STREAM_MGMT_REQ_TRIGGER_EXT_SOURCE_IDENTITY,
+  STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER,
 } SStreamMgmtReqType;
+
+#define STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION 2
+#define STREAM_EXT_ORIGTBL_READER_MAX_COLUMNS TSDB_MAX_COLUMNS_NON_VIRTUAL
+#define STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN TSDB_MAX_JSON_TAG_LEN
+
+typedef struct SStreamExtSourceIdentityReq {
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char    dbName[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char    tableName[TSDB_TABLE_NAME_LEN];
+  int32_t tagCondLen;
+  char*   tagCondJson;
+} SStreamExtSourceIdentityReq;
+
+typedef struct SStreamExtSourceIdentityRsp {
+  SStreamExtSourceIdentityReq req;
+  int8_t                      sourceType;
+  int64_t                     sourceConfigVersion;
+  int32_t                     code;
+} SStreamExtSourceIdentityRsp;
+
+void    tFreeSStreamExtSourceIdentityReq(SStreamExtSourceIdentityReq* pReq);
+void    tFreeSStreamExtSourceIdentityRsp(SStreamExtSourceIdentityRsp* pRsp);
+int32_t tCloneSStreamExtSourceIdentityReq(const SStreamExtSourceIdentityReq* pSrc, SStreamExtSourceIdentityReq** ppDst);
+int32_t tCloneSStreamExtSourceIdentityRsp(const SStreamExtSourceIdentityRsp* pSrc, SStreamExtSourceIdentityRsp** ppDst);
+int32_t tEncodeSStreamExtSourceIdentityReq(SEncoder* pEncoder, const SStreamExtSourceIdentityReq* pReq);
+int32_t tDecodeSStreamExtSourceIdentityReq(SDecoder* pDecoder, SStreamExtSourceIdentityReq* pReq);
+int32_t tEncodeSStreamExtSourceIdentityRsp(SEncoder* pEncoder, const SStreamExtSourceIdentityRsp* pRsp);
+int32_t tDecodeSStreamExtSourceIdentityRsp(SDecoder* pDecoder, SStreamExtSourceIdentityRsp* pRsp);
+
+typedef enum EStreamExtOrigTblReaderCapability {
+  STREAM_EXT_ORIGTBL_READER_CAP_CREATE = 1 << 0,
+  STREAM_EXT_ORIGTBL_READER_CAP_START = 1 << 1,
+  STREAM_EXT_ORIGTBL_READER_CAP_PATCH = 1 << 2,
+  STREAM_EXT_ORIGTBL_READER_CAP_RECOVER = 1 << 3,
+} EStreamExtOrigTblReaderCapability;
+
+typedef struct SStreamExtOrigTblReaderIdentity {
+  char sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char dbName[TSDB_EXT_SOURCE_DATABASE_LEN];
+  char schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+} SStreamExtOrigTblReaderIdentity;
+
+typedef struct SStreamTaskAddr {
+  int64_t taskId;
+  int32_t nodeId;
+  SEpSet  epset;
+} SStreamTaskAddr;
+
+int32_t tDecodeSStreamTaskAddr(SDecoder* pDecoder, SStreamTaskAddr* pMsg);
+int32_t tEncodeSStreamTaskAddr(SEncoder* pEncoder, const SStreamTaskAddr* pMsg);
+
+typedef enum EStreamExtOrigTblReaderBindingKind {
+  STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER = 0,
+  STREAM_EXT_ORIGTBL_READER_BINDING_CALC = 1,
+} EStreamExtOrigTblReaderBindingKind;
+
+typedef struct SStreamExtOrigTblReaderBinding {
+  int64_t bindingId;
+  int64_t virtualUid;
+  int64_t virtualGid;
+  int32_t virtualSlot;
+  int8_t  kind;  // EStreamExtOrigTblReaderBindingKind
+  char    externalColumn[TSDB_COL_NAME_LEN];
+  int8_t  expectedType;
+  int32_t resultColumnSlot;
+} SStreamExtOrigTblReaderBinding;
+
+typedef struct SStreamExtOrigTblReaderResult {
+  SStreamExtOrigTblReaderBinding binding;
+  int8_t                          actualType;
+  int32_t                         code;
+} SStreamExtOrigTblReaderResult;
+
+#define STREAM_EXT_ORIGTBL_READER_MAX_BINDINGS \
+  ((int32_t)(TSDB_MAX_MSG_SIZE / sizeof(SStreamExtOrigTblReaderResult)))
+
+typedef struct SStreamExtOrigTblReaderReq {
+  int64_t                         registryEntryId;
+  int64_t                         deploymentGeneration;
+  int32_t                         protocolVersion;
+  int32_t                         capabilities;
+  int8_t                          sourceType;
+  int64_t                         sourceConfigVersion;
+  SStreamExtOrigTblReaderIdentity identity;
+  int32_t                         tagCondLen;
+  char                           *tagCondJson;
+  SArray*                         bindings;  // SArray<SStreamExtOrigTblReaderBinding>
+} SStreamExtOrigTblReaderReq;
+
+typedef struct SStreamExtOrigTblReaderRsp {
+  int64_t                         registryEntryId;
+  int64_t                         deploymentGeneration;
+  int32_t                         protocolVersion;
+  int32_t                         capabilities;
+  SStreamExtOrigTblReaderIdentity identity;
+  SStreamTaskAddr                 readerTaskAddr;
+  int32_t                         acceptedTriggerBindingCount;
+  int32_t                         acceptedCalcBindingCount;
+  int32_t                         code;
+  SArray*                         results;  // SArray<SStreamExtOrigTblReaderResult>
+} SStreamExtOrigTblReaderRsp;
+
+void    tFreeSStreamExtOrigTblReaderReq(SStreamExtOrigTblReaderReq* pReq);
+void    tFreeSStreamExtOrigTblReaderRsp(SStreamExtOrigTblReaderRsp* pRsp);
+int32_t tCloneSStreamExtOrigTblReaderReq(const SStreamExtOrigTblReaderReq* pSrc, SStreamExtOrigTblReaderReq** ppDst);
+int32_t tCloneSStreamExtOrigTblReaderRsp(const SStreamExtOrigTblReaderRsp* pSrc, SStreamExtOrigTblReaderRsp** ppDst);
+int32_t tEncodeSStreamExtOrigTblReaderReq(SEncoder* pEncoder, const SStreamExtOrigTblReaderReq* pReq);
+int32_t tDecodeSStreamExtOrigTblReaderReq(SDecoder* pDecoder, SStreamExtOrigTblReaderReq* pReq);
+int32_t tEncodeSStreamExtOrigTblReaderRsp(SEncoder* pEncoder, const SStreamExtOrigTblReaderRsp* pRsp);
+int32_t tDecodeSStreamExtOrigTblReaderRsp(SDecoder* pDecoder, SStreamExtOrigTblReaderRsp* pRsp);
+int32_t tDecodeSStreamExtOrigTblReaderBindings(SDecoder* pDecoder, SArray** ppBindings);
 
 typedef struct SStreamDbTableName {
   char dbFName[TSDB_DB_FNAME_LEN];
@@ -603,6 +831,9 @@ typedef struct SStreamOReaderDeployRsp {
 typedef struct SStreamMgmtReqCont {
   SArray*            pReqs;  // for trigger SArray<SStreamDbTableName>, full table names of the original tables
                              // for runner  SArray<SStreamOReaderDeployReq>, original tables groups
+  SStreamExtOrigTblReaderReq* pExtOrigTblReader;
+  SArray*                     pExtOrigTblReaders;  // SArray<SStreamExtOrigTblReaderReq>
+  SStreamExtSourceIdentityReq* pExtSourceIdentity;
 } SStreamMgmtReqCont;
 
 typedef struct SStreamMgmtReq {
@@ -613,6 +844,8 @@ typedef struct SStreamMgmtReq {
 
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
 int32_t tCloneSStreamMgmtReq(SStreamMgmtReq* pSrc, SStreamMgmtReq** ppDst);
+int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq);
+int32_t tDecodeSStreamMgmtReq(SDecoder* pDecoder, SStreamMgmtReq* pReq);
 void tFreeRunnerOReaderDeployReq(void* param);
 
 typedef void (*taskUndeplyCallback)(void*);
@@ -662,6 +895,15 @@ typedef struct SStreamMgmtRspCont {
 
   // FOR STREAM_MSG_RUNNER_ORIGTBL_READER
   SArray*    execRspList;  // SArray<SStreamOReaderDeployRsp>
+
+  // FOR STREAM_MSG_EXT_ORIGTBL_READER_INFO
+  SStreamExtOrigTblReaderRsp* pExtOrigTblReader;
+
+  // FOR STREAM_MSG_EXT_SOURCE_IDENTITY_INFO
+  SStreamExtSourceIdentityRsp* pExtSourceIdentity;
+
+  // FOR STREAM_MSG_MIXED_ORIGTBL_READER_INFO
+  SArray*                      pExtOrigTblReaders;  // SArray<SStreamExtOrigTblReaderRsp>
 } SStreamMgmtRspCont;
 
 typedef struct SStreamMgmtRsp {
@@ -671,6 +913,9 @@ typedef struct SStreamMgmtRsp {
   SStreamTask        task;
   SStreamMgmtRspCont cont;
 } SStreamMgmtRsp;
+
+int32_t tEncodeSStreamMgmtRsp(SEncoder* pEncoder, const SStreamMgmtRsp* pRsp);
+int32_t tDecodeSStreamMgmtRsp(SDecoder* pDecoder, SStreamMgmtRsp* pRsp);
 
 typedef struct SStreamRecalcReq {
   int64_t recalcId;
@@ -819,18 +1064,10 @@ typedef union {
 
 typedef struct SStreamReaderDeployMsg {
   int8_t                 triggerReader;
+  bool                   ownsExtSpec;  // true when mnode allocated a transient external reader spec
   SStreamExtTriggerSpec* pExtSpec;  // P1 B5: non-NULL for federated (EXT-source) reader tasks
   SStreamReaderDeploy    msg;
 } SStreamReaderDeployMsg;
-
-typedef struct SStreamTaskAddr {
-  int64_t taskId;
-  int32_t nodeId;
-  SEpSet  epset;
-} SStreamTaskAddr;
-
-int32_t tDecodeSStreamTaskAddr(SDecoder* pDecoder, SStreamTaskAddr* pMsg);
-int32_t tEncodeSStreamTaskAddr(SEncoder* pEncoder, const SStreamTaskAddr* pMsg);
 
 typedef struct SStreamRunnerTarget {
   SStreamTaskAddr addr;
@@ -889,6 +1126,7 @@ typedef struct {
   int32_t leaderSnodeId;
   char*   streamName;
   int8_t  nodelayCreateSubtable;  // 1 = create sub-tables at stream create time; 0 = create on the fly during trigger
+  SStreamTimeConfig timeConfig;
 } SStreamTriggerDeployMsg;
 
 typedef struct SStreamRunnerDeployMsg {
@@ -908,7 +1146,9 @@ typedef struct SStreamRunnerDeployMsg {
   int32_t addOptions;
 
   SArray*  outCols;  // array of SFieldWithOptions
-  SArray*  outTags;  // array of SFieldWithOptions
+  SArray*  outStbFullCols;     // full out stb columns when outStbExists
+  SArray*  outStbFullColCids;  // colIds for outStbFullCols
+  SArray*  outTags;            // array of SFieldWithOptions
   uint64_t outStbUid;
   int64_t  outStbSversion;
 
@@ -1044,12 +1284,25 @@ int32_t tEncodeStreamWindowPlan(SEncoder* pEncoder, const SStreamWindowPlan* pPl
 int32_t tDecodeStreamWindowPlan(SDecoder* pDecoder, SStreamWindowPlan** ppPlan);
 int32_t tCloneStreamAncestorContext(const SStreamAncestorContext* pSrc, SStreamAncestorContext** ppDst);
 void    tDestroyStreamAncestorContext(SStreamAncestorContext** ppContext);
+int32_t tPrepareStreamAncestorParamIndex(SStreamAncestorContext* pContext);
+int32_t tLookupStreamAncestorParam(const SStreamAncestorContext* pContext, int64_t gid, int32_t paramIndex,
+                                   const SStreamAncestorParamContext** ppParam);
 int32_t tEncodeStreamAncestorContext(SEncoder* pEncoder, const SStreamAncestorContext* pContext);
 int32_t tDecodeStreamAncestorContext(SDecoder* pDecoder, SStreamAncestorContext** ppContext);
+int32_t tDecodeStreamAncestorContextWithOffsets(SDecoder* pDecoder, SStreamAncestorContext** ppContext,
+                                                SArray** ppParamRefs, SArray** ppBindingRefs);
 int32_t tCloneStreamContextPolicy(const SStreamContextPolicy* pSrc, SStreamContextPolicy** ppDst);
 void    tDestroyStreamContextPolicy(SStreamContextPolicy** ppPolicy);
 int32_t tEncodeStreamContextPolicy(SEncoder* pEncoder, const SStreamContextPolicy* pPolicy);
 int32_t tDecodeStreamContextPolicy(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy);
+int32_t tDecodeStreamContextPolicyWithOffsets(SDecoder* pDecoder, SStreamContextPolicy** ppPolicy, SArray** ppRefs);
+void    tDestroyStreamContextFrames(SStreamContextFrames** ppFrames);
+// Optional retention: allocation failure leaves *ppFrames NULL.
+void    tTryRetainStreamContextFrames(const SDecoder* pDecoder, int32_t policyStart, int32_t policyLength,
+                                      int32_t ancestorStart, int32_t ancestorLength, const SStreamContextPolicy* pPolicy,
+                                      const SStreamAncestorContext* pContext, SArray** ppPolicyRefs,
+                                      int32_t policyPayloadStart, SArray** ppParamRefs, SArray** ppBindingRefs,
+                                      int32_t ancestorPayloadStart, SStreamContextFrames** ppFrames);
 int32_t tAdmitStreamContext(const SStreamContextPolicy* pPolicy, const SStreamAncestorContext* pContext,
                             bool requiresContextPolicy);
 int32_t tProjectStreamAncestorContext(const SStreamAncestorContext* pSrc, int64_t gid, int32_t srcParamIndex,
@@ -1098,8 +1351,8 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_DATA_NEW,
   STRIGGER_PULL_WAL_META_DATA_NEW,
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
-  /* External-source PULL subtypes — all transported via TDMT_STREAM_TRIGGER_PULL_EXT.
-   * See DS §6.1.5 and §6.2.4 for request/response semantics. */
+  /* External-source PULL subtypes  -  all transported via TDMT_STREAM_TRIGGER_PULL_EXT.
+   * See DS section 6.1.5 and section 6.2.4 for request/response semantics. */
   STRIGGER_PULL_LAST_TS_EXT,      /* returns SArray<{uid,gid,ts}>          */
   STRIGGER_PULL_META_EXT,         /* returns SSDataBlock metaBlock         */
   STRIGGER_PULL_DATA_EXT,         /* returns dataBlock + indexHash         */
@@ -1273,9 +1526,14 @@ typedef enum {
 typedef struct SVTableRefResolveItem {
   int8_t  kind;                                  // EStreamVRefKind
   bool    hasRef;                                // false => triple is NULL/empty (no ref); true => triple is a real ref
+  int8_t  refType;                               // 0=internal, 1=external terminal
+  char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char    refDbName   [TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName  [TSDB_COL_NAME_LEN];
+  int32_t tagCondLen;                              // serialized SERIES condition length, excluding NUL
+  char   *tagCondJson;                             // owned by resolve responses; NULL for no condition
 } SVTableRefResolveItem;
 
 // Per-column spec within a table-grouped request item.
@@ -1324,7 +1582,7 @@ void    tDestroySTriggerOrigTableInfoRsp(SSTriggerOrigTableInfoRsp* pReq);
 
 /* ---------------------------------------------------------------------------
  * External-source (ETR) PULL request / response structures.
- * Transported via TDMT_STREAM_TRIGGER_PULL_EXT.  See DS §6.2.4.
+ * Transported via TDMT_STREAM_TRIGGER_PULL_EXT.  See DS section 6.2.4.
  * The request is (de)serialized by the STRIGGER_PULL_*_EXT cases of
  * tSerialize/tDeserializeSTriggerPullRequest; the response by
  * tSerialize/tDeserializeSSTriggerExtPullRsp (both in streamMsg.c).
@@ -1359,6 +1617,7 @@ typedef struct SExtIndexEntry {
  */
 typedef struct SSTriggerExtPullReq {
   SSTriggerPullRequest base;           /* base.type = STRIGGER_PULL_*_EXT   */
+  int64_t deploymentGeneration;        /* echoed by SSTriggerExtPullRsp for stale response filtering */
   /* Trigger always carries the full uid->maxTs watermark map so the reader
    * can use it directly without maintaining local state.
    * pUidMaxTs is SSHashObj<int64_t uid, int64_t maxTs>; borrowed ref. */
@@ -1385,6 +1644,7 @@ typedef struct SSTriggerExtPullReq {
 typedef struct SSTriggerExtPullRsp {
   ESTriggerPullType pullType;
   int32_t           code;       /* TSDB_CODE_SUCCESS or error */
+  int64_t           deploymentGeneration; /* copied from SSTriggerExtPullReq */
   /* LAST_TS_EXT response */
   SArray           *pLastTsArr; /* SArray<SExtLastTsInfo>; owned, caller frees */
   /* META_EXT / META_DATA_EXT response */
@@ -1459,6 +1719,7 @@ typedef struct SSTriggerCalcParam {
   int64_t triggerTime;  // _tlocaltime
 
   int32_t notifyType;           // See also: ESTriggerEventType
+  char*   eventConditionPath;   // _event_condition_path
   char*   extraNotifyContent;   // NULL if not available
   char*   resultNotifyContent;  // does not serialize
   SArray* pExternalWindowData;
@@ -1504,12 +1765,20 @@ typedef struct SSTriggerCalcRequest {
   SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
   SStreamContextPolicy*   pContextPolicy;
   SStreamAncestorContext* pAncestorContext;
+  SStreamContextFrames*   pContextFrames;  // optional owned validated frame copy
 
-  // The following fields are not serialized and only used by the runner task
+  // The following fields are not serialized
+  int32_t assembledParamCount;  // only used by the trigger task
+
+  // The following fields are only used by the runner task
   bool    brandNew;   // no serialize
   int32_t execId;     // no serialize
   int32_t curWinIdx;  // no serialize
   void*   pOutBlock;  // no serialize
+  SStreamRunnerFetchFrame      outFrame;   // no serialize, owned runner output
+  bool                         runnerEogBatch;        // no serialize, negotiated fetch capability
+  SStreamRunnerFetchBatch      outBatch;              // no serialize, owned runner output
+  bool                         outFinished;           // no serialize
   uint64_t progressStepId;        // no serialize
   uint64_t progressRequestToken;  // no serialize
   SStreamManualRecalcAttemptId manualAttempt;         // no serialize
@@ -1517,6 +1786,8 @@ typedef struct SSTriggerCalcRequest {
 
 int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTriggerCalcRequest* pReq);
 int32_t tDeserializeSTriggerCalcRequest(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+int32_t tDeserializeSTriggerCalcRequestWithContextFrames(void* buf, int32_t bufLen, SSTriggerCalcRequest* pReq);
+int32_t tValidateSTriggerCalcRequest(const SSTriggerCalcRequest* pReq);
 int32_t tValidateSTriggerCalcRequestAncestorContext(const SSTriggerCalcRequest* pReq, bool nested);
 void    tDestroySSTriggerCalcParam(void* ptr);
 void    tDestroySSTriggerGroupCalcInfo(void* ptr);
@@ -1543,6 +1814,12 @@ typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_STOP = 1,
 } ESTriggerCtrlType;
 
+typedef enum {
+  STREAM_GRP_READ_BORROWED = 0,
+  STREAM_GRP_READ_OWNED_SHALLOW_VIEW,
+  STREAM_GRP_READ_OWNED_DEEP,
+} EStreamGroupReadOwnership;
+
 typedef struct SSTriggerCtrlRequest {
   ESTriggerCtrlType type;
   int64_t           streamId;
@@ -1562,18 +1839,21 @@ typedef struct SStreamRuntimeFuncInfo {
   SArray* pStreamPartColVals;
 
   // The following fields are used for multi-group calculation
-  SSHashObj* pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
-  SSHashObj* pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
-  SSTriggerGroupCalcInfo* curGrpCalc;
-  int32_t                 curNodeId;
-  SArray*                 curGrpRead; // SArray<SSTriggerGroupReadInfo>
-  
+  SSHashObj*                pGroupCalcInfos;  // SSHashObj<gid int64_t, info SSTriggerGroupCalcInfo>
+  SArray*                   pGroupCalcOrder;  // no serialize, SArray<uint64_t>, owned by runtime
+  SSHashObj*                pGroupReadInfos;  // SSHashObj<vgId int32_t, pInfos SArray<SSTriggerGroupReadInfo>*>
+  SSTriggerGroupCalcInfo*   curGrpCalc;
+  int32_t                   curNodeId;
+  SArray*                   curGrpRead;  // SArray<SSTriggerGroupReadInfo>
+  EStreamGroupReadOwnership curGrpReadOwnership;
+
   SArray* pStreamBlkWinIdx;  // no serialize, SArray<int64_t->winOutIdx+rowStartIdx>
   STimeWindow curWindow;
 //  STimeWindow wholeWindow;
   int64_t groupId;
   int32_t rollupTbCount;
   int32_t curIdx; // for pesudo func calculation
+  char*    curEventConditionPath;
   int64_t sessionId;
   uint64_t streamGen;
   bool    withExternalWindow;
@@ -1589,12 +1869,60 @@ typedef struct SStreamRuntimeFuncInfo {
   char*   outNormalTable;
 } SStreamRuntimeFuncInfo;
 
+/** Borrowed members require the source to outlive this view. After prepare, keep
+ * the view at a stable address: runtime points into its embedded structs. Do not
+ * copy the prepared view by value. Clear only with tClearStreamReaderFetchView. */
+typedef struct SStreamReaderFetchView {
+  SStreamRuntimeFuncInfo runtime;
+  SStreamContextPolicy   policy;
+  SStreamAncestorContext ancestor;
+  bool                   borrowedDimensionBatch;
+} SStreamReaderFetchView;
+
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
+void    tClearStreamCurrentGroupRead(SStreamRuntimeFuncInfo* pInfo);
+
+typedef struct SStreamCalcContextGroupView {
+  int64_t                 gid;
+  SStreamContextPolicy*   pContextPolicy;
+  SStreamAncestorContext* pAncestorContext;
+} SStreamCalcContextGroupView;
+
+int32_t tProjectStreamCalcContextForAllGroups(const SStreamContextPolicy*   pPolicy,
+                                              const SStreamAncestorContext* pContext, SArray** ppViews);
+void    tDestroyStreamCalcContextGroupViews(SArray** ppViews);
+int32_t tProjectStreamCalcContextForGroup(const SStreamContextPolicy* pPolicy, const SStreamAncestorContext* pContext,
+                                          int64_t gid, SStreamContextPolicy** ppPolicy,
+                                          SStreamAncestorContext** ppContext);
 int32_t tProjectStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
                                           bool effectiveNeedStreamGrpInfo, SStreamContextPolicy** ppPolicy,
                                           SStreamAncestorContext** ppContext);
+int32_t tValidateStreamCalcContextForFetch(const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo,
+                                           bool effectiveNeedStreamGrpInfo);
+int32_t tValidateStreamDimensionReaderContext(const SStreamRuntimeFuncInfo* pInfo, bool requiresContextPolicy);
+int32_t tPrepareStreamReaderFetchView(const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
+                                      SStreamReaderFetchView* pView);
+void    tClearStreamReaderFetchView(SStreamReaderFetchView* pView);
+int32_t tPrepareStreamFetchContext(const SStreamRuntimeFuncInfo* pSource, const SStreamContextFrames* pFrames,
+                                   SStreamPreparedFetchContext** ppPrepared);
+void    tDestroyStreamFetchContext(SStreamPreparedFetchContext** ppPrepared);
+int32_t tSelectStreamFetchContextForNode(const SStreamPreparedFetchContext* pPrepared,
+                                         const SStreamRuntimeFuncInfo* pSource, int32_t nodeId,
+                                         const SStreamFetchContextSelection** ppSelection);
+int32_t tSelectStreamFetchContextForGroup(const SStreamPreparedFetchContext* pPrepared,
+                                          const SStreamRuntimeFuncInfo* pSource, int64_t gid,
+                                          const SStreamFetchContextSelection** ppSelection);
+int32_t tSelectStreamFetchContextForDimensionBatch(const SStreamPreparedFetchContext*   pPrepared,
+                                                   const SStreamRuntimeFuncInfo*        pSource,
+                                                   const SStreamFetchContextSelection** ppSelection);
+bool    tStreamFetchSelectionBelongsToPrepared(const SStreamPreparedFetchContext*  pPrepared,
+                                               const SStreamFetchContextSelection* pSelection);
+int32_t tPrepareStreamFetchRuntimeView(const SStreamFetchContextSelection* pSelection,
+                                       const SStreamRuntimeFuncInfo* pBatch, const SStreamRuntimeFuncInfo* pCurrent,
+                                       SStreamReaderFetchView* pView);
+int32_t tEncodeStreamFetchContext(SEncoder* pEncoder, const SStreamFetchContextSelection* pSelection);
 typedef struct STsInfo {
   int64_t gId;
   int64_t  ts;
@@ -1603,6 +1931,7 @@ typedef struct STsInfo {
 typedef struct VTableInfo {
   int64_t        gId;      // group id
   int64_t        uid;      // table uid
+  char           tbName[TSDB_TABLE_NAME_LEN];
   SColRefWrapper cols;
 } VTableInfo;
 

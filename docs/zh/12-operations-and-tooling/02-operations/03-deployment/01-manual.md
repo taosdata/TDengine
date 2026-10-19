@@ -2,13 +2,16 @@
 title: 手动部署
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 ## 部署 taosd
 
 taosd 是 TDengine 集群中最主要的服务组件，本节介绍手动部署 taosd 集群的步骤。
 
 ### 清除数据
 
-如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的 TDengine，请先将其删除，并清空所有数据。
+如果搭建集群的物理节点中存在之前的测试数据或者装过其他版本（如 1.x/2.x）的 TDengine，请先将其删除，并清空所有数据。卸载旧版本和清理数据的具体步骤，请参考本页[卸载](#卸载)一节。
 
 ### 检查环境
 
@@ -209,3 +212,51 @@ http {
 ## 部署 taosExplorer
 
 TDengine 提供了可视化管理 TDengine 集群的能力，要想使用图形化界面需要部署 taosExplorer 服务，关于它的详细说明和部署请参考 [taosExplorer 参考手册](../../03-components/04-explorer.md)
+
+## 卸载
+
+TDengine 的卸载过程非常简单，在每个物理节点上执行下述步骤即可。
+
+<Tabs>
+<TabItem label="Linux 系统" value="linux">
+
+按安装方式卸载：
+
+```bash
+
+# tar.gz 安装包安装的
+sudo rmtaos
+
+# 系统包管理器安装的（Debian/Ubuntu）
+sudo apt remove tdengine
+```
+
+</TabItem>
+<TabItem label="macOS 系统" value="macos">
+
+执行 `sudo rmtaos`，该脚本会停止 `taosd` 等 launchctl 服务，并删除 `/Applications/TDengine.app` 和安装目录（默认 `/usr/local/taos`）。
+
+</TabItem>
+<TabItem label="Windows 系统" value="windows">
+
+在“设置 → 应用 → 已安装的应用”或“控制面板 → 程序和功能”中找到 TDengine 并卸载，也可以直接运行安装目录（默认 `C:\TDengine`）下的 `unins000.exe`。
+
+</TabItem>
+</Tabs>
+
+### 清理数据
+
+卸载只删除安装目录，数据、日志和配置文件默认保留，需要手动清理：
+
+- Linux/macOS：`/etc/taos`（配置）、`/var/lib/taos`（数据）、`/var/log/taos`（日志）
+- Windows：`C:\TDengine\cfg`（配置）、`C:\TDengine\data`（数据）、`C:\TDengine\log`（日志）
+
+以 Linux/macOS 为例，确认不再需要数据后执行：
+
+```shell
+sudo rm -rf /etc/taos /var/lib/taos /var/log/taos
+```
+
+- 如果修改过 `dataDir`、`logDir` 或配置目录，请清理对应的自定义目录。
+- 执行 `rmtaos` 时也可以在交互提示中直接选择删除数据、日志和配置文件，或用 `sudo rmtaos -e yes` 跳过交互确认。
+- 数据删除后不可恢复，请在确认不再需要后再执行。

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -428,7 +430,7 @@ int32_t mndGenTxnId(SMnode *pMnode, txn_id_t *pTxnId) {
 
   mndReleaseTxnSeq(pMnode, pObj);
   if (nextId <= 0) {
-    // Signed int64 wraparound — currentTxnId crossed 2^63. Engineering-impossible
+    // Signed int64 wraparound  -  currentTxnId crossed 2^63. Engineering-impossible
     // at any realistic rate (range-allocated, ~10^4 ids per range) but if it ever
     // happens, returning to caller stops txn creation rather than corrupting state.
     mError("txnSeq, txn id unavailable (exhausted-or-wrap, currentId=%" PRId64 "), refusing BEGIN",

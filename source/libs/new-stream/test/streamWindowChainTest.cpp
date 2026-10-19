@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -6,6 +23,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -238,12 +256,15 @@ using Chain = std::unique_ptr<SWindowChainState, ChainDeleter>;
 
 Chain createChain(const Plan& plan, int64_t eventTypes = STRIGGER_EVENT_WINDOW_CLOSE, int64_t maxDelayNs = 0,
                   bool flushOnOuterClose = false, int64_t notifyEventTypes = INT64_MIN,
-                  const SNodeList* eventStartCondCols = nullptr, const SNodeList* eventEndCondCols = nullptr) {
+                  const SNodeList* eventStartCondCols = nullptr, const SNodeList* eventEndCondCols = nullptr,
+                  timezone_t timezone = nullptr, int8_t firstDayOfWeek = 0) {
   SWindowChainPolicy policy = {};
   policy.flushOnOuterClose = flushOnOuterClose;
   policy.leafEventTypes = eventTypes;
   policy.leafNotifyEventTypes = notifyEventTypes == INT64_MIN ? eventTypes : notifyEventTypes;
   policy.maxDelayNs = maxDelayNs;
+  policy.timezone = timezone;
+  policy.firstDayOfWeek = firstDayOfWeek;
   policy.pEventStartCondCols = eventStartCondCols;
   policy.pEventEndCondCols = eventEndCondCols;
   SWindowChainState* state = nullptr;
@@ -1436,6 +1457,31 @@ TEST(StreamWindowChainTimeTest, naturalMonthRangeMatchesSingleWindowSemantics) {
   EXPECT_TRUE(found);
 }
 
+TEST(StreamWindowChainTimeTest, NestedIntervalUsesPolicyTimezone) {
+  constexpr int64_t                                                         day = 24LL * 60 * 60 * 1000;
+  std::unique_ptr<std::remove_pointer<timezone_t>::type, decltype(&tzfree)> timezoneGuard(tzalloc("America/New_York"),
+                                                                                          tzfree);
+  timezone_t                                                                timezone = timezoneGuard.get();
+  ASSERT_NE(nullptr, timezone);
+  Plan  plan({intervalLayer(day, day, 0, TIME_UNIT_DAY, TIME_UNIT_DAY), stateLayer()});
+  Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN, 0, false, INT64_MIN, nullptr, nullptr, timezone, 1);
+
+  int64_t timestamp = 0;
+  int64_t expectedStart = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:30:00", &timestamp, strlen("2024-01-01 00:30:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:00:00", &expectedStart, strlen("2024-01-01 00:00:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+
+  std::vector<Block> blocks;
+  SubmitResult       result = submitData(chain.get(), {timestamp, 7, false, 0, 0}, 10, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(result.value().pCandidates));
+  const auto* candidate = static_cast<const SLeafEventCandidate*>(taosArrayGet(result.value().pCandidates, 0));
+  ASSERT_NE(nullptr, candidate);
+  EXPECT_EQ(expectedStart, candidate->rootImpactExtent.skey);
+  EXPECT_EQ(expectedStart + day - 1, candidate->rootImpactExtent.ekey);
+}
+
 TEST(StreamWindowChainTimeTest, sessionExactGapBoundaryStaysInClosedRange) {
   Plan               plan({sessionLayer(20000), sessionLayer(5000)});
   Chain              chain = createChain(plan);
@@ -1890,8 +1936,10 @@ TEST(StreamWindowChainImpactDomainTest, FixedRootExpandsToCompleteScopes) {
   const STimeWindow   scanRange = {500, 3500};
   const STimeWindow   calcRange = {1700, 2300};
   SRecalcImpactDomain domain = {};
+  const SWindowChainPolicy policy = {};
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &scanRange, &calcRange, &domain));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &policy, &scanRange, &calcRange, &domain));
   ASSERT_NE(nullptr, domain.pRootExtents);
   ASSERT_EQ(1, taosArrayGetSize(domain.pRootExtents));
   const auto* extent = static_cast<const STimeWindow*>(taosArrayGet(domain.pRootExtents, 0));
@@ -1902,13 +1950,45 @@ TEST(StreamWindowChainImpactDomainTest, FixedRootExpandsToCompleteScopes) {
   stDestroyRecalcImpactDomain(&domain);
 }
 
+TEST(StreamWindowChainImpactDomainTest, FixedRootUsesPolicyTimezone) {
+  constexpr int64_t                                                         day = 24LL * 60 * 60 * 1000;
+  std::unique_ptr<std::remove_pointer<timezone_t>::type, decltype(&tzfree)> timezoneGuard(tzalloc("America/New_York"),
+                                                                                          tzfree);
+  timezone_t                                                                timezone = timezoneGuard.get();
+  ASSERT_NE(nullptr, timezone);
+  Plan                     plan({intervalLayer(day, day, 0, TIME_UNIT_DAY, TIME_UNIT_DAY), stateLayer()});
+  const SWindowChainPolicy policy = {.timezone = timezone, .firstDayOfWeek = 1};
+  int64_t                  timestamp = 0;
+  int64_t                  expectedStart = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:30:00", &timestamp, strlen("2024-01-01 00:30:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosParseTime("2024-01-01 00:00:00", &expectedStart, strlen("2024-01-01 00:00:00"),
+                                             TSDB_TIME_PRECISION_MILLI, timezone));
+  const STimeWindow   scanRange = {timestamp - 1, timestamp + 1};
+  const STimeWindow   calcRange = {timestamp, timestamp};
+  SRecalcImpactDomain domain = {};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &policy, &scanRange, &calcRange, &domain));
+  ASSERT_NE(nullptr, domain.pRootExtents);
+  ASSERT_EQ(1, taosArrayGetSize(domain.pRootExtents));
+  const auto* extent = static_cast<const STimeWindow*>(taosArrayGet(domain.pRootExtents, 0));
+  ASSERT_NE(nullptr, extent);
+  EXPECT_EQ(expectedStart, extent->skey);
+  EXPECT_EQ(expectedStart + day - 1, extent->ekey);
+
+  stDestroyRecalcImpactDomain(&domain);
+}
+
 TEST(StreamWindowChainImpactDomainTest, DataDrivenRootUsesReplayAnchorAndFrontier) {
   Plan                plan({sessionLayer(10000), stateLayer()});
   const STimeWindow   scanRange = {100, 500};
   const STimeWindow   calcRange = {200, 400};
   SRecalcImpactDomain domain = {};
+  const SWindowChainPolicy policy = {};
 
-  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &scanRange, &calcRange, &domain));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stWindowChainBuildRecalcImpactDomain(plan.get(), kGid, &policy, &scanRange, &calcRange, &domain));
   ASSERT_NE(nullptr, domain.pRootExtents);
   ASSERT_EQ(1, taosArrayGetSize(domain.pRootExtents));
   const auto* extent = static_cast<const STimeWindow*>(taosArrayGet(domain.pRootExtents, 0));
@@ -2035,6 +2115,9 @@ TEST(StreamWindowChainDataTest, StateScopeFirstNullRowDoesNotReadEmptyInstanceAr
   SubmitResult first = submitData(chain.get(), {100, 0, true, 0, 0}, 10, &blocks);
   EXPECT_EQ(TSDB_CODE_SUCCESS, terrno);
   EXPECT_EQ(0, taosArrayGetSize(first.value().pAcceptedBatches));
+  EXPECT_EQ(0, taosArrayGetSize(first.value().pCandidates));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stWindowChainAdvanceFrontier(chain.get(), 100, 20, first.value().pCandidates));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, terrno);
   EXPECT_EQ(0, taosArrayGetSize(first.value().pCandidates));
 }
 
@@ -2399,7 +2482,7 @@ TEST(StreamWindowChainStateNotifyTest, InstanceCloneStringFailureLeavesDelayedOp
   EXPECT_STREQ("{\"prevState\":null,\"curState\":[1]}", candidateAt(retry, 0)->leafParam.extraNotifyContent);
 }
 
-TEST(StreamWindowChainEventNotifyTest, OrdinaryOpenAndCloseUseLiteralLegacyJsonFromTriggerRows) {
+TEST(StreamWindowChainEventNotifyTest, OrdinaryOpenAndCloseUseConditionPathJsonFromTriggerRows) {
   ConditionColumns startColumns({{1, "startValue"}});
   ConditionColumns endColumns({{4, "endValue"}});
   Plan             plan({sessionLayer(10000), eventLayer(false)});
@@ -2414,7 +2497,7 @@ TEST(StreamWindowChainEventNotifyTest, OrdinaryOpenAndCloseUseLiteralLegacyJsonF
   expectWindowEvent(candidateAt(opened, 0), STRIGGER_EVENT_WINDOW_OPEN, 100, 100, 1, -1);
   ASSERT_NE(nullptr, candidateAt(opened, 0)->leafParam.extraNotifyContent);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"startValue\":11}},\"windowIndex\":-1}",
       candidateAt(opened, 0)->leafParam.extraNotifyContent);
 
@@ -2423,7 +2506,7 @@ TEST(StreamWindowChainEventNotifyTest, OrdinaryOpenAndCloseUseLiteralLegacyJsonF
   expectWindowEvent(candidateAt(closed, 0), STRIGGER_EVENT_WINDOW_CLOSE, 100, 200, 2, -1);
   ASSERT_NE(nullptr, candidateAt(closed, 0)->leafParam.extraNotifyContent);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"endValue\":202}},\"windowIndex\":-1}",
       candidateAt(closed, 0)->leafParam.extraNotifyContent);
 }
@@ -2444,7 +2527,7 @@ TEST(StreamWindowChainEventNotifyTest, TrueForUsesSatisfyingRowsAndFirstStreakBo
   expectWindowEvent(candidateAt(opened, 0), STRIGGER_EVENT_WINDOW_OPEN, 100, 100, 1, -1);
   ASSERT_NE(nullptr, candidateAt(opened, 0)->leafParam.extraNotifyContent);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"startValue\":22}},\"windowIndex\":-1}",
       candidateAt(opened, 0)->leafParam.extraNotifyContent);
 
@@ -2454,7 +2537,7 @@ TEST(StreamWindowChainEventNotifyTest, TrueForUsesSatisfyingRowsAndFirstStreakBo
   expectWindowEvent(candidateAt(closed, 0), STRIGGER_EVENT_WINDOW_CLOSE, 100, 300, 3, -1);
   ASSERT_NE(nullptr, candidateAt(closed, 0)->leafParam.extraNotifyContent);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"endValue\":404}},\"windowIndex\":-1}",
       candidateAt(closed, 0)->leafParam.extraNotifyContent);
 }
@@ -2475,7 +2558,7 @@ TEST(StreamWindowChainEventNotifyTest, MultiStartFreezesParentAndChildJsonAcross
   expectWindowEvent(candidateAt(first, 0), STRIGGER_EVENT_WINDOW_OPEN, 100, 100, 1, -1);
   ASSERT_NE(nullptr, candidateAt(first, 0)->leafParam.extraNotifyContent);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionPath\":\"\","
       "\"fieldValues\":{\"startValue\":11,\"identityValue\":101}},\"windowIndex\":-1}",
       candidateAt(first, 0)->leafParam.extraNotifyContent);
   std::array<char, STREAM_NESTED_TRIGGER_ID_LEN> parentEnvelopeId = {};
@@ -2490,34 +2573,34 @@ TEST(StreamWindowChainEventNotifyTest, MultiStartFreezesParentAndChildJsonAcross
   ASSERT_EQ(3, taosArrayGetSize(switched.value().pCandidates));
   expectWindowEvent(candidateAt(switched, 0), STRIGGER_EVENT_WINDOW_OPEN, 100, 100, 2, 0);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8704769108438314885\",\"triggerCondition\":{\"conditionIndex\":0,"
-      "\"fieldValues\":{\"startValue\":11,\"identityValue\":101}},\"windowIndex\":0,"
-      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\"}",
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
+      "\"fieldValues\":{\"startValue\":11,\"identityValue\":101}},"
+      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\",\"windowIndex\":0}",
       candidateAt(switched, 0)->leafParam.extraNotifyContent);
   expectWindowEvent(candidateAt(switched, 1), STRIGGER_EVENT_WINDOW_CLOSE, 100, 200, 2, 0);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8704769108438314885\",\"triggerCondition\":{\"conditionIndex\":0,"
-      "\"fieldValues\":{\"startValue\":33,\"identityValue\":303}},\"windowIndex\":0,"
-      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\"}",
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
+      "\"fieldValues\":{\"startValue\":33,\"identityValue\":303}},"
+      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\",\"windowIndex\":0}",
       candidateAt(switched, 1)->leafParam.extraNotifyContent);
   expectWindowEvent(candidateAt(switched, 2), STRIGGER_EVENT_WINDOW_OPEN, 300, 300, 1, 1);
   EXPECT_STREQ(
-      "{\"triggerId\":\"1714625911429981612\",\"triggerCondition\":{\"conditionIndex\":1,"
-      "\"fieldValues\":{\"startValue\":33,\"identityValue\":303}},\"windowIndex\":1,"
-      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\"}",
+      "{\"triggerId\":\"14549050368097824311\",\"triggerCondition\":{\"conditionPath\":\"1\","
+      "\"fieldValues\":{\"startValue\":33,\"identityValue\":303}},"
+      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\",\"windowIndex\":1}",
       candidateAt(switched, 2)->leafParam.extraNotifyContent);
 
   SubmitResult ended = submitData(chain.get(), {400, 44, false, 0, 1, 404}, 40, &blocks);
   ASSERT_EQ(2, taosArrayGetSize(ended.value().pCandidates));
   expectWindowEvent(candidateAt(ended, 0), STRIGGER_EVENT_WINDOW_CLOSE, 300, 400, 2, 1);
   EXPECT_STREQ(
-      "{\"triggerId\":\"1714625911429981612\",\"triggerCondition\":{\"conditionIndex\":0,"
-      "\"fieldValues\":{\"startValue\":44,\"identityValue\":404}},\"windowIndex\":1,"
-      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\"}",
+      "{\"triggerId\":\"14549050368097824311\",\"triggerCondition\":{\"conditionPath\":\"1\","
+      "\"fieldValues\":{\"startValue\":44,\"identityValue\":404}},"
+      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\",\"windowIndex\":1}",
       candidateAt(ended, 0)->leafParam.extraNotifyContent);
   expectWindowEvent(candidateAt(ended, 1), STRIGGER_EVENT_WINDOW_CLOSE, 100, 400, 4, -1);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionPath\":\"\","
       "\"fieldValues\":{\"startValue\":44,\"identityValue\":404}},\"windowIndex\":-1}",
       candidateAt(ended, 1)->leafParam.extraNotifyContent);
 }
@@ -2611,11 +2694,11 @@ TEST(StreamWindowChainEventNotifyTest, CandidateStringsOutliveBlocksLaterSubmits
       0, taosArrayGetSize(submitData(chain.get(), {300, 99, false, 0, 0, 909}, 40, &afterBlocks).value().pCandidates));
 
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"startValue\":11}},\"windowIndex\":-1}",
       open->leafParam.extraNotifyContent);
   EXPECT_STREQ(
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"endValue\":202}},\"windowIndex\":-1}",
       close->leafParam.extraNotifyContent);
 }
@@ -2639,9 +2722,9 @@ TEST(StreamWindowChainEventNotifyTest, CalculationOnlyOpenAndCloseRemainContentF
 
 TEST(StreamWindowChainEventNotifyTest, InstanceOpenStringCloneFailureRollsBackSwitchAndRetry) {
   static const char* kFirstChildOpen =
-      "{\"triggerId\":\"8704769108438314885\",\"triggerCondition\":{\"conditionIndex\":0,"
-      "\"fieldValues\":{\"startValue\":11,\"identityValue\":101}},\"windowIndex\":0,"
-      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\"}";
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
+      "\"fieldValues\":{\"startValue\":11,\"identityValue\":101}},"
+      "\"parentTriggerId\":\"723b8b71a1ab2fb1f45d8c92f2ace967\",\"windowIndex\":0}";
   ConditionColumns startColumns({{1, "startValue"}, {4, "identityValue"}});
   ConditionColumns endColumns({{1, "startValue"}, {4, "identityValue"}});
   Plan             plan({sessionLayer(10000), eventLayer(true)});
@@ -2681,7 +2764,7 @@ TEST(StreamWindowChainEventNotifyTest, InstanceOpenStringCloneFailureRollsBackSw
 
 TEST(StreamWindowChainEventNotifyTest, CandidateStringDupFailureRollsBackWorkingResultAndRetry) {
   static const char* kOpen =
-      "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionIndex\":0,"
+      "{\"triggerId\":\"6728811923511300682\",\"triggerCondition\":{\"conditionPath\":\"0\","
       "\"fieldValues\":{\"startValue\":11}},\"windowIndex\":-1}";
   ConditionColumns startColumns({{1, "startValue"}});
   ConditionColumns endColumns({{4, "endValue"}});

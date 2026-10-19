@@ -1,3 +1,18 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 MESSAGE(STATUS "tq unit test")
 
 # GoogleTest requires at least C++11
@@ -105,6 +120,19 @@ add_test(
          COMMAND metaTxnAlterStbTest
 )
 
+ADD_EXECUTABLE(metaTagFilterCacheTest metaTagFilterCacheTest.cpp)
+DEP_ext_gtest(metaTagFilterCacheTest)
+DEP_ext_cppstub(metaTagFilterCacheTest)
+TARGET_LINK_LIBRARIES(metaTagFilterCacheTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+SET_TARGET_PROPERTIES(metaTagFilterCacheTest PROPERTIES LINK_FLAGS "-Wl,--wrap=taosArrayAddBatch -Wl,--wrap=tdbTbcNext -Wl,--wrap=tdbTbcMoveTo -Wl,--wrap=tdbTbcMoveToNext")
+TARGET_INCLUDE_DIRECTORIES(metaTagFilterCacheTest PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/executor"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(NAME metaTagFilterCacheTest COMMAND metaTagFilterCacheTest)
+
 # Phase 1: metaSnapTxnTest disabled — snapshot sver-adjustment removed; re-enable in Phase 2
 # ADD_EXECUTABLE(metaSnapTxnTest metaSnapTxnTest.cpp)
 # DEP_ext_gtest(metaSnapTxnTest)
@@ -138,6 +166,24 @@ TARGET_INCLUDE_DIRECTORIES(
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReadPhaseTest tsdbReadPhaseTest.cpp)
+    DEP_ext_gtest(tsdbReadPhaseTest)
+    TARGET_LINK_LIBRARIES(
+             tsdbReadPhaseTest
+             PUBLIC os util common vnode
+    )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReadPhaseTest
+                               PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbReadPhaseTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReadPhaseTest COMMAND tsdbReadPhaseTest)
+
     ADD_EXECUTABLE(tsdbCacheTest tsdbCacheTest.cpp)
     DEP_ext_gtest(tsdbCacheTest)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
@@ -157,12 +203,60 @@ IF(NOT TD_WINDOWS)
     )
 ENDIF()
 
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReaderResetTest tsdbReaderResetTest.cpp)
+    DEP_ext_gtest(tsdbReaderResetTest)
+    DEP_ext_cppstub(tsdbReaderResetTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReaderResetTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+        tsdbReaderResetTest
+        PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+        tsdbReaderResetTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReaderResetTest COMMAND tsdbReaderResetTest)
+ENDIF()
+
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbReaderGroupSwitchTest tsdbReaderGroupSwitchTest.cpp)
+    DEP_ext_gtest(tsdbReaderGroupSwitchTest)
+    DEP_ext_cppstub(tsdbReaderGroupSwitchTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(tsdbReaderGroupSwitchTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+        tsdbReaderGroupSwitchTest
+        PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+        tsdbReaderGroupSwitchTest
+        PUBLIC "${TD_SOURCE_DIR}/include/common"
+        PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(NAME tsdbReaderGroupSwitchTest COMMAND tsdbReaderGroupSwitchTest)
+ENDIF()
+
 # ---------------------------------------------------------------------------
 # vnodeStreamVTable helpers unit test
 # ---------------------------------------------------------------------------
 IF(NOT TD_WINDOWS)
     add_executable(vnodeStreamVTableTest vnodeStreamVTableTest.cpp)
     DEP_ext_gtest(vnodeStreamVTableTest)
+    # The vtable-stream cases patch vnode/stream helpers through `Stub`, so the
+    # target needs the cppstub header search path (ext_cppstub is the only
+    # provider of `stub.h`).
+    DEP_ext_cppstub(vnodeStreamVTableTest)
     target_include_directories(vnodeStreamVTableTest
         PUBLIC
         "${TD_SOURCE_DIR}/include/common"

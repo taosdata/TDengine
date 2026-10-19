@@ -93,6 +93,14 @@ toc_max_heading_level: 4
 | ssAccessString | taosd | 共享存储访问参数字符串 |
 | ssPageCacheSize | taosd | 共享存储 page cache 缓存页数目 |
 | ssUploadDelaySec | taosd | data 文件持续多长时间不再变动后上传至共享存储 |
+| **缓存相关** | | |
+| sLastCacheWriteBufferSize | taosd | last cache 底层 RocksDB 引擎每个 memtable 的写缓冲区大小，单位 MB |
+| sLastCacheMaxWriteBufferNumber | taosd | last cache 底层 RocksDB 引擎允许同时存在的 memtable（写缓冲区）数量上限 |
+| sLastCacheBackgroundThreads | taosd | last cache 底层 RocksDB 引擎用于 flush 与 compaction 的后台线程数，每个 vnode 独立持有一个该大小的线程池 |
+| sLastCacheBloomFilterBits | taosd | last cache 底层 RocksDB 引擎每个 key 使用的布隆过滤器位数，用于减少 `last`/`last_row` 点查时的无效 SST 文件读取，0 表示关闭 |
+| sLastCacheMaxOpenFiles | taosd | last cache 底层 RocksDB 引擎允许同时打开的文件描述符数量上限，-1 表示不限制 |
+| sLastCacheCompressionType | taosd | last cache 底层 RocksDB 引擎的压缩算法 |
+| sLastCacheOptionsOverride | taosd | 以 RocksDB 原生配置字符串形式覆盖 last cache 引擎参数，优先级低于上述专用参数，供高级场景使用 |
 | **集群相关** | | |
 | supportVnodes | taosd | dnode 支持的最大 vnode 数目 |
 | numOfCommitThreads | taosd | 落盘线程的最大数量 |
@@ -107,6 +115,7 @@ toc_max_heading_level: 4
 | ttlChangeOnWrite | taosd | ttl 到期时间是否伴随表的修改操作改变 |
 | ttlBatchDropNum | taosd | ttl 一批删除子表的数目 |
 | retentionSpeedLimitMB | taosd | 数据在不同级别硬盘上迁移时的速度限制 |
+| compactSpeedLimitMB | taosd | compact 写盘时的速度限制 |
 | maxTsmaNum | taosd | 集群内可创建的 TSMA 个数 |
 | tmqMaxTopicNum | taosd | 订阅最多可建立的 topic 数量 |
 | audit | taosd | 审计功能开关 |
@@ -116,6 +125,7 @@ toc_max_heading_level: 4
 | encryptScope | taosd | 加密范围 |
 | encryptPassAlgorithm | taosd | 加密存储用户密码功能开关 |
 | enableWhiteList | taosd | 白名单功能开关 |
+| anodeAllowInternalUrl | taosd | 允许 CREATE ANODE 使用解析到私有/内网地址（回环、链路本地、RFC-1918）的 URL。默认 true，设置为 false 可拒绝内网地址，支持通过 ALTER ALL DNODES 热更新，无需重启。 |
 | secureEraseMode | taosd | 安全删除物理覆写填充方式（0 零填充 / 1 随机填充） |
 | syncLogBufferMemoryAllowed | taosd | 一个 dnode 允许的 sync 日志缓存消息占用的内存最大值 |
 | syncApplyQueueSize | taosd | sync 日志 apply 队列的大小 |
@@ -125,6 +135,7 @@ toc_max_heading_level: 4
 | syncHeartbeatTimeout | taosd | 用于同步模块调试 |
 | syncSnapReplMaxWaitN | taosd | 用于同步模块调试 |
 | snapshotRateLimit | taosd | 控制每个 dnode 快照发送的总带宽上限（MB/s），0 表示不限速 |
+| snapshotMediumOnLag | taosd | 副本有数据但落后时是否使用文件级增量（medium）方式做快照同步，0 表示使用逐行方式 |
 | arbHeartBeatIntervalSec | taosd | 用于同步模块调试 |
 | arbCheckSyncIntervalSec | taosd | 用于同步模块调试 |
 | arbSetAssignedTimeoutSec | taosd | 用于同步模块调试 |
@@ -144,6 +155,9 @@ toc_max_heading_level: 4
 | udfdResFuncs | taosd | 用于统计用量 |
 | udfdLdLibPath | taosd | 用于统计用量 |
 | enableStrongPassword | taosd | 密码要符合一个要求：至少包含大写字母、小写字母、数字、特殊字符中的三类 |
+| `xnodeDsnProtection` | `taosd` | XNODE DSN 保护总开关，开启后 `SHOW XNODE TASKS` 和 `SHOW XNODE JOBS` 输出的 DSN 敏感值以 `******` 脱敏 |
+| `xnodeDsnPublicKeyFile` | `taosd` | `mnode` 加载的共享公钥文件路径，仅在 `xnodeDsnProtection` 为 `1` 时读取和校验 |
+| `xnodedDsnPrivateKeyFile` | `taosd` | `taosd` 转交给 `xnoded` 子进程的共享私钥文件路径，`taosd` 只转交路径，不读取私钥内容 |
 | **流计算参数** | | |
 | numOfMnodeStreamMgmtThreads | taosd | mnode 流计算管理线程个数 |
 | numOfStreamMgmtThreads | taosd | snode 流计算管理线程个数 |
@@ -153,6 +167,10 @@ toc_max_heading_level: 4
 | streamBufferSize | taosd | 流计算可以使用的最大缓存大小，只适用于 %%trows 的结果缓存 |
 | streamNotifyMessageSize | taosd | 用于控制事件通知的消息大小 |
 | streamNotifyFrameSize | taosd | 用于控制事件通知消息发送时底层的帧大小 |
+| streamNotifyWorkerNum | taosd | 异步事件通知 worker 线程个数（每个 snode） |
+| streamNotifyBatchIntervalMs | taosd | 异步事件通知批处理的最大等待时间 |
+| streamNotifyParamPoolSize | taosd | 异步事件通知 pending 项对象池总容量上限（所有 stream 共享） |
+| streamTriggerMaxPendingParams | taosd | 流计算触发时允许积攒的待计算参数个数上限，达到后暂停积攒新参数 |
 | **日志相关** | | |
 | logDir | both | 日志文件目录，运行日志将写入该目录 |
 | minimalLogDirGB | both | 日志文件夹所在磁盘可用空间大小小于该值时，停止写日志 |

@@ -148,7 +148,7 @@ taos-explorer
 failed to get monitor info
 Table does not exist
 failed to send
-Fail to get table info
+Failed to get table info
 ```
 
 ## 巡检范围

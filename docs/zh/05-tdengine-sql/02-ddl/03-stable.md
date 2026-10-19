@@ -35,7 +35,7 @@ table_option: {
 1. 超级表名和列名命名规则参见 [名称命名规则](../11-appendix/02-limit.md#名称命名规则)。
 2. 非虚拟超级表中列和标签的总数最大为 `4096`，最少需要 3 个字段：一个 `TIMESTAMP` 主键列、一个数据列和一个标签列。虚拟超级表中的数据列最大为 `32767`；标签数量仍最多为 `128` 个。
 3. 第一个字段必须是 `TIMESTAMP` 类型，系统自动将其设为主键。
-4. 除时间戳主键列之外，还可以通过 `COMPOSITE KEY` 指定第二列为额外主键列。设置复合主键后，只有两条记录的时间戳列和 `COMPOSITE KEY` 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录并全部保留。`COMPOSITE KEY` 列必须是整型（`INT`、`BIGINT`、`UINT`、`UBIGINT`）或字符串类型（`VARCHAR`、`BINARY`）。
+4. 除时间戳主键列之外，还可以通过 `COMPOSITE KEY` 指定第二列为额外主键列。设置复合主键后，只有两条记录的时间戳列和 `COMPOSITE KEY` 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录并全部保留。`COMPOSITE KEY` 列必须是时间戳（TIMESTAMP）、整型（`INT`、`BIGINT`、`UINT`、`UBIGINT`）或字符串类型（`VARCHAR`、`BINARY`）。
 5. `TAGS` 用于定义超级表的标签列，需遵循以下约定：
    - 标签列名不能与数据列名重复，且不能是未转义的保留关键字。
    - 标签最多允许 `128` 个，至少需要 1 个，一个表中标签值的总长度不超过 16 KB。
@@ -147,6 +147,7 @@ alter_table_clause: {
   | ADD COLUMN col_name column_type
   | DROP COLUMN col_name
   | MODIFY COLUMN col_name column_type
+  | RENAME COLUMN old_col_name new_col_name
   | ADD TAG tag_name tag_type
   | DROP TAG tag_name
   | MODIFY TAG tag_name tag_type
@@ -172,6 +173,7 @@ alter_table_option: {
 - `ADD COLUMN`：添加数据列。
 - `DROP COLUMN`：删除数据列。
 - `MODIFY COLUMN`：修改数据列宽度。数据列类型必须是可变长类型，如 `BINARY`、`VARCHAR` 或 `NCHAR`；列宽只能改大，不能改小。
+- `RENAME COLUMN`：修改数据列名称。从超级表修改某个列名后，该超级表下的所有子表也会自动更新该列名。自 3.4.3.0 版本开始支持。
 - `ADD TAG`：添加标签。
 - `DROP TAG`：删除标签。从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
 - `MODIFY TAG`：修改标签列宽度。标签类型必须是可变长类型，如 `BINARY`、`VARCHAR` 或 `NCHAR`；列宽只能改大，不能改小。
@@ -198,6 +200,14 @@ ALTER STABLE stb_name MODIFY COLUMN col_name data_type(length);
 ```
 
 如果数据列的类型是可变长类型（如 `BINARY`、`VARCHAR` 或 `NCHAR`），可以使用此语句修改其宽度。列宽只能改大，不能改小。
+
+### 修改列名
+
+```sql
+ALTER STABLE stb_name RENAME COLUMN old_col_name new_col_name;
+```
+
+修改超级表的数据列名称，从超级表修改某个列名后，该超级表下的所有子表也会自动更新该列名。自 3.4.3.0 版本开始支持。
 
 ### 添加标签
 

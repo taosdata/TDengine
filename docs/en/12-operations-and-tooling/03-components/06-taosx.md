@@ -155,7 +155,7 @@ taosx run \
 taosx run -f 'taos:///db1?mode=all' -t 'taos:///db2' -v
 ```
 
-1. Configure data synchronization through --transform or -T (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. It cannot be set through Explorer yet. Configuration instructions are as follows:
+1. Configure data synchronization through `--transform` or `-T` (only supports synchronization between 2.6 to 3.0 and within 3.0) for operations on table names and table fields during the process. You can also configure supported taosExplorer Data In tasks with [Transform Actions](../../08-data-ingest-and-delivery/01-no-code-ingestion/02-migrate.md#transform-actions). The command-line configuration is as follows:
 
   ```shell
   1.AddTag, add tag to a table. Setting example: -T add-tag:<tag1>=<value1>.
@@ -386,6 +386,12 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 
 :::
 
+### Optional Build Features
+
+To reduce the default binary size, source builds of `taosX` do not include Swagger UI or OpenTelemetry by default. The default HTTP service continues to provide the OpenAPI document at `/api-doc/openapi.json`.
+
+Build with `--features swagger-ui` to provide Swagger UI at `/swagger-ui/`. Build with `--features otel` and start `taosX` with `--otel` or `ENABLE_OTEL=true` to enable OpenTelemetry exporting.
+
 ### Configuration
 
 `taosX` supports configuration through a configuration file. On Linux, the default configuration file path is `/etc/taos/taosx.toml`, and on Windows, it is `C:\\TDengine\\cfg\\taosx.toml`, which includes the following configuration items:
@@ -403,6 +409,7 @@ This section discusses how to deploy `taosX` in service mode. When running taosX
 - `serve.ssl_ca`: SSL/TLS certificate authority (CA) certificates.
 - `serve.request_timeout`: Global interface API timeout.
 - `serve.grpc`:`taosX` gRPC listening address, default value is `0.0.0.0:6055`. Supports IPv6 and multiple comma-separated addresses with the same port.
+- `serve.xnode_dsn_private_key_file`: Local path of the shared RSA-2048 private key file (PKCS#8 PEM) used to decrypt XNODE DSN runtime envelopes delivered from `xnoded`. Default is empty, meaning no private key is configured; restart the service after modification. See [Security Hardening](../../11-security-guide/08-security-hardening.md#xnode-dsn-protection).
 - `rest_api_threads`: Runtime worker threads for rest api service, default value is `current server cores*2`.
 - `grpc_threads`: Runtime worker threads for grpc service, default value is `current server cores*2`.
 - `scheduler_threads`: Runtime worker threads for scheduler service, default value is `current server cores*2`.
@@ -471,6 +478,14 @@ As shown below:
 
 # number of threads used for scheduler service, default to 0 (means cores * 2)
 #scheduler_threads = 0
+
+# Local path of the shared RSA-2048 private key file (PKCS#8 PEM)
+# used to decrypt XNODE DSN runtime envelopes delivered from xnoded.
+# Empty (default) means no private key configured; only plaintext DSN values
+# produced while protection is disabled can be processed in that case.
+# Not re-loadable at runtime; restart taosX after changing this value or
+# replacing the key file.
+#xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -568,6 +583,39 @@ The command to view logs under Linux using `journalctl` is as follows:
 ```shell
 journalctl -u taosx [-f]
 ```
+
+1. View archive and cache files
+
+In a data ingestion task, invalid data whose handling strategy is "Archive" is written to archive files; when the target database connection fails and the strategy is "Cache", data is written to cache files and re-ingested after the target recovers. Both kinds of files are located under `${data_dir}/tasks/<id>/` by default. Use the `taosx archive` subcommand to inspect these files directly, without external tools such as DuckDB or pandas:
+
+```shell
+taosx archive [OPTIONS] <FILES>...
+```
+
+- `<FILES>...`: archive or cache files to inspect; multiple files are supported.
+- `-o, --output <DIR>`: extract every frame payload into the specified directory as standard Parquet files. With multiple input files, each file gets its own subdirectory. Use this option when you need SQL aggregation with external tools.
+- `--limit <N>`: print at most N sample rows per file; defaults to 20. `0` prints only the summary.
+
+By default the command prints a summary for each file: the format version, frame count, total row count, number of schemas, the top 20 rows-per-failure-reason statistics aggregated by the `_taosx_error_` column (skipped for cache files, which do not have this column), and the first N sample rows (grouped by schema when the file contains multiple schemas).
+
+Examples:
+
+```shell
+# Print the summary and the first 20 sample rows of an archive file
+taosx archive /var/lib/taos/taosx/tasks/123/archive/xxx
+
+# Print only the summary
+taosx archive --limit 0 /path/to/archive-file
+
+# Extract frames as standard Parquet files for external analysis
+taosx archive -o /tmp/frames /path/to/archive-file
+```
+
+Notes:
+
+- Archive and cache files currently use a versioned frame container format (v1); files generated by older versions use the legacy format. Both formats are readable.
+- If a file is corrupted, the command automatically salvages the readable parts and prints a warning. If no complete data can be salvaged, the command fails with a non-zero exit code. If any input file fails, the process exits with a non-zero exit code.
+- Archive files are deduplicated: only the first batch is kept for each failure reason in each file, so an archive file does not contain every invalid row. Refer to the task monitoring metrics for the total number of invalid rows.
 
 ## taosX Monitoring Metrics
 
@@ -721,7 +769,7 @@ The plugin directory reuses the plugins configuration in the `taosx.toml` config
 
 :::warning
 
-The current plugin ABI contract described in this section is supported starting from version 3.4.1.15 and does not support older taos-explorer and taosX versions. To develop or maintain plugins for those versions, use the ABI contract in the [TDengine 3.4.0 taosX data parsing plugin documentation](https://docs.tdengine.com/3.4.0/tdengine-reference/components/taosx/#taosx-data-parsing-plugin).
+The current plugin ABI contract described in this section is supported starting from version 3.4.1.15 and does not support older taos-explorer and taosX versions. To develop or maintain plugins for those versions, use the ABI contract in the [TDengine 3.4.0 taosX data parsing plugin documentation](#legacy-parser-abi).
 
 :::
 
@@ -823,6 +871,87 @@ ParserMutateStatus parser_mutate(
 - Return `PARSER_MUTATE_ERROR` for other errors.
 
 #### 5. Release the Parser
+
+Release the memory of the parser object.
+
+**Function Signature**: void parser_free(void* parser);
+
+void* parser: Pointer to the object generated by parser_new.
+
+### Legacy Parser ABI Archive {#legacy-parser-abi}
+
+:::warning
+
+The following API description is archived from the TDengine v3.4.0 documentation for maintaining plugins used by taosX/taosExplorer versions earlier than v3.4.1.15. It does not describe the current ABI above. New plugins must use the current ABI.
+
+:::
+
+#### 1. Get Plugin Name {#legacy-parser-api-1}
+
+Get the plugin name for display on the frontend.
+
+**Function Signature**: const char* parser_name()
+
+**Return Value**: String.
+
+#### 2. Get Plugin Version {#legacy-parser-api-2}
+
+Plugin version, useful for troubleshooting.
+
+**Function Signature**: const char* parser_version()
+
+**Return Value**: String.
+
+#### 3. Configure Parser {#legacy-parser-api-3}
+
+Parse a string argument into a configuration object, for internal use only.
+
+**Function Signature**: parser_resp_t parser_new(char* ctx, uint32_t len);
+
+char* ctx: User-defined configuration string.
+
+uint32_t len: The binary length of this string (excluding `\0`).
+
+**Return Value**:
+
+```c
+struct parser_resp_t {
+  int e;    // 0 if success.
+  void* p;  // Success if contains.
+}
+```
+
+When object creation fails, e is not 0.
+
+When creation is successful, e = 0, p is the parser object.
+
+#### 4. Parse Data {#legacy-parser-api-4}
+
+**Function Signature**:
+
+Parse the input payload and return the result in JSON format [u8]. The returned JSON will be fully decoded using the default JSON parser (expanding the root array and all objects).
+
+```c
+const char* parser_mutate(
+  void* parser,
+  const uint8_t* in_ptr, uint32_t in_len,
+  uint8_t** out_ptr, uint32_t* out_len
+);
+```
+
+`void* parser`: Object pointer generated by parser_new;
+
+`const uint8_t* in_ptr`: Pointer to the input Payload;
+
+`uint32_t in_len`: Byte length of the input Payload (excluding `\0`);
+
+`uint8_t** out_ptr`: Receives the address of the output JSON data. The caller passes the address of a pointer variable, and the plugin writes the data address through `*out_ptr`. A NULL value of `*out_ptr` indicates no output.
+
+`uint32_t * out_len`: Output length of the JSON string.
+
+**Return Value**: When the call is successful, the return value is NULL.
+
+#### 5. Release the Parser {#legacy-parser-api-5}
 
 Release the memory of the parser object.
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,19 +26,7 @@
 
 // clang-format on
 
-extern char **environ;
-
-#ifdef WINDOWS
-#define XNODED_DEFAULT_PATH_1    "C:\\TDengine"
-#define XNODED_DEFAULT_PATH_2    "C:\\TDengine"
 #define XNODED_DEFAULT_EXEC_NAME "xnoded"
-#define XNODED_DEFAULT_EXEC      "\\xnoded.exe"
-#else
-#define XNODED_DEFAULT_PATH_1    "/usr/bin"
-#define XNODED_DEFAULT_PATH_2    "/usr/local/taos/bin"
-#define XNODED_DEFAULT_EXEC_NAME "xnoded"
-#define XNODED_DEFAULT_EXEC      "/xnoded"
-#endif
 
 #define XNODED_XNODED_PID_NAME ".xnoded.pid"
 
@@ -62,6 +52,164 @@ SXnodedData xnodedGlobal = {0};
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData);
 
+bool txnodeShouldRestartXnoded(int64_t exitStatus, int32_t termSignal, bool isStopped) {
+  if (isStopped || (exitStatus == XNODED_PRIVATE_KEY_CONFIG_EXIT_CODE && termSignal == 0)) {
+    return false;
+  }
+  return !(exitStatus == 0 && (termSignal == 0 || termSignal == SIGINT || termSignal == SIGTERM));
+}
+
+static bool txnodeEnvironmentNameEquals(const char *left, size_t left_len, const char *right, size_t right_len) {
+  if (left_len != right_len) {
+    return false;
+  }
+#ifdef WINDOWS
+  return strncasecmp(left, right, left_len) == 0;
+#else
+  return strncmp(left, right, left_len) == 0;
+#endif
+}
+
+static bool txnodeEnvironmentOverridesName(const char *name, size_t name_len, const char *const *overrides,
+                                           int32_t override_count) {
+  for (int32_t index = 0; index < override_count; ++index) {
+    const char *override = overrides[index];
+    if (override == NULL || override[0] == '\0') {
+      continue;
+    }
+    const char *separator = strchr(override, '=');
+    if (separator == NULL) {
+      continue;
+    }
+    size_t override_name_len = (size_t)(separator - override);
+    if (txnodeEnvironmentNameEquals(name, name_len, override, override_name_len)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void txnodeFreeEnvironment(char **environment) {
+  if (environment == NULL) {
+    return;
+  }
+  for (int32_t index = 0; environment[index] != NULL; ++index) {
+    taosMemoryFree(environment[index]);
+  }
+  taosMemoryFree(environment);
+}
+
+int32_t txnodeBuildXnodedEnvironment(const char *const *inherited, int32_t inherited_count,
+                                     const char *const *overrides, int32_t override_count, char ***environment) {
+  if (inherited_count < 0 || override_count < 0 || overrides == NULL || environment == NULL ||
+      (inherited_count > 0 && inherited == NULL) || *environment != NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  uint64_t environment_slots = (uint64_t)inherited_count + (uint64_t)override_count + 1;
+  if (environment_slots > SIZE_MAX / sizeof(char *)) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  char **result = taosMemoryCalloc((size_t)environment_slots, sizeof(char *));
+  if (result == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t output_index = 0;
+  for (int32_t index = 0; index < inherited_count; ++index) {
+    const char *entry = inherited[index];
+    if (entry == NULL || entry[0] == '\0') {
+      continue;
+    }
+    const char *separator = strchr(entry, '=');
+    if (separator == NULL) {
+      continue;
+    }
+    size_t name_len = (size_t)(separator - entry);
+    if (txnodeEnvironmentOverridesName(entry, name_len, overrides, override_count)) {
+      continue;
+    }
+    size_t length = strlen(entry) + 1;
+    result[output_index] = taosMemoryCalloc(length, 1);
+    if (result[output_index] == NULL) {
+      txnodeFreeEnvironment(result);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(result[output_index], entry, length);
+    ++output_index;
+  }
+
+  for (int32_t index = 0; index < override_count; ++index) {
+    if (overrides[index] == NULL || overrides[index][0] == '\0') {
+      continue;
+    }
+    size_t length = strlen(overrides[index]) + 1;
+    result[output_index] = taosMemoryCalloc(length, 1);
+    if (result[output_index] == NULL) {
+      txnodeFreeEnvironment(result);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    tstrncpy(result[output_index], overrides[index], length);
+    ++output_index;
+  }
+
+  result[output_index] = NULL;
+  *environment = result;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t txnodeInheritProcessEnvironment(char ***environment, int32_t *environment_count) {
+  *environment = NULL;
+  *environment_count = 0;
+
+  uv_env_item_t *items = NULL;
+  int            item_count = 0;
+  int            uv_error = uv_os_environ(&items, &item_count);
+  if (uv_error != 0) {
+    if (items != NULL) {
+      uv_os_free_environ(items, item_count);
+    }
+    xndError("failed to read process environment for xnoded: %s", uv_strerror(uv_error));
+    return TSDB_CODE_XNODE_UV_EXEC_FAILURE;
+  }
+
+  char **result = taosMemoryCalloc((size_t)item_count + 1, sizeof(char *));
+  if (result == NULL) {
+    uv_os_free_environ(items, item_count);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t output_index = 0;
+  for (int32_t index = 0; index < item_count; ++index) {
+    const char *name = items[index].name;
+    const char *value = items[index].value;
+    if (name == NULL || value == NULL) {
+      continue;
+    }
+    size_t name_len = strlen(name);
+    size_t value_len = strlen(value);
+    if (name_len > SIZE_MAX - value_len - 2) {
+      txnodeFreeEnvironment(result);
+      uv_os_free_environ(items, item_count);
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    size_t length = name_len + value_len + 2;
+    result[output_index] = taosMemoryCalloc(length, 1);
+    if (result[output_index] == NULL) {
+      txnodeFreeEnvironment(result);
+      uv_os_free_environ(items, item_count);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (void)snprintf(result[output_index], length, "%s=%s", name, value);
+    ++output_index;
+  }
+
+  uv_os_free_environ(items, item_count);
+  *environment = result;
+  *environment_count = output_index;
+  return TSDB_CODE_SUCCESS;
+}
+
 static void getXnodedPidPath(char *pipeName, int32_t size) {
   int32_t len = strlen(tsDataDir);
 
@@ -86,8 +234,7 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     xndError("xnoded process data is NULL");
     return;
   }
-  if ((exitStatus == 0 && (termSignal == 0 || termSignal == SIGINT || termSignal == SIGTERM)) ||
-      atomic_load_32(&pData->isStopped)) {
+  if (!txnodeShouldRestartXnoded(exitStatus, termSignal, atomic_load_32(&pData->isStopped))) {
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("stop xnoded: failed to send stop async");
     }
@@ -101,7 +248,11 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     memset(pidPath, 0, PATH_MAX);
     getXnodedPidPath(pidPath, PATH_MAX);
     (void)taosRemoveFile(pidPath);
-    xndInfo("xnoded process exit success");
+    if (exitStatus == XNODED_PRIVATE_KEY_CONFIG_EXIT_CODE && termSignal == 0) {
+      xndError("xnoded exited due to invalid private key configuration; restart disabled");
+    } else {
+      xndInfo("xnoded process exit success");
+    }
   } else {
     xndInfo("xnoded process restart, exit status %" PRId64 ", signal %d", exitStatus, termSignal);
     int32_t code = xnodeMgmtSpawnXnoded(pData);
@@ -111,27 +262,135 @@ static void    xnodeMgmtXnodedExit(uv_process_t *process, int64_t exitStatus, in
     uv_sleep(500);
   }
 }
-void killPreXnoded() {
-  char buf[PATH_MAX] = {0};
-  getXnodedPidPath(buf, sizeof(buf));
-
-  TdFilePtr pFile = NULL;
-  pFile = taosOpenFile(buf, TD_FILE_READ);
-  if (pFile == NULL) {
-    xndWarn("xnode failed to open xnoded pid file:%s, file may not exist", buf);
-    return;
+int32_t txnodeParseXnodedPid(const char *buf, int64_t len, int32_t *pid) {
+  if (buf == NULL || pid == NULL || len <= 0) {
+    return TSDB_CODE_INVALID_PARA;
   }
-  int64_t readSize = taosReadFile(pFile, buf, sizeof(buf));
-  if (readSize <= 0) {
-    if (readSize < 0) {
-      xndError("xnode failed to read len from file:%p since %s", pFile, terrstr());
+  int64_t value = 0;
+  int64_t index = 0;
+  for (; index < len && buf[index] >= '0' && buf[index] <= '9'; ++index) {
+    value = value * 10 + (buf[index] - '0');
+    if (value > INT32_MAX) {
+      return TSDB_CODE_INVALID_DATA_FMT;
     }
-    (void)taosCloseFile(&pFile);
-    return;
+  }
+  if (index == 0) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  for (; index < len; ++index) {
+    if (buf[index] != '\n' && buf[index] != '\r' && buf[index] != ' ') {
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+  }
+  // 0 and negative values address process groups (or every process) in kill(2); 1 is init.
+  if (value <= 1) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  *pid = (int32_t)value;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t txnodeReadXnodedPidFile(const char *path, int32_t *pid) {
+  if (path == NULL || pid == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  TdFilePtr pFile = taosOpenPrivateFile(path, TD_FILE_READ);
+  if (pFile == NULL) {
+    return terrno;
+  }
+  char    buf[32] = {0};
+  int64_t readSize = taosReadFile(pFile, buf, sizeof(buf));
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (readSize < 0) {
+    code = terrno;
+  } else if (readSize >= (int64_t)sizeof(buf)) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+  } else {
+    code = txnodeParseXnodedPid(buf, readSize, pid);
   }
   (void)taosCloseFile(&pFile);
+  return code;
+}
 
-  int32_t pid = taosStr2Int32(buf, NULL, 10);
+int32_t txnodeWriteXnodedPidFile(const char *path, int32_t pid) {
+  if (path == NULL || pid <= 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (taosRemoveFile(path) != 0 && !lastErrorIsFileNotExist()) {
+    return terrno;
+  }
+  TdFilePtr pFile = taosOpenPrivateFile(path, TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (pFile == NULL) {
+    return terrno;
+  }
+  char    buf[32] = {0};
+  int32_t len = snprintf(buf, sizeof(buf), "%d", pid);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (taosWriteFile(pFile, buf, len) != len) {
+    code = terrno != 0 ? terrno : TSDB_CODE_FAILED;
+  }
+  (void)taosCloseFile(&pFile);
+  if (code != TSDB_CODE_SUCCESS) {
+    (void)taosRemoveFile(path);
+  }
+  return code;
+}
+
+bool txnodeIsXnodedProcess(int32_t pid) {
+  if (pid <= 1) {
+    return false;
+  }
+#ifdef __linux__
+  char    procPath[64] = {0};
+  uv_fs_t req = {0};
+  (void)snprintf(procPath, sizeof(procPath), "/proc/%d", pid);
+  bool owned = uv_fs_stat(NULL, &req, procPath, NULL) == 0 && req.statbuf.st_uid == geteuid();
+  uv_fs_req_cleanup(&req);
+  if (!owned) {
+    return false;
+  }
+
+  (void)snprintf(procPath, sizeof(procPath), "/proc/%d/exe", pid);
+  bool matched = false;
+  if (uv_fs_readlink(NULL, &req, procPath, NULL) == 0 && req.ptr != NULL) {
+    const char *exe = (const char *)req.ptr;
+    const char *name = strrchr(exe, '/');
+    name = (name == NULL) ? exe : name + 1;
+    size_t       nameLen = strlen(name);
+    const char   deletedSuffix[] = " (deleted)";
+    const size_t deletedLen = sizeof(deletedSuffix) - 1;
+    if (nameLen > deletedLen && strcmp(name + nameLen - deletedLen, deletedSuffix) == 0) {
+      nameLen -= deletedLen;
+    }
+    matched = nameLen == strlen(XNODED_DEFAULT_EXEC_NAME) && strncmp(name, XNODED_DEFAULT_EXEC_NAME, nameLen) == 0;
+  }
+  uv_fs_req_cleanup(&req);
+  return matched;
+#else
+  return true;
+#endif
+}
+
+void killPreXnoded() {
+  char path[PATH_MAX] = {0};
+  getXnodedPidPath(path, sizeof(path));
+
+  int32_t pid = 0;
+  int32_t code = txnodeReadXnodedPidFile(path, &pid);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (errorIsFileNotExist(code)) {
+      xndDebug("xnode no previous xnoded pid file:%s", path);
+    } else {
+      xndWarn("xnode ignore untrusted xnoded pid file:%s since %s", path, tstrerror(code));
+    }
+    return;
+  }
+
+  if (!txnodeIsXnodedProcess(pid)) {
+    xndWarn("xnode skip killing pid %d from %s, it is not an xnoded process owned by current user", pid, path);
+    return;
+  }
+
   int result = uv_kill((uv_pid_t)pid, SIGTERM);
   if (result != 0) {
     if (result != UV_ESRCH) {
@@ -142,73 +401,12 @@ void killPreXnoded() {
 }
 
 void saveXnodedPid(int32_t pid) {
-  char buf[PATH_MAX] = {0};
-  getXnodedPidPath(buf, sizeof(buf));
-  TdFilePtr testFilePtr = taosCreateFile(buf, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
-  snprintf(buf, PATH_MAX, "%d", pid);
-  (void)taosWriteFile(testFilePtr, buf, strlen(buf));
-  (void)taosCloseFile(&testFilePtr);
-}
-
-static void locateXnodedExecFile(char *path) {
-#ifdef WINDOWS
-  if (taosAppPath(path, PATH_MAX) != 0) {
-    path[0] = '\0';
+  char path[PATH_MAX] = {0};
+  getXnodedPidPath(path, sizeof(path));
+  int32_t code = txnodeWriteXnodedPidFile(path, pid);
+  if (code != TSDB_CODE_SUCCESS) {
+    xndError("xnode failed to save xnoded pid %d to %s since %s", pid, path, tstrerror(code));
   }
-#else
-  if (tsProcPath == NULL) {
-    path[0] = '.';
-#if defined(_TD_DARWIN_64)
-    uint32_t pathSize = sizeof(path);
-    _NSGetExecutablePath(path, &pathSize);
-#endif
-  } else {
-    TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
-  }
-
-  TAOS_DIRNAME(path);
-#endif
-  if (strlen(path) != 0) {
-    TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-    if (taosCheckExistFile(path)) {
-      goto _ok;
-    }
-    xndDebug("can't find xnoded exec file:%s", path);
-    path[0] = '\0';
-  }
-
-  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_1);
-  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-  if (taosCheckExistFile(path)) {
-    goto _ok;
-  }
-  xndDebug("can't find xnoded exec file:%s", path);
-  path[0] = '\0';
-
-  TAOS_STRCAT(path, XNODED_DEFAULT_PATH_2);
-  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-  if (taosCheckExistFile(path)) {
-    goto _ok;
-  }
-  xndDebug("can't find xnoded exec file:%s", path);
-  path[0] = '\0';
-
-  path[0] = '.';
-  path[1] = '\0';
-  TAOS_STRCAT(path, XNODED_DEFAULT_EXEC);
-  if (taosCheckExistFile(path)) {
-    goto _ok;
-  }
-  xndDebug("can't find xnoded exec file:%s", path);
-  path[0] = '\0';
-
-  TAOS_STRNCPY(path, XNODED_DEFAULT_EXEC_NAME, PATH_MAX);
-  xndInfo("can't find xnoded exec file, use default: %s", path);
-  return;
-
-_ok:
-  xndInfo("find xnoded exec file:%s", path);
-  return;
 }
 
 static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
@@ -219,7 +417,10 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
-  locateXnodedExecFile(path);
+  if (taosLocateCompanionExec(XNODED_DEFAULT_EXEC_NAME, path, sizeof(path)) != 0) {
+    xndError("cannot find xnoded exec file in taosd directory or install directories");
+    return UV_ENOENT;
+  }
 
   xndInfo("xnode mgmt spawn xnoded path: %s", path);
   // char *argsXnoded[] = {path, "-c", configDir, "-d", dnodeId, NULL};
@@ -237,7 +438,9 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
     xndWarn("txnode failed to unlink, ignore if first time, socket: %s, detail:%s", xnodedPipeSocket, terrstr());
   }
 
-  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 1));
+  // This pipe only detects parent shutdown through EOF. Enabling libuv IPC
+  // triggers a child-process handshake that is unsupported by xnoded on Windows.
+  TAOS_UV_LIB_ERROR_RET(uv_pipe_init(&pData->loop, &pData->ctrlPipe, 0));
 
   uv_stdio_container_t child_stdio[3];
   child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
@@ -268,6 +471,11 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   snprintf(xnodeClusterId, 64, "%s=%" PRIu64, "XNODED_CLUSTER_ID", pData->clusterId);
   char xnodePipeSocket[PATH_MAX + 32] = {0};
   snprintf(xnodePipeSocket, PATH_MAX + 32, "%s=%s", "XNODED_LISTEN", xnodedPipeSocket);
+  char xnodedDsnPrivateKeyFile[PATH_MAX + 64] = {0};
+  if (tsXnodedDsnPrivateKeyFile[0] != '\0') {
+    snprintf(xnodedDsnPrivateKeyFile, sizeof(xnodedDsnPrivateKeyFile), "%s=%s",
+             XNODED_XNODE_DSN_PRIVATE_KEY_FILE, tsXnodedDsnPrivateKeyFile);
+  }
 
   char xnodedLogLevel[32] = {0};
   if (xndDebugFlag & DEBUG_INFO) {
@@ -283,73 +491,38 @@ static int32_t xnodeMgmtSpawnXnoded(SXnodedData *pData) {
   xndDebug("txnode env: leader ep: %s, pipe socket:%s, log level:%s, cluster_id: %s", dnodeIdEnvItem, xnodePipeSocket,
            xnodedLogLevel, xnodeClusterId);
 
-  char *envXnoded[] = {xnodedCfgDir,    xnodedLogDir,   dnodeIdEnvItem,
-                       xnodedUserPass,  xnodedToken,    xnodeClusterId,
-                       xnodePipeSocket, xnodedLogLevel, NULL};
+  const char *envXnoded[] = {xnodedCfgDir,           xnodedLogDir,   dnodeIdEnvItem,
+                             xnodedUserPass,         xnodedToken,    xnodeClusterId,
+                             xnodePipeSocket,        xnodedLogLevel, xnodedDsnPrivateKeyFile,
+                             NULL};
 
   char **envXnodedWithPEnv = NULL;
-  if (environ != NULL) {
-    int32_t lenEnvXnoded = ARRAY_SIZE(envXnoded);
-    int32_t numEnviron = 0;
-    while (environ[numEnviron] != NULL) {
-      numEnviron++;
-    }
-
-    envXnodedWithPEnv = (char **)taosMemoryCalloc(numEnviron + lenEnvXnoded, sizeof(char *));
-    if (envXnodedWithPEnv == NULL) {
-      err = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
-    }
-
-    for (int32_t i = 0; i < numEnviron; i++) {
-      int32_t len = strlen(environ[i]) + 1;
-      xndDebug("xnoded exec env: %s", environ[i]);
-      envXnodedWithPEnv[i] = (char *)taosMemoryCalloc(len, 1);
-      if (envXnodedWithPEnv[i] == NULL) {
-        err = TSDB_CODE_OUT_OF_MEMORY;
-        goto _OVER;
-      }
-
-      tstrncpy(envXnodedWithPEnv[i], environ[i], len);
-    }
-
-    for (int32_t i = 0, j = 0; i < lenEnvXnoded; i++) {
-      if (envXnoded[i] != NULL && envXnoded[i][0] != '\0') {
-        int32_t len = strlen(envXnoded[i]) + 1;
-        envXnodedWithPEnv[numEnviron + j] = (char *)taosMemoryCalloc(len, 1);
-        if (envXnodedWithPEnv[numEnviron + j] == NULL) {
-          err = TSDB_CODE_OUT_OF_MEMORY;
-          goto _OVER;
-        }
-        tstrncpy(envXnodedWithPEnv[numEnviron + j], envXnoded[i], len);
-        j++;
-      }
-    }
-    envXnodedWithPEnv[numEnviron + lenEnvXnoded - 1] = NULL;
-
-    options.env = envXnodedWithPEnv;
-  } else {
-    options.env = envXnoded;
+  char **inheritedEnvironment = NULL;
+  int32_t inheritedEnvironmentCount = 0;
+  err = txnodeInheritProcessEnvironment(&inheritedEnvironment, &inheritedEnvironmentCount);
+  if (err != TSDB_CODE_SUCCESS) {
+    goto _OVER;
   }
+  err = txnodeBuildXnodedEnvironment((const char *const *)inheritedEnvironment, inheritedEnvironmentCount, envXnoded,
+                                     ARRAY_SIZE(envXnoded) - 1, &envXnodedWithPEnv);
+  txnodeFreeEnvironment(inheritedEnvironment);
+  inheritedEnvironment = NULL;
+  if (err != TSDB_CODE_SUCCESS) {
+    goto _OVER;
+  }
+  options.env = envXnodedWithPEnv;
 
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
   if (err != 0) {
-    xndError("can not spawn xnoded. path: %s, error: %s", path, uv_strerror(err));
+    xndError("cannot spawn xnoded. path: %s, error: %s", path, uv_strerror(err));
   } else {
     xndInfo("xnoded is initialized, xnoded pid: %d", pData->process.pid);
     saveXnodedPid(pData->process.pid);
   }
 
 _OVER:
-  if (envXnodedWithPEnv != NULL) {
-    int32_t i = 0;
-    while (envXnodedWithPEnv[i] != NULL) {
-      taosMemoryFree(envXnodedWithPEnv[i]);
-      i++;
-    }
-    taosMemoryFree(envXnodedWithPEnv);
-  }
+  txnodeFreeEnvironment(envXnodedWithPEnv);
 
   return err;
 }
@@ -368,10 +541,21 @@ static void xnodeMgmtXnodedStopAsyncCb(uv_async_t *async) {
   uv_stop(&pData->loop);
 }
 
+static void xnodeMgmtXnodedDrainLoop(SXnodedData *pData) {
+  uv_walk(&pData->loop, xnodeMgmtXnodedCloseWalkCb, NULL);
+  int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
+  xndInfo("xnoded loop exit with %d active handles, line:%d", num, __LINE__);
+  if (uv_loop_close(&pData->loop) != 0) {
+    xndError("xnoded loop close failed, lino:%d", __LINE__);
+  }
+}
+
 static void xnodeMgmtWatchXnoded(void *args) {
   TAOS_XNODED_MGMT_CHECK_PTR_RVOID(args);
   SXnodedData *pData = args;
+  bool loopInitialized = false;
   TAOS_UV_CHECK_ERRNO(uv_loop_init(&pData->loop));
+  loopInitialized = true;
   TAOS_UV_CHECK_ERRNO(uv_async_init(&pData->loop, &pData->stopAsync, xnodeMgmtXnodedStopAsyncCb));
   pData->stopAsync.data = pData;
   TAOS_UV_CHECK_ERRNO(xnodeMgmtSpawnXnoded(pData));
@@ -380,23 +564,23 @@ static void xnodeMgmtWatchXnoded(void *args) {
   int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
   xndInfo("xnoded loop exit with %d active handles, line:%d", num, __LINE__);
 
-  uv_walk(&pData->loop, xnodeMgmtXnodedCloseWalkCb, NULL);
-  num = uv_run(&pData->loop, UV_RUN_DEFAULT);
-  xndInfo("xnoded loop exit with %d active handles, line:%d", num, __LINE__);
-  if (uv_loop_close(&pData->loop) != 0) {
-    xndError("xnoded loop close failed, lino:%d", __LINE__);
-  }
+  xnodeMgmtXnodedDrainLoop(pData);
   return;
 
 _exit:
   if (terrno != 0) {
+    int32_t failCode = terrno;
+    int32_t failLine = terrln;
     (void)uv_barrier_wait(&pData->barrier);
-    atomic_store_32(&pData->spawnErr, terrno);
-    if (uv_loop_close(&pData->loop) != 0) {
-      xndError("xnoded loop close failed, lino:%d", __LINE__);
+    atomic_store_32(&pData->spawnErr, failCode);
+    // Any handle initialized before failure (stopAsync, ctrlPipe from a
+    // partial xnodeMgmtSpawnXnoded) must be closed and drained, otherwise
+    // uv_loop_close fails and leaks the loop's internal state.
+    if (loopInitialized) {
+      xnodeMgmtXnodedDrainLoop(pData);
     }
 
-    xndError("xnoded thread exit with code:%d lino:%d", terrno, __LINE__);
+    xndError("xnoded thread exit with code:%d lino:%d", failCode, failLine);
     terrno = TSDB_CODE_XNODE_UV_EXEC_FAILURE;
   }
 }
@@ -408,6 +592,7 @@ _exit:
  */
 int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   int32_t code = 0, lino = 0;
+  bool    barrierInitialized = false;
 
   SXnodedData *pData = &xnodedGlobal;
   pData->leaderEp = pXnode->ep;
@@ -427,12 +612,14 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
   memcpy(pData->token, pXnode->token, TSDB_TOKEN_LEN);
 
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
+  barrierInitialized = true;
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, xnodeMgmtWatchXnoded, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
   uv_sleep(100);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
     uv_barrier_destroy(&pData->barrier);
+    barrierInitialized = false;
     if (uv_async_send(&pData->stopAsync) != 0) {
       xndError("start xnoded: failed to send stop async");
     }
@@ -446,8 +633,16 @@ int32_t xnodeMgmtStartXnoded(SXnode *pXnode) {
     pData->needCleanUp = true;
     atomic_store_32(&pData->isStopped, 0);
   }
+
+  return 0;
+
 _exit:
+  if (barrierInitialized) {
+    uv_barrier_destroy(&pData->barrier);
+  }
   if (code != 0) {
+    pData->isStarted = false;
+    pData->needCleanUp = false;
     xndError("xnoded start failed with lino:%d, code:%d, error: %s", code, lino, uv_strerror(code));
   }
   return code;

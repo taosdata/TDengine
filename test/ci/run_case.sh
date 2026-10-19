@@ -1,5 +1,32 @@
 #!/bin/bash
 
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# Publish the entrypoint exit time before Docker performs --rm teardown.
+_ci_entry_start_ms=$(date +%s%3N)
+_ci_entry_exit() {
+    local rc=$?
+    local end_ms=$(date +%s%3N)
+    echo "[ci-timing] stage=container-entrypoint elapsed_ms=$(( end_ms - _ci_entry_start_ms )) rc=${rc}"
+    if [[ -n "${CI_CONTAINER_EXIT_MARKER:-}" ]]; then
+        printf '%s %s\n' "${end_ms}" "${rc}" > "${CI_CONTAINER_EXIT_MARKER}"
+    fi
+}
+trap _ci_entry_exit EXIT
+
 function usage() {
     echo "$0"
     echo -e "\t -d execution dir"
@@ -73,6 +100,19 @@ fi
 
 export PATH=$PATH:${_DEBUG_BASE}/build/bin
 export LD_LIBRARY_PATH=${_DEBUG_BASE}/build/lib
+if [[ -n "${XNODED_TEST_MOCK_MODE:-}" ]]; then
+    _mock_source="${_SOURCE_BASE}/test/ci/mock_xnoded.c"
+    _mock_dir="$(mktemp -d "${TMPDIR:-/tmp}/xnoded-mock.XXXXXX")" || exit 1
+    _mock_binary="${_mock_dir}/xnoded"
+    if ! gcc -std=c11 -O2 -Wall -Wextra -Werror "${_mock_source}" -o "${_mock_binary}"; then
+        rm -rf "${_mock_dir}"
+        echo "ERROR: failed to build mock xnoded: ${_mock_source}"
+        exit 1
+    fi
+    ln -sf "${_mock_binary}" /usr/bin/xnoded || exit 1
+    test -x /usr/bin/xnoded || exit 1
+    echo "[xnode-ci] mock xnoded: ${_mock_binary}, mode=${XNODED_TEST_MOCK_MODE}"
+fi
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
 # 兼容测试（如 test_new_stream_compatibility.py）硬编码 /usr/bin/taos，
@@ -132,11 +172,22 @@ if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; t
     rm -f "${_PIP_LOG}"
 fi
 
+_ci_command_start_ms=$(date +%s%3N)
+echo "[ci-timing] stage=container-preparation elapsed_ms=$(( _ci_command_start_ms - _ci_entry_start_ms ))"
+echo "[ci-timing] stage=test-command event=start"
 $TIMEOUT_CMD $cmd
 RET=$?
+echo "[ci-timing] stage=test-command elapsed_ms=$(( $(date +%s%3N) - _ci_command_start_ms )) rc=${RET}"
 # pytest exit code 5 = no tests collected / all skipped → treat as pass
 [ $RET -eq 5 ] && RET=0
 echo "cmd exit code: $RET"
+
+# Publish only after the test command returned. The EXIT trap alone is not
+# proof of completion: it can also run when a timed-out container is stopped.
+if [[ -n "${CI_TEST_COMMAND_EXIT_MARKER:-}" ]]; then
+    printf '%s %s\n' "$(date +%s%3N)" "${RET}" > "${CI_TEST_COMMAND_EXIT_MARKER}.tmp"
+    mv -f "${CI_TEST_COMMAND_EXIT_MARKER}.tmp" "${CI_TEST_COMMAND_EXIT_MARKER}"
+fi
 
 mkdir -p ${_SIM_BASE}/var_taoslog
 if [ -d "/var/log/taos" ]; then

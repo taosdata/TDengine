@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include "restoreData.h"
 #include "restoreStmt.h"
@@ -398,8 +405,12 @@ static int cmpFilePath(const void *a, const void *b) {
 static char** findDataFiles(const char *dbName, const char *stbName, int *totalCount) {
     *totalCount = 0;
     char *outPath = argOutPath();
+    // The on-disk db directory embeds the percent-encoded database name.
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
     char dbDir[MAX_PATH_LEN];
-    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, dbName);
+    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, encDbName);
 
     // scan for directories matching {stbName}_dataN
     TdDirPtr dir = taosOpenDir(dbDir);
@@ -408,8 +419,12 @@ static char** findDataFiles(const char *dbName, const char *stbName, int *totalC
         return NULL;
     }
 
-    char prefix[TSDB_TABLE_NAME_LEN + 16];
-    snprintf(prefix, sizeof(prefix), "%s_data", stbName);
+    // On-disk dirs embed the encoded stb name; scan with the encoded prefix (stbName stays raw for spec-list matching).
+    char encStb[TSDB_TABLE_NAME_LEN * 3 + 1] = {0};
+    const char *encStbName = bckNameEncode(stbName, encStb, sizeof(encStb));
+    if (encStbName == NULL) encStbName = stbName;
+    char prefix[TSDB_TABLE_NAME_LEN * 3 + 16];
+    snprintf(prefix, sizeof(prefix), "%s_data", encStbName);
     int prefixLen = strlen(prefix);
 
     // If the STB itself is named in the spec-tables list (or this is the NTB
@@ -460,10 +475,10 @@ static char** findDataFiles(const char *dbName, const char *stbName, int *totalC
             // already applied when it decided which tables to export.
             if (argSpecTables() && !wholeStbRequested) {
                 char tbName[TSDB_TABLE_NAME_LEN] = {0};
-                int  stemLen = nameLen - 4;  // strip ".dat" / ".par"
-                if (stemLen >= TSDB_TABLE_NAME_LEN) stemLen = TSDB_TABLE_NAME_LEN - 1;
-                memcpy(tbName, subEntryName, stemLen);
-                tbName[stemLen] = '\0';
+                // The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX"
+                // expansion), so decode via the worst-case safe helper before
+                // spec-list matching.
+                if (bckNameDecodeFileStem(subEntryName, tbName, sizeof(tbName)) != 0) continue;
                 if (!argTableInSpecTables(tbName)) continue;
             }
 
@@ -679,8 +694,12 @@ static char** getBackupStbNamesForData(const char *dbName, int *code) {
     *code = TSDB_CODE_SUCCESS;
 
     char *outPath = argOutPath();
+    // The on-disk db directory embeds the percent-encoded database name.
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
     char dbDir[MAX_PATH_LEN];
-    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, dbName);
+    snprintf(dbDir, sizeof(dbDir), "%s/%s", outPath, encDbName);
 
     TdDirPtr dir = taosOpenDir(dbDir);
     if (dir == NULL) {
@@ -722,6 +741,8 @@ static char** getBackupStbNamesForData(const char *dbName, int *code) {
             if (stbNameLen >= TSDB_TABLE_NAME_LEN) stbNameLen = TSDB_TABLE_NAME_LEN - 1;
             memcpy(stbName, entryName, stbNameLen);
             stbName[stbNameLen] = '\0';
+            // Decode the encoded .csv stem back to the real super-table name.
+            bckNameDecodeInPlace(stbName, sizeof(stbName));
             names[count++] = taosStrdup(stbName);
         }
     }
@@ -778,7 +799,11 @@ int restoreDatabaseData(const char *dbName) {
     int stbRawCount = 0;
     for (int k = 0; stbNames[k] != NULL; k++) stbRawCount++;
     char ntbDir[MAX_PATH_LEN];
-    snprintf(ntbDir, sizeof(ntbDir), "%s/%s/" NORMAL_TABLE_DIR "_data0", argOutPath(), dbName);
+    // The on-disk db directory embeds the percent-encoded database name.
+    char encDb[MAX_PATH_LEN] = {0};
+    const char *encDbName = bckNameEncode(dbName, encDb, sizeof(encDb));
+    if (encDbName == NULL) encDbName = dbName;
+    snprintf(ntbDir, sizeof(ntbDir), "%s/%s/" NORMAL_TABLE_DIR "_data0", argOutPath(), encDbName);
     bool hasNtb = taosDirExist(ntbDir);
     g_progress.stbTotal = stbRawCount + (hasNtb ? 1 : 0);
     g_progress.stbIndex = 0;

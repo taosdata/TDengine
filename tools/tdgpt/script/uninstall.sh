@@ -1,5 +1,19 @@
 #!/bin/bash
-# uninstall the deployed app info, not remove the python virtual environment
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 #set -x
@@ -78,7 +92,62 @@ kill_service_of() {
   fi
 }
 
+run_python_service_command() {
+  local command=$1
+  shift || true
+  local python_cmd=""
+  local service_script="${installDir}/bin/taosanode_service.py"
+
+  if [ -x "${dataDir}/venv/bin/python3" ]; then
+    python_cmd="${dataDir}/venv/bin/python3"
+  elif [ -x "${installDir}/venvs/venv/bin/python3" ]; then
+    python_cmd="${installDir}/venvs/venv/bin/python3"
+  fi
+
+  if [ -n "${python_cmd}" ] && [ -f "${service_script}" ]; then
+    if [ -n "${csudo}" ]; then
+      ${csudo}${python_cmd} "${service_script}" "${command}" "$@" || :
+    else
+      "${python_cmd}" "${service_script}" "${command}" "$@" || :
+    fi
+  fi
+}
+
+force_kill_leftovers() {
+  local patterns=(
+    "${installDir}/cfg/taosanode.config.py"
+    "${installDir}/lib/taosanalytics/tsfmservice/"
+    "${dataDir}/venv/bin/python3 -m gunicorn"
+    "${dataDir}/moirai_venv/bin/python3"
+    "${dataDir}/momentfm_venv/bin/python3"
+    "${dataDir}/chronos_venv/bin/python3"
+    "${dataDir}/timesfm_venv/bin/python3"
+  )
+
+  for pattern in "${patterns[@]}"; do
+    pgrep -f "${pattern}" 2>/dev/null | while read -r pid; do
+      [ -n "${pid}" ] || continue
+      [ "${pid}" -eq "$$" ] && continue
+      [ "${pid}" -eq "${PPID:-0}" ] && continue
+      ${csudo}kill -TERM "${pid}" >/dev/null 2>&1 || :
+    done
+  done
+
+  sleep 2
+
+  for pattern in "${patterns[@]}"; do
+    pgrep -f "${pattern}" 2>/dev/null | while read -r pid; do
+      [ -n "${pid}" ] || continue
+      [ "${pid}" -eq "$$" ] && continue
+      [ "${pid}" -eq "${PPID:-0}" ] && continue
+      ${csudo}kill -KILL "${pid}" >/dev/null 2>&1 || :
+    done
+  done
+}
+
 kill_model_service() {
+  run_python_service_command model-stop all
+
   for script in stop-tdtsfm.sh stop-time-moe.sh; do
     script_path="${installDir}/bin/${script}"
     [ -f "${script_path}" ] && sudo bash "${script_path}" || :
@@ -169,9 +238,11 @@ remove_model_service() {
 }
 
 remove_service() {
+  run_python_service_command stop
   for _service in "${services[@]}"; do
     remove_service_of "${_service}"
   done
+  force_kill_leftovers
 }
 
 function clean_venv() {
@@ -216,6 +287,9 @@ function clean_log() {
 }
 
 function remove_deploy_binary() {
+  # install.sh creates this launcher as a regular file, not a symlink.
+  ${csudo}rm -f "${bin_link_dir}/taosanodectl"
+
   if [ ! -z "${bin_dir}" ]; then
     ${csudo}rm -rf ${bin_dir} || :
   fi

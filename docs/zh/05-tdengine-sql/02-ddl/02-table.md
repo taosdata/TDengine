@@ -47,7 +47,7 @@ table_option: {
 1. 表（列）名命名规则参见 [名称命名规则](../11-appendix/02-limit.md#名称命名规则)。
 2. 表名最大长度为 192 字节，不包括数据库名前缀和分隔符。
 3. 表的第一个字段必须是 `TIMESTAMP`，系统会自动将其设为主键。
-4. 除时间戳主键列之外，还可以通过 `COMPOSITE KEY` 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 `COMPOSITE KEY` 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。被指定为主键列的第二列必须为整型或字符串类型，如 `INT`、`BIGINT`、`INT UNSIGNED`、`BIGINT UNSIGNED`、`VARCHAR`、`BINARY`。
+4. 除时间戳主键列之外，还可以通过 `COMPOSITE KEY` 关键字指定第二列为额外的主键列，该列与时间戳列共同组成复合主键。当设置了复合主键时，两条记录的时间戳列与 `COMPOSITE KEY` 列都相同，才会被认为是重复记录，数据库只保留最新的一条；否则视为两条记录，全部保留。被指定为主键列的第二列必须为时间戳、整型或字符串类型，如 `TIMESTAMP`、`INT`、`BIGINT`、`INT UNSIGNED`、`BIGINT UNSIGNED`、`VARCHAR`、`BINARY`。
 5. 表的每行长度不能超过 64 KB。每个 `BINARY`、`VARCHAR`、`NCHAR`、`GEOMETRY`、`VARBINARY` 类型的列还会额外占用 2 个字节的存储位置。
 6. 使用 `BINARY`、`VARCHAR`、`VARBINARY`、`GEOMETRY` 类型时，需要指定最长字节数，如 `VARCHAR(20)` 表示最多存储 20 个单字节字符；使用 `NCHAR` 时，需要指定字符长度，如 `NCHAR(10)` 表示最多存储 10 个 `NCHAR` 字符。
 7. 关于 `ENCODE` 和 `COMPRESS` 的使用，参见 [按列压缩](../03-data-write/03-compress.md)。
@@ -113,6 +113,7 @@ CREATE TABLE [IF NOT EXISTS] USING [db_name.]stb_name (tbname [, tag_name] ...) 
 1. `FILE` 语法表示数据来自 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。CSV 文件中应仅包含 `tbname` 与标签值。如需插入数据，参见 [数据写入](../03-data-write/01-insert.md)。
 2. 为指定的 `stb_name` 创建子表，该超级表必须已经存在。
 3. 字段列表顺序与 CSV 文件各列内容顺序一致。列表中不允许出现重复项，且必须包含 `tbname`，可包含零个或多个超级表中已定义的标签列。未包含在列表中的标签值将被设置为 `NULL`。
+4. CSV 文件必须使用 UTF-8 编码。
 
 ## 修改表
 
@@ -130,6 +131,7 @@ alter_table_clause: {
   | ADD TAG tag_name tag_type
   | SET TAG tag_name = new_tag_value
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 
 alter_table_options:
@@ -155,7 +157,8 @@ alter_table_option: {
 7. `ADD TAG`：添加自有标签，初值为 `NULL`，可再经 `SET TAG` 赋值。
 8. `SET TAG`：设置自有标签的值。
 9. `DROP TAG`：删除标签。
-10. 普通表不支持标签引用：`ADD TAG ... FROM ...` 和 `SET TAG ... = db_name.table_name.tag_name` 均报错；`JSON` 类型标签不能通过 `ADD TAG` 追加。
+10. `RENAME TAG`：修改自有标签的名称。仅改变标签的显示名称，标签值保持不变。新名称不能与该表已有的列名或标签名重复。自 3.4.3.0 版本开始支持。
+11. 普通表不支持标签引用：`ADD TAG ... FROM ...` 和 `SET TAG ... = db_name.table_name.tag_name` 均报错；`JSON` 类型标签不能通过 `ADD TAG` 追加。
 
 **参数说明**
 
@@ -202,6 +205,12 @@ ALTER TABLE tb_name SET TAG tag_name = new_tag_value;
 
 ```sql
 ALTER TABLE tb_name DROP TAG tag_name;
+```
+
+#### 修改标签名
+
+```sql
+ALTER TABLE tb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 #### 修改表生命周期

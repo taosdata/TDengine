@@ -1,14 +1,18 @@
 
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -240,14 +244,21 @@ class TestDeleteData:
                 tdSql.checkRows(row_num)
             elif tb_type == 'stb':
                 tdSql.checkRows(tb_num*row_num)
+    def column_filter_predicate(self,column_name,column_type,base_data):
+        if 'binary' in column_type.lower():
+            return f'''{column_name} ="{base_data['binary']}"'''
+        elif 'nchar' in column_type.lower():
+            return f'''{column_name} ="{base_data['nchar']}"'''
+        else:
+            return f'{column_name} = {base_data[column_type]}'
+
     def delete_error(self,tbname,column_name,column_type,base_data):
-        for error_list in ['',f'ts = {self.ts} and',f'ts = {self.ts} or']:
-            if 'binary' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['binary']}"''')
-            elif 'nchar' in column_type.lower():
-                tdSql.error(f'''delete from {tbname} where {error_list} {column_name} ="{base_data['nchar']}"''')
-            else:
-                tdSql.error(f'delete from {tbname} where {error_list} {column_name} = {base_data[column_type]}')
+        predicate = self.column_filter_predicate(column_name,column_type,base_data)
+        # An ordinary column filter is supported on its own and combined with the time range using
+        # AND, but OR across the two categories is still rejected.
+        tdSql.error(f'delete from {tbname} where ts = {self.ts} or {predicate}')
+        # Only simple comparisons against a constant are accepted.
+        tdSql.error(f'delete from {tbname} where {column_name} = {column_name}')
         
         tdSql.error(f'delete from {tbname} where _c0 > forecast(_c0)')
 
@@ -331,6 +342,7 @@ class TestDeleteData:
         Since: v3.0.0.0
 
         Labels: common,ci,skip,integration,functional
+
         Jira: None
 
         History:

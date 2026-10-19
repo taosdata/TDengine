@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -16,6 +18,8 @@
 #ifndef _TD_NODES_INT_H_
 #define _TD_NODES_INT_H_
 
+#include "nodes.h"
+#include "plannodes.h"
 #include "ttime.h"
 
 #ifdef __cplusplus
@@ -56,6 +60,18 @@ extern "C" {
     }                                \
   } while (0)
 
+// Validate correlation node wire contracts before encoding and after decoding.
+int32_t nodesValidateCorrelationNode(const SNode* pNode);
+
+typedef struct SSubplanLink {
+  SSubplanId parentId;
+  SSubplanId childId;
+} SSubplanLink;
+
+// pSubplans owns each entity once; pChildren/pParents only borrow those entities.
+// On error pPlan may be partially linked and must be discarded.
+int32_t nodesRestoreSubplanDag(SQueryPlan* pPlan, const SArray* pLinks);
+
 int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
                                void** pTimezone, bool* pOwnsTimezone);
 
@@ -66,6 +82,10 @@ int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, i
  */
 int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
                                        void** pTimezone, bool* pOwnsTimezone);
+
+// Charset name of a charset context (SConvInfo*), falling back to the
+// process-wide charset (tsCharset) when the context is absent. Never NULL.
+const char* nodesGetCharsetName(const void* pCharsetCxt);
 
 #ifdef __cplusplus
 }

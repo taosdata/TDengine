@@ -8,13 +8,14 @@ title: Data Querying
 SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW() | TODAY() | TIMEZONE() | CURRENT_USER() | USER() }
 
 SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
-    from_clause
+    [from_clause]
     [WHERE condition]
     [partition_by_clause]
     [interp_clause]
     [window_clause]
     [group_by_clause]
-    [order_by_clasue]
+    [having_clause]
+    [order_by_clause]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
@@ -22,7 +23,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
 
 select_list:
     select_expr [, select_expr] ...
@@ -54,8 +55,14 @@ table_expr: {
 column_list:
     col_name type_name [, col_name type_name] ...
 
-join_clause:
-    [INNER|LEFT|RIGHT|FULL] [OUTER|SEMI|ANTI|ASOF|WINDOW] JOIN table_reference [ON condition] [WINDOW_OFFSET(start_offset, end_offset)] [JLIMIT jlimit_num]
+join_clause: {
+    [INNER] JOIN table_reference ON condition
+  | {LEFT|RIGHT|FULL} [OUTER] JOIN table_reference ON condition
+  | {LEFT|RIGHT} {SEMI|ANTI} JOIN table_reference ON condition
+  | CROSS JOIN table_reference
+  | {LEFT|RIGHT} ASOF JOIN table_reference [ON condition] [JLIMIT jlimit_num]
+  | {LEFT|RIGHT} WINDOW JOIN table_reference [ON condition] WINDOW_OFFSET(start_offset, end_offset) [JLIMIT jlimit_num]
+}
 
 window_clause: {
     SESSION(ts_col, tol_val)
@@ -79,19 +86,22 @@ fill_mode_and_val:
   | PREV|NEXT|NEAR
   | LINEAR
  
-group_by_clause:
-    GROUP BY group_by_expr [, group_by_expr] ... HAVING condition
-                                                    
-group_by_expr:
-    {expr | position | c_alias}
-
 partition_by_clause:
     PARTITION BY partition_by_expr [, partition_by_expr] ...
 
 partition_by_expr:
     {expr | position | c_alias}
 
-order_by_clasue:
+group_by_clause:
+    GROUP BY group_by_expr [, group_by_expr] ...
+
+group_by_expr:
+    {expr | position | c_alias}
+
+having_clause:
+    HAVING condition
+
+order_by_clause:
     ORDER BY order_expr [, order_expr] ...
 
 order_expr:
@@ -121,7 +131,7 @@ limit_expr: {
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
 - table_expr: Specify the query data source, which can be a table name, view name, subquery, or an inline data source (`TEXT` or `FILE`). See [TEXT Inline Data Source](#text-inline-data-source) and [FILE CSV Data Source](#file-csv-data-source) for details.
 - column_list: Column definition list shared by `TEXT` and `FILE`. Each entry is `col_name type_name`. All types except JSON, GEOMETRY, and BLOB are supported.
-- join_clause: Join query, supports sub tables, regular tables, super tables, and sub queries. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](../01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of rows for single line matching, with a default value of 1 and a value range of [0, 1024]. For detailed information, please refer to the join query chapter [TDengine Join Queries](./05-join.md).
+- join_clause: Join query. Starting with `v3.4.3.0`, ordinary joins support equality and general Boolean conditions between subtables, regular tables, supertables, virtual tables, and subqueries. For the applicable scope of ASOF JOIN and WINDOW JOIN, see the join query chapter. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](../01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of matching rows, with a value range of [0, 1024]. ASOF JOIN defaults to one matching row; WINDOW JOIN returns all matching rows in the window when JLIMIT is omitted. For detailed information, please refer to the join query chapter [TDengine Join Queries](./05-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](./04-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value. Supported time units are listed in [Time Units](../01-datatype.md#time-units) (milliseconds through weeks only), such as SESSION (ts, 12s).
   - STATE_WINDOW: State window, using one or more state keys to divide windows. Multiple state keys are supported from v3.4.2.0. `EXTEND(extend_val)` specifies the boundary extension strategy. `ZEROTH_STATE(...)` specifies the zero state. TRUE_FOR specifies the filtering condition for windows.
@@ -137,7 +147,7 @@ limit_expr: {
 - group_by_expr: Specify data grouping and aggregation rules. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select ts, current from meters order by ts desc, 2`, where 2 corresponds to the current column.
 - partition_by_expr: Specify the data slicing conditions, and calculate the data independently within the slice. Supports expressions, functions, positions, columns, and aliases. When using positional syntax, it must appear in the selection column, such as `select current from meters partition by 1`, where 1 corresponds to the current column.
 - order_expr: Specify the sorting rule for the output data, which is not sorted by default. Supports expressions, functions, positions, columns, and aliases. Different sorting rules can be used for each column in a single or multiple columns, and null values can be specified to be sorted first or last.
-- SLIMIT: Specify the number of output shards, limit_val specifies the number of outputs, offset_val specifies the start position of the offset, offset_val is optional, limit_val and offset_val are both positive values, used in the PARTITION BY and GROUP BY clauses. Only output one shard when using the ORDER BY clause.
+- SLIMIT: Specify the number of output slices. `limit_val` specifies the number of outputs, and `offset_val` specifies the optional starting offset; both are positive values. Use it with `PARTITION BY`, `GROUP BY`, or an implicit partition created by `HAVING`. When `ORDER BY` is used, only one slice is output.
 - LIMIT: Specify the number of output data, limit_val specifies the number of outputs, offset_val specifies the start position of the offset, offset_val is optional, both limit_val and offset_val are positive values. When using the PARTITION BY clause, the number of shards per shard is controlled.
 
 ## Hints
@@ -146,8 +156,8 @@ Hints are a means for users to control the optimization of individual statement 
 
 - Hints syntax starts with `/*+` and ends with `*/`, spaces may exist before and after.
 - Hints syntax can only follow the SELECT keyword.
-- Each Hints can contain multiple Hints, separated by spaces. If multiple Hints conflict or are the same, the first one prevails.
-- If an error occurs in one of the Hints, the valid Hints before the error remain effective, and the current and subsequent Hints are ignored.
+- A Hints comment can contain multiple Hints, separated by spaces; when multiple Hints conflict or are identical, the first one takes effect.
+- When a Hint causes an error, valid preceding Hints remain effective and the current and subsequent Hints are ignored.
 - hint_param_list is the parameter list for each Hint, which varies depending on the Hint.
 
 The currently supported Hints list is as follows:
@@ -157,11 +167,16 @@ The currently supported Hints list is as follows:
 |     BATCH_SCAN      | None          | Use batch table reading                                                                                                                                                               | Supertable JOIN statements                      |
 |    NO_BATCH_SCAN    | None          | Use sequential table reading                                                                                                                                                          | Supertable JOIN statements                      |
 |   SORT_FOR_GROUP    | None          | Use sort method for grouping, conflicts with PARTITION_FIRST                                                                                                                          | When partition by list includes regular columns |
-|   PARTITION_FIRST   | None          | Use PARTITION to calculate groups before aggregation, conflicts with SORT_FOR_GROUP                                                                                                   | When partition by list includes regular columns |
+|   PARTITION_FIRST   | None          | Prefer an independent Partition operator to form partitions; conflicts with SORT_FOR_GROUP                                                                                            | When the PARTITION BY list includes regular columns; starting from v3.4.3.0, also for STATE_WINDOW queries on a supertable partitioned by tag columns or tbname |
 |  PARA_TABLES_SORT   | None          | When sorting supertable data by timestamp, use memory instead of temporary disk space. When there are many subtables and rows are large, it will use a lot of memory and may cause OOM | When sorting supertable data by timestamp       |
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
 | SMALLDATA_SCAN_SORT | None          | When a supertable query needs timestamp-ordered scan output, use a plain table scan plus a sort instead of a table merge scan; for small per-vnode data this can be faster. It applies wherever the engine would otherwise use a table merge scan to produce timestamp order: ORDER BY ts, and also SESSION / STATE_WINDOW (no explicit ORDER BY required). It has no effect on INTERVAL windows (which do not use a table merge scan), nor on ORDER BY of non-timestamp columns | Small per-vnode supertable data needing timestamp order |
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
+|    FAST_INTERVAL    | None          | Enable the FAST execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                               | Supertable `INTERVAL` aggregate queries with no `PARTITION BY`, `FILL`, window offset, or sliding window, and without day/week/month/year calendar units |
+|     EX_INTERVAL     | None          | Enable the EX execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                                 | Queries meeting the base `FAST_INTERVAL` window conditions, without `LIMIT` or `SLIMIT`, with one table scan whose vgroups are on one dnode, and with a select list limited to `_wstart`, `_wend`, `_wduration`, and supported `COUNT`, `SUM`, or `AVG` expressions |
+| `JOIN_ALGO` | One of `HASH`, `MERGE`, `THETA` | Available from `v3.4.3.0`; join algorithm preference with fallback when inapplicable; see [Join Algorithms and Hints](./05-join.md#join-algorithms-and-hints) | Ordinary joins |
+| `HASH_JOIN` | None | Existing form corresponding to `JOIN_ALGO(HASH)` | Ordinary joins |
+| `MERGE_JOIN` | None | Available from `v3.4.3.0`; corresponds to `JOIN_ALGO(MERGE)` | Ordinary joins |
 
 Examples:
 
@@ -169,10 +184,20 @@ Examples:
 SELECT /*+ BATCH_SCAN() */ a.ts FROM stable1 a, stable2 b where a.tag0 = b.tag0 and a.ts = b.ts;
 SELECT /*+ SORT_FOR_GROUP() */ count(*), c1 FROM stable1 PARTITION BY c1;
 SELECT /*+ PARTITION_FIRST() */ count(*), c1 FROM stable1 PARTITION BY c1;
+SELECT /*+ PARTITION_FIRST() */ gid, _wstart, COUNT(*) FROM meters PARTITION BY gid STATE_WINDOW(status);
+SELECT /*+ PARTITION_FIRST() */ category, _wstart, COUNT(*) FROM meters PARTITION BY category STATE_WINDOW(status);
 SELECT /*+ PARA_TABLES_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
+SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
+SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 ```
+
+Starting from v3.4.3.0, `PARTITION_FIRST` also applies to state-window queries on a supertable partitioned by tag columns or `tbname`. In this execution path, Table Merge Scan first scans the relevant subtables, an independent Partition operator then forms partitions by the tag columns or `tbname`, and `STATE_WINDOW` calculates windows within each partition. A multi-vnode query preserves the primary-timestamp order within each partition. If the table has a second primary key, it is also used to determine the order of rows with the same timestamp.
+
+When the `PARTITION BY` list contains a regular data column, or both tag and regular data columns, TDengine retains an independent Partition operator with or without `PARTITION_FIRST`. A regular column can change from row to row and therefore cannot be grouped in advance from subtable tags during the scan. Multi-vnode queries also preserve the primary-timestamp order and the optional second-primary-key order within each partition. For these queries, the hint normally does not change the operator shape and is not expected to provide an additional scan-performance gain.
+
+This hint does not change query-result semantics. For tag-only or `tbname` partitions, it is intended mainly to reduce scan-group switching and small-block scheduling overhead when there are many small partitions. A workload with a few large partitions might not benefit because it incurs additional repartitioning work. Use `EXPLAIN` to verify that the plan contains an independent Partition operator, and use `EXPLAIN ANALYZE` to compare execution time and resource usage with and without the hint. Without this hint, TDengine continues to use the default plan.
 
 ## List
 
@@ -489,6 +514,7 @@ The INTERP clause is a dedicated syntax for the [INTERP function](./03-function.
 - The output time range for INTERP is specified by the RANGE(timestamp1, timestamp2) field, which must satisfy timestamp1 \<= timestamp2. Here, timestamp1 is the start value of the output time range, i.e., if the conditions for interpolation are met at timestamp1, then timestamp1 is the first record output, and timestamp2 is the end value of the output time range, i.e., the timestamp of the last record output cannot be greater than timestamp2.
 - INTERP determines the number of results within the output time range based on the EVERY(time_unit) field, starting from timestamp1 and interpolating at fixed intervals of time (time_unit value). The time_unit options are listed in [Time Units](../01-datatype.md#time-units), supporting milliseconds through weeks only (months/quarters/years not allowed). For example, EVERY(500a) will interpolate the specified data every 500 milliseconds.
 - INTERP determines how to interpolate at each time point that meets the output conditions based on the FILL field. For how to use the FILL clause, refer to [FILL Clause](./01-query.md#fill-clause). Note: The sampled data used for interpolation is not limited to the constraints of the RANGE field, but rather to all data that meets the conditions of the WHERE clause; if no WHERE clause is specified, the entire table data is used. When the parameter of the FILL clause is PREV/NEXT/NEAR, adjacent valid data will be used for interpolation. Whether NULL data is considered valid data depends on the ignore_null_values parameter of the INTERP function. To limit the scope of sampled data, you can use the SURROUND clause.
+- When INTERP is used with PARTITION BY and the partition key contains a regular column or an expression over regular columns, only groups that contain at least one source row within RANGE after WHERE filtering participate in the output. A group with source rows only before or after RANGE is not output. If the partition key consists only of static keys such as tags or TBNAME, candidate groups are determined from rows that satisfy the WHERE condition, so a group with no row within RANGE may still be output. Whether such a group produces a result ultimately depends on the FILL mode and the available adjacent reference data. (Supported from version 3.4.3.0)
 - INTERP can interpolate at a single time point specified in the RANGE field, in which case the EVERY field can be omitted. For example: `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00') FILL(linear)`.
 - INTERP query supports NEAR FILL mode, i.e., when FILL is needed, it uses the valid data closest to the current time point for interpolation. When the timestamps before and after are equally close to the current time slice, FILL the previous row's value. This mode is not supported in window queries. For example: `SELECT INTERP(col) FROM tb RANGE('2023-01-01 00:00:00', '2023-01-01 00:10:00') FILL(NEAR)` (Supported from version 3.3.4.9).
 
@@ -629,6 +655,42 @@ Since PARTITION BY does not require returning a single row of aggregated data, i
 
 See [TDengine Distinctive Queries](./04-distinguished.md)
 
+## HAVING
+
+The `HAVING` clause filters results after grouping, partitioning, or window calculation. It can be used with `GROUP BY`, `PARTITION BY`, or a window clause, and it can also be used when the current query block has none of these clauses and no Window Join. In that case, TDengine treats all input as one implicit partition, which is equivalent to applying `PARTITION BY` to a column whose value is constant.
+
+`WHERE` filters input rows before grouping, partitioning, or window calculation, whereas `HAVING` filters the results produced by those calculations. The condition following `HAVING` can use ordinary columns or aggregate functions. An ordinary column expression filters by column value, while an aggregate expression filters by aggregate result.
+
+The following restrictions apply when using `HAVING`:
+
+1. In aggregate and window queries, every unaggregated ordinary column in `HAVING` must be a grouping, partition, or window key; a non-key column cannot be used for filtering. These queries include `GROUP BY` queries and queries that use `PARTITION BY` or a window clause to perform aggregation or window calculation. A non-aggregate query uses only `PARTITION BY` to partition data without aggregation or window calculation. It does not collapse rows within each partition, so `HAVING` can reference any ordinary column, including a non-partition-key column.
+2. When the query has no `GROUP BY`, `PARTITION BY`, window clause, or Window Join, ordinary column expressions and aggregate expressions are each valid on their own, but cannot be mixed in the same query block. TDengine treats all input as one implicit partition whose partition key is constant. In `SELECT current FROM meters HAVING COUNT(*) > 5`, the ordinary column `current` in the `SELECT` list conflicts with the aggregate expression in `HAVING`. In `SELECT COUNT(*) FROM meters HAVING COUNT(*) > 5 AND current > 10`, the ordinary column expression `current > 10` in `HAVING` conflicts with the aggregate expressions. Both statements are invalid.
+3. Window Join supports only aggregate filters in `HAVING`; scalar filters are not supported. For details, see [Left/Right Window Join](05-join.md#leftright-window-join).
+
+The following examples show valid usage in aggregate, non-aggregate, and implicit-partition queries:
+
+```sql
+-- Aggregate query: the ordinary column location is a grouping key
+SELECT location, COUNT(*)
+FROM meters
+GROUP BY location
+HAVING location = 'California.SanFrancisco' AND COUNT(*) > 10;
+
+-- Non-aggregate PARTITION BY: current need not be a partition key
+SELECT ts, current
+FROM meters
+PARTITION BY location
+HAVING current > 10;
+
+-- Implicit partition using only an ordinary column expression
+SELECT ts, current FROM meters HAVING current > 10;
+
+-- Implicit partition using only aggregate expressions
+SELECT COUNT(*), AVG(current)
+FROM meters
+HAVING COUNT(*) > 100;
+```
+
 ## ORDER BY
 
 The ORDER BY clause sorts the result set. If ORDER BY is not specified, the order of the result set returned by the same query multiple times cannot be guaranteed.
@@ -653,7 +715,7 @@ function_name ( [ arguments ] ) OVER (
 )
 ```
 
-Window functions support both existing aggregate/selection functions (such as `avg`, `sum`, `first`) used with an `OVER` clause, and dedicated window functions such as `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `lag`, `lead`, `first_value`, `last_value`, and `nth_value`. Window functions may only appear in the `SELECT` list and `ORDER BY`. For the complete syntax, frame rules, named windows, and function list, see [Window Functions](./06-window-function.md).
+Window functions support both existing aggregate/selection functions (such as `avg`, `sum`, `first`) used with an `OVER` clause, and dedicated window functions such as `row_number`, `rank`, `dense_rank`, `percent_rank`, `cume_dist`, `lag`, `lead`, `first_value`, `last_value`, and `nth_value`. Window functions may only appear in the `SELECT` list and `ORDER BY`. For the complete syntax, frame rules, named windows, and function list, see [Window Functions](./07-window-function.md).
 
 ## LIMIT
 
@@ -661,11 +723,11 @@ LIMIT controls the number of output rows, and OFFSET specifies starting from whi
 
 When there is a PARTITION BY/GROUP BY clause, LIMIT controls the output within each partition slice, not the total result set output.
 
-Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`, which is useful for skipping the warm-up rows after a [window function](./06-window-function.md) computation.
+Starting from v3.4.2.0, `OFFSET N` can be used independently without `LIMIT`, which is useful for skipping the warm-up rows after a [window function](./07-window-function.md) computation.
 
 ## SLIMIT
 
-SLIMIT is used with the PARTITION BY/GROUP BY clause to control the number of output slices. SLIMIT 5 SOFFSET 2 can be abbreviated as SLIMIT 2, 5, both indicating output from the 3rd to the 7th slice.
+SLIMIT is used with `PARTITION BY` or `GROUP BY` to control the number of output slices. It can also be used with an implicit partition created by `HAVING`. `SLIMIT 5 SOFFSET 2` can be abbreviated as `SLIMIT 2, 5`; both forms output the third through seventh slices.
 
 Note that if there is an ORDER BY clause, only one slice is output.
 
@@ -808,7 +870,9 @@ SELECT AVG(CASE WHEN voltage < 200 or voltage > 250 THEN 220 ELSE voltage END) F
 
 ## JOIN Clause
 
-Before version 3.3.0.0, TDengine only supported inner joins. From version 3.3.0.0, TDengine supports a wider range of JOIN types, including traditional database joins like LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN, as well as time-series specific joins like ASOF JOIN, WINDOW JOIN. JOIN operations are supported between subtables, regular tables, supertables, and subqueries.
+Before version v3.3.0.0, TDengine only supported inner joins. From version v3.3.0.0, TDengine supports a wider range of JOIN types, including traditional database joins like LEFT JOIN, RIGHT JOIN, FULL JOIN, SEMI JOIN, ANTI-SEMI JOIN, and time-series-specific joins like ASOF JOIN and WINDOW JOIN. Starting with `v3.4.3.0`, TDengine also supports explicit CROSS JOIN and unconditional comma joins. See [Conditions Supported by Ordinary Joins](./05-join.md#conditions-supported-by-ordinary-joins) and [Join Algorithms and Hints](./05-join.md#join-algorithms-and-hints). Starting with `v3.4.3.0`, ordinary joins support equality and general Boolean conditions between subtables, regular tables, supertables, virtual tables, and subqueries. For detailed syntax and the applicable scope of ASOF JOIN and WINDOW JOIN, see the join query chapter.
+
+Ordinary JOIN inputs can lack a timeline. The optimizer can choose Hash or Theta when the inputs do not meet Merge requirements; see [Primary Key Timeline for JOIN](./05-join.md#primary-key-timeline). If a subquery contains both `ORDER BY` and `LIMIT`, its own ordering and row-selection semantics remain unchanged.
 
 ### Example
 
@@ -840,11 +904,15 @@ For more information on JOIN operations, see the page [TDengine Join Queries](./
 
 ## Timeline
 
-TDengine timeline functions (such as `diff`, `derivative`, `twa`, and `elapsed`) and window operators (such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`) require a valid timeline to run.
+Starting with `v3.4.3.0`, ordinary JOINs do not require a primary timestamp column in the join condition, and the optimizer selects an applicable algorithm based on the condition and input order. This broader JOIN support does not remove the timeline requirements of subsequent timeline functions or window operators. See [Primary Key Timeline for JOIN](./05-join.md#primary-key-timeline).
+
+Functions that need a time value or a time difference (such as `DERIVATIVE`, `TWA`, and `ELAPSED`) and window operators (such as `INTERVAL`, `SESSION`, and `STATE_WINDOW`) require a valid timeline. Functions that depend only on row order can run in no-timeline mode, as described below.
 
 When you query a physical or virtual table directly, the system time column (the primary key `ts` / `_rowts`, and derived window pseudocolumns such as `_wstart`) is used automatically as the effective timeline. No extra action is required.
 
-When the outer query reads from a subquery and the subquery result has no system time column, or that column is unordered, TDengine automatically selects the first `TIMESTAMP` column in the output as a **degraded timeline**. If there is no `TIMESTAMP` column at all, only `first`, `last`, and `last_row` can return results by input-row order; other timeline functions and window operators report an error.
+When the outer query reads from a subquery and the subquery result has no system time column, or that column is unordered, TDengine automatically selects the first `TIMESTAMP` column in the output as a **degraded timeline**.
+
+If the input contains no `TIMESTAMP` column, the query enters no-timeline mode. `FIRST`, `LAST`, `LAST_ROW`, `DIFF`, `CSUM`, `MAVG`, `STATECOUNT`, `LAG`, `LEAD`, `FILL_FORWARD`, and `UNIQUE` run in input-row order. Functions and window operators that need a time value, a time difference, time weighting, or a window boundary still report an error, including `DERIVATIVE`, `TWA`, `ELAPSED`, `STATEDURATION`, `INTERP`, and `INTERVAL`. Use an explicit `ORDER BY` in the subquery when the row order must be stable. See [Sequential Analysis Functions](./03-function.md#sequential-analysis-functions) for each function, and [UNIQUE](./03-function.md#unique) for `UNIQUE`.
 
 ```sql
 -- Subquery does not output the system time column ts; event_time becomes the degraded timeline
@@ -856,7 +924,18 @@ FROM (
 );
 ```
 
-**Note:** You are responsible for the quality of a degraded timeline. If it is out of order, results from time-difference–dependent functions (`derivative`, `twa`, `elapsed`, `stateduration`, `interp`) may have no physical meaning. Use `ORDER BY` in the subquery to keep the degraded timeline ordered.
+```sql
+-- With no TIMESTAMP column in the result, adjacent differences follow the subquery ORDER BY
+SELECT DIFF(avg_v)
+FROM (
+  SELECT groupId, AVG(voltage) AS avg_v
+  FROM meters
+  GROUP BY groupId
+  ORDER BY groupId
+);
+```
+
+**Note:** You are responsible for the quality of a degraded timeline. If it is out of order, results from time-difference-dependent functions (`DERIVATIVE`, `TWA`, `ELAPSED`, `STATEDURATION`, `INTERP`) may have no physical meaning. Use `ORDER BY` in the subquery to keep the degraded timeline ordered. In no-timeline mode, the input row order is not stable across executions unless the subquery specifies `ORDER BY`.
 
 ## Nested Queries
 
@@ -872,13 +951,13 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 - The result of the inner query will serve as a "virtual table" for the outer query, and it is recommended to alias this virtual table for easy reference in the outer query.
 - The outer query supports direct referencing of columns or pseudocolumns from the inner query by column name or `column name`.
-- Both inner and outer queries support regular table-to-table/supertable joins. The result of the inner query can also participate in JOIN operations with data subtables.
+- Both inner and outer queries support regular table-to-table/supertable joins. The result of the inner query can also participate in ordinary joins with data subtables using equality or general Boolean conditions. The subquery input restrictions for ASOF JOIN and WINDOW JOIN remain unchanged; see the join query chapter for details.
 - The functional features supported by the inner query are consistent with those of non-nested queries.
-  - The ORDER BY clause in the inner query generally has no meaning and is recommended to be avoided to prevent unnecessary resource consumption.
+  - When inner ordering is not needed for `LIMIT` row selection or subsequent timeline operations, generally omit the inner `ORDER BY` to avoid unnecessary sorting costs. Specify `ORDER BY` in the outer query when ordered final results are required.
+  - If the inner query contains both `ORDER BY` and `LIMIT`, its own ordering and row-selection semantics remain unchanged.
 - Compared to non-nested queries, the outer query has the following limitations in supported functional features:
   - Part of calculation functions:
-    - If the inner query result provides no `TIMESTAMP` column, timeline-dependent functions cannot be used in the outer query (only `FIRST`, `LAST`, and `LAST_ROW` can return results by input-row order). If the inner query outputs an ordinary `TIMESTAMP` column but not the primary key column, TDengine automatically selects the first `TIMESTAMP` column as a degraded timeline.
-    - If the result data of the inner query is not ordered by timestamp, then functions dependent on data being ordered by time will not work properly in the outer query. Examples include: LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE.
+    - For the time-column and ordering requirements of subsequent timeline functions and window queries, see [Timeline](#timeline). A valid ordinary JOIN does not imply that its output meets these requirements.
     - Functions that require two passes of scanning will not work properly in the outer query. Examples of such functions include: PERCENTILE.
 
 :::
@@ -897,6 +976,20 @@ Examples of non-correlated scalar subqueries appearing in SELECT and WHERE claus
 SELECT col1, (SELECT sum(col1) FROM tb1) FROM tb2;
 SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 ```
+
+## Correlated Scalar Subqueries
+
+A correlated scalar subquery refers to a column in an outer query block. The inner query runs when the containing expression is evaluated, using the values at that position. For example:
+
+```sql
+SELECT r.ts, r.c1,
+       (SELECT h.c1 FROM history h WHERE h.device_id = r.device_id ORDER BY h.ts DESC LIMIT 1)
+FROM readings r;
+```
+
+The inner query must return one column. Zero rows produce a typed `NULL`; one row produces its value; multiple rows cause an error. Use `LIMIT 1` when the result must contain at most one row. A correlated reference can target the immediate outer query block or another ancestor query block.
+
+Correlated scalar subqueries are supported in queries and in the query part of `INSERT INTO ... SELECT`. Non-correlated subqueries in the same statement retain their independent execution and result reuse. Correlated `IN`, `EXISTS`, `ANY`, `ALL`, row subqueries, and references to outer columns from derived tables in `FROM` are not supported. This does not restrict existing non-correlated subqueries. Stream processing, subscriptions, DDL, and other DML statements do not support correlated scalar subqueries. `queryPolicy` `4` (client-side aggregation) does not support them either; the query fails with `Client query policy does not support correlated scalar subqueries`. `queryPolicy` `1`, `2`, and `3` are supported.
 
 ## Subquery expression
 

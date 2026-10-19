@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_SCALAR_H
 #define TDENGINE_SCALAR_H
 
@@ -27,6 +30,31 @@ typedef int32_t (*sclFetchFromRemote)(void*, int32_t, SNode*);
 typedef bool    (*sclIsTaskKilled)(void*);
 
 typedef struct SFilterInfo SFilterInfo;
+typedef struct SCorrelationTaskSession SCorrelationTaskSession;
+typedef struct SCorrelationRuntimeOps SCorrelationRuntimeOps;
+typedef struct SCorrelationWaitHooks SCorrelationWaitHooks;
+
+// Borrowed for one Scalar/Filter invocation. A missing row range selects the
+// full input block; JOIN row positions apply to the named input blocks only.
+typedef struct SCorrelationEvalContext {
+  SCorrelationTaskSession*      pSession;
+  const SCorrelationRuntimeOps* pOps;
+  const SArray*                 pInheritedParams;
+  const SCorrelationWaitHooks*  pWait;
+  const SArray*                 pSubquerySources;  // Borrowed noncorrelated producer endpoints.
+  bool                          hasRowRange;
+  int32_t                       rowStart;
+  int32_t                       rowEnd;
+  bool                          hasJoinRows;
+  int64_t                       leftBlockId;
+  int64_t                       rightBlockId;
+  int32_t                       leftRow;
+  int32_t                       rightRow;
+  void*                         pStatsContext;  // Borrowed; may be NULL.
+  // Called after each input row. called reports whether invokeScalar ran;
+  // elapsedUs covers that call. A nonzero return aborts evaluation.
+  int32_t (*recordStats)(void* pContext, int32_t templateId, bool called, int64_t elapsedUs);
+} SCorrelationEvalContext;
 
 typedef struct SScalarExtraInfo {
   void*              pStreamInfo;
@@ -37,6 +65,7 @@ typedef struct SScalarExtraInfo {
   uint64_t           streamGen;
   void*              pTaskInfo;    // opaque task handle for kill check
   sclIsTaskKilled    isTaskKilled; // points to executor's isTaskKilled()
+  const SCorrelationEvalContext*  pCorrelation;
 } SScalarExtraInfo;
 
 int32_t scalarGetOperatorResultType(SOperatorNode *pOp);
@@ -137,7 +166,7 @@ int32_t likeInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
 int32_t regexpInSetFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
-// Maximum capture-group index accepted by regexp_extract() — shared between
+// Maximum capture-group index accepted by regexp_extract()  -  shared between
 // translate-time validation (builtins.c) and runtime validation (sclfunc.c).
 #define REGEXP_EXTRACT_MAX_GROUP_IDX 512
 int32_t generateTotpSecretFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

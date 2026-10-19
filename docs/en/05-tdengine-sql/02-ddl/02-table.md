@@ -45,7 +45,7 @@ Usage Notes:
 1. For table (column) naming conventions, see [Naming Rules](../11-appendix/02-limit.md).
 2. The maximum length for table names is 192 characters.
 3. The first field of the table must be TIMESTAMP, and the system automatically sets it as the primary key.
-4. In addition to the timestamp primary key column, a second column can be designated as an additional composite primary key column using the `COMPOSITE KEY` keyword. The second column designated as a composite primary key must be an integer type such as `INT`, `BIGINT`, `INT UNSIGNED`, or `BIGINT UNSIGNED`, or a string type such as `VARCHAR` or `BINARY`.
+4. In addition to the timestamp primary key column, a second column can be designated as an additional composite primary key column using the COMPOSITE KEY keyword. The second column designated as a composite primary key must be of `TIMESTAMP`, integer, or string type (`VARCHAR`).
 5. The maximum row length of a table cannot exceed 64 KB. Each `BINARY`, `VARCHAR`, `NCHAR`, `GEOMETRY`, and `VARBINARY` column also occupies an additional 2 bytes of storage space.
 6. When using `BINARY`, `VARCHAR`, `VARBINARY`, or `GEOMETRY`, specify the maximum number of bytes. For example, `VARCHAR(20)` indicates up to 20 single-byte characters. When using `NCHAR`, specify the maximum number of characters. For example, `NCHAR(10)` indicates up to 10 `NCHAR` characters.
 7. For the use of `ENCODE` and `COMPRESS`, please refer to [Column Compression](../03-data-write/03-compress.md)
@@ -113,6 +113,7 @@ Parameter Description:
 1. `FILE` syntax indicates that the data comes from a CSV file (separated by English commas, with each value enclosed in English single quotes), and the CSV file does not need a header. The CSV file should contain only `tbname` and tag values. If you need to insert data, see [Data Writing](../03-data-write/01-insert.md).
 2. Create subtables for the specified stb_name, which must already exist.
 3. The order of the field list must be consistent with the order of the columns in the CSV file. The list must not contain duplicates and must include `tbname`. It may contain zero or more tag columns already defined in the supertable. Tag values not included in the list will be set to `NULL`.
+4. The encoding of the CSV file must be UTF-8.
 
 ## Modify basic tables
 
@@ -128,6 +129,7 @@ alter_table_clause: {
   | ADD TAG tag_name tag_type
   | SET TAG tag_name = new_tag_value
   | DROP TAG tag_name
+  | RENAME TAG old_tag_name new_tag_name
 }
 
 alter_table_options:
@@ -153,7 +155,8 @@ The following modifications can be made to basic tables:
 7. `ADD TAG`: Add an owned tag with an initial value of `NULL`; assign a value later with `SET TAG`.
 8. `SET TAG`: Set the value of an owned tag.
 9. `DROP TAG`: Drop a tag.
-10. Basic tables do not support tag references: `ADD TAG ... FROM ...` and `SET TAG ... = db_name.table_name.tag_name` are both rejected; `JSON` tags cannot be added with `ADD TAG`.
+10. `RENAME TAG`: Change the name of an owned tag. Only the display name changes; the tag value is preserved. The new name must not clash with an existing column or tag of the table. Supported since v3.4.3.0.
+11. Basic tables do not support tag references: `ADD TAG ... FROM ...` and `SET TAG ... = db_name.table_name.tag_name` are both rejected; `JSON` tags cannot be added with `ADD TAG`.
 
 Parameter Description:
 
@@ -200,6 +203,12 @@ ALTER TABLE tb_name SET TAG tag_name = new_tag_value;
 
 ```sql
 ALTER TABLE tb_name DROP TAG tag_name;
+```
+
+### Rename Tag
+
+```sql
+ALTER TABLE tb_name RENAME TAG old_tag_name new_tag_name;
 ```
 
 ### Modify table lifespan

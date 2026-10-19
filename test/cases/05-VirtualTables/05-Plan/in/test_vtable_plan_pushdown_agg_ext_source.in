@@ -1,0 +1,16 @@
+set max_binary_display_width 180;
+
+explain verbose true select sum(local_v), sum(remote_v) from vt_pushdown_agg.vt_mysql;
+select sum(local_v), sum(remote_v) from vt_pushdown_agg.vt_mysql;
+
+explain verbose true select sum(local_v), sum(remote_v) from vt_pushdown_agg.vt_postgres;
+select sum(local_v), sum(remote_v) from vt_pushdown_agg.vt_postgres;
+
+explain verbose true select sum(local_v), sum(remote_v) from vt_pushdown_agg.vt_influx;
+select sum(local_v), sum(remote_v) from vt_pushdown_agg.vt_influx;
+
+explain verbose true select sum(mysql_v), sum(postgres_v), sum(influx_v) from vt_pushdown_agg.vt_external_mixed;
+select sum(mysql_v), sum(postgres_v), sum(influx_v) from vt_pushdown_agg.vt_external_mixed;
+
+explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v) from vt_pushdown_agg.vt_all_mixed;
+select sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v) from vt_pushdown_agg.vt_all_mixed;

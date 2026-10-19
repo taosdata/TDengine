@@ -7,14 +7,14 @@ toc_max_heading_level: 4
 
 在现代物联网（IoT）和工业互联网（IIoT）应用中，数据的高效管理对系统性能和用户体验至关重要。为了应对高并发环境下的实时读写需求，TDengine 设计了一套完整的缓存机制，包括写缓存、读缓存、元数据缓存和文件系统缓存。这些缓存机制紧密结合，既能优化数据查询的响应速度，又能提高数据写入的效率，同时保障数据的可靠性和系统的高可用性。通过灵活配置缓存参数，TDengine 为用户提供了性能与成本之间的最佳平衡。
 
-读缓存的配置步骤与效果验证见 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)；参数细则见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。实现层面的落盘与 last 缓存加载策略，另见 [整体架构：缓存与持久化](./01-arch.md#缓存与持久化)。
+读缓存的配置步骤与效果验证见 [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)；参数细则见 [数据库](../05-tdengine-sql/02-ddl/01-database.md)。实现层面的落盘与 last 缓存加载策略，另见 [整体架构：缓存与持久化](./01-arch.md#缓存与持久化)。
 
 ## 缓存类型一览
 
 | 类型 | 作用 | 关键参数 | 适用场景 | 详见 |
 | --- | --- | --- | --- | --- |
 | 写缓存 | 最新写入优先保存在缓存中，达到临界值后最早数据批量落盘 | `BUFFER`、`VGROUPS` | 近期数据读写、写入吞吐 | 下文、[BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer) |
-| 读缓存 | 缓存子表最近数据，加速当前值查询 | `CACHEMODEL`、`CACHESIZE` | `LAST`、`LAST_ROW` | [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)、下文 |
+| 读缓存 | 缓存子表最近数据，加速当前值查询 | `CACHEMODEL`、`CACHESIZE` | `LAST`、`LAST_ROW` | [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)、下文 |
 | 元数据缓存 | 缓存 vnode 曾经获取过的元数据 | `PAGES`、`PAGESIZE` | 元数据相关访问 | 下文、[PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages) |
 | 文件系统缓存 | WAL 顺序追加写入时依赖文件系统缓存；`fsync` 控制何时强制落盘 | `WAL_LEVEL`、`WAL_FSYNC_PERIOD` | 写入性能与可靠性权衡 | 下文、[WAL_LEVEL](../05-tdengine-sql/02-ddl/01-database.md#wal_level) |
 
@@ -53,7 +53,25 @@ TDengine 的读缓存机制专为高频实时查询场景设计，尤其适用�
 
 此外，TDengine 的读缓存机制还能够根据实际业务场景灵活调整。在数据访问热点集中在最新记录的场景中，这种内置缓存能够显著提高用户体验，让关键数据的获取更加快速高效。相比传统缓存方案，这种无缝集成的缓存策略不仅简化了开发流程，还为用户提供了更高的性能保障。
 
-关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)。`LAST` / `LAST_ROW` 函数语义见 [LAST](../05-tdengine-sql/04-data-query/03-function.md#last)、[LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row)；LRU、延迟加载等机制见 [整体架构：last/last_row 缓存](./01-arch.md#lastlast_row-缓存)。
+关于 TDengine 读缓存的更多详细内容请看 [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)。`LAST` / `LAST_ROW` 函数语义见 [LAST](../05-tdengine-sql/04-data-query/03-function.md#last)、[LAST_ROW](../05-tdengine-sql/04-data-query/03-function.md#last_row)；LRU、延迟加载等机制见 [整体架构：last/last_row 缓存](./01-arch.md#lastlast_row-缓存)。
+
+### 读缓存引擎参数
+
+`CACHEMODEL` 不为 `none` 时，除了上述内存中的 LRU 缓存，每个 `vnode` 还会打开一个独立的 RocksDB 实例作为持久化的 last cache 引擎，用于在内存缓存未命中或重启后为 `last`/`last_row` 查询提供数据来源。该引擎的行为可以通过以下 dnode 级参数调整（均在 `taos.cfg` 中配置，详见 [配置参数作用域对照表](../12-operations-and-tooling/03-components/10-config-scope.md)）：
+
+| 参数 | 默认值 | 取值范围 | 说明 |
+| --- | --- | --- | --- |
+| `sLastCacheWriteBufferSize` | 8 (MB) | [1, 1048576] | 每个 memtable 的写缓冲区大小 |
+| `sLastCacheMaxWriteBufferNumber` | 2 | [1, 64] | 允许同时存在的 memtable 数量上限 |
+| `sLastCacheBackgroundThreads` | 2 | [1, 256] | flush/compaction 后台线程数，每个 `vnode` 独立持有一个该大小的线程池 |
+| `sLastCacheBloomFilterBits` | 10 | [0, 32] | 每个 key 的布隆过滤器位数，减少点查时无效的 SST 文件读取；0 表示关闭 |
+| `sLastCacheMaxOpenFiles` | -1 | [-1, 1048576] | 允许同时打开的文件描述符数量上限，-1 表示不限制 |
+| `sLastCacheCompressionType` | `none` | 取决于构建时链接的压缩库 | 压缩算法 |
+| `sLastCacheOptionsOverride` | 空 | RocksDB 原生配置字符串 | 覆盖以上参数，优先级最低，供高级场景使用 |
+
+以上参数（除 `CACHESIZE` 对应的 block cache 容量外）都在 RocksDB 打开数据库实例时一次性绑定到底层 `Options`，修改后需要重启 `dnode`（或至少重新打开相关 `vnode`）才能生效，因此在配置系统中标记为延迟生效（`_LAZY`）。真正可以立即生效、无需重启的，只有通过 `ALTER DATABASE ... CACHESIZE ...` 调整的 block cache 容量：`CACHESIZE` 会平均分配给内存 LRU 缓存与该 RocksDB 引擎的 block cache（各占一半），总占用内存约等于 `CACHESIZE` 而非成倍增加，并通过原地调用 RocksDB 的容量调整接口即时生效。
+
+可以通过 [`INS_LAST_CACHE_STATS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_last_cache_stats) 系统表按 `vgroup` 观测该引擎的运行时状态，包括 block cache 容量与占用、memtable 大小、flush/compaction 积压、写入限速与 SST 文件统计等，用于验证参数调整的效果或排查写入/查询延迟问题。
 
 ## 元数据缓存
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -311,6 +313,103 @@ int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, i
 
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreePGet(pBt, pKey, kLen, NULL, NULL, ppVal, vLen);
+}
+
+static int32_t tdbBtcResetToRoot(SBTC *pBtc) {
+  while (pBtc->iPage > 0) {
+    tdbPagerReturnPage(pBtc->pBt->pPager, pBtc->pPage, pBtc->pTxn);
+    pBtc->iPage--;
+    pBtc->pPage = pBtc->pgStack[pBtc->iPage];
+    pBtc->idx = pBtc->idxStack[pBtc->iPage];
+  }
+
+  if (pBtc->iPage == 0) {
+    pBtc->idx = -1;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tdbBtreeBatchCopyValue(SBTC *pBtc, STdbTbBatchGetArg *pArg) {
+  SCellDecoder cd = {0};
+  SCell       *pCell = tdbPageGetCell(pBtc->pPage, pBtc->idx);
+  int32_t      code = tdbBtreeDecodeCell(pBtc->pPage, pCell, &cd, pBtc->pTxn, pBtc->pBt);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  void *pVal = tdbRealloc(pArg->pVal, cd.vLen);
+  if (NULL == pVal) {
+    code = terrno;
+    goto _exit;
+  }
+
+  pArg->pVal = pVal;
+  pArg->vLen = cd.vLen;
+  memcpy(pArg->pVal, cd.pVal, (size_t)cd.vLen);
+
+_exit:
+  if (TDB_CELLDECODER_FREE_KEY(&cd)) {
+    tdbFree(cd.pKey);
+  }
+  if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+    tdbFree(cd.pVal);
+  }
+  return code;
+}
+
+int tdbBtreeGetBatch(SBTree *pBt, STdbTbBatchGetArg *pArgs, int32_t numOfArgs) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SBTC    btc = {0};
+
+  if (numOfArgs < 0 || (numOfArgs > 0 && NULL == pArgs)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (numOfArgs == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  code = tdbBtcOpen(&btc, pBt, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < numOfArgs; ++i) {
+    STdbTbBatchGetArg *pArg = &pArgs[i];
+    int32_t            cmp = 0;
+
+    pArg->code = TSDB_CODE_SUCCESS;
+    if (NULL == pArg->pKey || pArg->kLen <= 0) {
+      pArg->code = TSDB_CODE_INVALID_PARA;
+      continue;
+    }
+
+    if (i > 0) {
+      code = tdbBtcResetToRoot(&btc);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
+      }
+    }
+
+    code = tdbBtcMoveTo(&btc, pArg->pKey, pArg->kLen, &cmp);
+    if (code != TSDB_CODE_SUCCESS) {
+      pArg->code = code;
+      break;
+    }
+    if (btc.idx < 0 || cmp != 0) {
+      pArg->code = TSDB_CODE_NOT_FOUND;
+      continue;
+    }
+
+    pArg->code = tdbBtreeBatchCopyValue(&btc, pArg);
+    if (pArg->code != TSDB_CODE_SUCCESS) {
+      code = pArg->code;
+      break;
+    }
+  }
+
+  tdbBtcClose(&btc);
+  return code;
 }
 
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
@@ -2638,9 +2737,11 @@ int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst) {
     // for empty tree, just return with an invalid position
     if (TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0) return 0;
   } else {
-    // TODO
-    tdbError("tdb/btc-move-to: move from a dirty cursor.");
-    return TSDB_CODE_FAILED;
+    if (pBtc->iPage != 0 || NULL == pBtc->pPage || !TDB_BTREE_PAGE_IS_ROOT(pBtc->pPage)) {
+      tdbError("tdb/btc-move-to: invalid cursor state, ipage:%d.", pBtc->iPage);
+      return TSDB_CODE_FAILED;
+    }
+    pBtc->idx = -1;
 #if 0
     SPage *pPage;
     int    idx;

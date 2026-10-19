@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql
 import taos
 import sys
@@ -160,6 +175,10 @@ class TestDbCompact:
             tdSql.checkEqual(tdSql.queryResult[0][36], self.default_compact_options[1])
             tdSql.checkEqual(tdSql.queryResult[0][37], item[6])
             self.checkShowCreateWithTimeout(item[0], f'COMPACT_INTERVAL {item[4]} COMPACT_TIME_RANGE {self.default_compact_options[1]} COMPACT_TIME_OFFSET {item[6]}')
+            # The scheduler may still be finishing a compact transaction
+            # after the interval change. Synchronize before altering the next
+            # option; keep the normal bounded retry for a narrow race.
+            self.waitCompactFinish()
             tdSql.execute(f'alter database {item[0]} compact_time_range {item[2]}', queryTimes=10)
             tdSql.query(f'select * from information_schema.ins_databases where name = "{item[0]}"')
             tdSql.checkEqual(tdSql.queryResult[0][35], item[4])
@@ -273,12 +292,15 @@ class TestDbCompact:
         tdLog.info(f"expect error SQL: {sql}")
         tdSql.error(sql)
     
-    def waitCompactFinish(self):
+    def waitCompactFinish(self, timeout=60):
+        start = time.time()
         while True:
             sql = 'show compacts'
             rows = tdSql.query(sql)
             if rows == 0:
                 break
+            if time.time() - start >= timeout:
+                raise Exception(f"compact did not finish within {timeout}s")
             time.sleep(1)
 
     def run_compact_vgroups_sql(self):
@@ -420,6 +442,7 @@ class TestDbCompact:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

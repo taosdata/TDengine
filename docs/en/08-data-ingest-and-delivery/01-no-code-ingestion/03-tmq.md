@@ -16,19 +16,19 @@ Create the required Topic in the source cluster, which can subscribe to the enti
 
 Open the taosExplorer interface of the source cluster, click the "Data Subscription" menu on the left, then click "Add New Topic".
 
-![Add new topic](../../assets/tmq-01.png)
+![Add new topic](../../assets/tmq-01.webp)
 
 ### Step Two: Add a New Topic
 
 Enter the topic name, select the database to subscribe to.
 
-![Configure database subscription](../../assets/tmq-02.png)
+![Configure database subscription](../../assets/tmq-02.webp)
 
 ### Step Three: Copy the Topic's DSN
 
 Click the "Create" button, return to the topic list and copy the **DSN** of the topic for later use.
 
-![Copy topic DSN](../../assets/tmq-03.png)
+![Copy topic DSN](../../assets/tmq-03.webp)
 
 ## Create Subscription Task
 
@@ -37,7 +37,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 1. Click the "Data Writing" menu on the left
 2. Click "Add Data Source"
 
-![Add data source](../../assets/tmq-04.png)
+![Add data source](../../assets/tmq-04.webp)
 
 ### Step Two: Enter Data Source Information
 
@@ -47,7 +47,7 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 4. Paste the DSN copied in the preparation step into the **Topic DSN** field. For example: tmq+ws://root:taosdata@localhost:6041/topic
 5. After completing the above steps, click the "Connectivity Check" button to test connectivity with the source
 
-![Configure basic settings](../../assets/tmq-05.png)
+![Configure basic settings](../../assets/tmq-05.webp)
 
 ### Step Three: Fill in Subscription Settings and Submit Task
 
@@ -61,21 +61,38 @@ Click the "Create" button, return to the topic list and copy the **DSN** of the 
 8. Compression. Enable WebSocket compression support to reduce network bandwidth usage.
 9. Click the "Submit" button to submit the task
 
-![Configure subscription options](../../assets/tmq-06.png)
+![Configure subscription options](../../assets/tmq-06.webp)
+
+## Transform Actions
+
+**TDengine Data Subscription** supports **Transform Actions** when you create or edit a task. Transform actions adjust destination table metadata, such as table names, supertable names, and tags, before taosX writes the data. You can add multiple actions to a task.
+
+![Transform Actions](../../assets/transform-actions-01.webp)
+
+| Transform action | Effect | Configuration |
+| --- | --- | --- |
+| Rename super table by CSV map | Maps specified source supertables to destination supertable names and updates the `USING` supertable reference in child-table metadata. | Upload a CSV mapping file or enter the mapping file path. |
+| Rename table by CSV map | Rewrites destination table names from the mapping file. For child tables, both the table name and its referenced supertable are updated. | Upload a CSV mapping file or enter the mapping file path. |
+| Add table name prefix | Adds a fixed prefix to destination table names. | For example, `v1_` changes `meters` to `v1_meters`. |
+| Add table name suffix | Adds a fixed suffix to destination table names. | For example, `_backup` changes `meters` to `meters_backup`. |
+| Rename table by regex | Matches and replaces destination table names with a regular expression. | Enter `<regular_expression>::<replacement>`, for example, `^old(?<name>.*)$::new_$name`. |
+| Custom action | Configures a valid taosX `-T` transform action that is not provided by the list. | For example, `add-tag:location=beijing` adds a tag named `location` with the value `beijing`. |
+
+Each row in a CSV mapping file contains a source name and a destination name in the format `source_name,target_name`; do not include a header row. After you upload a mapping CSV file, taosExplorer fills in the file reference with the `@` prefix automatically.
 
 ## Monitor Task Execution
 
 After submitting the task, return to the data source page to view the task status. The task will first be added to the execution queue and will start running shortly.
 
-![Monitor task execution](../../assets/tmq-07.png)
+![Monitor task execution](../../assets/tmq-07.webp)
 
 Click the "View" button to monitor the dynamic statistical information of the task.
 
-![View current metrics](../../assets/tmq-08.png)
+![View current metrics](../../assets/tmq-08.webp)
 
 You can also click the left collapse button to expand the task's activity information. If the task runs abnormally, detailed explanations can be seen here.
 
-![View task activity](../../assets/tmq-09.png)
+![View task activity](../../assets/tmq-09.webp)
 
 ## Advanced Usage
 

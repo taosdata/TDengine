@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -35,10 +37,16 @@ typedef struct SFilePage {
 typedef struct SDiskbasedBufStatis {
   int64_t flushBytes;
   int64_t loadBytes;
+  int64_t flushUs;
+  int64_t loadUs;
   int32_t loadPages;
   int32_t getPages;
   int32_t releasePages;
   int32_t flushPages;
+  int32_t evictPages;
+  int64_t inMemPages;
+  int64_t diskPages;
+  int64_t lruMoves;
 } SDiskbasedBufStatis;
 
 /**
@@ -75,6 +83,16 @@ SArray* getDataBufPagesIdList(SDiskbasedBuf* pBuf);
  * @return
  */
 void* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
+
+/**
+ * Get the specified buffer page without refreshing its LRU position when it
+ * is already resident in memory. A page loaded from disk follows the normal
+ * LRU insertion policy and is registered at the front of the LRU list.
+ * @param pBuf
+ * @param id
+ * @return
+ */
+void* getBufPageNoLRU(SDiskbasedBuf* pBuf, int32_t id);
 
 /**
  * release the referenced buf pages
@@ -131,6 +149,10 @@ int32_t getBufPageSize(const SDiskbasedBuf* pBuf);
  */
 int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf);
 
+// Return resident page count. Each page contributes getBufPageSize() payload
+// bytes; allocator and bookkeeping overhead are excluded.
+int32_t getNumOfResidentBufPages(const SDiskbasedBuf* pBuf);
+
 /**
  *
  * @param pBuf
@@ -159,6 +181,21 @@ int32_t setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
 int32_t dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
 
 /**
+ * Recycle an unreferenced page by id without loading its payload from disk.
+ * @param pBuf
+ * @param pageId
+ * @return
+ */
+int32_t dBufRecyclePageById(SDiskbasedBuf* pBuf, int32_t pageId);
+
+/**
+ * Recycle a page and remove its metadata from the buffer.
+ * @param pBuf
+ * @param pageId
+ */
+int32_t dBufRemovePageById(SDiskbasedBuf* pBuf, int32_t pageId);
+
+/**
  * Print the statistics when closing this buffer
  * @param pBuf
  */
@@ -176,6 +213,13 @@ SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
  * @return bytes read, or -1.
  */
 int64_t dbgReadDiskbasedBufFile(SDiskbasedBuf* pBuf, char* out, int64_t cap);
+
+#if defined(BUILD_TEST)
+// Test-only: fail the next spill write from the eviction flush path.
+void dbgFailNextDiskbasedBufFlushWrite(SDiskbasedBuf* pBuf);
+// Test-only: short-write the next spill page without setting terrno.
+void dbgShortNextDiskbasedBufFlushWrite(SDiskbasedBuf* pBuf);
+#endif
 
 /**
  * Print the buffer statistics information

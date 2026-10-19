@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -287,8 +289,11 @@ TEST_F(ParserShowToUseTest, showXnodeBlobLikePatternSupportsBlobLimits) {
   run("SHOW XNODE TASKS WHERE parser NOT LIKE '" + largePattern + "'");
   run("SHOW XNODE JOBS WHERE config NOT LIKE '" + largePattern + "'");
 
+  string maxConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN, 'a');
+  run("SHOW XNODE JOBS WHERE config NOT LIKE '" + maxConfigPattern + "'");
+
   string oversizedParserPattern(TSDB_XNODE_TASK_PARSER_MAX_LEN + 1, 'a');
-  string oversizedConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + 1, 'a');
+  string oversizedConfigPattern(TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + 1, 'a');
 
   run("SHOW XNODE TASKS WHERE parser NOT LIKE '" + oversizedParserPattern + "'", TSDB_CODE_PAR_VALUE_TOO_LONG);
   run("SHOW XNODE JOBS WHERE config NOT LIKE '" + oversizedConfigPattern + "'", TSDB_CODE_PAR_VALUE_TOO_LONG);
@@ -297,6 +302,9 @@ TEST_F(ParserShowToUseTest, showXnodeBlobLikePatternSupportsBlobLimits) {
 TEST_F(ParserShowToUseTest, splitVgroup) {
   useDb("root", "test");
 
+#ifndef TD_ENTERPRISE
+  run("SPLIT VGROUP 15", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
   SSplitVgroupReq expect = {0};
 
   auto setSplitVgroupReqFunc = [&](int32_t vgId) { expect.vgId = vgId; };
@@ -311,6 +319,7 @@ TEST_F(ParserShowToUseTest, splitVgroup) {
 
   setSplitVgroupReqFunc(15);
   run("SPLIT VGROUP 15");
+#endif
 }
 
 TEST_F(ParserShowToUseTest, trimDatabase) {

@@ -1,16 +1,20 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  *
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef _TD_TRANSPORT_COMM_H
 #define _TD_TRANSPORT_COMM_H
 
@@ -318,7 +322,7 @@ bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \
@@ -593,7 +597,7 @@ bool transUtilCheckDualIp(SIpRange* range, SIpRange* ip);
     if (id > 0) {                                                                        \
       SExHandle* exh2 = transAcquireExHandle(idMgt, id);                                 \
       if (exh2 == NULL || exh1 != exh2 || (exh2 != NULL && exh2->refId != id)) {         \
-        tDebug("handle not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
+        tDebug("handle does not match, exh1:%p, exh2:%p, refId:%" PRId64 "", exh1, exh2, id); \
         code = TSDB_CODE_INVALID_MSG;                                                    \
         goto _return1;                                                                   \
       }                                                                                  \

@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from enum import Enum
 
 
@@ -13,7 +28,6 @@ class IllegalDataType(Enum):
     SMALLINT   = 'smallint'   
     FLOAT      = 'float'
     DOUBLE     = 'double'
-    TIMESTAMP  = 'timestamp'
     NCHAR      = 'nchar(100)'
     UTINYINT   = 'tinyint unsigned'
     USMALLINT  = 'smallint unsigned'  
@@ -34,6 +48,7 @@ class LegalDataType(Enum):
     UBIGINT    = 'BIGINT UNSIGNED'  
     VARCHAR    = 'VARCHAR(100)' 
     BINARY     = 'BINARY(100)'   
+    TIMESTAMP  = 'TIMESTAMP'
 
 class LegalSpell(Enum):  
     CASE1      = 'primary key'
@@ -159,7 +174,11 @@ class TestCompositePrimaryKeyCreate:
             tdSql.error(f"alter table {table_name} modify column pk {date_type[1].value}", show=SHOW_LOG)
 
         tdSql.error(f"alter table {table_name} modify column pk varchar(300)", show=SHOW_LOG)
-        tdSql.error(f"alter table {table_name} rename column pk new_pk", show=SHOW_LOG)
+        # renaming the composite primary key column is allowed: key semantics come from the
+        # COL_IS_KEY flag and the colId, not from the column name. Rename back so the checks
+        # below still address the column as "pk".
+        tdSql.execute(f"alter table {table_name} rename column pk new_pk", show=SHOW_LOG)
+        tdSql.execute(f"alter table {table_name} rename column new_pk pk", show=SHOW_LOG)
         tdSql.error(f"alter table {table_name} drop column pk", show=SHOW_LOG)
 
     def test_primary_key_create(self):
@@ -173,10 +192,10 @@ class TestCompositePrimaryKeyCreate:
         6. Mutiple pk & pk not defined as sencod column
         7. Add/update/delete pk column is not support
 
-
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

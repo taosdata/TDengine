@@ -1,6 +1,9 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- * * This program is free software: you can use, redistribute, and/or modify
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
  *
@@ -1710,7 +1713,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     }
 
     if (peername.ss_family != AF_INET && peername.ss_family != AF_INET6) {
-      tError("conn:%p, failed to get peer info since not support other protocol except ipv4", pConn);
+      tError("conn:%p, failed to get peer info since only IPv4 and IPv6 are supported", pConn);
       transUnrefSrvHandle(pConn);
       return;
     }
@@ -1723,7 +1726,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
     if (sockname.ss_family != AF_INET && peername.ss_family != AF_INET6) {
-      tError("conn:%p, failed to get sock info since not support other protocol except ipv4", pConn);
+      tError("conn:%p, failed to get sock info since only IPv4 and IPv6 are supported", pConn);
       transUnrefSrvHandle(pConn);
       return;
     }

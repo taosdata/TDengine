@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_16_multi_table_parity.py
 
@@ -32,6 +47,8 @@ Environment:
   Enterprise edition, federatedQueryEnable=1
   MySQL 8.0+, PostgreSQL 14+, InfluxDB v3
 """
+from typing import Dict, List, Tuple
+
 
 import os
 import shutil
@@ -50,7 +67,6 @@ from federated_query_common import (
     parity_serialize_case,
     parity_serialize_cell,
     TSDB_CODE_PAR_INVALID_COLUMN,
-    TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
     TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
 )
 
@@ -59,6 +75,7 @@ from federated_query_common import (
 _MYSQL_DB      = "fq_mt_parity_m"
 _PG_DB         = "fq_mt_parity_p"
 _INFLUX_BUCKET = "fq_mt_parity_i"
+_SQLSERVER_DB  = "fq_mt_parity_s"
 _LOCAL_DB      = "fq_mt_parity_local"
 _FLOAT_TOL     = 1e-4
 
@@ -92,27 +109,32 @@ _REF_ROWS = [
     (_TS_BASE_MS + 1 * _M, 3),
 ]
 
-# Datetime strings for MySQL/PG
+# Datetime strings for MySQL/PG.
+# These columns are timezone-naive on the remote side, so the string literal is
+# interpreted in the session timezone (Asia/Shanghai in the FQ test env).  Use
+# CST local strings that map to the same absolute instants as _TS_BASE_MS /
+# Influx line-protocol UTC epochs above.
 _TA_ROWS_DT = [
-    ('2024-01-01 00:00:00.000', 1, 10, 'a'),
-    ('2024-01-01 00:01:00.000', 2, 20, 'b'),
-    ('2024-01-01 00:02:00.000', 3, 30, 'a'),
-    ('2024-01-01 00:03:00.000', 4, 40, 'b'),
-    ('2024-01-01 00:04:00.000', 5, 50, 'a'),
-    ('2024-01-01 00:05:00.000', 6, 10, 'b'),
+    ('2024-01-01 08:00:00.000', 1, 10, 'a'),
+    ('2024-01-01 08:01:00.000', 2, 20, 'b'),
+    ('2024-01-01 08:02:00.000', 3, 30, 'a'),
+    ('2024-01-01 08:03:00.000', 4, 40, 'b'),
+    ('2024-01-01 08:04:00.000', 5, 50, 'a'),
+    ('2024-01-01 08:05:00.000', 6, 10, 'b'),
 ]
 
 _TB_ROWS_DT = [
-    ('2024-01-01 00:00:00.000', 1, 1, 15, 1),
-    ('2024-01-01 00:01:00.000', 2, 2, 25, 0),
-    ('2024-01-01 00:02:00.000', 3, 1, 30, 1),
-    ('2024-01-01 00:05:00.000', 4, 3, 45, 1),
-    ('2024-01-01 00:06:00.000', 5, 5, 50, 0),
+    ('2024-01-01 08:00:00.000', 1, 1, 15, 1),
+    ('2024-01-01 08:01:00.000', 2, 2, 25, 0),
+    ('2024-01-01 08:02:00.000', 3, 1, 30, 1),
+    ('2024-01-01 08:05:00.000', 4, 3, 45, 1),
+    ('2024-01-01 08:06:00.000', 5, 5, 50, 0),
 ]
 
 # -- Disorder indices ----------------------------------------------------------
 _TA_DISORDER_IDX = [3, 0, 5, 2, 4, 1]
 _TB_DISORDER_IDX = [2, 4, 0, 3, 1]
+_SESSION_TZ = "Asia/Shanghai"
 
 
 # ==============================================================================
@@ -123,7 +145,7 @@ _TB_DISORDER_IDX = [2, 4, 0, 3, 1]
 #   Local:    {tbl} = "fq_mt_parity_local"  -> "{tbl}.ta" = "fq_mt_parity_local.ta"
 #   External: {tbl} = "fq_mt_parity_src_m"  -> "{tbl}.ta" = "fq_mt_parity_src_m.ta"
 
-_PARITY_GROUPS: dict[str, list] = {
+_PARITY_GROUPS: Dict[str, list] = {
     # -- xjoin: Cross-table JOINs (ts-based equality) -------------------------
     "xjoin": [
         # 01: INNER JOIN on ts -> 4 rows
@@ -215,7 +237,7 @@ _PARITY_GROUPS: dict[str, list] = {
     ],
 }
 
-_PARITY_CASES: list[tuple[str, str, dict]] = [
+_PARITY_CASES: List[Tuple[str, str, dict]] = [
     (f"{grp}-{i:02d}", entry[0], entry[1] if len(entry) > 1 else {})
     for grp, entries in _PARITY_GROUPS.items()
     for i, entry in enumerate(entries, 1)
@@ -239,7 +261,7 @@ _PARITY_CASES: list[tuple[str, str, dict]] = [
 # For negative cases that apply to each source individually, use {src}
 # placeholder and "per_source": True — the runner expands to M/P/I.
 
-_CROSS_CASES: list[tuple[str, str, dict]] = [
+_CROSS_CASES: List[Tuple[str, str, dict]] = [
     # ── Cross-source UNION ────────────────────────────────────────────────
     # xsrc-01: MySQL + PG UNION ALL -> 12 rows (6+6, identical data)
     ("xsrc-01",
@@ -434,89 +456,89 @@ _CROSS_CASES: list[tuple[str, str, dict]] = [
          "ORDER BY b.time",
          {"error": TSDB_CODE_PAR_INVALID_COLUMN}),
 
-    # ── Negative: unsupported JOIN types (per source) ─────────────────────
-    # neg-01 ~ neg-06: Non-TS JOIN types on each external source
+    # ── Ordinary-column Hash JOINs on external sources ────────────────────
+    # Same-source and cross-source ordinary-column JOINs use local Hash Join.
     # MySQL
-    ("neg-m-01",
+    ("join-m-01",
      "SELECT a.id, b.bid FROM {M}.ta a "
      "JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-02",
+     {"rows": 5}),
+    ("join-m-02",
      "SELECT a.id, b.bid FROM {M}.ta a "
      "FULL JOIN {M}.tb b ON a.id = b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-03",
+     {"rows": 6, "ordered": False}),
+    ("join-m-03",
      "SELECT a.id FROM {M}.ta a "
      "LEFT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-04",
+     {"rows": 5}),
+    ("join-m-04",
      "SELECT a.id FROM {M}.ta a "
      "LEFT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-05",
+     {"rows": 1}),
+    ("join-m-05",
      "SELECT b.bid FROM {M}.ta a "
      "RIGHT SEMI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-m-06",
+     {"rows": 5}),
+    ("join-m-06",
      "SELECT b.bid FROM {M}.ta a "
      "RIGHT ANTI JOIN {M}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 0}),
     # PostgreSQL
-    ("neg-p-01",
+    ("join-p-01",
      "SELECT a.id, b.bid FROM {P}.ta a "
      "JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-02",
+     {"rows": 5}),
+    ("join-p-02",
      "SELECT a.id, b.bid FROM {P}.ta a "
      "FULL JOIN {P}.tb b ON a.id = b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-03",
+     {"rows": 6, "ordered": False}),
+    ("join-p-03",
      "SELECT a.id FROM {P}.ta a "
      "LEFT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-04",
+     {"rows": 5}),
+    ("join-p-04",
      "SELECT a.id FROM {P}.ta a "
      "LEFT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-05",
+     {"rows": 1}),
+    ("join-p-05",
      "SELECT b.bid FROM {P}.ta a "
      "RIGHT SEMI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-p-06",
+     {"rows": 5}),
+    ("join-p-06",
      "SELECT b.bid FROM {P}.ta a "
      "RIGHT ANTI JOIN {P}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 0}),
     # InfluxDB
-    ("neg-i-01",
+    ("join-i-01",
      "SELECT a.id, b.bid FROM {I}.ta a "
      "JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-02",
+     {"rows": 5}),
+    ("join-i-02",
      "SELECT a.id, b.bid FROM {I}.ta a "
      "FULL JOIN {I}.tb b ON a.id = b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-03",
+     {"rows": 6, "ordered": False}),
+    ("join-i-03",
      "SELECT a.id FROM {I}.ta a "
      "LEFT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-04",
+     {"rows": 5}),
+    ("join-i-04",
      "SELECT a.id FROM {I}.ta a "
      "LEFT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-05",
+     {"rows": 1}),
+    ("join-i-05",
      "SELECT b.bid FROM {I}.ta a "
      "RIGHT SEMI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
-    ("neg-i-06",
+     {"rows": 5}),
+    ("join-i-06",
      "SELECT b.bid FROM {I}.ta a "
      "RIGHT ANTI JOIN {I}.tb b ON a.id = b.bid ORDER BY b.bid",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 0}),
 
-    # Negative: cross-source non-TS JOIN
-    ("neg-x-01",
+    # Ordinary-column Hash JOIN across sources
+    ("join-x-01",
      "SELECT a.id FROM {M}.ta a "
      "JOIN {P}.tb b ON a.id = b.bid ORDER BY a.id",
-     {"error": TSDB_CODE_PAR_NOT_SUPPORT_JOIN}),
+     {"rows": 5}),
 
     # Negative: correlated subqueries on external sources
     ("neg-csub-m-01",
@@ -543,6 +565,51 @@ _CROSS_CASES: list[tuple[str, str, dict]] = [
      "(SELECT 1 FROM {P}.tb b WHERE b.ref_id = a.id) "
      "ORDER BY id",
      {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+    ("neg-csub-s-01",
+     "SELECT id FROM {S}.ta a "
+     "WHERE EXISTS "
+     "(SELECT 1 FROM {S}.tb b WHERE b.ref_id = a.id) "
+     "ORDER BY id",
+     {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+    ("neg-csub-s-02",
+     "SELECT id FROM {S}.ta a "
+     "WHERE NOT EXISTS "
+     "(SELECT 1 FROM {S}.tb b WHERE b.ref_id = a.id) "
+     "ORDER BY id",
+     {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+
+    # --- SQL Server cross-source / same-source combinations ---------------
+    # xsrc-28: MySQL + SQL Server UNION ALL -> 12 rows (6+6, identical data)
+    ("xsrc-28",
+     "SELECT id, val FROM {M}.ta "
+     "UNION ALL SELECT id, val FROM {S}.ta ORDER BY id",
+     {"rows": 12}),
+    # xsrc-29: SQL Server + PG UNION (dedup) -> 6 rows
+    ("xsrc-29",
+     "SELECT id, val FROM {S}.ta "
+     "UNION SELECT id, val FROM {P}.ta ORDER BY id",
+     {"rows": 6}),
+    # xsrc-30: SQL Server same-source ordinary-column JOIN -> 5 rows
+    ("xsrc-30",
+     "SELECT a.id, b.bid FROM {S}.ta a "
+     "JOIN {S}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 5}),
+    # xsrc-31: MySQL.ta x SQL Server.tb ordinary-column JOIN -> 5 rows
+    ("xsrc-31",
+     "SELECT a.id, b.bid FROM {M}.ta a "
+     "JOIN {S}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 5}),
+    # xsrc-32: SQL Server outer WHERE val > (MySQL.tb MAX scalar) -> 1 row
+    ("xsrc-32",
+     "SELECT id, val FROM {S}.ta "
+     "WHERE val > (SELECT MAX(val2) FROM {M}.tb WHERE flag = 1) "
+     "ORDER BY id",
+     {"rows": 1}),
+    # xsrc-33: SQL Server.ta x PG.tb FULL JOIN on timestamp -> 7 rows
+    ("xsrc-33",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {S}.ta a FULL JOIN {P}.tb b ON a.time = b.time",
+     {"rows": 7, "ordered": False}),
 ]
 
 
@@ -587,6 +654,38 @@ def _build_pg_setup():
         f"('{dt}', {bid}, {ref_id}, {val2}, {flag})"
         for dt, bid, ref_id, val2, flag in _TB_ROWS_DT)
     sqls.append(f"INSERT INTO tb VALUES {vals}")
+    return sqls
+
+
+def _build_sqlserver_setup():
+    sqls = [
+        "IF OBJECT_ID('dbo.ta') IS NOT NULL DROP TABLE dbo.ta",
+        "IF OBJECT_ID('dbo.tb') IS NOT NULL DROP TABLE dbo.tb",
+        ("CREATE TABLE dbo.ta "
+         "(time datetime2(3) NOT NULL PRIMARY KEY, id INT, val INT, label NVARCHAR(32))"),
+        ("CREATE TABLE dbo.tb "
+         "(time datetime2(3) NOT NULL PRIMARY KEY, bid INT, ref_id INT, val2 INT, flag INT)"),
+    ]
+    vals = ", ".join(
+        f"('{dt}', {id_}, {val}, '{label}')"
+        for dt, id_, val, label in _TA_ROWS_DT)
+    sqls.append(f"INSERT INTO dbo.ta VALUES {vals}")
+    vals = ", ".join(
+        f"('{dt}', {bid}, {ref_id}, {val2}, {flag})"
+        for dt, bid, ref_id, val2, flag in _TB_ROWS_DT)
+    sqls.append(f"INSERT INTO dbo.tb VALUES {vals}")
+    return sqls
+
+
+def _build_sqlserver_disorder():
+    sqls = ["DELETE FROM dbo.ta", "DELETE FROM dbo.tb"]
+    for i in _TA_DISORDER_IDX:
+        dt, id_, val, label = _TA_ROWS_DT[i]
+        sqls.append(f"INSERT INTO dbo.ta VALUES ('{dt}', {id_}, {val}, '{label}')")
+    for i in _TB_DISORDER_IDX:
+        dt, bid, ref_id, val2, flag = _TB_ROWS_DT[i]
+        sqls.append(
+            f"INSERT INTO dbo.tb VALUES ('{dt}', {bid}, {ref_id}, {val2}, {flag})")
     return sqls
 
 
@@ -721,25 +820,10 @@ class TestFq16MultiTableParity(ParityTestBase):
       - test_fq_06: same/cross-source JOIN, FULL OUTER JOIN, semi/anti JOIN
     """
 
-    # The OS timezone is Asia/Shanghai (CST, +0800), so taosd defaults to CST.
-    # MySQL DATETIME(3) stores UTC strings like '2024-01-01 00:00:00.000'
-    # without timezone metadata.  When taosd reads them in CST mode it
-    # interprets them as local (CST) → unix-ms 1704038400000, which is 8 h
-    # behind InfluxDB's UTC nanoseconds (→ unix-ms 1704067200000).  The
-    # cross-source JOINs (xsrc-19/21/22/24) therefore return 0 matches.
-    # Forcing UTC makes both sources resolve to unix-ms 1704067200000.
-    updatecfgDict = {
-        "federatedQueryEnable": 1,
-        "timezone": "UTC",
-        "clientCfg": {
-            "federatedQueryEnable": 1,
-            "timezone": "UTC",
-        },
-    }
-
     _SRC_MYSQL  = "fq_mt_parity_src_m"
     _SRC_PG     = "fq_mt_parity_src_p"
     _SRC_INFLUX = "fq_mt_parity_src_i"
+    _SRC_SQLSERVER = "fq_mt_parity_src_s"
     _class_setup_done = False
     _FLOAT_TOL = _FLOAT_TOL
     _BASELINE_FILE = os.path.join(
@@ -754,10 +838,16 @@ class TestFq16MultiTableParity(ParityTestBase):
 
     def _ext_sources(self):
         return [
-            ("MySQL",    self._SRC_MYSQL),
-            ("PG",       self._SRC_PG),
-            ("InfluxDB", self._SRC_INFLUX),
+            ("MySQL",     self._SRC_MYSQL),
+            ("PG",        self._SRC_PG),
+            ("InfluxDB",  self._SRC_INFLUX),
+            ("SQLServer", self._SRC_SQLSERVER),
         ]
+
+    def _ensure_session_timezone(self):
+        # fq16 inserts MySQL/PG naive timestamps as CST local strings so they
+        # represent the same absolute instants as Influx UTC epochs.
+        tdSql.execute(f'ALTER LOCAL "timezone" "{_SESSION_TZ}"')
 
     def setup_method(self, method):
         if TestFq16MultiTableParity._class_setup_done:
@@ -766,6 +856,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
+        self._ensure_session_timezone()
 
         # --- Local TDengine ---
         tdSql.executes(_build_local_setup())
@@ -790,17 +881,26 @@ class TestFq16MultiTableParity(ParityTestBase):
         self._cleanup_src(self._SRC_INFLUX)
         self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
+        # --- SQL Server ---
+        ExtSrcEnv.sqlserver_create_db(_SQLSERVER_DB)
+        ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, _build_sqlserver_setup())
+        self._cleanup_src(self._SRC_SQLSERVER)
+        self._mk_sqlserver_real(
+            self._SRC_SQLSERVER, database=_SQLSERVER_DB, schema="dbo")
+
         TestFq16MultiTableParity._class_setup_done = True
 
     def teardown_class(self):
         tmp = TestFq16MultiTableParity()
-        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX)
+        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX,
+                         tmp._SRC_SQLSERVER)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         for drop in [
             lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(tmp._pg_cfg(), _PG_DB),
             lambda: ExtSrcEnv.influx_drop_db_cfg(
                 tmp._influx_cfg(), _INFLUX_BUCKET),
+            lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
         ]:
             try:
                 drop()
@@ -823,13 +923,14 @@ class TestFq16MultiTableParity(ParityTestBase):
         M = self._SRC_MYSQL
         P = self._SRC_PG
         I = self._SRC_INFLUX
+        S = self._SRC_SQLSERVER
         L = _LOCAL_DB
 
-        failed: list[tuple[str, str, str]] = []
-        serialized_blocks: list[str] = []
+        failed: List[Tuple[str, str, str]] = []
+        serialized_blocks: List[str] = []
 
         for case_id, sql_tmpl, opts in cross_cases:
-            sql = sql_tmpl.format(M=M, P=P, I=I, L=L)
+            sql = sql_tmpl.format(M=M, P=P, I=I, S=S, L=L)
             expected_error = opts.get("error")
             positive = expected_error is None
             ordered = opts.get("ordered", True)
@@ -964,6 +1065,8 @@ class TestFq16MultiTableParity(ParityTestBase):
             ExtSrcEnv.influx_write_cfg(
                 self._influx_cfg(), _INFLUX_BUCKET,
                 _build_influx_disorder_lines())
+            ExtSrcEnv.sqlserver_exec(
+                _SQLSERVER_DB, _build_sqlserver_disorder())
             tdSql.executes(_build_local_disorder())
         else:
             restore_m = ["DELETE FROM ta", "DELETE FROM tb"]
@@ -979,6 +1082,9 @@ class TestFq16MultiTableParity(ParityTestBase):
                 self._influx_cfg(), _INFLUX_BUCKET)
             ExtSrcEnv.influx_write_cfg(
                 self._influx_cfg(), _INFLUX_BUCKET, _build_influx_lines())
+            restore_s = ["DELETE FROM dbo.ta", "DELETE FROM dbo.tb"]
+            restore_s += _build_sqlserver_setup()[-2:]
+            ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, restore_s)
             ta_vals = " ".join(
                 f"({ts}, {id_}, {val}, '{label}')"
                 for ts, id_, val, label in _TA_ROWS)
@@ -1005,7 +1111,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         statement). UNION, IN/NOT IN, EXISTS/NOT EXISTS, ANY/ALL, scalar subquery,
         TS-PK JOIN, ASOF JOIN, WINDOW JOIN, FULL OUTER JOIN.
 
-        Part 3: Negative tests — unsupported JOIN types and correlated subqueries.
+        Part 3: Negative tests — unsupported expressions and correlated subqueries.
 
         By default every entry is executed.  Set ``PARITY_IDX`` to filter:
             PARITY_IDX=xjoin-01 pytest ...
@@ -1020,6 +1126,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         History:
             - 2026-06-03 wpan Consolidated multi-table parity from fq_04/05/06
         """
+        self._ensure_session_timezone()
         # Part 1: same-source parity (4-source comparison + baseline file)
         self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
 
@@ -1065,12 +1172,16 @@ class TestFq16MultiTableParity(ParityTestBase):
     def test_fq_mt_parity_disorder(self):
         """Re-run all positive cases after inserting data in shuffled order.
 
+        Verify that insertion order does not change query results.
+
         Catalog: - Query:FederatedResultParity
 
         Since: v3.4.0.0
 
         Labels: common,ci
+
         """
+        self._ensure_session_timezone()
         # Filter positive parity cases
         pos_parity = [(cid, sql, kw) for cid, sql, kw in _PARITY_CASES
                       if kw.get("positive", True)]

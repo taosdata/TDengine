@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #define PLAN_TEST_UTIL_H
 
 #include <gtest/gtest.h>
+#include <functional>
 
 #define ALLOW_FORBID_FUNC
 
@@ -24,6 +27,7 @@
 
 class PlannerTestBaseImpl;
 struct TAOS_MULTI_BIND;
+using FLogicPlanHook = void (*)(SLogicSubplan*);
 
 class PlannerTestBase : public testing::Test {
  public:
@@ -32,12 +36,34 @@ class PlannerTestBase : public testing::Test {
 
   void    useDb(const std::string& user, const std::string& db);
   void    run(const std::string& sql);
+  void    runWithPostSplitHooks(const std::string& sql,
+                                FLogicPlanHook before,
+                                FLogicPlanHook after);
+  void    runFullPlan(const std::string& sql, const std::function<void(const SQueryPlan*)>& inspect);
+  void    runStreamCalc(const std::string& sql);
+  void runCreateStream(const std::string& sql, const std::function<void(const SQueryPlan&, const SArray*)>& check = {});
   bool    findPlanNode(const std::string& nodeName) const;
   int32_t countPlanNode(const std::string& nodeName) const;
   bool    planContains(const std::string& text) const;
+  int32_t countRawLogicPlanNode(const std::string& nodeName) const;
+  bool    rawLogicPlanContains(const std::string& text) const;
+  bool    rawLogicPlanHasPartTableAgg() const;
+  bool    rawLogicPlanHasPartTagAgg() const;
+  int32_t countOptimizedPlanText(const std::string& text) const;
+  int32_t countSplitPlanText(const std::string& text) const;
+  int32_t countPostSplitPlanText(const std::string& text) const;
+  int32_t countPhysiPlanText(const std::string& text) const;
+  void    setLogicPlanCheck(
+      const std::function<void(const SLogicNode*, bool)>& check);
+  void setJoinPropsCheck(
+      const std::function<void(const SPlanContext*, const SLogicNode*, bool)>&
+          check);
+  void setPhysiPlanCheck(
+      const std::function<void(const SQueryPlan*)>& check);
   bool    planNodeAppearsAbove(const std::string& upperNodeName, const std::string& lowerNodeName) const;
   bool    exchangeSubplansContain(const std::string& nodeName) const;
   bool    aggOutputsMatchFuncs() const;
+  void    checkHashJoins(const std::function<void(const SHashJoinPhysiNode&)>& check) const;
   // stmt mode APIs
   void prepare(const std::string& sql);
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx);

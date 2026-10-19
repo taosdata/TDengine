@@ -31,7 +31,7 @@ import TabItem from "@theme/TabItem";
 1. 在 taosExplorer 中点击 **下一步**。
 1. 为代理输入唯一名称，点击 **下一步** 生成认证 token。
 1. 在本机打开 `C:\TDengine\cfg\agent.toml` 文件。
-1. 将 taosExplorer 界面中显示的 `endpoint` 与 `token` 值复制到 `agent.toml` 文件中。
+1. 在 taosExplorer 的配置块中编辑 `endpoint`（如有需要），并将 `endpoint` 与 `token` 值复制到 `agent.toml` 文件中。未手动修改时，`endpoint` 使用 taosExplorer 自动填充的默认值。
 
    ```toml
    endpoint="http://localhost:6055"
@@ -60,7 +60,7 @@ import TabItem from "@theme/TabItem";
 1. 在 taosExplorer 中点击 **下一步**。
 1. 为代理输入唯一名称，点击 **下一步** 生成认证 token。
 1. 在本机打开 `/etc/taos/agent.toml` 文件。
-1. 将 taosExplorer 界面中显示的 `endpoint` 与 `token` 值复制到 `agent.toml` 文件中。
+1. 在 taosExplorer 的配置块中编辑 `endpoint`（如有需要），并将 `endpoint` 与 `token` 值复制到 `agent.toml` 文件中。未手动修改时，`endpoint` 使用 taosExplorer 自动填充的默认值。
 
    ```toml
    endpoint="http://localhost:6055"
@@ -90,7 +90,7 @@ taosX-Agent 在数据源侧安装并连通后，长期复用同一 Agent 即可�
 - 调整任务级采集参数（如采集间隔）
 - 追加点位、更新点位 CSV / 映射
 
-上述操作不要求在 OPC 等服务器主机上重新安装 Agent，也不要求重新生成并下发一套新的“代理安装包”才能改点位。任务通过已配置的 `endpoint` 与 `token` 与中央 taosX 通信。
+上述操作不要求在 OPC 等服务器主机上重新安装 Agent，也不要求重新生成并下发一套新的“代理安装包”才能改点位。任务通过已配置的 `endpoint` 与 `token` 与中央 taosX 通信。如果在 taosExplorer 中手动修改过 `endpoint`，同一会话中后续创建新的 Agent 时会复用该值。
 
 需要再次改动 Agent 本机的情况包括：更换连接 `endpoint` / `token`、升级 Agent 版本、修改本机 `agent.toml` 或存储转发等本机选项。组件级说明见 [taosX-Agent](../../12-operations-and-tooling/03-components/07-taosx-agent/index.md)；亦可通过 SQL 管理 Agent 与任务，见 [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md)。
 

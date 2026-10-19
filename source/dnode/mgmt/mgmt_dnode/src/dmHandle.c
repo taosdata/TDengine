@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -26,6 +28,7 @@
 #include "tchecksum.h"
 #include "tencrypt.h"
 #include "tutil.h"
+#include "vnode.h"
 
 #if defined(TD_ENTERPRISE) && defined(TD_HAS_TAOSK)
 #include "taoskInt.h"
@@ -63,6 +66,7 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
     pMgmt->pData->clusterId = pCfg->clusterId;
     monSetDnodeId(pCfg->dnodeId);
     auditSetDnodeId(pCfg->dnodeId);
+    vnodeSetDnodeId(pCfg->dnodeId);
     code = dmWriteEps(pMgmt->pData);
     if (code != 0) {
       dInfo("failed to set local info, dnodeId:%d clusterId:0x%" PRIx64 " reason:%s", pCfg->dnodeId, pCfg->clusterId,
@@ -214,7 +218,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode, statusSeq:%d", pMgmt->pData->dnodeId,
              pMgmt->statusSeq);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
@@ -293,12 +297,23 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tstrncpy(req.clusterCfg.monitorParas.tsSlowLogExceptDb, tsSlowLogExceptDb, TSDB_DB_NAME_LEN);
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, tsCharset, TD_CHARSET_LEN);
 
   dTrace("send status req to mnode, begin to get vnode loads, statusSeq:%d", pMgmt->statusSeq);
 
   req.pVloads = tsVinfo.pVloads;
   tsVinfo.pVloads = NULL;
+  if (req.pVloads == NULL) {
+    // No fresh vnode loads available: either the status-info thread (dmUpdateStatusInfo()) has not
+    // refilled tsVinfo.pVloads yet (startup race with the status thread, or it is slower than the
+    // heartbeat period), or collecting the loads failed (e.g. taosArrayInit() in vmGetVnodeLoads()).
+    // The status req will then carry an empty vnode-load list, which tells mnode nothing about the
+    // vnodes; log it loudly so an empty heartbeat can be traced back to this dnode.
+    dWarn("send status req to mnode, no vnode loads collected, statusSeq:%d", pMgmt->statusSeq);
+  } else {
+    dTrace("send status req to mnode, numOfVloads:%d, statusSeq:%d", (int32_t)taosArrayGetSize(req.pVloads),
+           pMgmt->statusSeq);
+  }
 
   dTrace("send status req to mnode, begin to get mnode loads, statusSeq:%d", pMgmt->statusSeq);
   req.mload = tsMLoad;
@@ -403,7 +418,7 @@ static void dmProcessConfigRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 
   if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
-      dGInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      dGInfo("dnode:%d, set to dropped since it does not exist in mnode", pMgmt->pData->dnodeId);
       pMgmt->pData->dropped = 1;
       if (dmWriteEps(pMgmt->pData) != 0) {
         dError("failed to write dnode file");
@@ -1937,14 +1952,22 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMStreamHbRspMsg rsp = {0};
   int32_t          code = 0;
   SDecoder         decoder;
-  char*            msg = POINTER_SHIFT(pMsg->pCont, sizeof(SStreamMsgGrpHeader));
-  int32_t          len = pMsg->contLen - sizeof(SStreamMsgGrpHeader);
   int64_t          currTs = taosGetTimestampMs();
 
   if (pMsg->code) {
     return streamHbHandleRspErr(pMsg->code, currTs);
   }
 
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SStreamMsgGrpHeader)) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  SStreamMsgGrpHeader header;
+  memcpy(&header, pMsg->pCont, sizeof(header));
+  if (header.streamGid < 0 || header.streamGid >= STREAM_MAX_GROUP_NUM) {
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
+  char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(header));
+  int32_t len = pMsg->contLen - sizeof(header);
   tDecoderInit(&decoder, (uint8_t*)msg, len);
   code = tDecodeStreamHbRsp(&decoder, &rsp);
   if (code < 0) {
@@ -1957,6 +1980,10 @@ int32_t dmProcessStreamHbRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   tDecoderClear(&decoder);
 
+  if (header.streamGid != rsp.streamGId) {
+    tDeepFreeSMStreamHbRspMsg(&rsp);
+    return streamHbHandleRspErr(TSDB_CODE_INVALID_MSG, currTs);
+  }
   return streamHbProcessRspMsg(&rsp);
 }
 
@@ -1979,13 +2006,18 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+#ifdef TD_ENTERPRISE
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP_PROGRESS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_KILL_BACKUP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+#endif
   if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_SYSTABLE_RETRIEVE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_MNODE_TYPE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
-  // 第二跳：mnode 广播下来的 DND 消息由 DNODE 模块消费，执行本地密钥/过期时间更新。
-  // 注意：不能注册 TDMT_MND_ALTER_* （它属于 client->mnode 第一跳，已在 mmHandle.c 注册到 MNODE 模块），
-  // 否则会和 MNODE 模块的路由冲突，导致 client 请求被 DNODE 模块直接消费而绕过 mnode 广播。
+  // Second hop: DNODE consumes DND messages broadcast by mnode and updates local keys and expiry times.
+  // Do not register TDMT_MND_ALTER_* here. It belongs to the client-to-mnode first hop and is already
+  // registered by the MNODE module in mmHandle.c; registering it here would conflict with MNODE routing.
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_ENCRYPT_KEY, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_ALTER_KEY_EXPIRATION, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STREAM_HEARTBEAT_RSP, dmPutMsgToStreamMgmtQueue, 0) == NULL) goto _OVER;

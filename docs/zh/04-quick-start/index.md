@@ -5,7 +5,7 @@ description: TDengine TSDB 快速上手
 toc_max_heading_level: 4
 ---
 
-import xiaot_new from '../assets/xiaot-20231007.png'
+import xiaot_new from '../assets/xiaot-20231007.webp'
 import channel from '../assets/channel.webp'
 import official_account from '../assets/official-account.webp'
 

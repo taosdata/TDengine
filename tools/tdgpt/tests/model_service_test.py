@@ -1,10 +1,36 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 Tests for ModelService class
 """
 
 import os
+from types import SimpleNamespace
 
 import pytest
+from taosanode_service import EXIT_CONFLICT, execute_command
+
+
+def _complete_model(mock_config, model_name="tdtsfm"):
+    model_dir = os.path.join(mock_config.tsfm_model_dir, model_name)
+    os.makedirs(model_dir, exist_ok=True)
+    marker = "taos.pth" if model_name == "tdtsfm" else "model.safetensors"
+    open(os.path.join(model_dir, marker), "wb").write(b"weights")
+    if model_name != "tdtsfm":
+        open(os.path.join(model_dir, "config.json"), "w", encoding="utf-8").write("{}")
 
 
 class TestModelService:
@@ -51,8 +77,24 @@ class TestModelService:
         result = model_service.start("chronos")
         assert result is True  # Should skip optional model
 
-    def test_start_model_success(self, model_service, mocker):
+    def test_legacy_model_directory_is_not_started(self, model_service, mock_config, mocker):
+        os.makedirs(os.path.join(mock_config.model_dir, "tdtsfm"), exist_ok=True)
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        assert model_service.start("tdtsfm") is True
+        assert model_service._model_directory_exists("tdtsfm") is False
+
+    def test_model_with_files_but_missing_runtime_is_not_started(
+        self, model_service, mock_config, mocker
+    ):
+        _complete_model(mock_config)
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=None)
+        assert model_service.start("tdtsfm") is False
+
+    def test_start_model_success(self, model_service, mock_config, mocker):
         """Test successful model start"""
+        _complete_model(mock_config)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=({}, "/usr/bin/python3"))
         mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
         mocker.patch.object(
             model_service.process_mgr,
@@ -62,6 +104,9 @@ class TestModelService:
         mocker.patch.object(
             model_service.process_mgr, "wait_for_service", return_value=True
         )
+        wait_for_tcp_port = mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=True
+        )
         mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
         mocker.patch.object(model_service.process_mgr, "write_pid")
         mocker.patch("os.path.exists", return_value=True)
@@ -70,6 +115,83 @@ class TestModelService:
 
         result = model_service.start("tdtsfm")
         assert result is True
+        wait_for_tcp_port.assert_called_once_with(
+            "model-tdtsfm", "127.0.0.1", 6061, timeout=300
+        )
+
+    def test_start_model_timeout_override(self, model_service, mock_config, mocker):
+        _complete_model(mock_config)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=({}, "/usr/bin/python3"))
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(
+            model_service.process_mgr,
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
+        )
+        wait_for_tcp_port = mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=True
+        )
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
+
+        assert model_service.start("tdtsfm", timeout=300) is True
+        wait_for_tcp_port.assert_called_once_with(
+            "model-tdtsfm", "127.0.0.1", 6061, timeout=300
+        )
+
+    def test_start_model_timeout_reports_diagnostics(self, model_service, mock_config, mocker):
+        _complete_model(mock_config)
+        mocker.patch.object(model_service, "_get_dynamic_tsfm_runtime", return_value=({}, "/usr/bin/python3"))
+        mocker.patch.object(
+            model_service.process_mgr, "is_running", side_effect=[False, True]
+        )
+        mocker.patch.object(
+            model_service.process_mgr,
+            "_get_python_exe",
+            return_value="/usr/bin/python3",
+        )
+        mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=False
+        )
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch.object(model_service, "stop", return_value=True)
+        mocker.patch("os.path.exists", return_value=True)
+        mocker.patch("subprocess.Popen")
+        mocker.patch("builtins.open", create=True)
+        log_error = mocker.patch.object(model_service.logger, "error")
+
+        assert model_service.start("tdtsfm") is False
+        messages = [str(call.args[0]) for call in log_error.call_args_list]
+        assert any("Model startup timed out after 300 seconds" in message for message in messages)
+        assert any("model_tdtsfm.log" in message for message in messages)
+
+    def test_dynamic_tdtsfm_worker_gets_dynamic_model_root(
+        self, model_service, mock_config, mocker
+    ):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "tdtsfm")
+        os.makedirs(model_dir, exist_ok=True)
+        service_dir = os.path.join(
+            mock_config.install_dir, "lib", "taosanalytics", "tsfmservice"
+        )
+        os.makedirs(service_dir, exist_ok=True)
+        open(os.path.join(service_dir, "tdtsfm-server.py"), "a", encoding="utf-8").close()
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "wait_for_service", return_value=True)
+        mocker.patch.object(model_service.process_mgr, "wait_for_tcp_port", return_value=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch.object(
+            model_service,
+            "_resolve_dynamic_model",
+            return_value=(model_dir, "/shared/venv/bin/python3"),
+        )
+        popen = mocker.patch("subprocess.Popen")
+
+        assert model_service.start("tdtsfm") is True
+        assert popen.call_args.kwargs["env"]["TDGPT_MODEL_DIR"] == mock_config.tsfm_model_dir
 
     def test_stop_unknown_model(self, model_service):
         """Test stopping unknown model"""
@@ -108,6 +230,9 @@ class TestModelService:
         )
         mocker.patch.object(
             model_service.process_mgr, "wait_for_service", return_value=True
+        )
+        mocker.patch.object(
+            model_service.process_mgr, "wait_for_tcp_port", return_value=True
         )
         mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
         mocker.patch.object(model_service.process_mgr, "write_pid")
@@ -158,6 +283,26 @@ class TestModelService:
         assert status[4]["port"] == 6065
         assert status[5]["port"] == 6066
 
+    def test_delete_runtime_alias_rejects_running_model(
+        self, mock_config, mocker
+    ):
+        models = mocker.patch("taosanode_service.ModelService").return_value
+        models.status.return_value = [
+            {"model": "moment", "running": True},
+        ]
+        manager = mocker.patch(
+            "taosanode_service.DynamicResourceManager"
+        ).return_value
+
+        with pytest.raises(SystemExit) as exc:
+            execute_command(
+                SimpleNamespace(command="resource-delete", target="runtime"),
+                mock_config,
+            )
+
+        assert exc.value.code == EXIT_CONFLICT
+        manager.delete_resource.assert_not_called()
+
     def test_get_model_venv(self, model_service, mock_config):
         """Test getting model virtual environment path"""
         venv = model_service._get_model_venv()
@@ -176,10 +321,61 @@ class TestModelService:
         venv = model_service._get_model_venv()
         assert venv == mock_config.venv_dir
 
-    def test_build_model_args(self, model_service):
-        """Test building model arguments"""
-        args = model_service._build_model_args("tdtsfm")
-        assert args == []
+    def test_dynamic_tsfm_model_uses_shared_runtime(
+        self, model_service, mock_config, mocker
+    ):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "moirai")
+        os.makedirs(model_dir, exist_ok=True)
+        runtime_manifest = {"runtime_id": "tsfm-runtime-1.0.0"}
+        mocker.patch.object(
+            model_service,
+            "_get_dynamic_tsfm_runtime",
+            return_value=(runtime_manifest, "/shared/venv/bin/python3"),
+        )
+        validate = mocker.patch(
+            "taosanode_service.validate_tsfm_model", return_value={}
+        )
+
+        resolved = model_service._resolve_dynamic_model("moirai")
+
+        assert resolved == (model_dir, "/shared/venv/bin/python3")
+        validate.assert_called_once()
+
+    def test_dynamic_tsfm_model_skips_when_runtime_is_missing(
+        self, model_service, mock_config, mocker
+    ):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "chronos")
+        os.makedirs(model_dir, exist_ok=True)
+        mocker.patch.object(
+            model_service, "_get_dynamic_tsfm_runtime", return_value=None
+        )
+
+        assert model_service._resolve_dynamic_model("chronos") is False
+
+    def test_dynamic_model_directory_is_available(self, model_service, mock_config):
+        model_dir = os.path.join(mock_config.tsfm_model_dir, "moment")
+        os.makedirs(model_dir, exist_ok=True)
+        open(os.path.join(model_dir, "model.safetensors"), "wb").write(b"weights")
+        open(os.path.join(model_dir, "config.json"), "w", encoding="utf-8").write("{}")
+
+        assert model_service._model_directory_exists("moment") is True
+
+    def test_build_model_args(self, model_service, mock_config):
+        """tdtsfm must be told where its weights are; the others also get name/port."""
+        dynamic_dir = os.path.join(mock_config.tsfm_model_dir, "tdtsfm")
+        os.makedirs(dynamic_dir, exist_ok=True)
+        expected = [
+            "--model-folder",
+            dynamic_dir,
+            "--port",
+            str(mock_config.models["tdtsfm"]["port"]),
+        ]
+
+        # Without a caller-supplied directory the dynamic layout is what the
+        # installer creates, so that is what must be passed on.
+        assert model_service._build_model_args("tdtsfm") == expected
+        # A directory the caller already resolved wins over the default.
+        assert model_service._build_model_args("tdtsfm", dynamic_dir) == expected
 
         args = model_service._build_model_args("timemoe")
         assert "--model-folder" in args

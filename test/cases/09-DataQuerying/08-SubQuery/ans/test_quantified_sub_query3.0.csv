@@ -18,11 +18,15 @@ taos> select f1 = some (select f1, ts from tb1 union all select f1, ts from tb1)
 
 DB error: Invalid column name: f1 [0x80002602] 
 taos> select exists (select f1 from tb1 where f1 is null);
+ exists (select f1 from tb1 where f1 is null) |
+===============================================
+ false                                        |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select not exists (select f1 from tb1 where f1 < 0);
+ not exists (select f1 from tb1 where f1 < 0) |
+===============================================
+ true                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7] 
 taos> select 1 = any (select 1) from tb1 order by 1;
  1 = any (select 1) |
 =====================
@@ -1427,11 +1431,15 @@ taos> select f1 = some (select f1, ts from tb2 union all select f1, ts from tb2)
 
 DB error: Invalid column name: f1 [0x80002602]
 taos> select exists (select f1 from tb2 where f1 is null);
+ exists (select f1 from tb2 where f1 is null) |
+===============================================
+ false                                        |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select not exists (select f1 from tb2 where f1 < 0);
+ not exists (select f1 from tb2 where f1 < 0) |
+===============================================
+ true                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select 1 = any (select 1) from tb2 order by 1;
  1 = any (select 1) |
 =====================
@@ -2980,11 +2988,15 @@ taos> select f1 = some (select f1, ts from tb3 union all select f1, ts from tb3)
 
 DB error: Invalid column name: f1 [0x80002602]
 taos> select exists (select f1 from tb3 where f1 is null);
+ exists (select f1 from tb3 where f1 is null) |
+===============================================
+ false                                        |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select not exists (select f1 from tb3 where f1 < 0);
+ not exists (select f1 from tb3 where f1 < 0) |
+===============================================
+ true                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select 1 = any (select 1) from tb3 order by 1;
  1 = any (select 1) |
 =====================
@@ -4652,11 +4664,15 @@ taos> select f1 = some (select f1, ts from tba union all select f1, ts from tba)
 
 DB error: Invalid column name: f1 [0x80002602]
 taos> select exists (select f1 from tba where f1 is null);
+ exists (select f1 from tba where f1 is null) |
+===============================================
+ false                                        |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select not exists (select f1 from tba where f1 < 0);
+ not exists (select f1 from tba where f1 < 0) |
+===============================================
+ true                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select 1 = any (select 1) from tba order by 1;
  1 = any (select 1) |
 =====================
@@ -6037,11 +6053,15 @@ taos> select f1 = some (select f1, ts from tbe union all select f1, ts from tbe)
 
 DB error: Invalid column name: f1 [0x80002602]
 taos> select exists (select f1 from tbe where f1 is null);
+ exists (select f1 from tbe where f1 is null) |
+===============================================
+ false                                        |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select not exists (select f1 from tbe where f1 < 0);
+ not exists (select f1 from tbe where f1 < 0) |
+===============================================
+ true                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select 1 = any (select 1) from tbe order by 1;
 
 taos> select f1 != some (select f1 from tbe) from tbe order by 1;
@@ -7034,11 +7054,15 @@ taos> select f1 = some (select f1, ts from st1 union all select f1, ts from st1)
 
 DB error: Invalid column name: f1 [0x80002602]
 taos> select exists (select f1 from st1 where f1 is null);
+ exists (select f1 from st1 where f1 is null) |
+===============================================
+ false                                        |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select not exists (select f1 from st1 where f1 < 0);
+ not exists (select f1 from st1 where f1 < 0) |
+===============================================
+ true                                         |
 
-DB error: Current sql does not support subquery as expr [0x800026A7]
 taos> select 1 = any (select 1) from st1 order by 1;
  1 = any (select 1) |
 =====================

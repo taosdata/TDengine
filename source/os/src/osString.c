@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -353,6 +355,13 @@ int32_t tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4)
 }
 #endif 
 
+// The single owner of the charset-context fallback rule: an explicit context
+// wins, otherwise the process-wide tsCharsetCxt is used. A NULL result means
+// conversion sites fall back to DEFAULT_MBS_ENCODEC.
+void *taosResolveCharsetCxt(const void *charsetCxt) {
+  return (void *)(charsetCxt != NULL ? charsetCxt : tsCharsetCxt);
+}
+
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if(idx == NULL) {
@@ -362,20 +371,17 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
 
   int32_t retryLimit = 100, i = 0;
 
-  if (charsetCxt == NULL){
-    charsetCxt = tsCharsetCxt;
-  }
-  SConvInfo *info = (SConvInfo *)charsetCxt;
+  SConvInfo *info = (SConvInfo *)taosResolveCharsetCxt(charsetCxt);
   if (info == NULL) {
     *idx = -1;
     if (type == M2C) {
-      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, "UTF-8");
+      iconv_t c = iconv_open(DEFAULT_UNICODE_ENCODEC, DEFAULT_MBS_ENCODEC);
       if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(ERRNO);
       }
       return c;
     } else {
-      iconv_t c = iconv_open("UTF-8", DEFAULT_UNICODE_ENCODEC);
+      iconv_t c = iconv_open(DEFAULT_MBS_ENCODEC, DEFAULT_UNICODE_ENCODEC);
       if ((iconv_t)-1 == c) {
         terrno = TAOS_SYSTEM_ERROR(ERRNO);
       }
@@ -413,11 +419,17 @@ iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt) {
   }
 
   *idx = startId;
-  if ((iconv_t)0 == info->gConv[type][startId].conv) {
+  iconv_t conv = info->gConv[type][startId].conv;
+  if (conv == NULL || conv == (iconv_t)-1) {
+    // A published pool normally has every slot initialized. Keep this failure
+    // path safe for malformed or future partially initialized contexts.
+    atomic_store_8(&info->gConv[type][startId].inUse, 0);
+    (void)atomic_sub_fetch_32(&info->convUsed[type], 1);
+    *idx = -1;
+    terrno = TSDB_CODE_APP_ERROR;
     return (iconv_t)-1;
-  } else {
-    return info->gConv[type][startId].conv;
   }
+  return conv;
 #else
   terrno = TSDB_CODE_APP_ERROR;
   return (iconv_t)-1;
@@ -431,15 +443,63 @@ void taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void *charsetCxt)
     return;
   }
 
-  if (charsetCxt == NULL) {
-    charsetCxt = tsCharsetCxt;
-  }
-  SConvInfo *info = (SConvInfo *)charsetCxt;
+  SConvInfo *info = (SConvInfo *)taosResolveCharsetCxt(charsetCxt);
 
   atomic_store_8(&info->gConv[type][idx].inUse, 0);
   (void)atomic_sub_fetch_32(&info->convUsed[type], 1);
 #endif
 }
+
+#define CONV_ERROR_BYTES 16
+
+const char *taosConvCharset(const void *charsetCxt) {
+  // Keep diagnostic charset names aligned with taosAcquireConv's fallback.
+  const SConvInfo *info = (SConvInfo *)taosResolveCharsetCxt(charsetCxt);
+  return info != NULL ? info->charset : DEFAULT_MBS_ENCODEC;
+}
+
+// Log every conversion failure with its direction, charset, and an input
+// prefix to make malformed data diagnosable.
+static void taosLogConvError(ConvType type, void *charsetCxt,
+                             const void *input, size_t inputLen) {
+  static const char hex[] = "0123456789ABCDEF";
+  char              bytes[CONV_ERROR_BYTES * 3] = {0};
+  const uint8_t    *src = (const uint8_t *)input;
+  size_t            num = TMIN(inputLen, CONV_ERROR_BYTES);
+  size_t            pos = 0;
+
+  for (size_t i = 0; i < num; ++i) {
+    if (i > 0) bytes[pos++] = ' ';
+    bytes[pos++] = hex[src[i] >> 4];
+    bytes[pos++] = hex[src[i] & 0x0F];
+  }
+  bytes[pos] = 0;
+
+  uError("charset conversion failed, direction:%s, charset:%s, "
+         "bytes:%s%s",
+         type == M2C ? "VARCHAR->NCHAR" : "NCHAR->VARCHAR",
+         taosConvCharset(charsetCxt), bytes,
+         inputLen > num ? " ..." : "");
+}
+
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+static int32_t taosValidateUcs4(const TdUcs4 *ucs4, int32_t ucs4Len) {
+  if (ucs4Len % (int32_t)sizeof(*ucs4) != 0) {
+    return EINVAL;
+  }
+
+  int32_t numOfCodePoints = ucs4Len / (int32_t)sizeof(*ucs4);
+  for (int32_t i = 0; i < numOfCodePoints; ++i) {
+    uint32_t codePoint = 0;
+    (void)memcpy(&codePoint, (const char *)ucs4 + i * sizeof(*ucs4), sizeof(codePoint));
+    if (codePoint > 0x10FFFF || (codePoint >= 0xD800 && codePoint <= 0xDFFF)) {
+      return EILSEQ;
+    }
+  }
+
+  return 0;
+}
+#endif
 
 bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt) {
   if (ucs4_max_len == 0) {
@@ -465,7 +525,9 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
   size_t ucs4_input_len = mbsLength;
   size_t outLeft = ucs4_max_len;
   if (iconv(conv, (char **)&mbs, &ucs4_input_len, (char **)&ucs4, &outLeft) == -1) {
-    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    int32_t osError = ERRNO;
+    terrno = TAOS_SYSTEM_ERROR(osError);
+    taosLogConvError(M2C, charsetCxt, mbs, ucs4_input_len);
     taosReleaseConv(idx, conv, M2C, charsetCxt);
     return false;
   }
@@ -484,9 +546,18 @@ bool taosMbsToUcs4(const char *mbs, size_t mbsLength, TdUcs4 *ucs4, int32_t ucs4
 #endif
 }
 
+// MBS -> UCS-4 half of the charset-insensitive contract documented below.
+bool taosMbsToUcs4CharsetInsensitive(const char *mbs, size_t mbsLength,
+                                      TdUcs4 *ucs4, int32_t ucs4_max_len,
+                                      int32_t *len) {
+  return taosMbsToUcs4(mbs, mbsLength, ucs4, ucs4_max_len, len, NULL);
+}
+
 // if success, return the number of bytes written to mbs ( >= 0)
 // otherwise return error code ( < 0)
-int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* charsetCxt) {
+static int32_t taosUcs4ToMbsImpl(TdUcs4 *ucs4, int32_t ucs4_max_len,
+                                  char *mbs, void *charsetCxt,
+                                  bool logError) {
   if (ucs4_max_len == 0) {
     return 0;
   }
@@ -500,6 +571,12 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* chars
   return terrno;
 #else
 
+  int32_t errnoCode = taosValidateUcs4(ucs4, ucs4_max_len);
+  if (errnoCode != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errnoCode);
+    return terrno;
+  }
+
   int32_t idx = -1;
   int32_t code = 0;
   iconv_t conv = taosAcquireConv(&idx, C2M, charsetCxt);
@@ -510,7 +587,11 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* chars
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;
   if (iconv(conv, (char **)&ucs4, &ucs4_input_len, &mbs, &outLen) == -1) {
-    code = TAOS_SYSTEM_ERROR(ERRNO);
+    int32_t osError = ERRNO;
+    code = TAOS_SYSTEM_ERROR(osError);
+    if (logError) {
+      taosLogConvError(C2M, charsetCxt, ucs4, ucs4_input_len);
+    }
     taosReleaseConv(idx, conv, C2M, charsetCxt);
     terrno = code;
     return code;
@@ -520,6 +601,110 @@ int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* chars
 
   return (int32_t)(ucs4_max_len - outLen);
 #endif
+}
+
+int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs,
+                       void *charsetCxt) {
+  return taosUcs4ToMbsImpl(ucs4, ucs4_max_len, mbs, charsetCxt, true);
+}
+
+// Convert MBS between charset contexts through UCS-4. On success, *ppDst is a
+// newly allocated NUL-terminated buffer owned by the caller and *pDstLen, when
+// provided, excludes the terminator. The fixed destination capacity supports
+// charsets encoding each code point in at most four bytes; overflow is logged.
+int32_t taosMbsToMbs(const char *src, int32_t srcLen, void *srcCharsetCxt,
+                     void *dstCharsetCxt, char **ppDst, int32_t *pDstLen) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t ucs4Len = 0;
+  int32_t dstLen = 0;
+  TdUcs4 *ucs4 = NULL;
+  char   *dst = NULL;
+
+  if (ppDst == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+  *ppDst = NULL;
+  if (pDstLen != NULL) {
+    *pDstLen = 0;
+  }
+  if (src == NULL || srcLen < 0 ||
+      srcLen > INT32_MAX / (int32_t)sizeof(TdUcs4) - 1) {
+    code = TSDB_CODE_INVALID_PARA;
+    goto _exit;
+  }
+
+  int32_t ucs4Cap = (srcLen + 1) * (int32_t)sizeof(TdUcs4);
+  ucs4 = taosMemoryMalloc(ucs4Cap);
+  if (ucs4 == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  if (!taosMbsToUcs4(src, srcLen, ucs4, ucs4Cap, &ucs4Len,
+                     srcCharsetCxt)) {
+    code = TSDB_CODE_CHARSET_CONVERT_ERROR;
+    goto _exit;
+  }
+
+  // UCS-4 uses 4 bytes per code point. This fixed-size destination therefore
+  // supports only charsets whose encoded representation has the same maximum.
+  dst = taosMemoryMalloc(ucs4Len + 1);
+  if (dst == NULL) {
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  dstLen = taosUcs4ToMbsImpl(ucs4, ucs4Len, dst, dstCharsetCxt, false);
+  if (dstLen < 0) {
+    taosLogConvError(C2M, dstCharsetCxt, ucs4, ucs4Len);
+    code = TSDB_CODE_CHARSET_CONVERT_ERROR;
+    goto _exit;
+  }
+
+  dst[dstLen] = '\0';
+  *ppDst = dst;
+  dst = NULL;
+  if (pDstLen != NULL) {
+    *pDstLen = dstLen;
+  }
+
+_exit:
+  taosMemoryFree(ucs4);
+  taosMemoryFree(dst);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+  }
+  return code;
+}
+
+// UCS-4 -> MBS with no query charset context. Use only when the querying
+// client's charset does not affect the operation's semantics:
+//
+//   1. ASCII-only content: numeric literals (an NCHAR cast/parsed to a
+//      number) and WKT geometry text (POINT/LINESTRING ...). Every supported
+//      charset is an ASCII superset, so codepoints 0-127 map to the same
+//      single byte in any charset -- the output bytes are charset-independent.
+//
+//   2. Regex match (comparewcsRegexMatch): the content may be arbitrary
+//      NCHAR, but (a) both operands arrive as client-independent UCS-4 (NCHAR
+//      is stored as UCS-4, and NCHAR MATCH pattern literals are pre-converted
+//      to UCS-4 on the client), and (b) regexec() reads bytes under the
+//      process LC_CTYPE, i.e. the server locale, so the server charset -- what
+//      NULL resolves to -- is exactly what the engine needs and both operands
+//      are converted the same way. Here NULL is not merely acceptable, it is
+//      required, and the querying client's charset is irrelevant to the match.
+//
+//   3. Server-internal rendering or round trips with no client query context,
+//      such as diagnostics and rollup paths. Both directions intentionally use
+//      the process/server charset, so the operation remains self-consistent.
+//
+// Any other site handling non-ASCII NCHAR text IS query-charset-sensitive and
+// must thread the query's charsetCxt through taosUcs4ToMbs instead.
+int32_t taosUcs4ToMbsCharsetInsensitive(TdUcs4 *ucs4, int32_t ucs4_max_len,
+                                        char *mbs) {
+  return taosUcs4ToMbsImpl(ucs4, ucs4_max_len, mbs, NULL, true);
 }
 
 // if success, return the number of bytes written to mbs ( >= 0)
@@ -537,6 +722,12 @@ int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t c
   terrno = TSDB_CODE_APP_ERROR;
   return terrno;
 #else
+
+  int32_t errnoCode = taosValidateUcs4(ucs4, ucs4_max_len);
+  if (errnoCode != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errnoCode);
+    return terrno;
+  }
 
   size_t ucs4_input_len = ucs4_max_len;
   size_t outLen = ucs4_max_len;

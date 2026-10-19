@@ -478,7 +478,7 @@ For versions prior to v3.4.1.12, you need to manually install the Python UDF plu
 
 In most cases, manual compilation is unnecessary because `taospyudf` is already shipped with TDengine. If you need to rebuild it (for development/debugging), build it from the TDengine source tree.
 
-The source files are located in `source/taos-community/source/libs/pyudf/src/` in the TDengine source tree, and can also be downloaded from [GitHub](https://github.com/taosdata/TDengine/tree/main/source/taos-community/source/libs/pyudf/src).
+The source files are located in `source/libs/pyudf/src/` in the TDengine source tree, and can also be downloaded from [GitHub](https://github.com/taosdata/TDengine/tree/main/source/libs/pyudf/src).
 
 #### Linux / macOS
 
@@ -497,7 +497,7 @@ git clone --depth=1 https://github.com/SergiusTheBest/plog.git /tmp/plog
 #    Python include flags are obtained automatically via python3-config
 
 # 3. Compile (run from pyudf source directory)
-cd source/taos-community/source/libs/pyudf/src
+cd source/libs/pyudf/src
 g++ -std=c++17 -fPIC -shared taospyudf.cpp \
     -o libtaospyudf.so \
     -I/tmp/plog/include \
@@ -735,7 +735,7 @@ DB error: udf function execution failure (0.011088s)
 Unfortunately, the execution failed. What could be the reason? Check the taosudf process logs.
 
 ```shell
-tail -10 /var/log/taos/taosudf.log
+tail -10 /var/log/taos/taosudfdlog.0
 ```
 
 Found the following error messages.

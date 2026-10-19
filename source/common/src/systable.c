@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -205,6 +207,8 @@ static const SSysDbTableSchema streamSchema[] = {
     {.name = "output_rows_per_sec_1m", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
     {.name = "runner_result_latency_avg_1m_ms", .bytes = 8, .type = TSDB_DATA_TYPE_DOUBLE, .sysInfo = false},
     {.name = "history_progress_pct", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
+    {.name = "timezone", .bytes = TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "first_day_of_week", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
 };
 
 static const SSysDbTableSchema streamTaskSchema[] = {
@@ -473,6 +477,7 @@ static const SSysDbTableSchema variablesSchema[] = {
     {.name = "scope", .bytes = TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "category", .bytes = TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "info", .bytes = TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "reboot", .bytes = TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
 };
 
 static const SSysDbTableSchema cpuAllocationSchema[] = {
@@ -545,6 +550,19 @@ static const SSysDbTableSchema userCompactsSchema[] = {
     {.name = "compact_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+};
+
+static const SSysDbTableSchema userBackupsSchema[] = {
+    {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "chain", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "database", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "full", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
+    {.name = "encrypted", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = false},
+    {.name = "size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
+    {.name = "vgroups", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "start_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
 };
 
 static const SSysDbTableSchema userEncryptAlgrSchema[] = {
@@ -716,6 +734,32 @@ static const SSysDbTableSchema diskUsageSchema[] = {
     {.name = "raw_data", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema lastCacheStatsSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "block_cache_capacity", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "block_cache_usage", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "block_cache_pinned_usage", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "estimate_table_readers_mem", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "cur_size_active_mem_table", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "cur_size_all_mem_tables", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "num_immutable_mem_table", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "mem_table_flush_pending", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "num_running_flushes", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "compaction_pending", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "num_running_compactions", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "estimate_pending_compaction_bytes", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "is_write_stopped", .bytes = 1, .type = TSDB_DATA_TYPE_BOOL, .sysInfo = true},
+    {.name = "actual_delayed_write_rate", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "num_files_at_level0", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "total_sst_files_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "estimate_num_keys", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "num_live_versions", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "background_errors", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
+};
+
 static const SSysDbTableSchema mountSchema[] = {
     {.name = "name", .bytes = TSDB_MOUNT_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
     {.name = "dnode", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
@@ -805,11 +849,13 @@ static const SSysDbTableSchema xnodesSchema[] = {
 };
 
 /** Migrate task table from old taosx */
+/** NOTE: "id" is column 1 (TSDB_INS_XNODE_TASKS_ID_COLID) and the executor recognizes equality
+ *  filters on it by that id -- do not insert columns ahead of it without updating tdef.h. */
 static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "name", .bytes = TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "from", .bytes = TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
-    {.name = "to", .bytes = TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "from", .bytes = (TSDB_XNODE_TASK_SOURCE_LEN * 2) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "to", .bytes = (TSDB_XNODE_TASK_SINK_LEN * 2) + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "parser", .bytes = TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
     /// Agent ID.
     {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
@@ -820,18 +866,22 @@ static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "labels", .bytes = TSDB_XNODE_TASK_LABELS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "desired_state", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 /** For xnode task slices, one task may have multiple slices. */
+/** NOTE: "task_id" is column 2 (TSDB_INS_XNODE_JOBS_TASKID_COLID) and the executor recognizes
+ *  equality filters on it by that id -- do not insert columns ahead of it without updating tdef.h. */
 static const SSysDbTableSchema xnodeTaskJobSchema[] = {
     {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "task_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
+    {.name = "config", .bytes = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
     {.name = "via", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "xnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "status", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "reason", .bytes = TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
+    {.name = "desired_state", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 /** Migrate agents table from old taosx */
 static const SSysDbTableSchema xnodeAgentsSchema[] = {
@@ -920,6 +970,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_VIEWS, userViewsSchema, tListLen(userViewsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_COMPACTS, userCompactsSchema, tListLen(userCompactsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_COMPACT_DETAILS, userCompactsDetailSchema, tListLen(userCompactsDetailSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_BACKUPS, userBackupsSchema, tListLen(userBackupsSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SSMIGRATES, userSsMigratesSchema, tListLen(userSsMigratesSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_GRANTS_FULL, userGrantsFullSchema, tListLen(userGrantsFullSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_GRANTS_LOGS, userGrantsLogsSchema, tListLen(userGrantsLogsSchema), true, PRIV_CAT_PRIVILEGED},
@@ -930,6 +981,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_ANODES, anodesSchema, tListLen(anodesSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_ANODES_FULL, anodesFullSchema, tListLen(anodesFullSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_DISK_USAGE, diskUsageSchema, tListLen(diskUsageSchema), false, PRIV_CAT_BASIC},
+    {TSDB_INS_TABLE_LAST_CACHE_STATS, lastCacheStatsSchema, tListLen(lastCacheStatsSchema), true, PRIV_CAT_PRIVILEGED},
     {TSDB_INS_TABLE_FILESETS, filesetsFullSchema, tListLen(filesetsFullSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_TRANSACTION_DETAILS, userTransactionDetailSchema, tListLen(userTransactionDetailSchema), false, PRIV_CAT_BASIC},
     {TSDB_INS_TABLE_SNAP_SEND_VNODES,   snapSendVnodesSchema,         tListLen(snapSendVnodesSchema),         false, PRIV_CAT_BASIC},
@@ -1113,4 +1165,65 @@ const SSysTableMeta* getSysTableMeta(const char* dbName, const char* tbName) {
     }
   }
   return NULL;
+}
+
+/**
+ * Validate the xnode retrieve options against the system table being retrieved.
+ *
+ * Lives here rather than in the message codec because the rules are derived from the schemas
+ * declared above: only [xnodeTasksSchema] and [xnodeTaskJobSchema] expose an encryptable DSN,
+ * and each accepts only the filter that matches its own key column.
+ *
+ * Note this deliberately does NOT require the fields to be present on the wire -- a sender that
+ * predates them decodes to DEFAULT/NONE/0, which this function accepts for every table.
+ */
+int32_t tValidateSRetrieveTableReq(const SRetrieveTableReq* pReq) {
+  if (pReq == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const bool isTasks = strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODE_TASKS) == 0;
+  const bool isJobs = strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODE_JOBS) == 0;
+  const bool isXnode = isTasks || isJobs || strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODES) == 0 ||
+                       strcasecmp(pReq->tb, TSDB_INS_TABLE_XNODE_AGENTS) == 0;
+
+  if (pReq->xnodeDsnOutputMode != XNODE_DSN_OUTPUT_DEFAULT &&
+      pReq->xnodeDsnOutputMode != XNODE_DSN_OUTPUT_ENCRYPTED) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_ID_EQ &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_TASK_ID_EQ) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pReq->xnodeRetrieveFilterType == XNODE_RETRIEVE_FILTER_NONE) {
+    if (pReq->xnodeRetrieveFilterValue != 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  } else if (pReq->xnodeRetrieveFilterValue < 0 || pReq->xnodeRetrieveFilterValue > INT32_MAX) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (!isXnode) {
+    return (pReq->xnodeDsnOutputMode == XNODE_DSN_OUTPUT_DEFAULT &&
+            pReq->xnodeRetrieveFilterType == XNODE_RETRIEVE_FILTER_NONE &&
+            pReq->xnodeRetrieveFilterValue == 0)
+               ? TSDB_CODE_SUCCESS
+               : TSDB_CODE_INVALID_MSG;
+  }
+  if (pReq->xnodeDsnOutputMode == XNODE_DSN_OUTPUT_ENCRYPTED && !isTasks && !isJobs) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (isTasks && pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_ID_EQ) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (isJobs && pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE &&
+      pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_TASK_ID_EQ) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (!isTasks && !isJobs && pReq->xnodeRetrieveFilterType != XNODE_RETRIEVE_FILTER_NONE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
 }

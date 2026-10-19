@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,7 +23,7 @@
 // ============================================================
 
 int32_t mndInitExtSource(SMnode *pMnode) {
-  // Register message handlers — both community and enterprise stubs need these
+  // Register message handlers  -  both community and enterprise stubs need these
   // so that the mnode can receive and respond to DDL messages properly.
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_EXT_SOURCE,  mndProcessCreateExtSourceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_EXT_SOURCE,   mndProcessAlterExtSourceReq);
@@ -54,7 +56,7 @@ void mndCleanupExtSource(SMnode *pMnode) {
 }
 
 // ============================================================
-// Message handlers — community stub pattern (same as mndView.c)
+// Message handlers  -  community stub pattern (same as mndView.c)
 // ============================================================
 
 int32_t mndProcessCreateExtSourceReq(SRpcMsg *pReq) {

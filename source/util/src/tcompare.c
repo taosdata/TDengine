@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define _BSD_SOURCE
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
@@ -1637,7 +1640,12 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
     return 1;  // terrno has been set
   }
 
-  int convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pPattern), len, pattern, NULL);
+  // Deliberately server-charset (see taosUcs4ToMbsCharsetInsensitive): both
+  // pattern and string are client-independent UCS-4 fed to the server-locale
+  // regex engine, so the querying client's charset does not affect the match.
+  int convertLen =
+      taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(pPattern), len,
+                                      pattern);
   if (convertLen < 0) {
     taosMemoryFree(pattern);
     return 1;  // terrno has been set
@@ -1652,7 +1660,9 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
     return 1;  // terrno has been set
   }
 
-  convertLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(pString), len, str, NULL);
+  // Server-charset for the same reason as the pattern above.
+  convertLen = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(pString),
+                                               len, str);
   if (convertLen < 0) {
     taosMemoryFree(str);
     taosMemoryFree(pattern);

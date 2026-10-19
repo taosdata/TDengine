@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2023 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #define ALLOW_FORBID_FUNC
 
 #include "cos.h"
@@ -1186,7 +1203,7 @@ static SArray *getListByPrefixByEp(const char *prefix, int8_t epIndex) {
   list_bucket_callback_data    data = {0};
   data.objectArray = taosArrayInit(32, sizeof(void *));
   if (!data.objectArray) {
-    uError("%s: %s", __func__, "out of memoty");
+    uError("%s: %s", __func__, "out of memory");
     return NULL;
   }
   /*if (marker) {
@@ -1290,12 +1307,18 @@ void s3DeleteObjectsByPrefix(const char *prefix) {
 
 static S3Status getObjectDataCallback(int bufferSize, const char *buffer, void *callbackData) {
   TS3SizeCBD *cbd = callbackData;
-  /*
-  if (cbd->content_length != bufferSize) {
+
+  // libs3 hands every byte of the response body to this callback without
+  // truncating it at the byte count requested by s3GetObjectBlockByEp(), and
+  // that count is only a Range header which the endpoint is free to ignore (it
+  // may answer 200 with the whole object).  A body larger than the requested
+  // range must not be copied past the end of the buffer, whose size is
+  // [content_length].
+  if (cbd->buf_pos + bufferSize > (int64_t)cbd->content_length) {
     cbd->status = S3StatusAbortedByCallback;
     return S3StatusAbortedByCallback;
   }
-  */
+
   if (!cbd->buf) {
     cbd->buf = taosMemoryCalloc(1, cbd->content_length);
   }
@@ -1573,7 +1596,7 @@ int32_t s3PutObjectFromFile(const char *file_str, const char *object_str) {
   cos_table_t *headers = NULL;
   /*
   if (traffic_limit) {
-    // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
+    // The rate limit range is 819200-838860800 (100KB/s-100MB/s); values outside it return HTTP 400.
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
@@ -1739,20 +1762,20 @@ bool s3Get(const char *object_name, const char *path) {
   cos_table_t           *headers = NULL;
   int                    traffic_limit = 0;
 
-  // 创建内存池
+  // Create the memory pool.
   cos_pool_create(&p, NULL);
 
-  // 初始化请求选项
+  // Initialize request options.
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
   if (traffic_limit) {
-    // 限速值设置范围为819200 - 838860800，即100KB/s - 100MB/s，如果超出该范围将返回400错误
+    // The rate limit range is 819200-838860800 (100KB/s-100MB/s); values outside it return HTTP 400.
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
 
-  // 下载对象
+  // Download the object.
   cos_str_set(&file, path);
   cos_str_set(&object, object_name);
   s = cos_get_object_to_file(options, &bucket, &object, headers, NULL, &file, &resp_headers);
@@ -1763,7 +1786,7 @@ bool s3Get(const char *object_name, const char *path) {
     cos_warn_log("get object failed\n");
   }
 
-  // 销毁内存池
+  // Destroy the memory pool.
   cos_pool_destroy(p);
 
   return ret;
@@ -1785,10 +1808,10 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // int  traffic_limit = 0;
   char range_buf[64];
 
-  // 创建内存池
+  // Create the memory pool.
   cos_pool_create(&p, NULL);
 
-  // 初始化请求选项
+  // Initialize request options.
   options = cos_request_options_create(p);
   // init_test_request_options(options, is_cname);
   s3InitRequestOptions(options, is_cname);
@@ -1798,7 +1821,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   cos_list_init(&download_buffer);
   /*
   if (traffic_limit) {
-    // 限速值设置范围为819200 - 838860800，单位默认为 bit/s，即800Kb/s - 800Mb/s，如果超出该范围将返回400错误
+    // The default unit is bit/s; the rate limit range is 819200-838860800 (800Kb/s-800Mb/s).
     headers = cos_table_make(p, 1);
     cos_table_add_int(headers, "x-cos-traffic-limit", 819200);
   }
@@ -1837,7 +1860,7 @@ int32_t s3GetObjectBlock(const char *object_name, int64_t offset, int64_t block_
   // cos_warn_log("Download data=%s", buf);
 
 _exit:
-  // 销毁内存池
+  // Destroy the memory pool.
   cos_pool_destroy(p);
 
   *ppBlock = buf;
@@ -1927,15 +1950,15 @@ long s3Size(const char *object_name) {
   cos_string_t           object;
   cos_table_t           *resp_headers = NULL;
 
-  // 创建内存池
+  // Create the memory pool.
   cos_pool_create(&p, NULL);
 
-  // 初始化请求选项
+  // Initialize request options.
   options = cos_request_options_create(p);
   s3InitRequestOptions(options, is_cname);
   cos_str_set(&bucket, tsS3BucketName);
 
-  // 获取对象元数据
+  // Get object metadata.
   cos_str_set(&object, object_name);
   s = cos_head_object(options, &bucket, &object, NULL, &resp_headers);
   // print_headers(resp_headers);
@@ -1952,7 +1975,7 @@ long s3Size(const char *object_name) {
     cos_warn_log("head object failed\n");
   }
 
-  // 销毁内存池
+  // Destroy the memory pool.
   cos_pool_destroy(p);
 
   return size;

@@ -105,7 +105,7 @@ For more example codes and downloads, please see [GitHub](https://github.com/tao
 
 - Asynchronous query example: [Asynchronous Query](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/asyncdemo.c)
 
-- Parameter binding example: [Parameter Binding](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/prepare.c)
+- Parameter binding example: [Parameter Binding](https://github.com/taosdata/TDengine/blob/main/docs/examples/c/prepare.c)
 
 - Schemaless write example: [Schemaless Write](https://github.com/taosdata/TDengine/tree/main/docs/examples/c/schemaless.c)
 
@@ -183,7 +183,7 @@ The basic API is used to establish database connections and provide a runtime en
     - The option of TSDB_OPTION_CONNECTION_CLEAR is used to reset all connection options.
     - After resetting the time zone and character set, using the operating system settings, the user IP and user app will be reset to empty.
     - The values of the connection options are all string type, and the maximum value of the user app parameter is 23, the maximum value of the connector info parameter is 255, which will be truncated if exceeded; Error reported when other parameters are illegal.
-    - If time zone value can not be used to find a time zone file or can not be interpreted as a direct specification, UTC is used, which is the same as the operating system time zone rules. Please refer to the tzset function description for details. You can view the current time zone of the connection by sql:select timezone().
+    - If time zone value cannot be used to find a time zone file or cannot be interpreted as a direct specification, UTC is used, which is the same as the operating system time zone rules. Please refer to the tzset function description for details. You can view the current time zone of the connection by sql:select timezone().
     - Time zones and character sets only work on the client side and do not affect related behaviors on the server side.
     - The time zone file uses the operating system time zone file and can be updated by oneself. If there is an error when setting the time zone, please check if the time zone file or path (mac:/var/db/timezone/zoneinfo, Linux:/var/share/zoneinfo) is correct.
 
@@ -482,7 +482,7 @@ TDengine's asynchronous APIs all use a non-blocking call mode. Applications can 
 
 In addition to directly calling `taos_query()` for queries, TDengine also offers a Prepare API that supports parameter binding, similar in style to MySQL, currently only supporting the use of a question mark `?` to represent the parameter to be bound.
 
-Starting from version 3.3.5.0, TDengine has significantly simplified the usage interface of the old parameter binding. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, and through batch binding, significantly improves writing performance in most cases. The typical operation steps are as follows:
+Starting from `v3.3.5.0`, TDengine has significantly simplified the usage interface of the old parameter binding. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, and through batch binding, significantly improves writing performance in most cases. The typical operation steps are as follows:
 
 1. Call `taos_stmt2_init()` to create a parameter binding object;
 2. Call `taos_stmt2_prepare()` to parse INSERT or SELECT statements;
@@ -491,7 +491,19 @@ Starting from version 3.3.5.0, TDengine has significantly simplified the usage i
 5. Steps 3 to 4 can be repeated to write more data rows without re-parsing SQL;
 6. After execution is complete, call `taos_stmt2_close()` to release all resources.
 
-Note: If `taos_stmt2_exec()` executes successfully and there is no need to change the SQL statement, then it is possible to reuse the parsing result of `taos_stmt2_prepare()` and directly proceed to steps 3 to 4 to bind new data. However, if there is an error in execution, it is not recommended to continue working in the current context. Instead, it is advisable to release resources and start over from the `taos_stmt2_init()` step. You can check the specific error reason through `taos_stmt2_error`.
+#### stmt2 Error Recovery
+
+`taos_stmt2_error()` returns detailed information about the latest error. In synchronous mode, `taos_stmt2_exec()` returns the execution error code directly. In asynchronous mode, the callback receives the final execution error code.
+
+Whether a stmt2 object remains usable depends on the phase in which the error occurs, not only on the error code. A final execution error returned after the request has been sent does not require another `taos_stmt2_prepare()` call:
+
+| Error path | Typical error codes | Recovery |
+| --- | --- | --- |
+| The request has been sent and the server, RPC, or network layer returns a final execution error. | `TSDB_CODE_VND_STOPPED`, `TSDB_CODE_TDB_TABLE_NOT_EXIST`, `TSDB_CODE_PAR_TABLE_NOT_EXIST`, `TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER`, `TSDB_CODE_MND_INVALID_SCHEMA_VER`, `TSDB_CODE_SCH_DATA_SRC_EP_MISS`, `TSDB_CODE_VND_HASH_MISMATCH`, `TSDB_CODE_VND_INVALID_VGROUP_ID`, and other server, RPC, network, or timeout execution errors. | Call `taos_stmt2_error()` first, correct the server state, and then bind and execute again. The failed batch is discarded, so another `taos_stmt2_prepare()` call is not required. The client first retries errors that require metadata or routing information to be refreshed. If that retry also fails, handle the final error as described in this row. |
+
+Binding APIs retain their existing validation and error-state behavior. Outside final execution errors returned after a request has been sent, uniformly treat any other nonzero return code from an STMT2 API as requiring the statement to be prepared again. First call `taos_stmt2_error()` and retain the error information. Then call `taos_stmt2_prepare()` again on the same stmt2 object with the original SQL, and resume binding and execution only after prepare succeeds. If prepare fails again, close the stmt2 object and create a new one.
+
+Read an execution error before the next execution or prepare call because that operation clears the retained execution result. In asynchronous mode, wait until the callback returns before binding the next batch, and do not bind data from inside the callback.
 
 The difference between stmt2 and stmt is:
 
@@ -947,9 +959,9 @@ Description:
 
 - `int32_t tmq_consumer_close(tmq_t *tmq)`
 
-  - **Interface Description**: Used to close a tmq_t structure. Must be used in conjunction with tmq_consumer_new.
+  - **Interface Description**: Closes a tmq_t structure and releases its resources. Must be used in conjunction with tmq_consumer_new. The function also attempts to unsubscribe and, when automatic commit is enabled, commit offsets. Its return value reports only whether the local consumer reference was removed; it does not report unsubscribe or automatic offset commit failures.
     - tmq: [Input] Points to a valid tmq_t structure pointer, which represents a TMQ consumer object.
-  - **Return Value**: `0`: Success. Non-`0`: Failure, you can call the function `char *tmq_err2str(int32_t code)` to get more detailed error information.
+  - **Return Value**: `0`: The local consumer reference was removed successfully. Non-`0`: Resource release failed. You can call `char *tmq_err2str(int32_t code)` to get more detailed error information.
 
 - `int32_t tmq_get_topic_assignment(tmq_t *tmq, const char *pTopicName, tmq_topic_assignment **assignment, int32_t *numOfAssignment)`
 

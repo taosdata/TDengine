@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -217,6 +219,10 @@ typedef struct SStmTaskStatus {
   char*           extraErrMsg;
   int64_t         runningStartTs;
   int64_t         lastUpTs;
+  // External original table reader whose cleanup already executed. Its registry id and task address are
+  // kept so a heartbeat retry of the same cleanup request can replay the result instead of failing,
+  // while every registry lookup ignores it (see msmFindExtOrigTblReader).
+  int8_t          extReaderCleaned;
 } SStmTaskStatus;
 
 
@@ -378,6 +384,7 @@ typedef struct SStmVgroupStatus {
 
 typedef struct SStmTaskToDeployExt {
   volatile bool   deployed;
+  bool            ownsExtSpec;
   int32_t         deployId;     // only for runner task
   SStmTaskDeploy  deploy;
 } SStmTaskToDeployExt;
@@ -554,6 +561,7 @@ int32_t  doCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnC
                        const char *pMsg, STrans **pTrans1);
 int32_t  mndPersistTransLog(SStreamObj *pStream, STrans *pTrans, int32_t status);
 SSdbRaw *mndStreamActionEncode(SStreamObj *pStream);
+int32_t  mndValidateStreamTimeConfig(const SCMCreateStreamReq* pCreate);
 
 int32_t mndGetStreamObj(SMnode *pMnode, int64_t streamId, SStreamObj **pStream);
 int32_t mndCheckForSnode(SMnode *pMnode, SDbObj *pSrcDb);
@@ -571,7 +579,10 @@ int32_t mndStreamTransAppendRecalcUpdate(SStreamObj* pStream, uint64_t revision,
                                          int32_t status);
 int32_t mndStreamCreateTrans(SMnode *pMnode, SStreamObj *pStream, SRpcMsg *pReq, ETrnConflct conflict, const char *name, STrans **ppTrans);
 void    mndStreamLifecycleTransStopped(SMnode* pMnode, void* param, int32_t paramLen);
-int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows);
+// viewerTxnId: the requesting connection's txn (0 = none). Used to report pending_create /
+// pending_drop to the owning txn only; other connections see the real runtime status.
+int32_t mstSetStreamAttrResBlock(SMnode *pMnode, SStreamObj *pStream, SSDataBlock *pBlock, int32_t numOfRows,
+                                 int64_t viewerTxnId);
 int32_t mstSetStreamTasksResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBlock, int32_t* numOfRows, int32_t rowsCapacity);
 /**

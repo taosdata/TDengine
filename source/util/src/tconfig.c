@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -117,7 +119,20 @@ int32_t cfgUpdateFromArray(SConfig *pCfg, SArray *pArgs) {
       (void)taosThreadMutexUnlock(&pCfg->lock);
       continue;
     }
-    switch (pItemNew->dtype) {
+
+    // The received item was decoded from the network and its value is held in the same union as the local
+    // one, so its dtype must not be used to decide how to write the local item: a numeric dtype over a local
+    // string item would overwrite (and later free) its heap pointer, and a string dtype over a local numeric
+    // item would free the numeric value as if it were a pointer. Merge only items whose dtype matches the
+    // local definition, and dispatch on the local dtype.
+    if (pItemNew->dtype != pItemOld->dtype) {
+      uError("cfg:%s, type:%s, dtype mismatch with local type:%s, skip to update", pItemNew->name,
+             cfgDtypeStr(pItemNew->dtype), cfgDtypeStr(pItemOld->dtype));
+      (void)taosThreadMutexUnlock(&pCfg->lock);
+      continue;
+    }
+
+    switch (pItemOld->dtype) {
       case CFG_DTYPE_BOOL:
         pItemOld->bval = pItemNew->bval;
         break;
@@ -170,6 +185,7 @@ void cfgItemFreeVal(SConfigItem *pItem) {
   if (pItem->dtype == CFG_DTYPE_STRING || pItem->dtype == CFG_DTYPE_DIR || pItem->dtype == CFG_DTYPE_LOCALE ||
       pItem->dtype == CFG_DTYPE_CHARSET || pItem->dtype == CFG_DTYPE_TIMEZONE) {
     taosMemoryFreeClear(pItem->str);
+    taosMemoryFreeClear(pItem->restartBaselineStr);
   }
 
   if (pItem->array) {
@@ -233,6 +249,11 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
   if (pItem->str == NULL) return terrno;
 
   TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+static bool cfgItemIsLazyDyn(SConfigItem *pItem) {
+  return pItem->dynScope == CFG_DYN_CLIENT_LAZY || pItem->dynScope == CFG_DYN_SERVER_LAZY ||
+         pItem->dynScope == CFG_DYN_BOTH_LAZY;
 }
 
 static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
@@ -339,9 +360,9 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 
   /* Unified validation + normalization (same gate as SET TIMEZONE):
    *   - rejects ambiguous abbreviations (CST, EST ...)
-   *   - converts fixed-offset ISO strings to POSIX UTC±h[:mm]
+   *   - converts fixed-offset ISO strings to POSIX UTC+/-h[:mm]
    *   - maps Windows names to IANA names
-   *   - rejects GMT/GMT± series (use UTC instead)
+   *   - rejects GMT/GMT+/- series (use UTC instead)
    *   - rejects empty / obviously malformed strings */
   char    normBuf[TD_TIMEZONE_LEN] = {0};
   int32_t code = taosValidateAndNormalizeTimezone(value, normBuf, sizeof(normBuf), NULL);
@@ -361,7 +382,7 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
 
 static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD) {
-    uError("failed to config charset, not support");
+    uError("failed to config charset, is not supported");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
@@ -370,6 +391,13 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
            cfgStypeStr(stype), value);
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
+
+  if (strlen(value) >= TD_CHARSET_LEN) {
+    uError("cfg:%s, type:%s src:%s, charset value is too long (%zu bytes, max %d)", pItem->name,
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), strlen(value), TD_CHARSET_LEN - 1);
+    TAOS_RETURN(TSDB_CODE_INVALID_CFG);
+  }
+
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (!taosValidateEncodec(value)) {
     uError("invalid charset:%s", value);
@@ -379,7 +407,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
   if ((tsCharsetCxt = taosConvInit(value)) == NULL) {
     TAOS_RETURN(terrno);
   }
-  (void)memcpy(tsCharset, value, strlen(value) + 1);
+  tstrncpy(tsCharset, value, TD_CHARSET_LEN);
   TAOS_CHECK_RETURN(doSetConf(pItem, value, stype));
 #endif
   TAOS_RETURN(TSDB_CODE_SUCCESS);
@@ -387,7 +415,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
 
 static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (stype == CFG_STYPE_ALTER_SERVER_CMD || (pItem->dynScope & CFG_DYN_CLIENT) == 0) {
-    uError("failed to config locale, not support");
+    uError("failed to config locale, is not supported");
     TAOS_RETURN(TSDB_CODE_INVALID_CFG);
   }
 
@@ -570,6 +598,47 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
 
   if (pItem == NULL) return TSDB_CODE_CFG_NOT_FOUND;
 
+  bool checkRestart = (stype == CFG_STYPE_ALTER_SERVER_CMD || stype == CFG_STYPE_ALTER_CLIENT_CMD) &&
+                      cfgItemIsLazyDyn(pItem);
+
+  // The first runtime alter of a *_LAZY item snapshots the value that is actually in
+  // effect in the running process (i.e. whatever boot-time loading left it at) into
+  // restartBaseline*. Every later alter compares against this fixed baseline rather
+  // than the immediately-preceding value, so altering back to the baseline correctly
+  // clears restartRequired instead of leaving it stuck at 1.
+  if (checkRestart && !pItem->restartBaselineValid) {
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        pItem->restartBaselineBval = pItem->bval;
+        break;
+      case CFG_DTYPE_INT32:
+        pItem->restartBaselineI32 = pItem->i32;
+        break;
+      case CFG_DTYPE_INT64:
+        pItem->restartBaselineI64 = pItem->i64;
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        pItem->restartBaselineFval = pItem->fval;
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        if (pItem->str != NULL) {
+          pItem->restartBaselineStr = taosStrdup(pItem->str);
+          if (pItem->restartBaselineStr == NULL) {
+            TAOS_RETURN(terrno);
+          }
+        }
+        break;
+      default:
+        break;
+    }
+    pItem->restartBaselineValid = 1;
+  }
+
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL: {
       code = cfgSetBool(pItem, value, stype);
@@ -612,6 +681,37 @@ int32_t cfgSetItemVal(SConfigItem *pItem, const char *name, const char *value, E
     default:
       code = TSDB_CODE_INVALID_CFG;
       break;
+  }
+
+  if (checkRestart && code == TSDB_CODE_SUCCESS) {
+    bool changed = true;
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        changed = (pItem->restartBaselineBval != pItem->bval);
+        break;
+      case CFG_DTYPE_INT32:
+        changed = (pItem->restartBaselineI32 != pItem->i32);
+        break;
+      case CFG_DTYPE_INT64:
+        changed = (pItem->restartBaselineI64 != pItem->i64);
+        break;
+      case CFG_DTYPE_FLOAT:
+      case CFG_DTYPE_DOUBLE:
+        changed = (pItem->restartBaselineFval != pItem->fval);
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        changed = (pItem->restartBaselineStr == NULL) != (pItem->str == NULL) ||
+                  (pItem->restartBaselineStr != NULL && pItem->str != NULL &&
+                   strcmp(pItem->restartBaselineStr, pItem->str) != 0);
+        break;
+      default:
+        break;
+    }
+    pItem->restartRequired = changed ? 1 : 0;
   }
 
   TAOS_RETURN(code);
@@ -700,7 +800,7 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
   TAOS_CHECK_EXIT(checkItemDyn(pItem, isServer));
 
   if ((pItem->category == CFG_CATEGORY_GLOBAL) && alterType == CFG_ALTER_DNODE) {
-    uError("failed to config:%s, not support update global config on only one dnode", name);
+    uError("failed to config:%s, updating global config on only one dnode is not supported", name);
     code = TSDB_CODE_INVALID_CFG;
     goto _exit;
   }
@@ -719,6 +819,14 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
           goto _exit;
         }
         taosMemoryFree(tmp);
+      }
+    } break;
+    case CFG_DTYPE_CHARSET: {
+      if (pVal == NULL || strlen(pVal) >= TD_CHARSET_LEN) {
+        uError("cfg:%s, type:%s value is too long, max %d", pItem->name, cfgDtypeStr(pItem->dtype),
+               TD_CHARSET_LEN - 1);
+        code = TSDB_CODE_OUT_OF_RANGE;
+        goto _exit;
       }
     } break;
     case CFG_DTYPE_BOOL: {
@@ -769,6 +877,13 @@ int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *p
         code = TSDB_CODE_OUT_OF_RANGE;
         goto _exit;
       }
+    } break;
+    case CFG_DTYPE_TIMEZONE: {
+      // The mnode persists a global config before dnodes apply it, so reject
+      // bad values here instead of leaving a retry-forever transaction.
+      char normBuf[TD_TIMEZONE_LEN] = {0};
+      TAOS_CHECK_EXIT(taosValidateAndNormalizeTimezone(pVal, normBuf,
+                                                       sizeof(normBuf), NULL));
     } break;
     default:
       break;
@@ -1079,6 +1194,26 @@ int32_t cfgDumpItemCategory(SConfigItem *pItem, char *buf, int32_t bufSize, int3
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+int32_t cfgDumpItemRestart(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
+  int32_t len = 0;
+  if (pItem->restartRequired) {
+    len = snprintf(buf, bufSize, "true");
+  } else {
+    len = snprintf(buf, bufSize, "false");
+  }
+
+  if (len < 0) {
+    TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
+  }
+
+  if (len >= bufSize) {
+    len = bufSize - 1;
+  }
+
+  *pLen = len;
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
 void cfgDumpCfgImpl(SArray *array, bool tsc, bool dump) {
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
@@ -1088,7 +1223,10 @@ void cfgDumpCfgImpl(SArray *array, bool tsc, bool dump) {
     SConfigItem *pItem = taosArrayGet(array, i);
     if (tsc && pItem->scope == CFG_SCOPE_SERVER) continue;
     if (dump && strcmp(pItem->name, "scriptDir") == 0) continue;
-    if (strcmp(pItem->name, "ssAccessString") == 0) continue; // contains sensitive information
+    if (strcmp(pItem->name, "ssAccessString") == 0 || strcmp(pItem->name, "xnodeDsnPublicKeyFile") == 0 ||
+        strcmp(pItem->name, "xnodedDsnPrivateKeyFile") == 0) {
+      continue;
+    }
 
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t j = 0; j < CFG_SRC_PRINT_LEN; ++j) {

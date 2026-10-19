@@ -1,4 +1,18 @@
-# pylint: disable=c0103
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """forecast helper methods"""
 
 import os
@@ -44,7 +58,13 @@ def do_forecast(
 def add_forecast_params(params, json_obj):
     """add params into parameters"""
     if "forecast_rows" in json_obj:
-        params["rows"] = int(json_obj["forecast_rows"])
+        raw = json_obj["forecast_rows"]
+        if isinstance(raw, bool) or not isinstance(raw, int):
+            raise ValueError(f"forecast_rows must be an integer in [1, 1024], got {type(raw).__name__}")
+        rows = raw
+        if rows < 1 or rows > 1024:
+            raise ValueError(f"forecast_rows must be in [1, 1024], got {rows}")
+        params["rows"] = rows
 
     if "start" in json_obj:
         params["start_ts"] = int(json_obj["start"])
@@ -113,7 +133,8 @@ def draw_forecast_results(input_list, return_conf, conf_val, fc, fig_name):
 
     plt.legend(["input", "forecast", f"pred:{conf_val}"], loc="upper left")
 
-    plt.savefig(os.path.join(base_path, fig_name))
+    safe_name = os.path.basename(fig_name)
+    plt.savefig(os.path.join(base_path, safe_name))
     plt.close()
 
     AppLogger.debug("draw results completed in debug model")

@@ -1,3 +1,18 @@
+; Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+;
+; SPDX-License-Identifier: AGPL-3.0-or-later
+;
+; This program is free software: you can use, redistribute, and/or modify
+; it under the terms of the GNU Affero General Public License, version 3
+; or later ("AGPL"), as published by the Free Software Foundation.
+;
+; This program is distributed in the hope that it will be useful, but WITHOUT
+; ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+; FITNESS FOR A PARTICULAR PURPOSE.
+;
+; You should have received a copy of the GNU Affero General Public License
+; along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 #define MyAppName "TDengine"
 #define MyAppPublisher "taosdata"
 #define MyAppURL "http://www.taosdata.com/"
@@ -16,6 +31,7 @@
 #define MyAppTaosExeName "\taos.bat"
 #define MyAppTaosdemoExeName "\taosBenchmark.exe"
 #define MyAppDLLName "\*.dll"
+#define MyStartMenuGroupName "TDengine TSDB Client"
 ;#define MyAppVersion "3.0"
 ;#define MyAppInstallName "TDengine"
 [Setup]
@@ -29,12 +45,14 @@ AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={#MyAppInstallDir}
-DefaultGroupName={#MyAppName}
+DefaultGroupName={#MyStartMenuGroupName}
 DisableProgramGroupPage=yes
+UsePreviousGroup=no
 InfoBeforeFile={#MyAppBeforeInstallTxt}
 OutputDir={#MyAppOutputDir}
 OutputBaseFilename={#MyAppInstallName}
 SetupIconFile={#MyAppIco}
+UninstallDisplayIcon={app}\include\favicon.ico
 Compression=lzma
 SolidCompression=yes
 DisableDirPage=no
@@ -234,6 +252,10 @@ begin
   RemovePath(ExpandConstant('{app}'));
 end;
 
+[InstallDelete]
+; The legacy TDengine group belongs exclusively to previous TSDB packages.
+Name: "{commonprograms}\TDengine"; Type: filesandordirs
+
 [UninstallDelete]
 Name: {app}\driver; Type: filesandordirs 
 Name: {app}\connector; Type: filesandordirs
@@ -244,10 +266,10 @@ Name: {app}\include; Type: filesandordirs
 Name: "desktopicon";Description: "{cm:CreateDesktopIcon}"; GroupDescription:"{cm:AdditionalIcons}"; Flags: checkablealone
 
 [Icons]
-Name:"{group}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
-Name:"{group}\Open {#CusName} Directory"; Filename: "{app}\" 
-Name:"{group}\Taosdemo"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taosdemo.exe" ; IconFilename: "{app}\include\{#MyAppIco}" 
-Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}" ; IconFilename: "{app}\include\{#MyAppIco}" 
+Name:"{group}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; IconFilename: "{app}\include\{#MyAppIco}"
+Name:"{group}\Installation Folder"; Filename: "{app}\"
+Name:"{group}\taosBenchmark"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taosBenchmark.exe" ; IconFilename: "{app}\include\{#MyAppIco}"
+Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}" ; IconFilename: "{app}\include\{#MyAppIco}"
 Name:"{commondesktop}\Taos Shell"; Filename: "{app}\include\{#MyAppTaosExeName}" ; Parameters: "taos.exe" ; Tasks: desktopicon; WorkingDir: "{app}" ; IconFilename: "{app}\include\{#MyAppIco}" 
 
 

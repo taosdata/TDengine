@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -85,6 +87,39 @@ int32_t taosObjPoolEnsureCap(SObjPool *pPool, int64_t newCap) {
   pPool->freeTailIdx = tsize - 1;
 
   pPool->capacity = tsize;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosObjPoolShrinkEmpty(SObjPool *pPool, int64_t newCap) {
+  if (pPool == NULL || pPool->pData == NULL || pPool->size != 0 || newCap < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  newCap = TMAX(newCap, TOBJPOOL_MIN_SIZE);
+  if (newCap >= pPool->capacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void *pData = taosMemoryRealloc(pPool->pData, newCap * pPool->nodeSize);
+  if (pData == NULL) {
+    int32_t code = terrno;
+    uWarn("failed to shrink empty obj pool from %" PRId64 " to %" PRId64
+          ", code:%d (%s)", pPool->capacity, newCap, code, tstrerror(code));
+    return code;
+  }
+
+  pPool->pData = pData;
+  for (int64_t idx = 0; idx < newCap; ++idx) {
+    SObjPoolNode *pNode = TOBJPOOL_GET_NODE(pPool, idx);
+    pNode->prevIdx = idx - 1;
+    pNode->nextIdx = idx + 1;
+  }
+  TOBJPOOL_GET_NODE(pPool, newCap - 1)->nextIdx = TOBJPOOL_INVALID_IDX;
+  pPool->freeHeadIdx = 0;
+  pPool->freeTailIdx = newCap - 1;
+  uDebug("shrunk empty obj pool from %" PRId64 " to %" PRId64,
+         pPool->capacity, newCap);
+  pPool->capacity = newCap;
   return TSDB_CODE_SUCCESS;
 }
 

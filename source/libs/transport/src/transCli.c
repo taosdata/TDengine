@@ -1,4 +1,7 @@
-/** Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -736,6 +739,11 @@ void cliHandleResp(SCliConn* conn) {
   }
   code = cliGetReqBySeq(conn, seq, pHead->msgType, &pReq);
   if (code == TSDB_CODE_OUT_OF_RANGE) {
+    if (pHead->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+      taosMemoryFree(pHead);
+      (void)cliMayRecycleConn(conn);
+      return;
+    }
     code = cliHandleState_mayCreateAhandle(conn, pHead, &resp);
     if (code == 0) {
       code = cliBuildRespFromCont(NULL, &resp, pHead);
@@ -1890,7 +1898,7 @@ static int32_t cliDoConn(SCliThrd* pThrd, SCliConn* conn) {
     TAOS_CHECK_GOTO(terrno, &lino, _exception1);
   }
 
-  tTrace("%s conn:%p, fd %d openend", pInst->label, conn, fd);
+  tTrace("%s conn:%p, fd %d opened", pInst->label, conn, fd);
 
   int ret = uv_tcp_open((uv_tcp_t*)conn->stream, fd);
   if (ret != 0) {
@@ -2112,7 +2120,7 @@ static void cliHandleReloadTlsConfig(SCliThrd* pThrd, SCliReq* pReq) {
   if (result == 0) {
     tInfo("%s successfully reloaded TLS config", transLabel(pInst));
   } else {
-    tDebug("%s not ready to  to reload TLS config", transLabel(pInst));
+    tDebug("%s not ready to reload TLS config", transLabel(pInst));
   }
 
   taosMemoryFree(pReq);
@@ -2908,8 +2916,7 @@ FORCE_INLINE bool cliTryUpdateEpset(SCliReq* pReq, STransMsg* pResp) {
     tError("failed to deserialize epset, code:%d", code);
     return false;
   }
-  SEpSet  tepset;
-  int32_t tlen = tSerializeSEpSet(NULL, 0, &tepset);
+  int32_t tlen = tSerializeSEpSet(NULL, 0, &epset);
 
   char*   buf = NULL;
   int32_t len = pResp->contLen - tlen;

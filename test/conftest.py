@@ -1,10 +1,26 @@
-# encoding:utf-8
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import copy
 import json
 import os
 from pathlib import Path
 import random
 import shutil
+import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -13,6 +29,52 @@ import pytest
 
 
 _WINDOWS_DLL_DIR = None
+_POSIX_TAOS_LIB_SENTINEL = "_TAOS_TEST_LIB_DIR"
+
+
+def _apply_runtime_exports(env, output):
+    for line in output.splitlines():
+        if not line.startswith('export '):
+            continue
+        key, value = line[len('export '):].split('=', 1)
+        if key == 'DYLD_LIBRARY_PATH' and sys.platform != 'darwin':
+            continue
+        env[key] = value.replace(f'${key}', env.get(key, ''))
+
+
+def _stage_fq_runtime_libs(build_dir, env):
+    script = (
+        Path(__file__).resolve().parent
+        / 'cases'
+        / '09-DataQuerying'
+        / '19-FederatedQuery'
+        / 'ensure_fq_runtime_libs.sh'
+    )
+    if not script.exists():
+        return
+
+    run_env = env.copy()
+    run_env.setdefault('TD_BUILD_DIR', str(build_dir))
+    run_env.setdefault('FQ_PYTHON', sys.executable)
+    timeout = int(os.getenv('FQ_RUNTIME_LIBS_TIMEOUT_S', '900'))
+    try:
+        result = subprocess.run(
+            ['bash', str(script)],
+            env=run_env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or ''
+        raise RuntimeError(
+            f'failed to stage federated-query runtime libs: timed out after '
+            f'{timeout}s\n{output}'
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(f'failed to stage federated-query runtime libs: {result.returncode}\n{result.stdout}')
+    _apply_runtime_exports(env, result.stdout)
 
 
 def _setup_windows_taos_dll_dir():
@@ -90,8 +152,92 @@ def _raise_open_files_limit(target=1048576):
         pass
 
 
+def _is_federated_query_pytest_invocation():
+    if os.getenv("FQ_FORCE_LOCAL_LIBTAOS") == "1":
+        return True
+
+    hints = (
+        "19-FederatedQuery",
+        "05-VirtualTables",
+        "03-ExtSource",
+        "FederatedQuery",
+        "federated_query",
+        "test_fq_",
+        # Federated-stream suites drive the same external sources (SQL Server
+        # included) and need the same FQ runtime staging; without this hint an
+        # fs-only CI job on a fresh worker never staged the msodbcsql
+        # resources and every case failed in the first sqlcmd with
+        # SQLAllocHandle(HENV).
+        "test_fs_",
+    )
+    return any(any(hint in arg for hint in hints) for arg in sys.argv[1:])
+
+
+def _iter_local_taos_lib_dirs():
+    candidates = []
+    env_bin = os.getenv("TAOS_BIN_PATH")
+    if env_bin:
+        bin_path = Path(env_bin)
+        if bin_path.is_file():
+            bin_path = bin_path.parent
+        if bin_path.name == "bin":
+            candidates.append(bin_path.parent / "lib")
+        else:
+            candidates.append(bin_path / "lib")
+
+    taosd_name = "taosd.exe" if os.name == "nt" else "taosd"
+    if os.name == "nt":
+        libtaos_name = "taos.dll"
+    elif sys.platform == "darwin":
+        libtaos_name = "libtaos.dylib"
+    else:
+        libtaos_name = "libtaos.so"
+    for parent in Path(__file__).resolve().parents:
+        build_dir = parent / "debug" / "build"
+        bin_dir = build_dir / "bin"
+        lib_dir = build_dir / "lib"
+        if (bin_dir / taosd_name).exists() and (lib_dir / libtaos_name).exists():
+            candidates.append(lib_dir)
+
+    seen = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.resolve()
+        except OSError:
+            continue
+        key = os.path.normcase(str(resolved))
+        if key in seen or not resolved.is_dir():
+            continue
+        seen.add(key)
+        yield resolved
+
+
+def _setup_posix_taos_lib_dir():
+    if os.name == "nt" or not _is_federated_query_pytest_invocation():
+        return
+
+    lib_env = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
+    current_marker = os.getenv(_POSIX_TAOS_LIB_SENTINEL, "")
+    current_paths = [p for p in os.environ.get(lib_env, "").split(os.pathsep) if p]
+
+    for lib_dir in _iter_local_taos_lib_dirs():
+        lib_dir_str = str(lib_dir)
+        if current_marker == lib_dir_str:
+            return
+
+        if current_paths and os.path.realpath(current_paths[0]) == lib_dir_str:
+            _stage_fq_runtime_libs(lib_dir.parent.parent, os.environ)
+            os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
+            return
+
+        pruned = [p for p in current_paths if os.path.realpath(p) != lib_dir_str]
+        os.environ[lib_env] = os.pathsep.join([lib_dir_str] + pruned)
+        _stage_fq_runtime_libs(lib_dir.parent.parent, os.environ)
+        os.environ[_POSIX_TAOS_LIB_SENTINEL] = lib_dir_str
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 _raise_open_files_limit()
 _setup_windows_taos_dll_dir()
+_setup_posix_taos_lib_dir()
 
 from new_test_framework.utils import (
     BeforeTest,
@@ -948,7 +1094,7 @@ def add_common_methods(request):
         for x in rlist:
             print(f"{i} {x}")
             i += 1
-        tdLog.exit(f'faild, not found "{s}" on above')
+        tdLog.exit(f'failed, not found "{s}" on above')
 
     request.cls.checkListString = checkListString
 

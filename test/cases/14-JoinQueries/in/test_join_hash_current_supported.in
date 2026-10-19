@@ -1,0 +1,59 @@
+USE hash_join_snap;
+
+SELECT a.ts, a.device, a.val, b.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts ORDER BY 1, 2, 3, 4, 5;
+
+SELECT a.ts, a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.region, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;
+
+SELECT a.ts, a.device, a.val, b.metric, b.status FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device AND b.status = 1 ORDER BY 1, 2, 3, 4, 5;
+
+SELECT a.device, a.val, b.metric, b.status FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.val > b.metric OR b.status = 1) ORDER BY 1, 2, 3, 4;
+
+SELECT a.ts, a.device, a.val, b.ts, b.metric FROM l_norm a JOIN r_norm b ON TIMETRUNCATE(a.ts, 1h) = TIMETRUNCATE(b.ts, 1h) AND a.device = b.device ORDER BY 1, 2, 3, 4, 5;
+
+SELECT a.ts, a.device, a.total, b.metric FROM ( SELECT ts, device, val + 1 AS total FROM l_norm ) a JOIN ( SELECT ts, device, metric FROM r_norm ) b ON a.ts = b.ts AND a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, CAST(b.ts AS BIGINT), b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device ORDER BY 1, 2;
+
+SELECT a.device, a.region, a.val, b.metric FROM l_norm a LEFT JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.region, a.val, b.metric FROM l_norm a RIGHT JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4;
+
+SELECT a.device, a.region, a.val, CAST(b.ts AS BIGINT), b.metric FROM l_norm a FULL JOIN r_norm b ON a.device = b.device AND a.region = b.region ORDER BY 1, 2, 3, 4, 5;
+
+SELECT a.device, a.region, a.val FROM l_norm a LEFT SEMI JOIN r_norm b ON a.device = b.device AND a.region = b.region AND b.status = 1 ORDER BY 1, 2, 3;
+
+SELECT a.device, a.region, a.val FROM l_norm a LEFT ANTI JOIN r_norm b ON a.device = b.device AND a.region = b.region AND b.status = 1 ORDER BY 1, 2, 3;
+
+SELECT a.device, b.metric FROM l_norm a RIGHT SEMI JOIN r_norm b ON a.device = b.device AND a.region = b.region AND a.val < b.metric ORDER BY 1, 2;
+
+SELECT a.device, b.metric FROM l_norm a RIGHT ANTI JOIN r_norm b ON a.device = b.device AND a.region = b.region AND a.val < b.metric ORDER BY 1, 2;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND a.ts < b.ts ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.ts < b.ts OR b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device AND (a.ts < b.ts AND b.status = 1) ORDER BY 1, 2, 3;
+
+SELECT a.device, COUNT(*), SUM(a.val), SUM(b.metric) FROM l_norm a JOIN r_norm b ON a.device = b.device WHERE b.status = 1 PARTITION BY a.device ORDER BY 1;
+
+SELECT a.device, a.val, b.metric FROM l_norm a JOIN r_norm b ON a.device = b.device WHERE a.val >= 11 ORDER BY 1, 2, 3 LIMIT 4;
+
+EXPLAIN SELECT a.ts, a.device, b.metric FROM l_norm a JOIN r_norm b ON a.ts = b.ts AND a.device = b.device \G;
+
+EXPLAIN SELECT a.ts, a.device, a.val FROM l_full_partial a LEFT SEMI JOIN r_full_partial b ON a.device = b.device AND b.status = 1 \G;

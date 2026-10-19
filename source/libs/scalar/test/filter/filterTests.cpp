@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -476,6 +478,37 @@ TEST(columnTest, blob_column_supported_predicates) {
   flttCheckBlobPredicate(OP_TYPE_IS_NOT_NULL, NULL, isNotNullExpected);
   DestoryThreadLocalRegComp();
   DestroyRegexCache();
+}
+
+TEST(columnTest, null_value_uses_scalar_filter) {
+  int32_t values[] = {1, 2};
+  SNode *pColumn = NULL;
+  SNode *pValue = NULL;
+  SNode *pPredicate = NULL;
+  SFilterInfo *pFilter = NULL;
+  SSDataBlock *pBlock = NULL;
+
+  ASSERT_EQ(flttMakeColumnNode(&pColumn, &pBlock, TSDB_DATA_TYPE_INT, sizeof(int32_t), 2, values),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, &pValue), TSDB_CODE_SUCCESS);
+  ((SValueNode *)pValue)->node.resType = ((SExprNode *)pColumn)->resType;
+  ((SValueNode *)pValue)->isNull = true;
+  ASSERT_EQ(flttMakeOpNode(&pPredicate, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pColumn, pValue), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(filterInitFromNode(pPredicate, &pFilter, 0, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(pFilter->scalarMode);
+  SFilterColumnParam param = {(int32_t)taosArrayGetSize(pBlock->pDataBlock), pBlock->pDataBlock};
+  ASSERT_EQ(filterSetDataFromSlotId(pFilter, &param), TSDB_CODE_SUCCESS);
+  SColumnInfoData *pResult = NULL;
+  int32_t resultStatus = 0;
+  ASSERT_EQ(filterExecute(pFilter, pBlock, &pResult, NULL, param.numOfCols, &resultStatus), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(resultStatus, FILTER_RESULT_NONE_QUALIFIED);
+
+  colDataDestroy(pResult);
+  taosMemoryFree(pResult);
+  filterFreeInfo(pFilter);
+  nodesDestroyNode(pPredicate);
+  blockDataDestroy(pBlock);
 }
 
 TEST(columnTest, blob_column_comparator_scope) {
@@ -1823,8 +1856,14 @@ void doCompareWithValueRange_OnlyLeftType(__compar_fn_t fp, int32_t rType) {
 
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
+  // MATCH/NMATCH go through the process-wide regex cache, which taosd and the
+  // client set up during init. Without it every regex compare fails with
+  // TSDB_CODE_INVALID_PTR, so a match test would pass only vacuously.
+  (void)InitRegexCache();
   testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
+  int32_t ret = RUN_ALL_TESTS();
+  DestroyRegexCache();
+  return ret;
 }
 
 #pragma GCC diagnostic pop

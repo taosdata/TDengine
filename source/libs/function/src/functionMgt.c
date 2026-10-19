@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -23,6 +25,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "tmsg.h"
 #include "tudf.h"
 
 typedef struct SFuncMgtService {
@@ -245,6 +248,25 @@ bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC
 
 bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
+bool fmSupportsNoTimelineRowOrder(int32_t funcId) {
+  switch (fmGetFuncTypeFromId(funcId)) {
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_LAST_ROW:
+    case FUNCTION_TYPE_DIFF:
+    case FUNCTION_TYPE_CSUM:
+    case FUNCTION_TYPE_MAVG:
+    case FUNCTION_TYPE_STATE_COUNT:
+    case FUNCTION_TYPE_LAG:
+    case FUNCTION_TYPE_LEAD:
+    case FUNCTION_TYPE_FILL_FORWARD:
+    case FUNCTION_TYPE_UNIQUE:
+      return true;
+    default:
+      return false;
+  }
+}
+
 bool fmIsDateTimeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_DATETIME_FUNC); }
 
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
@@ -309,6 +331,10 @@ bool fmIsKeepOrderFunc(SFunctionNode* pFunc) {
 }
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
+
+bool fmIsCumulativeSqlWindowFunc(int32_t funcId) {
+  return fmIsCumulativeFunc(funcId) && isSpecificClassifyFunc(funcId, FUNC_MGT_SQL_WINDOW_AGG_FUNC);
+}
 
 bool fmIsForbidSysTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_SYSTABLE_FUNC); }
 
@@ -404,6 +430,18 @@ bool fmIsElapsedFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_ELAPSED == funcMgtBuiltins[funcId].type;
+}
+
+// True for the three last-observation-carried-forward (locf/step) time-weighted variants.
+// Used to select rectangle (hold last value) integration and carry-forward window-boundary
+// interpolation, as opposed to the default linear (trapezoid) behavior.
+bool fmIsTwLocfFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  int32_t type = funcMgtBuiltins[funcId].type;
+  return FUNCTION_TYPE_TWAVG_LOCF == type || FUNCTION_TYPE_TWSUM_LOCF == type ||
+         FUNCTION_TYPE_TWVAR_LOCF == type;
 }
 
 bool fmIsBlockDistFunc(int32_t funcId) {
@@ -513,7 +551,7 @@ bool fmIsPlaceHolderFuncForExternalWin(int32_t funcId) {
 
 void getLastCacheDataType(SDataType* pType, int32_t pkBytes) {
   // TODO: do it later.
-  pType->bytes = getFirstLastInfoSize(pType->bytes, pkBytes) + VARSTR_HEADER_SIZE;
+  pType->bytes = getFirstLastInfoSize(getMaxValueBytes(pType->type, pType->bytes), pkBytes) + VARSTR_HEADER_SIZE;
   pType->type = TSDB_DATA_TYPE_BINARY;
 }
 
@@ -922,6 +960,8 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
       return &pParams->wrownum;
+    case FUNCTION_TYPE_TEVENT_CONDITION_PATH:
+      return pParams->eventConditionPath;
     case FUNCTION_TYPE_TPREV_LOCALTIME:
       return &pParams->prevLocalTime;
     case FUNCTION_TYPE_TLOCALTIME:
@@ -978,16 +1018,9 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
   }
 
   const SStreamAncestorParamContext* pMatch = NULL;
-  const int32_t                      contextCount =
-      taosArrayGetSize(pInfo->pAncestorContext == NULL ? NULL : pInfo->pAncestorContext->pParamContexts);
-  for (int32_t i = 0; i < contextCount; ++i) {
-    const SStreamAncestorParamContext* pParam = taosArrayGet(pInfo->pAncestorContext->pParamContexts, i);
-    if (pParam != NULL && pParam->leafIdentity.gid == pInfo->groupId && pParam->paramIndex == pInfo->curIdx) {
-      if (pMatch != NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
-      pMatch = pParam;
-    }
-  }
-  if (pMatch == NULL || pMatch->pSnapshots == NULL || pMatch->pSnapshots->elemSize != sizeof(SWindowAncestorSnapshot)) {
+  if (tLookupStreamAncestorParam(pInfo->pAncestorContext, pInfo->groupId, pInfo->curIdx, &pMatch) !=
+          TSDB_CODE_SUCCESS ||
+      pMatch->pSnapshots == NULL || pMatch->pSnapshots->elemSize != sizeof(SWindowAncestorSnapshot)) {
     return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   }
 
@@ -1205,6 +1238,29 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
         break;
       }
     }
+  } else if (FUNCTION_TYPE_TEVENT_CONDITION_PATH == t) {
+    SValueNode* pFirstVal = (SValueNode*)pFirstParam;
+    if (!IS_VAR_DATA_TYPE(pFirstVal->node.resType.type)) {
+      uError("invalid value type: %d for func: %d, should be varstr", pFirstVal->node.resType.type, funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    const char* path = (const char*)fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
+    if (path == NULL) {
+      path = "";
+    }
+    int32_t pathLen = (int32_t)strlen(path);
+    char*   buf = taosMemoryCalloc(1, pathLen + VARSTR_HEADER_SIZE);
+    if (buf == NULL) {
+      return terrno;
+    }
+    if (pathLen > 0) {
+      memcpy(varDataVal(buf), path, pathLen);
+    }
+    varDataSetLen(buf, pathLen);
+    taosMemoryFreeClear(pFirstVal->datum.p);
+    pFirstVal->datum.p = buf;
+    pFirstVal->isNull = false;
   } else if (FUNCTION_TYPE_EXTERNAL_WINDOW_COLUMN == t) {
     if (NULL == pParamNodes || LIST_LENGTH(pParamNodes) < 2) {
       uError("invalid stream external window column param list %p, len: %d", pParamNodes,
@@ -1279,4 +1335,70 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   }
 
   return code;
+}
+// --- FQ push-down capability bitmap lookup ---
+// Returns the uint16_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
+// UDFs (funcId > FUNC_UDF_ID_START) and out-of-range ids return FQ_CAP_NONE.
+uint16_t fqFuncCapBitmap(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return FQ_CAP_NONE;
+  }
+  return funcMgtBuiltins[funcId].fqPushCap;
+}
+
+uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return FQ_CAP_NONE;
+  }
+
+  return funcMgtBuiltins[funcId].fqArg0NcharPushCapSet ? funcMgtBuiltins[funcId].fqArg0NcharPushCap
+                                                       : funcMgtBuiltins[funcId].fqPushCap;
+}
+
+bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
+                      const SExtCapSessionOverlay* pOverlay) {
+  uint16_t cap = fqFuncCapBitmap(funcId);
+  uint16_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  // Session-level override: high byte (bits 8-15) disables the corresponding dialect.
+  if (pOverlay != NULL) {
+    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    if (sessionDisable & bit) return false;
+  }
+
+  return (cap & bit) != 0;
+}
+
+bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
+                               const SExtCapSessionOverlay* pOverlay) {
+  uint16_t cap = fqFuncArg0NcharCapBitmap(funcId);
+  uint16_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  if (pOverlay != NULL) {
+    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    if (sessionDisable & bit) return false;
+  }
+
+  return (cap & bit) != 0;
+}
+
+bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
+                             const SExtCapSessionOverlay* pOverlay) {
+  uint16_t cap = fqFuncCapBitmap(funcId);
+  uint16_t bit = fqDialectBit(dialect);
+  if (bit == 0) return false;
+
+  // Default band for the sub-capability (low byte, bits subCapShift..subCapShift+2).
+  uint16_t subDefault = (uint16_t)(cap >> subCapShift);
+
+  // Session-override band sits in the high byte at the same relative position:
+  // (subCapShift + FQ_CAP_SESSION_SHIFT).
+  if (pOverlay != NULL) {
+    uint16_t subSession = (uint16_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
+    if (subSession & bit) return false;
+  }
+
+  return (subDefault & bit) != 0;
 }

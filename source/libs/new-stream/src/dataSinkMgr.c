@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -174,7 +176,6 @@ static int32_t buildScopedCacheKey(const SStreamCacheScope* pScope, void** ppKey
   return TSDB_CODE_SUCCESS;
 }
 
-static int64_t gScopedCacheFileId = 0;
 
 static int64_t scopedCacheBlockPayloadSize(const SSDataBlock* pBlock) {
   int32_t size = blockGetEncodeSize(pBlock);
@@ -825,8 +826,8 @@ static int32_t getOrCreateAlignGrpMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t g
   return code;
 }
 
-int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, SSDataBlock* pBlock,
-                                int32_t startIndex, int32_t endIndex) {
+int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t groupId, const char* eventConditionPath,
+                                SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SSlidingGrpMgr* pSlidingGrpMgr = NULL;
@@ -846,7 +847,8 @@ int32_t putDataToSlidingTaskMgr(SSlidingTaskDSMgr* pStreamTaskMgr, int64_t group
   }
 
   SSlidingWindowInMem* pSlidingWinInMem = NULL;
-  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, &pSlidingWinInMem);
+  code = buildSlidingWindowInMem(pBlock, pStreamTaskMgr->tsSlotId, startIndex, endIndex, eventConditionPath,
+                                 &pSlidingWinInMem);
   QUERY_CHECK_CODE(code, lino, _end);
 
   void* p = taosArrayPush(pSlidingGrpMgr->winDataInMem, &pSlidingWinInMem);
@@ -873,7 +875,8 @@ _end:
 }
 
 int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, TSKEY wstart, TSKEY wend,
-                              SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
+                              const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                              int32_t endIndex) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
   SAlignGrpMgr* pAlignGrpMgr = NULL;
@@ -901,7 +904,8 @@ int32_t putDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, int64_t groupId, 
     }
   }
 
-  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, startIndex, endIndex);
+  code = buildAlignWindowInMemBlock(pAlignGrpMgr, pBlock, pStreamTaskMgr->tsSlotId, wstart, wend, eventConditionPath,
+                                    startIndex, endIndex);
   QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
@@ -942,8 +946,9 @@ int32_t moveDataToAlignTaskMgr(SAlignTaskDSMgr* pStreamTaskMgr, SSDataBlock* pBl
   return code;
 }
 
-int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
-                           int32_t startIndex, int32_t endIndex) {
+int32_t putStreamDataCacheWithPath(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend,
+                                   const char* eventConditionPath, SSDataBlock* pBlock, int32_t startIndex,
+                                   int32_t endIndex) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   int64_t streamId = 0;
   if (pCache == NULL) {
@@ -979,11 +984,12 @@ int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY we
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
     SAlignTaskDSMgr* pStreamTaskMgr = (SAlignTaskDSMgr*)pCache;
     printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
-    code = putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, pBlock, startIndex, endIndex);
+    code =
+        putDataToAlignTaskMgr(pStreamTaskMgr, groupId, wstart, wend, eventConditionPath, pBlock, startIndex, endIndex);
   } else {
     SSlidingTaskDSMgr* pStreamTaskMgr = (SSlidingTaskDSMgr*)pCache;
     printDataBlock(pBlock, __func__, "", pStreamTaskMgr->streamId);
-    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, pBlock, startIndex, endIndex);
+    code = putDataToSlidingTaskMgr(pStreamTaskMgr, groupId, eventConditionPath, pBlock, startIndex, endIndex);
   }
   (void)checkAndMoveMemCache(false);
 
@@ -996,6 +1002,11 @@ _exit:
         groupId, wstart, wend, startIndex, endIndex);
   }
   return code;
+}
+
+int32_t putStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock,
+                           int32_t startIndex, int32_t endIndex) {
+  return putStreamDataCacheWithPath(pCache, groupId, wstart, wend, NULL, pBlock, startIndex, endIndex);
 }
 
 int32_t moveStreamDataCache(void* pCache, int64_t groupId, TSKEY wstart, TSKEY wend, SSDataBlock* pBlock) {
@@ -1071,17 +1082,7 @@ static int32_t createStagedScopedCacheEntry(int64_t gid, void* pKey, int32_t key
 
 static int32_t ensureScopedCacheFile(SScopedCacheStore* pStore) {
   if (pStore->pFile != NULL) return TSDB_CODE_SUCCESS;
-  int64_t fileId = atomic_add_fetch_64(&gScopedCacheFileId, 1);
-  int32_t written =
-      snprintf(pStore->fileName, sizeof(pStore->fileName), "%s/tdengine_stream_data/scoped_%" PRId64 "_%" PRId64,
-               tsTempDir, taosGetTimestampNs(), fileId);
-  if (written <= 0 || written >= sizeof(pStore->fileName)) return TSDB_CODE_INVALID_PARA;
-  pStore->pFile = taosOpenFile(pStore->fileName, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pStore->pFile == NULL) {
-    pStore->fileName[0] = '\0';
-    return terrno;
-  }
-  return TSDB_CODE_SUCCESS;
+  return createStreamDataSinkFile(pStore->fileName, sizeof(pStore->fileName), &pStore->pFile);
 }
 
 static SFileBlockInfo allocateScopedCacheFileBlock(SScopedCacheStore* pStore, int32_t size) {
@@ -1110,6 +1111,7 @@ static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBloc
     taosMemoryFree(pBuffer);
     return dataLen < 0 ? dataLen : TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
+  bool    createdFile = pStore->pFile == NULL;
   int32_t code = ensureScopedCacheFile(pStore);
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pBuffer);
@@ -1119,8 +1121,13 @@ static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBloc
   int64_t        written = taosPWriteFile(pStore->pFile, pBuffer, dataLen, fileBlock.offset);
   taosMemoryFree(pBuffer);
   if (written != dataLen) {
-    recycleScopedCacheFileRange(pStore, &fileBlock);
-    return written < 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    code = written < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    if (createdFile) {
+      (void)closeScopedCacheFile(pStore);
+    } else {
+      recycleScopedCacheFileRange(pStore, &fileBlock);
+    }
+    return code;
   }
   pBlock->fileBlock = fileBlock;
   pBlock->fileDataLen = dataLen;
@@ -1164,12 +1171,13 @@ static int32_t restoreScopedCacheSchema(const SScopedCacheEntry* pEntry, SSDataB
 static int32_t loadScopedCacheBlock(SScopedCacheStore* pStore, const SScopedCacheEntry* pEntry,
                                     const SScopedCacheBlock* pStored, SSDataBlock** ppBlock) {
   if (pStored->pBlock != NULL) return createOneDataBlock(pStored->pBlock, true, ppBlock);
+  if (pStored->fileDataLen <= 0 || pStored->fileDataLen > pStored->fileBlock.size) return TSDB_CODE_INVALID_MSG;
   char* pBuffer = taosMemoryMalloc(pStored->fileDataLen);
   if (pBuffer == NULL) return terrno;
   int64_t readLen = taosPReadFile(pStore->pFile, pBuffer, pStored->fileDataLen, pStored->fileBlock.offset);
   if (readLen != pStored->fileDataLen) {
     taosMemoryFree(pBuffer);
-    return readLen < 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    return readLen < 0 && terrno != 0 ? terrno : TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(*pBlock));
   if (pBlock == NULL) {
@@ -1177,7 +1185,7 @@ static int32_t loadScopedCacheBlock(SScopedCacheStore* pStore, const SScopedCach
     return terrno;
   }
   const char* pEnd = NULL;
-  int32_t     code = blockDecode(pBlock, pBuffer, &pEnd);
+  int32_t     code = blockDecodeBounded(pBlock, pBuffer, pStored->fileDataLen, &pEnd);
   if (code == TSDB_CODE_SUCCESS && pEnd != pBuffer + pStored->fileDataLen) code = TSDB_CODE_INVALID_MSG;
   if (code == TSDB_CODE_SUCCESS) code = restoreScopedCacheSchema(pEntry, pBlock);
   if (code == TSDB_CODE_SUCCESS) restoreScopedCacheBlockInfo(&pStored->info, pBlock);
@@ -1963,7 +1971,7 @@ int32_t cleanStreamDataCache(void* pCache, int64_t groupId) {
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_IMMEDIATE) {
-    stError("cleanStreamDataCache not support immediate mode");
+    stError("cleanStreamDataCache is not supported in immediate mode");
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
 
   } else if (getCleanModeFromDSMgr(pCache) == DATA_CLEAN_EXPIRED) {

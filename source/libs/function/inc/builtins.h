@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,7 @@ extern "C" {
 #endif
 
 #include "functionMgtInt.h"
+#include "tmsg.h"   // FQ_CAP_* bitmap constants
 
 struct SFunctionParaInfo;
 
@@ -66,6 +69,9 @@ typedef struct SBuiltinFuncDefinition {
   const char*          name;
   EFunctionType        type;
   uint64_t             classification;
+  uint16_t             fqPushCap;    // FQ push-down capability bitmap (FQ_CAP_* flags)
+  bool                 fqArg0NcharPushCapSet;  // arg0==NCHAR uses fqArg0NcharPushCap when true
+  uint16_t             fqArg0NcharPushCap;     // optional arg0==NCHAR push-down capability bitmap
   SFunctionParaInfo    parameters;
   FTranslateFunc       translateFunc;
   FFuncDataRequired    dataRequiredFunc;

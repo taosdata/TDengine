@@ -2851,13 +2851,19 @@ UNIQUE(expr)
 
 **函数分类**：管道集合函数。
 
-**功能说明**：返回该列数据去重后的值。该函数功能与 distinct 相似。对于相同的数据，返回时间戳最小的一条，对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。
+**功能说明**：返回表达式去重后的代表行。该函数功能与 `DISTINCT` 相似。存在有效时间线时，对于相同的 `expr` 值，返回时间戳最小的一条；对于存在复合主键的表的查询，若最小时间戳的数据有多条，则只有对应的复合主键最小的数据被返回。无时间列模式下的代表行选择规则见使用说明。
 
 **返回结果类型**：同应用的字段。
 
 **适用数据类型**：全部类型字段。
 
 **适用于**：表和超级表。
+
+**使用说明**：
+
+- 对于相同的 `expr` 值，`UNIQUE` 只返回一条代表行。查询同时返回其他普通列或标量表达式时，这些结果均来自该代表行。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，即无时间列模式，`UNIQUE` 按上游查询算子的输入行序去重，每个值使用实际输入行序中最先出现的行作为代表行。
+- 无时间列模式下，`UNIQUE` 不额外引入排序。需要稳定代表行时，应在子查询中显式使用 `ORDER BY` 指定输入行序；需要稳定展示顺序时，应在外层查询中显式使用 `ORDER BY`。
 
 ## 统计聚合函数
 
@@ -3418,6 +3424,8 @@ taos> SELECT NVL2(NULL,1,2);
 
 序列分析函数均为 **集合函数**，也均为 **管道函数**，按输入行序对序列进行逐行变换或滑动计算。
 
+当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`DIFF`、`CSUM`、`MAVG`、`STATECOUNT`、`LAG`、`LEAD`、`FILL_FORWARD` 支持按上游查询算子的输入行序执行。如果需要稳定的行序结果，应在子查询中显式使用 `ORDER BY`；否则行序由执行计划的自然输出顺序决定，不保证跨执行、跨版本或跨数据分布稳定。
+
 ### CSUM
 
 ```sql
@@ -3427,6 +3435,17 @@ CSUM(expr)
 **函数分类**：管道集合函数。
 
 **功能说明**：累加和（Cumulative sum），忽略 NULL 值。
+
+与 `PARTITION BY` 一起使用时，`CSUM` 在每个分区中独立累加，累加状态不会跨分区延续。分区内按照有效时间线顺序累加；如果输入中不存在 `TIMESTAMP` 类型列，则按照上游输入行序累加。需要稳定行序时，应在子查询中显式使用 `ORDER BY`。
+
+例如，以下查询分别计算每个子表的电流累加值。查询允许时，分区表达式也可以是标签或普通列。
+
+```sql
+SELECT tbname, ts, CSUM(current) AS cumulative_current
+FROM meters
+PARTITION BY tbname
+ORDER BY tbname, ts;
+```
 
 **返回结果类型**：输入列如果是整数类型返回值为长整型（bigint），浮点数返回值为双精度浮点数（double）。无符号整数类型返回值为无符号长整型（unsigned bigint）。
 
@@ -3441,6 +3460,7 @@ CSUM(expr)
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
 - 不能与聚合（Aggregation）函数一起使用。该函数可以应用在普通表和超级表上。
 - 当有效时间线为退化时间线时，csum 不依赖时间值，按行顺序累积，结果有意义。对真正的（非 NULL）重复时间戳仍报错；NULL 时间行不参与重复时间戳判断。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`CSUM` 按输入行序累积。
 
 ### DERIVATIVE
 
@@ -3510,6 +3530,7 @@ ignore_option: {
 - 当没有复合主键时，如果不同的子表有相同时间戳的数据，会提示 "Duplicate timestamps not allowed"。
 - 当使用复合主键时，不同子表的时间戳和主键组合可能相同，使用哪一行取决于先找到哪一行，这意味着在这种情况下多次运行 diff() 的结果可能会不同。
 - 当有效时间线为退化时间线时，遇到重复时间戳行输出 NULL，不更新前值（下一非重复行用上一有效行计算）；遇到 NULL 时间行也输出 NULL。输出行数始终保持 N-1。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`DIFF` 按输入行序计算相邻行差值，输出行数仍为 N-1。
 
 ### FILL_FORWARD
 
@@ -3530,6 +3551,7 @@ FILL_FORWARD(expr)
 **使用说明**
 
 - 支持 +、-、*、/ 运算，如 fill_forward(col1) + fill_forward(col2);
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`FILL_FORWARD` 按输入行序使用前一个非 NULL 值填充。
 
 **示例**
 
@@ -3566,9 +3588,10 @@ LAG(expr, offset[, default_val])
 - `default_val` 可选；当目标行不存在时返回该值，未指定时返回 `NULL`。
 - `default_val` 需要与 `expr` 类型兼容。
 - `LAG` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`LAG` 仍按输入行序取前第 `offset` 行。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
 - 与窗口一起使用时，`LAG` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口继承上一窗口的状态。
-- `LAG` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./06-window-function.md#取值类窗口函数)。
+- `LAG` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./07-window-function.md#取值类窗口函数)。
 
 ### LEAD
 
@@ -3592,9 +3615,10 @@ LEAD(expr, offset[, default_val])
 - `default_val` 可选；当目标行不存在时返回该值，未指定时返回 `NULL`。
 - `default_val` 需要与 `expr` 类型兼容。
 - `LEAD` 按输入结果集的行序计算；可以结合 `ORDER BY` 改变计算顺序。
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`LEAD` 仍按输入行序取后第 `offset` 行。
 - 支持与 `_rowts`、`tbname`、标签列等一起查询，也支持在子查询和 `PARTITION BY` 场景中使用。
 - 与窗口一起使用时，`LEAD` 仅在当前窗口内部按窗口内结果顺序计算，不会跨窗口读取下一窗口的数据。
-- `LEAD` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./06-window-function.md#取值类窗口函数)。
+- `LEAD` 也可以作为 SQL 标准窗口函数，配合 `OVER` 子句使用，此时参数规则略有不同（`offset` 可以为 0），详见[窗口函数](./07-window-function.md#取值类窗口函数)。
 
 ### MAVG
 
@@ -3618,6 +3642,7 @@ MAVG(expr, k)
 
 - 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`MAVG` 按输入行序滑动计算移动平均。
 - 与窗口一起使用时，`MAVG` 仅在当前窗口内部按样本顺序计算，不会跨窗口延续上一窗口的样本状态。
 
 ### STATECOUNT
@@ -3639,12 +3664,13 @@ STATECOUNT(expr, oper, val)
 
 **适用数据类型**：数值类型。
 
-**嵌套子查询支持**：不支持应用在子查询上。
+**嵌套子查询支持**：适用于内层查询和外层查询。
 
 **适用于**：表和超级表。
 
 **使用说明**
 
+- 当输入结果集中不存在任何 `TIMESTAMP` 类型列时，`STATECOUNT` 按输入行序计算连续状态计数。
 - 与窗口一起使用时，`STATECOUNT` 仅统计当前窗口内部的连续记录，不会跨窗口累计。
 
 ### STATEDURATION
@@ -3751,6 +3777,194 @@ TWA(expr)
 
 - 当有效时间线为退化时间线时，遇到重复时间戳点跳过（面积贡献为 0）；遇到 NULL 时间行跳过不参与加权计算。
 - 当有效时间线乱序时，twa 仍可执行，但由于时间差可能为负导致权重为负，加权平均结果可能偏离真实均值，无物理意义。用户应通过 `ORDER BY` 保证时间线有序。
+
+### TWAVG_LINEAR/TWAVG_LOCF
+
+```sql
+TWAVG_LINEAR(expr)
+TWAVG_LOCF(expr)
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：时间加权平均函数，即时间积分 `∫v dt` 除以时间跨度。两者区别仅在于相邻两点 `[t0,t1]`（值 `v0→v1`）之间及窗口边界处的取值方式：`TWAVG_LINEAR` 采用线性插值（梯形，`(t1-t0)(v0+v1)/2`），`TWAVG_LOCF` 采用前值保持（LOCF，最近观测值保持不变，矩形 `v0*(t1-t0)`）。`TWAVG_LINEAR` 与 `TWA` 完全等价。
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型（含 DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 支持 `INTERVAL ... FILL` 窗口，`_linear` 在窗口边界做线性插值，`_locf` 在窗口边界保持前一个点的值。
+- 单点窗口返回该点自身的值；时间线退化/乱序时的处理与 `TWA` 一致。
+- 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE（不同于 `AVG` 保留 DECIMAL 输出）。
+
+### TWSUM_LINEAR/TWSUM_LOCF
+
+```sql
+TWSUM_LINEAR(expr [, time_unit])
+TWSUM_LOCF(expr [, time_unit])
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：时间加权求和函数，即时间积分 `∫v dt`。`_linear` 使用梯形积分，`_locf` 使用前值保持（矩形）积分。结果带时间量纲：可选参数 `time_unit` 指定输出的时间单位（如 `1s`、`1m`、`1a`），缺省为 1 秒（`1s`）。
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型（含 DECIMAL）；`time_unit` 为时间单位（`1b`/`1u`/`1a`/`1s`/`1m`/`1h`/`1d`/`1w`），且不得小于数据库时间精度。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 与 `TWAVG` 不同，`TWSUM` 不除以时间跨度，因此结果随所选 `time_unit` 缩放。
+- 单点窗口的时间跨度为 0，返回 0；`INTERVAL ... FILL` 与边界插值行为同 `TWAVG`。
+- 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE。
+
+### TWVAR_LINEAR/TWVAR_LOCF
+
+```sql
+TWVAR_LINEAR(expr)
+TWVAR_LOCF(expr)
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：时间加权总体方差函数，`Var = (1/T)·∫(v-μ)² dt = (1/T)∫v² dt - μ²`，其中 `μ` 为对应的时间加权平均（`TWA`）。`_linear` 每段积分 `∫v²dt = (t1-t0)(v0²+v0v1+v1²)/3`；`_locf` 每段 `∫v²dt = v0²·(t1-t0)`。
+
+**返回数据类型**：DOUBLE。
+
+**适用数据类型**：数值类型（含 DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 为总体方差（除以总时间跨度 `T`），非样本方差。
+- 单点窗口返回 0；`INTERVAL ... FILL` 与边界插值行为同 `TWAVG`。
+- 输入 DECIMAL 类型时按 DOUBLE 参与计算，返回类型仍为 DOUBLE。
+
+### VALUE_CHANGES
+
+```sql
+VALUE_CHANGES(expr [, ignore_null])
+
+ignore_null: {
+    0
+  | 1
+}
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：统计一列在有效时间线上相邻取值发生变化的次数。沿时间戳升序逐行与前一个参与比较的值比对，不相等则计 1，首行不计数。可选参数 `ignore_null` 控制 NULL 的处理，缺省为 `1`。
+
+- `1`（默认）：忽略 NULL，仅在相邻的两个非空值之间比较，NULL 行透明跳过。
+- `0`：NULL 参与比较，非空值↔NULL 视为一次变化，NULL↔NULL 不计为变化。
+
+**返回数据类型**：BIGINT。
+
+**适用数据类型**：全部类型（数值类型、时间戳、BOOL、VARCHAR、NCHAR、VARBINARY、DECIMAL）。
+
+**适用于**：表和超级表。
+
+**使用说明**：
+
+- 首行没有前驱，不计入变化次数；`n` 行至多产生 `n-1` 次变化。
+- 相等性比较复用引擎内建的按类型比较：浮点采用 epsilon 容差相等，相邻的 `NaN` 与 `NaN` 视为未变化，`NaN` 与数值互相视为变化；字符串与 VARBINARY 按字节比较；BOOL 按 0/1 比较；DECIMAL 经 DOUBLE 比较。
+- 与窗口（`INTERVAL`/`STATE_WINDOW`/`SESSION`/`EVENT_WINDOW`/`COUNT_WINDOW`）一起使用时，各窗口独立计数，窗口首行不与上一窗口末行比较。
+- 用于 `PARTITION BY`/`GROUP BY` 时各分组独立计数，不跨分组比较。
+- 对于存在复合主键的表的查询，若时间戳相同的数据存在多条，则只有对应的复合主键最小的数据参与运算；无复合主键时遇到重复时间戳会提示 "Duplicate timestamps not allowed"。
+- 当有效时间线乱序时报错，应在子查询中通过 `ORDER BY ts` 保证时间线有序后再计算。
+- 不能用于系统表。
+- 支持流计算的窗口聚合，增量计算结果与等价批查询一致。
+
+**举例**：
+
+```sql
+taos> select value_changes(current) from meters;
+ value_changes(current) |
+=========================
+                      2 |
+
+taos> select value_changes(current, 0) from meters;
+ value_changes(current, 0) |
+============================
+                         4 |
+```
+
+### BIT_CHANGES
+
+```sql
+BIT_CHANGES(expr [, mask [, flag]])
+
+mask: 非负整型常量，范围为 0 至 INT64_MAX，默认值为 1
+
+flag: {
+    0
+  | 1
+  | 2
+}
+```
+
+**函数分类**：聚合函数。
+
+**版本**：v3.4.3.0。
+
+**功能说明**：统计整型测点指定二进制位的变化次数。函数先对每行的 `expr` 执行 `expr & mask`，再将当前掩码值与前一个有效行的掩码值比较，并按照 `flag` 统计变化方向。第一行没有前值，不计入结果。
+
+**参数说明**：
+
+- `expr`：必选，支持 `TINYINT`、`SMALLINT`、`INT`、`BIGINT`、对应无符号整型以及 `BOOL`。
+- `mask`：可选，必须是整型常量，默认值为 `1`，表示只检查最低位。`mask=0` 时所有掩码结果均为 0，函数返回 0。
+- `flag`：可选，必须是常量 `0`、`1` 或 `2`，默认值为 `0`。
+  - `0`：统计掩码值从 `0` 变为非 `0` 的变化（0→非 0）。
+  - `1`：统计掩码值从非 `0` 变为 `0` 的变化（非 0→0）。
+  - `2`：两个方向的变化都统计。
+
+**返回数据类型**：BIGINT。
+
+**适用于**：表、超级表和窗口查询；支持 `INTERVAL`、`STATE_WINDOW`、`SESSION`、`EVENT_WINDOW`、`COUNT_WINDOW` 以及流计算。
+
+**使用说明**：
+
+- NULL/None 行会被跳过，不参与比较，也不会重置前一个有效值。例如 `1, NULL, 0` 在 `flag=2` 下只统计一次变化。
+- `n` 行最多产生 `n-1` 次比较；空表不返回结果行，单行或全 NULL 输入返回 0。
+- 与 `PARTITION BY` 或 `GROUP BY` 一起使用时，每个分组独立计数，不跨分组比较。
+- 与窗口一起使用时，每个窗口独立计数，窗口首行不与上一窗口末行比较。
+- `mask` 和 `flag` 必须是常量，不能使用列引用、字符串或浮点表达式。
+- 非整型 `expr`、非法 `mask`/`flag` 或系统表输入会报错。
+
+**举例**：
+
+假设 `status_bits` 的值依次为 `0, 1, 3, 2, 0`：
+
+```sql
+-- 默认检查最低位，统计 0 -> 非 0
+taos> select bit_changes(status_bits) from device_status;
+
+-- 检查低 4 位，两个方向都统计
+taos> select bit_changes(status_bits, 15, 2) from device_status;
+
+-- 按子表独立统计告警位清除次数
+taos> select tbname, bit_changes(status_bits, 4, 1)
+      from meters partition by tbname;
+
+-- 每个 10 分钟窗口独立统计
+taos> select _wstart, bit_changes(status_bits, 1, 2)
+      from device_status interval(10m);
+```
 
 ## 插值函数
 

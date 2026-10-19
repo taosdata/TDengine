@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """load and return the available services"""
 
 import copy
@@ -13,6 +28,7 @@ from pathlib import Path
 from taosanalytics.base import (
     AbstractAnomalyDetectionService,
     AbstractClassificationService,
+    AbstractClusteringService,
     AbstractCorrelationService,
     AbstractForecastService,
     AbstractImputationService,
@@ -47,6 +63,7 @@ class ServiceRegistry:
         "logistic_regression",
         "decision_tree",
     ]
+    _clustering_models = ["kmeans", "dbscan", "gmm"]
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
@@ -55,6 +72,7 @@ class ServiceRegistry:
         AbstractCorrelationService.__name__,
         AbstractRegressionService.__name__,
         AbstractClassificationService.__name__,
+        AbstractClusteringService.__name__,
     ]
 
     def __init__(self):
@@ -222,6 +240,7 @@ class ServiceRegistry:
                 self.get_corr_algo_list(),
                 self.get_regression_algo_list(),
                 self.get_classification_algo_list(),
+                self.get_clustering_algo_list(),
             ],
         }
 
@@ -253,6 +272,9 @@ class ServiceRegistry:
             "type": "classification",
             "algo": self.get_typed_services("classification"),
         }
+
+    def get_clustering_algo_list(self):
+        return {"type": "clustering", "algo": self.get_typed_services("clustering")}
 
     def register_service_from_file(self, config_file: str):
         """Load and register algorithms from a single json file.
@@ -523,6 +545,10 @@ class ServiceRegistry:
         )
         self._register_services_in_dir(
             current_directory, "taosanalytics.algo.correl.", "algo/correl/", True
+        )
+
+        self._register_services_in_dir(
+            current_directory, "taosanalytics.algo.cluster.", "algo/cluster/", True
         )
 
         # load user defined ML model-driven script.

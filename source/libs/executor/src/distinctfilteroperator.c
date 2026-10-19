@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -52,10 +54,8 @@ typedef struct SDistinctFilterInfo {
   // partitioned spill emit state (INTERVAL / GROUP BY paths)
   SSHashObj*      pEmitSet;        // dedup set for the current partition (window/group)
   SSDataBlock*    pEmitBlock;      // output block accumulated across emit calls
+  SSDataBlock*    pReturnedBlock;  // last spill block returned to the parent
   int32_t         emitRows;        // rows currently buffered in pEmitBlock
-  // Blocks from tsortGetSortedDataBlock are freshly allocated and handed upstream, which does not
-  // take ownership. Keep the last one returned and free it on the next call / on destroy.
-  SSDataBlock*    pReturnedBlock;
   uint64_t        curGroupId;      // current partition group id
   int64_t         curWindow;       // current partition window start
   bool            curPartValid;    // whether curGroupId/curWindow are initialized
@@ -92,7 +92,7 @@ static int32_t buildDistinctKey(SDistinctFilterInfo* pInfo, SColumnInfoData* pDi
   return offset;
 }
 
-// Fetch callback for sort handle — pulls blocks from our downstream operator
+// Fetch callback for sort handle  -  pulls blocks from our downstream operator
 static int32_t distinctSpillFetchBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
   *ppBlock = getNextBlockFromDownstream(pOperator, 0);
@@ -272,7 +272,7 @@ static int32_t writeTupleToBlock(SSDataBlock* pBlock, int32_t rowIdx, STupleHand
 // pEmitBlock so it is not lost.
 // Hand a spill-emit block upstream while retaining ownership. tsortGetSortedDataBlock allocates a
 // new block each call and consumers do not free it, so the previously returned block is released
-// here — it has been fully consumed by the time the operator is called again.
+// here  -  it has been fully consumed by the time the operator is called again.
 static void distinctSetReturnedBlock(SDistinctFilterInfo* pInfo, SSDataBlock* pBlock, SSDataBlock** ppRes) {
   if (pInfo->pReturnedBlock != NULL && pInfo->pReturnedBlock != pBlock) {
     blockDataDestroy(pInfo->pReturnedBlock);
@@ -462,7 +462,7 @@ static int32_t doDistinctFilterSpillEmit(SOperatorInfo* pOperator, SSDataBlock**
       continue;
     }
 
-    // New unique key — emit this row by copying all columns
+    // New unique key  -  emit this row by copying all columns
     size_t numCols = tsortGetColNum(pTupleHandle);
     for (size_t c = 0; c < numCols; c++) {
       SColumnInfoData* pSrcCol = NULL;
@@ -541,12 +541,20 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   int32_t              code = TSDB_CODE_SUCCESS;
 
-  // Spill emit mode — sorted dedup output
+  blockDataDestroy(pInfo->pReturnedBlock);
+  pInfo->pReturnedBlock = NULL;
+
+  // Spill emit mode  -  sorted dedup output
   if (pInfo->state == DISTINCT_STATE_SPILL_EMIT) {
     if (pInfo->hasInterval || pInfo->hasGroup) {
-      return doDistinctFilterSpillEmitPartitioned(pOperator, ppRes);
+      code = doDistinctFilterSpillEmitPartitioned(pOperator, ppRes);
+    } else {
+      code = doDistinctFilterSpillEmit(pOperator, ppRes);
     }
-    return doDistinctFilterSpillEmit(pOperator, ppRes);
+    if (code == TSDB_CODE_SUCCESS) {
+      pInfo->pReturnedBlock = *ppRes;
+    }
+    return code;
   }
 
   // INTERVAL: emission must be single-phase and globally ordered.
@@ -565,18 +573,27 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   //
   // GROUP BY does NOT use the sort path: the value-sort merges rows from many
   // source blocks into shared output pages, so the per-row group id is lost
-  // (tsortGetGroupId only sees the merged block's id). Instead GROUP BY stays in
-  // the hash path below and resets its dedup set whenever the group id changes.
-  // This is correct because the upstream GroupAggregate requires groups to
-  // arrive contiguously, which also bounds the dedup set to one group at a time.
-  if (pInfo->hasInterval) {
+  // (tsortGetGroupId only sees the merged block's id). GROUP BY stays in the hash
+  // path below, where the dedup key carries the block group id directly.
+  //
+  // INTERVAL + PARTITION BY also stays in the hash path. The sort merges rows from many source
+  // blocks into shared output pages and tsortGetGroupId reports the *block* group id, so every
+  // emitted row would claim the same partition and all partitions would collapse into one output
+  // row. The partitioned input already arrives group-contiguous and ts-ordered (Merge with
+  // groupSort), so the hash path can dedup on (window, blockGroupId, value) directly, preserving
+  // both the partition identity and the ascending ts order the Interval operator requires.
+  if (pInfo->hasInterval && !pInfo->hasGroup) {
     code = initSpillSortHandle(pOperator);
     if (code != TSDB_CODE_SUCCESS) {
       qError("DistinctFilter: initSpillSortHandle failed code=%s", tstrerror(code));
       T_LONG_JMP(pTaskInfo->env, code);
     }
     pInfo->state = DISTINCT_STATE_SPILL_EMIT;
-    return doDistinctFilterSpillEmitPartitioned(pOperator, ppRes);
+    code = doDistinctFilterSpillEmitPartitioned(pOperator, ppRes);
+    if (code == TSDB_CODE_SUCCESS) {
+      pInfo->pReturnedBlock = *ppRes;
+    }
+    return code;
   }
 
   while (1) {
@@ -701,7 +718,7 @@ static int32_t doDistinctFilter(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         }
         taosMemoryFree(pKeep);
 
-        // Initialize sort handle — BLOCKING: pulls all remaining blocks from downstream
+        // Initialize sort handle  -  BLOCKING: pulls all remaining blocks from downstream
         code = initSpillSortHandle(pOperator);
         if (code != TSDB_CODE_SUCCESS) {
           blockDataDestroy(pCopy);

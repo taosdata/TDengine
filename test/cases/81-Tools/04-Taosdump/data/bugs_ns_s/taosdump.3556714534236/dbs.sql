@@ -4,5 +4,6 @@
 #!escape_char: true
 #!loose_mode: false
 #!charset: UTF-8
+
 CREATE DATABASE IF NOT EXISTS db REPLICA 1 VGROUPS 2   DURATION 10d KEEP 3649d,3649d,3649d     PRECISION 'ns'   MINROWS 100 MAXROWS 4096 COMP 2 ;
 

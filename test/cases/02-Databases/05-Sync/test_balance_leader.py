@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import time
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
@@ -53,6 +68,7 @@ class TestBalanceLeader:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional
+
         Jira: TS-6480
 
         History:
@@ -81,7 +97,7 @@ class TestBalanceLeader:
         tdSql.execute(f"create database d1 replica 3 vgroups 3")
         clusterComCheck.checkDbReady("d1")
 
-        tdSql.execute(f"balance vgroup leader")
+        tdSql.execute(f"balance vgroup leader force")
 
         clusterComCheck.checkTransactions()
         tdSql.query(f"show transactions")

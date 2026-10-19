@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -158,7 +160,7 @@ TEST(TssTest, BasicTest) {
 
 #ifdef USE_S3
     printf("test libs3 based shared storage\n");
-    as = "s3:endpoint=192.168.2.52:9000;bucket=test-bucket;uriStyle=path;protocol=http;accessKeyId=fGPPyYjzytw05nw44ViA;secretAccessKey=vK1VcwxgSOykicx6hk8fL1x15uEtyDSFU3w4hTaZ;chunkSize=64;maxChunks=10000;maxRetry=5";
+    as = "s3:endpoint=s3.tdengine.net:9000;bucket=test-bucket;uriStyle=path;protocol=http;accessKeyId=mkJO481qGlWR9hpkRweR;secretAccessKey=2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak;chunkSize=64;maxChunks=10000;maxRetry=5";
     code = tssCreateInstance(as, &ss);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     tssInstTest(ss, 256);

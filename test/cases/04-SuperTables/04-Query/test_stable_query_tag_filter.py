@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, tdStream, sc, clusterComCheck
 import datetime
 
@@ -262,6 +277,9 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(2)
 
     def Tag3(self):
+        # Fixed Asia/Shanghai noon (04:00 UTC); stay away from day boundaries.
+        base_ts = 1750046400000
+        query_ts = base_ts + 1  # Preserve queries evaluated just after INSERT.
         tdLog.info(f"======================== dnode1 start")
 
         dbPrefix = "ta_3_db"
@@ -277,7 +295,7 @@ class TestStableQueryTagFilter:
         mt = mtPrefix + str(i)
 
         tdLog.info(f"=========db: {db}")
-        tdSql.prepare(db, drop=True)
+        tdSql.prepare(db, drop=True, keep=36500)
         tdSql.execute(f"use {db}")
         tdSql.execute(
             f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int, tgcol3 float)"
@@ -290,7 +308,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -300,7 +318,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -308,16 +326,16 @@ class TestStableQueryTagFilter:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
+        tdSql.query(f"select * from {mt} where ts = {query_ts} + 4m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -372,253 +390,253 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step6")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 = true")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 <> true")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> true")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 = false")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 <> false")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 = false")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = false")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 <> false")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> false")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> false"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> false and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> false and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step7")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step8")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step9")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = 1 and tgcol1 = true"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1 and tgcol1 = true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 1 and tgcol1 <> true"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1 and tgcol1 <> true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = 0 and tgcol1 = false"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0 and tgcol1 = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> 0 and tgcol1 <> false"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = 0 and tgcol1 = false"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0 and tgcol1 = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0 and tgcol1 <> false"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0 and tgcol1 <> false"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0 and tgcol1 <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m and ts < now + 5m and tgcol1 <> false"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol1 <> false"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step10")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol1 = true"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol1 = true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol1 <> true"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol1 <> true"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol1 = false"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol1 = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol1 <> false"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol1 <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol1 = false"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol1 = false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol1 <> false"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol1 <> false"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol1 <> false"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol1 <> false"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol1 <> false"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol1 <> false"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol2 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol2 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol2 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol2 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step12")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
@@ -658,7 +676,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step15")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -666,7 +684,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 50)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = true"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = true"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -674,7 +692,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = true and tgcol2 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = true and tgcol2 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -682,7 +700,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = true and tgcol2 = 1 and tgcol3 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = true and tgcol2 = 1 and tgcol3 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -741,7 +759,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step18")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -749,7 +767,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = true group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = true group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -757,7 +775,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = true and tgcol2 = 1  group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = true and tgcol2 = 1  group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -765,7 +783,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -776,6 +794,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 partition by tgcol1 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -784,6 +803,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 partition by tgcol2 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -792,6 +812,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = true and tgcol2 = 1 and tgcol3 = 1 partition by tgcol3 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -804,6 +825,9 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(2)
 
     def Tag4(self):
+        # Fixed Asia/Shanghai noon (04:00 UTC); stay away from day boundaries.
+        base_ts = 1750046400000
+        query_ts = base_ts + 1  # Preserve queries evaluated just after INSERT.
         tdLog.info(f"======================== dnode1 start")
 
         dbPrefix = "ta_4_db"
@@ -819,7 +843,7 @@ class TestStableQueryTagFilter:
         mt = mtPrefix + str(i)
 
         tdLog.info(f"=========db: {db}")
-        tdSql.prepare(db, drop=True)
+        tdSql.prepare(db, drop=True, keep=36500)
         tdSql.execute(f"use {db}")
         tdSql.execute(
             f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol1 smallint, tgcol2 bigint, tgcol3 float, tgcol4 double)"
@@ -832,7 +856,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
         while i < 10:
@@ -841,7 +865,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -849,16 +873,16 @@ class TestStableQueryTagFilter:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
+        tdSql.query(f"select * from {mt} where ts = {query_ts} + 4m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -926,405 +950,405 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step7")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step8")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step9")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step10")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol4 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol4 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol4 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol4 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol4 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step11")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step12")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol2 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol2 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol2 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol2 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step14")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol4 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol4 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol4 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol4 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step15")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step16")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step17")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
@@ -1372,7 +1396,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step20")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1380,7 +1404,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 50)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1388,7 +1412,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1396,7 +1420,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1404,7 +1428,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1479,7 +1503,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step23")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1487,7 +1511,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1495,7 +1519,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1  group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1  group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1503,7 +1527,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1511,7 +1535,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -1522,6 +1546,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol1 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -1530,6 +1555,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol2 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -1538,6 +1564,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol3 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -1546,6 +1573,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 partition by tgcol4 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -1558,6 +1586,9 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(2)
 
     def Tag5(self):
+        # Fixed Asia/Shanghai noon (04:00 UTC); stay away from day boundaries.
+        base_ts = 1750046400000
+        query_ts = base_ts + 1  # Preserve queries evaluated just after INSERT.
         tdLog.info(f"======================== dnode1 start")
 
         dbPrefix = "ta_5_db"
@@ -1572,7 +1603,7 @@ class TestStableQueryTagFilter:
         db = dbPrefix + str(i)
         mt = mtPrefix + str(i)
 
-        tdSql.prepare(db, drop=True)
+        tdSql.prepare(db, drop=True, keep=36500)
         tdSql.execute(f"use {db}")
         tdSql.execute(
             f"create table {mt} (ts timestamp, tbcol int) TAGS(tgcol1 tinyint, tgcol2 int, tgcol3 bigint, tgcol4 double, tgcol5 binary(20))"
@@ -1585,7 +1616,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1595,7 +1626,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -1603,16 +1634,16 @@ class TestStableQueryTagFilter:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
+        tdSql.query(f"select * from {mt} where ts = {query_ts} + 4m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -1693,475 +1724,475 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step8")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step9")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step10")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step11")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol4 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol4 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol4 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol4 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol4 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step12")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol5 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol5 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol5 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol5 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol5 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol5 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol5 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol5 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step13")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step14")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol2 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol2 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol2 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol2 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step15")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol4 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol4 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol4 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol4 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step16")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 = 1 and tgcol4 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 = 1 and tgcol4 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 1 and tgcol4 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 1 and tgcol4 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol5 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol5 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol5 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol5 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol5 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol5 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 0 and ts < now + 5m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step17")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step18")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step19")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step20")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(5)
 
@@ -2217,7 +2248,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step23")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2225,7 +2256,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 50)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2233,7 +2264,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2241,7 +2272,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2249,7 +2280,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2257,7 +2288,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2348,7 +2379,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step26")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2356,7 +2387,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2364,7 +2395,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1  group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1  group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2372,7 +2403,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2380,7 +2411,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2388,7 +2419,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -2399,6 +2430,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol1 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -2407,6 +2439,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol2 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -2415,6 +2448,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol3 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -2423,6 +2457,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 partition by tgcol4 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -2431,6 +2466,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 partition by tgcol5 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -2442,6 +2478,9 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(2)
 
     def Tag6(self):
+        # Fixed Asia/Shanghai noon (04:00 UTC); stay away from day boundaries.
+        base_ts = 1750046400000
+        query_ts = base_ts + 1  # Preserve queries evaluated just after INSERT.
         tdLog.info(f"======================== dnode1 start")
 
         dbPrefix = "ta_6_db"
@@ -2471,7 +2510,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2483,7 +2522,7 @@ class TestStableQueryTagFilter:
             x = 0
             while x < rowNum:
                 ms = str(x) + "m"
-                tdSql.execute(f"insert into {tb} values (now + {ms} , {x} )")
+                tdSql.execute(f"insert into {tb} values ({base_ts} + {ms} , {x} )")
                 x = x + 1
             i = i + 1
 
@@ -2491,16 +2530,16 @@ class TestStableQueryTagFilter:
         tdSql.query(f"select * from {mt}")
         tdSql.checkRows(totalNum)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m")
         tdSql.checkRows(50)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m")
         tdSql.checkRows(150)
 
-        tdSql.query(f"select * from {mt} where ts = now + 4m")
+        tdSql.query(f"select * from {mt} where ts = {query_ts} + 4m")
         tdSql.checkRows(0)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and ts < now + 5m")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m")
         tdSql.checkRows(10)
 
         tdLog.info(f"=============== step3")
@@ -2594,586 +2633,586 @@ class TestStableQueryTagFilter:
         tdSql.checkRows(100)
 
         tdLog.info(f"=============== step9")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol1 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol1 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step10")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol2 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step11")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol3 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step12")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol4 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol4 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol4 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol4 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol4 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step13")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol5 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol5 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol5 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol5 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol5 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol5 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol5 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol5 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step14")
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol6 = 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol6 = 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts > now + 4m and tgcol6 <> 1")
+        tdSql.query(f"select * from {mt} where ts > {query_ts} + 4m and tgcol6 <> 1")
         tdSql.checkRows(75)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol6 = 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol6 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts < now + 4m and tgcol6 <> 0")
+        tdSql.query(f"select * from {mt} where ts < {query_ts} + 4m and tgcol6 <> 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol6 = 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol6 = 0")
         tdSql.checkRows(25)
 
-        tdSql.query(f"select * from {mt} where ts <= now + 4m and tgcol6 <> 0")
+        tdSql.query(f"select * from {mt} where ts <= {query_ts} + 4m and tgcol6 <> 0")
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol6 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol6 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol6 <> 0 and ts < now + 5m"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol6 <> 0 and ts < {query_ts} + 5m"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step15")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol2 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol2 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol2 <> 0 and ts < now + 5m and ts < now + 5m and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol2 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step16")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol2 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol2 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol2 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol2 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol2 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol2 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step17")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 = 1 and tgcol4 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 = 1 and tgcol4 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 1 and tgcol4 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 1 and tgcol4 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol3 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol3 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol3 <> 0 and ts < now + 5m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol3 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step18")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 = 1 and tgcol4 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 = 1 and tgcol4 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 1 and tgcol4 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 1 and tgcol4 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol5 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol5 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol5 = 0 and tgcol4 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 = 0 and tgcol4 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol5 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol5 <> 0 and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol5 <> 0 and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 0 and ts < now + 5m and ts < now + 5m and tgcol4 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol4 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step19")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 = 1 and tgcol6 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 = 1 and tgcol6 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 1 and tgcol6 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 1 and tgcol6 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol5 = 0 and tgcol6 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 = 0 and tgcol6 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol5 = 0 and tgcol6 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 = 0 and tgcol6 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol5 <> 0 and ts < now + 5m and ts < now + 5m and tgcol6 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol5 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol6 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step20")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol1 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol1 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol1 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol1 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step21")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step22")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step23")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0"
         )
         tdSql.checkRows(5)
 
         tdLog.info(f"=============== step24")
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1 and tgcol6 = 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol1 = 1 and tgcol5 = 1 and tgcol6 = 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1 and tgcol6 <> 1"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 1 and tgcol2 <> 1  and tgcol3 <> 1 and tgcol1 <> 1 and tgcol5 <> 1 and tgcol6 <> 1"
         )
         tdSql.checkRows(75)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0 and tgcol6 = 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0 and tgcol6 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts < now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts < {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0 and tgcol6 = 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 = 0 and tgcol2 = 0 and tgcol3 = 0 and tgcol1 = 0 and tgcol5 = 0 and tgcol6 = 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts <= now + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts <= {query_ts} + 4m and tgcol4 <> 0 and tgcol2 <> 0 and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(25)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and ts < now + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and ts < {query_ts} + 5m and tgcol4 <> 0 and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(5)
 
         tdSql.query(
-            f"select * from {mt} where ts > now + 4m and tgcol4 <> 0 and ts < now + 5m and ts < now + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
+            f"select * from {mt} where ts > {query_ts} + 4m and tgcol4 <> 0 and ts < {query_ts} + 5m and ts < {query_ts} + 5m and tgcol2 <> 0  and tgcol3 <> 0 and tgcol1 <> 0 and tgcol5 <> 0 and tgcol6 <> 0"
         )
         tdSql.checkRows(5)
 
@@ -3237,7 +3276,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step27")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3245,7 +3284,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 50)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3253,7 +3292,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3261,7 +3300,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3269,7 +3308,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3277,7 +3316,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3285,7 +3324,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1 and tgcol6 = 1"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 and tgcol5 = 1 and tgcol6 = 1"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3392,7 +3431,7 @@ class TestStableQueryTagFilter:
 
         tdLog.info(f"=============== step30")
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3400,7 +3439,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3408,7 +3447,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1  group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1  group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3416,7 +3455,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3424,7 +3463,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3432,7 +3471,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3440,7 +3479,7 @@ class TestStableQueryTagFilter:
         tdSql.checkData(0, 0, 25)
 
         tdSql.query(
-            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < now + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 and tgcol6 = 1 group by tgcol2"
+            f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where ts < {query_ts} + 4m and tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 and tgcol6 = 1 group by tgcol2"
         )
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
@@ -3451,6 +3490,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol1 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -3459,6 +3499,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol2 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -3467,6 +3508,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 partition by tgcol3 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -3475,6 +3517,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1 partition by tgcol4 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -3483,6 +3526,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1 partition by tgcol5 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -3491,6 +3535,7 @@ class TestStableQueryTagFilter:
         tdSql.query(
             f"select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from {mt} where tgcol1 = 1 and tgcol2 = 1 and tgcol3 = 1 and tgcol4 = 1  and tgcol5 = 1  and tgcol6 = 1 partition by tgcol6 interval(1d)"
         )
+        tdSql.checkRows(1)
         tdLog.info(
             f"{tdSql.getData(0,0)} {tdSql.getData(0,1)} {tdSql.getData(0,2)} {tdSql.getData(0,3)} {tdSql.getData(0,4)} {tdSql.getData(0,5)} {tdSql.getData(0,6)}"
         )
@@ -3866,6 +3911,7 @@ class TestStableQueryTagFilter:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -3875,6 +3921,7 @@ class TestStableQueryTagFilter:
             - 2025-8-11 Simon Guan Migrated from tsim/tag/4.sim
             - 2025-8-11 Simon Guan Migrated from tsim/tag/5.sim
             - 2025-8-11 Simon Guan Migrated from tsim/tag/6.sim
+            - 2026-10-11 Use fixed timestamps for multi-tag query scenarios
             - 2025-8-11 Simon Guan Migrated from tsim/stable/tag_filter.sim
             - 2025-12-21 Alex Duan Migrated from cases/uncatalog/system-test/2-query/test_tagFilter.py
 

@@ -1,15 +1,23 @@
 #!/usr/bin/env python3
-# filepath: hot_update/run/main.py
-#
-# IMPORTANT import order
-# ----------------------
-# 1. stdlib only
-# 2. Parse --from-dir / --rollupdate early (before any taos import)
-# 3. config_lib.prepare_native_lib(lib_dir)  <- sets LD_LIBRARY_PATH
-#      rolling upgrade  (--rollupdate): lib_dir = from_dir  (old client, runs during upgrade)
-#      cold upgrade     (default):      lib_dir = to_dir    (new client, back-compat with old server)
-# 4. Everything else (taos, clusterSetup, ...)
 
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# `spawn` workers import this module before unpickling Manager proxies. Load
+# hashlib now so its OpenSSL extension never initializes after libtaos.
+import hashlib
 import sys
 import os
 import socket
@@ -150,6 +158,17 @@ _COLD_PHASE2_ENV = "_TAOS_COLD_PHASE2"
 _lib_dir = _args.to_dir if os.environ.get(_COLD_PHASE2_ENV) else _args.from_dir
 prepare_native_lib(_lib_dir)
 
+# Start the manager before importing modules that load the target libtaos.
+# multiprocessing lazily imports _hashlib through hmac and secrets; importing it
+# after libtaos has loaded its OpenSSL dependency can crash the cold-upgrade CI.
+_cold_phase2_manager = None
+if (os.environ.get(_COLD_PHASE2_ENV)
+        and multiprocessing.current_process().name == "MainProcess"):
+    _manager_start_method = (
+        "fork" if "fork" in multiprocessing.get_all_start_methods() else "spawn"
+    )
+    _cold_phase2_manager = multiprocessing.get_context(_manager_start_method).Manager()
+
 # -- Now safe to import taos-dependent modules ---------------------------------
 
 import config
@@ -195,6 +214,7 @@ def _init_metrics(manager):
     m["write_last_ts"]             = 0
     m["query_last_count"]          = 0
     m["subscribe_recv_total"]      = 0
+    m["subscribe_dup_total"]       = 0   # rows dropped as re-delivered duplicates
     m["subscribe_last_batch_rows"] = 0
     m["subscribe_last_recv_time"]  = 0.0   # unix timestamp; 0 = never received
     # Phase-4 success counters (reset at start of rolling upgrade)
@@ -259,6 +279,28 @@ def _workloads_ok(metrics, rp):
     if qec > 0:
         rp.error(f"Querier has {qec} failure batch(es) so far.")
     return True  # never abort mid-run
+
+
+def _wait_subscribe_ready(metrics, rp, timeout):
+    """Wait for the TMQ handshake before starting the verification window.
+
+    The writer is gated on ``subscribe_ready``, so a late subscription (slow
+    cluster stabilization, loaded runner) would otherwise burn the whole fixed
+    verification window with zero rows and fail the subscribe checks
+    spuriously.  If the handshake does not complete in time, verification
+    proceeds unchanged: the subscriber keeps retrying and the checks decide
+    the outcome.
+    """
+    deadline = time.time() + timeout
+    while not metrics.get("subscribe_ready", False) and time.time() < deadline:
+        time.sleep(1)
+    if metrics.get("subscribe_ready", False):
+        rp.info("Subscriber handshake ready; verification window starts now.")
+    else:
+        rp.info(
+            f"Subscriber handshake not ready within {timeout}s; "
+            "starting verification anyway"
+        )
 
 
 def _version_ge(ver_str: str, min_ver: str) -> bool:
@@ -643,6 +685,8 @@ def _run_verify_phase(fqdn, cfg_dir, metrics, worker_procs, writer_stop_evt,
     rp.info(f"Waiting {stabilize_wait}s for cluster connections to stabilize ...")
     time.sleep(stabilize_wait)
 
+    _wait_subscribe_ready(metrics, rp, config.SUBSCRIBE_READY_TIMEOUT_S)
+
     metrics["write_window_max"]     = 0.0
     metrics["query_window_max"]     = 0.0
     metrics["subscribe_window_max"] = 0.0
@@ -735,9 +779,10 @@ def _collect_results(metrics, checks, fqdn, cfg_dir, from_ver,
     total_written = metrics.get("write_total_rows", 0)
     total_recv    = metrics.get("subscribe_recv_total", 0)
     _chk(
-        "Subscribe: rows received == rows written",
+        "Subscribe: rows received == rows written (dup ignored)",
         total_written == total_recv,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}  "
+        f"dup_ignored={metrics.get('subscribe_dup_total', 0):,}",
     )
 
     # ---- user / privilege / schema checks ----
@@ -955,6 +1000,10 @@ def _run_cold_phase2(state_file: str):
     no_user          = st.get("no_user", False)
     no_index         = st.get("no_index", False)
 
+    manager = _cold_phase2_manager
+    if manager is None:
+        raise RuntimeError("cold-upgrade manager was not initialized")
+
     if st.get("quick"):
         config.SUBTABLE_COUNT         = 100
         config.INIT_ROWS_PER_SUBTABLE = 1_000
@@ -1019,7 +1068,6 @@ def _run_cold_phase2(state_file: str):
             rp.error("SysInfo: snapshot unavailable, whitelist not written")
         sys.exit(0)
 
-    manager         = multiprocessing.Manager()
     metrics         = _init_metrics(manager)
     stop_evt        = manager.Event()
     writer_stop_evt = manager.Event()
@@ -1057,6 +1105,8 @@ def _run_cold_phase2(state_file: str):
 
     # -- Phase 5: Post-upgrade verification ------------------------------------
     rp.step_start(f"Phase 5  Post-upgrade verification ({config.VERIFY_DURATION_S}s)")
+
+    _wait_subscribe_ready(metrics, rp, config.SUBSCRIBE_READY_TIMEOUT_S)
 
     metrics["write_window_max"]     = 0.0
     metrics["query_window_max"]     = 0.0
@@ -1149,9 +1199,10 @@ def _run_cold_phase2(state_file: str):
     total_written = metrics.get("write_total_rows", 0)
     total_recv    = metrics.get("subscribe_recv_total", 0)
     _chk(
-        "Subscribe: rows received == rows written",
+        "Subscribe: rows received == rows written (dup ignored)",
         total_written == total_recv,
-        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}",
+        f"written={total_written:,}  received={total_recv:,}  diff={total_written - total_recv:,}  "
+        f"dup_ignored={metrics.get('subscribe_dup_total', 0):,}",
     )
 
     if no_user:

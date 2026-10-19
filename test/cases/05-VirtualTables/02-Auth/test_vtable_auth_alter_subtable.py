@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom, TDSql, sleep
@@ -32,6 +36,7 @@ class TestVtableAuthAlterDropChild:
         Since: v3.3.6.0
 
         Labels: alter,auth,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -83,9 +88,9 @@ class TestVtableAuthAlterDropChild:
                             testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;")
                             testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} set tag int_tag = 2;")
                         else:
-                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;", expectErrInfo="Permission denied or target object not exist")
-                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;", expectErrInfo="Permission denied or target object not exist")
-                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} set tag int_tag = 2;", expectErrInfo="Permission denied or target object not exist")
+                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;", expectErrInfo="Permission denied or the target object does not exist")
+                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;", expectErrInfo="Permission denied or the target object does not exist")
+                            testSql.error(f"alter vtable test_vctable_auth_vtb_{i} set tag int_tag = 2;", expectErrInfo="Permission denied or the target object does not exist")
                     elif (priv_db == "all"):
                         testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 set test_vtable_auth_org_table_2.int_col;")
                         testSql.execute(f"alter vtable test_vctable_auth_vtb_{i} alter column int_col_2 SET NULL;")
@@ -105,7 +110,7 @@ class TestVtableAuthAlterDropChild:
                         if (priv_vtb == "alter" or priv_vtb == "all"):
                             testSql.execute(f"drop vtable test_vctable_auth_vtb_{i};")
                         else:
-                            testSql.error(f"drop vtable test_vctable_auth_vtb_{i};", expectErrInfo="Permission denied or target object not exist")
+                            testSql.error(f"drop vtable test_vctable_auth_vtb_{i};", expectErrInfo="Permission denied or the target object does not exist")
                     elif (priv_db == "all"):
                         testSql.execute(f"drop vtable test_vctable_auth_vtb_{i};")
                     else:

@@ -55,7 +55,7 @@ After downloading mcp-tdengine-tsdb, place it in any directory, then configure t
 
 1. In the upper right corner of the Trae AI chat window, click the settings icon -> MCP, which will open the MCP window
 
-   ![MCP SETTING](../assets/mcp-tdengine-tsdb-01.png)
+   ![MCP SETTING](../assets/mcp-tdengine-tsdb-01.webp)
 
 2. After clicking "Add Manually", fill in the following content. Change the command to the full path where mcp-tdengine-tsdb is located. For Windows systems, note that path escaping is required. Fill in the database name you want to operate in the db parameter. After clicking confirm, you can use the MCP Server for TDengine TSDB for data querying and management operations.
 
@@ -76,11 +76,11 @@ After downloading mcp-tdengine-tsdb, place it in any directory, then configure t
    }
    ```
 
-   ![ADD MCP](../assets/mcp-tdengine-tsdb-02.png)
+   ![ADD MCP](../assets/mcp-tdengine-tsdb-02.webp)
 
 3. Select "Builder with MCP" in the AI box, and you can see that the tdengine-tsdb mcp has been started.
 
-   ![BUILDER WITH MCP](../assets/mcp-tdengine-tsdb-03.png)
+   ![BUILDER WITH MCP](../assets/mcp-tdengine-tsdb-03.webp)
 
 ### Adding MCP Using Claude Code as an Example
 
@@ -98,24 +98,24 @@ Here are some usage examples:
 
 1. Get connection information
 
-   ![mcp-info.png](../assets/mcp-tdengine-tsdb-04.png)
+   ![mcp-info.webp](../assets/mcp-tdengine-tsdb-04.webp)
 
 2. Get dnode list
 
-   ![mcp-list-dnodes.png](../assets/mcp-tdengine-tsdb-05.png)
+   ![mcp-list-dnodes.webp](../assets/mcp-tdengine-tsdb-05.webp)
 
 3. Get database list
 
-   ![mcp-show-databases.png](../assets/mcp-tdengine-tsdb-06.png)
+   ![mcp-show-databases.webp](../assets/mcp-tdengine-tsdb-06.webp)
 
 4. Get supertable list
 
-   ![mcp-show-stables.png](../assets/mcp-tdengine-tsdb-07.png)
+   ![mcp-show-stables.webp](../assets/mcp-tdengine-tsdb-07.webp)
 
 5. Get table structure
 
-   ![mcp-describe.png](../assets/mcp-tdengine-tsdb-08.png)
+   ![mcp-describe.webp](../assets/mcp-tdengine-tsdb-08.webp)
 
 6. Execute query statements
 
-   ![mcp-query.png](../assets/mcp-tdengine-tsdb-09.png)
+   ![mcp-query.webp](../assets/mcp-tdengine-tsdb-09.webp)

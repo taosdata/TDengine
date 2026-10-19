@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 MESSAGE("")
@@ -96,13 +111,19 @@ ADD_SUBDIRECTORY(compatible)
 # include
 INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
 INCLUDE_DIRECTORIES(../inc)
+# shared tools helpers (tools/inc/pub.h + tools/src/pub.c): connect-mode / DSN /
+# default-port rules used by taos CLI & taosBenchmark too, keeping all three
+# tools' connection semantics identical
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/../../inc)
 
 # src
 ADD_EXECUTABLE(
         taosdump
         main.c
+        ../../src/pub.c
         # core
         core/bckUtil.c
+        core/bckName.c
         core/bckArgs.c
         core/bckLog.c
         core/bckFile.c
@@ -134,6 +155,14 @@ SET_TARGET_PROPERTIES(taosdump PROPERTIES LINKER_LANGUAGE CXX)
 
 # C++ standard required by Arrow C++ headers
 target_compile_features(taosdump PRIVATE cxx_std_17)
+
+# Use the wide-char path APIs so non-ASCII (e.g. CJK) file names round-trip
+# correctly on Windows.  The symbol mapping itself is gated on WINDOWS in
+# osFile.h/osDir.h, so on Linux taosdump links the plain APIs and never
+# references the *W symbols -- keeping Linux unaffected by these additions.
+if(TD_WINDOWS)
+    target_compile_definitions(taosdump PRIVATE TAOS_OS_WIDE_PATH)
+endif()
 
 # Arrow include directory (set by INIT_EXT in external.cmake)
 target_include_directories(taosdump PRIVATE "${ext_arrow_static_inc_dir}")
@@ -212,7 +241,22 @@ if(TD_WINDOWS)
 endif()
 
 # link taos
+#
+# libtaos.so owns the public C API and dispatches to the driver it dlopen()s;
+# libtaosnative.so is only needed for the engine internals the tool uses
+# directly (functions *and* globals such as gMemPoolHandle).  Both are listed,
+# and the order no longer matters on Linux: the driver does not export the
+# public names there (it hands them to the dispatcher through tdNativeApiTable),
+# so taos_options() cannot be bound to the driver even if CMake hoists it ahead
+# of libtaos.so.  macOS keeps resolving the internals through libtaos.dylib's
+# re-export of the driver dylib instead.
+#
+# No --copy-dt-needed-entries: naming libtaosnative.so explicitly is what pulls
+# the internals in, and mold rejects that option outright.
 TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
+if(TD_LINUX)
+    TARGET_LINK_LIBRARIES(taosdump PRIVATE ${TAOS_NATIVE_LIB})
+endif()
 
 # link AVRO compatibility module
 TARGET_LINK_LIBRARIES(taosdump PRIVATE compatAvro)
@@ -292,6 +336,19 @@ if(TD_DARWIN)
         "-framework Security"
     )
 endif()
+
+# libavro.a's deflate codec calls zlib.  That used to arrive by accident: libtaos
+# linked os/util PUBLIC, and CMake propagates a static library's private
+# dependencies ($<LINK_ONLY:...>) to its consumers, so libz.a was already on
+# every tool's link line.  The thin dispatcher dropped that, and on macOS neither
+# libtaos.dylib nor libtaosnative.dylib provides the symbol (ld64 has no
+# --copy-dt-needed-entries to reach one through the driver's dependency).
+#
+# zlib is linked through compatAvro now (see compatible/CMakeLists.txt): CMake
+# emits this target's direct libraries first and compatAvro's interface
+# expansion -- which is where libavro.a itself appears -- afterwards, so a
+# ${ext_zlib_libs} entry listed here would be hoisted ahead of libavro.a and
+# fail to resolve its crc32/deflate/inflate references.
 
 MESSAGE("")
 MESSAGE("********** End build taosdump ! **********")

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -295,6 +297,8 @@ int32_t   syncLeaderTransfer(int64_t rid);
 int32_t   syncStepDown(int64_t rid, SyncTerm newTerm);
 void      syncResetMetrics(int64_t rid, const SSyncMetrics* pOldMetrics);
 bool      syncIsReadyForRead(int64_t rid);
+// Returns true when a replica has restored local storage, regardless of Raft role.
+bool      syncIsReadyForReplicaRead(int64_t rid);
 bool      syncSnapshotSending(int64_t rid);
 bool      syncSnapshotRecving(int64_t rid);
 int32_t   syncSendTimeoutRsp(int64_t rid, int64_t seq);

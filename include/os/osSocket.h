@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -187,6 +189,9 @@ typedef struct {
 int32_t taosGetIpv6FromFqdn(const char *fqdn, SIpAddr *ip);
 
 int32_t taosGetIp4FromFqdn(const char *fqdn, SIpAddr *addr);
+
+bool taosIsPrivateIp(const struct sockaddr *addr);
+bool taosIsPrivateUrl(const char *url);
 int32_t taosGetIpFromFqdn(int8_t enableIpv6, const char *fqdn, SIpAddr *addr);
 
 #define IP_ADDR_STR(ip) ((ip)->type == 0 ? (ip)->ipv4 : (ip)->ipv6)

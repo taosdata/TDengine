@@ -1,8 +1,18 @@
-// Package crashguard records crash incidents and durable artifacts so that the
-// SQL statement executing at the moment of a taosd crash can be recovered.
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 //
-// crashguard 包记录崩溃事件及持久化产物，以便在 taosd 崩溃发生的那一刻
-// 正在执行的 SQL 语句可以被恢复。
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package crashguard
 
 import (

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -99,8 +101,10 @@ int32_t doValidatePhysiNode(SValidatePlanContext* pCxt, SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
     case QUERY_NODE_PHYSICAL_PLAN_DELETE:
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_EVENT:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN:
+    case QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN:
     case QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE:
     case QUERY_NODE_PHYSICAL_PLAN_DYN_QUERY_CTRL:
       break;

@@ -1,3 +1,17 @@
+# Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 MESSAGE(STATUS "build parser unit test")
 
@@ -8,6 +22,7 @@ if(TD_LINUX)
     add_executable(commonTest "commonTests.cpp")
     DEP_ext_gtest(commonTest)
     target_link_libraries(commonTest PRIVATE os util common)
+    DEP_ext_ssl(commonTest)
     target_include_directories(
         commonTest
         PUBLIC "${TD_SOURCE_DIR}/include/libs/common/"
@@ -47,6 +62,28 @@ add_test(
     COMMAND ttimeNaturalUnitsTest
 )
 
+# streamMsgTest.cpp
+add_executable(streamMsgTest "streamMsgTest.cpp")
+DEP_ext_gtest(streamMsgTest)
+target_link_libraries(streamMsgTest PRIVATE os util common)
+target_include_directories(
+    streamMsgTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME streamMsgTest
+    COMMAND streamMsgTest
+)
+
+add_executable(subQueryMsgTest "subQueryMsgTest.cpp")
+DEP_ext_gtest(subQueryMsgTest)
+target_link_libraries(subQueryMsgTest PRIVATE os util common nodes planner parser catalog transport function qcom extconnector)
+if(TD_GRANT)
+    target_link_libraries(subQueryMsgTest PRIVATE grant)
+endif()
+add_test(NAME subQueryMsgTest COMMAND subQueryMsgTest)
+
 # ttimeQuarterParseTest.cpp
 add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
 DEP_ext_gtest(ttimeQuarterParseTest)
@@ -63,6 +100,7 @@ add_test(
 
 add_executable(streamWindowPlanTest "streamWindowPlanTest.cpp")
 DEP_ext_gtest(streamWindowPlanTest)
+DEP_ext_cppstub(streamWindowPlanTest)
 target_link_libraries(streamWindowPlanTest PRIVATE os util common nodes)
 add_test(NAME streamWindowPlanTest COMMAND streamWindowPlanTest)
 
@@ -105,6 +143,8 @@ if(TD_LINUX)
         PRIVATE
         "tmsgTest.cpp"
         "../src/msg/tmsg.c"
+        "../src/msg/streamMsg.c"
+        "../src/msg/xnode.c"
     )
     target_include_directories(tmsgTest PUBLIC "${TD_SOURCE_DIR}/include/common/")
     target_link_libraries(tmsgTest PUBLIC os util)

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "functionMgt.h"
 #include "tsdb.h"
 #include "tsdbDataFileRW.h"
@@ -169,6 +172,54 @@ static int myCmp(void *state, const char *a, size_t alen, const char *b, size_t 
   return 0;
 }
 
+
+static int32_t tsdbLastCacheCompressionFromStr(const char *str) {
+  if (str == NULL || strcasecmp(str, "none") == 0) return rocksdb_no_compression;
+  if (strcasecmp(str, "snappy") == 0) return rocksdb_snappy_compression;
+  if (strcasecmp(str, "lz4") == 0) return rocksdb_lz4_compression;
+  if (strcasecmp(str, "zstd") == 0) return rocksdb_zstd_compression;
+  tsdbWarn("last cache rocksdb: unknown sLastCacheCompressionType '%s', falling back to no compression", str);
+  return rocksdb_no_compression;
+}
+
+static void tsdbLastCacheWarnOverrideOverlap(const char *overrideStr) {
+  static const char *knownKeys[] = {
+      "write_buffer_size",   "max_write_buffer_number", "max_background_jobs",
+      "max_background_flushes", "max_background_compactions", "filter_policy",
+      "max_open_files",      "compression",             "block_cache",
+  };
+  // options string is ';'-separated "key=value" pairs; match whole keys only so that keys which
+  // merely contain a known key as a substring (e.g. "max_write_buffer_size_to_maintain") don't
+  // trigger a false-positive overlap warning.
+  const char *seg = overrideStr;
+  while (seg != NULL && *seg != '\0') {
+    while (*seg == ' ' || *seg == ';') seg++;
+    if (*seg == '\0') break;
+
+    const char *segEnd = strchr(seg, ';');
+    const char *eq = strchr(seg, '=');
+    if (eq != NULL && (segEnd == NULL || eq < segEnd)) {
+      size_t keyLen = (size_t)(eq - seg);
+      for (size_t i = 0; i < sizeof(knownKeys) / sizeof(knownKeys[0]); ++i) {
+        if (strlen(knownKeys[i]) == keyLen && strncmp(seg, knownKeys[i], keyLen) == 0) {
+          tsdbWarn("last cache rocksdb: sLastCacheOptionsOverride contains key '%s' which overlaps with an explicit "
+                   "sLastCacheXxx parameter; the explicit parameter takes precedence",
+                   knownKeys[i]);
+        }
+      }
+    }
+    seg = segEnd;
+  }
+}
+
+// CACHESIZE is split evenly between the in-memory LRU last-cache and the RocksDB last-cache
+// engine's block cache, so total last-cache memory usage stays ~CACHESIZE instead of doubling
+// (a user upgrading from a version where CACHESIZE only sized the LRU cache would otherwise see
+// last-cache memory usage silently double and risk OOM).
+static size_t tsdbLastCacheHalfCapacityFromMB(int32_t cacheLastSizeMB) {
+  return ((size_t)cacheLastSizeMB * 1024 * 1024) / 2;
+}
+
 static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
 #ifdef USE_ROCKSDB
@@ -191,6 +242,46 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   rocksdb_options_set_info_log_level(options, 2);  // WARN_LEVEL
   // rocksdb_options_set_inplace_update_support(options, 1);
   // rocksdb_options_set_allow_concurrent_memtable_write(options, 0);
+
+  if (tsLastCacheOptionsOverride[0] != '\0') {
+    tsdbLastCacheWarnOverrideOverlap(tsLastCacheOptionsOverride);
+
+    char *ovrErr = NULL;
+    rocksdb_get_options_from_string(options, tsLastCacheOptionsOverride, options, &ovrErr);
+    if (ovrErr != NULL) {
+      tsdbError("vgId:%d, %s failed to parse sLastCacheOptionsOverride '%s' since %s", TD_VID(pTsdb->pVnode),
+                __func__, tsLastCacheOptionsOverride, ovrErr);
+      rocksdb_free(ovrErr);
+      TAOS_CHECK_GOTO(TSDB_CODE_INVALID_CFG, &lino, _err2);
+    }
+  }
+
+  pTsdb->rCache.pEnv = rocksdb_create_default_env();
+  if (pTsdb->rCache.pEnv == NULL) {
+    TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err2);
+  }
+  rocksdb_env_set_background_threads(pTsdb->rCache.pEnv, tsLastCacheBackgroundThreads);
+  rocksdb_env_set_low_priority_background_threads(pTsdb->rCache.pEnv, tsLastCacheBackgroundThreads);
+
+  size_t vndCacheLastSize = tsdbLastCacheHalfCapacityFromMB(pTsdb->pVnode->config.cacheLastSize);
+  if (vndCacheLastSize > 0) {
+    pTsdb->rCache.blockcache = rocksdb_cache_create_lru(vndCacheLastSize);
+    rocksdb_block_based_options_set_block_cache(tableoptions, pTsdb->rCache.blockcache);
+  }
+  rocksdb_options_set_write_buffer_size(options, (size_t)tsLastCacheWriteBufferSize * 1024 * 1024);
+  rocksdb_options_set_max_write_buffer_number(options, tsLastCacheMaxWriteBufferNumber);
+  rocksdb_options_set_env(options, pTsdb->rCache.pEnv);
+  rocksdb_options_set_max_background_jobs(options, tsLastCacheBackgroundThreads);
+  if (tsLastCacheBloomFilterBits > 0) {
+    pTsdb->rCache.filterpolicy = rocksdb_filterpolicy_create_bloom(tsLastCacheBloomFilterBits);
+    if (pTsdb->rCache.filterpolicy == NULL) {
+      TAOS_CHECK_GOTO(TSDB_CODE_OUT_OF_MEMORY, &lino, _err2);
+    }
+    rocksdb_block_based_options_set_filter_policy(tableoptions, pTsdb->rCache.filterpolicy);
+  }
+  rocksdb_options_set_max_open_files(options, tsLastCacheMaxOpenFiles);
+  rocksdb_options_set_compression(options, tsdbLastCacheCompressionFromStr(tsLastCacheCompressionType));
+  rocksdb_options_set_block_based_table_factory(options, tableoptions);
 
   rocksdb_writeoptions_t *writeoptions = rocksdb_writeoptions_create();
   if (NULL == writeoptions) {
@@ -247,12 +338,24 @@ _err7:
 _err6:
   rocksdb_writebatch_destroy(writebatch);
 _err5:
-  rocksdb_close(pTsdb->rCache.db);
+  rocksdb_close(db);
 _err4:
   rocksdb_readoptions_destroy(readoptions);
 _err3:
   rocksdb_writeoptions_destroy(writeoptions);
 _err2:
+  // filterpolicy ownership was transferred to tableoptions via
+  // rocksdb_block_based_options_set_filter_policy(); it is destroyed below when
+  // tableoptions is destroyed, so it must not be destroyed separately here.
+  pTsdb->rCache.filterpolicy = NULL;
+  if (pTsdb->rCache.blockcache != NULL) {
+    rocksdb_cache_destroy(pTsdb->rCache.blockcache);
+    pTsdb->rCache.blockcache = NULL;
+  }
+  if (pTsdb->rCache.pEnv != NULL) {
+    rocksdb_env_destroy(pTsdb->rCache.pEnv);
+    pTsdb->rCache.pEnv = NULL;
+  }
   rocksdb_options_destroy(options);
   rocksdb_block_based_options_destroy(tableoptions);
 _err:
@@ -271,9 +374,71 @@ static void tsdbCloseRocksCache(STsdb *pTsdb) {
   rocksdb_writeoptions_destroy(pTsdb->rCache.writeoptions);
   rocksdb_options_destroy(pTsdb->rCache.options);
   rocksdb_block_based_options_destroy(pTsdb->rCache.tableoptions);
+  if (pTsdb->rCache.blockcache != NULL) {
+    rocksdb_cache_destroy(pTsdb->rCache.blockcache);
+    pTsdb->rCache.blockcache = NULL;
+  }
+  if (pTsdb->rCache.pEnv != NULL) {
+    rocksdb_env_destroy(pTsdb->rCache.pEnv);
+    pTsdb->rCache.pEnv = NULL;
+  }
+  // filterpolicy ownership was transferred to tableoptions via
+  // rocksdb_block_based_options_set_filter_policy() in tsdbOpenRocksCache(); it was
+  // already destroyed above by rocksdb_block_based_options_destroy(), so destroying it
+  // again here would be a double free.
+  pTsdb->rCache.filterpolicy = NULL;
   rocksdb_comparator_destroy(pTsdb->rCache.my_comparator);
   taosMemoryFree(pTsdb->rCache.pTSchema);
   taosArrayDestroy(pTsdb->rCache.ctxArray);
+#endif
+}
+
+int32_t tsdbGetLastCacheStats(STsdb *pTsdb, SLastCacheStats *pStats) {
+#ifdef USE_ROCKSDB
+  if (pTsdb == NULL || pStats == NULL || pTsdb->rCache.db == NULL) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  memset(pStats, 0, sizeof(SLastCacheStats));
+
+  rocksdb_t *db = pTsdb->rCache.db;
+  uint64_t   val = 0;
+
+  if (0 == rocksdb_property_int(db, "rocksdb.block-cache-capacity", &val)) pStats->blockCacheCapacity = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.block-cache-usage", &val)) pStats->blockCacheUsage = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.block-cache-pinned-usage", &val))
+    pStats->blockCachePinnedUsage = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.estimate-table-readers-mem", &val))
+    pStats->estimateTableReadersMem = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.cur-size-active-mem-table", &val))
+    pStats->curSizeActiveMemTable = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.cur-size-all-mem-tables", &val))
+    pStats->curSizeAllMemTables = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.num-immutable-mem-table", &val))
+    pStats->numImmutableMemTable = (int32_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.mem-table-flush-pending", &val))
+    pStats->memTableFlushPending = (val != 0);
+  if (0 == rocksdb_property_int(db, "rocksdb.num-running-flushes", &val))
+    pStats->numRunningFlushes = (int32_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.compaction-pending", &val)) pStats->compactionPending = (val != 0);
+  if (0 == rocksdb_property_int(db, "rocksdb.num-running-compactions", &val))
+    pStats->numRunningCompactions = (int32_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.estimate-pending-compaction-bytes", &val))
+    pStats->estimatePendingCompactionBytes = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.is-write-stopped", &val)) pStats->isWriteStopped = (val != 0);
+  if (0 == rocksdb_property_int(db, "rocksdb.actual-delayed-write-rate", &val))
+    pStats->actualDelayedWriteRate = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.num-files-at-level0", &val))
+    pStats->numFilesAtLevel0 = (int32_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.total-sst-files-size", &val))
+    pStats->totalSstFilesSize = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.estimate-num-keys", &val)) pStats->estimateNumKeys = (int64_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.num-live-versions", &val)) pStats->numLiveVersions = (int32_t)val;
+  if (0 == rocksdb_property_int(db, "rocksdb.background-errors", &val)) pStats->backgroundErrors = (int32_t)val;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+#else
+  TAOS_RETURN(TSDB_CODE_INVALID_PARA);
 #endif
 }
 
@@ -1024,6 +1189,29 @@ static int32_t tsdbCacheGetValuesFromRocks(STsdb *pTsdb, size_t numKeys, const c
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// If the last cache entry for `pKey` is currently resident in the LRU and dirty, queue it into
+// pTsdb->rCache.writebatch and clear its dirty flag. Only a single O(1) point lookup; does not
+// touch any other cache entry and does not commit the writebatch (caller does that once, in bulk).
+static void tsdbCacheFlushKeyIfDirty(STsdb *pTsdb, const SLastKey *pKey) {
+  SLRUCache *pCache = pTsdb->lruCache;
+  LRUHandle *h = taosLRUCacheLookup(pCache, pKey, ROCKS_KEY_LEN);
+  if (h) {
+    SLastCol *pLastCol = (SLastCol *)taosLRUCacheValue(pCache, h);
+    if (pLastCol->dirty) {
+      (void)tsdbCacheFlushDirty(pKey, ROCKS_KEY_LEN, pLastCol, pTsdb);
+    }
+    tsdbLRUCacheRelease(pCache, h, false);
+  }
+}
+
+// Same as above, for both the LAST and LAST_ROW keys of one (uid, cid) column.
+static void tsdbCacheFlushTableColumnIfDirty(STsdb *pTsdb, int64_t uid, int16_t cid) {
+  SLastKey key = {.lflag = LFLAG_LAST, .uid = uid, .cid = cid};
+  tsdbCacheFlushKeyIfDirty(pTsdb, &key);
+  key.lflag = LFLAG_LAST_ROW;
+  tsdbCacheFlushKeyIfDirty(pTsdb, &key);
+}
+
 static int32_t tsdbCacheDropTableColumn(STsdb *pTsdb, int64_t uid, int16_t cid, bool hasPrimaryKey) {
   int32_t code = 0;
 
@@ -1178,21 +1366,23 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
-
   if (pSchemaRow != NULL) {
     bool hasPrimayKey = false;
     int  nCols = pSchemaRow->nCols;
     if (nCols >= 2) {
       hasPrimayKey = (pSchemaRow->pSchema[1].flags & COL_IS_KEY) ? true : false;
     }
+
+    // Phase 1: queue this table's own dirty last cache entries (O(1) point lookup per key,
+    // does not touch any other table's cache entries); Phase 2: commit whatever got queued
+    // once, so the multi_get in Phase 3 observes accurate state.
+    for (int i = 0; i < nCols; ++i) {
+      tsdbCacheFlushTableColumnIfDirty(pTsdb, uid, pSchemaRow->pSchema[i].colId);
+    }
+    rocksMayWrite(pTsdb, true);
+
     for (int i = 0; i < nCols; ++i) {
       int16_t cid = pSchemaRow->pSchema[i].colId;
-      int8_t  col_type = pSchemaRow->pSchema[i].type;
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1214,9 +1404,14 @@ int32_t tsdbCacheDropTable(STsdb *pTsdb, tb_uid_t uid, tb_uid_t suid, SSchemaWra
     if (nCols >= 2) {
       hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
     }
+
+    for (int i = 0; i < nCols; ++i) {
+      tsdbCacheFlushTableColumnIfDirty(pTsdb, uid, pTSchema->columns[i].colId);
+    }
+    rocksMayWrite(pTsdb, true);
+
     for (int i = 0; i < nCols; ++i) {
       int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1240,12 +1435,6 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
 
   (void)taosThreadMutexLock(&pTsdb->lruMutex);
 
-  code = tsdbCacheCommitNoLock(pTsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    tsdbTrace("vgId:%d, %s commit with no lock failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, __LINE__,
-              tstrerror(code));
-  }
-
   STSchema *pTSchema = NULL;
   code = metaGetTbTSchemaEx(pTsdb->pVnode->pMeta, suid, suid, -1, &pTSchema);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1254,18 +1443,28 @@ int32_t tsdbCacheDropSubTables(STsdb *pTsdb, SArray *uids, tb_uid_t suid) {
     TAOS_RETURN(code);
   }
 
+  bool hasPrimayKey = false;
+  int  nCols = pTSchema->numOfCols;
+  if (nCols >= 2) {
+    hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
+  }
+
+  // Phase 1: queue dirty last cache entries for every (uid, cid) in this whole batch (still
+  // O(batch size), not O(vnode cache size)); Phase 2: commit the queued batch exactly once,
+  // matching the existing "one commit per batch, not per child table" intent.
+  for (int i = 0; i < TARRAY_SIZE(uids); ++i) {
+    int64_t uid = ((tb_uid_t *)TARRAY_DATA(uids))[i];
+    for (int j = 0; j < nCols; ++j) {
+      tsdbCacheFlushTableColumnIfDirty(pTsdb, uid, pTSchema->columns[j].colId);
+    }
+  }
+  rocksMayWrite(pTsdb, true);
+
   for (int i = 0; i < TARRAY_SIZE(uids); ++i) {
     int64_t uid = ((tb_uid_t *)TARRAY_DATA(uids))[i];
 
-    bool hasPrimayKey = false;
-    int  nCols = pTSchema->numOfCols;
-    if (nCols >= 2) {
-      hasPrimayKey = (pTSchema->columns[1].flags & COL_IS_KEY) ? true : false;
-    }
-
-    for (int i = 0; i < nCols; ++i) {
-      int16_t cid = pTSchema->columns[i].colId;
-      int8_t  col_type = pTSchema->columns[i].type;
+    for (int j = 0; j < nCols; ++j) {
+      int16_t cid = pTSchema->columns[j].colId;
 
       code = tsdbCacheDropTableColumn(pTsdb, uid, cid, hasPrimayKey);
       if (code != TSDB_CODE_SUCCESS) {
@@ -2883,7 +3082,7 @@ _exit:
 
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t code = 0, lino = 0;
-  size_t  cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  size_t  cfgCapacity = tsdbLastCacheHalfCapacityFromMB(pTsdb->pVnode->config.cacheLastSize);
   int32_t numShardBits = pTsdb->pVnode->config.cacheLastShardBits;
 
   // Use configured shard bits, or -1 to auto-calculate based on cache size
@@ -2949,7 +3148,7 @@ void tsdbCloseCache(STsdb *pTsdb) {
 // Rebuild only the last cache (lruCache) with a new shard count.
 // Must be called with pTsdb->lruMutex held by the caller.
 int32_t tsdbRebuildLastCache(STsdb *pTsdb, int32_t numShardBits) {
-  size_t     cfgCapacity = (size_t)pTsdb->pVnode->config.cacheLastSize * 1024 * 1024;
+  size_t     cfgCapacity = tsdbLastCacheHalfCapacityFromMB(pTsdb->pVnode->config.cacheLastSize);
   SLRUCache *pNewCache = taosLRUCacheInit(cfgCapacity, numShardBits, .5);
   if (pNewCache == NULL) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_MEMORY);
@@ -4224,8 +4423,17 @@ _err:
 
 void tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h) { tsdbLRUCacheRelease(pCache, h, false); }
 
+// `capacity` is the raw CACHESIZE-derived byte total; split it evenly between the LRU cache and
+// the RocksDB block cache so total last-cache memory usage stays ~CACHESIZE (see
+// tsdbLastCacheHalfCapacityFromMB()).
 void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
-  taosLRUCacheSetCapacity(pVnode->pTsdb->lruCache, capacity);
+  size_t halfCapacity = capacity / 2;
+  taosLRUCacheSetCapacity(pVnode->pTsdb->lruCache, halfCapacity);
+#ifdef USE_ROCKSDB
+  if (pVnode->pTsdb->rCache.blockcache != NULL) {
+    rocksdb_cache_set_capacity(pVnode->pTsdb->rCache.blockcache, halfCapacity);
+  }
+#endif
 }
 
 #ifdef BUILD_NO_CALL

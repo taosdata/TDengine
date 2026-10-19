@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -121,6 +123,21 @@ int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
 int32_t buildInvalidOperationMsgExt(SMsgBuf* pBuf, const char* pFormat, ...);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char* sourceStr);
 
+/*
+ * Check the head of a csv file for a BOM (byte order mark) header.
+ *
+ * @param pBuf    the leading bytes read from the csv file
+ * @param bufLen  the number of valid bytes in pBuf
+ *
+ * @return 0                             no BOM is present, data starts at offset 0
+ * @return positive value (3)            a UTF-8 BOM (EF BB BF) is present, these leading bytes
+ *                                       should be skipped
+ * @return TSDB_CODE_TSC_INVALID_INPUT   the file starts with the BOM of an unsupported encoding
+ *                                       (UTF-16 LE/BE or UTF-32 LE/BE), i.e. the csv file is not
+ *                                       in UTF-8
+ */
+int32_t checkCsvFileBom(const char* pBuf, size_t bufLen);
+
 SSchema*      getTableColumnSchema(const STableMeta* pTableMeta);
 SSchemaExt*   getTableColumnExtSchema(const STableMeta* pTableMeta);
 SSchema*      getTableTagSchema(const STableMeta* pTableMeta);
@@ -128,10 +145,11 @@ int32_t       getNumOfColumns(const STableMeta* pTableMeta);
 int32_t       getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
 STableMeta*   tableMetaDup(const STableMeta* pTableMeta);
+SExtSourceInfo* extSourceInfoDup(const SExtSourceInfo* pInfo);
 int32_t getTableTypeFromTableNode(SNode *pTable);
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
-int32_t getVnodeSysTableTargetName(int32_t acctId, SNode* pWhere, SName* pName);
+int32_t getVnodeSysTableTargetName(int32_t acctId, const char* pCurrDb, SNode* pWhere, SName* pName);
 int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, int8_t type);
 int32_t parseTagValue(SMsgBuf* pMsgBuf, const char** pSql, uint8_t precision, SSchema* pTagSchema, SToken* pToken,
                       SArray* pTagName, SArray* pTagVals, STag** pTag, timezone_t tz, void *charsetCxt);
@@ -154,7 +172,6 @@ int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pD
 int32_t reserveViewUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, const char* pTable,
                                    EPrivType privType, EPrivObjType objType, SParseMetaCache* pMetaCache);
 int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
-int32_t reserveTableIndexInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveTableCfgInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
 int32_t reserveDnodeRequiredInCache(SParseMetaCache* pMetaCache);
 int32_t reserveTableTSMAInfoInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
@@ -165,8 +182,12 @@ int32_t reserveExtSourceInCache(const char* sourceName, SParseMetaCache* pMetaCa
 int32_t reserveExtTableMetaInCache(const char* sourceName,
                                     const char* mid0, const char* mid1,
                                     const char* tableName, SParseMetaCache* pMetaCache);
-int32_t getExtSourceInfoFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
-                                   SExtSourceInfo** ppInfo);
+static inline void freeExtSourceInfo(SExtSourceInfo* pInfo) {
+  if (NULL != pInfo) {
+    extCapDestroy(&pInfo->capability);
+    taosMemoryFree(pInfo);
+  }
+}
 int32_t getExtTableMetaFromCache(SParseMetaCache* pMetaCache, const char* sourceName,
                                   const char* mid0, const char* mid1,
                                   const char* tableName, SExtTableMeta** ppMeta);
@@ -182,7 +203,6 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
 int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo);
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, SUserAuthInfo* pAuthReq, SUserAuthRes* pAuthRes);
 int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
-int32_t getTableIndexFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pIndexes);
 int32_t getTableCfgFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableCfg** pOutput);
 int32_t getVStbRefDbsFromCache(SParseMetaCache* pMetaCache, const SName* pName, SArray** pOutput);
 int32_t getDnodeListFromCache(SParseMetaCache* pMetaCache, SArray** pDnodes);

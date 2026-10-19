@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 Pytest configuration and shared fixtures for TDGPT tests
 """
@@ -78,6 +93,10 @@ def mock_config(temp_dir):
     config.pid_file = os.path.join(temp_dir, "taosanode.pid")
     config.app_log = os.path.join(config.log_dir, "taosanode.app.log")
     config.model_dir = os.path.join(config.data_dir, "model")
+    config.tsfm_model_dir = os.path.join(config.model_dir, "tsfm")
+    config.model_venvs_dir = os.path.join(config.data_dir, "model_venvs")
+    config.tsfm_venv = os.path.join(config.model_venvs_dir, "tsfm")
+    config.resource_dir = os.path.join(config.data_dir, "resource")
     config.venv_dir = os.path.join(temp_dir, "venvs", "venv")
     config.timesfm_venv = config.venv_dir
     config.moirai_venv = config.venv_dir

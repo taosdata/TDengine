@@ -1,6 +1,22 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import (
     tdLog, tdSql, tdStream, sc, clusterComCheck, etool, StreamItem)
 from new_test_framework.utils.common import tdCom
+from new_test_framework.utils.interval_hints import assert_supported_interval_hint_modes
 
 
 class TestInterval:
@@ -93,6 +109,7 @@ class TestInterval:
         tdSql.checkRows(rowNum)
         tdSql.checkData(0, 5, 1)
         tdSql.checkData(0, 2, 60000)
+        assert_supported_interval_hint_modes()
 
         tdLog.info(f"================ step10")
         tdLog.info(f"-------- create database and table")
@@ -1940,6 +1957,7 @@ class TestInterval:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -1969,6 +1987,7 @@ class TestInterval:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-01-19 Tony Zhang created
 

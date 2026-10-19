@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -94,6 +96,7 @@ void streamCleanup(void) {
   smUndeployAllTasks();
   streamNoticeQueueCleanup();
   destroyDataSinkMgr();
+  streamNotifyWorkerPoolDestroy(&gStreamMgmt.notifyWorkerPool);
   streamMgmtCleanup();
   destroyInserterGrpInfo();
   stInfo("stream cleanup end");
@@ -140,6 +143,7 @@ int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode
 
   TAOS_CHECK_EXIT(initStreamDataSink());
 
+  TAOS_CHECK_EXIT(streamNotifyWorkerPoolInit(&gStreamMgmt.notifyWorkerPool, tsStreamNotifyWorkerNum));
   TAOS_CHECK_EXIT(streamNoticeQueueInit());
 
 _exit:
@@ -181,7 +185,7 @@ void streamRemoveVnodeLeader(int32_t vgId) {
   if (idx >= 0) {
     stInfo("remove vgroup %d from vgroupLeaders succeed", vgId);
   } else {
-    stWarn("remove vgroup %d from vgroupLeaders failed since not exists", vgId);
+    stWarn("remove vgroup %d from vgroupLeaders failed since it does not exist", vgId);
   }
 
   smUndeployVgTasks(vgId, false);
@@ -216,7 +220,7 @@ int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask
 
   SStreamTask** task = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stsWarn("task %" PRIx64 " not exists in taskMap", taskId);
+    stsWarn("task %" PRIx64 " does not exist in taskMap", taskId);
     return TSDB_CODE_STREAM_TASK_NOT_EXIST;
   }
 
@@ -267,7 +271,7 @@ int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** 
 
   SStreamInfo* pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
   if (NULL == pStream) {
-    stsWarn("stream %" PRIx64 " not exists when acquire trigger task", streamId);
+    stsWarn("stream %" PRIx64 " does not exist when acquiring trigger task", streamId);
     return TSDB_CODE_MND_STREAM_NOT_EXIST;
   }
 
@@ -290,7 +294,7 @@ void streamHandleTaskError(int64_t streamId, int64_t taskId, int32_t errCode) {
 
   SStreamTask** task = taosHashGet(gStreamMgmt.taskMap, key, sizeof(key));
   if (NULL == task) {
-    stError("stream %" PRIx64 " task %" PRIx64 " not exists in taskMap", streamId, taskId);
+    stError("stream %" PRIx64 " task %" PRIx64 " does not exist in taskMap", streamId, taskId);
     return;
   }
 

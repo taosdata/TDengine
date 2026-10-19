@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 MESSAGE(STATUS "build new-stream unit test")
 
 # GoogleTest requires at least C++11
@@ -15,6 +30,7 @@ TARGET_INCLUDE_DIRECTORIES(
   PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
   PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
   PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  PRIVATE "${TD_SOURCE_DIR}/source/libs/executor/inc"
 )
 
 TARGET_LINK_LIBRARIES(
@@ -42,7 +58,14 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
   streamNotifyTest
-  PUBLIC taos os common executor function index new-stream
+  # This test replaces tcurlSend()/tcurlConnect() (from util) and curl_ws_send()
+  # with cppstub, and cppstub can only patch calls made from the main image.  The
+  # helpers therefore have to be linked into the test executable itself, so the
+  # static libraries must precede the shared dispatcher: on macOS libtaos.dylib
+  # re-exports the driver, which defines tcurlSend() too, and anything listed
+  # ahead of util would bind the test to that copy and silently disable the stubs
+  # (gCurlWsSendCalls stayed 0 and the test then crashed).
+  PUBLIC os util common executor function index new-stream taos
 )
 
 add_test(
@@ -108,6 +131,20 @@ add_test(
     NAME streamTriggerTaskTest
     COMMAND streamTriggerTaskTest
 )
+
+ADD_EXECUTABLE(streamMgmtTest streamMgmtTest.cpp)
+DEP_ext_gtest(streamMgmtTest)
+DEP_ext_cppstub(streamMgmtTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamMgmtTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/common"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(streamMgmtTest PUBLIC taos os common executor function index new-stream)
+add_test(NAME streamMgmtTest COMMAND streamMgmtTest)
 
 ADD_EXECUTABLE(streamTaskStatsTest streamTaskStatsTest.cpp)
 DEP_ext_gtest(streamTaskStatsTest)

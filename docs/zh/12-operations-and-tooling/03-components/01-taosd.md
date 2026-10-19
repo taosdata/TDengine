@@ -185,9 +185,10 @@ taosd -r --mode copy --node-type vnode \
 
 1. 通过 SQL 修改全局配置参数命令：`alter all dnodes ‘参数名’ ‘参数值’;`，修改后是否立即生效请参考各参数 **动态修改** 说明。
 2. 通过 SQL 修改局部配置参数命令，`alter dnode <dnode_id> ‘参数名’ ‘参数值’;`，修改后是否立即生效请参考各参数 **动态修改** 说明。
-3. 自 `v3.4.0.0` 起，为防止配置文件被篡改，取消了 `forceReadConfig` 参数；除首次启动外，不再从配置文件中加载配置项。如需修改配置参数，请使用 `ALTER` 命令通过 SQL 修改。
-4. 配置参数动态修改方法详见 [节点管理](../../05-tdengine-sql/08-cluster-management/01-node.md)。
-5. 有些参数在客户端（`taosc`）和服务器端（`taosd`）中都有，在不同地方其作用范围和意义有所不同，详见 [配置参数作用范围对比](./10-config-scope.md)。
+3. 对于标注为「支持通过 SQL 修改，重启后生效」的参数，修改后 `show variables` / `show local variables` / `show dnode <dnode_id> variables` 会立即显示新值，但该值在进程内实际生效前仍需重启对应节点；可通过结果中的 `reboot` 列判断：`true` 表示已修改但尚待重启生效，`false` 表示无需重启（或从未被运行期修改过）。该标记随进程重启自动清除。
+4. 自 `v3.4.0.0` 起，为防止配置文件被篡改，取消了 `forceReadConfig` 参数；除首次启动外，不再从配置文件中加载配置项。如需修改配置参数，请使用 `ALTER` 命令通过 SQL 修改。
+5. 配置参数动态修改方法详见 [节点管理](../../05-tdengine-sql/08-cluster-management/01-node.md)。
+6. 有些参数在客户端（`taosc`）和服务器端（`taosd`）中都有，在不同地方其作用范围和意义有所不同，详见 [配置参数作用范围对比](./10-config-scope.md)。
 
 ### 连接相关
 
@@ -352,6 +353,17 @@ taosd -r --mode copy --node-type vnode \
 - 参数类型：全局配置参数
 - 动态修改：支持通过 SQL 修改，重启后生效。
 - 支持版本：从 `v3.3.4.0` 版本开始引入
+
+#### maxRetryTimes
+
+- 说明：查询调度任务的基础重试次数。调度器将该值乘以固定系数 3，再根据任务类型，与根据 `maxRetryWaitTime` 换算的次数或候选节点数取较大值，作为任务的初始最大重试次数。该参数不是查询总超时时间。
+- 类型：整数
+- 单位：次
+- 默认值：12
+- 最小值：1
+- 最大值：1000
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启后生效。
 
 #### shareConnLimit
 
@@ -890,6 +902,78 @@ taosd -r --mode copy --node-type vnode \
 - 动态修改：不支持
 - 支持版本：从 `v3.4.0.0` 版本之后取消
 
+### 联邦查询相关
+
+以下参数用于控制服务端的联邦查询行为。客户端和服务端均支持的参数应保持一致，详细用法参见[联邦查询](../../05-tdengine-sql/04-data-query/06-federated-query.md)。
+
+#### federatedQueryEnable
+
+- 说明：是否启用联邦查询功能；`false` 表示关闭，`true` 表示开启。
+- 类型：布尔
+- 默认值：`false`
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### federatedQueryConnectTimeoutMs
+
+- 说明：建立外部数据源连接的超时时间。
+- 类型：整数
+- 单位：毫秒
+- 默认值：5000
+- 最小值：100
+- 最大值：600000
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### federatedQueryQueryTimeoutMs
+
+- 说明：执行外部查询的超时时间。
+- 类型：整数
+- 单位：毫秒
+- 默认值：1000000000，等于最大值时实际效果为不限时
+- 最小值：100
+- 最大值：1000000000
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### federatedQueryMaxPoolSizePerSource
+
+- 说明：每个外部数据源允许的最大连接池大小。
+- 类型：整数
+- 默认值：64
+- 最小值：1
+- 最大值：1024
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### federatedQueryIdleConnTtlSec
+
+- 说明：空闲外部连接的存活时间，超过该时间后自动回收。
+- 类型：整数
+- 单位：秒
+- 默认值：600
+- 最小值：1
+- 最大值：86400
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### federatedQueryProbeTimeoutMs
+
+- 说明：外部数据源存活探测超时时间。该参数当前暂未实现。
+- 类型：整数
+- 单位：毫秒
+- 默认值：5000
+- 最小值：100
+- 最大值：600000
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 v3.4.2.0 版本开始引入
+
 ### 区域相关
 
 #### timezone
@@ -988,6 +1072,8 @@ locale zh_CN.UTF-8
 ```
 
 charset 的有效值是 UTF-8。
+
+4. 上述编码设置不仅用于写入，同样决定字符集敏感的查询转换。即使客户端与服务端 charset 不同，NCHAR 与字符串常量、VARCHAR 之间的比较、函数及 CAST 也会在服务端按客户端 charset 正确转换，因此客户端 charset 应与数据编码保持一致。
 
 :::
 
@@ -1111,6 +1197,84 @@ charset 的有效值是 UTF-8。
 - 参数类型：全局配置参数
 - 动态修改：仅在企业版支持通过 SQL 修改，立即生效。
 - 支持版本：从 `v3.3.7.0` 版本开始引入
+
+### 缓存相关
+
+当 `CACHEMODEL` 不为 `none` 时，除内存中的 LRU 缓存外，每个 `vnode` 还会打开一个独立的 RocksDB 实例作为持久化 last cache 引擎，用于在内存缓存未命中或重启后继续服务 `last`/`last_row` 查询。以下参数用于调优该引擎的行为，均为 dnode 级参数。除 `CACHESIZE`（详见 [CACHESIZE](../../05-tdengine-sql/02-ddl/01-database.md#cachesize)，用于设置该引擎的 block cache 容量，支持立即生效）外，以下参数在打开 `vnode` 时一次性绑定到 RocksDB 的 `Options`，修改后需重启 `dnode`（或重新打开受影响的 `vnode`）才能生效。可以通过 [`INS_LAST_CACHE_STATS`](../../05-tdengine-sql/09-system-info/01-meta.md#ins_last_cache_stats) 系统表查看该引擎按 `vgroup` 的运行状态。
+
+#### sLastCacheWriteBufferSize
+
+- 说明：last cache 引擎（基于 RocksDB）单个 memtable 的写缓冲区大小
+- 类型：整数
+- 单位：MB
+- 默认值：8
+- 最小值：1
+- 最大值：1048576
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheMaxWriteBufferNumber
+
+- 说明：last cache 引擎（基于 RocksDB）允许同时存在的最大 memtable 个数
+- 类型：整数
+- 默认值：2
+- 最小值：1
+- 最大值：64
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheBackgroundThreads
+
+- 说明：last cache 引擎（基于 RocksDB）用于 flush/compaction 的后台线程数，每个 `vnode` 拥有独立的该规格线程池
+- 类型：整数
+- 默认值：2
+- 最小值：1
+- 最大值：256
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheBloomFilterBits
+
+- 说明：last cache 引擎（基于 RocksDB）每个 key 使用的布隆过滤器位数，用于减少点查时不必要的 SST 文件读取；为 `0` 时表示关闭布隆过滤器
+- 类型：整数
+- 默认值：10
+- 最小值：0
+- 最大值：32
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheMaxOpenFiles
+
+- 说明：last cache 引擎（基于 RocksDB）允许打开的最大文件描述符数量，`-1` 表示不限制
+- 类型：整数
+- 默认值：-1
+- 最小值：-1
+- 最大值：1048576
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheCompressionType
+
+- 说明：last cache 引擎（基于 RocksDB）使用的压缩算法，可选值取决于编译时链接的压缩库
+- 类型：字符串
+- 默认值：none
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
+
+#### sLastCacheOptionsOverride
+
+- 说明：以原始 RocksDB `Options` 字符串形式（形如 `key1=value1;key2=value2;...`，通过 RocksDB `GetOptionsFromString` 解析）覆盖以上参数，优先级最低，供高级场景使用；其中与某个显式 `sLastCacheXxx` 参数重叠的选项（如 `write_buffer_size`、`max_write_buffer_number`、`max_background_jobs`、`filter_policy`、`max_open_files`、`compression`、`block_cache` 等）会被该显式参数的取值覆盖而不生效，须改用对应的 `sLastCacheXxx` 参数设置。例如，若要调整这些显式参数未覆盖到的 L0 文件数写停滞阈值，可设置为 `level0_slowdown_writes_trigger=32;level0_stop_writes_trigger=48`
+- 类型：字符串
+- 默认值：（空）
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，重启生效。
+- 支持版本：从 `v3.4.2.11` 版本开始引入
 
 ### 集群相关
 
@@ -1259,6 +1423,18 @@ charset 的有效值是 UTF-8。
 - 参数类型：全局配置参数
 - 动态修改：支持通过 SQL 修改，立即生效。
 - 支持版本：从 `v3.1.0.0` 版本开始引入
+
+#### compactSpeedLimitMB
+
+- 说明：compact 写盘时的速度限制，避免 compact 占用过多磁盘 I/O 影响其他功能。此参数的作用域是 DNODE，即同一 DNODE 上的所有 VNODE 进行 COMPACT 时的写盘速度之和不能超过此限制。
+- 类型：整数；0：不限制
+- 单位：MB
+- 默认值：0
+- 最小值：0
+- 最大值：1024
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 `v3.4.2.10` 版本开始引入
 
 #### maxTsmaNum
 
@@ -1678,6 +1854,28 @@ ALTER ALL DNODES 'snapshotRateLimit' '50';
 ALTER ALL DNODES 'snapshotRateLimit' '0';
 ```
 
+#### snapshotMediumOnLag
+
+- 说明：当某个副本（follower）节点长期停止后重新启动、自身已有数据但落后于同副本组其它节点时，控制快照同步使用的复制模式。设置为 0 时使用逐行（normal）方式同步；设置为 1 时使用文件级增量（medium）方式同步，只传输与 leader 存在差异的文件，可降低传输量、缩短同步时间。该参数只对已有提交数据（`lastApplyIndex >= 0`）的副本生效；无数据的新副本仍使用全量（raw）方式，FSM 处于 incomplete 状态的副本不受本参数影响，始终使用 medium 方式。
+- 类型：布尔
+- 默认值：0
+- 参数类型：全局配置参数
+- 动态修改：支持通过 SQL 修改，立即生效。
+- 支持版本：从 `v3.4.3.0` 版本开始引入
+
+示例：
+
+```sql
+-- 打开落后副本的文件级增量快照同步
+ALTER ALL DNODES 'snapshotMediumOnLag' '1';
+
+-- 恢复为默认的逐行快照同步
+ALTER ALL DNODES 'snapshotMediumOnLag' '0';
+
+-- 查看当前取值
+SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
+```
+
 #### arbHeartBeatIntervalSec
 
 - 说明：用于同步模块调试 **`内部参数`**
@@ -2019,6 +2217,35 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 动态修改：支持通过 SQL 修改，立即生效
 - 支持版本：`v3.4.0.11` 引入
 
+#### xnodeDsnProtection
+
+- 说明：XNODE DSN 保护总开关 **`企业版参数`**；`0`：关闭，`SHOW XNODE TASKS` 和 `SHOW XNODE JOBS` 返回明文 DSN；`1`：开启，上述 `SHOW` 输出中的 DSN 敏感值以 `******` 脱敏返回。详见 [安全加固指南 · XNODE DSN 保护](../../11-security-guide/08-security-hardening.md#xnode-dsn-protection)
+- 类型：整数；`0`：关闭，`1`：开启
+- 默认值：`0`
+- 最小值：`0`
+- 最大值：`1`
+- 参数类型：全局配置参数
+- 动态修改：不支持
+- 支持版本：`v3.4.3.0` 引入
+
+#### xnodeDsnPublicKeyFile
+
+- 说明：共享公钥文件（X.509 SubjectPublicKeyInfo PEM 格式，RSA-2048）的本地路径 **`企业版参数`**；仅在 `xnodeDsnProtection` 为 `1` 时由 `mnode` 加载和校验，用于加密 `SHOW` 输出的 DSN，保护开启时文件缺失、不可读或非法将导致 `taosd` 启动失败，保护关闭时不读取
+- 类型：字符串
+- 默认值：空
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：`v3.4.3.0` 引入
+
+#### xnodedDsnPrivateKeyFile
+
+- 说明：共享私钥文件（PKCS#8 PEM 格式，RSA-2048）的本地路径 **`企业版参数`**；由 `taosd` 转交给其启动的 `xnoded` 子进程，`taosd` 只转交路径，不读取私钥内容
+- 类型：字符串
+- 默认值：空
+- 参数类型：局部配置参数
+- 动态修改：不支持
+- 支持版本：`v3.4.3.0` 引入
+
 ### 流计算参数 {#流计算参数}
 
 流式计算的语法与运维说明见 [流式计算](../../07-stream-processing/index.md)。下列为与流式计算相关的 `taosd` 配置参数。
@@ -2104,7 +2331,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 
 #### streamNotifyFrameSize
 
-- 说明：用于控制事件通知消息发送时底层的帧大小 `内部参数`
+- 说明：用于控制事件通知消息发送时底层的帧大小，以及 async worker 同 stream 队列 `pendingBytes` 达阈值时的 flush 上限 `内部参数`
 - 类型：整数
 - 单位：KB
 - 默认值：256
@@ -2113,6 +2340,53 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 参数类型：局部配置参数
 - 动态修改：支持通过 SQL 修改，重启生效
 - 支持版本：从 `v3.3.7.0` 版本开始引入
+
+#### streamNotifyWorkerNum
+
+- 说明：异步事件通知 worker 线程个数（每个 snode）。各 worker 竞争全局 FIFO 队列列表（`globalQueueList`），从连接池按 URL 复用 WebSocket 长连接。
+- 类型：整数
+- 单位：个
+- 默认值：4（首次启动且未在配置文件中指定时，按 `TRANGE(CPU 核数, 1, 8)` 自动取值）
+- 最小值：1
+- 最大值：16
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，重启生效
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### streamNotifyBatchIntervalMs
+
+- 说明：异步事件通知批处理的最大等待时间。高频写入时，同 stream 的多条通知在该时间窗口内合并为一条 JSON（`events[]` 合并）后发送；距上次发送已超过该间隔时，下一条通知立即发送。
+- 类型：整数
+- 单位：毫秒
+- 默认值：5
+- 最小值：0
+- 最大值：60000
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，重启生效
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### streamNotifyParamPoolSize
+
+- 说明：异步事件通知 pending 项对象池的总容量上限（所有 stream 共享）。尚未发送的通知参数在该池中排队；池满时会回收其他 stream 队列上最老的 pending 项，或在同一 stream 上用新通知覆盖最老项，并输出 WARN 日志。对应内部变量 `tsStreamNotifyParamPoolSize`。
+- 类型：整数
+- 单位：KB
+- 默认值：10240（10 MB）
+- 最小值：1
+- 最大值：262144（256 MB）
+- 参数类型：局部配置参数
+- 动态修改：支持通过 SQL 修改，重启生效
+- 支持版本：从 v3.4.2.0 版本开始引入
+
+#### streamTriggerMaxPendingParams
+
+- 说明：流式计算触发时允许积攒的待计算参数个数上限（按个数，不按字节），达到上限后暂停积攒新的计算参数，避免实时/历史计算请求积压占用过多内存
+- 类型：整数
+- 默认值：1048576
+- 最小值：1
+- 最大值：INT32_MAX
+- 参数类型：局部配置参数
+- 动态修改：支持
+- 支持版本：从 `v3.4.3.0` 版本开始引入
 
 ### 日志相关
 
@@ -2653,7 +2927,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 最大值：1
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### managementCpuCores
 
@@ -2664,7 +2938,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### readCpuCores
 
@@ -2675,7 +2949,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 #### otherCpuCores
 
@@ -2686,7 +2960,7 @@ ALTER ALL DNODES 'snapshotRateLimit' '0';
 - 最大值：256
 - 参数类型：局部配置参数
 - 动态修改：不支持
-- 支持版本：从 `v3.3.6.0` 版本开始引入
+- 支持版本：从 `v3.4.2.0` 版本开始引入
 
 ### 压缩参数
 

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -275,6 +277,10 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
     token.n = strdequote(token.z);
 
     if (boundColsType == BOUND_ALL_AND_TBNAME && token.n == strlen("tbname") && (strcasecmp(token.z, "tbname") == 0)) {
+      if (pUseCols[tbnameSchemaIndex] || pBoundInfo->numOfBound >= pBoundInfo->numOfCols) {
+        code = buildSyntaxErrMsg(&pCxt->msg, "duplicated column name", token.z);
+        break;
+      }
       pBoundInfo->pColIndex[pBoundInfo->numOfBound] = tbnameSchemaIndex;
       pUseCols[tbnameSchemaIndex] = true;
       ++pBoundInfo->numOfBound;
@@ -291,6 +297,8 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SVnodeModifyOpStmt* 
       code = generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_COLUMN, token.z);
     } else if (pUseCols[index]) {
       code = buildSyntaxErrMsg(&pCxt->msg, "duplicated column name", token.z);
+    } else if (pBoundInfo->numOfBound >= pBoundInfo->numOfCols) {
+      code = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     } else {
       lastColIdx = index;
       pUseCols[index] = true;
@@ -1388,7 +1396,7 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
 #if 0
   if (isNullValue(pSchema->type, pToken)) {
     if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      return buildSyntaxErrMsg(pMsgBuf, "Primary timestamp column can not be null", pToken->z);
+      return buildSyntaxErrMsg(pMsgBuf, "Primary timestamp column cannot be null", pToken->z);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -1591,10 +1599,8 @@ static int32_t parseTagToken(const char** end, SToken* pToken, SSchema* pSchema,
           taosMemoryFree(p);
           return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
-        char buf[512] = {0};
-        snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s %d %d", strerror(terrno), ERRNO, EILSEQ);
         taosMemoryFree(p);
-        return buildSyntaxErrMsg(pMsgBuf, buf, pToken->z);
+        return insBuildNcharConvErrMsg(pMsgBuf, pToken->z, charsetCxt);
       }
       val->pData = p;
       val->nData = output;
@@ -1704,25 +1710,17 @@ int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf, i
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
 
-  // Remove quotation marks
+  // Remove quotation marks. BLOB is excluded by the outer condition and its value is
+  // parsed by parseBlob() instead, so tmpTokenBuf (TSDB_MAX_BYTES_PER_ROW) is never
+  // asked to hold a BLOB payload here.
   if (TK_NK_STRING == pToken->type && type != TSDB_DATA_TYPE_VARBINARY && !IS_STR_DATA_BLOB(type)) {
-    if (!IS_STR_DATA_BLOB(type)) {
-      if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
-        return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
-      }
-
-      int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
-      pToken->z = tmpTokenBuf;
-      pToken->n = len;
-    } else {
-      if (pToken->n >= TSDB_MAX_BLOB_LEN) {
-        return buildSyntaxErrMsg(pMsgBuf, "too long blob", pToken->z);
-      }
-
-      int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BLOB_LEN);
-      pToken->z = tmpTokenBuf;
-      pToken->n = len;
+    if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
+      return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
     }
+
+    int32_t len = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
+    pToken->z = tmpTokenBuf;
+    pToken->n = len;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2392,7 +2390,7 @@ static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifyOpStmt
   }
 _no_ctb_cache:
   // Check INSERT privilege on the super table.
-  // For the non-USING path this is done in getTargetTableSchema() → checkAuth(). We mirror it here.
+  // For the non-USING path this is done in getTargetTableSchema()  ->  checkAuth(). We mirror it here.
   // async second-round coverage: checkAuthFromMetaData() only runs when *pQuery != NULL (second round);
   // the first-round sync path (createInsertQuery) performs no auth, so this call is always needed.
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
@@ -2852,9 +2850,8 @@ static int32_t parseValueTokenImpl(SInsertParseContext* pCxt, const char** pSql,
         if (terrno == TAOS_SYSTEM_ERROR(E2BIG)) {
           return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
         }
-        char buf[512] = {0};
-        snprintf(buf, tListLen(buf), "%s", strerror(terrno));
-        return buildSyntaxErrMsg(&pCxt->msg, buf, pToken->z);
+        return insBuildNcharConvErrMsg(&pCxt->msg, pToken->z,
+                                       pCxt->pComCxt->charsetCxt);
       }
       pVal->value.pData = pUcs4;
       pVal->value.nData = len;
@@ -3024,14 +3021,14 @@ int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pF
   *pFoundCtbName = false;
 
   if (isNullValue(TSDB_DATA_TYPE_BINARY, pToken)) {
-    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be null value");
+    return buildInvalidOperationMsg(pMsgBuf, "tbname cannot be null");
   }
 
   if (pToken->n > 0) {
     if (pToken->n <= TSDB_TABLE_NAME_LEN - 1) {
       for (int i = 0; i < pToken->n; ++i) {
         if (pToken->z[i] == '.') {
-          return buildInvalidOperationMsg(pMsgBuf, "tbname can not contain '.'");
+          return buildInvalidOperationMsg(pMsgBuf, "tbname cannot contain '.'");
         } else {
           tname[i] = pToken->z[i];
         }
@@ -3042,7 +3039,7 @@ int32_t parseTbnameToken(SMsgBuf* pMsgBuf, char* tname, SToken* pToken, bool* pF
       return buildInvalidOperationMsg(pMsgBuf, "tbname is too long");
     }
   } else {
-    return buildInvalidOperationMsg(pMsgBuf, "tbname can not be empty");
+    return buildInvalidOperationMsg(pMsgBuf, "tbname cannot be empty");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3895,6 +3892,11 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFree(pStmt->pCsvParser);
       pStmt->pCsvParser = NULL;
+      if (code == TSDB_CODE_TSC_INVALID_INPUT) {
+        return generateSyntaxErrMsgExt(
+            &pCxt->msg, TSDB_CODE_TSC_SQL_SYNTAX_ERROR,
+            "csv file contains an unsupported BOM: only utf-8 encoded csv is supported");
+      }
       return code;
     }
   }
@@ -4286,7 +4288,7 @@ static int32_t checkTableClauseFirstToken(SInsertParseContext* pCxt, SVnodeModif
     return buildSyntaxErrMsg(&pCxt->msg, "table_name is expected", pTbName->z);
   }
 
-  // db.? situation，ensure that the only thing following the '.' mark is '?'
+  // db.? situation,ensure that the only thing following the '.' mark is '?'
   char* tbNameAfterDbName = strnchr(pTbName->z, '.', pTbName->n, true);
   if (tbNameAfterDbName != NULL) {
     if (*(tbNameAfterDbName + 1) == '?') {
@@ -4392,7 +4394,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pS
         (((pStmt->pTableMeta->virtualStb == 1) && (pStmt->pTableMeta->tableType == TSDB_SUPER_TABLE)) ||
          (pStmt->pTableMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
           pStmt->pTableMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE))) {
-      code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table can not be written");
+      code = buildInvalidOperationMsg(&pCxt->msg, "Virtual table cannot be written");
     }
   }
 
@@ -4674,7 +4676,7 @@ static int32_t setVnodeModifOpStmt(SInsertParseContext* pCxt, SCatalogReq* pCata
     code = getTableMetaFromMetaData(pMetaData->pTableMeta, &pStmt->pTableMeta);
   }
 #ifdef TD_ENTERPRISE
-  // MAC NWD+NRU: retry path — metadata was just fetched from server, check must be enforced here too.
+  // MAC NWD+NRU: retry path  -  metadata was just fetched from server, check must be enforced here too.
   // (The primary NWD check in getTargetTableSchema is guarded by !missCache and therefore does not run
   // when the first parse attempt hits a cache miss, e.g. fresh connections used by "taos -s".)
   if (pCxt->pComCxt->macMode && code == TSDB_CODE_SUCCESS && pStmt->pTableMeta != NULL) {
@@ -5063,6 +5065,7 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
   // Fill initial buffer to detect quote type
   int32_t code = csvParserFillBuffer(parser);
   if (code != TSDB_CODE_SUCCESS) {
+    csvParserDestroy(parser);
     return code;
   }
 
@@ -5094,8 +5097,17 @@ static int32_t csvParserInit(SCsvParser* parser, TdFilePtr pFile) {
 
   // If no quotes found, keep default (single quote for TDengine compatibility)
 
-  // Reset buffer position for actual parsing
-  parser->bufferPos = 0;
+  // A csv file may start with a BOM header. A UTF-8 BOM (EF BB BF) is skipped so that the
+  // content following it is parsed normally; if the file starts with the BOM of any other
+  // encoding (UTF-16/UTF-32 etc.), the csv file is not in UTF-8 and an error is returned.
+  int32_t skipBytes = checkCsvFileBom(parser->buffer, parser->bufferLen);
+  if (skipBytes < 0) {
+    csvParserDestroy(parser);
+    return skipBytes;
+  }
+
+  // Reset buffer position for actual parsing (skip the leading UTF-8 BOM if any)
+  parser->bufferPos = skipBytes;
 
   return TSDB_CODE_SUCCESS;
 }

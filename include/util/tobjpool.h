@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -46,6 +48,7 @@ typedef struct SObjPool {
 
 int32_t taosObjPoolInit(SObjPool *pPool, int64_t cap, size_t objSize);
 int32_t taosObjPoolEnsureCap(SObjPool *pPool, int64_t newCap);
+int32_t taosObjPoolShrinkEmpty(SObjPool *pPool, int64_t newCap);
 void    taosObjPoolDestroy(SObjPool *pPool);
 
 typedef struct SObjList {

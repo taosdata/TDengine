@@ -2,6 +2,9 @@
 title: Manual Deployment
 ---
 
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+
 You can deploy TDengine manually on a physical or virtual machine.
 
 ## Deploying taosd
@@ -10,7 +13,7 @@ taosd is the most important service component in the TDengine cluster. This sect
 
 ### Clear Data
 
-If the physical nodes for setting up the cluster contain previous test data or have had other versions of TDengine installed (such as 1.x/2.x), please delete them and clear all data first.
+If the physical nodes for setting up the cluster contain previous test data or have had other versions of TDengine installed (such as 1.x/2.x), please delete them and clear all data first. For the detailed steps to uninstall an old version and clear the data, see [Uninstall](#uninstall).
 
 ### Check Environment
 
@@ -216,3 +219,51 @@ For some data sources such as Pi, OPC, etc., due to network conditions and data 
 ## Deploying taos-Explorer
 
 TDengine provides the capability to visually manage TDengine clusters. To use the graphical interface, the taos-Explorer service needs to be deployed. For detailed explanations and deployment, please refer to the [taos-Explorer Reference Manual](../../03-components/04-explorer.md)
+
+## Uninstall
+
+Uninstalling TDengine is simple. Perform the following steps on each physical node.
+
+<Tabs>
+<TabItem label="Linux" value="linux">
+
+Uninstall according to how TDengine was installed:
+
+```bash
+
+# Installed from the tar.gz package
+sudo rmtaos
+
+# Installed with the system package manager (Debian/Ubuntu)
+sudo apt remove tdengine
+```
+
+</TabItem>
+<TabItem label="macOS" value="macos">
+
+Run `sudo rmtaos`. The script stops the launchctl services such as `taosd`, and removes `/Applications/TDengine.app` and the installation directory (default `/usr/local/taos`).
+
+</TabItem>
+<TabItem label="Windows" value="windows">
+
+Find TDengine in **Settings → Apps → Installed apps** or **Control Panel → Programs and Features** and uninstall it. You can also run `unins000.exe` in the installation directory (default `C:\TDengine`).
+
+</TabItem>
+</Tabs>
+
+### Clear Data
+
+Uninstalling only removes the installation directory. The data, log, and configuration files are retained by default and must be removed manually:
+
+- Linux/macOS: `/etc/taos` (configuration), `/var/lib/taos` (data), `/var/log/taos` (logs)
+- Windows: `C:\TDengine\cfg` (configuration), `C:\TDengine\data` (data), `C:\TDengine\log` (logs)
+
+For example, on Linux/macOS, run the following after confirming that the data is no longer needed:
+
+```shell
+sudo rm -rf /etc/taos /var/lib/taos /var/log/taos
+```
+
+- If `dataDir`, `logDir`, or the configuration directory was changed, clear the corresponding custom directories.
+- When running `rmtaos`, you can also choose to delete the data, log, and configuration files at the interactive prompt, or skip the prompt with `sudo rmtaos -e yes`.
+- Deleted data cannot be recovered, so make sure it is no longer needed before proceeding.

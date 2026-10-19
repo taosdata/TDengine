@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,6 +21,7 @@
 #include "cJSON.h"
 #include "clientInt.h"
 #include "clientRawBlockWrite.h"
+#include "clientTmq.h"
 #include "nodes.h"
 #include "taosdef.h"
 #include "tcol.h"
@@ -171,7 +174,7 @@ end:
 // (db-stripped) parent table names. Parent names arrive as mnode full names
 // (acctId.db.table); same-db inheritance means we emit just the table name to match
 // the "tableName" convention. An unresolved parent arrives as an empty string (the
-// mnode leaves pFNames[i] empty when a suid could not be resolved) — skip it rather
+// mnode leaves pFNames[i] empty when a suid could not be resolved)  -  skip it rather
 // than emit a "" element, which would replay as `BASE ON ``` and fail to parse.
 static int32_t buildBaseOnArray(cJSON* json, int8_t numParents,
                                 char parentStbFNames[][TSDB_TABLE_FNAME_LEN]) {
@@ -793,7 +796,10 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
       }
       break;
     }
-    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME: {
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+    // RENAME TAG reaches a vnode for the owned tags of a normal / virtual-normal table; the
+    // super-table form travels as an mnode alter-stb meta (processAlterStable above).
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME: {
       ADD_TO_JSON_STRING(json, "colName", vAlterTbReq.colName);
       ADD_TO_JSON_STRING(json, "colNewName", vAlterTbReq.colNewName);
       break;
@@ -1060,6 +1066,11 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
     RAW_NULL_CHECK(len);
     void* tmpBuf = taosArrayGetP(rsp.batchMetaReq, i);
     RAW_NULL_CHECK(tmpBuf);
+    if (*len < (int32_t)sizeof(SMqRspHead)) {
+      code = TSDB_CODE_TMQ_INVALID_MSG;
+      lino = __LINE__;
+      goto end;
+    }
     SMqMetaRsp metaRsp = {0};
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));

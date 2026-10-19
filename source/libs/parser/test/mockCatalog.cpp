@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifdef _WIN32
 #include "osWindows.h"
 #endif
@@ -122,11 +125,18 @@ void generateInformationSchema(MockCatalogService* mcs) {
     .addColumn("message", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
     .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
     .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODES, TSDB_SYSTEM_TABLE, 5)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("url", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_URL_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_TASKS, TSDB_SYSTEM_TABLE, 13)
       .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("name", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_NAME_LEN + VARSTR_HEADER_SIZE)
-      .addColumn("from", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_SOURCE_LEN + VARSTR_HEADER_SIZE)
-      .addColumn("to", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_SINK_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("from", TSDB_DATA_TYPE_VARCHAR, (TSDB_XNODE_TASK_SOURCE_LEN * 2) + VARSTR_HEADER_SIZE)
+      .addColumn("to", TSDB_DATA_TYPE_VARCHAR, (TSDB_XNODE_TASK_SINK_LEN * 2) + VARSTR_HEADER_SIZE)
       .addColumn("parser", TSDB_DATA_TYPE_BLOB, TSDB_XNODE_TASK_PARSER_MAX_LEN + BLOBSTR_HEADER_SIZE)
       .addColumn("via", TSDB_DATA_TYPE_INT)
       .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
@@ -141,11 +151,19 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("id", TSDB_DATA_TYPE_INT)
       .addColumn("task_id", TSDB_DATA_TYPE_INT)
       .addColumn("config", TSDB_DATA_TYPE_BLOB,
-                 TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + BLOBSTR_HEADER_SIZE)
+                 TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE)
       .addColumn("via", TSDB_DATA_TYPE_INT)
       .addColumn("xnode_id", TSDB_DATA_TYPE_INT)
       .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE)
       .addColumn("reason", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_TASK_REASON_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_XNODE_AGENTS, TSDB_SYSTEM_TABLE, 6)
+      .addColumn("id", TSDB_DATA_TYPE_INT)
+      .addColumn("name", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_AGENT_NAME_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("token", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_AGENT_TOKEN_LEN + VARSTR_HEADER_SIZE)
+      .addColumn("status", TSDB_DATA_TYPE_VARCHAR, TSDB_XNODE_AGENT_STATUS_LEN + VARSTR_HEADER_SIZE)
       .addColumn("create_time", TSDB_DATA_TYPE_TIMESTAMP)
       .addColumn("update_time", TSDB_DATA_TYPE_TIMESTAMP)
       .done();
@@ -176,6 +194,15 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
  *          c3         |       column       |       BIGINT       |    8     |
  *          c4         |       column       |       DOUBLE       |    8     |
  *          c5         |       column       |       DOUBLE       |    8     |
+ *
+ * Normal Table (with owned tags): t3
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *        ntag1        |        tag         |        INT         |    4     |
+ *        ntag2        |        tag         |      VARCHAR       |    20    |
  */
 void generateTestTables(MockCatalogService* mcs, const std::string& db) {
   mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
@@ -187,6 +214,19 @@ void generateTestTables(MockCatalogService* mcs, const std::string& db) {
       .addColumn("c3", TSDB_DATA_TYPE_BIGINT)
       .addColumn("c4", TSDB_DATA_TYPE_DOUBLE)
       .addColumn("c5", TSDB_DATA_TYPE_DOUBLE)
+      .done();
+
+  // t3: a normal table that owns tags. Plain normal tables gained owned tags (ALTER ... ADD TAG),
+  // so the alter paths that treat tags of a non-super table (RENAME TAG, DROP TAG) need a fixture
+  // whose tableType is TSDB_NORMAL_TABLE *and* numOfTags > 0.
+  mcs->createTableBuilder(db, "t3", TSDB_NORMAL_TABLE, 3, 2)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .setVgid(2)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+      .addTag("ntag1", TSDB_DATA_TYPE_INT)
+      .addTag("ntag2", TSDB_DATA_TYPE_BINARY, 20)
       .done();
 }
 
@@ -282,6 +322,20 @@ void generateTestStables(MockCatalogService* mcs, const std::string& db) {
   }
 }
 
+void generateSingleVgroupInterpStable(MockCatalogService* mcs,
+                                      const std::string& db) {
+  ITableBuilder& builder =
+      mcs->createTableBuilder(db, "interp_st_single", TSDB_SUPER_TABLE,
+                              2, 1)
+          .setPrecision(TSDB_TIME_PRECISION_MILLI)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addColumn("c1", TSDB_DATA_TYPE_INT)
+          .addTag("tag1", TSDB_DATA_TYPE_INT);
+  builder.done();
+  mcs->createSubTable(db, "interp_st_single", "interp_st_single_1", 2);
+  mcs->createSubTable(db, "interp_st_single", "interp_st_single_2", 2);
+}
+
 void generateFunctions(MockCatalogService* mcs) {
   mcs->createFunction("udf1", TSDB_FUNC_TYPE_SCALAR, TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 0);
   mcs->createFunction("udf2", TSDB_FUNC_TYPE_AGGREGATE, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
@@ -325,6 +379,10 @@ void generateDatabases(MockCatalogService* mcs) {
   generateTestStables(g_mockCatalogService.get(), "stream_triggerdb_2");
   generateTestTables(g_mockCatalogService.get(), "stream_outdb");
   generateTestStables(g_mockCatalogService.get(), "stream_outdb");
+
+  mcs->createDatabase("interp_single_vg");
+  generateSingleVgroupInterpStable(g_mockCatalogService.get(),
+                                   "interp_single_vg");
 }
 
 }  // namespace
@@ -428,6 +486,21 @@ int32_t __catalogGetUserAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char
   return 0;
 }
 
+// RENAME COLUMN / RENAME TAG on a normal / virtual-normal table asks the mnode
+// whether any privilege rule references the renamed column (checkColRefByPriv).
+// The parser unit-test harness has no mnode round trip, so this stub stands in for
+// the mnode's answer. It defaults to "no rule references the column", i.e. the
+// rename is allowed; a test that needs the RESTRICT rejection to travel back up
+// through translate() overrides the answer with mockChkColRefByPrivCode().
+static int32_t g_chkColRefByPrivCode = TSDB_CODE_SUCCESS;
+
+void mockChkColRefByPrivCode(int32_t code) { g_chkColRefByPrivCode = code; }
+
+int32_t __catalogChkColRefByPriv(SCatalog* pCtg, SRequestConnInfo* pConn, const char* tbFName, col_id_t colId,
+                                 const char* colName) {
+  return g_chkColRefByPrivCode;
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -446,6 +519,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
   stub.set(catalogChkAuthFromCache, __catalogChkAuthFromCache);
+  stub.set(catalogChkColRefByPriv, __catalogChkColRefByPriv);
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
@@ -463,6 +537,14 @@ void generateMetaData() {
   generatePerformanceSchema(g_mockCatalogService.get());
   generateFunctions(g_mockCatalogService.get());
   generateDnodes(g_mockCatalogService.get());
+  g_mockCatalogService
+      ->createTableBuilder("test", "v_stream_t2",
+                           TSDB_VIRTUAL_NORMAL_TABLE, 3)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c3", TSDB_DATA_TYPE_TIMESTAMP)
+      .done();
 }
 
 void destroyMetaDataEnv() { g_mockCatalogService.reset(); }

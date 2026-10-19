@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -31,6 +33,8 @@
 #include "tglobal.h"
 #include "thistogram.h"
 #include "tpercentile.h"
+#include "spillDistinctSet.h"
+#include "tsimplehash.h"
 #include "ttime.h"
 #include "ttypes.h"
 
@@ -218,6 +222,24 @@ void funcInputUpdate(SqlFunctionCtx* pCtx) {
   }
 }
 
+// Copy one cell out of a column for cross-block "previous row" bookkeeping.  Var-length
+// cells must be copied by their actual value length: the declared width both under-reads
+// short values (heap over-read past the cell) and truncates wide values while keeping the
+// original length prefix (a virtual table column may carry a value wider than declared --
+// the full source value is returned by design -- which downstream varDataTLen would then
+// use to walk off the copy).
+static int32_t dupInputRowCell(char** pDst, SColumnInfoData* pCol, int32_t rowIndex) {
+  char*   src = colDataGetData(pCol, rowIndex);
+  int32_t len = IS_VAR_DATA_TYPE(pCol->info.type) ? calcStrBytesByType(pCol->info.type, src) : pCol->info.bytes;
+  *pDst = taosMemoryMalloc(TMAX(len, 1));
+  if (NULL == *pDst) {
+    qError("out of memory when function get input row.");
+    return terrno;
+  }
+  (void)memcpy(*pDst, src, len);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow, bool* res) {
   if (pIter->finalRow) {
     if (pIter->hasPrev) {
@@ -245,22 +267,17 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
 
       pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
 
-      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
-      if (NULL == pIter->pPrevData) {
-        qError("out of memory when function get input row.");
-        return terrno;
+      code = dupInputRowCell(&pIter->pPrevData, pIter->pDataCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
-      char* srcData = colDataGetData(pIter->pDataCol, pIter->inputEndIndex);
-      (void)memcpy(pIter->pPrevData, srcData, pIter->pDataCol->info.bytes);
 
-      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
-      if (NULL == pIter->pPrevPk) {
-        qError("out of memory when function get input row.");
+      code = dupInputRowCell(&pIter->pPrevPk, pIter->pPkCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(pIter->pPrevData);
-        return terrno;
+        pIter->pPrevData = NULL;
+        return code;
       }
-      char* pkData = colDataGetData(pIter->pPkCol, pIter->inputEndIndex);
-      (void)memcpy(pIter->pPrevPk, pkData, pIter->pPkCol->info.bytes);
 
       code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
       pIter->hasPrev = true;
@@ -310,22 +327,18 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
       pIter->hasPrev = true;
       pIter->prevBlockTsEnd = tsEnd;
       pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
-      pIter->pPrevData = taosMemoryMalloc(pIter->pDataCol->info.bytes);
-      if (NULL == pIter->pPrevData) {
-        qError("out of memory when function get input row.");
-        return terrno;
+      int32_t code = dupInputRowCell(&pIter->pPrevData, pIter->pDataCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
-      (void)memcpy(pIter->pPrevData, colDataGetData(pIter->pDataCol, pIter->inputEndIndex),
-                   pIter->pDataCol->info.bytes);
-      pIter->pPrevPk = taosMemoryMalloc(pIter->pPkCol->info.bytes);
-      if (NULL == pIter->pPrevPk) {
-        qError("out of memory when function get input row.");
+      code = dupInputRowCell(&pIter->pPrevPk, pIter->pPkCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
         taosMemoryFree(pIter->pPrevData);
-        return terrno;
+        pIter->pPrevData = NULL;
+        return code;
       }
-      (void)memcpy(pIter->pPrevPk, colDataGetData(pIter->pPkCol, pIter->inputEndIndex), pIter->pPkCol->info.bytes);
 
-      int32_t code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
+      code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
       *res = false;
       return code;
     }
@@ -453,7 +466,186 @@ int32_t appendSelectivityCols(SqlFunctionCtx* pCtx, SSDataBlock* pSrcBlock, int3
 bool funcInputGetNextRowIndex(SInputColumnInfoData* pInput, int32_t from, bool firstOccur, int32_t* pRowIndex,
                               int32_t* nextFrom);
 
-static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst);
+static int32_t getFuncFirstParamColBytes(SqlFunctionCtx* pCtx);
+
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                         bool preferNonNullOnTsTie, int32_t destCap, bool* pTransferred);
+
+// COUNT(DISTINCT) state. The count is only authoritative while the set is resident; once the set
+// spills it is recomputed by countDistinctFinalize() replaying the spilled values.
+typedef struct SDistinctCountState {
+  int64_t                   count;
+  struct SSpillDistinctSet* pSet;
+} SDistinctCountState;
+
+// Width of one dedup key. BLOB/MEDIUMBLOB satisfy IS_VAR_DATA_TYPE but carry a 32-bit length
+// header, so varDataTLen() would read the low 16 bits and truncate the key -- two blobs differing
+// only past that point would collapse into one value.
+static int32_t distinctKeyLen(const SColumnInfoData* pCol, const char* pData) {
+  if (IS_STR_DATA_BLOB(pCol->info.type)) {
+    return (int32_t)blobDataTLen(pData);
+  }
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    return (int32_t)varDataTLen(pData);
+  }
+  return pCol->info.bytes;
+}
+
+#define DISTINCT_PER_ROW_MEM_THRESHOLD (64 * 1024)
+
+// Shared DISTINCT dedup helpers. Declared in builtinsimpl.h so aggregates in other translation
+// units (AVG lives in detail/tavgfunction.c) use the same set layout and lifecycle.
+int32_t distinctValueSetExtraSize(const SFunctionNode* pFunc) {
+  return (pFunc != NULL && pFunc->isDistinct) ? (int32_t)sizeof(SDistinctValueSet) : 0;
+}
+
+SDistinctValueSet* distinctValueSetGet(SqlFunctionCtx* pCtx, int32_t baseSize) {
+  if (pCtx == NULL || pCtx->resultInfo == NULL) {
+    return NULL;
+  }
+  // Use the flag cached on the ctx, never the buffer size. sizeof(SDecimalSumRes) happens to equal
+  // sizeof(SSumRes) + sizeof(SDistinctValueSet) exactly (40 == 32 + 8), and the AVG pair collides
+  // too (72 >= 56 + 8), so a size-based test declares a plain SUM/AVG(decimal) to be a DISTINCT
+  // variant, reads the result struct's own tail as a set handle and dedups a non-DISTINCT
+  // aggregate -- it silently returned a too-small sum. The same collision is possible for any
+  // future result struct, so size must never be the discriminator.
+  //
+  // The flag is cached rather than read from pFunctNode here because this function is also called
+  // from the cleanup path, which can run after the plan node has been freed.
+  if (!pCtx->isDistinctFunc) {
+    return NULL;
+  }
+  // The set is appended after the function's own state; baseSize guards against a buffer that is
+  // somehow too small to hold both.
+  if (pCtx->resDataInfo.interBufSize < baseSize + (int32_t)sizeof(SDistinctValueSet)) {
+    return NULL;
+  }
+  char* pBuf = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  return (SDistinctValueSet*)(pBuf + pCtx->resDataInfo.interBufSize - sizeof(SDistinctValueSet));
+}
+
+bool distinctValueSetNeedsReplay(const SDistinctValueSet* pSet) {
+  return pSet != NULL && spillDistinctSetSpilled(pSet->pSet) && !spillDistinctSetFinalized(pSet->pSet);
+}
+
+// Returns true only when the caller should accumulate this row now. On allocation failure *pCode is
+// set; the caller propagates it.
+int32_t distinctValueSetCheckAdd(SDistinctValueSet* pSet, SColumnInfoData* pCol, int32_t rowIdx,
+                                 SqlFunctionCtx* pCtx, bool* pAccumulate) {
+  if (pAccumulate == NULL || pCol == NULL || pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pAccumulate = false;
+  if (pSet == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  char*   pData = colDataGetData(pCol, rowIdx);
+  if (IS_VAR_DATA_TYPE(pCol->info.type) || IS_STR_DATA_BLOB(pCol->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  int32_t keyLen = distinctKeyLen(pCol, pData);
+
+  if (pSet->pSet == NULL) {
+    // One set per result row, so keep the pages small when the query has windows or groups.
+    bool    perResultRow = pCtx->hasWindowOrGroup;
+    int64_t threshold = pCtx->hasWindowOrGroup ? DISTINCT_PER_ROW_MEM_THRESHOLD : 0;
+    int32_t code = spillDistinctSetCreateWithBuf(&pSet->pSet, pCol->info.type, pCol->info.bytes,
+                                                 threshold, perResultRow, "aggDistinct",
+                                                 &pCtx->pDistinctBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pCtx->needCleanup = true;
+  }
+
+  bool    isNew = false;
+  int32_t code = spillDistinctSetAdd(pSet->pSet, pData, keyLen, &isNew);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  // Once spilled, membership is unknown here; finalize replays instead.
+  *pAccumulate = isNew;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Adapts the aggregate's accumulator to the set's callback signature.
+typedef struct SDistinctReplayCtx {
+  SqlFunctionCtx*  pCtx;
+  FDistinctAccumFn fn;
+} SDistinctReplayCtx;
+
+static int32_t distinctReplayTrampoline(void* param, const char* pData, int32_t UNUSED_PARAM(len)) {
+  SDistinctReplayCtx* p = (SDistinctReplayCtx*)param;
+  // The length is dropped deliberately: the set knows each value's stored width, but the
+  // accumulators derive it from pCtx->inputType so the resident and replayed paths cannot diverge.
+  return p->fn(p->pCtx, pData);
+}
+
+int32_t distinctValueSetReplay(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet, FDistinctAccumFn fn) {
+  if (pSet == NULL || pSet->pSet == NULL || fn == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pCtx == NULL || IS_VAR_DATA_TYPE(pCtx->inputType) || IS_STR_DATA_BLOB(pCtx->inputType)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  SDistinctReplayCtx ctx = {.pCtx = pCtx, .fn = fn};
+  return spillDistinctSetFinalize(pSet->pSet, distinctReplayTrampoline, &ctx);
+}
+
+void distinctValueSetCleanup(SqlFunctionCtx* pCtx, int32_t baseSize) {
+  SDistinctValueSet* pSet = distinctValueSetGet(pCtx, baseSize);
+  if (pSet != NULL && pSet->pSet != NULL) {
+    spillDistinctSetDestroy(pSet->pSet);
+    pSet->pSet = NULL;
+  }
+}
+
+
+static bool isCountDistinctCtx(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || fmGetFuncTypeFromId(pCtx->functionId) != FUNCTION_TYPE_COUNT) {
+    return false;
+  }
+  // Use the cached flag rather than inferring from the buffer size: an exact size match happens to
+  // be unambiguous for COUNT today, but the equivalent test for SUM collided with the decimal
+  // result struct and silently deduped a non-DISTINCT aggregate.
+  if (!pCtx->isDistinctFunc) {
+    return false;
+  }
+  return pCtx->resDataInfo.interBufSize >= (int32_t)sizeof(SDistinctCountState);
+}
+
+static void cleanupDistinctCountState(SqlFunctionCtx* pCtx) {
+  if (!isCountDistinctCtx(pCtx) || pCtx->resultInfo == NULL) {
+    return;
+  }
+
+  SDistinctCountState* pState = (SDistinctCountState*)GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  if (pState->pSet != NULL) {
+    spillDistinctSetDestroy(pState->pSet);
+    pState->pSet = NULL;
+  }
+  pState->count = 0;
+}
+
+static void cleanupDistinctStateBeforeInit(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+  switch (fmGetFuncTypeFromId(pCtx->functionId)) {
+    case FUNCTION_TYPE_COUNT:
+      cleanupDistinctCountState(pCtx);
+      break;
+    case FUNCTION_TYPE_SUM:
+      distinctValueSetCleanup(pCtx, (int32_t)sizeof(SSumRes));
+      break;
+    case FUNCTION_TYPE_AVG:
+      distinctValueSetCleanup(pCtx, (int32_t)sizeof(SAvgRes));
+      break;
+    default:
+      break;
+  }
+}
 
 int32_t functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
@@ -464,6 +656,12 @@ int32_t functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
     (void)memset(pCtx->pOutput, 0, (size_t)pCtx->resDataInfo.bytes);
   }
 
+  // Release any DISTINCT set left by a previous use of this result row. This must run BEFORE
+  // initResultRowEntry(), which memsets the whole inter-buffer: zeroing first would erase the set
+  // handle and leak it. Reading the handle here is safe because the entry area is zeroed when the
+  // result row is allocated (see executil.c memset of pEntryInfo), so an unused slot holds NULL
+  // rather than garbage, and cleanupDistinctCountState() tolerates NULL.
+  cleanupDistinctStateBeforeInit(pCtx);
   initResultRowEntry(pResultInfo, pCtx->resDataInfo.interBufSize);
   return TSDB_CODE_SUCCESS;
 }
@@ -492,7 +690,13 @@ int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, true);
+  bool    transferred = false;
+  int32_t destCap = pDestCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  int32_t code = firstLastTransferInfoImpl(pSBuf, pDBuf, true, false, destCap, &transferred);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pDBuf->hasResult = transferred;
 
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
@@ -515,6 +719,10 @@ int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
 }
 
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  if (pFunc != NULL && pFunc->isDistinct) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
   SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
     return FUNC_DATA_REQUIRED_NOT_LOAD;
@@ -522,10 +730,12 @@ EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWind
   return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
-bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(int64_t);
+bool getCountFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = (pFunc != NULL && pFunc->isDistinct) ? sizeof(SDistinctCountState) : sizeof(int64_t);
   return true;
 }
+
+void countFunctionCleanup(SqlFunctionCtx* pCtx) { cleanupDistinctCountState(pCtx); }
 
 static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int64_t numOfElem = 0;
@@ -540,8 +750,8 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
   if (1 == pInput->numOfRows && pInput->blankFill) {
     return 0;
   }
-  if (pInput->colDataSMAIsSet && pInput->totalRows == pInput->numOfRows) {
-    numOfElem = pInput->numOfRows - pInput->pColumnDataAgg[0]->numOfNull;
+  if (pInput->colDataSMAIsSet) {
+    numOfElem = pInput->smaSourceRows - pInput->pColumnDataAgg[0]->numOfNull;
   } else {
     if (pInputCol->hasNull) {
       for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
@@ -559,11 +769,110 @@ static int64_t getNumOfElems(SqlFunctionCtx* pCtx) {
   return numOfElem;
 }
 
+static int32_t countDistinctRows(SqlFunctionCtx* pCtx) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+  if (pCol == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  // Empty-table scans use one blank-fill row to carry tag values. It is not a
+  // real input row and must not enter the DISTINCT set.
+  if (pInput->numOfRows == 1 && pInput->blankFill) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SET_VAL(pResInfo, 0, 1);
+    if (tsCountAlwaysReturnValue) {
+      pResInfo->numOfRes = 1;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SDistinctCountState* pState = (SDistinctCountState*)GET_ROWCELL_INTERBUF(pResInfo);
+  if (pState->pSet == NULL) {
+    // One set per result row, so keep pages small when the query has windows or groups.
+    int64_t threshold = pCtx->hasWindowOrGroup ? DISTINCT_PER_ROW_MEM_THRESHOLD : 0;
+    int32_t code = spillDistinctSetCreateWithBuf(&pState->pSet, pCol->info.type, pCol->info.bytes,
+                                                 threshold, pCtx->hasWindowOrGroup,
+                                                 "countDistinct", &pCtx->pDistinctBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    pCtx->needCleanup = true;
+  }
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+
+    char*   pData = colDataGetData(pCol, i);
+    int32_t keyLen = distinctKeyLen(pCol, pData);
+    bool    isNew = false;
+    int32_t code = spillDistinctSetAdd(pState->pSet, pData, keyLen, &isNew);
+    if (code != TSDB_CODE_SUCCESS) {
+      spillDistinctSetDestroy(pState->pSet);
+      pState->pSet = NULL;
+      pState->count = 0;
+      return code;
+    }
+    // Once spilled, isNew is always false and the running count stops being meaningful; the true
+    // count is recomputed in countDistinctFinalize().
+    if (isNew) {
+      ++pState->count;
+    }
+  }
+
+  if (tsCountAlwaysReturnValue) {
+    pResInfo->numOfRes = 1;
+  } else {
+    SET_VAL(pResInfo, pState->count, 1);  // SET_VAL is a no-op at count 0; matches plain count()
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Recount by replaying the spilled values. Used only when the set spilled. The value itself is
+// irrelevant here -- being called at all means one more distinct value exists.
+static int32_t countDistinctReplayFn(void* param, const char* UNUSED_PARAM(pData),
+                                     int32_t UNUSED_PARAM(len)) {
+  ++(*(int64_t*)param);
+  return TSDB_CODE_SUCCESS;
+}
+
+// COUNT(DISTINCT) finalize: fold in the spilled values before emitting.
+int32_t countDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  if (isCountDistinctCtx(pCtx)) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    SDistinctCountState* pState = (SDistinctCountState*)GET_ROWCELL_INTERBUF(pResInfo);
+    // pSet is NULL when no non-NULL value was ever seen (the set is created lazily on first add).
+    // Check it explicitly rather than relying on spillDistinctSetSpilled() tolerating NULL, matching
+    // distinctValueSetNeedsReplay().
+    if (pState->pSet != NULL && spillDistinctSetSpilled(pState->pSet) &&
+        !spillDistinctSetFinalized(pState->pSet)) {
+      int64_t total = 0;
+      int32_t code = spillDistinctSetFinalize(pState->pSet, countDistinctReplayFn, &total);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      pState->count = total;
+      SET_VAL(pResInfo, total, 1);  // ditto: no row is produced when total is 0
+      if (tsCountAlwaysReturnValue) {
+        pResInfo->numOfRes = 1;
+      }
+    }
+  }
+  return functionFinalize(pCtx, pBlock);
+}
+
 /*
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
  */
 int32_t countFunction(SqlFunctionCtx* pCtx) {
+  if (isCountDistinctCtx(pCtx)) {
+    return countDistinctRows(pCtx);
+  }
+
   int64_t numOfElem = 0;
 
   SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
@@ -593,6 +902,9 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
 }
 
 int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  if (pDestCtx == NULL || pSourceCtx == NULL || pDestCtx->isDistinctFunc || pSourceCtx->isDistinctFunc) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   char*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
 
@@ -604,7 +916,151 @@ int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
+// DISTINCT variant of SUM. Kept separate from sumFunctionImpl() because the SMA fast path is
+// unusable here: block pre-aggregates are already summed, so duplicate values cannot be identified.
+// Always walk the real rows and skip values already seen for this result row.
+static int32_t sumFunctionImpl(SqlFunctionCtx* pCtx);
+static int32_t sumAccumOneValue(SqlFunctionCtx* pCtx, const char* pData);
+
+static int32_t sumDistinctRows(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+  if (pCol == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t type = pCol->info.type;
+  pCtx->inputType = type;
+
+  void* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, type);
+
+  if (IS_NULL_TYPE(type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (IS_DECIMAL_TYPE(type)) {
+    SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, TSDB_DATA_TYPE_DECIMAL);
+  }
+
+  int32_t numOfElem = 0;
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+    bool    accumulate = false;
+    int32_t code = distinctValueSetCheckAdd(pSet, pCol, i, pCtx, &accumulate);
+    if (code != TSDB_CODE_SUCCESS) {
+      spillDistinctSetDestroy(pSet->pSet);
+      pSet->pSet = NULL;
+      return code;
+    }
+    if (!accumulate) {
+      continue;
+    }
+
+    // Same helper the spilled replay uses, so the two paths cannot drift.
+    char* pData = colDataGetData(pCol, i);
+    code = sumAccumOneValue(pCtx, pData);
+    if (code != TSDB_CODE_SUCCESS) {
+      spillDistinctSetDestroy(pSet->pSet);
+      pSet->pSet = NULL;
+      return code;
+    }
+    ++numOfElem;
+  }
+
+  // Mirror sumFunctionImpl(): a float sum that overflowed to Inf/NaN emits no row, so plain SUM
+  // and SUM(DISTINCT) agree when accumulation of finite inputs is not finite.
+  if (IS_FLOAT_TYPE(type) && (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
+    numOfElem = 0;
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+// Folds one value into the running sum. Shared by the inline accumulate loop and the spilled
+// replay, so both paths cannot drift.
+static int32_t sumAccumOneValue(SqlFunctionCtx* pCtx, const char* pData) {
+  int32_t type = pCtx->inputType;
+  void*   pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  if (IS_DECIMAL_TYPE(type)) {
+    // SUM_RES_INC_DECIMAL_SUM picks the word count from the input type and checks for overflow
+    // before adding; it assigns to a local named `overflow` that must be in scope.
+    bool overflow = false;
+    SUM_RES_INC_DECIMAL_SUM(pSumRes, (const void*)pData, type);
+    if (overflow) {
+      return TSDB_CODE_DECIMAL_OVERFLOW;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, type, pData, 0);
+    SUM_RES_INC_ISUM(pSumRes, v);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t v = 0;
+    GET_TYPED_DATA(v, uint64_t, type, pData, 0);
+    SUM_RES_INC_USUM(pSumRes, v);
+  } else if (IS_FLOAT_TYPE(type)) {
+    double v = 0;
+    GET_TYPED_DATA(v, double, type, pData, 0);
+    SUM_RES_INC_DSUM(pSumRes, v);
+  } else {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// SUM(DISTINCT) finalize: when the set spilled the inline sum is incomplete, so reset the
+// accumulator and refold the true distinct values.
+int32_t sumDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SDistinctValueSet* pSet = distinctValueSetGet(pCtx, (int32_t)sizeof(SSumRes));
+  if (distinctValueSetNeedsReplay(pSet)) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    void*                pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
+    int16_t              savedType = SUM_RES_GET_TYPE(pSumRes, pCtx->inputType);
+
+    // Clear only the function's own state, never the trailing set handle. The decimal variant is
+    // the wider struct, so pick the size from the input type rather than assuming SSumRes.
+    memset(pSumRes, 0, (size_t)(SUM_RES_GET_SIZE(pCtx->inputType)));
+    SUM_RES_SET_TYPE(pSumRes, pCtx->inputType, savedType);
+
+    int32_t code = distinctValueSetReplay(pCtx, pSet, sumAccumOneValue);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    // Same non-finite suppression as the resident path and plain SUM: an overflowed float sum
+    // emits no row rather than Inf.
+    int16_t sumType = SUM_RES_GET_TYPE(pSumRes, pCtx->inputType);
+    if (IS_FLOAT_TYPE(sumType) &&
+        (isinf(SUM_RES_GET_DSUM(pSumRes)) || isnan(SUM_RES_GET_DSUM(pSumRes)))) {
+      SET_VAL(pResInfo, 0, 1);
+    } else {
+      SET_VAL(pResInfo, 1, 1);
+    }
+  }
+  return functionFinalize(pCtx, pBlock);
+}
+
 int32_t sumFunction(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SDistinctValueSet* pDistinctSet = distinctValueSetGet(pCtx, (int32_t)sizeof(SSumRes));
+  if (pCtx->isDistinctFunc && pDistinctSet == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pDistinctSet != NULL) {
+    return sumDistinctRows(pCtx, pDistinctSet);
+  }
+  return sumFunctionImpl(pCtx);
+}
+
+static int32_t sumFunctionImpl(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   // Only the pre-computing information loaded and actual data does not loaded
@@ -622,7 +1078,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
   if (pInput->colDataSMAIsSet) {
-    numOfElem = pInput->numOfRows - pAgg->numOfNull;
+    numOfElem = pInput->smaSourceRows - pAgg->numOfNull;
 
     if (IS_SIGNED_NUMERIC_TYPE(type)) {
       SUM_RES_INC_ISUM(pSumRes, pAgg->sum);
@@ -699,6 +1155,9 @@ _sum_over:
 }
 
 int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  if (pDestCtx == NULL || pSourceCtx == NULL || pDestCtx->isDistinctFunc || pSourceCtx->isDistinctFunc) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int16_t              type = SUM_RES_GET_TYPE(pDBuf, pDestCtx->inputType);
@@ -723,8 +1182,19 @@ int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
 }
 
 bool getSumFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = SUM_RES_GET_SIZE(pFunc->node.resType.type);
+  // SUM_RES_GET_SIZE expands to a bare ternary, so the parentheses are required: without them the
+  // added bytes would bind to the non-decimal branch only and a DISTINCT sum over a decimal column
+  // would overrun its inter-buffer.
+  pEnv->calcMemSize =
+      (int32_t)(SUM_RES_GET_SIZE(pFunc->node.resType.type)) + distinctValueSetExtraSize(pFunc);
   return true;
+}
+
+void sumFunctionCleanup(SqlFunctionCtx* pCtx) {
+  // The set is addressed from the end of the inter-buffer, so baseSize is only a lower bound used
+  // to reject non-DISTINCT ctxs. SSumRes is the smaller of the two result structs, so it is the
+  // safe bound for both the plain and decimal variants.
+  distinctValueSetCleanup(pCtx, (int32_t)sizeof(SSumRes));
 }
 
 static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
@@ -740,6 +1210,12 @@ static bool funcNotSupportStringSma(SFunctionNode* pFunc) {
     case FUNCTION_TYPE_SPREAD_PARTIAL:
     case FUNCTION_TYPE_SPREAD_MERGE:
     case FUNCTION_TYPE_TWA:
+    case FUNCTION_TYPE_TWAVG_LINEAR:
+    case FUNCTION_TYPE_TWAVG_LOCF:
+    case FUNCTION_TYPE_TWSUM_LINEAR:
+    case FUNCTION_TYPE_TWSUM_LOCF:
+    case FUNCTION_TYPE_TWVAR_LINEAR:
+    case FUNCTION_TYPE_TWVAR_LOCF:
     case FUNCTION_TYPE_ELAPSED:
       pParam = nodesListGetNode(pFunc->pParameterList, 0);
       if (pParam && nodesIsExprNode(pParam) && (IS_VAR_DATA_TYPE(((SExprNode*)pParam)->resType.type))) {
@@ -757,6 +1233,13 @@ EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return FUNC_DATA_REQUIRED_SMA_LOAD;
+}
+
+EFuncDataRequired distinctStatisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
+  if (pFunc != NULL && pFunc->isDistinct) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  return statisDataRequired(pFunc, pTimeWindow);
 }
 
 int32_t minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -1062,7 +1545,23 @@ int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int3
     } break;
     default:
       if (pSBuf->assign && (strcmp(pDBuf->str, pSBuf->str) || !pDBuf->assign)) {
-        memcpy(pDBuf->str, pSBuf->str, varDataLen(pSBuf->str));
+        // The dest buffer was malloc'd at the first parameter's planned width (see
+        // doMinMaxHelper and getFuncFirstParamColBytes); a virtual table column may carry a
+        // wider value (full source value by design) -- refuse to overrun it.  Copy the whole
+        // varData (length prefix included) so the dest length prefix stays consistent with
+        // the payload, as doExtractVal writes it.
+        int32_t dataLen = varDataTLen(pSBuf->str);
+        // The dest buffer was malloc'd at the runtime input column's width (see
+        // doMinMaxHelper), which is the authoritative bound; fall back to the planned
+        // parameter width when the merge ctx has no input bound yet.
+        int32_t bufWidth = (NULL != pDestCtx->input.pData && NULL != pDestCtx->input.pData[0])
+                               ? pDestCtx->input.pData[0]->info.bytes
+                               : getFuncFirstParamColBytes(pDestCtx);
+        if (dataLen > bufWidth) {
+          qError("min/max combined value needs %d bytes, buffer width is %d", dataLen, bufWidth);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
+        memcpy(pDBuf->str, pSBuf->str, dataLen);
         replaceTupleData(&pDBuf->tuplePos, &pSBuf->tuplePos);
         pDBuf->assign = true;
       }
@@ -1108,7 +1607,6 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
   int32_t               type = pInput->pData[0]->info.type;
 
   SStdRes* pStdRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pStdRes->type = type;
 
   // computing based on the true data block
   SColumnInfoData* pCol = pInput->pData[0];
@@ -1120,6 +1618,7 @@ int32_t stdFunction(SqlFunctionCtx* pCtx) {
     numOfElem = 0;
     goto _stddev_over;
   }
+  pStdRes->type = type;
 
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT: {
@@ -1584,6 +2083,10 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
   if (input == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  // The result buffer is a fixed TSDB_MAX_FIELD_LEN block (see gconcatFunction); bound the
+  // running concatenation or a long group (a virtual table column carrying full source
+  // values makes each term wider) overruns it.
+  const int32_t maxPayload = TSDB_MAX_FIELD_LEN - (int32_t)VARSTR_HEADER_SIZE;
   if (hasNchar && type == TSDB_DATA_TYPE_VARCHAR) {
     TdUcs4* newBuf = taosMemoryCalloc((varDataLen(input) + 1) * TSDB_NCHAR_SIZE, 1);
     if (NULL == newBuf) {
@@ -1594,12 +2097,22 @@ static int32_t gconcatHelper(const char* input, char* output, bool hasNchar, int
         taosMbsToUcs4(varDataVal(input), len, newBuf, (varDataLen(input) + 1) * TSDB_NCHAR_SIZE, &len, charsetCxt);
     if (!ret) {
       taosMemoryFree(newBuf);
-      return TSDB_CODE_SCALAR_CONVERT_ERROR;
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+    }
+    if ((int32_t)*dataLen + len > maxPayload) {
+      taosMemoryFree(newBuf);
+      qError("concat result needs %d bytes, buffer capacity is %d", (int32_t)*dataLen + len, maxPayload);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
     }
     (void)memcpy(varDataVal(output) + *dataLen, newBuf, len);
     *dataLen += len;
     taosMemoryFree(newBuf);
   } else {
+    if ((int32_t)*dataLen + (int32_t)varDataLen(input) > maxPayload) {
+      qError("concat result needs %d bytes, buffer capacity is %d", (int32_t)*dataLen + (int32_t)varDataLen(input),
+             maxPayload);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
     (void)memcpy(varDataVal(output) + *dataLen, varDataVal(input), varDataLen(input));
     *dataLen += varDataLen(input);
   }
@@ -2055,7 +2568,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         SET_DOUBLE_VAL(&pInfo->maxval, tmax);
       }
 
-      pInfo->numOfElems += (pInput->numOfRows - pAgg->numOfNull);
+      pInfo->numOfElems += (pInput->smaSourceRows - pAgg->numOfNull);
     } else {
       // check the valid data one by one
       int32_t start = pInput->startRowIndex;
@@ -2504,6 +3017,8 @@ int32_t apercentileCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx)
 // TODO: change this function when block data info pks changed
 static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal, int32_t order) {
   char numVal[8] = {0};
+  bool isScalarPk = IS_NUMERIC_TYPE(pkType) || pkType == TSDB_DATA_TYPE_TIMESTAMP;
+
   switch (pkType) {
     case TSDB_DATA_TYPE_INT:
       *(int32_t*)numVal = (int32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
@@ -2512,6 +3027,7 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
       *(uint32_t*)numVal = (uint32_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
       *(int64_t*)numVal = (int64_t)VALUE_GET_TRIVIAL_DATUM(pVal);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
@@ -2520,7 +3036,7 @@ static int32_t comparePkDataWithSValue(int8_t pkType, char* pkData, SValue* pVal
     default:
       break;
   }
-  char*         blockData = (IS_NUMERIC_TYPE(pkType)) ? (char*)numVal : (char*)pVal->pData;
+  char*         blockData = isScalarPk ? (char*)numVal : (char*)pVal->pData;
   __compar_fn_t fn = getKeyComparFunc(pkType, order);
   return fn(pkData, blockData);
 }
@@ -2646,11 +3162,42 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
 // TODO modify it to include primary key bytes
 int32_t getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes) { return sizeof(SFirstLastRes) + resBytes + pkBytes; }
 
+// Maximum number of bytes one complete value of this type needs in memory, including its
+// length header.  A BLOB column's declared width is only the 4-byte length-header
+// placeholder (tDataTypes[BLOB].bytes) and SResultDataInfo.bytes is a uint16_t, so the real
+// upper bound cannot be carried in the schema: every buffer that has to hold a whole value
+// must ask for it explicitly here.  For all other types the declared width already is a
+// true upper bound.  blobDataTLen(v) == BLOBSTR_HEADER_SIZE + payload and the engine limit
+// is blobDataTLen(v) <= TSDB_MAX_BLOB_LEN, so TSDB_MAX_BLOB_LEN covers the largest value.
+int32_t getMaxValueBytes(int32_t type, int32_t bytes) {
+  return IS_STR_DATA_BLOB(type) ? TSDB_MAX_BLOB_LEN : bytes;
+}
+
+// Planned width of the function's first parameter column.  The env sizing (getEnvFunc)
+// follows this width, which may exceed the function result schema for a virtual table
+// column that was widened to carry full source values; interbuf layouts must follow it too.
+static int32_t getFuncFirstParamColBytes(SqlFunctionCtx* pCtx) {
+  if (NULL == pCtx->pExpr || NULL == pCtx->pExpr->pExpr ||
+      QUERY_NODE_FUNCTION != pCtx->pExpr->pExpr->nodeType) {
+    return pCtx->resDataInfo.bytes;
+  }
+  SFunctionNode* pFunc = pCtx->pExpr->pExpr->_function.pFunctNode;
+  if (NULL == pFunc || NULL == pFunc->pParameterList || 0 == LIST_LENGTH(pFunc->pParameterList)) {
+    return pCtx->resDataInfo.bytes;
+  }
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+    return pCtx->resDataInfo.bytes;
+  }
+  return ((SColumnNode*)pParam)->node.resType.bytes;
+}
+
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   SColumnNode* pNode = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   // TODO: change SFunctionNode to add pk info
   int32_t pkBytes = (pFunc->hasPk) ? pFunc->pkBytes : 0;
-  pEnv->calcMemSize = getFirstLastInfoSize(pNode->node.resType.bytes, pkBytes);
+  pEnv->calcMemSize =
+      getFirstLastInfoSize(getMaxValueBytes(pNode->node.resType.type, pNode->node.resType.bytes), pkBytes);
   return true;
 }
 
@@ -2742,17 +3289,26 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
     //   pInfo->bytes = varDataTLen(pData);
     // }
   }
+  if (pkData != NULL && IS_VAR_DATA_TYPE(pInfo->pkType)) {
+    pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
+    // if (pInfo->pkType == TSDB_DATA_TYPE_JSON) {
+    //   pInfo->pkBytes = getJsonValueLen(pkData);
+    // } else {
+    //   pInfo->pkBytes = varDataTLen(pkData);
+    // }
+  }
+
+  // A virtual table column may carry a value wider than the declared width this interbuf
+  // cell was sized from (the full source value is returned by design); refuse to overrun.
+  int32_t needBytes = pInfo->bytes + ((pkData != NULL) ? pInfo->pkBytes : 0);
+  int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  if (needBytes > bufCap) {
+    qError("first/last value needs %d bytes, interbuf capacity is %d", needBytes, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
 
   (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   if (pkData != NULL) {
-    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
-      pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
-      // if (pInfo->pkType == TSDB_DATA_TYPE_JSON) {
-      //   pInfo->pkBytes = getJsonValueLen(pkData);
-      // } else {
-      //   pInfo->pkBytes = varDataTLen(pkData);
-      // }
-    }
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   }
@@ -2779,11 +3335,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
-  pInfo->bytes = pInputCol->info.bytes;
-
   if (IS_NULL_TYPE(pInputCol->info.type)) {
     return TSDB_CODE_SUCCESS;
   }
+  pInfo->bytes = pInputCol->info.bytes;
 
   SColumnInfoData* pkCol = pInput->pPrimaryKey;
   pInfo->pkType = -1;
@@ -3152,34 +3707,50 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+static int32_t firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                         bool preferNonNullOnTsTie, int32_t destCap, bool* pTransferred) {
+  *pTransferred = false;
   if (!pInput->hasResult) {
-    return false;
+    return TSDB_CODE_SUCCESS;
   }
   __compar_fn_t pkCompareFn = NULL;
-  if (pInput->pkData) {
+  if (pInput->pkData && pOutput->pkData) {
     pkCompareFn = getKeyComparFunc(pInput->pkType, (isFirst) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC);
   }
   if (pOutput->hasResult) {
     if (!pInput->hasTsOrder || !pOutput->hasTsOrder) {
       // Without a timestamp ordering key, preserve the incoming stream merge order.
       if (isFirst) {
-        return false;
+        return TSDB_CODE_SUCCESS;
       }
     } else if (isFirst) {
       if (pInput->ts > pOutput->ts ||
           (pInput->ts == pOutput->ts && (!pkCompareFn || pkCompareFn(pInput->pkData, pOutput->pkData) >= 0))) {
-        return false;
+        return TSDB_CODE_SUCCESS;
       }
-    } else {
-      if (pInput->ts < pOutput->ts ||
-          (pInput->ts == pOutput->ts && pkCompareFn && pkCompareFn(pInput->pkData, pOutput->pkData) > 0)) {
-        return false;
+    } else if (pInput->ts < pOutput->ts) {
+      return TSDB_CODE_SUCCESS;
+    } else if (pInput->ts == pOutput->ts) {
+      int32_t pkCompare = NULL != pkCompareFn ? pkCompareFn(pInput->pkData, pOutput->pkData) : 0;
+      if ((NULL != pkCompareFn && pkCompare > 0) ||
+          (preferNonNullOnTsTie && (NULL == pkCompareFn || 0 == pkCompare) && pInput->isNull &&
+           !pOutput->isNull)) {
+        return TSDB_CODE_SUCCESS;
       }
     }
   }
 
+  // A virtual table column may carry a value wider than the declared width the destination
+  // interbuf cell was sized from (the full source value is returned by design); refuse to
+  // overrun it.
+  int32_t needBytes = pInput->bytes + ((pInput->pkData != NULL) ? pInput->pkBytes : 0);
+  if (needBytes > destCap) {
+    qError("first/last transferred value needs %d bytes, interbuf capacity is %d", needBytes, destCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+
   pOutput->isNull = pInput->isNull;
+  pOutput->preferNonNullOnTsTie = pInput->preferNonNullOnTsTie;
   pOutput->hasTsOrder = pInput->hasTsOrder;
   pOutput->ts = pInput->ts;
   pOutput->bytes = pInput->bytes;
@@ -3193,13 +3764,21 @@ static bool firstLastTransferInfoImpl(SFirstLastRes* pInput, SFirstLastRes* pOut
   } else {
     pOutput->pkData = NULL;
   }
-  return true;
+  *pTransferred = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
-                                     int32_t rowIndex) {
-  if (firstLastTransferInfoImpl(pInput, pOutput, isFirst)) {
-    int32_t code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput, false);
+                                     bool preferNonNullOnTsTie, int32_t rowIndex) {
+  bool    transferred = false;
+  int32_t destCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  int32_t code =
+      firstLastTransferInfoImpl(pInput, pOutput, isFirst, preferNonNullOnTsTie, destCap, &transferred);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  if (transferred) {
+    code = firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput, false);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -3238,7 +3817,8 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
       pInputInfo->pkData = NULL;
     }
 
-    int32_t code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
+    int32_t code = firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery,
+                                         pInputInfo->preferNonNullOnTsTie, i);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3345,7 +3925,13 @@ int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
   SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
   SFirstLastRes*       pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
 
-  pDBuf->hasResult = firstLastTransferInfoImpl(pSBuf, pDBuf, false);
+  bool    transferred = false;
+  int32_t destCap = pDestCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  int32_t code = firstLastTransferInfoImpl(pSBuf, pDBuf, false, pSBuf->preferNonNullOnTsTie, destCap, &transferred);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pDBuf->hasResult = transferred;
   pDResInfo->numOfRes = TMAX(pDResInfo->numOfRes, pSResInfo->numOfRes);
   pDResInfo->isNullRes &= pSResInfo->isNullRes;
   return TSDB_CODE_SUCCESS;
@@ -3355,6 +3941,15 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
   SColumnInfoData*      pkCol = pInput->pPrimaryKey;
+
+  bool   hasPk = pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex);
+  char*  pkData = NULL;
+  if (hasPk) {
+    pkData = colDataGetData(pkCol, rowIndex);
+    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
+      pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
+    }
+  }
 
   if (colDataIsNull_s(pInputCol, rowIndex)) {
     pInfo->isNull = true;
@@ -3369,15 +3964,22 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
       //   pInfo->bytes = varDataTLen(pData);
       // }
     }
+  }
 
+  // A virtual table column may carry a value wider than the declared width this interbuf
+  // cell was sized from (the full source value is returned by design); refuse to overrun.
+  int32_t needBytes = pInfo->bytes + (hasPk ? pInfo->pkBytes : 0);
+  int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
+  if (needBytes > bufCap) {
+    qError("last/last_row value needs %d bytes, interbuf capacity is %d", needBytes, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+
+  if (!pInfo->isNull) {
     (void)memcpy(pInfo->buf, pData, pInfo->bytes);
   }
 
-  if (pCtx->hasPrimaryKey && !colDataIsNull_s(pkCol, rowIndex)) {
-    char* pkData = colDataGetData(pkCol, rowIndex);
-    if (IS_VAR_DATA_TYPE(pInfo->pkType)) {
-      pInfo->pkBytes = calcStrBytesByType(pInfo->pkType, pkData);
-    }
+  if (hasPk) {
     (void)memcpy(pInfo->buf + pInfo->bytes, pkData, pInfo->pkBytes);
     pInfo->pkData = pInfo->buf + pInfo->bytes;
   } else {
@@ -3400,17 +4002,19 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx) {
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SFirstLastRes*       pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->preferNonNullOnTsTie =
+      FUNC_RELATED_TO_VSTABLE_LAST_ROW_PARTIAL == pCtx->pExpr->pExpr->relatedTo;
 
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
 
   int32_t type = pInputCol->info.type;
   int32_t bytes = pInputCol->info.bytes;
-  pInfo->bytes = bytes;
 
   if (IS_NULL_TYPE(type)) {
     return TSDB_CODE_SUCCESS;
   }
+  pInfo->bytes = bytes;
   SColumnInfoData* pkCol = pInput->pPrimaryKey;
   pInfo->pkType = -1;
   __compar_fn_t pkCompareFn = NULL;
@@ -4267,7 +4871,10 @@ int32_t setLagLeadDefaultValueToCol(SColumnInfoData* pOutput, int32_t pos, SFunc
             break;
           }
 
-          int32_t cvtLen = taosUcs4ToMbs((TdUcs4*)varDataVal(pDefault->pz), charLen, inputWkt, NULL);
+          // WKT geometry default is ASCII, so charset-insensitive.
+          int32_t cvtLen =
+              taosUcs4ToMbsCharsetInsensitive((TdUcs4*)varDataVal(pDefault->pz),
+                                              charLen, inputWkt);
           if (cvtLen < 0) {
             taosMemoryFree(inputWkt);
             retCode = TSDB_CODE_FAILED;
@@ -4802,6 +5409,7 @@ int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
     return TSDB_CODE_FUNC_SETUP_ERROR;
   }
   SFillforwardInfo* pFillforwardInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pFillforwardInfo->str = NULL;
   pFillforwardInfo->nonnull = false;
 
   return TSDB_CODE_SUCCESS;
@@ -4987,6 +5595,16 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
           case TSDB_DATA_TYPE_VARCHAR:
           case TSDB_DATA_TYPE_VARBINARY:
           case TSDB_DATA_TYPE_NCHAR: {
+            // The buffer is sized by the declared column width; a virtual table column may
+            // carry a value wider than declared (full source value by design) -- refuse to
+            // overrun it.
+            int32_t dataLen = varDataTLen(pv);
+            if (dataLen > pInputCol->info.bytes) {
+              qError("interp fill-forward value needs %d bytes, buffer width is %d", dataLen,
+                     pInputCol->info.bytes);
+              code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+              goto _exit;
+            }
             if (!pFillforwardInfo->nonnull) {
               pFillforwardInfo->str = taosMemoryMalloc(pInputCol->info.bytes);
               if (!pFillforwardInfo->str) {
@@ -4995,7 +5613,7 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
               }
             }
 
-            (void)memcpy(pFillforwardInfo->str, pv, varDataTLen(pv));
+            (void)memcpy(pFillforwardInfo->str, pv, dataLen);
           } break;
           default: {
             code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -5023,17 +5641,8 @@ _exit:
     if (!pCtx) {
       break;
     }
-
-    SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
-    SFillforwardInfo*             pRes = GET_ROWCELL_INTERBUF(pResInfo);
-    SInputColumnInfoData* pInput = &pCtx->input;
-    SColumnInfoData*      pInputCol = pInput->pData[0];
-
-    if (IS_VAR_DATA_TYPE(pInputCol->info.type) && pRes->nonnull) {
-      taosMemoryFree(pRes->str);
-    }
-
     if (!code) {
+      SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
       pResInfo->numOfRes = numOfElems;
     }
   }
@@ -5043,6 +5652,22 @@ _exit:
     pRows = NULL;
   }
   return code;
+}
+
+void fillforwardFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || pCtx->resultInfo == NULL) {
+    return;
+  }
+
+  SFillforwardInfo* pInfo = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  if (pInfo == NULL) {
+    return;
+  }
+
+  if (IS_VAR_DATA_TYPE(pCtx->resDataInfo.type)) {
+    taosMemoryFreeClear(pInfo->str);
+  }
+  pInfo->nonnull = false;
 }
 
 int32_t getTopBotInfoSize(int64_t numOfItems) { return sizeof(STopBotRes) + numOfItems * sizeof(STopBotResItem); }
@@ -5288,6 +5913,12 @@ int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, i
   char* nullList = buf;
   char* pStart = (char*)(nullList + sizeof(bool) * pSubsidiaryies->num);
 
+  // The tuple buffer is a fixed-stride row image: each column occupies its declared width
+  // (see prepareBuf). A virtual table column may carry a value wider than declared (the
+  // full source value is returned by design), which this layout cannot hold -- refuse
+  // rather than corrupt the buffer.
+  int32_t bufDataCap = pSubsidiaryies->rowLen - (int32_t)(pStart - buf);
+
   int32_t offset = 0;
   for (int32_t i = 0; i < pSubsidiaryies->num; ++i) {
     SqlFunctionCtx* pc = pSubsidiaryies->pCtx[i];
@@ -5311,13 +5942,15 @@ int32_t serializeTupleData(SqlFunctionCtx* pCtx, const SSDataBlock* pSrcBlock, i
         continue;
       }
 
-      char* p = colDataGetData(pCol, rowIndex);
-      if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-        int32_t bytes = calcStrBytesByType(pCol->info.type, p);
-        (void)memcpy(pStart + offset, p, bytes);
-      } else {
-        (void)memcpy(pStart + offset, p, pCol->info.bytes);
+      char*   p = colDataGetData(pCol, rowIndex);
+      int32_t copyLen =
+          IS_VAR_DATA_TYPE(pCol->info.type) ? calcStrBytesByType(pCol->info.type, p) : pCol->info.bytes;
+      if (copyLen > pCol->info.bytes || offset + copyLen > bufDataCap) {
+        qError("serializeTupleData: column %d needs %d bytes at offset %d, slot width %d, capacity %d",
+               srcSlotId, copyLen, offset, pCol->info.bytes, bufDataCap);
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
       }
+      (void)memcpy(pStart + offset, p, copyLen);
 
       offset += pCol->info.bytes;
       continue;
@@ -5333,6 +5966,17 @@ static int32_t doSaveTupleData(SSerializeDataHandle* pHandle, const void* pBuf, 
   STuplePos p = {0};
   if (pHandle->pBuf != NULL) {
     SFilePage* pPage = NULL;
+
+    // A page is allocated once and only rotated when the next value does not fit, so a
+    // single value larger than a page would be memcpy'd past the end of it.  The buffer's
+    // page size is derived from the largest per-value reservation of the function using
+    // this handle (see getMaxValueBytes), so this cannot happen for a correctly sized
+    // function; refuse rather than corrupt the heap if some path is ever missed.
+    if (length + sizeof(SFilePage) > (size_t)getBufPageSize(pHandle->pBuf)) {
+      qError("tuple data length %" PRIu64 " exceeds page size %d", (uint64_t)length,
+             getBufPageSize(pHandle->pBuf));
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
 
     if (pHandle->currentPage == -1) {
       pPage = getNewBufPage(pHandle->pBuf, &pHandle->currentPage);
@@ -5608,7 +6252,7 @@ int32_t spreadFunction(SqlFunctionCtx* pCtx) {
   SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   if (pInput->colDataSMAIsSet) {
-    numOfElems = pInput->numOfRows - pAgg->numOfNull;
+    numOfElems = pInput->smaSourceRows - pAgg->numOfNull;
     if (numOfElems == 0) {
       goto _spread_over;
     }
@@ -5801,7 +6445,7 @@ int32_t elapsedFunction(SqlFunctionCtx* pCtx) {
 
   SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  numOfElems = pInput->numOfRows;  // since this is the primary timestamp, no need to exclude NULL values
+  numOfElems = pInput->colDataSMAIsSet ? pInput->smaSourceRows : pInput->numOfRows;
   if (numOfElems == 0) {
     // for stream
     if (pCtx->end.key != INT64_MIN) {
@@ -6005,7 +6649,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
   if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
     int32_t numOfParams = cJSON_GetArraySize(binDesc);
     int32_t startIndex;
-    if (numOfParams != 4) {
+    if (numOfParams < 3 || numOfParams > 4) {
       cJSON_Delete(binDesc);
       return TSDB_CODE_FAILED;
     }
@@ -6015,8 +6659,11 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     cJSON* width = cJSON_GetObjectItem(binDesc, "width");
     cJSON* count = cJSON_GetObjectItem(binDesc, "count");
     cJSON* infinity = cJSON_GetObjectItem(binDesc, "infinity");
+    /* infinity is optional -- treat absent as false */
+    bool infinityVal = (cJSON_IsBool(infinity) && infinity->valueint != 0);
 
-    if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+    if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) ||
+        (infinity != NULL && !cJSON_IsBool(infinity))) {
       cJSON_Delete(binDesc);
       return TSDB_CODE_FAILED;
     }
@@ -6033,7 +6680,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
     }
 
     int32_t counter = (int32_t)count->valueint;
-    if (infinity->valueint == false) {
+    if (infinityVal == false) {
       startIndex = 0;
       numOfBins = counter + 1;
     } else {
@@ -6090,7 +6737,7 @@ static int32_t getHistogramBinDesc(SHistoFuncInfo* pInfo, char* binDescStr, int8
       return TSDB_CODE_FAILED;
     }
 
-    if (infinity->valueint == true) {
+    if (infinityVal == true) {
       intervals[0] = -INFINITY;
       intervals[numOfBins - 1] = INFINITY;
       // in case of desc bin orders, -inf/inf should be swapped
@@ -6846,70 +7493,101 @@ bool getCsumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-int32_t csumFunction(SqlFunctionCtx* pCtx) {
-  int32_t              code = TSDB_CODE_SUCCESS;
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SSumRes*             pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
-
+static int32_t csumAccumulateInput(SqlFunctionCtx* pCtx, int32_t* pNumOfElems, bool* pOverflow) {
   SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  SColumnInfoData*      pOutput = (SColumnInfoData*)pCtx->pOutput;
+  SSumRes*              pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t               type = pInputCol->info.type;
+  STypeMod              typeMod = typeGetTypeModFromColInfo(&pInputCol->info);
 
-  SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-
-  int32_t numOfElems = 0;
-  int32_t type = pInputCol->info.type;
-  int32_t startOffset = pCtx->offset;
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-    int32_t pos = startOffset + numOfElems;
+  *pNumOfElems = 0;
+  *pOverflow = pSumRes->overflow;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
     if (colDataIsNull_f(pInputCol, i)) {
-      // colDataSetNULL(pOutput, i);
       continue;
     }
 
-    char* data = colDataGetData(pInputCol, i);
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      int64_t v;
-      GET_TYPED_DATA(v, int64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
-      pSumRes->isum += v;
-      code = colDataSetVal(pOutput, pos, (char*)&pSumRes->isum, false);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      uint64_t v;
-      GET_TYPED_DATA(v, uint64_t, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
-      pSumRes->usum += v;
-      code = colDataSetVal(pOutput, pos, (char*)&pSumRes->usum, false);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    } else if (IS_FLOAT_TYPE(type)) {
-      double v;
-      GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
-      pSumRes->dsum += v;
-      // check for overflow
-      if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
-        colDataSetNULL(pOutput, pos);
+    char* pResult = NULL;
+    char* pData = colDataGetData(pInputCol, i);
+    if (!*pOverflow && IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t value;
+      GET_TYPED_DATA(value, int64_t, type, pData, typeMod);
+      // Preserve csum's historical two's-complement wraparound semantics for integers.
+      pSumRes->isum = (int64_t)((uint64_t)pSumRes->isum + (uint64_t)value);
+      pResult = (char*)&pSumRes->isum;
+    } else if (!*pOverflow && IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t value;
+      GET_TYPED_DATA(value, uint64_t, type, pData, typeMod);
+      pSumRes->usum += value;
+      pResult = (char*)&pSumRes->usum;
+    } else if (!*pOverflow && IS_FLOAT_TYPE(type)) {
+      double value;
+      GET_TYPED_DATA(value, double, type, pData, typeMod);
+      double newSum = pSumRes->dsum + value;
+      if (isinf(newSum) || isnan(newSum)) {
+        *pOverflow = true;
+        pSumRes->overflow = true;
       } else {
-        code = colDataSetVal(pOutput, pos, (char*)&pSumRes->dsum, false);
+        pSumRes->dsum = newSum;
+        pResult = (char*)&pSumRes->dsum;
+      }
+    }
+
+    if (pResult != NULL) {
+      pSumRes->hasResult = true;
+    }
+
+    if (pOutput != NULL) {
+      int32_t pos = pCtx->offset + *pNumOfElems;
+      if (*pOverflow) {
+        int32_t code = colDataSetVal(pOutput, pos, NULL, true);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      } else if (pResult != NULL) {
+        int32_t code = colDataSetVal(pOutput, pos, pResult, false);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+      }
+
+      // Subsidiaries are row-wise outputs and only have a destination position
+      // in indefinite-row mode. Window output columns are copied by the operator.
+      if (pCtx->subsidiaries.num > 0) {
+        int32_t code = appendSelectivityValue(pCtx, i, pos);
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
       }
     }
 
-    // handle selectivity
-    if (pCtx->subsidiaries.num > 0) {
-      code = appendSelectivityValue(pCtx, i, pos);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-    }
-
-    numOfElems++;
+    ++*pNumOfElems;
   }
 
-  pResInfo->numOfRes = numOfElems;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t csumFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSumRes* pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
+  int32_t numOfElems = 0;
+  bool    overflow = false;
+  int32_t code = csumAccumulateInput(pCtx, &numOfElems, &overflow);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (pCtx->pOutput == NULL) {
+    // In aggregate/window mode numOfRes is the number of result rows, not the
+    // number of consumed inputs. Like SUM via SET_VAL, CSUM produces at most one
+    // result row; hasResult separately persists non-NULL input across page calls.
+    pResInfo->numOfRes = overflow ? 0 : (pSumRes->hasResult ? 1 : 0);
+    pResInfo->isNullRes = overflow || !pSumRes->hasResult;
+  } else {
+    // Indefinite-row mode writes one output for each non-NULL input row.
+    pResInfo->numOfRes = numOfElems;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7041,7 +7719,10 @@ int32_t sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   pInfo->totalPoints = 0;
   pInfo->numSampled = 0;
   pInfo->colType = pCtx->resDataInfo.type;
-  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  // The reservoir stride must match the env sizing (getSampleFuncEnv), which follows the
+  // first parameter's planned width.  That width may exceed the function result schema for
+  // a virtual table column widened to carry full source values.
+  pInfo->colBytes = getFuncFirstParamColBytes(pCtx);
   pInfo->nullTuplePos.pageId = -1;
   pInfo->nullTupleSaved = false;
   pInfo->data = (char*)pInfo + sizeof(SSampleInfo);
@@ -7050,32 +7731,52 @@ int32_t sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   return TSDB_CODE_SUCCESS;
 }
 
-static void sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
+static int32_t sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
+  // Reservoir slots are exactly colBytes wide; a virtual table column may carry a value
+  // wider than declared (the full source value is returned by design) -- refuse to overrun.
+  if (IS_VAR_DATA_TYPE(pInfo->colType)) {
+    int32_t bytes = calcStrBytesByType(pInfo->colType, data);
+    if (bytes > pInfo->colBytes) {
+      qError("sample value needs %d bytes, slot width is %d", bytes, pInfo->colBytes);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+  }
   assignVal(pInfo->data + index * pInfo->colBytes, data, pInfo->colBytes, pInfo->colType);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* data, int32_t index) {
-  pInfo->totalPoints++;
+  int32_t code = TSDB_CODE_SUCCESS;
   if (pInfo->numSampled < pInfo->samples) {
-    sampleAssignResult(pInfo, data, pInfo->numSampled);
+    code = sampleAssignResult(pInfo, data, pInfo->numSampled);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[pInfo->numSampled]);
+      code = saveTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[pInfo->numSampled]);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
     }
     pInfo->numSampled++;
+    // Count the point only once it is reflected in the reservoir, so a failed assign
+    // leaves totalPoints consistent with the stored samples.
+    pInfo->totalPoints++;
   } else {
-    int32_t j = (int32_t)(taosRand() % (uint64_t)pInfo->totalPoints);
+    int32_t j = (int32_t)(taosRand() % (uint64_t)(pInfo->totalPoints + 1));
     if (j < pInfo->samples) {
-      sampleAssignResult(pInfo, data, j);
+      code = sampleAssignResult(pInfo, data, j);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       if (pCtx->subsidiaries.num > 0) {
-        int32_t code = updateTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[j]);
+        code = updateTupleData(pCtx, index, pCtx->pSrcBlock, &pInfo->tuplePos[j]);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
       }
     }
+    pInfo->totalPoints++;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -7171,7 +7872,9 @@ int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
     pInfo->offset = 0;
   }
   pInfo->colType = pCtx->resDataInfo.type;
-  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  // The per-item stride must match the env sizing (getTailFuncEnv), which follows the first
+  // parameter's planned width; see getFuncFirstParamColBytes.
+  pInfo->colBytes = getFuncFirstParamColBytes(pCtx);
   pInfo->nullTuplePos.pageId = -1;
   pInfo->nullTupleSaved = false;
 
@@ -7191,14 +7894,28 @@ int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
   return TSDB_CODE_SUCCESS;
 }
 
-static void tailAssignResult(STailItem* pItem, char* data, int32_t colBytes, TSKEY ts, bool isNull) {
+static int32_t tailAssignResult(STailItem* pItem, char* data, int32_t colType, int32_t colBytes, TSKEY ts,
+                                bool isNull) {
   pItem->timestamp = ts;
   if (isNull) {
     pItem->isNull = true;
   } else {
     pItem->isNull = false;
-    memcpy(pItem->data, data, colBytes);
+    if (IS_VAR_DATA_TYPE(colType)) {
+      // Each item's storage is exactly colBytes wide; a virtual table column may carry a
+      // value wider than declared (the full source value is returned by design) -- refuse
+      // to overrun.  Copy only the real value: the varstr header makes the tail unread.
+      int32_t bytes = calcStrBytesByType(colType, data);
+      if (bytes > colBytes) {
+        qError("tail value needs %d bytes, slot width is %d", bytes, colBytes);
+        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      }
+      (void)memcpy(pItem->data, data, bytes);
+    } else {
+      (void)memcpy(pItem->data, data, colBytes);
+    }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tailCompFn(const void* p1, const void* p2, const void* param) {
@@ -7209,19 +7926,22 @@ static int32_t tailCompFn(const void* p1, const void* p2, const void* param) {
 
 static int32_t doTailAdd(SqlFunctionCtx* pCtx, STailInfo* pInfo, char* data, TSKEY ts, bool isNull, int32_t rowIndex,
                          const SSDataBlock* pSrcBlock) {
+  int32_t      code = TSDB_CODE_SUCCESS;
   STailItem** pList = pInfo->pItems;
   if (pInfo->numAdded < pInfo->numOfPoints) {
-    tailAssignResult(pList[pInfo->numAdded], data, pInfo->colBytes, ts, isNull);
+    code = tailAssignResult(pList[pInfo->numAdded], data, pInfo->colType, pInfo->colBytes, ts, isNull);
+    if (TSDB_CODE_SUCCESS != code) return code;
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = saveTupleData(pCtx, rowIndex, pSrcBlock, &pList[pInfo->numAdded]->tuplePos);
+      code = saveTupleData(pCtx, rowIndex, pSrcBlock, &pList[pInfo->numAdded]->tuplePos);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
     taosheapsort((void*)pList, sizeof(STailItem**), pInfo->numAdded + 1, NULL, tailCompFn, 0);
     pInfo->numAdded++;
   } else if (pList[0]->timestamp < ts) {
-    tailAssignResult(pList[0], data, pInfo->colBytes, ts, isNull);
+    code = tailAssignResult(pList[0], data, pInfo->colType, pInfo->colBytes, ts, isNull);
+    if (TSDB_CODE_SUCCESS != code) return code;
     if (pCtx->subsidiaries.num > 0) {
-      int32_t code = updateTupleData(pCtx, rowIndex, pSrcBlock, &pList[0]->tuplePos);
+      code = updateTupleData(pCtx, rowIndex, pSrcBlock, &pList[0]->tuplePos);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
     taosheapadjust((void*)pList, sizeof(STailItem**), 0, pInfo->numOfPoints - 1, NULL, tailCompFn, NULL, 0);
@@ -7397,7 +8117,14 @@ int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
 }
 
 bool getModeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SModeInfo);
+  SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  // The interbuf holds SModeInfo plus the scratch buffer that hands one complete value to
+  // the tuple store (see saveModeTupleData), so it must be able to hold a whole value.
+  // Its size also decides the result-buffer page size used by that store, so sizing it by
+  // the declared width would let a large BLOB value overrun both buffers.  Note the column
+  // is guaranteed to be a column node (FUNC_PARAM_MUST_HAVE_COLUMN).
+  pEnv->calcMemSize =
+      sizeof(SModeInfo) + getMaxValueBytes(pCol->node.resType.type, pCol->node.resType.bytes);
   return true;
 }
 
@@ -7423,12 +8150,9 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->nullTupleSaved = false;
   pInfo->nullTuplePos.pageId = -1;
 
-  pInfo->buf = taosMemoryMalloc(pInfo->colBytes);
-  if (NULL == pInfo->buf) {
-    taosHashCleanup(pInfo->pHash);
-    pInfo->pHash = NULL;
-    return terrno;
-  }
+  // The scratch buffer is the tail of the interbuf (sized for one complete value by
+  // getModeFuncEnv), so no separate allocation is needed.
+  pInfo->buf = (char*)pInfo + sizeof(SModeInfo);
   pCtx->needCleanup = true;
   return TSDB_CODE_SUCCESS;
 }
@@ -7436,7 +8160,7 @@ int32_t modeFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 static void modeFunctionCleanup(SModeInfo* pInfo) {
   taosHashCleanup(pInfo->pHash);
   pInfo->pHash = NULL;
-  taosMemoryFreeClear(pInfo->buf);
+  pInfo->buf = NULL;  // scratch is part of the interbuf, nothing to free
 }
 
 void modeFunctionCleanupExt(SqlFunctionCtx* pCtx) {
@@ -7451,18 +8175,24 @@ static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo* pI
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     if (pInfo->colType == TSDB_DATA_TYPE_JSON) {
       saveLen = getJsonValueLen(data);
-      (void)memcpy(pInfo->buf, data, saveLen);
     } else if (IS_STR_DATA_BLOB(pInfo->colType)) {
       saveLen = blobDataTLen(data);
-      (void)memcpy(pInfo->buf, data, saveLen);
     } else {
       saveLen = varDataTLen(data);
-      (void)memcpy(pInfo->buf, data, saveLen);
     }
   } else {
     saveLen = pInfo->colBytes;
-    (void)memcpy(pInfo->buf, data, saveLen);
   }
+
+  // The scratch buffer is sized for one declared-width value (see getModeFuncEnv); a
+  // virtual table column may carry a value wider than declared (the full source value is
+  // returned by design) -- refuse to overrun it.
+  int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SModeInfo);
+  if (saveLen > (size_t)bufCap) {
+    qError("mode value needs %" PRIu64 " bytes, scratch capacity is %d", (uint64_t)saveLen, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+  (void)memcpy(pInfo->buf, data, saveLen);
 
   return doSaveTupleData(&pCtx->saveHandle, pInfo->buf, saveLen, NULL, pPos, pCtx->pStore);
 }
@@ -7634,9 +8364,37 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
     return (s.val + e.val) * (e.key - s.key) / 2;
   }
 
-  double x = (s.key * e.val - e.key * s.val) / (e.val - s.val);
-  double val = (s.val * (x - s.key) + e.val * (e.key - x)) / 2;
-  return val;
+  // Calculate the zero crossing relative to s.key. Using absolute epoch
+  // timestamps loses precision at nanosecond resolution.
+  double duration = (double)(e.key - s.key);
+  double zero_offset = -s.val * duration / (e.val - s.val);
+  return (s.val * zero_offset + e.val * (duration - zero_offset)) / 2;
+}
+
+// Generalized time-weighted area of the segment [s, e]. When locf is true the value is
+// held constant at s.val over the whole segment (rectangle); otherwise the value varies
+// linearly from s.val to e.val (trapezoid, == twa_get_area).
+static double tw_get_area(SPoint1 s, SPoint1 e, bool locf) {
+  if (e.key == INT64_MAX || s.key == INT64_MIN) {
+    return 0;
+  }
+  if (locf) {
+    return s.val * (double)(e.key - s.key);
+  }
+  return twa_get_area(s, e);
+}
+
+// Time-weighted area of v(t)^2 over the segment [s, e]. locf: rectangle s.val^2*dt;
+// linear: INT (v0 + (v1-v0)*u)^2 dt = dt*(v0^2 + v0*v1 + v1^2)/3.
+static double tw_get_area_sq(SPoint1 s, SPoint1 e, bool locf) {
+  if (e.key == INT64_MAX || s.key == INT64_MIN) {
+    return 0;
+  }
+  double dt = (double)(e.key - s.key);
+  if (locf) {
+    return s.val * s.val * dt;
+  }
+  return dt * (s.val * s.val + s.val * e.val + e.val * e.val) / 3.0;
 }
 
 int32_t twaFunction(SqlFunctionCtx* pCtx) {
@@ -7652,6 +8410,14 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
   if (IS_NULL_TYPE(pInputCol->info.type)) {
     pInfo->numOfElems = 0;
     goto _twa_over;
+  }
+
+  // Defense-in-depth type whitelist. Upstream param validation should already reject
+  // non-numeric input, but the value reads below use GET_TYPED_DATA, whose default branch
+  // silently reinterprets unexpected types (e.g. varchar length, timestamp as bigint) instead
+  // of failing. Guard here so any validation bypass surfaces as an error, not garbage output.
+  if (!IS_NUMERIC_TYPE(pInputCol->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
   }
 
   funcInputUpdate(pCtx);
@@ -7728,51 +8494,11 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
       return TSDB_CODE_FUNC_INVALID_TIMELINE;
     }
     pInfo->numOfElems++;
-    switch (pInputCol->info.type) {
-      case TSDB_DATA_TYPE_TINYINT: {
-        INIT_INTP_POINT(st, row.ts, *(int8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_SMALLINT: {
-        INIT_INTP_POINT(st, row.ts, *(int16_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_INT: {
-        INIT_INTP_POINT(st, row.ts, *(int32_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        INIT_INTP_POINT(st, row.ts, *(int64_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        INIT_INTP_POINT(st, row.ts, *(float_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE: {
-        INIT_INTP_POINT(st, row.ts, *(double*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UTINYINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint8_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_USMALLINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint16_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint32_t*)row.pData);
-        break;
-      }
-      case TSDB_DATA_TYPE_UBIGINT: {
-        INIT_INTP_POINT(st, row.ts, *(uint64_t*)row.pData);
-        break;
-      }
-      default: {
-        return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
-      }
-    }
+    // GET_TYPED_DATA covers every integer/float/double type and additionally converts
+    // DECIMAL64/DECIMAL128 to double (via the column's typeMod). twa itself still rejects
+    // decimal at param validation; twavg_linear (which reuses this path) allows it.
+    st.key = row.ts;
+    GET_TYPED_DATA(st.val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
     if (hasPrevTs && pInfo->p.key == st.key) {
       return TSDB_CODE_FUNC_DUP_TIMESTAMP;
     }
@@ -7835,6 +8561,550 @@ int32_t twaFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     pResInfo->numOfRes = 1;
   }
 
+  return functionFinalize(pCtx, pBlock);
+}
+
+// ------------------------------- value_changes -------------------------------
+// Count adjacent value changes on the effective timeline. Equality is delegated to the
+// engine's per-type comparator (getComparFunc + OP_TYPE_EQUAL): integers/bool/timestamp
+// compare by value, float/double use epsilon equality with NaN==NaN, var types compare
+// bytewise. DECIMAL64/DECIMAL128 have no dedicated comparator, so per the FS they are
+// converted to DOUBLE (via the column typeMod) and compared with the DOUBLE comparator.
+// ignore_null=1 (default) skips NULL rows transparently; ignore_null=0 treats
+// NULL<->non-NULL as a change and NULL<->NULL as no change. First row is never counted.
+bool getValueChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  int32_t bytes = ((SExprNode*)pParam)->resType.bytes;
+  pEnv->calcMemSize = sizeof(SValueChangesInfo) + bytes;
+  return true;
+}
+
+int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  SValueChangesInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->count = 0;
+  pInfo->numOfElems = 0;
+  pInfo->hasPrev = false;
+  pInfo->prevIsNull = false;
+  pInfo->hasPrevTs = false;
+  pInfo->prevTs = 0;
+  pInfo->prevBytes = 0;
+  // Default ignore_null=1. Only override when a real VALUE param is present: this function is
+  // IMPLICIT_TS/PRIMARY_KEY, so the engine appends an implicit (non-VALUE) timestamp param and
+  // numOfParams can be >1 even when the user omitted ignore_null (cf. getLagLeadOffset).
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE) {
+    pInfo->ignoreNull = (int8_t)pCtx->param[1].param.i;
+  } else {
+    pInfo->ignoreNull = 1;
+  }
+  pInfo->inputType = 0;    // resolved lazily from the input column type on first row
+  pInfo->typeMod = 0;
+  pInfo->comparFn = NULL;  // resolved lazily from the input column type on first row
+  return TSDB_CODE_SUCCESS;
+}
+
+// Store the current cell as the "previous compared value". For var-length types the cell is
+// varData (length prefix + content); copy the full varData so the comparator can reuse it.
+static int32_t valueChangesSetPrev(SValueChangesInfo* pInfo, SColumnInfoData* pCol, const char* pData,
+                                   int32_t prevCap) {
+  // calcStrBytesByType dispatches the varstr/blob/json headers correctly (varDataTLen
+  // misreads the 4-byte blob header as a 2-byte varstr one).
+  int32_t bytes = IS_VAR_DATA_TYPE(pCol->info.type) ? calcStrBytesByType(pCol->info.type, (char*)pData)
+                                                    : pCol->info.bytes;
+  // The interbuf cell is sized by the declared column width (see getValueChangesFuncEnv); a
+  // virtual table column may carry a value wider than declared (the full source value is
+  // returned by design) -- refuse to overrun it.
+  if (bytes > prevCap) {
+    qError("value_changes value needs %d bytes, interbuf capacity is %d", bytes, prevCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+  (void)memcpy(pInfo->prevData, pData, bytes);
+  pInfo->prevBytes = bytes;
+  pInfo->hasPrev = true;
+  pInfo->prevIsNull = false;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangesInfo*   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (pInfo->inputType == 0) {
+    pInfo->inputType = pCol->info.type;
+    if (IS_DECIMAL_TYPE(pCol->info.type)) {
+      // FS: DECIMAL is compared as DOUBLE. getComparFunc has no decimal branch and would
+      // fall through to compareInt32Val (low-4-bytes-only, scale-ignorant) -- wrong for the
+      // 8/16-byte decimal storage. Resolve the DOUBLE comparator and convert per row instead.
+      pInfo->typeMod = typeGetTypeModFromColInfo(&pCol->info);
+      pInfo->comparFn = getComparFunc(TSDB_DATA_TYPE_DOUBLE, OP_TYPE_EQUAL);
+    } else {
+      pInfo->comparFn = getComparFunc(pCol->info.type, OP_TYPE_EQUAL);
+    }
+    if (pInfo->comparFn == NULL) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+  }
+
+  funcInputUpdate(pCtx);  // prime the row iterator (sets up the primary-TS column)
+
+  int32_t prevCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SValueChangesInfo);
+
+  SFuncInputRow row = {0};
+  bool          result = false;
+  while (1) {
+    int32_t code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (!result) {
+      break;
+    }
+    if (pInput->pPTS != NULL && pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+      return TSDB_CODE_FUNC_INVALID_TIMELINE;
+    }
+    if (pInfo->hasPrevTs && pInfo->prevTs == row.ts) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    }
+    pInfo->prevTs = row.ts;
+    pInfo->hasPrevTs = true;
+    pInfo->numOfElems++;
+
+    if (row.isDataNull) {
+      if (pInfo->ignoreNull) {
+        continue;  // NULL is transparent: does not reset prev, does not count
+      }
+      // ignore_null=0: NULL participates. NULL<->non-NULL is a change; NULL<->NULL is not.
+      if (pInfo->hasPrev && !pInfo->prevIsNull) {
+        pInfo->count++;
+      }
+      pInfo->hasPrev = true;
+      pInfo->prevIsNull = true;
+      continue;
+    }
+
+    // non-NULL current row
+    if (!pInfo->hasPrev) {
+      code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      continue;
+    }
+    if (pInfo->prevIsNull) {  // only reachable with ignore_null=0
+      pInfo->count++;
+      code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      continue;
+    }
+    if (IS_DECIMAL_TYPE(pInfo->inputType)) {
+      // Compare decimals as DOUBLE (FS): compareInt32Val on raw bytes ignores scale and the
+      // high 4/12 bytes. Convert both operands via typeMod, then use the DOUBLE comparator.
+      double prevVal = 0, curVal = 0;
+      GET_TYPED_DATA(prevVal, double, pInfo->inputType, pInfo->prevData, pInfo->typeMod);
+      GET_TYPED_DATA(curVal, double, pInfo->inputType, row.pData, pInfo->typeMod);
+      if (pInfo->comparFn(&prevVal, &curVal) != 0) {
+        pInfo->count++;
+      }
+    } else if (pInfo->comparFn(pInfo->prevData, row.pData) != 0) {
+      pInfo->count++;
+    }
+    code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  SET_VAL(pResInfo, pInfo->numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t valueChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SValueChangesInfo*   pInfo = (SValueChangesInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+  // Empty input (no rows at all) -> no result row. Any rows (even all-NULL) -> one count row.
+  pResInfo->numOfRes = (pInfo->numOfElems == 0) ? 0 : 1;
+  return functionFinalize(pCtx, pBlock);
+}
+
+bool getBitChangesFuncEnv(struct SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SBitChangesInfo);
+  return true;
+}
+
+int32_t bitChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+
+  SBitChangesInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->count = 0;
+  pInfo->numOfElems = 0;
+  pInfo->mask = 1;
+  pInfo->flag = 0;
+  pInfo->inputType = 0;
+  pInfo->hasPrev = false;
+  pInfo->prevMasked = 0;
+  pInfo->prevTs = 0;
+  pInfo->hasPrevTs = false;
+
+  // The implicit timestamp parameter is appended after user parameters, so only
+  // VALUE parameters at slots 1 and 2 represent mask and flag.
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE) {
+    pInfo->mask = (uint64_t)pCtx->param[1].param.i;
+  }
+  if (pCtx->numOfParams > 2 && pCtx->param[2].type == FUNC_PARAM_TYPE_VALUE) {
+    pInfo->flag = (int8_t)pCtx->param[2].param.i;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool bitChangesMatches(uint64_t previous, uint64_t current, int8_t flag) {
+  uint64_t rising = (~previous) & current;
+  uint64_t falling = previous & (~current);
+  if (flag == 0) {
+    return rising != 0;
+  }
+  if (flag == 1) {
+    return falling != 0;
+  }
+  return (rising | falling) != 0;
+}
+
+static int32_t bitChangesProcessRow(SqlFunctionCtx* pCtx, SBitChangesInfo* pInfo, SColumnInfoData* pCol,
+                                    const SFuncInputRow* pRow) {
+  if (pInfo->hasPrevTs && pInfo->prevTs == pRow->ts) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+  pInfo->prevTs = pRow->ts;
+  pInfo->hasPrevTs = true;
+  pInfo->numOfElems++;
+
+  if (pRow->isDataNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint64_t value = 0;
+  GET_TYPED_DATA(value, uint64_t, pInfo->inputType, pRow->pData,
+                 typeGetTypeModFromColInfo(&pCol->info));
+  uint64_t masked = value & pInfo->mask;
+  if (pInfo->hasPrev) {
+    uint64_t previous = pInfo->prevMasked;
+    uint64_t current = masked;
+    if (pCtx->order == TSDB_ORDER_DESC) {
+      previous = masked;
+      current = pInfo->prevMasked;
+    }
+    if (bitChangesMatches(previous, current, pInfo->flag)) {
+      pInfo->count++;
+    }
+  }
+  pInfo->prevMasked = masked;
+  pInfo->hasPrev = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitChangesFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangesInfo*     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  if (pInfo->inputType == 0) {
+    pInfo->inputType = pCol->info.type;
+    if (!(IS_INTEGER_TYPE(pInfo->inputType) || pInfo->inputType == TSDB_DATA_TYPE_BOOL)) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+  }
+
+  funcInputUpdate(pCtx);
+  SFuncInputRow row = {0};
+  bool          result = false;
+  while (1) {
+    int32_t code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (!result) {
+      break;
+    }
+    if (pInput->pPTS != NULL && pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+      return TSDB_CODE_FUNC_INVALID_TIMELINE;
+    }
+    code = bitChangesProcessRow(pCtx, pInfo, pCol, &row);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+
+  SET_VAL(pResInfo, pInfo->numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitChangesInfo*     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pResInfo->numOfRes = (pInfo->numOfElems == 0) ? 0 : 1;
+  return functionFinalize(pCtx, pBlock);
+}
+
+// Generic time-weighted accumulation core, factored from twaFunction. Accumulates the
+// time-integral INT v dt into *pOutput (using linear trapezoid or locf rectangle per `locf`),
+// and, when wantSq is true, INT v^2 dt into *pd2Output. All timeline/dedup/order checks and
+// the window-boundary interpolation handling are identical to twaFunction. This is used by
+// every time-weighted variant except twavg_linear, which keeps calling twaFunction verbatim.
+static int32_t doTwGenericFunction(SqlFunctionCtx* pCtx, bool locf, bool wantSq, double* pOutput,
+                                   double* pd2Output, int64_t* pNumOfElems, SPoint1* pLast,
+                                   STimeWindow* pWin, int8_t* pTsOrder) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pInputCol = pInput->pData[0];
+  SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
+  SPoint1*              last = pLast;
+  bool                  hasPrevTs = (last->key != INT64_MIN);
+
+  if (IS_NULL_TYPE(pInputCol->info.type)) {
+    *pNumOfElems = 0;
+    goto _tw_over;
+  }
+
+  // Defense-in-depth type whitelist. Upstream param validation should already reject
+  // non-numeric input, but the value reads below use GET_TYPED_DATA, whose default branch
+  // silently reinterprets unexpected types (e.g. varchar length, timestamp as bigint) instead
+  // of failing. Guard here so any validation bypass surfaces as an error, not garbage output.
+  if (!IS_NUMERIC_TYPE(pInputCol->info.type)) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+
+  funcInputUpdate(pCtx);
+  SFuncInputRow row = {0};
+  bool          result = false;
+  if (pCtx->start.key != INT64_MIN && last->key == INT64_MIN) {
+    while (1) {
+      code = funcInputGetNextRow(pCtx, &row, &result);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (!result) break;
+      if (row.isDataNull) continue;
+      if (pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+        return TSDB_CODE_FUNC_INVALID_TIMELINE;
+      }
+      last->key = row.ts;
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
+      *pOutput += tw_get_area(pCtx->start, *last, locf);
+      if (wantSq) *pd2Output += tw_get_area_sq(pCtx->start, *last, locf);
+      pWin->skey = pCtx->start.key;
+      (*pNumOfElems)++;
+      hasPrevTs = true;
+      break;
+    }
+  } else if (last->key == INT64_MIN) {
+    while (1) {
+      code = funcInputGetNextRow(pCtx, &row, &result);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (!result) break;
+      if (row.isDataNull) continue;
+      if (pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+        return TSDB_CODE_FUNC_INVALID_TIMELINE;
+      }
+      last->key = row.ts;
+      GET_TYPED_DATA(last->val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
+      pWin->skey = last->key;
+      (*pNumOfElems)++;
+      hasPrevTs = true;
+      break;
+    }
+  }
+  SPoint1 st = {0};
+  while (1) {
+    code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (!result) break;
+    if (row.isDataNull) continue;
+    if (pInput->pPTS->hasNull && colDataIsNull_f(pInput->pPTS, row.rowIndex)) {
+      return TSDB_CODE_FUNC_INVALID_TIMELINE;
+    }
+    (*pNumOfElems)++;
+    // GET_TYPED_DATA covers every integer/float/double type and additionally converts
+    // DECIMAL64/DECIMAL128 to double (via the column's typeMod). The value param is validated
+    // to NUMERIC|DECIMAL upstream, so no default/error case is needed here.
+    st.key = row.ts;
+    GET_TYPED_DATA(st.val, double, pInputCol->info.type, row.pData, typeGetTypeModFromColInfo(&pInputCol->info));
+    if (hasPrevTs && last->key == st.key) {
+      return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+    }
+    if (hasPrevTs) {
+      if (*pTsOrder == 0) {
+        *pTsOrder = (st.key > last->key) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+      } else if ((*pTsOrder == TSDB_ORDER_DESC && st.key > last->key) ||
+                 (*pTsOrder != TSDB_ORDER_DESC && st.key < last->key)) {
+        return TSDB_CODE_FUNC_INVALID_TIMELINE;
+      }
+    }
+    *pOutput += tw_get_area(*last, st, locf);
+    if (wantSq) *pd2Output += tw_get_area_sq(*last, st, locf);
+    *last = st;
+    hasPrevTs = true;
+  }
+
+  // the last interpolated time window value
+  if (pCtx->end.key != INT64_MIN) {
+    *pOutput += tw_get_area(*last, pCtx->end, locf);
+    if (wantSq) *pd2Output += tw_get_area_sq(*last, pCtx->end, locf);
+    *last = pCtx->end;
+    (*pNumOfElems)++;
+  }
+  pWin->ekey = last->key;
+
+_tw_over:
+  SET_VAL(pResInfo, 1, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+// ---- twavg_locf: time-weighted average, last-observation-carried-forward ----
+// Reuses getTwaFuncEnv / twaFunctionSetup / twaFinalize (STwaInfo layout); only the
+// accumulation differs (rectangle vs trapezoid), driven by locf=true.
+int32_t twavgLocfFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwaInfo*            pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  return doTwGenericFunction(pCtx, true, false, &pInfo->dOutput, NULL, &pInfo->numOfElems, &pInfo->p,
+                             &pInfo->win, &pInfo->tsOrder);
+}
+
+// ---- twsum: time-weighted sum (INT v dt), linear or locf ----
+bool getTwsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STwsumInfo);
+  return true;
+}
+
+int32_t twsumFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  STwsumInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->dTwsumRes = 0;
+  pInfo->dOutput = 0;
+  pInfo->numOfElems = 0;
+  pInfo->p.key = INT64_MIN;
+  pInfo->win = TSWINDOW_INITIALIZER;
+  pInfo->tsOrder = 0;
+  // Output-unit divisor is not cached here; it is derived from the params at finalize
+  // (twsumResolveTimeUnit), which also needs hasPrimaryKey (set per-block, not at setup).
+  return TSDB_CODE_SUCCESS;
+}
+
+// Resolve the divisor (native ticks per output unit) from the param list. twsum caries
+// FUNC_MGT_IMPLICIT_TS_FUNC, so the executor appends an implicit ts column (and a pk column
+// on composite-key tables) AFTER the hidden db-precision param added by translateAddPrecOutDouble.
+// Layout: [value, (time_unit?), precision, ts, (pk?)]. Precision sits just before ts, so its
+// index is numOfParams-2-(hasPrimaryKey?1:0); that index also equals the user-arg count, so a
+// user time_unit (already converted to native ticks by the parser) is present at param[1] when
+// the index is >= 2.
+static int64_t twsumResolveTimeUnit(SqlFunctionCtx* pCtx) {
+  int32_t precIdx = pCtx->numOfParams - 2 - (pCtx->hasPrimaryKey ? 1 : 0);
+  int64_t timeUnit;
+  if (precIdx >= 2) {
+    timeUnit = pCtx->param[1].param.i;  // explicit time_unit, in native ticks
+  } else if (precIdx >= 0) {
+    timeUnit = TSDB_TICK_PER_SECOND((uint8_t)pCtx->param[precIdx].param.i);  // default = 1 second
+  } else {
+    timeUnit = 1;
+  }
+  return (timeUnit > 0) ? timeUnit : 1;
+}
+
+int32_t twsumFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwsumInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  bool                 locf = fmIsTwLocfFunc(pCtx->functionId);
+  return doTwGenericFunction(pCtx, locf, false, &pInfo->dOutput, NULL, &pInfo->numOfElems, &pInfo->p,
+                             &pInfo->win, &pInfo->tsOrder);
+}
+
+int32_t twsumFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwsumInfo*          pInfo = (STwsumInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+  if (pInfo->numOfElems == 0) {
+    pResInfo->numOfRes = 0;
+  } else {
+    // A single point (or unbounded window) covers zero time span => integral is 0.
+    if (pInfo->win.ekey == pInfo->win.skey || pInfo->win.ekey == INT64_MAX ||
+        pInfo->win.skey == INT64_MIN) {
+      pInfo->dTwsumRes = 0;
+    } else {
+      int64_t timeUnit = twsumResolveTimeUnit(pCtx);
+      pInfo->dTwsumRes = pInfo->dOutput / (double)timeUnit;
+    }
+    pResInfo->numOfRes = 1;
+  }
+  return functionFinalize(pCtx, pBlock);
+}
+
+// ---- twvar: time-weighted population variance, linear or locf ----
+// Var = (1/T)*INT (v-mu)^2 dt = (1/T)*INT v^2 dt - mu^2, where mu = (1/T)*INT v dt (== twa).
+bool getTwvarFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(STwvarInfo);
+  return true;
+}
+
+int32_t twvarFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResultInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  STwvarInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  pInfo->dTwvarRes = 0;
+  pInfo->dOutput = 0;
+  pInfo->d2Output = 0;
+  pInfo->numOfElems = 0;
+  pInfo->p.key = INT64_MIN;
+  pInfo->win = TSWINDOW_INITIALIZER;
+  pInfo->tsOrder = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t twvarFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwvarInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  bool                 locf = fmIsTwLocfFunc(pCtx->functionId);
+  return doTwGenericFunction(pCtx, locf, true, &pInfo->dOutput, &pInfo->d2Output, &pInfo->numOfElems,
+                             &pInfo->p, &pInfo->win, &pInfo->tsOrder);
+}
+
+int32_t twvarFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STwvarInfo*          pInfo = (STwvarInfo*)GET_ROWCELL_INTERBUF(pResInfo);
+  if (pInfo->numOfElems == 0) {
+    pResInfo->numOfRes = 0;
+  } else {
+    // A single point (or unbounded window) has zero spread.
+    if (pInfo->win.ekey == pInfo->win.skey || pInfo->win.ekey == INT64_MAX ||
+        pInfo->win.skey == INT64_MIN) {
+      pInfo->dTwvarRes = 0;
+    } else {
+      double   T = (double)(pInfo->win.ekey - pInfo->win.skey);
+      double   mu = pInfo->dOutput / T;
+      double   var = pInfo->d2Output / T - mu * mu;
+      pInfo->dTwvarRes = (var > 0) ? var : 0;  // guard tiny negative from rounding
+    }
+    pResInfo->numOfRes = 1;
+  }
   return functionFinalize(pCtx, pBlock);
 }
 
@@ -8369,7 +9639,7 @@ int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
+static int32_t doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
   if (isFirst) {
     pRateInfo->firstValue = v;
     pRateInfo->firstKey = ts;
@@ -8377,6 +9647,13 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
       int32_t pkBytes;
       if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
         pkBytes = calcStrBytesByType(pRateInfo->pkType, pk);
+        // Each pk slot in the interbuf is pkBytes wide (see initializeRateInfo); a virtual
+        // table column may carry a value wider than declared (the full source value is
+        // returned by design) -- refuse to overrun the slot.
+        if (pkBytes > pRateInfo->pkBytes) {
+          qError("irate pk value needs %d bytes, slot width is %d", pkBytes, pRateInfo->pkBytes);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
       } else {
         pkBytes = pRateInfo->pkBytes;
       }
@@ -8389,12 +9666,18 @@ static void doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char*
       int32_t pkBytes;
       if (IS_VAR_DATA_TYPE(pRateInfo->pkType)) {
         pkBytes = calcStrBytesByType(pRateInfo->pkType, pk);
+        // Same oversized-pk guard as the firstPk slot above.
+        if (pkBytes > pRateInfo->pkBytes) {
+          qError("irate pk value needs %d bytes, slot width is %d", pkBytes, pRateInfo->pkBytes);
+          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        }
       } else {
         pkBytes = pRateInfo->pkBytes;
       }
       (void)memcpy(pRateInfo->lastPk, pk, pkBytes);
     }
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo, bool isMerge) {
@@ -8453,23 +9736,35 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (INT64_MIN == pRateInfo->lastKey) {
-      doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       pRateInfo->hasResult = 1;
       continue;
     }
 
     if (row.ts > pRateInfo->lastKey) {
       if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
-        doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
+        code = doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
       }
-      doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
       continue;
     } else if (row.ts == pRateInfo->lastKey) {
       continue;  // skip duplicate timestamp
     }
 
     if ((INT64_MIN == pRateInfo->firstKey) || row.ts > pRateInfo->firstKey) {
-      doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
     } else if (row.ts == pRateInfo->firstKey) {
       continue;  // skip duplicate timestamp
     }
@@ -8503,28 +9798,36 @@ static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
   return (duration > 0) ? ((double)diff) / (duration / tickPerSec) : 0.0;
 }
 
-static void irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
+static int32_t irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (inputKey > pOutput->lastKey) {
-    doSaveRateInfo(pOutput, true, pOutput->lastKey, pOutput->lastPk, pOutput->lastValue);
+    code = doSaveRateInfo(pOutput, true, pOutput->lastKey, pOutput->lastPk, pOutput->lastValue);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     if (isFirstKey) {
-      doSaveRateInfo(pOutput, false, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+      code = doSaveRateInfo(pOutput, false, pInput->firstKey, pInput->firstPk, pInput->firstValue);
     } else {
-      doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+      code = doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
     }
   } else if ((inputKey < pOutput->lastKey) && (inputKey > pOutput->firstKey)) {
     if (isFirstKey) {
-      doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+      code = doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
     } else {
-      doSaveRateInfo(pOutput, true, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+      code = doSaveRateInfo(pOutput, true, pInput->lastKey, pInput->lastPk, pInput->lastValue);
     }
   } else {
     // inputKey < pOutput->firstKey
   }
+  return code;
 }
 
-static void irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
-  doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
-  doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+static int32_t irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
+  int32_t code = doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  return doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
 }
 
 static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
@@ -8535,17 +9838,26 @@ static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
   }
 
   if (pOutput->hasResult == 0) {
-    irateCopyInfo(pInput, pOutput);
+    int32_t code = irateCopyInfo(pInput, pOutput);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
     pOutput->hasResult = pInput->hasResult;
     return TSDB_CODE_SUCCESS;
   }
 
   if (pInput->firstKey != INT64_MIN) {
-    irateTransferInfoImpl(pInput->firstKey, pInput, pOutput, true);
+    int32_t code = irateTransferInfoImpl(pInput->firstKey, pInput, pOutput, true);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   if (pInput->lastKey != INT64_MIN) {
-    irateTransferInfoImpl(pInput->lastKey, pInput, pOutput, false);
+    int32_t code = irateTransferInfoImpl(pInput->lastKey, pInput, pOutput, false);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
   }
 
   pOutput->hasResult = pInput->hasResult;
@@ -8661,13 +9973,18 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
 
   if (valueRowIndex != -1) {
     // found a non-null value
-    char* data = colDataGetData(pInputCol, valueRowIndex);
-    if (IS_VAR_DATA_TYPE(pInputCol->info.type)) {
-      int32_t bytes = calcStrBytesByType(pInputCol->info.type, data);
-      (void)memcpy(pInfo->data, data, bytes);
-    } else {
-      (void)memcpy(pInfo->data, data, pInputCol->info.bytes);
+    char*   data = colDataGetData(pInputCol, valueRowIndex);
+    int32_t copyLen = IS_VAR_DATA_TYPE(pInputCol->info.type) ? calcStrBytesByType(pInputCol->info.type, data)
+                                                             : pInputCol->info.bytes;
+    // The interbuf cell is sized by the declared column width (see getGroupKeyFuncEnv); a
+    // virtual table column may carry a value wider than declared (the full source value is
+    // returned by design) -- refuse to overrun it.
+    int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SGroupKeyInfo);
+    if (copyLen > bufCap) {
+      qError("group key value needs %d bytes, interbuf capacity is %d", copyLen, bufCap);
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
     }
+    (void)memcpy(pInfo->data, data, copyLen);
     pInfo->isNull = false;
   } else {
     // all values are null or first value is null for group by
@@ -8729,12 +10046,17 @@ int32_t groupKeyCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
     goto _group_key_over;
   }
 
-  if (IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)) {
-    int32_t bytes = calcStrBytesByType(pSourceCtx->resDataInfo.type, pSBuf->data);
-    (void)memcpy(pDBuf->data, pSBuf->data, bytes);
-  } else {
-    (void)memcpy(pDBuf->data, pSBuf->data, pSourceCtx->resDataInfo.bytes);
+  int32_t copyLen = IS_VAR_DATA_TYPE(pSourceCtx->resDataInfo.type)
+                        ? calcStrBytesByType(pSourceCtx->resDataInfo.type, pSBuf->data)
+                        : pSourceCtx->resDataInfo.bytes;
+  // Same oversized-virtual-column guard as groupConstValueFunction: refuse to overrun the
+  // destination interbuf cell.
+  int32_t bufCap = pDestCtx->resDataInfo.interBufSize - (int32_t)sizeof(SGroupKeyInfo);
+  if (copyLen > bufCap) {
+    qError("group key value needs %d bytes, interbuf capacity is %d", copyLen, bufCap);
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
   }
+  (void)memcpy(pDBuf->data, pSBuf->data, copyLen);
 
   pDBuf->hasResult = true;
 

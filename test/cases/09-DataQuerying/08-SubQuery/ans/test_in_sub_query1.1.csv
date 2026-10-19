@@ -378,58 +378,58 @@ taos> select f1 + 1 IN (select * from (select f1 from tb1 where f1 > (select 1 f
 
 taos> select sum(f1) IN (null), sum(f1) IN (null) from tb1 where sum(f1) IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 1), sum(f1) IN (select 1) from tb1 where sum(f1) IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb1), sum(f1) IN (select f1 from tb1) from tb1 where sum(f1) IN (select f1 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN ((select f1 from tb1)), sum(f1) IN ((select f1 from tb1)) from tb1 where sum(f1) IN ((select f1 from tb1)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb1 limit 0), sum(f1) IN (select f1 from tb1 limit 0) from tb1 where sum(f1) IN (select f1 from tb1 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select count(*) from tb1), sum(f1) IN (select count(*) from tb1) from tb1 where sum(f1) IN (select count(*) from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select null from tb1), sum(f1) IN (select null from tb1) from tb1 where sum(f1) IN (select null from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from tb1), sum(f1) IN (select * from tb1) from tb1 where sum(f1) IN (select * from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 2 from tb1), sum(f1) IN (select 2 from tb1) from tb1 where sum(f1) IN (select 2 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select last(*) from tb1), sum(f1) IN (select last(*) from tb1) from tb1 where sum(f1) IN (select last(*) from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select max(f1) from tb1 partition by f1), sum(f1) IN (select max(f1) from tb1 partition by f1) from tb1 where sum(f1) IN (select max(f1) from tb1 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select a.ts from tb1 a join tb1 b on a.ts = b.ts), sum(f1) IN (select a.ts from tb1 a join tb1 b on a.ts = b.ts) from tb1 where sum(f1) IN (select a.ts from tb1 a join tb1 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select sum(f1) from tb1 interval(1d)), sum(f1) IN (select sum(f1) from tb1 interval(1d)) from tb1 where sum(f1) IN (select sum(f1) from tb1 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb1 union select f1 from tb1), sum(f1) IN (select f1 from tb1 union select f1 from tb1) from tb1 where sum(f1) IN (select f1 from tb1 union select f1 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb1 union all select f1 from tb1), sum(f1) IN (select f1 from tb1 union all select f1 from tb1) from tb1 where sum(f1) IN (select f1 from tb1 union all select f1 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select (select f1 from tb1) from tb1), sum(f1) IN (select (select f1 from tb1) from tb1) from tb1 where sum(f1) IN (select (select f1 from tb1) from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select distinct * from tb1), sum(f1) IN (select distinct * from tb1) from tb1 where sum(f1) IN (select distinct * from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), sum(f1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where sum(f1) IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) IN (null), (select 1) IN (null) from tb1 where (select 1) IN (null) order by 1;
 
 taos> select (select 1) IN (select 1), (select 1) IN (select 1) from tb1 where (select 1) IN (select 1) order by 1;
@@ -1064,58 +1064,58 @@ taos> select f1 + 1 NOT IN (select * from (select f1 from tb1 where f1 > (select
 
 taos> select sum(f1) NOT IN (null), sum(f1) NOT IN (null) from tb1 where sum(f1) NOT IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 1), sum(f1) NOT IN (select 1) from tb1 where sum(f1) NOT IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb1), sum(f1) NOT IN (select f1 from tb1) from tb1 where sum(f1) NOT IN (select f1 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN ((select f1 from tb1)), sum(f1) NOT IN ((select f1 from tb1)) from tb1 where sum(f1) NOT IN ((select f1 from tb1)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb1 limit 0), sum(f1) NOT IN (select f1 from tb1 limit 0) from tb1 where sum(f1) NOT IN (select f1 from tb1 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select count(*) from tb1), sum(f1) NOT IN (select count(*) from tb1) from tb1 where sum(f1) NOT IN (select count(*) from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select null from tb1), sum(f1) NOT IN (select null from tb1) from tb1 where sum(f1) NOT IN (select null from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from tb1), sum(f1) NOT IN (select * from tb1) from tb1 where sum(f1) NOT IN (select * from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 2 from tb1), sum(f1) NOT IN (select 2 from tb1) from tb1 where sum(f1) NOT IN (select 2 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select last(*) from tb1), sum(f1) NOT IN (select last(*) from tb1) from tb1 where sum(f1) NOT IN (select last(*) from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select max(f1) from tb1 partition by f1), sum(f1) NOT IN (select max(f1) from tb1 partition by f1) from tb1 where sum(f1) NOT IN (select max(f1) from tb1 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select a.ts from tb1 a join tb1 b on a.ts = b.ts), sum(f1) NOT IN (select a.ts from tb1 a join tb1 b on a.ts = b.ts) from tb1 where sum(f1) NOT IN (select a.ts from tb1 a join tb1 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select sum(f1) from tb1 interval(1d)), sum(f1) NOT IN (select sum(f1) from tb1 interval(1d)) from tb1 where sum(f1) NOT IN (select sum(f1) from tb1 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb1 union select f1 from tb1), sum(f1) NOT IN (select f1 from tb1 union select f1 from tb1) from tb1 where sum(f1) NOT IN (select f1 from tb1 union select f1 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb1 union all select f1 from tb1), sum(f1) NOT IN (select f1 from tb1 union all select f1 from tb1) from tb1 where sum(f1) NOT IN (select f1 from tb1 union all select f1 from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select (select f1 from tb1) from tb1), sum(f1) NOT IN (select (select f1 from tb1) from tb1) from tb1 where sum(f1) NOT IN (select (select f1 from tb1) from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select distinct * from tb1), sum(f1) NOT IN (select distinct * from tb1) from tb1 where sum(f1) NOT IN (select distinct * from tb1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq), sum(f1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) from tb1 where sum(f1) NOT IN (select * from (select f1 from tb1 where f1 > (select 1 from tb1)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) NOT IN (null), (select 1) NOT IN (null) from tb1 where (select 1) NOT IN (null) order by 1;
 
 taos> select (select 1) NOT IN (select 1), (select 1) NOT IN (select 1) from tb1 where (select 1) NOT IN (select 1) order by 1;
@@ -1628,58 +1628,58 @@ taos> select f1 + 1 IN (select * from (select f1 from tb2 where f1 > (select 1 f
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) IN (null), sum(f1) IN (null) from tb2 where sum(f1) IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 1), sum(f1) IN (select 1) from tb2 where sum(f1) IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb2), sum(f1) IN (select f1 from tb2) from tb2 where sum(f1) IN (select f1 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN ((select f1 from tb2)), sum(f1) IN ((select f1 from tb2)) from tb2 where sum(f1) IN ((select f1 from tb2)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb2 limit 0), sum(f1) IN (select f1 from tb2 limit 0) from tb2 where sum(f1) IN (select f1 from tb2 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select count(*) from tb2), sum(f1) IN (select count(*) from tb2) from tb2 where sum(f1) IN (select count(*) from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select null from tb2), sum(f1) IN (select null from tb2) from tb2 where sum(f1) IN (select null from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from tb2), sum(f1) IN (select * from tb2) from tb2 where sum(f1) IN (select * from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 2 from tb2), sum(f1) IN (select 2 from tb2) from tb2 where sum(f1) IN (select 2 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select last(*) from tb2), sum(f1) IN (select last(*) from tb2) from tb2 where sum(f1) IN (select last(*) from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select max(f1) from tb2 partition by f1), sum(f1) IN (select max(f1) from tb2 partition by f1) from tb2 where sum(f1) IN (select max(f1) from tb2 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select a.ts from tb2 a join tb2 b on a.ts = b.ts), sum(f1) IN (select a.ts from tb2 a join tb2 b on a.ts = b.ts) from tb2 where sum(f1) IN (select a.ts from tb2 a join tb2 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select sum(f1) from tb2 interval(1d)), sum(f1) IN (select sum(f1) from tb2 interval(1d)) from tb2 where sum(f1) IN (select sum(f1) from tb2 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb2 union select f1 from tb2), sum(f1) IN (select f1 from tb2 union select f1 from tb2) from tb2 where sum(f1) IN (select f1 from tb2 union select f1 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb2 union all select f1 from tb2), sum(f1) IN (select f1 from tb2 union all select f1 from tb2) from tb2 where sum(f1) IN (select f1 from tb2 union all select f1 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select (select f1 from tb2) from tb2), sum(f1) IN (select (select f1 from tb2) from tb2) from tb2 where sum(f1) IN (select (select f1 from tb2) from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select distinct * from tb2), sum(f1) IN (select distinct * from tb2) from tb2 where sum(f1) IN (select distinct * from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), sum(f1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where sum(f1) IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) IN (null), (select 1) IN (null) from tb2 where (select 1) IN (null) order by 1;
 
 taos> select (select 1) IN (select 1), (select 1) IN (select 1) from tb2 where (select 1) IN (select 1) order by 1;
@@ -2334,58 +2334,58 @@ taos> select f1 + 1 NOT IN (select * from (select f1 from tb2 where f1 > (select
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) NOT IN (null), sum(f1) NOT IN (null) from tb2 where sum(f1) NOT IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 1), sum(f1) NOT IN (select 1) from tb2 where sum(f1) NOT IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb2), sum(f1) NOT IN (select f1 from tb2) from tb2 where sum(f1) NOT IN (select f1 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN ((select f1 from tb2)), sum(f1) NOT IN ((select f1 from tb2)) from tb2 where sum(f1) NOT IN ((select f1 from tb2)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb2 limit 0), sum(f1) NOT IN (select f1 from tb2 limit 0) from tb2 where sum(f1) NOT IN (select f1 from tb2 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select count(*) from tb2), sum(f1) NOT IN (select count(*) from tb2) from tb2 where sum(f1) NOT IN (select count(*) from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select null from tb2), sum(f1) NOT IN (select null from tb2) from tb2 where sum(f1) NOT IN (select null from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from tb2), sum(f1) NOT IN (select * from tb2) from tb2 where sum(f1) NOT IN (select * from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 2 from tb2), sum(f1) NOT IN (select 2 from tb2) from tb2 where sum(f1) NOT IN (select 2 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select last(*) from tb2), sum(f1) NOT IN (select last(*) from tb2) from tb2 where sum(f1) NOT IN (select last(*) from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select max(f1) from tb2 partition by f1), sum(f1) NOT IN (select max(f1) from tb2 partition by f1) from tb2 where sum(f1) NOT IN (select max(f1) from tb2 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select a.ts from tb2 a join tb2 b on a.ts = b.ts), sum(f1) NOT IN (select a.ts from tb2 a join tb2 b on a.ts = b.ts) from tb2 where sum(f1) NOT IN (select a.ts from tb2 a join tb2 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select sum(f1) from tb2 interval(1d)), sum(f1) NOT IN (select sum(f1) from tb2 interval(1d)) from tb2 where sum(f1) NOT IN (select sum(f1) from tb2 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb2 union select f1 from tb2), sum(f1) NOT IN (select f1 from tb2 union select f1 from tb2) from tb2 where sum(f1) NOT IN (select f1 from tb2 union select f1 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb2 union all select f1 from tb2), sum(f1) NOT IN (select f1 from tb2 union all select f1 from tb2) from tb2 where sum(f1) NOT IN (select f1 from tb2 union all select f1 from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select (select f1 from tb2) from tb2), sum(f1) NOT IN (select (select f1 from tb2) from tb2) from tb2 where sum(f1) NOT IN (select (select f1 from tb2) from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select distinct * from tb2), sum(f1) NOT IN (select distinct * from tb2) from tb2 where sum(f1) NOT IN (select distinct * from tb2) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq), sum(f1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) from tb2 where sum(f1) NOT IN (select * from (select f1 from tb2 where f1 > (select 1 from tb2)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) NOT IN (null), (select 1) NOT IN (null) from tb2 where (select 1) NOT IN (null) order by 1;
 
 taos> select (select 1) NOT IN (select 1), (select 1) NOT IN (select 1) from tb2 where (select 1) NOT IN (select 1) order by 1;
@@ -2908,58 +2908,58 @@ taos> select f1 + 1 IN (select * from (select f1 from tb3 where f1 > (select 1 f
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) IN (null), sum(f1) IN (null) from tb3 where sum(f1) IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 1), sum(f1) IN (select 1) from tb3 where sum(f1) IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb3), sum(f1) IN (select f1 from tb3) from tb3 where sum(f1) IN (select f1 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN ((select f1 from tb3)), sum(f1) IN ((select f1 from tb3)) from tb3 where sum(f1) IN ((select f1 from tb3)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb3 limit 0), sum(f1) IN (select f1 from tb3 limit 0) from tb3 where sum(f1) IN (select f1 from tb3 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select count(*) from tb3), sum(f1) IN (select count(*) from tb3) from tb3 where sum(f1) IN (select count(*) from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select null from tb3), sum(f1) IN (select null from tb3) from tb3 where sum(f1) IN (select null from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from tb3), sum(f1) IN (select * from tb3) from tb3 where sum(f1) IN (select * from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 2 from tb3), sum(f1) IN (select 2 from tb3) from tb3 where sum(f1) IN (select 2 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select last(*) from tb3), sum(f1) IN (select last(*) from tb3) from tb3 where sum(f1) IN (select last(*) from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select max(f1) from tb3 partition by f1), sum(f1) IN (select max(f1) from tb3 partition by f1) from tb3 where sum(f1) IN (select max(f1) from tb3 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select a.ts from tb3 a join tb3 b on a.ts = b.ts), sum(f1) IN (select a.ts from tb3 a join tb3 b on a.ts = b.ts) from tb3 where sum(f1) IN (select a.ts from tb3 a join tb3 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select sum(f1) from tb3 interval(1d)), sum(f1) IN (select sum(f1) from tb3 interval(1d)) from tb3 where sum(f1) IN (select sum(f1) from tb3 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb3 union select f1 from tb3), sum(f1) IN (select f1 from tb3 union select f1 from tb3) from tb3 where sum(f1) IN (select f1 from tb3 union select f1 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tb3 union all select f1 from tb3), sum(f1) IN (select f1 from tb3 union all select f1 from tb3) from tb3 where sum(f1) IN (select f1 from tb3 union all select f1 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select (select f1 from tb3) from tb3), sum(f1) IN (select (select f1 from tb3) from tb3) from tb3 where sum(f1) IN (select (select f1 from tb3) from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select distinct * from tb3), sum(f1) IN (select distinct * from tb3) from tb3 where sum(f1) IN (select distinct * from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), sum(f1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where sum(f1) IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) IN (null), (select 1) IN (null) from tb3 where (select 1) IN (null) order by 1;
 
 taos> select (select 1) IN (select 1), (select 1) IN (select 1) from tb3 where (select 1) IN (select 1) order by 1;
@@ -3707,58 +3707,58 @@ taos> select f1 + 1 NOT IN (select * from (select f1 from tb3 where f1 > (select
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) NOT IN (null), sum(f1) NOT IN (null) from tb3 where sum(f1) NOT IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 1), sum(f1) NOT IN (select 1) from tb3 where sum(f1) NOT IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb3), sum(f1) NOT IN (select f1 from tb3) from tb3 where sum(f1) NOT IN (select f1 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN ((select f1 from tb3)), sum(f1) NOT IN ((select f1 from tb3)) from tb3 where sum(f1) NOT IN ((select f1 from tb3)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb3 limit 0), sum(f1) NOT IN (select f1 from tb3 limit 0) from tb3 where sum(f1) NOT IN (select f1 from tb3 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select count(*) from tb3), sum(f1) NOT IN (select count(*) from tb3) from tb3 where sum(f1) NOT IN (select count(*) from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select null from tb3), sum(f1) NOT IN (select null from tb3) from tb3 where sum(f1) NOT IN (select null from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from tb3), sum(f1) NOT IN (select * from tb3) from tb3 where sum(f1) NOT IN (select * from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 2 from tb3), sum(f1) NOT IN (select 2 from tb3) from tb3 where sum(f1) NOT IN (select 2 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select last(*) from tb3), sum(f1) NOT IN (select last(*) from tb3) from tb3 where sum(f1) NOT IN (select last(*) from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select max(f1) from tb3 partition by f1), sum(f1) NOT IN (select max(f1) from tb3 partition by f1) from tb3 where sum(f1) NOT IN (select max(f1) from tb3 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select a.ts from tb3 a join tb3 b on a.ts = b.ts), sum(f1) NOT IN (select a.ts from tb3 a join tb3 b on a.ts = b.ts) from tb3 where sum(f1) NOT IN (select a.ts from tb3 a join tb3 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select sum(f1) from tb3 interval(1d)), sum(f1) NOT IN (select sum(f1) from tb3 interval(1d)) from tb3 where sum(f1) NOT IN (select sum(f1) from tb3 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb3 union select f1 from tb3), sum(f1) NOT IN (select f1 from tb3 union select f1 from tb3) from tb3 where sum(f1) NOT IN (select f1 from tb3 union select f1 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tb3 union all select f1 from tb3), sum(f1) NOT IN (select f1 from tb3 union all select f1 from tb3) from tb3 where sum(f1) NOT IN (select f1 from tb3 union all select f1 from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select (select f1 from tb3) from tb3), sum(f1) NOT IN (select (select f1 from tb3) from tb3) from tb3 where sum(f1) NOT IN (select (select f1 from tb3) from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select distinct * from tb3), sum(f1) NOT IN (select distinct * from tb3) from tb3 where sum(f1) NOT IN (select distinct * from tb3) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq), sum(f1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) from tb3 where sum(f1) NOT IN (select * from (select f1 from tb3 where f1 > (select 1 from tb3)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) NOT IN (null), (select 1) NOT IN (null) from tb3 where (select 1) NOT IN (null) order by 1;
 
 taos> select (select 1) NOT IN (select 1), (select 1) NOT IN (select 1) from tb3 where (select 1) NOT IN (select 1) order by 1;
@@ -5653,58 +5653,58 @@ taos> select f1 + 1 IN (select * from (select f1 from tbb where f1 > (select 1 f
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) IN (null), sum(f1) IN (null) from tbb where sum(f1) IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 1), sum(f1) IN (select 1) from tbb where sum(f1) IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tbb), sum(f1) IN (select f1 from tbb) from tbb where sum(f1) IN (select f1 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN ((select f1 from tbb)), sum(f1) IN ((select f1 from tbb)) from tbb where sum(f1) IN ((select f1 from tbb)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tbb limit 0), sum(f1) IN (select f1 from tbb limit 0) from tbb where sum(f1) IN (select f1 from tbb limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select count(*) from tbb), sum(f1) IN (select count(*) from tbb) from tbb where sum(f1) IN (select count(*) from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select null from tbb), sum(f1) IN (select null from tbb) from tbb where sum(f1) IN (select null from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from tbb), sum(f1) IN (select * from tbb) from tbb where sum(f1) IN (select * from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 2 from tbb), sum(f1) IN (select 2 from tbb) from tbb where sum(f1) IN (select 2 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select last(*) from tbb), sum(f1) IN (select last(*) from tbb) from tbb where sum(f1) IN (select last(*) from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select max(f1) from tbb partition by f1), sum(f1) IN (select max(f1) from tbb partition by f1) from tbb where sum(f1) IN (select max(f1) from tbb partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select a.ts from tbb a join tbb b on a.ts = b.ts), sum(f1) IN (select a.ts from tbb a join tbb b on a.ts = b.ts) from tbb where sum(f1) IN (select a.ts from tbb a join tbb b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select sum(f1) from tbb interval(1d)), sum(f1) IN (select sum(f1) from tbb interval(1d)) from tbb where sum(f1) IN (select sum(f1) from tbb interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tbb union select f1 from tbb), sum(f1) IN (select f1 from tbb union select f1 from tbb) from tbb where sum(f1) IN (select f1 from tbb union select f1 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from tbb union all select f1 from tbb), sum(f1) IN (select f1 from tbb union all select f1 from tbb) from tbb where sum(f1) IN (select f1 from tbb union all select f1 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select (select f1 from tbb) from tbb), sum(f1) IN (select (select f1 from tbb) from tbb) from tbb where sum(f1) IN (select (select f1 from tbb) from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select distinct * from tbb), sum(f1) IN (select distinct * from tbb) from tbb where sum(f1) IN (select distinct * from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), sum(f1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where sum(f1) IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) IN (null), (select 1) IN (null) from tbb where (select 1) IN (null) order by 1;
 
 taos> select (select 1) IN (select 1), (select 1) IN (select 1) from tbb where (select 1) IN (select 1) order by 1;
@@ -6303,58 +6303,58 @@ taos> select f1 + 1 NOT IN (select * from (select f1 from tbb where f1 > (select
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) NOT IN (null), sum(f1) NOT IN (null) from tbb where sum(f1) NOT IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 1), sum(f1) NOT IN (select 1) from tbb where sum(f1) NOT IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tbb), sum(f1) NOT IN (select f1 from tbb) from tbb where sum(f1) NOT IN (select f1 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN ((select f1 from tbb)), sum(f1) NOT IN ((select f1 from tbb)) from tbb where sum(f1) NOT IN ((select f1 from tbb)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tbb limit 0), sum(f1) NOT IN (select f1 from tbb limit 0) from tbb where sum(f1) NOT IN (select f1 from tbb limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select count(*) from tbb), sum(f1) NOT IN (select count(*) from tbb) from tbb where sum(f1) NOT IN (select count(*) from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select null from tbb), sum(f1) NOT IN (select null from tbb) from tbb where sum(f1) NOT IN (select null from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from tbb), sum(f1) NOT IN (select * from tbb) from tbb where sum(f1) NOT IN (select * from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 2 from tbb), sum(f1) NOT IN (select 2 from tbb) from tbb where sum(f1) NOT IN (select 2 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select last(*) from tbb), sum(f1) NOT IN (select last(*) from tbb) from tbb where sum(f1) NOT IN (select last(*) from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select max(f1) from tbb partition by f1), sum(f1) NOT IN (select max(f1) from tbb partition by f1) from tbb where sum(f1) NOT IN (select max(f1) from tbb partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select a.ts from tbb a join tbb b on a.ts = b.ts), sum(f1) NOT IN (select a.ts from tbb a join tbb b on a.ts = b.ts) from tbb where sum(f1) NOT IN (select a.ts from tbb a join tbb b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select sum(f1) from tbb interval(1d)), sum(f1) NOT IN (select sum(f1) from tbb interval(1d)) from tbb where sum(f1) NOT IN (select sum(f1) from tbb interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tbb union select f1 from tbb), sum(f1) NOT IN (select f1 from tbb union select f1 from tbb) from tbb where sum(f1) NOT IN (select f1 from tbb union select f1 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from tbb union all select f1 from tbb), sum(f1) NOT IN (select f1 from tbb union all select f1 from tbb) from tbb where sum(f1) NOT IN (select f1 from tbb union all select f1 from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select (select f1 from tbb) from tbb), sum(f1) NOT IN (select (select f1 from tbb) from tbb) from tbb where sum(f1) NOT IN (select (select f1 from tbb) from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select distinct * from tbb), sum(f1) NOT IN (select distinct * from tbb) from tbb where sum(f1) NOT IN (select distinct * from tbb) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq), sum(f1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) from tbb where sum(f1) NOT IN (select * from (select f1 from tbb where f1 > (select 1 from tbb)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) NOT IN (null), (select 1) NOT IN (null) from tbb where (select 1) NOT IN (null) order by 1;
 
 taos> select (select 1) NOT IN (select 1), (select 1) NOT IN (select 1) from tbb where (select 1) NOT IN (select 1) order by 1;
@@ -6987,58 +6987,58 @@ taos> select f1 + 1 IN (select * from (select f1 from st1 where f1 > (select 1 f
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) IN (null), sum(f1) IN (null) from st1 where sum(f1) IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 1), sum(f1) IN (select 1) from st1 where sum(f1) IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from st1), sum(f1) IN (select f1 from st1) from st1 where sum(f1) IN (select f1 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN ((select f1 from st1)), sum(f1) IN ((select f1 from st1)) from st1 where sum(f1) IN ((select f1 from st1)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from st1 limit 0), sum(f1) IN (select f1 from st1 limit 0) from st1 where sum(f1) IN (select f1 from st1 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select count(*) from st1), sum(f1) IN (select count(*) from st1) from st1 where sum(f1) IN (select count(*) from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select null from st1), sum(f1) IN (select null from st1) from st1 where sum(f1) IN (select null from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from st1), sum(f1) IN (select * from st1) from st1 where sum(f1) IN (select * from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select 2 from st1), sum(f1) IN (select 2 from st1) from st1 where sum(f1) IN (select 2 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select last(*) from st1), sum(f1) IN (select last(*) from st1) from st1 where sum(f1) IN (select last(*) from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select max(f1) from st1 partition by f1), sum(f1) IN (select max(f1) from st1 partition by f1) from st1 where sum(f1) IN (select max(f1) from st1 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select a.ts from st1 a join st1 b on a.ts = b.ts), sum(f1) IN (select a.ts from st1 a join st1 b on a.ts = b.ts) from st1 where sum(f1) IN (select a.ts from st1 a join st1 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select sum(f1) from st1 interval(1d)), sum(f1) IN (select sum(f1) from st1 interval(1d)) from st1 where sum(f1) IN (select sum(f1) from st1 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from st1 union select f1 from st1), sum(f1) IN (select f1 from st1 union select f1 from st1) from st1 where sum(f1) IN (select f1 from st1 union select f1 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select f1 from st1 union all select f1 from st1), sum(f1) IN (select f1 from st1 union all select f1 from st1) from st1 where sum(f1) IN (select f1 from st1 union all select f1 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select (select f1 from st1) from st1), sum(f1) IN (select (select f1 from st1) from st1) from st1 where sum(f1) IN (select (select f1 from st1) from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select distinct * from st1), sum(f1) IN (select distinct * from st1) from st1 where sum(f1) IN (select distinct * from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), sum(f1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where sum(f1) IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) IN (null), (select 1) IN (null) from st1 where (select 1) IN (null) order by 1;
 
 taos> select (select 1) IN (select 1), (select 1) IN (select 1) from st1 where (select 1) IN (select 1) order by 1;
@@ -7940,58 +7940,58 @@ taos> select f1 + 1 NOT IN (select * from (select f1 from st1 where f1 > (select
 DB error: More than 1 row returned in subquery as expr [0x800026A5] 
 taos> select sum(f1) NOT IN (null), sum(f1) NOT IN (null) from st1 where sum(f1) NOT IN (null) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 1), sum(f1) NOT IN (select 1) from st1 where sum(f1) NOT IN (select 1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from st1), sum(f1) NOT IN (select f1 from st1) from st1 where sum(f1) NOT IN (select f1 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN ((select f1 from st1)), sum(f1) NOT IN ((select f1 from st1)) from st1 where sum(f1) NOT IN ((select f1 from st1)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from st1 limit 0), sum(f1) NOT IN (select f1 from st1 limit 0) from st1 where sum(f1) NOT IN (select f1 from st1 limit 0) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select count(*) from st1), sum(f1) NOT IN (select count(*) from st1) from st1 where sum(f1) NOT IN (select count(*) from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select null from st1), sum(f1) NOT IN (select null from st1) from st1 where sum(f1) NOT IN (select null from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from st1), sum(f1) NOT IN (select * from st1) from st1 where sum(f1) NOT IN (select * from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select 2 from st1), sum(f1) NOT IN (select 2 from st1) from st1 where sum(f1) NOT IN (select 2 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select last(*) from st1), sum(f1) NOT IN (select last(*) from st1) from st1 where sum(f1) NOT IN (select last(*) from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select max(f1) from st1 partition by f1), sum(f1) NOT IN (select max(f1) from st1 partition by f1) from st1 where sum(f1) NOT IN (select max(f1) from st1 partition by f1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select a.ts from st1 a join st1 b on a.ts = b.ts), sum(f1) NOT IN (select a.ts from st1 a join st1 b on a.ts = b.ts) from st1 where sum(f1) NOT IN (select a.ts from st1 a join st1 b on a.ts = b.ts) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select sum(f1) from st1 interval(1d)), sum(f1) NOT IN (select sum(f1) from st1 interval(1d)) from st1 where sum(f1) NOT IN (select sum(f1) from st1 interval(1d)) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from st1 union select f1 from st1), sum(f1) NOT IN (select f1 from st1 union select f1 from st1) from st1 where sum(f1) NOT IN (select f1 from st1 union select f1 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select f1 from st1 union all select f1 from st1), sum(f1) NOT IN (select f1 from st1 union all select f1 from st1) from st1 where sum(f1) NOT IN (select f1 from st1 union all select f1 from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select (select f1 from st1) from st1), sum(f1) NOT IN (select (select f1 from st1) from st1) from st1 where sum(f1) NOT IN (select (select f1 from st1) from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select distinct * from st1), sum(f1) NOT IN (select distinct * from st1) from st1 where sum(f1) NOT IN (select distinct * from st1) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select sum(f1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq), sum(f1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) from st1 where sum(f1) NOT IN (select * from (select f1 from st1 where f1 > (select 1 from st1)) as subq) order by 1;
 
-DB error: There mustn't be aggregation [0x80002608] 
+DB error: Aggregation is not allowed here [0x80002608] 
 taos> select (select 1) NOT IN (null), (select 1) NOT IN (null) from st1 where (select 1) NOT IN (null) order by 1;
 
 taos> select (select 1) NOT IN (select 1), (select 1) NOT IN (select 1) from st1 where (select 1) NOT IN (select 1) order by 1;

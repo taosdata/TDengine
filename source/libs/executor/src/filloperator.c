@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -328,6 +330,8 @@ static int32_t doFillNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
+  // Fill always needs the current stream window bounds when a stream time range is present.
+  // `needCalc` only controls whether external-window scans need a separate range calculation.
   if (pInfo->pTimeRange != NULL) {
     STimeWindow pWinRange = {0};
     bool        isWinRangeValid = false;
@@ -383,6 +387,8 @@ void destroyFillOperatorInfo(void* param) {
 
   cleanupExprSupp(&pInfo->noFillExprSupp);
   cleanupExprSupp(&pInfo->fillNullExprSupp);
+  nodesDestroyNode(pInfo->pTimeRange);
+  pInfo->pTimeRange = NULL;
 
   taosMemoryFreeClear(pInfo->p);
   taosArrayDestroy(pInfo->matchInfo.pList);
@@ -580,10 +586,17 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                       &pTaskInfo->storageAPI.functionStore);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  SInterval* pInterval =
-      QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == downstream->operatorType
-          ? &((SMergeAlignedIntervalAggOperatorInfo*)downstream->info)->intervalAggOperatorInfo->interval
-          : &((SIntervalAggOperatorInfo*)downstream->info)->interval;
+  SInterval  interval = {
+      .interval = pPhyFillNode->interval,
+      .offset = pPhyFillNode->offset,
+      .sliding = pPhyFillNode->sliding,
+      .intervalUnit = pPhyFillNode->intervalUnit,
+      .slidingUnit = pPhyFillNode->slidingUnit,
+      .precision = ((SExprNode*)((STargetNode*)pPhyFillNode->pWStartTs)->pExpr)->resType.precision,
+      .timeRange = pPhyFillNode->timeRange,
+      .firstDayOfWeek = pPhyFillNode->firstDayOfWeek,
+      .timezone = pPhyFillNode->timezone,
+  };
 
   int32_t order = (pPhyFillNode->node.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   int32_t type = convertFillType(pPhyFillNode->mode);
@@ -622,7 +635,7 @@ int32_t createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode* pPhyFi
                       pInfo->fillNullExprSupp.numOfExprs,
                       (SNodeListNode*)pPhyFillNode->pValues,
                       pPhyFillNode->timeRange, pResultInfo->capacity,
-                      pTaskInfo->id.str, pInterval, type, order, pTaskInfo,
+                      pTaskInfo->id.str, &interval, type, order, pTaskInfo,
                       surroundingTime, pPhyFillNode->indefRowsMode);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

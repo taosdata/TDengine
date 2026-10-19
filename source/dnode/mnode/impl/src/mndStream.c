@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -24,6 +26,7 @@
 #include "mndStb.h"
 #include "mndStreamRecalc.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 #include "osMemory.h"
@@ -102,6 +105,10 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
 
 static int32_t mndProcessCreateStreamReqFromMNode(SRpcMsg *pReq);
+static int32_t mndCheckStreamOutTableConflict(SMnode *pMnode, const SStreamObj *pStream, txn_id_t txnId);
+static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCreateStreamReq *pCreate,
+                                       SUserObj *pUser, int32_t snodeId, txn_id_t txnId);
+static int32_t mndMarkStreamTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *pStream, txn_id_t txnId);
 static int32_t mndProcessDropStreamReqFromMNode(SRpcMsg *pReq);
 static int32_t mndProcessGetStreamCreateSqlReq(SRpcMsg *pReq);
 
@@ -590,6 +597,13 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
     pOldStream->recalcRevision = pNewStream->recalcRevision;
     pRequests = NULL;
   }
+  // batch-meta-txn (stream phase 2): the txn markers must be carried over, otherwise a
+  // PRE_CREATE/PRE_DROP marker write - or the marker clear at COMMIT - lands in SDB but
+  // is dropped from the in-memory object, leaving a stale txnId that makes every later
+  // DDL on this stream fail with TSDB_CODE_TXN_RESOURCE_BUSY. Mirrors pOld->txnId =
+  // pNew->txnId in mndStbActionUpdate.
+  pOldStream->txnId = pNewStream->txnId;
+  pOldStream->txnStatus = pNewStream->txnStatus;
   taosWUnLockLatch(&pOldStream->lock);
 
   taosArrayDestroy(pOldRequests);
@@ -683,13 +697,18 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
   mstLogSStreamObj("create stream", pObj);
 }
 
-static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCreateStreamReq *pStream, const char *user) {
+static int32_t mndStreamCreateOutStb(SMnode *pMnode, STrans *pTrans, const SCMCreateStreamReq *pStream, const char *user,
+                                     txn_id_t txnId) {
   SStbObj *pStb = NULL;
   SDbObj  *pDb = NULL;
   int32_t  code = 0;
   int32_t  lino = 0;
 
   SMCreateStbReq createReq = {0};
+  // batch-meta-txn (stream phase 2): inside a txn the output STB must be created with the
+  // txn markers set, so it stays invisible to other sessions and ROLLBACK can undo it.
+  // mndBuildStbFromReq propagates txnId into SStbObj.txnId/txnStatus (mndStb.c:1301).
+  createReq.txnId = (int64_t)txnId;
   TAOS_STRNCAT(createReq.name, pStream->outDB, TSDB_DB_FNAME_LEN);
   TAOS_STRNCAT(createReq.name, ".", 2);
   TAOS_STRNCAT(createReq.name,  pStream->outTblName, TSDB_TABLE_NAME_LEN);
@@ -804,7 +823,8 @@ _OVER:
   return code;
 }
 
-static int32_t mndStreamCreateOutTable(SMnode *pMnode, STrans *pTrans, const SCMCreateStreamReq *pStream) {
+static int32_t mndStreamCreateOutTable(SMnode *pMnode, STrans *pTrans, const SCMCreateStreamReq *pStream,
+                                       txn_id_t txnId) {
   int32_t  code = 0;
   int32_t  lino = 0;
   SVgObj  *pVgroup = NULL;
@@ -866,6 +886,11 @@ static int32_t mndStreamCreateOutTable(SMnode *pMnode, STrans *pTrans, const SCM
   createReq.uid = mndGenerateUid(pStream->outTblName, strlen(pStream->outTblName));
   createReq.btime = taosGetTimestampMs();
   createReq.ttl = TSDB_DEFAULT_TABLE_TTL;
+  // batch-meta-txn (stream phase 2): inside a txn the output table must be created with
+  // the txn marker, so vnodeProcessCreateTbReq writes it as META_TXN_PRE_CREATE - visible
+  // to this txn only, undone by ROLLBACK. flags stay as-is; the txn branch in vnodeSvr.c
+  // does not consult TD_CREATE_IF_NOT_EXISTS.
+  createReq.txnId = (int64_t)txnId;
   createReq.commentLen = -1;
   createReq.name = taosStrdup(pStream->outTblName);
   if (createReq.name == NULL) {
@@ -1068,10 +1093,22 @@ _OVER:
   return code;
 }
 
+int32_t mndValidateStreamTimeConfig(const SCMCreateStreamReq *pCreate) {
+  if (pCreate->tsmaId != 0) return TSDB_CODE_SUCCESS;
+  if (pCreate->timeConfig.timezone[0] == '\0' || pCreate->timeConfig.firstDayOfWeek < 0 ||
+      pCreate->timeConfig.firstDayOfWeek > 6) {
+    return TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
   char   *pUser = RPC_MSG_USER(pReq);
+
+  code = mndValidateStreamTimeConfig(pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
 
 #ifdef TD_ENTERPRISE
   /* Reject EXT-driven stream creation when federatedQueryEnable=false on the server.
@@ -1109,7 +1146,7 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
       SDbObj *pTrigDb = mndAcquireDb(pMnode, pCreate->triggerDB);
       if (pTrigDb == NULL) {
         skipTriggerDbCheck = true;
-        mDebug("stream:%s triggerDB '%s' not in sdb, treated as ext-source db — skipping privilege check",
+        mDebug("stream:%s triggerDB '%s' not in sdb, treated as ext-source db - skipping privilege check",
                pCreate->name, pCreate->triggerDB);
       } else {
         mndReleaseDb(pMnode, pTrigDb);
@@ -1152,7 +1189,7 @@ static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateS
         SDbObj *pCDb = mndAcquireDb(pMnode, calcDB);
         if (pCDb == NULL) {
           skipCalcDbCheck = true;
-          mDebug("stream:%s calcDB '%s' not in sdb, treated as ext-source db — skipping privilege check",
+          mDebug("stream:%s calcDB '%s' not in sdb, treated as ext-source db - skipping privilege check",
                  pCreate->name, calcDB);
         } else {
           mndReleaseDb(pMnode, pCDb);
@@ -1223,9 +1260,9 @@ static int32_t mndStreamClassifyExtTrigger(const SCMCreateStreamReq *pCreate, co
   return TSDB_CODE_SUCCESS;
 }
 
+#ifdef TD_ENTERPRISE
 static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMCreateStreamReq *pCreate,
                                                       const char *pSourceName, int8_t sourceType) {
-#ifdef TD_ENTERPRISE
   SExtSourceObj *pSource = mndAcquireExtSource(pMnode, pSourceName);
   if (pSource == NULL) return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
   const bool typeMatches = pSource->type == sourceType;
@@ -1240,14 +1277,8 @@ static int32_t mndStreamRejectAuthoritativeExtTrigger(SMnode *pMnode, const SCMC
       .eventTypes = pCreate->eventTypes,
   };
   return tValidateStreamWindowPlan(pCreate->pWindowPlan, &ctx);
-#else
-  (void)pMnode;
-  (void)pCreate;
-  (void)pSourceName;
-  (void)sourceType;
-  return TSDB_CODE_EXT_SOURCE_NOT_FOUND;
-#endif
 }
+#endif
 
 static int32_t mndStreamBuildStbMetaSnapshot(SMnode *pMnode, const SCMCreateStreamReq *pCreate, SDbObj *pDb,
                                              SStbObj *pStb, STableMetaRsp *pMeta) {
@@ -1387,8 +1418,9 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
                                             SStreamWindowPlanValidationCtx *pValidationCtx) {
   SNodeList *pList = NULL;
   int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
   if (pCreate->partitionCols != NULL) {
-    TAOS_CHECK_GOTO(nodesStringToList(pCreate->partitionCols, &pList), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->partitionCols, &pList), &lino, _exit);
     SStreamColumnValidationCtx ctx = {
         .pMeta = pMeta,
         .hasCompositePrimaryKey = pValidationCtx->hasCompositePrimaryKey,
@@ -1407,7 +1439,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
     pValidationCtx->partitionByTag = ctx.partitionByTag;
     char   *pNormalized = NULL;
     int32_t normalizedLen = 0;
-    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), &lino, _exit);
     taosMemoryFree(pCreate->partitionCols);
     pCreate->partitionCols = pNormalized;
     nodesDestroyList(pList);
@@ -1415,7 +1447,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
   }
 
   if (pCreate->rollupTagCols != NULL) {
-    TAOS_CHECK_GOTO(nodesStringToList(pCreate->rollupTagCols, &pList), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesStringToList(pCreate->rollupTagCols, &pList), &lino, _exit);
     SNode *pNode = NULL;
     FOREACH(pNode, pList) {
       if (nodeType(pNode) != QUERY_NODE_COLUMN) {
@@ -1424,7 +1456,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
       }
       bool           isTag = false;
       const SSchema *pSchema = NULL;
-      TAOS_CHECK_GOTO(mndStreamFindAuthoritativeColumn(pMeta, (SColumnNode *)pNode, &isTag, &pSchema), NULL, _exit);
+      TAOS_CHECK_GOTO(mndStreamFindAuthoritativeColumn(pMeta, (SColumnNode *)pNode, &isTag, &pSchema), &lino, _exit);
       if (!isTag || (pSchema->type != TSDB_DATA_TYPE_VARCHAR && pSchema->type != TSDB_DATA_TYPE_NCHAR)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
@@ -1434,7 +1466,7 @@ static int32_t mndStreamValidateColumnLists(SCMCreateStreamReq *pCreate, const S
     pValidationCtx->hasRollup = LIST_LENGTH(pList) > 0;
     char   *pNormalized = NULL;
     int32_t normalizedLen = 0;
-    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), NULL, _exit);
+    TAOS_CHECK_GOTO(nodesListToString(pList, false, &pNormalized, &normalizedLen), &lino, _exit);
     taosMemoryFree(pCreate->rollupTagCols);
     pCreate->rollupTagCols = pNormalized;
   }
@@ -1816,6 +1848,27 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
     if (pShow->pIter == NULL) break;
 
+    // batch-meta-txn (stream phase 2): FS Sec.4.6 visibility.
+    //   PRE_CREATE      -> only the owning txn sees it (reported as pending_create)
+    //   PRE_CREATE_DROP -> nobody sees it: created and dropped in the same txn, net effect
+    //                     is nothing, and it was never visible outside
+    //   PRE_DROP        -> everyone sees it. The owning txn gets pending_drop; other
+    //                     connections must still see it as normal, because the stream keeps
+    //                     running until COMMIT and ROLLBACK has to be able to restore it.
+    //                     This differs from tables (mndRetrieveStb hides a PRE_DROP table
+    //                     from its own txn) - the stream keeps a visible definition instead.
+    if (pStream->txnId != 0) {
+      if (pStream->txnStatus == META_TXN_PRE_CREATE) {
+        if (pStream->txnId != (txn_id_t)pShow->txnId) {
+          sdbRelease(pSdb, pStream);
+          continue;
+        }
+      } else if (pStream->txnStatus == META_TXN_PRE_CREATE_DROP) {
+        sdbRelease(pSdb, pStream);
+        continue;
+      }
+    }
+
     if (!showAll) {
       if ((mndCheckObjPrivilegeRecF(pMnode, pOperUser, PRIV_CM_SHOW, PRIV_OBJ_STREAM, pStream->ownerId,
                                     pStream->pCreate->streamDB, mndGetStableStr(pStream->pCreate->name)))) {
@@ -1824,7 +1877,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       }
     }
 
-    code = mstSetStreamAttrResBlock(pMnode, pStream, pBlock, numOfRows);
+    code = mstSetStreamAttrResBlock(pMnode, pStream, pBlock, numOfRows, pShow->txnId);
     if (code == 0) {
       numOfRows++;
     }
@@ -1980,11 +2033,11 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   code = mndAcquireStream(pMnode, pauseReq.name, &pStream);
   if (pStream == NULL || code != 0) {
     if (pauseReq.igNotExists) {
-      mInfo("stream:%s, not exist, not stop stream", pauseReq.name);
+      mInfo("stream:%s, does not exist, not stopping stream", pauseReq.name);
       taosMemoryFree(pauseReq.name);
       return 0;
     } else {
-      mError("stream:%s not exist, failed to stop stream", pauseReq.name);
+      mError("stream:%s does not exist, failed to stop stream", pauseReq.name);
       taosMemoryFree(pauseReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
@@ -2016,6 +2069,19 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   }
 
   mndReleaseUser(pMnode, pOperUser); // release user after privilege check
+
+  // Batch meta txn (phase 2): a stream held by an uncommitted txn must not be
+  // stopped/started/recalculated from outside - the txn owns the object until
+  // COMMIT/ROLLBACK (FS Sec.4.6: outside DROP/STOP/START/RECALCULATE on a pending
+  // stream returns TSDB_CODE_TXN_RESOURCE_BUSY). The client rejects these inside
+  // a txn; this is the server-side guard for other sessions (non-owning session
+  // or hand-crafted RPC).
+  if (pStream->txnId != 0) {
+    mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot stop stream from a non-owning session",
+              pStream->name, pStream->txnId);
+    sdbRelease(pMnode->pSdb, pStream);
+    return TSDB_CODE_TXN_RESOURCE_BUSY;
+  }
 
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_DB_INSIDE, MND_STREAM_STOP_NAME, &pTrans);
@@ -2089,12 +2155,12 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   code = mndAcquireStream(pMnode, resumeReq.name, &pStream);
   if (pStream == NULL || code != 0) {
     if (resumeReq.igNotExists) {
-      mInfo("stream:%s not exist, not start stream", resumeReq.name);
+      mInfo("stream:%s does not exist, not starting stream", resumeReq.name);
       taosMemoryFree(resumeReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
-      mError("stream:%s not exist, failed to start stream", resumeReq.name);
+      mError("stream:%s does not exist, failed to start stream", resumeReq.name);
       taosMemoryFree(resumeReq.name);
       TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
     }
@@ -2126,6 +2192,17 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   }
 
   mndReleaseUser(pMnode, pOperUser); // release user after privilege check
+
+  // Batch meta txn (phase 2): same guard as STOP - an uncommitted txn owns this
+  // stream until COMMIT/ROLLBACK (FS Sec.4.6). The client rejects START inside a
+  // txn; this is the server-side guard for other sessions (non-owning session
+  // or hand-crafted RPC).
+  if (pStream->txnId != 0) {
+    mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot start stream from a non-owning session",
+              pStream->name, pStream->txnId);
+    sdbRelease(pMnode->pSdb, pStream);
+    return TSDB_CODE_TXN_RESOURCE_BUSY;
+  }
 
   STrans *pTrans = NULL;
   code = mndStreamCreateTrans(pMnode, pStream, pReq, TRN_CONFLICT_DB_INSIDE, MND_STREAM_START_NAME, &pTrans);
@@ -2189,6 +2266,30 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
+/* Shared TSMA guard for DROP STREAM, used by both the txn and the non-txn path so the
+ * two cannot diverge (DS Sec.6.1 requires the txn path's validation set to match the
+ * non-txn path exactly).
+ *
+ * The stream->TSMA association is by NAME, not by uid: pCreate->tsmaId is a
+ * parser-generated random UUID (buildCreateTSMAReqBuildNameAndUid assigns
+ * pReq->uid = taosGetSystemUUIDU64 and buildCreateTSMAReqBuildCreateDropStreamReq
+ * copies it into createreq.tsmaId), while SSmaObj.uid is mndGenerateUid(name) on
+ * the mnode side - two values that never compare equal, so an uid-based guard could
+ * never fire. A TSMA's internal stream carries tsmaId != 0 and its name is exactly the
+ * TSMA name (mndTSMAGenerateOutputName: "<acctId>.<tname>"), so sdbAcquire(SDB_SMA,
+ * name) is the correct existence check. sdbAcquire only returns READY objects, which
+ * also lets the drop-tsma transaction's own drop-stream redo action through:
+ * mndDropTSMA marks the TSMA DROPPING before sending that action.
+ *
+ * Returns true when the drop must be refused (TSMA still exists). */
+static bool mndStreamTsmaGuardBlocks(SMnode *pMnode, const SStreamObj *pStream) {
+  if (pStream->pCreate->tsmaId == 0) return false;
+  SSmaObj *pSma = sdbAcquire(pMnode->pSdb, SDB_SMA, pStream->pCreate->name);
+  if (pSma == NULL) return false;
+  sdbRelease(pMnode->pSdb, pSma);
+  return true;
+}
+
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -2218,7 +2319,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (!dropReq.igNotExists) {
     for (int32_t i = 0; i < dropReq.count; i++) {
       if (!sdbCheckExists(pMnode->pSdb, SDB_STREAM, dropReq.name[i])) {
-        mError("stream:%s not exist failed to drop it", dropReq.name[i]);
+        mError("stream:%s does not exist, failed to drop it", dropReq.name[i]);
         mndReleaseUser(pMnode, pOperUser);
         tFreeMDropStreamReq(&dropReq);
         TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
@@ -2227,7 +2328,12 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   }
 
   STrans *pTrans = NULL;
-  if (dropReq.count != 1) {
+  // batch-meta-txn (stream phase 2): the txn path (dropReq.txnId != 0) never uses this
+  // trans - every stream is marked PRE_DROP by mndMarkStreamTxnDrop through its own
+  // changeless marker trans, so a batch trans created here would be prepared with an
+  // empty commit log and dropped at the end. Create it only for the non-txn multi-key
+  // path.
+  if (dropReq.count != 1 && dropReq.txnId == 0) {
     // Keep the legacy multi-key transaction path unchanged.
     pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, MND_STREAM_DROP_NAME);
     if (pTrans == NULL) {
@@ -2247,7 +2353,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
     code = mndAcquireStream(pMnode, streamName, &pStream);
     if (pStream == NULL || code != 0) {
-      mWarn("stream:%s not exist, ignore not exist is set, drop stream exec done with success", streamName);
+      mWarn("stream:%s does not exist, the ignore-not-exist flag is set, drop stream exec done with success", streamName);
       sdbRelease(pMnode->pSdb, pStream);
       pStream = NULL;
       notExistNum++;
@@ -2271,33 +2377,84 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
       goto _OVER;
     }
 
-    if (pStream->pCreate->tsmaId != 0) {
-      mstsDebug("try to drop tsma related stream, tsmaId:%" PRIx64, pStream->pCreate->tsmaId);
-
-      void    *pIter = NULL;
-      SSmaObj *pSma = NULL;
-      pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
-      while (pIter) {
-        if (pSma && pSma->uid == pStream->pCreate->tsmaId) {
-          sdbRelease(pMnode->pSdb, pSma);
-          sdbRelease(pMnode->pSdb, pStream);
-          pStream = NULL;
-
-          sdbCancelFetch(pMnode->pSdb, pIter);
-          code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
-
-          mstsError("refused to drop tsma-related stream %s since tsma still exists", streamName);
-          mndTransDrop(pTrans);
-          pTrans = NULL;
-          goto _OVER;
-        }
-
-        if (pSma) {
-          sdbRelease(pMnode->pSdb, pSma);
-        }
-
-        pIter = sdbFetch(pMnode->pSdb, SDB_SMA, pIter, (void **)&pSma);
+    // Batch meta txn (phase 2): conflict detection and txn branch.
+    // Block if another txn owns this stream.
+    if (pStream->txnId != 0 && pStream->txnId != (txn_id_t)dropReq.txnId) {
+      code = TSDB_CODE_TXN_RESOURCE_BUSY;
+      mstsError("stream:%s is owned by txn:%" PRId64 ", cannot drop in txn:%" PRId64,
+                streamName, pStream->txnId, dropReq.txnId);
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      mndTransDrop(pTrans);
+      pTrans = NULL;
+      goto _OVER;
+    }
+    // RYOW: if this txn already dropped this stream, treat as not-exist.
+    if (dropReq.txnId != 0 && pStream->txnId == (txn_id_t)dropReq.txnId &&
+        (pStream->txnStatus == META_TXN_PRE_DROP || pStream->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+      if (dropReq.igNotExists) {
+        mstsInfo("stream:%s already dropped in txn:%" PRId64 ", ignore exists set", streamName, dropReq.txnId);
+        sdbRelease(pMnode->pSdb, pStream);
+        pStream = NULL;
+        notExistNum++;
+        continue;
+      } else {
+        code = TSDB_CODE_MND_STREAM_NOT_EXIST;
+        sdbRelease(pMnode->pSdb, pStream);
+        pStream = NULL;
+        mndTransDrop(pTrans);
+        pTrans = NULL;
+        goto _OVER;
       }
+    }
+
+    // Txn path: persist PRE_DROP marker and skip the immediate-drop logic below.
+    if (dropReq.txnId != 0) {
+      // TSMA guard must run on the txn path too - DS Sec.6.1 requires the validation set
+      // of the txn path to match the non-txn path exactly. The original placement below
+      // was after the txn branch, so a txn could drop a TSMA-related stream that a
+      // non-txn DROP refuses with TSDB_CODE_TSMA_MUST_BE_DROPPED.
+      if (mndStreamTsmaGuardBlocks(pMnode, pStream)) {
+        sdbRelease(pMnode->pSdb, pStream);
+        pStream = NULL;
+        code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+
+        mstsError("refused to drop tsma-related stream %s since tsma still exists", streamName);
+        mndTransDrop(pTrans);
+        pTrans = NULL;
+        goto _OVER;
+      }
+
+      // The marker trans must NOT own this statement's RPC handle. There is one marker
+      // trans per stream in the batch and each one completes independently, so whichever
+      // finishes first would answer the client while the remaining streams are still
+      // unmarked -- an immediate `show streams` then renders those streams with their
+      // runtime status instead of pending_drop. Passing NULL keeps the request handle out
+      // of every trans; the single response is sent by the dispatcher when this function
+      // returns, i.e. after the whole batch has been marked (see the return-code logic at
+      // the end of this function).
+      code = mndMarkStreamTxnDrop(pMnode, NULL, pStream, (txn_id_t)dropReq.txnId);
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      if (code != 0) {
+        mndTransDrop(pTrans);
+        pTrans = NULL;
+        goto _OVER;
+      }
+      mstsDebug("stream:%s PRE_DROP marker persisted in txn:%" PRId64, streamName, dropReq.txnId);
+      continue;  // Skip to next stream in the batch.
+    }
+
+    // Non-txn path: immediate drop (existing logic).
+    if (mndStreamTsmaGuardBlocks(pMnode, pStream)) {
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      code = TSDB_CODE_TSMA_MUST_BE_DROPPED;
+
+      mstsError("refused to drop tsma-related stream %s since tsma still exists", streamName);
+      mndTransDrop(pTrans);
+      pTrans = NULL;
+      goto _OVER;
     }
 
     mstsInfo("start to drop stream %s", pStream->pCreate->name);
@@ -2347,8 +2504,13 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     mstsDebug("drop stream %s added to transaction", streamName);
   }
 
-  // Prepare and execute the transaction for all streams
-  if (notExistNum < dropReq.count) {
+  // Prepare and execute the transaction for all streams.
+  // The txn path (dropReq.txnId != 0) has nothing to prepare here: every stream was
+  // already marked PRE_DROP by mndMarkStreamTxnDrop through its own changeless marker
+  // trans, and no batch trans was created for the txn path (see the creation site), so
+  // pTrans is NULL throughout. Preparing NULL would fail with INVALID_PARA, so it must
+  // be skipped.
+  if (notExistNum < dropReq.count && dropReq.txnId == 0) {
     code = mndTransPrepare(pMnode, pTrans);
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
       mError("trans:%d, failed to prepare drop stream trans since %s", pTrans->id, tstrerror(code));
@@ -2356,6 +2518,11 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
     mInfo("trans:%d, drop stream transaction prepared for %d streams", pTrans->id, dropReq.count - notExistNum);
     if (dropReq.count == 1) MND_STREAM_SET_LAST_TS(STM_EVENT_DROP_STREAM, lifecycleUpdateTime);
+  } else if (dropReq.txnId != 0 && notExistNum < dropReq.count) {
+    // Txn path: all drops went through changeless marker trans; nothing to prepare.
+    // Those transes deliberately do not own the request (see the call site), so the
+    // response is sent by the dispatcher once this function returns - that is, after
+    // every PRE_DROP marker of the batch has been applied.
   } else {
     // All streams don't exist, no need to prepare transaction
     mndTransDrop(pTrans);
@@ -2366,7 +2533,9 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     int64_t tse = taosGetTimestampMs();
     double  duration = (double)(tse - tss);
     duration = duration / 1000;
-    // Use first stream's database for audit (assuming all streams are from same db in batch)
+    // Use first stream's database for audit (assuming all streams are from same db in batch).
+    // NOTE: a cross-db batch DROP records only the first stream's db - the same limitation
+    // as the pre-txn behavior; cross-db batch drop audits are not split per db (FS Sec.4.12).
     if (dropReq.count > 0) {
       SStreamObj *pFirstStream = NULL;
       if (mndAcquireStream(pMnode, dropReq.name[0], &pFirstStream) == 0 && pFirstStream != NULL) {
@@ -2376,9 +2545,26 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
   }
 
-  // If any stream was successfully added to transaction, return ACTION_IN_PROGRESS
-  // Otherwise, all streams don't exist (and igNotExists is set), return SUCCESS
-  code = (notExistNum < dropReq.count) ? TSDB_CODE_ACTION_IN_PROGRESS : TSDB_CODE_SUCCESS;
+  // Response ownership for the whole statement.
+  //
+  // Non-txn: the trans created above owns pReq->info, so report ACTION_IN_PROGRESS and let
+  // it answer when it finishes (pre-existing behaviour). If every requested stream was
+  // missing and igNotExists was set there is no trans at all, so answer success here.
+  //
+  // Txn: no trans owns the request - the per-stream PRE_DROP marker transes are created
+  // WITHOUT pReq precisely so they cannot answer it. Letting the first marker trans answer
+  // released the client while the rest of the batch was still unmarked, so an immediate
+  // `show streams` saw those streams in their runtime status (Idle/Running) instead of
+  // pending_drop (this was the intermittent s10 failure). Returning SUCCESS here makes the
+  // dispatcher send the one and only response after the loop above; each mndTransPrepare in
+  // that loop has already applied its marker synchronously by then, so a caller that reads
+  // `show streams` right after the statement returns observes the whole batch as
+  // pending_drop.
+  if (dropReq.txnId != 0) {
+    code = TSDB_CODE_SUCCESS;
+  } else {
+    code = (notExistNum < dropReq.count) ? TSDB_CODE_ACTION_IN_PROGRESS : TSDB_CODE_SUCCESS;
+  }
 
 _OVER:
   if (pStream) {
@@ -2392,6 +2578,301 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+/* Batch meta txn (phase 2): output-table checks for CREATE STREAM inside a txn.
+ *
+ * Only form A (the stream creates its own output STB) needs a check here: the name must
+ * not already be taken. Referencing a pre-existing output table (form D) imposes NOTHING
+ * on that table - FS Sec.4.5. The non-txn path has no such protection either
+ * (mndCheckDropStbForStream is defined but never called), so holding the table inside a
+ * txn would be stricter than outside one and would contradict FS Sec.4.9 "a stream reference
+ * does not constrain table DDL".
+ *
+ * Returns 0 if no conflict, error code otherwise. */
+static int32_t mndCheckStreamOutTableConflict(SMnode *pMnode, const SStreamObj *pStream, txn_id_t txnId) {
+  int32_t code = 0;
+  SStbObj *pStb = NULL;
+  char stbFName[TSDB_TABLE_FNAME_LEN] = {0};
+
+  // Target already exists -> form D: reference only, nothing to check or reserve.
+  if (pStream->pCreate->outTblExists) return TSDB_CODE_SUCCESS;
+  // Form B / C output tables live in a vnode; the vnode's own txn conflict detection
+  // (vnodeTxnLockTable) covers them when the create request arrives.
+  if (pStream->pCreate->outTblType != TSDB_SUPER_TABLE) return TSDB_CODE_SUCCESS;
+
+  // Form A: this txn will create the output STB, so the name must be free.
+  // outDB is already "<acctId>.<db>" and outTblName is a bare table name.
+  snprintf(stbFName, sizeof(stbFName), "%s%s%s", pStream->pCreate->outDB, TS_PATH_DELIMITER,
+           pStream->pCreate->outTblName);
+  pStb = mndAcquireStb(pMnode, stbFName);
+  if (pStb != NULL) {
+    if (pStb->txnId != 0 && pStb->txnId != txnId) {
+      code = TSDB_CODE_TXN_RESOURCE_BUSY;
+      mError("stream:%s output STB:%s is owned by txn:%" PRId64, pStream->pCreate->name, stbFName, pStb->txnId);
+    } else if (pStb->txnId == txnId &&
+               (pStb->txnStatus == META_TXN_PRE_DROP || pStb->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+      // This txn already dropped this STB earlier in the txn: the SDB key stays occupied
+      // so other sessions still see it and ROLLBACK can restore it, so a same-name
+      // recreate cannot be represented. Report the precise reason rather than a
+      // misleading "already exists" - consistent with mndProcessCreateStbReq (FS Sec.5).
+      code = TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
+      mError("stream:%s output STB:%s was dropped in txn:%" PRId64
+             ", cannot recreate with the same name until COMMIT/ROLLBACK",
+             pStream->pCreate->name, stbFName, txnId);
+    } else {
+      code = TSDB_CODE_MND_STB_ALREADY_EXIST;
+      mError("stream:%s output STB:%s already exists", pStream->pCreate->name, stbFName);
+    }
+  }
+
+  mndReleaseStb(pMnode, pStb);
+  return code;
+}
+
+/* Batch meta txn (phase 2): persist PRE_CREATE marker for a stream being created
+ * in a transaction. Conflict detection and shadow-op registration happen here.
+ * Returns 0 on success, error code otherwise. Caller wraps 0 -> ACTION_IN_PROGRESS. */
+static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCreateStreamReq *pCreate,
+                                       SUserObj *pUser, int32_t snodeId, txn_id_t txnId) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+  // Stack-local marker stream: zeroed, so its latch is 0 and never shared. It exists
+  // only to carry the PRE_CREATE fields into mndStreamTransAppend (which R-latches it
+  // briefly); nobody else can observe or contend on it. Do NOT free it - pCreate is
+  // owned by the caller (mndStreamBuildObj only aliases it, no deep copy).
+  SStreamObj markerStream = {0};
+  SDbObj *pDb = NULL;
+  int64_t tss = taosGetTimestampMs();
+
+  // pCreate->streamDB is already a fully-qualified db name ("<acctId>.<db>", produced by
+  // tNameGetFullDbName in buildCreateStreamReq) - do NOT prefix it again.
+  pDb = mndAcquireDb(pMnode, pCreate->streamDB);
+  if (pDb == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_DB_NOT_SELECTED);
+  }
+
+  // Build marker stream object (same fields as the eventual committed stream).
+  // mndStreamBuildObj takes non-const pointer but doesn't mutate pCreate in ways
+  // that affect our marker, so cast is safe here.
+  mndStreamBuildObj(pMnode, &markerStream, (SCMCreateStreamReq *)pCreate, pUser, snodeId);
+  markerStream.txnId = txnId;
+  markerStream.txnStatus = META_TXN_PRE_CREATE;
+
+  // Output-table conflict detection (form A/B/C dispatch).
+  code = mndCheckStreamOutTableConflict(pMnode, &markerStream, txnId);
+  if (code != 0) goto _exit;
+
+  // Create the output table, exactly as the non-txn path does (forms A/B: the stream owns
+  // the table; form C: it already exists and we only reference it). Without this the
+  // committed stream has no table to write into and turns Failed on its first output.
+  // The table is created with the txn markers set, so it is invisible to other sessions
+  // and the CREATE_STB shadow op undoes it on ROLLBACK.
+  //
+  // This needs its own trans: the marker trans below is changeless (SDB-only), while
+  // creating a table has to distribute schema to vnodes via redo actions.
+  // Dispatch on whether the INTO target already exists - NOT on outStbExists, which is
+  // only set for an existing SUPER table and would misclassify an existing normal table
+  // as "needs creating" (FS Sec.4.2 keys the forms off target existence alone).
+  if (pCreate->outTblExists) {
+    // Form D: target already exists. Neither create it nor reserve it (FS Sec.4.5).
+    mInfo("stream:%s txn:%" PRId64 " output table:%s already exists, only referenced", pCreate->name, txnId,
+          pCreate->outTblName);
+  } else if (TSDB_SUPER_TABLE == pCreate->outTblType) {
+    // Form A: output STB is created on the mnode, marked PRE_CREATE via txnId.
+    STrans *pOutTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq,
+                                       "create-stream-out-stb");
+    TSDB_CHECK_NULL(pOutTrans, code, lino, _exit, terrno);
+
+    ((SCMCreateStreamReq *)pCreate)->outStbUid =
+        mndGenerateUid(pCreate->outTblName, strlen(pCreate->outTblName));
+
+    char outStbFName[TSDB_TABLE_FNAME_LEN] = {0};
+    snprintf(outStbFName, sizeof(outStbFName), "%s%s%s", pCreate->outDB, TS_PATH_DELIMITER, pCreate->outTblName);
+
+    // Register the undo entry before the write, so a failure mid-way still rolls back.
+    code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STB, outStbFName, pCreate->outStbUid, pDb->name,
+                             NULL, 0);
+    if (code != 0) {
+      mndTransDrop(pOutTrans);
+      goto _exit;
+    }
+
+    code = mndStreamCreateOutStb(pMnode, pOutTrans, pCreate, RPC_MSG_USER(pReq), txnId);
+    if (code != 0) {
+      mError("stream:%s txn:%" PRId64 " failed to create output stb:%s, %s", pCreate->name, txnId,
+             pCreate->outTblName, tstrerror(code));
+      mndTransDrop(pOutTrans);
+      goto _exit;
+    }
+
+    code = mndTransPrepare(pMnode, pOutTrans);
+    mndTransDrop(pOutTrans);
+    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("stream:%s txn:%" PRId64 " failed to prepare output stb trans, %s", pCreate->name, txnId,
+             tstrerror(code));
+      goto _exit;
+    }
+    code = 0;
+    mInfo("stream:%s txn:%" PRId64 " created output super table:%s as PRE_CREATE", pCreate->name, txnId,
+          pCreate->outTblName);
+  } else if (TSDB_NORMAL_TABLE == pCreate->outTblType && pCreate->nodelayCreateSubtable) {
+    // Form B: NODELAY_CREATE_SUBTABLE means the user wants the output table usable right
+    // away, so create it inside the txn rather than degrading that option (FS Sec.4.2). The
+    // table lives in a vnode; txnId rides along in SVCreateTbReq and the vnode writes it
+    // as META_TXN_PRE_CREATE, so it is visible to this txn only.
+    STrans *pOutTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq,
+                                       "create-stream-out-table");
+    TSDB_CHECK_NULL(pOutTrans, code, lino, _exit, terrno);
+    // mndStreamCreateOutTable only appends a vnode redo action; it writes no mnode SDB
+    // record, so this trans legitimately has no commit action. Say so explicitly, or
+    // mndTransCheckCommitActions rejects the prepare with TRANS_CLOG_IS_NULL. (The
+    // form-A branch above does not need this: creating an STB writes an SDB commit log.)
+    mndTransSetChangeless(pOutTrans);
+
+    code = mndStreamCreateOutTable(pMnode, pOutTrans, pCreate, txnId);
+    if (code != 0) {
+      mError("stream:%s txn:%" PRId64 " failed to create output table:%s, %s", pCreate->name, txnId,
+             pCreate->outTblName, tstrerror(code));
+      mndTransDrop(pOutTrans);
+      goto _exit;
+    }
+
+    // The client never routed this DDL, so its pTxnVgSet does not contain this vgId and
+    // mndCollectTxnVgroupIds cannot derive it. Without registering it here the vnode
+    // never receives COMMIT/ROLLBACK and the table is stuck in PRE_CREATE forever.
+    //
+    // Register BEFORE mndTransPrepare: if prepare succeeds but AddVgId fails (OOM),
+    // the table was already created as PRE_CREATE and the txn would never be able to
+    // finalize it - the vnode would not be in the participant set, so COMMIT/ROLLBACK
+    // would never reach it. Ordering AddVgId before prepare narrows that window to
+    // zero: if AddVgId fails, nothing has been prepared yet and the whole statement
+    // fails cleanly with the txn still ABORTED-able.
+    code = mndTxnAddVgId(pMnode, txnId, pCreate->outTblVgId);
+    if (code != 0) {
+      mError("stream:%s txn:%" PRId64 " failed to register output table vgId:%d, %s", pCreate->name, txnId,
+             pCreate->outTblVgId, tstrerror(code));
+      mndTransDrop(pOutTrans);
+      goto _exit;
+    }
+
+    code = mndTransPrepare(pMnode, pOutTrans);
+    mndTransDrop(pOutTrans);
+    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("stream:%s txn:%" PRId64 " failed to prepare output table trans, %s", pCreate->name, txnId,
+             tstrerror(code));
+      goto _exit;
+    }
+    code = 0;
+
+    mInfo("stream:%s txn:%" PRId64 " created output normal table:%s as PRE_CREATE on vgId:%d", pCreate->name,
+          txnId, pCreate->outTblName, pCreate->outTblVgId);
+  } else {
+    // Form C: no NODELAY option - the stream creates the table on its first output,
+    // exactly as outside a txn. Nothing to create now, nothing for ROLLBACK to undo.
+    mInfo("stream:%s txn:%" PRId64 " output normal table:%s left to lazy creation on first output", pCreate->name,
+          txnId, pCreate->outTblName);
+  }
+
+  // Create changeless marker trans (single SDB write, no vnode redos/undos).
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-precreate")),
+      code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
+
+  // Encode marker stream and append to trans.
+  code = mndStreamTransAppend(&markerStream, pTrans, SDB_STATUS_READY);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("stream:%s txn:%" PRId64 " failed to append marker to trans, %s", pCreate->name, txnId, tstrerror(code));
+    goto _exit;
+  }
+
+  // Register shadow op for COMMIT/ROLLBACK handlers.
+  code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STREAM, pCreate->name, pCreate->streamId,
+                           pDb->name, NULL, 0);
+  if (code != 0) goto _exit;
+
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+  mInfo("stream:%s txn:%" PRId64 " PRE_CREATE marker persisted, streamId:%" PRId64, pCreate->name, txnId, pCreate->streamId);
+
+  // Audit at DDL execution time, consistent with the non-txn path (and with one-phase
+  // table DDL: mndStb.c writes createStb/dropStb audits as the statement executes).
+  // The txn may still ROLLBACK, but so may any other audit; the record documents the
+  // statement, not the outcome. DS Sec.6.2's "audit at COMMIT" would double-write on
+  // COMMIT and write nothing on ROLLBACK - inconsistent with the txn's DDL-timing
+  // convention.
+  if (tsAuditLevel >= AUDIT_LEVEL_DATABASE) {
+    int64_t tse = taosGetTimestampMs();
+    double  duration = (double)(tse - tss);
+    duration = duration / 1000;
+    auditRecord(pReq, pMnode->clusterId, "createStream", pCreate->streamDB, pCreate->name, pCreate->sql,
+                strlen(pCreate->sql), duration, 0);
+  }
+
+_exit:
+  mndReleaseDb(pMnode, pDb);
+  mndTransDrop(pTrans);
+  // tFreeStreamObj(&markerStream)
+  // NOTE: do NOT call tFreeStreamObj(&markerStream) here. mndStreamBuildObj only
+  // aliases pCreate into the object (pObj->pCreate = pCreate, no deep copy), and
+  // pCreate is still owned by our caller, which frees it on its own _OVER path.
+  // Freeing it here double-frees and segfaults right after the marker is persisted.
+  TAOS_RETURN(code);
+}
+
+/* Batch meta txn (phase 2): persist PRE_DROP marker for a stream being dropped
+ * in a transaction. Returns 0 on success, error code otherwise.
+ *
+ * pReq is the client statement this marker belongs to. The batch DROP path passes NULL on
+ * purpose: every stream of the batch gets its own marker trans and they complete in
+ * sequence, so attaching the request would let the first completed trans answer the client
+ * before the remaining streams are marked. Only the response ownership of the statement is
+ * affected - the marker itself is identical either way. */
+static int32_t mndMarkStreamTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *pStream, txn_id_t txnId) {
+  int32_t code = 0, lino = 0;
+  STrans *pTrans = NULL;
+  // Stack-local marker stream: shallow copy of pStream with txn fields overridden.
+  // Its latch is copied from pStream (held by the caller via sdbAcquire); it is used
+  // only to encode the marker and is never published, so no lock is taken on it.
+  SStreamObj markerStream = {0};
+  SDbObj *pDb = NULL;
+
+  // streamDB is already fully qualified ("<acctId>.<db>") - do not prefix it again.
+  pDb = mndAcquireDb(pMnode, pStream->pCreate->streamDB);
+  if (pDb == NULL) {
+    TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_DB_NOT_SELECTED);
+  }
+
+  // Build marker stream (shallow copy + override txn fields).
+  memcpy(&markerStream, pStream, sizeof(SStreamObj));
+  markerStream.txnId = txnId;
+  markerStream.txnStatus = (markerStream.txnStatus == META_TXN_PRE_CREATE) ? META_TXN_PRE_CREATE_DROP : META_TXN_PRE_DROP;
+
+  // Create changeless marker trans.
+  TSDB_CHECK_NULL(
+      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-predrop")),
+      code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
+
+  // Encode and append marker.
+  code = mndStreamTransAppend(&markerStream, pTrans, SDB_STATUS_READY);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    mError("stream:%s txn:%" PRId64 " failed to append marker to trans, %s", pStream->pCreate->name, txnId, tstrerror(code));
+    goto _exit;
+  }
+
+  // Register shadow op.
+  code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_DROP_STREAM, pStream->pCreate->name, pStream->pCreate->streamId,
+                           pDb->name, NULL, 0);
+  if (code != 0) goto _exit;
+
+  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
+  mInfo("stream:%s txn:%" PRId64 " PRE_DROP marker persisted, streamId:%" PRId64, pStream->pCreate->name, txnId, pStream->pCreate->streamId);
+
+_exit:
+  mndReleaseDb(pMnode, pDb);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndStreamDispatchNestedCreate(SRpcMsg *pReq, const SCMCreateStreamReq *pCreate) {
   SMnode     *pMnode = pReq->info.node;
   const char *pSourceName = NULL;
@@ -2399,7 +2880,13 @@ static int32_t mndStreamDispatchNestedCreate(SRpcMsg *pReq, const SCMCreateStrea
   bool        isExtTrigger = false;
   int32_t     code = mndStreamClassifyExtTrigger(pCreate, &pSourceName, &sourceType, &isExtTrigger);
   if (code != TSDB_CODE_SUCCESS) return code;
-  if (isExtTrigger) return mndStreamRejectAuthoritativeExtTrigger(pMnode, pCreate, pSourceName, sourceType);
+  if (isExtTrigger) {
+#ifdef TD_ENTERPRISE
+    return mndStreamRejectAuthoritativeExtTrigger(pMnode, pCreate, pSourceName, sourceType);
+#else
+    return TSDB_CODE_STREAM_EXT_DISABLED;
+#endif
+  }
 
   if (pCreate->triggerDB == NULL || pCreate->triggerTblName == NULL) return TSDB_CODE_INVALID_PARA;
   SDbObj *pDb = mndAcquireDb(pMnode, pCreate->triggerDB);
@@ -2463,7 +2950,16 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   const bool nested = BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   const bool flushOnOuterClose = BIT_FLAG_TEST_MASK(pCreate->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE);
-  if (nested != (pCreate->pWindowPlan != NULL) || (flushOnOuterClose && (!nested || pCreate->pWindowPlan == NULL))) {
+  // batch-meta-txn (stream phase 2): nested-window streams are not supported inside a
+  // transaction. Their creation goes through the async preflight queue (and may even be
+  // deferred via mndStreamQueueContinuation), while a txn statement must complete within
+  // the DDL execution phase - the preflight continuation lands in
+  // mndProcessCreateStreamFinal with no txn context of its own. The client's
+  // isTxnAllowedStmtType admits QUERY_NODE_CREATE_STREAM_STMT wholesale, so this is the
+  // server-side guard for hand-crafted RPCs and older clients. FS Sec.4.1.
+  if (pCreate->txnId != 0 && nested) {
+    code = TSDB_CODE_TXN_INVALID_OPERATION;
+  } else if (nested != (pCreate->pWindowPlan != NULL) || (flushOnOuterClose && (!nested || pCreate->pWindowPlan == NULL))) {
     code = TSDB_CODE_INVALID_PARA;
   } else if (nested) {
     code = atomic_load_8(&mndStreamPreflightStopping) ? TSDB_CODE_APP_IS_STOPPING
@@ -2589,14 +3085,50 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
 
   mstsInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);
 
+  // Batch meta txn (phase 2): snode assignment must happen before conflict checks,
+  // because txn path (mndMarkStreamTxnCreate) needs snodeId for the marker SStreamObj,
+  // and we must fail-fast on no-snode before any Raft writes.
   int32_t snodeId = msmAssignRandomSnodeId(pMnode, streamId);
   if (!GOT_SNODE(snodeId)) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _OVER);
   }
-  
+
   code = mndAcquireStream(pMnode, pCreate->name, &pStream);
   if (pStream != NULL && code == 0) {
+    // Batch meta txn: classify by txn ownership and marker state (DS 5.7).
+    if (pStream->txnId != 0) {
+      if (pCreate->txnId != 0 && pStream->txnId == (txn_id_t)pCreate->txnId &&
+          (pStream->txnStatus == META_TXN_PRE_DROP || pStream->txnStatus == META_TXN_PRE_CREATE_DROP)) {
+        // This txn dropped it earlier: the SDB key is still occupied by the old object
+        // (needed so other sessions still see it and ROLLBACK can restore it), so a
+        // same-name recreate cannot be represented. Report the precise reason rather
+        // than a misleading "already exists".
+        code = TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED;
+        mstsError("stream %s was dropped in txn %" PRId64 ", cannot recreate with the same name", pCreate->name,
+                  pCreate->txnId);
+        mndReleaseStream(pMnode, pStream);
+        goto _OVER;
+      }
+      if (pStream->txnId != (txn_id_t)pCreate->txnId) {
+        // Owned by a different txn - invisible/untouchable from here.
+        code = TSDB_CODE_TXN_RESOURCE_BUSY;
+        mstsError("stream %s is owned by txn %" PRId64 ", cannot create in txn %" PRId64, pCreate->name,
+                  pStream->txnId, pCreate->txnId);
+        mndReleaseStream(pMnode, pStream);
+        goto _OVER;
+      }
+      // Same txn, PRE_CREATE: read-your-own-write, it genuinely already exists.
+      if (pCreate->igExists) {
+        mstsInfo("stream %s already created in txn %" PRId64 ", ignore exists set", pCreate->name, pCreate->txnId);
+        code = 0;
+      } else {
+        code = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+      }
+      mndReleaseStream(pMnode, pStream);
+      goto _OVER;
+    }
+
     if (pCreate->igExists) {
       mstsInfo("stream %s already exist, ignore exist is set", pCreate->name);
     } else {
@@ -2617,7 +3149,7 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
   code = mndStreamValidateCreate(pMnode, pReq, pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
-  /* === P1 B2: federated query — fill encryptedPassword into extSpecs ===
+  /* === P1 B2: federated query  -  fill encryptedPassword into extSpecs ===
    * taosc leaves SStreamExtTriggerSpec.encryptedPassword zero on purpose
    * (DS Sec 6.1.1 "password fill responsibility split"). For each unique
    * sourceName, look up the AES-CBC ciphertext from mnode-local sdb
@@ -2648,6 +3180,16 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
   }
   #endif
 
+  // Batch meta txn (phase 2): if txnId != 0, take the marker path - persist
+  // PRE_CREATE state to SDB and register a shadow op, then return IN_PROGRESS.
+  // Output-table conflict detection and shadow-op registration happen inside
+  // the marker helper. The immediate-create path (txnId == 0) is unchanged.
+  if (pCreate->txnId != 0) {
+    code = mndMarkStreamTxnCreate(pMnode, pReq, pCreate, pOperUser, snodeId, (txn_id_t)pCreate->txnId);
+    if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
+    goto _OVER;
+  }
+
   mndStreamBuildObj(pMnode, &streamObj, pCreate, pOperUser, snodeId);
   pCreate = NULL;
 
@@ -2663,12 +3205,12 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
     if (TSDB_SUPER_TABLE == pStream->pCreate->outTblType) {
       // Create super table in mnode
       pStream->pCreate->outStbUid = mndGenerateUid(pStream->pCreate->outTblName, strlen(pStream->pCreate->outTblName));
-      code = mndStreamCreateOutStb(pMnode, pTrans, pStream->pCreate, RPC_MSG_USER(pReq));
+      code = mndStreamCreateOutStb(pMnode, pTrans, pStream->pCreate, RPC_MSG_USER(pReq), 0);
       TSDB_CHECK_CODE(code, lino, _OVER);
       mstsInfo("stream:%s created output super table:%s", pStream->pCreate->name, pStream->pCreate->outTblName);
     } else if (TSDB_NORMAL_TABLE == pStream->pCreate->outTblType && pStream->pCreate->nodelayCreateSubtable) {
       // Create normal table in vnode
-      code = mndStreamCreateOutTable(pMnode, pTrans, pStream->pCreate);
+      code = mndStreamCreateOutTable(pMnode, pTrans, pStream->pCreate, 0);
       TSDB_CHECK_CODE(code, lino, _OVER);
       mstsInfo("stream:%s created output normal table:%s", pStream->pCreate->name, pStream->pCreate->outTblName);
     }
@@ -2714,7 +3256,10 @@ _OVER:
       mstsError("failed to create stream at line:%d since %s", lino, tstrerror(code));
     }
   } else {
-    mstsDebug("create stream %s half completed", pStream->pCreate ? pStream->pCreate->name : "unknown");
+    // pStream is NULL on the batch-meta-txn marker path (it returns before
+    // mndStreamBuildObj assigns pStream = &streamObj), so it must be checked here too.
+    mstsDebug("create stream %s half completed",
+              (pStream && pStream->pCreate) ? pStream->pCreate->name : "unknown");
   }
 
   tFreeSCMCreateStreamReq(pCreate);
@@ -2746,7 +3291,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
   code = mndAcquireStream(pMnode, recalcReq.name, &pStream);
   if (pStream == NULL || code != 0) {
-    mError("stream:%s not exist, failed to recalc stream", recalcReq.name);
+    mError("stream:%s does not exist, failed to recalc stream", recalcReq.name);
     tFreeMRecalcStreamReq(&recalcReq);
     TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
   }
@@ -2785,6 +3330,18 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
   }
 
   mndReleaseUser(pMnode, pOperUser); // release user after privilege check
+
+  // Batch meta txn (phase 2): same guard as STOP/START - an uncommitted txn owns
+  // this stream until COMMIT/ROLLBACK (FS Sec.4.6). The client rejects RECALCULATE
+  // inside a txn; this is the server-side guard for other sessions (non-owning
+  // session or hand-crafted RPC).
+  if (pStream->txnId != 0) {
+    mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot recalculate stream from a non-owning session",
+              pStream->name, pStream->txnId);
+    sdbRelease(pMnode->pSdb, pStream);
+    tFreeMRecalcStreamReq(&recalcReq);
+    return TSDB_CODE_TXN_RESOURCE_BUSY;
+  }
 
   if (atomic_load_8(&pStream->userDropped)) {
     code = TSDB_CODE_MND_STREAM_DROPPING;

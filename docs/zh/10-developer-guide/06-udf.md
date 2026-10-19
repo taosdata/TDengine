@@ -484,7 +484,7 @@ $env:PYTHONHOME = "C:\Python315"
 
 通常无需手动编译，因为安装包已内置 `taospyudf`。如需调试或二次开发，可在 TDengine 源码树中单独构建该目标。
 
-源文件可从 [GitHub](https://github.com/taosdata/TDengine/tree/main/source/taos-community/source/libs/pyudf/src) 下载。
+源文件可从 [GitHub](https://github.com/taosdata/TDengine/tree/main/source/libs/pyudf/src) 下载。
 
 #### Linux / macOS
 
@@ -503,7 +503,7 @@ git clone --depth=1 https://github.com/SergiusTheBest/plog.git /tmp/plog
 #    Python 头文件通过 python3-config 自动获取
 
 # 3. 编译（在 pyudf 源码目录执行）
-cd source/taos-community/source/libs/pyudf/src
+cd source/libs/pyudf/src
 g++ -std=c++17 -fPIC -shared taospyudf.cpp \
     -o libtaospyudf.so \
     -I/tmp/plog/include \
@@ -739,14 +739,14 @@ DB error: udf function execution failure (0.011088s)
 不幸的是执行失败了，什么原因呢？查看 taosudf 进程的日志。
 
 ```shell
-tail -10 /var/log/taos/taosudf.log
+tail -10 /var/log/taos/taosudfdlog.0
 ```
 
 发现以下错误信息。
 
 ```text
-05/24 22:46:28.733545 01665799 UDF ERROR can not load library libtaospyudf.so. error: operation not permitted
-05/24 22:46:28.733561 01665799 UDF ERROR can not load python plugin. lib path libtaospyudf.so
+05/24 22:46:28.733545 01665799 UDF ERROR cannot load library libtaospyudf.so. error: operation not permitted
+05/24 22:46:28.733561 01665799 UDF ERROR cannot load python plugin. lib path libtaospyudf.so
 ```
 
 错误很明确：没有加载到 Python 插件 libtaospyudf.so。从 `v3.4.1.12` 起，该插件随 TDengine 安装包内置。如果遇到此错误，请确认 TDengine 已正确安装，并执行 `ldconfig` 刷新动态链接库缓存。对于 v3.4.1.12 之前的版本，请通过 `pip3 install taospyudf` 手动安装。

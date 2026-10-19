@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -52,6 +54,14 @@ typedef struct SVirtualTableScanInfo {
   char           vtableName[TSDB_TABLE_NAME_LEN];
   SArray*        pOwnedResolvedTags;  // owned-tag values for child scans without a DynQueryCtrl parent
   bool           ownedTagsFetched;    // whether owned tags have been resolved already
+  SArray*        pConstRefResolvedTags;  // const-ref tag values (vntb/ntb source) via chain resolver
+  bool           constRefTagsFetched;    // whether const-ref tags have been resolved already
+  // per-instance RPC result caches for const-ref chain resolution (same pair as the
+  // ins_tags operator): every distinct source table costs at most one GET_DB_INFO plus
+  // one TABLE_CFG RPC per operator instead of one per tag. Single-thread (open-time)
+  // use; created lazily by ensureRefTagsResolved, freed in destroy.
+  SHashObj*      pRefDbVgInfoCache;
+  SHashObj*      pRefTableCfgCache;
 } SVirtualTableScanInfo;
 
 typedef struct SVirtualScanMergeOperatorInfo {
@@ -62,6 +72,9 @@ typedef struct SVirtualScanMergeOperatorInfo {
   uint64_t              groupId;
   STupleHandle*         pSavedTuple;
   SSDataBlock*          pSavedTagBlock;
+  bool                  twoPassMode;   // PERCENTILE/repeat-scan: drive two passes
+  bool                  phase1Done;    // twoPassMode: false=phase-1 (PRE_SCAN), true=phase-2 (MAIN_SCAN)
+  int32_t               twoPassErr;    // twoPassMode: sticky phase-2 restart failure (0 = none)
 } SVirtualScanMergeOperatorInfo;
 
 typedef struct SLoadNextCtx {
@@ -70,9 +83,167 @@ typedef struct SLoadNextCtx {
   int64_t         blockId;
   STimeWindow     window;
   SSDataBlock*    pIntermediateBlock;
-  int32_t*        pFedOutputSlotIds;
-  int32_t         numFedOutputSlotIds;
+  int32_t*        pOutputSlotIds;
+  int32_t         numOutputSlotIds;
+  bool            isFederated;
 } SLoadNextCtx;
+
+static SLoadNextCtx* findLoadNextCtx(const SVirtualTableScanInfo* pInfo, int32_t blockId) {
+  if (pInfo == NULL || pInfo->pSortCtxList == NULL) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); ++i) {
+    SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pInfo->pSortCtxList, i);
+    if (pCtx != NULL && pCtx->blockId == blockId) {
+      return pCtx;
+    }
+  }
+  return NULL;
+}
+
+static const SSlotDescNode* findSlotDesc(const SDataBlockDescNode* pDesc, int32_t slotId) {
+  if (pDesc == NULL || pDesc->pSlots == NULL) {
+    return NULL;
+  }
+
+  if (slotId >= 0 && slotId < LIST_LENGTH(pDesc->pSlots)) {
+    SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, slotId);
+    if (pSlot != NULL && pSlot->slotId == slotId) {
+      return pSlot;
+    }
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pDesc->pSlots) {
+    SSlotDescNode* pSlot = (SSlotDescNode*)pNode;
+    if (pSlot->slotId == slotId) {
+      return pSlot;
+    }
+  }
+  return NULL;
+}
+
+static const SDataBlockDescNode* getFederatedDataBlockDesc(const SLoadNextCtx* pCtx) {
+  if (pCtx == NULL || !pCtx->isFederated || pCtx->pOperator == NULL) {
+    return NULL;
+  }
+
+  SFederatedScanOperatorInfo* pFedInfo = (SFederatedScanOperatorInfo*)pCtx->pOperator->info;
+  if (pFedInfo == NULL || pFedInfo->pFedScanNode == NULL) {
+    return NULL;
+  }
+  return pFedInfo->pFedScanNode->node.pOutputDataBlockDesc;
+}
+
+static bool federatedOutputNameMatchesTarget(const char* pOutputName, const SColumnNode* pCol) {
+  if (pOutputName == NULL || pOutputName[0] == '\0' || pCol == NULL) {
+    return false;
+  }
+
+  const char* pRefName = pCol->hasRef && pCol->refColName[0] != '\0' ? pCol->refColName : pCol->colName;
+  return (pRefName[0] != '\0' && strcasecmp(pOutputName, pRefName) == 0) ||
+         (pCol->colName[0] != '\0' && strcasecmp(pOutputName, pCol->colName) == 0) ||
+         (pCol->node.aliasName[0] != '\0' && strcasecmp(pOutputName, pCol->node.aliasName) == 0) ||
+         (pCol->node.userAlias[0] != '\0' && strcasecmp(pOutputName, pCol->node.userAlias) == 0);
+}
+
+static const SColumnNode* getFederatedOutputColumn(const SNode* pNode) {
+  if (pNode != NULL && QUERY_NODE_TARGET == nodeType(pNode)) {
+    pNode = ((const STargetNode*)pNode)->pExpr;
+  }
+  return pNode != NULL && QUERY_NODE_COLUMN == nodeType(pNode) ? (const SColumnNode*)pNode : NULL;
+}
+
+static bool federatedOutputColumnMatchesTarget(const SColumnNode* pOutputCol, const SColumnNode* pTargetCol) {
+  if (pOutputCol == NULL || pTargetCol == NULL || pOutputCol->node.resType.type != pTargetCol->node.resType.type) {
+    return false;
+  }
+
+  return federatedOutputNameMatchesTarget(pOutputCol->refColName, pTargetCol) ||
+         federatedOutputNameMatchesTarget(pOutputCol->colName, pTargetCol) ||
+         federatedOutputNameMatchesTarget(pOutputCol->node.aliasName, pTargetCol) ||
+         federatedOutputNameMatchesTarget(pOutputCol->node.userAlias, pTargetCol);
+}
+
+static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, const SColumnNode* pCol) {
+  if (pScan == NULL || pCol == NULL || pScan->node.pOutputDataBlockDesc == NULL ||
+      pScan->node.pOutputDataBlockDesc->pSlots == NULL) {
+    return -1;
+  }
+
+  int32_t numOutputSlots = LIST_LENGTH(pScan->node.pOutputDataBlockDesc->pSlots);
+  if (pScan->pColTypeMappings != NULL) {
+    for (int32_t i = 0; i < pScan->numColTypeMappings && i < numOutputSlots; ++i) {
+      const SExtColTypeMapping* pMapping = &pScan->pColTypeMappings[i];
+      SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, i);
+      if (pMapping->tdType.type == pCol->node.resType.type &&
+          federatedOutputNameMatchesTarget(pMapping->colName, pCol) && pSlot != NULL && pSlot->output &&
+          !pSlot->reserve) {
+        return pSlot->slotId;
+      }
+    }
+  }
+
+  if (pScan->pScanCols != NULL) {
+    int32_t outputIdx = 0;
+    SNode*  pNode = NULL;
+    FOREACH(pNode, pScan->pScanCols) {
+      if (outputIdx >= numOutputSlots) {
+        break;
+      }
+
+      const SColumnNode* pOutputCol = getFederatedOutputColumn(pNode);
+      SSlotDescNode* pSlot =
+          (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx++);
+      if (pSlot != NULL && pSlot->output && !pSlot->reserve &&
+          federatedOutputColumnMatchesTarget(pOutputCol, pCol)) {
+        return pSlot->slotId;
+      }
+    }
+  }
+  return -1;
+}
+
+static int32_t normalizeFederatedOutputTargets(SNodeList* pTargets, SOperatorInfo** pDownstream,
+                                               int32_t numOfDownstream) {
+  if (pTargets == NULL || pDownstream == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) {
+      continue;
+    }
+
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->isPrimTs || pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      continue;
+    }
+
+    for (int32_t i = 0; i < numOfDownstream; ++i) {
+      SOperatorInfo* pChild = pDownstream[i];
+      if (pChild == NULL || pChild->operatorType != QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN ||
+          pChild->resultDataBlockId != pCol->dataBlockId) {
+        continue;
+      }
+
+      SFederatedScanOperatorInfo* pFedInfo = (SFederatedScanOperatorInfo*)pChild->info;
+      int16_t outputSlotId =
+          pFedInfo != NULL ? findFederatedOutputSlot(pFedInfo->pFedScanNode, pCol) : -1;
+      if (outputSlotId < 0) {
+        // A virtual table may project a column that this particular external
+        // source does not provide. Leave its virtual slot unchanged so the
+        // merge path can materialize NULL for that source.
+        continue;
+      }
+      pCol->slotId = outputSlotId;
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 typedef struct {
   int32_t downstreamId;
@@ -91,6 +262,137 @@ static void destroySlotIdList(void* data) {
 
   SArray* pSlots = *(SArray**)data;
   taosArrayDestroy(pSlots);
+}
+
+static int32_t buildFedOutputSlotIdsFromScanCols(const SFederatedScanPhysiNode* pScan,
+                                                 const SVirtualScanPhysiNode* pVtbNode, int32_t tsSlotId,
+                                                 int32_t** ppSlotIds, int32_t* pNumSlotIds) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t* pSlotIds = NULL;
+
+  QUERY_CHECK_NULL(pScan, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pVtbNode, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pScan->node.pOutputDataBlockDesc, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppSlotIds, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pNumSlotIds, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  *ppSlotIds = NULL;
+  *pNumSlotIds = 0;
+  const SDataBlockDescNode* pDesc = pScan->node.pOutputDataBlockDesc;
+  if (pDesc->pSlots == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numSlots = LIST_LENGTH(pDesc->pSlots);
+  if (numSlots <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pSlotIds = taosMemoryCalloc(numSlots, sizeof(int32_t));
+  QUERY_CHECK_NULL(pSlotIds, code, lino, _return, terrno);
+
+  for (int32_t i = 0; i < numSlots; ++i) {
+    pSlotIds[i] = -1;
+    SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+    if (pSlot == NULL) {
+      continue;
+    }
+
+    const SColumnNode* pOutputCol =
+        pScan->pScanCols != NULL && i < LIST_LENGTH(pScan->pScanCols)
+            ? getFederatedOutputColumn(nodesListGetNode(pScan->pScanCols, i))
+            : NULL;
+    if (TSDB_DATA_TYPE_TIMESTAMP == pSlot->dataType.type ||
+        (pOutputCol != NULL && (pOutputCol->isPrimTs || pOutputCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID))) {
+      pSlotIds[i] = tsSlotId;
+      continue;
+    }
+
+    if (pOutputCol == NULL) {
+      continue;
+    }
+
+    int32_t targetSlot = 0;
+    SNode*  pTarget = NULL;
+    FOREACH(pTarget, pVtbNode->pTargets) {
+      const SColumnNode* pTargetCol = getFederatedOutputColumn(pTarget);
+      if (pTargetCol != NULL && pTargetCol->colId == pOutputCol->colId) {
+        pSlotIds[i] = targetSlot;
+        break;
+      }
+      ++targetSlot;
+    }
+  }
+
+  *ppSlotIds = pSlotIds;
+  *pNumSlotIds = numSlots;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  taosMemoryFree(pSlotIds);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t buildDynamicFedOutputSlotIds(const SVirtualScanPhysiNode* pVtbNode,
+                                            const SForeignScanOperatorParam* pFsParam, int32_t tsSlotId,
+                                            int32_t** ppSlotIds, int32_t* pNumSlotIds) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  int32_t* pSlotIds = NULL;
+
+  QUERY_CHECK_NULL(pVtbNode, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pFsParam, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(ppSlotIds, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pNumSlotIds, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  *ppSlotIds = NULL;
+  *pNumSlotIds = 0;
+  SArray* pColMap = pFsParam->colMap;
+  if (pFsParam->paramType == FOREIGN_SCAN_PARAM_BATCH && pFsParam->pBatchTables != NULL &&
+      taosArrayGetSize(pFsParam->pBatchTables) > 0) {
+    SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, 0);
+    if (pTable != NULL) {
+      pColMap = pTable->colMap;
+    }
+  }
+
+  int32_t numDataCols = (int32_t)taosArrayGetSize(pColMap);
+  int32_t numSlots = numDataCols + 1;
+  pSlotIds = taosMemoryMalloc(numSlots * sizeof(int32_t));
+  QUERY_CHECK_NULL(pSlotIds, code, lino, _return, terrno);
+
+  for (int32_t i = 0; i < numSlots; ++i) {
+    pSlotIds[i] = -1;
+  }
+  pSlotIds[0] = tsSlotId;
+
+  for (int32_t i = 0; i < numDataCols; ++i) {
+    SColIdNameKV* pCol = taosArrayGet(pColMap, i);
+    if (pCol == NULL) {
+      continue;
+    }
+
+    int32_t targetSlot = 0;
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pVtbNode->pTargets) {
+      if (QUERY_NODE_COLUMN == nodeType(pTarget) && ((SColumnNode*)pTarget)->colId == pCol->colId) {
+        pSlotIds[i + 1] = targetSlot;
+        break;
+      }
+      ++targetSlot;
+    }
+  }
+
+  *ppSlotIds = pSlotIds;
+  *pNumSlotIds = numSlots;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  taosMemoryFree(pSlotIds);
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
 }
 
 // Classify downstream exchange: tag-ref sources (from pRefTagCols) are NOT sortable,
@@ -156,22 +458,47 @@ static const STagVal* findResolvedTagVal(const SOperatorInfo* pOperator, col_id_
         }
       }
     }
+    // 3) const-ref tags (vntb/ntb source) resolved by this operator itself via the chain
+    //    resolver -- table-level constants, independent of any DynQueryCtrl injection
+    if (pVScan->pConstRefResolvedTags != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pVScan->pConstRefResolvedTags); ++i) {
+        const STagVal* pTagVal = taosArrayGet(pVScan->pConstRefResolvedTags, i);
+        if (pTagVal != NULL && pTagVal->cid == colId) {
+          return pTagVal;
+        }
+      }
+    }
   }
   return NULL;
 }
 
-// Free the owned-tag value array, including any deep-copied var-data payloads.
-static void destroyOwnedResolvedTags(SVirtualTableScanInfo* pVScan) {
+// Free the resolved-tag arrays (owned + const-ref) including deep-copied var-data
+// payloads, plus the per-instance const-ref RPC caches. (Name kept broad: the
+// operator teardown path owns all three.)
+// pVal NULL-checked for consistency with findResolvedTagVal's read of the same arrays.
+static void destroyResolvedTagsAndCaches(SVirtualTableScanInfo* pVScan) {
   if (pVScan->pOwnedResolvedTags != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pVScan->pOwnedResolvedTags); ++i) {
       STagVal* pVal = taosArrayGet(pVScan->pOwnedResolvedTags, i);
-      if (IS_VAR_DATA_TYPE(pVal->type)) {
+      if (pVal != NULL && IS_VAR_DATA_TYPE(pVal->type)) {
         taosMemoryFreeClear(pVal->pData);
       }
     }
     taosArrayDestroy(pVScan->pOwnedResolvedTags);
     pVScan->pOwnedResolvedTags = NULL;
   }
+  if (pVScan->pConstRefResolvedTags != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pVScan->pConstRefResolvedTags); ++i) {
+      STagVal* pVal = taosArrayGet(pVScan->pConstRefResolvedTags, i);
+      if (pVal != NULL && IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pVScan->pConstRefResolvedTags);
+    pVScan->pConstRefResolvedTags = NULL;
+  }
+  // const-ref RPC caches (created lazily by ensureRefTagsResolved)
+  sysTagsRefCachesClear(&pVScan->pRefDbVgInfoCache, &pVScan->pRefTableCfgCache);
 }
 
 // For a virtual normal/child-table scan that runs WITHOUT a DynQueryCtrl parent (the static
@@ -184,7 +511,7 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
   SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
   SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
   SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
-  // Declared upfront: the early error exits below jump to _return, which frees cfgRsp —
+  // Declared upfront: the early error exits below jump to _return, which frees cfgRsp --
   // declaring it after a goto target would leave it uninitialized on those paths.
   STableCfgRsp                   cfgRsp = {0};
 
@@ -209,8 +536,11 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
     qError("ensureOwnedTagsResolved: pPhyNode NULL");
     return TSDB_CODE_INVALID_PARA;
   }
-  // No owned local tags: a genuine no-op, not a degrade.
+  // No owned local tags: a genuine no-op, not a degrade. Mark fetched anyway for
+  // symmetry with ensureRefTagsResolved's no-op path -- a tag-less plan stays tag-less,
+  // repeated calls must not re-reach here.
   if (!pPhy->hasLocalTag) {
+    pVScan->ownedTagsFetched = true;
     return TSDB_CODE_SUCCESS;
   }
   SQueryNodeAddr* pExecNode = &pTaskInfo->pSubplan->execNode;
@@ -259,7 +589,7 @@ static int32_t ensureOwnedTagsResolved(SOperatorInfo* pOperator) {
   TSDB_CHECK_CODE(code, lino, _return);
 
   // hasLocalTag can be true for non-tag pseudo-columns (e.g. TBNAME) projected from a tag-less
-  // table — those are resolved by their own paths, not by this owned-tag fetch. A tag-less cfg
+  // table  -  those are resolved by their own paths, not by this owned-tag fetch. A tag-less cfg
   // therefore means there are simply no owned-tag values to resolve, NOT a meta/cfg mismatch.
   // Erroring here broke `SELECT tbname FROM <vntb>` (and partition-by-tbname) on tag-less virtual
   // normal tables. Succeed with an empty resolved set instead.
@@ -302,8 +632,157 @@ _return:
   qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   tFreeSTableCfgRsp(&cfgRsp);
   // fetch stays retryable (ownedTagsFetched is only set on full success), so drop any partially
-  // filled array here — the next attempt must not leak it by overwriting the pointer.
-  destroyOwnedResolvedTags(pVScan);
+  // filled array here  -  the next attempt must not leak it by overwriting the pointer.
+  // destroyResolvedTagsAndCaches also clears const-ref state (array + RPC caches), so reset its
+  // fetched flag as well: keeps "flag true <=> array present" true under ANY call order (today
+  // owned runs before const-ref in the scan loop, so the const array is always still NULL
+  // here  -  the reset is belt-and-braces against a future reorder, not a reachable-bug fix).
+  destroyResolvedTagsAndCaches(pVScan);
+  pVScan->constRefTagsFetched = false;
+  return code;
+}
+
+// Resolve const-ref tags (tag-refs whose source is a vntb/ntb -- table-level constants) via the
+// unified chain resolver. Unlike owned tags this runs regardless of a DynQueryCtrl parent: the
+// value never comes from per-child injection. A broken chain (dropped source) leaves that tag
+// unresolved and it projects as NULL; runtime cycles / over-depth are hard errors.
+static int32_t ensureRefTagsResolved(SOperatorInfo* pOperator) {
+  int32_t                        code = TSDB_CODE_SUCCESS;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pVScan = &pInfo->virtualScanInfo;
+  SExecTaskInfo*                 pTaskInfo = pOperator->pTaskInfo;
+
+  if (pVScan->constRefTagsFetched) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SVirtualScanPhysiNode* pPhy = (SVirtualScanPhysiNode*)pOperator->pPhyNode;
+  if (pPhy == NULL) {
+    qError("ensureRefTagsResolved: pPhyNode NULL");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  // the LIST is the single decision basis; hasConstRefTag is only a drift sentinel (kept
+  // readable so planner/clone/codec bugs surface in the log, but it never steers flow)
+  if (pPhy->pConstRefTags == NULL || LIST_LENGTH(pPhy->pConstRefTags) == 0) {
+    pVScan->constRefTagsFetched = true;  // genuine no-op
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!pPhy->hasConstRefTag) {
+    qError("ensureRefTagsResolved: hasConstRefTag unset but pConstRefTags has %d entries "
+           "(plan contract drift, resolving anyway)",
+           (int32_t)LIST_LENGTH(pPhy->pConstRefTags));
+  }
+  if (pTaskInfo == NULL || pTaskInfo->pMsgCb == NULL || pTaskInfo->pMsgCb->clientRpc == NULL) {
+    qError("ensureRefTagsResolved: contract violated (pTaskInfo/pMsgCb/clientRpc NULL)");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SRefChainCtx ctx = {0};
+  ctx.vnode = pVScan->base.readHandle.vnode;
+  ctx.pAPI = &pTaskInfo->storageAPI;  // task-level API; the scan-local readHandle.api may be unset
+  ctx.accountId = pPhy->scan.tableName.acctId;
+  ctx.txnId = pTaskInfo->txnId;
+  ctx.clientRpc = pTaskInfo->pMsgCb->clientRpc;
+  ctx.pMnodeEpSet = &pPhy->mgmtEpSet;
+  ctx.reqId = pTaskInfo->id.queryId;
+  ctx.pTaskInfo = pTaskInfo;
+  // per-instance RPC caches: without them every const-ref tag re-fetches its source
+  // chain (2 RPCs per hop per tag); with them every DISTINCT source costs at most one
+  // GET_DB_INFO + one TABLE_CFG per operator. Single-threaded here (open-time resolve).
+  sysTagsRefCachesInit(&pVScan->pRefDbVgInfoCache, &pVScan->pRefTableCfgCache);
+  ctx.pRefDbVgInfoCache = pVScan->pRefDbVgInfoCache;
+  ctx.pRefTableCfgCache = pVScan->pRefTableCfgCache;
+
+  SArray* pResolved = taosArrayInit(LIST_LENGTH(pPhy->pConstRefTags), sizeof(STagVal));
+  TSDB_CHECK_NULL(pResolved, code, lino, _return, terrno);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pPhy->pConstRefTags) {
+    SNode* pExpr = pNode;
+    if (nodeType(pNode) == QUERY_NODE_TARGET) {
+      pExpr = ((STargetNode*)pNode)->pExpr;
+    }
+    if (pExpr == NULL || nodeType(pExpr) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    if (!pCol->hasRef) {
+      continue;
+    }
+
+    char*    data = NULL;
+    uint32_t len = 0;
+    bool     resolved = false;
+    code = resolveTagRefChain(&ctx, pCol->refDbName, pCol->refTableName, pCol->refColName,
+                              &data, &len, &resolved);
+    // CIRCULAR_REF / REF_DEPTH_EXCEEDED propagate. On error the resolver contract
+    // guarantees *ppData stays NULL (no partial allocation), so nothing to free here.
+    TSDB_CHECK_CODE(code, lino, _return);
+    if (!resolved) {
+      // broken chain (dropped source / unreachable vnode): project NULL, not fatal --
+      // but leave a trace: a silently-NULL const tag is otherwise very hard to diagnose
+      qDebug("ensureRefTagsResolved: unresolved const-ref tag %s (ref %s.%s.%s)", pCol->colName,
+             pCol->refDbName, pCol->refTableName, pCol->refColName);
+      continue;
+    }
+
+    STagVal val = {.cid = pCol->colId, .type = pCol->node.resType.type};
+    if (IS_VAR_DATA_TYPE(val.type)) {
+      val.nData = len;
+      // ownership of the resolver-allocated buffer transfers into the resolved array;
+      // it is freed exclusively by destroyResolvedTagsAndCaches / the _return cleanup below
+      val.pData = (uint8_t*)data;
+    } else {
+      // Strict width check: the resolver returns source-schema byte widths, which the
+      // DDL type-match gate keeps identical to the destination type's storage width. A
+      // mismatch (mixed-version window re-pointing a chain at a different-typed source,
+      // or an internal contract breach) must fail loudly -- memcpy'ing a wrong-width
+      // payload into i64 would silently read the missing/extra bytes as value bits.
+      // IS_INVALID_TYPE guards the tDataTypes index itself: val.type comes from the plan's
+      // resType (DDL-gated in practice), and an out-of-range value would read past the
+      // array. (The else branch already excludes var-len types; taosMemoryFree(NULL) is
+      // safe  -  taosMemFree NULL-checks.)
+      if (data == NULL || IS_INVALID_TYPE(val.type) || len != tDataTypes[val.type].bytes) {
+        taosMemoryFree(data);
+        qError("ensureRefTagsResolved: fixed-width payload for %s has %u bytes, type %d needs %u",
+               pCol->colName, len, val.type, tDataTypes[val.type].bytes);
+        TSDB_CHECK_NULL(NULL, code, lino, _return, TSDB_CODE_INVALID_PARA);
+      }
+      memcpy(&val.i64, data, len);
+      taosMemoryFree(data);
+    }
+    if (NULL == taosArrayPush(pResolved, &val)) {
+      // taosArrayPush fails without inserting, so val is NOT in the array: freeing
+      // here is safe and the _return cleanup (which walks the array only) will not
+      // touch it -- no double free. Fixed-width payloads were already freed above.
+      if (IS_VAR_DATA_TYPE(val.type)) {
+        taosMemoryFree(val.pData);
+      }
+      TSDB_CHECK_NULL(NULL, code, lino, _return, terrno);
+    }
+  }
+
+  pVScan->pConstRefResolvedTags = pResolved;
+  pVScan->constRefTagsFetched = true;  // only set on full success; transient errors stay retryable
+  qDebug("ensureRefTagsResolved: resolved %d const-ref tag(s) for %s",
+         pVScan->pConstRefResolvedTags ? (int32_t)taosArrayGetSize(pVScan->pConstRefResolvedTags) : 0,
+         pPhy->scan.tableName.tname);
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  // The RPC caches (created by sysTagsRefCachesInit above) are deliberately NOT cleared on
+  // this failure path: constRefTagsFetched stays false, the retry reuses them (Init is
+  // idempotent), and destroyResolvedTagsAndCaches at operator destroy owns the final cleanup.
+  if (pResolved != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pResolved); ++i) {
+      STagVal* pVal = taosArrayGet(pResolved, i);
+      if (pVal != NULL && IS_VAR_DATA_TYPE(pVal->type)) {
+        taosMemoryFreeClear(pVal->pData);
+      }
+    }
+    taosArrayDestroy(pResolved);
+  }
   return code;
 }
 
@@ -438,10 +917,16 @@ int32_t getTimeWindowOfBlock(SSDataBlock* pBlock, int64_t* startTs, int64_t* end
 
   QUERY_CHECK_NULL(pBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
-  SColumnInfoData* pColData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, 0);
-  QUERY_CHECK_NULL(pColData, code, lino, _return, terrno)
+  SColumnInfoData* pColData = NULL;
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
+    SColumnInfoData* pCandidate = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCandidate != NULL && TSDB_DATA_TYPE_TIMESTAMP == pCandidate->info.type) {
+      pColData = pCandidate;
+      break;
+    }
+  }
 
-  if (pColData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+  if (NULL == pColData) {
     *startTs = INT64_MIN;
     *endTs = INT64_MAX;
     return code;
@@ -457,18 +942,48 @@ _return:
   return code;
 }
 
-int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock) {
-  if (param == NULL) {
-    qError("virtualScanloadNextDataBlockFromParam: param is NULL");
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+static int32_t moveTimestampColumnToFront(SSDataBlock* pBlock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+
+  QUERY_CHECK_NULL(pBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_NULL(pBlock->pDataBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
+
+  int32_t tsIndex = -1;
+  int32_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (NULL != pCol && TSDB_DATA_TYPE_TIMESTAMP == pCol->info.type) {
+      tsIndex = i;
+      break;
+    }
   }
+  if (tsIndex <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData tsCol = *(SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, tsIndex);
+  SColumnInfoData* pFirst = taosArrayGet(pBlock->pDataBlock, 0);
+  memmove(pFirst + 1, pFirst, (size_t)tsIndex * sizeof(SColumnInfoData));
+  *pFirst = tsCol;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t virtualScanLoadRawNextDataBlockFromParam(void* param, SSDataBlock** ppBlock) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  QUERY_CHECK_NULL(param, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_NULL(ppBlock, code, lino, _return, TSDB_CODE_INVALID_PARA);
   SLoadNextCtx*           pCtx = (SLoadNextCtx*)param;
   SOperatorInfo*          pOperator = pCtx->pOperator;
   SOperatorParam*         pOperatorGetParam = pCtx->pOperatorGetParam;
-  int32_t                 code = TSDB_CODE_SUCCESS;
   SSDataBlock*            pRes = NULL;
 
-  bool isFederated = (pOperatorGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
+  bool isFederated = pCtx->isFederated;
   if (!isFederated) {
     SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperatorGetParam->value;
     pParam->basic.window = pCtx->window;
@@ -479,9 +994,9 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
     pCtx->pIntermediateBlock = NULL;
   }
 
-  // Same source param is reused by sort callbacks; downstream must not free it.
   pOperatorGetParam->reUse = true;
-  VTS_ERR_JRET(pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes));
+  code = pOperator->fpSet.getNextExtFn(pOperator, pOperatorGetParam, &pRes);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   if (!isFederated) {
     SExchangeOperatorParam* pParam = (SExchangeOperatorParam*)pOperatorGetParam->value;
@@ -491,17 +1006,42 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
     qDebug("%s load from downstream, blockId:%" PRId64, __func__, pCtx->blockId);
     (pRes)->info.id.blockId = pCtx->blockId;
 
-    // Fix slotIds for FederatedScan VStb blocks (provider creates cols with slotId=0)
-    if (isFederated && pCtx->pFedOutputSlotIds) {
-      int32_t nCols = (int32_t)taosArrayGetSize(pRes->pDataBlock);
-      for (int32_t ci = 0; ci < nCols && ci < pCtx->numFedOutputSlotIds; ci++) {
-        SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, ci);
-        if (pCol) pCol->info.slotId = pCtx->pFedOutputSlotIds[ci];
+    code = createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock);
+    QUERY_CHECK_CODE(code, lino, _return);
+
+    // A local dynamic table scan can place its timestamp after mapped value
+    // columns. Its runtime mapping is defined against the canonical
+    // [timestamp, colMap...] layout, so normalize the column order first.
+    if (!isFederated) {
+      code = moveTimestampColumnToFront(pCtx->pIntermediateBlock);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
+    // Dynamic source scans use their child-plan slot IDs. Restore the virtual
+    // row destination slots before merging local and federated source blocks.
+    if (pCtx->pOutputSlotIds) {
+      int32_t nCols = (int32_t)taosArrayGetSize(pCtx->pIntermediateBlock->pDataBlock);
+      for (int32_t ci = 0; ci < nCols; ci++) {
+        SColumnInfoData* pCol = taosArrayGet(pCtx->pIntermediateBlock->pDataBlock, ci);
+        if (pCol) {
+          pCol->info.slotId = ci < pCtx->numOutputSlotIds ? pCtx->pOutputSlotIds[ci] : -1;
+        }
       }
     }
 
-    VTS_ERR_JRET(getTimeWindowOfBlock(pRes, &pCtx->window.skey, &pCtx->window.ekey));
-    VTS_ERR_JRET(createOneDataBlock(pRes, true, &pCtx->pIntermediateBlock));
+    // SORT_MULTISOURCE_TS_MERGE uses one sort-key position for every source.
+    // Local table scans naturally return the primary timestamp first, whereas
+    // a normalized FederatedScan follows the virtual output-slot order.  Keep
+    // the input contract uniform without changing each column's destination
+    // slot: timestamp is position 0 in every source block, and slotId still
+    // tells VirtualScan where to write the value in the reconstructed row.
+    if (isFederated) {
+      code = moveTimestampColumnToFront(pCtx->pIntermediateBlock);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
+    code = getTimeWindowOfBlock(pCtx->pIntermediateBlock, &pCtx->window.skey, &pCtx->window.ekey);
+    QUERY_CHECK_CODE(code, lino, _return);
     *ppBlock = pCtx->pIntermediateBlock;
   } else {
     pCtx->window.ekey = INT64_MAX;
@@ -510,7 +1050,7 @@ int32_t virtualScanloadNextDataBlockFromParam(void* param, SSDataBlock** ppBlock
 
   return code;
 _return:
-  qError("failed to load data block from downstream, %s code:%s", __func__, tstrerror(code));
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   return code;
 }
 
@@ -543,6 +1083,17 @@ _return:
 
 static void cleanupSavedTagRefBlocks(SVirtualTableScanInfo* pInfo);
 
+static void cleanupLoadNextCtx(SLoadNextCtx* pCtx) {
+  if (pCtx == NULL) {
+    return;
+  }
+
+  blockDataDestroy(pCtx->pIntermediateBlock);
+  pCtx->pIntermediateBlock = NULL;
+  taosMemoryFreeClear(pCtx->pOutputSlotIds);
+  taosMemoryFree(pCtx);
+}
+
 void cleanUpVirtualScanInfo(SVirtualTableScanInfo* pVirtualScanInfo) {
   if (pVirtualScanInfo->pSortInfo) {
     taosArrayDestroy(pVirtualScanInfo->pSortInfo);
@@ -555,9 +1106,7 @@ void cleanUpVirtualScanInfo(SVirtualTableScanInfo* pVirtualScanInfo) {
   if (pVirtualScanInfo->pSortCtxList) {
     for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pSortCtxList); i++) {
       SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pVirtualScanInfo->pSortCtxList, i);
-      blockDataDestroy(pCtx->pIntermediateBlock);
-      taosMemoryFreeClear(pCtx->pFedOutputSlotIds);
-      taosMemoryFree(pCtx);
+      cleanupLoadNextCtx(pCtx);
     }
     taosArrayDestroy(pVirtualScanInfo->pSortCtxList);
     pVirtualScanInfo->pSortCtxList = NULL;
@@ -687,10 +1236,11 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
                                      pTaskInfo->id.str, 0, 0, 0, &pVirtualScanInfo->pSortHandle));
 
   tsortSetForceUsePQSort(pVirtualScanInfo->pSortHandle);
-  tsortSetFetchRawDataFp(pVirtualScanInfo->pSortHandle, virtualScanloadNextDataBlockFromParam, NULL, NULL);
+  tsortSetFetchRawDataFp(pVirtualScanInfo->pSortHandle,
+                         virtualScanLoadRawNextDataBlockFromParam, NULL, NULL);
 
   // Find the tag scan downstream by matching resultDataBlockId (most reliable).
-  // Don't trust pParam->tagDownStreamId blindly — it may be stale when
+  // Don't trust pParam->tagDownStreamId blindly  -  it may be stale when
   // TagRefSource exchanges shift the downstream indices.
   pVirtualScanInfo->tagDownStreamId = -1;
   scanOpIndex = -1;
@@ -733,16 +1283,18 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   for (size_t i = 0; i < taosArrayGetSize((pParam)->pOpParamArray); i++) {
     SOperatorParam* pOpParam = *(SOperatorParam**)taosArrayGet((pParam)->pOpParamArray, i);
 
-    pCtx = taosMemoryMalloc(sizeof(SLoadNextCtx));
+    pCtx = taosMemoryCalloc(1, sizeof(SLoadNextCtx));
     QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno)
     pCtx->blockId = blockIdCounter++;
     pCtx->pOperator = pOperator->pDownstream[scanOpIndex];
     pCtx->pOperatorGetParam = pOpParam;
     pCtx->window = pParam->window;
     pCtx->pIntermediateBlock = NULL;
-    pCtx->pFedOutputSlotIds = NULL;
-    pCtx->numFedOutputSlotIds = 0;
-
+    pCtx->pOutputSlotIds = NULL;
+    pCtx->numOutputSlotIds = 0;
+    pCtx->isFederated =
+        pOpParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN ||
+        pCtx->pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
     ps = taosMemoryCalloc(1, sizeof(SSortSource));
     QUERY_CHECK_NULL(ps, code, lino, _return, terrno)
 
@@ -765,7 +1317,9 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
       // federate-scan operator so that timestamps returned by the connector
       // (in the source's native precision) can be converted to the vtable's
       // declared precision before merging.
-      if (pVirtualScanInfo->pInputBlock != NULL &&
+      if ((pFsParam->dstPrecision < TSDB_TIME_PRECISION_MILLI ||
+           pFsParam->dstPrecision > TSDB_TIME_PRECISION_NANO) &&
+          pVirtualScanInfo->pInputBlock != NULL &&
           pVirtualScanInfo->tsSlotId >= 0 &&
           pVirtualScanInfo->tsSlotId < taosArrayGetSize(pVirtualScanInfo->pInputBlock->pDataBlock)) {
         SColumnInfoData* pTsCol =
@@ -798,9 +1352,9 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
       // Flush cached table contexts from previous children so we get fresh queries
       federatedScanResetForNewChild(pFedDownstream);
 
-      pCtx = taosMemoryMalloc(sizeof(SLoadNextCtx));
+      pCtx = taosMemoryCalloc(1, sizeof(SLoadNextCtx));
       QUERY_CHECK_NULL(pCtx, code, lino, _return, terrno)
-      pCtx->blockId = blockIdCounter++;
+      pCtx->blockId = pFedDownstream->resultDataBlockId;
       pCtx->pOperator = pFedDownstream;
       pCtx->pOperatorGetParam = pForeignOp;
       pCtx->window = pParam->window;
@@ -809,38 +1363,26 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
       // Build output slotId mapping for this FederatedScan source.
       // FedScan VStb block columns are: [ts, colMap[0], colMap[1], ...].
       // Map each column's colId to VTableScan output slot position via pTargets.
-      pCtx->pFedOutputSlotIds = NULL;
-      pCtx->numFedOutputSlotIds = 0;
+      pCtx->pOutputSlotIds = NULL;
+      pCtx->numOutputSlotIds = 0;
+      pCtx->isFederated = true;
       {
-        SVirtualScanPhysiNode* pVtbPhyNode = (SVirtualScanPhysiNode*)pOperator->pPhyNode;
-        if (pVtbPhyNode && pVtbPhyNode->pTargets) {
-          int32_t numDataCols = (int32_t)taosArrayGetSize(pFsParam->colMap);
-          int32_t totalCols = 1 + numDataCols;  // ts + data columns
-          pCtx->pFedOutputSlotIds = taosMemoryCalloc(totalCols, sizeof(int32_t));
-          if (pCtx->pFedOutputSlotIds) {
-            pCtx->numFedOutputSlotIds = totalCols;
-            for (int32_t si = 0; si < totalCols; si++) pCtx->pFedOutputSlotIds[si] = -1;
-
-            // slot 0 = ts
-            pCtx->pFedOutputSlotIds[0] = pVirtualScanInfo->tsSlotId;
-
-            // slots 1..N = data columns from colMap
-            for (int32_t ci = 0; ci < numDataCols; ci++) {
-              SColIdNameKV* pKV = taosArrayGet(pFsParam->colMap, ci);
-              if (!pKV) continue;
-              int32_t tgtIdx = 0;
-              SNode* pTgtNode = NULL;
-              FOREACH(pTgtNode, pVtbPhyNode->pTargets) {
-                SColumnNode* pTgtCol = (SColumnNode*)pTgtNode;
-                if (pTgtCol->colId == pKV->colId) {
-                  pCtx->pFedOutputSlotIds[ci + 1] = tgtIdx;
-                  break;
-                }
-                tgtIdx++;
-              }
-            }
-          }
+        SFederatedScanOperatorInfo* pFedInfo = (SFederatedScanOperatorInfo*)pFedDownstream->info;
+        const SDataBlockDescNode* pFedDesc =
+            pFedInfo != NULL && pFedInfo->pFedScanNode != NULL
+                ? pFedInfo->pFedScanNode->node.pOutputDataBlockDesc
+                : NULL;
+        if (pFedDesc != NULL && pFedDesc->pSlots != NULL) {
+          code = buildFedOutputSlotIdsFromScanCols(pFedInfo->pFedScanNode,
+                                                   (SVirtualScanPhysiNode*)pOperator->pPhyNode,
+                                                   pVirtualScanInfo->tsSlotId, &pCtx->pOutputSlotIds,
+                                                   &pCtx->numOutputSlotIds);
+        } else {
+          code = buildDynamicFedOutputSlotIds((SVirtualScanPhysiNode*)pOperator->pPhyNode, pFsParam,
+                                              pVirtualScanInfo->tsSlotId, &pCtx->pOutputSlotIds,
+                                              &pCtx->numOutputSlotIds);
         }
+        QUERY_CHECK_CODE(code, lino, _return);
       }
 
       ps = taosMemoryCalloc(1, sizeof(SSortSource));
@@ -858,7 +1400,41 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   VTS_ERR_JRET(tsortOpen(pVirtualScanInfo->pSortHandle));
 
 _return:
+  cleanupLoadNextCtx(pCtx);
+  taosMemoryFree(ps);
   return code;
+}
+
+// Whether an EXCHANGE downstream's output block carries a TIMESTAMP at the merge-key slot --
+// every merge-sort source must, since the loser tree compares that column across sources.
+// The tag-scan exchange (whose first column is a tag/tbname, never ts) can never be a sort
+// source.
+//
+// EXCHANGE-only: the function casts pDownstream->info to SExchangeInfo* -- callers MUST
+// gate on operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE first (the schema at that
+// info layout is otherwise meaningless).
+//
+// The unreachable-schema fallbacks return true ("stays sortable"). That direction is
+// deliberate: createExchangeOperatorInfo builds pDummyBlock at operator-creation time and
+// fails creation outright when it cannot (exchangeoperator.c), so a live exchange always
+// carries a schema -- if these branches ever fire, the layout contract has changed and the
+// qError below surfaces it. Defaulting the other way (false = exclude from sort sources)
+// would silently drop rows from an ordinary ts exchange, which is strictly worse than the
+// loud ASan abort the old bug produced.
+static bool exchangeHasTsAtMergeSlot(const SOperatorInfo* pDownstream) {
+  if (pDownstream == NULL || pDownstream->info == NULL) {
+    qError("exchangeHasTsAtMergeSlot: exchange operator with NULL info -- layout contract changed?");
+    return true;
+  }
+
+  const SExchangeInfo* pExchangeInfo = (const SExchangeInfo*)pDownstream->info;
+  if (pExchangeInfo->pDummyBlock == NULL || taosArrayGetSize(pExchangeInfo->pDummyBlock->pDataBlock) == 0) {
+    qError("exchangeHasTsAtMergeSlot: exchange without dummy-block schema -- layout contract changed?");
+    return true;
+  }
+
+  SColumnInfoData* pCol0 = taosArrayGet(pExchangeInfo->pDummyBlock->pDataBlock, 0);
+  return pCol0 != NULL && pCol0->info.type == TSDB_DATA_TYPE_TIMESTAMP;
 }
 
 int32_t createSortHandle(SOperatorInfo* pOperator) {
@@ -897,6 +1473,25 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
       continue;
     }
 
+    // tagBlockId stays -1 when every projected tag column is a const-ref (extractColMap only
+    // derives it from plain non-ref tags). The tag-scan downstream then matches nothing and
+    // would be added as a merge-sort source, but it carries no ts at the merge-key slot --
+    // the loser tree would compare its var-typed first column against data blocks' ts
+    // column, and colDataIsNull_var on the non-var ts column reads past the unioned
+    // nullbitmap (ASan heap-buffer-overflow in msortComparFn). Exclude it by schema.
+    if (pVirtualScanInfo->tagBlockId == -1 && pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE &&
+        !isRefTagSourceBlockId(pVirtualScanInfo, pDownstream->resultDataBlockId) &&
+        !exchangeHasTsAtMergeSlot(pDownstream)) {
+      // excluded from the sort sources, but pseudo columns (pScanPseudoCols, e.g. a
+      // tbname filter column planned independently of the projected targets) may still
+      // need this tag-scan downstream as their tag source -- register it first, mirroring
+      // the tagDownStreamId registration in the !isSortable branch below
+      if (pVirtualScanInfo->tagDownStreamId == -1 && pVirtualScanInfo->pScanPseudoCols != NULL) {
+        pVirtualScanInfo->tagDownStreamId = i;
+      }
+      continue;
+    }
+
     if (!isSortableDataBlockId(pVirtualScanInfo, pDownstream->resultDataBlockId)) {
       if (pVirtualScanInfo->tagDownStreamId == -1 && pVirtualScanInfo->pScanPseudoCols != NULL &&
           !isRefTagSourceBlockId(pVirtualScanInfo, pDownstream->resultDataBlockId)) {
@@ -931,9 +1526,11 @@ int32_t createSortHandle(SOperatorInfo* pOperator) {
     TSDB_CHECK_NULL(pCtx, code, lino, _return, terrno)
     pCtx->pOperator = pDownstream;
     pCtx->pOperatorGetParam = NULL;
-    pCtx->blockId = i;
+    pCtx->blockId = pDownstream->resultDataBlockId;
     pCtx->window = (STimeWindow){0};
     pCtx->pIntermediateBlock = NULL;
+    pCtx->isFederated =
+        pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
 
     QUERY_CHECK_NULL(taosArrayPush(pVirtualScanInfo->pSortCtxList, &pCtx), code, lino, _return, terrno)
     pCtx = NULL;
@@ -1026,7 +1623,21 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
 
     int32_t blockId = (int32_t)tsortGetBlockId(pTupleHandle);
     int32_t colNum = pInfo->virtualScanInfo.scanAllCols ? 1 : (int32_t)tsortGetColNum(pTupleHandle);
+    SLoadNextCtx* pSourceCtx = findLoadNextCtx(&pInfo->virtualScanInfo, blockId);
+    bool isFederated = pSourceCtx != NULL && pSourceCtx->isFederated;
+    const SDataBlockDescNode* pFedDesc = getFederatedDataBlockDesc(pSourceCtx);
     for (int32_t i = 0; i < colNum; i++) {
+      if (isFederated) {
+        const SSlotDescNode* pFedSlot = findSlotDesc(pFedDesc, i);
+        if (pFedSlot == NULL) {
+          qError("failed to find federated slot descriptor, blockId:%d, slotId:%d", blockId, i);
+          VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+        }
+        if (!pFedSlot->output || pFedSlot->reserve) {
+          continue;
+        }
+      }
+
       char* pData = NULL;
       tsortGetValue(pTupleHandle, i, (void**)&pData);
       if (pData != NULL) {
@@ -1061,6 +1672,11 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
         int64_t slotKey = blockId << 16 | i;
         SArray** ppSlots = tSimpleHashGet(pInfo->virtualScanInfo.dataSlotMap, &slotKey, sizeof(slotKey));
         if (ppSlots == NULL || *ppSlots == NULL) {
+          // A remote plan may expose output columns that this VirtualScan does
+          // not reference. Reserve slots have already been excluded above.
+          if (isFederated) {
+            continue;
+          }
           qError("failed to get slotId from dataSlotMap, blockId:%d, slotId:%d", blockId, i);
           VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
         }
@@ -1074,7 +1690,7 @@ static int32_t doGetVtableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo, 
 _return:
   p->info.rows = rowNums + 1;
   p->info.dataLoad = 1;
-  p->info.scanFlag = MAIN_SCAN;
+  p->info.scanFlag = (pInfo->twoPassMode && !pInfo->phase1Done) ? PRE_SCAN : MAIN_SCAN;
   return code;
 }
 
@@ -1099,8 +1715,30 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
       pInfo->pSavedTuple = NULL;
     }
 
-    int32_t tsIndex = 0;
     size_t  colNum = tsortGetColNum(pTupleHandle);
+    int32_t tsIndex = -1;
+    if (pInfo->virtualScanInfo.tsSlotId >= 0 && pInfo->virtualScanInfo.tsSlotId < colNum) {
+      SColumnInfoData* pTsCol = NULL;
+      tsortGetColumnInfo(pTupleHandle, pInfo->virtualScanInfo.tsSlotId, &pTsCol);
+      if (pTsCol != NULL && TSDB_DATA_TYPE_TIMESTAMP == pTsCol->info.type) {
+        tsIndex = pInfo->virtualScanInfo.tsSlotId;
+      }
+    }
+    for (int32_t i = 0; tsIndex < 0 && i < colNum; ++i) {
+      SColumnInfoData* pCandidate = NULL;
+      tsortGetColumnInfo(pTupleHandle, i, &pCandidate);
+      if (pCandidate != NULL && TSDB_DATA_TYPE_TIMESTAMP == pCandidate->info.type) {
+        tsIndex = i;
+      }
+    }
+    if (tsIndex < 0) {
+      qError("failed to find timestamp column in virtual stable input tuple");
+      VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+    }
+    int32_t blockId = (int32_t)tsortGetBlockId(pTupleHandle);
+    SLoadNextCtx* pSourceCtx = findLoadNextCtx(&pInfo->virtualScanInfo, blockId);
+    bool isFederated = pSourceCtx != NULL && pSourceCtx->isFederated;
+    const SDataBlockDescNode* pFedDesc = getFederatedDataBlockDesc(pSourceCtx);
 
     char* pData = NULL;
     // first, set ts slot's data
@@ -1127,12 +1765,28 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
     }
 
     for (int32_t i = 0; i < colNum; i++) {
+      if (i == tsIndex) {
+        continue;
+      }
       if (tsortIsNullVal(pTupleHandle, i)) {
         continue;
       }
 
       SColumnInfoData* pColInfo = NULL;
       tsortGetColumnInfo(pTupleHandle, i, &pColInfo);
+      if (isFederated && pFedDesc != NULL && pFedDesc->pSlots != NULL && LIST_LENGTH(pFedDesc->pSlots) > 0) {
+        const SSlotDescNode* pFedSlot =
+            i < LIST_LENGTH(pFedDesc->pSlots)
+                ? (const SSlotDescNode*)nodesListGetNode(pFedDesc->pSlots, i)
+                : NULL;
+        if (pFedSlot == NULL) {
+          qError("failed to find federated slot descriptor, blockId:%d, column:%d", blockId, i);
+          VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+        }
+        if (!pFedSlot->output || pFedSlot->reserve) {
+          continue;
+        }
+      }
       tsortGetValue(pTupleHandle, i, (void**)&pData);
 
       if (pData != NULL) {
@@ -1154,10 +1808,163 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
     }
   }
 _return:
-
   p->info.rows = rowNums + 1;
   p->info.dataLoad = 1;
-  p->info.scanFlag = MAIN_SCAN;
+  p->info.scanFlag = (pInfo->twoPassMode && !pInfo->phase1Done) ? PRE_SCAN : MAIN_SCAN;
+  return code;
+}
+
+// Tear down the current sort state (pSortInfo is kept for rebuild). Used by
+// vtableTwoPassRestart both before rebuilding and to drop a partially-built phase-2
+// sort state when the rebuild fails midway.
+static void vtableTwoPassDestroySortState(SVirtualScanMergeOperatorInfo* pInfo) {
+  SVirtualTableScanInfo* pVirtualScanInfo = &pInfo->virtualScanInfo;
+
+  if (pVirtualScanInfo->pSortHandle != NULL) {
+    tsortDestroySortHandle(pVirtualScanInfo->pSortHandle);
+    pVirtualScanInfo->pSortHandle = NULL;
+  }
+  if (pVirtualScanInfo->pSortCtxList != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pSortCtxList); i++) {
+      SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pVirtualScanInfo->pSortCtxList, i);
+      cleanupLoadNextCtx(pCtx);
+    }
+    taosArrayDestroy(pVirtualScanInfo->pSortCtxList);
+    pVirtualScanInfo->pSortCtxList = NULL;
+  }
+  blockDataDestroy(pVirtualScanInfo->pIntermediateBlock);
+  pVirtualScanInfo->pIntermediateBlock = NULL;
+  pInfo->pSavedTuple = NULL;
+
+  // Mirror resetVirtualTableMergeOperState: createSortHandle rebuilds the tag-ref state
+  // only when it is NULL, so drop it here -- otherwise a phase-1 -> phase-2 restart
+  // appends duplicate resultDataBlockId entries and keeps stale saved tag blocks alive.
+  // tagDownStreamId is likewise re-derived by createSortHandle (its -1 fallback
+  // classification only fires while still -1), so reset it like the sibling teardowns.
+  pVirtualScanInfo->tagDownStreamId = -1;
+  blockDataDestroy(pInfo->pSavedTagBlock);
+  pInfo->pSavedTagBlock = NULL;
+  taosArrayDestroy(pVirtualScanInfo->pTagRefSourceBlockIds);
+  pVirtualScanInfo->pTagRefSourceBlockIds = NULL;
+  cleanupSavedTagRefBlocks(pVirtualScanInfo);
+  tSimpleHashCleanup(pVirtualScanInfo->pTagRefDownstreamMap);
+  pVirtualScanInfo->pTagRefDownstreamMap = NULL;
+}
+
+// Fetch the 1-row tag block from every ref-tag source downstream and stash copies keyed
+// by resultDataBlockId. Shared by the first pass (virtualTableGetNext entry) and the
+// two-pass restart: after vtableTwoPassDestroySortState + createSortHandle the block ids
+// are new, and phase-2 re-enters via doVirtualTableMerge -- it never passes the
+// virtualTableGetNext entry point, so without an explicit rebuild here the saved blocks
+// stay NULL and doSetTagColumnData NULL-fills every ref-tag column in MAIN_SCAN.
+static int32_t buildSavedTagRefBlocks(SOperatorInfo* pOperator) {
+  int32_t                        code = 0;
+  int32_t                        lino = 0;
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  SVirtualTableScanInfo*         pVirtualScanInfo = &pInfo->virtualScanInfo;
+
+  if (pVirtualScanInfo->pTagRefSourceBlockIds == NULL || pVirtualScanInfo->pSavedTagRefBlocks != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pVirtualScanInfo->pSavedTagRefBlocks =
+      taosArrayInit(taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds), sizeof(STagRefSavedBlock));
+  QUERY_CHECK_NULL(pVirtualScanInfo->pSavedTagRefBlocks, code, lino, _return, terrno)
+
+  for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds); ++i) {
+    int64_t* pBlockId = taosArrayGet(pVirtualScanInfo->pTagRefSourceBlockIds, i);
+    QUERY_CHECK_NULL(pBlockId, code, lino, _return, terrno)
+    STagRefDownstreamInfo* pDownstreamInfo =
+        tSimpleHashGet(pVirtualScanInfo->pTagRefDownstreamMap, pBlockId, sizeof(*pBlockId));
+    QUERY_CHECK_NULL(pDownstreamInfo, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
+
+    SSDataBlock*   pTagRefBlock = NULL;
+    SSDataBlock*   pSavedBlock = NULL;
+    SOperatorInfo* pTagRefOp = pOperator->pDownstream[pDownstreamInfo->downstreamId];
+    VTS_ERR_JRET(pTagRefOp->fpSet.getNextFn(pTagRefOp, &pTagRefBlock));
+    QUERY_CHECK_NULL(pTagRefBlock, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
+    if (pTagRefBlock->info.rows != 1) {
+      VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
+    }
+    VTS_ERR_JRET(createOneDataBlock(pTagRefBlock, true, &pSavedBlock));
+
+    STagRefSavedBlock savedBlock = {.blockId = *pBlockId, .pBlock = pSavedBlock};
+    if (NULL == taosArrayPush(pVirtualScanInfo->pSavedTagRefBlocks, &savedBlock)) {
+      blockDataDestroy(pSavedBlock);
+      pSavedBlock = NULL;
+      code = terrno;
+      lino = __LINE__;
+      goto _return;
+    }
+  }
+
+_return:
+  return code;
+}
+
+// twoPassMode phase-1 EOF: tear down the consumed sort state (keep pSortInfo for rebuild),
+// reset the Exchange downstreams so the remote origin subplans re-execute, then rebuild the
+// sort handle for phase-2. Mirrors FedScan two-pass restart (federatedscanoperator.c). Only
+// used on the static path (no operator param); the DynQueryCtrl path is single-pass.
+static int32_t vtableTwoPassRestart(SOperatorInfo* pOperator) {
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  int32_t                        code = 0;
+
+  vtableTwoPassDestroySortState(pInfo);
+
+  // Reset Exchange downstreams so createSortHandle re-opens them and the remote re-scans.
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream != NULL && pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE
+        && pDownstream->fpSet.resetStateFn != NULL) {
+      code = pDownstream->fpSet.resetStateFn(pDownstream);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Sticky failure, same contract as the rebuild-failure path below: the sort
+        // state is already torn down (pSortHandle NULL), so a doVirtualTableMerge retry
+        // must surface this error instead of silently reporting EOF. The phase-2 flags
+        // armed on earlier iterations are disarmed by the shared rollback tail.
+        pInfo->twoPassErr = code;
+        goto _rollback_flags;
+      }
+      pDownstream->status = OP_NOT_OPENED;
+      ((SExchangeInfo*)pDownstream->info)->phase2Rescan = true;    // next fetch = phase-2 rescan
+      ((SExchangeInfo*)pDownstream->info)->twoPassExchange = true; // empty !completed rsp = retry
+    }
+  }
+
+  code = createSortHandle(pOperator);
+  if (TSDB_CODE_SUCCESS == code) {
+    // Defensive: twoPassMode plans currently have no TAG_REF_SOURCE children (the
+    // planner's vtableTwoPassOptimize rejects them -- the remote tag-ref task cannot be
+    // kept alive for a phase-2 re-fetch), so pTagRefSourceBlockIds is NULL here and this
+    // early-returns. If tag-ref support is added later, this rebuilds the saved ref-tag
+    // blocks against the rebuilt downstream map, or phase-2 (re-entered via
+    // doVirtualTableMerge, not virtualTableGetNext) NULL-fills the ref-tag columns.
+    code = buildSavedTagRefBlocks(pOperator);
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // Sticky failure: pSortHandle stays NULL, and doVirtualTableMerge must surface this
+  // error on retry instead of reporting a silent EOF (empty PERCENTILE result).
+  pInfo->twoPassErr = code;
+  // createSortHandle may have partially built the new handle/ctx list before failing --
+  // free it so the operator is not left in a half-rebuilt state until a later reset.
+  vtableTwoPassDestroySortState(pInfo);
+
+_rollback_flags:
+  // Both failure paths converge here: disarm the phase-2 flags on every Exchange
+  // downstream (the reset loop may already have armed some of them), so a later operator
+  // reset/retry observes a consistent phase-1 state (the recursive
+  // clearStatesForOperator -> resetExchangeOperState would clear them anyway, but do not
+  // rely on that ordering).
+  for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
+    SOperatorInfo* pDownstream = pOperator->pDownstream[i];
+    if (pDownstream != NULL && pDownstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      ((SExchangeInfo*)pDownstream->info)->phase2Rescan = false;
+      ((SExchangeInfo*)pDownstream->info)->twoPassExchange = false;
+    }
+  }
   return code;
 }
 
@@ -1172,27 +1979,54 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   qDebug("start to merge final sorted rows, %s", GET_TASKID(pTaskInfo));
   blockDataCleanup(pDataBlock);
+  // Default to "no output": virtualTableGetNext loops on *pResBlock and can re-enter with a
+  // stale non-NULL block (post-filter re-loop), so every EOF return below must leave it NULL.
+  *pResBlock = NULL;
 
   if (pHandle == NULL) {
+    // A failed two-pass restart left pSortHandle NULL -- surface the sticky error instead
+    // of silently reporting EOF (which would read as an empty PERCENTILE result).
+    VTS_ERR_RET(pInfo->twoPassErr);
     return TSDB_CODE_SUCCESS;
   }
 
+_restart_merge:
   if (pVirtualScanInfo->pIntermediateBlock == NULL) {
     VTS_ERR_RET(tsortGetSortedDataBlock(pHandle, &pVirtualScanInfo->pIntermediateBlock));
-    if (pVirtualScanInfo->pIntermediateBlock == NULL) {
-      return TSDB_CODE_SUCCESS;
+    if (pVirtualScanInfo->pIntermediateBlock != NULL) {
+      VTS_ERR_RET(blockDataEnsureCapacity(pVirtualScanInfo->pIntermediateBlock, capacity));
     }
-
-    VTS_ERR_RET(blockDataEnsureCapacity(pVirtualScanInfo->pIntermediateBlock, capacity));
   } else {
     blockDataCleanup(pVirtualScanInfo->pIntermediateBlock);
   }
 
   SSDataBlock* p = pVirtualScanInfo->pIntermediateBlock;
-  if (pOperator->pOperatorGetParam) {
-    VTS_ERR_RET(doGetVStableMergedBlockData(pInfo, pHandle, capacity, p));
-  } else {
-    VTS_ERR_RET(doGetVtableMergedBlockData(pInfo, pHandle, capacity, p));
+  if (p != NULL) {
+    if (pOperator->pOperatorGetParam) {
+      VTS_ERR_RET(doGetVStableMergedBlockData(pInfo, pHandle, capacity, p));
+    } else {
+      VTS_ERR_RET(doGetVtableMergedBlockData(pInfo, pHandle, capacity, p));
+    }
+  }
+
+  // Single pass-EOF detection point: either the sort handed out no block at all (already
+  // exhausted on entry, e.g. an empty phase-1), or the merge helper produced zero rows
+  // (tsortNextTuple returned NULL inside the helpers -- pIntermediateBlock stays non-NULL
+  // between calls, so the NULL check above alone cannot see that case).
+  if (p == NULL || p->info.rows == 0) {
+    // The planner only sets twoPassMode on static-path scans of virtual child/normal
+    // tables (REPEAT_SCAN_FUNC is parser-rejected on virtual super tables), and the
+    // DynQueryCtrl param path is single-pass -- so pOperatorGetParam and twoPassMode are
+    // mutually exclusive by construction. The NULL check is a defensive guard keeping
+    // vtableTwoPassRestart strictly on the static path its comment documents.
+    if (pInfo->twoPassMode && !pInfo->phase1Done && NULL == pOperator->pOperatorGetParam) {
+      // phase-1 done: reset Exchange + rebuild sort handle, re-merge for phase-2 (MAIN_SCAN)
+      VTS_ERR_RET(vtableTwoPassRestart(pOperator));
+      pInfo->phase1Done = true;
+      pHandle = pVirtualScanInfo->pSortHandle;  // re-read the rebuilt handle
+      goto _restart_merge;
+    }
+    return TSDB_CODE_SUCCESS;  // pass EOF -- *pResBlock stays NULL
   }
 
   VTS_ERR_RET(copyDataBlock(pDataBlock, p));
@@ -1376,18 +2210,26 @@ static int32_t doSetLocalTagPseudoColumnData(SOperatorInfo* pOperator, const SVi
 
     if (pExpr != NULL && nodeType(pExpr) == QUERY_NODE_COLUMN) {
       SColumnNode* pColNode = (SColumnNode*)pExpr;
-      if (pColNode->colType == COLUMN_TYPE_TAG && !pColNode->hasRef) {
-        SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-        SColumnInfoData* pSrcCol = NULL;
-        const STagVal*   pResolvedTagVal = findResolvedTagVal(pOperator, pColNode->colId);
-        TSDB_CHECK_NULL(pDstCol, code, lino, _return, terrno)
+      if (pColNode->colType == COLUMN_TYPE_TAG) {
+        const STagVal* pResolvedTagVal = findResolvedTagVal(pOperator, pColNode->colId);
+        // const-ref tags (hasRef with a resolved table-level constant) have neither a
+        // TagRefSource block nor a tag-block column -- fill from the resolved constant.
+        // Plain tag-refs (no resolved value) are NOT filled here on purpose: their output
+        // slots are covered by the second loop in doSetTagColumnData (pTargets +
+        // findRefTagOutputColumn). Changing what either loop covers must preserve that
+        // division or those slots would be left uninitialized.
+        if (!pColNode->hasRef || pResolvedTagVal != NULL) {
+          SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+          SColumnInfoData* pSrcCol = NULL;
+          TSDB_CHECK_NULL(pDstCol, code, lino, _return, terrno)
 
-        if (pTagBlock != NULL && srcSlotId >= 0 && srcSlotId < numOfTagCols) {
-          pSrcCol = taosArrayGet(pTagBlock->pDataBlock, srcSlotId);
+          if (!pColNode->hasRef && pTagBlock != NULL && srcSlotId >= 0 && srcSlotId < numOfTagCols) {
+            pSrcCol = taosArrayGet(pTagBlock->pDataBlock, srcSlotId);
+          }
+
+          code = setTagColumnValue(pDstCol, pSrcCol, pResolvedTagVal, rows);
+          QUERY_CHECK_CODE(code, lino, _return);
         }
-
-        code = setTagColumnValue(pDstCol, pSrcCol, pResolvedTagVal, rows);
-        QUERY_CHECK_CODE(code, lino, _return);
       }
     }
 
@@ -1517,38 +2359,7 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   VTS_ERR_JRET(pOperator->fpSet._openFn(pOperator));
 
-  if (pVirtualScanInfo->pTagRefSourceBlockIds != NULL && pVirtualScanInfo->pSavedTagRefBlocks == NULL) {
-    pVirtualScanInfo->pSavedTagRefBlocks =
-        taosArrayInit(taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds), sizeof(STagRefSavedBlock));
-    QUERY_CHECK_NULL(pVirtualScanInfo->pSavedTagRefBlocks, code, lino, _return, terrno)
-
-    for (int32_t i = 0; i < taosArrayGetSize(pVirtualScanInfo->pTagRefSourceBlockIds); ++i) {
-      int64_t* pBlockId = taosArrayGet(pVirtualScanInfo->pTagRefSourceBlockIds, i);
-      QUERY_CHECK_NULL(pBlockId, code, lino, _return, terrno)
-      STagRefDownstreamInfo* pDownstreamInfo =
-          tSimpleHashGet(pVirtualScanInfo->pTagRefDownstreamMap, pBlockId, sizeof(*pBlockId));
-      QUERY_CHECK_NULL(pDownstreamInfo, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
-
-      SSDataBlock*   pTagRefBlock = NULL;
-      SSDataBlock*   pSavedBlock = NULL;
-      SOperatorInfo* pTagRefOp = pOperator->pDownstream[pDownstreamInfo->downstreamId];
-      VTS_ERR_JRET(pTagRefOp->fpSet.getNextFn(pTagRefOp, &pTagRefBlock));
-      QUERY_CHECK_NULL(pTagRefBlock, code, lino, _return, TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR)
-      if (pTagRefBlock->info.rows != 1) {
-        VTS_ERR_JRET(TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR);
-      }
-      VTS_ERR_JRET(createOneDataBlock(pTagRefBlock, true, &pSavedBlock));
-
-      STagRefSavedBlock savedBlock = {.blockId = *pBlockId, .pBlock = pSavedBlock};
-      if (NULL == taosArrayPush(pVirtualScanInfo->pSavedTagRefBlocks, &savedBlock)) {
-        blockDataDestroy(pSavedBlock);
-        pSavedBlock = NULL;
-        code = terrno;
-        lino = __LINE__;
-        goto _return;
-      }
-    }
-  }
+  VTS_ERR_JRET(buildSavedTagRefBlocks(pOperator));
 
   // Dynamic VSTB keeps the original table-scan path unchanged; when metadata is projected,
   // fetch the real 1-row tag block from the extra tag-scan child and use it only for fill.
@@ -1582,6 +2393,9 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   // Child scans without a DynQueryCtrl parent resolve owned-tag values themselves.
   VTS_ERR_JRET(ensureOwnedTagsResolved(pOperator));
+  // Const-ref tags (vntb/ntb source) are table-level constants: resolve via the chain
+  // resolver on every query (cached per operator instance), regardless of DynQueryCtrl.
+  VTS_ERR_JRET(ensureRefTagsResolved(pOperator));
 
   while (1) {
     VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
@@ -1605,7 +2419,8 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
         (pInfo->pSavedTagBlock != NULL && !tagAllNull) ||
         pVirtualScanInfo->pSavedTagRefBlocks != NULL ||
         pOperator->pOperatorGetParam != NULL ||
-        pVirtualScanInfo->pOwnedResolvedTags != NULL;
+        pVirtualScanInfo->pOwnedResolvedTags != NULL ||
+        pVirtualScanInfo->pConstRefResolvedTags != NULL;
     if (needMetadataFill) {
       VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
                                       (*pResBlock)->info.rows));
@@ -1693,14 +2508,12 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   if (pInfo->pSortCtxList) {
     for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); i++) {
       SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pInfo->pSortCtxList, i);
-      blockDataDestroy(pCtx->pIntermediateBlock);
-      taosMemoryFreeClear(pCtx->pFedOutputSlotIds);
-      taosMemoryFree(pCtx);
+      cleanupLoadNextCtx(pCtx);
     }
     taosArrayDestroy(pInfo->pSortCtxList);
     pInfo->pSortCtxList = NULL;
   }
-  destroyOwnedResolvedTags(pInfo);
+  destroyResolvedTagsAndCaches(pInfo);
   taosMemoryFreeClear(param);
 }
 
@@ -1777,6 +2590,8 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
 
   pOper->status = OP_NOT_OPENED;
   resetBasicOperatorState(&pMergeInfo->binfo);
+  pMergeInfo->phase1Done = false;  // twoPassMode: restart from phase-1 on operator reset/retry
+  pMergeInfo->twoPassErr = 0;
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
@@ -1795,9 +2610,7 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
   if (pInfo->pSortCtxList) {
     for (int32_t i = 0; i < taosArrayGetSize(pInfo->pSortCtxList); i++) {
       SLoadNextCtx* pCtx = *(SLoadNextCtx**)taosArrayGet(pInfo->pSortCtxList, i);
-      blockDataDestroy(pCtx->pIntermediateBlock);
-      taosMemoryFreeClear(pCtx->pFedOutputSlotIds);
-      taosMemoryFree(pCtx);
+      cleanupLoadNextCtx(pCtx);
     }
     taosArrayDestroy(pInfo->pSortCtxList);
     pInfo->pSortCtxList = NULL;
@@ -1854,6 +2667,14 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->pTargets = pVirtualScanPhyNode->pTargets;
   pVirtualScanInfo->pScanPseudoCols = pVirtualScanPhyNode->scan.pScanPseudoCols;
   pVirtualScanInfo->pRefTagCols = pVirtualScanPhyNode->pRefTagCols;
+  pInfo->twoPassMode = pVirtualScanPhyNode->twoPassMode;
+  if (pInfo->twoPassMode && pVirtualScanPhyNode->scan.node.dynamicOp) {
+    // Planner invariant: twoPassMode (static path) never co-occurs with the DynQueryCtrl
+    // dynamic-op path. Surface a violation immediately instead of silently degrading to
+    // single-pass and returning wrong PERCENTILE results.
+    qError("invalid two-pass mode on dynamicOp virtual scan, vtable:%s", pVirtualScanInfo->vtableName);
+    VTS_ERR_JRET(TSDB_CODE_APP_ERROR);
+  }
   normalizeRefTagTargets(pVirtualScanInfo);
   if (pVirtualScanPhyNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pVirtualScanInfo->base.pseudoSup;
@@ -1874,6 +2695,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);
   pVirtualScanInfo->sortBufSize = (uint64_t)pVirtualScanInfo->bufPageSize *
                                   (uint64_t)(numOfDownstream + 1);  // one additional is reserved for merged result.
+  VTS_ERR_JRET(normalizeFederatedOutputTargets(pVirtualScanPhyNode->pTargets, pDownstream, numOfDownstream));
   VTS_ERR_JRET(extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId,
                              &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
 

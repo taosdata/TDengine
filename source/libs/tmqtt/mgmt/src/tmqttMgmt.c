@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -43,13 +45,7 @@ SMqttdData mqttdGlobal = {0};
 
 extern char **environ;
 
-#ifdef WINDOWS
-#define TAOSMQTT_DEFAULT_PATH "C:\\TDengine"
-#define TAOSMQTT_DEFAULT_EXEC "\\taosmqtt.exe"
-#else
-#define TAOSMQTT_DEFAULT_PATH "/usr/bin"
-#define TAOSMQTT_DEFAULT_EXEC "/taosmqtt"
-#endif
+#define TAOSMQTT_DEFAULT_EXEC_NAME "taosmqtt"
 
 static void mqttMgmtMqttdExit(uv_process_t *process, int64_t exitStatus, int32_t termSignal);
 
@@ -61,28 +57,10 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   uv_process_options_t options = {0};
 
   char path[PATH_MAX] = {0};
-#ifdef WINDOWS
-  if (taosAppPath(path, PATH_MAX) != 0) {
-    path[0] = '\0';
+  if (taosLocateCompanionExec(TAOSMQTT_DEFAULT_EXEC_NAME, path, sizeof(path)) != 0) {
+    bndError("cannot find %s in taosd directory or install directories", TAOSMQTT_DEFAULT_EXEC_NAME);
+    return TSDB_CODE_BNODE_UV_EXEC_FAILURE;
   }
-#else
-  if (tsProcPath == NULL) {
-    path[0] = '.';
-#if defined(_TD_DARWIN_64)
-    uint32_t pathSize = sizeof(path);
-    _NSGetExecutablePath(path, &pathSize);
-#endif
-  } else {
-    TAOS_STRNCPY(path, tsProcPath, PATH_MAX);
-  }
-
-  TAOS_DIRNAME(path);
-#endif
-
-  if (strlen(path) == 0) {
-    TAOS_STRCAT(path, TAOSMQTT_DEFAULT_PATH);
-  }
-  TAOS_STRCAT(path, TAOSMQTT_DEFAULT_EXEC);
 
   char dnodeId[8] = "1";
   snprintf(dnodeId, sizeof(dnodeId), "%d", pData->dnodeId);
@@ -183,7 +161,7 @@ static int32_t mqttMgmtSpawnMqttd(SMqttdData *pData) {
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
   if (err != 0) {
-    bndError("can not spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
+    bndError("cannot spawn taosmqtt. path: %s, error: %s", path, uv_strerror(err));
   } else {
     bndInfo("taosmqtt is initialized");
   }

@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -16,7 +20,7 @@ from new_test_framework.utils import tdLog, tdSql, epath, sc, tdFindPath
 
 
 ignoreCodes = [
-    '0x80000023', '0x80000024', '0x80000025', '0x80000026', '0x80000027', '0x80000028', '0x80000029', '0x8000002A', '0x80000109', '0x80000110', 
+    '0x80000023', '0x80000024', '0x80000025', '0x80000026', '0x80000027', '0x80000028', '0x80000029', '0x8000002A', '0x80000109', '0x8000010D', '0x80000110', 
     '0x80000129', '0x8000012C', '0x8000012D', '0x8000012E', '0x8000012F', '0x80000136', '0x80000137', '0x80000138', '0x80000139', '0x8000013A', 
     '0x8000013B', '0x80000200', '0x80000201', '0x80000202', '0x80000203', '0x80000204', '0x80000205', '0x80000206', '0x8000020B', '0x8000020E', 
     '0x80000210', '0x80000212', '0x80000214', '0x80000215', '0x80000217', '0x8000021B', '0x8000021C', '0x8000021D', '0x8000021E', '0x80000220', 
@@ -24,11 +28,11 @@ ignoreCodes = [
     '0x80000316', '0x80000317', '0x80000338', '0x80000339', '0x8000033F', '0x80000343', '0x80000345', '0x80000356', '0x80000359', '0x8000035A',
     '0x8000035B', '0x8000035C', '0x8000035D', '0x80000362', '0x8000038C', '0x8000038E', '0x8000038F', '0x8000039B', '0x8000039C', '0x8000039D', 
     '0x8000039E', '0x800003A6', '0x800003A7', '0x800003AA', '0x800003AB', '0x800003AC', '0x800003AD', '0x800003B0', '0x800003B2', '0x800003B4', 
-    '0x800003B5', '0x800003BA', '0x800003C0', '0x800003C1', '0x800003D0', '0x800003D8', '0x800003D9', '0x800003DA', '0x800003DB', '0x800003DC',
+    '0x800003B5', '0x800003BA', '0x800003C0', '0x800003C1', '0x800003CA', '0x800003CB', '0x800003D0', '0x800003D8', '0x800003D9', '0x800003DA', '0x800003DB', '0x800003DC',
     '0x800003E2', '0x800003F4', '0x800003F8', '0x80000412', '0x80000413', 
     '0x80000414', '0x80000415', '0x80000416', '0x80000417', '0x80000418', '0x80000419', '0x80000420', '0x80000421', '0x80000422', '0x80000423', 
     '0x80000424', '0x80000425', '0x80000426', '0x80000427', '0x80000428', '0x80000429', '0x8000042A', '0x8000042B', '0x80000430', '0x80000431', 
-    '0x80000432', '0x80000433', '0x80000434', '0x80000435', '0x80000436', '0x80000437', '0x80000438', '0x80000440', '0x80000441', '0x80000442', 
+    '0x80000432', '0x80000433', '0x80000434', '0x80000435', '0x80000436', '0x80000437', '0x80000438', '0x80000439', '0x80000440', '0x80000441', '0x80000442', 
     '0x80000443', '0x80000444', '0x80000445', '0x80000446', '0x80000447', '0x80000485', '0x80000486', '0x80000490', '0x80000491', '0x80000492',
     '0x80000493', '0x80000494', '0x800004A0', '0x800004A1', '0x800004A2', '0x800004A3', '0x800004A4', '0x800004A5', '0x800004A6', '0x800004A7', '0x800004A8', '0x800004A9', '0x800004AA', '0x800004AB', '0x800004B1', '0x800004B2', '0x800004B3', '0x800004C1', '0x800004C2', '0x800004C3',
     '0x800004CA', '0x800004CB', '0x800004D0', '0x800004D1', '0x800004D2', '0x800004D3', '0x800004D4', '0x800004D5', '0x800004D6', '0x800004D7', 
@@ -69,8 +73,7 @@ ignoreCodes = [
     '0x80003300', '0x80003301', '0x80003302', '0x80003303', '0x80003304', '0x80003305', '0x80003306', '0x80003307', '0x80003308', '0x80003309',
     '0x8000330A', '0x8000330B', '0x8000330C', '0x8000330D', '0x8000330E', '0x8000330F', '0x80003310', '0x80003311', '0x80003312', '0x80003313',
     '0x80003314', '0x80003315', '0x80003316', '0x80003317', '0x80003318', '0x80003319', '0x8000331A', '0x8000331B', '0x8000331C', '0x8000331D', 
-    '0x8000331E', '0x8000331F', '0x8000620C', '0x8000620D', '0x80007019', '0x8000701A', '0x8000701B', '0x8000701C', '0x8000701D', '0x8000035F',
-    '0x8000411E']
+    '0x8000331E', '0x8000331F', '0x80003320', '0x8000620C', '0x8000620D', '0x80007019', '0x8000701A', '0x8000701B', '0x8000701C', '0x8000701D', '0x8000035F', '0x80006425', '0x80006426', '0x80006427', '0x80006428', '0x80006429', '0x8000642A', '0x8000642B', '0x8000642C', '0x8000411E']
 
 class TestCheckErrorCode:
     # parse line
@@ -231,6 +234,7 @@ class TestCheckErrorCode:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -258,7 +262,5 @@ class TestCheckErrorCode:
         # check en
         tdLog.info(f"check en docs ...")
         self.check_consistency(enCodes, codes)
-
-
 
 

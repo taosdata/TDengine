@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "clientMonitor.h"
 #include "cJSON.h"
 #include "clientInt.h"
@@ -517,7 +534,7 @@ static int32_t processFile(SlowLogClient* pClient) {
   code = taosStatFile(pClient->path, &pClient->size, NULL, NULL);
   if (code < 0 && ERRNO == ENOENT) {
     processFileRemoved(pClient);
-    tscError("%s monitor rebuild file:%s because of file not exist", __func__, pClient->path);
+    tscError("%s monitor rebuild file:%s because the file does not exist", __func__, pClient->path);
     code = 0;
   }
   return code;
@@ -1033,25 +1050,12 @@ static void copyTableInfoToAuditReq(SAuditTableListInfo* pTbListInfo, SAuditReq*
 static int32_t doSetSelectStmtAuditReqTableInfo(SNode* pFromTable, SAuditReq* pReq, SAuditTableListInfo* pTbListInfo);
 static int32_t doSetOperatorTableInfo(SSetOperator* pSetOperator, SAuditTableListInfo* pTbListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (pSetOperator->pLeft) {
-    SSelectStmt* pLeftSelect = (SSelectStmt*)pSetOperator->pLeft;
-    if (nodeType(pSetOperator->pLeft) == QUERY_NODE_SELECT_STMT) {
-      code = doSetSelectStmtAuditReqTableInfo(pLeftSelect->pFromTable, NULL, pTbListInfo);
-    } else if (nodeType(pSetOperator->pLeft) == QUERY_NODE_SET_OPERATOR) {
-      SSetOperator* pLeftSetOperator = (SSetOperator*)pSetOperator->pLeft;
-      code = doSetOperatorTableInfo(pLeftSetOperator, pTbListInfo);
-      TAOS_RETURN(code);
-    }
-  }
-  if (pSetOperator->pRight) {
-    SSelectStmt* pRightSelect = (SSelectStmt*)pSetOperator->pRight;
-    if (nodeType(pSetOperator->pRight) == QUERY_NODE_SELECT_STMT) {
-      code = doSetSelectStmtAuditReqTableInfo(pRightSelect->pFromTable, NULL, pTbListInfo);
-      TAOS_RETURN(code);
-    } else if (nodeType(pSetOperator->pRight) == QUERY_NODE_SET_OPERATOR) {
-      SSetOperator* pRightSetOperator = (SSetOperator*)pSetOperator->pRight;
-      code = doSetOperatorTableInfo(pRightSetOperator, pTbListInfo);
-      TAOS_RETURN(code);
+  for (int32_t i = 0; i < setOperatorChildCount(pSetOperator) && TSDB_CODE_SUCCESS == code; ++i) {
+    SNode* pOperand = setOperatorChildAt(pSetOperator, i);
+    if (QUERY_NODE_SELECT_STMT == nodeType(pOperand)) {
+      code = doSetSelectStmtAuditReqTableInfo(((SSelectStmt*)pOperand)->pFromTable, NULL, pTbListInfo);
+    } else if (QUERY_NODE_SET_OPERATOR == nodeType(pOperand)) {
+      code = doSetOperatorTableInfo((SSetOperator*)pOperand, pTbListInfo);
     }
   }
   return code;

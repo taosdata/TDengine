@@ -2425,9 +2425,6 @@ taos> select var_pop(int_col) from test_vtable_select.vtb_virtual_ctb_full limit
 ============================
       3.84580742604489e+17 |
 
-taos> select percentile(int_col, 0.5) from test_vtable_select.vtb_virtual_ctb_full limit 50;
-
-DB error: percentile is only supported in single table query [0x8000265F] 
 taos> select bottom(int_col, 10) from test_vtable_select.vtb_virtual_ctb_full limit 50;
  bottom(int_col, 10) |
 ======================
@@ -2960,7 +2957,7 @@ taos> select stateduration(u_tinyint_col, "GT", 20, 1a) from test_vtable_select.
 taos> select round(twa(int_col), -4) from test_vtable_select.vtb_virtual_ctb_full limit 50;
   round(twa(int_col), -4)  |
 ============================
-                  -7610000 |
+                  -7620000 |
 
 taos> select abs(int_tag) from test_vtable_select.vtb_virtual_ctb_full limit 5;
  abs(int_tag) |
@@ -3413,9 +3410,6 @@ taos> select hyperloglog(int_tag) from test_vtable_select.vtb_virtual_ctb_full l
 ========================
                      1 |
 
-taos> select percentile(int_tag, 0.5) from test_vtable_select.vtb_virtual_ctb_full limit 5;
-
-DB error: percentile is only supported in single table query [0x8000265F] 
 taos> select bottom(int_tag, 10) from test_vtable_select.vtb_virtual_ctb_full limit 5;
  bottom(int_tag, 10) |
 ======================

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -138,9 +140,29 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     resetElect = true;
   }
 
+  // GHSA-q86r-32wm-qwpg (CWE-125): the declared entry length must fit inside the
+  // actual RPC receive buffer. Otherwise syncEntryBuildFromAppendEntries() would
+  // memcpy beyond the RPC buffer (heap out-of-bounds read) or even crash.
+  // The message embeds a 'bytes' field that must equal the real RPC buffer length.
   if (pMsg->dataLen < sizeof(SSyncRaftEntry)) {
     sError("vgId:%d, incomplete append entries received. prev index:%" PRId64 ", term:%" PRId64 ", datalen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen);
+    goto _IGNORE;
+  }
+
+  // Reject when the declared entry data does not fit in the received RPC buffer,
+  // or when the embedded 'bytes' field is inconsistent with the real buffer size.
+  if ((uint32_t)pRpcMsg->contLen < (uint32_t)sizeof(SyncAppendEntries) ||
+      pMsg->dataLen > (uint32_t)pRpcMsg->contLen - (uint32_t)sizeof(SyncAppendEntries)) {
+    sError("vgId:%d, append entries dataLen overflows RPC buffer. prev index:%" PRId64 ", term:%" PRId64
+           ", datalen:%u, contLen:%d",
+           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pRpcMsg->contLen);
+    goto _IGNORE;
+  }
+  if (pMsg->bytes != (uint32_t)pRpcMsg->contLen) {
+    sError("vgId:%d, append entries 'bytes' field mismatch with RPC buffer. prev index:%" PRId64 ", term:%" PRId64
+           ", bytes:%u, contLen:%d",
+           ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->bytes, pRpcMsg->contLen);
     goto _IGNORE;
   }
 

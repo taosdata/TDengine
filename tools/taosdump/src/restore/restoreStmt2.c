@@ -1,12 +1,18 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include "restoreStmt2.h"
@@ -770,11 +776,14 @@ int restoreOneDataFileV2(Stmt2RestoreCtx *ctx, const char *filePath) {
     const char *base = strrchr(filePath, '/');
     if (base) base++; else base = filePath;
     char tbName[TSDB_TABLE_NAME_LEN] = {0};
-    const char *dot = strrchr(base, '.');
-    if (dot && (dot - base) < (int)sizeof(tbName))
-        memcpy(tbName, base, dot - base);
-    else
-        snprintf(tbName, sizeof(tbName), "%s", base);
+
+    /* Data file basename is {encodedTb}.{ext}; decode to the real name. The
+     * encoded stem can exceed TSDB_TABLE_NAME_LEN (each special char becomes
+     * "%XX"), so decode via the worst-case safe helper. */
+    if (bckNameDecodeFileStem(base, tbName, sizeof(tbName)) != 0) {
+        logError("failed to decode table name from file: %s", filePath);
+        return TSDB_CODE_BCK_INVALID_FILE;
+    }
 
     bool isNtb = (strstr(filePath, "/_ntb_data") != NULL);
 
@@ -943,12 +952,13 @@ int restoreOneParquetFileV2(TAOS_STMT2 **stmt2Ptr, TAOS *conn, const char *dbNam
     if (baseName) baseName++; else baseName = filePath;
 
     char tbName[TSDB_TABLE_NAME_LEN] = {0};
-    const char *dot = strrchr(baseName, '.');
-    if (dot && (dot - baseName) < TSDB_TABLE_NAME_LEN) {
-        memcpy(tbName, baseName, dot - baseName);
-        tbName[dot - baseName] = '\0';
-    } else {
-        snprintf(tbName, sizeof(tbName), "%s", baseName);
+
+    /* Data file basename is {encodedTb}.{ext}; decode to the real table name.
+     * The encoded stem can exceed TSDB_TABLE_NAME_LEN ("%XX" expansion), so
+     * decode via the worst-case safe helper. */
+    if (bckNameDecodeFileStem(baseName, tbName, sizeof(tbName)) != 0) {
+        logError("failed to decode table name from file: %s", filePath);
+        return TSDB_CODE_BCK_INVALID_FILE;
     }
 
     logDebug("restore parquet file (STMT2): %s -> table: %s.%s", filePath, dbName, tbName);

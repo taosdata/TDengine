@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -29,6 +31,15 @@ extern "C" {
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SMnode SMnode;
+
+typedef struct {
+  int32_t sourceId;
+  int32_t id;
+  int64_t clusterId;
+  SEp     ep;
+} SMnodeRestoreDnode;
+
+int32_t mndRestoreMapDnodeId(const SArray *pDnodes, int32_t sourceId);
 
 typedef struct {
   int32_t  dnodeId;
@@ -131,6 +142,7 @@ int32_t mndDumpSdb();
 int32_t mndDeleteTrans();
 
 int32_t mndModifySdb(char *path);
+int32_t mndRestoreUpdateMetadata(const SArray *pDnodes);
 
 int32_t mndFlushMnode();
 

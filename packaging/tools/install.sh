@@ -1,7 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# This file is used to install database on linux systems. The operating system
-# is required to use systemd to manage services at boot
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -12,6 +24,8 @@ set -e
 verMode=edge
 pkgMode=full
 entMode=full
+packageRole=full
+packageRoleExplicit=0
 
 iplist=""
 serverFqdn=""
@@ -30,7 +44,6 @@ productName="TDengine TSDB"
 emailName="taosdata.com"
 uninstallScript="rm${PREFIX}"
 historyFile="${PREFIX}_history"
-tarName="package.tar.gz"
 adapterName="${PREFIX}adapter"
 benchmarkName="${PREFIX}Benchmark"
 dumpName="${PREFIX}dump"
@@ -183,7 +196,7 @@ Options:
 EOF
 }
 
-while getopts "hv:e:d:sq:" arg; do
+while getopts "hv:e:d:sq:m:" arg; do
   case $arg in
   e)
     interactiveFqdn=$(echo $OPTARG)
@@ -202,6 +215,14 @@ while getopts "hv:e:d:sq:" arg; do
     silent_mode=1
     interactiveFqdn="no"
     ;;
+  m)
+    packageRole=$(echo "$OPTARG" | tr '[:upper:]' '[:lower:]')
+    packageRoleExplicit=1
+    if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+      echo "Invalid package role: $OPTARG (expected full, core or extension)"
+      exit 1
+    fi
+    ;;
   h)
     show_help
     exit 0
@@ -213,6 +234,20 @@ while getopts "hv:e:d:sq:" arg; do
     ;;
   esac
 done
+
+# Package archives carry their role so core and extension can use the same
+# entry point. An explicit -m argument always takes precedence.
+if [ "$packageRoleExplicit" -eq 0 ]; then
+  if [ -f "${script_dir}/.package-role" ]; then
+    packageRole=$(tr '[:upper:]' '[:lower:]' < "${script_dir}/.package-role")
+  elif [ -f "${script_dir}/.extension-files" ]; then
+    packageRole=extension
+  fi
+fi
+if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
+  echo "Invalid package role marker: $packageRole"
+  exit 1
+fi
 
 # ----------------------- Environment setup -----------------------
 function setup_env() {
@@ -436,6 +471,69 @@ function setup_env() {
   fi
 }
 
+function install_extension_package() {
+  local manifest="${script_dir}/.extension-files"
+  if [ ! -f "$manifest" ]; then
+    echo "Extension package manifest not found: $manifest"
+    exit 1
+  fi
+  if [ ! -d "$installDir" ] || [ ! -x "${installDir}/bin/taosd" ] ||
+     [ ! -f "${installDir}/uninstall.sh" ]; then
+    echo "A core or full TDengine installation is required before installing the extension package: ${installDir}" >&2
+    exit 1
+  fi
+  if [ -f "${installDir}/.package-role" ]; then
+    local installed_role
+    installed_role=$(tr '[:upper:]' '[:lower:]' < "${installDir}/.package-role")
+    if [ "$installed_role" != "core" ] && [ "$installed_role" != "full" ]; then
+      echo "Extension package requires a core or full installation, found: ${installed_role}" >&2
+      exit 1
+    fi
+  fi
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == \#* ]] && continue
+    if [ ! -f "${script_dir}/${path}" ]; then
+      echo "Extension package file is missing: ${path}"
+      exit 1
+    fi
+    mkdir -p "${installDir}/$(dirname "$path")"
+    cp -a "${script_dir}/${path}" "${installDir}/${path}"
+  done < "$manifest"
+  if [ "$osType" != "Darwin" ]; then
+    install_fq_runtime_links "${installDir}/driver"
+  fi
+  cp "$manifest" "${installDir}/.extension-files"
+  if [ -f "${script_dir}/.package-role" ]; then
+    cp "${script_dir}/.package-role" "${installDir}/.package-role.extension"
+  fi
+  echo "TDengine extension package has been installed successfully."
+}
+
+function install_fq_runtime_links() {
+  local runtime_dir="${1:-${installDir}/driver}"
+  local link_name target_name
+  [ -d "$runtime_dir" ] || return 0
+  while read -r link_name target_name; do
+    if [ -f "${runtime_dir}/${target_name}" ] &&
+       { [ ! -e "${runtime_dir}/${link_name}" ] || [ -L "${runtime_dir}/${link_name}" ]; }; then
+      ln -sfn "$target_name" "${runtime_dir}/${link_name}"
+    fi
+  done <<'LINKS'
+libarrow.so libarrow.so.1900
+libarrow_flight.so libarrow_flight.so.1900
+libarrow_flight_sql.so libarrow_flight_sql.so.1900
+libparquet.so libparquet.so.1900
+libmariadb.so libmariadb.so.3
+libpq.so.5 libpq.so.5.16
+libpq.so libpq.so.5
+libodbc.so libodbc.so.2
+libssl.so libssl.so.3
+libcrypto.so libcrypto.so.3
+libz.so libz.so.1
+LINKS
+}
+
 function get_config_file() {
     case "$1" in
       "${serverName}") echo "${configFile}" ;;
@@ -473,6 +571,11 @@ function install_main_path() {
   rm -rf "${install_main_dir}/examples" || :
   rm -rf "${install_main_dir}/include" || :
   rm -rf "${install_main_dir}/share" || :
+  # Remove package-role metadata left by a previous extension install. The
+  # full/core installer owns the tree and must not inherit extension mode.
+  rm -f "${install_main_dir}/.extension-files" \
+        "${install_main_dir}/.package-role" \
+        "${install_main_dir}/.package-role.extension" || :
 
 
   #  mkdir -p ${install_main_dir}/connector
@@ -542,6 +645,9 @@ function install_bin() {
   chmod 0555 ${install_main_dir}/bin/*
   rm -f ${install_main_dir}/uninstall.sh || :
   [ -x ${install_main_dir}/bin/${remove_name} ] && mv -f ${install_main_dir}/bin/${remove_name} ${install_main_dir}/uninstall.sh || :
+  if [ "${packageRole}" = "full" ] || [ "${packageRole}" = "core" ]; then
+    printf '%s\n' "${packageRole}" > "${install_main_dir}/.package-role"
+  fi
 
   #Make link
   for tool in "${tools[@]}"; do
@@ -602,29 +708,52 @@ function install_lib() {
   #rm -rf ${v15_java_app_dir}              || :
   cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
 
+  # A package may contain more than one matching driver artifact during an
+  # upgrade (for example, an existing unversioned alias and a versioned ELF).
+  # Passing an unexpanded glob list to ln makes it interpret the destination
+  # as a directory and abort. Link only the first real versioned library.
+  link_driver_library() {
+    local pattern="$1"
+    local link_name="$2"
+    local link_dir="${3:-${lib_link_dir}}"
+    local source
+    for source in "${driver_dir}"/${pattern}; do
+      [ -f "$source" ] || continue
+      ln -sf "$source" "${link_dir}/${link_name}"
+      return 0
+    done
+    return 0
+  }
+
+  mkdir -p "${lib_link_dir}"
+  if [ -n "${lib64_link_dir}" ]; then
+    mkdir -p "${lib64_link_dir}"
+  fi
+
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
+    install_fq_runtime_links "${driver_dir}"
     # Linux specific linking
-    ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.so.3
+    link_driver_library 'libtaos.so.*' 'libtaos.so.3'
     ln -sf ${lib_link_dir}/libtaos.so.3 ${lib_link_dir}/libtaos.so
-    ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.so.3
+    link_driver_library 'libtaosnative.so.*' 'libtaosnative.so.3'
     ln -sf ${lib_link_dir}/libtaosnative.so.3 ${lib_link_dir}/libtaosnative.so
 
-    ln -sf ${driver_dir}/libtaosws.so.* ${lib_link_dir}/libtaosws.so.3
+    link_driver_library 'libtaosws.so.*' 'libtaosws.so.3'
     ln -sf ${lib_link_dir}/libtaosws.so.3 ${lib_link_dir}/libtaosws.so
-    ln -sf ${driver_dir}/libtaospyudf.so.* ${lib_link_dir}/libtaospyudf.so.3
+    link_driver_library 'libtaospyudf.so.*' 'libtaospyudf.so.3'
     ln -sf ${lib_link_dir}/libtaospyudf.so.3 ${lib_link_dir}/libtaospyudf.so
 
     # Link lib64 if it exists
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ln -sf ${driver_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.3 || :
+      link_driver_library 'libtaos.so.*' 'libtaos.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaos.so.3 ${lib64_link_dir}/libtaos.so || :
-      ln -sf ${driver_dir}/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.3 || :
+      link_driver_library 'libtaosnative.so.*' 'libtaosnative.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaosnative.so.3 ${lib64_link_dir}/libtaosnative.so || :
 
-      ln -sf ${driver_dir}/libtaosws.so.* ${lib64_link_dir}/libtaosws.so.3 || :
+      link_driver_library 'libtaosws.so.*' 'libtaosws.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaosws.so.3 ${lib64_link_dir}/libtaosws.so || :
-      ln -sf ${driver_dir}/libtaospyudf.so.* ${lib64_link_dir}/libtaospyudf.so.3 || :
+      link_driver_library 'libtaospyudf.so.*' 'libtaospyudf.so.3' "${lib64_link_dir}"
       ln -sf ${lib64_link_dir}/libtaospyudf.so.3 ${lib64_link_dir}/libtaospyudf.so || :
     fi
 
@@ -635,7 +764,12 @@ function install_lib() {
     # macOS specific linking
     ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
     ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
-    ln -sf ${driver_dir}/libtaosnative.* ${lib_link_dir}/libtaosnative.3.dylib
+    # Match only versioned payloads, including when reinstalling local aliases.
+    for native_lib in "${driver_dir}"/libtaosnative.[0-9]*.dylib; do
+      [ -f "$native_lib" ] || continue
+      ln -sf "$(basename "$native_lib")" "${driver_dir}/libtaosnative.dylib"
+    done
+    ln -sf ${driver_dir}/libtaosnative.[0-9]*.dylib ${lib_link_dir}/libtaosnative.3.dylib
     ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
 
     for f in ${driver_dir}/libtaosws.dylib.*; do
@@ -870,7 +1004,7 @@ function set_ipAsFqdn() {
   echo -e -n "${GREEN}$iplist${NC}"
   echo
   echo
-  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data cannot be migrated to another machine directly${NC}:"
   read localFqdn
   while true; do
     if [ ! -z "$localFqdn" ]; then
@@ -1084,7 +1218,14 @@ function install_config() {
   while true; do
     if [ ! -z "$emailAddr" ]; then
       email_file="${install_main_dir}/email"
-      bash -c "echo $emailAddr > ${email_file}"
+      printf '%s\n' "$emailAddr" > "$email_file" || {
+        echo "Failed to write email address to ${email_file}" >&2
+        exit 1
+      }
+      chmod 0600 "$email_file" || {
+        echo "Failed to set permissions for ${email_file}" >&2
+        exit 1
+      }
       break
     else
       break
@@ -1093,6 +1234,9 @@ function install_config() {
 }
 
 function install_log() {    
+    # Keep the system-wide log directory writable so non-root users can run
+    # client tools after a root installation. Use a dedicated service user
+    # and group before tightening this permission in a follow-up change.
     if [ "$osType" != "Darwin" ]; then
         mkdir -p ${logDir} && mkdir -p ${logDir}/tcmalloc && mkdir -p ${logDir}/jemalloc && chmod 777 ${logDir}
     else
@@ -1204,7 +1348,11 @@ function install_service_on_systemd() {
   fi
 
   if [ -f "${cfg_source_dir}/$1.service" ]; then
-    tmp_service_file="/tmp/${1}.service.$$"
+    tmp_service_file=$(mktemp /tmp/taos-service.XXXXXX) || {
+      echo "Failed to create temporary service file"
+      exit 1
+    }
+    trap 'rm -f "$tmp_service_file" "${tmp_service_file}.bak"' EXIT
     service_config="${service_config_dir}/$1.service"
     
     # Ensure service config directory exists
@@ -1234,6 +1382,7 @@ function install_service_on_systemd() {
     chmod 644 "${service_config}" || { echo "Failed to set permissions for ${service_config}"; exit 1; }
     
     rm -f "$tmp_service_file"
+    trap - EXIT
     ${sysctl_cmd} daemon-reload
     ${sysctl_cmd} enable $1
   fi
@@ -1457,6 +1606,10 @@ function finished_install_info(){
 }
 
 function updateProduct() {
+  if [ "$packageRole" == "extension" ]; then
+    install_extension_package
+    return 0
+  fi
   # Check if version compatible
   if ! is_version_compatible; then
     echo -e "${RED}Version incompatible${NC}"
@@ -1464,10 +1617,6 @@ function updateProduct() {
   fi
 
   # Start to update
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
 
   if echo $osinfo | grep -qwi "centos"; then
     rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
@@ -1475,7 +1624,6 @@ function updateProduct() {
     dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
   fi
 
-  tar -zxf ${tarName}
 
   # Stop the service if running
   if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
@@ -1527,16 +1675,15 @@ function updateProduct() {
   fi
 
   cd $script_dir
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 function installProduct() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
+
+  if [ "$packageRole" == "extension" ]; then
+    install_extension_package
+    return 0
   fi
-  tar -zxf ${tarName}
 
   install_main_path
 
@@ -1587,7 +1734,6 @@ function installProduct() {
 
   cd $script_dir
   touch ~/.${historyFile}
-  rm -rf $(tar -tf "${tarName}" | grep -Ev "^\./$|^/") || :
 }
 
 check_java_env() {
@@ -1616,6 +1762,15 @@ check_java_env() {
 ## ==============================Main program starts from here============================
 # Call setup_env to initialize all directories and user mode settings
 setup_env
+
+# Extension packages share this installer, but do not run the regular
+# service installation path.  setup_env must run first so installDir is set.
+if [ "$packageRole" == "extension" ]; then
+  install_extension_package
+  install_fq_runtime_links
+  exit 0
+fi
+
 # Determine installation type: server or client
 if [ "$verType" == "client" ] && [ -e "${bin_dir}/${serverName}" ]; then
   echo -e "\033[44;32;1mThere is already an installed ${productName} server, so client installation is not needed!${NC}"

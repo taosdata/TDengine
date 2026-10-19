@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -62,10 +64,27 @@ void getExprSubQueryResCols(SNode* pNode, int32_t* cols);
 EPrivType getAlterUserPrivType(const char* pCurrentUser, const SAlterUserStmt* pStmt);
 
 #ifdef TD_ENTERPRISE
+int32_t getExternalSourceInfoImpl(SParseContext* pParseCxt, SParseMetaCache* pMetaCache,
+                                 const char* sourceName, SExtSourceInfo** pExtInfo);
+int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* pOpts);
+int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pColRef);
 int32_t translateView(STranslateContext* pCxt, SNode** pTable, SName* pName, bool inJoin);
 int32_t getViewMetaFromMetaCache(STranslateContext* pCxt, SName* pName, SViewMeta** ppViewMeta);
-int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRealTable);
+// srcNameFromUseContext: true when the external source name was NOT written in
+// the user's table path but injected from the active USE <source> context (bare
+// table or db.tbl).  false when the path itself carried the source name
+// (src.tbl / src.schema.tbl).  Stored on SExtTableNode.srcNameFromPath (negated)
+// so subquery rendering can choose DIRECT_SQL (no source qualifier in raw SQL)
+// vs transform mode (must strip the source qualifier).
+int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRealTable,
+                                   bool srcNameFromUseContext);
 int32_t refreshExternalTableMetaDirect(STranslateContext* pCxt, SRealTableNode* pRealTable, const char* colName);
+int32_t ensureExternalSyntheticColumn(SRealTableNode* pRealTable, const char* colName);
+int32_t ensureExternalSyntheticStarColumns(SRealTableNode* pRealTable, bool includeTags);
+int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
+                             const char* sourceName, const char* cacheMid0, const char* cacheMid1,
+                             const char* dbName, const char* schemaName, const char* tableName,
+                             bool forceRefresh, SExtTableMeta** ppExtMeta);
 int32_t translateUseExtSourceImpl(STranslateContext* pCxt, SUseExtSourceStmt* pStmt);
 #endif
 #ifdef __cplusplus

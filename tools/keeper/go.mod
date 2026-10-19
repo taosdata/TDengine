@@ -1,6 +1,8 @@
 module github.com/taosdata/taoskeeper
 
-go 1.25.0
+go 1.26.0
+
+toolchain go1.26.6
 
 require (
 	github.com/BurntSushi/toml v0.4.1
@@ -16,7 +18,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.12.0
 	github.com/stretchr/testify v1.10.0
-	github.com/taosdata/driver-go/v3 v3.7.8-0.20251226061849-bfa42e87e9da
+	github.com/taosdata/driver-go/v3 v3.8.3-0.20260917073443-9b27cf2364a7
 	github.com/taosdata/file-rotatelogs/v2 v2.5.3
 	github.com/taosdata/go-utils v0.0.0-20211022070036-018cc5f2432a
 )
@@ -70,10 +72,10 @@ require (
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/arch v0.7.0 // indirect
-	golang.org/x/crypto v0.52.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
-	golang.org/x/sys v0.45.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
+	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/text v0.41.0 // indirect
 	google.golang.org/protobuf v1.36.5 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

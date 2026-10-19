@@ -1,13 +1,18 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software
- * Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <ctype.h>
@@ -130,17 +135,35 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         return -1;
     }
     TAOS_ROW row = NULL;
+    bool     valid = true;
     while ((row = taos_fetch_row(res)) != NULL) {
-        if (0 == strlen((char *)(row[0]))) {
-            errorPrint("No.%" PRId64 " table return empty name\n",
-                    count);
-            return -1;
+        // the server is not trusted here: it must not return more rows than
+        // the array it was asked for, nor a name longer than
+        // TSDB_TABLE_NAME_LEN, otherwise the heap would be corrupted
+        if (count >= childTblCountOfSuperTbl) {
+            errorPrint("server returned more child table names than expected(%"
+                    PRId64 "), ignore the extra rows\n",
+                    childTblCountOfSuperTbl);
+            break;
         }
-        int32_t * lengths = taos_fetch_lengths(res);
+        int32_t *lengths = taos_fetch_lengths(res);
+        if (row[0] == NULL || lengths == NULL || lengths[0] <= 0
+                || lengths[0] >= TSDB_TABLE_NAME_LEN) {
+            errorPrint("No.%" PRId64 " table return invalid name, len=%d\n",
+                    count, (lengths == NULL) ? -1 : lengths[0]);
+            valid = false;
+            break;
+        }
         childTblNameOfSuperTbl[count] =
-            benchCalloc(1, TSDB_TABLE_NAME_LEN + 3, true);
+            benchCalloc(1, TSDB_TABLE_NAME_LEN + 3, false);
+        if (NULL == childTblNameOfSuperTbl[count]) {
+            errorPrint("%s", "failed to allocate memory for child table name\n");
+            valid = false;
+            break;
+        }
         childTblNameOfSuperTbl[count][0] = '`';
-        strncpy(childTblNameOfSuperTbl[count] + 1, row[0], lengths[0]);
+        (void)memcpy(childTblNameOfSuperTbl[count] + 1, row[0],
+                (size_t)lengths[0]);
         childTblNameOfSuperTbl[count][lengths[0] + 1] = '`';
         childTblNameOfSuperTbl[count][lengths[0] + 2] = '\0';
         debugPrint("childTblNameOfSuperTbl[%" PRId64 "]: %s\n", count,
@@ -148,6 +171,14 @@ int getAllChildNameOfSuperTable(TAOS *taos, char *dbName, char *stbName,
         count++;
     }
     taos_free_result(res);
+
+    if (!valid) {
+        for (int64_t i = 0; i < count; i++) {
+            tmfree(childTblNameOfSuperTbl[i]);
+            childTblNameOfSuperTbl[i] = NULL;
+        }
+        return -1;
+    }
 
     // random swap order
     if (count < 4) {
@@ -423,13 +454,22 @@ int64_t fetchResult(TAOS_RES *res, char * filePath) {
                 memset(databuf, 0, FETCH_BUFFER_SIZE);
             }
 
-            // format row
+            // format row, the destination size is always passed to the
+            // printing function so that a server-declared wide schema or a
+            // very long row can not overflow temp or databuf
             char temp[HEAD_BUFF_LEN] = {0};
-            int  len = taos_print_row(temp, row, fields, num_fields);
-            len += snprintf(temp + len, HEAD_BUFF_LEN - len, "\n");
-            //debugPrint("query result:%s\n", temp);
-            memcpy(databuf + totalLen, temp, len);
-            totalLen += len;
+            int  len = taos_print_row_with_size(temp, (uint32_t)HEAD_BUFF_LEN,
+                                                row, fields, num_fields);
+            if (len < 0 || len >= HEAD_BUFF_LEN - 1) {
+                errorPrint("row is too long to be recorded, truncated. "
+                        "row=%" PRId64 ", len=%d, buffer size=%d\n",
+                        rows, len, (int32_t)HEAD_BUFF_LEN);
+            } else {
+                temp[len++] = '\n';
+                //debugPrint("query result:%s\n", temp);
+                memcpy(databuf + totalLen, temp, len);
+                totalLen += len;
+            }
         }
         rows ++;
         //if not toFile , only loop call taos_fetch_row
@@ -1386,7 +1426,14 @@ int fetchChildTableName(char *dbName, char *stbName) {
             return -1;
         }
         char temp[256] = {0};
-        taos_print_row(temp, row, fields, num_fields);
+        int  len = taos_print_row_with_size(temp, (uint32_t)sizeof(temp), row,
+                                            fields, num_fields);
+        if (len < 0 || len >= (int32_t)sizeof(temp) - 1) {
+            errorPrint("invalid child table count of stable %s\n", stbName);
+            taos_free_result(res);
+            closeBenchConn(conn);
+            return -1;
+        }
 
         // set child table count
         g_queryInfo.superQueryInfo.childTblCount = (int64_t)atol(temp);
@@ -1394,10 +1441,21 @@ int fetchChildTableName(char *dbName, char *stbName) {
     infoPrint("%s's childTblCount: %" PRId64 "\n", stbName, g_queryInfo.superQueryInfo.childTblCount);
     taos_free_result(res);
 
+    if (g_queryInfo.superQueryInfo.childTblCount <= 0) {
+        errorPrint("stable %s have no child table\n", stbName);
+        closeBenchConn(conn);
+        return -1;
+    }
+
     // malloc memory with child table count
     g_queryInfo.superQueryInfo.childTblName =
         benchCalloc(g_queryInfo.superQueryInfo.childTblCount,
                 sizeof(char *), false);
+    if (NULL == g_queryInfo.superQueryInfo.childTblName) {
+        errorPrint("%s", "failed to allocate memory for child table names\n");
+        closeBenchConn(conn);
+        return -1;
+    }
     // fetch child table name
     if (getAllChildNameOfSuperTable(
                 conn->taos, dbName, stbName,
@@ -1769,7 +1827,7 @@ int postProcessSql(char *sqlstr, char* dbName, int precision, int iface,
                                 rest_port,
                                 tcp, sockfd, filePath, responseBuf,
                                 response_length);
-    debugPrint("sqls:%s db:%s iface:%d protocal:%d rest_port:%d tcp:%d sockfd:%d response=%s\n",
+    debugPrint("sqls:%s db:%s iface:%d protocol:%d rest_port:%d tcp:%d sockfd:%d response=%s\n",
            sqlstr, dbName, iface, protocol, rest_port, tcp, sockfd, responseBuf);
 
     if (NULL != strstr(responseBuf, resHttpOk) && iface == REST_IFACE) {

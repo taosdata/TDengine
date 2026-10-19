@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -25,7 +40,6 @@ import (
 	"github.com/taosdata/taoskeeper/util"
 )
 
-var re = regexp.MustCompile("'+")
 var gmLogger = log.GetLogger("GEN")
 
 var MAX_SQL_LEN = 1000000
@@ -145,7 +159,7 @@ func NewGeneralMetric(conf *config.Config) *GeneralMetric {
 			ExpectContinueTimeout: 1 * time.Second,
 			DisableCompression:    true,
 			TLSClientConfig: &tls.Config{
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: conf.TDengine.SkipVerify,
 			},
 		},
 	}
@@ -353,9 +367,14 @@ func (gm *GeneralMetric) handleTaosdClusterBasic() gin.HandlerFunc {
 			return
 		}
 
-		sql := fmt.Sprintf(
-			"insert into %s.taosd_cluster_basic_%s using taosd_cluster_basic tags ('%s') values (%s, '%s', %d, '%s') ",
-			gm.database, request.ClusterId, request.ClusterId, request.Ts, request.FirstEp, request.FirstEpDnodeId, request.ClusterVersion)
+		tsMillis, err := strconv.ParseInt(request.Ts, 10, 64)
+		if err != nil {
+			gmLogger.Errorf("invalid ts in taosd cluster basic data, ts:%q, msg:%s", request.Ts, err)
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid ts: %s", err)})
+			return
+		}
+
+		sql := buildClusterBasicSQL(gm.database, request, tsMillis)
 
 		if _, err = gm.conn.Exec(context.Background(), sql, qid); err != nil {
 			gmLogger.Errorf("insert taosd_cluster_basic error, msg:%s", err)
@@ -364,6 +383,19 @@ func (gm *GeneralMetric) handleTaosdClusterBasic() gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, gin.H{})
 	}
+}
+
+// buildClusterBasicSQL builds the insert for one taosd_cluster_basic report.
+// ClusterId is sanitized for the sub-table name suffix and truncated+escaped
+// for the tag value; the other request-controlled strings are truncated and
+// escaped for their SQL literals.
+func buildClusterBasicSQL(database string, request ClusterBasic, tsMillis int64) string {
+	return fmt.Sprintf(
+		"insert into %s.taosd_cluster_basic_%s using taosd_cluster_basic tags ('%s') values (%d, '%s', %d, '%s') ",
+		database, util.ToValidTableName(request.ClusterId),
+		util.EscapeTrunc(request.ClusterId, 50), tsMillis,
+		util.EscapeTrunc(request.FirstEp, 255), request.FirstEpDnodeId,
+		util.EscapeTrunc(request.ClusterVersion, 20))
 }
 
 func processString(input string) string {
@@ -417,37 +449,59 @@ func (gm *GeneralMetric) handleSlowSqlDetailBatch() gin.HandlerFunc {
 		var buf bytes.Buffer
 		buf.WriteString(sql_head)
 		var qid_counter uint8 = 0
+		var skipped int
+		var firstSkipReason string
 		for _, slowSqlDetailInfo := range request {
 			if slowSqlDetailInfo.StartTs == "" {
-				gmLogger.Error("start_ts data is empty")
+				if firstSkipReason == "" {
+					firstSkipReason = "empty start_ts"
+				}
+				skipped++
 				continue
 			}
 
-			// cut string to max len
-			slowSqlDetailInfo.Sql = re.ReplaceAllString(slowSqlDetailInfo.Sql, "'") // 将匹配到的部分替换为一个单引号
-			slowSqlDetailInfo.Sql = strings.ReplaceAll(slowSqlDetailInfo.Sql, "'", "''")
-			slowSqlDetailInfo.Sql = util.SafeSubstring(slowSqlDetailInfo.Sql, 16384)
-			slowSqlDetailInfo.ClusterId = util.SafeSubstring(slowSqlDetailInfo.ClusterId, 32)
-			slowSqlDetailInfo.Db = util.SafeSubstring(slowSqlDetailInfo.Db, 1024)
-			if slowSqlDetailInfo.Db == "" {
-				slowSqlDetailInfo.Db = "unknown"
+			startTs, err := strconv.ParseInt(slowSqlDetailInfo.StartTs, 10, 64)
+			if err != nil {
+				if firstSkipReason == "" {
+					firstSkipReason = fmt.Sprintf("invalid start_ts %q: %s", slowSqlDetailInfo.StartTs, err)
+				}
+				skipped++
+				continue
 			}
-			slowSqlDetailInfo.User = util.SafeSubstring(slowSqlDetailInfo.User, 32)
-			slowSqlDetailInfo.Ip = util.SafeSubstring(slowSqlDetailInfo.Ip, 32)
-			slowSqlDetailInfo.ProcessName = util.SafeSubstring(slowSqlDetailInfo.ProcessName, 32)
-			slowSqlDetailInfo.ProcessId = util.SafeSubstring(slowSqlDetailInfo.ProcessId, 32)
-			slowSqlDetailInfo.ErrorInfo = util.SafeSubstring(slowSqlDetailInfo.ErrorInfo, 128)
+			requestId, err := strconv.ParseUint(slowSqlDetailInfo.RequestId, 10, 64)
+			if err != nil {
+				if firstSkipReason == "" {
+					firstSkipReason = fmt.Sprintf("invalid request_id %q: %s", slowSqlDetailInfo.RequestId, err)
+				}
+				skipped++
+				continue
+			}
 
-			// max len 192
-			var sub_table_name = slowSqlDetailInfo.User + "_" + util.SafeSubstring(slowSqlDetailInfo.Db, 80) + "_" + slowSqlDetailInfo.Ip + "_clusterId_" + slowSqlDetailInfo.ClusterId
+			// Truncate rune-safe so a multi-byte character is never split.
+			// Escaping for the SQL literal happens once via EscapeTrunc at
+			// build time below.
+			db := util.SafeSubstringUTF8(slowSqlDetailInfo.Db, 1024)
+			if db == "" {
+				db = "unknown"
+			}
+			user := util.SafeSubstringUTF8(slowSqlDetailInfo.User, 32)
+			ip := util.SafeSubstringUTF8(slowSqlDetailInfo.Ip, 32)
+			clusterId := util.SafeSubstringUTF8(slowSqlDetailInfo.ClusterId, 32)
+
+			// max len 192. processString strips everything outside
+			// [a-zA-Z0-9_], so the tbname value needs no SQL escaping.
+			var sub_table_name = user + "_" + util.SafeSubstringUTF8(db, 80) + "_" + ip + "_clusterId_" + clusterId
 			sub_table_name = strings.ToLower(processString(sub_table_name))
 
 			var sql = fmt.Sprintf(
-				"('%s', '%s', '%s', '%s', '%s', %s, %s, %d, %d, '%s', %d, %d, '%s', '%s', '%s') ",
+				"('%s', '%s', '%s', '%s', '%s', %d, %d, %d, %d, '%s', %d, %d, '%s', '%s', '%s') ",
 				sub_table_name,
-				slowSqlDetailInfo.Db, slowSqlDetailInfo.User, slowSqlDetailInfo.Ip, slowSqlDetailInfo.ClusterId, slowSqlDetailInfo.StartTs, slowSqlDetailInfo.RequestId,
-				slowSqlDetailInfo.QueryTime, slowSqlDetailInfo.Code, slowSqlDetailInfo.ErrorInfo, slowSqlDetailInfo.Type, slowSqlDetailInfo.RowsNum, slowSqlDetailInfo.Sql,
-				slowSqlDetailInfo.ProcessName, slowSqlDetailInfo.ProcessId)
+				util.EscapeTrunc(db, 1024), util.EscapeTrunc(user, 32),
+				util.EscapeTrunc(ip, 32), util.EscapeTrunc(clusterId, 32),
+				startTs, requestId,
+				slowSqlDetailInfo.QueryTime, slowSqlDetailInfo.Code, util.EscapeTrunc(slowSqlDetailInfo.ErrorInfo, 128),
+				slowSqlDetailInfo.Type, slowSqlDetailInfo.RowsNum, util.EscapeTrunc(slowSqlDetailInfo.Sql, 16384),
+				util.EscapeTrunc(slowSqlDetailInfo.ProcessName, 32), util.EscapeTrunc(slowSqlDetailInfo.ProcessId, 32))
 			if (buf.Len() + len(sql)) < MAX_SQL_LEN {
 				buf.WriteString(sql)
 			} else {
@@ -463,6 +517,12 @@ func (gm *GeneralMetric) handleSlowSqlDetailBatch() gin.HandlerFunc {
 			}
 		}
 
+		// one aggregated line per request instead of one error per bad
+		// record, so a request full of invalid records cannot flood the log
+		if skipped > 0 {
+			gmLogger.Errorf("skipped %d invalid slow sql detail records, first: %s", skipped, firstSkipReason)
+		}
+
 		if buf.Len() > len(sql_head) {
 			if _, err = gm.conn.Exec(context.Background(), buf.String(), qid|uint64((qid_counter%255))); err != nil {
 				gmLogger.Errorf("insert taos_slow_sql_detail error, data:%s, msg:%s", buf.String(), err)
@@ -470,6 +530,14 @@ func (gm *GeneralMetric) handleSlowSqlDetailBatch() gin.HandlerFunc {
 				return
 			}
 		}
+		// Contract: records whose start_ts/request_id cannot be parsed are
+		// skipped and the request still succeeds, even when every record was
+		// skipped. The sender here is taosd, and one damaged record should not
+		// cost it the good ones in the same batch. The audit batch endpoint
+		// deliberately does the opposite — it rejects the whole batch — because
+		// there the sender is a client and a partial commit is worse than a
+		// retry. Both are reported: this one via the aggregated error above,
+		// audit via a 400.
 		c.JSON(http.StatusOK, gin.H{})
 	}
 }
@@ -550,6 +618,10 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 		case "taosx_connector":
 			if checkKeysExist(tagMap, "taosx_id", "ds_name", "task_id") {
 				return fmt.Sprintf("connector_%s_%s_%s", tagMap["taosx_id"], tagMap["ds_name"], tagMap["task_id"])
+			}
+		case "taosx_rpc":
+			if checkKeysExist(tagMap, "taosx_id", "action", "outcome") {
+				return fmt.Sprintf("rpc_%s_%s_%s", tagMap["taosx_id"], tagMap["action"], tagMap["outcome"])
 			}
 		default:
 			if strings.HasPrefix(stbName, "taosx_task_") {

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,6 +41,21 @@ extern void    taosDriverEnvInit(void);
 extern int32_t taosDriverInit(EDriverType driverType);
 extern void    taosDriverCleanup();
 
+/* One public entry point: its slot, and the answer to give when the driver does
+ * not provide it.  A slot is written only by taosDriverInit(), and only when the
+ * lookup succeeded, so a slot that still holds its default means "not
+ * provided".  Keep the default next to the slot (wrapperVariable.c) -- the
+ * table compares addresses. */
+typedef struct TdWrapperSlot {
+  const char *name;
+  void      **slot;
+  void       *def;
+} TdWrapperSlot;
+
+extern const TdWrapperSlot tdWrapperSlots[];
+extern void                taosDriverResetSlots(void);
+extern void                taosDriverReportMissing(void);
+
 extern setConfRet (*fp_taos_set_config)(const char *config);
 
 extern int (*fp_taos_init)(void);
@@ -53,6 +70,17 @@ extern TAOS *(*fp_taos_connect_token)(const char *ip, const char *token, const c
 extern TAOS *(*fp_taos_connect_auth)(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 extern TAOS *(*fp_taos_connect_with)(const OPTIONS *options);
 extern TAOS *(*fp_taos_connect_with_dsn)(const char *dsn);
+
+/* Instance management, native driver only: the WebSocket driver does not implement
+ * them, so they are loaded with LOAD_FUNC_OPTIONAL.  A driver that does not provide
+ * one leaves the pointer at the fallback from wrapperVariable.c (never NULL), so
+ * the wrappers in wrapperFunc.c return that fallback's error code -- and
+ * taosDriverReportMissing() names it, because the slot then still compares equal to
+ * its default. */
+extern int32_t (*fp_taos_register_instance)(const char *id, const char *type, const char *desc, int32_t expire);
+extern int32_t (*fp_taos_list_instances)(const char *filter_type, char ***pList, int32_t *pCount);
+extern void (*fp_taos_free_instances)(char ***pList, int32_t pCount);
+
 extern void (*fp_taos_close)(TAOS *taos);
 extern int (*fp_taos_txn_begin)(TAOS *taos);
 extern int (*fp_taos_txn_commit)(TAOS *taos);

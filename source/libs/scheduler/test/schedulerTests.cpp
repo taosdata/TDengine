@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -36,6 +38,7 @@
 
 #include "catalog.h"
 #include "scheduler.h"
+#include "tmsg.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -71,9 +74,12 @@ extern "C" void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *
 extern "C" int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_t execId);
 extern "C" int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schNotifyTaskOnExecNode(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
 extern "C" int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask);
+extern "C" int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, SSchTrans *trans, SQueryNodeAddr *addr,
+                                   int32_t msgType, void *msg, uint32_t msgSize, bool persistHandle, SRpcCtx *ctx);
 extern "C" int32_t schLaunchTaskImpl(void *param);
 extern "C" void schHandleTimerEvent(void *param, void *tmrId);
 
@@ -1492,22 +1498,49 @@ TEST(otherTest, function) {
   dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   ASSERT_EQ(schHandleNotifyCallback(&param, &dataBuf, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
 
-  SSchCallbackParamHeader param2 = {0};
+  SSchTaskCallbackParam param2 = {0};
   dataBuf.pData = taosMemoryMalloc(1);
   dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
   schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
-  param2.isHbParam = true;
+  SSchHbCallbackParam hbParam = {0};
+  hbParam.head.isHbParam = true;
   dataBuf.pData = taosMemoryMalloc(1);
   dataBuf.pEpSet = (SEpSet*)taosMemoryMalloc(sizeof(*dataBuf.pEpSet));
-  schHandleLinkBrokenCallback(&param2, &dataBuf, TSDB_CODE_SUCCESS);
+  schHandleLinkBrokenCallback(&hbParam, &dataBuf, TSDB_CODE_SUCCESS);
   
   schMgmt.jobRef = -1;
+}
+
+TEST(otherTest, taskRetryConfig) {
+  int32_t    originalMaxRetryWaitTime = tsMaxRetryWaitTime;
+  int32_t    originalMaxRetryTimes = tsMaxRetryTimes;
+  SCH_POLICY originalSchPolicy = schMgmt.cfg.schPolicy;
+
+  SSchJob   job = {0};
+  SSchTask  task = {0};
+  SSchLevel level = {0};
+  SSubplan  plan = {};
+
+  job.attr.type = JOB_TYPE_QUERY;
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  schMgmt.cfg.schPolicy = SCH_ALL;
+  tsMaxRetryWaitTime = 3000;
+  tsMaxRetryTimes = 2;
+
+  schInitTaskRetryInfo(&job, &task, &level);
+  EXPECT_EQ(task.maxRetryTimes, 6);
+
+  tsMaxRetryWaitTime = originalMaxRetryWaitTime;
+  tsMaxRetryTimes = originalMaxRetryTimes;
+  schMgmt.cfg.schPolicy = originalSchPolicy;
 }
 
 TEST(otherTest, branch) {
   SSchJob job = {0};
   SSchTask task = {0};
-  memset(&schMgmt, 0, sizeof(schMgmt));
+  // SSchStat contains empty structs, whose size differs between C and C++.
+  memset(&schMgmt, 0, offsetof(SSchedulerMgmt, stat));
 
   job.subJobId = -1;
   
@@ -1759,6 +1792,195 @@ TEST(otherTest, branch) {
   schMgmt.jobRef = -1;
 }
 
+TEST(otherTest, followerReadEligibility) {
+  bool     savedEnableFollowerRead = tsEnableFollowerRead;
+  SSchJob  job = {0};
+  SSchTask task = {0};
+  SSubplan plan = {};
+
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  plan.msgType = TDMT_SCH_QUERY;
+  job.attr.type = JOB_TYPE_QUERY;
+
+  tsEnableFollowerRead = false;
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+
+  tsEnableFollowerRead = true;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  task.plan = nullptr;
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+  task.plan = &plan;
+
+  job.attr.type = (EJobType)(JOB_TYPE_QUERY | JOB_TYPE_INSERT);
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+
+  job.attr.type = JOB_TYPE_HQUERY;
+  EXPECT_FALSE(schTaskAllowFollowerRead(&job, &task));
+
+  job.attr.type = JOB_TYPE_QUERY;
+  plan.subplanType = SUBPLAN_TYPE_MERGE;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  plan.msgType = TDMT_SCH_MERGE_QUERY;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  EXPECT_TRUE(schTaskAllowFollowerRead(&job, &task));
+
+  tsEnableFollowerRead = savedEnableFollowerRead;
+}
+
+TEST(otherTest, followerReadSelectsReplicaEndpoint) {
+  bool     savedEnableFollowerRead = tsEnableFollowerRead;
+  SSchJob  job = {0};
+  SSchTask task = {0};
+  SSubplan plan = {};
+
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_SCAN;
+  plan.msgType = TDMT_SCH_QUERY;
+  plan.execNode.epSet.numOfEps = 3;
+  plan.execNode.epSet.inUse = 1;
+  job.attr.type = JOB_TYPE_QUERY;
+
+  tsEnableFollowerRead = false;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  SQueryNodeAddr *pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_EQ(pAddr->epSet.inUse, 1);
+  taosArrayDestroy(task.candidateAddrs);
+  task.candidateAddrs = nullptr;
+
+  tsEnableFollowerRead = true;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_GE(pAddr->epSet.inUse, 0);
+  EXPECT_LT(pAddr->epSet.inUse, pAddr->epSet.numOfEps);
+
+  taosArrayDestroy(task.candidateAddrs);
+  tsEnableFollowerRead = savedEnableFollowerRead;
+}
+
+TEST(otherTest, followerReadSelectsReplicaEndpointFromNodeList) {
+  bool           savedEnableFollowerRead = tsEnableFollowerRead;
+  SSchJob        job = {0};
+  SSchTask       task = {0};
+  SSubplan       plan = {};
+  SQueryNodeLoad load = {0};
+
+  task.plan = &plan;
+  plan.subplanType = SUBPLAN_TYPE_MERGE;
+  plan.msgType = TDMT_SCH_MERGE_QUERY;
+  job.attr.type = JOB_TYPE_QUERY;
+  job.nodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
+  ASSERT_NE(job.nodeList, nullptr);
+
+  load.addr.epSet.numOfEps = 3;
+  load.addr.epSet.inUse = 2;
+  ASSERT_NE(taosArrayPush(job.nodeList, &load), nullptr);
+
+  tsEnableFollowerRead = false;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  SQueryNodeAddr *pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_EQ(pAddr->epSet.inUse, 2);
+  taosArrayDestroy(task.candidateAddrs);
+  task.candidateAddrs = nullptr;
+
+  taosSeedRand(12345);
+  int32_t expectedInUse = taosRand() % load.addr.epSet.numOfEps;
+  taosSeedRand(12345);
+  tsEnableFollowerRead = true;
+  ASSERT_EQ(schSetTaskCandidateAddrs(&job, &task), TSDB_CODE_SUCCESS);
+  pAddr = (SQueryNodeAddr *)taosArrayGet(task.candidateAddrs, 0);
+  ASSERT_NE(pAddr, nullptr);
+  EXPECT_EQ(pAddr->epSet.inUse, expectedInUse);
+
+  SQueryNodeLoad *pLoad = (SQueryNodeLoad *)taosArrayGet(job.nodeList, 0);
+  ASSERT_NE(pLoad, nullptr);
+  EXPECT_EQ(pLoad->addr.epSet.inUse, 2);
+
+  taosArrayDestroy(task.candidateAddrs);
+  taosArrayDestroy(job.nodeList);
+  tsEnableFollowerRead = savedEnableFollowerRead;
+}
+
+TEST(otherTest, followerReadMessageRoundTrip) {
+  SSubQueryMsg request = {0};
+  request.sId = 1;
+  request.queryId = 2;
+  request.taskId = 3;
+  request.subEndPoints = taosArrayInit(0, POINTER_BYTES);
+  ASSERT_NE(request.subEndPoints, nullptr);
+
+  int32_t msgSize = tSerializeSSubQueryMsg(nullptr, 0, &request);
+  ASSERT_GT(msgSize, 0);
+
+  void *pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSSubQueryMsg(pMsg, msgSize, &request), msgSize);
+
+  SSubQueryMsg response = {0};
+  ASSERT_EQ(tDeserializeSSubQueryMsg(pMsg, msgSize, &response), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(response.allowFollowerRead);
+
+  tFreeSSubQueryMsg(&response);
+  taosMemoryFree(pMsg);
+
+  request.allowFollowerRead = true;
+  msgSize = tSerializeSSubQueryMsg(nullptr, 0, &request);
+  ASSERT_GT(msgSize, 0);
+  pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSSubQueryMsg(pMsg, msgSize, &request), msgSize);
+
+  response = {};
+  ASSERT_EQ(tDeserializeSSubQueryMsg(pMsg, msgSize, &response), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(response.allowFollowerRead);
+
+  tFreeSSubQueryMsg(&response);
+  taosArrayDestroy(request.subEndPoints);
+  taosMemoryFree(pMsg);
+}
+
+TEST(otherTest, followerReadFetchMessageRoundTrip) {
+  SResFetchReq request = {0};
+  request.sId = 1;
+  request.queryId = 2;
+  request.taskId = 3;
+  request.reset = true;
+
+  int32_t msgSize = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(msgSize, 0);
+
+  void *pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(pMsg, msgSize, &request, false, false), msgSize);
+
+  SResFetchReq legacyResponse = {0};
+  ASSERT_EQ(tDeserializeSResFetchReq(pMsg, msgSize, &legacyResponse), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(legacyResponse.allowFollowerRead);
+  tDestroySResFetchReq(&legacyResponse);
+  taosMemoryFree(pMsg);
+
+  request.allowFollowerRead = true;
+  msgSize = tSerializeSResFetchReq(nullptr, 0, &request, false, false);
+  ASSERT_GT(msgSize, 0);
+  pMsg = taosMemoryCalloc(1, msgSize);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(tSerializeSResFetchReq(pMsg, msgSize, &request, false, false), msgSize);
+
+  SResFetchReq response = {0};
+  ASSERT_EQ(tDeserializeSResFetchReq(pMsg, msgSize, &response), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(response.allowFollowerRead);
+
+  tDestroySResFetchReq(&response);
+  taosMemoryFree(pMsg);
+}
+
 
 void schtReset() {
   insertJobRefId = 0;
@@ -1774,6 +1996,179 @@ void schtReset() {
   schtTestMTRunSec = 1;
   schtTestPrintNum = 1000;
   schtStartFetch = 0;
+}
+
+TEST(correlationTest, reuseProducerEndpointsWithoutChangingIdentity) {
+  SNode *pSourceNode = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, &pSourceNode), TSDB_CODE_SUCCESS);
+  auto *pSource = reinterpret_cast<SDownstreamSourceNode *>(pSourceNode);
+  pSource->producerQueryId = 101;
+  pSource->taskId = 202;
+  SArray *pExternal = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pExternal, nullptr);
+  ASSERT_NE(taosArrayPush(pExternal, &pSource), nullptr);
+
+  SSchJob job = {};
+  job.queryId = 303;
+  job.pExternalSubquerySources = pExternal;
+  SArray *pEndpoints = nullptr;
+  ASSERT_EQ(schBuildSubJobEndpoints(nullptr, &pEndpoints, &job), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pEndpoints, nullptr);
+  ASSERT_EQ(taosArrayGetSize(pEndpoints), 1);
+  auto *pCopied = static_cast<SDownstreamSourceNode *>(taosArrayGetP(pEndpoints, 0));
+  ASSERT_NE(pCopied, nullptr);
+  EXPECT_NE(pCopied, pSource);
+  EXPECT_NE(pCopied->producerQueryId, job.queryId);
+  EXPECT_EQ(pCopied->producerQueryId, 101);
+  EXPECT_EQ(pCopied->taskId, 202);
+
+  taosArrayDestroyP(pEndpoints, reinterpret_cast<FDelete>(nodesDestroyNode));
+  taosArrayDestroyP(pExternal, reinterpret_cast<FDelete>(nodesDestroyNode));
+}
+
+TEST(correlationTest, ignoresResponseFromPreviousExecution) {
+  SSchJob job = {};
+  job.attr.type = JOB_TYPE_QUERY;
+  job.seriesId = 2;
+  SSchTask task = {};
+  task.seriesId = 2;
+  task.execId = 2;
+  task.status = JOB_TASK_STATUS_EXEC;
+  task.handle = reinterpret_cast<void*>(0x2);
+  task.execNodes = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, task.execNodes);
+  SSchNodeInfo node = {};
+  node.handle = task.handle;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(task.execNodes, &task.execId, sizeof(task.execId), &node, sizeof(node)));
+
+  SDataBuf oldExecution = {};
+  oldExecution.msgType = TDMT_SCH_QUERY_RSP;
+  oldExecution.pData = taosMemoryMalloc(1);
+  ASSERT_NE(nullptr, oldExecution.pData);
+  oldExecution.len = 1;
+  EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR, schHandleResponseMsg(&job, &task, 2, 1, &oldExecution, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(nullptr, oldExecution.pData);
+  EXPECT_EQ(2, task.execId);
+  EXPECT_EQ(JOB_TASK_STATUS_EXEC, task.status);
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+
+  SDataBuf oldSeries = {};
+  oldSeries.msgType = TDMT_SCH_QUERY_RSP;
+  oldSeries.pData = taosMemoryMalloc(1);
+  ASSERT_NE(nullptr, oldSeries.pData);
+  oldSeries.len = 1;
+  oldSeries.handle = reinterpret_cast<void*>(0x3);
+  EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR, schHandleResponseMsg(&job, &task, 1, 2, &oldSeries, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(nullptr, oldSeries.pData);
+  EXPECT_EQ(2, task.execId);
+  EXPECT_EQ(JOB_TASK_STATUS_EXEC, task.status);
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+  auto* savedNode = static_cast<SSchNodeInfo*>(taosHashGet(task.execNodes, &task.execId, sizeof(task.execId)));
+  ASSERT_NE(nullptr, savedNode);
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), savedNode->handle);
+
+  SDataBuf oldNetworkError = {};
+  oldNetworkError.msgType = TDMT_SCH_LINK_BROKEN;
+  oldNetworkError.pData = taosMemoryMalloc(1);
+  ASSERT_NE(nullptr, oldNetworkError.pData);
+  oldNetworkError.len = 1;
+  EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR,
+            schHandleResponseMsg(&job, &task, 1, 2, &oldNetworkError, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(nullptr, oldNetworkError.pData);
+  EXPECT_NE(nullptr, taosHashGet(task.execNodes, &task.execId, sizeof(task.execId)));
+  EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+  taosHashCleanup(task.execNodes);
+}
+
+TEST(correlationTest, retainsParameterBytesAfterCallerReleasesThem) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of scheduler planner hooks is unreliable in Windows release builds";
+#endif
+  ASSERT_EQ(schedulerInit(), TSDB_CODE_SUCCESS);
+  schtSetPlanToString();
+  schtSetExecNode();
+
+  for (int32_t input : {101, 202}) {
+    SQueryPlan *pDag = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode **>(&pDag)), TSDB_CODE_SUCCESS);
+    schtBuildQueryDag(pDag);
+
+    SArray *pDefs = taosArrayInit(1, sizeof(SCorrelationParamDef));
+    SArray *pValues = taosArrayInit(1, sizeof(SCorrelationWireValue));
+    ASSERT_NE(pDefs, nullptr);
+    ASSERT_NE(pValues, nullptr);
+    SCorrelationParamDef def = {};
+    def.paramId = 0;
+    def.dataType.type = TSDB_DATA_TYPE_INT;
+    def.dataType.bytes = sizeof(input);
+    auto *pBytes = static_cast<uint8_t *>(taosMemoryMalloc(sizeof(input)));
+    ASSERT_NE(pBytes, nullptr);
+    memcpy(pBytes, &input, sizeof(input));
+    SCorrelationWireValue value = {};
+    value.paramId = 0;
+    value.dataType = def.dataType;
+    value.dataLen = sizeof(input);
+    value.pData = pBytes;
+    ASSERT_NE(taosArrayPush(pDefs, &def), nullptr);
+    ASSERT_NE(taosArrayPush(pValues, &value), nullptr);
+
+    SRequestConnInfo conn = {};
+    SSchedulerReq req = {};
+    req.pConn = &conn;
+    req.pDag = pDag;
+    req.pCorrelationParamDefs = pDefs;
+    req.pCorrelationParamValues = pValues;
+    int64_t jobId = 0;
+    ASSERT_EQ(schInitJob(&jobId, &req), TSDB_CODE_SUCCESS);
+
+    SSchJob *pJob = nullptr;
+    ASSERT_EQ(schAcquireJob(jobId, &pJob), TSDB_CODE_SUCCESS);
+    ASSERT_NE(pJob, nullptr);
+    auto *pSaved = static_cast<SCorrelationWireValue *>(taosArrayGet(pJob->pCorrelationParamValues, 0));
+    ASSERT_NE(pSaved, nullptr);
+    ASSERT_NE(pSaved->pData, pBytes);
+    taosMemoryFree(pBytes);
+    taosArrayDestroy(pValues);
+    taosArrayDestroy(pDefs);
+    int32_t saved = 0;
+    memcpy(&saved, pSaved->pData, sizeof(saved));
+    EXPECT_EQ(saved, input);
+
+    char planByte = 'x';
+    SSubQueryMsg message = {};
+    message.queryId = pJob->queryId;
+    message.msg = &planByte;
+    message.msgLen = 1;
+    message.correlation.rootExecutionId = 1;
+    message.correlation.rootQueryId = 1;
+    message.correlation.executionGeneration = 1;
+    strcpy(message.correlation.timezoneName, "UTC");
+    strcpy(message.correlation.charsetName, "UTF-8");
+    message.pCorrelationParamDefs = pJob->pCorrelationParamDefs;
+    message.pCorrelationParamValues = pJob->pCorrelationParamValues;
+    int32_t wireLen = tSerializeSSubQueryMsg(nullptr, 0, &message);
+    ASSERT_GT(wireLen, 0);
+    void *pWire = taosMemoryMalloc(wireLen);
+    ASSERT_NE(pWire, nullptr);
+    ASSERT_EQ(tSerializeSSubQueryMsg(pWire, wireLen, &message), wireLen);
+    schReleaseJob(jobId);
+    schedulerFreeJob(&jobId, TSDB_CODE_SUCCESS);
+
+    SSubQueryMsg received = {};
+    ASSERT_EQ(tDeserializeSSubQueryMsg(pWire, wireLen, &received), TSDB_CODE_SUCCESS);
+    taosMemoryFree(pWire);
+    ASSERT_EQ(taosArrayGetSize(received.pCorrelationParamValues), 1);
+    auto *pReceived = static_cast<SCorrelationWireValue *>(taosArrayGet(received.pCorrelationParamValues, 0));
+    ASSERT_NE(pReceived, nullptr);
+    ASSERT_NE(pReceived->pData, nullptr);
+    int32_t actual = 0;
+    memcpy(&actual, pReceived->pData, sizeof(actual));
+    EXPECT_EQ(actual, input);
+    tFreeSSubQueryMsg(&received);
+  }
+
+  schedulerDestroy();
+  schMgmt.jobRef = -1;
 }
 
 int main(int argc, char **argv) {
@@ -1801,3 +2196,112 @@ int main(int argc, char **argv) {
 }
 
 #pragma GCC diagnostic pop
+
+namespace {
+int32_t failStmtJobInit(int64_t*, SSchedulerReq*) {
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+void captureStmtJobInitError(SExecResult* result, void* param, int32_t code) {
+  EXPECT_EQ(result, nullptr);
+  *static_cast<int32_t*>(param) = code;
+}
+}  // namespace
+
+TEST(schedulerTest, stmt_job_init_failure_has_no_execution_result) {
+  Stub stub;
+  stub.set(schInitJob, failStmtJobInit);
+  SRequestConnInfo conn = {};
+  SSchedulerReq req = {};
+  req.pConn = &conn;
+  req.syncReq = false;
+  req.execFp = captureStmtJobInitError;
+  int32_t callbackCode = TSDB_CODE_SUCCESS;
+  req.cbParam = &callbackCode;
+  int64_t jobId = 0;
+  EXPECT_EQ(schedulerExecJob(&req, &jobId), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(callbackCode, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(jobId, 0);
+
+  req.syncReq = true;
+  SExecResult result = {};
+  req.pExecRes = &result;
+  EXPECT_EQ(schedulerExecJob(&req, &jobId), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_FALSE(result.execDispatched);
+}
+
+namespace {
+SSchJob* dispatchTestJob = nullptr;
+SSchTask* dispatchTestTask = nullptr;
+int32_t dispatchTestSendCode = TSDB_CODE_SUCCESS;
+bool dispatchTestInlineCallback = false;
+int32_t dispatchTestSendCalls = 0;
+int32_t dispatchTestResponseCalls = 0;
+
+int32_t dispatchTestCbBegin(SSchJob** job, SSchTask** task, uint64_t, int64_t, int32_t, uint64_t) {
+  *job = dispatchTestJob;
+  *task = dispatchTestTask;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t dispatchTestResponse(SSchJob* job, SSchTask*, uint64_t, int32_t, SDataBuf*, int32_t) {
+  ++dispatchTestResponseCalls;
+  EXPECT_EQ(atomic_load_8(&job->execDispatched), 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+void dispatchTestCbEnd(SSchJob*, SSchTask*, int32_t) {}
+
+int32_t dispatchTestSend(void*, SEpSet*, int64_t*, SMsgSendInfo* info, bool, void*) {
+  ++dispatchTestSendCalls;
+  if (dispatchTestInlineCallback) {
+    SDataBuf response = {};
+    response.msgType = info->msgType + 1;
+    EXPECT_EQ(info->fp(info->param, &response, TSDB_CODE_RPC_NETWORK_UNAVAIL), TSDB_CODE_SUCCESS);
+  }
+  destroySendMsgInfo(info);
+  return dispatchTestSendCode;
+}
+}  // namespace
+
+TEST(schedulerTest, stmt_dispatch_tracks_accepted_work) {
+#ifndef LINUX
+  GTEST_SKIP() << "This scheduler dispatch test uses address stubs and runs only on Linux";
+#endif
+  Stub stub;
+  stub.set(asyncSendMsgToServerExt, dispatchTestSend);
+  stub.set(schProcessOnCbBegin, dispatchTestCbBegin);
+  stub.set(schHandleResponseMsg, dispatchTestResponse);
+  stub.set(schProcessOnCbEnd, dispatchTestCbEnd);
+
+  for (int8_t previous : {0, 1}) {
+    for (int mode = 0; mode < 3; ++mode) {
+      SCOPED_TRACE(::testing::Message() << "previous=" << static_cast<int>(previous) << ", mode=" << mode);
+      SSchJob job = {};
+      SSchTask task = {};
+      SSubplan plan = {};
+      plan.msgType = TDMT_VND_SUBMIT;
+      task.plan = &plan;
+      job.execDispatched = previous;
+      dispatchTestJob = &job;
+      dispatchTestTask = &task;
+      // Cover synchronous local failure, accepted send, and callback-before-return.
+      dispatchTestSendCode = mode == 0 ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+      dispatchTestInlineCallback = mode == 2;
+      dispatchTestSendCalls = 0;
+      dispatchTestResponseCalls = 0;
+      SSchTrans trans = {};
+      SQueryNodeAddr addr = {};
+      addr.nodeId = MNODE_HANDLE - 1;
+      void* message = taosMemoryCalloc(1, 1);
+      ASSERT_NE(message, nullptr);
+      EXPECT_EQ(schAsyncSendMsg(&job, &task, &trans, &addr, plan.msgType, message, 1, false, nullptr),
+                dispatchTestSendCode);
+      EXPECT_EQ(dispatchTestSendCalls, 1);
+      EXPECT_EQ(dispatchTestResponseCalls, mode == 2 ? 1 : 0);
+      EXPECT_EQ(atomic_load_8(&job.execDispatched), mode == 0 ? previous : 1);
+    }
+  }
+  dispatchTestJob = nullptr;
+  dispatchTestTask = nullptr;
+}

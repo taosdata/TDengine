@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 name: TDengine Doc Build and Check
 
 on:
@@ -18,6 +33,9 @@ env:
   EN_DOC_REPO: 'docs.tdengine.com'
   TD_REPO: 'TDengine'
   TOOLS_REPO: 'taos-tools'
+
+permissions:
+  contents: read
   
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -28,22 +46,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: Use custom zh config file
-        uses: crate-ci/typos@v1.31.1
+        uses: crate-ci/typos@b1a1ef3893ff35ade0cfa71523852a49bfd05d19 # v1.31.1
         with:
           files: 'docs/zh/'
           config: docs/typos.toml
 
       - name: Use custom en config file
-        uses: crate-ci/typos@v1.31.1
+        uses: crate-ci/typos@b1a1ef3893ff35ade0cfa71523852a49bfd05d19 # v1.31.1
         with:
           files: 'docs/en/'
           config: docs/typos.toml
 
       - name: Use custom en config file
-        uses: crate-ci/typos@v1.31.1
+        uses: crate-ci/typos@b1a1ef3893ff35ade0cfa71523852a49bfd05d19 # v1.31.1
         with:
           files: './*.md'
           config: docs/typos.toml
@@ -51,23 +71,26 @@ jobs:
   check-with-autocorrect:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
 
       - name: AutoCorrect
         id: autocorrect
-        uses: huacnlee/autocorrect-action@v2
+        uses: huacnlee/autocorrect-action@8101fa7ed2ea14e3e4591e8f4ef04bf612cb1f15 # v2
         with:
           args: --lint docs/zh/* docs/en/*
         continue-on-error: true
         
       - name: Report ReviewDog
         if: always() && steps.autocorrect.outcome == 'failure'
-        uses: tomchon/autocorrect-action@fix/review-dog
+        uses: tomchon/autocorrect-action@39574019517181c82eeb0f3194206e3a7db9937f # fix/review-dog, pinned 2026-09-17
         env:
-          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ github.token }}
         with:
           reviewdog: true
           args: ./docs/zh/*  ./docs/en/*
@@ -82,11 +105,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0       
+          fetch-depth: 0
+          persist-credentials: false
       - name: Detect changed files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
         id: changed-files
         with:
           files: |
@@ -94,9 +118,11 @@ jobs:
             **/*.mdx
           files_ignore: |
             .claude/**
+            contrib/**
+            tools/**
           separator: ","
       - name: Check with Markdownlint
-        uses: DavidAnson/markdownlint-cli2-action@v20
+        uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
         if: steps.changed-files.outputs.any_changed == 'true'        
         with:
           config: 'docs/.markdownlint-cli2.jsonc'
@@ -113,21 +139,24 @@ jobs:
         - check-with-markdownlint
     steps:
       - name: Get the latest document contents
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -e
-          cd ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
+          cd "$DOC_WKC/$TD_REPO"
           git reset --hard
           git clean -f
           git remote prune origin
           git fetch
-          git checkout ${{ github.event.pull_request.base.ref }}
+          git checkout -- "$BASE_REF"
           git pull >/dev/null
-          git fetch origin +refs/pull/${{ github.event.pull_request.number }}/merge
+          git fetch origin "+refs/pull/${PR_NUMBER}/merge"
           git checkout -qf FETCH_HEAD
 
       - name: Check document changes
         id: changed-doc-files
-        uses: tj-actions/changed-files@v46
+        uses: tj-actions/changed-files@ed68ef82c095e0d48ec87eccea555d944a631a4c # v46
         with:
           files: 'docs/**'
           path: ${{ env.DOC_WKC }}/${{ env.TD_REPO }}
@@ -139,13 +168,16 @@ jobs:
         id: check-doc-lang
         env:
           ALL_CHANGED_DOCS: ${{ steps.changed-doc-files.outputs.all_changed_files }}
+          ADDED_DOCS: ${{ steps.changed-doc-files.outputs.added_files }}
+          MODIFIED_DOCS: ${{ steps.changed-doc-files.outputs.modified_files }}
+          DELETED_DOCS: ${{ steps.changed-doc-files.outputs.deleted_files }}
         run: |
           zh_doc_changed=false
           en_doc_changed=false
-          echo "All changed files: ${{ steps.changed-doc-files.outputs.all_changed_files }}"
-          echo "Added files: ${{ steps.changed-doc-files.outputs.added_files }}"
-          echo "Modified files: ${{ steps.changed-doc-files.outputs.modified_files }}"
-          echo "Deleted files: ${{ steps.changed-doc-files.outputs.deleted_files }}"
+          printf 'All changed files: %s\n' "$ALL_CHANGED_DOCS"
+          printf 'Added files: %s\n' "$ADDED_DOCS"
+          printf 'Modified files: %s\n' "$MODIFIED_DOCS"
+          printf 'Deleted files: %s\n' "$DELETED_DOCS"
           for file in $ALL_CHANGED_DOCS; do
             case $file in
               *docs/zh/*)
@@ -162,13 +194,13 @@ jobs:
           done
           echo "zh_doc_changed=$zh_doc_changed"
           echo "en_doc_changed=$en_doc_changed"
-          echo "zh_doc_changed=$zh_doc_changed" >> $GITHUB_OUTPUT
-          echo "en_doc_changed=$en_doc_changed" >> $GITHUB_OUTPUT
+          echo "zh_doc_changed=$zh_doc_changed" >> "$GITHUB_OUTPUT"
+          echo "en_doc_changed=$en_doc_changed" >> "$GITHUB_OUTPUT"
 
       - name: Build the chinese document
         if: ${{ steps.check-doc-lang.outputs.zh_doc_changed == 'true'}}
         run: |
-          cd ${{ env.DOC_WKC }}/${{ env.ZH_DOC_REPO }}
+          cd "$DOC_WKC/$ZH_DOC_REPO"
           rm -rf build/* && rm -rf docs/* && git restore docs/ 
           git checkout -f master && git pull origin master 
           yarn install 
@@ -177,7 +209,7 @@ jobs:
       - name: Build the english document
         if: ${{ steps.check-doc-lang.outputs.en_doc_changed == 'true'}}
         run: |
-          cd ${{ env.DOC_WKC }}/${{ env.EN_DOC_REPO }}
+          cd "$DOC_WKC/$EN_DOC_REPO"
           rm -rf build/* && rm -rf docs/* && git restore docs/
           git checkout -f main && git pull origin main 
           yarn install 

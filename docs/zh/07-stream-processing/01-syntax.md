@@ -17,11 +17,11 @@ options: {
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
-  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
+  | INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
   | WINDOW(named_nonleaf_window [, named_nonleaf_window ...], leaf_window)
 }
@@ -32,13 +32,17 @@ leaf_window: nested_window_type [AS layer_name]
 
 nested_window_type: {
     SLIDING(sliding_val[, offset_time])
-  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
+
+start_event_item:
+    search_condition [TRUE_FOR(limit_expr)]
+  | (start_event_item, start_event_item [, ...])
 
 true_for_expr:
     true_for_arg [, true_for_arg [, true_for_arg]]
@@ -56,7 +60,9 @@ limit_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+
+config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
@@ -72,7 +78,7 @@ tag_definition:
     tag_name type_name AS expr
 ```
 
-流任务时区、自然时间单位（如 `PERIOD`/`SLIDING`/`INTERVAL` 中的周/月/季/年）在不同版本的支持范围，详见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时区)。
+从 `v3.4.3` 起，创建流时会把时区和一周起始日写入流定义；`PERIOD`、`SLIDING`、`INTERVAL` 对日、周、月、季、年的支持范围也有扩展。详见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
 
 ### 流式计算的触发方式
 
@@ -90,8 +96,8 @@ PERIOD(period_time[, offset_time])
 
 定时触发通过系统时间的固定间隔来驱动，本质上就是我们常说的定时任务。定时触发不属于窗口触发。各参数含义如下：
 
-- period_time：定时间隔，支持的时间单位详见[时间单位](../05-tdengine-sql/01-datatype.md#时间单位)（支持毫秒至年），支持的时间范围为 `[10a, 3650d]`。
-- offset_time：可选，定时偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。对于周/月/年单位，offset 必须严格小于触发周期；对于月单位，以 28 天/月为基准静态校验（如 `PERIOD(1n, 28d)` 非法）。
+- period_time：定时间隔，支持的时间单位详见 [时间单位](../05-tdengine-sql/01-datatype.md#时间单位)（毫秒至年），支持的时间范围为 `[10a, 3650d]`。
+- offset_time：可选，把触发时刻从对齐点向后平移。不支持 `AUTO` 和负值，且必须严格小于 `period_time`。规则与查询语句中 `INTERVAL` 的偏移相同：月与天等不同单位一起比较时，按每月 28 天估算。
 
 使用说明：
 
@@ -99,11 +105,12 @@ PERIOD(period_time[, offset_time])
   - 定时间隔为 5 小时 30 分钟，那么当天的触发时刻为 `[00:00, 05:30, 11:00, 16:30, 22:00]`，后续每一天的触发时刻都是相同的。
   - 同样的定时间隔，如果指定时间偏移为 1 分钟，那么当天的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`，后续每一天的触发时刻都是相同的。
   - 同样条件下，如果建流时当前系统时间为 `12:00`，那么当天的触发时刻为 `[16:31, 22:01]`，后续每一天内的触发时刻为 `[00:01, 05:31, 11:01, 16:31, 22:01]`。
-- 定时间隔大于等于 1 天时，基准时间点为服务端时区的 Unix epoch（1970-01-01 00:00:00）加定时偏移，按触发间隔整除对齐，保证所有任务触发时刻全局一致。例如：
-  - 定时间隔为 2 天，所有使用该间隔的任务都会在距离 epoch 整数倍 2 天的时刻触发（如 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...），确保全局对齐。
-  - 定时间隔为 1 周（`PERIOD(1w)`），触发时刻对齐每周一 00:00:00；`PERIOD(1w, 1d)` 则在每周二 00:00:00 触发。
-  - 定时间隔为 1 月（`PERIOD(1n)`），触发时刻对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 则在每月 15 日 00:00:00 触发。
-  - 定时间隔为 1 年（`PERIOD(1y)`），触发时刻对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 则在每年 2 月 1 日 00:00:00 触发。
+- 定时间隔大于等于 1 天时，基准时间点为该流定义中保存的时区下的 Unix epoch（1970-01-01 00:00:00）加定时偏移，再按触发间隔对齐。创建后修改服务端或连接时区，不会改变已经创建的流。周单位的起点由流定义中保存的 `firstDayOfWeek` 决定。例如：
+  - 定时间隔为 2 天时，触发时刻对齐到距离 epoch 整数倍 2 天的时刻（如 1970-01-03 00:00:00、1970-01-05 00:00:00）。
+  - `firstDayOfWeek = 1` 时，`PERIOD(1w)` 对齐周一 00:00:00；`PERIOD(1w, 1d)` 在周二 00:00:00 触发。
+  - `PERIOD(1n)` 对齐每月 1 日 00:00:00；`PERIOD(1n, 14d)` 在每月 15 日 00:00:00 触发。
+  - `PERIOD(1y)` 对齐每年 1 月 1 日 00:00:00；`PERIOD(1y, 31d)` 在每年 2 月 1 日 00:00:00 触发。
+  - `PERIOD(1q)`，`q` 按 3 个月计算，并对齐到每季度首日。
 
 适用场景：需要按照系统时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等。
 
@@ -118,34 +125,37 @@ SLIDING(sliding_val[, offset_time])
 各参数含义如下：
 
 - sliding_val：必选，事件时间的滑动时长。
-- offset_time：可选，指定滑动触发的时间偏移，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)。
+- offset_time：可选，把滑动触发时刻从对齐点向后平移。不支持 `AUTO` 和负值，且必须严格小于 `sliding_val`。规则与查询语句中 `INTERVAL` 的偏移相同：月与天等不同单位一起比较时，按每月 28 天估算。
 
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 支持对写入数据进行处理过滤后（有条件）的滑动触发。
+- 不带 `INTERVAL` 的 `SLIDING` 可以使用月、季、年（`n`/`q`/`y`）。滑动触发按事件时间、按间隔推进，和 `INTERVAL` 按窗口划分不是同一种写法。按周、月等自然边界对齐时，使用该流保存的时区和一周起始日。
 
 适用场景：需要按照事件时间连续定时驱动计算的场景，例如每小时计算生成一次当天的统计数据，每天定时发送统计报告等场景。
 
 ##### 时间窗口触发
 
 ```sql
-INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
 ```
 
-时间窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 `INTERVAL` 窗口，属于窗口触发，必须指定触发表。与仅使用 `SLIDING` 的[滑动触发](#滑动触发)不同，此处 `INTERVAL` 为构成该触发类型的必需部分。
+时间窗口触发是指对触发表的写入数据按照事件时间和固定窗口大小滑动而形成的触发，必须指定 `INTERVAL` 窗口，属于窗口触发，必须指定触发表。与仅使用 `SLIDING` 的 [滑动触发](#滑动触发) 不同，此处 `INTERVAL` 为构成该触发类型的必需部分。
 
 时间窗口触发的起始时间点是窗口的起始点，窗口默认是从 Unix time 0（1970-01-01 00:00:00 UTC）开始划分，可以通过指定窗口时间偏移的方式来改变窗口的划分起始点。各参数含义如下：
 
 - interval_val：必选，时间窗口的时长。
-- interval_offset：可选，时间窗口的划分偏移。
-- sliding_val：必选，事件时间的滑动时长。
-- offset_time：可选，滑动触发的时间偏移（含义同滑动触发）。
+- interval_offset：可选，把窗口划分起点向后平移。不支持 `AUTO` 和负值，且必须严格小于 `interval_val`。规则与查询语句中 `INTERVAL` 的偏移相同：月与天等不同单位一起比较时，按每月 28 天估算。
+- sliding_val：可选，事件时间的滑动步长。不写时，窗口步长等于窗口宽度，相邻窗口不重叠。
 
 使用说明：
 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 支持对写入数据进行处理过滤后（有条件）的时间窗口触发。
+- `interval_val` 支持 `a`/`s`/`m`/`h`/`d`/`w`/`n`/`q`/`y`。`q` 按 3 个月计算。写出 `sliding_val` 时只支持 `a`/`s`/`m`/`h`/`d`/`w`，不支持月、季、年。因此 `INTERVAL(1n)` 合法，`INTERVAL(1n) SLIDING(1n)` 不合法；需要按自然月划分、窗口互不重叠时，写成 `INTERVAL(1n)`。流里显式写出的滑动步长只需大于 0，可以大于窗口宽度（窗口之间会有空隙），也不要求达到窗口宽度的 1%。这与查询语句中的 `INTERVAL ... SLIDING` 不同。
+- `PERIOD`、不带 `INTERVAL` 的 `SLIDING` 和 `INTERVAL` 的偏移规则相同。例如 `PERIOD(1n, 27d)`、`SLIDING(1q, 83d)`、`INTERVAL(29d, 1n)` 合法；`PERIOD(1n, 28d)`、`SLIDING(1q, 84d)`、`INTERVAL(1w, AUTO)` 以及任何负偏移都不合法。按日、周、月等划分 `INTERVAL` 窗口时，使用该流保存的时区和一周起始日。即使单位相同，`PERIOD`、不带 `INTERVAL` 的 `SLIDING` 和 `INTERVAL` 的触发时刻也不一定相同。
+- 写出 `INTERVAL(...) SLIDING(...)` 时，`SLIDING` 只能写滑动步长。需要移动窗口起点时，把偏移写在 `INTERVAL` 里：`INTERVAL(interval_val, interval_offset) SLIDING(sliding_val)`。
 
 适用场景：需要按照事件时间定时窗口计算的场景，例如每小时计算生成该小时内的统计数据，每隔 1 小时计算最后 5 分钟窗口内的数据等场景。
 
@@ -270,17 +280,22 @@ CREATE STREAM s_tag_event
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
 
-##### 事件窗口触发 (支持子事件窗口)
+##### 事件窗口触发（支持开始事件树）
 
 ```sql
-EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+
+start_event_item:
+    search_condition [TRUE_FOR(limit_expr)]
+  | (start_event_item, start_event_item [, ...])
 ```
 
-事件窗口触发是指对触发表的写入数据按照事件窗口的方式进行窗口划分，它现在支持指定多个开始条件，并能根据有效触发条件的变化，在原有的事件窗口内进一步划分和管理子事件窗口，同时引入父事件窗口的概念来聚合相关的子事件窗口。各参数含义如下：
+事件窗口的 `START WITH` 支持递归开始事件树。叶子节点是普通条件表达式，分组节点用括号包裹，分组内的子节点按 SQL 书写顺序排列。系统会为整棵树中的 envelope、分组节点和叶子节点生成稳定的条件路径，用于区分不同层级的事件窗口。各参数含义如下：
 
-- start_condition_1, start_condition_2 [,...]：定义多个事件开始条件。当任何一个条件满足时，事件窗口开启。系统会从前往后依次评估这些条件，第一个满足的条件即为“有效触发条件”。当所有 start_condition 都不满足时，父窗口和最后一个子窗口关闭。
-- end_condition：事件结束条件的定义。当该条件满足时，当前父窗口和最后一个子窗口均关闭。该参数现在是可选的。
-- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。支持以下四种模式：
+- start_event_item：开始事件树节点。叶子节点为 `search_condition [TRUE_FOR(limit_expr)]`，分组节点为 `(start_event_item, start_event_item [, ...])`。
+- search_condition：事件开始条件的定义，可以是任意合法条件表达式。
+- end_condition：事件结束条件的定义。当该条件满足时，当前 envelope 以及已打开的分组/叶子窗口关闭。该参数可选；如果未指定 `END WITH`，当所有叶子开始条件都不满足时关闭 envelope。
+- true_for_expr：可选，指定窗口的过滤条件，只有满足条件的窗口才会产生触发。用于开始事件树时，仅支持窗口整体过滤，不支持 `start(...)` 和 `end(...)`。支持以下四种模式：
   - `TRUE_FOR(duration_time)`：仅基于持续时长过滤，窗口持续时长必须大于等于 `duration_time`。
   - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
   - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
@@ -293,15 +308,47 @@ EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH 
 - 必须指定触发表，触发表为超级表时支持按标签、子表分组，支持不分组。
 - 搭配超级表时，必须与 `PARTITION BY tbname` 一起使用。
 - 支持对写入数据进行处理过滤后（有条件）的窗口触发。
-- 多个 `start_condition` 以及可选的 `end_condition` 同样可以引用触发表上下文中可见的 tag 列。
-- 父子窗口行为：
-  - 没有父/子窗口：在事件窗口开启期间，如果有效触发条件没有变化，则只产生一个窗口，系统将其视为常规事件窗口，不产生父/子窗口的概念。
-  - 子窗口：当某一个具体的 start_condition 成为有效触发条件时，会开启一个子窗口。如果有效触发条件发生变化，或者 end_condition 满足时，当前子窗口关闭。子窗口之间不重叠。
-  - 父窗口：仅当第二个子窗口开启时，才会开启父窗口。父窗口的起始时间为第一个子窗口的起始时间，结束时间为最后一个子窗口的结束时间，当所有 start_condition 都不满足，或者 end_condition 满足时关闭。
-- 通知消息扩展：在窗口开启（WINDOW_OPEN）的通知消息中，新增两个字段：
-  - conditionIndex：触发当前窗口开启的开始条件的序号，从 0 开始计数。对于父窗口，其值与第一个子窗口的值相同。
-  - windowIndex：子事件窗口在父窗口中的序号，从 0 开始计数。如果不是子窗口（即常规事件窗口或父窗口），该字段值为 -1。
-- TRUE_FOR 选项对子窗口和父窗口均生效，即小于该时长限制的窗口（无论是子窗口还是父窗口）将直接被忽略。当父窗口下有部分子窗口不满足 TRUE_FOR 条件时，有效的子窗口可能不是连续的。如果父窗口下仅有 1 个子窗口满足 TRUE_FOR 条件，父/子窗口仍保留并触发通知和计算。
+- 多个开始条件以及可选的 `end_condition` 同样可以引用触发表上下文中可见的 tag 列。
+- 现有单个开始条件和一层子事件列表继续兼容，例如 `START WITH c1 >= 12`、`START WITH (c1 >= 12, c2 < 215)`。
+- 叶子条件可以写局部 `TRUE_FOR(limit_expr)`，只对该叶子生效。未写局部 `TRUE_FOR` 的叶子使用外层 `EVENT_WINDOW(...) TRUE_FOR(...)` 作为默认值；分组节点和 envelope 始终使用外层 `TRUE_FOR`，不继承子叶子的局部设置。
+- 分组节点后不能写 `TRUE_FOR`，例如 `START WITH (c1 >= 12, c2 < 215) TRUE_FOR(1s)` 是非法语法。
+- `END WITH` 保持为单个普通条件，不支持递归嵌套。
+- 开始事件树任一时刻最多只有一条 envelope 到叶子的活跃路径。多个叶子在同一行同时命中时，按 SQL 书写顺序的深度优先顺序裁定优先级；更高优先级叶子满足自身 `TRUE_FOR` 后，可以抢占当前低优先级叶子窗口。
+- 任一行不满足任何叶子开始条件时，关闭整个 envelope；如果存在 `END WITH`，某行额外满足结束条件时也关闭整个 envelope。
+
+条件路径规则：
+
+- envelope 的路径固定为空字符串 `""`。
+- envelope 的直接子节点按 SQL 书写顺序从 `"0"` 开始编号。
+- 更深层节点使用 `.` 拼接父路径和本层编号，例如 `"0.1"`、`"0.1.2"`。
+- `conditionPath` 只表示节点在开始事件树中的静态位置，不表示运行时窗口实例；不同窗口实例可以拥有相同的 `conditionPath`，实例区分依赖 `triggerId`。
+
+示例：
+
+```sql
+CREATE STREAM s_event_tree
+  EVENT_WINDOW(
+    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
+    END WITH voltage < 210
+  )
+  TRUE_FOR(10s)
+  FROM meters
+  PARTITION BY tbname
+  INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
+  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
+```
+
+上例的条件路径如下：
+
+| 节点 | conditionPath |
+| --- | --- |
+| envelope | `""` |
+| 分组 `(current >= 12 TRUE_FOR(1s), current >= 10)` | `"0"` |
+| `current >= 12 TRUE_FOR(1s)` | `"0.0"` |
+| `current >= 10` | `"0.1"` |
+| `voltage < 215 TRUE_FOR(COUNT 3)` | `"1"` |
+
+`_event_condition_path` 可以写入结果表。建议将 `_twstart` 与 `_event_condition_path` 一起作为结果行标识，避免 envelope、分组节点和叶子节点共享同一个 `_twstart` 时互相覆盖。
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景，尤其适用于需要根据多个动态变化的条件来精细化监控和分析事件的物联网、工业数据管理等领域。例如，设备故障告警，可以定义多个告警级别条件（如“负载高于 90”、“负载高于 60”），并在告警级别变化时，清晰地追踪告警状态的升级或降级。
 
@@ -485,6 +532,7 @@ tag_definition:
 | 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
 | 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
+| 事件窗口触发 | _event_condition_path | 当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。只适用于 `EVENT_WINDOW` 且 `START WITH` 至少包含一层括号分组的场景 |
 | 空闲触发 | _tidlestart      | 分组进入空闲前最后一次收到数据的时间（processing time，精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidlestart/1000000 as timestamp)` 进行转换。 |
 | 空闲触发 | _tidleend        | IDLE 或 RESUME 事件的触发时间（精度：ns）。只适用于 `IDLE`/`RESUME` 触发使用，不可与 `_twstart/_twend` 混用。由于输出表通常为 ms 精度，建议使用 `cast(_tidleend/1000000 as timestamp)` 进行转换。 |
 | 通用     | _tgrpid     | 触发分组的 ID 值，类型为 BIGINT         |
@@ -501,6 +549,7 @@ tag_definition:
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - %%rollup_tag：只在使用 `ROLLUP BY` 时可用，可以用于 `OUTPUT_SUBTABLE`、`TAGS`、`AS subquery` 中现有触发占位符允许的位置。
 - _trollup_tbcount：只在使用 `ROLLUP BY` 时可用，只能用于 `AS subquery`，不能用于 `OUTPUT_SUBTABLE` 或 `TAGS`。
+- _event_condition_path：只在 `EVENT_WINDOW` 且 `START WITH` 使用子事件结构（至少一层括号分组）时可用。单个普通开始条件或非事件窗口触发中使用会报错。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
 - 嵌套窗口中，未限定的触发占位符引用叶层；层名限定占位符只在计算查询及其子查询中可见。
 
@@ -509,10 +558,12 @@ tag_definition:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+
+config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
 
-控制选项用于控制触发和计算行为，可以多选，同一个选项不可以多次指定。包括：
+控制选项用于控制触发和计算行为，可以多选。除 `CONFIG` 外，同一个选项不可以写多次。`CONFIG` 可以写多次，同一键以最后一次为准。包括：
 
 - WATERMARK(duration_time)：指定数据乱序的容忍时长，超过该时长的数据会被当做乱序数据，根据不同触发方式的乱序数据处理策略和用户配置进行处理，未指定时默认 `duration_time` 值为 0。
 - EXPIRED_TIME(exp_time) ：指定过期数据间隔并忽略过期数据，未指定时无过期数据。不需要感知超过一定时间范围的数据写入或更新时可以指定。`exp_time` 为过期时间间隔，支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)。
@@ -537,6 +588,19 @@ stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISOR
   - 未指定时：不忽略无输入数据时的触发。
 - IDLE_TIMEOUT(duration_time)：开启分组空闲检测，指定空闲超时时长。当某个分组超过该时长未收到任何新数据时，视为进入空闲状态并触发 IDLE 事件；当空闲分组重新收到数据时触发 RESUME 事件。需与 `EVENT_TYPE(IDLE)` 和（或）`EVENT_TYPE(RESUME)` 配合使用。`duration_time` 支持的时间单位包括：毫秒 (a)、秒 (s)、分 (m)、小时 (h)、天 (d)，有效范围为 `[1s, 10d]`。空闲检测基于 processing time（数据到达并被处理的时间），使用单调时钟计算间隔，不受系统时钟跳变影响。
 - FLUSH_ON_OUTER_CLOSE：只适用于嵌套窗口。默认情况下，祖先窗口关闭时会丢弃尚未完成的叶层窗口。启用该选项后，仅当 `EVENT_TYPE` 包含 `WINDOW_CLOSE` 时，才使用即将关闭的祖先上下文提前关闭每个未完成的叶层窗口。该选项不会增加事件类型，也不会绕过叶层的 `TRUE_FOR` 条件；仅启用 `WINDOW_OPEN` 时该选项不生效。
+
+#### 时间配置
+
+流的时区和一周起始日只能写在 `STREAM_OPTIONS` 的 `CONFIG` 中。没有单独的流 `TIMEZONE` 子句，也不支持用 `ALTER STREAM` 修改。未写 `CONFIG` 时，系统仍会把创建时当前连接已经生效的时区和一周起始日写入流。更完整的规则、单位支持和升级说明见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
+
+```sql
+STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
+```
+
+- `timezone` 为字符串，格式与 `SET TIMEZONE` 相同；`firstDayOfWeek` 为 `0` 到 `6` 的整数（`0` 为周日，`1` 为周一）。
+- 键名大小写不敏感，但只能写 `timezone` 和 `firstDayOfWeek`，不能写 `tz`、`first_day_of_week` 等别名。`CONFIG()` 不能为空。
+- 可以写多个 `CONFIG`。同一键多次出现时，以最后一次为准；只写了其中一个键时，另一个取当前连接已经生效的值。
+- 创建成功后，这两项写入流定义。`SHOW CREATE STREAM` 会看到补全后的一个完整 `CONFIG`。之后停止、启动、重启、导出再恢复都继续使用保存的值；修改当前连接或服务端时区不会改变已经创建的流。若要修改，需要删除后重新创建。
 
 ### 流式计算的通知机制
 
@@ -563,10 +627,18 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
   - IDLE：分组空闲事件，当分组进入空闲状态时发送通知，需同时在 `STREAM_OPTIONS` 中配置 `IDLE_TIMEOUT`。
   - RESUME：分组恢复事件，当空闲分组重新收到数据时发送通知，需同时在 `STREAM_OPTIONS` 中配置 `IDLE_TIMEOUT`。
   - 说明：`PERIOD` / 纯 `SLIDING` 触发时，通知消息中的 `eventType` 固定为 `ON_TIME`，该值仅出现在消息体中，不能写在 `ON (...)` 列表里。
-- [WHERE condition]：指定通知需要满足的条件，`condition` 中只能指定含计算结果列和（或）常量的条件。
+- [WHERE condition]：按计算结果行筛选通知内容，只保留条件值为 `TRUE` 的行；条件值为 `FALSE` 或 `NULL` 的行不进入通知。如果一次计算没有任何结果行满足条件，则不发送该次计算的结果通知。条件只能引用计算查询输出的列或表达式（可使用 `SELECT` 中定义的别名）以及常量，不能直接引用未输出的原始表列。使用此条件时，流必须包含 `AS subquery` 计算语句。
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]：可选，指定通知选项用于控制通知行为。当前语法仅支持：
   - NOTIFY_HISTORY：指定计算历史数据时是否发送通知，未指定时默认不发送。
   - 说明：`ON_FAILURE_PAUSE` 暂不支持，参见 [运维与限制](./02-instructions.md#规则和限制)。
+
+通知地址支持 `ws://` 和 `wss://`。使用 `wss://` 时，服务端证书必须有效、受信任，且与 URL 中的主机名匹配。使用 IP 地址连接时，证书的主题备用名称（SAN）必须包含该 IP 地址。证书校验不影响普通 `ws://` 连接。
+
+私有通知服务需要将其 CA 证书加入各个 taosd 运行环境中 libcurl 使用的信任库，容器部署时也需要配置容器内的信任库。仓库自带的 libcurl 在 Linux 和 macOS 上使用构建时选定的 CA 证书文件或目录，在 Windows 上使用系统根证书库。升级前，应配置私有 CA 信任，并更换过期或与通知 URL 不匹配的证书。不受信任或无效的证书会导致通知连接失败；流通知不提供关闭证书校验的选项。
+
+`NOTIFY ... WHERE` 只筛选计算结果通知，不改变触发窗口、参与计算的原始数据或写入输出表的计算结果。若需要根据原始列值决定是否通知，应先在计算查询中输出该列或相应的判断结果，再在通知条件中引用；聚合场景需明确是判断窗口内任意一条、全部记录还是最后一条记录。完整 SQL 和结果对照见 [按条件发送通知](./03-best-practices.md#notify-where)。
+
+未执行计算、只发送事件信息的通知不经过上述结果条件。例如，默认只在 `WINDOW_CLOSE` 时执行计算，即使配置了 `NOTIFY ... ON(WINDOW_OPEN | WINDOW_CLOSE) WHERE ...`，其中仅包含事件信息的 `WINDOW_OPEN` 通知也不受结果条件限制。按窗口计算结果告警时，可以使用 `ON(WINDOW_CLOSE)`。
 
 当触发指定的事件时，taosd 会向指定的 URL 发送 POST 请求，消息体为 JSON 格式。一个请求可能包含若干个流的若干个事件，且事件类型不一定相同。
 事件信息视窗口类型而定：
@@ -633,8 +705,9 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
           "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
+          "parentTriggerId": [],
           "triggerCondition": {
-            "conditionIndex": 0,
+            "conditionPath": "",
             "fieldValue": {
               "c1": 10,
               "c2": 15
@@ -645,13 +718,14 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
-          "triggerId": "window-id-13579",
+          "triggerId": "window-id-24680",
           "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
+          "parentTriggerId": ["window-id-13579"],
           "triggerCondition": {
-            "conditionIndex": 1,
+            "conditionPath": "0.1",
             "fieldValue": {
               "c1": 20,
               "c2": 3
@@ -750,16 +824,18 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 
 - 如果 eventType 为 WINDOW_OPEN，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
+  - parentTriggerId：字符串数组，表示当前节点从 envelope 到直接父节点的祖先 `triggerId`，按根到父的顺序排列。envelope 自身为空数组。
   - windowIndex：整型，表示子事件窗口在父窗口中的序号，从 0 开始编号；常规事件窗口或父窗口的值为 -1。
   - triggerCondition：触发窗口开始的条件信息，包括以下字段：
-    - conditionIndex：整型，表示满足的触发窗口开始的条件的索引，从 0 开始编号。
+    - conditionPath：字符串，表示当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。envelope 为 `""`，一层子事件为 `"0"`、`"1"`，多级子事件使用 `.` 拼接路径，例如 `"0.1"`。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
 - 如果 eventType 为 WINDOW_CLOSE，则包含如下字段：
   - windowStart：长整型时间戳，表示窗口的开始时间，精度与结果表的时间精度一致。
   - windowEnd：长整型时间戳，表示窗口的结束时间，精度与结果表的时间精度一致。
+  - parentTriggerId：字符串数组，表示当前节点从 envelope 到直接父节点的祖先 `triggerId`，按根到父的顺序排列。envelope 自身为空数组。
   - windowIndex：整型，表示子事件窗口在父窗口中的序号，从 0 开始编号；常规事件窗口或父窗口的值为 -1。
   - triggerCondition：触发窗口关闭的条件信息，包括以下字段：
-    - conditionIndex：整型，表示满足的触发窗口关闭的条件的索引，从 0 开始编号。
+    - conditionPath：字符串，表示当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。
     - fieldValue：键值对形式，包含条件列列名及其对应的值。
   - result：计算结果，为键值对形式，包含窗口计算的结果列列名及其对应的值。
 
@@ -816,8 +892,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 更完整字段可查询 [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams)：
 
 ```sql
-SELECT * FROM information_schema.`ins_streams`;
+SELECT stream_name, timezone, first_day_of_week, sql
+FROM information_schema.ins_streams;
 ```
+
+`v3.4.3` 及之后创建的用户流，`sql` 含完整的 `CONFIG`，`timezone` 和 `first_day_of_week` 为创建时保存的值。升级前已经存在的用户流这两列为 `NULL`，`sql` 仍是原来的 `CREATE STREAM`，运行时仍可能随当时环境变化。`CREATE TSMA` 对象这两列也可以是 `NULL`，但 `sql` 为 `CREATE TSMA`，不要把它当成升级前遗留的用户流。
 
 重算相关记录见 [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_recalculates)。
 

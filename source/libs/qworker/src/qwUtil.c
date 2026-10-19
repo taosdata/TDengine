@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
@@ -144,7 +161,7 @@ int32_t qwAcquireTaskStatus(QW_FPARAMS_DEF, int32_t rwType, SQWSchStatus *sch, S
   *task = taosHashGet(sch->tasksHash, id, sizeof(id));
   if (NULL == (*task)) {
     QW_UNLOCK(rwType, &sch->tasksLock);
-    QW_TASK_ELOG_E("task status not exists");
+    QW_TASK_ELOG_E("task status does not exist");
     QW_ERR_RET(TSDB_CODE_QRY_TASK_NOT_EXIST);
   }
 
@@ -215,7 +232,7 @@ int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
 
   *ctx = taosHashAcquire(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
-    QW_TASK_DLOG_E("acquired task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("acquired task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -228,7 +245,7 @@ int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx) {
 
   *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == (*ctx)) {
-    QW_TASK_DLOG_E("get task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("get task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -295,7 +312,7 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
   if (osinkHandle && osinkHandle == atomic_val_compare_exchange_ptr(&ctx->sinkHandle, osinkHandle, NULL)) {
     QW_SINK_ENABLE_MEMPOOL(ctx);
     dsDestroyDataSinker(osinkHandle);
-    QW_SINK_DISABLE_MEMPOOL();
+    QW_SINK_DISABLE_MEMPOOL(ctx);
 
     (void)atomic_add_fetch_64(&gQueryMgmt.stat.taskSinkDestroyNum, 1);
     
@@ -303,8 +320,16 @@ void qwFreeSinkHandle(SQWTaskCtx *ctx) {
   }
 }
 
-int32_t qwKillTaskHandle(SQWTaskCtx *ctx, int32_t rspCode) {
+void qwCloseTaskCorrelation(SQWorker* mgmt, SQWTaskCtx* ctx, int32_t code) {
+  if (NULL != ctx->pCorrelationSession && NULL != mgmt->msgCb.pCorrelationOps) {
+    mgmt->msgCb.pCorrelationOps->closeTaskSession(ctx->pCorrelationSession, code);
+  }
+}
+
+int32_t qwKillTaskHandle(SQWorker *mgmt, SQWTaskCtx *ctx, int32_t rspCode) {
   int32_t code = 0;
+
+  qwCloseTaskCorrelation(mgmt, ctx, rspCode);
 
   // Note: free/kill may in RC
   qTaskInfo_t taskHandle = atomic_load_ptr(&ctx->taskHandle);
@@ -350,6 +375,12 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       taosArrayDestroyEx(ctx->subQRes.rspList, qwFreeFetchRspItem);
     }
   }
+
+  if (NULL != ctx->pCorrelationSession && NULL != mgmt->msgCb.pCorrelationOps) {
+    qwCloseTaskCorrelation(mgmt, ctx, ctx->rspCode);
+    mgmt->msgCb.pCorrelationOps->releaseTaskSession(ctx->pCorrelationSession);
+    ctx->pCorrelationSession = NULL;
+  }
   
   if (gMemPoolHandle && ctx->memPoolSession) {
     qwDestroySession(QW_FPARAMS(), ctx->pJobInfo, ctx->memPoolSession, true);
@@ -360,6 +391,7 @@ void qwFreeTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 static void freeExplainExecItem(void *param) {
   SExplainExecInfo *pInfo = param;
   taosMemoryFree(pInfo->verboseInfo);
+  taosMemoryFree(pInfo->pCorrelationStats);
 }
 
 int32_t qwSendExplainResponse(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
@@ -420,7 +452,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == ctx) {
-    QW_TASK_DLOG_E("drop task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("drop task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -441,7 +473,10 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
   if (taosHashRemove(mgmt->ctxHash, id, sizeof(id))) {
-    QW_TASK_ELOG_E("taosHashRemove from ctx hash failed");
+    QW_TASK_ELOG("taosHashRemove from ctx hash failed, ctx:%p, memPoolSession:%p, job:%p, taskHandle:%p, "
+                 "sinkHandle:%p, ctxHash:%p, ctxHashSize:%d, thread:%" PRId64,
+                 ctx, octx.memPoolSession, octx.pJobInfo, octx.taskHandle, octx.sinkHandle, mgmt->ctxHash,
+                 taosHashGetSize(mgmt->ctxHash), taosGetSelfPthreadId());
     return QW_CTX_NOT_EXISTS_ERR_CODE(mgmt);
   }
 
@@ -518,7 +553,7 @@ int32_t qwHandleDynamicTaskEnd(QW_FPARAMS_DEF) {
 
   SQWTaskCtx *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
   if (NULL == ctx) {
-    QW_TASK_DLOG_E("task ctx not exist, may be dropped");
+    QW_TASK_DLOG_E("task ctx does not exist, may be dropped");
     QW_ERR_RET(QW_CTX_NOT_EXISTS_ERR_CODE(mgmt));
   }
 
@@ -633,7 +668,7 @@ void qwDestroyImpl(void *pMgmt) {
   qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);
 
   if (taosTmrStop(mgmt->hbTimer)) {
-    qTrace("stop qworker hb timer may failed");
+    qTrace("stop qworker hb timer may have failed");
   }
 
   mgmt->hbTimer = NULL;
@@ -768,7 +803,7 @@ void qwDestroyJobInfo(void *job) {
 
   SQWJobInfo *pJob = (SQWJobInfo *)job;
 
-  taosMemoryFreeClear(pJob->memInfo);
+  taosMemPoolReleaseJob(pJob->memInfo);
   taosHashCleanup(pJob->pSessions);
   pJob->pSessions = NULL;
 }
@@ -778,6 +813,8 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   bool resFreed = false;
   
   QW_LOCK(QW_WRITE, &ctx->lock);
+
+  qwCloseTaskCorrelation(mgmt, ctx, errCode);
   
   QW_TASK_DLOG("start to stop task, forceStop:%d, error:%s", forceStop, tstrerror(errCode));
   
@@ -789,7 +826,7 @@ bool qwStopTask(QW_FPARAMS_DEF, SQWTaskCtx    *ctx, bool forceStop, int32_t errC
   }
 
   if (QW_QUERY_RUNNING(ctx)) {
-    code = qwKillTaskHandle(ctx, errCode);
+    code = qwKillTaskHandle(mgmt, ctx, errCode);
     if (TSDB_CODE_SUCCESS != code) {
       QW_TASK_ELOG("task running, async kill failed, error: %x", code);
     } else {

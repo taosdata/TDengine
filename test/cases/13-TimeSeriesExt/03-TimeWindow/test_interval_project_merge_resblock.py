@@ -1,4 +1,20 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.interval_hints import assert_supported_interval_hint_modes
 
 
 class TestIntervalProjectMergeResblock:
@@ -74,6 +90,8 @@ class TestIntervalProjectMergeResblock:
             "('2021-09-01 01:46:39.999', 2) "
             "('2021-12-24 12:06:20.001', 3)"
         )
+
+        assert_supported_interval_hint_modes()
 
         sql = (
             f"explain verbose true "

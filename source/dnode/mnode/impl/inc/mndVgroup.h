@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,6 +34,9 @@ void     mndCleanupVgroup(SMnode *pMnode);
 // full length that would have been written; on invalid args (buf is NULL or bufLen<=0) it returns 0.
 int32_t  mndBytesToHuman(int64_t bytes, char *buf, int32_t bufLen);
 SVgObj  *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
+// Same as mndAcquireVgroup, but also returns vgroups in any non-READY status: CREATING inside an
+// unfinished create-db transaction, DROPPING, or already DROPPED.
+SVgObj  *mndAcquireVgroupNotReady(SMnode *pMnode, int32_t vgId);
 void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);

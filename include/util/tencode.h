@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -63,8 +65,8 @@ typedef struct {
     tEncoderClear(&coder);           \
   } while (0);
 
-static void* tEncoderMalloc(SEncoder* pCoder, int32_t size);
-static void* tDecoderMalloc(SDecoder* pCoder, int32_t size);
+static void* tEncoderMalloc(SEncoder* pCoder, int64_t size);
+static void* tDecoderMalloc(SDecoder* pCoder, int64_t size);
 
 /* ------------------------ ENCODE ------------------------ */
 void           tEncoderInit(SEncoder* pCoder, uint8_t* data, uint32_t size);
@@ -122,12 +124,30 @@ static int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** 
 static int32_t tDecodeBinary(SDecoder* pCoder, uint8_t** val, uint32_t* len);
 static int32_t tDecodeCStrAndLen(SDecoder* pCoder, char** val, uint32_t* len);
 static int32_t tDecodeCStr(SDecoder* pCoder, char** val);
-static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val);
+static int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize);
+static int32_t tDecodeCStrToN(SDecoder* pCoder, char* val, uint32_t valSize);
+
+/* Decode a length-prefixed string into a fixed-size destination buffer. valSize is the capacity of
+ * val, the terminating NUL included; a string that does not fit is rejected with
+ * TSDB_CODE_INVALID_MSG and no byte is written past valSize.
+ * tDecodeCStrTo() bounds the copy by sizeof(val) and is therefore only valid when val is a char
+ * array. Decoding into a buffer whose capacity is not that of an array (an allocated buffer, or an
+ * array element reached through a pointer) must use tDecodeCStrToN() with the explicit capacity. */
+#if defined(__GNUC__) && !defined(__cplusplus)
+/* Where the compiler can tell an array from a pointer, a char* destination is a compile error
+ * instead of being silently bounded by sizeof(char*). */
+#define tDecodeCStrTo(pCoder, val) \
+  tDecodeCStrToN((pCoder), (val), \
+                 (uint32_t)sizeof(char[sizeof(val) * (1 - 2 * __builtin_types_compatible_p(__typeof__(val), char*))]))
+#else
+#define tDecodeCStrTo(pCoder, val) tDecodeCStrToN((pCoder), (val), (uint32_t)sizeof(val))
+#endif
 
 /* ------------------------ IMPL ------------------------ */
 static FORCE_INLINE int32_t tEncodeFixed(SEncoder* pCoder, const void* val, uint32_t size) {
   if (pCoder->data) {
-    if (pCoder->pos + size > pCoder->size) {
+    // don't use `pCoder->pos + size > pCoder->size` because it wraps
+    if (pCoder->pos > pCoder->size || size > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
     TAOS_MEMCPY(pCoder->data + pCoder->pos, val, size);
@@ -214,7 +234,7 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
   TAOS_CHECK_RETURN(tEncodeU32v(pCoder, len));
   if (len) {
     if (pCoder->data) {
-      if (pCoder->pos + len > pCoder->size) {
+      if (pCoder->pos > pCoder->size || len > pCoder->size - pCoder->pos) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
       TAOS_MEMCPY(pCoder->data + pCoder->pos, val, len);
@@ -241,7 +261,8 @@ static FORCE_INLINE int32_t tEncodeCStr(SEncoder* pCoder, const char* val) {
 
 /* ------------------------ FOR DECODER ------------------------ */
 static int32_t tDecodeFixed(SDecoder* pCoder, void* val, uint32_t size) {
-  if (pCoder->pos + size > pCoder->size) {
+  // overflow-free bounds check: pos + size may wrap in uint32 arithmetic
+  if (pCoder->pos > pCoder->size || size > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   } else if (val) {
     TAOS_MEMCPY(val, pCoder->data + pCoder->pos, size);
@@ -412,7 +433,8 @@ static int32_t tDecodeBool(SDecoder* pCoder, bool* val) {
 }
 
 static FORCE_INLINE int32_t tDecodeBinaryWithSize(SDecoder* pCoder, uint32_t size, uint8_t** val) {
-  if (pCoder->pos + size > pCoder->size) {
+  // overflow-free bounds check: pos + size may wrap in uint32 arithmetic
+  if (pCoder->pos > pCoder->size || size > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
@@ -444,7 +466,8 @@ static FORCE_INLINE int32_t tDecodeBinaryTo(SDecoder* pCoder, uint8_t* val, uint
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
-  if (pCoder->pos + len > pCoder->size) {
+  // overflow-free bounds check: pos + len may wrap in uint32 arithmetic
+  if (pCoder->pos > pCoder->size || len > pCoder->size - pCoder->pos) {
     TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
   }
 
@@ -466,15 +489,58 @@ static FORCE_INLINE int32_t tDecodeCStr(SDecoder* pCoder, char** val) {
   return tDecodeCStrAndLen(pCoder, val, &len);
 }
 
-static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
+static int32_t tDecodeCStrToN(SDecoder* pCoder, char* val, uint32_t valSize) {
   char*    pStr = NULL;
   uint32_t len = 0;
   TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
 
-  if (len < pCoder->size) {
-    TAOS_MEMCPY(val, pStr, len + 1);
+  // len is the string length without the terminating NUL, which is copied as well
+  if (len + 1 > valSize) {
+    // Fixed-width string fields are historically encoded with tEncodeCStrWithLen(x, sizeof(x)),
+    // which writes sizeof(x) + 1 bytes, i.e. one byte more than the destination can hold. Such a
+    // message is accepted only while the string is still NUL-terminated inside the destination;
+    // a string that does not fit is rejected and nothing is ever written past valSize bytes.
+    char* pNul = (char*)memchr(pStr, '\0', valSize);
+    if (pNul == NULL) {
+      TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+    }
+    len = (uint32_t)(pNul - pStr);
   }
 
+  TAOS_MEMCPY(val, pStr, len + 1);
+  return 0;
+}
+
+// Decode a length-prefixed C string into a caller-owned fixed-size buffer, rejecting the message
+// when the string does not fit.
+//
+// Unlike tDecodeCStrToN(), this is strict: the decoded length must be smaller than dstSize, so the
+// historical tEncodeCStrWithLen(x, sizeof(x)) encoding that carries one byte more than the
+// destination is rejected even when the string is NUL-terminated inside it. Use it only for
+// fields whose encoder never emits that form, e.g. SMndCheckColRefReq.tbFName / colName.
+// FORCE_INLINE matches the rest of this header and keeps the helper out of -Wunused-function in TUs
+// that include tencode.h without calling it.
+static FORCE_INLINE int32_t tDecodeCStrToFixed(SDecoder* pCoder, char* val, size_t dstSize) {
+  char*    pStr = NULL;
+  uint32_t len = 0;  // decoded string length, excluding the terminating '\0'
+  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pStr, &len));
+
+  // len + 1 bytes are copied below; comparing len (rather than len + 1) against dstSize keeps the
+  // addition from wrapping and still enforces that the terminating '\0' fits in the buffer.
+  if (len >= dstSize) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  // A NULL / empty encoding (tEncodeCStr(NULL) / "") carries no payload after the length prefix:
+  // tDecodeCStrAndLen returns len == 0 with pStr pointing at (or, when the field is the last one
+  // in the message, one past) the decoded region. Copying len + 1 == 1 bytes from pStr would
+  // therefore read one byte that does not belong to the field. Write an empty string instead.
+  if (len == 0) {
+    val[0] = '\0';
+    return 0;
+  }
+
+  TAOS_MEMCPY(val, pStr, len + 1);
   return 0;
 }
 
@@ -484,7 +550,8 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uin
   if (length) {
     if (len) *len = length;
 
-    if (pCoder->pos + length > pCoder->size) {
+    // overflow-free bounds check: pos + length may wrap in uint64 arithmetic
+    if (pCoder->pos > pCoder->size || length > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
 
@@ -508,7 +575,8 @@ static FORCE_INLINE int32_t tDecodeBinaryAlloc32(SDecoder* pCoder, void** val, u
   if (length) {
     if (len) *len = length;
 
-    if (pCoder->pos + length > pCoder->size) {
+    // overflow-free bounds check: pos + length may wrap in uint32 arithmetic
+    if (pCoder->pos > pCoder->size || length > pCoder->size - pCoder->pos) {
       TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
     }
     *val = taosMemoryMalloc(length);
@@ -537,11 +605,42 @@ static FORCE_INLINE int32_t tDecodeCStrAlloc(SDecoder* pCoder, char** val) {
   return tDecodeCStrAndLenAlloc(pCoder, val, &len);
 }
 
+// Decode a length-prefixed blob that the caller will use as a C string. *pLen receives the
+// decoded byte count (0 when the wire value is empty, in which case *val is NULL) so the
+// caller can compare it with the length field that was decoded next to the blob. A blob
+// whose last byte is not the terminator is refused: callers memcpy exactly the declared
+// number of bytes into a buffer of that size and then read it with strlen/%s, so the
+// terminator has to land inside the copied range.
+static FORCE_INLINE int32_t tDecodeCStrAllocChecked(SDecoder* pCoder, void** val, uint64_t* pLen) {
+  uint64_t len = 0;
+
+  TAOS_CHECK_RETURN(tDecodeBinaryAlloc(pCoder, val, &len));
+
+  if (len > 0 && ((const char*)(*val))[len - 1] != '\0') {
+    taosMemoryFreeClear(*val);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (pLen != NULL) {
+    *pLen = len;
+  }
+
+  return 0;
+}
+
 static FORCE_INLINE bool tDecodeIsEnd(SDecoder* pCoder) { return (pCoder->size == pCoder->pos); }
 
-static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int32_t size) {
+static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int64_t size) {
+  // Reject lengths that would truncate (int32 width) or wrap the allocation. Sizes are computed
+  // from wire-encoded counts; a truncated allocation that is later written with the original
+  // (larger) count is a heap overflow (GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032). size == 0 is a
+  // legitimate zero-element wrapper and must stay accepted.
+  if (size < 0 || size > INT32_MAX) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return NULL;
+  }
   void*      p = NULL;
-  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + size);
+  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + (size_t)size);
   if (pMem) {
     pMem->next = pCoder->mList;
     pCoder->mList = pMem;
@@ -550,9 +649,18 @@ static FORCE_INLINE void* tEncoderMalloc(SEncoder* pCoder, int32_t size) {
   return p;
 }
 
-static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int32_t size) {
+static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int64_t size) {
+  // Reject lengths that would truncate (int32 width) or wrap the allocation. Sizes are computed
+  // from wire-encoded counts (see the *Wrapper / batch decode helpers); a truncated allocation
+  // that is later written with the original (larger) count is a heap overflow
+  // (GHSA-hr67-c6c8-mwpx / TD-SEC-2026-032). size == 0 is a legitimate zero-element wrapper and
+  // must stay accepted.
+  if (size < 0 || size > INT32_MAX) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return NULL;
+  }
   void*      p = NULL;
-  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + size);
+  SCoderMem* pMem = (SCoderMem*)taosMemoryCalloc(1, sizeof(*pMem) + (size_t)size);
   if (pMem) {
     pMem->next = pCoder->mList;
     pCoder->mList = pMem;

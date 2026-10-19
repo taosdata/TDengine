@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 aux_source_directory(src EXT_CONNECTOR_SRC)
 
 if(TD_ENTERPRISE)
@@ -8,10 +23,13 @@ if(TD_ENTERPRISE)
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxPlugin.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorMySQL.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorPG.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorSQLServer.c
   )
 endif()
 
 add_library(extconnector STATIC ${EXT_CONNECTOR_SRC})
+
+target_include_directories(extconnector BEFORE PRIVATE "${TD_SOURCE_DIR}/include/libs/qcom")
 
 target_include_directories(
   extconnector
@@ -27,7 +45,10 @@ target_link_libraries(
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
   target_link_options(extconnector INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
 endif()
-
+# ──────────────────────────────────────────────────────────────────────────────
+# Enterprise: link external database client libraries (downloaded via CMake
+# ExternalProject_Add; see community/cmake/external.cmake for build rules)
+# ──────────────────────────────────────────────────────────────────────────────
 if(TD_ENTERPRISE)
   if(BUILD_WITH_MARIADB)
     target_compile_definitions(extconnector PRIVATE HAVE_MARIADB_C)
@@ -38,6 +59,11 @@ if(TD_ENTERPRISE)
 
   if(BUILD_WITH_LIBPQ)
     target_compile_definitions(extconnector PRIVATE HAVE_LIBPQ)
+    # Headers only. DEP_ext_libpq() would also link libpq, which Darwin records
+    # as LC_LOAD_DYLIB even when no symbols are referenced. Linux GNU ld drops
+    # the unused NEEDED entry via --as-needed, so taosd starts without libpq;
+    # macOS does not. Keep the same load-time independence as MariaDB.
+    DEP_ext_libpq_INC(extconnector)
     message(STATUS "ExtConnector: PostgreSQL provider enabled with runtime libpq loading")
   else()
     message(STATUS "ExtConnector: BUILD_WITH_LIBPQ=OFF — PostgreSQL provider disabled")
@@ -48,6 +74,16 @@ if(TD_ENTERPRISE)
     message(STATUS "ExtConnector: InfluxDB provider enabled via optional runtime plugin")
   else()
     message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB provider disabled")
+  endif()
+
+  if(BUILD_WITH_ODBC)
+    target_compile_definitions(extconnector PRIVATE HAVE_ODBC)
+    # Headers only: libodbc is loaded at runtime, same load-time independence
+    # as the MariaDB / libpq providers.
+    DEP_ext_odbc(extconnector)
+    message(STATUS "ExtConnector: SQL Server provider enabled with runtime unixODBC loading")
+  else()
+    message(STATUS "ExtConnector: BUILD_WITH_ODBC=OFF — SQL Server provider disabled")
   endif()
 
   target_link_libraries(extconnector PRIVATE crypt)
@@ -105,6 +141,38 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       get_filename_component(_libpq_runtime_dir "${EXT_LIBPQ_SO_SRCPATH}" DIRECTORY)
       _stage_fq_provider_runtime("${_libpq_runtime_dir}"
         "libpq.so*" "libpq*.dylib*")
+    endif()
+  endif()
+
+  if(BUILD_WITH_ODBC)
+    if(TARGET ext_odbc)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_odbc)
+      endif()
+      _stage_fq_provider_runtime("${ext_odbc_install}/lib"
+        "libodbc.so*" "libodbcinst.so*" "libodbc*.dylib*")
+    elseif(DEFINED EXT_ODBC_SO_SRCPATH AND NOT "${EXT_ODBC_SO_SRCPATH}" STREQUAL "")
+      get_filename_component(_odbc_runtime_dir "${EXT_ODBC_SO_SRCPATH}" DIRECTORY)
+      _stage_fq_provider_runtime("${_odbc_runtime_dir}"
+        "libodbc.so*" "libodbcinst.so*" "libodbc*.dylib*")
+    endif()
+
+    # Microsoft ODBC Driver 18 (SQL Server): staged next to libodbc, the same
+    # place the dependency package puts it (`driver/` in the installed tree).
+    if(TARGET ext_msodbc)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_msodbc)
+      endif()
+      _stage_fq_provider_runtime("${ext_msodbc_install}/lib"
+        "libmsodbcsql*.so*" "libmsodbcsql*.dylib*")
+    elseif(DEFINED EXT_MSODBC_SO_SRCPATH AND NOT "${EXT_MSODBC_SO_SRCPATH}" STREQUAL "")
+      if(IS_DIRECTORY "${EXT_MSODBC_SO_SRCPATH}")
+        set(_msodbc_runtime_dir "${EXT_MSODBC_SO_SRCPATH}")
+      else()
+        get_filename_component(_msodbc_runtime_dir "${EXT_MSODBC_SO_SRCPATH}" DIRECTORY)
+      endif()
+      _stage_fq_provider_runtime("${_msodbc_runtime_dir}"
+        "libmsodbcsql*.so*" "libmsodbcsql*.dylib*")
     endif()
   endif()
 endif()
@@ -223,6 +291,41 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
       VERBATIM
     )
   endif()
-
   message(STATUS "ExtConnector: building optional libtaos_ext_influx_arrow runtime plugin")
+endif()
+
+if(TD_ENTERPRISE AND TD_WINDOWS)
+  set(_win_bin_dir "${CMAKE_BINARY_DIR}/build/bin")
+
+  if(BUILD_WITH_MARIADB)
+    set(_mariadb_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_mariadb/${TD_CONFIG_NAME}/lib/mariadb/libmariadb.dll")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_win_bin_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_mariadb_dll}" "${_win_bin_dir}/libmariadb.dll"
+      COMMENT "Staging libmariadb.dll -> build/bin/"
+      VERBATIM
+    )
+  endif()
+
+  if(BUILD_WITH_LIBPQ)
+    set(_libpq_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_libpq/${TD_CONFIG_NAME}/bin/libpq.dll")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_libpq_dll}" "${_win_bin_dir}/libpq.dll"
+      COMMENT "Staging libpq.dll -> build/bin/"
+      VERBATIM
+    )
+  endif()
+
+  if(BUILD_WITH_ARROW)
+    set(_arrow_bin "${TD_EXTERNALS_BASE_DIR}/install/ext_arrow/${TD_CONFIG_NAME}/bin")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_arrow_bin}/arrow.dll" "${_win_bin_dir}/arrow.dll"
+      COMMENT "Staging arrow.dll -> build/bin/"
+      VERBATIM
+    )
+  endif()
+endif()
+
+if(BUILD_TEST AND TD_ENTERPRISE)
+  add_subdirectory(test)
 endif()

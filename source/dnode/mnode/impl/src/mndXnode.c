@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -33,15 +35,51 @@
 #include "mndDnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndSync.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndXnode.h"
 #include "sdb.h"
 #include "taoserror.h"
+#include "tglobal.h"
+#include "thash.h"
 #include "tjson.h"
 #include "xnode.h"
+#include "osMemory.h"
+#include <cJSON.h>
+#ifndef WINDOWS
+#include "envelope_crypto.h"
+#endif
 
 #define TSDB_XNODE_RESERVE_SIZE 64
+
+static int8_t mndXnodeDesiredStateFromStatus(const char *status) {
+  if (status != NULL &&
+      (strcasecmp(status, "queued") == 0 || strcasecmp(status, "running") == 0 ||
+       strcasecmp(status, "tick") == 0)) {
+    return XNODE_TASK_DESIRED_STATE_RUNNING;
+  }
+  return XNODE_TASK_DESIRED_STATE_STOPPED;
+}
+
+static const char *mndXnodeDesiredStateName(int8_t desiredState) {
+  return desiredState == XNODE_TASK_DESIRED_STATE_RUNNING ? "running" : "stopped";
+}
+
+static int32_t mndXnodeParseDesiredState(const CowStr *value, int8_t *desiredState) {
+  // NOTE: callers guarantee value->ptr != NULL before calling. Returning SUCCESS without touching
+  // *desiredState means "not provided"; the caller-supplied default remains intact.
+  if (value == NULL || value->ptr == NULL) return TSDB_CODE_SUCCESS;
+  if (value->len == strlen("running") && strncasecmp(value->ptr, "running", value->len) == 0) {
+    *desiredState = XNODE_TASK_DESIRED_STATE_RUNNING;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (value->len == strlen("stopped") && strncasecmp(value->ptr, "stopped", value->len) == 0) {
+    *desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_MND_XNODE_JOB_SYNTAX_ERROR;
+}
 #ifdef WINDOWS
 #define XNODED_PIPE_SOCKET_URL "http://localhost:6051"
 #else
@@ -59,6 +97,7 @@ typedef struct {
 
 const int32_t defaultTimeout = 1000;
 const int32_t migrationTimeout = 60000;
+const int32_t createXnodeHttpTimeout = 7000;
 static const char xnodeDrainStatus[] = "drain";
 
 /** xnodes systable actions */
@@ -73,6 +112,10 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDropXnodeReq(SRpcMsg *pReq);
 static int32_t mndProcessDrainXnodeReq(SRpcMsg *pReq);
+static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj);
+static int32_t mndDropXnodeUserPass(SMnode *pMnode, SRpcMsg *pReq);
+static int32_t mndCheckXnodedResponse(SRpcMsg *pReq, SJson *pJson);
+static int32_t mndProcessRestartXnodeReq(SRpcMsg *pReq);
 static int32_t mndRetrieveXnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnode(SMnode *pMnode, void *pIter);
 
@@ -90,6 +133,16 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq);
 static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq);
 static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnodeTask(SMnode *pMnode, void *pIter);
+
+static int32_t mndXnodeCheckCreateTaskSixStar(const SMCreateXnodeTaskReq *pCreate);
+static int32_t mndXnodeCheckCreateJobSixStar(const SMCreateXnodeJobReq *pCreate);
+int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
+                                          char **ppMergedSource, int32_t *pMergedSourceLen, char **ppMergedSink,
+                                          int32_t *pMergedSinkLen);
+static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pOld,
+                                  SMUpdateXnodeTaskReq *pUpdate);
+static int32_t mndXnodeMergeUpdateJobSixStar(const SXnodeJobObj *pOld, const SMUpdateXnodeJobReq *pUpdate,
+                                             char **ppMergedConfig, int32_t *pMergedConfigLen);
 
 /** @section xnode task job handlers */
 SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj);
@@ -127,8 +180,8 @@ static int32_t mndRetrieveXnodeAgents(SRpcMsg *pReq, SShowObj *pShow, SSDataBloc
 static void    mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter);
 
 /** @section xnoded mgmt */
-void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token);
-void mndRestartXnoded(SMnode *pMnode);
+int32_t mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token);
+int32_t mndRestartXnoded(SMnode *pMnode);
 
 /** @section others */
 static int32_t mndGetXnodeStatus(SXnodeObj *pObj, char *status, int32_t statusLen);
@@ -225,6 +278,7 @@ int32_t mndInitXnode(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_UPDATE_XNODE, mndProcessUpdateXnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_XNODE, mndProcessDropXnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DRAIN_XNODE, mndProcessDrainXnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RESTART_XNODE, mndProcessRestartXnodeReq);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_XNODES, mndRetrieveXnodes);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_XNODES, mndCancelGetNextXnode);
 
@@ -489,6 +543,18 @@ static int32_t mndSetCreateXnodeUserPassRedoLogs(STrans *pTrans, SXnodeUserPassO
   TAOS_RETURN(code);
 }
 
+static int32_t mndSetCreateXnodeUserPassUndoLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pUndoRaw = mndXnodeUserPassActionEncode(pObj);
+  if (pUndoRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+  TAOS_CHECK_RETURN(mndTransAppendUndolog(pTrans, pUndoRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED));
+  TAOS_RETURN(code);
+}
+
 static int32_t mndSetCreateXnodeUserPassCommitLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
   int32_t  code = 0;
   SSdbRaw *pCommitRaw = mndXnodeUserPassActionEncode(pObj);
@@ -541,11 +607,13 @@ static int32_t mndSetCreateXnodeCommitLogs(STrans *pTrans, SXnodeObj *pObj) {
   TAOS_RETURN(code);
 }
 
-static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *pCreate) {
+static int32_t mndCreateXnode(SMnode *pMnode, SMCreateXnodeReq *pCreate, bool createUserPass,
+                              int32_t *pTransId) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
 
   SXnodeObj xnodeObj = {0};
+  SXnodeUserPassObj upObj = {0};
   xnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE);
 
   xnodeObj.urlLen = pCreate->urlLen;
@@ -560,10 +628,34 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
 
   xnodeObj.createTime = taosGetTimestampMs();
   xnodeObj.updateTime = xnodeObj.createTime;
+  if (createUserPass) {
+    upObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_USER_PASS);
+    upObj.user = pCreate->user;
+    upObj.userLen = pCreate->userLen;
+    upObj.pass = pCreate->pass;
+    upObj.passLen = pCreate->passLen;
+    upObj.tokenLen = pCreate->token.ptr == NULL ? 0 : pCreate->token.len + 1;
+    if (upObj.tokenLen > 0) {
+      upObj.token = taosMemoryCalloc(1, upObj.tokenLen);
+      if (upObj.token == NULL) {
+        code = terrno;
+        lino = __LINE__;
+        goto _OVER;
+      }
+      (void)memcpy(upObj.token, pCreate->token.ptr, pCreate->token.len);
+    }
+    upObj.createTime = xnodeObj.createTime;
+    upObj.updateTime = xnodeObj.updateTime;
+    if (upObj.userLen > TSDB_USER_LEN || upObj.passLen > TSDB_USER_PASSWORD_LONGLEN) {
+      code = upObj.userLen > TSDB_USER_LEN ? TSDB_CODE_MND_USER_NOT_AVAILABLE : TSDB_CODE_MND_INVALID_PASS_FORMAT;
+      lino = __LINE__;
+      goto _OVER;
+    }
+  }
   mInfo("create xnode, xnode.id:%d, xnode.url: %s, xnode.time:%" PRId64, xnodeObj.id, xnodeObj.url,
         xnodeObj.createTime);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-xnode");
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "create-xnode");
   if (pTrans == NULL) {
     code = TSDB_CODE_MND_RETURN_VALUE_NULL;
     if (terrno != 0) code = terrno;
@@ -578,7 +670,13 @@ static int32_t mndCreateXnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *p
   TAOS_CHECK_GOTO(mndSetCreateXnodeRedoLogs(pTrans, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateXnodeUndoLogs(pTrans, &xnodeObj), NULL, _OVER);
   TAOS_CHECK_GOTO(mndSetCreateXnodeCommitLogs(pTrans, &xnodeObj), NULL, _OVER);
+  if (createUserPass) {
+    TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassRedoLogs(pTrans, &upObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassUndoLogs(pTrans, &upObj), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassCommitLogs(pTrans, &upObj), NULL, _OVER);
+  }
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
+  *pTransId = pTrans->id;
   code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -586,11 +684,12 @@ _OVER:
     mError("xnode:failed create xnode since %s, line:%d", tstrerror(code), lino);
   }
   mndFreeXnode(&xnodeObj);
+  taosMemoryFreeClear(upObj.token);
   mndTransDrop(pTrans);
   TAOS_RETURN(code);
 }
 
-static SXnodeObj *mndAcquireXnodeByURL(SMnode *pMnode, char *url) {
+static SXnodeObj *mndAcquireXnodeByURL(SMnode *pMnode, const char *url) {
   SSdb *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
@@ -607,74 +706,9 @@ static SXnodeObj *mndAcquireXnodeByURL(SMnode *pMnode, char *url) {
     sdbRelease(pSdb, pXnode);
   }
 
-  mError("xnode:%s, not found", url);
+  mDebug("xnode:%s, not found", url);
   terrno = TSDB_CODE_MND_XNODE_NOT_EXIST;
   return NULL;
-}
-
-static int32_t mndStoreXnodeUserPassToken(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeReq *pCreate) {
-  int32_t code = 0, lino = 0;
-  STrans *pTrans = NULL;
-
-  SXnodeUserPassObj upObj = {0};
-  upObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_USER_PASS);
-
-  if (pCreate->user) {
-    upObj.userLen = pCreate->userLen;
-    if (upObj.userLen > TSDB_USER_LEN) {
-      code = TSDB_CODE_MND_USER_NOT_AVAILABLE;
-      lino = __LINE__;
-      goto _OVER;
-    }
-    upObj.user = taosMemoryCalloc(1, pCreate->userLen);
-    if (upObj.user == NULL) goto _OVER;
-    (void)memcpy(upObj.user, pCreate->user, pCreate->userLen);
-  }
-  if (pCreate->pass) {
-    upObj.passLen = pCreate->passLen;
-    if (upObj.passLen > TSDB_USER_PASSWORD_LONGLEN) {
-      code = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-      lino = __LINE__;
-      goto _OVER;
-    }
-    upObj.pass = taosMemoryCalloc(1, pCreate->passLen);
-    if (upObj.pass == NULL) goto _OVER;
-    (void)memcpy(upObj.pass, pCreate->pass, pCreate->passLen);
-  }
-
-  if (pCreate->token.ptr) {
-    upObj.tokenLen = pCreate->token.len + 1;
-    upObj.token = taosMemoryCalloc(1, upObj.tokenLen);
-    if (upObj.token == NULL) goto _OVER;
-    (void)memcpy(upObj.token, pCreate->token.ptr, pCreate->token.len);
-  }
-
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-userpass");
-  if (pTrans == NULL) {
-    code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-    if (terrno != 0) code = terrno;
-    mInfo("failed to create transaction for xnode:%s, code:0x%x:%s", pCreate->url, code, tstrerror(code));
-    lino = __LINE__;
-    goto _OVER;
-  }
-  mndTransSetSerial(pTrans);
-
-  mInfo("trans:%d, used to create xnode:%s as xnode:%d", pTrans->id, pCreate->url, upObj.id);
-
-  TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassRedoLogs(pTrans, &upObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndSetCreateXnodeUserPassCommitLogs(pTrans, &upObj), NULL, _OVER);
-  TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
-  code = TSDB_CODE_ACTION_IN_PROGRESS;
-
-_OVER:
-  if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-    mError("xnode failed to store userpass since %s, line:%d", tstrerror(code), lino);
-  }
-  taosMemoryFreeClear(upObj.user);
-  taosMemoryFreeClear(upObj.pass);
-  taosMemoryFreeClear(upObj.token);
-  mndTransDrop(pTrans);
-  TAOS_RETURN(code);
 }
 
 #ifndef TD_ENTERPRISE
@@ -686,7 +720,7 @@ int32_t mndXnodeCreateDefaultToken(SRpcMsg* pReq, char** ppToken) {
 
 #endif
 
-static int32_t httpCreateXnode(SXnodeObj *pObj) {
+static int32_t httpCreateXnode(SRpcMsg *pReq, SXnodeObj *pObj, int64_t deadlineMs) {
   int32_t code = 0;
   SJson  *pJson = NULL;
   SJson  *postContent = NULL;
@@ -701,12 +735,14 @@ static int32_t httpCreateXnode(SXnodeObj *pObj) {
   }
   TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "id", (double)pObj->id), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "url", pObj->url), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "deadline_ms", (double)deadlineMs), NULL, _OVER);
   pContStr = tjsonToUnformattedString(postContent);
   if (pContStr == NULL) {
     code = terrno;
     goto _OVER;
   }
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, createXnodeHttpTimeout, pContStr, strlen(pContStr));
+  code = mndCheckXnodedResponse(pReq, pJson);
 
 _OVER:
   if (postContent != NULL) {
@@ -721,13 +757,77 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+static int32_t mndWaitCreatedXnode(SMnode *pMnode, const char *url, bool waitUserPass, int32_t transId,
+                                   SXnodeObj **ppObj) {
+  STrans *pTrans = NULL;
+  while ((pTrans = mndAcquireTrans(pMnode, transId)) != NULL) {
+    mndReleaseTrans(pMnode, pTrans);
+    if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+    if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+    taosMsleep(100);
+  }
+  if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
+  if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
+  *ppObj = mndAcquireXnodeByURL(pMnode, url);
+  if (*ppObj == NULL) return TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
+  if (waitUserPass) {
+    SXnodeUserPassObj *pUserPass = mndAcquireFirstXnodeUserPass(pMnode);
+    if (pUserPass == NULL) return TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST;
+    mndReleaseXnodeUserPass(pMnode, pUserPass);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool mndCancelCreatedXnode(int32_t id, int64_t deadlineMs) {
+  int64_t remainingMs = deadlineMs - taosGetTimestampMs();
+  if (remainingMs > 0) taosMsleep((int32_t)remainingMs);
+
+  char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
+  snprintf(xnodeUrl, sizeof(xnodeUrl), "%s/xnode/%d?force=true", XNODED_PIPE_SOCKET_URL, id);
+  SJson *pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, createXnodeHttpTimeout, NULL, 0);
+  int32_t code = mndCheckXnodedResponse(NULL, pJson);
+  if (pJson != NULL) tjsonDelete(pJson);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode:%d, failed to confirm xnoded cancellation since %s", id, tstrerror(code));
+  }
+  return code == TSDB_CODE_SUCCESS;
+}
+
+static void mndCleanupCreatedXnode(SMnode *pMnode, const char *url, SXnodeObj *pObj, bool createUserPass,
+                                   bool xnodedStarted, bool requiresXnodedCancel, int64_t deadlineMs) {
+  if (requiresXnodedCancel && pObj != NULL && !mndCancelCreatedXnode(pObj->id, deadlineMs)) {
+    mError("xnode:%s, retaining metadata because xnoded cancellation is unconfirmed", url);
+    return;
+  }
+  if (xnodedStarted) {
+    mndCloseXnd();
+  }
+  if (pObj != NULL) {
+    int32_t dropCode = mndDropXnode(pMnode, NULL, pObj);
+    if (dropCode != 0 && dropCode != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("xnode:%s, failed to drop after xnoded create error since %s", url, tstrerror(dropCode));
+    }
+  }
+  if (createUserPass) {
+    int32_t dropUserPassCode = mndDropXnodeUserPass(pMnode, NULL);
+    if (dropUserPassCode != 0 && dropUserPassCode != TSDB_CODE_ACTION_IN_PROGRESS) {
+      mError("xnode:%s, failed to drop xnode user pass after create error since %s", url,
+             tstrerror(dropUserPassCode));
+    }
+  }
+}
+
 static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0, lino = 0;
   SXnodeObj       *pObj = NULL;
   SMCreateXnodeReq createReq = {0};
   char            *pToken = NULL;
-  bool             isSuperUser = false;
+  bool             createUserPass = false;
+  bool             xnodedStarted = false;
+  int32_t          createTransId = 0;
+  bool             requiresXnodedCancel = false;
+  int64_t          httpDeadlineMs = 0;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE);
   if (code != TSDB_CODE_SUCCESS) {
@@ -743,26 +843,11 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t numOfRows = sdbGetSize(pMnode->pSdb, SDB_XNODE_USER_PASS);
-  if (numOfRows <= 0) {
-    if (createReq.token.ptr != NULL) {
-      (void)mndCreateXnode(pMnode, NULL, &createReq);
-      code = mndStoreXnodeUserPassToken(pMnode, pReq, &createReq);
-      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        lino = __LINE__;
-        goto _OVER;
-      }
-      mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
-    } else if (createReq.user != NULL) {
+  createUserPass = sdbGetSize(pMnode->pSdb, SDB_XNODE_USER_PASS) <= 0;
+  if (createUserPass) {
+    if (createReq.user != NULL) {
       TAOS_CHECK_GOTO(xnodeCheckPasswordFmt(createReq.pass), &lino, _OVER);
-      (void)mndCreateXnode(pMnode, NULL, &createReq);
-      code = mndStoreXnodeUserPassToken(pMnode, pReq, &createReq);
-      if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-        lino = __LINE__;
-        goto _OVER;
-      }
-      mndStartXnoded(pMnode, createReq.user, createReq.pass, NULL);
-    } else {
+    } else if (createReq.token.ptr == NULL) {
       code = mndXnodeCreateDefaultToken(pReq, &pToken);
       if (code == TSDB_CODE_MND_TOKEN_ALREADY_EXIST) {
         code = 0;
@@ -771,27 +856,47 @@ static int32_t mndProcessCreateXnodeReq(SRpcMsg *pReq) {
         lino = __LINE__;
         goto _OVER;
       }
-      (void)mndCreateXnode(pMnode, NULL, &createReq);
       createReq.token = xCreateCowStr(strlen(pToken), pToken, false);
-      (void)mndStoreXnodeUserPassToken(pMnode, NULL, &createReq);
-      mndStartXnoded(pMnode, NULL, NULL, createReq.token.ptr);
-    }
-  } else {
-    code = mndCreateXnode(pMnode, pReq, &createReq);
-    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-      lino = __LINE__;
-      goto _OVER;
     }
   }
-
-  taosMsleep(defaultTimeout);
-  pObj = mndAcquireXnodeByURL(pMnode, createReq.url);
-  if (pObj == NULL) {
-    code = TSDB_CODE_MND_XNODE_NOT_EXIST;
+  code = mndCreateXnode(pMnode, &createReq, createUserPass, &createTransId);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
+    lino = __LINE__;
     goto _OVER;
   }
+  code = mndWaitCreatedXnode(pMnode, createReq.url, createUserPass, createTransId, &pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    lino = __LINE__;
+    if (code == TSDB_CODE_MNODE_STOPPED || code == TSDB_CODE_SYN_NOT_LEADER) goto _OVER;
+    goto _CLEANUP;
+  }
+  if (createUserPass) {
+    code = mndStartXnoded(pMnode, createReq.user, createReq.pass, createReq.token.ptr);
+    if (code != TSDB_CODE_SUCCESS) {
+      lino = __LINE__;
+      goto _CLEANUP;
+    }
+    xnodedStarted = true;
+  }
+
   // send request
-  (void)httpCreateXnode(pObj);
+  httpDeadlineMs = taosGetTimestampMs() + createXnodeHttpTimeout;
+  requiresXnodedCancel = true;
+  int32_t httpCode = httpCreateXnode(pReq, pObj, httpDeadlineMs);
+  if (httpCode != TSDB_CODE_SUCCESS) {
+    code = httpCode;
+    if (code == TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER) requiresXnodedCancel = false;
+    lino = __LINE__;
+    goto _CLEANUP;
+  } else {
+    code = TSDB_CODE_SUCCESS;
+    goto _OVER;
+  }
+
+_CLEANUP:
+  mndCleanupCreatedXnode(pMnode, createReq.url, pObj, createUserPass, xnodedStarted, requiresXnodedCancel,
+                         httpDeadlineMs);
+  goto _OVER;
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
@@ -881,6 +986,7 @@ _OVER:
 static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
   SMnode          *pMnode = pReq->info.node;
   int32_t          code = 0;
+  int32_t          restartCode = 0;
   SXnodeObj       *pObj = NULL;
   SMUpdateXnodeReq updateReq = {0};
   bool             isSuperUser = false;
@@ -897,7 +1003,11 @@ static int32_t mndProcessUpdateXnodeReq(SRpcMsg *pReq) {
     if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
       goto _OVER;
     }
-    mndRestartXnoded(pMnode);
+    restartCode = mndRestartXnoded(pMnode);
+    if (restartCode != TSDB_CODE_SUCCESS) {
+      mError("xnode:%d, failed to restart xnoded after credential update since %s", updateReq.id,
+             tstrerror(restartCode));
+    }
   }
 
 _OVER:
@@ -906,6 +1016,33 @@ _OVER:
   }
   mndReleaseXnode(pMnode, pObj);
   tFreeSMUpdateXnodeReq(&updateReq);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndProcessRestartXnodeReq(SRpcMsg *pReq) {
+  SMnode             *pMnode = pReq->info.node;
+  int32_t             code = 0;
+  SMRestartXnodeReq   restartReq = {0};
+  int64_t             startMs = taosGetTimestampMs();
+
+  code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_RESTART_XNODE);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("failed check permission for restart xnode, code:%s", tstrerror(code));
+    goto _OVER;
+  }
+  TAOS_CHECK_GOTO(tDeserializeSMRestartXnodeReq(pReq->pCont, pReq->contLen, &restartReq), NULL, _OVER);
+
+  code = mndRestartXnoded(pMnode);
+  if (code == TSDB_CODE_SUCCESS) {
+    double duration = (double)(taosGetTimestampMs() - startMs) / 1000.0;
+    auditRecord(pReq, pMnode->clusterId, "restartXnode", "", "", restartReq.sql, restartReq.sqlLen, duration, 0);
+  }
+
+_OVER:
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("xnode restart failed since %s", tstrerror(code));
+  }
+  tFreeSMRestartXnodeReq(&restartReq);
   TAOS_RETURN(code);
 }
 
@@ -955,17 +1092,26 @@ static int32_t mndCheckXnodedResponse(SRpcMsg *pReq, SJson *pJson) {
   const char *error = ((cJSON *)errorJson)->valuestring;
   if (error != NULL) {
     mError("xnoded request failed, reason:%s", error);
+    int32_t code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    if (strstr(error, "owned by another cluster") != NULL) {
+      code = TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER;
+    }
     if (pReq != NULL) {
-      int32_t contLen = strlen(error) + strlen(tstrerror(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR)) + 32;
+      bool     isOwnerConflict = (code == TSDB_CODE_MND_XNODE_OWNED_BY_OTHER_CLUSTER);
+      int32_t  contLen = isOwnerConflict ? strlen(error) + 1 : strlen(error) + strlen(tstrerror(code)) + 32;
       void   *pRsp = rpcMallocCont(contLen);
       if (pRsp == NULL) {
         return terrno;
       }
       pReq->info.rspLen = contLen;
       pReq->info.rsp = pRsp;
-      snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR),
-               error);
+      if (isOwnerConflict) {
+        snprintf(pReq->info.rsp, contLen, "%s", error);
+      } else {
+        snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(code), error);
+      }
     }
+    return code;
   }
   return TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
 }
@@ -987,6 +1133,60 @@ static int32_t mndDropXnode(SMnode *pMnode, SRpcMsg *pReq, SXnodeObj *pObj) {
 
 _OVER:
   mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetDropXnodeUserPassRedoLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pRedoRaw = mndXnodeUserPassActionEncode(pObj);
+  if (pRedoRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  TAOS_CHECK_RETURN(mndTransAppendRedolog(pTrans, pRedoRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING));
+  TAOS_RETURN(code);
+}
+
+static int32_t mndSetDropXnodeUserPassCommitLogs(STrans *pTrans, SXnodeUserPassObj *pObj) {
+  int32_t  code = 0;
+  SSdbRaw *pCommitRaw = mndXnodeUserPassActionEncode(pObj);
+  if (pCommitRaw == NULL) {
+    code = terrno;
+    TAOS_RETURN(code);
+  }
+
+  TAOS_CHECK_RETURN(mndTransAppendCommitlog(pTrans, pCommitRaw));
+  TAOS_CHECK_RETURN(sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED));
+  TAOS_RETURN(code);
+}
+
+static int32_t mndDropXnodeUserPass(SMnode *pMnode, SRpcMsg *pReq) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
+  if (pObj == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-xnode-userpass");
+  TSDB_CHECK_NULL(pTrans, code, lino, _OVER, terrno);
+
+  mndTransSetSerial(pTrans);
+  mDebug("trans:%d, to drop xnode user pass:%d", pTrans->id, pObj->id);
+
+  code = mndSetDropXnodeUserPassRedoLogs(pTrans, pObj);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndSetDropXnodeUserPassCommitLogs(pTrans, pObj);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  code = mndTransPrepare(pMnode, pTrans);
+
+_OVER:
+  mndTransDrop(pTrans);
+  mndReleaseXnodeUserPass(pMnode, pObj);
   TAOS_RETURN(code);
 }
 
@@ -1256,6 +1456,10 @@ static SXnodeTaskObj *mndAcquireXnodeTaskById(SMnode *pMnode, int32_t tid) {
 }
 static SXnodeTaskObj *mndAcquireXnodeTaskByName(SMnode *pMnode, const char *name) {
   SSdb *pSdb = pMnode->pSdb;
+  if (name == NULL) {
+    terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
+    return NULL;
+  }
 
   void *pIter = NULL;
   while (1) {
@@ -1303,7 +1507,7 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   int32_t totalStrLen = pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen +
                         pObj->statusLen + pObj->createdByLen + pObj->labelsLen;
   int32_t rawDataLen = sizeof(SXnodeTaskObj) + TSDB_XNODE_RESERVE_SIZE + totalStrLen +
-                       sizeof(int64_t) + sizeof(int32_t);
+                       sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
@@ -1336,6 +1540,7 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pObj->ownerId, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->acctId, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pObj->desiredState, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -1448,6 +1653,14 @@ SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw) {
     SDB_GET_INT64(pRaw, dataPos, &pObj->ownerId, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &pObj->acctId, _OVER)
   }
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pObj->desiredState, _OVER)
+  } else {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
+  if (pObj->desiredState == XNODE_TASK_DESIRED_STATE_UNKNOWN) {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
 
   terrno = 0;
 
@@ -1487,6 +1700,7 @@ int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj 
   taosWLockLatch(&pOld->lock);
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
+  pOld->desiredState = pNew->desiredState;
   swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   swapFields(&pNew->nameLen, &pNew->name, &pOld->nameLen, &pOld->name);
   swapFields(&pNew->sourceDsnLen, &pNew->sourceDsn, &pOld->sourceDsnLen, &pOld->sourceDsn);
@@ -1561,6 +1775,10 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   SUserObj *pOperUser = NULL;
   SXnodeTaskObj xnodeObj = {0};
 
+  // Six-star write-queue authority: reject control markers before the final
+  // object exists and before any commit log is encoded.
+  TAOS_CHECK_GOTO(mndXnodeCheckCreateTaskSixStar(pCreate), NULL, _OVER);
+
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
   xnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_TASK);
   xnodeObj.createTime = taosGetTimestampMs();
@@ -1569,6 +1787,11 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   xnodeObj.xnodeId = pCreate->xnodeId;
   xnodeObj.ownerId = pOperUser->uid;
   xnodeObj.acctId = pOperUser->acctId;
+  xnodeObj.desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+  if (pCreate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pCreate->desiredState, &xnodeObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  }
 
   xnodeObj.nameLen = pCreate->name.len + 1;
   xnodeObj.name = taosMemoryCalloc(1, xnodeObj.nameLen);
@@ -1604,6 +1827,9 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
     xnodeObj.status = taosMemoryCalloc(1, xnodeObj.statusLen);
     if (xnodeObj.status == NULL) goto _OVER;
     (void)memcpy(xnodeObj.status, status, xnodeObj.statusLen - 1);
+    if (pCreate->desiredState.ptr == NULL) {
+      xnodeObj.desiredState = mndXnodeDesiredStateFromStatus(status);
+    }
   }
 
   xnodeObj.createdByLen = strlen(pReq->info.conn.user) + 1;
@@ -1668,13 +1894,13 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
     code = terrno;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "from", srcDsn), NULL, _OVER);
-
   sinkDsn = taosStrndupi(pCreateReq->sink.cstr.ptr, (int64_t)pCreateReq->sink.cstr.len);
   if (sinkDsn == NULL) {
     code = terrno;
     goto _OVER;
   }
+  TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&srcDsn, &sinkDsn), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "from", srcDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "to", sinkDsn), NULL, _OVER);
 
   if (pCreateReq->xnodeId > 0) {
@@ -1778,6 +2004,11 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   // Step 2: Check if task already exists
   TAOS_CHECK_GOTO(mndCheckXnodeTaskExists(pMnode, createReq.name.ptr), NULL, _OVER);
 
+  // Six-star rejection must happen before the candidate DSN is sent to the
+  // xnoded /task/check connector; mndCreateXnodeTask repeats the same check at
+  // the write-queue boundary.
+  TAOS_CHECK_GOTO(mndXnodeCheckCreateTaskSixStar(&createReq), NULL, _OVER);
+
   // Step 3: Parse and validate request
   TAOS_CHECK_GOTO(mndValidateCreateXnodeTaskReq(pReq, &createReq), NULL, _OVER);
 
@@ -1794,19 +2025,18 @@ _OVER:
   TAOS_RETURN(code);
 }
 
-static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
+// Builds the POST body for starting pObj. Local failures (allocation, JSON,
+// DSN envelope encryption) are deterministic and fail-closed: the caller must
+// surface them before committing the desired-state transaction.
+static int32_t httpBuildStartXnodeTaskBody(const SXnodeTaskObj *pObj, char **ppContStr) {
   int32_t code = 0;
   struct {
-    char   xnodeUrl[TSDB_XNODE_URL_LEN + 1];
     SJson *postContent;
-    SJson *pJson;
-    char  *pContStr;
     char  *srcDsn;
     char  *sinkDsn;
     char  *parser;
   } req = {0};
 
-  snprintf(req.xnodeUrl, TSDB_XNODE_URL_LEN + 1, "%s/task/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
   req.postContent = tjsonCreateObject();
   if (req.postContent == NULL) {
     code = terrno;
@@ -1817,13 +2047,13 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
     code = terrno;
     goto _OVER;
   }
-  TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "from", req.srcDsn), NULL, _OVER);
-
   req.sinkDsn = taosStrndupi(pObj->sinkDsn, (int64_t)pObj->sinkDsnLen);
   if (req.sinkDsn == NULL) {
     code = terrno;
     goto _OVER;
   }
+  TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&req.srcDsn, &req.sinkDsn), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "from", req.srcDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "to", req.sinkDsn), NULL, _OVER);
 
   if (pObj->parserLen > 0) {
@@ -1851,22 +2081,41 @@ static int32_t httpStartXnodeTask(SXnodeTaskObj *pObj) {
     TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "labels", pObj->labels), NULL, _OVER);
   }
 
-  req.pContStr = tjsonToUnformattedString(req.postContent);
-  if (req.pContStr == NULL) {
+  *ppContStr = tjsonToUnformattedString(req.postContent);
+  if (*ppContStr == NULL) {
     code = terrno;
     goto _OVER;
   }
-  mDebug("start xnode task:%d, request bytes:%zu", pObj->id, strlen(req.pContStr));
-  req.pJson = mndSendReqRetJson(req.xnodeUrl, HTTP_TYPE_POST, defaultTimeout, req.pContStr, strlen(req.pContStr));
+  mDebug("start xnode task:%d, request bytes:%zu", pObj->id, strlen(*ppContStr));
 
 _OVER:
-  if (req.pContStr != NULL) taosMemoryFreeClear(req.pContStr);
   if (req.postContent != NULL) tjsonDelete(req.postContent);
-  if (req.pJson != NULL) tjsonDelete(req.pJson);
   if (req.srcDsn != NULL) taosMemoryFreeClear(req.srcDsn);
   if (req.sinkDsn != NULL) taosMemoryFreeClear(req.sinkDsn);
   if (req.parser != NULL) taosMemoryFreeClear(req.parser);
   TAOS_RETURN(code);
+}
+
+// Fire-and-forget start notification: the desired state is already committed,
+// so a failed send only delays the notification and is intentionally not
+// surfaced to the client.
+static void httpStartXnodeTask(const SXnodeTaskObj *pObj, const char *pContStr) {
+  char   xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
+  SJson *pJson = NULL;
+  snprintf(xnodeUrl, TSDB_XNODE_URL_LEN + 1, "%s/task/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pContStr, strlen(pContStr));
+  if (pJson != NULL) tjsonDelete(pJson);
+}
+
+static int32_t mndUpdateXnodeTaskDesiredState(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pObj,
+                                             int8_t desiredState) {
+  SMUpdateXnodeTaskReq updateReq = {0};
+  updateReq.tid = pObj->id;
+  const char *desiredStateName = mndXnodeDesiredStateName(desiredState);
+  updateReq.desiredState = xCreateCowStr((int32_t)strlen(desiredStateName), desiredStateName, false);
+  int32_t code = mndUpdateXnodeTask(pMnode, pReq, pObj, &updateReq);
+  tFreeSMUpdateXnodeTaskReq(&updateReq);
+  return code;
 }
 
 static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
@@ -1875,6 +2124,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   SXnodeTaskObj      *pObj = NULL;
   SMStartXnodeTaskReq startReq = {0};
   SXnodeTaskObj      *pObjClone = NULL;
+  char               *pStartBody = NULL;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_START_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1903,12 +2153,21 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
-  (void)httpStartXnodeTask(pObj);
+  // Build the (possibly envelope-encrypted) start body before committing the
+  // desired-state transaction: local build failures (allocation, JSON, DSN
+  // envelope encryption) are deterministic and must reach the client without
+  // leaving a committed running intent behind.
+  code = httpBuildStartXnodeTaskBody(pObj, &pStartBody);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_RUNNING);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  httpStartXnodeTask(pObj, pStartBody);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("xnode task:%d, failed to start since %s", startReq.tid, tstrerror(code));
   }
+  if (pStartBody != NULL) taosMemoryFreeClear(pStartBody);
   tFreeSMStartXnodeTaskReq(&startReq);
   if (pObj != NULL) {
     mndReleaseXnodeTask(pMnode, pObj);
@@ -1954,6 +2213,8 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
+  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_STOPPED);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
 
   // send request
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
@@ -1987,6 +2248,15 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     bool reason;
     bool labels;
   } isChange = {0};
+  char   *mergedSource = NULL;
+  char   *mergedSink = NULL;
+  int32_t mergedSourceLen = 0;
+  int32_t mergedSinkLen = 0;
+
+  // Six-star KEEP/REPLACE merge against the committed object, before the final
+  // object is assembled and the commit log is encoded.
+  code = mndXnodeMergeUpdateTaskSixStar(pOld, pUpdate, &mergedSource, &mergedSourceLen, &mergedSink, &mergedSinkLen);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
 
   if (pUpdate->via > 0) {
     taskObj.via = pUpdate->via;
@@ -2004,6 +2274,10 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     (void)memcpy(taskObj.status, pUpdate->status.ptr, pUpdate->status.len);
     isChange.status = true;
   }
+  if (pUpdate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pUpdate->desiredState, &taskObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  }
   if (pUpdate->updateName.ptr != NULL) {
     taskObj.nameLen = pUpdate->updateName.len + 1;
     taskObj.name = taosMemoryCalloc(1, taskObj.nameLen);
@@ -2016,24 +2290,36 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
   }
   if (pUpdate->source.cstr.ptr != NULL) {
     taskObj.sourceType = pUpdate->source.type;
-    taskObj.sourceDsnLen = pUpdate->source.cstr.len + 1;
-    taskObj.sourceDsn = taosMemoryCalloc(1, taskObj.sourceDsnLen);
-    if (taskObj.sourceDsn == NULL) {
-      code = terrno;
-      goto _OVER;
+    if (mergedSource != NULL) {
+      taskObj.sourceDsnLen = mergedSourceLen + 1;
+      taskObj.sourceDsn = mergedSource;
+      mergedSource = NULL;
+    } else {
+      taskObj.sourceDsnLen = pUpdate->source.cstr.len + 1;
+      taskObj.sourceDsn = taosMemoryCalloc(1, taskObj.sourceDsnLen);
+      if (taskObj.sourceDsn == NULL) {
+        code = terrno;
+        goto _OVER;
+      }
+      (void)memcpy(taskObj.sourceDsn, pUpdate->source.cstr.ptr, pUpdate->source.cstr.len);
     }
-    (void)memcpy(taskObj.sourceDsn, pUpdate->source.cstr.ptr, pUpdate->source.cstr.len);
     isChange.source = true;
   }
   if (pUpdate->sink.cstr.ptr != NULL) {
     taskObj.sinkType = pUpdate->sink.type;
-    taskObj.sinkDsnLen = pUpdate->sink.cstr.len + 1;
-    taskObj.sinkDsn = taosMemoryCalloc(1, taskObj.sinkDsnLen);
-    if (taskObj.sinkDsn == NULL) {
-      code = terrno;
-      goto _OVER;
+    if (mergedSink != NULL) {
+      taskObj.sinkDsnLen = mergedSinkLen + 1;
+      taskObj.sinkDsn = mergedSink;
+      mergedSink = NULL;
+    } else {
+      taskObj.sinkDsnLen = pUpdate->sink.cstr.len + 1;
+      taskObj.sinkDsn = taosMemoryCalloc(1, taskObj.sinkDsnLen);
+      if (taskObj.sinkDsn == NULL) {
+        code = terrno;
+        goto _OVER;
+      }
+      (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
     }
-    (void)memcpy(taskObj.sinkDsn, pUpdate->sink.cstr.ptr, pUpdate->sink.cstr.len);
     isChange.sink = true;
   }
   if (pUpdate->parser.ptr != NULL) {
@@ -2097,6 +2383,8 @@ _OVER:
   if (NULL != taskObj.sinkDsn && isChange.sink) {
     taosMemoryFree(taskObj.sinkDsn);
   }
+  taosMemoryFree(mergedSource);
+  taosMemoryFree(mergedSink);
   if (NULL != taskObj.parser && isChange.parser) {
     taosMemoryFree(taskObj.parser);
   }
@@ -2304,6 +2592,2163 @@ int32_t mndSetXnodeBlobColumn(SColumnInfoData *pColInfo, int32_t row, const char
   return varColSetVarData(pColInfo, row, data, contentLen, false);
 }
 
+static int32_t mndXnodeProtectionError(void) { return TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED; }
+
+#define XNODE_SHOW_MASK_VALUE     "******"
+#define XNODE_SHOW_MASK_VALUE_LEN 6
+// The hand-rolled JSON scanner below replaced the cJSON document parse and must
+// keep the same nesting bound the DOM parser used to enforce (CJSON_NESTING_LIMIT).
+#define XNODE_SHOW_JSON_MAX_DEPTH 1000
+
+static int32_t mndXnodeHexValue(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+static bool mndXnodeUtf8Valid(const char *value, int32_t len) {
+  if (value == NULL || len < 0) return false;
+  for (int32_t i = 0; i < len;) {
+    const uint8_t first = (uint8_t)value[i++];
+    if (first <= 0x7f) continue;
+    int32_t extra = 0;
+    uint32_t codepoint = 0;
+    if (first >= 0xc2 && first <= 0xdf) {
+      extra = 1;
+      codepoint = first & 0x1f;
+    } else if (first >= 0xe0 && first <= 0xef) {
+      extra = 2;
+      codepoint = first & 0x0f;
+    } else if (first >= 0xf0 && first <= 0xf4) {
+      extra = 3;
+      codepoint = first & 0x07;
+    } else {
+      return false;
+    }
+    if (len - i < extra) return false;
+    for (int32_t j = 0; j < extra; ++j) {
+      const uint8_t next = (uint8_t)value[i++];
+      if ((next & 0xc0) != 0x80) return false;
+      codepoint = (codepoint << 6) | (next & 0x3f);
+    }
+    if ((extra == 1 && codepoint < 0x80) || (extra == 2 && codepoint < 0x800) ||
+        (extra == 3 && codepoint < 0x10000) || codepoint > 0x10ffff ||
+        (codepoint >= 0xd800 && codepoint <= 0xdfff)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Lenient percent decoding mirroring the connector DSN parser (mdsn): `%`
+// decodes only when followed by two ASCII hex characters, otherwise it is
+// copied as a literal byte. An invalid sequence therefore still contains a
+// literal `%` and can never decode to the six-star control marker.
+static int32_t mndXnodePercentDecode(const char *value, int32_t len, char **decoded, int32_t *decodedLen) {
+  if (value == NULL || len < 0 || decoded == NULL || decodedLen == NULL || *decoded != NULL) {
+    return mndXnodeProtectionError();
+  }
+  *decodedLen = 0;
+  char *out = taosMemoryMalloc((size_t)len + 1);
+  if (out == NULL) return mndXnodeProtectionError();
+  int32_t outLen = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    if (value[i] == '%' && i + 2 < len && mndXnodeHexValue(value[i + 1]) >= 0 &&
+        mndXnodeHexValue(value[i + 2]) >= 0) {
+      out[outLen++] = (char)((mndXnodeHexValue(value[i + 1]) << 4) | mndXnodeHexValue(value[i + 2]));
+      i += 2;
+    } else {
+      out[outLen++] = value[i];
+    }
+  }
+  for (int32_t i = 0; i < outLen; ++i) {
+    if ((unsigned char)out[i] == 0) {
+      taosMemoryFree(out);
+      return mndXnodeProtectionError();
+    }
+  }
+  out[outLen] = 0;
+  *decoded = out;
+  *decodedLen = outLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeNormalizeSensitiveKey(char *key, int32_t len) {
+  int32_t outLen = 0;
+  for (int32_t i = 0; i < len; ++i) {
+    char c = key[i];
+    if (c == '_' || c == '-' || c == '.') continue;
+    if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+    key[outLen++] = c;
+  }
+  key[outLen] = 0;
+  return outLen;
+}
+
+static bool mndXnodeSensitiveNormalizedMatch(const char *key, int32_t outLen) {
+  return strstr(key, "password") != NULL || strstr(key, "passwd") != NULL || strstr(key, "privatekey") != NULL ||
+         strcmp(key, "certkey") == 0 || strcmp(key, "sslclientkey") == 0 || strcmp(key, "sslkeypem") == 0 ||
+         strstr(key, "secret") != NULL || strstr(key, "apikey") != NULL || strstr(key, "accessid") != NULL ||
+         strstr(key, "accesskey") != NULL || strstr(key, "totpcode") != NULL || strcmp(key, "token") == 0 ||
+         (outLen >= 5 && strcmp(key + outLen - 5, "token") == 0);
+}
+
+static bool mndXnodeSensitiveKey(char *key, int32_t len) {
+  return mndXnodeSensitiveNormalizedMatch(key, mndXnodeNormalizeSensitiveKey(key, len));
+}
+
+static int32_t mndXnodeMaskDsnInternal(const char *dsn, int32_t dsnLen, char **masked, int32_t *maskedLen) {
+  if (dsn == NULL || dsnLen < 0 || masked == NULL || maskedLen == NULL || *masked != NULL) {
+    return mndXnodeProtectionError();
+  }
+  *maskedLen = 0;
+  if (!mndXnodeUtf8Valid(dsn, dsnLen)) return mndXnodeProtectionError();
+  for (int32_t i = 0; i < dsnLen; ++i) {
+    if ((unsigned char)dsn[i] == 0) return mndXnodeProtectionError();
+  }
+
+  // The masker mirrors the connector DSN parser (mdsn): there is no fragment
+  // concept ('#' is an ordinary data byte), a URL-form DSN (with "://") starts
+  // its query at the LAST '?', and a path-like DSN (e.g. csv:/path?x=1) starts
+  // it at the FIRST '?'. The query region runs to the end of the DSN.
+  int32_t replacements = 0;
+  int32_t firstQuestion = -1;
+  int32_t lastQuestion = -1;
+  for (int32_t i = 0; i < dsnLen; ++i) {
+    if (dsn[i] == '?') {
+      if (firstQuestion < 0) firstQuestion = i;
+      lastQuestion = i;
+    }
+  }
+
+  int32_t schemeEnd = -1;
+  for (int32_t i = 0; i + 2 < dsnLen; ++i) {
+    if (dsn[i] == '/' || dsn[i] == '?') break;
+    if (dsn[i] == ':' && dsn[i + 1] == '/' && dsn[i + 2] == '/') {
+      schemeEnd = i + 3;
+      break;
+    }
+  }
+  int32_t queryPos = schemeEnd >= 0 ? lastQuestion : firstQuestion;
+  if (schemeEnd >= 0) {
+    int32_t authorityEnd = dsnLen;
+    for (int32_t i = schemeEnd; i < dsnLen; ++i) {
+      if (dsn[i] == '/') {
+        authorityEnd = i;
+        break;
+      }
+    }
+    if (queryPos >= 0 && queryPos < authorityEnd) authorityEnd = queryPos;
+    // The last '@' separates userinfo from host, matching the taosx DSN parser,
+    // so passwords containing '@' remain maskable. Authority shape alone never
+    // fails closed, matching the write path: an empty authority or an empty
+    // userinfo carries no password slot and passes through, and an empty host
+    // does not exclude the slot.
+    int32_t at = -1;
+    for (int32_t i = schemeEnd; i < authorityEnd; ++i) {
+      if (dsn[i] == '@') {
+        at = i;
+      }
+    }
+    if (at > schemeEnd) {
+      int32_t colon = -1;
+      for (int32_t i = schemeEnd; i < at; ++i) {
+        if (dsn[i] == ':') {
+          colon = i;
+          break;
+        }
+      }
+      if (colon >= schemeEnd && colon < at) replacements += 1;
+    }
+  }
+
+  if (queryPos >= 0) {
+    int32_t pos = queryPos + 1;
+    // Query parameters are separated by '&' alone; ';' is an ordinary value
+    // byte (e.g. kafka sasl_password=p1;p2, OPC UA ns=3;i=1004).
+    while (pos < dsnLen) {
+      int32_t end = pos;
+      while (end < dsnLen && dsn[end] != '&') ++end;
+      int32_t equal = pos;
+      while (equal < end && dsn[equal] != '=') ++equal;
+      char *key = NULL;
+      int32_t keyLen = 0;
+      int32_t code = mndXnodePercentDecode(dsn + pos, equal - pos, &key, &keyLen);
+      // Decoding is lenient: an invalid `%` sequence stays as literal bytes
+      // and the key is classified as-is. A key that still cannot be decoded
+      // (decoded NUL) cannot be classified; mask its value conservatively
+      // instead of failing the whole DSN.
+      bool sensitive = equal < end && (code != TSDB_CODE_SUCCESS || mndXnodeSensitiveKey(key, keyLen));
+      taosMemoryFree(key);
+      if (sensitive) replacements += 1;
+      pos = end + 1;
+    }
+  }
+
+  int64_t outputLen = (int64_t)dsnLen + (int64_t)replacements * XNODE_SHOW_MASK_VALUE_LEN;
+  if (outputLen > INT32_MAX) return mndXnodeProtectionError();
+  char *out = taosMemoryMalloc((size_t)outputLen + 1);
+  if (out == NULL) return mndXnodeProtectionError();
+  int32_t outPos = 0;
+  int32_t pos = 0;
+  while (pos < dsnLen) {
+    if (schemeEnd >= 0 && pos == schemeEnd) {
+      int32_t authorityEnd = dsnLen;
+      for (int32_t i = schemeEnd; i < dsnLen; ++i) {
+        if (dsn[i] == '/') {
+          authorityEnd = i;
+          break;
+        }
+      }
+      if (queryPos >= 0 && queryPos < authorityEnd) authorityEnd = queryPos;
+      int32_t at = -1;
+      for (int32_t i = schemeEnd; i < authorityEnd; ++i) if (dsn[i] == '@') at = i;
+      if (at > schemeEnd) {
+        int32_t colon = -1;
+        for (int32_t i = schemeEnd; i < at; ++i) {
+          if (dsn[i] == ':') {
+            colon = i;
+            break;
+          }
+        }
+        if (colon >= schemeEnd && colon < at) {
+          memcpy(out + outPos, dsn + pos, (size_t)(colon + 1 - pos));
+          outPos += colon + 1 - pos;
+          memcpy(out + outPos, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN);
+          outPos += XNODE_SHOW_MASK_VALUE_LEN;
+          pos = at;
+          continue;
+        }
+      }
+    }
+    if (queryPos >= 0 && pos == queryPos + 1) {
+      int32_t q = pos;
+      while (q < dsnLen) {
+        int32_t itemEnd = q;
+        while (itemEnd < dsnLen && dsn[itemEnd] != '&') ++itemEnd;
+        int32_t equal = q;
+        while (equal < itemEnd && dsn[equal] != '=') ++equal;
+        char *key = NULL;
+        int32_t keyLen = 0;
+        int32_t code = mndXnodePercentDecode(dsn + q, equal - q, &key, &keyLen);
+        bool sensitive = equal < itemEnd && (code != TSDB_CODE_SUCCESS || mndXnodeSensitiveKey(key, keyLen));
+        taosMemoryFree(key);
+        int32_t valueStart = equal < itemEnd ? equal + 1 : itemEnd;
+        memcpy(out + outPos, dsn + q, (size_t)(valueStart - q));
+        outPos += valueStart - q;
+        if (sensitive) {
+          memcpy(out + outPos, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN);
+          outPos += XNODE_SHOW_MASK_VALUE_LEN;
+        } else {
+          memcpy(out + outPos, dsn + valueStart, (size_t)(itemEnd - valueStart));
+          outPos += itemEnd - valueStart;
+        }
+        if (itemEnd < dsnLen) out[outPos++] = dsn[itemEnd];
+        q = itemEnd + 1;
+      }
+      pos = dsnLen;
+      continue;
+    }
+    out[outPos++] = dsn[pos++];
+  }
+  out[outPos] = 0;
+  *masked = out;
+  *maskedLen = outPos;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mndXnodeMaskDsnForShow(const char *dsn, int32_t dsnLen, char **masked, int32_t *maskedLen) {
+  return mndXnodeMaskDsnInternal(dsn, dsnLen, masked, maskedLen);
+}
+
+int32_t mndXnodeResolveShowMode(int32_t protection, int8_t requestMode, int8_t *effectiveMode) {
+  if (effectiveMode == NULL || (requestMode != XNODE_DSN_OUTPUT_DEFAULT && requestMode != XNODE_DSN_OUTPUT_ENCRYPTED)) {
+    return mndXnodeProtectionError();
+  }
+  if (protection == 0) {
+    // With protection disabled, even an explicit WITH ENCRYPTED request is
+    // intentionally downgraded to plaintext and reported as success.
+    *effectiveMode = XNODE_SHOW_OUTPUT_PLAINTEXT;
+#ifdef WINDOWS
+  } else {
+    return TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
+#else
+  } else {
+    *effectiveMode = requestMode == XNODE_DSN_OUTPUT_ENCRYPTED ? XNODE_SHOW_OUTPUT_ENCRYPTED : XNODE_SHOW_OUTPUT_MASKED;
+#endif
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+bool mndXnodeShowFilterMatches(int8_t filterType, int64_t filterValue, int32_t taskId, int32_t jobTaskId) {
+  if (filterType == XNODE_RETRIEVE_FILTER_NONE) return filterValue == 0;
+  if (filterValue < 0 || filterValue > INT32_MAX) return false;
+  if (filterType == XNODE_RETRIEVE_FILTER_ID_EQ) return taskId == (int32_t)filterValue;
+  if (filterType == XNODE_RETRIEVE_FILTER_TASK_ID_EQ) return jobTaskId == (int32_t)filterValue;
+  return false;
+}
+
+typedef struct {
+  int32_t start;
+  int32_t end;
+  bool    present;
+} SXnodeJsonSpan;
+
+static int32_t mndXnodeSkipJsonString(const char *input, int32_t len, int32_t *pos) {
+  if (*pos >= len || input[*pos] != '"') return mndXnodeProtectionError();
+  ++(*pos);
+  while (*pos < len) {
+    unsigned char c = (unsigned char)input[*pos];
+    if (c == '"') {
+      ++(*pos);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (c < 0x20) return mndXnodeProtectionError();
+    if (c == '\\') {
+      ++(*pos);
+      if (*pos >= len) return mndXnodeProtectionError();
+      c = (unsigned char)input[(*pos)++];
+      if (c == 'u') {
+        if (len - *pos < 4) return mndXnodeProtectionError();
+        for (int32_t i = 0; i < 4; ++i) {
+          if (mndXnodeHexValue(input[*pos + i]) < 0) return mndXnodeProtectionError();
+        }
+        if (input[*pos] == '0' && input[*pos + 1] == '0' && input[*pos + 2] == '0' && input[*pos + 3] == '0') {
+          return mndXnodeProtectionError();
+        }
+        *pos += 4;
+      } else if (c != '"' && c != '\\' && c != '/' && c != 'b' && c != 'f' && c != 'n' && c != 'r' && c != 't') {
+        return mndXnodeProtectionError();
+      }
+    } else {
+      ++(*pos);
+    }
+  }
+  return mndXnodeProtectionError();
+}
+
+static void mndXnodeSkipJsonWhitespace(const char *input, int32_t len, int32_t *pos) {
+  while (*pos < len &&
+         (input[*pos] == ' ' || input[*pos] == '\t' || input[*pos] == '\r' || input[*pos] == '\n')) {
+    ++(*pos);
+  }
+}
+
+// Bare scalars must be strict RFC 8259 literals (true, false, null, or
+// -?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?); the removed cJSON document parse used
+// to provide this strictness, so the scanner now enforces it itself.
+static int32_t mndXnodeSkipJsonLiteral(const char *input, int32_t len, int32_t *pos) {
+  const int32_t start = *pos;
+  const char    c = input[start];
+  if (c == 't' || c == 'f' || c == 'n') {
+    const char   *word = c == 't' ? "true" : c == 'f' ? "false" : "null";
+    const int32_t wordLen = c == 'f' ? 5 : 4;
+    if (len - start < wordLen || memcmp(input + start, word, (size_t)wordLen) != 0) {
+      return mndXnodeProtectionError();
+    }
+    *pos = start + wordLen;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t p = start;
+  if (input[p] == '-') ++p;
+  if (p >= len) return mndXnodeProtectionError();
+  if (input[p] == '0') {
+    ++p;
+  } else if (input[p] >= '1' && input[p] <= '9') {
+    while (p < len && input[p] >= '0' && input[p] <= '9') ++p;
+  } else {
+    return mndXnodeProtectionError();
+  }
+  if (p < len && input[p] == '.') {
+    ++p;
+    if (p >= len || input[p] < '0' || input[p] > '9') return mndXnodeProtectionError();
+    while (p < len && input[p] >= '0' && input[p] <= '9') ++p;
+  }
+  if (p < len && (input[p] == 'e' || input[p] == 'E')) {
+    ++p;
+    if (p < len && (input[p] == '+' || input[p] == '-')) ++p;
+    if (p >= len || input[p] < '0' || input[p] > '9') return mndXnodeProtectionError();
+    while (p < len && input[p] >= '0' && input[p] <= '9') ++p;
+  }
+  *pos = p;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeSkipJsonValue(const char *input, int32_t len, int32_t *pos, int32_t depth) {
+  if (depth > XNODE_SHOW_JSON_MAX_DEPTH) return mndXnodeProtectionError();
+  if (*pos >= len) return mndXnodeProtectionError();
+  if (input[*pos] == '"') return mndXnodeSkipJsonString(input, len, pos);
+  if (input[*pos] == '{' || input[*pos] == '[') {
+    const char open = input[(*pos)++];
+    const char close = open == '{' ? '}' : ']';
+    bool first = true;
+    while (true) {
+      mndXnodeSkipJsonWhitespace(input, len, pos);
+      if (*pos >= len) return mndXnodeProtectionError();
+      if (input[*pos] == close) {
+        ++(*pos);
+        return TSDB_CODE_SUCCESS;
+      }
+      if (!first) {
+        if (input[(*pos)++] != ',') return mndXnodeProtectionError();
+        mndXnodeSkipJsonWhitespace(input, len, pos);
+      }
+      if (open == '{') {
+        if (mndXnodeSkipJsonString(input, len, pos) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+        mndXnodeSkipJsonWhitespace(input, len, pos);
+        if (*pos >= len || input[(*pos)++] != ':') return mndXnodeProtectionError();
+        mndXnodeSkipJsonWhitespace(input, len, pos);
+      }
+      if (mndXnodeSkipJsonValue(input, len, pos, depth + 1) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+      first = false;
+    }
+  }
+  return mndXnodeSkipJsonLiteral(input, len, pos);
+}
+
+static int32_t mndXnodeFindJobConfigSpans(const char *config, int32_t configLen, SXnodeJsonSpan *from,
+                                          SXnodeJsonSpan *to) {
+  int32_t pos = 0;
+  mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+  if (pos >= configLen || config[pos++] != '{') return mndXnodeProtectionError();
+  bool first = true;
+  while (true) {
+    mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    if (pos >= configLen) return mndXnodeProtectionError();
+    if (config[pos] == '}') {
+      ++pos;
+      break;
+    }
+    if (!first) {
+      if (config[pos++] != ',') return mndXnodeProtectionError();
+      mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    }
+    int32_t keyStart = pos;
+    if (mndXnodeSkipJsonString(config, configLen, &pos) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+    int32_t keyEnd = pos;
+    for (int32_t i = keyStart + 1; i + 1 < keyEnd; ++i) {
+      if (config[i] == '\\') return mndXnodeProtectionError();
+    }
+    mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    if (pos >= configLen || config[pos++] != ':') {
+      return mndXnodeProtectionError();
+    }
+    mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+    const int32_t keyLen = keyEnd - keyStart - 2;
+    bool          isFrom = keyLen == 4 && memcmp(config + keyStart + 1, "from", 4) == 0;
+    bool          isTo = keyLen == 2 && memcmp(config + keyStart + 1, "to", 2) == 0;
+    int32_t valueStart = pos;
+    if (mndXnodeSkipJsonValue(config, configLen, &pos, 1) != TSDB_CODE_SUCCESS) return mndXnodeProtectionError();
+    if (isFrom || isTo) {
+      if (config[valueStart] != '"') return mndXnodeProtectionError();
+      SXnodeJsonSpan *span = isFrom ? from : to;
+      if (span->present) return mndXnodeProtectionError();
+      span->start = valueStart;
+      span->end = pos;
+      span->present = true;
+    }
+    first = false;
+  }
+  mndXnodeSkipJsonWhitespace(config, configLen, &pos);
+  return pos == configLen ? TSDB_CODE_SUCCESS : mndXnodeProtectionError();
+}
+
+static int32_t mndXnodeDecodeJsonString(const char *raw, int32_t rawLen, char **decoded, int32_t *decodedLen) {
+  if (decoded == NULL || decodedLen == NULL || *decoded != NULL || raw == NULL || rawLen <= 1) {
+    return mndXnodeProtectionError();
+  }
+  *decodedLen = 0;
+  for (int32_t i = 0; i < rawLen; ++i) {
+    if ((unsigned char)raw[i] == 0) return mndXnodeProtectionError();
+    if (raw[i] == '\\' && i + 5 < rawLen && raw[i + 1] == 'u' && raw[i + 2] == '0' && raw[i + 3] == '0' &&
+        raw[i + 4] == '0' && raw[i + 5] == '0') {
+      int32_t precedingSlashes = 0;
+      for (int32_t j = i - 1; j >= 0 && raw[j] == '\\'; --j) ++precedingSlashes;
+      if ((precedingSlashes & 1) == 0) return mndXnodeProtectionError();
+    }
+  }
+  cJSON *value = cJSON_ParseWithLength(raw, rawLen);
+  if (value == NULL || !cJSON_IsString(value) || value->valuestring == NULL) {
+    if (value != NULL) cJSON_Delete(value);
+    return mndXnodeProtectionError();
+  }
+  int32_t len = (int32_t)strlen(value->valuestring);
+  char *copy = taosMemoryMalloc((size_t)len + 1);
+  if (copy == NULL) {
+    cJSON_Delete(value);
+    return mndXnodeProtectionError();
+  }
+  memcpy(copy, value->valuestring, (size_t)len);
+  copy[len] = 0;
+  cJSON_Delete(value);
+  *decoded = copy;
+  *decodedLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeJsonEscape(const char *value, int32_t valueLen, char **escaped, int32_t *escapedLen) {
+  int64_t capacity = (int64_t)valueLen * 6 + 1;
+  if (capacity > INT32_MAX || escaped == NULL || escapedLen == NULL || *escaped != NULL) {
+    return mndXnodeProtectionError();
+  }
+  char *out = taosMemoryMalloc((size_t)capacity);
+  if (out == NULL) return mndXnodeProtectionError();
+  int32_t pos = 0;
+  for (int32_t i = 0; i < valueLen; ++i) {
+    unsigned char c = (unsigned char)value[i];
+    if (c == '"' || c == '\\') {
+      out[pos++] = '\\';
+      out[pos++] = (char)c;
+    } else if (c == '\b' || c == '\f' || c == '\n' || c == '\r' || c == '\t') {
+      out[pos++] = '\\';
+      out[pos++] = c == '\b' ? 'b' : c == '\f' ? 'f' : c == '\n' ? 'n' : c == '\r' ? 'r' : 't';
+    } else if (c < 0x20) {
+      static const char hex[] = "0123456789abcdef";
+      out[pos++] = '\\';
+      out[pos++] = 'u';
+      out[pos++] = '0';
+      out[pos++] = '0';
+      out[pos++] = hex[c >> 4];
+      out[pos++] = hex[c & 0xf];
+    } else {
+      out[pos++] = (char)c;
+    }
+  }
+  out[pos] = 0;
+  *escaped = out;
+  *escapedLen = pos;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeJsonQuote(const char *value, int32_t valueLen, char **quoted, int32_t *quotedLen) {
+  if (quoted == NULL || quotedLen == NULL || *quoted != NULL || value == NULL || valueLen < 0) {
+    return mndXnodeProtectionError();
+  }
+  *quotedLen = 0;
+  if (valueLen > INT32_MAX - 3) return mndXnodeProtectionError();
+
+  char *out = taosMemoryMalloc((size_t)valueLen + 3);
+  if (out == NULL) return mndXnodeProtectionError();
+  out[0] = '"';
+  if (valueLen > 0) memcpy(out + 1, value, (size_t)valueLen);
+  out[valueLen + 1] = '"';
+  out[valueLen + 2] = 0;
+  *quoted = out;
+  *quotedLen = valueLen + 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeEncryptDsnForShow(SShowObj *pShow, const char *dsn, int32_t dsnLen, uint32_t maxPlainLen,
+                                         char **encoded, int32_t *encodedLen) {
+#ifdef WINDOWS
+  (void)pShow;
+  (void)dsn;
+  (void)dsnLen;
+  (void)maxPlainLen;
+  if (encoded != NULL) *encoded = NULL;
+  if (encodedLen != NULL) *encodedLen = 0;
+  return mndXnodeProtectionError();
+#else
+  if (pShow == NULL || encoded == NULL || encodedLen == NULL || *encoded != NULL || dsn == NULL || dsnLen < 0) {
+    return mndXnodeProtectionError();
+  }
+  *encodedLen = 0;
+  if (pShow->pXnodeBatch == NULL) {
+    const SEnvelopePublicKey *key = taosGetXnodeDsnPublicKey();
+    SEnvelopeBatch           *batch = NULL;
+    if (key == NULL || envelopeBatchBegin(key, &batch) != ENVELOPE_CRYPTO_SUCCESS) {
+      return mndXnodeProtectionError();
+    }
+    if (pShow->pXnodeBatch != NULL) {
+      // A concurrent retrieve on the same show object began a batch first: free
+      // this duplicate instead of overwriting the live batch, which would leak
+      // its key material. (Concurrent retrieves of one show object race exactly
+      // like the pre-existing SShowObj.pIter access; that class is not new.)
+      (void)envelopeBatchAbort(&batch);
+    } else {
+      pShow->pXnodeBatch = batch;
+    }
+  }
+  uint32_t length = 0;
+  int32_t code = envelopeBatchEncryptField((SEnvelopeBatch *)pShow->pXnodeBatch, (const uint8_t *)dsn,
+                                           (uint32_t)dsnLen, maxPlainLen, encoded, &length);
+  if (code != ENVELOPE_CRYPTO_SUCCESS) return mndXnodeProtectionError();
+  *encodedLen = (int32_t)length;
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
+// When xnodeDsnProtection=1, the mnode->xnoded HTTP control channel carries
+// ciphertext: each non-NULL DSN string is replaced in place with its V1
+// envelope, encrypted under one request-level batch with the shared public
+// key, so xnoded marks the fields Encrypted and re-encrypts them on the
+// outbound RPC. Protection=0 passes the strings through unchanged. Any
+// failure is fail-closed: the originals are left untouched and the caller
+// must abort the request without sending it.
+int32_t mndXnodeProtectHttpTaskDsns(char **fromDsn, char **toDsn) {
+#ifdef WINDOWS
+  if (tsXnodeDsnProtection != 0) return mndXnodeProtectionError();
+  return TSDB_CODE_SUCCESS;
+#else
+  if (tsXnodeDsnProtection == 0) return TSDB_CODE_SUCCESS;
+  if (fromDsn == NULL || toDsn == NULL) return mndXnodeProtectionError();
+  if (*fromDsn == NULL && *toDsn == NULL) return TSDB_CODE_SUCCESS;
+
+  const SEnvelopePublicKey *key = taosGetXnodeDsnPublicKey();
+  SEnvelopeBatch           *batch = NULL;
+  if (key == NULL || envelopeBatchBegin(key, &batch) != ENVELOPE_CRYPTO_SUCCESS) {
+    return mndXnodeProtectionError();
+  }
+
+  struct {
+    char    **input;
+    uint32_t  cap;
+    char     *encoded;
+    uint32_t  encodedLen;
+  } fields[2] = {{fromDsn, TSDB_XNODE_TASK_SOURCE_LEN, NULL, 0}, {toDsn, TSDB_XNODE_TASK_SINK_LEN, NULL, 0}};
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < 2; ++i) {
+    if (*fields[i].input == NULL) continue;
+    if (envelopeBatchEncryptField(batch, (const uint8_t *)(*fields[i].input), (uint32_t)strlen(*fields[i].input),
+                                  fields[i].cap, &fields[i].encoded, &fields[i].encodedLen) !=
+        ENVELOPE_CRYPTO_SUCCESS) {
+      code = mndXnodeProtectionError();
+      break;
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS && envelopeBatchFinish(&batch) != ENVELOPE_CRYPTO_SUCCESS) {
+    code = mndXnodeProtectionError();
+  }
+  (void)envelopeBatchAbort(&batch);  // no-op after a successful finish; releases the batch on failure
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(fields[0].encoded);
+    taosMemoryFree(fields[1].encoded);
+    return code;
+  }
+  for (int32_t i = 0; i < 2; ++i) {
+    if (fields[i].encoded == NULL) continue;
+    taosMemoryFreeClear(*fields[i].input);  // wipe the plaintext copy before swapping in the envelope
+    *fields[i].input = fields[i].encoded;
+  }
+  return TSDB_CODE_SUCCESS;
+#endif
+}
+
+// Decodes one top-level from/to string span and rewrites it for the show output
+// mode (masked + re-escaped, or envelope-encrypted). Failures are logged with the
+// show id and the failing stage; the config content itself is never logged.
+static int32_t mndXnodeProjectConfigDsnValue(SShowObj *pShow, const char *name, const char *raw, int32_t rawLen,
+                                             char **replacement, int32_t *replacementLen) {
+  const char *stage = "decode";
+  char       *decoded = NULL;
+  int32_t     decodedLen = 0;
+  int32_t     code = mndXnodeDecodeJsonString(raw, rawLen, &decoded, &decodedLen);
+  if (code == TSDB_CODE_SUCCESS && pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_MASKED) {
+    stage = "mask";
+    char   *masked = NULL;
+    int32_t maskedLen = 0;
+    code = mndXnodeMaskDsnInternal(decoded, decodedLen, &masked, &maskedLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      stage = "escape";
+      char   *escaped = NULL;
+      int32_t escapedLen = 0;
+      code = mndXnodeJsonEscape(masked, maskedLen, &escaped, &escapedLen);
+      if (code == TSDB_CODE_SUCCESS) {
+        stage = "quote";
+        code = mndXnodeJsonQuote(escaped, escapedLen, replacement, replacementLen);
+      }
+      taosMemoryFree(escaped);
+    }
+    taosMemoryFree(masked);
+  } else if (code == TSDB_CODE_SUCCESS) {
+    stage = "encrypt";
+    char   *encrypted = NULL;
+    int32_t encryptedLen = 0;
+    code = mndXnodeEncryptDsnForShow(pShow, decoded, decodedLen, TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN, &encrypted,
+                                     &encryptedLen);
+    if (code == TSDB_CODE_SUCCESS) {
+      stage = "quote";
+      code = mndXnodeJsonQuote(encrypted, encryptedLen, replacement, replacementLen);
+    }
+    taosMemoryFree(encrypted);
+  }
+  taosMemoryFree(decoded);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("show:0x%" PRIx64 ", xnode job config protection failed at %s-%s, code:%s", pShow->id, name, stage,
+           tstrerror(code));
+  }
+  return code;
+}
+
+int32_t mndXnodeProjectJobConfigForShow(SShowObj *pShow, const char *config, int32_t configLen, char **projected,
+                                        int32_t *projectedLen) {
+  if (pShow == NULL || configLen < 0 || projected == NULL || projectedLen == NULL || *projected != NULL ||
+      (config == NULL && configLen != 0)) {
+    return mndXnodeProtectionError();
+  }
+  *projectedLen = 0;
+  int32_t contentLen = configLen;
+  if (pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_PLAINTEXT && pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_MASKED &&
+      pShow->xnodeOutputMode != XNODE_SHOW_OUTPUT_ENCRYPTED) {
+    return mndXnodeProtectionError();
+  }
+  if (config == NULL) {
+    return pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT ? TSDB_CODE_SUCCESS : mndXnodeProtectionError();
+  }
+  while (contentLen > 0 && config[contentLen - 1] == '\0') --contentLen;
+  if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+    // An empty payload is only a valid BLOB in PLAINTEXT mode; protected modes
+    // fail closed below because an empty payload is not a valid JSON object.
+    char *copy = taosMemoryMalloc((size_t)contentLen + 1);
+    if (copy == NULL) return mndXnodeProtectionError();
+    if (contentLen > 0) memcpy(copy, config, (size_t)contentLen);
+    copy[contentLen] = 0;
+    *projected = copy;
+    *projectedLen = contentLen;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const char   *stage = "size";
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SXnodeJsonSpan from = {0};
+  SXnodeJsonSpan to = {0};
+  char         *fromReplacement = NULL;
+  char         *toReplacement = NULL;
+  int32_t       fromReplacementLen = 0;
+  int32_t       toReplacementLen = 0;
+
+  if (contentLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) goto _err;
+  stage = "content";
+  for (int32_t i = 0; i < contentLen; ++i) {
+    if ((unsigned char)config[i] == 0) goto _err;
+  }
+  if (!mndXnodeUtf8Valid(config, contentLen)) goto _err;
+  stage = "schema";
+  code = mndXnodeFindJobConfigSpans(config, contentLen, &from, &to);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
+  if (from.present) {
+    code = mndXnodeProjectConfigDsnValue(pShow, "from", config + from.start, from.end - from.start, &fromReplacement,
+                                         &fromReplacementLen);
+    if (code != TSDB_CODE_SUCCESS) goto _err_logged;
+  }
+  if (to.present) {
+    code = mndXnodeProjectConfigDsnValue(pShow, "to", config + to.start, to.end - to.start, &toReplacement,
+                                         &toReplacementLen);
+    if (code != TSDB_CODE_SUCCESS) goto _err_logged;
+  }
+
+  stage = "assemble";
+  {
+    int64_t resultLen = contentLen;
+    if (from.present) resultLen += fromReplacementLen - (from.end - from.start);
+    if (to.present) resultLen += toReplacementLen - (to.end - to.start);
+    if (resultLen < 0 || resultLen > TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN || resultLen > INT32_MAX) goto _err;
+    char *out = taosMemoryMalloc((size_t)resultLen + 1);
+    if (out == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    int32_t outPos = 0;
+    int32_t inputPos = 0;
+    SXnodeJsonSpan spans[2] = {from, to};
+    char   *replacements[2] = {fromReplacement, toReplacement};
+    int32_t replacementLens[2] = {fromReplacementLen, toReplacementLen};
+    if (spans[0].present && spans[1].present && spans[1].start < spans[0].start) {
+      SXnodeJsonSpan span = spans[0];
+      spans[0] = spans[1];
+      spans[1] = span;
+      char *replacement = replacements[0];
+      replacements[0] = replacements[1];
+      replacements[1] = replacement;
+      int32_t replacementLen = replacementLens[0];
+      replacementLens[0] = replacementLens[1];
+      replacementLens[1] = replacementLen;
+    }
+    for (int32_t i = 0; i < 2; ++i) {
+      if (!spans[i].present) continue;
+      memcpy(out + outPos, config + inputPos, (size_t)(spans[i].start - inputPos));
+      outPos += spans[i].start - inputPos;
+      memcpy(out + outPos, replacements[i], (size_t)replacementLens[i]);
+      outPos += replacementLens[i];
+      inputPos = spans[i].end;
+    }
+    memcpy(out + outPos, config + inputPos, (size_t)(contentLen - inputPos));
+    outPos += contentLen - inputPos;
+    out[outPos] = 0;
+    taosMemoryFree(fromReplacement);
+    taosMemoryFree(toReplacement);
+    *projected = out;
+    *projectedLen = outPos;
+    return TSDB_CODE_SUCCESS;
+  }
+
+_err:
+  if (code == TSDB_CODE_SUCCESS) code = mndXnodeProtectionError();
+  mError("show:0x%" PRIx64 ", failed to project xnode job config at %s, code:%s", pShow->id, stage, tstrerror(code));
+_err_logged:
+  taosMemoryFree(fromReplacement);
+  taosMemoryFree(toReplacement);
+  return mndXnodeProtectionError();
+}
+
+void mndXnodeCleanupShowProtection(SShowObj *pShow) {
+  if (pShow == NULL || pShow->pXnodeBatch == NULL) return;
+#ifndef WINDOWS
+  (void)envelopeBatchAbort((SEnvelopeBatch **)&pShow->pXnodeBatch);
+#else
+  pShow->pXnodeBatch = NULL;
+#endif
+}
+
+int32_t mndXnodeFinishShowProtection(SShowObj *pShow) {
+  if (pShow == NULL) return mndXnodeProtectionError();
+  if (pShow->pXnodeBatch == NULL) return TSDB_CODE_SUCCESS;
+#ifndef WINDOWS
+  return envelopeBatchFinish((SEnvelopeBatch **)&pShow->pXnodeBatch) == ENVELOPE_CRYPTO_SUCCESS
+             ? TSDB_CODE_SUCCESS
+             : mndXnodeProtectionError();
+#else
+  return mndXnodeProtectionError();
+#endif
+}
+
+static int32_t mndXnodeSetDsnShowColumn(SShowObj *pShow, SColumnInfoData *pColInfo, int32_t row, const char *dsn,
+                                        int32_t dsnLen, uint32_t maxPlainLen) {
+  if (dsn == NULL || dsnLen < 0 || pShow == NULL || pColInfo == NULL) return mndXnodeProtectionError();
+  const char *stage = "copy";
+  char       *output = NULL;
+  int32_t     outputLen = 0;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+    output = taosMemoryMalloc((size_t)dsnLen + 1);
+    if (output == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      memcpy(output, dsn, (size_t)dsnLen);
+      output[dsnLen] = 0;
+      outputLen = dsnLen;
+    }
+  } else if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_MASKED) {
+    stage = "mask";
+    code = mndXnodeMaskDsnForShow(dsn, dsnLen, &output, &outputLen);
+  } else if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_ENCRYPTED) {
+    stage = "encrypt";
+    code = mndXnodeEncryptDsnForShow(pShow, dsn, dsnLen, maxPlainLen, &output, &outputLen);
+  } else {
+    stage = "mode";
+    code = mndXnodeProtectionError();
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t maxLen = pColInfo->info.bytes - VARSTR_HEADER_SIZE;
+    if (outputLen > maxLen) {
+      stage = "length";
+      code = mndXnodeProtectionError();
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    stage = "set-column";
+    code = varColSetVarData(pColInfo, row, output, outputLen, false);
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    // Log the stage and the original code before normalizing; the DSN content
+    // itself must never be logged.
+    mError("show:0x%" PRIx64 ", failed to set xnode dsn show column at %s, code:%s", pShow->id, stage,
+           tstrerror(code));
+  }
+  taosMemoryFree(output);
+  return code == TSDB_CODE_SUCCESS ? TSDB_CODE_SUCCESS : mndXnodeProtectionError();
+}
+
+// ---------------------------------------------------------------------------
+// Six-star write semantics for CREATE/ALTER XNODE TASK/JOB.
+//
+// When xnodeDsnProtection=1 the mnode applies the structured six-star rules to
+// the sensitive fields of candidate DSNs and Job configs. The merge runs on
+// the write queue before the final object is encoded into the commit log, so
+// no control six-star can reach the commit log, a connector, or the runtime
+// object regardless of the client entry point. When the protection is
+// disabled the merge is skipped entirely and a six-star value is stored as an
+// ordinary credential. The sixStarError out-parameters carry the stable
+// cross-language registry mapping (EXnodeSixStarError). The SQL-visible error
+// is TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED for every rejection except
+// CONNECTION_CHANGED, which maps to TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED
+// so clients (Explorer UI) can tell "re-enter the sensitive values" apart from
+// other protection failures; neither code's message ever embeds the candidate
+// DSN, the old secret, or the six-star marker itself.
+// ---------------------------------------------------------------------------
+
+static int32_t mndXnodeSixStarError(int32_t *pSixStarError, int32_t sixStarCode) {
+  if (pSixStarError != NULL) *pSixStarError = sixStarCode;
+  if (sixStarCode == XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED) {
+    return TSDB_CODE_MND_XNODE_DSN_CONNECTION_CHANGED;
+  }
+  return mndXnodeProtectionError();
+}
+
+static int32_t mndXnodeSixStarDupBytes(const char *src, int32_t len, char **dst, int32_t *dstLen) {
+  if (src == NULL || len < 0 || dst == NULL || dstLen == NULL || *dst != NULL) return mndXnodeProtectionError();
+  char *out = taosMemoryMalloc((size_t)len + 1);
+  if (out == NULL) return mndXnodeProtectionError();
+  if (len > 0) memcpy(out, src, (size_t)len);
+  out[len] = 0;
+  *dst = out;
+  *dstLen = len;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void mndXnodeSixStarFreeSlot(SXnodeSixStarSlot *pSlot) {
+  if (pSlot == NULL) return;
+  taosMemoryFree(pSlot->decodedKey);
+  taosMemoryFree(pSlot->normalizedKey);
+  taosMemoryFree(pSlot->decodedValue);
+  pSlot->decodedKey = NULL;
+  pSlot->normalizedKey = NULL;
+  pSlot->decodedValue = NULL;
+}
+
+void mndXnodeSixStarFreeSlots(SXnodeSixStarSlot *pSlots, int32_t numSlots) {
+  if (pSlots == NULL) return;
+  for (int32_t i = 0; i < numSlots; ++i) mndXnodeSixStarFreeSlot(&pSlots[i]);
+  taosMemoryFree(pSlots);
+}
+
+int32_t mndXnodeSixStarScanDsn(const char *dsn, int32_t dsnLen, SXnodeSixStarSlot **ppSlots, int32_t *pNumSlots,
+                               int32_t *pSixStarError) {
+  if (ppSlots == NULL || pNumSlots == NULL || pSixStarError == NULL || *ppSlots != NULL) {
+    return mndXnodeProtectionError();
+  }
+  *pNumSlots = 0;
+  *pSixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  if (dsn == NULL || dsnLen < 0) {
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+  }
+  for (int32_t i = 0; i < dsnLen; ++i) {
+    if ((unsigned char)dsn[i] == 0) {
+      return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+    }
+  }
+  if (!mndXnodeUtf8Valid(dsn, dsnLen)) {
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray  *pSlots = taosArrayInit(4, sizeof(SXnodeSixStarSlot));
+  if (pSlots == NULL) return mndXnodeProtectionError();
+  // Per-normalized-key occurrence counts for duplicate ordinals, so a scan with
+  // k sensitive parameters stays O(k) instead of rescanning the slots array.
+  SHashObj *pKeyCounts = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pKeyCounts == NULL) {
+    taosArrayDestroy(pSlots);
+    return mndXnodeProtectionError();
+  }
+
+  // The scanner mirrors the connector DSN parser (mdsn): there is no fragment
+  // concept ('#' is an ordinary data byte), a URL-form DSN (with "://") starts
+  // its query at the LAST '?', and a path-like DSN (e.g. csv:/path?x=1) starts
+  // it at the FIRST '?'. The query region runs to the end of the DSN. Percent
+  // decoding is lenient and happens exactly once per sensitive field (userinfo
+  // password, every query key, every sensitive query value); an invalid '%'
+  // sequence keeps its literal bytes and can never decode to the six-star
+  // marker, and a bare '%' anywhere else (e.g. busy_threshold=30%) passes
+  // through untouched.
+  int32_t firstQuestion = -1;
+  int32_t lastQuestion = -1;
+  for (int32_t i = 0; i < dsnLen; ++i) {
+    if (dsn[i] == '?') {
+      if (firstQuestion < 0) firstQuestion = i;
+      lastQuestion = i;
+    }
+  }
+
+  int32_t schemeEnd = -1;
+  for (int32_t i = 0; i + 2 < dsnLen; ++i) {
+    if (dsn[i] == '/' || dsn[i] == '?') break;
+    if (dsn[i] == ':' && dsn[i + 1] == '/' && dsn[i + 2] == '/') {
+      schemeEnd = i + 3;
+      break;
+    }
+  }
+  int32_t queryPos = schemeEnd >= 0 ? lastQuestion : firstQuestion;
+  if (schemeEnd >= 0) {
+    int32_t authorityEnd = dsnLen;
+    for (int32_t i = schemeEnd; i < dsnLen; ++i) {
+      if (dsn[i] == '/') {
+        authorityEnd = i;
+        break;
+      }
+    }
+    if (queryPos >= 0 && queryPos < authorityEnd) authorityEnd = queryPos;
+    // The userinfo password span is located, not validated: it exists only when a
+    // ':' precedes the last '@' of the authority (last-'@' matches the connector
+    // DSN parser). Empty authority (csv/orc) or empty userinfo simply have no
+    // userinfo slot; an empty host does NOT suppress the slot, so a "******"
+    // there stays a control marker. The SHOW masker applies the same slot rules.
+    // Structural validity is the connector's call.
+    int32_t at = -1;
+    for (int32_t i = schemeEnd; i < authorityEnd; ++i) {
+      if (dsn[i] == '@') at = i;
+    }
+    if (at > schemeEnd) {
+      int32_t colon = -1;
+      for (int32_t i = schemeEnd; i < at; ++i) {
+        if (dsn[i] == ':') {
+          colon = i;
+          break;
+        }
+      }
+      if (colon >= schemeEnd && colon < at) {
+        SXnodeSixStarSlot slot = {0};
+        slot.role = XNODE_SIXSTAR_ROLE_USERINFO_PASSWORD;
+        slot.wireKeyOff = XNODE_SIXSTAR_WIRE_KEY_NONE;
+        slot.wireValueOff = colon + 1;
+        slot.wireValueLen = at - colon - 1;
+        code = mndXnodeSixStarDupBytes("", 0, &slot.decodedKey, &slot.decodedKeyLen);
+        if (code == TSDB_CODE_SUCCESS) {
+          code = mndXnodeSixStarDupBytes("", 0, &slot.normalizedKey, &slot.normalizedKeyLen);
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          code = mndXnodePercentDecode(dsn + slot.wireValueOff, slot.wireValueLen, &slot.decodedValue,
+                                       &slot.decodedValueLen);
+          if (code != TSDB_CODE_SUCCESS) {
+            code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+          }
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          if (taosArrayPush(pSlots, &slot) == NULL) code = mndXnodeProtectionError();
+        }
+        if (code != TSDB_CODE_SUCCESS) {
+          mndXnodeSixStarFreeSlot(&slot);
+          goto _OVER;
+        }
+      }
+    }
+  }
+
+  if (queryPos >= 0) {
+    int32_t pos = queryPos + 1;
+    // Query parameters are separated by '&' alone; ';' is an ordinary value
+    // byte (e.g. kafka sasl_password=p1;p2, OPC UA ns=3;i=1004).
+    while (pos < dsnLen) {
+      int32_t end = pos;
+      while (end < dsnLen && dsn[end] != '&') ++end;
+      int32_t equal = pos;
+      while (equal < end && dsn[equal] != '=') ++equal;
+      char   *decodedKey = NULL;
+      int32_t decodedKeyLen = 0;
+      code = mndXnodePercentDecode(dsn + pos, equal - pos, &decodedKey, &decodedKeyLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+        goto _OVER;
+      }
+      // The decoded key is normalized in place for the sensitivity test; only a
+      // sensitive hit keeps the normalized bytes and re-decodes the wire key to
+      // recover decodedKey, so the common non-sensitive parameter pays a single
+      // allocation.
+      int32_t normalizedKeyLen = mndXnodeNormalizeSensitiveKey(decodedKey, decodedKeyLen);
+      if (equal < end && mndXnodeSensitiveNormalizedMatch(decodedKey, normalizedKeyLen)) {
+        char *normalizedKey = decodedKey;
+        decodedKey = NULL;
+        code = mndXnodePercentDecode(dsn + pos, equal - pos, &decodedKey, &decodedKeyLen);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFree(normalizedKey);
+          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+          goto _OVER;
+        }
+        SXnodeSixStarSlot slot = {0};
+        slot.role = XNODE_SIXSTAR_ROLE_QUERY_SENSITIVE;
+        slot.wireKeyOff = pos;
+        slot.wireKeyLen = equal - pos;
+        slot.wireValueOff = equal + 1;
+        slot.wireValueLen = end - equal - 1;
+        slot.decodedKey = decodedKey;
+        slot.decodedKeyLen = decodedKeyLen;
+        slot.normalizedKey = normalizedKey;
+        slot.normalizedKeyLen = normalizedKeyLen;
+        int32_t *pCount = taosHashGet(pKeyCounts, normalizedKey, (size_t)normalizedKeyLen);
+        if (pCount != NULL) {
+          slot.duplicateOrdinal = *pCount;
+          ++(*pCount);
+        } else {
+          int32_t first = 1;
+          if (taosHashPut(pKeyCounts, normalizedKey, (size_t)normalizedKeyLen, &first, sizeof(first)) != 0) {
+            mndXnodeSixStarFreeSlot(&slot);
+            code = mndXnodeProtectionError();
+            goto _OVER;
+          }
+        }
+        code = mndXnodePercentDecode(dsn + slot.wireValueOff, slot.wireValueLen, &slot.decodedValue,
+                                     &slot.decodedValueLen);
+        if (code != TSDB_CODE_SUCCESS) {
+          mndXnodeSixStarFreeSlot(&slot);
+          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+          goto _OVER;
+        }
+        if (taosArrayPush(pSlots, &slot) == NULL) {
+          mndXnodeSixStarFreeSlot(&slot);
+          code = mndXnodeProtectionError();
+          goto _OVER;
+        }
+      } else {
+        taosMemoryFree(decodedKey);
+      }
+      pos = end + 1;
+    }
+  }
+
+_OVER:
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t numSlots = (int32_t)taosArrayGetSize(pSlots);
+    if (numSlots > 0) {
+      SXnodeSixStarSlot *out = taosMemoryMalloc((size_t)numSlots * sizeof(SXnodeSixStarSlot));
+      if (out == NULL) {
+        code = mndXnodeProtectionError();
+      } else {
+        for (int32_t i = 0; i < numSlots; ++i) out[i] = *(SXnodeSixStarSlot *)taosArrayGet(pSlots, i);
+        *ppSlots = out;
+        *pNumSlots = numSlots;
+      }
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pSlots); ++i) {
+      mndXnodeSixStarFreeSlot((SXnodeSixStarSlot *)taosArrayGet(pSlots, i));
+    }
+  }
+  taosHashCleanup(pKeyCounts);
+  taosArrayDestroy(pSlots);
+  return code;
+}
+
+static bool mndXnodeSixStarIsMaskedValue(const char *decodedValue, int32_t decodedValueLen) {
+  return decodedValueLen == XNODE_SHOW_MASK_VALUE_LEN &&
+         memcmp(decodedValue, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN) == 0;
+}
+
+static bool mndXnodeSixStarBlockedParam(int32_t direction, const char *driver, const char *key) {
+  const char *effective = strcmp(driver, "sync") == 0 ? "tmq" : driver;
+  if (strcmp(effective, "kafka") == 0) {
+    if (direction == XNODE_SIXSTAR_DIRECTION_TO) {
+      if (strncmp(key, "kafka.", 6) != 0) return false;
+      key += 6;
+    }
+    if (strcmp(key, "bootstrap.servers") == 0 || strcmp(key, "security.protocol") == 0 ||
+        strcmp(key, "enable.ssl.certificate.verification") == 0 || strncmp(key, "ssl.", 4) == 0 ||
+        strncmp(key, "sasl.", 5) == 0) {
+      return true;
+    }
+  }
+  if ((strcmp(effective, "pulsar") == 0 || strcmp(effective, "pulsarTuya") == 0) && strncmp(key, "pulsar.", 7) == 0)
+    return true;
+  if ((strcmp(effective, "mqtt") == 0 || strcmp(effective, "sparkplugb") == 0) &&
+      (strcmp(key, "ca") == 0 || strcmp(key, "cert") == 0)) return true;
+  if ((strcmp(effective, "pulsar") == 0 || strcmp(effective, "pulsarTuya") == 0) &&
+      (strcmp(key, "cert") == 0 || strcmp(key, "ba_username") == 0 || strcmp(key, "custom_auth_name") == 0 ||
+       strcmp(key, "custom_auth_data") == 0 || strcmp(key, "custom_is_ssl") == 0 || strcmp(key, "tuya_env") == 0))
+    return true;
+  if (strcmp(effective, "influxdb") == 0 &&
+      (strcmp(key, "version") == 0 || strcmp(key, "orgId") == 0 || strcmp(key, "username") == 0)) return true;
+  if ((strcmp(effective, "mysql") == 0 || strcmp(effective, "postgres") == 0) &&
+      (strcmp(key, "ssl_mode") == 0 || strcmp(key, "ssl_ca") == 0 || strcmp(key, "ssl_client_cert") == 0))
+    return true;
+  if (strcmp(effective, "mssql") == 0 &&
+      (strcmp(key, "encryption") == 0 || strcmp(key, "trust_cert") == 0 || strcmp(key, "trust_cert_ca") == 0 ||
+       strcmp(key, "instance_name") == 0)) return true;
+  if (strcmp(effective, "mongodb") == 0 &&
+      (strcmp(key, "tls") == 0 || strcmp(key, "ca_file_path") == 0 || strcmp(key, "cert_key_file_path") == 0 ||
+       strcmp(key, "mechanism") == 0 || strcmp(key, "source") == 0 || strcmp(key, "load_balanced") == 0 ||
+       strcmp(key, "direct_connection") == 0 || strcmp(key, "repl_set_name") == 0)) return true;
+  if (strcmp(effective, "avevaHistorian") == 0 &&
+      (strcmp(key, "encryption") == 0 || strcmp(key, "encryptionLevel") == 0)) return true;
+  if ((strcmp(effective, "pi") == 0 || strcmp(effective, "pibackfill") == 0) &&
+      (strcmp(key, "PIServerUser") == 0 || strcmp(key, "PIServerDomain") == 0 || strcmp(key, "PISystemName") == 0))
+    return true;
+  if ((strcmp(effective, "opc") == 0 || strcmp(effective, "opcda") == 0 || strcmp(effective, "opcua") == 0) &&
+      (strcmp(key, "security_policy") == 0 || strcmp(key, "security_mode") == 0 || strcmp(key, "certificate") == 0 ||
+       strcmp(key, "auth_certificate") == 0 || strcmp(key, "failover_endpoints") == 0)) return true;
+  if ((strcmp(effective, "taos") == 0 || strcmp(effective, "tmq") == 0) &&
+      (strcmp(key, "tls_mode") == 0 || strcmp(key, "tls_version") == 0 || strcmp(key, "tls_ca") == 0 ||
+       strcmp(key, "conn_mode") == 0)) return true;
+  if (strcmp(effective, "local") == 0 &&
+      (strcmp(key, "s3_enable") == 0 || strcmp(key, "s3_endpoint") == 0 || strcmp(key, "s3_bucket") == 0 ||
+       strcmp(key, "s3_region") == 0 || strcmp(key, "s3_uri_style") == 0 || strcmp(key, "s3_object_prefix") == 0))
+    return true;
+  return false;
+}
+
+static int32_t mndXnodeSixStarQueryStart(const char *dsn, int32_t len) {
+  bool url = false;
+  for (int32_t i = 0; i + 2 < len; ++i) {
+    if (dsn[i] == '/' || dsn[i] == '?') break;
+    if (dsn[i] == ':' && dsn[i + 1] == '/' && dsn[i + 2] == '/') {
+      url = true;
+      break;
+    }
+  }
+  int32_t pos = -1;
+  for (int32_t i = 0; i < len; ++i) {
+    if (dsn[i] == '?') {
+      pos = i;
+      if (!url) break;
+    }
+  }
+  return pos < 0 ? len : pos;
+}
+
+static int32_t mndXnodeSixStarDriver(const char *dsn, int32_t len, char *driver, int32_t driverLen) {
+  int32_t end = 0;
+  while (end < len && dsn[end] != ':') ++end;
+  if (end <= 0 || end >= driverLen) return TSDB_CODE_FAILED;
+  int32_t plus = 0;
+  while (plus < end && dsn[plus] != '+') ++plus;
+  if (plus == 0) return TSDB_CODE_FAILED;
+  (void)memcpy(driver, dsn, (size_t)plus);
+  driver[plus] = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct {
+  char   *key;
+  int32_t keyLen;
+  char   *value;
+  int32_t valueLen;
+} SXnodeSixStarProjectionPart;
+
+static int32_t mndXnodeSixStarProjectionPartCmp(const void *pa, const void *pb) {
+  const SXnodeSixStarProjectionPart *a = (const SXnodeSixStarProjectionPart *)pa;
+  const SXnodeSixStarProjectionPart *b = (const SXnodeSixStarProjectionPart *)pb;
+  int32_t minLen = a->keyLen < b->keyLen ? a->keyLen : b->keyLen;
+  if (minLen > 0) {
+    int32_t code = memcmp(a->key, b->key, (size_t)minLen);
+    if (code != 0) return code;
+  }
+  if (a->keyLen != b->keyLen) return a->keyLen < b->keyLen ? -1 : 1;
+  minLen = a->valueLen < b->valueLen ? a->valueLen : b->valueLen;
+  if (minLen > 0) {
+    int32_t code = memcmp(a->value, b->value, (size_t)minLen);
+    if (code != 0) return code;
+  }
+  if (a->valueLen != b->valueLen) return a->valueLen < b->valueLen ? -1 : 1;
+  return 0;
+}
+
+static void mndXnodeSixStarFreeProjectionParts(SXnodeSixStarProjectionPart *parts, int32_t numParts) {
+  if (parts == NULL) return;
+  for (int32_t i = 0; i < numParts; ++i) {
+    taosMemoryFree(parts[i].key);
+    taosMemoryFree(parts[i].value);
+  }
+  taosMemoryFree(parts);
+}
+
+static int32_t mndXnodeSixStarQueryProjection(const char *dsn, int32_t dsnLen, int32_t queryStart, int32_t direction,
+                                              char **ppProjection, int32_t *pProjectionLen) {
+  *ppProjection = NULL;
+  *pProjectionLen = 0;
+  char driver[64] = {0};
+  if (mndXnodeSixStarDriver(dsn, dsnLen, driver, sizeof(driver)) != TSDB_CODE_SUCCESS) return TSDB_CODE_FAILED;
+  int32_t capacity = dsnLen > 0 ? dsnLen + 1 : 1;
+  char   *projection = taosMemoryCalloc(1, (size_t)capacity);
+  if (projection == NULL) return mndXnodeProtectionError();
+  int32_t partCapacity = dsnLen > 0 ? dsnLen : 1;
+  SXnodeSixStarProjectionPart *parts =
+      taosMemoryCalloc((size_t)partCapacity, sizeof(SXnodeSixStarProjectionPart));
+  if (parts == NULL) {
+    taosMemoryFree(projection);
+    return mndXnodeProtectionError();
+  }
+  int32_t partCount = 0;
+  int32_t pos = queryStart < dsnLen ? queryStart + 1 : dsnLen;
+  while (pos < dsnLen) {
+    int32_t end = pos;
+    while (end < dsnLen && dsn[end] != '&') ++end;
+    int32_t equal = pos;
+    while (equal < end && dsn[equal] != '=') ++equal;
+    char *decodedKey = NULL;
+    char *decodedValue = NULL;
+    int32_t keyLen = 0;
+    int32_t valueLen = 0;
+    int32_t code = mndXnodePercentDecode(dsn + pos, equal - pos, &decodedKey, &keyLen);
+    if (code == TSDB_CODE_SUCCESS && equal < end)
+      code = mndXnodePercentDecode(dsn + equal + 1, end - equal - 1, &decodedValue, &valueLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(decodedKey);
+      taosMemoryFree(decodedValue);
+      taosMemoryFree(projection);
+      mndXnodeSixStarFreeProjectionParts(parts, partCount);
+      return code;
+    }
+    if (equal < end && mndXnodeSixStarBlockedParam(direction, driver, decodedKey)) {
+      if (partCount >= partCapacity) {
+        taosMemoryFree(decodedKey);
+        taosMemoryFree(decodedValue);
+        taosMemoryFree(projection);
+        mndXnodeSixStarFreeProjectionParts(parts, partCount);
+        return mndXnodeProtectionError();
+      }
+      parts[partCount].key = decodedKey;
+      parts[partCount].keyLen = keyLen;
+      parts[partCount].value = decodedValue;
+      parts[partCount].valueLen = valueLen;
+      ++partCount;
+      decodedKey = NULL;
+      decodedValue = NULL;
+    }
+    taosMemoryFree(decodedKey);
+    taosMemoryFree(decodedValue);
+    pos = end + 1;
+  }
+  taosSort(parts, partCount, sizeof(*parts), mndXnodeSixStarProjectionPartCmp);
+  int64_t projectedLen = 0;
+  for (int32_t i = 0; i < partCount; ++i) {
+    projectedLen += (int64_t)parts[i].keyLen + parts[i].valueLen + 2;
+  }
+  if (projectedLen >= capacity || projectedLen > INT32_MAX) {
+    taosMemoryFree(projection);
+    mndXnodeSixStarFreeProjectionParts(parts, partCount);
+    return mndXnodeProtectionError();
+  }
+  int32_t outLen = 0;
+  for (int32_t i = 0; i < partCount; ++i) {
+    (void)memcpy(projection + outLen, parts[i].key, (size_t)parts[i].keyLen);
+    outLen += parts[i].keyLen;
+    projection[outLen++] = '=';
+    (void)memcpy(projection + outLen, parts[i].value, (size_t)parts[i].valueLen);
+    outLen += parts[i].valueLen;
+    projection[outLen++] = '&';
+  }
+  projection[outLen] = 0;
+  mndXnodeSixStarFreeProjectionParts(parts, partCount);
+  *ppProjection = projection;
+  *pProjectionLen = outLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeSixStarBuildPrefixSkeleton(const char *dsn, int32_t prefixLen, const SXnodeSixStarSlot *slots,
+                                                  int32_t numSlots, char **ppSkeleton, int32_t *pSkeletonLen) {
+  int64_t finalLen = prefixLen;
+  for (int32_t i = 0; i < numSlots; ++i) {
+    if (slots[i].wireValueOff >= prefixLen) continue;
+    int32_t valueLen = TMIN(slots[i].wireValueLen, prefixLen - slots[i].wireValueOff);
+    finalLen += XNODE_SHOW_MASK_VALUE_LEN - valueLen;
+  }
+  if (finalLen < 0 || finalLen > INT32_MAX) return mndXnodeProtectionError();
+  char *skeleton = taosMemoryMalloc((size_t)finalLen + 1);
+  if (skeleton == NULL) return mndXnodeProtectionError();
+  int32_t out = 0;
+  int32_t cursor = 0;
+  for (int32_t i = 0; i < numSlots; ++i) {
+    if (slots[i].wireValueOff >= prefixLen) break;
+    int32_t end = TMIN(slots[i].wireValueOff + slots[i].wireValueLen, prefixLen);
+    if (slots[i].wireValueOff < cursor) continue;
+    (void)memcpy(skeleton + out, dsn + cursor, (size_t)(slots[i].wireValueOff - cursor));
+    out += slots[i].wireValueOff - cursor;
+    (void)memcpy(skeleton + out, XNODE_SHOW_MASK_VALUE, XNODE_SHOW_MASK_VALUE_LEN);
+    out += XNODE_SHOW_MASK_VALUE_LEN;
+    cursor = end;
+  }
+  (void)memcpy(skeleton + out, dsn + cursor, (size_t)(prefixLen - cursor));
+  out += prefixLen - cursor;
+  skeleton[out] = 0;
+  *ppSkeleton = skeleton;
+  *pSkeletonLen = out;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mndXnodeSixStarConnectionMatch(const char *oldDsn, int32_t oldLen, const char *candDsn, int32_t candLen,
+                                              int32_t direction, int32_t *pSixStarError) {
+  SXnodeSixStarSlot *oldSlots = NULL;
+  SXnodeSixStarSlot *candSlots = NULL;
+  int32_t numOld = 0;
+  int32_t numCand = 0;
+  int32_t code = mndXnodeSixStarScanDsn(oldDsn, oldLen, &oldSlots, &numOld, pSixStarError);
+  if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarScanDsn(candDsn, candLen, &candSlots, &numCand, pSixStarError);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  char *oldPrefix = NULL;
+  char *candPrefix = NULL;
+  char *oldQuery = NULL;
+  char *candQuery = NULL;
+  int32_t oldPrefixLen = 0;
+  int32_t candPrefixLen = 0;
+  int32_t oldQueryLen = 0;
+  int32_t candQueryLen = 0;
+  int32_t oldQueryStart = mndXnodeSixStarQueryStart(oldDsn, oldLen);
+  int32_t candQueryStart = mndXnodeSixStarQueryStart(candDsn, candLen);
+  code = mndXnodeSixStarBuildPrefixSkeleton(oldDsn, oldQueryStart, oldSlots, numOld, &oldPrefix, &oldPrefixLen);
+  if (code == TSDB_CODE_SUCCESS)
+    code = mndXnodeSixStarBuildPrefixSkeleton(candDsn, candQueryStart, candSlots, numCand, &candPrefix, &candPrefixLen);
+  if (code == TSDB_CODE_SUCCESS)
+    code = mndXnodeSixStarQueryProjection(oldDsn, oldLen, oldQueryStart, direction, &oldQuery, &oldQueryLen);
+  if (code == TSDB_CODE_SUCCESS)
+    code = mndXnodeSixStarQueryProjection(candDsn, candLen, candQueryStart, direction, &candQuery, &candQueryLen);
+  if (code == TSDB_CODE_SUCCESS &&
+      (oldPrefixLen != candPrefixLen || memcmp(oldPrefix, candPrefix, (size_t)oldPrefixLen) != 0 || oldQueryLen != candQueryLen ||
+       memcmp(oldQuery, candQuery, (size_t)oldQueryLen) != 0)) {
+    code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+  }
+  taosMemoryFree(oldPrefix);
+  taosMemoryFree(candPrefix);
+  taosMemoryFree(oldQuery);
+  taosMemoryFree(candQuery);
+_OVER:
+  mndXnodeSixStarFreeSlots(oldSlots, numOld);
+  mndXnodeSixStarFreeSlots(candSlots, numCand);
+  return code;
+}
+
+// Old slots are matched by (role, normalizedKey, duplicateOrdinal); a userinfo
+// password slot carries an empty normalized key and ordinal 0, so one ordering
+// covers both roles. The index is a pointer array sorted once per old-slot set,
+// turning each KEEP lookup into a binary search instead of a linear rescan.
+static int32_t mndXnodeSixStarSlotOrderCmp(const void *pa, const void *pb) {
+  const SXnodeSixStarSlot *a = *(SXnodeSixStarSlot *const *)pa;
+  const SXnodeSixStarSlot *b = *(SXnodeSixStarSlot *const *)pb;
+  if (a->role != b->role) return a->role < b->role ? -1 : 1;
+  int32_t minLen = a->normalizedKeyLen < b->normalizedKeyLen ? a->normalizedKeyLen : b->normalizedKeyLen;
+  if (minLen > 0) {
+    int32_t c = memcmp(a->normalizedKey, b->normalizedKey, (size_t)minLen);
+    if (c != 0) return c;
+  }
+  if (a->normalizedKeyLen != b->normalizedKeyLen) return a->normalizedKeyLen < b->normalizedKeyLen ? -1 : 1;
+  if (a->duplicateOrdinal != b->duplicateOrdinal) return a->duplicateOrdinal < b->duplicateOrdinal ? -1 : 1;
+  return 0;
+}
+
+static int32_t mndXnodeSixStarIndexOldSlots(const SXnodeSixStarSlot *pOldSlots, int32_t numOldSlots,
+                                            const SXnodeSixStarSlot ***pppSorted) {
+  *pppSorted = NULL;
+  if (numOldSlots <= 0) return TSDB_CODE_SUCCESS;
+  const SXnodeSixStarSlot **ppSorted = taosMemoryMalloc((size_t)numOldSlots * sizeof(*ppSorted));
+  if (ppSorted == NULL) return mndXnodeProtectionError();
+  for (int32_t i = 0; i < numOldSlots; ++i) ppSorted[i] = &pOldSlots[i];
+  taosSort(ppSorted, numOldSlots, sizeof(*ppSorted), mndXnodeSixStarSlotOrderCmp);
+  *pppSorted = ppSorted;
+  return TSDB_CODE_SUCCESS;
+}
+
+static const SXnodeSixStarSlot *mndXnodeSixStarMatchOldSlot(const SXnodeSixStarSlot *const *ppSortedOld,
+                                                            int32_t numOldSlots, const SXnodeSixStarSlot *pKeepSlot) {
+  if (ppSortedOld == NULL || numOldSlots <= 0) return NULL;
+  const SXnodeSixStarSlot  *key = pKeepSlot;
+  const SXnodeSixStarSlot **ppHit =
+      taosbsearch(&key, ppSortedOld, numOldSlots, sizeof(*ppSortedOld), mndXnodeSixStarSlotOrderCmp, TD_EQ);
+  return ppHit != NULL ? *ppHit : NULL;
+}
+
+// Merges one candidate DSN against its old committed value. A sensitive field
+// whose decoded value is exactly "******" is a control marker: CREATE rejects it,
+// ALTER copies the wire bytes of the corresponding old sensitive value into the
+// candidate span (KEEP). Any other value keeps the candidate wire bytes as-is
+// (REPLACE), and a sensitive field absent from the candidate stays absent.
+static int32_t mndXnodeSixStarMergeDsn(const char *oldDsn, int32_t oldDsnLen, const char *candDsn, int32_t candDsnLen,
+                                       bool create, int32_t maxLen, char **ppFinal, int32_t *pFinalLen,
+                                       int32_t direction, int32_t *pSixStarError) {
+  if (ppFinal == NULL || pFinalLen == NULL || *ppFinal != NULL || candDsn == NULL || candDsnLen < 0) {
+    return mndXnodeProtectionError();
+  }
+  *pFinalLen = 0;
+  SXnodeSixStarSlot       *candSlots = NULL;
+  SXnodeSixStarSlot       *oldSlots = NULL;
+  const SXnodeSixStarSlot **ppOldIndex = NULL;
+  int32_t                  numCand = 0;
+  int32_t                  numOld = 0;
+  int32_t          code = mndXnodeSixStarScanDsn(candDsn, candDsnLen, &candSlots, &numCand, pSixStarError);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  bool hasKeep = false;
+  for (int32_t i = 0; i < numCand; ++i) {
+    if (!mndXnodeSixStarIsMaskedValue(candSlots[i].decodedValue, candSlots[i].decodedValueLen)) continue;
+    if (create) {
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CREATE_MASKED);
+      goto _OVER;
+    }
+    hasKeep = true;
+  }
+  if (!hasKeep) {
+    code = mndXnodeSixStarDupBytes(candDsn, candDsnLen, ppFinal, pFinalLen);
+    goto _OVER;
+  }
+  if (oldDsn == NULL) {
+    code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+    goto _OVER;
+  }
+  code = mndXnodeSixStarConnectionMatch(oldDsn, oldDsnLen, candDsn, candDsnLen, direction, pSixStarError);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  code = mndXnodeSixStarScanDsn(oldDsn, oldDsnLen, &oldSlots, &numOld, pSixStarError);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  code = mndXnodeSixStarIndexOldSlots(oldSlots, numOld, &ppOldIndex);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+
+  int64_t finalLen = candDsnLen;
+  for (int32_t i = 0; i < numCand; ++i) {
+    if (!mndXnodeSixStarIsMaskedValue(candSlots[i].decodedValue, candSlots[i].decodedValueLen)) continue;
+    const SXnodeSixStarSlot *pMatch = mndXnodeSixStarMatchOldSlot(ppOldIndex, numOld, &candSlots[i]);
+    if (pMatch == NULL) {
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+      goto _OVER;
+    }
+    finalLen += (int64_t)pMatch->wireValueLen - candSlots[i].wireValueLen;
+  }
+  if (finalLen < 0 || finalLen > INT32_MAX || (maxLen > 0 && finalLen > maxLen)) {
+    code = mndXnodeProtectionError();
+    goto _OVER;
+  }
+  char *out = taosMemoryMalloc((size_t)finalLen + 1);
+  if (out == NULL) {
+    code = mndXnodeProtectionError();
+    goto _OVER;
+  }
+  int32_t outPos = 0;
+  int32_t cursor = 0;
+  for (int32_t i = 0; i < numCand; ++i) {
+    if (!mndXnodeSixStarIsMaskedValue(candSlots[i].decodedValue, candSlots[i].decodedValueLen)) continue;
+    const SXnodeSixStarSlot *pMatch = mndXnodeSixStarMatchOldSlot(ppOldIndex, numOld, &candSlots[i]);
+    memcpy(out + outPos, candDsn + cursor, (size_t)(candSlots[i].wireValueOff - cursor));
+    outPos += candSlots[i].wireValueOff - cursor;
+    memcpy(out + outPos, oldDsn + pMatch->wireValueOff, (size_t)pMatch->wireValueLen);
+    outPos += pMatch->wireValueLen;
+    cursor = candSlots[i].wireValueOff + candSlots[i].wireValueLen;
+  }
+  memcpy(out + outPos, candDsn + cursor, (size_t)(candDsnLen - cursor));
+  outPos += candDsnLen - cursor;
+  out[outPos] = 0;
+  *ppFinal = out;
+  *pFinalLen = outPos;
+
+_OVER:
+  taosMemoryFree(ppOldIndex);
+  mndXnodeSixStarFreeSlots(candSlots, numCand);
+  mndXnodeSixStarFreeSlots(oldSlots, numOld);
+  return code;
+}
+
+// Job config top-level from/to span scanner with six-star registry granularity:
+// malformed JSON or an escaped top-level key is SIXSTAR_JOB_JSON_INVALID, a
+// non-string from/to value is SIXSTAR_INPUT_TYPE_INVALID, and a duplicate
+// top-level from/to is SIXSTAR_FIELD_AMBIGUOUS. Kept separate from the SHOW
+// projection scanner, which collapses every failure into one error code.
+static int32_t mndXnodeSixStarFindJobConfigSpans(const char *config, int32_t configLen, SXnodeJsonSpan *from,
+                                                 SXnodeJsonSpan *to, int32_t *pSixStarError) {
+  int32_t pos = 0;
+  while (pos < configLen && (config[pos] == ' ' || config[pos] == '\t' || config[pos] == '\r' || config[pos] == '\n'))
+    ++pos;
+  if (pos >= configLen || config[pos++] != '{') {
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  }
+  bool first = true;
+  while (true) {
+    while (pos < configLen && (config[pos] == ' ' || config[pos] == '\t' || config[pos] == '\r' || config[pos] == '\n'))
+      ++pos;
+    if (pos >= configLen) return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    if (config[pos] == '}') {
+      ++pos;
+      break;
+    }
+    if (!first) {
+      if (config[pos++] != ',') return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+      while (pos < configLen &&
+             (config[pos] == ' ' || config[pos] == '\t' || config[pos] == '\r' || config[pos] == '\n'))
+        ++pos;
+    }
+    int32_t keyStart = pos;
+    if (mndXnodeSkipJsonString(config, configLen, &pos) != TSDB_CODE_SUCCESS) {
+      return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+    int32_t keyEnd = pos;
+    for (int32_t i = keyStart + 1; i + 1 < keyEnd; ++i) {
+      if (config[i] == '\\') return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+    while (pos < configLen && (config[pos] == ' ' || config[pos] == '\t' || config[pos] == '\r' || config[pos] == '\n'))
+      ++pos;
+    if (pos >= configLen || config[pos++] != ':') {
+      return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+    while (pos < configLen && (config[pos] == ' ' || config[pos] == '\t' || config[pos] == '\r' || config[pos] == '\n'))
+      ++pos;
+    const int32_t keyLen = keyEnd - keyStart - 2;
+    bool          isFrom = keyLen == 4 && memcmp(config + keyStart + 1, "from", 4) == 0;
+    bool          isTo = keyLen == 2 && memcmp(config + keyStart + 1, "to", 2) == 0;
+    int32_t       valueStart = pos;
+    if (mndXnodeSkipJsonValue(config, configLen, &pos, 1) != TSDB_CODE_SUCCESS) {
+      return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+    if (isFrom || isTo) {
+      if (config[valueStart] != '"') {
+        return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+      }
+      SXnodeJsonSpan *span = isFrom ? from : to;
+      if (span->present) return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS);
+      span->start = valueStart;
+      span->end = pos;
+      span->present = true;
+    }
+    first = false;
+  }
+  while (pos < configLen && (config[pos] == ' ' || config[pos] == '\t' || config[pos] == '\r' || config[pos] == '\n'))
+    ++pos;
+  return pos == configLen ? TSDB_CODE_SUCCESS
+                          : mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+}
+
+// Decoded per-direction DSNs and sensitive slots of an old committed Job config,
+// loaded lazily only when a KEEP must be resolved.
+typedef struct {
+  bool              loaded;
+  char             *fromDsn;
+  int32_t           fromDsnLen;
+  SXnodeSixStarSlot *fromSlots;
+  int32_t           numFromSlots;
+  char             *toDsn;
+  int32_t           toDsnLen;
+  SXnodeSixStarSlot *toSlots;
+  int32_t           numToSlots;
+} SXnodeSixStarOldJobConfig;
+
+static void mndXnodeSixStarFreeOldJobConfig(SXnodeSixStarOldJobConfig *pOld) {
+  if (pOld == NULL) return;
+  taosMemoryFree(pOld->fromDsn);
+  taosMemoryFree(pOld->toDsn);
+  mndXnodeSixStarFreeSlots(pOld->fromSlots, pOld->numFromSlots);
+  mndXnodeSixStarFreeSlots(pOld->toSlots, pOld->numToSlots);
+  pOld->fromDsn = NULL;
+  pOld->toDsn = NULL;
+  pOld->fromSlots = NULL;
+  pOld->toSlots = NULL;
+}
+
+static int32_t mndXnodeSixStarLoadOldJobConfig(const char *oldConfig, int32_t oldConfigLen,
+                                               SXnodeSixStarOldJobConfig *pOld, int32_t *pSixStarError) {
+  if (pOld->loaded) return TSDB_CODE_SUCCESS;
+  if (oldConfig == NULL || oldConfigLen <= 0) {
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  }
+  for (int32_t i = 0; i < oldConfigLen; ++i) {
+    if ((unsigned char)oldConfig[i] == 0) {
+      return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+  }
+  if (!mndXnodeUtf8Valid(oldConfig, oldConfigLen)) {
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  }
+  cJSON *root = cJSON_ParseWithLength(oldConfig, oldConfigLen);
+  if (root == NULL || !cJSON_IsObject(root)) {
+    if (root != NULL) cJSON_Delete(root);
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  }
+  SXnodeJsonSpan from = {0};
+  SXnodeJsonSpan to = {0};
+  int32_t        code = mndXnodeSixStarFindJobConfigSpans(oldConfig, oldConfigLen, &from, &to, pSixStarError);
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t fromCount = 0;
+    int32_t toCount = 0;
+    for (cJSON *child = root->child; child != NULL; child = child->next) {
+      if (child->string == NULL) continue;
+      if (strcmp(child->string, "from") == 0) {
+        if (++fromCount > 1) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS);
+        if (!cJSON_IsString(child)) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+      } else if (strcmp(child->string, "to") == 0) {
+        if (++toCount > 1) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS);
+        if (!cJSON_IsString(child)) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS && ((fromCount > 0 && !from.present) || (toCount > 0 && !to.present))) {
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS && from.present) {
+    code = mndXnodeDecodeJsonString(oldConfig + from.start, from.end - from.start, &pOld->fromDsn, &pOld->fromDsnLen);
+    if (code != TSDB_CODE_SUCCESS) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = mndXnodeSixStarScanDsn(pOld->fromDsn, pOld->fromDsnLen, &pOld->fromSlots, &pOld->numFromSlots,
+                                    pSixStarError);
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS && to.present) {
+    code = mndXnodeDecodeJsonString(oldConfig + to.start, to.end - to.start, &pOld->toDsn, &pOld->toDsnLen);
+    if (code != TSDB_CODE_SUCCESS) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = mndXnodeSixStarScanDsn(pOld->toDsn, pOld->toDsnLen, &pOld->toSlots, &pOld->numToSlots, pSixStarError);
+    }
+  }
+  cJSON_Delete(root);
+  if (code == TSDB_CODE_SUCCESS) pOld->loaded = true;
+  return code;
+}
+
+// Job config splice: the candidate config bytes are validated with cJSON and
+// a syntax-aware span scanner cross-checked against it, the top-level from/to
+// DSNs are merged with six-star semantics, and only the two string literal
+// spans are spliced back. Every other byte of the candidate is copied
+// verbatim; a direction without KEEP values keeps its original literal
+// untouched, and the result is never re-serialized through tjsonToString.
+static int32_t mndXnodeSixStarMergeJobConfig(const char *oldConfig, int32_t oldConfigLen, const char *candConfig,
+                                             int32_t candConfigLen, bool create, int32_t maxConfigLen, char **ppFinal,
+                                             int32_t *pFinalLen, bool *pHasKeep, bool *pHasFrom, bool *pHasTo,
+                                             int32_t *pSixStarError) {
+  if (ppFinal == NULL || pFinalLen == NULL || *ppFinal != NULL || candConfig == NULL || candConfigLen < 0) {
+    return mndXnodeProtectionError();
+  }
+  *pFinalLen = 0;
+  if (pHasKeep != NULL) *pHasKeep = false;
+  if (pHasFrom != NULL) *pHasFrom = false;
+  if (pHasTo != NULL) *pHasTo = false;
+  if (candConfigLen == 0) return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  for (int32_t i = 0; i < candConfigLen; ++i) {
+    if ((unsigned char)candConfig[i] == 0) {
+      return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+  }
+  if (!mndXnodeUtf8Valid(candConfig, candConfigLen)) {
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  }
+  cJSON *root = cJSON_ParseWithLength(candConfig, candConfigLen);
+  if (root == NULL || !cJSON_IsObject(root)) {
+    if (root != NULL) cJSON_Delete(root);
+    return mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+  }
+  SXnodeJsonSpan from = {0};
+  SXnodeJsonSpan to = {0};
+  int32_t        code = mndXnodeSixStarFindJobConfigSpans(candConfig, candConfigLen, &from, &to, pSixStarError);
+  if (code == TSDB_CODE_SUCCESS) {
+    int32_t fromCount = 0;
+    int32_t toCount = 0;
+    for (cJSON *child = root->child; child != NULL; child = child->next) {
+      if (child->string == NULL) continue;
+      if (strcmp(child->string, "from") == 0) {
+        if (++fromCount > 1) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS);
+        if (!cJSON_IsString(child)) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+      } else if (strcmp(child->string, "to") == 0) {
+        if (++toCount > 1) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_FIELD_AMBIGUOUS);
+        if (!cJSON_IsString(child)) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_INPUT_TYPE_INVALID);
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS && ((fromCount > 0 && !from.present) || (toCount > 0 && !to.present))) {
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+    }
+    if (pHasFrom != NULL) *pHasFrom = from.present;
+    if (pHasTo != NULL) *pHasTo = to.present;
+  }
+
+  char                    *replacements[2] = {NULL, NULL};
+  int32_t                  replacementLens[2] = {0, 0};
+  SXnodeSixStarOldJobConfig oldJob = {0};
+  const SXnodeJsonSpan     *spanFor[2] = {&from, &to};
+  // directions in document order: 0 = from, 1 = to
+  int32_t order[2] = {0, 1};
+  if (to.present && (!from.present || to.start < from.start)) {
+    order[0] = 1;
+    order[1] = 0;
+  }
+  for (int32_t i = 0; code == TSDB_CODE_SUCCESS && i < 2; ++i) {
+    const int32_t         direction = order[i];
+    const SXnodeJsonSpan *span = spanFor[direction];
+    if (!span->present) continue;
+    char   *decoded = NULL;
+    int32_t decodedLen = 0;
+    code = mndXnodeDecodeJsonString(candConfig + span->start, span->end - span->start, &decoded, &decodedLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_JOB_JSON_INVALID);
+      break;
+    }
+    SXnodeSixStarSlot *candSlots = NULL;
+    int32_t          numCand = 0;
+    code = mndXnodeSixStarScanDsn(decoded, decodedLen, &candSlots, &numCand, pSixStarError);
+    if (code == TSDB_CODE_SUCCESS) {
+      bool directionHasKeep = false;
+      for (int32_t s = 0; s < numCand; ++s) {
+        if (!mndXnodeSixStarIsMaskedValue(candSlots[s].decodedValue, candSlots[s].decodedValueLen)) continue;
+        if (create) {
+          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CREATE_MASKED);
+          break;
+        }
+        directionHasKeep = true;
+      }
+      if (pHasKeep != NULL && directionHasKeep) *pHasKeep = true;
+      if (code == TSDB_CODE_SUCCESS && directionHasKeep) {
+        if (oldConfig == NULL) {
+          code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          code = mndXnodeSixStarLoadOldJobConfig(oldConfig, oldConfigLen, &oldJob, pSixStarError);
+        }
+        const char              *oldDsn = NULL;
+        int32_t                  oldDsnLen = 0;
+        const SXnodeSixStarSlot *oldSlots = NULL;
+        int32_t                  numOld = 0;
+        if (code == TSDB_CODE_SUCCESS) {
+          oldDsn = direction == 0 ? oldJob.fromDsn : oldJob.toDsn;
+          oldDsnLen = direction == 0 ? oldJob.fromDsnLen : oldJob.toDsnLen;
+          oldSlots = direction == 0 ? oldJob.fromSlots : oldJob.toSlots;
+          numOld = direction == 0 ? oldJob.numFromSlots : oldJob.numToSlots;
+          if (oldDsn == NULL) code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+          if (code == TSDB_CODE_SUCCESS) {
+            const SXnodeSixStarSlot **ppOldIndex = NULL;
+            code = mndXnodeSixStarIndexOldSlots(oldSlots, numOld, &ppOldIndex);
+            if (code == TSDB_CODE_SUCCESS) {
+              for (int32_t s = 0; s < numCand; ++s) {
+                if (!mndXnodeSixStarIsMaskedValue(candSlots[s].decodedValue, candSlots[s].decodedValueLen)) continue;
+                if (mndXnodeSixStarMatchOldSlot(ppOldIndex, numOld, &candSlots[s]) == NULL) {
+                  code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+                  break;
+                }
+              }
+            }
+            taosMemoryFree(ppOldIndex);
+          }
+          if (code == TSDB_CODE_SUCCESS) {
+            code = mndXnodeSixStarConnectionMatch(oldDsn, oldDsnLen, decoded, decodedLen,
+                                                  direction == 0 ? XNODE_SIXSTAR_DIRECTION_FROM
+                                                                 : XNODE_SIXSTAR_DIRECTION_TO,
+                                                  pSixStarError);
+          }
+        }
+        const SXnodeSixStarSlot **ppOldIndex = NULL;
+        if (code == TSDB_CODE_SUCCESS) {
+          code = mndXnodeSixStarIndexOldSlots(oldSlots, numOld, &ppOldIndex);
+        }
+        char   *merged = NULL;
+        int32_t mergedLen = 0;
+        if (code == TSDB_CODE_SUCCESS) {
+          int64_t mergedCap = decodedLen;
+          for (int32_t s = 0; s < numCand; ++s) {
+            if (!mndXnodeSixStarIsMaskedValue(candSlots[s].decodedValue, candSlots[s].decodedValueLen)) continue;
+            const SXnodeSixStarSlot *pMatch = mndXnodeSixStarMatchOldSlot(ppOldIndex, numOld, &candSlots[s]);
+            if (pMatch == NULL) {
+              code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_KEEP_MISSING);
+              break;
+            }
+            mergedCap += (int64_t)pMatch->wireValueLen - candSlots[s].wireValueLen;
+          }
+          if (code == TSDB_CODE_SUCCESS) {
+            if (mergedCap < 0 || mergedCap > INT32_MAX) {
+              code = mndXnodeProtectionError();
+            } else {
+              merged = taosMemoryMalloc((size_t)mergedCap + 1);
+              if (merged == NULL) code = mndXnodeProtectionError();
+            }
+          }
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          int32_t outPos = 0;
+          int32_t cursor = 0;
+          for (int32_t s = 0; s < numCand; ++s) {
+            if (!mndXnodeSixStarIsMaskedValue(candSlots[s].decodedValue, candSlots[s].decodedValueLen)) continue;
+            const SXnodeSixStarSlot *pMatch = mndXnodeSixStarMatchOldSlot(ppOldIndex, numOld, &candSlots[s]);
+            memcpy(merged + outPos, decoded + cursor, (size_t)(candSlots[s].wireValueOff - cursor));
+            outPos += candSlots[s].wireValueOff - cursor;
+            memcpy(merged + outPos, oldDsn + pMatch->wireValueOff, (size_t)pMatch->wireValueLen);
+            outPos += pMatch->wireValueLen;
+            cursor = candSlots[s].wireValueOff + candSlots[s].wireValueLen;
+          }
+          memcpy(merged + outPos, decoded + cursor, (size_t)(decodedLen - cursor));
+          outPos += decodedLen - cursor;
+          merged[outPos] = 0;
+          mergedLen = outPos;
+          char   *escaped = NULL;
+          int32_t escapedLen = 0;
+          code = mndXnodeJsonEscape(merged, mergedLen, &escaped, &escapedLen);
+          if (code == TSDB_CODE_SUCCESS) {
+            code = mndXnodeJsonQuote(escaped, escapedLen, &replacements[direction], &replacementLens[direction]);
+          }
+          taosMemoryFree(escaped);
+          taosMemoryFree(merged);
+        }
+        taosMemoryFree(ppOldIndex);
+      }
+    }
+    mndXnodeSixStarFreeSlots(candSlots, numCand);
+    taosMemoryFree(decoded);
+  }
+  cJSON_Delete(root);
+  if (code == TSDB_CODE_SUCCESS) {
+    int64_t resultLen = candConfigLen;
+    for (int32_t i = 0; i < 2; ++i) {
+      if (spanFor[i]->present && replacements[i] != NULL) {
+        resultLen += replacementLens[i] - (spanFor[i]->end - spanFor[i]->start);
+      }
+    }
+    if (resultLen < 0 || resultLen > INT32_MAX || (maxConfigLen > 0 && resultLen > maxConfigLen)) {
+      code = mndXnodeProtectionError();
+    } else {
+      char *out = taosMemoryMalloc((size_t)resultLen + 1);
+      if (out == NULL) {
+        code = mndXnodeProtectionError();
+      } else {
+        int32_t outPos = 0;
+        int32_t inputPos = 0;
+        for (int32_t i = 0; i < 2; ++i) {
+          const int32_t         direction = order[i];
+          const SXnodeJsonSpan *span = spanFor[direction];
+          if (!span->present) continue;
+          memcpy(out + outPos, candConfig + inputPos, (size_t)(span->start - inputPos));
+          outPos += span->start - inputPos;
+          if (replacements[direction] != NULL) {
+            memcpy(out + outPos, replacements[direction], (size_t)replacementLens[direction]);
+            outPos += replacementLens[direction];
+          } else {
+            memcpy(out + outPos, candConfig + span->start, (size_t)(span->end - span->start));
+            outPos += span->end - span->start;
+          }
+          inputPos = span->end;
+        }
+        memcpy(out + outPos, candConfig + inputPos, (size_t)(candConfigLen - inputPos));
+        outPos += candConfigLen - inputPos;
+        out[outPos] = 0;
+        *ppFinal = out;
+        *pFinalLen = outPos;
+      }
+    }
+  }
+  taosMemoryFree(replacements[0]);
+  taosMemoryFree(replacements[1]);
+  mndXnodeSixStarFreeOldJobConfig(&oldJob);
+  return code;
+}
+
+static int32_t mndXnodeSixStarDupField(const SXnodeSixStarField *pField, char **ppOut, int32_t *pOutLen) {
+  if (pField->ptr == NULL) return TSDB_CODE_SUCCESS;
+  return mndXnodeSixStarDupBytes(pField->ptr, pField->len, ppOut, pOutLen);
+}
+
+static int32_t mndXnodeSixStarFieldHasKeep(const SXnodeSixStarField *pField, bool *pHasKeep,
+                                           int32_t *pSixStarError) {
+  *pHasKeep = false;
+  if (pField->ptr == NULL) return TSDB_CODE_SUCCESS;
+  SXnodeSixStarSlot *slots = NULL;
+  int32_t numSlots = 0;
+  int32_t code = mndXnodeSixStarScanDsn(pField->ptr, pField->len, &slots, &numSlots, pSixStarError);
+  if (code == TSDB_CODE_SUCCESS) {
+    for (int32_t i = 0; i < numSlots; ++i) {
+      if (mndXnodeSixStarIsMaskedValue(slots[i].decodedValue, slots[i].decodedValueLen)) {
+        *pHasKeep = true;
+        break;
+      }
+    }
+  }
+  mndXnodeSixStarFreeSlots(slots, numSlots);
+  return code;
+}
+
+int32_t mndXnodeSixStarMerge(const SXnodeSixStarMergeInput *pInput, SXnodeSixStarMergeOutput *pOutput,
+                             int32_t *pSixStarError) {
+  if (pInput == NULL || pOutput == NULL || pSixStarError == NULL) return mndXnodeProtectionError();
+  memset(pOutput, 0, sizeof(*pOutput));
+  *pSixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  int32_t code = TSDB_CODE_SUCCESS;
+  // ALTER treats VIA <= 0 as omitted, so it retains the committed route.
+  // Only an explicit positive VIA different from oldVia changes the route.
+  bool viaChanged = pInput->candidateVia > 0 && pInput->candidateVia != pInput->oldVia;
+  if (pInput->protectionEnabled && viaChanged) {
+    if (!pInput->isJob) {
+      bool hasKeep = false;
+      bool fromKeep = false;
+      bool toKeep = false;
+      code = mndXnodeSixStarFieldHasKeep(&pInput->candidateFrom, &fromKeep, pSixStarError);
+      if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarFieldHasKeep(&pInput->candidateTo, &toKeep, pSixStarError);
+      hasKeep = fromKeep || toKeep;
+      if (code == TSDB_CODE_SUCCESS &&
+          (pInput->candidateFrom.ptr == NULL || pInput->candidateTo.ptr == NULL || hasKeep)) {
+        code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+      }
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      mndXnodeSixStarMergeOutputFree(pOutput);
+      return code;
+    }
+  }
+  if (!pInput->protectionEnabled) {
+    const SXnodeSixStarField *finalFrom = pInput->candidateFrom.ptr != NULL ? &pInput->candidateFrom : &pInput->oldFrom;
+    const SXnodeSixStarField *finalTo = pInput->candidateTo.ptr != NULL ? &pInput->candidateTo : &pInput->oldTo;
+    const SXnodeSixStarField *finalConfig =
+        pInput->candidateConfig.ptr != NULL ? &pInput->candidateConfig : &pInput->oldConfig;
+    code = mndXnodeSixStarDupField(finalFrom, &pOutput->from, &pOutput->fromLen);
+    if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarDupField(finalTo, &pOutput->to, &pOutput->toLen);
+    if (code == TSDB_CODE_SUCCESS) code = mndXnodeSixStarDupField(finalConfig, &pOutput->config, &pOutput->configLen);
+  } else if (pInput->isJob) {
+    bool hasKeep = false;
+    bool hasFrom = false;
+    bool hasTo = false;
+    if (pInput->candidateConfig.ptr == NULL) {
+      code = mndXnodeSixStarDupField(&pInput->oldConfig, &pOutput->config, &pOutput->configLen);
+    } else {
+      code = mndXnodeSixStarMergeJobConfig(pInput->oldConfig.ptr, pInput->oldConfig.len, pInput->candidateConfig.ptr,
+                                           pInput->candidateConfig.len, pInput->create, pInput->maxConfigLen,
+                                           &pOutput->config, &pOutput->configLen, &hasKeep, &hasFrom, &hasTo,
+                                           pSixStarError);
+    }
+    if (code == TSDB_CODE_SUCCESS && viaChanged &&
+        (pInput->candidateConfig.ptr == NULL || hasKeep || !hasFrom || !hasTo)) {
+      mndXnodeSixStarMergeOutputFree(pOutput);
+      code = mndXnodeSixStarError(pSixStarError, XNODE_SIXSTAR_ERROR_CONNECTION_CHANGED);
+    }
+  } else {
+    if (pInput->candidateFrom.ptr == NULL) {
+      code = mndXnodeSixStarDupField(&pInput->oldFrom, &pOutput->from, &pOutput->fromLen);
+    } else {
+      code = mndXnodeSixStarMergeDsn(pInput->oldFrom.ptr, pInput->oldFrom.len, pInput->candidateFrom.ptr,
+                                     pInput->candidateFrom.len, pInput->create, pInput->maxFromLen, &pOutput->from,
+                                     &pOutput->fromLen, XNODE_SIXSTAR_DIRECTION_FROM, pSixStarError);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      if (pInput->candidateTo.ptr == NULL) {
+        code = mndXnodeSixStarDupField(&pInput->oldTo, &pOutput->to, &pOutput->toLen);
+      } else {
+        code = mndXnodeSixStarMergeDsn(pInput->oldTo.ptr, pInput->oldTo.len, pInput->candidateTo.ptr,
+                                       pInput->candidateTo.len, pInput->create, pInput->maxToLen, &pOutput->to,
+                                       &pOutput->toLen, XNODE_SIXSTAR_DIRECTION_TO, pSixStarError);
+      }
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) mndXnodeSixStarMergeOutputFree(pOutput);
+  return code;
+}
+
+void mndXnodeSixStarMergeOutputFree(SXnodeSixStarMergeOutput *pOutput) {
+  if (pOutput == NULL) return;
+  taosMemoryFree(pOutput->from);
+  taosMemoryFree(pOutput->to);
+  taosMemoryFree(pOutput->config);
+  pOutput->from = NULL;
+  pOutput->to = NULL;
+  pOutput->config = NULL;
+  pOutput->fromLen = 0;
+  pOutput->toLen = 0;
+  pOutput->configLen = 0;
+}
+
+static int32_t mndXnodeCheckCreateTaskSixStar(const SMCreateXnodeTaskReq *pCreate) {
+  if (tsXnodeDsnProtection == 0) return TSDB_CODE_SUCCESS;
+  SXnodeSixStarMergeInput  input = {0};
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  input.create = true;
+  input.protectionEnabled = true;
+  input.isJob = false;
+  input.candidateFrom.ptr = pCreate->source.cstr.ptr;
+  input.candidateFrom.len = pCreate->source.cstr.len;
+  input.candidateTo.ptr = pCreate->sink.cstr.ptr;
+  input.candidateTo.len = pCreate->sink.cstr.len;
+  input.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
+  input.maxToLen = TSDB_XNODE_TASK_SINK_LEN;
+  int32_t code = mndXnodeSixStarMerge(&input, &output, &sixStarError);
+  mndXnodeSixStarMergeOutputFree(&output);
+  if (code != TSDB_CODE_SUCCESS) {
+    mWarn("xnode task:%s, create rejected by dsn protection, code:0x%x:%s, sixStarError:%d", pCreate->name.ptr, code,
+          tstrerror(code), sixStarError);
+  }
+  return code;
+}
+
+static int32_t mndXnodeCheckCreateJobSixStar(const SMCreateXnodeJobReq *pCreate) {
+  if (tsXnodeDsnProtection == 0) return TSDB_CODE_SUCCESS;
+  SXnodeSixStarMergeInput  input = {0};
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  input.create = true;
+  input.protectionEnabled = true;
+  input.isJob = true;
+  input.candidateConfig.ptr = pCreate->config.ptr;
+  input.candidateConfig.len = pCreate->config.len;
+  input.maxConfigLen = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN;
+  int32_t code = mndXnodeSixStarMerge(&input, &output, &sixStarError);
+  mndXnodeSixStarMergeOutputFree(&output);
+  if (code != TSDB_CODE_SUCCESS) {
+    mWarn("xnode job on task:%d, create rejected by dsn protection, code:0x%x:%s, sixStarError:%d", pCreate->tid, code,
+          tstrerror(code), sixStarError);
+  }
+  return code;
+}
+
+// Merges the ALTER candidate DSNs against the committed object. On accept,
+// *ppMergedSource/*ppMergedSink take over the final DSN for each field the
+// candidate carries (NULL when the field is not updated); the caller adopts the
+// buffers into the new object version.
+int32_t mndXnodeMergeUpdateTaskSixStar(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
+                                          char **ppMergedSource, int32_t *pMergedSourceLen, char **ppMergedSink,
+                                          int32_t *pMergedSinkLen) {
+  if (ppMergedSource == NULL || pMergedSourceLen == NULL || ppMergedSink == NULL || pMergedSinkLen == NULL) {
+    return mndXnodeProtectionError();
+  }
+  *ppMergedSource = NULL;
+  *pMergedSourceLen = 0;
+  *ppMergedSink = NULL;
+  *pMergedSinkLen = 0;
+  if (tsXnodeDsnProtection == 0) return TSDB_CODE_SUCCESS;
+  if (pUpdate->source.cstr.ptr == NULL && pUpdate->sink.cstr.ptr == NULL) return TSDB_CODE_SUCCESS;
+  SXnodeSixStarMergeInput  input = {0};
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  input.create = false;
+  input.protectionEnabled = true;
+  input.isJob = false;
+  input.oldFrom.ptr = pOld->sourceDsn;
+  input.oldFrom.len = pOld->sourceDsn != NULL ? pOld->sourceDsnLen - 1 : 0;
+  input.oldTo.ptr = pOld->sinkDsn;
+  input.oldTo.len = pOld->sinkDsn != NULL ? pOld->sinkDsnLen - 1 : 0;
+  input.oldVia = pOld->via;
+  input.candidateVia = pUpdate->via;
+  input.candidateFrom.ptr = pUpdate->source.cstr.ptr;
+  input.candidateFrom.len = pUpdate->source.cstr.len;
+  input.candidateTo.ptr = pUpdate->sink.cstr.ptr;
+  input.candidateTo.len = pUpdate->sink.cstr.len;
+  input.maxFromLen = TSDB_XNODE_TASK_SOURCE_LEN;
+  input.maxToLen = TSDB_XNODE_TASK_SINK_LEN;
+  int32_t code = mndXnodeSixStarMerge(&input, &output, &sixStarError);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pUpdate->source.cstr.ptr != NULL) {
+      *ppMergedSource = output.from;
+      *pMergedSourceLen = output.fromLen;
+      output.from = NULL;
+    }
+    if (pUpdate->sink.cstr.ptr != NULL) {
+      *ppMergedSink = output.to;
+      *pMergedSinkLen = output.toLen;
+      output.to = NULL;
+    }
+  }
+  mndXnodeSixStarMergeOutputFree(&output);
+  if (code != TSDB_CODE_SUCCESS) {
+    mWarn("xnode task:%d, alter rejected by dsn protection, code:0x%x:%s, sixStarError:%d", pUpdate->tid, code,
+          tstrerror(code), sixStarError);
+  }
+  return code;
+}
+
+static int32_t mndXnodeMergeUpdateJobSixStar(const SXnodeJobObj *pOld, const SMUpdateXnodeJobReq *pUpdate,
+                                             char **ppMergedConfig, int32_t *pMergedConfigLen) {
+  if (ppMergedConfig == NULL || pMergedConfigLen == NULL) return mndXnodeProtectionError();
+  *ppMergedConfig = NULL;
+  *pMergedConfigLen = 0;
+  if (tsXnodeDsnProtection == 0) return TSDB_CODE_SUCCESS;
+  if (pUpdate->config == NULL) return TSDB_CODE_SUCCESS;
+  SXnodeSixStarMergeInput  input = {0};
+  SXnodeSixStarMergeOutput output = {0};
+  int32_t                  sixStarError = XNODE_SIXSTAR_ERROR_NONE;
+  input.create = false;
+  input.protectionEnabled = true;
+  input.isJob = true;
+  input.oldConfig.ptr = pOld->config;
+  input.oldConfig.len = pOld->config != NULL ? pOld->configLen - 1 : 0;
+  input.candidateConfig.ptr = pUpdate->config;
+  input.candidateConfig.len = pUpdate->configLen;
+  input.oldVia = pOld->via;
+  input.candidateVia = pUpdate->via;
+  input.maxConfigLen = TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN;
+  int32_t code = mndXnodeSixStarMerge(&input, &output, &sixStarError);
+  if (code == TSDB_CODE_SUCCESS) {
+    *ppMergedConfig = output.config;
+    *pMergedConfigLen = output.configLen;
+    output.config = NULL;
+  }
+  mndXnodeSixStarMergeOutputFree(&output);
+  if (code != TSDB_CODE_SUCCESS) {
+    mWarn("xnode job:%d, alter rejected by dsn protection, code:0x%x:%s, sixStarError:%d", pUpdate->jid, code,
+          tstrerror(code), sixStarError);
+  }
+  return code;
+}
+
 static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode        *pMnode = pReq->info.node;
   SSdb          *pSdb = pMnode->pSdb;
@@ -2339,6 +4784,11 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    if (!mndXnodeShowFilterMatches(pShow->xnodeRetrieveFilterType, pShow->xnodeRetrieveFilterValue, pObj->id, 0)) {
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+
     cols = 0;
     // id
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -2353,18 +4803,38 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     if (code != 0) goto _end;
 
     // from
-    buf[0] = 0;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sourceDsn, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-    if (code != 0) goto _end;
+    if (pObj->sourceDsnLen > 0 && pObj->sourceDsn != NULL) {
+      if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+        // PLAINTEXT keeps the zero-allocation stack path. buf holds at most the
+        // stored DSN limit; the show schema is wider (2x) to fit protected output.
+        buf[0] = 0;
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sourceDsn, VARSTR_HEADER_SIZE + TSDB_XNODE_TASK_SOURCE_LEN);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      } else {
+        code = mndXnodeSetDsnShowColumn(pShow, pColInfo, numOfRows, pObj->sourceDsn, pObj->sourceDsnLen - 1,
+                                        TSDB_XNODE_TASK_SOURCE_LEN);
+      }
+      if (code != 0) goto _end;
+    } else {
+      colDataSetNULL(pColInfo, numOfRows);
+    }
 
     // to
-    buf[0] = 0;
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sinkDsn, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
-    if (code != 0) goto _end;
+    if (pObj->sinkDsnLen > 0 && pObj->sinkDsn != NULL) {
+      if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+        buf[0] = 0;
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, pObj->sinkDsn, VARSTR_HEADER_SIZE + TSDB_XNODE_TASK_SINK_LEN);
+        code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+      } else {
+        code = mndXnodeSetDsnShowColumn(pShow, pColInfo, numOfRows, pObj->sinkDsn, pObj->sinkDsnLen - 1,
+                                        TSDB_XNODE_TASK_SINK_LEN);
+      }
+      if (code != 0) goto _end;
+    } else {
+      colDataSetNULL(pColInfo, numOfRows);
+    }
 
     // parser
     if (pObj->parserLen > 0 && pObj->parser != NULL) {
@@ -2454,6 +4924,14 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->updateTime, false);
     if (code != 0) goto _end;
 
+    // desired_state
+    buf[0] = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, mndXnodeDesiredStateName(pObj->desiredState),
+                               pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    if (code != 0) goto _end;
+
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
@@ -2464,6 +4942,13 @@ _end:
     mError("failed to retrieve xnode tasks, code:%s", tstrerror(code));
   }
   mndReleaseUser(pMnode, pOperUser);
+
+  // Only failures reported by the protection helpers carry the normalized code
+  // and turn the show object sticky; unrelated failures keep their original code.
+  if (code == TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED) {
+    pShow->xnodeProtectionFailed = true;
+    return code;
+  }
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -2565,8 +5050,8 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
 
   mDebug("xnode tid:%d, jid:%d, start to encode to raw, row:%p", pObj->taskId, pObj->id, pObj);
 
-  int32_t rawDataLen =
-      sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen + pObj->statusLen;
+  int32_t rawDataLen = sizeof(SXnodeJobObj) + TSDB_XNODE_RESERVE_SIZE + pObj->configLen + pObj->reasonLen +
+                       pObj->statusLen + sizeof(int8_t);
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_JOB, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
@@ -2586,6 +5071,8 @@ SSdbRaw *mndXnodeJobActionEncode(SXnodeJobObj *pObj) {
   SDB_SET_INT64(pRaw, dataPos, pObj->updateTime, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pObj->desiredState, _OVER)
+  SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
 
@@ -2658,6 +5145,14 @@ SSdbRow *mndXnodeJobActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pObj->updateTime, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_XNODE_RESERVE_SIZE, _OVER)
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pObj->desiredState, _OVER)
+  } else {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
+  if (pObj->desiredState == XNODE_TASK_DESIRED_STATE_UNKNOWN) {
+    pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
+  }
 
   terrno = 0;
 
@@ -2695,6 +5190,7 @@ int32_t mndXnodeJobActionUpdate(SSdb *pSdb, SXnodeJobObj *pOld, SXnodeJobObj *pN
   taosWLockLatch(&pOld->lock);
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
+  pOld->desiredState = pNew->desiredState;
   swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   swapFields(&pNew->configLen, &pNew->config, &pOld->configLen, &pOld->config);
   swapFields(&pNew->reasonLen, &pNew->reason, &pOld->reasonLen, &pOld->reason);
@@ -2906,14 +5402,26 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
   STrans *pTrans = NULL;
 
   SXnodeJobObj jobObj = {0};
-  jobObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_JOB);
-  jobObj.taskId = pCreate->tid;
+  jobObj.desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+  if (pCreate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pCreate->desiredState, &jobObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  }
 
+  // The cheap length gate runs before the six-star scan so an oversized config
+  // is rejected without paying for the full protection scan.
   jobObj.configLen = pCreate->config.len + 1;
   if (jobObj.configLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN + 1) {
     code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
     goto _OVER;
   }
+
+  // Six-star write-queue authority: reject control markers before the final
+  // object exists and before any commit log is encoded.
+  TAOS_CHECK_GOTO(mndXnodeCheckCreateJobSixStar(pCreate), NULL, _OVER);
+
+  jobObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_JOB);
+  jobObj.taskId = pCreate->tid;
   jobObj.config = taosMemoryCalloc(1, jobObj.configLen);
   if (jobObj.config == NULL) goto _OVER;
   (void)memcpy(jobObj.config, pCreate->config.ptr, pCreate->config.len);
@@ -2926,9 +5434,12 @@ static int32_t mndCreateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeJob
     jobObj.status = taosMemoryCalloc(1, jobObj.statusLen);
     if (jobObj.status == NULL) goto _OVER;
     (void)memmove(jobObj.status, pCreate->status.ptr, pCreate->status.len);
+    if (pCreate->desiredState.ptr == NULL) {
+      jobObj.desiredState = mndXnodeDesiredStateFromStatus(jobObj.status);
+    }
   }
 
-  if (jobObj.reason != NULL) {
+  if (pCreate->reason.ptr != NULL) {
     jobObj.reasonLen = pCreate->reason.len + 1;
     if (jobObj.reasonLen > TSDB_XNODE_TASK_REASON_LEN + 1) {
       code = TSDB_CODE_MND_XNODE_TASK_REASON_TOO_LONG;
@@ -2979,6 +5490,8 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
     bool config;
     bool reason;
   } isChange = {0};
+  char   *mergedConfig = NULL;
+  int32_t mergedConfigLen = 0;
 
   jobObj.id = pUpdate->jid;
   if (pUpdate->via > 0) {
@@ -2994,15 +5507,34 @@ static int32_t mndUpdateXnodeJob(SMnode *pMnode, SRpcMsg *pReq, SXnodeJobObj *pO
     (void)memcpy(jobObj.status, pUpdate->status.ptr, pUpdate->status.len);
     isChange.status = true;
   }
+  if (pUpdate->desiredState.ptr != NULL) {
+    code = mndXnodeParseDesiredState(&pUpdate->desiredState, &jobObj.desiredState);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  }
+
+  // The cheap length gate runs before the six-star merge so an oversized
+  // candidate config is rejected without paying for the merge.
+  if (pUpdate->config != NULL && pUpdate->configLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
+    code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
+    goto _OVER;
+  }
+
+  // Six-star KEEP/REPLACE merge against the committed object, before the final
+  // object is assembled and the commit log is encoded.
+  code = mndXnodeMergeUpdateJobSixStar(pOld, pUpdate, &mergedConfig, &mergedConfigLen);
+  if (code != TSDB_CODE_SUCCESS) goto _OVER;
+
   if (pUpdate->config != NULL) {
-    if (pUpdate->configLen > TSDB_XNODE_TASK_JOB_CONFIG_MAX_LEN) {
-      code = TSDB_CODE_MND_XNODE_TASK_JOB_CONFIG_TOO_LONG;
-      goto _OVER;
+    if (mergedConfig != NULL) {
+      jobObj.configLen = mergedConfigLen + 1;
+      jobObj.config = mergedConfig;
+      mergedConfig = NULL;
+    } else {
+      jobObj.configLen = pUpdate->configLen + 1;
+      jobObj.config = taosMemoryCalloc(1, jobObj.configLen);
+      if (jobObj.config == NULL) goto _OVER;
+      (void)memcpy(jobObj.config, pUpdate->config, pUpdate->configLen);
     }
-    jobObj.configLen = pUpdate->configLen + 1;
-    jobObj.config = taosMemoryCalloc(1, jobObj.configLen);
-    if (jobObj.config == NULL) goto _OVER;
-    (void)memcpy(jobObj.config, pUpdate->config, pUpdate->configLen);
     isChange.config = true;
   }
   if (pUpdate->reason != NULL) {
@@ -3032,6 +5564,7 @@ _OVER:
   if (NULL != jobObj.config && isChange.config) {
     taosMemoryFree(jobObj.config);
   }
+  taosMemoryFree(mergedConfig);
   if (NULL != jobObj.reason && isChange.reason) {
     taosMemoryFree(jobObj.reason);
   }
@@ -3383,6 +5916,17 @@ static SHashObj *convertJob2Map(const SXnodeJobObj *pJob) {
     reason.nd.isNull = true;
     code = taosHashPut(pMap, "reason", strlen("reason") + 1, &reason, sizeof(SXndRefValueNode));
   }
+  if (code != 0) {
+    taosHashCleanup(pMap);
+    return NULL;
+  }
+  // desired_state
+  SXndRefValueNode desiredState = {0};
+  desiredState.nd.node.type = QUERY_NODE_VALUE;
+  desiredState.nd.node.resType.type = TSDB_DATA_TYPE_BINARY;
+  desiredState.nd.datum.p = (void *)mndXnodeDesiredStateName(pJob->desiredState);
+  code = taosHashPut(pMap, "desired_state", strlen("desired_state") + 1, &desiredState,
+                     sizeof(SXndRefValueNode));
   if (code != 0) {
     taosHashCleanup(pMap);
     return NULL;
@@ -3913,8 +6457,9 @@ _OVER:
  *
  *  {.name = "jid", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
     {.name = "tid", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = false},
-    {.name = "config", .bytes = TSDB_XNODE_NAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo =
- false},
+    {.name = "config",
+     .bytes = TSDB_XNODE_TASK_JOB_CONFIG_SHOW_MAX_LEN + BLOBSTR_HEADER_SIZE,
+     .type = TSDB_DATA_TYPE_BLOB, .sysInfo = false},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     // {.name = "reason", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
@@ -3952,6 +6497,12 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
       }
     }
 
+    if (!mndXnodeShowFilterMatches(pShow->xnodeRetrieveFilterType, pShow->xnodeRetrieveFilterValue, pObj->id,
+                                   pObj->taskId)) {
+      sdbRelease(pSdb, pObj);
+      continue;
+    }
+
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     // id
@@ -3964,8 +6515,23 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 
     // config
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    code = mndSetXnodeBlobColumn(pColInfo, numOfRows, pObj->config, pObj->configLen);
-    if (code != 0) goto _end;
+    if (pShow->xnodeOutputMode == XNODE_SHOW_OUTPUT_PLAINTEXT) {
+      // PLAINTEXT keeps the zero-allocation direct write into the column buffer.
+      code = mndSetXnodeBlobColumn(pColInfo, numOfRows, pObj->config, pObj->configLen);
+      if (code != 0) goto _end;
+    } else if (pObj->config == NULL) {
+      colDataSetNULL(pColInfo, numOfRows);
+    } else {
+      char   *projectedConfig = NULL;
+      int32_t projectedConfigLen = 0;
+      code = mndXnodeProjectJobConfigForShow(pShow, pObj->config, pObj->configLen, &projectedConfig,
+                                             &projectedConfigLen);
+      if (code == TSDB_CODE_SUCCESS) {
+        code = varColSetVarData(pColInfo, numOfRows, projectedConfig, projectedConfigLen, false);
+      }
+      taosMemoryFree(projectedConfig);
+      if (code != 0) goto _end;
+    }
 
     // via
     if (pObj->via != 0) {
@@ -4021,6 +6587,14 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
     code = colDataSetVal(pColInfo, numOfRows, (const char *)&pObj->updateTime, false);
     if (code != 0) goto _end;
 
+    // desired_state
+    buf[0] = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, mndXnodeDesiredStateName(pObj->desiredState),
+                               pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    if (code != 0) goto _end;
+
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
@@ -4028,6 +6602,13 @@ static int32_t mndRetrieveXnodeJobs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock 
 _end:
   if (code != 0) sdbRelease(pSdb, pObj);
   mndReleaseUser(pMnode, pOperUser);
+
+  // Only failures reported by the protection helpers carry the normalized code
+  // and turn the show object sticky; unrelated failures keep their original code.
+  if (code == TSDB_CODE_MND_XNODE_DSN_PROTECTION_FAILED) {
+    pShow->xnodeProtectionFailed = true;
+    return code;
+  }
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
@@ -4234,8 +6815,10 @@ SJson *mndSendReqRetJson(const char *url, EHttpType type, int64_t timeout, const
 
   getXnodedPipeName(socketPath, sizeof(socketPath));
   #ifndef WINDOWS
-  if (!taosCheckExistFile(socketPath)) {
-    uError("xnode failed to send request, socket path:%s not exist", socketPath);
+  int32_t sockCode = taosCheckPrivateSocket(socketPath);
+  if (sockCode != TSDB_CODE_SUCCESS) {
+    uError("xnode failed to send request, socket path:%s is unavailable or untrusted since %s", socketPath,
+           tstrerror(sockCode));
     terrno = TSDB_CODE_MND_XNODE_URL_CANT_ACCESS;
     goto _EXIT;
   }
@@ -4609,6 +7192,7 @@ static int32_t mndValidateXnodePermissions(SMnode *pMnode, SRpcMsg *pReq, EOperT
     case MND_OPER_CREATE_XNODE:        privType = PRIV_NODE_CREATE; break;
     case MND_OPER_UPDATE_XNODE:        privType = PRIV_NODE_ALTER; break;
     case MND_OPER_DRAIN_XNODE:         privType = PRIV_NODE_ALTER; break;
+    case MND_OPER_RESTART_XNODE:       privType = PRIV_NODE_ALTER; break;
     case MND_OPER_DROP_XNODE:          privType = PRIV_NODE_DROP; break;
     case MND_OPER_CREATE_XNODE_AGENT:  privType = PRIV_NODE_CREATE; break;
     case MND_OPER_UPDATE_XNODE_AGENT:  privType = PRIV_NODE_ALTER; break;
@@ -4646,6 +7230,10 @@ SXnodeAgentObj *mndAcquireXnodeAgentById(SMnode *pMnode, int32_t id) {
 
 static SXnodeAgentObj *mndAcquireXnodeAgentByName(SMnode *pMnode, const char *name) {
   SSdb *pSdb = pMnode->pSdb;
+  if (name == NULL) {
+    terrno = TSDB_CODE_MND_XNODE_INVALID_MSG;
+    return NULL;
+  }
 
   void *pIter = NULL;
   while (1) {
@@ -4719,7 +7307,7 @@ static char *mndXnodeBase64UrlEncodeOpenssl(const unsigned char *input, size_t i
     goto _err;
   }
 
-  // BIO chain:b64 → bio
+  // BIO chain:b64  ->  bio
   bio = BIO_push(b64, bio);
   if (!bio) {
     lino = __LINE__;
@@ -5665,13 +8253,13 @@ static void mndCancelGetNextXnodeAgent(SMnode *pMnode, void *pIter) {
 
 /** xnoded mgmt section **/
 
-void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token) {
+int32_t mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const char *token) {
   int32_t   code = 0;
   SXnodeOpt pOption = {0};
 
   if ((user == NULL || pass == NULL) && token == NULL) {
     mError("xnode failed to start xnoded, dnode:%d", pMnode->selfDnodeId);
-    return;
+    return TSDB_CODE_MND_XNODE_NEED_USER_PASS;
   }
 
   pOption.dnodeId = pMnode->selfDnodeId;
@@ -5680,7 +8268,7 @@ void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const ch
   SEpSet epset = mndGetDnodeEpsetById(pMnode, pMnode->selfDnodeId);
   if (epset.numOfEps == 0) {
     mError("xnode failed to start xnoded, dnode:%d", pMnode->selfDnodeId);
-    return;
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
   }
   pOption.ep = epset.eps[0];
   // add user password
@@ -5694,8 +8282,10 @@ void mndStartXnoded(SMnode *pMnode, const char *user, const char *pass, const ch
   }
   if ((code = mndOpenXnd(&pOption)) != 0) {
     mError("xnode failed to open xnd since %s, dnodeId:%d", tstrerror(code), pOption.dnodeId);
-    return;
+    return code;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
@@ -5706,7 +8296,7 @@ void mndXnodeHandleBecomeLeader(SMnode *pMnode) {
     return;
   }
 
-  mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
+  (void)mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
   mndReleaseXnodeUserPass(pMnode, pObj);
 }
 
@@ -5715,18 +8305,25 @@ void mndXnodeHandleBecomeNotLeader() {
   mndCloseXnd();
 }
 
-void mndRestartXnoded(SMnode *pMnode) {
+int32_t mndRestartXnoded(SMnode *pMnode) {
   mInfo("mndxnode restart xnoded");
-  mndCloseXnd();
-
-  taosMsleep(200);
   SXnodeUserPassObj *pObj = mndAcquireFirstXnodeUserPass(pMnode);
   if (pObj == NULL) {
     mInfo("mndXnode restart found no xnoded user pass");
-    return;
+    return TSDB_CODE_MND_XNODE_USER_PASS_NOT_EXIST;
   }
-  mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
+
+  mndCloseXnd();
+
+  // The stop path has already joined the xnoded watchdog thread. Give the
+  // forked xnoded process a short grace period to release its resources before
+  // starting the new instance.
+  taosMsleep(200);
+  int32_t code = mndStartXnoded(pMnode, pObj->user, pObj->pass, pObj->token);
   mndReleaseXnodeUserPass(pMnode, pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   mInfo("mndxnode xnoded restarted");
-  return;
+  return TSDB_CODE_SUCCESS;
 }

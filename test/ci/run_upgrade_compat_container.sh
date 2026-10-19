@@ -1,20 +1,19 @@
 #!/bin/bash
-# run_upgrade_compat_container.sh
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Container-side script for cold/hot upgrade compatibility tests.
-# Invoked by run_upgrade_compat.sh via docker run.
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-# Steps:
-#   1. Install Python dependencies (taospy / pyyaml)
-#   2. Cold upgrade tests: 3.3.6.0 / 3.3.8.0 / 3.4.0.0 → current version (sequential)
-#   3. Hot (rolling) upgrade test: auto-match base version by version prefix
-#   4. Print overall PASS / FAIL summary
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-# Volume mounts (guaranteed by run_upgrade_compat.sh):
-#   /home/TDinternal/community — source repo (read-only, mounted from source/taos-community)
-#   /home/TDinternal/debug     — current build artifacts debugNoSan (read-only)
-#   /green_versions            — green version cache (read-only)
-#   /upgrade_logs              — log output directory (writable)
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -66,7 +65,14 @@ echo "======================================================"
 
 echo ""
 echo "=== Installing Python dependencies ==="
-pip3 install taospy pyyaml -q --disable-pip-version-check 2>/dev/null
+if ! python3 -m pip install --disable-pip-version-check \
+    "taospy==2.8.9" "PyYAML==6.0.2"; then
+    echo "ERROR: failed to install compatibility-test Python dependencies" >&2
+    exit 1
+fi
+export PYTHONFAULTHANDLER=1
+python3 --version
+python3 -m pip show taospy PyYAML
 echo "=== Python dependencies installed successfully ==="
 
 # ── Step 0.5: Clear the "requires executable stack" ELF flag on libtaos.so ───
@@ -81,11 +87,11 @@ echo "=== Python dependencies installed successfully ==="
 # patch the PT_GNU_STACK program header's PF_X bit directly with a small,
 # dependency-free Python script instead. Harmless: these client libraries
 # don't actually rely on trampoline code needing an executable stack. Fixed
-# once on-disk in $GREEN_PATH/$BUILD_DIR (both bind-mounted writable from the
-# host), so later runs on the same worker host skip straight past this.
+# Green-version libraries are patched before they are published to the shared
+# cache. Only the current build directory needs patching in this container.
 echo ""
-echo "=== Clearing executable-stack flag on legacy libtaos.so binaries ==="
-python3 - "$GREEN_PATH" "$BUILD_DIR" <<'PYEOF'
+echo "=== Clearing executable-stack flag on current libtaos.so binaries ==="
+python3 - "$BUILD_DIR" <<'PYEOF'
 import glob
 import os
 import struct

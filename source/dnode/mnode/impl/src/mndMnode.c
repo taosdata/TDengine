@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -820,7 +822,7 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
   if (totalMnodes == 2) {
     if (force) {
-      mError("cant't force drop dnode, since a mnode on it and replica is 2");
+      mError("cannot force drop dnode, since a mnode is on it and replica is 2");
       code = TSDB_CODE_MNODE_ONLY_TWO_MNODE;
       TAOS_RETURN(code);
     }
@@ -944,7 +946,7 @@ static int32_t mndProcessFlushMnodeReq(SRpcMsg *pReq) {
   // Leader is guaranteed by mndCheckMnodeState (non-leaders are auto-redirected
   // with the leader epset). No manual leader check / user-facing not-leader error.
 
-  // Per FS §4.1/§6: FLUSH MNODE requires sysinfo privilege (gated directly on the
+  // Per FS section 4.1/section 6: FLUSH MNODE requires sysinfo privilege (gated directly on the
   // sysInfo flag, not a dedicated RBAC priv object like COMPACT DATABASE's
   // PRIV_DB_COMPACT) since it force-truncates the WAL and snapshots the mnode
   // leader; an unprivileged caller must not be able to trigger this.

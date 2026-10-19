@@ -1,5 +1,21 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import random
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.interval_hints import assert_supported_interval_hint_modes
 
 
 class TestIntervalBugFix:
@@ -27,6 +43,7 @@ class TestIntervalBugFix:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-11-20 xs Ren Created
             - 2024-9-14 Feng Chao Created
@@ -101,6 +118,9 @@ class TestIntervalBugFix:
     def test_last_row_sliding_interval_matches_subquery(self):
         """Interval: last functions over sliding windows match subquery results.
 
+        Verify direct and subquery forms return identical results for sliding
+        interval queries using last and last_row.
+
         Since: v3.4.0.0
 
         Labels: common,ci
@@ -168,10 +188,14 @@ class TestIntervalBugFix:
     def test_multi_week_tumbling_offset_matches_subquery(self):
         """Interval: multi-week tumbling windows keep one fixed phase.
 
+        Verify direct and subquery forms use the same fixed phase for
+        multi-week tumbling interval windows.
+
         Catalog:
             - TimeSeries:TimeWindow
 
         Since: v3.4.2.1
+
         Labels: common,ci
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7043509904
 
@@ -215,10 +239,14 @@ class TestIntervalBugFix:
     def test_multi_week_sliding_uses_fixed_phase(self):
         """Interval: block order cannot change multi-week sliding windows.
 
+        Verify multi-week sliding interval windows keep stable boundaries
+        regardless of the order in which blocks are processed.
+
         Catalog:
             - TimeSeries:TimeWindow
 
         Since: v3.4.2.1
+
         Labels: common,ci
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7043509904
 
@@ -444,7 +472,9 @@ class TestIntervalBugFix:
            tdSql.execute(f"insert into t{i+1} values (1763617921000, 1763617912000, {i+2});")
            tdSql.execute(f"insert into t{i+1} values (1763617922000, 1763617920000, {i+3});")
            tdSql.execute(f"insert into t{i+1} values (1763617923000, 1763617921000, {i+4});")
-        
+
+        assert_supported_interval_hint_modes()
+
         # interval window: subquery is interval window with order by
         sql = f"select _wstart, sum(`status`) from (select _wstart, first(`event_time`), `event_time`, `status`, tbname from st partition by tbname interval(2s) order by 1) interval(3s);"
         tdSql.query(sql, show=True)

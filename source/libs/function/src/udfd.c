@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -97,7 +99,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
   }
   err = uv_dlopen(udf->path, &udfCtx->lib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
+    fnError("cannot load library %s. error: %s, %s", udf->path, uv_strerror(err), udfCtx->lib.errmsg);
     taosMemoryFree(udfCtx);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
@@ -105,7 +107,7 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
 
   err = udfdCPluginUdfInitLoadInitDestoryFuncs(udfCtx, udfName);
   if (err != 0) {
-    fnError("can not load init/destroy functions. error: %d", err);
+    fnError("cannot load init/destroy functions. error: %d", err);
     err = TSDB_CODE_UDF_LOAD_UDF_FAILURE;
     goto _exit;
   }
@@ -114,14 +116,14 @@ int32_t udfdCPluginUdfInit(SScriptUdfInfo *udf, void **pUdfCtx) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     snprintf(processFuncName, sizeof(processFuncName), "%s", udfName);
     if (uv_dlsym(&udfCtx->lib, processFuncName, (void **)(&udfCtx->scalarProcFunc)) != 0) {
-      fnError("can not load library function %s. error: %s", processFuncName, uv_strerror(err));
+      fnError("cannot load library function %s. error: %s", processFuncName, uv_strerror(err));
       err = TSDB_CODE_UDF_LOAD_UDF_FAILURE;
       goto _exit;
     }
   } else if (udf->funcType == UDF_FUNC_TYPE_AGG) {
     err = udfdCPluginUdfInitLoadAggFuncs(udfCtx, udfName);
     if (err != 0) {
-      fnError("can not load aggregation functions. error: %d", err);
+      fnError("cannot load aggregation functions. error: %d", err);
       err = TSDB_CODE_UDF_LOAD_UDF_FAILURE;
       goto _exit;
     }
@@ -392,7 +394,7 @@ int32_t udfdLoadSharedLib(char *libPath, uv_lib_t *pLib, const char *funcName[],
 
   int err = uv_dlopen(libPath, pLib);
   if (err != 0) {
-    fnError("can not load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
+    fnError("cannot load library %s. error: %s, %s", libPath, uv_strerror(err), pLib->errmsg);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
@@ -533,7 +535,7 @@ static void udfdPreloadPythonLibrary(void) {
 //      directory, use that directory (covers both the system install and the
 //      PBS SDK extract).
 //   3. Query the Windows registry (PythonCore\3.XX\InstallPath) for the
-//      matching minor version — the registry always points to the real
+//      matching minor version  -  the registry always points to the real
 //      install, bypassing the WindowsApps stub that SearchPathA/python.exe
 //      sometimes picks up first.
 //   4. Give up with a warning.
@@ -544,7 +546,7 @@ static void udfdEnsurePythonHome(const char *pythonDllPath, int pyMinor) {
     return;
   }
 
-  // ── Try the directory that contains the DLL found by SearchPathA ──
+  // -- Try the directory that contains the DLL found by SearchPathA --
   if (pythonDllPath != NULL && pythonDllPath[0] != '\0') {
     tstrncpy(pythonHome, pythonDllPath, PATH_MAX);
     char *lastSlash = strrchr(pythonHome, '\\');
@@ -562,7 +564,7 @@ static void udfdEnsurePythonHome(const char *pythonDllPath, int pyMinor) {
     }
   }
 
-  // ── Fall back to the Windows registry ──
+  // -- Fall back to the Windows registry --
   if (pyMinor > 0) {
     char subKey[128];
     snprintf(subKey, sizeof(subKey),
@@ -609,7 +611,7 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
       snprintf(dllName, sizeof(dllName), "python3%d.dll", minors[i]);
       char path[PATH_MAX];
       if (SearchPathA(NULL, dllName, NULL, sizeof(path), path, NULL) > 0) {
-        // Found python3XX.dll → derive PYTHONHOME from its real location.
+        // Found python3XX.dll  ->  derive PYTHONHOME from its real location.
         udfdEnsurePythonHome(path, minors[i]);
         fnInfo("udf python: detected %s", dllName);
         found = true;
@@ -617,8 +619,8 @@ int32_t udfdInitializePythonPlugin(SUdfScriptPlugin *plugin) {
       }
     }
     if (!found) {
-      fnError("udf python: no python3XX.dll (3.15–3.9) found in PATH. "
-              "Install Python 3.10–3.15 and add it to PATH.");
+      fnError("udf python: no python3XX.dll (3.15-3.9) found in PATH. "
+              "Install Python 3.10-3.15 and add it to PATH.");
       return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
     }
     snprintf(plugin->libPath, PATH_MAX, "%s", "taospyudf.dll");
@@ -845,7 +847,7 @@ static int32_t udfdInitUdf(char *udfName, SUdf *udf) {
   fnDebug("udf init begin. name=%s", udfName);
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udfName, udf);
   if (err != 0) {
-    fnError("can not retrieve udf from mnode. udf name %s", udfName);
+    fnError("cannot retrieve udf from mnode. udf name %s", udfName);
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
     fnDebug("udf init metadata. name=%s version=%d created=%" PRIx64 " scriptType=%d funcType=%d path=%s outType=%d outLen=%d bufSize=%d",
@@ -1350,27 +1352,39 @@ int32_t udfdSaveFuncBodyToFile(SFuncInfo *pFuncInfo, SUdf *udf) {
     return terrno;
   }
 
+  int32_t code = taosEnsurePrivateDir(global.udfDataDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnError("udfd udf source directory %s is not private since %s", global.udfDataDir, tstrerror(code));
+    return code;
+  }
+
   char path[PATH_MAX] = {0};
   udfdGetFuncBodyPath(udf, path);
-  bool fileExist = !(taosStatFile(path, NULL, NULL, NULL) < 0);
-  if (fileExist) {
+  TdFilePtr existing = taosOpenPrivateFile(path, TD_FILE_READ);
+  if (existing != NULL) {
+    (void)taosCloseFile(&existing);
     tstrncpy(udf->path, path, PATH_MAX);
     fnInfo("udfd func body file. reuse existing file %s", path);
     return TSDB_CODE_SUCCESS;
   }
 
-  TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  char tmpPath[PATH_MAX] = {0};
+  taosGetTmpfilePath(global.udfDataDir, "udf-body", tmpPath);
+  TdFilePtr file = taosOpenPrivateFile(tmpPath, TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
   if (file == NULL) {
-    fnError("udfd write udf shared library: %s failed, error: %d %s", path, ERRNO, strerror(ERRNO));
+    fnError("udfd write udf shared library: %s failed since %s", tmpPath, terrstr());
     return TSDB_CODE_FILE_CORRUPTED;
   }
   int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
-  if (count != pFuncInfo->codeSize) {
-    fnError("udfd write udf shared library failed");
+  int32_t closeCode = taosCloseFile(&file);
+  if (count != pFuncInfo->codeSize || closeCode != 0) {
+    fnError("udfd write udf shared library %s failed", tmpPath);
+    (void)taosRemoveFile(tmpPath);
     return TSDB_CODE_FILE_CORRUPTED;
   }
-  if(taosCloseFile(&file) != 0) {
-    fnError("udfdSaveFuncBodyToFile, udfd close file failed");
+  if (taosRenameFile(tmpPath, path) != 0) {
+    fnError("udfd rename udf shared library %s to %s failed since %s", tmpPath, path, terrstr());
+    (void)taosRemoveFile(tmpPath);
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
@@ -1657,7 +1671,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      fnError("udfd can not allocate enough memory") buf->base = NULL;
+      fnError("udfd cannot allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
   } else if (ctx->inputTotal == -1 && ctx->inputLen < msgHeadSize) {
@@ -1671,7 +1685,7 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      fnError("udfd can not allocate enough memory") buf->base = NULL;
+      fnError("udfd cannot allocate enough memory") buf->base = NULL;
       buf->len = 0;
     }
   }
@@ -1856,7 +1870,7 @@ static void udfdPrintVersion() {
 }
 
 static int32_t udfdInitLog() {
-  const char *logName = "udfdlog";
+  const char *logName = CUS_PROMPT "udfdlog";
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }
@@ -1897,7 +1911,7 @@ static int32_t udfdUvInit() {
   TAOS_CHECK_RETURN(uv_loop_init(global.loop));
 
   if (tsStartUdfd) {  // udfd is started by taosd, which shall exit when taosd exit
-    // ipc=0 — see tudf.c counterpart. Control pipe is used only for
+    // ipc=0  -  see tudf.c counterpart. Control pipe is used only for
     // parent-death EOF; ipc=1 fails uv_pipe_open on Windows.
     TAOS_CHECK_RETURN(uv_pipe_init(global.loop, &global.ctrlPipe, 0));
     TAOS_CHECK_RETURN(uv_pipe_open(&global.ctrlPipe, 0));
@@ -1919,6 +1933,16 @@ static int32_t udfdUvInit() {
     removeListeningPipe();
     return -2;
   }
+#ifndef WINDOWS
+  uv_fs_t chmodReq;
+  r = uv_fs_chmod(global.loop, &chmodReq, global.listenPipeName, 0600, NULL);
+  uv_fs_req_cleanup(&chmodReq);
+  if (r != 0) {
+    fnError("chmod pipe %s error %s", global.listenPipeName, uv_err_name(r));
+    removeListeningPipe();
+    return -2;
+  }
+#endif
   if ((r = uv_listen((uv_stream_t *)&global.listeningPipe, 128, udfdOnNewConnection))) {
     fnError("Listen error %s", uv_err_name(r));
     removeListeningPipe();
@@ -2032,10 +2056,11 @@ void udfdDeinitResidentFuncs() {
 
 int32_t udfdCreateUdfSourceDir() {
   snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsDataDir);
-  int32_t code = taosMkDir(global.udfDataDir);
+  int32_t code = taosEnsurePrivateDir(global.udfDataDir);
   if (code != TSDB_CODE_SUCCESS) {
+    fnWarn("udfd cannot use udf source directory %s since %s", global.udfDataDir, tstrerror(code));
     snprintf(global.udfDataDir, PATH_MAX, "%s/.udf", tsTempDir);
-    code = taosMkDir(global.udfDataDir);
+    code = taosEnsurePrivateDir(global.udfDataDir);
   }
   fnInfo("udfd create udf source directory %s. result: %s", global.udfDataDir, tstrerror(code));
 
@@ -2043,8 +2068,11 @@ int32_t udfdCreateUdfSourceDir() {
 }
 
 void udfdDestroyUdfSourceDir() {
-  fnInfo("destory udf source directory %s", global.udfDataDir);
-  taosRemoveDir(global.udfDataDir);
+  fnInfo("destroy udf source directory %s", global.udfDataDir);
+  int32_t code = taosRemovePrivateDir(global.udfDataDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    fnWarn("udfd failed to remove udf source directory %s since %s", global.udfDataDir, tstrerror(code));
+  }
 }
 
 int main(int argc, char *argv[]) {

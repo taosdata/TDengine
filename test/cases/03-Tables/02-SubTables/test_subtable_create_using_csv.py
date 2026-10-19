@@ -1,22 +1,35 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, epath, sc, etool
+from new_test_framework.utils import tdLog, tdSql, etool
 import os
-import time
+import platform
+import tempfile
 
 
-
+def _write_bom_csv(src_path, bom):
+    """Copy src csv content to a temp file prefixed with a BOM header."""
+    fd, dst = tempfile.mkstemp(suffix=".csv")
+    with os.fdopen(fd, "wb") as fw, open(src_path, "rb") as fr:
+        fw.write(bom)
+        fw.write(fr.read())
+    if platform.system().lower() == "windows":
+        dst = dst.replace("\\", "/")
+    return dst
 
 
 class TestCreateCtbUsingCsvFile:
@@ -57,6 +70,7 @@ class TestCreateCtbUsingCsvFile:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -73,6 +87,64 @@ class TestCreateCtbUsingCsvFile:
 
         # check create ctb using csv file
         self.check_create_ctb_using_csv_file()
+
+    # --- csv file starts with a BOM header ---
+    def create_ctb_using_csv_with_utf8_bom(self):
+        """A csv file starting with a UTF-8 BOM (EF BB BF) is processed normally."""
+        tdLog.info(f"create ctb using csv file with utf-8 bom")
+        tdSql.execute("USE qxjtest")
+        datafile = etool.getFilePath(__file__, "data", "create_ctb_127.csv")
+        bom_csv = _write_bom_csv(datafile, b"\xef\xbb\xbf")  # UTF-8 BOM
+        try:
+            tdSql.execute(
+                f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) "
+                f"file '{bom_csv}';")
+        finally:
+            os.remove(bom_csv)
+
+    def create_ctb_using_csv_with_unsupported_bom(self):
+        """A csv file starting with a non-UTF-8 BOM (e.g. UTF-16) is rejected."""
+        tdLog.info(f"create ctb using csv file with unsupported bom")
+        tdSql.execute("USE qxjtest")
+        datafile = etool.getFilePath(__file__, "data", "create_ctb_127.csv")
+        bom_csv = _write_bom_csv(datafile, b"\xff\xfe")  # UTF-16 LE BOM
+        try:
+            tdSql.error(
+                f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) "
+                f"file '{bom_csv}';",
+                expectErrInfo="unsupported BOM", fullMatched=False)
+        finally:
+            os.remove(bom_csv)
+        # nothing is created after the failure
+        tdSql.query("show tables;")
+        tdSql.checkRows(0)
+
+    def test_subtable_create_using_csv_with_bom(self):
+        """Child table create using csv with a BOM header
+
+        1. A csv file starting with a UTF-8 BOM is processed normally
+        2. A csv file starting with a non-UTF-8 BOM is rejected
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-9-7 Bomin Zhang Added csv BOM header tests
+
+        """
+        # prepare database
+        self.prepare_database()
+
+        # create ctb using csv file with utf-8 bom
+        self.create_ctb_using_csv_with_utf8_bom()
+        self.check_create_ctb_using_csv_file()
+
+        # create ctb using csv file with unsupported bom
+        self.prepare_database()
+        self.create_ctb_using_csv_with_unsupported_bom()
 
 
 

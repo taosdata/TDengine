@@ -1,4 +1,20 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 # init
+
 SET(TD_LINUX FALSE)
 SET(TD_WINDOWS FALSE)
 SET(TD_DARWIN FALSE)
@@ -35,18 +51,29 @@ IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
             SET(TD_LINUX_32 TRUE)
         ENDIF ()
 
-        EXECUTE_PROCESS(COMMAND chmod 777  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh)
-	EXECUTE_PROCESS(COMMAND readlink /bin/sh OUTPUT_VARIABLE SHELL_LINK)
-	MESSAGE(STATUS "The shell is: " ${SHELL_LINK})
-	
-        IF (SHELL_LINK MATCHES "dash")
-	    EXECUTE_PROCESS(COMMAND  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
-	ELSE ()
-	    EXECUTE_PROCESS(COMMAND sh  ${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/get_os.sh "" OUTPUT_VARIABLE TD_OS_INFO)
-	ENDIF ()    
-	MESSAGE(STATUS "The current OS is " ${TD_OS_INFO})
-	IF (TD_OS_INFO MATCHES "Alpine")
-	    SET(TD_ALPINE TRUE)
+        SET(TD_OS_RELEASE_FILE "")
+        IF (EXISTS "/etc/os-release")
+            SET(TD_OS_RELEASE_FILE "/etc/os-release")
+        ELSEIF (EXISTS "/usr/lib/os-release")
+            SET(TD_OS_RELEASE_FILE "/usr/lib/os-release")
+        ENDIF ()
+
+        SET(TD_OS_INFO "")
+        SET(TD_OS_ID "")
+        IF (TD_OS_RELEASE_FILE)
+            FILE(STRINGS "${TD_OS_RELEASE_FILE}" TD_OS_INFO_LINE REGEX "^NAME=" LIMIT_COUNT 1)
+            FILE(STRINGS "${TD_OS_RELEASE_FILE}" TD_OS_ID_LINE REGEX "^ID=" LIMIT_COUNT 1)
+            STRING(REGEX REPLACE "^NAME=" "" TD_OS_INFO "${TD_OS_INFO_LINE}")
+            STRING(REGEX REPLACE "^[\"']|[\"']$" "" TD_OS_INFO "${TD_OS_INFO}")
+            STRING(REGEX REPLACE "^ID=" "" TD_OS_ID "${TD_OS_ID_LINE}")
+            STRING(REGEX REPLACE "^[\"']|[\"']$" "" TD_OS_ID "${TD_OS_ID}")
+            STRING(STRIP "${TD_OS_INFO}" TD_OS_INFO)
+            STRING(STRIP "${TD_OS_ID}" TD_OS_ID)
+        ENDIF ()
+        MESSAGE(STATUS "The current OS is ${TD_OS_INFO}")
+        MESSAGE(STATUS "The current OS ID is ${TD_OS_ID}")
+        IF (TD_OS_ID STREQUAL "alpine")
+            SET(TD_ALPINE TRUE)
             ADD_DEFINITIONS("-D_ALPINE")
 	ENDIF ()
 

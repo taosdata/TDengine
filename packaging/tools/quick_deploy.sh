@@ -1,4 +1,20 @@
 #!/bin/bash
+
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 log_date_time=`date +%m%d%Y-%H%M`
 log=${log_date_time}.log
 dataDir=/data
@@ -67,7 +83,7 @@ echo "#########install suggest package and disable firewall"
 os=$(cat /etc/os-release| grep PRETTY_NAME | awk '{print $1}'|awk -F '=' '{print $2}' | sed 's/"//g')
 if [ $os = 'Ubuntu' ]
 then
-    echo "This is Ununtu!"
+    echo "This is Ubuntu!"
 	#apt install screen tmux gdb fio iperf3 sysstat net-tools ntp tree wget 
 	ufw status
 	ufw stop

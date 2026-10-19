@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -119,6 +123,17 @@ def snapshot_dat_files(db_dir: str) -> dict:
             continue
         snap[path] = (os.path.getmtime(path), hash_file(path))
     return snap
+
+
+def drop_database_and_wait(db_name: str, timeout_secs: int = 60):
+    """Drop a database and wait for an interrupted restore transaction to finish."""
+    tdSql.execute(f"drop database if exists {db_name} force")
+    for _ in range(timeout_secs):
+        tdSql.query("show databases")
+        if not any(row[0] == db_name for row in tdSql.queryResult):
+            return
+        time.sleep(1)
+    tdLog.exit(f"database {db_name} still exists after {timeout_secs}s")
 
 
 # ---------------------------------------------------------------------------

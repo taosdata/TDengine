@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -284,9 +301,10 @@ TEST_F(StreamTaskStatsDebugTest, ReaderPeriodContainsEveryCommonIdentityField) {
       .activeScanContexts = 3,
       .tableCount = 4,
       .cacheEntries = 5,
+      .shallowMemoryBytesEstimate = 12345,
       .validMask = STREAM_READER_GAUGE_LAST_WAL | STREAM_READER_GAUGE_LAST_SUCCESS |
                    STREAM_READER_GAUGE_ACTIVE_CONTEXTS | STREAM_READER_GAUGE_TABLE_COUNT |
-                   STREAM_READER_GAUGE_CACHE_ENTRIES,
+                   STREAM_READER_GAUGE_CACHE_ENTRIES | STREAM_READER_GAUGE_SHALLOW_MEMORY,
   };
 
   const std::string line = formatReaderPeriod(snapshot);
@@ -320,6 +338,7 @@ TEST_F(StreamTaskStatsDebugTest, ReaderPeriodContainsEveryCommonIdentityField) {
       "active_scan_contexts=3",
       "table_count=4",
       "cache_entries=5",
+      "reader_shallow_memory_bytes_estimate=12345",
       "stats_overflow=true",
   };
   for (const char *field : requiredFields) {

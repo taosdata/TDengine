@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmCorrelation.h"
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
@@ -193,8 +196,17 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
       return;
     case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
     case TDMT_DND_SYSTABLE_RETRIEVE_RSP:
+    case TDMT_SCH_QUERY_RSP:
+    case TDMT_SCH_MERGE_QUERY_RSP:
+    case TDMT_SCH_QUERY_CONTINUE_RSP:
+    case TDMT_SCH_QUERY_HEARTBEAT_RSP:
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP:
+    case TDMT_SCH_CANCEL_TASK_RSP:
+    case TDMT_SCH_DROP_TASK_RSP:
+    case TDMT_SCH_EXPLAIN_RSP:
+    case TDMT_SCH_TASK_NOTIFY_RSP:
+    case TDMT_SCH_TASK_RELEASE_RSP:
     case TDMT_VND_SUBMIT_RSP:
     case TDMT_MND_GET_DB_INFO_RSP:
     case TDMT_VND_TABLE_META_RSP:
@@ -205,7 +217,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     case TDMT_STREAM_FETCH_EXT_RSP:  /* P4-E1: EXT fetch response from ETR */
     case TDMT_VND_SNODE_DROP_TABLE_RSP:
     case TDMT_VND_VTABLE_REF_RESOLVE_RSP:
-      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, 0);
+      code = qWorkerProcessRspMsg(NULL, NULL, pRpc, pEpSet, 0);
       return;
     case TDMT_MND_STATUS_RSP:
       if (pEpSet != NULL) {
@@ -454,13 +466,26 @@ static bool rpcNoDelayMsg(tmsg_t msgType) {
   }
   return false;
 }
+static void dmProcessClientRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
+static void dmProcessServerRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
+  if (pRpc->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  dmProcessRpcMsg(pDnode, pRpc, pEpSet);
+}
+
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -523,7 +548,7 @@ int32_t dmInitStatusClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-STA-CLI";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -582,7 +607,7 @@ int32_t dmInitSyncClient(SDnode *pDnode) {
   SRpcInit rpcInit = {0};
   rpcInit.label = "DNODE-SYNC-CLI";
   rpcInit.numOfThreads = tsNumOfRpcThreads / 2;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessClientRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = TSDB_DEFAULT_USER;
@@ -669,7 +694,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
-  rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
+  rpcInit.cfp = (RpcCfp)dmProcessServerRpcMsg;
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
@@ -715,6 +740,8 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .serverRpc = pDnode->trans.serverRpc,
       .statusRpc = pDnode->trans.statusRpc,
       .syncRpc = pDnode->trans.syncRpc,
+      .pCorrelationRuntime = pDnode->pCorrelationRuntime,
+      .pCorrelationOps = NULL == pDnode->pCorrelationRuntime ? NULL : &gDmCorrelationRuntimeOps,
       .sendReqFp = dmSendReq,
       .sendSyncReqFp = dmSendSyncReq,
       .sendRspFp = dmSendRsp,

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -118,7 +120,9 @@ int32_t convertNcharToDouble(const void *inData, void *outData) {
   if (NULL == tmp) {
     SCL_ERR_RET(terrno);
   }
-  int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inData), varDataLen(inData), tmp, NULL);
+  // NCHAR -> number: only ASCII digits are meaningful, so charset-insensitive.
+  int len = taosUcs4ToMbsCharsetInsensitive((TdUcs4 *)varDataVal(inData),
+                                            varDataLen(inData), tmp);
   if (len < 0) {
     sclError("%s taosUcs4ToMbs failed to convert NCHAR value,"
              " len:%d", __func__, (int32_t)varDataLen(inData));
@@ -669,15 +673,15 @@ int32_t ncharTobinary(void *buf, void **out, void *charsetCxt) {  // todo need t
 
   *out = taosMemoryCalloc(1, inputLen);
   if (NULL == *out) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed, since memory alloc failed.",
+    sclError("charset:%s to %s. len:%d convert ncharTobinary failed, since memory alloc failed.",
              DEFAULT_UNICODE_ENCODEC, charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset,
-             (char *)varDataVal(buf));
+             (int32_t)varDataLen(buf));
     SCL_ERR_RET(terrno);
   }
   int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(*out), charsetCxt);
   if (len < 0) {
-    sclError("charset:%s to %s. val:%s convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
-             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (char *)varDataVal(buf));
+    sclError("charset:%s to %s. len:%d convert ncharTobinary failed.", DEFAULT_UNICODE_ENCODEC,
+             charsetCxt != NULL ? ((SConvInfo *)(charsetCxt))->charset : tsCharset, (int32_t)varDataLen(buf));
     taosMemoryFree(*out);
     SCL_ERR_RET(TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
   }
@@ -742,7 +746,7 @@ int32_t convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_
   }
   int8_t type = (int8_t)vectorGetConvertType(typeLeft, typeRight);
   if (type < 0) {
-    sclError("not supported convertion between %d and %d", typeLeft, typeRight);
+    sclError("unsupported conversion between %d and %d", typeLeft, typeRight);
     return TSDB_CODE_SCALAR_CONVERT_ERROR;
   }
 
@@ -853,7 +857,7 @@ int32_t vectorConvertToVarData(SSclVectorConvCtx *pCtx) {
       }
     }
   } else {
-    sclError("not supported input type:%d", pCtx->inType);
+    sclError("unsupported input type: %d", pCtx->inType);
     return TSDB_CODE_APP_ERROR;
   }
 
@@ -1140,6 +1144,12 @@ int32_t vectorConvertSingleColImpl(const SScalarParam *pIn, SScalarParam *pOut, 
   return TSDB_CODE_SUCCESS;
 }
 
+// Runtime mixed VARCHAR/NCHAR expressions intentionally use VARCHAR as their
+// common type (the VARC/NCHA entry below is VARCHAR). NCHAR is encoded with the
+// query charset, then equality and range operators use VARCHAR byte ordering.
+// This preserves legacy VARCHAR semantics and avoids decoding arbitrary stored
+// VARCHAR bytes. Column-to-literal filters are different: fltInitValFieldData()
+// converts the literal once to the column type before rows are evaluated.
 int8_t gConvertTypes[TSDB_DATA_TYPE_MAX][TSDB_DATA_TYPE_MAX] = {
     /*      NUL BOO TIN  SMA INT BIG FLO DOU VAR TIM NCH UTI USM UIN UBI JSO VAR DEC BLO MED GEO DEC64*/
     /*NULL*/ 0,  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -2459,7 +2469,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
       char *pLeftData = colDataGetVarData(pLeft->columnData, i);
       if (leftType == TSDB_DATA_TYPE_VARCHAR) {
         // VARCHAR path: left operand is a text JSON string (e.g. from
-        // CAST(NCHAR→VARCHAR) applied to InfluxDB JSON fields).
+        // CAST(NCHAR -> VARCHAR) applied to InfluxDB JSON fields).
         // Use tjsonParse to check key existence in the JSON text.
         char *jsonText = taosMemoryCalloc(1, varDataLen(pLeftData) + 1);
         if (NULL == jsonText) {
@@ -2474,7 +2484,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
           tjsonDelete(pJson);
         }
       } else {
-        // Native JSON (STag binary) path — unchanged.
+        // Native JSON (STag binary) path  -  unchanged.
         STagVal value;
         SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
       }

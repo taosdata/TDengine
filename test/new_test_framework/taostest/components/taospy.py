@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 TDengine Python Connector
 """
@@ -51,12 +66,12 @@ class TaosPy:
         if installFlag == True:
             # get package from server
             filePath = f"{rootPath}/v{client_version}/enterprise"
-            fileName = f"TDengine-enterprise-client-{client_version}-Linux-x64.tar.gz"
+            fileName = f"tdengine-tsdb-enterprise-client-{client_version}-linux-x64.tar.xz"
             self._remote.get(server, f"{filePath}/{fileName}", "/tmp/", password)
             # push package to host
             filePath = time.strftime("%Y-%m-%d-%H-%M-%S", time.localtime())
             filePath = f"taostest-install-{filePath}"
-            pkgDir = f"TDengine-enterprise-client-{client_version}"
+            pkgDir = f"tdengine-tsdb-enterprise-client-{client_version}"
             self._remote.put(host, f"/tmp/{fileName}", f"/tmp/{filePath}")
             # extract package && install
             cmds = [f"pip3 install taospy=={version}"]
@@ -71,7 +86,7 @@ class TaosPy:
         self._remote.put(host, package, f"/tmp/{filePath}")
         # extract package && install
         fileName = os.path.basename(package)
-        cmds = [f"cd /tmp/{filePath}", f"tar xzf {fileName}", f"rm -f {fileName}", f"ls | tail -n1"]
+        cmds = [f"cd /tmp/{filePath}", f"tar -xf {fileName}", f"rm -f {fileName}", f"ls | tail -n1"]
         pkgDir = self._remote.cmd(host, cmds)
         if not pkgDir is None:
             pkgDir = pkgDir.strip()

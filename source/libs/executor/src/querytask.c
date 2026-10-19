@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "query.h"
 #include "querynodes.h"
 #include "tfill.h"
 #include "tname.h"
@@ -93,6 +96,12 @@ const char* qGetExtErrMsg(qTaskInfo_t tinfo) {
   return pTaskInfo->extErrMsg;
 }
 
+const SExtPushdownDiagnostic* qGetExtPushdownDiagnostic(qTaskInfo_t tinfo) {
+  if (tinfo == NULL) return NULL;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (!pTaskInfo->hasExtPushdownDiag) return NULL;
+  return &pTaskInfo->extPushdownDiag;
+}
 void setTaskKilled(SExecTaskInfo* pTaskInfo, int32_t rspCode) {
   pTaskInfo->code = rspCode;
   (void)stopTableScanOperator(pTaskInfo->pRoot, pTaskInfo->id.str, &pTaskInfo->storageAPI);
@@ -125,6 +134,9 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   ctx->subEndPoints = *subEndPoints;
   ctx->rpcHandle = (readHandle && readHandle->pMsgCb) ? readHandle->pMsgCb->clientRpc : NULL;
   ctx->isStream = pTaskInfo && IS_STREAM_MODE(pTaskInfo);
+  if (readHandle != NULL && readHandle->streamRtInfo != NULL) {
+    ctx->streamGen = ((SStreamRuntimeInfo*)readHandle->streamRtInfo)->funcInfo.streamGen;
+  }
 
   *subEndPoints = NULL;
   
@@ -191,6 +203,12 @@ int32_t createExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHand
   (*pTaskInfo)->pStreamRuntimeInfo = pHandle->streamRtInfo;
   (*pTaskInfo)->enableExplain = enableExplain;
   (*pTaskInfo)->txnId = pHandle->txnId;
+  if (NULL != pHandle->pCorrelationSession && NULL != pHandle->pMsgCb &&
+      NULL != pHandle->pMsgCb->pCorrelationOps) {
+    (*pTaskInfo)->pCorrelationOps = pHandle->pMsgCb->pCorrelationOps;
+    (*pTaskInfo)->pCorrelationSession = pHandle->pCorrelationSession;
+    (*pTaskInfo)->pCorrelationOps->retainTaskSession((*pTaskInfo)->pCorrelationSession);
+  }
 
   if (subEndPoints && taosArrayGetSize(*subEndPoints) > 0) {
     code = initTaskSubJobCtx(*pTaskInfo, subEndPoints, pHandle);
@@ -397,8 +415,10 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+  qFinishReaderGroupRead(pTaskInfo);
   destroyOperator(pTaskInfo->pRoot);
   pTaskInfo->pRoot = NULL;
+  qClearReaderTableRanges(pTaskInfo);
 
   if (pTaskInfo->pSubJobCtx) {
     int32_t  code = taosRemoveRef(fetchObjRefPool, pTaskInfo->pSubJobCtx->subJobRefId);
@@ -433,6 +453,12 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
     tDestroyStRtFuncInfo(pRt);
     taosMemoryFreeClear(pTaskInfo->pStreamRuntimeInfo);
   }
+  if (NULL != pTaskInfo->pCorrelationSession && NULL != pTaskInfo->pCorrelationOps) {
+    pTaskInfo->pCorrelationOps->closeTaskSession(pTaskInfo->pCorrelationSession, pTaskInfo->code);
+    pTaskInfo->pCorrelationOps->releaseTaskSession(pTaskInfo->pCorrelationSession);
+    pTaskInfo->pCorrelationSession = NULL;
+  }
+  taosArrayDestroy(pTaskInfo->pCorrelationStats);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

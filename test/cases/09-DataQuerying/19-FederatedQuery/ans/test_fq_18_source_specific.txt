@@ -10,6 +10,14 @@ RESULT
 40
 15
 ---
+### itag-03 POS
+SQL: SELECT _TAGS, usage FROM {I_TAG}.{I_TAG_DB}.cpu ORDER BY usage
+RESULT
+h2|eu|10
+h2|eu|20
+h1|us|30
+h1|us|50
+---
 ### i04-01 POS
 SQL: SELECT COUNT(*) FROM {I_CPU}.cpu PARTITION BY tbname
 RESULT
@@ -28,9 +36,39 @@ RESULT
 1|100
 2|200
 ---
+### vw-m-02 POS
+SQL: SELECT v.id, v.name, SUM(o.amount) AS total FROM {M_VIEW}.{M_VIEW_DB}.v_users v JOIN {M_VIEW}.{M_VIEW_DB}.orders o ON v.id = o.user_id GROUP BY v.id, v.name ORDER BY v.id
+RESULT
+1|Alice|300
+---
 ### vw-p-01 POS
 SQL: SELECT * FROM {P_VIEW}.public.v_summary ORDER BY status
 RESULT
 1|100
 2|200
+---
+### vw-p-02 POS
+SQL: SELECT v.id, v.name, SUM(o.amount) AS total FROM {P_VIEW}.public.v_users v JOIN {P_VIEW}.public.orders o ON v.id = o.user_id GROUP BY v.id, v.name ORDER BY v.id
+RESULT
+1|Alice|300
+---
+### vw-s-01 POS
+SQL: SELECT * FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_summary ORDER BY status
+RESULT
+1|100
+2|200
+---
+### vw-s-02 POS
+SQL: SELECT v.id, v.name, SUM(o.amount) AS total FROM {S_VIEW}.{S_VIEW_DB}.dbo.v_users v JOIN {S_VIEW}.{S_VIEW_DB}.dbo.orders o ON v.id = o.user_id GROUP BY v.id, v.name ORDER BY v.id
+RESULT
+1|Alice|300
+---
+### s-coll-01 POS
+SQL: SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'ALPHA' ORDER BY val
+RESULT
+---
+### s-coll-02 POS
+SQL: SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'alpha' ORDER BY val
+RESULT
+1|alpha
 ---

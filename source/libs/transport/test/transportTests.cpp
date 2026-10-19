@@ -1,9 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3 * or later ("AGPL"), as published by the Free
- * Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -12,8 +14,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifdef USE_UV
 
 #include <gtest/gtest.h>
 #include <chrono>
@@ -25,6 +25,8 @@
 #include "transComm.h"
 #include "transportInt.h"
 #include "trpc.h"
+
+#if defined(USE_UV) && !defined(TD_ASTRA_RPC)
 
 using namespace std;
 
@@ -134,6 +136,9 @@ TEST_F(QueueEnv, testIter) {
   std::vector<int> result;
   q->ForEach(result);
   TD_ALWAYS_ASSERT(result.size() == vals.size());
+  while (!q->IsEmpty()) {
+    taosMemoryFree(q->Pop());
+  }
 }
 
 TEST(TransCompressTest, RejectsCompressedPacketWithoutCompressionHeader) {
@@ -301,4 +306,177 @@ int32_t cloneVal(void *src, void **dst) {
 //  skey = (char *)transCtxDumpVal(ctx, 2);
 //  EXPECT_EQ(0, strcmp(skey, val.c_str()));
 //}
+#endif
+
+#ifndef TD_ASTRA_RPC
+extern "C" int32_t runNativeHeartbeatScenario(int32_t, int32_t *, int32_t *, int32_t *, int64_t *);
+
+class NativeHeartbeatTest : public testing::Test {
+ protected:
+  int32_t callbacks = 0;
+  int32_t pending = 0;
+  int32_t lastCode = 0;
+  int64_t contextTime = 0;
+  void    run(int32_t scenario) {
+    ASSERT_EQ(runNativeHeartbeatScenario(scenario, &callbacks, &pending, &lastCode, &contextTime), 0);
+  }
+};
+TEST_F(NativeHeartbeatTest, UnknownSequenceWithoutSessionIsRejected) {
+  run(0);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(contextTime, 12345);
+}
+TEST_F(NativeHeartbeatTest, UnknownSequenceCannotUseRetainedContext) {
+  run(1);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(contextTime, 12345);
+}
+TEST_F(NativeHeartbeatTest, ConsumedSequenceCannotUseRetainedContext) {
+  run(2);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(pending, 0);
+}
+TEST_F(NativeHeartbeatTest, WrongRequestTypeDoesNotConsumePendingOrContext) {
+  run(3);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(pending, 1);
+  EXPECT_EQ(contextTime, 12345);
+}
+TEST_F(NativeHeartbeatTest, WrongSequenceDoesNotConsumePendingOrContext) {
+  run(4);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(pending, 1);
+  EXPECT_EQ(contextTime, 12345);
+}
+TEST_F(NativeHeartbeatTest, MatchedResponseConsumesPendingOnce) {
+  run(5);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(pending, 0);
+  EXPECT_EQ(lastCode, 0);
+}
+TEST_F(NativeHeartbeatTest, MatchedBodylessErrorStillNotifies) {
+  run(6);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(pending, 0);
+  EXPECT_EQ(lastCode, TSDB_CODE_RPC_BROKEN_LINK);
+}
+TEST_F(NativeHeartbeatTest, OtherResponseKeepsContextFallback) {
+  run(7);
+  EXPECT_EQ(callbacks, 1);
+}
+#endif
+
+#ifdef TD_ASTRA_RPC
+extern "C" int32_t runAstraHeartbeatScenario(int32_t, int32_t *, int32_t *, int32_t *, int32_t *);
+
+class AstraHeartbeatTest : public testing::Test {
+ protected:
+  int32_t callbacks = 0;
+  int32_t pending = 0;
+  int32_t lastCode = 0;
+  int32_t bodyFrees = 0;
+  void    run(int32_t scenario) {
+    ASSERT_EQ(runAstraHeartbeatScenario(scenario, &callbacks, &pending, &lastCode, &bodyFrees), 0);
+    EXPECT_EQ(bodyFrees, scenario == 6 ? 0 : (scenario == 2 ? 2 : 1));
+  }
+};
+TEST_F(AstraHeartbeatTest, UnknownSequenceWithoutSessionIsRejected) {
+  run(0);
+  EXPECT_EQ(callbacks, 0);
+}
+TEST_F(AstraHeartbeatTest, UnknownSequenceCannotUseRetainedContext) {
+  run(1);
+  EXPECT_EQ(callbacks, 0);
+}
+TEST_F(AstraHeartbeatTest, ConsumedSequenceCannotUseRetainedContext) {
+  run(2);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(pending, 0);
+}
+TEST_F(AstraHeartbeatTest, WrongRequestTypeDoesNotConsumePendingOrContext) {
+  run(3);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(pending, 1);
+}
+TEST_F(AstraHeartbeatTest, WrongSequenceDoesNotConsumePendingOrContext) {
+  run(4);
+  EXPECT_EQ(callbacks, 0);
+  EXPECT_EQ(pending, 1);
+}
+TEST_F(AstraHeartbeatTest, MatchedResponseConsumesPendingOnce) {
+  run(5);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(pending, 0);
+  EXPECT_EQ(lastCode, 0);
+}
+TEST_F(AstraHeartbeatTest, MatchedBodylessErrorStillNotifies) {
+  run(6);
+  EXPECT_EQ(callbacks, 1);
+  EXPECT_EQ(pending, 0);
+  EXPECT_EQ(lastCode, TSDB_CODE_RPC_BROKEN_LINK);
+}
+TEST_F(AstraHeartbeatTest, OtherResponseKeepsContextFallback) {
+  run(7);
+  EXPECT_EQ(callbacks, 1);
+}
+#endif
+
+#ifndef TD_ASTRA_RPC
+/*
+ * TD-SEC-2026-001 regression tests.
+ *
+ * uvConnMayGetUserInfo() must reject any packet whose declared msgLen cannot
+ * hold the rpc head plus the attached user info (or token), so that the body
+ * length computation can never underflow into a giant unsigned value.
+ * testUvConnMayGetUserInfo() lives in the test-only transSvrUserInfoHarness.c
+ * translation unit (which includes transSvr.c) and drives the real check.
+ */
+extern "C" int32_t testUvConnMayGetUserInfo(int32_t msgLen, int8_t withUserInfo, int8_t isToken);
+
+class UserInfoSecurityTest : public ::testing::Test {
+ protected:
+  static constexpr int32_t kHead = (int32_t)sizeof(STransMsgHead);
+  static constexpr int32_t kUserOff = TSDB_UNI_LEN;  // sizeof(SSvrConn::user)
+  static constexpr int32_t kTokenOff = 128;          // sizeof(SSvrConn::identifier)
+};
+
+TEST_F(UserInfoSecurityTest, ShortBody_User_10bytes) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 10, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, ShortBody_Token_10bytes) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 10, 1, 1), 0);
+}
+
+TEST_F(UserInfoSecurityTest, ZeroBody_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, BelowHead_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead - 1, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, OffByOne_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kUserOff - 1, 1, 0), 0);
+}
+
+TEST_F(UserInfoSecurityTest, OffByOne_Token) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kTokenOff - 1, 1, 1), 0);
+}
+
+TEST_F(UserInfoSecurityTest, ExactSize_User) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kUserOff, 1, 0), 1);
+}
+
+TEST_F(UserInfoSecurityTest, NormalPacket_User_WithPayload) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kUserOff + 64, 1, 0), 1);
+}
+
+TEST_F(UserInfoSecurityTest, NormalPacket_Token_WithPayload) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + kTokenOff + 32, 1, 1), 1);
+}
+
+TEST_F(UserInfoSecurityTest, WithUserInfoNotSet) {
+  EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 1024, 0, 0), 0);
+}
 #endif

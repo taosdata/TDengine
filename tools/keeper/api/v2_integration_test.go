@@ -1,3 +1,18 @@
+// Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package api
 
 import (
@@ -308,7 +323,7 @@ loop1:
 			break loop1
 		}
 	}
-	assert.Equal(t, 0, metricCount1, "maxAge=25s should return 0 metrics for 30s old data")
+	assert.Equal(t, 1, metricCount1, "maxAge=25s should return no data metrics for 30s old data, only the rejection counter")
 
 	// 3. When maxAge=35s, should get data
 	collector2 := process.NewMemoryStoreCollector(store, 35*time.Second)
@@ -328,5 +343,5 @@ loop2:
 			break loop2
 		}
 	}
-	assert.Equal(t, 2, metricCount2, "maxAge=35s should return 2 metrics for 30s old data")
+	assert.Equal(t, 3, metricCount2, "maxAge=35s should return 2 data metrics for 30s old data plus the rejection counter")
 }

@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """Tests for TaosanodeService Windows startup behavior."""
 
 import errno
@@ -13,6 +28,51 @@ class TestTaosanodeService:
         assert taosanode_service.config == mock_config
         assert taosanode_service.process_mgr is not None
         assert taosanode_service.logger is not None
+
+    def test_linux_start_uses_daemon_pid_not_launcher_pid(self, taosanode_service, monkeypatch):
+        monkeypatch.setattr(service_module, "IS_WINDOWS", False)
+        monkeypatch.setattr(service_module, "IS_LINUX", True)
+        proc = MagicMock(pid=111)
+        proc.wait.return_value = 0
+        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value="python3"), \
+                patch.object(taosanode_service, "_build_runtime_env", return_value={}), \
+                patch.object(service_module.subprocess, "Popen", return_value=proc), \
+                patch.object(taosanode_service.process_mgr, "remove_pid") as remove_pid, \
+                patch.object(taosanode_service.process_mgr, "write_pid") as write_pid, \
+                patch.object(taosanode_service.process_mgr, "wait_for_service", return_value=True) as wait, \
+                patch.object(taosanode_service.process_mgr, "read_pid", return_value=222):
+            assert taosanode_service.start() is True
+        remove_pid.assert_called_once_with("taosanode")
+        write_pid.assert_not_called()
+        proc.wait.assert_called_once_with(timeout=taosanode_service.config.timeouts["service_startup"])
+        wait.assert_called_once()
+
+    def test_linux_launcher_failure_is_not_success(self, taosanode_service, monkeypatch):
+        monkeypatch.setattr(service_module, "IS_WINDOWS", False)
+        monkeypatch.setattr(service_module, "IS_LINUX", True)
+        proc = MagicMock()
+        proc.wait.return_value = 1
+        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value="python3"), \
+                patch.object(taosanode_service, "_build_runtime_env", return_value={}), \
+                patch.object(service_module.subprocess, "Popen", return_value=proc), \
+                patch.object(taosanode_service.process_mgr, "wait_for_service") as wait:
+            assert taosanode_service.start() is False
+        wait.assert_not_called()
+
+    def test_linux_start_without_daemon_pid_is_failure(self, taosanode_service, monkeypatch):
+        monkeypatch.setattr(service_module, "IS_WINDOWS", False)
+        monkeypatch.setattr(service_module, "IS_LINUX", True)
+        proc = MagicMock()
+        proc.wait.return_value = 0
+        proc.poll.return_value = 0
+        with patch.object(taosanode_service.process_mgr, "is_running", return_value=False), \
+                patch.object(taosanode_service.process_mgr, "_get_python_exe", return_value="python3"), \
+                patch.object(taosanode_service, "_build_runtime_env", return_value={}), \
+                patch.object(service_module.subprocess, "Popen", return_value=proc), \
+                patch.object(taosanode_service.process_mgr, "wait_for_service", return_value=False):
+            assert taosanode_service.start() is False
 
     def test_status(self, taosanode_service):
         with patch.object(
@@ -180,3 +240,53 @@ class TestTaosanodeService:
             service_module.time, "sleep", return_value=None
         ):
             assert taosanode_service.wait_ready(timeout=2, interval=0.01) is True
+
+
+class TestResourceVersionDisplay:
+    def test_list_displays_model_and_resource_versions(self, capsys):
+        models = [
+            {"name": "moirai", "model_version": "moirai-moe-1.0-r-small", "version": "1.0.0"},
+            {"name": "timesfm", "model_version": "timesfm-2.5-200m-pytorch", "version": "1.0.0"},
+            {"name": "tdtsfm", "model_version": "tdtsfm-v1.0", "version": "1.0.0"},
+        ]
+        service_module.print_resource_table({"models": models})
+        lines = capsys.readouterr().out.splitlines()
+        headers = lines[0].split("  ")
+        assert "MODEL_VERSION" in headers
+        assert "RESOURCE_VERSION" in headers
+        assert "VERSION" not in headers
+        for item, line in zip(models, lines[2:]):
+            row = dict(zip(headers, line.split("  ")))
+            assert row["NAME"] == item["name"]
+            assert row["MODEL_VERSION"] == item["model_version"]
+            assert row["RESOURCE_VERSION"] == "1.0.0"
+
+    def test_check_displays_release_model_version_and_runtime_placeholder(self, capsys):
+        service_module.print_resource_table({
+            "release": "1.0.0",
+            "resources": [
+                {"kind": "model", "name": "moirai", "state": "missing",
+                 "model_version": "moirai-moe-1.0-r-small", "version": "1.0.0"},
+                {"kind": "runtime", "name": "tsfm_runtime", "state": "installed",
+                 "model_version": None, "version": "1.0.0"},
+            ],
+        }, check=True)
+        lines = capsys.readouterr().out.splitlines()
+        assert lines[0] == "Release: 1.0.0"
+        headers = lines[1].split("  ")
+        model, runtime = [dict(zip(headers, line.split("  "))) for line in lines[3:]]
+        assert model["MODEL_VERSION"] == "moirai-moe-1.0-r-small"
+        assert model["RESOURCE_VERSION"] == "1.0.0"
+        assert runtime["MODEL_VERSION"] == "-"
+        assert runtime["RESOURCE_VERSION"] == "1.0.0"
+
+    def test_missing_model_version_is_unknown(self, capsys):
+        for value in ({}, {"model_version": None}, {"model_version": ""}):
+            item = {"name": "legacy", "version": "1.0.0", **value}
+            for check in (False, True):
+                service_module.print_resource_table({"resources" if check else "models": [item]}, check=check)
+                lines = capsys.readouterr().out.splitlines()
+                headers = lines[1 if check else 0].split("  ")
+                row = dict(zip(headers, lines[-1].split("  ")))
+                assert row["MODEL_VERSION"] == "unknown"
+                assert row["RESOURCE_VERSION"] == "1.0.0"

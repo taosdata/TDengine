@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include "backupMeta.h"
 #include "bckPool.h"
@@ -454,7 +461,13 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
         argBuildInClause("table_name", inClause, sizeof(inClause));
         snprintf(specFilter, sizeof(specFilter), " AND %s", inClause);
     }
-    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", dbName, stbName, specFilter);
+    char escDb[TSDB_DB_NAME_LEN * 2 + 1] = {0};
+    char escStb[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
+    const char *eDb = bckSqlEscape(dbName, escDb, sizeof(escDb));
+    const char *eStb = bckSqlEscape(stbName, escStb, sizeof(escStb));
+    if (eDb == NULL) eDb = dbName;
+    if (eStb == NULL) eStb = stbName;
+    snprintf(sql, sizeof(sql), "select count(*) from information_schema.ins_tables where db_name='%s' and stable_name='%s'%s;", eDb, eStb, specFilter);
     int tableCnt = 0;
     
     // query table count
@@ -847,6 +860,65 @@ int backVirtualTablesSql(const char *dbName) {
 //
 // stream create sql
 //
+static int32_t flattenStreamDdl(const char *ddl, int32_t ddlLen, char *buf) {
+    int32_t n = 0;
+    char    quote = 0;
+    bool    inLineComment = false;
+    bool    inBlockComment = false;
+
+    // Each input byte emits at most one output byte.
+    for (int32_t i = 0; i < ddlLen; ++i) {
+        char c = ddl[i];
+
+        if (inLineComment) {
+            if (c == '\n') {
+                inLineComment = false;
+                buf[n++] = ' ';
+            }
+            continue;
+        }
+
+        if (inBlockComment) {
+            buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+            if (c == '*' && i + 1 < ddlLen && ddl[i + 1] == '/') {
+                buf[n++] = ddl[++i];
+                inBlockComment = false;
+            }
+            continue;
+        }
+
+        if (quote != 0) {
+            buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+            if (quote != '`' && c == '\\' && i + 1 < ddlLen) {
+                c = ddl[++i];
+                buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+            } else if (c == quote) {
+                if (i + 1 < ddlLen && ddl[i + 1] == quote) {
+                    buf[n++] = ddl[++i];
+                } else {
+                    quote = 0;
+                }
+            }
+            continue;
+        }
+
+        if (c == '-' && i + 1 < ddlLen && ddl[i + 1] == '-') {
+            inLineComment = true;
+            ++i;
+            buf[n++] = ' ';
+        } else if (c == '/' && i + 1 < ddlLen && ddl[i + 1] == '*') {
+            inBlockComment = true;
+            buf[n++] = c;
+            buf[n++] = ddl[++i];
+        } else {
+            if (c == '\'' || c == '"' || c == '`') quote = c;
+            buf[n++] = (c == '\n' || c == '\r') ? ' ' : c;
+        }
+    }
+
+    return n;
+}
+
 int backStreamsSql(const char *dbName) {
     int code = TSDB_CODE_SUCCESS;
 
@@ -902,13 +974,10 @@ int backStreamsSql(const char *dbName) {
         int ddlLen = lens[0];
         char *ddl = (char *)row[0];
 
-        // replace embedded newlines with spaces to keep one DDL per line
+        // Remove line comments outside quoted text before flattening newlines.
         char *buf = (char *)taosMemoryMalloc(ddlLen + 2);
         if (buf) {
-            int n = 0;
-            for (int j = 0; j < ddlLen; j++) {
-                buf[n++] = (ddl[j] == '\n' || ddl[j] == '\r') ? ' ' : ddl[j];
-            }
+            int32_t n = flattenStreamDdl(ddl, ddlLen, buf);
             buf[n++] = '\n';
             if (taosWriteFile(fp, buf, n) != n) {
                 logError("write stream DDL to file failed: %s", sqlFile);

@@ -1,3 +1,18 @@
+// Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package sqlparser
 
 import "testing"
@@ -390,6 +405,49 @@ func TestWindowJoin_WindowOffsetAndJLimit(t *testing.T) {
 	}
 	if noJ.JLimit != nil {
 		t.Fatalf("expected nil jlimit, got %+v", noJ.JLimit)
+	}
+}
+
+func TestWindowJoin_WindowTime(t *testing.T) {
+	j := extractJoinFromSQL(t,
+		"select a.v from t1 a left window join t2 b "+
+			"window_time(a.ts, b.ts) window_offset(-1s, 1s);")
+	if len(j.WindowTime) != 2 {
+		t.Fatalf("expected two window time columns, got %d", len(j.WindowTime))
+	}
+	left, leftOK := j.WindowTime[0].(*RawExpr)
+	right, rightOK := j.WindowTime[1].(*RawExpr)
+	if !leftOK || !rightOK || left.Name != "ts" || right.Name != "ts" {
+		t.Fatalf("unexpected window time columns: %#v", j.WindowTime)
+	}
+	formatted := "select a.v from " + SQLNodeToString(j)
+	if _, err := Parse(formatted); err != nil {
+		t.Fatalf("window time round trip failed: %v", err)
+	}
+
+	without := extractJoinFromSQL(t,
+		"select a.v from t1 a left window join t2 b "+
+			"window_offset(-1s, 1s);")
+	if without.WindowTime != nil {
+		t.Fatalf("expected nil window time, got %#v", without.WindowTime)
+	}
+}
+
+func TestWindowJoin_RightWindowTimeWithOnAndJLimit(t *testing.T) {
+	j := extractJoinFromSQL(t,
+		"select a.v from t1 a right window join t2 b on a.v = b.v "+
+			"window_time(a.ts, b.ts) window_offset(-1s, 1s) jlimit 3;")
+	if j.JoinType != JoinTypeRightWindow || len(j.WindowTime) != 2 {
+		t.Fatalf("unexpected right window join: %+v", j)
+	}
+	if j.Condition == nil || j.WindowOffset == nil || j.JLimit == nil {
+		t.Fatalf("missing join clauses: %+v", j)
+	}
+	if string(j.JLimit.Limit.Bytes) != "3" {
+		t.Fatalf("unexpected jlimit: %+v", j.JLimit)
+	}
+	if _, err := Parse("select a.v from " + SQLNodeToString(j)); err != nil {
+		t.Fatalf("right window join round trip failed: %v", err)
 	}
 }
 

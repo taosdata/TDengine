@@ -1,3 +1,18 @@
+// Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// This program is free software: you can use, redistribute, and/or modify
+// it under the terms of the GNU Affero General Public License, version 3
+// or later ("AGPL"), as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it will be useful, but WITHOUT
+// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+// FITNESS FOR A PARTICULAR PURPOSE.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 package process
 
 import (
@@ -213,11 +228,17 @@ func (p *Processor) Collect(metrics chan<- prometheus.Metric) {
 				ConstLabels: metric.ConstLabels,
 			}, lbs)
 			for _, value := range metric.GetValue() {
-				if value == nil {
+				if value == nil || value.Value == nil {
+					continue
+				}
+				strValue, ok := value.Value.(string)
+				if !ok {
+					logger.Warningf("unexpected info value type %T for prometheus metric. label %v value %v",
+						value.Value, value.Label, value.Value)
 					continue
 				}
 				v := make(map[string]string, len(value.Label)+1)
-				v["value"] = value.Value.(string)
+				v["value"] = strValue
 				for k, l := range value.Label {
 					v[k] = l
 				}
@@ -310,7 +331,7 @@ func (p *Processor) Prepare() {
 			if err != nil {
 				var tdEngineError *taosError.TaosError
 				if errors.As(err, &tdEngineError) {
-					logger.Errorf("table %s not exist, skip it, error:%s", tableName, err)
+					logger.Errorf("table %s does not exist, skip it, error:%s", tableName, err)
 				} else {
 					logger.Errorf("could not get table %s metadata, skip it, error:%s", tableName, err)
 				}
@@ -618,7 +639,12 @@ func exchangeDBType(t string) CollectType {
 	case "BINARY", "NCHAR", "VARCHAR":
 		return Info
 	default:
-		panic("unsupported type")
+		// Deliberately fatal, unlike i2string/i2float. Callers pass a column
+		// type read back from the metrics database itself, not anything from a
+		// request: an unmapped type means the schema has a column this build
+		// cannot export, and exporting it as the wrong metric type would be a
+		// silent data error rather than a loud one.
+		panic("unsupported type: " + t)
 	}
 }
 
@@ -629,7 +655,8 @@ func i2string(value interface{}) string {
 	case []byte:
 		return string(v)
 	default:
-		panic("unexpected type to string")
+		logger.Warningf("unexpected type %T to string, use empty string instead", value)
+		return ""
 	}
 }
 
@@ -661,6 +688,7 @@ func i2float(value interface{}) float64 {
 		}
 		return 0
 	default:
-		panic("unexpected type to float64")
+		logger.Warningf("unexpected type %T to float64, use 0 instead", value)
+		return 0
 	}
 }

@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_03_type_mapping.py
 
@@ -8,13 +23,15 @@ Original legacy tests are preserved in:
   test_fq_03_type_mapping.py.bak
 """
 
-import datetime
 import os
 import re
 import shutil
 import tempfile
 import time
+from datetime import datetime, timezone
 from typing import Any, List, Optional, Sequence, Union
+
+from taos.constants import FieldType
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -43,6 +60,13 @@ _P_PASS   = ExtSrcEnv.PG_PASS
 _P_DB     = "fq03_type_pdb"
 _P_SCHEMA = "public"
 
+_S_HOST   = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT   = ExtSrcEnv.SQLSERVER_PORT
+_S_USER   = ExtSrcEnv.SQLSERVER_USER
+_S_PASS   = ExtSrcEnv.SQLSERVER_PASS
+_S_DB     = "fq03_type_sdb"
+_S_SCHEMA = ExtSrcEnv.SQLSERVER_SCHEMA
+
 _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
@@ -51,14 +75,16 @@ _I_DB    = "fq03_type_idb"
 _DYNAMIC_RESULT_COLUMNS = {"create_time", "ctime"}
 
 # ── Type shortcuts ─────────────────────────────────────────────────────────
-_mysql    = "mysql"
-_pg       = "postgresql"
-_influxdb = "influxdb"
+_mysql     = "mysql"
+_pg        = "postgresql"
+_influxdb  = "influxdb"
+_sqlserver = "sqlserver"
 
 # ── Source names ───────────────────────────────────────────────────────────
 _SRC_M = "fq03_src_m"
 _SRC_P = "fq03_src_p"
 _SRC_I = "fq03_src_i"
+_SRC_S = "fq03_src_s"
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
 
@@ -228,7 +254,7 @@ def _mysql_setup_sqls():
         " -128, 0, -32768, 0, -8388608, 0,"
         " 42, 100, -9223372036854775808, 0,"
         " 3.14, 2.718281828, 12345.6789, 1234567890.1234567890,"
-        " 123456789012345678.123456789012345678,"
+        " 123456789012345678.123000000000000000,"
         " TRUE,"
         " 'hello', '中文测试UTF8', 'tiny', 'text content',"
         " 'medium text', 'long text',"
@@ -249,7 +275,7 @@ def _mysql_setup_sqls():
         " 127, 255, 32767, 65535, 8388607, 16777215,"
         " 2147483647, 4294967295, 9223372036854775807, 18446744073709551615,"
         " -3.14, -2.718281828, -99999999999999.9999, -9999999999999999999999999999.9999999999,"
-        " -123456789012345678.123456789012345678,"
+        " -123456789012345678.123000000000000000,"
         " FALSE,"
         " '', '', '', '', '', '',"
         " X'00000000000000000000000000000000', X'',"
@@ -797,6 +823,163 @@ def _influx_setup_lines():
 # CASE definitions
 # ══════════════════════════════════════════════════════════════════════════
 
+def _sqlserver_setup_sqls():
+    """Return list of SQL statements to create the SQL Server type tables."""
+    sqls = []
+    sqls.append("IF OBJECT_ID('dbo.all_types_ss') IS NOT NULL DROP TABLE dbo.all_types_ss")
+    sqls.append(
+        "CREATE TABLE dbo.all_types_ss ("
+        "  ts                datetime2(6)     NOT NULL,"
+        "  c_bit             bit,"
+        "  c_tinyint         tinyint,"
+        "  c_smallint        smallint,"
+        "  c_int             int,"
+        "  c_bigint          bigint,"
+        "  c_real            real,"
+        "  c_float           float,"
+        "  c_decimal         decimal(18,4),"
+        "  c_decimal_big     decimal(38,10),"
+        "  c_money           money,"
+        "  c_smallmoney      smallmoney,"
+        "  c_char            char(20),"
+        "  c_varchar         varchar(100),"
+        "  c_nchar           nchar(20),"
+        "  c_nvarchar        nvarchar(100),"
+        "  c_uniqueidentifier uniqueidentifier,"
+        "  c_xml             xml,"
+        "  c_binary          binary(16),"
+        "  c_varbinary       varbinary(100),"
+        "  c_image           image,"
+        "  c_date            date,"
+        "  c_time            time(6),"
+        "  c_datetime        datetime,"
+        "  c_datetime2       datetime2(6),"
+        "  c_datetimeoffset  datetimeoffset,"
+        "  c_smalldatetime   smalldatetime,"
+        "  c_geography       geography,"
+        "  c_geometry        geometry"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO dbo.all_types_ss VALUES ("
+        "'2024-01-01T00:00:00.123456',"
+        " 1, 100, -32768, 42, -9223372036854775808,"
+        " 3.5, 2.718281828459045,"
+        " 12345.6789, 1234567890.1234567890,"
+        " 314.1592, -12.3456,"
+        " 'hello', 'ascii-varchar', N'宽字符', N'宽字符测试UTF8',"
+        " 'A1B2C3D4-E5F6-7890-ABCD-EF1234567890',"
+        " '<root><v>1</v></root>',"
+        " 0x48454C4C4F0000000000000000000000, 0xDEADBEEF, 0xAABB,"
+        " '2024-06-15', '10:30:00.000000',"
+        " '2024-01-01T12:00:00', '2024-01-01T12:00:00.123456',"
+        " '2024-01-01T12:00:00.123456+08:00', '2024-01-01T12:00:00',"
+        " geography::STGeomFromText('POINT(116.39 39.91)', 4326),"
+        " geometry::STGeomFromText('POINT(116.39 39.91)', 4326)"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO dbo.all_types_ss VALUES ("
+        "'2024-01-01T00:01:00.000000',"
+        " 0, 127, 32767, -2147483648, 9223372036854775807,"
+        " -3.5, -2.718281828459045,"
+        " -99999999999999.9999, -9999999999.9999999999,"
+        " -314.1592, 12.3456,"
+        " '', '', N'', N'',"
+        " '00000000-0000-0000-0000-000000000000',"
+        " '<root/>',"
+        " 0x00000000000000000000000000000000, 0x00, 0x00,"
+        " '2023-12-31', '00:00:01.000000',"
+        " '2023-12-31T00:00:00', '2023-12-31T00:00:01.000000',"
+        " '2023-12-31T00:00:00.000000-05:00', '2023-12-31T00:00:00',"
+        " geography::STGeomFromText('POINT(0 0)', 4326),"
+        " geometry::STGeomFromText('POINT(0 0)', 4326)"
+        ")"
+    )
+    # Unmappable types: referencing them must fail, never fall back to string.
+    sqls.append("IF OBJECT_ID('dbo.unmappable_ss') IS NOT NULL DROP TABLE dbo.unmappable_ss")
+    sqls.append(
+        "CREATE TABLE dbo.unmappable_ss ("
+        "  ts          datetime2(6) NOT NULL,"
+        "  c_variant   sql_variant,"
+        "  c_hier      hierarchyid"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO dbo.unmappable_ss VALUES ("
+        "'2024-01-01T00:00:00', CAST(1 AS sql_variant), '/1/'"
+        ")"
+    )
+    # rowversion (a.k.a. timestamp) is a row-version counter, not a time value:
+    # DS maps it to VARBINARY and it can never be the virtual-table timeline.
+    # Only its mapping is asserted (the counter itself is non-deterministic).
+    # SQL Server tinyint is unsigned 0-255 while TDengine TINYINT is signed:
+    # a value > 127 must fail at execution time (DS 5.3.2.1), never silently
+    # wrap or fall back to a string.
+    sqls.append("IF OBJECT_ID('dbo.tinyint_overflow_ss') IS NOT NULL DROP TABLE dbo.tinyint_overflow_ss")
+    sqls.append(
+        "CREATE TABLE dbo.tinyint_overflow_ss ("
+        "  ts          datetime2(6) NOT NULL,"
+        "  c_tinyint   tinyint"
+        ")"
+    )
+    sqls.append("INSERT INTO dbo.tinyint_overflow_ss VALUES ('2024-01-01T00:00:00', 200)")
+    sqls.append("IF OBJECT_ID('dbo.rowversion_ss') IS NOT NULL DROP TABLE dbo.rowversion_ss")
+    sqls.append(
+        "CREATE TABLE dbo.rowversion_ss ("
+        "  ts           datetime2(6) NOT NULL,"
+        "  c_rowversion rowversion,"
+        "  c_v          int"
+        ")"
+    )
+    sqls.append("INSERT INTO dbo.rowversion_ss (ts, c_v) VALUES ('2024-01-01T00:00:00', 1)")
+    return sqls
+
+
+def _sqlserver_case_steps():
+    """SQL Server type-mapping steps (one query per mapped type family)."""
+    src = _SRC_S
+    steps = [
+        f"select ts, c_bit from {src}.all_types_ss order by ts",
+        f"select ts, c_tinyint, c_smallint, c_int, c_bigint from {src}.all_types_ss order by ts",
+        f"select ts, c_real, c_float from {src}.all_types_ss order by ts",
+        f"select ts, c_decimal, c_decimal_big from {src}.all_types_ss order by ts",
+        f"select ts, c_money, c_smallmoney from {src}.all_types_ss order by ts",
+        f"select ts, c_char, c_varchar from {src}.all_types_ss order by ts",
+        f"select ts, c_nchar, c_nvarchar from {src}.all_types_ss order by ts",
+        f"select ts, c_uniqueidentifier from {src}.all_types_ss order by ts",
+        f"select ts, c_xml from {src}.all_types_ss order by ts",
+        f"select ts, c_binary from {src}.all_types_ss order by ts",
+        f"select ts, c_varbinary from {src}.all_types_ss order by ts",
+        f"select ts, c_image from {src}.all_types_ss order by ts",
+        f"select ts, c_date, c_time from {src}.all_types_ss order by ts",
+        f"select ts, c_datetime, c_datetime2 from {src}.all_types_ss order by ts",
+        f"select ts, c_datetimeoffset from {src}.all_types_ss order by ts",
+        f"select ts, c_smalldatetime from {src}.all_types_ss order by ts",
+        f"select ts, c_geography from {src}.all_types_ss order by ts",
+        f"select ts, c_geometry from {src}.all_types_ss order by ts",
+        # Column count and metadata
+        f"describe {src}.all_types_ss",
+        # tinyint out of TDengine's signed range: execution-time error
+        f"select ts, c_tinyint from {src}.tinyint_overflow_ss order by ts",
+        # rowversion: mapped to VARBINARY, usable as a data column
+        f"describe {src}.rowversion_ss",
+        f"select ts, c_v from {src}.rowversion_ss order by ts",
+        # Unmappable types: rejected explicitly, no silent string fallback
+        _expect_error(f"select ts, c_variant from {src}.unmappable_ss",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select * from {src}.unmappable_ss",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_hier from {src}.unmappable_ss",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        # Path forms over the same table
+        f"select ts, c_int from {src}.{_S_DB}.{_S_SCHEMA}.all_types_ss order by ts",
+        f"select ts, c_int from {src}.{_S_SCHEMA}.all_types_ss order by ts",
+        _clear_source_step(),
+    ]
+    return steps
+
+
 _CASES = [
     # ── CASE-01m: MySQL full type mapping ─────────────────────────────────
     ["01m", [_mysql], [_SRC_M], "MySQL full type mapping", [
@@ -828,7 +1011,7 @@ _CASES = [
         f"select ts, c_double from {_SRC_M}.all_types order by ts",
         f"select ts, c_decimal from {_SRC_M}.all_types order by ts",
         f"select ts, c_decimal_big from {_SRC_M}.all_types order by ts",
-        # ── DECIMAL(65,30) precision>38 truncation (014) ──
+        # ── DECIMAL(65,30) precision>38 lossless scale reduction (014) ──
         f"select ts, c_decimal_trunc from {_SRC_M}.all_types order by ts",
 
         # ── Boolean ──
@@ -930,7 +1113,7 @@ _CASES = [
         _expect_error(
             f"select doc->'$.k' from {_SRC_M}.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
 
         _clear_source_step(),
@@ -1088,12 +1271,12 @@ _CASES = [
         _expect_error(
             f"select doc_json->'k' from {_SRC_P}.public.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
         _expect_error(
             f"select doc_jsonb->'k' from {_SRC_P}.public.json_op_test",
             TSDB_CODE_PAR_INVALID_COL_JSON,
-            "Only tag can be json type",
+            "Only tags can be of the JSON type",
         ),
 
         _clear_source_step(),
@@ -1158,6 +1341,13 @@ _CASES = [
 
         _clear_source_step(),
     ]],
+    # ── CASE-01s: SQL Server full type mapping ──────────────────────────
+    ["01s", [_sqlserver], [_SRC_S], "SQL Server full type mapping",
+     [f"drop external source if exists {_SRC_S}",
+      f"create external source {_SRC_S} type='sqlserver' host='{_S_HOST}' "
+      f"port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' "
+      f"database={_S_DB} schema={_S_SCHEMA}"] + _sqlserver_case_steps()],
+
 ]
 
 
@@ -1224,6 +1414,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         ExtSrcEnv.pg_create_db_cfg(pg_cfg, _P_DB)
         ExtSrcEnv.pg_exec_cfg(pg_cfg, _P_DB, _pg_setup_sqls())
 
+        # ── SQL Server ──
+        ExtSrcEnv.sqlserver_create_db(_S_DB)
+        ExtSrcEnv.sqlserver_exec(_S_DB, _sqlserver_setup_sqls())
+
         # ── InfluxDB ──
         ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)
         ns_lines, ms_lines = _influx_setup_lines()
@@ -1236,20 +1430,34 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _fw_fmt_cell(value) -> str:
+    def _fw_fmt_cell(value: Any, is_timestamp: bool = False) -> str:
         if value is None:
             return "NULL"
+        if is_timestamp and isinstance(value, datetime) and value.tzinfo is None:
+            # Baselines use UTC for both millisecond and nanosecond values.
+            return str(value.astimezone(timezone.utc))
+        if is_timestamp and isinstance(value, int) and abs(value) >= 10**17:
+            seconds, nanos = divmod(value, 1_000_000_000)
+            return str(datetime.fromtimestamp(seconds, timezone.utc).replace(microsecond=nanos // 1000))
         if isinstance(value, float):
             return f"{value:.12g}"
-        if isinstance(value, datetime.datetime):
-            # The Python taos driver returns naive datetimes in the local
-            # timezone.  Normalize to UTC for a stable, timezone-independent
-            # baseline (ALTER LOCAL "timezone" has no effect on the driver).
-            return str(datetime.datetime.utcfromtimestamp(value.timestamp()))
         return str(value)
 
-    def _fw_fmt_rows(self, rows: Sequence) -> List[str]:
-        return ["|".join(self._fw_fmt_cell(v) for v in row) for row in rows]
+    @staticmethod
+    def _fw_is_timestamp_column(field: Any) -> bool:
+        field_type = getattr(field, "type", None)
+        if field_type is None:
+            try:
+                field_type = field[1]
+            except (IndexError, KeyError, TypeError):
+                return False
+        return field_type == FieldType.C_TIMESTAMP
+
+    def _fw_fmt_rows(self, rows: Sequence, timestamp_cols: set[int]) -> List[str]:
+        return [
+            "|".join(self._fw_fmt_cell(value, index in timestamp_cols) for index, value in enumerate(row))
+            for row in rows
+        ]
 
     @staticmethod
     def _fw_drop_dynamic_columns(description, rows: Sequence):
@@ -1270,7 +1478,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         lines = []
         if description:
             lines.append("|".join(col[0] for col in description))
-        lines.extend(self._fw_fmt_rows(rows))
+        timestamp_cols = {
+            index for index, field in enumerate(description or []) if self._fw_is_timestamp_column(field)
+        }
+        lines.extend(self._fw_fmt_rows(rows, timestamp_cols))
         return lines
 
     @staticmethod
@@ -1322,17 +1533,10 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         return tdSql.query(sql, exit=exit, queryTimes=1)
 
     def _fw_runtime_sql(self, sql: str, src_type: str) -> str:
-        """Patch import-time Influx token placeholders with runtime token."""
+        """Patch generic import-time Influx source SQL to runtime token/protocol."""
         if src_type != _influxdb:
             return sql
-        runtime_token = self._influx_cfg().token
-        if not runtime_token or runtime_token == _I_TOKEN:
-            return sql
-        pattern = re.compile(
-            r"(api_token'\s*=\s*')" + re.escape(_I_TOKEN) + r"(')",
-            re.IGNORECASE,
-        )
-        return pattern.sub(r"\1" + runtime_token + r"\2", sql)
+        return self._rewrite_influx_source_runtime_sql(sql, _I_TOKEN)
 
     def _fw_exec_step(
         self,
@@ -1501,7 +1705,7 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         )
 
     def _fw_compare_baseline(self, blocks: List[str]):
-        actual   = "\n".join(blocks) + "\n"
+        actual   = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
         # Normalise dynamic influxdb3 admin tokens (apiv3_...) to the stable
         # placeholder "test-token" so that the baseline comparison is stable
         # across test runs even though influxdb3 generates a new random token
@@ -1519,8 +1723,21 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
             r'(ERROR: \[0x2600\]: syntax error near "[^\n]*test-token)[^\n]*',
             _re.MULTILINE,
         )
+        _PROTOCOL_SQL_NORM = _re.compile(
+            r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+            _re.IGNORECASE,
+        )
+        _PROTOCOL_JSON_NORM = _re.compile(
+            r'("protocol"\s*:\s*")(?:flight_sql|http)(")',
+            _re.IGNORECASE,
+        )
         def _norm_synerr(text):
-            return _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _SYNTAX_ERR_NORM.sub(r"\1", text)
+            text = _PROTOCOL_SQL_NORM.sub(r"\1<PROTO>\2", text)
+            text = _PROTOCOL_JSON_NORM.sub(r'\1<PROTO>\2', text)
+            text = text.replace("protocol value visible", "protocol visible")
+            return _re.sub(r"protocol='(?:flight_sql|http)' visible",
+                           "protocol visible", text, flags=_re.IGNORECASE)
         actual = _norm_synerr(actual)
         baseline = self._fw_baseline_file()
         tmp_file = os.path.join(
@@ -1571,8 +1788,53 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
     # Main test entry point
     # ──────────────────────────────────────────────────────────────────────
 
+    def _do_describe_external_mysql_decimal(self):
+        self._mk_mysql_real(_SRC_M, database=_M_DB)
+        try:
+            tdSql.query(f"describe {_SRC_M}.{_M_DB}.all_types")
+            tdSql.checkRows(39)
+
+            decimal_rows = {
+                row[0]: (row[1], row[2])
+                for row in tdSql.queryResult
+                if row[0] in {"c_decimal", "c_decimal_big", "c_decimal_trunc"}
+            }
+            assert decimal_rows == {
+                "c_decimal": ("DECIMAL(18, 4)", 8),
+                "c_decimal_big": ("DECIMAL(38, 10)", 16),
+                "c_decimal_trunc": ("DECIMAL(38, 3)", 16),
+            }, f"unexpected DECIMAL DESCRIBE rows: {decimal_rows!r}"
+            print("external MySQL DECIMAL DESCRIBE ......................... [ passed ]")
+        finally:
+            tdSql.execute(f"drop external source if exists {_SRC_M}")
+
+    def test_describe_external_mysql_decimal(self):
+        """DESCRIBE returns DECIMAL metadata without crashing the client.
+
+        1. Reuse the MySQL all_types fixture containing DECIMAL columns.
+        2. Verify DECIMAL type modifiers and physical lengths in DESCRIBE.
+
+        Catalog:
+            - Query:FederatedQuery
+
+        Since: v3.4.2.12
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-24 Codex Add regression coverage for DECIMAL DESCRIBE crash.
+
+        """
+        self._do_describe_external_mysql_decimal()
+
     def test_fq_type_mapping_framework(self):
         """FQ-TYPE-001~060 + S01~S32: complete type mapping coverage.
+
+        Data-driven framework that validates the type mapping between external
+        sources and TDengine columns/tags for all FQ-TYPE cases and the
+        supplementary S cases.
 
         Catalog: - Query:FederatedTypeMapping
 

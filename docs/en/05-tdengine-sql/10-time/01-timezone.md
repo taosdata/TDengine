@@ -5,16 +5,6 @@ description: TDengine timezone semantics and natural time unit behavior
 toc_max_heading_level: 4
 ---
 
-This document describes TDengine timezone semantics and natural time unit behavior. Features are delivered across versions, marked inline:
-
-| Mark | Meaning |
-| --- | --- |
-| (unmarked) | Supported since v3.4.1 |
-| **[v3.4.2]** | Supported since v3.4.2 |
-| **[v3.4.3]** | Supported since v3.4.3 (not available in v3.4.2) |
-
----
-
 ## Timezone Overview
 
 TDengine stores all time data internally as UTC timestamps (`int64`). Timezones only affect conversions between time strings and UTC: on writes, local time strings are converted to UTC; on reads, UTC is formatted back to local time strings for display.
@@ -90,8 +80,8 @@ TDengine uses a five-level timezone priority model, where higher levels override
 
 | Priority | Level | How to set | Description |
 | --- | --- | --- | --- |
-| Highest | SQL level | Function timezone parameters (e.g., `TO_ISO8601(ts, '+09:00')`); `TO_ISO8601` IANA parameters **[v3.4.2]**; stream `TIMEZONE` clause **[v3.4.3]** | Affects only the current SQL statement or stream task |
-| High | Connection level | C API `taos_options_connection`; `SET TIMEZONE` **[v3.4.2]** | Affects all SQL statements on the current connection |
+| Highest | SQL level | Function timezone parameters (e.g., `TO_ISO8601(ts, '+09:00')`); stream `STREAM_OPTIONS(CONFIG(...))` | Function parameters affect only the current SQL statement; stream `CONFIG` is written into that stream's definition at creation and applies only to that stream |
+| High | Connection level | C API `taos_options_connection`; `SET TIMEZONE` | Affects all SQL statements on the current connection |
 | Medium | Client global | `timezone` in client-side `taos.cfg` | Affects only client-side local time formatting |
 | Low | Server global | `timezone` in server-side `taos.cfg` | Fallback for server-side calculations when the connection timezone is unset |
 | Lowest | System default | Automatically detected from the operating system | Final fallback |
@@ -100,7 +90,7 @@ TDengine uses a five-level timezone priority model, where higher levels override
 
 ## Set Timezone
 
-### SET TIMEZONE [v3.4.2] {#set-timezone-v342}
+### Set the Current Timezone
 
 Set the timezone for the current connection:
 
@@ -167,7 +157,7 @@ Differences between `ALTER LOCAL 'timezone ...'` and `SET TIMEZONE ...`:
 
 ## First Day of Week
 
-### SET FIRST_DAY_OF_WEEK [v3.4.2] {#set-first_day_of_week-v342}
+### Set the Current First Day of Week
 
 Set the first day of the week for the current connection:
 
@@ -180,7 +170,7 @@ SET FIRST_DAY_OF_WEEK 1;  -- Monday
 
 Valid range is 0-6: 0=Sunday, 1=Monday, ..., 6=Saturday.
 
-### Query Current First Day of Week [v3.4.2]
+### Query Current First Day of Week
 
 ```sql
 SELECT FIRST_DAY_OF_WEEK();
@@ -188,7 +178,7 @@ SELECT FIRST_DAY_OF_WEEK();
 
 Returns the current first-day-of-week setting for the connection as an integer `0..6`, where `0=Sunday`, `1=Monday`, ..., `6=Saturday`.
 
-### Configuration File [v3.4.2]
+### Configuration File
 
 Configure in client-side `taos.cfg`:
 
@@ -208,14 +198,13 @@ SET FIRST_DAY_OF_WEEK 1;
 
 For Sunday, set it to `0`.
 
-### Scope of Effect [v3.4.2]
+### Scope of Effect
 
 `firstDayOfWeek` affects all operations using `w` (week) as the time unit:
 
 - `TIMETRUNCATE(ts, 1w)` alignment day
 - `INTERVAL(1w)` window start day
-- `PERIOD(1w)` trigger day **[v3.4.3]**
-- `SLIDING(1w)` trigger day **[v3.4.3]**
+- Week boundaries of `PERIOD(1w)`, `SLIDING(1w)`, and `INTERVAL(1w)` in streams (based on the first day of week saved in that stream's definition)
 
 ## Time Functions
 
@@ -225,7 +214,7 @@ For Sunday, set it to `0`.
 SELECT TO_ISO8601(ts) FROM t;                        -- uses connection timezone
 SELECT TO_ISO8601(ts, '+09:00') FROM t;              -- specified fixed offset (ISO 8601 sign)
 SELECT TO_ISO8601(ts, 'UTC+09:00') FROM t;           -- equivalent, 'UTC' prefix is stripped
-SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- specified IANA timezone [v3.4.2]
+SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- specified IANA timezone
 ```
 
 **Sign convention**: `TO_ISO8601` is the only entry point that uses the ISO 8601 sign convention — `local = UTC + offset`, meaning `'+08:00'` denotes east-8 (Beijing time). The following forms are fully equivalent: `'+0800'`, `'+08:00'`, `'UTC+8'`, `'UTC+0800'`, `'UTC+08:00'`. All other entry points (`SET TIMEZONE`, `taos.cfg`, `TO_CHAR`, `TIMETRUNCATE`, etc.) use POSIX sign convention (`+` = west).
@@ -233,7 +222,7 @@ SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- specified IANA timezone 
 When using an IANA timezone, the output offset varies automatically with DST:
 
 ```sql
-SET TIMEZONE 'America/New_York';           -- [v3.4.2]
+SET TIMEZONE 'America/New_York';
 SELECT TO_ISO8601('2026-01-15 12:00:00');  -- ...T12:00:00-05:00 (EST, winter)
 SELECT TO_ISO8601('2026-07-15 12:00:00');  -- ...T12:00:00-04:00 (EDT, summer)
 ```
@@ -245,39 +234,39 @@ Truncate a timestamp to the specified unit boundary.
 ```sql
 SELECT TIMETRUNCATE(ts, 1d) FROM t;                          -- truncate to 00:00:00 of the day
 SELECT TIMETRUNCATE(ts, 1w) FROM t;                          -- truncate to first day of week 00:00:00
-SELECT TIMETRUNCATE(ts, 1n) FROM t;                          -- truncate to 1st of month [v3.4.2]
-SELECT TIMETRUNCATE(ts, 1q) FROM t;                          -- truncate to 1st of quarter [v3.4.2]
-SELECT TIMETRUNCATE(ts, 1y) FROM t;                          -- truncate to Jan 1st [v3.4.2]
-SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- specify timezone [v3.4.2]
+SELECT TIMETRUNCATE(ts, 1n) FROM t;                          -- truncate to 1st of month
+SELECT TIMETRUNCATE(ts, 1q) FROM t;                          -- truncate to 1st of quarter
+SELECT TIMETRUNCATE(ts, 1y) FROM t;                          -- truncate to Jan 1st
+SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- specify timezone
 ```
 
-**Supported natural time units**:
+**Supported natural time units**
 
-| Unit | Meaning | Truncation rule | Version |
-| --- | --- | --- | --- |
-| `d` | Day | Align to 00:00:00 of the day | Supported |
-| `w` | Week | Align to 00:00:00 of the first day of week (determined by `firstDayOfWeek`) | Supported; respects firstDayOfWeek since v3.4.2 |
-| `n` | Month | Align to 00:00:00 of the 1st of the month | **v3.4.2** |
-| `q` | Quarter | Align to 00:00:00 of the 1st month of the quarter (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct) | **v3.4.2** |
-| `y` | Year | Align to 00:00:00 of January 1st | **v3.4.2** |
+| Unit | Meaning | Truncation rule |
+| --- | --- | --- |
+| `d` | Day | Align to 00:00:00 of the day |
+| `w` | Week | Align to 00:00:00 of the first day of week (determined by `firstDayOfWeek`) |
+| `n` | Month | Align to 00:00:00 of the 1st of the month |
+| `q` | Quarter | Align to 00:00:00 of the 1st month of the quarter (Q1=Jan, Q2=Apr, Q3=Jul, Q4=Oct) |
+| `y` | Year | Align to 00:00:00 of January 1st |
 
-**Examples**:
+**Examples**
 
 ```sql
-SELECT TIMETRUNCATE('2026-03-15', 1n);   -- 2026-03-01 00:00:00 [v3.4.2]
-SELECT TIMETRUNCATE('2026-05-15', 1q);   -- 2026-04-01 00:00:00 [v3.4.2]
-SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00 [v3.4.2]
+SELECT TIMETRUNCATE('2026-03-15', 1n);   -- 2026-03-01 00:00:00
+SELECT TIMETRUNCATE('2026-05-15', 1q);   -- 2026-04-01 00:00:00
+SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00
 ```
 
 **Third parameter** (timezone):
 
-| Value | Behavior | Version |
-| --- | --- | --- |
-| `0` | Use UTC (legacy) | Supported |
-| `1` | Use connection timezone (legacy) | Supported |
-| `'Asia/Shanghai'` | Use specified IANA timezone | **v3.4.2** |
-| `'+08:00'` | Use specified fixed offset | **v3.4.2** |
-| Omitted | Use connection timezone | Supported |
+| Value | Behavior |
+| --- | --- |
+| `0` | Use UTC (legacy) |
+| `1` | Use connection timezone (legacy) |
+| `'Asia/Shanghai'` | Use specified IANA timezone |
+| `'+08:00'` | Use specified fixed offset |
+| Omitted | Use connection timezone |
 
 ### TIMEZONE()
 
@@ -310,173 +299,214 @@ Examples:
 
 ```sql
 SELECT _wstart, COUNT(*) FROM meters
-  INTERVAL(1n)                      -- monthly windows [v3.4.2]
+  INTERVAL(1n)                      -- monthly windows
   FILL(PREV);
 
 SELECT _wstart, AVG(voltage) FROM meters
-  INTERVAL(1q)                      -- quarterly windows [v3.4.2]
+  INTERVAL(1q)                      -- quarterly windows
   FILL(NULL);
 
 SELECT _wstart, SUM(energy) FROM meters
-  INTERVAL(1w)                      -- weekly windows (respects firstDayOfWeek) [v3.4.2]
+  INTERVAL(1w)                      -- weekly windows (respects firstDayOfWeek)
   FILL(LINEAR);
 ```
 
-**Supported natural time units**:
+**Supported natural time units**
 
-| Unit | Window boundary | Version |
-| --- | --- | --- |
-| `d` | Local timezone 00:00:00 each day | Supported |
-| `w` | Local timezone 00:00:00 on the first day of week (determined by `firstDayOfWeek`) | **v3.4.2** |
-| `n` | Local timezone 00:00:00 on the 1st of each month | **v3.4.2** |
-| `q` | Local timezone 00:00:00 on the 1st of the first month of each quarter | **v3.4.2** |
-| `y` | Local timezone 00:00:00 on January 1st of each year | **v3.4.2** |
+| Unit | Window boundary |
+| --- | --- |
+| `d` | Local timezone 00:00:00 each day |
+| `w` | Local timezone 00:00:00 on the first day of week (determined by `firstDayOfWeek`) |
+| `n` | Local timezone 00:00:00 on the 1st of each month |
+| `q` | Local timezone 00:00:00 on the 1st of the first month of each quarter |
+| `y` | Local timezone 00:00:00 on January 1st of each year |
 
-**Multi-interval windows**:
+**Multi-interval windows**
 
 ```sql
-INTERVAL(2q)   -- half-year window: [Jan, Jul), [Jul, next Jan) [v3.4.2]
-INTERVAL(3n)   -- quarterly window (equivalent to 1q): Jan/Apr/Jul/Oct [v3.4.2]
-INTERVAL(2w)   -- bi-weekly window [v3.4.2]
+INTERVAL(2q)   -- half-year window: [Jan, Jul), [Jul, next Jan)
+INTERVAL(3n)   -- quarterly window (equivalent to 1q): Jan/Apr/Jul/Oct
+INTERVAL(2w)   -- bi-weekly window
 ```
 
-**DST handling**: Windows always align to local wall-clock time. On DST transition days, the physical duration of a window may change (e.g., a `1d` window on spring-forward day is 23 hours). This is correct behavior. For write/query caveats around DST gaps and overlaps, see [DST Usage](./02-dst.md).
+**DST handling**: Windows always align to local wall-clock time. On DST transition days, the actual duration of a window may change (for example, a `1d` window on a spring-forward day may be only 23 hours). This is expected. For write and query caveats around DST gaps and overlaps, see [DST Usage](./02-dst.md).
 
 **Leap year / variable-length months**: Window widths automatically adapt to actual day counts (e.g., a February window is 28 or 29 days). `FILL` boundaries advance month-by-month / quarter-by-quarter.
 
-## Stream Timezone
+## Stream Time Configuration
 
-### Stream TIMEZONE Clause [v3.4.3]
+`CREATE STREAM` writes the timezone and first day of week into the stream definition. After that, natural time boundaries such as day, week, month, quarter, and year are calculated from those two values. Stop then start, process restart, failover, and dump then restore all keep the values saved at creation. Changing the current connection, client, or server timezone does not change an existing stream. Query statements and `SET TIMEZONE` / `SET FIRST_DAY_OF_WEEK` keep their existing behavior. `CREATE TSMA` does not use the configuration described in this section.
 
-Before v3.4.3, stream trigger-side natural time boundary alignment always used the server global timezone, with no way to specify an independent timezone for individual stream tasks. Starting from v3.4.3, a `TIMEZONE` clause is available for all trigger types:
+For stream syntax, see [Stream Syntax](../../07-stream-processing/01-syntax.md).
+
+### Specify Timezone and First Day of Week for a Stream
+
+Specify them only with `CONFIG` inside `STREAM_OPTIONS`. There is no standalone stream `TIMEZONE` clause, and `ALTER STREAM` cannot change these values. To change them, drop the stream and create it again.
 
 ```sql
--- PERIOD trigger: Tokyo timezone, weekly
-CREATE STREAM weekly_tokyo TRIGGER PERIOD(1w) TIMEZONE 'Asia/Tokyo'
-  INTO tokyo_weekly AS SELECT AVG(current) FROM meters;
-
--- SLIDING trigger: New York timezone, quarterly
-CREATE STREAM slide_ny TRIGGER SLIDING(1q) TIMEZONE 'America/New_York'
-  FROM meters
-  INTO ny_quarterly AS SELECT _tprev_ts, _tcurrent_ts, AVG(current) FROM %%trows;
-
--- INTERVAL trigger: London timezone, monthly window
-CREATE STREAM monthly_uk TRIGGER INTERVAL(1n) SLIDING(1w) TIMEZONE 'Europe/London'
-  FROM meters
-  INTO uk_monthly AS SELECT _wstart, _wend, AVG(current) FROM %%trows;
-
--- EVENT trigger: computation side uses Tokyo timezone
-CREATE STREAM event_tokyo TRIGGER EVENT_WINDOW(START WITH voltage > 220 END WITH voltage <= 220)
-  TIMEZONE 'Asia/Tokyo'
-  FROM meters PARTITION BY tbname
-  INTO event_out AS SELECT _twstart, _twend, AVG(current) FROM %%trows;
+STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
 ```
 
-**Frozen behavior**: `TIMEZONE` is frozen into stream metadata at creation time. Subsequent changes to the global timezone do not affect existing stream tasks.
+| Option | Value | If omitted |
+| --- | --- | --- |
+| `timezone` | String, same formats as `SET TIMEZONE` | Uses the timezone already in effect on the current connection |
+| `firstDayOfWeek` | Integer `0`–`6` (`0` is Sunday, `1` is Monday) | Uses the first day of week already in effect on the current connection |
 
-**When TIMEZONE is not specified**: Resolved in order of connection timezone → server global timezone → OS timezone, then frozen.
+Key names are case-insensitive, but only `timezone` and `firstDayOfWeek` are accepted. Aliases such as `tz` or `first_day_of_week` are not valid. `CONFIG()` cannot be empty. `timezone` must be a string, and `firstDayOfWeek` must be an integer.
 
-### Stream Timezone Effects
+A statement may contain multiple `CONFIG` blocks, and the same key may be repeated in one block. When a key appears more than once, the last value wins. Only the final values are checked: an invalid timezone that is later overwritten by a valid value still allows creation. Unknown keys or wrong value types fail immediately and cannot be overwritten by a later block.
 
-| Affected area | Description |
+If `CONFIG` is omitted, or only one key is written, the missing item uses the value already in effect on the connection that creates the stream. The system still writes both the timezone and the first day of week into the stream, for example:
+
+```sql
+SET TIMEZONE 'Asia/Shanghai';
+SET FIRST_DAY_OF_WEEK 1;
+
+CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
+  INTO meters_monthly_out AS
+  SELECT _twstart AS window_start, AVG(current) AS avg_current
+  FROM %%trows;
+```
+
+After this statement, the stream stores `timezone = 'Asia/Shanghai'` and `firstDayOfWeek = 1`. Use `SHOW CREATE STREAM` to confirm the `CONFIG` that was actually written.
+
+Fixed offsets are stored using POSIX signs. For example, `'+08:00'` is stored as `UTC+8`, which means local time equals UTC minus 8 hours, not Beijing time. Prefer IANA names such as `'Asia/Shanghai'`.
+
+In the stream query, `TIMEZONE()` and `FIRST_DAY_OF_WEEK()` use the values saved on the stream. If a time function has its own timezone argument, that argument still takes precedence.
+
+### Time Units for Stream Triggers
+
+`PERIOD`, `SLIDING` without `INTERVAL`, and `INTERVAL` can all use natural time units, but they do not trigger the same way:
+
+- `INTERVAL` splits windows by event time. Window boundaries match `INTERVAL` in query statements.
+- `PERIOD` fires on a schedule based on the system clock.
+- `SLIDING` without `INTERVAL` fires on a sliding interval of event time.
+- For the week unit `w`, the first day of the week comes from the `firstDayOfWeek` saved on that stream.
+
+So even if both are written as `1n` or `1w`, the trigger times of `PERIOD`, `SLIDING`, and `INTERVAL` are not necessarily the same.
+
+`q` (quarter) is treated as 3 months. For example, `2q` equals `6n`.
+
+| Syntax | Supported units |
 | --- | --- |
-| Trigger side (PERIOD/SLIDING/INTERVAL) | Calendar boundary alignment for natural units (d/w/n/q/y) uses the frozen timezone |
-| Computation side (AS subquery) | INTERVAL natural unit window splitting uses the frozen timezone and firstDayOfWeek |
+| `PERIOD(period_time)` | `a`/`s`/`m`/`h`/`d`/`w`/`n`/`q`/`y` |
+| `SLIDING(sliding_val)` (without `INTERVAL`) | `a`/`s`/`m`/`h`/`d`/`w`/`n`/`q`/`y` |
+| `INTERVAL(interval_val)` | `a`/`s`/`m`/`h`/`d`/`w`/`n`/`q`/`y`; `SLIDING` may be omitted |
+| `INTERVAL(...) SLIDING(sliding_val)` | `a`/`s`/`m`/`h`/`d`/`w`; `n`/`q`/`y` are not supported |
 
-### Stream Trigger Natural Unit Support
+When `SLIDING` is omitted, the step equals the window width and adjacent windows do not overlap. For example, `INTERVAL(1n)` splits by calendar month, one window per month.
 
-The following tables list supported time units for PERIOD, SLIDING, and INTERVAL trigger types along with their versions:
+When `SLIDING` is written, the sliding step supports only `a`/`s`/`m`/`h`/`d`/`w`. Therefore `INTERVAL(1n) SLIDING(1n)` is invalid; to split by calendar month with non-overlapping windows, write `INTERVAL(1n)`. An explicit sliding step in a stream only needs to be greater than 0. It may be larger than the window width (there will be gaps between windows), and it does not need to be at least 1% of the window width. This differs from `INTERVAL ... SLIDING` in query statements.
 
-**PERIOD trigger**:
-
-| Unit | Meaning | Version |
-| --- | --- | --- |
-| `a` | Millisecond | Supported |
-| `s` | Second | Supported |
-| `m` | Minute | Supported |
-| `h` | Hour | Supported |
-| `d` | Day | Supported |
-| `w` | Week | Supported |
-| `n` | Month | Supported |
-| `y` | Year | Supported |
-| `q` | Quarter | **v3.4.3** |
-
-**Offset examples**:
+**Examples**
 
 ```sql
-PERIOD(1w, 1d)       -- trigger every Tuesday 00:00:00
-PERIOD(1n, 14d)      -- trigger on the 15th of each month 00:00:00
-PERIOD(1y, 31d)      -- trigger on February 1st each year 00:00:00
-PERIOD(1q)           -- trigger on the 1st of each quarter 00:00:00 [v3.4.3]
-PERIOD(1q, 15d)      -- trigger on the 16th day of each quarter [v3.4.3]
+-- Fire quarterly on Tokyo local time
+CREATE STREAM meters_quarter_tokyo PERIOD(1q)
+  STREAM_OPTIONS(CONFIG(timezone = 'Asia/Tokyo', firstDayOfWeek = 1))
+  INTO meters_quarter_tokyo_out AS
+  SELECT CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
+         AVG(current) AS avg_current
+  FROM meters;
+
+-- Slide on New York local year boundaries
+CREATE STREAM meters_slide_year SLIDING(1y) FROM meters
+  STREAM_OPTIONS(CONFIG(timezone = 'America/New_York', firstDayOfWeek = 0))
+  INTO meters_slide_year_out AS
+  SELECT _tprev_ts AS window_start, AVG(current) AS avg_current
+  FROM %%trows;
+
+-- Split windows by London local calendar month
+CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
+  STREAM_OPTIONS(CONFIG(timezone = 'Europe/London', firstDayOfWeek = 1))
+  INTO meters_monthly_out AS
+  SELECT _twstart AS window_start, AVG(current) AS avg_current
+  FROM %%trows;
+
+-- Compute the previous 1 second every 2 seconds; windows have gaps
+CREATE STREAM meters_gapped INTERVAL(1s) SLIDING(2s) FROM meters
+  STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
+  INTO meters_gapped_out AS
+  SELECT _twstart AS window_start, AVG(current) AS avg_current
+  FROM %%trows;
 ```
 
-**SLIDING trigger**:
+### Offsets
 
-| Unit | Meaning | Version |
-| --- | --- | --- |
-| `a` | Millisecond | Supported |
-| `s` | Second | Supported |
-| `m` | Minute | Supported |
-| `h` | Hour | Supported |
-| `d` | Day | Supported |
-| `w` | Week | Supported |
-| `n` | Month | **v3.4.3** |
-| `q` | Quarter | **v3.4.3** |
-| `y` | Year | **v3.4.3** |
+`PERIOD`, `SLIDING` without `INTERVAL`, and `INTERVAL` can all take an offset. The rules match offsets of `INTERVAL` in query statements:
+
+- `AUTO` is not supported, and negative values are not supported.
+- The offset must be strictly less than the corresponding period, sliding interval, or window width.
+- `q` is converted to 3 months before comparison.
+- When months are compared with days or other units, a month is estimated as 28 days. For example, `PERIOD(1n, 27d)` is valid and `PERIOD(1n, 28d)` is invalid.
+
+When you write `INTERVAL(...) SLIDING(...)`, `SLIDING` can only take the sliding step. It cannot take another offset inside `SLIDING`. To shift the window start, put the offset in `INTERVAL`, for example `INTERVAL(1d, 1h) SLIDING(1d)`.
+
+| Valid syntax | Notes |
+| --- | --- |
+| `PERIOD(1n, 27d)`, `SLIDING(1n, 27d)`, `INTERVAL(1n, 27d)` | 27 days is less than one month estimated as 28 days |
+| `PERIOD(29d, 1n)`, `SLIDING(29d, 1n)`, `INTERVAL(29d, 1n)` | One month estimated as 28 days is less than 29 days |
+| `PERIOD(1q, 83d)`, `SLIDING(1q, 83d)`, `INTERVAL(1q, 83d)` | `1q` is estimated as 3 months / 84 days, so 83 days is valid |
+
+For example, with `firstDayOfWeek = 1`, `PERIOD(1w, 1d)` uses Monday as the start of the week and fires on Tuesday after a one-day offset.
+
+### DST and Node Timezone Data
+
+With IANA timezones, natural day, week, and month boundaries align to local wall-clock time. On a DST transition day, a `1d` window may be 23 hours or 25 hours. This is expected.
+
+A stream stores the timezone name, not the timezone rules from the time of creation. Therefore:
+
+- Every node that may run the stream must recognize that timezone, and the nodes should use the same timezone data when possible.
+- After node timezone data is updated, later triggers may follow the new rules. Fixed UTC offsets are not affected by IANA rule updates.
+- Full IANA and DST behavior is available on Linux and macOS. Windows does not gain equivalent capability from this feature.
+
+If a node cannot load the timezone saved on the stream, the stream enters a failed state. It does not switch to the server timezone, OS timezone, or UTC. After the node's timezone data is repaired, wait for the existing retry or redeploy mechanism. Do not try to keep it running by changing the global timezone.
+
+### Streams Created Before Upgrade, TSMA, and Version Requirements
+
+Streams created before `v3.4.3` that did not write a timezone into the stream definition are not automatically given a `CONFIG` after upgrade:
+
+- `timezone` and `first_day_of_week` in `information_schema.ins_streams` are `NULL`.
+- `SHOW CREATE STREAM` and dump output keep the original SQL and do not insert `CONFIG`.
+- At runtime they may still follow the environment in effect at that time.
+
+To give such a stream a timezone that is fixed at creation, drop it and run `CREATE STREAM` again.
+
+`CREATE TSMA` and its internal streams do not use `CONFIG`. The two time columns in the system table may also be `NULL`, but the SQL is `CREATE TSMA`. Do not treat them as leftover user streams from before the upgrade.
+
+Upgrade the client and the cluster together offline. Mixed old and new versions are not supported. After a stream with time configuration has been created on the new version, do not downgrade and keep using the same data. Rollback requires restoring the pre-upgrade backup.
+
+### View a Stream's Timezone and First Day of Week
 
 ```sql
-SLIDING(1n)          -- monthly sliding trigger [v3.4.3]
-SLIDING(1q)          -- quarterly sliding trigger [v3.4.3]
-SLIDING(1y)          -- yearly sliding trigger [v3.4.3]
-SLIDING(1q, 15d)     -- trigger on the 16th day of each quarter [v3.4.3]
+SHOW CREATE STREAM db_name.stream_name;
+
+SELECT stream_name, timezone, first_day_of_week, sql
+FROM information_schema.ins_streams;
 ```
 
-**INTERVAL window trigger** (applies to both interval_val and sliding_val):
-
-| Unit | Meaning | Version |
-| --- | --- | --- |
-| `a` | Millisecond | Supported |
-| `s` | Second | Supported |
-| `m` | Minute | Supported |
-| `h` | Hour | Supported |
-| `d` | Day | **v3.4.3** |
-| `w` | Week | **v3.4.3** |
-| `n` | Month | **v3.4.3** |
-| `q` | Quarter | **v3.4.3** |
-| `y` | Year | **v3.4.3** |
-
-```sql
-INTERVAL(1n) SLIDING(1w)    -- monthly window, weekly sliding [v3.4.3]
-INTERVAL(1q) SLIDING(1n)    -- quarterly window, monthly sliding [v3.4.3]
-INTERVAL(1y) SLIDING(1q)    -- yearly window, quarterly sliding [v3.4.3]
-INTERVAL(1w) SLIDING(1d)    -- weekly window, daily sliding [v3.4.3]
-```
-
-### View Stream Timezone [v3.4.3]
-
-```sql
-SELECT stream_name, timezone, first_day_of_week FROM information_schema.ins_streams;
-```
+- Shows the saved timezone, first day of week as `0`–`6`, and a `CREATE STREAM` that includes a complete `CONFIG`.
+- User streams that existed before the upgrade: both time fields are `NULL`, and the SQL has no `CONFIG`.
+- `CREATE TSMA` objects: the time fields may also be `NULL`, but the SQL is `CREATE TSMA`.
 
 ## Timezone Source Quick Reference
 
-| Scenario | Timezone source | Version notes |
+| Scenario | Timezone source | Notes |
 | --- | --- | --- |
-| Write `INSERT` | Connection → Server global → OS | Converts time strings to UTC; supported |
-| Read `SELECT ts` | Connection → Client global → OS | Formats UTC to local time; connection-level fallback supported since **v3.4.2** (previously OS timezone only) |
-| Functions (`TO_ISO8601` etc.) | SQL parameter → Connection → Server global → OS | Fixed-offset parameter supported; IANA parameter since **v3.4.2** |
-| `TIMETRUNCATE` | SQL parameter → Connection → Server global → OS | `d`/`w` supported; `n`/`q`/`y` since **v3.4.2**; timezone string parameter since **v3.4.2** |
-| `INTERVAL` query windows | Connection → Server global → OS | `d` supported; `w`/`n`/`q`/`y` since **v3.4.2** |
-| `SHOW` / `EXPLAIN` | Connection → Client global → OS | Connection-level fallback supported since **v3.4.2** (previously OS timezone only) |
-| Stream trigger and computation | Server global → OS; **[v3.4.3]** supports `TIMEZONE` clause → Connection → Server global → OS (frozen at creation) | Before v3.4.3 uses server timezone; v3.4.3 supports freezing |
+| Write `INSERT` | Connection → Server global → OS | Converts time strings to UTC |
+| Read `SELECT ts` | Connection → Client global → OS | Formats UTC as local time |
+| Functions (`TO_ISO8601` and similar) | SQL parameter → Connection → Server global → OS | Can specify a fixed offset or an IANA timezone |
+| `TIMETRUNCATE` | SQL parameter → Connection → Server global → OS | Supports `d`/`w`/`n`/`q`/`y`; timezone can be specified |
+| `INTERVAL` query windows | Connection → Server global → OS | Supports `d`/`w`/`n`/`q`/`y` |
+| `SHOW` / `EXPLAIN` | Connection → Client global → OS | Displayed in the current connection timezone |
+| Stream trigger and computation | Stream `CONFIG`; omitted items use the current connection at creation | After creation, the stream uses the values saved in its definition; streams without `CONFIG` may still follow the environment |
 
 ## Configuration Parameters
 
-| Parameter | Config file | Type | Default | Description | Version |
-| --- | --- | --- | --- | --- | --- |
-| `timezone` | Server/client-side `taos.cfg` | String | OS detected | Global timezone | Supported |
-| `firstDayOfWeek` | Client-side `taos.cfg` | Integer 0-6 | 4 (Thursday) | First day of week; can also be changed dynamically via `ALTER LOCAL` | **v3.4.2** |
+| Parameter | Config file | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `timezone` | Server/client-side `taos.cfg` | String | OS detected | Global timezone |
+| `firstDayOfWeek` | Client-side `taos.cfg` | Integer 0-6 | 4 (Thursday) | First day of week; can also be changed dynamically via `ALTER LOCAL` |
 
 ## Error Messages
 
@@ -506,7 +536,7 @@ SELECT stream_name, timezone, first_day_of_week FROM information_schema.ins_stre
 | `INTERVAL` query `w`/`n`/`q`/`y` windows | ❌ | ✅ | ✅ |
 | Plain column reads use connection timezone | ❌ | ✅ | ✅ |
 | SHOW/EXPLAIN use connection timezone | ❌ | ✅ | ✅ |
-| Stream `TIMEZONE` clause | ❌ | ❌ | ✅ |
+| Stream `STREAM_OPTIONS(CONFIG(...))` | ❌ | ❌ | ✅ |
 | Stream timezone/firstDayOfWeek freezing | ❌ | ❌ | ✅ |
 | PERIOD trigger `q` quarter | ❌ | ❌ | ✅ |
 | SLIDING trigger `n`/`q`/`y` | ❌ | ❌ | ✅ |

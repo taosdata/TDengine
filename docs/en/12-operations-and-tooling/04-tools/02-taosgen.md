@@ -68,7 +68,7 @@ Tip: If no parameters are specified when running taosgen, taosgen will create th
 
 ### Overall Structure
 
-The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", "influxdb", "schema", "concurrency", and "jobs".
+The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", "influxdb", "schema", "concurrency", "jobs", and "ingress".
 
 - tdengine: Describes configuration parameters related to the TDengine database.
 - mqtt: Describes configuration parameters for the MQTT Broker.
@@ -77,6 +77,7 @@ The configuration file is divided into many parts: "tdengine", "mqtt", "kafka", 
 - schema: Describes configuration parameters for data definition and generation.
 - concurrency: Describes job execution concurrency.
 - jobs: List structure, describes specific parameters for all jobs.
+- ingress: Describes configuration parameters for the universal high-performance write gRPC service.
 - log_dir: Specifies the log output directory, default: `log/`.
 - log_file: Specifies the complete log file path (overrides log_dir).
 
@@ -268,6 +269,100 @@ Each column includes:
     | B    | `0.5 * (math.random(80, 120) / 100)`                                 | Noise          | Adds 80%~120% random noise                                    |
     | C    | `((_i % 50 < 25) and (1 + 0.3 * math.sin(_i / 3)) or 0.7)`           | Dynamic gain   | Switches gain every 50 calls (first 25 high, next 25 low)     |
     | D    | `10 * (math.floor(_i / 100) % 2)`                                    | Baseline step  | Switches baseline every 100 calls (0 or 10), simulates peaks  |
+
+#### ingress Parameters
+
+`ingress` is a universal high-performance data ingestion gRPC service provided
+by taosgen. When enabled, taosgen starts a service based on the fixed TDengine
+connection, super table, and schema defined in the configuration file. External
+requests provide only values and must not provide database names, super table
+names, column name lists, column types, DDL, or SQL.
+
+It is started with the same command as ordinary configuration:
+
+```bash
+taosgen -c ingress.yaml
+```
+
+Run modes:
+
+| Configuration | Behavior |
+| --- | --- |
+| `ingress.enabled=true`, `jobs` omitted or empty | Starts the gRPC service and runs continuously |
+| `ingress.enabled=true` and `jobs` is not empty | Runs startup jobs first, then starts the gRPC service |
+| `jobs` is not empty, `ingress` omitted or `false` | Runs existing jobs and exits |
+| `jobs` empty and `ingress` omitted or `false` | No task to run; startup fails with a configuration error |
+
+One ingress instance binds to one TDengine database, one super table, and one
+fixed schema. To write to multiple databases or super tables, start multiple
+taosgen ingress instances with different listen ports.
+
+:::warning
+The first version of ingress does not provide TLS or authentication. Deploy it
+only in a trusted internal network or on localhost, and do not expose `listen`
+to an untrusted network. For external access, place it behind a security gateway.
+:::
+
+Minimal configuration example:
+
+```yaml
+tdengine:
+  dsn: taos://root:taosdata@127.0.0.1:6030/power
+  props: precision 'ms'
+
+schema:
+  name: meters
+  columns:
+    - name: ts
+      type: timestamp
+      precision: ms
+    - name: current
+      type: double
+  tags:
+    - name: device_id
+      type: binary(64)
+
+ingress:
+  enabled: true
+  listen: 127.0.0.1:7600
+  default_ack_mode: enqueue_only
+  concurrency: 4
+  auto_create_table: false
+```
+
+Main configuration parameters:
+
+- enabled (bool): Whether to enable the ingress service, default: false.
+- listen (string): gRPC listen address, default: `127.0.0.1:7600`.
+- service_concurrency (int): gRPC receiving concurrency, default: current hardware concurrency.
+- max_message_bytes (int): Maximum message size for a single gRPC request, default: 4194304.
+- rows_per_batch (int): Maximum rows per request. When omitted, it is derived from `schema.generation.rows_per_batch`, whose default is 10000.
+- max_tables_per_request (int): Maximum child tables per request. When omitted, it is derived from `rows_per_batch` and rows per table: `schema.generation.rows_per_table` for normal mode, or `schema.generation.interlace` rows for interlace mode.
+- default_ack_mode (string): Default ack mode when the request does not specify one, default: `enqueue_only`.
+- request_timeout_ms (int): Timeout for waiting for an available queue slot, default: 30000. Set to 0 to try enqueuing without waiting.
+- queue_capacity (int): Internal queue capacity factor. Effective queue capacity is `queue_capacity * concurrency`, default: 10.
+- concurrency (int): TDengine STMT2 write concurrency, default: 8.
+- dry_run (bool): Whether to validate the receive path without actually writing to TDengine, default: false.
+- auto_create_table (bool): Whether to use STMT2 automatic child table creation, default: false.
+- writer.failure_handling: Write failure handling, including `max_retries`, `retry_interval_ms`, and `on_failure`.
+
+The service exposes the following gRPC methods:
+
+- `Ingest`: Writes a batch of TableBatch or InterlaceBatch data and returns the ack stage, accepted rows, and queue depth.
+- `Health`: Checks whether the service is serving.
+- `GetStats`: Returns accepted rows, written rows, failed rows, queue depth, and in-flight requests.
+
+Data organization:
+
+- `TableBatch`: Organized by child table. Within one table batch, `table_name` and tags are sent once; timestamps and normal columns use column-oriented arrays.
+- `InterlaceBatch`: Sends the table-name set, first timestamp column, and normal columns at the request level. Arrays are expanded in table-major order as `offset = table_index * rows_per_table + row_index`. Consecutive table names can use `TableNameRange(prefix,start,count,step)`.
+
+Notes:
+
+- Only `accept_only` and `enqueue_only` are supported. `accept_only` does not enqueue or write to TDengine.
+- Whether data is actually written to TDengine is controlled by `dry_run`, not by `ack_mode`.
+- When `auto_create_table=false`, requests must not carry tags; child tables must be created in advance.
+- The first version of `InterlaceBatch` supports only `auto_create_table=false`.
 
 ### Action Types
 

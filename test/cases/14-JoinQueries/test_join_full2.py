@@ -1,3 +1,18 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 from datetime import datetime
 class TestJoin:
@@ -399,6 +414,20 @@ class TestJoin:
                 },
                 {
                     "id": "ij_c1_2_1",
+                    "desc": "inner join with timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(5)]]
+                        }
+                    }
+                },
+                {
+                    "id": "ij_c1_2_2",
                     "desc": "inner join for child table with contant and scalar function",
                     "is_ci": True,
                     "exception": False,
@@ -420,7 +449,7 @@ class TestJoin:
                     }
                 },
                 {
-                    "id": "ij_c1_2_2",
+                    "id": "ij_c1_2_3",
                     "desc": "inner join for super table with contant and scalar function",
                     "is_ci": True,
                     "exception": False,
@@ -547,12 +576,7 @@ class TestJoin:
                     "desc": "inner join exception",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select diff(t1.v_int) from db1_st1 t1 join db1_st2 t2 on t1.ts = t2.ts and t1.t_int = t2.t_int;",
                             "select csum(t1.v_int) from db1_st1 t1 join db1_st2 t2 on t1.ts = t2.ts and t1.t_bigint = t2.t_bigint;",
                             "select derivative(t1.v_double, 1s, 0) from db1_st1 t1 join db1_st2 t2 on t1.ts = t2.ts and t1.t_binary = t2.t_binary;",
@@ -750,16 +774,25 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "loj_c4_2",
+                    "desc": "left outer join with timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 left join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(10)]]
+                        }
+                    }
+                },
+                {
                     "id": "loj_c5_1",
                     "desc": "left outer join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 left join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 left join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 left join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 left join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 left join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 left join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 left join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 left join db1_st2 on t1.ts = t2.ts;"],
                 }
             ],
@@ -953,16 +986,25 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "roj_c4_2",
+                    "desc": "right outer join with timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 right join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(10)]]
+                        }
+                    }
+                },
+                {
                     "id": "roj_c5_1",
                     "desc": "right outer join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 right join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 right join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 right join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 right join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 right join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 right join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 right join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 right join db1_st2 on t1.ts = t2.ts;"],
                 }
             ],
@@ -1205,6 +1247,20 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "fj_c4_3",
+                    "desc": "full outer join with timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 full join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(15)]]
+                        }
+                    }
+                },
+                {
                     "id": "fj_c5_1_last",
                     "desc": "full outer join nested query with last",
                     "is_ci": True,
@@ -1226,12 +1282,7 @@ class TestJoin:
                     "desc": "full outer join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 full join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 full join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 full join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 full join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 full join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 full join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select diff(ts2), tbname, count(v_int) from (select t1.ts ts1, t2.ts ts2, t2.v_int, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts) group by tbname order by tbname;",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 full join db1_st2 on t1.ts = t2.ts;"],
                 }
@@ -1433,16 +1484,25 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "ls_c4_3",
+                    "desc": "left semi join with timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 left semi join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(5)]]
+                        }
+                    }
+                },
+                {
                     "id": "ls_c5_1",
                     "desc": "left semi join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 left semi join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 left semi join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 left semi join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 left semi join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 left semi join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 left semi join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 left semi join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 left semi join db1_st2 on t1.ts = t2.ts;"]
                 }
             ],
@@ -1643,16 +1703,25 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "rs_c4_3",
+                    "desc": "right semi join with timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 right semi join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(5)]]
+                        }
+                    }
+                },
+                {
                     "id": "rs_c5_1",
                     "desc": "right semi join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 right semi join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 right semi join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 right semi join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 right semi join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 right semi join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 right semi join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 right semi join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 right semi join db1_st2 on t1.ts = t2.ts;"]
                 }
             ],
@@ -1853,16 +1922,25 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "la_c4_3",
+                    "desc": "left anti join on timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 left anti join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(5)]]
+                        }
+                    }
+                },
+                {
                     "id": "la_c5_1",
                     "desc": "left anti join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 left anti join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 left anti join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 left anti join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 left anti join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 left anti join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 left anti join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 left anti join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 left anti join db1_st2 on t1.ts = t2.ts;"]
                 }
             ],
@@ -2063,16 +2141,25 @@ class TestJoin:
                     }
                 },
                 {
+                    "id": "ra_c4_3",
+                    "desc": "right anti join on timestamp column hash join key",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": ["select count(*) from db1_st1 t1 right anti join db1_st2 t2 on t1.v_ts=t2.v_ts;"],
+                    "res": {
+                        "total_rows": 1,
+                        "value_check": {
+                            "type": "contain",
+                            "values": [[(0,0)], [(5)]]
+                        }
+                    }
+                },
+                {
                     "id": "ra_c5_1",
                     "desc": "right anti join exceptions",
                     "is_ci": True,
                     "exception": True,
-                    "sql": ["select * from db1_st1 t1 right anti join db1_st2 t2 on t1.v_ts=t2.v_ts;",
-                            "select * from db1_st1_ct1 t1 right anti join db1_st2_ct1 t2 on t1.ts != t2.ts;",
-                            "select * from db1_st1 t1 right anti join db1_st2 t2 on t1.ts < t2.ts;",
-                            "select * from db1_st1 t1 right anti join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 right anti join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 right anti join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
+                    "sql": ["select * from db1_st1 t1 right anti join db1_st2 t2 on timetruncate(t1.ts, 1sa)=timetruncate(t2.ts, 1sa);",
                             "select t1.ts, total from (select _wstart as ts, sum(v_int) total from db1_st1 partition by tbname interval(2s)) t1 right anti join db1_st2 on t1.ts = t2.ts;"]
                 }
             ],
@@ -2083,6 +2170,11 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "left asof join (select * from db1_st2) t2 "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 on t1.ts >= t2.ts order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 on t1.ts >= t2.ts jlimit 1 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 jlimit 1 order by t1.ts, t2.ts;",
@@ -2366,8 +2458,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 left asof join db1_st2_ct1 t2 on t1.ts != t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 left asof join db1_st2 t2 on t1.t_int > t2.t_int jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 left asof join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 left asof join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 left asof join (select * from db1_st2) t2;",
                         ]
                 }
             ],
@@ -2378,6 +2468,11 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "right asof join (select * from db1_st2) t2 "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t2.ts >= t1.ts order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t2.ts >= t1.ts jlimit 1 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 jlimit 1 order by t1.ts, t2.ts;",
@@ -2659,8 +2754,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 right asof join db1_st2_ct1 t2 on t1.ts != t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right asof join db1_st2 t2 on t1.t_int > t2.t_int jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 right asof join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int;",
-                            "select * from db1_st1 t1 right asof join db1_st2 t2 on timediff(now, t1.ts) = timediff(now, t2.ts);",
-                            "select * from db1_st1 t1 right asof join (select * from db1_st2) t2;"
                         ]
                 }
             ],
@@ -2671,6 +2764,12 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 left window join db1_st2 t2 window_offset(-100a, 100a) order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "left window join (select * from db1_st2) t2 "
+                                "window_offset(-100a, 100a) "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 left window join db1_st2 t2 window_offset(-100a, 100a) jlimit 1024 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1.db1_st1 t1 left window join db2.db2_st2 t2 window_offset(-100a, 100a) jlimit 10 order by t1.ts;",
                         ],
@@ -2956,7 +3055,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 left window join db1_st2_ct1 t2 on t1.v_int = t2.v_int or t1.v_bigint = t2.v_bigint window_offset(-1a, 1a);",
                             "select t1.ts, t2.ts from db1_st1 t1 left window join db1_st2 t2 on abs(t1.t_int) > t2.t_int window_offset(-1a, 1a) jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 left window join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int window_offset(-1a, 1a);",
-                            "select * from db1_st1 t1 left window join (select * from db1_st2) t2 window_offset(-1a, 1a);",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 left window join db1_st2 t2 window_offset(-1a, 1a) group by t1.tbname;",
                             "select _wstart, count(t2.*) from db1_st1 t1 left window join db1_st2 t2 window_offset(-1a, 1a) partition by t1.tbname;",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 left window join db1_st2 t2 on t1.v_int = t2.v_int window_offset(-1a, 1a) slimit 1;",
@@ -2973,6 +3071,12 @@ class TestJoin:
                     "is_ci": True,
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 window_offset(-100a, 100a) order by t1.ts, t2.ts;",
+                            (
+                                "select t1.ts, t2.ts from db1_st1 t1 "
+                                "right window join (select * from db1_st2) t2 "
+                                "window_offset(-100a, 100a) "
+                                "order by t1.ts, t2.ts;"
+                            ),
                             "select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 window_offset(-100a, 100a) jlimit 1024 order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 window_offset(-100a, 100a) jlimit 14 order by t1.ts, t2.ts limit 14;"
                         ],
@@ -3258,7 +3362,6 @@ class TestJoin:
                             "select * from db1_st1_ct1 t1 right window join db1_st2_ct1 t2 on t1.v_int = t2.v_int or t1.v_bigint = t2.v_bigint window_offset(-1a, 1a);",
                             "select t1.ts, t2.ts from db1_st1 t1 right window join db1_st2 t2 on abs(t1.t_int) > t2.t_int window_offset(-1a, 1a) jlimit 2 order by t1.ts, t2.ts;",
                             "select * from db1_st1 t1 right window join db1_st2 t2 on t1.ts=t2.ts or t2.v_int=t1.v_int window_offset(-1a, 1a);",
-                            "select * from db1_st1 t1 right window join (select * from db1_st2) t2 window_offset(-1a, 1a);",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 right window join db1_st2 t2 window_offset(-1a, 1a) group by t1.tbname;",
                             "select _wstart, count(t2.*) from db1_st1 t1 right window join db1_st2 t2 window_offset(-1a, 1a) partition by t1.tbname;",
                             "select first(t1.ts), count(t2.*) from db1_st1 t1 right window join db1_st2 t2 on t1.v_int = t2.v_int window_offset(-1a, 1a) slimit 1;",
@@ -3429,7 +3532,7 @@ class TestJoin:
 
     def test_join(self):
         """Join primay key
-        
+
         1. Create necessary databases and tables
         2. Insert test data into the tables
         3. Join with inner/left/outer/full/semi/anti/asof
@@ -3441,6 +3544,7 @@ class TestJoin:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -3467,4 +3571,3 @@ class TestJoin:
         self.run_join("pk_str", pk=True)
         
         tdLog.success(f"{self.total_sql_num} for join verification SQLs are executed successfully")
-

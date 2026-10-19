@@ -3,7 +3,8 @@ select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test
 select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left join (select * from test1.sst order by ts desc) b on timetruncate(cast(1768465717000 as timestamp)+1s, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
 select b.*, a.ats from (select ts ats, unique(f) from test1.sst) as a left join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a    
 select b.*, a.ats from (select ts ats, unique(f) from test1.sst) as a left join test1.sst b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
-select b.*, a.ts from (select * from test1.sst) as a left join ((select ts, unique(f) from test1.sst)) b on timetruncate(a.ts, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ts-5a and b.ts < a.ts + 5a
+explain verbose true select b.*, a.ts from (select * from test1.sst) as a left join ((select ts, unique(f) from test1.sst)) b on timetruncate(a.ts, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ts-5a and b.ts < a.ts + 5a \G
+select b.*, a.ts from (select * from test1.sst) as a left join ((select ts, unique(f) from test1.sst)) b on timetruncate(a.ts, 1s) = timetruncate(cast(1768465717000 as timestamp)+1a, 1s) and b.ts > a.ts-5a and b.ts < a.ts + 5a order by a.ts
 select b.*, a.ats from (select _rowts ats, first(f) from test1.sst) as a left join (select * from test1.sst order by ts desc) b on timetruncate(cast(1768465717000 as timestamp)+1a, 1s) = timetruncate(b.ts, 1s) and b.ts > a.ats-5a and b.ts < a.ats + 5a
 select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst limit 1) as a left join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386257000, 1s)   
 select b.*, a.ats from (select cast(1768465717000 as timestamp) ats, 2 from test1.sst order by ts desc) as a left join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
@@ -14,7 +15,8 @@ select b.*, a.ats from (select ts ats, f from test1.sst) as a left join (select 
 select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats desc) as a left join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
 select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats) as a left join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
 select b.*, a.ats from (select ts ats, mode(f) from test1.sst order by ats) as a left join (select * from test1.sst order by ts) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
-select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
+explain verbose true select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) \G
+select b.*, a.ats from (select ts ats, mode(f) from test1.sst) as a left join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s) order by b.ts
 select b.*, a.ats from (select ts ats, f from test1.sst) as a left join (select * from test1.sst order by ts desc) b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
 select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst order by ts desc) as a left join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)
 select b.*, a.ats from (select 1691386256000 ats, 2 from test1.sst limit 1) as a left join test1.sst b on timetruncate(a.ats, 1s) = timetruncate(1691386256000, 1s)

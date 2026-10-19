@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -32,6 +34,10 @@ extern "C" {
 
 #define DS_FLAG_USE_MEMPOOL (1 << 0)
 #define DS_FLAG_PROCESS_ONE_BLOCK (1 << 1)
+#define DS_FLAG_LOCAL_BLOCK_EXCHANGE (1 << 2)
+
+#define DS_LOCAL_BLOCK_EXCHANGE_MAX_BLOCKS_PER_QUERY 2U
+#define DS_LOCAL_BLOCK_EXCHANGE_MAX_ROWS_PER_QUERY   4194304ULL
 
 
 struct SSDataBlock;
@@ -45,6 +51,13 @@ typedef struct SDeleterRes {
   char     tableName[TSDB_TABLE_NAME_LEN];
   char     tsColName[TSDB_COL_NAME_LEN];
   int8_t   secureDelete;
+  // SArray<SDeleteInterval>, set only when a column filter drives the delete. In-process only:
+  // never encoded onto the wire (mirrors SDeleteRes.pSplitPoints in tmsg.h, which this field is
+  // copied into by qwGetDeleteResFromSink). Ownership: the producer (dataDeleter.c's
+  // putRangeDeleteRes) transfers ownership into pIntervals and nulls its own copy of the pointer,
+  // so every SDeleterRes instance must be zero-initialized before use -- an uninitialized
+  // pIntervals here would otherwise be read/freed as a garbage pointer by whoever destroys it.
+  SArray*  pIntervals;
 } SDeleterRes;
 
 typedef struct SDeleterParam {
@@ -73,7 +86,45 @@ typedef struct SDataSinkMgtCfg {
   int8_t   compress;
   uint32_t maxDataBlockNum;  // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
+  uint32_t maxDataBlockNumPerLocalBlockQuery;
+  uint64_t maxDataRowsPerQuery;
+  // Byte budget for the ENCODED result data a single query may buffer in its sink.  Counting
+  // queued blocks is not enough to bound the byte count when values are multi-megabyte, so the
+  // sink also reports DS_BUF_FULL once it holds this many encoded bytes.  <= 0 disables the
+  // byte test and keeps the legacy block-count-only behaviour.
+  //
+  // What is counted is the queued payload length (the buffer's `dataLen`, i.e. the COMPRESSED
+  // length when compression is on), not the heap footprint: each queued entry is allocated for
+  // the uncompressed (or LZ4-bound) size, so with compression enabled the process memory can
+  // exceed this budget by the compression factor.  That is deliberate - the same counter backs
+  // the qnode-load statistic `cacheDataSize` (dsDataSinkGetCacheSize -> qload.cacheDataSize),
+  // which is meant to report cached encoded data, and compressed bytes are what actually has
+  // to be held for the query.  Do not read this as a hard process-memory cap; the large-value
+  // case it exists for (BLOB) does not compress, so the two coincide there.
+  int64_t maxDataBytesPerQuery;
 } SDataSinkMgtCfg;
+
+// Decide the buffer status of a result sink from what it currently holds.  Both the number of
+// queued blocks and the encoded byte count are considered: the byte limit is what bounds the
+// accumulated payload for large values, while the block limit also covers many tiny blocks.
+// Whichever is reached first applies.  blockNums == 0 is EMPTY so that an idle sink never looks
+// FULL.  `cachedBytes` is the encoded payload the sink holds, not its heap footprint - see the
+// note on maxDataBytesPerQuery.
+static inline int32_t dsCalcBufStatus(const SDataSinkMgtCfg* pCfg, int32_t blockNums, uint64_t cachedBytes) {
+  if (blockNums <= 0) {
+    return DS_BUF_EMPTY;
+  }
+
+  if ((uint32_t)blockNums >= pCfg->maxDataBlockNumPerQuery) {
+    return DS_BUF_FULL;
+  }
+
+  if (pCfg->maxDataBytesPerQuery > 0 && (int64_t)cachedBytes >= pCfg->maxDataBytesPerQuery) {
+    return DS_BUF_FULL;
+  }
+
+  return DS_BUF_LOW;
+}
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg* cfg, SStorageAPI* pAPI, void** ppSinkManager);
 
@@ -89,6 +140,7 @@ typedef struct SInputData {
   const struct SSDataBlock* pData;
   SStreamDataInserterInfo*  pStreamDataInserterInfo;
   void*                     pTask;
+  bool                      blockIsBorrowed;
 } SInputData;
 
 typedef struct SOutputData {
@@ -101,7 +153,24 @@ typedef struct SOutputData {
   int32_t bufStatus;
   int64_t useconds;
   int8_t  precision;
+  struct SSDataBlock* pBlock;
+  void*   pTask;
+  bool    blockIsBorrowed;
 } SOutputData;
+
+#define LOCAL_FETCH_BLOCK_MAGIC ((uint32_t)0x5344424c)
+// This wrapper transfers a block through the in-process local fetch callback. A borrowed
+// block remains owned by the child task and must be returned before that task runs again.
+typedef struct SLocalFetchBlock {
+  uint32_t magic;
+  struct SSDataBlock* pBlock;
+  bool queryEnd;
+  int64_t useconds;
+  int8_t precision;
+  void*   taskHandle;
+  int32_t resultBlockIndex;
+  bool    blockIsBorrowed;
+} SLocalFetchBlock;
 
 /**
  * Create a subplan's datasinker handle for all later operations.

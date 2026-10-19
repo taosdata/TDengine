@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -44,7 +46,8 @@ typedef struct SSumRes {
   int16_t type;
   int64_t prevTs;
   bool    isPrevTsSet;
-  bool    overflow;  // if overflow is true, dsum to be used for any type;
+  bool    overflow;  // floating-point accumulation became inf/NaN and must be output as NULL;
+  bool    hasResult;  // at least one non-NULL value has been accumulated
 } SSumRes;
 
 typedef struct SDecimalSumRes {
@@ -393,6 +396,60 @@ typedef struct STwaInfo {
   STimeWindow win;
   int8_t      tsOrder;
 } STwaInfo;
+
+// value_changes: count of adjacent value changes on the timeline. `count` is the
+// finalize output slot (must be first). Equality is delegated to a per-type comparator
+// (getComparFunc with OP_TYPE_EQUAL); NaN==NaN and epsilon float equality come for free.
+// prevData is a flexible buffer holding the previous compared cell (varData incl. length
+// prefix for var types), sized by getValueChangesFuncEnv from the input column bytes.
+typedef struct SValueChangesInfo {
+  int64_t       count;       // output slot (BIGINT), must be first
+  int64_t       numOfElems;  // rows seen (incl. NULL) - distinguishes empty table from all-equal
+  bool          hasPrev;     // a previous compared value exists
+  bool          prevIsNull;  // the previous compared value is NULL (ignore_null=0 path)
+  int8_t        ignoreNull;  // 1 (default): skip NULL transparently; 0: NULL participates
+  int8_t        inputType;   // resolved input column type (0 = not yet resolved)
+  STypeMod      typeMod;     // DECIMAL precision/scale; FS mandates decimal compared as DOUBLE
+  __compar_fn_t comparFn;    // resolved equality comparator (DOUBLE comparator for decimal input)
+  TSKEY         prevTs;      // for DUP_TIMESTAMP detection
+  bool          hasPrevTs;
+  int32_t       prevBytes;   // valid bytes currently stored in prevData
+  char          prevData[];  // previous compared value (fixed value or varData)
+} SValueChangesInfo;
+
+typedef struct SBitChangesInfo {
+  int64_t  count;       // output slot (BIGINT), must be first
+  int64_t  numOfElems;  // rows seen (including NULL), distinguishes empty input
+  uint64_t mask;
+  int8_t   flag;
+  int8_t   inputType;
+  bool     hasPrev;
+  uint64_t prevMasked;
+  TSKEY    prevTs;
+  bool     hasPrevTs;
+} SBitChangesInfo;
+
+// Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
+// unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
+typedef struct STwsumInfo {
+  double      dTwsumRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated integral (value * ticks)
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwsumInfo;
+
+// Time-weighted population variance: (1/T)*INT v^2 dt - mu^2, mu = twa.
+typedef struct STwvarInfo {
+  double      dTwvarRes;  // finalize output slot (must be first)
+  double      dOutput;    // accumulated INT v dt
+  double      d2Output;   // accumulated INT v^2 dt
+  int64_t     numOfElems;
+  SPoint1     p;
+  STimeWindow win;
+  int8_t      tsOrder;
+} STwvarInfo;
 
 typedef struct SHistoFuncBin {
   double  lower;

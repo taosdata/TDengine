@@ -1,7 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
-###################################################################
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 """DDL meta-info tests for vtables / vstbs referencing ext sources.
 
@@ -22,7 +32,8 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_influx_measurement)
+    create_influx_measurement, create_sqlserver_table,
+    extract_show_create_sql as _extract_show_create_sql)
 
 
 _LOCAL_DB = "vmeta_local"
@@ -30,6 +41,8 @@ _PG_DB    = "vmeta_pg"
 _PG_SRC   = "vmeta_pg_src"
 _INF_DB   = "vmeta_inf"
 _INF_SRC  = "vmeta_inf_src"
+_SS_DB    = "vmeta_ss"
+_SS_SRC   = "vmeta_ss_src"
 
 
 def _ensure_env():
@@ -46,16 +59,18 @@ def _ensure_env():
     create_influx_measurement(
         _INF_DB, ["_snapshot_trigger_meta value=1i 1000000000000000000"])
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
-
-
-def _extract_show_create_sql(sql):
-    tdSql.query(sql)
-    tdSql.checkRows(1)
-    for col in range(tdSql.queryCols):
-        value = tdSql.getData(0, col)
-        if isinstance(value, str) and "CREATE" in value.upper():
-            return value
-    tdLog.exit(f"no CREATE statement in SHOW output: {sql}")
+    create_remote_db("sqlserver", _SS_DB)
+    # The same table name under two schemas: metadata must keep the schema
+    # segment of the persisted reference even though the display form of
+    # col_source renders only source.database.table.column.
+    create_sqlserver_table(_SS_DB, "r",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, w INT",
+                           ["('2024-01-01 00:00:00.000', 11, 10)"])
+    create_sqlserver_table(_SS_DB, "r",
+                           "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, w INT",
+                           ["('2024-01-01 00:00:00.000', 21, 20)"],
+                           schema="other")
+    create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
 # ===========================================================================
@@ -68,7 +83,7 @@ class TestVtableMetaExtSource:
         ExtSrcEnv.ensure_qnode()
         _ensure_env()
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ms'")
+        tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
 
         # One normal vtable + one vstb with one child for the whole class.
@@ -96,17 +111,55 @@ class TestVtableMetaExtSource:
             "USING vstb_series_meta TAGS ('siteSeries') "
             f"SERIES s1 AS {_INF_SRC}.{_INF_DB}.m_meta (device='d1')")
 
+        # SQL Server: same table/column names under two schemas, plus a
+        # virtual child table. References use the full 5-segment path
+        # source.database.schema.table.column.
+        tdSql.execute(
+            f"CREATE VTABLE v_meta_ss (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r.v, "
+            f"w int FROM {_SS_SRC}.{_SS_DB}.dbo.r.w, "
+            f"local_only int)")
+        tdSql.execute(
+            "CREATE VTABLE v_meta_ss_other (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.other.r.v)")
+        tdSql.execute(
+            "CREATE STABLE vstb_ss_meta (ts timestamp, v int) "
+            "TAGS (site nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            "CREATE VTABLE vctb_ss_meta ("
+            f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r.v) "
+            f"USING vstb_ss_meta TAGS ('siteSS')")
+
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
 
     # -------------------------------------------------------------------
     # 6.1 — Normal vtable meta
     # -------------------------------------------------------------------
 
     def test_describe_vtable_shows_columns(self):
+        """Describe bound and unbound columns of a normal virtual table
+
+        1. Describe the PostgreSQL-backed virtual table
+        2. Verify the timestamp, two referenced columns, and unbound column appear in declaration order
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing DESCRIBE coverage
+
+        """
         tdSql.query("DESCRIBE v_meta")
         tdSql.checkData(0, 0, "ts")
         tdSql.checkData(1, 0, "v")
@@ -114,6 +167,24 @@ class TestVtableMetaExtSource:
         tdSql.checkData(3, 0, "local_only")
 
     def test_show_create_vtable_roundtrip(self):
+        """Replay SHOW CREATE for an external-backed normal virtual table
+
+        1. Verify SHOW CREATE includes the external source, database, and unbound column
+        2. Recreate the table under a new name and verify its column order
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing SHOW CREATE replay coverage
+
+        """
         tdSql.query("SELECT table_name FROM information_schema.ins_tables "
                     f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta'")
         tdSql.checkRows(1)
@@ -130,6 +201,24 @@ class TestVtableMetaExtSource:
         tdSql.execute("DROP VTABLE v_meta_rt")
 
     def test_information_schema_ins_tables(self):
+        """Expose the normal virtual-table type in information_schema
+
+        1. Look up the virtual table in ins_tables by database and table name
+        2. Verify exactly one entry exists and its type identifies a virtual table
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing table-type metadata coverage
+
+        """
         tdSql.query("SELECT table_name, `type` FROM information_schema.ins_tables "
                     f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta'")
         tdSql.checkRows(1)
@@ -138,6 +227,24 @@ class TestVtableMetaExtSource:
             tdLog.exit(f"expected VIRTUAL in {table_type}")
 
     def test_information_schema_ins_columns_from_ref(self):
+        """Expose external column references in information_schema
+
+        1. Read all four normal virtual-table columns from ins_columns
+        2. Verify referenced columns have full source paths and timestamp and unbound columns have NULL sources
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing column-reference metadata coverage
+
+        """
         tdSql.query(
             "SELECT col_name, col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta' "
@@ -154,6 +261,24 @@ class TestVtableMetaExtSource:
         tdSql.checkData(3, 1, f"{_PG_SRC}.{_PG_DB}.r.w")
 
     def test_refresh_external_source_preserves_existing_metadata(self):
+        """Preserve virtual-table metadata when refreshing an unchanged source
+
+        1. Compare SHOW CREATE output before and after refreshing the PostgreSQL source
+        2. Verify both external column references remain unchanged in ins_columns
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing REFRESH metadata coverage
+
+        """
         sql_before = _extract_show_create_sql("SHOW CREATE VTABLE v_meta")
         tdSql.execute(f"REFRESH EXTERNAL SOURCE {_PG_SRC}")
         sql_after = _extract_show_create_sql("SHOW CREATE VTABLE v_meta")
@@ -171,6 +296,24 @@ class TestVtableMetaExtSource:
         tdSql.checkData(1, 1, f"{_PG_SRC}.{_PG_DB}.r.w")
 
     def test_show_create_quoted_identifier_vtable_roundtrip(self):
+        """Replay external references containing quoted mixed-case identifiers
+
+        1. Create a PostgreSQL table with mixed-case identifiers and query it through a virtual table
+        2. Replay SHOW CREATE under a new virtual-table name and verify the value remains 33
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing quoted-identifier replay coverage
+
+        """
         create_pg_table(_PG_DB, '"MetaCaseTable"',
                         'ts TIMESTAMP PRIMARY KEY, "MixedValue" INTEGER',
                         ["('2024-01-01 00:00:00', 33)"])
@@ -195,12 +338,48 @@ class TestVtableMetaExtSource:
     # -------------------------------------------------------------------
 
     def test_describe_vstable(self):
+        """Describe the data columns and tag of a virtual super table
+
+        1. Describe the virtual super table
+        2. Verify the timestamp, value column, and site tag appear in declaration order
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing super-table DESCRIBE coverage
+
+        """
         tdSql.query("DESCRIBE vstb_meta")
         tdSql.checkData(0, 0, "ts")
         tdSql.checkData(1, 0, "v")
         tdSql.checkData(2, 0, "site")
 
     def test_show_create_stable_includes_virtual(self):
+        """Preserve the virtual flag when replaying super-table SHOW CREATE
+
+        1. Verify SHOW CREATE contains the VIRTUAL clause
+        2. Replay the statement under a new name and verify the super table is registered
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing virtual-super-table replay coverage
+
+        """
         sql = _extract_show_create_sql("SHOW CREATE STABLE vstb_meta")
         if "VIRTUAL" not in sql.upper():
             tdLog.exit(f"expected VIRTUAL in {sql}")
@@ -214,12 +393,48 @@ class TestVtableMetaExtSource:
         tdSql.execute("DROP STABLE vstb_meta_rt")
 
     def test_ins_stables_virtual_flag(self):
+        """Expose the virtual-super-table flag in information_schema
+
+        1. Look up the super table in ins_stables by database and table name
+        2. Verify exactly one entry exists with isvirtual set to true
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing virtual-flag metadata coverage
+
+        """
         tdSql.query("SELECT isvirtual FROM information_schema.ins_stables "
                     f"WHERE db_name='{_LOCAL_DB}' AND stable_name='vstb_meta'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, True)
 
     def test_child_vtable_ins_columns_shows_from(self):
+        """Expose a virtual child table's external column reference
+
+        1. Read the child table's value column from ins_columns
+        2. Verify its source includes the PostgreSQL source, database, table, and column
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing child column-reference coverage
+
+        """
         tdSql.query(
             "SELECT col_name, col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_meta' "
@@ -229,6 +444,24 @@ class TestVtableMetaExtSource:
         tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.r.v")
 
     def test_show_create_series_vtable_roundtrip(self):
+        """Replay SHOW CREATE for a normal virtual table with an InfluxDB SERIES
+
+        1. Verify SHOW CREATE retains the SERIES source and device tag condition
+        2. Recreate the table and verify its resolved column source and two-row query result
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing normal SERIES replay coverage
+
+        """
         sql = _extract_show_create_sql("SHOW CREATE VTABLE v_series_meta")
         if "SERIES" not in sql.upper() or _INF_SRC not in sql or "device='d1'" not in sql:
             tdLog.exit(f"expected SERIES clause in {sql}")
@@ -245,6 +478,24 @@ class TestVtableMetaExtSource:
         tdSql.execute("DROP VTABLE v_series_meta_rt")
 
     def test_show_create_series_child_vtable_roundtrip(self):
+        """Replay SHOW CREATE for a virtual child table with an InfluxDB SERIES
+
+        1. Verify SHOW CREATE retains both the parent USING clause and the SERIES clause
+        2. Recreate the child and verify its resolved column source and two-row query result
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-09-07 Jing Sima Document existing child SERIES replay coverage
+
+        """
         sql = _extract_show_create_sql("SHOW CREATE VTABLE vctb_series_meta")
         if "SERIES" not in sql.upper() or "USING `vstb_series_meta`" not in sql:
             tdLog.exit(f"expected USING + SERIES clause in {sql}")
@@ -259,3 +510,146 @@ class TestVtableMetaExtSource:
         tdSql.query("SELECT count(*) FROM vctb_series_meta_rt")
         tdSql.checkData(0, 0, 2)
         tdSql.execute("DROP VTABLE vctb_series_meta_rt")
+
+    # -------------------------------------------------------------------
+    # 6.3 — SQL Server meta
+    # -------------------------------------------------------------------
+
+    def test_describe_sqlserver_vtable(self):
+        """Describe a SQL Server-backed normal virtual table
+
+        1. Describe the virtual table whose columns reference SQL Server
+        2. Verify the column order and that the 5-segment reference resolves data
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        tdSql.query("DESCRIBE v_meta_ss")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "ts")
+        tdSql.checkData(1, 0, "v")
+        tdSql.checkData(2, 0, "w")
+        tdSql.checkData(3, 0, "local_only")
+        tdSql.query("SELECT v, w FROM v_meta_ss")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 1, 10)
+
+    def test_sqlserver_ins_columns_keeps_schema_binding(self):
+        """Expose SQL Server column references and keep the schema binding
+
+        1. Read the referenced columns of the dbo- and other-schema vtables from ins_columns
+        2. Verify the col_source display form and that both bindings resolve their own schema
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        tdSql.query(
+            "SELECT col_name, col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta_ss' "
+            "AND col_name IN ('local_only', 'ts', 'v', 'w') "
+            "ORDER BY col_name")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "local_only")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, "ts")
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(2, 0, "v")
+        tdSql.checkData(2, 1, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.checkData(3, 0, "w")
+        tdSql.checkData(3, 1, f"{_SS_SRC}.{_SS_DB}.r.w")
+
+        # col_source renders source.database.table.column: the SQL Server
+        # schema segment is kept in the persisted reference but is not part
+        # of the display form.  Both vtables therefore render the same
+        # col_source; their values prove the schemas are still applied.
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta_ss_other' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.query("SELECT v FROM v_meta_ss")
+        tdSql.checkData(0, 0, 11)
+        tdSql.query("SELECT v FROM v_meta_ss_other")
+        tdSql.checkData(0, 0, 21)
+
+    def test_sqlserver_child_vtable_ins_columns_shows_from(self):
+        """Expose a SQL Server-backed virtual child table's column reference
+
+        1. Read the child table's value column from ins_columns
+        2. Verify its source includes the SQL Server source, database, table, and column
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        tdSql.query(
+            "SELECT col_name, col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_ss_meta' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "v")
+        tdSql.checkData(0, 1, f"{_SS_SRC}.{_SS_DB}.r.v")
+
+    def test_show_create_sqlserver_vtable_contains_source(self):
+        """Render a SQL Server reference in SHOW CREATE
+
+        1. Verify SHOW CREATE includes the SQL Server source, database, table, column, and unbound column
+        2. Confirm the statement is not replayed: the rendered 4-segment path drops the schema
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Add SQL Server as the fourth external source
+
+        """
+        sql = _extract_show_create_sql("SHOW CREATE VTABLE v_meta_ss")
+        for expected in (_SS_SRC, _SS_DB, "r", "v", "local_only"):
+            if expected not in sql:
+                tdLog.exit(f"expected {expected} in {sql}")
+        # SHOW CREATE renders the reference as the 4-segment form
+        # source.database.table.column (the SQL Server schema segment is not
+        # emitted).  Replaying it would make the SQL Server ref resolver
+        # treat the database segment as a schema, so a round-trip is not
+        # attempted here; the schema binding is verified behaviorally in
+        # test_sqlserver_ins_columns_keeps_schema_binding and in the
+        # persistence suite (FQSS-VTBL-006).
+        tdSql.query("SELECT v FROM v_meta_ss")
+        tdSql.checkData(0, 0, 11)

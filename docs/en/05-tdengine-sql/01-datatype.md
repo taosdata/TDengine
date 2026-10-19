@@ -30,14 +30,14 @@ In TDengine, the following data types can be used for normal tables, child table
 | `VARBINARY` | Custom | Variable-length binary data. |
 | `GEOMETRY` | Custom | Geometry type; supports 2D `POINT`, `LINESTRING`, and `POLYGON`. |
 | `DECIMAL` | 8 or 16 bytes | High-precision numeric type; range depends on `precision` and `scale`. |
-| `BLOB` | Up to 4 MB | Large-object binary data. |
+| `BLOB` | Up to 16 MB | Large-object binary data. |
 | `JSON` | Custom | JSON tag type; can only be used for tag columns. |
 
 ## General Limits
 
 - Maximum row length is 48 KB (64 KB starting from version 3.0.5.0). Each `BINARY`, `NCHAR`, `GEOMETRY`, or `VARBINARY` column also occupies an extra 2 bytes of storage.
 - Maximum length of `BINARY`, `VARBINARY`, and `GEOMETRY` data columns is 65,517 bytes; for tag columns it is 16,382 bytes.
-- Maximum length of a single `BLOB` column value is 4,194,304 bytes.
+- Maximum length of a single `BLOB` column value is 16,777,212 bytes (16 MB minus the 4-byte length prefix).
 - `JSON` can only be used for tag columns. If a JSON tag is used, there can be only one tag column.
 - `DECIMAL` is supported only for ordinary columns; tag columns are not supported yet.
 
@@ -123,7 +123,7 @@ When querying `DECIMAL` expressions, if an intermediate result exceeds the curre
 
 ## Large Object Type BLOB
 
-`BLOB` stores larger binary data, maximum length 4,194,304 bytes. Write via SQL or `STMT2`, or as a string starting with `\x`.
+`BLOB` stores larger binary data, maximum length 16,777,212 bytes (16 MB minus the 4-byte length prefix). Write via SQL or `STMT2`, or as a string starting with `\x`.
 
 When queried via the shell, `BLOB` is shown as a hexadecimal string starting with `\x`.
 

@@ -1,7 +1,21 @@
-# encoding:utf-8
-# pylint: disable=c0103
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """forecast unit test cases"""
 
+import importlib.util
 import math
 import os.path
 import sys
@@ -14,6 +28,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 from taosanalytics.algo.forecast import draw_forecast_results
 from taosanalytics.log import setup_log_info
 from taosanalytics.service_registry import loader
+
+requires_statsforecast = unittest.skipUnless(
+    importlib.util.find_spec("statsforecast") is not None,
+    "statsforecast is an optional TDgpt Lite dependency",
+)
 
 
 class ForecastTest(unittest.TestCase):
@@ -294,6 +313,7 @@ class ForecastTest(unittest.TestCase):
             {"rows": 10, "start_ts": 171000000, "time_step": 0},
         )
 
+    @requires_statsforecast
     def test_ces_forecast(self):
         """CES algorithm check"""
         s = loader.get_service("ces")
@@ -330,6 +350,7 @@ class ForecastTest(unittest.TestCase):
         r = s.execute()
         self.assert_forecast_result(r, 3, False)
 
+    @requires_statsforecast
     def test_ces_invalid_params(self):
         """CES parameters validation check"""
         s = loader.get_service("ces")
@@ -346,6 +367,7 @@ class ForecastTest(unittest.TestCase):
             },
         )
 
+    @requires_statsforecast
     def test_ces_rejects_non_finite_input(self):
         """CES input data validation check"""
         data, ts = self.get_input_list()
@@ -366,6 +388,7 @@ class ForecastTest(unittest.TestCase):
 
                 self.assertRaisesRegex(ValueError, "NaN or infinite", s.execute)
 
+    @requires_statsforecast
     def test_theta_forecast(self):
         """Theta algorithm check"""
         s = loader.get_service("theta")
@@ -387,6 +410,7 @@ class ForecastTest(unittest.TestCase):
         self.assert_forecast_result(r, 10)
         draw_forecast_results(data, len(r["res"]) > 2, s.conf, r["res"], "theta")
 
+    @requires_statsforecast
     def test_theta_invalid_params(self):
         """Theta parameters validation check"""
         s = loader.get_service("theta")
@@ -403,6 +427,7 @@ class ForecastTest(unittest.TestCase):
             },
         )
 
+    @requires_statsforecast
     def test_theta_rejects_non_finite_input(self):
         """Theta input data validation check"""
         data, ts = self.get_input_list()
@@ -423,6 +448,7 @@ class ForecastTest(unittest.TestCase):
 
                 self.assertRaisesRegex(ValueError, "NaN or infinite", s.execute)
 
+    @requires_statsforecast
     def test_theta_multiplicative_requires_positive_input(self):
         """Theta multiplicative decomposition requires positive input"""
         data, ts = self.get_input_list()
@@ -444,6 +470,7 @@ class ForecastTest(unittest.TestCase):
 
                 self.assertRaisesRegex(ValueError, "strictly positive", s.execute)
 
+    @requires_statsforecast
     def test_ets_forecast(self):
         """ETS algorithm check"""
         s = loader.get_service("ets")
@@ -466,6 +493,7 @@ class ForecastTest(unittest.TestCase):
         self.assert_forecast_result(r, 10)
         draw_forecast_results(data, len(r["res"]) > 2, s.conf, r["res"], "ets")
 
+    @requires_statsforecast
     def test_ets_invalid_params(self):
         """ETS parameters validation check"""
         s = loader.get_service("ets")
@@ -482,6 +510,7 @@ class ForecastTest(unittest.TestCase):
                     ValueError, s.set_params, {**params, "damped": damped}
                 )
 
+    @requires_statsforecast
     def test_ets_rejects_non_finite_input(self):
         """ETS input data validation check"""
         data, ts = self.get_input_list()
@@ -502,6 +531,7 @@ class ForecastTest(unittest.TestCase):
 
                 self.assertRaisesRegex(ValueError, "NaN or infinite", s.execute)
 
+    @requires_statsforecast
     def test_ets_multiplicative_requires_positive_input(self):
         """ETS multiplicative components require positive input"""
         data, ts = self.get_input_list()
@@ -523,6 +553,7 @@ class ForecastTest(unittest.TestCase):
 
                 self.assertRaisesRegex(ValueError, "strictly positive", s.execute)
 
+    @requires_statsforecast
     def test_new_forecasters_require_two_complete_periods(self):
         """CES, Theta, and ETS require two complete periods when period is set"""
         data, ts = self.get_input_list()
@@ -542,6 +573,7 @@ class ForecastTest(unittest.TestCase):
                     ValueError, "less than the required periods", s.execute
                 )
 
+    @requires_statsforecast
     def test_new_forecasters_reject_empty_and_single_value_input(self):
         """CES, Theta, and ETS reject input that cannot be fitted"""
         params = {
@@ -560,6 +592,7 @@ class ForecastTest(unittest.TestCase):
                         ValueError, "less than the required periods", s.execute
                     )
 
+    @requires_statsforecast
     def test_new_forecasters_constant_series(self):
         """Constant input produces finite forecasts and a near-zero fitted MSE"""
         data = [10.0] * 36
@@ -583,6 +616,7 @@ class ForecastTest(unittest.TestCase):
                 for forecast in result["res"][1]:
                     self.assertAlmostEqual(forecast, 10.0, places=10)
 
+    @requires_statsforecast
     def test_new_forecasters_invalid_common_params(self):
         """CES, Theta, and ETS enforce all common forecast parameter constraints"""
         valid = {

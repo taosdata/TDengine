@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -10,7 +12,7 @@
  * FITNESS FOR A PARTICULAR PURPOSE.
  *
  * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http:www.gnu.org/licenses/>.
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define _DEFAULT_SOURCE
@@ -256,6 +258,7 @@ SArray *smGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_SYNC_CHECKPOINT_RSP, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
   
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_DELETE_CHECKPOINT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_BACKUP_SNODE, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_CALC, smPutMsgToRunnerQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_FROM_RUNNER, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
@@ -264,7 +267,7 @@ SArray *smGetMsgHandles() {
   /* Route EXT reader PULL requests to the runner queue; sndProcessStreamMsg
    * handles them via TDMT_STREAM_TRIGGER_PULL_EXT case. */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
-  /* P4-E1: route runner→reader EXT fetch requests to the runner queue.
+  /* P4-E1: route runner -> reader EXT fetch requests to the runner queue.
    * The runner queue worker dispatches TDMT_STREAM_FETCH_EXT to
    * handleExtFetchReq, which invokes the ETR task's extConnector. */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;

@@ -1,13 +1,20 @@
 /*
  * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the MIT license as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
     
 #include  "bck.h"
 #include "bckUtil.h"
@@ -154,6 +161,23 @@ int obtainFileName(BackFileType fileType,
     char * outPath = argOutPath();
     const char * ext = (format == BINARY_TAOS) ? "dat" : "par";
     int dirIndex = fileCount/FOLDER_MAXFILE;
+
+    // Percent-encode name components with platform-illegal filename chars (Windows is the most restrictive).
+    char encDb[MAX_PATH_LEN]  = {0};
+    char encStb[MAX_PATH_LEN] = {0};
+    char encTb[MAX_PATH_LEN]  = {0};
+    if (dbName != NULL) {
+        const char *e = bckNameEncode(dbName, encDb, sizeof(encDb));
+        if (e) dbName = e;
+    }
+    if (stbName != NULL) {
+        const char *e = bckNameEncode(stbName, encStb, sizeof(encStb));
+        if (e) stbName = e;
+    }
+    if (tbName != NULL) {
+        const char *e = bckNameEncode(tbName, encTb, sizeof(encTb));
+        if (e) tbName = e;
+    }
 
     switch (fileType) {
     case BACK_DIR_DB:

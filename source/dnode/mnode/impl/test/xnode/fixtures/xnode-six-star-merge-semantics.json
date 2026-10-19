@@ -1,0 +1,1893 @@
+{
+  "schema_version": 1,
+  "case_manifest": {
+    "scan_case_count": 22,
+    "merge_case_count": 35,
+    "case_ids": [
+      "merge-job-alter-via-changed-keep",
+      "merge-job-alter-via-omitted-keep",
+      "merge-job-create-masked",
+      "merge-job-duplicate-key",
+      "merge-job-escaped-key",
+      "merge-job-input-type-array",
+      "merge-job-input-type-boolean",
+      "merge-job-input-type-number",
+      "merge-job-json-invalid",
+      "merge-job-key-order-guard",
+      "merge-job-missing-dsn",
+      "merge-job-nonascii-guard",
+      "merge-job-null-guard",
+      "merge-job-number-guard",
+      "merge-job-unknown-field-guard",
+      "merge-task-alter-all-keep",
+      "merge-task-alter-empty-host-keep",
+      "merge-task-alter-hash-value-keep",
+      "merge-task-alter-keep-invalid-percent-old",
+      "merge-task-alter-last-question-keep",
+      "merge-task-alter-mixed",
+      "merge-task-alter-semicolon-value-keep",
+      "merge-task-alter-via-changed-keep",
+      "merge-task-alter-via-omitted-keep",
+      "merge-task-create-empty-host-masked",
+      "merge-task-create-masked",
+      "merge-task-create-replace",
+      "merge-task-direction-isolation",
+      "merge-task-disabled-literal-sixstar",
+      "merge-task-disabled-real-credential",
+      "merge-task-explicit-empty",
+      "merge-task-keep-missing",
+      "merge-task-remove-password",
+      "merge-task-scope-change",
+      "merge-task-unsubmitted",
+      "scan-ascii-case-fold",
+      "scan-duplicate-order",
+      "scan-empty-host-userinfo",
+      "scan-empty-sensitive-value",
+      "scan-first-question-mark-pathlike",
+      "scan-hash-literal-in-value",
+      "scan-hash-then-ampersand",
+      "scan-last-question-mark",
+      "scan-literal-and-encoded-sixstar",
+      "scan-nonsensitive-sixstar",
+      "scan-percent-bare-passthrough",
+      "scan-percent-invalid-password-value-passthrough",
+      "scan-percent-invalid-value-passthrough",
+      "scan-percent-key",
+      "scan-plus-literal",
+      "scan-query-order",
+      "scan-semicolon-encoded-literal",
+      "scan-semicolon-literal-in-value",
+      "scan-semicolon-no-phantom-param",
+      "scan-sensitive-key-families",
+      "scan-userinfo-password",
+      "scan-userinfo-query-isolation"
+    ],
+    "case_ids_sha256_b64url": "HOVGAZpbQmaMCiDe6Nz4Q86g_Z-KBAEKjkLkYYP6njA"
+  },
+  "scan_cases": [
+    {
+      "id": "scan-userinfo-password",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlOiU3M2VjcmV0QGV4YW1wbGUvZGI",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "userinfo_password",
+            "wire_key_b64url": "",
+            "decoded_key_b64url": "",
+            "normalized_key": "",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "JTczZWNyZXQ",
+            "decoded_value_b64url": "c2VjcmV0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-sensitive-key-families",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_cGFzc3dvcmQ9diZteV9wYXNzd2Q9diZwcml2YXRlLWtleT12JmNsaWVudC5zZWNyZXQ9diZhcGlfa2V5PXYmYWNjZXNzLWlkPXYmYWNjZXNzLmtleT12JnRvdHBfY29kZT12JnRva2VuPXYmYmVhcmVyX3Rva2VuPXY",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "bXlfcGFzc3dk",
+            "decoded_key_b64url": "bXlfcGFzc3dk",
+            "normalized_key": "mypasswd",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cHJpdmF0ZS1rZXk",
+            "decoded_key_b64url": "cHJpdmF0ZS1rZXk",
+            "normalized_key": "privatekey",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "Y2xpZW50LnNlY3JldA",
+            "decoded_key_b64url": "Y2xpZW50LnNlY3JldA",
+            "normalized_key": "clientsecret",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "YXBpX2tleQ",
+            "decoded_key_b64url": "YXBpX2tleQ",
+            "normalized_key": "apikey",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "YWNjZXNzLWlk",
+            "decoded_key_b64url": "YWNjZXNzLWlk",
+            "normalized_key": "accessid",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "YWNjZXNzLmtleQ",
+            "decoded_key_b64url": "YWNjZXNzLmtleQ",
+            "normalized_key": "accesskey",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG90cF9jb2Rl",
+            "decoded_key_b64url": "dG90cF9jb2Rl",
+            "normalized_key": "totpcode",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "YmVhcmVyX3Rva2Vu",
+            "decoded_key_b64url": "YmVhcmVyX3Rva2Vu",
+            "normalized_key": "bearertoken",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dg",
+            "decoded_value_b64url": "dg"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-duplicate-order",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_cGFzc3dvcmQ9b25lJnBhc3Nfd29yZD10d28mcGFzc3dvcmQ9dGhyZWU",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "b25l",
+            "decoded_value_b64url": "b25l"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc193b3Jk",
+            "decoded_key_b64url": "cGFzc193b3Jk",
+            "normalized_key": "password",
+            "duplicate_ordinal": 1,
+            "wire_value_b64url": "dHdv",
+            "decoded_value_b64url": "dHdv"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 2,
+            "wire_value_b64url": "dGhyZWU",
+            "decoded_value_b64url": "dGhyZWU"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-percent-key",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_JTcwYXNzd29yZD1zZWNyZXQ",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "JTcwYXNzd29yZA",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "c2VjcmV0",
+            "decoded_value_b64url": "c2VjcmV0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-plus-literal",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_dG9rZW49YSti",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "YSti",
+            "decoded_value_b64url": "YSti"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-literal-and-encoded-sixstar",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlOioqKioqKkBleGFtcGxlL2RiP3Rva2VuPSUyQSUyQSUyQSUyQSUyQSUyQQ",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "userinfo_password",
+            "wire_key_b64url": "",
+            "decoded_key_b64url": "",
+            "normalized_key": "",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "KioqKioq",
+            "decoded_value_b64url": "KioqKioq"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "JTJBJTJBJTJBJTJBJTJBJTJB",
+            "decoded_value_b64url": "KioqKioq"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-nonsensitive-sixstar",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_bm90ZT0qKioqKio",
+      "expected": {
+        "decision": "accept",
+        "slots": []
+      }
+    },
+    {
+      "id": "scan-empty-sensitive-value",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_c2VjcmV0PQ",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "c2VjcmV0",
+            "decoded_key_b64url": "c2VjcmV0",
+            "normalized_key": "secret",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "",
+            "decoded_value_b64url": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-ascii-case-fold",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_UGFTc1dvUmQ9cA",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "UGFTc1dvUmQ",
+            "decoded_key_b64url": "UGFTc1dvUmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "cA",
+            "decoded_value_b64url": "cA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-userinfo-query-isolation",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlOnBAZXhhbXBsZS9kYj9wYXNzd29yZD1x",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "userinfo_password",
+            "wire_key_b64url": "",
+            "decoded_key_b64url": "",
+            "normalized_key": "",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "cA",
+            "decoded_value_b64url": "cA"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "cQ",
+            "decoded_value_b64url": "cQ"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-percent-invalid-value-passthrough",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_dG9rZW49JTJH",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "JTJH",
+            "decoded_value_b64url": "JTJH"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-percent-invalid-password-value-passthrough",
+      "input_bytes_b64url": "dG1xK3dzOi8vcm9vdDpwQGhvc3Q6NjA0MS9kYj9wYXNzd29yZD0qOyVhc2Rm",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "userinfo_password",
+            "wire_key_b64url": "",
+            "decoded_key_b64url": "",
+            "normalized_key": "",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "cA",
+            "decoded_value_b64url": "cA"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "KjslYXNkZg",
+            "decoded_value_b64url": "KjslYXNkZg"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-query-order",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_eD0xJnBhc3N3b3JkPXAmeT0y",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "cA",
+            "decoded_value_b64url": "cA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-empty-host-userinfo",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlOnNlYyU0MHJldEAvZGI",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "userinfo_password",
+            "wire_key_b64url": "",
+            "decoded_key_b64url": "",
+            "normalized_key": "",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "c2VjJTQwcmV0",
+            "decoded_value_b64url": "c2VjQHJldA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-semicolon-encoded-literal",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_cGFzc3dvcmQ9YSUzQmImdG9rZW49dA",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "YSUzQmI",
+            "decoded_value_b64url": "YTti"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dA",
+            "decoded_value_b64url": "dA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-semicolon-literal-in-value",
+      "input_bytes_b64url": "a2Fma2E6Ly9icm9rZXI6OTA5Mj9zYXNsX3Bhc3N3b3JkPXAxO3Ay",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "c2FzbF9wYXNzd29yZA",
+            "decoded_key_b64url": "c2FzbF9wYXNzd29yZA",
+            "normalized_key": "saslpassword",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "cDE7cDI",
+            "decoded_value_b64url": "cDE7cDI"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-semicolon-no-phantom-param",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_YT0xO3Bhc3N3b3JkPXg",
+      "expected": {
+        "decision": "accept",
+        "slots": []
+      }
+    },
+    {
+      "id": "scan-hash-literal-in-value",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_dG9rZW49YWIjY2Q",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "YWIjY2Q",
+            "decoded_value_b64url": "YWIjY2Q"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-hash-then-ampersand",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_dG9rZW49YWIjeCZwYXNzd29yZD15",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "dG9rZW4",
+            "decoded_key_b64url": "dG9rZW4",
+            "normalized_key": "token",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "YWIjeA",
+            "decoded_value_b64url": "YWIjeA"
+          },
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "eQ",
+            "decoded_value_b64url": "eQ"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-last-question-mark",
+      "input_bytes_b64url": "dGFvczovL2FsaWNlQGV4YW1wbGUvZGI_YT0xP3Bhc3N3b3JkPXg",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "query_sensitive",
+            "wire_key_b64url": "cGFzc3dvcmQ",
+            "decoded_key_b64url": "cGFzc3dvcmQ",
+            "normalized_key": "password",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "eA",
+            "decoded_value_b64url": "eA"
+          }
+        ]
+      }
+    },
+    {
+      "id": "scan-first-question-mark-pathlike",
+      "input_bytes_b64url": "Y3N2Oi9kYXRhL3guY3N2P2E9MT90b2tlbj10",
+      "expected": {
+        "decision": "accept",
+        "slots": []
+      }
+    },
+    {
+      "id": "scan-percent-bare-passthrough",
+      "input_bytes_b64url": "dGFvcyt3czovL3Jvb3Q6dGFvc2RhdGFAbG9jYWxob3N0OjYwNDEvdGVzdD9idXN5X3RocmVzaG9sZD0zMCUmYnVzeV90aHJlc2hvbGRfdHlwZT0l",
+      "expected": {
+        "decision": "accept",
+        "slots": [
+          {
+            "field_role": "userinfo_password",
+            "wire_key_b64url": "",
+            "decoded_key_b64url": "",
+            "normalized_key": "",
+            "duplicate_ordinal": 0,
+            "wire_value_b64url": "dGFvc2RhdGE",
+            "decoded_value_b64url": "dGFvc2RhdGE"
+          }
+        ]
+      }
+    }
+  ],
+  "merge_cases": [
+    {
+      "id": "merge-task-create-masked",
+      "operation": "create",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQGgvZGI"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6bmV3QGgyL2Ri"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CREATE_MASKED"
+      }
+    },
+    {
+      "id": "merge-task-create-replace",
+      "operation": "create",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6bmV3QGgvZGI"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6bmV3QGgyL2Ri"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6bmV3QGgvZGI"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6bmV3QGgyL2Ri"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-disabled-literal-sixstar",
+      "operation": "alter",
+      "protection_enabled": false,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQGRpc2FibGVkLWZyb20vZGI_dG9rZW49KioqKioq"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQGRpc2FibGVkLXRvL2RiP3Rva2VuPSoqKioqKg"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6KioqKioqQGRpc2FibGVkLWZyb20vZGI_dG9rZW49KioqKioq"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6KioqKioqQGRpc2FibGVkLXRvL2RiP3Rva2VuPSoqKioqKg"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-disabled-real-credential",
+      "operation": "alter",
+      "protection_enabled": false,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZGlzYWJsZWQtcmVhbEBkaXNhYmxlZC1mcm9tL2RiP3Rva2VuPWRpc2FibGVkLXRva2Vu"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZGlzYWJsZWQtcmVhbEBkaXNhYmxlZC10by9kYj90b2tlbj1kaXNhYmxlZC10b2tlbg"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6ZGlzYWJsZWQtcmVhbEBkaXNhYmxlZC1mcm9tL2RiP3Rva2VuPWRpc2FibGVkLXRva2Vu"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6ZGlzYWJsZWQtcmVhbEBkaXNhYmxlZC10by9kYj90b2tlbj1kaXNhYmxlZC10b2tlbg"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-all-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQGZyb20taG9zdC9kYj90b2tlbj0qKioqKio"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQHRvLWhvc3QvZGI_dG9rZW49KioqKioq"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-mixed",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQG5ldy1mcm9tL2RiP3Rva2VuPW5ldy10b2tlbg"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6bmV3LXRvQG5ldy10by9kYj90b2tlbj0qKioqKio"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-task-explicit-empty",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6QGZyb20taG9zdC9kYj90b2tlbj0"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6QHRvLWhvc3QvZGI_dG9rZW49"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6QGZyb20taG9zdC9kYj90b2tlbj0"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6QHRvLWhvc3QvZGI_dG9rZW49"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-remove-password",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3VAZnJvbS1ob3N0L2Ri"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3VAdG8taG9zdC9kYg"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3VAZnJvbS1ob3N0L2Ri"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3VAdG8taG9zdC9kYg"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-unsubmitted",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-direction-isolation",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQG5ldy1mcm9tL2RiP3Rva2VuPSoqKioqKg"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQG5ldy10by9kYj90b2tlbj0qKioqKio"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-task-scope-change",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6ZnJvbS1vbGRAZnJvbS1ob3N0L2RiP3Rva2VuPWZyb20tdG9rZW4"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6dG8tb2xkQHRvLWhvc3QvZGI_dG9rZW49dG8tdG9rZW4"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL290aGVyOioqKioqKkBkaWZmZXJlbnQtaG9zdC9vdGhlcj90b2tlbj0qKioqKio"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL290aGVyOioqKioqKkBkaWZmZXJlbnQtdGFyZ2V0L290aGVyP3Rva2VuPSoqKioqKg"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-task-keep-missing",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQGgvZGI"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6bmV3QGgyL2Ri"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_KEEP_MISSING"
+      }
+    },
+    {
+      "id": "merge-job-input-type-number",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoxLCJ0byI6InRhb3M6Ly91Om5ld0BuZXcvZGIifQ"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_INPUT_TYPE_INVALID"
+      }
+    },
+    {
+      "id": "merge-job-input-type-array",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjpbXSwidG8iOiJ0YW9zOi8vdTpuZXdAbmV3L2RiIn0"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_INPUT_TYPE_INVALID"
+      }
+    },
+    {
+      "id": "merge-job-input-type-boolean",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjp0cnVlLCJ0byI6InRhb3M6Ly91Om5ld0BuZXcvZGIifQ"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_INPUT_TYPE_INVALID"
+      }
+    },
+    {
+      "id": "merge-job-number-guard",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJ0aW1lb3V0IjozMCwiZnJvbSI6InRhb3M6Ly91OioqKioqKkBuZXcvZGIiLCJ0byI6InRhb3M6Ly91OioqKioqKkBuZXcyL2RiIn0"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-job-null-guard",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJ2aWEiOm51bGwsImZyb20iOiJ0YW9zOi8vdToqKioqKipAbmV3L2RiIiwidG8iOiJ0YW9zOi8vdToqKioqKipAbmV3Mi9kYiJ9"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-job-nonascii-guard",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyLmoIfnrb4iOiLlgLwiLCJmcm9tIjoidGFvczovL3U6KioqKioqQG5ldy9kYiIsInRvIjoidGFvczovL3U6KioqKioqQG5ldzIvZGIifQ"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-job-key-order-guard",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJ6IjoxLCJ0byI6InRhb3M6Ly91OioqKioqKkBuZXcyL2RiIiwiYSI6MiwiZnJvbSI6InRhb3M6Ly91OioqKioqKkBuZXcvZGIifQ"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-job-unknown-field-guard",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmdXR1cmUiOnsieCI6MX0sImZyb20iOiJ0YW9zOi8vdToqKioqKipAbmV3L2RiIiwidG8iOiJ0YW9zOi8vdToqKioqKipAbmV3Mi9kYiJ9"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-job-create-masked",
+      "operation": "create",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6KioqKioqQGgvZGIiLCJ0byI6InRhb3M6Ly91Om5ld0BoMi9kYiJ9"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CREATE_MASKED"
+      }
+    },
+    {
+      "id": "merge-job-json-invalid",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidW50ZXJtaW5hdGVkIg"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_JOB_JSON_INVALID"
+      }
+    },
+    {
+      "id": "merge-job-duplicate-key",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoiYSIsImZyb20iOiJiIiwidG8iOiJjIn0"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_FIELD_AMBIGUOUS"
+      }
+    },
+    {
+      "id": "merge-job-escaped-key",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmclx1MDA2Zm0iOiJ0YW9zOi8vdToqKioqKipAaC9kYiIsInRvIjoidGFvczovL3U6bmV3QGgyL2RiIn0"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_JOB_JSON_INVALID"
+      }
+    },
+    {
+      "id": "merge-job-missing-dsn",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6am9iLWZyb21Ab2xkL2RiIiwidG8iOiJ0YW9zOi8vdTpqb2ItdG9Ab2xkMi9kYiIsInZpYSI6bnVsbH0"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "value",
+          "bytes_b64url": "eyJwYXJzZXIiOnsiZnJvbSI6Im5lc3RlZCJ9LCJ2aWEiOm51bGx9"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "omitted"
+          },
+          "to": {
+            "state": "omitted"
+          },
+          "config": {
+            "state": "value",
+            "bytes_b64url": "eyJwYXJzZXIiOnsiZnJvbSI6Im5lc3RlZCJ9LCJ2aWEiOm51bGx9"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-empty-host-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6b2xkLXNlY3JldEAvZGI_dG9rZW49b2xkLXRva2Vu"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tb2xkQC9vdXQ"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQC9uZXdkYj90b2tlbj0qKioqKio"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6KioqKioqQC9vdXQ"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CONNECTION_CHANGED"
+      }
+    },
+    {
+      "id": "merge-task-create-empty-host-masked",
+      "operation": "create",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "omitted"
+        },
+        "to": {
+          "state": "omitted"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3U6KioqKioqQC9kYg"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "Y3N2Oi8vL3RtcC9vdXQuY3N2"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "reject",
+        "error_id": "SIXSTAR_CREATE_MASKED"
+      }
+    },
+    {
+      "id": "merge-task-alter-semicolon-value-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "a2Fma2E6Ly9icm9rZXI6OTA5Mj9zYXNsX3Bhc3N3b3JkPXAxO3Ay"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tb2xkQGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "a2Fma2E6Ly9icm9rZXI6OTA5Mj9zYXNsX3Bhc3N3b3JkPSoqKioqKg"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "a2Fma2E6Ly9icm9rZXI6OTA5Mj9zYXNsX3Bhc3N3b3JkPXAxO3Ay"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-hash-value-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3VAaC9kYj90b2tlbj1hYiNjZA"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tb2xkQGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3VAaC9kYj90b2tlbj0qKioqKio"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3VAaC9kYj90b2tlbj1hYiNjZA"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-last-question-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3VAaC9kYj9hPTE_dG9rZW49dGstb2xk"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tb2xkQGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3VAaC9kYj9hPTE_dG9rZW49KioqKioq"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3VAaC9kYj9hPTE_dG9rZW49dGstb2xk"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-keep-invalid-percent-old",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dG1xK3dzOi8vcm9vdDp0YW9zZGF0YUBsb2NhbGhvc3Q6NjA0MS90ZXN0P3Bhc3N3b3JkPSo7JWFzZGYmdG9rZW49dDE"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tb2xkQGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "candidate": {
+        "from": {
+          "state": "value",
+          "bytes_b64url": "dG1xK3dzOi8vcm9vdDoqKioqKipAbG9jYWxob3N0OjYwNDEvdGVzdD9wYXNzd29yZD0qKioqKiomdG9rZW49dDE"
+        },
+        "to": {
+          "state": "value",
+          "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+        },
+        "config": {
+          "state": "omitted"
+        }
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "from": {
+            "state": "value",
+            "bytes_b64url": "dG1xK3dzOi8vcm9vdDp0YW9zZGF0YUBsb2NhbGhvc3Q6NjA0MS90ZXN0P3Bhc3N3b3JkPSo7JWFzZGYmdG9rZW49dDE"
+          },
+          "to": {
+            "state": "value",
+            "bytes_b64url": "dGFvczovL3Y6dG8tbmV3QGgyL291dA"
+          },
+          "config": {
+            "state": "omitted"
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-via-omitted-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "via": 7,
+        "from": {"state": "value", "bytes_b64url": "dGFvczovL3U6b2xkLXBhc3N3b3JkQGZyb20taG9zdC9kYg"},
+        "to": {"state": "value", "bytes_b64url": "dGFvczovL3U6b2xkLXBhc3N3b3JkQHRvLWhvc3QvZGI"},
+        "config": {"state": "omitted"}
+      },
+      "candidate": {
+        "from": {"state": "value", "bytes_b64url": "dGFvczovL3U6KioqKioqQGZyb20taG9zdC9kYg"},
+        "to": {"state": "value", "bytes_b64url": "dGFvczovL3U6bmV3LXBhc3N3b3JkQHRvLWhvc3QvZGI"},
+        "config": {"state": "omitted"}
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "via": 7,
+          "from": {"state": "value", "bytes_b64url": "dGFvczovL3U6b2xkLXBhc3N3b3JkQGZyb20taG9zdC9kYg"},
+          "to": {"state": "value", "bytes_b64url": "dGFvczovL3U6bmV3LXBhc3N3b3JkQHRvLWhvc3QvZGI"},
+          "config": {"state": "omitted"}
+        }
+      }
+    },
+    {
+      "id": "merge-task-alter-via-changed-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "task",
+      "old": {
+        "via": 7,
+        "from": {"state": "value", "bytes_b64url": "dGFvczovL3U6b2xkLXBhc3N3b3JkQGZyb20taG9zdC9kYg"},
+        "to": {"state": "value", "bytes_b64url": "dGFvczovL3U6b2xkLXBhc3N3b3JkQHRvLWhvc3QvZGI"},
+        "config": {"state": "omitted"}
+      },
+      "candidate": {
+        "via": 9,
+        "from": {"state": "value", "bytes_b64url": "dGFvczovL3U6KioqKioqQGZyb20taG9zdC9kYg"},
+        "to": {"state": "value", "bytes_b64url": "dGFvczovL3U6bmV3LXBhc3N3b3JkQHRvLWhvc3QvZGI"},
+        "config": {"state": "omitted"}
+      },
+      "expected": {"decision": "reject", "error_id": "SIXSTAR_CONNECTION_CHANGED"}
+    },
+    {
+      "id": "merge-job-alter-via-omitted-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "via": 7,
+        "from": {"state": "omitted"},
+        "to": {"state": "omitted"},
+        "config": {"state": "value", "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6b2xkLXBhc3N3b3JkQGZyb20taG9zdC9kYiIsInRvIjoidGFvczovL3U6b2xkLXBhc3N3b3JkQHRvLWhvc3QvZGIifQ"}
+      },
+      "candidate": {
+        "from": {"state": "omitted"},
+        "to": {"state": "omitted"},
+        "config": {"state": "value", "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6KioqKioqQGZyb20taG9zdC9kYiIsInRvIjoidGFvczovL3U6bmV3LXBhc3N3b3JkQHRvLWhvc3QvZGIifQ"}
+      },
+      "expected": {
+        "decision": "accept",
+        "final": {
+          "via": 7,
+          "from": {"state": "omitted"},
+          "to": {"state": "omitted"},
+          "config": {"state": "value", "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6b2xkLXBhc3N3b3JkQGZyb20taG9zdC9kYiIsInRvIjoidGFvczovL3U6bmV3LXBhc3N3b3JkQHRvLWhvc3QvZGIifQ"}
+        }
+      }
+    },
+    {
+      "id": "merge-job-alter-via-changed-keep",
+      "operation": "alter",
+      "protection_enabled": true,
+      "resource": "job",
+      "old": {
+        "via": 7,
+        "from": {"state": "omitted"},
+        "to": {"state": "omitted"},
+        "config": {"state": "value", "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6b2xkLXBhc3N3b3JkQGZyb20taG9zdC9kYiIsInRvIjoidGFvczovL3U6b2xkLXBhc3N3b3JkQHRvLWhvc3QvZGIifQ"}
+      },
+      "candidate": {
+        "via": 9,
+        "from": {"state": "omitted"},
+        "to": {"state": "omitted"},
+        "config": {"state": "value", "bytes_b64url": "eyJmcm9tIjoidGFvczovL3U6KioqKioqQGZyb20taG9zdC9kYiIsInRvIjoidGFvczovL3U6bmV3LXBhc3N3b3JkQHRvLWhvc3QvZGIifQ"}
+      },
+      "expected": {"decision": "reject", "error_id": "SIXSTAR_CONNECTION_CHANGED"}
+    }
+  ]
+}

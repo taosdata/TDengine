@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,8 @@
 #include <iostream>
 
 #include "query.h"
+#include "extTypeMap.h"
+#include "tdef.h"
 #include "tmsg.h"
 #include "trpc.h"
 
@@ -83,6 +87,161 @@ TEST(testCase, error_in_async_test) {
   taosAsyncExec(testPrintError, p, &code);
   taosMsleep(1);
   printf("Error code:%d after asynchronously exec function\n", code);
+}
+
+TEST(ExternalTypeMapTest, NormalizesBoundaryDeclarationsForAllProviders) {
+  SDataType type = {0};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_MYSQL, "varchar(999999999999999999999)", "utf8mb4", &type));
+  EXPECT_EQ(TSDB_DATA_TYPE_NCHAR, type.type);
+  EXPECT_EQ(TSDB_MAX_NCHAR_LEN, type.bytes);
+  EXPECT_EQ(0, type.precision);
+  EXPECT_EQ(0, type.scale);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_POSTGRESQL, "numeric(999999999999999999999,999999999999999999999)",
+                                       "UTF8", &type));
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.precision);
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.scale);
+  EXPECT_EQ(DECIMAL128_BYTES, type.bytes);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "LargeUtf8", NULL, &type));
+  EXPECT_EQ(TSDB_DATA_TYPE_NCHAR, type.type);
+  EXPECT_EQ(TSDB_MAX_NCHAR_LEN, type.bytes);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "LargeBinary", NULL, &type));
+  EXPECT_EQ(TSDB_DATA_TYPE_VARBINARY, type.type);
+  EXPECT_EQ(TSDB_MAX_VARBINARY_LEN, type.bytes);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "Decimal256(999999999999999999999,999999999999999999999)",
+                                       NULL, &type));
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.precision);
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.scale);
+  EXPECT_EQ(DECIMAL128_BYTES, type.bytes);
+}
+
+TEST(ExternalTypeMapTest, DecimalBoundariesRemainLegalAndUnknownTypesFail) {
+  SDataType type = {0};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_MYSQL, "decimal(1,0)", NULL, &type));
+  EXPECT_EQ(1, type.precision);
+  EXPECT_EQ(0, type.scale);
+
+  type = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extTypeNameToTDengineType(EXT_SOURCE_POSTGRESQL, "numeric(38,39)", "UTF8", &type));
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.precision);
+  EXPECT_EQ(TSDB_DECIMAL_MAX_PRECISION, type.scale);
+
+  type = {};
+  EXPECT_EQ(TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+            extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, "UnknownArrowExtension", NULL, &type));
+}
+
+TEST(ExternalTypeMapTest, MapsMysqlInformationSchemaTablesColumnTypes) {
+  struct TypeCase {
+    const char* declaration;
+    const char* charset;
+  };
+
+  // MySQL 8 INFORMATION_SCHEMA.TABLES combines text, enum, signed and unsigned
+  // numeric, and temporal columns. Keep these declarations mapped so catalog
+  // queries can select any individual field without rejecting the whole table.
+  const TypeCase cases[] = {
+      {"varchar(64)", "utf8mb3"},
+      {"enum('BASE TABLE','VIEW','SYSTEM VIEW')", "utf8mb3"},
+      {"int", NULL},
+      {"enum('Fixed','Dynamic','Compressed','Redundant','Compact','Paged')", "utf8mb3"},
+      {"bigint unsigned", NULL},
+      {"timestamp", NULL},
+      {"datetime", NULL},
+      {"bigint", NULL},
+      {"varchar(256)", "utf8mb3"},
+      {"text", "utf8mb3"},
+  };
+
+  for (const TypeCase& test : cases) {
+    SDataType type = {0};
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              extTypeNameToTDengineType(EXT_SOURCE_MYSQL, test.declaration, test.charset, &type))
+        << test.declaration;
+  }
+}
+
+TEST(ExternalTypeMapTest, InvalidModifiersNormalizeToLegalSchemaForAllProviders) {
+  struct TypeCase {
+    EExtSourceType source;
+    const char*    declaration;
+    const char*    charset;
+    int8_t         expectedType;
+    int32_t        expectedBytes;
+    uint8_t        expectedPrecision;
+    uint8_t        expectedScale;
+  };
+
+  const TypeCase cases[] = {
+      {EXT_SOURCE_MYSQL, "varchar(-1)", "utf8mb4", TSDB_DATA_TYPE_NCHAR, TSDB_MAX_NCHAR_LEN, 0, 0},
+      {EXT_SOURCE_MYSQL, "varchar(not-a-number)", "utf8mb4", TSDB_DATA_TYPE_NCHAR, TSDB_MAX_NCHAR_LEN, 0, 0},
+      {EXT_SOURCE_POSTGRESQL, "numeric(-1,not-a-number)", "UTF8", TSDB_DATA_TYPE_DECIMAL,
+       DECIMAL128_BYTES, TSDB_DECIMAL_MAX_PRECISION, 6},
+      {EXT_SOURCE_POSTGRESQL, "numeric(1", "UTF8", TSDB_DATA_TYPE_DECIMAL64,
+       DECIMAL64_BYTES, 1, 0},
+      {EXT_SOURCE_INFLUXDB, "Decimal256(-1,broken)", NULL, TSDB_DATA_TYPE_DECIMAL,
+       DECIMAL128_BYTES, TSDB_DECIMAL_MAX_PRECISION, 6},
+  };
+
+  for (const TypeCase& test : cases) {
+    SDataType type = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              extTypeNameToTDengineType(test.source, test.declaration, test.charset, &type))
+        << test.declaration;
+    EXPECT_EQ(test.expectedType, type.type) << test.declaration;
+    EXPECT_EQ(test.expectedBytes, type.bytes) << test.declaration;
+    EXPECT_EQ(test.expectedPrecision, type.precision) << test.declaration;
+    EXPECT_EQ(test.expectedScale, type.scale) << test.declaration;
+  }
+}
+
+TEST(testCase, virtual_table_meta_rejects_mismatched_col_ref_count) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema = {0};
+  SSchemaExt    schemaExt = {0};
+  SColRef       colRefs[2] = {};
+  STableMetaOutput output = {0};
+
+  rsp.numOfColumns = 1;
+  rsp.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  rsp.numOfColRefs = 2;
+  rsp.pSchemas = &schema;
+  rsp.pSchemaExt = &schemaExt;
+  rsp.pColRefs = colRefs;
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema.bytes = sizeof(int64_t);
+
+  int32_t msgLen = tSerializeSTableMetaRsp(NULL, 0, &rsp);
+  ASSERT_GT(msgLen, 0);
+
+  char* pMsg = (char*)taosMemoryMalloc(msgLen);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_GT(tSerializeSTableMetaRsp(pMsg, msgLen, &rsp), 0);
+
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)](&output, pMsg, msgLen),
+            TSDB_CODE_INVALID_MSG);
+  ASSERT_EQ(output.tbMeta, nullptr);
+  ASSERT_EQ(output.vctbMeta, nullptr);
+
+  taosMemoryFree(pMsg);
 }
 
 TEST(testCase, clone_normal_create_table_req_preserves_metadata) {

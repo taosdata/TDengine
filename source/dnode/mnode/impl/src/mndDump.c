@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,7 +16,9 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "mndCluster.h"
 #include "mndDb.h"
+#include "mndDnode.h"
 #include "mndDump.h"
 #include "mndInt.h"
 #include "mndShow.h"
@@ -238,12 +242,12 @@ _OVER:
   if (code != 0) mError("failed to dump sdb info at line:%d since %s", lino, tstrerror(code));
 }
 
-static SMnode *mndPrepareMnode();
+static SMnode *mndPrepareMnode(const char *mnodePath);
 
 int32_t mndDumpSdb() {
   mInfo("start to dump sdb info to sdb.json");
 
-  SMnode *pMnode = mndPrepareMnode();
+  SMnode *pMnode = mndPrepareMnode(NULL);
   if (pMnode == NULL) return terrno;
 
   SSdb  *pSdb = pMnode->pSdb;
@@ -323,10 +327,13 @@ int32_t mndDumpSdb() {
   return 0;
 }
 
-static SMnode *mndPrepareMnode() {
+static SMnode *mndPrepareMnode(const char *mnodePath) {
   int32_t code = 0;
   char    path[PATH_MAX * 2] = {0};
-  (void)snprintf(path, sizeof(path), "%s%smnode", tsDataDir, TD_DIRSEP);
+  if (mnodePath == NULL) {
+    (void)snprintf(path, sizeof(path), "%s%smnode", tsDataDir, TD_DIRSEP);
+    mnodePath = path;
+  }
 
   SMsgCb msgCb = {0};
   msgCb.reportStartupFp = reportStartup;
@@ -346,9 +353,417 @@ static SMnode *mndPrepareMnode() {
   }
 
   SMnodeOpt opt = {.msgCb = msgCb};
-  SMnode   *pMnode = mndOpen(path, &opt);
+  SMnode   *pMnode = mndOpen(mnodePath, &opt);
+  if (pMnode != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pMnode->pSteps); ++i) {
+      SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, i);
+      if (strcmp(pStep->name, "mnode-stream") == 0) {
+        pStep->cleanupFp = NULL;
+        break;
+      }
+    }
+  }
 
   return pMnode;
+}
+
+typedef struct {
+  int32_t   sourceId;
+  SMnodeObj obj;
+} SMnodeRestoreMnode;
+
+typedef struct {
+  int32_t   sourceId;
+  SSnodeObj obj;
+} SMnodeRestoreSnode;
+
+int32_t mndRestoreMapDnodeId(const SArray *pDnodes, int32_t sourceId) {
+  for (int32_t i = 0; i < taosArrayGetSize(pDnodes); ++i) {
+    SMnodeRestoreDnode *pDnode = taosArrayGet(pDnodes, i);
+    if (pDnode->sourceId == sourceId) {
+      return pDnode->id;
+    }
+  }
+  return -1;
+}
+
+static int32_t mndRestoreWriteSdbObject(SMnode *pMnode, ESdbType type, void *pObj, ESdbStatus status) {
+  SdbEncodeFp encodeFp = pMnode->pSdb->encodeFps[type];
+  SSdbRaw    *pRaw = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+
+  if (encodeFp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pRaw = encodeFp(pObj);
+  if (pRaw == NULL) {
+    return terrno;
+  }
+  if ((code = sdbSetRawStatus(pRaw, status)) != 0) {
+    sdbFreeRaw(pRaw);
+    return code;
+  }
+  return sdbWrite(pMnode->pSdb, pRaw);
+}
+
+static void mndRestoreFreeSdbRaw(void *param) {
+  SSdbRaw *pRaw = *(SSdbRaw **)param;
+
+  if (pRaw != NULL) {
+    sdbFreeRaw(pRaw);
+  }
+}
+
+static int32_t mndRestoreDropMetadata(SMnode *pMnode, ESdbType type) {
+  SdbEncodeFp encodeFp = pMnode->pSdb->encodeFps[type];
+  SArray     *pRaws = NULL;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  void       *pIter = NULL;
+
+  if (encodeFp == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pRaws = taosArrayInit(0, sizeof(SSdbRaw *));
+  if (pRaws == NULL) {
+    return terrno;
+  }
+  while (true) {
+    ESdbStatus status = SDB_STATUS_INIT;
+    SSdbRaw   *pRaw = NULL;
+    void      *pObj = NULL;
+
+    pIter = sdbFetchAll(pMnode->pSdb, type, pIter, &pObj, &status, false);
+    if (pIter == NULL) {
+      break;
+    }
+    pRaw = encodeFp(pObj);
+    sdbRelease(pMnode->pSdb, pObj);
+    if (pRaw == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    if (taosArrayPush(pRaws, &pRaw) == NULL) {
+      sdbFreeRaw(pRaw);
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pRaws); ++i) {
+    SSdbRaw **ppRaw = taosArrayGet(pRaws, i);
+
+    if ((code = sdbSetRawStatus(*ppRaw, SDB_STATUS_DROPPED)) != 0) {
+      goto _exit;
+    }
+    code = sdbWrite(pMnode->pSdb, *ppRaw);
+    *ppRaw = NULL;
+    if (code != 0) {
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroyEx(pRaws, mndRestoreFreeSdbRaw);
+  return code;
+}
+
+static int32_t mndRestoreDnodeMetadata(SMnode *pMnode, const SArray *pDnodes) {
+  SArray *pNewDnodes = taosArrayInit(taosArrayGetSize(pDnodes), sizeof(SDnodeObj));
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pNewDnodes == NULL) {
+    return terrno;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pDnodes); ++i) {
+    SMnodeRestoreDnode *pRestore = taosArrayGet(pDnodes, i);
+    SDnodeObj          *pDnode = sdbAcquire(pMnode->pSdb, SDB_DNODE, &pRestore->sourceId);
+    SDnodeObj           newDnode = {0};
+
+    if (pDnode == NULL) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    newDnode = *pDnode;
+    mndReleaseDnode(pMnode, pDnode);
+    newDnode.id = pRestore->id;
+    tstrncpy(newDnode.fqdn, pRestore->ep.fqdn, sizeof(newDnode.fqdn));
+    newDnode.port = pRestore->ep.port;
+    if (taosArrayPush(pNewDnodes, &newDnode) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pDnodes); ++i) {
+    SMnodeRestoreDnode *pRestore = taosArrayGet(pDnodes, i);
+    SDnodeObj          *pNewDnode = taosArrayGet(pNewDnodes, i);
+    SDnodeObj           oldDnode = *pNewDnode;
+
+    oldDnode.id = pRestore->sourceId;
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_DNODE, &oldDnode, SDB_STATUS_DROPPED)) != 0) {
+      goto _exit;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pNewDnodes); ++i) {
+    SDnodeObj *pNewDnode = taosArrayGet(pNewDnodes, i);
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_DNODE, pNewDnode, SDB_STATUS_READY)) != 0) {
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pNewDnodes);
+  return code;
+}
+
+static int32_t mndRestoreMnodeMetadata(SMnode *pMnode, const SArray *pDnodes) {
+  SArray *pNewMnodes = taosArrayInit(0, sizeof(SMnodeRestoreMnode));
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *pIter = NULL;
+
+  if (pNewMnodes == NULL) {
+    return terrno;
+  }
+  while (true) {
+    SMnodeObj *pMnodeObj = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_MNODE, pIter, (void **)&pMnodeObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SMnodeRestoreMnode newMnode = {0};
+    newMnode.sourceId = pMnodeObj->id;
+    newMnode.obj.id = mndRestoreMapDnodeId(pDnodes, pMnodeObj->id);
+    newMnode.obj.createdTime = pMnodeObj->createdTime;
+    newMnode.obj.updateTime = pMnodeObj->updateTime;
+    newMnode.obj.role = pMnodeObj->role;
+    newMnode.obj.lastIndex = pMnodeObj->lastIndex;
+    sdbRelease(pMnode->pSdb, pMnodeObj);
+    if (newMnode.obj.id < 0 || taosArrayPush(pNewMnodes, &newMnode) == NULL) {
+      code = newMnode.obj.id < 0 ? TSDB_CODE_INVALID_DATA_FMT : terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pNewMnodes); ++i) {
+    SMnodeRestoreMnode *pNewMnode = taosArrayGet(pNewMnodes, i);
+    SMnodeObj           oldMnode = pNewMnode->obj;
+
+    oldMnode.id = pNewMnode->sourceId;
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_MNODE, &oldMnode, SDB_STATUS_DROPPED)) != 0) {
+      goto _exit;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pNewMnodes); ++i) {
+    SMnodeRestoreMnode *pNewMnode = taosArrayGet(pNewMnodes, i);
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_MNODE, &pNewMnode->obj, SDB_STATUS_READY)) != 0) {
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pNewMnodes);
+  return code;
+}
+
+static int32_t mndRestoreSnodeMetadata(SMnode *pMnode, const SArray *pDnodes) {
+  SArray *pNewSnodes = taosArrayInit(0, sizeof(SMnodeRestoreSnode));
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *pIter = NULL;
+
+  if (pNewSnodes == NULL) {
+    return terrno;
+  }
+  while (true) {
+    SSnodeObj *pSnodeObj = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_SNODE, pIter, (void **)&pSnodeObj);
+    if (pIter == NULL) {
+      break;
+    }
+
+    SMnodeRestoreSnode newSnode = {0};
+    newSnode.sourceId = pSnodeObj->id;
+    newSnode.obj.id = mndRestoreMapDnodeId(pDnodes, pSnodeObj->id);
+    newSnode.obj.createdTime = pSnodeObj->createdTime;
+    newSnode.obj.updateTime = pSnodeObj->updateTime;
+    for (int32_t i = 0; i < 2; ++i) {
+      int32_t id = pSnodeObj->leadersId[i];
+      newSnode.obj.leadersId[i] = id > 0 ? mndRestoreMapDnodeId(pDnodes, id) : id;
+    }
+    newSnode.obj.replicaId = pSnodeObj->replicaId;
+    if (newSnode.obj.replicaId > 0) {
+      newSnode.obj.replicaId = mndRestoreMapDnodeId(pDnodes, pSnodeObj->replicaId);
+    }
+    sdbRelease(pMnode->pSdb, pSnodeObj);
+    if (newSnode.obj.id < 0 || newSnode.obj.leadersId[0] < 0 || newSnode.obj.leadersId[1] < 0 ||
+        newSnode.obj.replicaId < 0) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    if (taosArrayPush(pNewSnodes, &newSnode) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pNewSnodes); ++i) {
+    SMnodeRestoreSnode *pNewSnode = taosArrayGet(pNewSnodes, i);
+    SSnodeObj           oldSnode = pNewSnode->obj;
+
+    oldSnode.id = pNewSnode->sourceId;
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_SNODE, &oldSnode, SDB_STATUS_DROPPED)) != 0) {
+      goto _exit;
+    }
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pNewSnodes); ++i) {
+    SMnodeRestoreSnode *pNewSnode = taosArrayGet(pNewSnodes, i);
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_SNODE, &pNewSnode->obj, SDB_STATUS_READY)) != 0) {
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pNewSnodes);
+  return code;
+}
+
+static int32_t mndRestoreVgroupMetadata(SMnode *pMnode, const SArray *pDnodes) {
+  SArray *pVgroups = taosArrayInit(0, sizeof(SVgObj));
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *pIter = NULL;
+
+  if (pVgroups == NULL) {
+    return terrno;
+  }
+  while (true) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) {
+      break;
+    }
+    SVgObj newVgroup = *pVgroup;
+    sdbRelease(pMnode->pSdb, pVgroup);
+    for (int32_t i = 0; i < newVgroup.replica; ++i) {
+      int32_t targetId = mndRestoreMapDnodeId(pDnodes, newVgroup.vnodeGid[i].dnodeId);
+      if (targetId < 0) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+      }
+      newVgroup.vnodeGid[i].dnodeId = targetId;
+    }
+    if (taosArrayPush(pVgroups, &newVgroup) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pVgroups); ++i) {
+    SVgObj *pVgroup = taosArrayGet(pVgroups, i);
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_VGROUP, pVgroup, SDB_STATUS_READY)) != 0) {
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pVgroups);
+  return code;
+}
+
+static int32_t mndRestoreStreamMetadata(SMnode *pMnode, const SArray *pDnodes) {
+  SArray *pStreams = taosArrayInit(0, sizeof(SStreamObj));
+  int32_t code = TSDB_CODE_SUCCESS;
+  void   *pIter = NULL;
+
+  if (pStreams == NULL) {
+    return terrno;
+  }
+  while (true) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) {
+      break;
+    }
+    SStreamObj newStream = *pStream;
+    sdbRelease(pMnode->pSdb, pStream);
+    if (newStream.mainSnodeId > 0) {
+      newStream.mainSnodeId = mndRestoreMapDnodeId(pDnodes, newStream.mainSnodeId);
+      if (newStream.mainSnodeId < 0) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        goto _exit;
+      }
+    }
+    if (taosArrayPush(pStreams, &newStream) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+
+  for (int32_t i = 0; i < taosArrayGetSize(pStreams); ++i) {
+    SStreamObj *pStream = taosArrayGet(pStreams, i);
+    if ((code = mndRestoreWriteSdbObject(pMnode, SDB_STREAM, pStream, SDB_STATUS_READY)) != 0) {
+      goto _exit;
+    }
+  }
+
+_exit:
+  taosArrayDestroy(pStreams);
+  return code;
+}
+
+int32_t mndRestoreUpdateMetadata(const SArray *pDnodes) {
+  SMnodeRestoreDnode *pDnode = NULL;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int64_t              clusterId = 0;
+  SMnode              *pMnode = NULL;
+
+  if (pDnodes == NULL || taosArrayGetSize(pDnodes) == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pDnode = taosArrayGet(pDnodes, 0);
+  clusterId = pDnode->clusterId;
+  if (clusterId <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pMnode = mndPrepareMnode(NULL);
+  if (pMnode == NULL) {
+    return terrno;
+  }
+  if ((code = mndRestoreClusterId(pMnode, clusterId)) != 0) {
+    goto _exit;
+  }
+  if (sdbGetSize(pMnode->pSdb, SDB_DNODE) != taosArrayGetSize(pDnodes)) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
+  if ((code = mndRestoreDropMetadata(pMnode, SDB_ANODE)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreDropMetadata(pMnode, SDB_BNODE)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreDropMetadata(pMnode, SDB_QNODE)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreVgroupMetadata(pMnode, pDnodes)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreStreamMetadata(pMnode, pDnodes)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreDnodeMetadata(pMnode, pDnodes)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreMnodeMetadata(pMnode, pDnodes)) != 0) {
+    goto _exit;
+  }
+  if ((code = mndRestoreSnodeMetadata(pMnode, pDnodes)) != 0) {
+    goto _exit;
+  }
+  code = sdbWriteFileForDump(pMnode->pSdb, -1);
+
+_exit:
+  mndClose(pMnode);
+  return code;
 }
 
 // mndOpen() above only loads the last periodic sdb.data snapshot (sdbReadFile); any raft log
@@ -406,7 +821,7 @@ static void mndReplayMnodeWal(SMnode *pMnode) {
 int32_t mndDeleteTrans() {
   mInfo("start to dump sdb info to sdb.json");
 
-  SMnode *pMnode = mndPrepareMnode();
+  SMnode *pMnode = mndPrepareMnode(NULL);
   if (pMnode == NULL) return terrno;
 
   TAOS_CHECK_RETURN(sdbWriteFileForDump(pMnode->pSdb, 0));
@@ -419,7 +834,7 @@ int32_t mndDeleteTrans() {
 int32_t mndFlushMnode() {
   mWarn("-fMnode: ensure ALL mnode instances are stopped before proceeding");
 
-  SMnode *pMnode = mndPrepareMnode();
+  SMnode *pMnode = mndPrepareMnode(NULL);
   if (pMnode == NULL) return terrno;
   mndReplayMnodeWal(pMnode);
 
@@ -724,7 +1139,7 @@ int32_t mndModifySdb(char *path) {
 
   mInfo("start to modify sdb from json:%s", path);
 
-  SMnode *pMnode = mndPrepareMnode();
+  SMnode *pMnode = mndPrepareMnode(NULL);
   if (pMnode == NULL) return terrno;
   SSdb *pSdb = pMnode->pSdb;
 

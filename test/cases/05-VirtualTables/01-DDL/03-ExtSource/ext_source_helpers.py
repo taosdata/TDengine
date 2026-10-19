@@ -1,7 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
-###################################################################
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 """Shared helpers for ext-source DDL tests.
 
@@ -12,7 +22,7 @@ create EXTERNAL SOURCE objects, avoiding duplication across test files.
 import os
 import sys
 
-from new_test_framework.utils import tdSql
+from new_test_framework.utils import tdLog, tdSql
 
 _FQ_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__),
@@ -20,6 +30,16 @@ _FQ_DIR = os.path.abspath(
 if _FQ_DIR not in sys.path:
     sys.path.insert(0, _FQ_DIR)
 from federated_query_common import ExtSrcEnv  # noqa: E402
+
+
+def extract_show_create_sql(sql):
+    tdSql.query(sql)
+    tdSql.checkRows(1)
+    for col in range(tdSql.queryCols):
+        value = tdSql.getData(0, col)
+        if isinstance(value, str) and "CREATE" in value.upper():
+            return value
+    tdLog.exit(f"no CREATE statement in SHOW output: {sql}")
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +75,14 @@ def create_ext_source(name, src_type, database, schema="public"):
             f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
             f"API_TOKEN='{token}' "
             f"DATABASE={database} OPTIONS('protocol'='flight_sql')")
+    elif src_type == "sqlserver":
+        # The shared default schema is PG's "public"; SQL Server's default is "dbo".
+        sqlserver_schema = "dbo" if schema in ("", None, "public") else schema
+        tdSql.execute(
+            f"CREATE EXTERNAL SOURCE {name} TYPE='{src_type}' "
+            f"HOST='{ExtSrcEnv.SQLSERVER_HOST}' PORT={ExtSrcEnv.SQLSERVER_PORT} "
+            f"USER='{ExtSrcEnv.SQLSERVER_USER}' PASSWORD='{ExtSrcEnv.SQLSERVER_PASS}' "
+            f"DATABASE={database} SCHEMA={sqlserver_schema}")
     else:
         raise ValueError(f"Unknown source type: {src_type}")
 
@@ -76,6 +104,8 @@ def create_remote_db(src_type, database):
         ExtSrcEnv.mysql_create_db(database)
     elif src_type == "influxdb":
         ExtSrcEnv.influx_create_db(database)
+    elif src_type == "sqlserver":
+        ExtSrcEnv.sqlserver_create_db(database)
     else:
         raise ValueError(f"Unknown source type: {src_type}")
 
@@ -122,6 +152,33 @@ def create_mysql_table(database, table, col_defs, rows=None):
     if rows:
         stmts.append(f"INSERT INTO {table} VALUES {', '.join(rows)}")
     ExtSrcEnv.mysql_exec(database, stmts)
+
+
+def create_sqlserver_table(database, table, col_defs, rows=None, schema="dbo"):
+    """Create (or replace) a SQL Server table and optionally insert rows.
+
+    Args:
+        database: SQL Server database name
+        table:    table name
+        col_defs: column definition string, e.g.
+                  "ts datetime2(3) NOT NULL PRIMARY KEY, v INT"
+        rows:     optional list of row value strings, e.g.
+                  ["('2024-01-01 00:00:00.000', 11)"]
+        schema:   SQL Server schema (default 'dbo')
+    """
+    stmts = []
+    if schema != "dbo":
+        # A non-default schema must exist before the table can be created in it.
+        stmts.append(
+            f"IF SCHEMA_ID('{schema}') IS NULL EXEC('CREATE SCHEMA {schema}')")
+    stmts.extend([
+        f"IF OBJECT_ID('{schema}.{table}') IS NOT NULL DROP TABLE {schema}.{table}",
+        f"CREATE TABLE {schema}.{table} ({col_defs})",
+    ])
+    if rows:
+        stmts.append(
+            f"INSERT INTO {schema}.{table} VALUES {', '.join(rows)}")
+    ExtSrcEnv.sqlserver_exec(database, stmts)
 
 
 def create_pg_view(database, view, select_sql, schema="public"):

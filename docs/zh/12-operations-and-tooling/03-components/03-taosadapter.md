@@ -15,7 +15,7 @@ TDengine 的各语言连接器通过 WebSocket 接口与 TDengine 进行通信�
 
 架构图如下：
 
-![TDengine Database taosAdapter Architecture](../../assets/taosadapter-01.png)
+![TDengine Database taosAdapter Architecture](../../assets/taosadapter-01.webp)
 
 ## 功能列表
 
@@ -506,7 +506,7 @@ curl -L 'http://localhost:6041/input_json/v1/rule1?dry_run=true' \
 
 ## 安装
 
-taosAdapter 是 TDengine 服务端软件的一部分，如果你使用 TDengine server 你不需要任何额外的步骤来安装 taosAdapter。你可以从 [涛思数据官方网站](https://docs.taosdata.com/releases/tdengine/) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果你需要使用源代码编译生成 taosAdapter，你可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md) 文档。
+taosAdapter 是 TDengine 服务端软件的一部分，如果你使用 TDengine server 你不需要任何额外的步骤来安装 taosAdapter。你可以从 [涛思数据官方网站](https://taosdata.com/downloads?product=TDengine+TSDB-OSS) 下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果你需要使用源代码编译生成 taosAdapter，你可以参考 [构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/README.md) 文档。
 
 安装完成后使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。
 
@@ -604,6 +604,12 @@ taosAdapter 使用连接池管理与 TDengine 的连接，以提高并发性能�
 - **`pool.idleTimeout`**：连接空闲超时时间，默认永不超时。建议保持默认设置。
 - **`pool.waitTimeout`**：从连接池获取连接的超时时间，默认设置为 60 秒。如果在超时时间内未能获取连接，将返回 HTTP 状态码 503。该参数从 `v3.3.3.0` 开始提供。
 - **`pool.maxWait`**：连接池中等待获取连接的请求数上限，默认值为 0，表示不限制。当排队请求数超过此值时，新的请求将返回 HTTP 状态码 503。该参数从 `v3.3.3.0` 开始提供。
+
+### 查询结果集配置
+
+taosAdapter 支持自动释放 WebSocket 接口（`/ws`）中长期空闲的查询结果集，避免客户端因查询超时等原因不再拉取数据而导致结果集驻留。
+
+- **`queryResult.idleTimeout`**：查询结果集空闲超时时间，默认值为 1 小时。该配置适用于 `/ws` 接口的 `query` 以及 stmt/stmt2 的 `use_result` 产生的结果集。计时自结果集上一次 fetch 起算（从未 fetch 过的自创建时刻起算），每次 fetch 会重新计时；空闲超过该时长的结果集将被自动释放，此后客户端再 fetch 该结果集会收到 "result is nil" 错误。设置为 0 表示关闭该功能。该配置不影响 RESTful 接口，RESTful 接口在请求内即返回全部结果。
 
 ### HTTP 返回码配置
 
@@ -1304,6 +1310,7 @@ rejectQuerySqlRegex = ['(?i)^drop\s+database\s+.*','(?i)^drop\s+table\s+.*','(?i
 | `pool.waitTimeout`                    | `TAOS_ADAPTER_POOL_WAIT_TIMEOUT`                      |
 | `P`, `port`                           | `TAOS_ADAPTER_PORT`                                   |
 | `prometheus.enable`                   | `TAOS_ADAPTER_PROMETHEUS_ENABLE`                      |
+| `queryResult.idleTimeout`             | `TAOS_ADAPTER_QUERY_RESULT_IDLE_TIMEOUT`              |
 | `register.description`                | `TAOS_ADAPTER_REGISTER_DESCRIPTION`                   |
 | `register.duration`                   | `TAOS_ADAPTER_REGISTER_DURATION`                      |
 | `register.expire`                     | `TAOS_ADAPTER_REGISTER_EXPIRE`                        |
@@ -2214,6 +2221,8 @@ taosAdapter 将监控指标上报给 taosKeeper，这些监控指标会被 taosK
 </details>
 
 从 **3.3.6.29**/**3.3.8.3** 版本开始新增 `adapter_request_limit` 表记录 taosAdapter 查询请求限流数据：
+
+注意：`adapter_request_limit` 表为按需创建，仅在开启查询请求并发限制功能（`request.queryLimitEnable = true`，默认为 `false`）且 taosAdapter 启动后处理过至少一个受限查询请求后，taosKeeper 才会在监控数据库中创建该表并写入数据；未满足上述条件时该表不存在。
 
 <details>
 <summary>详细信息</summary>

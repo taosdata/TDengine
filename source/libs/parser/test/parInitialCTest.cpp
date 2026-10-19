@@ -1,9 +1,11 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), AS published by the Free Software Foundation.
+ * or later ("AGPL"), as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -308,6 +310,13 @@ TEST_F(ParserInitialCTest, xnodeTaskParserBinaryLength) {
  * COMPACT DATABASE db_name [START WITH start_time] [END WITH END_time]
  */
 TEST_F(ParserInitialCTest, compact) {
+#ifndef TD_ENTERPRISE
+  run("COMPACT DATABASE test", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE test START WITH '2023-03-07 14:01:23' END WITH '2023-03-08 14:01:23'",
+      TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE testus START WITH TIMESTAMP '2023-01-07 14:01:23'", TSDB_CODE_OSS_NOT_SUPPORT);
+  run("COMPACT DATABASE testus END WITH 1675749683000000000", TSDB_CODE_OSS_NOT_SUPPORT);
+#else
   SCompactDbReq expect = {0};
 
   auto setCompactDbReq = [&](const char* pDb, int64_t start = INT64_MIN, int64_t end = INT64_MAX) {
@@ -338,6 +347,7 @@ TEST_F(ParserInitialCTest, compact) {
 
   setCompactDbReq("testus", INT64_MIN, 1675749683000000000);
   run("COMPACT DATABASE testus END WITH 1675749683000000000");
+#endif
 }
 
 /*
@@ -1413,6 +1423,12 @@ TEST_F(ParserInitialCTest, createTopic) {
                     "st1", 1);
   run("CREATE TOPIC IF NOT EXISTS tp1 WITH META AS STABLE st1 WHERE tag1 > 0");
   clearCreateTopicReq();
+
+  run("CREATE TOPIC tp1 AS SELECT ts, c1 FROM t1 HAVING c1 > 0",
+      TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
+  run("CREATE TOPIC tp1 AS SELECT ts, c1 FROM t1 "
+      "PARTITION BY c1 HAVING c1 > 0",
+      TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
 }
 
 /*

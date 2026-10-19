@@ -1,7 +1,19 @@
 #!/bin/bash
-# shellcheck disable=SC1091
-# This file is used to install analysis platform on linux systems. The operating system
-# is required to use systemd to manage services at boot
+
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 
@@ -14,14 +26,27 @@ echo -e "${script_dir}"
 custom_dir_set=0
 all_venv=0
 offline_mode=0
+python_home=""
+venv_package=""
+model_venv_package=""
+model_package=""
+install_mode="system-python"
 
 show_help() {
-  echo "Usage: $(basename $0) -d [install dir] -a -o"
+  echo "Usage: $(basename "$0") -d [install dir] -a -o [offline package options]"
   echo
   echo "Help:"
   echo "  -d [install dir]   Specify installation directory"
   echo "  -a                 Install all model virtual environments"
   echo "  -o                 Offline mode: skip reinstalling existing virtual environments"
+  echo "  --python-home <path>"
+  echo "                     Existing Python runtime directory prepared by Apex"
+  echo "  --venv-package <path>"
+  echo "                     TDgpt main virtual environment package"
+  echo "  --model-venv-package <path>"
+  echo "                     TDgpt model virtual environments package"
+  echo "  --model-package <path>"
+  echo "                     TDgpt model resource package"
   echo
   echo "Environment variables for pip mirror (optional):"
   echo "  PIP_INDEX_URL  Set pip index mirror, e.g. https://pypi.tuna.tsinghua.edu.cn/simple"
@@ -30,23 +55,69 @@ show_help() {
   echo "  PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple bash $0"
 }
 
-while getopts "hd:ao" arg; do
-  case $arg in
-    d)
-      customDir="$OPTARG"
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -d)
+      customDir="${2:-}"
+      [ -n "$customDir" ] || { echo "Missing value for -d"; exit 1; }
       custom_dir_set=1
+      shift 2
       ;;
-    a)
+    -a)
       all_venv=1
+      shift
       ;;
-    o)
+    -o)
       offline_mode=1
+      shift
       ;;
-    h)
+    --python-home)
+      python_home="${2:-}"
+      [ -n "$python_home" ] || { echo "Missing value for --python-home"; exit 1; }
+      shift 2
+      ;;
+    --python-home=*)
+      python_home="${1#*=}"
+      shift
+      ;;
+    --venv-package|--offline-package)
+      venv_package="${2:-}"
+      [ -n "$venv_package" ] || { echo "Missing value for $1"; exit 1; }
+      offline_mode=1
+      shift 2
+      ;;
+    --venv-package=*|--offline-package=*)
+      venv_package="${1#*=}"
+      offline_mode=1
+      shift
+      ;;
+    --model-venv-package)
+      model_venv_package="${2:-}"
+      [ -n "$model_venv_package" ] || { echo "Missing value for --model-venv-package"; exit 1; }
+      offline_mode=1
+      shift 2
+      ;;
+    --model-venv-package=*)
+      model_venv_package="${1#*=}"
+      offline_mode=1
+      shift
+      ;;
+    --model-package)
+      model_package="${2:-}"
+      [ -n "$model_package" ] || { echo "Missing value for --model-package"; exit 1; }
+      offline_mode=1
+      shift 2
+      ;;
+    --model-package=*)
+      model_package="${1#*=}"
+      offline_mode=1
+      shift
+      ;;
+    -h|--help)
       show_help
       exit 0
       ;;
-    ?)
+    *)
       echo "Usage: $0 [-d install_dir] [-a] [-o]"
       exit 1
       ;;
@@ -60,7 +131,6 @@ serverName="${PRODUCTPREFIX}d"
 configFile="taosanode.config.py"
 productName="TDengine TSDB TDgpt"
 emailName="taosdata.com"
-tarName="package.tar.gz"
 global_conf_dir="/etc/${PREFIX}"
 tar_td_model_name="tdtsfm.tar.gz"
 tar_xhs_model_name="timemoe.tar.gz"
@@ -69,6 +139,8 @@ python_minor_ver=0  #check the python version
 bin_link_dir="/usr/bin"
 # if install python venv
 install_venv="${INSTALL_VENV:-True}"
+lite_mode=0
+[ -f "${script_dir}/.tdgpt-lite" ] && lite_mode=1
 
 # default env:transformers 4.40.0
 if [ $custom_dir_set -eq 1 ]; then
@@ -88,6 +160,7 @@ else
   resourceDir="${dataDir}/resource"
   venvDir="${dataDir}/venv"
 fi
+modelVenvsDir="${dataDir}/model_venvs"
 
 # get pip mirror and index url from env
 PIP_INDEX_URL="${PIP_INDEX_URL:-}"
@@ -123,6 +196,9 @@ function run_venv_pip() {
 
 #install main path
 install_main_dir=${installDir}
+install_state_file="${install_main_dir}/cfg/install-state.json"
+install_state_dir="${install_main_dir}/cfg"
+python_runtime_dir="${python_home:-${PYTHON_RUNTIME_DIR:-}}"
 service_config_dir="/etc/systemd/system"
 
 # Color setting
@@ -273,6 +349,15 @@ function install_bin_and_lib() {
     [ -L "${bin_link_dir}/${link}" ] && ${csudo}rm -rf "${bin_link_dir}/${link}" || :
     ${csudo}ln -s "${target}" "${bin_link_dir}/${link}"
   done
+
+  ${csudo}rm -f "${bin_link_dir}/taosanodectl"
+  launcher_file="$(mktemp)"
+  cat > "${launcher_file}" <<EOF
+#!/bin/sh
+exec "${dataDir}/venv/bin/python3" "${install_main_dir}/bin/taosanodectl.py" "\$@"
+EOF
+  ${csudo}install -m 0755 "${launcher_file}" "${bin_link_dir}/taosanodectl"
+  rm -f "${launcher_file}"
 }
 
 function install_anode_config() {
@@ -343,10 +428,21 @@ function install_log() {
   fi
 }
 
-function install_model() {
-  ${csudo}mkdir -p ${modelDir} && ${csudo}chmod 777 ${modelDir}
-  if [ ${custom_dir_set} -eq 0 ];then 
+function install_model_dirs() {
+  ${csudo}mkdir -p "${modelDir}" "${modelVenvsDir}"
+  ${csudo}chmod 0755 "${modelDir}" "${modelVenvsDir}"
+  if [ ${custom_dir_set} -eq 0 ];then
     ${csudo}ln -sf ${modelDir} "${install_main_dir}/model"
+  fi
+}
+
+function install_model() {
+  if [ -n "$model_package" ]; then
+    echo -e "Import TDgpt model resource package: ${model_package}"
+    extract_offline_package_to_dir "$model_package" "$modelDir" "TDgpt model resource package"
+    echo -e "TDgpt model resource package imported to ${modelDir}"
+    ${csudo}chmod -R o-w "${modelDir}"
+    return 0
   fi
 
   # Default models: extract them into modelDir
@@ -360,6 +456,7 @@ function install_model() {
       [ -f "$model_tar" ] && tar -zxf "$model_tar" -C "${modelDir}" || :
     done
   fi
+  ${csudo}chmod -R o-w "${modelDir}"
 }
 
 function install_img() {
@@ -377,21 +474,505 @@ function install_resource() {
   ${csudo}cp ${script_dir}/resource/*.sql ${resourceDir}/
 }
 
+function require_existing_path() {
+  local path="$1"
+  local desc="$2"
+  if [ -z "$path" ]; then
+    echo -e "\033[31m${desc} path is empty.\033[0m"
+    exit 1
+  fi
+  if [ ! -e "$path" ]; then
+    echo -e "\033[31m${desc} not found: ${path}\033[0m"
+    exit 1
+  fi
+}
+
+function validate_offline_packages() {
+  [ -n "$python_home" ] && require_existing_path "$python_home" "Python home"
+  [ -n "$venv_package" ] && require_existing_path "$venv_package" "TDgpt venv package"
+  [ -n "$model_venv_package" ] && require_existing_path "$model_venv_package" "TDgpt model venv package"
+  [ -n "$model_package" ] && require_existing_path "$model_package" "TDgpt model resource package"
+  return 0
+}
+
+function has_offline_resource_args() {
+  [ -n "$python_home" ] || [ -n "$venv_package" ] || [ -n "$model_venv_package" ] || [ -n "$model_package" ]
+}
+
+function detect_requested_install_mode() {
+  if has_offline_resource_args; then
+    install_mode="offline-resource"
+  else
+    install_mode="system-python"
+  fi
+}
+
+function read_existing_install_mode() {
+  if [ ! -f "$install_state_file" ]; then
+    return 1
+  fi
+  awk -F'"' '/"install_mode"[[:space:]]*:/ {print $4; exit}' "$install_state_file"
+}
+
+function guard_install_mode_transition() {
+  local existing_mode
+  existing_mode="$(read_existing_install_mode || true)"
+  if [ "$existing_mode" = "offline-resource" ] && [ "$install_mode" = "system-python" ]; then
+    echo -e "\033[31mCurrent TDgpt installation uses offline resource mode.\033[0m"
+    echo -e "\033[31mPlease rerun install.sh with offline resource parameters instead of falling back to system Python mode.\033[0m"
+    exit 1
+  fi
+}
+
+function write_install_state() {
+  ${csudo}mkdir -p "$install_state_dir"
+  local tmp_file
+  tmp_file=$(mktemp)
+  cat > "$tmp_file" <<EOF
+{
+  "install_mode": "${install_mode}",
+  "python_home": "${python_home}",
+  "venv_package": "${venv_package}",
+  "model_venv_package": "${model_venv_package}",
+  "model_package": "${model_package}"
+}
+EOF
+  ${csudo}cp "$tmp_file" "$install_state_file"
+  ${csudo}chmod 644 "$install_state_file"
+  rm -f "$tmp_file"
+}
+
+function create_target_stage_dir() {
+  local target_dir="$1"
+  local target_parent
+  local target_name
+
+  target_parent=$(dirname "$target_dir")
+  target_name=$(basename "$target_dir")
+  ${csudo}mkdir -p "$target_parent"
+  ${csudo}mktemp -d "${target_parent}/.${target_name}.apex-extract.XXXXXX"
+}
+
+function cleanup_target_stage_dirs() {
+  local target_dir="$1"
+  local target_parent
+  local target_name
+
+  target_parent=$(dirname "$target_dir")
+  target_name=$(basename "$target_dir")
+  ${csudo}mkdir -p "$target_parent"
+  ${csudo}find "$target_parent" -mindepth 1 -maxdepth 1 -type d \
+    -name ".${target_name}.apex-extract.*" -exec rm -rf {} +
+}
+
+function package_fingerprint() {
+  local package_path="$1"
+  local package_size
+  local package_mtime
+
+  package_size=$(stat -c '%s' "$package_path")
+  package_mtime=$(stat -c '%Y' "$package_path")
+  printf '%s|%s|%s\n' "$(basename "$package_path")" "$package_size" "$package_mtime"
+}
+
+function has_matching_venv_package_marker() {
+  local package_path="$1"
+  local target_dir="$2"
+  local marker_file="${target_dir}/.tdgpt-install-complete"
+  local runtime_python
+  local runtime_bin
+
+  [ -f "$marker_file" ] || return 1
+  [ -f "${target_dir}/pyvenv.cfg" ] || return 1
+  [ -x "${target_dir}/bin/python3" ] || return 1
+  [ "$(cat "$marker_file")" = "$(package_fingerprint "$package_path")" ] || return 1
+
+  runtime_python=$(resolve_repair_python_bin) || return 1
+  runtime_bin=$(dirname "$runtime_python")
+  [ "$(readlink -f "${target_dir}/bin/python3")" = "$(readlink -f "$runtime_python")" ] || return 1
+  grep -Fqx "home = ${runtime_bin}" "${target_dir}/pyvenv.cfg" || return 1
+  grep -Fqx "executable = ${runtime_python}" "${target_dir}/pyvenv.cfg" || return 1
+  grep -Fqx "command = ${runtime_python} -m venv ${target_dir}" "${target_dir}/pyvenv.cfg"
+}
+
+function validate_main_venv() {
+  local target_dir="$1"
+  local python_bin="${target_dir}/bin/python3"
+
+  [ -f "${target_dir}/pyvenv.cfg" ] || {
+    echo -e "\033[31mTDgpt venv package is missing pyvenv.cfg.\033[0m"
+    return 1
+  }
+  [ -x "$python_bin" ] || {
+    echo -e "\033[31mTDgpt venv package is missing an executable bin/python3.\033[0m"
+    return 1
+  }
+  "$python_bin" -c 'import flask, gunicorn, numpy, pandas, scipy, sklearn' || {
+    echo -e "\033[31mTDgpt venv package dependency validation failed.\033[0m"
+    return 1
+  }
+}
+
+function import_main_venv_package() {
+  local package_path="$1"
+  local target_dir="$2"
+  local desc="$3"
+  local tmp_dir
+  local stage_dir
+  local copy_root
+  local entry_count
+  local only_entry
+
+  require_existing_path "$package_path" "$desc"
+  cleanup_target_stage_dirs "$target_dir"
+
+  if has_matching_venv_package_marker "$package_path" "$target_dir" && \
+      validate_main_venv "$target_dir"; then
+    echo -e "Reuse imported TDgpt virtual environment; package marker matches $(basename "$package_path")."
+    return 0
+  fi
+
+  tmp_dir=$(create_target_stage_dir "$target_dir")
+  stage_dir="${tmp_dir}/payload"
+  ${csudo}mkdir -p "$stage_dir"
+
+  if [ -d "$package_path" ]; then
+    ${csudo}cp -a "${package_path}/." "$stage_dir/"
+  else
+    extract_archive_to_stage "$package_path" "$stage_dir" "$desc" "$tmp_dir"
+  fi
+
+  copy_root="$stage_dir"
+  entry_count=$(${csudo}find "$stage_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
+  if [ "$entry_count" = "1" ]; then
+    only_entry=$(${csudo}find "$stage_dir" -mindepth 1 -maxdepth 1 -print -quit)
+    [ -d "$only_entry" ] && copy_root="$only_entry"
+  fi
+
+  if ! repair_venv_runtime_refs "$copy_root" "" "$target_dir" || ! validate_main_venv "$copy_root"; then
+    ${csudo}rm -rf "$tmp_dir"
+    echo -e "\033[31m${desc} validation failed; the existing virtual environment was not changed.\033[0m"
+    return 1
+  fi
+
+  package_fingerprint "$package_path" | ${csudo}tee "${copy_root}/.tdgpt-install-complete" >/dev/null
+  if ! replace_dir_from_stage "$copy_root" "$target_dir"; then
+    ${csudo}rm -rf "$tmp_dir"
+    return 1
+  fi
+  ${csudo}rm -rf "$tmp_dir"
+}
+
+function replace_dir_from_stage() {
+  local source_dir="$1"
+  local target_dir="$2"
+  local target_parent
+  local target_name
+  local backup_target
+
+  target_parent=$(dirname "$target_dir")
+  target_name=$(basename "$target_dir")
+  backup_target="${target_parent}/.${target_name}.apex-install-old"
+
+  ${csudo}mkdir -p "$target_parent"
+
+  # Recover the previous version if an earlier replacement stopped after the
+  # old directory was renamed but before the staged directory was activated.
+  if { [ ! -e "$target_dir" ] && [ ! -L "$target_dir" ]; } && { [ -e "$backup_target" ] || [ -L "$backup_target" ]; }; then
+    ${csudo}mv "$backup_target" "$target_dir"
+  elif [ -e "$backup_target" ] || [ -L "$backup_target" ]; then
+    ${csudo}rm -rf "$backup_target"
+  fi
+
+  if [ -e "$target_dir" ] || [ -L "$target_dir" ]; then
+    ${csudo}mv "$target_dir" "$backup_target"
+  fi
+
+  if ! ${csudo}mv "$source_dir" "$target_dir"; then
+    if { [ -e "$backup_target" ] || [ -L "$backup_target" ]; } && { [ ! -e "$target_dir" ] && [ ! -L "$target_dir" ]; }; then
+      ${csudo}mv "$backup_target" "$target_dir" || true
+    fi
+    echo -e "\033[31mFailed to activate staged directory for ${target_dir}.\033[0m"
+    return 1
+  fi
+
+  ${csudo}rm -rf "$backup_target"
+}
+
+function extract_offline_package_to_dir() {
+  local package_path="$1"
+  local target_dir="$2"
+  local desc="$3"
+  local tmp_dir
+  local stage_dir
+  local copy_root
+  local entry_count
+  local only_entry
+
+  require_existing_path "$package_path" "$desc"
+
+  tmp_dir=$(create_target_stage_dir "$target_dir")
+  stage_dir="${tmp_dir}/payload"
+  ${csudo}mkdir -p "$stage_dir"
+
+  if [ -d "$package_path" ]; then
+    ${csudo}cp -a "${package_path}/." "$stage_dir/"
+  else
+    extract_archive_to_stage "$package_path" "$stage_dir" "$desc" "$tmp_dir"
+  fi
+
+  copy_root="$stage_dir"
+  entry_count=$(${csudo}find "$stage_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
+  if [ "$entry_count" = "1" ]; then
+    only_entry=$(${csudo}find "$stage_dir" -mindepth 1 -maxdepth 1 -print -quit)
+    if [ -d "$only_entry" ]; then
+      copy_root="$only_entry"
+    fi
+  fi
+
+  if [ -z "$(${csudo}find "$copy_root" -mindepth 1 -print -quit)" ]; then
+    ${csudo}rm -rf "$tmp_dir"
+    echo -e "\033[31m${desc} package is empty after extraction: ${package_path}\033[0m"
+    exit 1
+  fi
+
+  if ! replace_dir_from_stage "$copy_root" "$target_dir"; then
+    ${csudo}rm -rf "$tmp_dir"
+    exit 1
+  fi
+  ${csudo}rm -rf "$tmp_dir"
+}
+
+function extract_offline_package_children_to_dir() {
+  local package_path="$1"
+  local target_dir="$2"
+  local desc="$3"
+  local tmp_dir
+  local stage_dir
+  local copy_root
+  local entry_count
+  local only_entry
+  local entry
+
+  require_existing_path "$package_path" "$desc"
+
+  tmp_dir=$(create_target_stage_dir "$target_dir")
+  stage_dir="${tmp_dir}/payload"
+  ${csudo}mkdir -p "$stage_dir"
+
+  if [ -d "$package_path" ]; then
+    ${csudo}cp -a "${package_path}/." "$stage_dir/"
+  else
+    extract_archive_to_stage "$package_path" "$stage_dir" "$desc" "$tmp_dir"
+  fi
+
+  copy_root="$stage_dir"
+  entry_count=$(${csudo}find "$stage_dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
+  if [ "$entry_count" = "1" ]; then
+    only_entry=$(${csudo}find "$stage_dir" -mindepth 1 -maxdepth 1 -print -quit)
+    if [ -d "$only_entry" ]; then
+      copy_root="$only_entry"
+    fi
+  fi
+
+  if [ -z "$(${csudo}find "$copy_root" -mindepth 1 -print -quit)" ]; then
+    ${csudo}rm -rf "$tmp_dir"
+    echo -e "\033[31m${desc} package is empty after extraction: ${package_path}\033[0m"
+    exit 1
+  fi
+
+  ${csudo}mkdir -p "$target_dir"
+  while IFS= read -r entry; do
+    if ! replace_dir_from_stage "$entry" "${target_dir}/$(basename "$entry")"; then
+      ${csudo}rm -rf "$tmp_dir"
+      exit 1
+    fi
+  done < <(${csudo}find "$copy_root" -mindepth 1 -maxdepth 1)
+
+  ${csudo}rm -rf "$tmp_dir"
+}
+
+function extract_archive_to_stage() {
+  local package_path="$1"
+  local stage_dir="$2"
+  local desc="$3"
+  local tmp_dir="$4"
+  local uncompressed_path
+
+  case "$package_path" in
+    *.tar.gz|*.tgz) ${csudo}tar -xzf "$package_path" -C "$stage_dir" ;;
+    *.tar.xz|*.txz) ${csudo}tar -xJf "$package_path" -C "$stage_dir" ;;
+    *.tar.zst|*.tzst)
+      if tar --help 2>/dev/null | grep -q -- '--zstd'; then
+        ${csudo}tar --zstd -xf "$package_path" -C "$stage_dir"
+      elif command -v zstd >/dev/null 2>&1; then
+        zstd -dc "$package_path" | ${csudo}tar -xf - -C "$stage_dir"
+      elif command -v unzstd >/dev/null 2>&1; then
+        unzstd -c "$package_path" | ${csudo}tar -xf - -C "$stage_dir"
+      else
+        ${csudo}rm -rf "$tmp_dir"
+        echo -e "\033[31m${desc} requires zstd support, but tar --zstd/zstd/unzstd was not found: ${package_path}\033[0m"
+        exit 1
+      fi
+      ;;
+    *.tar) ${csudo}tar -xf "$package_path" -C "$stage_dir" ;;
+    *.zip) ${csudo}unzip -q "$package_path" -d "$stage_dir" ;;
+    *.zip.zst)
+      uncompressed_path="${tmp_dir}/$(basename "${package_path%.zst}")"
+      if command -v zstd >/dev/null 2>&1; then
+        ${csudo}zstd -d -q -f -o "$uncompressed_path" "$package_path"
+      elif command -v unzstd >/dev/null 2>&1; then
+        ${csudo}unzstd -f -o "$uncompressed_path" "$package_path"
+      else
+        ${csudo}rm -rf "$tmp_dir"
+        echo -e "\033[31m${desc} requires zstd support, but zstd/unzstd was not found: ${package_path}\033[0m"
+        exit 1
+      fi
+      ${csudo}unzip -q "$uncompressed_path" -d "$stage_dir"
+      ;;
+    *)
+      ${csudo}rm -rf "$tmp_dir"
+      echo -e "\033[31mUnsupported ${desc} package format: ${package_path}\033[0m"
+      exit 1
+      ;;
+  esac
+}
+
+function resolve_python_bin() {
+  local candidate
+  if [ -n "$python_home" ]; then
+    for candidate in "${python_home}/bin/python3.${python_minor_ver}" "${python_home}/bin/python3" "${python_home}/bin/python"; do
+      if [ -x "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
+  fi
+  for candidate in \
+    "$(command -v python3.${python_minor_ver} 2>/dev/null || true)" \
+    "$(command -v python3 2>/dev/null || true)" \
+    "$(command -v python 2>/dev/null || true)"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+function resolve_repair_python_bin() {
+  local candidate
+  if [ -n "$python_runtime_dir" ]; then
+    for candidate in "${python_runtime_dir}/bin/python3.${python_minor_ver}" "${python_runtime_dir}/bin/python3" "${python_runtime_dir}/bin/python"; do
+      if [ -x "$candidate" ]; then
+        printf '%s\n' "$candidate"
+        return 0
+      fi
+    done
+  fi
+  resolve_python_bin
+}
+
+function repair_venv_runtime_refs() {
+  local venv_path="$1"
+  local runtime_python="${2:-}"
+  local installed_venv_path="${3:-$venv_path}"
+  local cfg_file="${venv_path}/pyvenv.cfg"
+  local python3_link="${venv_path}/bin/python3"
+  local runtime_bin
+
+  if [ ! -f "${cfg_file}" ]; then
+    echo "Warning: missing pyvenv.cfg for ${venv_path}"
+    return 1
+  fi
+
+  if [ -z "$runtime_python" ]; then
+    runtime_python=$(resolve_repair_python_bin) || {
+      echo "Warning: python runtime not found for ${venv_path}"
+      return 1
+    }
+  fi
+
+  if [ ! -x "${runtime_python}" ]; then
+    echo "Warning: runtime python not found: ${runtime_python}"
+    return 1
+  fi
+  runtime_bin=$(dirname "${runtime_python}")
+
+  sed -i -E \
+    -e "s|^home = .*|home = ${runtime_bin}|" \
+    -e "s|^executable = .*|executable = ${runtime_python}|" \
+    -e "s|^command = .*|command = ${runtime_python} -m venv ${installed_venv_path}|" \
+    "${cfg_file}"
+
+  if [ -e "${python3_link}" ] || [ -L "${python3_link}" ]; then
+    ${csudo}rm -f "${python3_link}"
+  fi
+  ${csudo}ln -s "${runtime_python}" "${python3_link}"
+}
+
+function repair_existing_model_venvs() {
+  local venv_path
+  local repaired=0
+  for venv_path in "${timesfm_venv_dir}" "${moirai_venv_dir}" "${chronos_venv_dir}" "${momentfm_venv_dir}"; do
+    if [ -d "${venv_path}" ]; then
+      repair_venv_runtime_refs "${venv_path}"
+      repaired=1
+    fi
+  done
+  if [ $repaired -eq 0 ]; then
+    echo -e "\033[31mTDgpt model venv package did not create any recognized model virtual environments.\033[0m"
+    exit 1
+  fi
+}
+
+function configure_service_python_runtime() {
+  local service_script="${installDir}/bin/taosanode_service.py"
+  local runtime_python
+
+  # Keep direct execution aligned with an explicitly supplied Python runtime.
+  [ -n "${python_runtime_dir}" ] || return 0
+  runtime_python=$(resolve_repair_python_bin) || {
+    echo -e "\033[31mPython runtime not found for service entry point.\033[0m"
+    exit 1
+  }
+  [ -f "${service_script}" ] || {
+    echo -e "\033[31mService entry point not found: ${service_script}\033[0m"
+    exit 1
+  }
+
+  ${csudo}sed -i -E "1c\\#!${runtime_python}" "${service_script}"
+}
+
 function install_anode_venv() {
-  ${csudo}mkdir -p ${venvDir} && ${csudo}chmod 777 ${venvDir}
-  if [ ${custom_dir_set} -eq 0 ];then 
-    ${csudo}ln -sf ${venvDir} ${install_main_dir}/venv
+  ${csudo}mkdir -p "$(dirname "${venvDir}")" && ${csudo}chmod 777 "$(dirname "${venvDir}")"
+  if [ ${custom_dir_set} -eq 0 ]; then
+    ${csudo}ln -sfn "${venvDir}" "${install_main_dir}/venv"
+  fi
+  if [ -n "$venv_package" ]; then
+    echo -e "Import TDgpt virtual environment package: ${venv_package}"
+    import_main_venv_package "$venv_package" "$venvDir" "TDgpt venv package"
+    echo -e "TDgpt virtual environment package imported to ${venvDir}"
+    return 0
   fi
   if [ ${install_venv} == "True" ]; then
     # build venv
-    "python3.${python_minor_ver}" -m venv ${venvDir}
+    python_cmd=$(resolve_python_bin) || {
+      echo -e "\033[31mPython runtime not found for main venv creation.\033[0m"
+      exit 1
+    }
+    "${python_cmd}" -m venv "${venvDir}"
 
     echo -e "active Python3 virtual env: ${venvDir}"
-    source ${venvDir}/bin/activate
-    # Install default virtualenv dependencies; requirements_ess.txt pins transformers==4.40.0
+    source "${venvDir}/bin/activate"
+    requirements_file="requirements_ess.txt"
+    if [ "${lite_mode}" == "1" ]; then
+      requirements_file="requirements_docker.txt"
+    fi
     echo -e "install the required packages by pip3, this may take a while depending on the network condition"
-    req_file=$(resolve_requirement_file requirements_ess.txt) || return 1
+    req_file=$(resolve_requirement_file "${requirements_file}") || return 1
     run_venv_pip install -r "${req_file}" "${pip_extra_args[@]}"
+    repair_venv_runtime_refs "${venvDir}"
 
     echo -e "Install python library for venv completed!"
   else
@@ -400,6 +981,14 @@ function install_anode_venv() {
 }
 
 function install_extra_venvs() {
+  ${csudo}mkdir -p "${dataDir}" && ${csudo}chmod 777 "${dataDir}"
+  if [ -n "$model_venv_package" ]; then
+    echo -e "Import TDgpt model virtual environment package: ${model_venv_package}"
+    extract_offline_package_children_to_dir "$model_venv_package" "$dataDir" "TDgpt model venv package"
+    repair_existing_model_venvs
+    echo -e "TDgpt model virtual environment package imported to ${dataDir}"
+    return 0
+  fi
   if [ ! -f "${venvDir}/bin/pip3" ]; then
     echo -e "${RED}Error: Virtual environment not found at ${venvDir}. Cannot proceed with TSFM dependencies installation.${NC}"
     return 1
@@ -520,24 +1109,37 @@ function install_service() {
 }
 
 function installProduct() {
-  # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
+  # The outer product archive contains the application files directly.
+  if [ ! -d "lib/taosanalytics" ]; then
+    echo "Directory lib/taosanalytics does not exist"
     exit 1
   fi
 
-  tar -zxf ${tarName}
- 
   echo "Start to install ${productName}..."
+  validate_offline_packages
 
   install_main_path
   install_log
   install_anode_config
-  install_model
+  install_model_dirs
+  if [ "${lite_mode}" != "1" ]; then
+    install_model
+  fi
   install_img
   install_resource
   
   install_bin_and_lib
+
+  echo
+  echo -e "\033[44;32;1mStart to create virtual python env in ${venvDir}${NC}"
+  install_anode_venv
+  configure_service_python_runtime
+
+  if [ ${all_venv} -eq 1 ] || [ -n "$model_venv_package" ]; then
+    echo -e "\033[44;32;1mStart to create extra venvs for chronos-forecasting and momentfm${NC}"
+    install_extra_venvs
+  fi
+
   kill_model_service
 
   if ! is_container; then
@@ -546,19 +1148,26 @@ function installProduct() {
 
   echo
   echo -e "\033[44;32;1m${productName} is installed successfully!${NC}"
-
-  echo
-  echo -e "\033[44;32;1mStart to create virtual python env in ${venvDir}${NC}"
-  install_anode_venv
-
-  if [ ${all_venv} -eq 1 ]; then
-    echo -e "\033[44;32;1mStart to install optional TSFM dependencies into unified venv${NC}"
-    install_extra_venvs
-  fi
+  write_install_state
 }
 
 # check for python version, only the 3.10/3.11/3.12 is supported
 check_python3_env() {
+  if [ -n "$python_home" ]; then
+    python_cmd=$(resolve_python_bin) || {
+      echo -e "\033[31mWarning: Python home does not contain a usable python binary: ${python_home}\033[0m"
+      exit 1
+    }
+    python3_version=$("$python_cmd" --version 2>&1 | awk -F' ' '{print $2}')
+    python_minor_ver=$(echo "$python3_version" | cut -d"." -f2)
+    if [[ $(echo "$python3_version" | cut -d"." -f1) -eq 3 && $python_minor_ver =~ ^(10|11|12)$ ]]; then
+      echo -e "\033[32mPython ${python3_version} has been found in ${python_home}.\033[0m"
+      return 0
+    fi
+    echo -e "\033[31mWarning: Python home must provide Python 3.10/3.11/3.12, found ${python3_version}.\033[0m"
+    exit 1
+  fi
+
   if ! command -v python3 &> /dev/null
   then
       echo -e "\033[31mWarning: Python3 command not found. Version 3.10/3.11 is required.\033[0m"
@@ -634,8 +1243,14 @@ check_python3_env() {
 
 ## ==============================Main program starts from here============================
 serverFqdn=$(hostname)
+detect_requested_install_mode
+guard_install_mode_transition
 
 if [ "$verType" == "server" ]; then
+    if [ -n "$venv_package" ] && { [ -n "$model_venv_package" ] || [ ${all_venv} -eq 0 ]; }; then
+      echo -e "\033[32mOffline venv package provided, skip system Python/pip environment check.\033[0m"
+    else
     check_python3_env
+    fi
     installProduct
 fi

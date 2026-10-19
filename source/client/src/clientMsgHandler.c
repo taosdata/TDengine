@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -131,7 +133,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    // For DROP STB: save suid→fullName before removeMeta clears the cache
+    // For DROP STB: save suid -> fullName before removeMeta clears the cache
     if (code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
@@ -280,6 +282,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     pTscObj->tokenName[0] = 0;
   }
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
+  // Expose the connected server's version to shared code (the parser gates features an older
+  // server would silently drop, e.g. virtual child table owned columns/tags).
+  {
+    int32_t serverVerInt = 0;
+    if (taosVersionStrToInt(connectRsp.sVer, &serverVerInt) == 0) {
+      atomic_store_32(&tsServerVerInt, serverVerInt);
+    }
+  }
   tstrncpy(pTscObj->sDetailVer, connectRsp.sDetailVer, tListLen(pTscObj->sDetailVer));
 
   // update the appInstInfo
@@ -438,10 +448,8 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     SUseDbRsp usedbRsp = {0};
     if (tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp) != 0) {
       tscError("QID:0x%" PRIx64 ", deserialize SUseDbRsp failed", pRequest->requestId);
-    }
-    struct SCatalog* pCatalog = NULL;
-
-    if (usedbRsp.vgVersion >= 0) {  // cached in local
+    } else if (usedbRsp.vgVersion >= 0) {  // cached in local
+      struct SCatalog* pCatalog = NULL;
       int64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
       int32_t code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
@@ -475,19 +483,16 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   SUseDbRsp usedbRsp = {0};
-  if (tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp) != 0) {
-    tscError("QID:0x%" PRIx64 ", deserialize SUseDbRsp failed", pRequest->requestId);
+  code = tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+  if (code == TSDB_CODE_SUCCESS && strlen(usedbRsp.db) == 0) {
+    code = usedbRsp.errCode != 0 ? usedbRsp.errCode : TSDB_CODE_APP_ERROR;
   }
 
-  if (strlen(usedbRsp.db) == 0) {
-    taosMemoryFree(pMsg->pData);
-    taosMemoryFree(pMsg->pEpSet);
-
-    if (usedbRsp.errCode != 0) {
-      return usedbRsp.errCode;
-    } else {
-      return TSDB_CODE_APP_ERROR;
-    }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("QID:0x%" PRIx64 ", invalid SUseDbRsp, db:%s, failed since %s", pRequest->requestId, usedbRsp.db,
+             tstrerror(code));
+    setErrno(pRequest, code);
+    goto End;
   }
 
   tscTrace("db:%s, usedbRsp received, numOfVgroups:%d", usedbRsp.db, usedbRsp.vgNum);
@@ -510,10 +515,12 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SUseDbOutput output = {0};
   code = queryBuildUseDbOutput(&output, &usedbRsp);
   if (code != 0) {
-    terrno = code;
     if (output.dbVgroup) taosHashCleanup(output.dbVgroup->vgHash);
 
-    tscError("QID:0x%" PRIx64 ", failed to build use db output since %s", pRequest->requestId, terrstr());
+    tscError("QID:0x%" PRIx64 ", failed to build use db output since %s", pRequest->requestId, tstrerror(code));
+    taosMemoryFreeClear(output.dbVgroup);
+    setErrno(pRequest, code);
+    goto End;
   } else if (output.dbVgroup && output.dbVgroup->vgHash) {
     struct SCatalog* pCatalog = NULL;
 
@@ -531,7 +538,6 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFreeClear(output.dbVgroup);
-  tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   if (tNameGetDbName(&name, db) != TSDB_CODE_SUCCESS) {
@@ -540,6 +546,8 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   setConnectionDB(pRequest->pTscObj, db);
 
+End:
+  tFreeSUsedbRsp(&usedbRsp);
   taosMemoryFree(pMsg->pData);
   taosMemoryFree(pMsg->pEpSet);
 
@@ -550,7 +558,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
       tscError("failed to post semaphore");
     }
   }
-  return 0;
+  return code;
 }
 
 int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
@@ -801,6 +809,10 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
   infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD5_LEN;
   TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
 
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_VARIABLES_RESULT_FIELD6_LEN;
+  TSDB_CHECK_NULL(taosArrayPush(pBlock->pDataBlock, &infoData), code, line, END, terrno);
+
   int32_t numOfCfg = taosArrayGetSize(pVars);
   code = blockDataEnsureCapacity(pBlock, numOfCfg);
   TSDB_CHECK_CODE(code, line, END);
@@ -842,6 +854,13 @@ static int32_t buildShowVariablesBlock(SArray* pVars, SSDataBlock** block) {
     pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
     TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
     code = colDataSetVal(pColInfo, i, info, false);
+    TSDB_CHECK_CODE(code, line, END);
+
+    char reboot[TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(reboot, pInfo->reboot, TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    TSDB_CHECK_NULL(pColInfo, code, line, END, terrno);
+    code = colDataSetVal(pColInfo, i, reboot, false);
     TSDB_CHECK_CODE(code, line, END);
   }
 
@@ -1675,9 +1694,27 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 // Reset all txn-local state on COMMIT or ROLLBACK.
-// No need to evict global catalog entries: schema version changes on COMMIT cause
-// catalogChkTbMetaVersion to detect version mismatches and re-fetch automatically.
+//
+// The per-connection pTxnTableMeta shadows the global catalog for the duration of the txn
+// (handleQueryExecRsp / processAlterStbRsp deliberately skip catalogUpdateTableMeta while txnId > 0,
+// so a concurrent connection never observes uncommitted schema). Freeing it here therefore un-shadows
+// whatever the global catalog still holds - which, for every table the txn altered, is the schema as
+// of BEGIN. Relying on catalogChkTbMetaVersion to notice is not enough: that only runs on a query
+// execution response, while a DDL statement resolves its target schema from the cache during
+// translate. The next statement after COMMIT would then be translated against the pre-txn schema.
+//
+// For some alters the resulting error code happens to sit in NEED_CLIENT_RM_TBLMETA_ERROR, so the
+// client silently evicts and retries and the staleness is invisible; for others it does not
+// (RENAME TAG yields TSDB_CODE_PAR_INVALID_TAG_NAME) and the statement fails outright. Rather than
+// widen that error-code whitelist - which would make every genuine typo pay a forced full refresh,
+// and still miss codes like PAR_DUPLICATED_COLUMN - evict exactly the tables this txn touched, at
+// the one point where the set is known precisely.
 void tscResetTxnState(STscObj* pTscObj) {
+  // Table names are collected under the mutex but evicted after releasing it: ctgRemoveTbMetaFromCache
+  // enqueues a synchronous request and blocks on the catalog worker, which must not happen while
+  // holding the connection mutex.
+  SArray* pStaleTables = NULL;
+
   (void)taosThreadMutexLock(&pTscObj->mutex);
   atomic_store_8(&pTscObj->txnState, 0);
   pTscObj->txnId = 0;
@@ -1686,8 +1723,30 @@ void tscResetTxnState(STscObj* pTscObj) {
   pTscObj->pTxnVgSet = NULL;
 
   if (pTscObj->pTxnTableMeta) {
+    // Best-effort: a failed alloc only costs a stale cache entry, exactly the behaviour before this
+    // eviction existed, so it must not block the state reset below.
+    pStaleTables = taosArrayInit(taosHashGetSize(pTscObj->pTxnTableMeta), sizeof(SName));
     void* pIter = NULL;
     while ((pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter))) {
+      if (NULL != pStaleTables) {
+        size_t keyLen = 0;
+        char*  key = taosHashGetKey(pIter, &keyLen);
+        // The key is the "acct.db.table" full name used by tscTxnUpsertTableMeta. A DROP records a
+        // NULL sentinel under the same key and removeMeta already evicted it, but re-evicting a
+        // missing entry is a no-op, so the sentinel needs no special case here.
+        char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+        if (keyLen < TSDB_TABLE_FNAME_LEN) {
+          TAOS_MEMCPY(fullName, key, keyLen);
+          SName name = {0};
+          if (TSDB_CODE_SUCCESS ==
+              tNameFromString(&name, fullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE)) {
+            if (NULL == taosArrayPush(pStaleTables, &name)) {
+              taosArrayDestroy(pStaleTables);
+              pStaleTables = NULL;
+            }
+          }
+        }
+      }
       STableMeta** ppMeta = (STableMeta**)pIter;
       taosMemoryFreeClear(*ppMeta);
     }
@@ -1695,13 +1754,38 @@ void tscResetTxnState(STscObj* pTscObj) {
     pTscObj->pTxnTableMeta = NULL;
   }
 
-  // pTxnSuidMap values are char[] copied inline by the hash — no per-entry free needed.
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
   taosHashCleanup(pTscObj->pTxnSuidMap);
   pTscObj->pTxnSuidMap = NULL;
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
+  if (NULL != pStaleTables) {
+    SCatalog* pCatalog = NULL;
+    int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      int32_t tbNum = taosArrayGetSize(pStaleTables);
+      for (int32_t i = 0; i < tbNum; ++i) {
+        SName* pName = taosArrayGet(pStaleTables, i);
+        if (NULL == pName) {
+          continue;
+        }
+        // Best-effort per table: a failure leaves one stale entry that a later version check or
+        // NEED_CLIENT_HANDLE_ERROR retry still recovers from, so keep evicting the rest.
+        int32_t rmCode = catalogRemoveTableMeta(pCatalog, pName);
+        if (TSDB_CODE_SUCCESS != rmCode) {
+          tscWarn("conn:0x%" PRIx64 ", failed to evict txn-altered table meta %s.%s, code:%s", pTscObj->id,
+                  pName->dbname, pName->tname, tstrerror(rmCode));
+        }
+      }
+    } else {
+      tscWarn("conn:0x%" PRIx64 ", failed to get catalog handle to evict txn-altered table meta, code:%s", pTscObj->id,
+              tstrerror(code));
+    }
+    taosArrayDestroy(pStaleTables);
+  }
 }
 
-// Terminal codes: txn no longer active on MNode — safe to discard client-side state.
+// Terminal codes: txn no longer active on MNode  -  safe to discard client-side state.
 static bool tscIsTxnTerminalCode(int32_t code) {
   return code == 0 || code == TSDB_CODE_TXN_COMMITTED || code == TSDB_CODE_TXN_ROLLEDBACK ||
          code == TSDB_CODE_TXN_NOT_EXIST || code == TSDB_CODE_TXN_NOT_IN_PROGRESS;

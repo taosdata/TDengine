@@ -1,8 +1,35 @@
+# Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import os
 import platform
+import tempfile
 import time
 
 from new_test_framework.utils import tdLog, tdSql, etool
+
+
+def _write_bom_csv(src_path, bom):
+    """Copy src csv content to a temp file prefixed with a BOM header."""
+    fd, dst = tempfile.mkstemp(suffix=".csv")
+    with os.fdopen(fd, "wb") as fw, open(src_path, "rb") as fr:
+        fw.write(bom)
+        fw.write(fr.read())
+    if platform.system().lower() == "windows":
+        dst = dst.replace("\\", "/")
+    return dst
 
 
 class TestInsertFromCsv:
@@ -79,6 +106,7 @@ class TestInsertFromCsv:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -88,4 +116,62 @@ class TestInsertFromCsv:
         """
         self.do_ntb_import_csv()
         self.do_stb_import_csv()
+
+    # --- csv file starts with a BOM header ---
+    def do_ntb_import_csv_with_utf8_bom(self):
+        """A csv file starting with a UTF-8 BOM (EF BB BF) is imported normally."""
+        database = "test_insert_csv_bom_utf8_db"
+        table = "test_insert_csv_bom_utf8_tbl"
+        src_csv = etool.getFilePath(__file__, "data", "test_insert_from_csv.csv")
+        bom_csv = _write_bom_csv(src_csv, b"\xef\xbb\xbf")  # UTF-8 BOM
+        try:
+            tdSql.execute(f"drop database if exists {database}")
+            tdSql.execute(f"create database {database}")
+            tdSql.execute(f"use {database}")
+            tdSql.execute(f"create table {table} (ts timestamp, c1 nchar(16), c2 double, c3 int)")
+            tdSql.execute(f"insert into {table} file '{bom_csv}'")
+            tdSql.query(f"select count(*) from {table}")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            os.remove(bom_csv)
+        print("import csv with UTF-8 BOM .................... [passed]")
+
+    def do_ntb_import_csv_with_unsupported_bom(self):
+        """A csv file starting with a non-UTF-8 BOM (e.g. UTF-16) is rejected."""
+        database = "test_insert_csv_bom_err_db"
+        table = "test_insert_csv_bom_err_tbl"
+        src_csv = etool.getFilePath(__file__, "data", "test_insert_from_csv.csv")
+        bom_csv = _write_bom_csv(src_csv, b"\xff\xfe")  # UTF-16 LE BOM
+        try:
+            tdSql.execute(f"drop database if exists {database}")
+            tdSql.execute(f"create database {database}")
+            tdSql.execute(f"use {database}")
+            tdSql.execute(f"create table {table} (ts timestamp, c1 nchar(16), c2 double, c3 int)")
+            tdSql.error(f"insert into {table} file '{bom_csv}'",
+                        expectErrInfo="unsupported BOM", fullMatched=False)
+            # no data is imported after the failure
+            tdSql.query(f"select count(*) from {table}")
+            tdSql.checkData(0, 0, 0)
+        finally:
+            os.remove(bom_csv)
+        print("import csv with unsupported BOM ............. [passed]")
+
+    def test_write_import_csv_with_bom(self):
+        """Import from csv file with a BOM header
+
+        1. A csv file starting with a UTF-8 BOM is imported normally
+        2. A csv file starting with a non-UTF-8 BOM is rejected
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-9-7 Bomin Zhang Added csv BOM header tests
+
+        """
+        self.do_ntb_import_csv_with_utf8_bom()
+        self.do_ntb_import_csv_with_unsupported_bom()
 

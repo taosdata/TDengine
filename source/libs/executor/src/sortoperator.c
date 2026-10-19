@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -179,8 +181,22 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
       nodesClearList(pSortColsNodeArr);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      // PK ts col should always at last, see partColOptCreateSort
-      if (pSortNode->excludePkCol) taosArrayPop(pGroupIdCalc->pSortColsArr);
+      int32_t numOfSortKeys = taosArrayGetSize(pGroupIdCalc->pSortColsArr);
+      int32_t numOfGroupKeys = pSortNode->numOfGroupKeys;
+      if (numOfGroupKeys < 0 || numOfGroupKeys > numOfSortKeys) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _error;
+      }
+      if (numOfGroupKeys == 0) {
+        // Plans without an explicit prefix retain the single-PK exclusion.
+        numOfGroupKeys = numOfSortKeys - (pSortNode->excludePkCol ? 1 : 0);
+      }
+      // Only the original partition keys define group identity. Appended time
+      // keys still participate in pSortInfo, including both timestamp and PK.
+      while (numOfSortKeys > numOfGroupKeys) {
+        taosArrayPop(pGroupIdCalc->pSortColsArr);
+        --numOfSortKeys;
+      }
       code = extractKeysLen(pGroupIdCalc->pSortColsArr, &keyLen);
       QUERY_CHECK_CODE(code, lino, _error);
     }
@@ -287,6 +303,11 @@ static int32_t nextTupleWithGroupId(SSortHandle* pHandle, SSortOperatorInfo* pIn
     } else {
       newGroup = tsortCompAndBuildKeys(pInfo->pGroupIdCalc->pSortColsArr, pInfo->pGroupIdCalc->keyBuf,
                                        &pInfo->pGroupIdCalc->lastKeysLen, retTuple);
+      // A negative return is an error code from buildKeys (a key value wider than the
+      // key buffer's declared width); fail the query instead of continuing.
+      if (newGroup < 0) {
+        return newGroup;
+      }
     }
 
     bool emptyBlock = (pBlock->info.rows == 0);
@@ -413,7 +434,7 @@ static int32_t getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock,
 
 int32_t loadNextDataBlock(void* param, SSDataBlock** ppBlock) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  int32_t        code = pOperator->fpSet.getNextFn(pOperator, ppBlock);
+  int32_t        code = getNextBlockFromDownstreamImpl(pOperator, 0, false, ppBlock);
   if (code) {
     qError("failed to get next data block from upstream, %s code:%s", __func__, tstrerror(code));
   } else {
@@ -435,6 +456,16 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
                                          GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
+    }
+
+    // Scalar pre-calculation materializes reserved expression slots in place.
+    // Mark them as data-bearing so sort does not treat every key as NULL.
+    for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+      int32_t          slotId = pOperator->exprSupp.pExprInfo[i].base.resSchema.slotId;
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+      if (pCol != NULL && pBlock->info.rows > 0) {
+        pCol->info.noData = false;
+      }
     }
   }
 }
@@ -466,7 +497,7 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   pSource = taosMemoryCalloc(1, sizeof(SSortSource));
   QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
 
-  pSource->param = pOperator->pDownstream[0];
+  pSource->param = pOperator;
   pSource->onlyRef = true;
 
   code = tsortAddSource(pInfo->pSortHandle, pSource);
@@ -522,7 +553,8 @@ int32_t doSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       return code;
     }
 
-    code = doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo, NULL);
+    code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo,
+                                       NULL, pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (blockDataGetNumOfRows(pBlock) == 0) {
@@ -619,6 +651,7 @@ typedef struct SGroupSortOperatorInfo {
   SSDataBlock*         prefetchedSortInput;
   SSortHandle*         pCurrSortHandle;
   EChildOperatorStatus childOpStatus;
+  SLimitInfo           limitInfo;
   SSortExecInfo        sortExecInfo;
 } SGroupSortOperatorInfo;
 
@@ -797,6 +830,36 @@ int32_t finishSortGroup(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t advanceGroupSort(SOperatorInfo* pOperator) {
+  SGroupSortOperatorInfo* pInfo = pOperator->info;
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+
+  code = finishSortGroup(pOperator);
+  QUERY_CHECK_CODE(code, lino, _return);
+
+  resetLimitInfoForNextGroup(&pInfo->limitInfo);
+  switch (pInfo->childOpStatus) {
+    case CHILD_OP_NEW_GROUP:
+      pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
+      pInfo->currBaseGId = pInfo->prefetchedSortInput->info.id.baseGId;
+      code = beginSortGroup(pOperator);
+      QUERY_CHECK_CODE(code, lino, _return);
+      break;
+    case CHILD_OP_FINISHED:
+      setOperatorCompleted(pOperator);
+      break;
+    default:
+      break;
+  }
+
+_return:
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
 int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
   SExecTaskInfo*          pTaskInfo = pOperator->pTaskInfo;
@@ -851,20 +914,24 @@ int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       pBlock->info.id.baseGId = pInfo->currBaseGId;
       // baseGId follows upstream; if upstream is empty here, preserve current
       // (no-op if not set). We cannot reconstruct baseGId here; rely on upstream propagation.
+      bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo);
       pOperator->resultInfo.totalRows += pBlock->info.rows;
-      *pResBlock = pBlock;
-      return code;
-    } else {
-      if (pInfo->childOpStatus == CHILD_OP_NEW_GROUP) {
-        (void) finishSortGroup(pOperator);
-        pInfo->currGroupId = pInfo->prefetchedSortInput->info.id.groupId;
-        pInfo->currBaseGId = pInfo->prefetchedSortInput->info.id.baseGId;
-        code = beginSortGroup(pOperator);
+      if (limitReached) {
+        code = advanceGroupSort(pOperator);
         QUERY_CHECK_CODE(code, lino, _end);
-      } else if (pInfo->childOpStatus == CHILD_OP_FINISHED) {
-        (void) finishSortGroup(pOperator);
-        setOperatorCompleted(pOperator);
+      }
+
+      if (pBlock->info.rows > 0) {
+        *pResBlock = pBlock;
         return code;
+      }
+    } else {
+      if (pInfo->childOpStatus != CHILD_OP_SAME_GROUP) {
+        code = advanceGroupSort(pOperator);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pOperator->status == OP_EXEC_DONE) {
+          return code;
+        }
       }
     }
   }
@@ -909,6 +976,7 @@ static int32_t resetGroupSortOperState(SOperatorInfo* pOper) {
   pInfo->prefetchedSortInput = NULL;
   pInfo->childOpStatus = CHILD_OP_NEW_GROUP;
   pInfo->sortExecInfo = (SSortExecInfo){0};
+  resetLimitInfoForNextGroup(&pInfo->limitInfo);
   
   resetBasicOperatorState(&pInfo->binfo);
   destroySqlFunctionCtx(pOper->exprSupp.pCtx, pOper->exprSupp.pExprInfo, pOper->exprSupp.numOfExprs);
@@ -966,6 +1034,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
   TSDB_CHECK_CODE(code, lino, _error);
 
   pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
+  initLimitInfo(pSortPhyNode->node.pLimit, pSortPhyNode->node.pSlimit, &pInfo->limitInfo);
   setOperatorInfo(pOperator, "GroupSortOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, doGroupSort, NULL, destroyGroupSortOperatorInfo,

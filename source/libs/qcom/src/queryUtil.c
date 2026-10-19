@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -63,8 +65,9 @@ bool hasDecimalBytesTypeInfo(int32_t bytes) { return (((uint32_t)bytes >> 24) !=
 /*
  * Build a comparable ref-column type from schema metadata.
  *
- * typeMod carries decimal precision/scale when schemaExt is present. When it is
- * absent, fall back to the legacy decimal metadata encoded in schema bytes.
+ * typeMod carries decimal precision/scale and timestamp precision when schemaExt
+ * is present. When it is absent, fall back to the legacy decimal metadata encoded
+ * in schema bytes.
  */
 void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pType) {
   if (NULL == pSchema || NULL == pType) {
@@ -74,11 +77,17 @@ void schemaToRefDataType(const SSchema* pSchema, STypeMod typeMod, SDataType* pT
   memset(pType, 0, sizeof(*pType));
   pType->type = pSchema->type;
   pType->bytes = pSchema->bytes;
-  if (IS_DECIMAL_TYPE(pSchema->type)) {
+  if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+    fillTypeFromTypeMod(pType, typeMod);
+  } else if (IS_DECIMAL_TYPE(pSchema->type)) {
+    // Legacy external schemas encode precision/scale inside the schema bytes; when
+    // typeMod is also present the packed form must still be unpacked first, or the
+    // packed int would be taken as the column value size.
+    if (hasDecimalBytesTypeInfo(pType->bytes)) {
+      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
+    }
     if (typeMod != 0) {
       fillTypeFromTypeMod(pType, typeMod);
-    } else if ((((uint32_t)pSchema->bytes) >> 24) != 0) {
-      extractDecimalTypeInfoFromBytes(&pType->bytes, &pType->precision, &pType->scale);
     }
   }
 }
@@ -443,7 +452,14 @@ void freeSTableMetaRspPointer(void *p) {
 }
 
 void destroyQueryExecRes(SExecResult* pRes) {
-  if (NULL == pRes || NULL == pRes->res) {
+  if (NULL == pRes) {
+    return;
+  }
+
+  taosMemoryFreeClear(pRes->extErrMsg);
+  taosMemoryFreeClear(pRes->extPushdownDiag);
+
+  if (NULL == pRes->res) {
     return;
   }
 
@@ -473,6 +489,8 @@ void destroyQueryExecRes(SExecResult* pRes) {
     default:
       qError("invalid exec result for request type:%d", pRes->msgType);
   }
+
+  pRes->res = NULL;
 }
 // clang-format on
 int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_t bufSize, int32_t* len) {
@@ -550,7 +568,10 @@ int32_t dataConverToStr(char* str, int64_t capacity, int type, void* buf, int32_
       }
 
       *str = '"';
-      int32_t length = taosUcs4ToMbs((TdUcs4*)buf, bufSize, str + 1, NULL);
+      // dataConverToStr has no query context; render with the process/server
+      // charset.
+      int32_t length = taosUcs4ToMbsCharsetInsensitive((TdUcs4*)buf, bufSize,
+                                                       str + 1);
       if (length < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -624,14 +645,17 @@ void parseTagDatatoJson(void* p, char** jsonStr, void* charsetCxt) {
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
       cJSON* value = NULL;
       if (pTagVal->nData > 0) {
-        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData, 1);
+        char* tagJsonValue = taosMemoryCalloc(pTagVal->nData + 1, 1);
         if (tagJsonValue == NULL) {
           goto end;
         }
         int32_t length = taosUcs4ToMbs((TdUcs4*)pTagVal->pData, pTagVal->nData, tagJsonValue, charsetCxt);
         if (length < 0) {
-          qError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC,
-                 charsetCxt != NULL ? ((SConvInfo*)(charsetCxt))->charset : tsCharset, pTagVal->pData);
+          qError("charset:%s to %s convert json value failed",
+                 DEFAULT_UNICODE_ENCODEC,
+                 charsetCxt != NULL
+                     ? ((SConvInfo*)charsetCxt)->charset
+                     : tsCharset);
           taosMemoryFree(tagJsonValue);
           goto end;
         }
@@ -688,7 +712,8 @@ end:
 }
 
 int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* refColName, char* refTableName,
-                  char* refDbName, int8_t refType, const char* refSourceName, const char* tagCondJson, int32_t tagCondLen) {
+                  char* refDbName, const char* refSchemaName, int8_t refType, const char* refSourceName,
+                  const char* tagCondJson, int32_t tagCondLen) {
   colRef->id = colId;
   colRef->hasRef = true;
   colRef->refType = refType;
@@ -700,7 +725,11 @@ int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* re
   } else {
     colRef->refSourceName[0] = '\0';
   }
-  colRef->refSchemaName[0] = '\0';
+  if (refSchemaName && refSchemaName[0]) {
+    tstrncpy(colRef->refSchemaName, refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  } else {
+    colRef->refSchemaName[0] = '\0';
+  }
   if (tagCondLen > 0) {
     colRef->tagCondJson = taosStrdup(tagCondJson);
     colRef->tagCondLen = tagCondLen;
@@ -708,6 +737,8 @@ int32_t setColRef(SColRef* colRef, col_id_t colId, const char* colName, char* re
     colRef->tagCondJson = NULL;
     colRef->tagCondLen = 0;
   }
+  colRef->filterCondJson = NULL;
+  colRef->filterCondLen = 0;
   if (colName) {
     tstrncpy(colRef->colName, colName, TSDB_COL_NAME_LEN);
   } else {
@@ -751,6 +782,7 @@ int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pD
 
   for (int32_t i = 0; i < nCols; ++i) {
     pDst[i].tagCondJson = NULL;
+    pDst[i].filterCondJson = NULL;
   }
 
   if (NULL == pSrc) {
@@ -762,6 +794,13 @@ int32_t queryCloneColRefTagConds(const SColRef* pSrc, int32_t nCols, SColRef* pD
       pDst[i].tagCondJson = taosStrdup(pSrc[i].tagCondJson);
       if (NULL == pDst[i].tagCondJson) {
         queryFreeColRefTagConds(pDst, i);
+        return terrno;
+      }
+    }
+    if (pSrc[i].filterCondJson) {
+      pDst[i].filterCondJson = taosStrdup(pSrc[i].filterCondJson);
+      if (NULL == pDst[i].filterCondJson) {
+        queryFreeColRefTagConds(pDst, i + 1);
         return terrno;
       }
     }
@@ -797,7 +836,7 @@ int32_t queryCloneSeriesEntries(const SSeriesEntry* pSrc, int32_t nSeries, SSeri
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
+int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   QUERY_PARAM_CHECK(pDst);
   if (NULL == pSrc) {
     *pDst = NULL;
@@ -822,6 +861,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
 
   int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
   if (TSDB_CODE_SUCCESS != code) {
+    (*pDst)->tagRef = NULL;
     queryFreeTableMeta(*pDst);
     *pDst = NULL;
     return code;
@@ -989,7 +1029,7 @@ int32_t cloneSVreateTbReq(SVCreateTbReq* pSrc, SVCreateTbReq** pDst) {
       }
       (*pDst)->ntb.userId = pSrc->ntb.userId;
     }
-    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above —
+    // Owned tags: deep-copy tag schema and STag values, mirroring the ctb.pTag copy above;
     // a cloned request must not silently lose its tags.
     (*pDst)->ntb.schemaTag.nCols = pSrc->ntb.schemaTag.nCols;
     (*pDst)->ntb.schemaTag.version = pSrc->ntb.schemaTag.version;

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -72,7 +74,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
   }
 
   if (taskNum != msgNum && 0 != msgNum) {
-    ctgError("taskNum %d mis-match msgNum %d", taskNum, msgNum);
+    ctgError("taskNum %d mismatch msgNum %d", taskNum, msgNum);
     msgNum = 0;
   }
 
@@ -108,7 +110,7 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       pRsp = taosArrayGet(batchRsp.pRsps, i);
 
       if (pRsp->msgIdx != *msgIdx) {
-        ctgError("rsp msgIdx %d mis-match msgIdx %d", pRsp->msgIdx, *msgIdx);
+        ctgError("rsp msgIdx %d mismatch msgIdx %d", pRsp->msgIdx, *msgIdx);
 
         pRsp = &rsp;
         pRsp->msgIdx = *msgIdx;
@@ -137,6 +139,18 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
     if (NULL == pMsgCtx) {
       ctgError("task:%d, get SCtgMsgCtx failed, taskType:%d", tReq.msgIdx, pTask->type);
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    if (pRsp != &rsp && pRsp->reqType != pMsgCtx->reqType) {
+      ctgError("rsp reqType %d mis-match reqType %d, msgIdx:%d", pRsp->reqType, pMsgCtx->reqType, pRsp->msgIdx);
+
+      pRsp = &rsp;
+      pRsp->msgIdx = *msgIdx;
+      pRsp->reqType = pMsgCtx->reqType;
+      pRsp->rspCode = TSDB_CODE_INVALID_MSG;
+      taskMsg.msgType = pRsp->reqType;
+      taskMsg.pData = NULL;
+      taskMsg.len = 0;
     }
 
     SHashObj* pPrevMsgBatchs = pMsgCtx->pBatchs;
@@ -288,7 +302,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tb:%s, stablemeta not exist in mnode", target);
+          qDebug("tb:%s, stablemeta does not exist in mnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
@@ -309,7 +323,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tb:%s, tablemeta not exist in vnode", target);
+          qDebug("tb:%s, tablemeta does not exist in vnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
@@ -330,7 +344,7 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
       if (TSDB_CODE_SUCCESS != rspCode) {
         if (CTG_TABLE_NOT_EXIST(rspCode)) {
           SET_META_TYPE_NULL(((STableMetaOutput*)out)->metaType);
-          qDebug("tb:%s, tablemeta not exist in vnode", target);
+          qDebug("tb:%s, tablemeta does not exist in vnode", target);
           return TSDB_CODE_SUCCESS;
         }
 
@@ -2114,12 +2128,14 @@ int32_t ctgGetVSubtablesMetaFromVnode(SCatalog* pCtg, SRequestConnInfo* pConn, i
                             .mgmtEps = vgroupInfo->epSet,
                             .txnId = pConn->txnId};
 
+  if (NULL != pTask) {
+    CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, tReq->msgIdx), reqType, NULL, NULL));
+  }
   return ctgAddBatch(pCtg, vgroupInfo->vgId, &vConn, tReq, reqType, msg, msgLen);
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 // Federated query: fetch ext source info from mnode
-// ─────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const char* sourceName,
                                  SGetExtSourceRsp* out, SCtgTask* pTask) {
   char*   msg = NULL;
@@ -2146,9 +2162,11 @@ int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
     CTG_ERR_RET(ctgUpdateMsgCtx(CTG_GET_TASK_MSGCTX(pTask, -1), reqType, pOut, (char*)sourceName));
 
 #if CTG_BATCH_FETCH
+    SCtgMsgCtx* pExtMsgCtx = CTG_GET_TASK_MSGCTX(pTask, -1);
     SCtgTaskReq tReq = {0};
     tReq.pTask = pTask;
     tReq.msgIdx = -1;
+    tReq.pBatchs = pExtMsgCtx ? pExtMsgCtx->pBatchs : pTask->pJob->pBatchs;
     CTG_RET(ctgAddBatch(pCtg, 0, pConn, &tReq, reqType, msg, msgLen));
 #else
     SArray* pTaskId = taosArrayInit(1, sizeof(int32_t));
@@ -2174,7 +2192,8 @@ int32_t ctgGetExtSourceFromMnode(SCatalog* pCtg, SRequestConnInfo* pConn, const 
   };
   SRpcMsg rpcRsp = {0};
   CTG_ERR_RET(rpcSendRecv(pConn->pTrans, &pConn->mgmtEps, &rpcMsg, &rpcRsp));
-  CTG_ERR_RET(ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)sourceName));
+  code = ctgProcessRspMsg(out, reqType, rpcRsp.pCont, rpcRsp.contLen, rpcRsp.code, (char*)sourceName);
   rpcFreeCont(rpcRsp.pCont);
+  CTG_ERR_RET(code);
   return TSDB_CODE_SUCCESS;
 }

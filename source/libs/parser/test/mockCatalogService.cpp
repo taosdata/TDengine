@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -20,6 +22,7 @@
 #include <map>
 #include <set>
 
+#include "extDialect.h"
 #include "systable.h"
 #include "tdatablock.h"
 #include "tmisce.h"
@@ -280,6 +283,27 @@ class MockCatalogServiceImpl {
     (void)meta_[db][stbname]->vgs.emplace_back(vgroup);
   }
 
+  void setTableRefs(const string& db, const string& table,
+                   const std::vector<SColRef>& columns,
+                   const std::vector<SColRef>& tags) {
+    auto meta = getTableMeta(db, table);
+    size_t prefix = TABLE_META_BASE_SIZE(meta->schema) +
+                    TABLE_META_SCHEMA_EXT_SIZE(meta->schema);
+    size_t bytes = prefix + (columns.size() + tags.size()) * sizeof(SColRef);
+    auto* copy = (STableMeta*)taosMemoryCalloc(1, bytes);
+    if (copy == nullptr) throw std::bad_alloc();
+    memcpy(copy, meta->schema, prefix);
+    copy->numOfColRefs = columns.size();
+    copy->numOfTagRefs = tags.size();
+    copy->colRef = (SColRef*)((char*)copy + prefix);
+    copy->tagRef = copy->colRef + columns.size();
+    std::copy(columns.begin(), columns.end(), copy->colRef);
+    std::copy(tags.begin(), tags.end(), copy->tagRef);
+    tableMetaResetPointers(copy);
+    taosMemoryFree(meta->schema);
+    meta->schema = copy;
+  }
+
   void showTables() const {
 // number of forward fills
 #define NOF(n) ((n) / 2)
@@ -457,13 +481,10 @@ class MockCatalogServiceImpl {
     if (nullptr == src) {
       return TSDB_CODE_PAR_TABLE_NOT_EXIST;
     }
-    int32_t len = sizeof(STableMeta) + sizeof(SSchema) * (src->tableInfo.numOfTags + src->tableInfo.numOfColumns);
-    dst->reset((STableMeta*)taosMemoryCalloc(1, len));
-    if (!dst) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-    memcpy(dst->get(), src, len);
-    return TSDB_CODE_SUCCESS;
+    STableMeta* copy = nullptr;
+    int32_t code = cloneTableMeta(src, &copy);
+    dst->reset(copy);
+    return code;
   }
 
   int32_t copyTableVgroup(const string& db, const string& tbname, SVgroupInfo* vg) const {
@@ -883,13 +904,9 @@ class MockCatalogServiceImpl {
     tstrncpy(info->schema_name, schemaName.c_str(), TSDB_EXT_SOURCE_SCHEMA_LEN);
     info->meta_version = 1;
     info->create_time = 0;
-    // Mock-friendly capabilities — enable everything so translator picks the EXT branch.
-    info->capability.ext_can_pushdown_filter        = true;
-    info->capability.ext_can_pushdown_projection    = true;
-    info->capability.ext_can_pushdown_limit         = true;
-    info->capability.ext_can_pushdown_agg           = true;
-    info->capability.ext_can_pushdown_order         = true;
-    info->capability.ext_can_pushdown_in_const_list = true;
+    // Keep parser-test ext capabilities aligned with production defaults.
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == extCapInit(&info->capability));
+    TD_ALWAYS_ASSERT(TSDB_CODE_SUCCESS == extLoadDialectDefaults(sourceType, &info->capability));
     extSources_[sourceName] = info;
   }
 
@@ -965,6 +982,10 @@ class MockCatalogServiceImpl {
         res.pRes = NULL;
       } else {
         const auto& entry = it->second;
+        const auto sourceIt = extSources_.find(entry->header.sourceName);
+        const bool isRelationalSource = sourceIt != extSources_.end() &&
+                                        (EXT_SOURCE_MYSQL == sourceIt->second->type ||
+                                         EXT_SOURCE_POSTGRESQL == sourceIt->second->type);
         SExtTableMeta* p = (SExtTableMeta*)taosMemoryCalloc(1, sizeof(SExtTableMeta));
         if (NULL == p) {
           taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);
@@ -984,9 +1005,10 @@ class MockCatalogServiceImpl {
             const auto& src = entry->cols[c];
             SExtColumnDef& dst = p->pCols[c];
             tstrncpy(dst.colName, src.colName.c_str(), TSDB_COL_NAME_LEN);
-            tstrncpy(dst.remoteColName, src.colName.c_str(), TSDB_COL_NAME_LEN);
             // Pick a reasonable extTypeName for the mocked source.
-            if (src.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            if (!src.extTypeName.empty()) {
+              tstrncpy(dst.extTypeName, src.extTypeName.c_str(), sizeof(dst.extTypeName));
+            } else if (src.type == TSDB_DATA_TYPE_TIMESTAMP) {
               tstrncpy(dst.extTypeName, "timestamp", sizeof(dst.extTypeName));
             } else if (src.type == TSDB_DATA_TYPE_DOUBLE || src.type == TSDB_DATA_TYPE_FLOAT) {
               tstrncpy(dst.extTypeName, "double precision", sizeof(dst.extTypeName));
@@ -997,8 +1019,9 @@ class MockCatalogServiceImpl {
             }
             dst.extCharsetName[0] = '\0';
             dst.nullable = src.nullable;
-            dst.isTag = false;
-            dst.isPrimaryKey = src.isPrimaryKey;
+            dst.isTag = src.isTag;
+            dst.isPrimaryKey = !isRelationalSource && src.isPrimaryKey;
+            dst.isRemotePrimaryKey = isRelationalSource && src.isPrimaryKey;
           }
         }
         res.code = TSDB_CODE_SUCCESS;
@@ -1065,6 +1088,12 @@ void MockCatalogService::createDatabase(const string& db, bool rollup, int8_t ca
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta,
                                                 bool onlyCache) const {
   return impl_->catalogGetTableMeta(pTableName, pTableMeta, onlyCache);
+}
+
+void MockCatalogService::setTableRefs(const string& db, const string& table,
+                                    const std::vector<SColRef>& columns,
+                                    const std::vector<SColRef>& tags) {
+  impl_->setTableRefs(db, table, columns, tags);
 }
 
 int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo,

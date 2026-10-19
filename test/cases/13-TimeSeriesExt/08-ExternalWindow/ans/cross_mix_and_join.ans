@@ -32,19 +32,22 @@ taos> select t1, cast(_wstart as bigint) as ws, w.wc, count(*) as c, sum(v2) as 
 
 taos> select cast(_wstart as bigint) as ws, w.tagv, count(*) as c from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by ws, w.tagv;
 
-DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+DB error: External window subquery must return time-ordered rows [0x80000142]
 taos> select cast(_wstart as bigint) as ws, w.tagv, sum(v) as sv from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k where jd.tagv >= 20) w) order by ws, w.tagv;
+          ws           |    tagv     |          sv           |
+==============================================================
+         1700500300000 |          20 |                    33 |
+         1700500600000 |          30 |                    35 |
 
-DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
 taos> select tbname, cast(_wstart as bigint) as ws, count(*) as c from ext_join_src partition by tbname external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by tbname, ws;
 
-DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+DB error: External window subquery must return time-ordered rows [0x80000142]
 taos> select t1, cast(_wstart as bigint) as ws, count(*) as c from ext_join_src partition by t1 external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by t1, ws;
 
-DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+DB error: External window subquery must return time-ordered rows [0x80000142]
 taos> select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime, jd.tagv from ext_join_win jw join ext_join_dim jd on jw.k = jd.k) w) order by ws;
 
-DB error: Not supported join since 'Join requires valid time series input and primary timestamp equal condition' [0x80002664] 
+DB error: External window subquery must return time-ordered rows [0x80000142]
 taos> select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime from ext_join_win jw, ext_join_src jd where jw.ts=jd.ts) w);
 
 taos> select cast(_wstart as bigint) as ws, count(*) as c, (select count(*) from (select ts from ext_join_src) t) as total_rows from ext_join_src external_window((select jw.ts, jw.endtime from ext_join_win jw left join ext_join_src jd on jw.ts=jd.ts) w);

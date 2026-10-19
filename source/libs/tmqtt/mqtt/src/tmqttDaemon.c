@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -396,7 +398,7 @@ void mqttdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) 
       buf->base = ctx->inputBuf;
       buf->len = ctx->inputCap;
     } else {
-      bndError("mqttd can not allocate enough memory");
+      bndError("mqttd cannot allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -411,7 +413,7 @@ void mqttdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) 
       buf->base = ctx->inputBuf + ctx->inputLen;
       buf->len = ctx->inputCap - ctx->inputLen;
     } else {
-      bndError("mqttd can not allocate enough memory");
+      bndError("mqttd cannot allocate enough memory");
       buf->base = NULL;
       buf->len = 0;
     }
@@ -571,7 +573,7 @@ static void mqttdPrintVersion() {
 }
 
 static int32_t mqttdInitLog() {
-  const char *logName = "mqttdlog";
+  const char *logName = CUS_PROMPT "mqttdlog";
   TAOS_CHECK_RETURN(taosInitLogOutput(&logName));
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }
@@ -685,10 +687,10 @@ static void mqttdRun() {
 
 int32_t mqttdCreateMqttSourceDir() {
   snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsDataDir);
-  int32_t code = taosMkDir(global.mqttDataDir);
+  int32_t code = taosEnsurePrivateDir(global.mqttDataDir);
   if (code != TSDB_CODE_SUCCESS) {
     snprintf(global.mqttDataDir, PATH_MAX, "%s/.mqttd", tsTempDir);
-    code = taosMkDir(global.mqttDataDir);
+    code = taosEnsurePrivateDir(global.mqttDataDir);
   }
   bndInfo("mqttd create mqtt source directory %s. result: %s", global.mqttDataDir, tstrerror(code));
 
@@ -696,8 +698,11 @@ int32_t mqttdCreateMqttSourceDir() {
 }
 
 void mqttdDestroyMqttSourceDir() {
-  bndInfo("destory mqtt source directory %s", global.mqttDataDir);
-  taosRemoveDir(global.mqttDataDir);
+  bndInfo("destroy mqtt source directory %s", global.mqttDataDir);
+  int32_t code = taosRemovePrivateDir(global.mqttDataDir);
+  if (code != TSDB_CODE_SUCCESS) {
+    bndWarn("mqttd failed to remove mqtt source directory %s since %s", global.mqttDataDir, tstrerror(code));
+  }
 }
 
 extern int ttq_main(int argc, char *argv[]);

@@ -249,6 +249,7 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 4   | `scope`    | VARCHAR(8)    | 配置作用域 |
 | 5   | `category` | VARCHAR(8)    | 配置类别 |
 | 6   | `info`     | VARCHAR(64)   | 配置说明 |
+| 7   | `reboot`   | VARCHAR(8)    | 该配置项是否已被运行期修改但尚未重启生效：`true` 表示已修改但需重启后才能生效，`false` 表示无需重启（或从未被运行期修改过） |
 
 ## INS_ENCRYPTIONS
 
@@ -386,6 +387,36 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | 5   | `create_time` | TIMESTAMP    | 创建时间 |
 | 6   | `column_name` | VARCHAR(192) | 建索引的列名 |
 | 7   | `index_type`  | VARCHAR(192) | 索引类型（如 SMA、tag） |
+
+## INS_LAST_CACHE_STATS
+
+按 `dnode` 与 `vgroup` 提供 last cache 底层 RocksDB 引擎的运行时状态，包括 block cache 容量与占用、memtable 大小、flush/compaction 积压情况、写入限速与 SST 文件统计等，用于观测与诊断 `CACHESIZE`、`sLastCacheWriteBufferSize` 等参数（见 [Databases](../02-ddl/01-database.md)、[配置参数作用域对照表](../../12-operations-and-tooling/03-components/10-config-scope.md)）的实际效果。SYSINFO 为 0 的用户不能查看此表。
+
+| #   | **列名** | **数据类型** | **说明** |
+| --- | ----------------------------------- | --------- | --- |
+| 1   | `dnode_id`                          | INT       | `dnode` ID |
+| 2   | `vgroup_id`                         | INT       | `vgroup` ID |
+| 3   | `db_name`                           | VARCHAR(32) | 数据库名称 |
+| 4   | `block_cache_capacity`              | BIGINT    | block cache 容量，单位字节；随 `CACHESIZE` 动态调整，无需重启或重新打开 `vnode` |
+| 5   | `block_cache_usage`                 | BIGINT    | block cache 当前占用，单位字节 |
+| 6   | `block_cache_pinned_usage`          | BIGINT    | block cache 中被固定（pinned）、不可淘汰部分的占用，单位字节 |
+| 7   | `estimate_table_readers_mem`        | BIGINT    | 用于 table reader（索引块、过滤器块等）估算占用的内存，单位字节 |
+| 8   | `cur_size_active_mem_table`         | BIGINT    | 当前活跃 memtable 大小，单位字节 |
+| 9   | `cur_size_all_mem_tables`           | BIGINT    | 全部 memtable（含只读）大小之和，单位字节 |
+| 10  | `num_immutable_mem_table`           | INT       | 只读（等待 flush）memtable 数量 |
+| 11  | `mem_table_flush_pending`           | BOOL      | 是否存在等待 flush 的 memtable |
+| 12  | `num_running_flushes`               | INT       | 正在进行的 flush 数量 |
+| 13  | `compaction_pending`                | BOOL      | 是否存在等待中的 compaction |
+| 14  | `num_running_compactions`           | INT       | 正在进行的 compaction 数量 |
+| 15  | `estimate_pending_compaction_bytes` | BIGINT    | 预计待 compaction 的数据量，单位字节 |
+| 16  | `is_write_stopped`                  | BOOL      | 写入是否已被 RocksDB 引擎暂停（写限速/写阻塞的极端情况） |
+| 17  | `actual_delayed_write_rate`         | BIGINT    | 当前实际写入限速速率，单位字节/秒；`0` 表示未限速 |
+| 18  | `num_files_at_level0`               | INT       | Level 0 层 SST 文件数量，持续增长通常意味着 compaction 落后于写入 |
+| 19  | `total_sst_files_size`              | BIGINT    | 全部 SST 文件大小之和，单位字节 |
+| 20  | `estimate_num_keys`                 | BIGINT    | 估算的 key 数量 |
+| 21  | `num_live_versions`                 | INT       | 存活的版本数量 |
+| 22  | `background_errors`                 | INT       | 后台（flush/compaction）累计错误数，非 0 表示存在异常，需要排查磁盘/系统状态 |
+| 23  | `update_time`                       | TIMESTAMP | 本行统计数据的采集时间 |
 
 ## INS_MACHINES
 
@@ -741,35 +772,37 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 
 ## INS_TABLE_FIXED_DISTRIBUTED
 
-提供表数据块分布与压缩等统计信息，可用于分析数据倾斜与存储特征。也可以使用 [`SHOW TABLE DISTRIBUTED`](./03-show.md#show-table-distributed) 查询。
+提供表数据块分布与压缩等统计信息，可用于分析数据倾斜与存储特征。`table_name` 为超级表时，统计其所有子表并汇总各 vnode 的结果。
+
+查询时必须同时指定 `db_name` 和 `table_name` 的等值条件。未指定 `GROUP BY` 时，查询自动按数据库名和表名汇总各 vnode 的统计信息，仅支持 `SELECT *` 或 `SELECT 表别名.*`。
+
+[`SHOW TABLE DISTRIBUTED`](./03-show.md#show-table-distributed) 以格式化文本展示相关统计信息，但直方图的分桶方式不同。本系统表按 8 个固定行数区间统计数据块数量，区间定义见下表的 `block_dist_*` 列；该命令则根据数据库的 `MINROWS` 和 `MAXROWS` 配置，将行数范围划分为 20 个区间。
 
 | #   | **列名** | **数据类型** | **说明** |
 | --- | ------------------- | ------------ | --- |
-| 1   | `db_name`           | VARCHAR(64)  | 数据库名 |
-| 2   | `table_name`        | VARCHAR(192) | 表名 |
-| 3   | `vgroup_id`         | INT          | `vgroup` ID |
-| 4   | `total_blocks`      | BIGINT       | total_blocks |
-| 5   | `total_size`        | BIGINT       | total_size |
-| 6   | `average_size`      | DOUBLE       | average_size |
-| 7   | `compression_ratio` | DOUBLE       | compression_ratio |
-| 8   | `block_rows`        | BIGINT       | block_rows |
-| 9   | `min_rows`          | INT          | min_rows |
-| 10  | `max_rows`          | INT          | max_rows |
-| 11  | `avg_rows`          | DOUBLE       | avg_rows |
-| 12  | `in_mem_rows`       | BIGINT       | in_mem_rows |
-| 13  | `stt_rows`          | BIGINT       | stt_rows |
-| 14  | `total_tables`      | BIGINT       | total_tables |
-| 15  | `total_filesets`    | BIGINT       | total_filesets |
-| 16  | `total_vgroups`     | BIGINT       | total_vgroups |
-| 17  | `row_size`          | INT          | row_size |
-| 18  | `block_dist_64`     | BIGINT       | block_dist_64 |
-| 19  | `block_dist_128`    | BIGINT       | block_dist_128 |
-| 20  | `block_dist_256`    | BIGINT       | block_dist_256 |
-| 21  | `block_dist_512`    | BIGINT       | block_dist_512 |
-| 22  | `block_dist_1024`   | BIGINT       | block_dist_1024 |
-| 23  | `block_dist_2048`   | BIGINT       | block_dist_2048 |
-| 24  | `block_dist_4096`   | BIGINT       | block_dist_4096 |
-| 25  | `block_dist_other`  | BIGINT       | block_dist_other |
+| 1   | `db_name`           | VARCHAR(64)  | 被统计表所属的数据库名称 |
+| 2   | `table_name`        | VARCHAR(192) | 被统计的表名称；指定超级表时统计其所有子表 |
+| 3   | `total_blocks`      | BIGINT       | data 文件中的数据块总数 |
+| 4   | `total_size`        | BIGINT       | data 文件中压缩后数据块占用的字节数；不包含 STT 文件、WAL、表元数据或缓存 |
+| 5   | `average_size`      | DOUBLE       | 每个数据块的平均大小，即 `total_size` 除以 `total_blocks`，单位为字节 |
+| 6   | `compression_ratio` | DOUBLE       | 压缩后数据块大小占按行数和行宽估算的未压缩数据大小的百分比；无数据时为 0 |
+| 7   | `block_rows`        | BIGINT       | 所有 data 文件数据块中的总行数 |
+| 8   | `min_rows`          | INT          | 单个数据块中的最小行数 |
+| 9   | `max_rows`          | INT          | 单个数据块中的最大行数 |
+| 10  | `avg_rows`          | DOUBLE       | 每个数据块的平均行数，即 `block_rows` 除以 `total_blocks` |
+| 11  | `in_mem_rows`       | BIGINT       | 当前仍在内存中的数据行数 |
+| 12  | `stt_rows`          | BIGINT       | STT 文件中统计到的数据行数 |
+| 13  | `total_tables`      | BIGINT       | 统计的表数量；查询超级表时为其子表数量 |
+| 14  | `total_filesets`    | BIGINT       | 数据文件组数量 |
+| 15  | `total_vgroups`     | BIGINT       | 数据分布所在的 vgroup 数量 |
+| 16  | `block_dist_64`     | BIGINT       | 行数不超过 64 的数据块数量 |
+| 17  | `block_dist_128`    | BIGINT       | 行数为 65 至 128 的数据块数量 |
+| 18  | `block_dist_256`    | BIGINT       | 行数为 129 至 256 的数据块数量 |
+| 19  | `block_dist_512`    | BIGINT       | 行数为 257 至 512 的数据块数量 |
+| 20  | `block_dist_1024`   | BIGINT       | 行数为 513 至 1024 的数据块数量 |
+| 21  | `block_dist_2048`   | BIGINT       | 行数为 1025 至 2048 的数据块数量 |
+| 22  | `block_dist_4096`   | BIGINT       | 行数为 2049 至 4096 的数据块数量 |
+| 23  | `block_dist_other`  | BIGINT       | 行数超过 4096 的数据块数量 |
 
 ## INS_TAGS
 
@@ -1112,8 +1145,8 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 | --- | ------------- | ------------- | --- |
 | 1   | `id`          | INT           | ID |
 | 2   | `name`        | VARCHAR(64)   | 名称 |
-| 3   | `from`        | VARCHAR(4096) | 源 |
-| 4   | `to`          | VARCHAR(2048) | 目标 |
+| 3   | `from`        | VARCHAR(8192) | 源 |
+| 4   | `to`          | VARCHAR(4096) | 目标 |
 | 5   | `parser`      | VARCHAR(48)   | 解析配置 |
 | 6   | `via`         | INT           | 经由节点 |
 | 7   | `xnode_id`    | INT           | Xnode ID |

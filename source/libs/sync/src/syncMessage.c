@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -22,7 +24,12 @@ int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t l
                          SSyncNode* pNode) {
   int32_t bytes = sizeof(SyncTimeout);
   pMsg->pCont = rpcMallocCont(bytes);
-  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION) ? TDMT_SYNC_TIMEOUT_ELECTION : TDMT_SYNC_TIMEOUT;
+  // SYNC_TIMEOUT_RESTORE_ELECT reuses the election message type so that it is
+  // dispatched to syncNodeOnTimeout via the already-registered handler; the
+  // actual timeout kind is distinguished by SyncTimeout.timeoutType.
+  pMsg->msgType = (timeoutType == SYNC_TIMEOUT_ELECTION || timeoutType == SYNC_TIMEOUT_RESTORE_ELECT)
+                      ? TDMT_SYNC_TIMEOUT_ELECTION
+                      : TDMT_SYNC_TIMEOUT;
   pMsg->contLen = bytes;
   if (pMsg->pCont == NULL) {
     return terrno;

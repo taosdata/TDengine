@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -25,6 +27,10 @@ extern "C" {
 
 #define FUNC_AGGREGATE_UDF_ID 5001
 #define FUNC_SCALAR_UDF_ID    5002
+
+// Internal marker carried by a federated virtual-stable LAST_ROW partial.
+// Positive relatedTo values are reserved for selectivity-expression binding.
+#define FUNC_RELATED_TO_VSTABLE_LAST_ROW_PARTIAL (-1)
 
 extern const int32_t funcMgtBuiltinsNum;
 
@@ -51,6 +57,14 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV_SAMP,
   FUNCTION_TYPE_STDVAR_SAMP,
   FUNCTION_TYPE_GROUP_CONCAT,
+  FUNCTION_TYPE_TWAVG_LINEAR,
+  FUNCTION_TYPE_TWAVG_LOCF,
+  FUNCTION_TYPE_TWSUM_LINEAR,
+  FUNCTION_TYPE_TWSUM_LOCF,
+  FUNCTION_TYPE_TWVAR_LINEAR,
+  FUNCTION_TYPE_TWVAR_LOCF,
+  FUNCTION_TYPE_VALUE_CHANGES,
+  FUNCTION_TYPE_BIT_CHANGES,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -223,6 +237,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TIDLEEND,                    // _tidleend
   FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TAG,      // %%rollup_tag
   FUNCTION_TYPE_PLACEHOLDER_ROLLUP_TBCOUNT,  // _trollup_tbcount
+  FUNCTION_TYPE_TEVENT_CONDITION_PATH,       // _event_condition_path
 
   // internal function
   FUNCTION_TYPE_SELECT_VALUE = 3750,
@@ -297,6 +312,19 @@ typedef enum EFunctionType {
   // internal functions (not user-callable)
   FUNCTION_TYPE_TIMESTAMP_SCALE = 4400,
 
+  // FQ-internal functions (not user-callable; used to carry interval metadata
+  // through the logic-plan->physical-plan->remote-SQL pipeline)
+  // FUNCTION_TYPE_FQ_TIME_BUCKET is injected by fqConvertInterval into the
+  // GROUP BY key of the remote SAggLogicNode.  It carries:
+  //   pParameterList[0] = SColumnNode for the timestamp primary key column
+  //   pParameterList[1] = SValueNode (int64, ticks in srcPrecision) for bucket size
+  //   pParameterList[2] = SValueNode (int8, TSDB_TIME_PRECISION_*) for source precision
+  // nodesRemotePlanToSQL renders it per-dialect:
+  //   MySQL:    FLOOR(UNIX_TIMESTAMP(`ts`) * tps / ticks) * ticks / tps
+  //             where tps = ticks-per-second for srcPrecision
+  //   PG:       DATE_BIN('N unit', ts, '1970-01-01 00:00:00')
+  //   InfluxDB: DATE_BIN(INTERVAL 'N unit', time, '1970-01-01T00:00:00Z')
+  FUNCTION_TYPE_FQ_TIME_BUCKET = 4500,
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -334,6 +362,7 @@ bool fmIsStringFunc(int32_t funcId);
 bool fmIsDateTimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
+bool fmSupportsNoTimelineRowOrder(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
 bool fmIsScanPseudoColumnFunc(int32_t funcId);
@@ -363,6 +392,7 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(SFunctionNode* pFunc);
 bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsCumulativeSqlWindowFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 bool fmIsAnalysisPseudoColumnFunc(int32_t funcId);
 bool fmIsGroupKeyFunc(int32_t funcId);
@@ -377,6 +407,7 @@ bool fmIsVolatileFunc(int32_t funcId);
 bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
+bool fmIsTwLocfFunc(int32_t funcId);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);

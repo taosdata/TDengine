@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -89,21 +91,36 @@ struct SExecTaskInfo {
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
   SLocalFetch           localFetch;
+  bool                     readerGroupOutput;  // opt-in Reader DATA/EOG execution
   SArray*               pResultBlockList;  // result block list
   STaskStopInfo         stopInfo;
   SRWLatch              lock;  // secure the access of STableListInfo
   SStorageAPI           storageAPI;
   int8_t                dynamicTask;
+  // vtable two-pass: phase-1 EOF keeps task/sink/reader alive for phase-2 rescan.
+  // Mutability contract (same as dynamicTask): written ONLY during plan/operator
+  // init, before the task is published to the qworker thread; read-only afterwards
+  // (qworker reads it cross-thread via qIsNoQuickFreeTask without synchronization).
+  // Never flip mid-execution -- a dynamic write here would need atomic access.
+  bool                  noQuickFree;
   SOperatorParam*       pOpParam;
   bool                  paramSet;
   SQueryAutoQWorkerPoolCB* pWorkerCb;
   SMsgCb*                  pMsgCb;            // RPC callback (from client or qnode), safe for pure computation operators
   SStreamRuntimeInfo*      pStreamRuntimeInfo;
+  SArray*                       pReaderTableRanges;  // Owned STableScanRange array in final table order.
+  bool                     reuseReaderOnReset;
+  bool                          dimensionScanReset;  // scoped to the owned dimension reset callback
   bool                     ownStreamRtInfo;
   STaskSubJobCtx*          pSubJobCtx;
   bool                     enableExplain;     // enable explain flag
   int64_t                  txnId;             // batch meta txn: carries txn context for in-txn meta visibility
+  const SCorrelationRuntimeOps* pCorrelationOps;
+  SCorrelationTaskSession*      pCorrelationSession;
+  SArray*                       pCorrelationStats;  // SExplainCorrelationStat entries for this task.
   char                     extErrMsg[512];    // federated query: remote-side error message (empty string = none)
+  bool                     hasExtPushdownDiag;
+  SExtPushdownDiagnostic   extPushdownDiag;
 };
 
 void    buildTaskId(uint64_t taskId, uint64_t queryId, char* dst, int32_t len);

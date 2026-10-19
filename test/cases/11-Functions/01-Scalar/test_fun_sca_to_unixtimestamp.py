@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 from new_test_framework.utils import tdLog, tdSql
 from new_test_framework.utils.sqlset import TDSetSql
 import datetime
@@ -41,7 +56,7 @@ class TestFunToUnixtimestamp:
             f'today(),100,11.111,"abc"'
 
         ]
-        cls.error_param = [1,1.5,'now()']
+        cls.error_param = [1,1.5]
 
     def data_check(self,tbname,values_list,tb_type,tb_num=1):
         for time in ['1970-01-01T08:00:00+0800','1970-01-01T08:00:00+08:00']:
@@ -72,6 +87,18 @@ class TestFunToUnixtimestamp:
                 tdSql.checkRows(len(values_list))
             elif tb_type == 'stb':
                 tdSql.checkRows(len(values_list)*tb_num)
+        # Compare within one statement so NOW cannot change between queries.
+        for clock in ('now', 'now()', 'today', 'today()'):
+            tdSql.query(
+                f"select to_unixtimestamp({clock}), cast({clock} as bigint), "
+                f"to_unixtimestamp({clock}, 0), to_unixtimestamp({clock}, 1), "
+                f"{clock} from {tbname}"
+            )
+            tdSql.checkRows(len(values_list) * tb_num)
+            for row in tdSql.queryResult:
+                tdSql.checkEqual(row[0], row[1])
+                tdSql.checkEqual(row[2], row[1])
+                tdSql.checkEqual(row[3], row[4])
         for time in self.error_param:
             tdSql.error(f"select to_unixtimestamp({time}) from {tbname}")
  
@@ -137,13 +164,16 @@ class TestFunToUnixtimestamp:
         2. Query from boundary timestamp
         3. Query from different time zone string
         4. Query Error timestamp format string
+        5. Verify statement time constants with default and explicit return types
         
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
+            - 2026-09-11 Accept NOW/TODAY constants after client-side folding
             - 2025-9-24 Alex Duan Migrated from uncatalog/system-test/2-query/test_To_unixtimestamp.py
         """
         self.timestamp_change_check_ntb()

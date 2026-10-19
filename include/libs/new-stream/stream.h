@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -47,7 +49,10 @@ extern "C" {
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
-#define STREAM_CALC_REQ_MAX_WIN_NUM 40960
+typedef enum EStreamExtBindingKind {
+  STRIGGER_EXT_BINDING_TRIGGER = 0,
+  STRIGGER_EXT_BINDING_CALC = 1,
+} EStreamExtBindingKind;
 
 typedef struct SStreamTaskStats SStreamTaskStats;
 
@@ -87,6 +92,9 @@ typedef struct SSTriggerAHandle {
   int64_t streamId;
   int64_t taskId;
   int64_t sessionId;
+  int32_t requestType;
+  int64_t requestGeneration;
+  int64_t requestGid;
   int8_t  paramType; /* ESTriggerAHandleParamType */
   void   *param;
   void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
@@ -130,6 +138,8 @@ typedef enum sinkHandleInitState {
   SINK_HANDLE_INITIALIZED = 2
 } sinkHandleInitState;
 
+typedef struct SStreamRunnerGroupedContinuation SStreamRunnerGroupedContinuation;
+
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
   void              *pExecutor;
@@ -140,14 +150,24 @@ typedef struct SStreamRunnerTaskExecution {
   void              *pSinkHandle;
   SSDataBlock       *pOutBlock;
   int32_t            sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
+
+  SStreamRunnerGroupedContinuation *pGroupedContinuation;
+  int64_t            outputMemoryBytes;
+  int64_t            executorMemoryBytes;
+  int64_t            memorySnapshotAtMonoUs;
+  bool               outputMemoryValid;
+  bool               executorMemoryValid;
+  bool               memorySnapshotPublished;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
   char                outDbFName[TSDB_DB_FNAME_LEN];
   char                outSTbName[TSDB_TABLE_NAME_LEN];
   int8_t              outTblType;
-  SArray             *outCols;  // array of SFieldWithOptions
-  SArray             *outTags;  // array of SFieldWithOptions
+  SArray             *outCols;         // array of SFieldWithOptions
+  SArray             *outStbFullCols;     // full out stb columns when outStbExists
+  SArray             *outStbFullColCids;  // colIds for outStbFullCols
+  SArray             *outTags;            // array of SFieldWithOptions
   uint64_t            outStbUid;
   int32_t             outStbVersion;
   SNodeList          *pTagValExprs;
@@ -166,6 +186,8 @@ typedef struct SStreamRunnerTaskExecMgr {
   SList*        pRunningExecs;
   TdThreadMutex lock;
   bool          lockInited;
+  TdThreadMutex stateLock;
+  bool          stateLockInited;
   int32_t       execBuildNum;
 } SStreamRunnerTaskExecMgr;
 
@@ -200,6 +222,7 @@ typedef struct SStreamCacheReadInfo {
   int64_t      gid;
   TSKEY        start;
   TSKEY        end;
+  const char  *eventConditionPath;
   const SStreamContextPolicy   *pContextPolicy;
   const SStreamAncestorContext *pAncestorContext;
   const SStreamRuntimeFuncInfo *pRuntime;
@@ -360,6 +383,10 @@ void    smUndeploySnodeTasks(bool cleanup);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
 int32_t stTriggerTaskGetDelay(SStreamTask *pTask, int64_t *pDelay, bool *pFillHisFinished);
+int32_t stStreamExtRegistryEntryId(int8_t sourceType, const SStreamExtSourceIdentityReq *pIdentity,
+                                   int64_t *pRegistryEntryId);
+int64_t stStreamExtBindingId(int64_t registryEntryId, int64_t virtualUid, int64_t virtualGid,
+                             EStreamExtBindingKind kind, int32_t virtualSlot, const char *pExternalColumn);
 
 #ifdef __cplusplus
 }

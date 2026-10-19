@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,10 +16,14 @@
  */
 
 #define _DEFAULT_SOURCE
+// the opensocket callback below creates the connection socket itself
+#define ALLOW_FORBID_FUNC
+#include "os.h"
 #include "tanalytics.h"
 #include "ttypes.h"
 #include "tutil.h"
 #include "osTime.h"
+#include "tglobal.h"
 
 #ifdef USE_ANALYTICS
 
@@ -271,6 +277,25 @@ int32_t taosAnalyGetAlgoUrl(const char *algoName, EAnalyAlgoType type, char *url
 
 int64_t taosAnalyGetVersion() { return tsAlgos.ver; }
 
+// Reject connections to private/internal addresses before they are established.
+// CURLOPT_OPENSOCKETFUNCTION runs before connect() and is handed the resolved peer
+// address, the very sockaddr libcurl then passes to connect(), so rejecting it here
+// closes the DNS rebinding window that the URL level check in taosIsPrivateUrl() can not
+// cover. CURLOPT_SOCKOPTFUNCTION can not be used for this: it also runs before connect(),
+// where getpeername() reports no peer yet.
+// The caller installs this callback only while internal urls are forbidden and passes the
+// request url as CURLOPT_OPENSOCKETDATA for the log line.
+static curl_socket_t taosCurlOpensocketCb(void *clientp, curlsocktype purpose, struct curl_sockaddr *address) {
+  const char *url = (const char *)clientp;
+
+  if (purpose == CURLSOCKTYPE_IPCXN && taosIsPrivateIp((const struct sockaddr *)&address->addr)) {
+    uError("blocked connection to a private/internal address, url:%s", url != NULL ? url : "");
+    return CURL_SOCKET_BAD;
+  }
+
+  return socket(address->family, address->socktype, address->protocol);
+}
+
 static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void *userdata) {
   SCurlResp *pRsp = userdata;
   if (contLen == 0 || nmemb == 0 || pCont == NULL) {
@@ -325,6 +350,12 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   }
 
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L) != 0) goto _OVER;
+  if (!tsAnodeAllowInternalUrl) {
+    // the socket layer refuses connections to private/internal addresses before they are made
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, taosCurlOpensocketCb) != 0) goto _OVER;
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, (void *)url) != 0) goto _OVER;
+  }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
@@ -355,6 +386,12 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   headers = curl_slist_append(headers, "Content-Type:application/json;charset=UTF-8");
   if (curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_URL, url) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L) != 0) goto _OVER;
+  if (!tsAnodeAllowInternalUrl) {
+    // the socket layer refuses connections to private/internal addresses before they are made
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, taosCurlOpensocketCb) != 0) goto _OVER;
+    if (curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, (void *)url) != 0) goto _OVER;
+  }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout) != 0) goto _OVER;
@@ -536,7 +573,7 @@ static int32_t tsosAnalyJsonBufOpen(SAnalyticBuf *pBuf, int32_t numOfCols, const
     pCol->filePtr =
         taosOpenFile(pCol->fileName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_WRITE_THROUGH);
     if (pCol->filePtr == NULL) {
-      uError("%s failed to open tmp file for keep forecast history data, code：%s", pId, tstrerror(terrno));
+      uError("%s failed to open tmp file for keep forecast history data, code:%s", pId, tstrerror(terrno));
       return terrno;
     }
   }
@@ -548,6 +585,11 @@ static int32_t taosAnalyJsonBufWriteColMeta(SAnalyticBuf *pBuf, int32_t colIndex
   char buf[128] = {0};
   bool first = (colIndex == 0);
   bool last = (colIndex == pBuf->numOfCols - 1);
+
+  if (colType < 0 || colType >= TSDB_DATA_TYPE_MAX) {
+    uError("taosAnalyJsonBufWriteColMeta: invalid colType %d, must be in [0, %d)", colType, TSDB_DATA_TYPE_MAX);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   if (first) {
     if (taosAnalyJsonBufWriteStr(pBuf, "\"schema\": [\n", 0) != 0) {
@@ -874,7 +916,13 @@ int32_t taosAnalysisParseAlgo(const char* pOpt, char* pAlgoName, char* pUrl, int
     return TSDB_CODE_ANA_ALGO_NOT_FOUND;
   }
 
-  tstrncpy(pAlgoName, pAlgo, taosHashGetValueSize(pAlgo) + 1);
+  int32_t algoLen = taosHashGetValueSize(pAlgo);
+  if (algoLen >= TSDB_ANALYTIC_ALGO_NAME_LEN) {
+    uError("%s analysis algorithm name length %d exceeds maximum %d", id, algoLen, TSDB_ANALYTIC_ALGO_NAME_LEN - 1);
+    return TSDB_CODE_ANA_ALGO_NOT_FOUND;
+  }
+
+  tstrncpy(pAlgoName, pAlgo, algoLen+1);
 
   if (taosAnalyGetAlgoUrl(pAlgoName, type, pUrl, len) != 0) {
     uError("%s failed to get analysis algorithm url from %s", id, pAlgoName);

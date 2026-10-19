@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -15,6 +17,7 @@
 
 #include "builtinsimpl.h"
 #include "function.h"
+#include "spillDistinctSet.h"
 #include "tdatablock.h"
 #include "tfunctionInt.h"
 #include "tglobal.h"
@@ -109,8 +112,77 @@ int32_t getAvgInfoSize(SFunctionNode* pFunc) {
 }
 
 bool getAvgFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize =getAvgInfoSize(pFunc);
+  pEnv->calcMemSize = getAvgInfoSize(pFunc) + distinctValueSetExtraSize(pFunc);
   return true;
+}
+
+void avgFunctionCleanup(SqlFunctionCtx* pCtx) {
+  // The set sits at the end of the inter-buffer; SAvgRes is the smaller of the two result structs,
+  // so it is the safe lower bound for both the plain and decimal variants.
+  distinctValueSetCleanup(pCtx, (int32_t)sizeof(SAvgRes));
+}
+
+// DISTINCT variant of AVG. Neither the SMA path nor the no-null SIMD path can identify duplicate
+// values, so DISTINCT always walks the real rows one at a time.
+static int32_t avgFunctionImpl(SqlFunctionCtx* pCtx);
+static int32_t avgAccumOneValue(SqlFunctionCtx* pCtx, const char* pData);
+
+static int32_t avgDistinctAbort(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet, int32_t code) {
+  spillDistinctSetDestroy(pSet->pSet);
+  pSet->pSet = NULL;
+  return code;
+}
+
+static int32_t avgDistinctRows(SqlFunctionCtx* pCtx, SDistinctValueSet* pSet) {
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+  if (pCol == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t type = pCol->info.type;
+  pCtx->inputType = type;
+
+  void* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  if (IS_NULL_TYPE(type)) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  AVG_RES_SET_TYPE(pAvgRes, pCtx->inputType, type);
+  if (IS_DECIMAL_TYPE(type)) {
+    // The input scale is needed for the final division and is not recoverable from a replayed
+    // value, so record it here while the column is in hand.
+    AVG_RES_SET_INPUT_SCALE(pAvgRes, pCol->info.scale);
+  }
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->startRowIndex + pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+    bool    accumulate = false;
+    int32_t code = distinctValueSetCheckAdd(pSet, pCol, i, pCtx, &accumulate);
+    if (code != TSDB_CODE_SUCCESS) {
+      return avgDistinctAbort(pCtx, pSet, code);
+    }
+    if (!accumulate) {
+      continue;
+    }
+
+    // Same helper the spilled replay uses, so the two paths cannot drift.
+    char* pData = colDataGetData(pCol, i);
+    code = avgAccumOneValue(pCtx, pData);
+    if (code != TSDB_CODE_SUCCESS) {
+      return avgDistinctAbort(pCtx, pSet, code);
+    }
+  }
+
+  // avgAccumOneValue() updates the cumulative count; numOfElem only records whether this block
+  // contributed a new value. Preserve numOfRes for duplicate-only blocks by checking that count.
+  if (AVG_RES_GET_COUNT(pAvgRes, true, pCtx->inputType) > 0) {
+    GET_RES_INFO(pCtx)->numOfRes = 1;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t avgFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -320,7 +392,96 @@ static int32_t doAddNumericVector(SColumnInfoData* pCol, int32_t type, SInputCol
   return 0;
 }
 
+// Folds one value into the running sum/count. Shared by the inline accumulate loop and the spilled
+// replay so the two cannot drift.
+static int32_t avgAccumOneValue(SqlFunctionCtx* pCtx, const char* pData) {
+  int32_t type = pCtx->inputType;
+  void*   pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  if (IS_DECIMAL_TYPE(type)) {
+    // SUM_RES_INC_DECIMAL_SUM assigns to a local named `overflow` that must be in scope.
+    bool overflow = false;
+    SUM_RES_INC_DECIMAL_SUM(&AVG_RES_GET_DECIMAL_SUM(pAvgRes), (const void*)pData, type);
+    if (overflow) {
+      return TSDB_CODE_DECIMAL_OVERFLOW;
+    }
+    AVG_RES_INC_COUNT(pAvgRes, pCtx->inputType, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, type, pData, 0);
+    CHECK_OVERFLOW_SUM_SIGNED(pAvgRes, v);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t v = 0;
+    GET_TYPED_DATA(v, uint64_t, type, pData, 0);
+    CHECK_OVERFLOW_SUM_UNSIGNED(pAvgRes, v);
+  } else if (IS_FLOAT_TYPE(type)) {
+    double v = 0;
+    GET_TYPED_DATA(v, double, type, pData, 0);
+    SUM_RES_INC_DSUM(&AVG_RES_GET_SUM(pAvgRes), v);
+  } else {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  AVG_RES_INC_COUNT(pAvgRes, pCtx->inputType, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+// AVG(DISTINCT) finalize: when the set spilled the inline sum/count are incomplete, so reset and
+// refold the true distinct values before the average is computed.
+int32_t avgDistinctFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  if (pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SDistinctValueSet* pSet = NULL;
+  if (pCtx->isDistinctFunc) {
+    pSet = distinctValueSetGet(pCtx, (int32_t)sizeof(SAvgRes));
+    if (pSet == NULL) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  }
+  if (distinctValueSetNeedsReplay(pSet)) {
+    SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+    void*                pAvgRes = GET_ROWCELL_INTERBUF(pResInfo);
+    int16_t              savedType = AVG_RES_GET_TYPE(pAvgRes, pCtx->inputType);
+    bool                 isDecimal = IS_DECIMAL_TYPE(pCtx->inputType);
+    // The input scale drives the final division and cannot be recovered from a replayed value, so
+    // carry it across the reset.
+    uint8_t savedScale = isDecimal ? AVG_RES_GET_INPUT_SCALE(pAvgRes) : 0;
+
+    // Clear only the function's own state, never the trailing set handle. The decimal variant is
+    // the wider struct, so size the reset from the input type.
+    memset(pAvgRes, 0, (size_t)AVG_RES_GET_SIZE(pCtx->inputType));
+    AVG_RES_SET_TYPE(pAvgRes, pCtx->inputType, savedType);
+    if (isDecimal) {
+      AVG_RES_SET_INPUT_SCALE(pAvgRes, savedScale);
+    }
+
+    int32_t code = distinctValueSetReplay(pCtx, pSet, avgAccumOneValue);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    SET_VAL(pResInfo, 1, 1);
+  }
+  return avgFinalize(pCtx, pBlock);
+}
+
 int32_t avgFunction(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pCtx->isDistinctFunc) {
+    SDistinctValueSet* pDistinctSet = distinctValueSetGet(pCtx, (int32_t)sizeof(SAvgRes));
+    if (pDistinctSet == NULL) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    return avgDistinctRows(pCtx, pDistinctSet);
+  }
+  return avgFunctionImpl(pCtx);
+}
+
+static int32_t avgFunctionImpl(SqlFunctionCtx* pCtx) {
   int32_t       numOfElem = 0;
   const int32_t THRESHOLD_SIZE = 8;
 
@@ -345,7 +506,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   if (IS_DECIMAL_TYPE(type)) AVG_RES_SET_INPUT_SCALE(pAvgRes, pInput->pData[0]->info.scale);
 
   if (pInput->colDataSMAIsSet) {  // try to use SMA if available
-    int32_t code = calculateAvgBySMAInfo(pAvgRes, numOfRows, type, pAgg, &numOfElem);
+    int32_t code = calculateAvgBySMAInfo(pAvgRes, pInput->smaSourceRows, type, pAgg, &numOfElem);
     if (code != 0) return code;
   } else if (!pCol->hasNull) {  // try to employ the simd instructions to speed up the loop
     numOfElem = pInput->numOfRows;
@@ -513,6 +674,9 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
 }
 
 int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  if (pDestCtx == NULL || pSourceCtx == NULL || pDestCtx->isDistinctFunc || pSourceCtx->isDistinctFunc) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
   SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
   void*                pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
   int32_t              type = AVG_RES_GET_TYPE(pDBuf, pDestCtx->inputType);

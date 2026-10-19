@@ -18,11 +18,11 @@ toc_max_heading_level: 4
 
 - 集群页面：已接入的集群信息
 
-![CLS 集群](../../../assets/license-center-05.png)
+![CLS 集群](../../../assets/license-center-05.webp)
 
 - 集群用量页面：授权项用量
 
-![CLS 集群用量](../../../assets/license-center-06.png)
+![CLS 集群用量](../../../assets/license-center-06.webp)
 
 当 CLS 可连接 ELS 时，相关信息可向 ELS 同步，便于服务商侧审计与续期管理。若需按下游业务客户统计占用，通常还需结合自有的客户/租户台账与槽位命名约定；许可系统按许可证与槽位计量。
 

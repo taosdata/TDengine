@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 set(CMAKE_VERBOSE_MAKEFILE FALSE)
 
 # set output directory
@@ -138,9 +153,9 @@ IF(TD_WINDOWS)
             # _DISABLE_VECTOR_ANNOTATION/_DISABLE_STRING_ANNOTATION: suppress STL ASan
             # annotations to avoid LNK2038 mismatch with pre-built libs (e.g. rocksdb)
             # that were compiled without /fsanitize=address.
-            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O1 /MD /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /FS /O1 /MD /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
         ELSE()
-            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /O2 /GL /MD")
+            SET(COMMON_FLAGS "/W3 /D_WIN32 /DWIN32 /Zi /FS /O2 /GL /MD")
         ENDIF()
     ELSE()
         MESSAGE("${Green} will build Debug version! ${ColourReset}")
@@ -149,9 +164,9 @@ IF(TD_WINDOWS)
             MESSAGE("${Green} will build Debug with AddressSanitizer (MSVC ASan)! ${ColourReset}")
             # /fsanitize=address is compatible with /MDd; no /GL or /RTC1 in Debug
             # so there are no incompatibility constraints unlike Release.
-            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /FS /MDd /fsanitize=address /D_DISABLE_VECTOR_ANNOTATION=1 /D_DISABLE_STRING_ANNOTATION=1")
         ELSE()
-            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /MDd")
+            SET(COMMON_FLAGS "/w /D_WIN32 /DWIN32 /Zi /FS /MDd")
         ENDIF()
     ENDIF()
 
@@ -328,6 +343,10 @@ ELSE()
     ENDIF()
 
     IF(BUILD_SANITIZER)
+        # NOTE: the security hardening flags in the TD_LINUX branch below
+        #   (-fstack-protector-strong / -pie / -z relro -z now) are intentionally
+        #   NOT applied here: BUILD_SANITIZER produces ASan debug/CI artifacts
+        #   that are never shipped, so only production Linux builds harden.
         # Note: -fsanitize=undefined is intentionally omitted from C_FLAGS.
         # The manylinux2014 (CentOS 7) build container ships GCC 7 which generates
         # ubsan v0 ABI calls (e.g. __ubsan_handle_type_mismatch) but the only
@@ -343,8 +362,90 @@ ELSE()
         ENDIF()
         MESSAGE(STATUS "Compile with Address Sanitizer!")
     elseif(TD_LINUX)
-        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
+        # ── Security hardening ────────────────────────────────────────────
+        # Stack protection: -fstack-protector-strong inserts stack canaries in
+        #   functions that have local buffers or address-taken variables.
+        #   Probed first for C and C++ separately (same convention as
+        #   -Wstringop-overread above) so an old/obscure toolchain without the
+        #   option degrades gracefully instead of failing under -Werror.
+        # PIE: objects are compiled -fPIC (position independent and a valid
+        #   input for PIE executables); executables are linked with -pie below
+        #   so shipped binaries are position-independent executables.
+        #   NOTE: do NOT append -fPIE after -fPIC — the last switch wins, and
+        #   -fPIE would degrade shared-library codegen (GOT/interposition).
+        #   -pie is only applied when the toolchain supports it
+        #   (include(CheckPIESupported) / check_pie_supported()) AND TD_LINUX_PIE
+        #   is ON.  Turn -DTD_LINUX_PIE=OFF only when linking prebuilt non-PIC
+        #   static archives that cannot go into a PIE executable.
+        # RELRO: -z relro makes GOT/other relocations read-only after startup;
+        #   -z now disables lazy binding => Full RELRO.
+        CHECK_C_COMPILER_FLAG("-fstack-protector-strong" COMPILER_SUPPORT_STACK_PROTECTOR_STRONG)
+        CHECK_CXX_COMPILER_FLAG("-fstack-protector-strong" COMPILER_SUPPORT_CXX_STACK_PROTECTOR_STRONG)
+        IF(COMPILER_SUPPORT_STACK_PROTECTOR_STRONG)
+            SET(_td_stack_protector_flags " -fstack-protector-strong")
+        ELSE()
+            SET(_td_stack_protector_flags "")
+            MESSAGE(STATUS "C compiler lacks -fstack-protector-strong, stack protection disabled")
+        ENDIF()
+        IF(COMPILER_SUPPORT_CXX_STACK_PROTECTOR_STRONG)
+            SET(_td_cxx_stack_protector_flags " -fstack-protector-strong")
+        ELSE()
+            SET(_td_cxx_stack_protector_flags "")
+            MESSAGE(STATUS "C++ compiler lacks -fstack-protector-strong, stack protection disabled")
+        ENDIF()
+        OPTION(TD_LINUX_PIE "link Linux executables with -pie (turn OFF when linking non-PIC prebuilt static archives)" ON)
+        INCLUDE(CheckPIESupported)
+        # NOTE: plain OUTPUT_VARIABLE form only -- RESULT_VARIABLE is a newer
+        #   CMake addition and must stay out for cmake_minimum_required(3.16).
+        #   The probe stores its verdict in CMAKE_<LANG>_LINK_PIE_SUPPORTED.
+        CHECK_PIE_SUPPORTED(OUTPUT_VARIABLE _td_pie_output)
+        IF(CMAKE_C_LINK_PIE_SUPPORTED AND CMAKE_CXX_LINK_PIE_SUPPORTED)
+            SET(_td_pie_supported TRUE)
+        ELSE()
+            SET(_td_pie_supported FALSE)
+        ENDIF()
+        IF(TD_LINUX_PIE AND _td_pie_supported)
+            SET(_td_pie_flag " -pie")
+        ELSE()
+            SET(_td_pie_flag "")
+            MESSAGE(STATUS "PIE executables disabled: TD_LINUX_PIE=${TD_LINUX_PIE}, toolchain PIE support=${_td_pie_supported}")
+            MESSAGE(STATUS "check_pie_supported output: ${_td_pie_output}")
+        ENDIF()
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Wformat=2 -Werror=format${_td_stack_protector_flags} -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Wformat=2 -Werror=format${_td_cxx_stack_protector_flags} -fPIC -g3 -gdwarf-2 -Wno-format-truncation -Wno-write-strings -Wno-format-overflow -Wno-conversion-null")
+        # RELRO/BIND_NOW: probe linker support first (same convention as the
+        #   -Wl,--icf=all probe in platform.cmake) so a non-GNU linker (some
+        #   lld/mold/cross toolchains) degrades gracefully instead of failing
+        #   the link with unrecognized options.  Probe the C and the C++ link
+        #   driver: the flags land in CMAKE_EXE_LINKER_FLAGS and
+        #   CMAKE_SHARED_LINKER_FLAGS, so they also reach C++ targets and C++
+        #   link commands, which may use a different driver or extra defaults.
+        INCLUDE(CheckCSourceCompiles)
+        INCLUDE(CheckCXXSourceCompiles)
+        # Save/restore instead of bare UNSET so later if(DEFINED) checks see the original state.
+        SET(_td_required_link_options_was_defined FALSE)
+        IF(DEFINED CMAKE_REQUIRED_LINK_OPTIONS)
+            SET(_td_required_link_options_was_defined TRUE)
+            SET(_td_saved_required_link_options "${CMAKE_REQUIRED_LINK_OPTIONS}")
+        ENDIF()
+        SET(CMAKE_REQUIRED_LINK_OPTIONS "-Wl,-z,relro" "-Wl,-z,now")
+        check_c_source_compiles("int main(){return 0;}" LINKER_SUPPORTS_RELRO_NOW)
+        check_cxx_source_compiles("int main(){return 0;}" LINKER_SUPPORTS_CXX_RELRO_NOW)
+        IF(_td_required_link_options_was_defined)
+            SET(CMAKE_REQUIRED_LINK_OPTIONS "${_td_saved_required_link_options}")
+        ELSE()
+            UNSET(CMAKE_REQUIRED_LINK_OPTIONS)
+        ENDIF()
+        IF(LINKER_SUPPORTS_RELRO_NOW AND LINKER_SUPPORTS_CXX_RELRO_NOW)
+            SET(_td_relro_flags " -Wl,-z,relro -Wl,-z,now")
+        ELSE()
+            SET(_td_relro_flags "")
+            MESSAGE(STATUS "Linker lacks -z relro/-z now (C: ${LINKER_SUPPORTS_RELRO_NOW}, C++: ${LINKER_SUPPORTS_CXX_RELRO_NOW}), Full RELRO disabled")
+        ENDIF()
+        SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}${_td_pie_flag}${_td_relro_flags}")
+        SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}${_td_relro_flags}")
+        MESSAGE(STATUS "Linux hardening enabled (C):${_td_stack_protector_flags}${_td_pie_flag}${_td_relro_flags}")
+        MESSAGE(STATUS "Linux hardening enabled (C++):${_td_cxx_stack_protector_flags}${_td_pie_flag}${_td_relro_flags}")
     elseif(TD_DARWIN)
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations")
         SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -g3 -gdwarf-2 -Wno-reserved-user-defined-literal -Wformat=2 -Wno-format-nonliteral -Wno-format-y2k -Wno-deprecated-declarations -Wno-literal-conversion -Wno-writable-strings -Wno-unused-value -Wno-format -Wno-null-conversion")

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_EXECUTIL_H
 #define TDENGINE_EXECUTIL_H
 
@@ -29,6 +32,24 @@ extern "C" {
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 #include "tjson.h"
+
+typedef struct SStreamTagLookupPlan SStreamTagLookupPlan;
+
+typedef struct {
+  const char*   pTagCondKey;
+  int32_t       tagCondKeyLen;
+  const SArray* pTagColIds;
+  uint8_t       digest[16];
+} SStreamTagLookupKey;
+
+/** SUCCESS with a NULL plan means the condition structure is unsupported. */
+int32_t streamTagLookupPrepare(const SNode* pTagCond, SStreamTagLookupPlan** ppPlan);
+/** Key views are borrowed until the next bind or destroy; unsupported values are not errors. */
+int32_t streamTagLookupBind(SStreamTagLookupPlan* pPlan, SStreamRuntimeFuncInfo* pRuntime, SStreamTagLookupKey* pKey,
+                            bool* pSupported);
+void    streamTagLookupDestroy(SStreamTagLookupPlan* pPlan);
+
+struct SOperatorInfo;
 
 typedef struct STaskSubJobCtx {
   bool               isExchange;
@@ -141,6 +162,7 @@ typedef struct STableListInfo {
   int32_t*         groupOffset;       // keep the offset value for each group in the tableList
   SArray*          pTableList;
   SHashObj*        map;           // speedup acquire the tableQueryInfo by table uid
+  SHashObj*        pTbnameMap;    // key: uid, value: an owned name resolved from a tbname condition
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
 } STableListInfo;
@@ -155,12 +177,14 @@ typedef struct SDBVgInfoMgr {
 } SDBVgInfoMgr;
 
 struct SqlFunctionCtx;
+struct SStreamInsertSchema;
 typedef struct SInsertTableInfo {
-  int64_t                  uid;
-  int64_t                  vgid;
-  int32_t                  version;
-  STSchema*                pSchema;
-  char*                    tbname;
+  int64_t                    uid;
+  int64_t                    vgid;
+  int32_t                    version;
+  STSchema*                  pSchema;
+  struct SStreamInsertSchema* pSharedSchema;
+  char*                      tbname;
 } SInsertTableInfo;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
@@ -170,6 +194,10 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
 STableListInfo* tableListCreate();
 void            tableListDestroy(STableListInfo* pTableListInfo);
 void            tableListClear(STableListInfo* pTableListInfo);
+int32_t         createPreparedScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort,
+                                                SReadHandle* pHandle, STableListInfo* pTableListInfo, SNode* pTagCond,
+                                                SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap,
+                                                SStreamTagLookupPlan* pTagLookupPlan);
 int32_t         tableListGetOutputGroups(const STableListInfo* pTableList);
 bool            oneTableForEachGroup(const STableListInfo* pTableList);
 int32_t         tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tableUid, uint64_t* gid,
@@ -182,11 +210,17 @@ int32_t         tableListGetSize(const STableListInfo* pTableList, int32_t* pRes
 uint64_t        tableListGetSuid(const STableListInfo* pTableList);
 STableKeyInfo*  tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 int32_t         tableListFind(const STableListInfo* pTableList, uint64_t uid, int32_t startIndex);
+// Stores an owned table name for a UID until pTableList is cleared or destroyed.
+// Repeating the same UID/name pair is idempotent.
+int32_t         tableListPutTbname(STableListInfo* pTableList, uint64_t uid, const char* pTbname);
+// Returns a table name resolved while building pTableList, or NULL when the UID was not name-filtered.
+const char*     tableListGetTbname(const STableListInfo* pTableList, uint64_t uid);
 void tableListGetSourceTableInfo(const STableListInfo* pTableList, uint64_t* psuid, uint64_t* uid, int32_t* type);
 int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SScanPhysiNode* pScanNode,
   SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId);
 int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode* pTagCond, void* pVnode,
-                                 SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId);
+                          SIdxFltStatus status, SStorageAPI* pAPI, void* pStreamInfo, int64_t txnId,
+                          STableListInfo* pTableListInfo);
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
 void   closeResultRow(SResultRow* pResultRow);
@@ -245,7 +279,24 @@ SColumn   extractColumnFromColumnNode(SColumnNode* pColNode);
 
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                const SReadHandle* readHandle, bool applyExtWin);
+int32_t resetQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
+                                const SReadHandle* readHandle, bool applyExtWin);
+// Build the MAIN, PREV, and NEXT windows and apply mode-aware side pruning.
+int32_t initInterpPhaseWindows(SQueryTableDataCond* pCond,
+                               const STimeWindow* pRange,
+                               int8_t interpMode,
+                               int8_t interpFillMode);
+bool    interpMainFirstNotifyMatchesPhase(int8_t phase,
+                                          const STimeWindow* pWindow,
+                                          uint64_t currentEpoch,
+                                          uint64_t notifyEpoch,
+                                          TSKEY notifyTs);
+bool    interpMainFirstNotifyMatchesSource(
+            int8_t currentPhase, uint64_t currentScanGroupId,
+            const STimeWindow* pWindow, uint64_t currentEpoch,
+            const STableScanOperatorParam* pNotify);
 void    interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows);
+const char* interpNotifyTargetOpName(int32_t operatorType);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
 
@@ -261,6 +312,10 @@ void  updateTimeWindowInfo(SColumnInfoData* pColData, const STimeWindow* pWin, i
 
 SSDataBlock* createTagValBlockForFilter(SArray* pColList, int32_t numOfTables, SArray* pUidTagList, void* pVnode,
                                         SStorageAPI* pStorageAPI, int64_t txnId);
+
+// Copy one variable-length cell (varstr/blob/json) into a buffer whose capacity is cap;
+// refuses a value wider than cap instead of overrunning it (see executil.c).
+int32_t copyVarLenCellChecked(char* dst, int32_t type, const char* src, int32_t cap, int32_t* pLen);
 
 /**
  * @brief build a tuple into keyBuf
@@ -286,9 +341,19 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+/* Structural provenance only; the common builder performs fallible validation. */
+bool    streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const SStreamRuntimeFuncInfo* pInfo,
+                                      int32_t msgType, bool reset);
 int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
 void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
+int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
+bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
+/** Request after each execution reset, before the first fetch. Mode resolves before its first return. */
+int32_t qExchangeRequestReaderGroupOutput(struct SOperatorInfo* pOperator);
+int32_t qExchangeRequestDimensionReaderOutput(struct SOperatorInfo* pOperator);
+/** 0 unknown, 1 legacy, 2 grouped. */
+int32_t qExchangeReaderGroupOutputMode(const struct SOperatorInfo* pOperator);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
 SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
@@ -297,6 +362,8 @@ SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slot
 void    execUtilTestResetHandleRemoteRowResState(void);
 void    execUtilTestSetExtractSingleRspBlockFailOnce(int32_t code);
 int32_t execUtilTestGetHandleRemoteRowResDestroyCount(void);
+void    execUtilTestFailStreamGroupSortHashPutAfter(int32_t successfulPuts);
+int32_t execUtilTestSortStreamTableGroups(STableListInfo* pTableListInfo);
 #endif
 
 #ifdef __cplusplus

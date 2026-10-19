@@ -1,4 +1,20 @@
 #!/usr/bin/env python3
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """Hot upgrade task for CI integration."""
 
 import os
@@ -78,19 +94,38 @@ class HotUpgradeTask:
         if taosdSrc.exists():
             shutil.copy2(taosdSrc, targetDir)
 
-        # Prefer libtaosnative.so (real native lib) renamed to libtaos.so,
-        # fall back to libtaos.so if libtaosnative.so is absent
-        libDst = Path(targetDir) / "libtaos.so"
-        nativeSrc = buildPath / "build" / "lib" / "libtaosnative.so"
-        taosSrc   = buildPath / "build" / "lib" / "libtaos.so"
-        if nativeSrc.exists():
-            shutil.copy2(nativeSrc, libDst)
-            print(f"  Using libtaosnative.so -> libtaos.so")
-        elif taosSrc.exists():
-            shutil.copy2(taosSrc, libDst)
-            print(f"  Using libtaos.so")
+        # Copy the client libraries with their own names: libtaos.so owns the
+        # public API and dlopen()s the driver, libtaosnative.so *is* that driver.
+        # Neither copy works on its own, and renaming the driver to libtaos.so --
+        # what this used to do -- leaves the Python client without any taos_*
+        # symbol, because the driver only exports the entry-point table that the
+        # dispatcher reads.  The dispatcher prefers the driver sitting next to
+        # itself, so the pair has to land in the same directory.
+        libDir = buildPath / "build" / "lib"
+        dispatcherSrc = libDir / "libtaos.so"
+        nativeSrc = libDir / "libtaosnative.so"
+        copied = []
+        if dispatcherSrc.exists():
+            shutil.copy2(dispatcherSrc, Path(targetDir) / "libtaos.so")
+            copied.append("libtaos.so")
+            if not nativeSrc.exists():
+                # The dispatcher only dlopen()s the driver sitting next to it, so a
+                # directory holding libtaos.so alone cannot be loaded at all.
+                raise FileNotFoundError(
+                    f"libtaos.so found in {libDir} but libtaosnative.so is missing"
+                )
+            shutil.copy2(nativeSrc, Path(targetDir) / "libtaosnative.so")
+            copied.append("libtaosnative.so")
+        elif nativeSrc.exists():
+            # Driver-only build: it is self-contained, so publishing it as
+            # libtaos.so is what makes the directory loadable.
+            shutil.copy2(nativeSrc, Path(targetDir) / "libtaos.so")
+            copied.append("libtaos.so (from libtaosnative.so)")
         else:
-            raise FileNotFoundError(f"No libtaos.so or libtaosnative.so found in {buildPath / 'build' / 'lib'}")
+            raise FileNotFoundError(
+                f"No libtaos.so or libtaosnative.so found in {libDir}"
+            )
+        print(f"  Using {', '.join(copied)}")
 
         return targetDir
 

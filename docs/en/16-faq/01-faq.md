@@ -23,6 +23,8 @@ You can obtain `dnode_id` from the output of `SHOW DNODES`.
 
 When the system is running normally, set `debugFlag` to `131`; otherwise a large volume of logs will be generated and system efficiency will drop.
 
+For log file locations, file names, how to confirm the effective log directory, and how to package logs, see [Locating and Collecting Log Files](../12-operations-and-tooling/02-operations/06-logs.md).
+
 <!-- markdownlint-disable MD051 -->
 ## FAQ List
 
@@ -60,7 +62,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 If you cannot access the official Docker Hub registry (hub.docker.com), try the following:
 
 - Check that your network connection is working.
-- Download the image file from the [TDengine Download Center](https://www.taosdata.com/download-center), then load it with `docker load`. See the usage instructions on the download page.
+- Download the image file from the [TDengine Download Center](https://tdengine.com/downloads), then load it with `docker load`. See the usage instructions on the download page.
 - Try an alternative mirror registry, such as [CNIX Internal Container Registry Mirror](https://m.ixdev.cn/). This mirror is unaffiliated with Taos Data. If it is unavailable, try another mirror on the network and follow its usage instructions.
 
 ### 1.4 How can I obtain all JDBC driver dependency JARs for an air-gapped (offline) environment?
@@ -151,7 +153,7 @@ For container deployments, see [Custom Passwords, Upgrades, and Health Checks](.
 
 `TAOS_ROOT_PASSWORD` is supported from `v3.3.6.6`; `v3.3.8.8` and later support `TAOS_ROOT_PASSWORD_FILE` and can be upgraded directly; `v3.4.1.0` and later support `taos-check startup` and `taos-check service`.
 
-### 2.7 What should I do if I encounter "some vnode/qnode/mnode(s) out of service"?
+### 2.7 What should I do if I encounter "Some vnode/qnode/mnode(s) are out of service"?
 
 The client has not configured FQDN resolution for all server nodes. For example, if the server has 3 nodes, the client may have configured FQDN resolution for only 1 node. For FQDN configuration, see [Understanding TDengine FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html).
 

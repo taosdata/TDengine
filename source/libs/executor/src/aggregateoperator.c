@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -280,6 +282,16 @@ static bool nextGroupedResult(SOperatorInfo* pOperator) {
     }
 
     // Phase 2: pull all blocks from downstream[1] (DistinctFilter), execute distinct functions
+    // Legacy physical plans already deduplicate in DistinctFilter. Normalize the context so the
+    // function layer does not build a second SSpillDistinctSet for the same rows.
+    for (int32_t k = 0; k < numTotal; ++k) {
+      SExprInfo* pExprInfo = &pSup->pExprInfo[k];
+      if (pExprInfo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+          pExprInfo->pExpr->_function.pFunctNode &&
+          pExprInfo->pExpr->_function.pFunctNode->isDistinct) {
+        pSup->pCtx[k].isDistinctFunc = false;
+      }
+    }
     while (1) {
       pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 1);
       if (pBlock == NULL) break;
@@ -457,7 +469,8 @@ int32_t getAggregateResultNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     while (1) {
       doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-      code = doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL);
+      code = doFilterWithTaskCorrelation(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                         pTaskInfo);
       QUERY_CHECK_CODE(code, lino, _end);
 
       if (!hasRemainResults(&pAggInfo->groupResInfo)) {
@@ -794,6 +807,9 @@ void cleanupResultInfoInGroupResInfo(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, 
 
 void cleanupResultInfoInHashMap(SExecTaskInfo* pTaskInfo, SExprSupp* pSup, SDiskbasedBuf* pBuf,
                        SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap) {
+  if (pHashmap == NULL) {
+    return;
+  }
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
   SqlFunctionCtx* pCtx = pSup->pCtx;
@@ -899,14 +915,14 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
         char* dest = GET_ROWCELL_INTERBUF(pEntryInfo);
         char* data = colDataGetData(pColInfoData, rowIndex);
 
-        if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-          int32_t dataLen = getJsonValueLen(data);
-          memcpy(dest, data, dataLen);
-        } else if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-          if (IS_STR_DATA_BLOB(pColInfoData->info.type)) {
-            blobDataCopy(dest, data);
-          } else {
-            varDataCopy(dest, data);
+        if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          // The interbuf cell is sized by the expression's declared result width; a
+          // virtual table column may carry a value wider than declared (the full source
+          // value is returned by design) -- refuse to overrun it.
+          code = copyVarLenCellChecked(dest, pColInfoData->info.type, data,
+                                       (int32_t)pCtx[k].resDataInfo.interBufSize, NULL);
+          if (TSDB_CODE_SUCCESS != code) {
+            TAOS_CHECK_EXIT(code);
           }
         } else {
           memcpy(dest, data, pColInfoData->info.bytes);

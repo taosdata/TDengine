@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import random
 import os
 import sys
@@ -202,6 +217,14 @@ class TSMATester:
                 else:
                     deduplicated_tsmas.append(tsma)
             query_ctx.used_tsmas = deduplicated_tsmas
+
+        if query_ctx.has_tsma():
+            for row in explain_res:
+                plan = str(row).lower()
+                if 'data_load=sma' in plan:
+                    tdLog.exit('tsma query must not use block SMA: %s, plan: %s' % (sql, str(row)))
+                if 'interval on column' in plan and 'mode=fast' in plan:
+                    tdLog.exit('tsma query must not use fast interval: %s, plan: %s' % (sql, str(row)))
 
         return query_ctx
 
@@ -1046,6 +1069,9 @@ class TestTsma:
     def tsma_query_with_tsma_interval_possibly_partition(self,db_name: str = 'test'):
         ctxs: List[TSMAQueryContext] = []
         sql = f'select avg(c1), avg(c2) from {db_name}.meters interval(5m)'
+        ctxs.append(TSMAQCBuilder().with_sql(sql)
+                    .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
+        sql = f'select /*+ fast_interval() */ avg(c1), avg(c2) from {db_name}.meters interval(5m)'
         ctxs.append(TSMAQCBuilder().with_sql(sql)
                     .should_query_with_tsma('tsma1', UsedTsma.TS_MIN, UsedTsma.TS_MAX).get_qc())
 

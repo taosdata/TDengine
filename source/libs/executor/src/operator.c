@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -96,6 +98,10 @@ void setOperatorStreamStateFn(SOperatorInfo* pOperator, __optr_state_fn_t relase
 void setOperatorResetStateFn(SOperatorInfo* pOperator, __optr_reset_state_fn_t resetFn) {
   pOperator->fpSet._resetFn = resetFn;
   pOperator->fpSet.resetStateFn = (resetFn != NULL) ? optrResetStateFnWithExecRecord : NULL;
+}
+
+void setOperatorRowStateCleanupFn(SOperatorInfo* pOperator, __optr_close_fn_t cleanupFn) {
+  pOperator->fpSet.rowStateCleanupFn = cleanupFn;
 }
 
 static int32_t buildTagRefSourceScanNode(SReadHandle* pHandle, STagRefSourcePhysiNode* pTagRefSourceNode,
@@ -242,7 +248,8 @@ static ERetType extractScanInfo(SOperatorInfo* pOperator, STraverParam* pParam, 
 
   if (type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN ||
       type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN ||
+      type == QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE) {
     pInfo->order = TSDB_ORDER_ASC;
     pInfo->scanFlag = MAIN_SCAN;
     return OPTR_FN_RET_ABORT;
@@ -327,8 +334,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
   // Capture dataBlockId before any heap allocations.  On the mnode (16+ concurrent query
   // threads), a concurrent nodesDestroyNode() can free pPhyNode's heap block while an
   // internal calloc() (e.g. taosArrayInit for column data) picks up the same coalesced
-  // address and zero-fills it.  Reading the id here — before any operator constructor runs
-  // — guarantees we hold the correct value even if pPhyNode is later corrupted.
+  // address and zero-fills it. Reading the id here -- before any operator constructor runs
+  // -- guarantees we hold the correct value even if pPhyNode is later corrupted.
   if (pPhyNode->pOutputDataBlockDesc == NULL) {
     qError("%s %s: pPhyNode->pOutputDataBlockDesc is NULL, type=%d", __func__, idstr, type);
     pTaskInfo->code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -489,7 +496,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       } else {
         code = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, NULL, pUser, pTaskInfo, &pOperator);
       }
-    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type) {
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN == type ||
+               QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE == type) {
       STableCountScanPhysiNode* pTblCountScanNode = (STableCountScanPhysiNode*)pPhyNode;
       code = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
@@ -692,6 +700,7 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
 
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
+    pChildNode->pParent = pPhyNode;
     // For external window parent, pre-initialize runtime from subquery before building children
     if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == type && i == 0) {
       // best-effort pre-init; ignore errors here and let later construction handle them
@@ -752,6 +761,8 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     code = createMergeJoinOperatorInfo(ops, size, (SSortMergeJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == type) {
     code = createHashJoinOperatorInfo(ops, size, (SHashJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN == type) {
+    code = createThetaJoinOperatorInfo(ops, size, (SThetaJoinPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
     code = createFillOperatorInfo(ops[0], (SFillPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC == type) {
@@ -783,17 +794,9 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     }
     code = createVirtualTableMergeOperatorInfo(ops, size, (SVirtualScanPhysiNode*)pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL == type) {
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-      code = createStreamExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    } else {
-      code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    }
+    code = createExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL == type) {
-    if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-      code = createStreamMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    } else {
-      code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
-    }
+    code = createMergeAlignedExternalWindowOperator(ops[0], pPhyNode, pTaskInfo, &pOptr);
   } else {
     code = TSDB_CODE_INVALID_PARA;
     pTaskInfo->code = code;
@@ -836,6 +839,22 @@ void destroyOperator(SOperatorInfo* pOperator) {
 
     taosMemoryFreeClear(pOperator->pDownstream);
     pOperator->numOfDownstream = 0;
+  }
+
+  // Three-phase teardown, because per-result-row function state needs both the expression supp and
+  // the result-row buffer alive at once:
+  //
+  //   1. cleanupFn  -- release per-result-row state (DISTINCT dedup sets and their spill files).
+  //                    Both exprSupp and the result rows are still valid here.
+  //   2. cleanupExprSupp -- destroySqlFunctionCtx() dereferences pCtx->resultInfo, which points into
+  //                    the result-row buffer, so this must precede closeFn.
+  //   3. closeFn    -- frees the result-row buffer itself (cleanupAggSup) and the operator info.
+  //
+  // Doing (1) from closeFn instead would be too late: cleanupExprSupp() memsets the supp, leaving
+  // numOfExprs == 0, so cleanupResultRowFunctionState() would iterate nothing and silently leak
+  // every set still attached to an unemitted row on an early cancel or LIMIT short-circuit.
+  if (pOperator->fpSet.rowStateCleanupFn != NULL && pOperator->info != NULL) {
+    pOperator->fpSet.rowStateCleanupFn(pOperator->info);
   }
 
   cleanupExprSupp(&pOperator->exprSupp);
@@ -910,6 +929,21 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
       return code;
     }
   }
+
+  int32_t statNum = taosArrayGetSize(operatorInfo->pTaskInfo->pCorrelationStats);
+  if (statNum > 0) {
+    pExplainInfo->pCorrelationStats = taosMemoryMalloc((size_t)statNum * sizeof(SExplainCorrelationStat));
+    if (NULL == pExplainInfo->pCorrelationStats) {
+      return terrno;
+    }
+    memcpy(pExplainInfo->pCorrelationStats, taosArrayGet(operatorInfo->pTaskInfo->pCorrelationStats, 0),
+           (size_t)statNum * sizeof(SExplainCorrelationStat));
+    pExplainInfo->correlationStatNum = statNum;
+  }
+
+  qDebug("%s explain exec collected, opType=%d(%s) blockId=%" PRId64 " rows=%" PRIu64 " verboseLen=%u phyNode=%p",
+         GET_TASKID(operatorInfo->pTaskInfo), operatorInfo->operatorType, nodesNodeName(operatorInfo->operatorType),
+         operatorInfo->resultDataBlockId, pExplainInfo->numOfRows, pExplainInfo->verboseLen, operatorInfo->pPhyNode);
 
   int32_t code = 0;
   for (int32_t i = 0; i < operatorInfo->numOfDownstream; ++i) {
@@ -1050,20 +1084,29 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   if (childrenNum <= 0) {
     return TSDB_CODE_SUCCESS;
   }
+  if ((*ppParam)->opType == QUERY_NODE_PHYSICAL_PLAN_PARTITION &&
+      childrenNum != 1) {
+    return TSDB_CODE_INVALID_PARA;
+  }
 
+  int32_t code = TSDB_CODE_SUCCESS;
   for (int32_t i = 0; i < childrenNum; ++i) {
-    SOperatorParam* pChild = *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
-    if (pChild == NULL) {
-      return terrno;
+    SOperatorParam* pChild =
+        *(SOperatorParam**)taosArrayGet((*ppParam)->pChildren, i);
+    if (pChild == NULL || pChild->downstreamIdx < 0 ||
+        pChild->downstreamIdx >= pOperator->numOfDownstream) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _error;
     }
 
-    if ((*pppDownstramParam)[pChild->downstreamIdx]) {
-      int32_t code = mergeOperatorParams((*pppDownstramParam)[pChild->downstreamIdx], pChild);
+    SOperatorParam** ppSlot = &(*pppDownstramParam)[pChild->downstreamIdx];
+    if (*ppSlot != NULL) {
+      code = mergeOperatorParams(*ppSlot, pChild);
       if (code) {
-        return code;
+        goto _error;
       }
     } else {
-      (*pppDownstramParam)[pChild->downstreamIdx] = pChild;
+      *ppSlot = pChild;
     }
   }
 
@@ -1071,35 +1114,56 @@ int32_t setOperatorParams(struct SOperatorInfo* pOperator, SOperatorParam* pInpu
   (*ppParam)->pChildren = NULL;
 
   return TSDB_CODE_SUCCESS;
+
+_error:
+  // Route nothing on failure, so the child tree stays solely owned by
+  // (*ppParam)->pChildren and is freed exactly once with its parent.
+  memset(*pppDownstramParam, 0, pOperator->numOfDownstream * POINTER_BYTES);
+  return code;
+}
+
+void detachOperatorRoutingParam(SOperatorInfo* pOperator) {
+  SOperatorParam* pParam = pOperator->pOperatorGetParam;
+  if (pParam == NULL || pParam->value != NULL ||
+      pParam->pChildren != NULL) {
+    return;
+  }
+
+  // A reused routing shell is still owned by the parent pull.
+  bool shouldFreeHere = !pParam->reUse;
+  pParam->reUse = false;
+  pOperator->pOperatorGetParam = NULL;
+  if (shouldFreeHere) {
+    freeOperatorParam(pParam, OP_GET_PARAM);
+  }
+}
+
+int32_t getNextBlockFromDownstreamChecked(SOperatorInfo* pOperator,
+                                          int32_t idx, bool clearParam,
+                                          SSDataBlock** ppBlock) {
+  QRY_PARAM_CHECK(ppBlock);
+  *ppBlock = NULL;
+
+  recordOpExecBeforeDownstream(pOperator);
+  int32_t code = getNextBlockFromDownstreamImpl(pOperator, idx, clearParam,
+                                                ppBlock);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = blockDataCheck(*ppBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
+             __func__, __LINE__, tstrerror(code));
+    }
+  }
+  recordOpExecAfterDownstream(pOperator,
+                              *ppBlock && code == TSDB_CODE_SUCCESS ?
+                                  (*ppBlock)->info.rows : 0);
+  return code;
 }
 
 SSDataBlock* getNextBlockFromDownstream(struct SOperatorInfo* pOperator, int32_t idx) {
-  recordOpExecBeforeDownstream(pOperator);
   SSDataBlock* p = NULL;
-  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, true, &p);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(p);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
-             __func__, __LINE__, tstrerror(code));
-    }
-  }
-  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
-  return (code == TSDB_CODE_SUCCESS) ? p : NULL;
-}
-
-SSDataBlock* getNextBlockFromDownstreamRemain(struct SOperatorInfo* pOperator, int32_t idx) {
-  recordOpExecBeforeDownstream(pOperator);
-  SSDataBlock* p = NULL;
-  int32_t      code = getNextBlockFromDownstreamImpl(pOperator, idx, false, &p);
-  if (code == TSDB_CODE_SUCCESS) {
-    code = blockDataCheck(p);
-    if (code != TSDB_CODE_SUCCESS) {
-      qError("%s, %s failed at line %d, code:%s", GET_TASKID(pOperator->pTaskInfo),
-             __func__, __LINE__, tstrerror(code));
-    }
-  }
-  recordOpExecAfterDownstream(pOperator, p && code == TSDB_CODE_SUCCESS ? p->info.rows : 0);
+  int32_t      code = getNextBlockFromDownstreamChecked(pOperator, idx, true,
+                                                        &p);
   return (code == TSDB_CODE_SUCCESS) ? p : NULL;
 }
 
@@ -1122,11 +1186,17 @@ static FORCE_INLINE int32_t getNextBlockFromDownstreamRemainDetachImpl(struct SO
   if (pOperator->pDownstreamGetParams && pOperator->pDownstreamGetParams[idx]) {
     SOperatorParam* pGetParam = pOperator->pDownstreamGetParams[idx];
     pOperator->pDownstreamGetParams[idx] = NULL;
-    // Once detached from the parent operator, downstream must own/free this param.
+    // A detached param is one-shot. Federated scan only borrows it for this call;
+    // other downstream operators take ownership when reUse is false.
     pGetParam->reUse = false;
+    bool freeDetachedParam = pGetParam->opType == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
 
     qDebug("DynOp: op %s start to get block from downstream %s", pOperator->name, pOperator->pDownstream[idx]->name);
     code = pOperator->pDownstream[idx]->fpSet.getNextExtFn(pOperator->pDownstream[idx], pGetParam, pResBlock);
+    if (freeDetachedParam) {
+      freeOperatorParam(pGetParam, OP_GET_PARAM);
+      pGetParam = NULL;
+    }
     QUERY_CHECK_CODE(code, lino, _return);
   } else {
     code = pOperator->pDownstream[idx]->fpSet.getNextFn(pOperator->pDownstream[idx], pResBlock);
@@ -1320,6 +1390,12 @@ void initOperatorCostInfo(SOperatorInfo* pOperator) {
   Only record the metrics in explain analyze mode.
 */
 void recordOpExecBegin(SOperatorInfo* pOperator) {
+  if (pOperator->cost.execDepth++ > 0) {
+    // A nested public next call belongs to the same pull. The outermost call
+    // records the complete execution, so skip duplicate accounting here.
+    return;
+  }
+
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.startTs = taosGetTimestampUs();
     // calculate output wait time (time since last call returned)
@@ -1381,6 +1457,14 @@ void recordOpExecAfterDownstream(SOperatorInfo* pOperator, size_t inputRows) {
   Only record the metrics in explain analyze mode.
 */
 void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
+  if (pOperator->cost.execDepth == 0) {
+    return;
+  }
+
+  if (--pOperator->cost.execDepth > 0) {
+    return;
+  }
+
   if (QUERY_ENABLE_EXPLAIN(pOperator->pTaskInfo)) {
     pOperator->cost.endTs = taosGetTimestampUs();
     pOperator->cost.execTimes++;
@@ -1405,6 +1489,7 @@ void recordOpExecEnd(SOperatorInfo* pOperator, size_t rows) {
 */
 void resetOperatorCostInfo(SOperatorInfo* pOperator) {
   /* keep execCreate UNCHANGED!!! */
+  pOperator->cost.execDepth = 0;
   pOperator->cost.execStart = 0;
   pOperator->cost.execFirstRow = 0;
   pOperator->cost.execLastRow = 0;
@@ -1413,4 +1498,36 @@ void resetOperatorCostInfo(SOperatorInfo* pOperator) {
   pOperator->cost.inputWaitElapsed = 0;
   pOperator->cost.outputWaitElapsed = 0;
   pOperator->cost.inputRows = 0;
+}
+
+int32_t optrResolveStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilterSpec* pSpec, bool* pEligible) {
+  if (pProbe == NULL || pSpec == NULL || pEligible == NULL || pSpec->pColumns == NULL ||
+      pSpec->pColumns->elemSize != sizeof(SStreamJoinFilterColumn))
+    return TSDB_CODE_INVALID_PARA;
+  *pEligible = false;
+  pSpec->inputBlockId = pSpec->probeBlockId;
+  for (int32_t i = 0; i < taosArrayGetSize(pSpec->pColumns); ++i) {
+    SStreamJoinFilterColumn* pCol = taosArrayGet(pSpec->pColumns, i);
+    pCol->inputSlot = pCol->probeSlot;
+  }
+  switch (pProbe->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectResolveStreamJoinFilter(pProbe, pSpec, pEligible);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinResolveStreamJoinFilter(pProbe, pSpec, pEligible);
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t optrInstallStreamJoinFilter(SOperatorInfo* pProbe, SStreamJoinFilter** ppFilter) {
+  if (pProbe == NULL || ppFilter == NULL || *ppFilter == NULL) return TSDB_CODE_INVALID_PARA;
+  switch (pProbe->operatorType) {
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return projectInstallStreamJoinFilter(pProbe, ppFilter);
+    case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
+      return extWinInstallStreamJoinFilter(pProbe, ppFilter);
+    default:
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 }

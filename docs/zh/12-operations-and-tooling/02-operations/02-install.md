@@ -16,7 +16,7 @@ TDengine 完整的软件包包括服务端（`taosd`）、应用驱动（`taosc`
 
 此外，TDengine 也提供 macOS x64/m1 平台的 pkg 安装包。
 
-下文安装步骤中的下载列表为**社区版（TDengine TSDB-OSS）**安装包。若需要企业版，请前往 [TDengine 产品下载中心](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise) 获取对应平台与版本的安装包。
+下文安装步骤中的下载列表为**社区版（TDengine TSDB-OSS）**安装包。若需要企业版，请前往 [TDengine 产品下载中心](https://taosdata.com/downloads?product=TDengine+TSDB-Enterprise) 获取对应平台与版本的安装包。
 
 ## 环境要求
 
@@ -264,7 +264,7 @@ override 文件仅需写入要改/新增的字段，其余沿用主服务文件�
 
 ## 获取历史版本
 
-历史版本可以前往 TDengine 产品下载中心的 [TDengine TSDB-Enterprise](https://www.taosdata.com/download-center?product=TDengine+TSDB-Enterprise&platform=Linux-Generic&type=Server) 页面。
+历史版本可以前往 TDengine 产品下载中心的 [TDengine TSDB-Enterprise](https://taosdata.com/downloads?product=TDengine+TSDB-Enterprise&platform=Linux-Generic&type=Server) 页面。
 
 ## 目录结构
 
@@ -278,7 +278,7 @@ override 文件仅需写入要改/新增的字段，其余沿用主服务文件�
 | /usr/local/taos/include   | TDengine 对外提供的 C 语言接口的头文件。                             |
 | /etc/taos/taos.cfg        | TDengine 默认`配置文件`                                             |
 | /var/lib/taos             | TDengine 默认数据文件目录。可通过`配置文件`修改位置。                |
-| /var/log/taos             | TDengine 默认日志文件目录。可通过`配置文件`修改位置。                |
+| /var/log/taos             | TDengine 默认日志文件目录。可通过`配置文件`修改位置。各组件日志文件详见 [日志文件位置与获取](./06-logs.md)。 |
 
 ## 可执行程序
 
@@ -294,4 +294,4 @@ TDengine 的所有可执行文件默认存放在 `/usr/local/taos/bin` 目录下
 - `set_core.sh`: 用于方便调试设置系统生成 core dump 文件的脚本
 - `taosd-dump-cfg.gdb`: 用于方便调试 taosd 的 gdb 执行脚本。
 
-TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [网络与 FQDN 配置](./08-network.md)
+TDengine 支持 IPv4 和 IPv6 两种通信方式，其中 IPv6 内容参见 [网络与 FQDN 配置](./09-network.md)

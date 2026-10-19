@@ -1,32 +1,19 @@
 #!/bin/bash
-# ======================================================================
-# rerun.sh — 在本机或 runner 上运行 / 复现测试用例
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# 使用场景：
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-#   1. 本地有编译产物，直接运行指定用例：
-#      ./rerun.sh "pytest cases/11-Functions/06-System/test_fun_sys_info.py"
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
 #
-#   2. 指定 MR 号，从 Nexus 下载构建产物并运行指定用例：
-#      ./rerun.sh --mr 42 "pytest cases/11-Functions/06-System/test_fun_sys_info.py"
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
 #
-#   3. 在 runner 机器上复现 CI 失败用例（读 fail-logs）：
-#      ./rerun.sh --case n4-11-Functions_06-System_test_fun_sys_info
-#
-#   4. 用指定 MR 的构建复现 CI 失败用例：
-#      ./rerun.sh --mr 42 --case n4-11-Functions_06-System_test_fun_sys_info
-#
-# 选项：
-#   --mr  <N>       MR 号，从 Nexus 下载该 MR 的构建产物
-#   --case <name>   从 fail-logs 读取 CI 失败用例信息（runner 机器）
-#   -d <DIR>        手动指定 debug/debugNoSan 目录（覆盖自动检测）
-#   -r <DIR>        手动指定 taos-community 目录（覆盖自动检测）
-#   -s              使用 sanitizer 构建（默认 non-sanitizer）
-#   --user <U>      Nexus 用户名（也可用环境变量 NEXUS_USERNAME）
-#   --pass <P>      Nexus 密码（也可用环境变量 NEXUS_PASSWORD）
-#
-# 注：MR 产物缓存到 /tmp/tdci-mr-<N>/，二次运行无需重新下载。
-# ======================================================================
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -euo pipefail
 
@@ -149,11 +136,11 @@ if [[ -n "$CASE_NAME" ]]; then
         # 旧结构: FAILLOG_BASE/<slug>/case.txt（兼容旧格式）
         CASE_TXT="$FAILLOG_BASE/$CASE_NAME/case.txt"
     else
-        # 新结构: FAILLOG_BASE/job-<id>/<slug>/case.txt
-        # 按 job-id 降序搜索（最新 job 优先）
-        FOUND_CASE_TXT=$(find "$FAILLOG_BASE" -maxdepth 3 -name "case.txt" \
-            -path "*/${CASE_NAME}/case.txt" 2>/dev/null \
-            | sort -t/ -k5 -rV | head -1 || true)
+        # 支持 FAILLOG_BASE/job-<id>/<slug>/case.txt 与
+        # FAILLOG_BASE/mr-<iid>/job-<id>/<slug>/case.txt，最新日志优先。
+        FOUND_CASE_TXT=$(find "$FAILLOG_BASE" -maxdepth 4 -name "case.txt" \
+            -path "*/${CASE_NAME}/case.txt" -printf '%T@ %p\n' 2>/dev/null \
+            | sort -nr | head -1 | cut -d' ' -f2- || true)
         if [[ -n "$FOUND_CASE_TXT" ]]; then
             CASE_TXT="$FOUND_CASE_TXT"
         fi
@@ -167,7 +154,7 @@ if [[ -n "$CASE_NAME" ]]; then
             ls "$FAILLOG_BASE/" | grep -v "^_" | sed 's/^/  /' || true
             echo ""
             echo "提示: 用例名格式为 n<NODE>-<path>，例如:"
-            find "$FAILLOG_BASE" -maxdepth 3 -name "case.txt" 2>/dev/null \
+            find "$FAILLOG_BASE" -maxdepth 4 -name "case.txt" 2>/dev/null \
                 | sed 's|.*/\([^/]*\)/case\.txt|  \1|' | sort -u | head -10 || true
         else
             echo "  (fail-logs 目录不存在: $FAILLOG_BASE)"

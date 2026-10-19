@@ -31,14 +31,17 @@ TDengine 在标准 SQL 之上，针对时序与物联网场景扩展了标签过
 - **关联查询**
   普通 Join，以及面向时序的 ASOF Join、Window Join。详见 [关联查询](../05-tdengine-sql/04-data-query/05-join.md)。
 
+- **联邦查询**
+  在一条 SQL 中读取 MySQL、PostgreSQL、InfluxDB 等外部数据源，并与本地时序数据联合分析。详见 [联邦查询](../05-tdengine-sql/04-data-query/06-federated-query.md)。
+
 - **窗口函数**
-  `OVER` 窗口函数。详见 [窗口函数](../05-tdengine-sql/04-data-query/06-window-function.md)。
+  `OVER` 窗口函数。详见 [窗口函数](../05-tdengine-sql/04-data-query/07-window-function.md)。
 
 - **自定义函数与缓存**
-  用户自定义函数（UDF）；最新行读缓存加速。详见 [自定义函数](../05-tdengine-sql/04-data-query/07-udf.md)、[读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)。
+  用户自定义函数（UDF）；最新行读缓存加速。详见 [自定义函数](../05-tdengine-sql/04-data-query/08-udf.md)、[读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)。
 
 - **执行计划**
-  `EXPLAIN` / `EXPLAIN ANALYZE` 查看执行计划。详见 [执行计划](../05-tdengine-sql/04-data-query/09-explain.md)。
+  `EXPLAIN` / `EXPLAIN ANALYZE` 查看执行计划。详见 [执行计划](../05-tdengine-sql/04-data-query/10-explain.md)。
 
 相对通用数据库，查询时序数据时尤其常用：**一次查询超级表覆盖多设备**、**用标签缩小设备范围**、**按时间或状态切窗口做降采样与聚合**。下文从最常用的过滤、聚合与时间窗口开始上手。
 
@@ -206,7 +209,7 @@ Query OK, 3 row(s) in set
 
 窗口查询用于把时序数据按时间、状态、事件或行数切分，再在每个窗口内计算。快速上手阶段可以先理解下面几类窗口：
 
-![常用窗口划分逻辑](../assets/query-and-aggregate-01.png)
+![常用窗口划分逻辑](../assets/query-and-aggregate-01.webp)
 
 - 时间窗口：按固定时间间隔切分，使用 `INTERVAL`。
 - 滑动窗口：在时间窗口基础上设置滑动步长，使用 `SLIDING`。
@@ -489,7 +492,8 @@ WHERE ts >= "2017-07-14 10:40:00" AND ts < "2017-07-14 10:40:10";
 - [内置函数](../05-tdengine-sql/04-data-query/03-function.md)：内置函数分类、语法与使用说明
 - [特色查询](../05-tdengine-sql/04-data-query/04-distinguished.md)：时序数据特有的查询功能（多种窗口等）
 - [关联查询](../05-tdengine-sql/04-data-query/05-join.md)：关联查询（JOIN）概念、类型、语法与限制
-- [窗口函数](../05-tdengine-sql/04-data-query/06-window-function.md)：`OVER` 子句与 SQL 标准窗口函数说明
-- [自定义函数](../05-tdengine-sql/04-data-query/07-udf.md)：创建、管理与调用用户自定义函数（UDF）
-- [读缓存](../05-tdengine-sql/04-data-query/08-cache-query.md)：通过 `CACHEMODEL` 缓存子表最近数据，加速 `LAST` / `LAST_ROW` 查询
-- [执行计划](../05-tdengine-sql/04-data-query/09-explain.md)：使用 `EXPLAIN` / `EXPLAIN ANALYZE` 查看查询执行计划与运行期指标
+- [联邦查询](../05-tdengine-sql/04-data-query/06-federated-query.md)：跨数据源查询、外部数据源管理与虚拟表外部列引用
+- [窗口函数](../05-tdengine-sql/04-data-query/07-window-function.md)：`OVER` 子句与 SQL 标准窗口函数说明
+- [自定义函数](../05-tdengine-sql/04-data-query/08-udf.md)：创建、管理与调用用户自定义函数（UDF）
+- [读缓存](../05-tdengine-sql/04-data-query/09-cache-query.md)：通过 `CACHEMODEL` 缓存子表最近数据，加速 `LAST` / `LAST_ROW` 查询
+- [执行计划](../05-tdengine-sql/04-data-query/10-explain.md)：使用 `EXPLAIN` / `EXPLAIN ANALYZE` 查看查询执行计划与运行期指标

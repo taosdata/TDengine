@@ -1,8 +1,23 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """anomaly handlers: encapsulates anomaly detection business logic"""
 
 from taosanalytics.algo.anomaly import do_ad_check
 from taosanalytics.log import AppLogger
-from taosanalytics.util import do_check_before_exec, parse_options
+from taosanalytics.util import do_check_before_exec, get_algo, parse_options
 
 
 def handle_anomaly(request):
@@ -24,9 +39,8 @@ def handle_anomaly(request):
         AppLogger.error("failed to do anomaly-detection, %s", str(e))
         return {"msg": str(e), "rows": -1}
 
-    algo = req_json["algo"].lower() if "algo" in req_json else "ksigma"
-
     try:
+        algo = get_algo(req_json, "ksigma")
         ts_list = payload[ts_index].copy()
         payload.pop(ts_index)
     except (IndexError, TypeError, ValueError) as e:

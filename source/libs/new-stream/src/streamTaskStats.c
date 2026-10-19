@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -17,6 +19,7 @@
 
 #include "os.h"
 #include "stream.h"
+#include "streamReader.h"
 
 #define STREAM_STATS_BUCKET_EMPTY_SECOND INT64_MIN
 #define STREAM_STATS_KNOWN_METRICS                                                               \
@@ -255,6 +258,19 @@ void stTaskStatsSetReaderGauges(SStreamTaskStats *pStats, int64_t lastReturnedWa
   taosWUnLockLatch(&pStats->lock);
 }
 
+void stTaskStatsSetReaderShallowMemoryEstimate(SStreamTaskStats *pStats, int64_t bytes, bool valid) {
+  if (!streamStatsIsTask(pStats, STREAM_READER_TASK)) return;
+
+  taosWLockLatch(&pStats->lock);
+  if (valid && bytes >= 0) {
+    pStats->readerGauges.shallowMemoryBytesEstimate = bytes;
+    pStats->readerGauges.validMask |= STREAM_READER_GAUGE_SHALLOW_MEMORY;
+  } else {
+    pStats->readerGauges.validMask &= ~STREAM_READER_GAUGE_SHALLOW_MEMORY;
+  }
+  taosWUnLockLatch(&pStats->lock);
+}
+
 void stReaderResponseStatsSetWalData(SStreamReaderResponseStats *pResponse, const SSTriggerWalNewRsp *pWalResponse) {
   if (pResponse == NULL || pWalResponse == NULL) return;
 
@@ -293,6 +309,9 @@ void stReaderTaskRecordPullResult(SStreamReaderTask *pTask, const SStreamReaderR
 
   stTaskStatsSetReaderGauges(pTask->pStats, pResponse->lastReturnedWalVer, nowWallMs, pResponse->activeScanContexts,
                              pResponse->tableCount, 0, validGaugeMask);
+  int64_t readerMemoryBytes = 0;
+  bool memoryValid = stReaderTaskGetShallowMemoryEstimate(pTask, &readerMemoryBytes);
+  stTaskStatsSetReaderShallowMemoryEstimate(pTask->pStats, readerMemoryBytes, memoryValid);
   uint64_t durationUs =
       nowMonoUs > pResponse->requestStartMonoUs ? (uint64_t)(nowMonoUs - pResponse->requestStartMonoUs) : 0;
   stTaskStatsRecordReaderResult(pTask->pStats, result, durationUs, nowMonoUs, nowWallMs);

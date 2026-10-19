@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 import argparse
 import os
 import sys
@@ -54,6 +69,14 @@ def do_predict():
 
         input_data = data["input"]
         prediction_length = data["next_len"]
+
+        if (
+            isinstance(prediction_length, bool) or
+            not isinstance(prediction_length, int) or
+            prediction_length < 1 or
+            prediction_length > 10000
+        ):
+            return jsonify({"status": "error", "error": "next_len must be an integer in [1, 10000]"}), 400
 
         seqs = torch.tensor(input_data).unsqueeze(0).float().to(device)
 
@@ -133,7 +156,7 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
+        default="127.0.0.1",
         help="Host address the server listens on (default: 0.0.0.0).",
     )
     parser.add_argument(
@@ -155,7 +178,7 @@ def main():
 
         if not os.path.exists(model_folder):
             print(
-                f"the specified folder: {model_folder} not exists, start to create it"
+                f"the specified folder: {model_folder} does not exist, creating it"
             )
 
         model_file = os.path.join(model_folder, "model.safetensors")

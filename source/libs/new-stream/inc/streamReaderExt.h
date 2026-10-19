@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -37,7 +39,7 @@ extern "C" {
 
 /*
  * Value stored in pUidIndex: one entry per external-source "sub-table" (uid).
- * groupId is derived at init time from the PARTITION BY spec (DS §6.2.7).
+ * groupId is derived at init time from the PARTITION BY spec (DS section 6.2.7).
  * maxTs is the watermark: reader only fetches rows with ts > maxTs.
  */
 /*
@@ -58,7 +60,7 @@ typedef struct SUidIndexEntry {
 /*
  * Per-ETR-task, in-memory-only reader state.
  * Built on first TDMT_STREAM_TRIGGER_PULL_EXT processing.
- * See DS §6.2.7.
+ * See DS section 6.2.7.
  *
  * pUidIndex   : SSHashObj<uint64_t uid, SUidIndexEntry{groupId, tagsetKey, partitionValues}>
  * pGroupIndex : SSHashObj<uint64_t groupId, SArray<uint64_t uid>*>
@@ -91,7 +93,7 @@ typedef struct SStreamExtReaderInfo {
    * before vectorized evaluation. Freed in streamReaderExtClose. */
   SArray *pPartitionColExprNodes;  /* SArray<SNode*> */
 
-  /* Three in-memory lookup tables (DS §6.2.7). */
+  /* Three in-memory lookup tables (DS section 6.2.7). */
   SSHashObj *pUidIndex;    /* hash<uint64_t uid,    SUidIndexEntry> */
   SSHashObj *pGroupIndex;  /* hash<uint64_t groupId, SArray<uint64_t>*> */
   SSHashObj *pTagsetIndex; /* hash<char[] tagset,  uint64_t uid>; InfluxDB only */

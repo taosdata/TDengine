@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #ifndef TDENGINE_STREAM_READER_H
 #define TDENGINE_STREAM_READER_H
 
@@ -22,9 +39,14 @@ extern "C" {
 // kind=TAG: chain ends at a child table tag value (carried by STagValue elsewhere).
 typedef struct SColResolveItem {
   bool    hasRef;
+  int8_t  refType;
+  char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char    refDbName   [TSDB_DB_NAME_LEN];
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName  [TSDB_COL_NAME_LEN];
+  int32_t tagCondLen;
+  char   *tagCondJson;  // Owned by the resolve result and freed with the item.
 } SColResolveItem;
 
 typedef struct STagValue {
@@ -102,6 +124,7 @@ typedef struct SStreamTriggerReaderInfo {
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
   int8_t       isVtableOnlyTs;
+  int8_t       vTableReady;
   int8_t       deleteReCalc;
   int8_t       deleteOutTbl;
   SNode*       pTagCond;
@@ -148,7 +171,36 @@ typedef struct SStreamTriggerReaderInfo {
 
 } SStreamTriggerReaderInfo;
 
+bool    stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_t *pBytes);
+
+typedef struct SStreamReaderFetchState {
+  bool     enabled;
+  uint64_t id;
+  uint64_t queryId;
+  uint64_t taskId;
+  int32_t  execId;
+  int32_t  nodeId;
+  uint64_t streamGen;
+  int64_t  sessionId;
+  bool     dynTbname;
+  bool     readerGroupMode;
+  bool     readerDimensionBatch;
+} SStreamReaderFetchState;
+
+/** Owns the full batch; rtInfo.funcInfo only borrows the active group. */
+typedef struct SStreamReaderDimensionBatch {
+  SStreamRuntimeFuncInfo runtime;
+  SArray*                pGroupOrder;
+  SArray*                pContextViews;
+  int32_t                groupIndex;
+  bool                   groupStarted;
+  bool                   installed;
+  bool                   reuseReader;
+} SStreamReaderDimensionBatch;
+
 typedef struct SStreamTriggerReaderCalcInfo {
+  SStreamReaderDimensionBatch dimensionBatch;
+  SStreamReaderFetchState fetchState;
   void*       pTask;
   void*       pFilterInfo;
   void*       tsConditions;
@@ -156,14 +208,35 @@ typedef struct SStreamTriggerReaderCalcInfo {
   STargetNode* pTargetNodeTs;
   char*       calcScanPlan;
   bool        hasPlaceHolder;
+  bool                   readerGroupRequested;
+  bool                   readerGroupAccepted;
+  bool                   readerGroupModeSet;
   bool                   requiresContextPolicy;
   qTaskInfo_t pTaskInfo;
   SStreamRuntimeInfo rtInfo;
   SStreamRuntimeFuncInfo tmpRtFuncInfo;
 } SStreamTriggerReaderCalcInfo;
 
+void    stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchReq* pReq, int32_t actualNodeId);
+int32_t stReaderCheckFetchContinuation(const SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq,
+                                       int32_t actualNodeId);
+void    stReaderInvalidateFetchState(SStreamTriggerReaderCalcInfo* pCalc);
+
+int32_t stReaderBindDimensionGroup(SStreamTriggerReaderCalcInfo* pCalc, uint64_t gid);
+void    stReaderClearDimensionBatch(SStreamTriggerReaderCalcInfo* pCalc);
+
+int32_t stReaderSetGroupOutputMode(SStreamTriggerReaderCalcInfo* pCalc, const SResFetchReq* pReq);
+
+typedef struct SStreamReaderCalcProjection SStreamReaderCalcProjection;
+
 int32_t stProjectReaderCalcContext(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId, int32_t readInfoIndex,
                                    int32_t sourceParamIndex, SStreamRuntimeFuncInfo* pTarget);
+int32_t stPrepareReaderCalcProjection(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId,
+                                      SStreamReaderCalcProjection** ppProjection);
+int32_t stProjectPreparedReaderCalcContext(const SStreamReaderCalcProjection* pProjection, int32_t readInfoIndex,
+                                           SStreamRuntimeFuncInfo* pTarget);
+void    stDestroyReaderCalcProjection(SStreamReaderCalcProjection** ppProjection);
+int32_t stValidateNodeGroupReadBindings(const SStreamRuntimeFuncInfo* pSource, int32_t actualNodeId);
 
 // typedef enum { STREAM_SCAN_GROUP_ONE_BY_ONE, STREAM_SCAN_ALL } EScanMode;
 
@@ -201,6 +274,8 @@ void    releaseStreamTask(void* p);
 void*   qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr);
 void    qStreamSetTaskRunning(int64_t streamId, int64_t taskId);
 int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t* size, int8_t precision);
+/** Builds a Reader batch response while borrowing every block in pBlocks. */
+int32_t streamBuildGroupFetchRsp(const SArray* pBlocks, bool hasNext, void** ppData, size_t* pSize, int8_t precision);
 
 int32_t qBuildVTableList(SStreamTriggerReaderInfo* sStreamReaderInfo);
 

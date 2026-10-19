@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 add_subdirectory(mgmt)
 
 if(TD_LINUX OR TD_WINDOWS)
@@ -41,12 +56,23 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/ttq/inc"
 )
 
-target_link_libraries(
-    taosmqtt
-    PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} mqtt
-)
+# libtaos.so owns the public C API this broker calls (taos_connect, the TMQ
+# consumer API) and dispatches to the driver it dlopen()s; libtaosnative.so is
+# only needed for the engine internals used directly (functions *and* globals
+# such as gMemPoolHandle, configDir, tsDataDir and the os/util logging and file
+# helpers).  Naming the archives instead -- os/util/common or the client's
+# ${TAOS_NATIVE_LIB_STATIC}, whose PUBLIC usage requirements drag in parser,
+# planner, catalog, scheduler, function, qcom, ... -- links a second copy of the
+# engine into this binary, including its global state.
+#
+# The Windows dispatcher is still fat and resolves every symbol at link time, so
+# Windows keeps the previous static setup (mirrors tools/shell).
+target_link_libraries(taosmqtt PRIVATE mqtt)
 if(TD_WINDOWS)
-    target_link_libraries(taosmqtt PRIVATE ws2_32)
+    target_link_libraries(taosmqtt PRIVATE util common ${TAOS_NATIVE_LIB_STATIC} ws2_32)
+else()
+    # taosmqtt is only built on Linux and Windows, so this is the Linux case.
+    target_link_libraries(taosmqtt PRIVATE ${TAOS_LIB} ${TAOS_NATIVE_LIB})
 endif()
 
 # topic tool (unix-only: links pthread)

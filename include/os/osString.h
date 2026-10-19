@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -103,11 +105,20 @@ int32_t taosStr2Uint32(const char *str, uint32_t *val);
 int32_t taosStr2Uint16(const char *str, uint16_t *val);
 int32_t taosStr2Uint8(const char *str, uint8_t *val);
 
+void   *taosResolveCharsetCxt(const void *charsetCxt);
 iconv_t taosAcquireConv(int32_t *idx, ConvType type, void* charsetCxt);
 void    taosReleaseConv(int32_t idx, iconv_t conv, ConvType type, void* charsetCxt);
+const char *taosConvCharset(const void *charsetCxt);
 int32_t taosUcs4ToMbs(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, void* charsetCxt);
+int32_t taosUcs4ToMbsCharsetInsensitive(TdUcs4 *ucs4, int32_t ucs4_max_len,
+                                        char *mbs);
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv);
 bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt);
+int32_t taosMbsToMbs(const char *src, int32_t srcLen, void *srcCharsetCxt,
+                     void *dstCharsetCxt, char **ppDst, int32_t *pDstLen);
+bool    taosMbsToUcs4CharsetInsensitive(const char *mbs, size_t mbs_len,
+                                         TdUcs4 *ucs4, int32_t ucs4_max_len,
+                                         int32_t *len);
 int32_t taosUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
 int32_t taosUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
 bool    taosValidateEncodec(const char *encodec);

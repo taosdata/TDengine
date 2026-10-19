@@ -1,3 +1,18 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 PROJECT(TDengine)
 
 if(BUILD_TEST)
@@ -5,6 +20,11 @@ if(BUILD_TEST)
 IF(TD_LINUX)
   INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc ${TD_SOURCE_DIR}/inc)
   AUX_SOURCE_DIRECTORY(. SRC)
+
+  # These examples speak the public C API.  It lives in libtaos.so, which
+  # dispatches to the driver it dlopen()s; on Linux the driver no longer exports
+  # those names, so it cannot supply them on its own.
+  link_libraries(${TAOS_LIB})
 
   add_executable(tmq "")
   add_executable(stream_demo "")

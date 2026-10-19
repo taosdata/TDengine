@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -104,7 +106,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
 
   if (strcasecmp(key, "group.id") == 0) {
     if (strchr(value, TMQ_SEPARATOR_CHAR) != NULL) {
-      tqErrorC("invalid group.id:%s, can not contains ':'", value);
+      tqErrorC("invalid group.id:%s, cannot contain ':'", value);
       return TMQ_CONF_INVALID;
     }
     tstrncpy(conf->groupId, value, TSDB_CGROUP_LEN);

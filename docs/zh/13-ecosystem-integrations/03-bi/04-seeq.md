@@ -15,7 +15,7 @@ Seeq 是制造业和工业互联网（IIOT）高级分析软件。Seeq 支持在
 - TDengine `v3.1.0.3` 以上版本集群已部署并正常运行（企业及社区版均可）。
 - taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
 - Seeq 已经安装。从 [Seeq 官网](https://www.seeq.com/customer-download)下载相关软件，例如 `Seeq Server` 和 `Seeq Data Lab` 等。`Seeq Data Lab` 需要安装在和 `Seeq Server` 不同的服务器上，并通过配置和 `Seeq Server` 互联。详细安装配置指令参见 [Seeq 知识库](https://support.seeq.com/kb/latest/cloud/)。
-- 安装 JDBC 驱动。从 `maven.org` 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.2.5-dist.jar`）。
+- 安装 JDBC 驱动。从 `maven.org` 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.9.1-dist.jar`）。
 
 ## 配置数据源
 

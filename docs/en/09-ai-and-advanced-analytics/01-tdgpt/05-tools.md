@@ -27,11 +27,8 @@ Run `analytics_compare.py` from the `misc` directory in the TDgpt installation. 
 
 ## Evaluate Forecasting Models
 
-1. Load the sample data included in the TDgpt `resource` directory:
-
-   ```shell
-   taos -f sample-fc.sql
-   ```
+1. Prepare the time-series data to evaluate and configure the corresponding
+   database, table, columns, and time range in `analytics.ini`.
 
 2. Configure the forecast:
 
@@ -61,11 +58,8 @@ The tool creates `fc_result.xlsx`. Its first sheet lists the algorithm, paramete
 
 Anomaly-detection evaluation reports precision and recall.
 
-1. Load the included sample data:
-
-   ```shell
-   taos -f sample-ad.sql
-   ```
+1. Prepare the time-series data to evaluate and configure the corresponding
+   database, table, columns, and time range in `analytics.ini`.
 
 2. Configure the data range, expected anomaly indexes, and algorithms:
 

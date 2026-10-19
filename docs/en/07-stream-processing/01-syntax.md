@@ -17,11 +17,11 @@ options: {
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
-  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time]) 
+  | INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
   | WINDOW(named_nonleaf_window [, named_nonleaf_window ...], leaf_window)
 }
@@ -32,13 +32,17 @@ leaf_window: nested_window_type [AS layer_name]
 
 nested_window_type: {
     SLIDING(sliding_val[, offset_time])
-  | INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+  | INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
   | SESSION(ts_col, session_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_for_expr)]
-  | EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+  | EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 }
+
+start_event_item:
+    search_condition [TRUE_FOR(limit_expr)]
+  | (start_event_item, start_event_item [, ...])
 
 true_for_expr:
     true_for_arg [, true_for_arg [, true_for_arg]]
@@ -56,7 +60,9 @@ limit_expr: {
   | duration_time OR COUNT count_val
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+
+config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
 notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
@@ -72,7 +78,7 @@ tag_definition:
     tag_name type_name AS expr
 ```
 
-For version-specific support of stream timezones and natural time units (such as weeks, months, quarters, and years in `PERIOD`, `SLIDING`, and `INTERVAL`), see [Stream Timezone](../05-tdengine-sql/10-time/01-timezone.md#stream-timezone).
+From `v3.4.3`, creating a stream writes the timezone and first day of week into the stream definition. `PERIOD`, `SLIDING`, and `INTERVAL` also extend support for day, week, month, quarter, and year. See [Timezone and Natural Time Units](../05-tdengine-sql/10-time/01-timezone.md#stream-time-configuration).
 
 ### Trigger Methods in Stream Processing
 
@@ -90,8 +96,8 @@ PERIOD(period_time[, offset_time])
 
 A scheduled trigger is driven by a fixed interval based on the system time, essentially functioning as a scheduled task. It does not belong to the category of window triggers. Parameter definitions are as follows:
 
-- period_time: The scheduling interval. Supported time units are listed in [Time Units](../05-tdengine-sql/01-datatype.md#time-units) (supports milliseconds through years). The supported range is [10a, 3650d].
-- offset_time: (Optional) The scheduling offset. Supported units include milliseconds (a), seconds (s), minutes (m), hours (h), and days (d). For week/month/year units, the offset must be strictly less than the trigger period; for month units, validation is based on 28 days/month (e.g., `PERIOD(1n, 28d)` is invalid).
+- period_time: The scheduling interval. Supported time units are listed in [Time Units](../05-tdengine-sql/01-datatype.md#time-units) (milliseconds through years). The supported range is `[10a, 3650d]`.
+- offset_time: (Optional) Shifts the trigger time later from the alignment point. `AUTO` and negative values are not supported, and the offset must be strictly less than `period_time`. The rules match offsets of `INTERVAL` in query statements: when months are compared with days or other units, a month is estimated as 28 days.
 
 Usage Notes:
 
@@ -99,11 +105,12 @@ Usage Notes:
   - If the scheduling interval is 5 hours 30 minutes, the trigger times for the day will be [00:00, 05:30, 11:00, 16:30, 22:00]. The trigger times for subsequent days will be the same.
   - With the same interval but an offset of 1 minute, the trigger times will be [00:01, 05:31, 11:01, 16:31, 22:01] each day.
   - Under the same conditions, if the stream is created when the system time is 12:00, the trigger times for the current day will be [16:31, 22:01]. From the next day onwards, the trigger times will be [00:01, 05:31, 11:01, 16:31, 22:01].
-- When the scheduling interval is greater than or equal to 1 day, the base time is calculated from the server timezone's Unix epoch (1970-01-01 00:00:00) plus the scheduling offset, aligned by integer multiples of the trigger interval to ensure global consistency across all tasks. For example:
-  - With a scheduling interval of 2 days, all tasks using this interval will trigger at times that are integer multiples of 2 days from the epoch (e.g., 1970-01-03 00:00:00, 1970-01-05 00:00:00, ...), ensuring global alignment.
-  - With a scheduling interval of 1 week (`PERIOD(1w)`), triggers align to every Monday at 00:00:00; `PERIOD(1w, 1d)` triggers every Tuesday at 00:00:00.
-  - With a scheduling interval of 1 month (`PERIOD(1n)`), triggers align to the 1st of each month at 00:00:00; `PERIOD(1n, 14d)` triggers on the 15th of each month at 00:00:00.
-  - With a scheduling interval of 1 year (`PERIOD(1y)`), triggers align to January 1st at 00:00:00 each year; `PERIOD(1y, 31d)` triggers on February 1st at 00:00:00 each year.
+- When the scheduling interval is greater than or equal to 1 day, the base time is the Unix epoch (1970-01-01 00:00:00) in the timezone saved in the stream definition, plus the scheduling offset, then aligned to the trigger interval. Changing the server or connection timezone after creation does not change an existing stream. The start of a week comes from the `firstDayOfWeek` saved in the stream definition. For example:
+  - With a scheduling interval of 2 days, triggers align to times that are integer multiples of 2 days from the epoch (for example 1970-01-03 00:00:00, 1970-01-05 00:00:00).
+  - With `firstDayOfWeek = 1`, `PERIOD(1w)` aligns to Monday 00:00:00; `PERIOD(1w, 1d)` fires on Tuesday 00:00:00.
+  - `PERIOD(1n)` aligns to the 1st of each month at 00:00:00; `PERIOD(1n, 14d)` fires on the 15th of each month at 00:00:00.
+  - `PERIOD(1y)` aligns to January 1 at 00:00:00 each year; `PERIOD(1y, 31d)` fires on February 1 at 00:00:00 each year.
+  - For `PERIOD(1q)`, `q` is treated as 3 months and aligns to the first day of a quarter.
 
 Applicable scenarios: Situations requiring scheduled computation driven continuously by system time, such as generating daily statistics every hour, or sending scheduled statistical reports once a day.
 
@@ -118,19 +125,20 @@ A sliding trigger drives execution based on a fixed interval of event time for d
 Parameter definitions are as follows:
 
 - sliding_val: Required. The sliding duration based on event time.
-- offset_time: Optional. The time offset for the sliding trigger. Supported time units include milliseconds (a), seconds (s), minutes (m), and hours (h).
+- offset_time: Optional. Shifts the sliding trigger time later from the alignment point. `AUTO` and negative values are not supported, and the offset must be strictly less than `sliding_val`. The rules match offsets of `INTERVAL` in query statements: when months are compared with days or other units, a month is estimated as 28 days.
 
 Usage Notes:
 
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - Supports sliding triggers after processing and filtering the incoming data (conditional triggers).
+- `SLIDING` without `INTERVAL` can use month, quarter, and year (`n`/`q`/`y`). Sliding triggers advance by event time and interval; that is not the same as splitting windows with `INTERVAL`. Alignment to natural boundaries such as week and month uses the timezone and first day of week saved on that stream.
 
 Applicable scenarios: Situations where calculations need to be driven continuously and periodically based on event time, such as generating daily statistical data every hour or sending scheduled reports each day.
 
 ##### Time Window Trigger
 
 ```sql
-INTERVAL(interval_val[, interval_offset]) SLIDING(sliding_val[, offset_time])
+INTERVAL(interval_val[, interval_offset]) [SLIDING(sliding_val)]
 ```
 
 A time window trigger refers to triggering based on incoming data written to the trigger table, using event time and a fixed window size that slides over time. The INTERVAL window must be specified. This is a type of window trigger, and a trigger table must be specified.
@@ -138,14 +146,16 @@ A time window trigger refers to triggering based on incoming data written to the
 The starting point for a time window trigger is the beginning of the window. By default, windows are divided starting from Unix time 0 (1970-01-01 00:00:00 UTC). You can change the starting point of the window division by specifying a window time offset. Parameter definitions are as follows:
 
 - interval_val: Required. The duration of the interval window.
-- interval_offset: Optional. The time offset for the interval window.
-- sliding_val: Required. The sliding duration based on event time.
-- offset_time: Optional. The time offset for the sliding trigger, with the same meaning as for a sliding trigger.
+- interval_offset: Optional. Shifts the window start later from the alignment point. `AUTO` and negative values are not supported, and the offset must be strictly less than `interval_val`. The rules match offsets of `INTERVAL` in query statements: when months are compared with days or other units, a month is estimated as 28 days.
+- sliding_val: Optional. The sliding step based on event time. If omitted, the step equals the window width and adjacent windows do not overlap.
 
 Usage Notes:
 
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - Supports conditional time window triggers after processing and filtering the incoming data.
+- `interval_val` supports `a`/`s`/`m`/`h`/`d`/`w`/`n`/`q`/`y`. `q` is treated as 3 months. When `sliding_val` is written, only `a`/`s`/`m`/`h`/`d`/`w` are supported, not month, quarter, or year. Therefore `INTERVAL(1n)` is valid and `INTERVAL(1n) SLIDING(1n)` is invalid; to split by calendar month with non-overlapping windows, write `INTERVAL(1n)`. An explicit sliding step in a stream only needs to be greater than 0. It may be larger than the window width (there will be gaps between windows), and it does not need to be at least 1% of the window width. This differs from `INTERVAL ... SLIDING` in query statements.
+- Offsets for `PERIOD`, `SLIDING` without `INTERVAL`, and `INTERVAL` follow the same rules. For example, `PERIOD(1n, 27d)`, `SLIDING(1q, 83d)`, and `INTERVAL(29d, 1n)` are valid; `PERIOD(1n, 28d)`, `SLIDING(1q, 84d)`, `INTERVAL(1w, AUTO)`, and any negative offset are invalid. When `INTERVAL` windows use day, week, or month, they use the timezone and first day of week saved on that stream. Even with the same unit, the trigger times of `PERIOD`, `SLIDING` without `INTERVAL`, and `INTERVAL` are not necessarily the same.
+- When you write `INTERVAL(...) SLIDING(...)`, `SLIDING` can only take the sliding step. To shift the window start, put the offset in `INTERVAL`: `INTERVAL(interval_val, interval_offset) SLIDING(sliding_val)`.
 
 Applicable Scenarios: Suitable for event-time-based scheduled window calculations, such as generating hourly statistics for that hour, or calculating data within the last 5-minute window every hour.
 
@@ -270,17 +280,22 @@ Usage Notes:
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
 
-##### Event Window Trigger (with Sub-Event Window Support)
+##### Event Window Trigger with a Start Event Tree
 
 ```sql
-EVENT_WINDOW(START WITH (start_condition_1, start_condition_2 [,...]) [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+EVENT_WINDOW(START WITH start_event_item [END WITH end_condition]) [TRUE_FOR(true_for_expr)]
+
+start_event_item:
+    search_condition [TRUE_FOR(limit_expr)]
+  | (start_event_item, start_event_item [, ...])
 ```
 
-An event window trigger partitions the incoming data of the trigger table into windows based on event windows. It now supports specifying multiple start conditions and can further subdivide and manage sub-event windows within the original event window based on changes in the effective trigger condition, while introducing the concept of a parent event window to aggregate related sub-event windows. Parameter definitions are as follows:
+`START WITH` supports a recursive start event tree. Leaf nodes are ordinary conditional expressions. Group nodes are enclosed in parentheses, and their child nodes are ordered by their SQL order. TDengine assigns a stable condition path to the envelope, group nodes, and leaf nodes in the tree so that each level of an event window can be identified. Parameter definitions are as follows:
 
-- start_condition_1, start_condition_2 [, ...]: Defines multiple event start conditions. The event window opens when any one of these conditions is satisfied. The system evaluates these conditions in order from first to last, and the first satisfied condition becomes the "effective trigger condition". When all start_conditions are not satisfied, both the parent window and the last sub-window close.
-- end_condition: Definition of the event end condition. When this condition is satisfied, both the current parent window and the last sub-window close. This parameter is now optional.
-- true_for_expr (optional): Specifies the filtering condition for windows. Only windows that meet the condition will generate a trigger. Supports the following four modes:
+- start_event_item: A node in the start event tree. A leaf node is `search_condition [TRUE_FOR(limit_expr)]`; a group node is `(start_event_item, start_event_item [, ...])`.
+- search_condition: The event start condition. It can be any valid conditional expression.
+- end_condition: The event end condition. When it is satisfied, the current envelope and any open group/leaf windows are closed. This parameter is optional. If `END WITH` is omitted, the envelope closes when no leaf start condition is satisfied.
+- true_for_expr (optional): Specifies the window-level filtering condition. For a start event tree, only window-level filters are supported; `start(...)` and `end(...)` are not supported. The following modes are available:
   - `TRUE_FOR(duration_time)`: Filters based on duration only. The window duration must be greater than or equal to `duration_time`.
   - `TRUE_FOR(COUNT n)`: Filters based on row count only. The window row count must be greater than or equal to `n`.
   - `TRUE_FOR(duration_time AND COUNT n)`: Both duration and row count conditions must be satisfied.
@@ -293,15 +308,47 @@ Usage Notes:
 - A trigger table must be specified. When the trigger table is a supertable, grouping by tags or subtables is supported, as well as no grouping.
 - When used with a supertable, it must be combined with PARTITION BY tbname.
 - Supports conditional window triggering after filtering the written data.
-- The multiple `start_condition` expressions and the optional `end_condition` can also reference tag columns visible in the trigger-table context.
-- Parent and sub-window behavior:
-  - No parent/sub-windows: During the event window opening period, if the effective trigger condition does not change, only one window is produced. The system treats it as a regular event window, without generating the concept of parent/sub-windows.
-  - Sub-windows: When a specific start_condition becomes the effective trigger condition, a sub-window opens. If the effective trigger condition changes, or when the end_condition is satisfied, the current sub-window closes. Sub-windows do not overlap with each other.
-  - Parent window: A parent window only opens when the second sub-window opens. The parent window's start time is the start time of the first sub-window, and its end time is the end time of the last sub-window. It closes when all start_conditions are not satisfied, or when the end_condition is satisfied.
-- Notification message extensions: In the window open (WINDOW_OPEN) notification message, two new fields are added:
-  - conditionIndex: The index number of the start condition that triggered the current window opening, counting from 0. For a parent window, its value is the same as the first sub-window's value.
-  - windowIndex: The index number of the sub-event window within the parent window, counting from 0. If it is not a sub-window (i.e., a regular event window or parent window), this field value is -1.
-- The TRUE_FOR option applies to both sub-windows and parent windows, meaning windows (whether sub-windows or parent windows) shorter than the duration limit will be directly ignored. When some sub-windows under a parent window do not meet the TRUE_FOR condition, the valid sub-windows may not be consecutive. If only 1 sub-window under a parent window meets the TRUE_FOR condition, the parent/sub-window structure is still retained and triggers notifications and computations.
+- The start conditions and the optional `end_condition` can reference tag columns visible in the trigger-table context.
+- Existing single start conditions and one-level sub-event lists remain compatible, for example `START WITH c1 >= 12` and `START WITH (c1 >= 12, c2 < 215)`.
+- A leaf condition can specify a local `TRUE_FOR(limit_expr)`. It applies only to that leaf. Leaves without a local `TRUE_FOR` use the outer `EVENT_WINDOW(...) TRUE_FOR(...)` as the default. Group nodes and the envelope always use the outer `TRUE_FOR`; they do not inherit local settings from child leaves.
+- A group node cannot have a `TRUE_FOR` suffix. For example, `START WITH (c1 >= 12, c2 < 215) TRUE_FOR(1s)` is invalid.
+- `END WITH` remains a single ordinary condition and does not support recursive nesting.
+- At any time, there is at most one active path from the envelope to a leaf. If multiple leaves match the same row, priority is determined by SQL order in depth-first order. A higher-priority leaf can preempt the current lower-priority leaf window after satisfying its own `TRUE_FOR`.
+- When a row does not satisfy any leaf start condition, the whole envelope closes. If `END WITH` is present, a row that also satisfies the end condition closes the whole envelope.
+
+Condition path rules:
+
+- The envelope path is the empty string `""`.
+- Direct children of the envelope are numbered from `"0"` in SQL order.
+- Deeper nodes append the child index to the parent path with `.`, for example `"0.1"` and `"0.1.2"`.
+- `conditionPath` represents only the static position in the start event tree. It does not identify a runtime window instance. Different window instances can have the same `conditionPath`; use `triggerId` to distinguish runtime instances.
+
+Example:
+
+```sql
+CREATE STREAM s_event_tree
+  EVENT_WINDOW(
+    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
+    END WITH voltage < 210
+  )
+  TRUE_FOR(10s)
+  FROM meters
+  PARTITION BY tbname
+  INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
+  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
+```
+
+The condition paths in this example are:
+
+| Node | conditionPath |
+| --- | --- |
+| envelope | `""` |
+| group `(current >= 12 TRUE_FOR(1s), current >= 10)` | `"0"` |
+| `current >= 12 TRUE_FOR(1s)` | `"0.0"` |
+| `current >= 10` | `"0.1"` |
+| `voltage < 215 TRUE_FOR(COUNT 3)` | `"1"` |
+
+You can write `_event_condition_path` to the output table. It is recommended to use `_twstart` together with `_event_condition_path` to identify output rows, so that envelope, group, and leaf results that share the same `_twstart` do not overwrite each other.
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows, especially in IoT and industrial data management fields where fine-grained monitoring and analysis of events based on multiple dynamically changing conditions is required. For example, in equipment fault alarms, multiple alarm level conditions (such as "load above 90" and "load above 60") can be defined, and when alarm levels change, the escalation or de-escalation of alarm states can be clearly tracked.
 
@@ -485,6 +532,7 @@ When performing calculations, you may need to use contextual information from th
 | Window Trigger    | _twend           | End timestamp of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twduration      | Duration of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twrownum        | Number of rows in currently open window. Used only with WINDOW_CLOSE trigger. |
+| Event Window Trigger | _event_condition_path | Condition path of the current event-window node in the `START WITH` start event tree. Available only for `EVENT_WINDOW` when `START WITH` contains at least one parenthesized group. |
 | Idle Trigger      | _tidlestart      | The time (processing time) of the last data received by the group before it entered idle state. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidlestart/1000000 as timestamp)` to convert. |
 | Idle Trigger      | _tidleend        | The trigger time of the IDLE or RESUME event. Nanosecond precision Unix epoch. Applicable only for IDLE/RESUME triggers. Cannot be mixed with `_twstart/_twend`. Since output tables are usually millisecond-precision, use `cast(_tidleend/1000000 as timestamp)` to convert.|
 | All               | _tgrpid          | ID of trigger group (data type BIGINT)                       |
@@ -501,6 +549,7 @@ Usage Restrictions:
 - %%tbname: Can be used in the FROM, SELECT, and WHERE clauses.
 - %%rollup_tag: Available only with `ROLLUP BY`. It can be used in `OUTPUT_SUBTABLE`, `TAGS`, and positions in `AS subquery` where existing trigger placeholders are allowed.
 - _trollup_tbcount: Available only with `ROLLUP BY`. It can be used only in `AS subquery`; it cannot be used in `OUTPUT_SUBTABLE` or `TAGS`.
+- _event_condition_path: Available only for `EVENT_WINDOW` when `START WITH` uses a sub-event structure with at least one parenthesized group. It is invalid for a single ordinary start condition or any non-event-window trigger.
 - Other placeholders: Can only be used in the SELECT and WHERE clauses.
 - In a nested window plan, unqualified trigger placeholders refer to the leaf layer. Qualified layer placeholders are visible only in the computation query and its subqueries.
 
@@ -509,10 +558,12 @@ Usage Restrictions:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+
+config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
 
-Control options are used to manage trigger and computation behavior. Multiple options can be specified, but the same option cannot be specified more than once. The available options include:
+Control options are used to manage trigger and computation behavior. Multiple options can be specified. Except for `CONFIG`, an option cannot be specified more than once. `CONFIG` can be written more than once; for the same key, the last value wins. The available options include:
 
 - WATERMARK(duration_time) specifies the tolerance duration for out-of-order data. Data arriving later than this duration is treated as out-of-order and processed according to the out-of-order handling strategy of the trigger type and user configuration. Default: duration_time = 0 (no tolerance).
 - EXPIRED_TIME(exp_time) specifies an expiration interval after which data is ignored. If not set, no data is considered expired. This option can be used when data writes or updates older than a certain time range are irrelevant. exp_time defines the expiration interval. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d).
@@ -537,6 +588,19 @@ Control options are used to manage trigger and computation behavior. Multiple op
   - Default: If not specified, triggers will occur even when no input data is present.
 - IDLE_TIMEOUT(duration_time) enables group idle detection and specifies the idle timeout duration. When a group has not received any new data for longer than this duration, it is considered idle and an IDLE event is triggered; when the idle group receives new data again, a RESUME event is triggered. Must be used together with `EVENT_TYPE(IDLE)` and/or `EVENT_TYPE(RESUME)`. Supported time units: milliseconds (a), seconds (s), minutes (m), hours (h), days (d). Valid range: `[1s, 10d]`. Idle detection is based on processing time (the time data arrives and is processed by the stream), using a monotonic clock to avoid being affected by system clock adjustments.
 - FLUSH_ON_OUTER_CLOSE applies only to nested window plans. By default, unfinished leaf windows are discarded when an ancestor closes. With this option, each unfinished leaf window is closed early using the closing ancestor context, but only when `EVENT_TYPE` includes `WINDOW_CLOSE`. The option does not add event types or bypass the leaf window's `TRUE_FOR` condition; it has no effect when only `WINDOW_OPEN` is enabled.
+
+#### Time Configuration
+
+The stream timezone and first day of week can be set only with `CONFIG` inside `STREAM_OPTIONS`. There is no standalone stream `TIMEZONE` clause, and `ALTER STREAM` cannot change these values. If `CONFIG` is omitted, the system still writes the timezone and first day of week already in effect on the connection that creates the stream. For the full rules, unit support, and upgrade notes, see [Timezone and Natural Time Units](../05-tdengine-sql/10-time/01-timezone.md#stream-time-configuration).
+
+```sql
+STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
+```
+
+- `timezone` is a string in the same formats as `SET TIMEZONE`. `firstDayOfWeek` is an integer from `0` to `6` (`0` is Sunday, `1` is Monday).
+- Key names are case-insensitive, but only `timezone` and `firstDayOfWeek` are accepted. Aliases such as `tz` or `first_day_of_week` are not valid. `CONFIG()` cannot be empty.
+- You can write multiple `CONFIG` blocks. When a key appears more than once, the last value wins. If only one key is written, the other uses the value already in effect on the current connection.
+- After creation, both values are written into the stream definition. `SHOW CREATE STREAM` shows one complete `CONFIG` with missing keys filled in. Stop, start, restart, and dump then restore keep the saved values. Changing the current connection or server timezone does not change an existing stream. To change them, drop the stream and create it again.
 
 ### Notification Mechanism in Stream Processing
 
@@ -563,10 +627,18 @@ Details:
   - IDLE: Group idle event; sent when a group enters idle state. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
   - RESUME: Group resume event; sent when an idle group receives data again. Requires `IDLE_TIMEOUT` to be configured in `STREAM_OPTIONS`.
   - For `PERIOD` and plain `SLIDING` triggers, the notification payload uses `ON_TIME` as its `eventType`. `ON_TIME` is a payload value and cannot be specified in the `ON (...)` list.
-- [WHERE condition]: Specifies a condition that must be met for a notification to be sent. The condition may reference only columns from the computation result and/or constants.
+- [WHERE condition]: Filters notification content by computation result row, retaining only rows for which the condition is `TRUE`. Rows for which it is `FALSE` or `NULL` are excluded. If no result rows from a computation match, no result notification is sent for that computation. The condition may reference only columns or expressions output by the computation query (including aliases defined in `SELECT`) and constants. It cannot directly reference source columns that the query does not output. A stream using this condition must include an `AS subquery` computation statement.
 - [NOTIFY_OPTIONS(notify_option[|notify_option])]: Optional. Specifies notification behavior. The currently supported option is:
   - NOTIFY_HISTORY: Send notifications during historical computation. Default: not sent.
   - `ON_FAILURE_PAUSE` is not currently supported; see [Rules and Limitations](./02-instructions.md#rules-and-limitations).
+
+Notification URLs support both `ws://` and `wss://`. For `wss://`, the server certificate must be valid, trusted, and match the hostname in the URL. When connecting by IP address, the certificate must include that IP address in its Subject Alternative Name (SAN). Certificate validation does not affect plain `ws://` connections.
+
+For a private notification service, add its CA certificate to the trust store used by libcurl in each taosd runtime environment, including containers. With the bundled libcurl, Linux and macOS use the CA bundle or directory selected when libcurl was built; Windows uses the system root certificate store. Before upgrading, configure trust for private CAs and replace expired certificates or certificates that do not match the notification URL. Untrusted or invalid certificates cause the notification connection to fail; stream notifications do not provide an option to disable certificate validation.
+
+`NOTIFY ... WHERE` filters result notifications without changing trigger windows, the source rows used in computation, or the computed results written to the output table. To base a notification on source column values, first output the column or a derived condition result in the computation query, then reference it in the notification condition. For aggregate queries, specify whether the condition concerns any row, all rows, or the last row in the window. For complete SQL and expected results, see [Filter Notifications by Condition](./03-best-practices.md#notify-where).
+
+Notifications that contain only event information, with no computation for that event, do not pass through this result condition. For example, computation runs only on `WINDOW_CLOSE` by default. With `NOTIFY ... ON(WINDOW_OPEN | WINDOW_CLOSE) WHERE ...`, the `WINDOW_OPEN` notifications that contain only event information are not subject to the result condition. Use `ON(WINDOW_CLOSE)` for alerts based on window computation results.
 
 When a specified event is triggered, taosd sends a POST request to the configured URL. The message body is in JSON format. A single request may contain events from multiple streams, and the event types may vary.
 The event information included depends on the window type:
@@ -633,8 +705,9 @@ An example structure of a notification message is shown below:
           "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
+          "parentTriggerId": [],
           "triggerCondition": {
-            "conditionIndex": 0,
+            "conditionPath": "",
             "fieldValue": {
               "c1": 10,
               "c2": 15
@@ -645,13 +718,14 @@ An example structure of a notification message is shown below:
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
-          "triggerId": "window-id-13579",
+          "triggerId": "window-id-24680",
           "triggerType": "Event",
           "groupId": "7533998559487590581",
           "windowStart": 1733284800000,
           "windowEnd": 1733284810000,
+          "parentTriggerId": ["window-id-13579"],
           "triggerCondition": {
-            "conditionIndex": 1,
+            "conditionPath": "0.1",
             "fieldValue": {
               "c1": 20,
               "c2": 3
@@ -759,7 +833,7 @@ These fields apply only when triggerType is Event.
   - windowEnd: Long integer timestamp indicating the window’s end time. Precision matches the time precision of the result table.
   - windowIndex: Integer. The index of a sub-event window within its parent window, starting from 0. For a regular event window or parent window, the value is -1.
   - triggerCondition: Information about the condition that closed the window, including:
-    - conditionIndex: Integer. The index of the condition that triggered the window close, starting from 0.
+    - conditionPath: String. The condition path of the current event-window node in the `START WITH` start event tree.
     - fieldValue: Key–value pairs containing the condition column names and their corresponding values.
   - result: The computation result, expressed as key–value pairs containing the names of the result columns and their corresponding values.
 
@@ -816,8 +890,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 For more detailed information, query [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams):
 
 ```sql
-SELECT * from information_schema.`ins_streams`;
+SELECT stream_name, timezone, first_day_of_week, sql
+FROM information_schema.ins_streams;
 ```
+
+For user streams created in `v3.4.3` or later, `sql` includes a complete `CONFIG`, and `timezone` and `first_day_of_week` are the values saved at creation. User streams that already existed before the upgrade have `NULL` in both columns, keep the original `CREATE STREAM` SQL, and may still follow the environment at runtime. `CREATE TSMA` objects can also have `NULL` in those columns, but their SQL is `CREATE TSMA`. Do not treat them as leftover user streams from before the upgrade.
 
 For recalculation records, see [`INS_STREAM_RECALCULATES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_recalculates).
 

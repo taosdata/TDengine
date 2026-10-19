@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -123,6 +125,7 @@ int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
 void    nodesDestroyAllocator(int64_t allocatorId);
 
 int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut);
+bool   nodesIsValidPhysiJoin(ENodeType type, int32_t joinType, int32_t subType);
 void   nodesDestroyNode(SNode* pNode);
 void   nodesFree(void* p);
 
@@ -177,6 +180,12 @@ int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
 int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
 int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
+
+// Restore a borrowed charset context (SConvInfo*, process-cached, never freed by
+// the caller) from a serialized charset name. An empty name, or a name equal to
+// the server charset, leaves *pCharsetCxt untouched (callers must pre-init it to
+// NULL, which every conversion site treats as the server default tsCharsetCxt).
+int32_t nodesDecodeCharsetName(const char* pCharsetName, void** pCharsetCxt);
 
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 int32_t nodesNodeToSQLFormat(SNode* pNode, char* buf, int32_t bufSize, int32_t* len, bool longFormat);

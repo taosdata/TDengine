@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_FILTER_H
 #define TDENGINE_FILTER_H
 
@@ -55,11 +58,17 @@ typedef struct SFilterColumnParam {
 extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options, void* pSclExtraParams);
 extern int32_t filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
                              int16_t numOfCols, int32_t *pFilterResStatus);
+extern int32_t filterExecuteWithCorrelation(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p,
+                                            SColumnDataAgg *statis, int16_t numOfCols,
+                                            int32_t *pFilterResStatus,
+                                            const SCorrelationEvalContext *pCorrelation);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
 extern int32_t filterSetDataFromColId(SFilterInfo *info, void *param);
 extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict, bool* hasRemoteNode);
-extern int32_t filterConverNcharColumns(SFilterInfo *pFilterInfo, int32_t rows, bool *gotNchar);
-extern int32_t filterFreeNcharColumns(SFilterInfo *pFilterInfo);
+int32_t filterCalcSemanticTimeRange(const SNode* pCondition, bool allowNonPrimaryTimeColumn,
+                                    STimeWindow* pRange);
+int32_t filterValidateFillTimeRange(const STimeWindow* pRange, int64_t interval, int8_t intervalUnit,
+                                    uint8_t precision, bool allowNoTimeRange);
 extern void    filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTaskKilled isTaskKilledFn);
 extern void    filterFreeInfo(SFilterInfo *info);
 extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -21,6 +23,7 @@
 #include <tmsg.h>
 #include <iostream>
 #include <tdatablock.h>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -687,5 +690,529 @@ TEST(testCase, RawBlockNcharValidation) {
     ASSERT_EQ(colData.numOfValue, 1);
 
     tColDataDestroy(&colData);
+  }
+}
+
+class BoundedBlockDecoderTest : public ::testing::Test {
+ protected:
+  enum { kRows = 3, kColumns = 3 };
+  static constexpr size_t kHeaderSize = sizeof(int32_t) * 5 + sizeof(uint64_t);
+  static constexpr size_t kSchemaSize = sizeof(int8_t) + sizeof(int32_t);
+
+  void SetUp() override {
+    ASSERT_EQ(createDataBlock(&source), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(createDataBlock(&decoded), TSDB_CODE_SUCCESS);
+
+    SColumnInfoData timestamp = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+    SColumnInfoData fixed = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+    SColumnInfoData variable = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 2);
+    ASSERT_EQ(blockDataAppendColInfo(source, &timestamp), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataAppendColInfo(source, &fixed), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataAppendColInfo(source, &variable), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(source, kRows), TSDB_CODE_SUCCESS);
+
+    const char *values[kRows] = {"one", "two", "six"};
+    for (int32_t row = 0; row < kRows; ++row) {
+      TSKEY   ts = 10 + row;
+      int32_t integer = 100 + row;
+      char    value[VARSTR_HEADER_SIZE + 5] = {0};
+      varDataSetLen(value, strlen(values[row]));
+      memcpy(varDataVal(value), values[row], strlen(values[row]));
+
+      ASSERT_EQ(colDataSetVal(column(0), row, reinterpret_cast<const char *>(&ts), false), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(colDataSetVal(column(1), row, reinterpret_cast<const char *>(&integer), false), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(colDataSetVal(column(2), row, value, false), TSDB_CODE_SUCCESS);
+    }
+    source->info.rows = kRows;
+
+    encoded.resize(blockGetEncodeSize(source));
+    int32_t length = blockEncode(source, encoded.data(), encoded.size(), kColumns);
+    ASSERT_GT(length, 0);
+    encoded.resize(length);
+  }
+
+  void TearDown() override {
+    blockDataDestroy(fourRowSource);
+    blockDataDestroy(fourRowDecoded);
+    blockDataDestroy(extraColumnsDecoded);
+    blockDataDestroy(tooFewColumnsDecoded);
+    blockDataDestroy(mismatchedColumnsDecoded);
+    blockDataDestroy(source);
+    blockDataDestroy(decoded);
+  }
+
+  SColumnInfoData *column(int32_t index) {
+    return static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, index));
+  }
+
+  void setSourceTimestamp(int32_t row, TSKEY ts) {
+    ASSERT_EQ(colDataSetVal(column(0), row, reinterpret_cast<const char *>(&ts), false), TSDB_CODE_SUCCESS);
+  }
+
+  void encodeUnfilledVariableColumn(std::vector<char> *result) {
+    colDataDestroy(column(2));
+    ASSERT_EQ(colInfoDataEnsureCapacity(column(2), kRows, false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(column(2)->pData, nullptr);
+    ASSERT_EQ(column(2)->varmeta.offset[0], 0);
+    result->resize(blockGetEncodeSize(source));
+    int32_t length = blockEncode(source, result->data(), result->size(), kColumns);
+    ASSERT_GT(length, 0);
+    result->resize(length);
+  }
+
+  SSDataBlock      *source = nullptr;
+  SSDataBlock      *decoded = nullptr;
+  SSDataBlock      *fourRowSource = nullptr;
+  SSDataBlock      *fourRowDecoded = nullptr;
+  SSDataBlock      *extraColumnsDecoded = nullptr;
+  SSDataBlock      *tooFewColumnsDecoded = nullptr;
+  SSDataBlock      *mismatchedColumnsDecoded = nullptr;
+  std::vector<char> encoded;
+};
+
+TEST_F(BoundedBlockDecoderTest, DecodesOneBlockWithinAContainerAndSupportsNullEndPointer) {
+  const size_t blockLen = encoded.size();
+  encoded.resize(blockLen + 16, 0);
+  const char *end = nullptr;
+
+  ASSERT_EQ(blockDecodeBounded(decoded, encoded.data(), encoded.size(), &end), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(end, encoded.data() + blockLen);
+  ASSERT_EQ(decoded->info.rows, kRows);
+  ASSERT_EQ(*reinterpret_cast<TSKEY *>(
+                colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 0)), 2)),
+            12);
+  ASSERT_EQ(*reinterpret_cast<int32_t *>(
+                colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1)), 1)),
+            101);
+  const char *value = colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2)), 0);
+  ASSERT_EQ(varDataLen(value), 3);
+  EXPECT_EQ(memcmp(varDataVal(value), "one", 3), 0);
+
+  ASSERT_EQ(blockDecodeBounded(decoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(BoundedBlockDecoderTest, RejectsTruncatedMalformedSchemaAndColumnLength) {
+  for (size_t length = 0; length < encoded.size(); ++length) {
+    SCOPED_TRACE(length);
+    std::vector<char> truncated(encoded.begin(), encoded.begin() + length);
+    EXPECT_EQ(blockDecodeBounded(decoded, truncated.data(), truncated.size(), nullptr), TSDB_CODE_INVALID_MSG);
+  }
+
+  std::vector<char> malformedSchema = encoded;
+  malformedSchema[kHeaderSize] = TSDB_DATA_TYPE_MAX;
+  EXPECT_EQ(blockDecodeBounded(decoded, malformedSchema.data(), malformedSchema.size(), nullptr),
+            TSDB_CODE_INVALID_MSG);
+
+  std::vector<char> malformedColumnLength = encoded;
+  const int32_t     columnLength = htonl(INT32_MAX);
+  memcpy(malformedColumnLength.data() + kHeaderSize + kColumns * kSchemaSize + sizeof(int32_t), &columnLength,
+         sizeof(columnLength));
+  EXPECT_EQ(blockDecodeBounded(decoded, malformedColumnLength.data(), malformedColumnLength.size(), nullptr),
+            TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(BoundedBlockDecoderTest, AcceptsProductionReassignedVariableOffsets) {
+  ASSERT_EQ(colDataReassignVal(column(2), 0, 1, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 2, nullptr), TSDB_CODE_SUCCESS);
+  std::vector<char> reassigned(blockGetEncodeSize(source));
+  int32_t           length = blockEncode(source, reassigned.data(), reassigned.size(), kColumns);
+  ASSERT_GT(length, 0);
+  reassigned.resize(length);
+
+  ASSERT_EQ(blockDecodeBounded(decoded, reassigned.data(), reassigned.size(), nullptr), TSDB_CODE_SUCCESS);
+  const char *value = colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2)), 0);
+  ASSERT_EQ(varDataLen(value), 3);
+  EXPECT_EQ(memcmp(varDataVal(value), "six", 3), 0);
+
+  const char *end = nullptr;
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, reassigned.data(), reassigned.size(), 0, 10, 10, &end),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(end, reassigned.data() + reassigned.size());
+  ASSERT_EQ(decoded->info.rows, 1);
+  value = colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2)), 0);
+  ASSERT_EQ(varDataLen(value), 3);
+  EXPECT_EQ(memcmp(varDataVal(value), "six", 3), 0);
+}
+
+TEST_F(BoundedBlockDecoderTest, EstimatesReassignedVariableDataForEncoding) {
+  char value[VARSTR_HEADER_SIZE + 6] = {0};
+  varDataSetLen(value, 6);
+  memcpy(varDataVal(value), "longer", 6);
+  ASSERT_EQ(colDataSetVal(column(2), 2, value, false), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(colDataReassignVal(column(2), 0, 2, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 2, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 2, 2, nullptr), TSDB_CODE_SUCCESS);
+
+  std::vector<char> reassigned(blockGetEncodeSize(source));
+  int32_t           length = blockEncode(source, reassigned.data(), reassigned.size(), kColumns);
+  ASSERT_EQ(length, reassigned.size());
+}
+
+TEST_F(BoundedBlockDecoderTest, EncodesReassignedUnfilledVariableColumn) {
+  std::vector<char> unfilled;
+  encodeUnfilledVariableColumn(&unfilled);
+
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 0, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(column(2)->reassigned);
+  ASSERT_EQ(column(2)->pData, nullptr);
+
+  ASSERT_EQ(blockDataToBuf(unfilled.data(), source), TSDB_CODE_SUCCESS);
+
+  unfilled.resize(blockGetEncodeSize(source));
+  int32_t length = blockEncode(source, unfilled.data(), unfilled.size(), kColumns);
+  ASSERT_GT(length, 0);
+  unfilled.resize(length);
+
+  ASSERT_EQ(blockDecodeBounded(decoded, unfilled.data(), unfilled.size(), nullptr), TSDB_CODE_SUCCESS);
+  auto* variable = static_cast<SColumnInfoData*>(taosArrayGet(decoded->pDataBlock, 2));
+  for (int32_t row = 0; row < kRows; ++row) {
+    EXPECT_TRUE(colDataIsNull_s(variable, row));
+  }
+}
+
+TEST_F(BoundedBlockDecoderTest, DecodesUnfilledVariableColumnAsNull) {
+  std::vector<char> unfilled;
+  encodeUnfilledVariableColumn(&unfilled);
+  for (bool reuse : {false, true}) {
+    SCOPED_TRACE(reuse);
+    blockDataFreeRes(decoded);
+    if (reuse) {
+      ASSERT_EQ(blockDecodeBounded(decoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_SUCCESS);
+    }
+    ASSERT_EQ(blockDecodeBounded(decoded, unfilled.data(), unfilled.size(), nullptr), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(decoded->info.rows, kRows);
+    auto *variable = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2));
+    for (int32_t row = 0; row < kRows; ++row) {
+      EXPECT_TRUE(colDataIsNull_s(variable, row));
+    }
+  }
+  const size_t offsetsStart = unfilled.size() - sizeof(bool) - kRows * sizeof(int32_t);
+  for (int32_t offset : {-2, 1}) {
+    memcpy(unfilled.data() + offsetsStart, &offset, sizeof(offset));
+    EXPECT_EQ(blockDecodeBounded(decoded, unfilled.data(), unfilled.size(), nullptr), TSDB_CODE_INVALID_MSG);
+  }
+}
+
+TEST_F(BoundedBlockDecoderTest, SelectsUnfilledVariableColumnAsNullWithReusedStorage) {
+  std::vector<char> unfilled;
+  encodeUnfilledVariableColumn(&unfilled);
+  ASSERT_EQ(blockDecodeBounded(decoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, unfilled.data(), unfilled.size(), 0, 11, 11, nullptr),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(decoded->info.rows, 1);
+  auto *variable = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2));
+  EXPECT_TRUE(colDataIsNull_s(variable, 0));
+}
+
+TEST_F(BoundedBlockDecoderTest, SelectsTimestampRangeWithoutDecodingPastTheBlock) {
+  const size_t blockLen = encoded.size();
+  encoded.resize(blockLen + 16, 0);
+  const char *end = nullptr;
+
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, encoded.data(), encoded.size(), 0, 11, 11, &end),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(end, encoded.data() + blockLen);
+  ASSERT_EQ(decoded->info.rows, 1);
+  EXPECT_EQ(*reinterpret_cast<TSKEY *>(
+                colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 0)), 0)),
+            11);
+
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, encoded.data(), encoded.size(), 0, 20, 21, &end),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(end, encoded.data() + blockLen);
+  EXPECT_EQ(decoded->info.rows, 0);
+  EXPECT_EQ(blockSpecialDecodeLaterPartBounded(decoded, encoded.data(), encoded.size(), -1, 10, 12, nullptr),
+            TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(blockSpecialDecodeLaterPartBounded(decoded, encoded.data(), encoded.size(), 1, 10, 12, nullptr),
+            TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(BoundedBlockDecoderTest, SelectsGapRangeAsAnEmptyResult) {
+  setSourceTimestamp(0, 10);
+  setSourceTimestamp(1, 12);
+  setSourceTimestamp(2, 14);
+  std::vector<char> gapped(blockGetEncodeSize(source));
+  int32_t           length = blockEncode(source, gapped.data(), gapped.size(), kColumns);
+  ASSERT_GT(length, 0);
+  gapped.resize(length);
+
+  const char *end = nullptr;
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, gapped.data(), gapped.size(), 0, 11, 11, &end),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(end, gapped.data() + gapped.size());
+  EXPECT_EQ(decoded->info.rows, 0);
+
+  ASSERT_EQ(blockDecodeBounded(decoded, gapped.data(), gapped.size(), nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 0)), 0), nullptr);
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, gapped.data(), gapped.size(), 0, 11, 11, &end),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(end, gapped.data() + gapped.size());
+  EXPECT_EQ(decoded->info.rows, 0);
+}
+
+TEST_F(BoundedBlockDecoderTest, CopiesOnlySelectedCanonicalVariableValues) {
+  ASSERT_EQ(createDataBlock(&fourRowSource), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&fourRowDecoded), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData timestamp = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+  SColumnInfoData variable = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  ASSERT_EQ(blockDataAppendColInfo(fourRowSource, &timestamp), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(fourRowSource, &variable), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(fourRowSource, 4), TSDB_CODE_SUCCESS);
+
+  const char *values[4] = {"one", "two", "six", "ten"};
+  for (int32_t row = 0; row < 4; ++row) {
+    TSKEY             ts = 10 + row;
+    std::vector<char> value(VARSTR_HEADER_SIZE + strlen(values[row]));
+    varDataSetLen(value.data(), strlen(values[row]));
+    memcpy(varDataVal(value.data()), values[row], strlen(values[row]));
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(fourRowSource->pDataBlock, 0)), row,
+                            reinterpret_cast<const char *>(&ts), false),
+              TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(fourRowSource->pDataBlock, 1)), row,
+                            value.data(), false),
+              TSDB_CODE_SUCCESS);
+  }
+  fourRowSource->info.rows = 4;
+
+  std::vector<char> canonical(blockGetEncodeSize(fourRowSource));
+  int32_t           length = blockEncode(fourRowSource, canonical.data(), canonical.size(), 2);
+  ASSERT_GT(length, 0);
+  canonical.resize(length);
+
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(fourRowDecoded, canonical.data(), canonical.size(), 0, 10, 10, nullptr),
+            TSDB_CODE_SUCCESS);
+  SColumnInfoData *selected = static_cast<SColumnInfoData *>(taosArrayGet(fourRowDecoded->pDataBlock, 1));
+  ASSERT_EQ(fourRowDecoded->info.rows, 1);
+  EXPECT_EQ(selected->varmeta.length, VARSTR_HEADER_SIZE + 3);
+
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(fourRowDecoded, canonical.data(), canonical.size(), 0, 11, 11, nullptr),
+            TSDB_CODE_SUCCESS);
+  selected = static_cast<SColumnInfoData *>(taosArrayGet(fourRowDecoded->pDataBlock, 1));
+  ASSERT_EQ(fourRowDecoded->info.rows, 1);
+  EXPECT_EQ(selected->varmeta.length, VARSTR_HEADER_SIZE + 3);
+  const char *value = colDataGetData(selected, 0);
+  ASSERT_EQ(varDataLen(value), 3);
+  EXPECT_EQ(memcmp(varDataVal(value), "two", 3), 0);
+}
+
+TEST_F(BoundedBlockDecoderTest, DecodesIntoOrdinaryDestinationWithTailColumns) {
+  ASSERT_EQ(createDataBlock(&extraColumnsDecoded), TSDB_CODE_SUCCESS);
+  SColumnInfoData timestamp = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+  SColumnInfoData fixed = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData variable = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 2);
+  SColumnInfoData tailInt = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 3);
+  SColumnInfoData tailBigint = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 4);
+  ASSERT_EQ(blockDataAppendColInfo(extraColumnsDecoded, &timestamp), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(extraColumnsDecoded, &fixed), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(extraColumnsDecoded, &variable), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(extraColumnsDecoded, &tailInt), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(extraColumnsDecoded, &tailBigint), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(blockDecodeBounded(extraColumnsDecoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_SUCCESS);
+  SColumnInfoData *tail = static_cast<SColumnInfoData *>(taosArrayGet(extraColumnsDecoded->pDataBlock, 3));
+  ASSERT_EQ(blockDataEnsureCapacity(extraColumnsDecoded, kRows), TSDB_CODE_SUCCESS);
+  int32_t tailValue = 999;
+  ASSERT_EQ(colDataSetVal(tail, 0, reinterpret_cast<const char *>(&tailValue), false), TSDB_CODE_SUCCESS);
+  char *tailData = tail->pData;
+
+  ASSERT_EQ(blockDecodeBounded(extraColumnsDecoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(extraColumnsDecoded->info.rows, kRows);
+  EXPECT_EQ(tail->info.type, TSDB_DATA_TYPE_INT);
+  EXPECT_EQ(tail->info.colId, 3);
+  EXPECT_EQ(tail->pData, tailData);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(tail, 0)), tailValue);
+  EXPECT_EQ(*reinterpret_cast<TSKEY *>(
+                colDataGetData(static_cast<SColumnInfoData *>(taosArrayGet(extraColumnsDecoded->pDataBlock, 0)), 2)),
+            12);
+
+  ASSERT_EQ(createDataBlock(&tooFewColumnsDecoded), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(tooFewColumnsDecoded, &timestamp), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(tooFewColumnsDecoded, &fixed), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(blockDecodeBounded(tooFewColumnsDecoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_INVALID_MSG);
+
+  ASSERT_EQ(createDataBlock(&mismatchedColumnsDecoded), TSDB_CODE_SUCCESS);
+  SColumnInfoData wrongFixed = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(mismatchedColumnsDecoded, &timestamp), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(mismatchedColumnsDecoded, &wrongFixed), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(mismatchedColumnsDecoded, &variable), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(blockDecodeBounded(mismatchedColumnsDecoded, encoded.data(), encoded.size(), nullptr),
+            TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(BoundedBlockDecoderTest, SelectsFixedColumnNullsWithoutPrefixBitmapBits) {
+  ASSERT_EQ(colDataSetVal(column(1), 0, nullptr, true), TSDB_CODE_SUCCESS);
+  std::vector<char> nullable(blockGetEncodeSize(source));
+  int32_t           length = blockEncode(source, nullable.data(), nullable.size(), kColumns);
+  ASSERT_GT(length, 0);
+  nullable.resize(length);
+
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, nullable.data(), nullable.size(), 0, 11, 11, nullptr),
+            TSDB_CODE_SUCCESS);
+  SColumnInfoData *fixed = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1));
+  EXPECT_FALSE(colDataIsNull_s(fixed, 0));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(fixed, 0)), 101);
+
+  ASSERT_EQ(blockDecodeBounded(decoded, nullable.data(), nullable.size(), nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, nullable.data(), nullable.size(), 0, 11, 11, nullptr),
+            TSDB_CODE_SUCCESS);
+  fixed = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1));
+  EXPECT_FALSE(colDataIsNull_s(fixed, 0));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(fixed, 0)), 101);
+
+  ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, nullable.data(), nullable.size(), 0, 10, 10, nullptr),
+            TSDB_CODE_SUCCESS);
+  fixed = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1));
+  EXPECT_TRUE(colDataIsNull_s(fixed, 0));
+}
+
+// ==================== TD-SEC-2026-031: integer overflow in ColData/INSERT deserialization ====================
+// Hand-crafted wire payloads; each malicious case must be rejected with TSDB_CODE_INVALID_MSG
+// and must never hand back pointers beyond the decoder buffer.
+
+// LEB128 varint writer, byte-compatible with tDecodeU32v
+static int32_t secPutU32v(uint8_t *p, uint32_t v) {
+  int32_t n = 0;
+  while (v >= 0x80) {
+    p[n++] = (uint8_t)(v | 0x80);
+    v >>= 7;
+  }
+  p[n++] = (uint8_t)v;
+  return n;
+}
+
+// zigzag + varint writer, byte-compatible with tDecodeI32v
+static int32_t secPutI32v(uint8_t *p, int32_t v) {
+  return secPutU32v(p, ZIGZAGE(int32_t, v));
+}
+
+static int32_t secDecodeColData(const uint8_t *buf, uint32_t len, uint8_t version, bool jump, SColData *pColData) {
+  SDecoder dec = {0};
+  tDecoderInit(&dec, (uint8_t *)buf, len);
+  int32_t code = tDecodeColData(version, &dec, pColData, jump);
+  tDecoderClear(&dec);
+  return code;
+}
+
+// header shared by the crafted ColData payloads: cid/type/nVal/flag
+static int32_t secPutColDataHeader(uint8_t *p, int8_t type, int32_t nVal, uint8_t flag) {
+  int32_t n = 0;
+  n += secPutI32v(p + n, 1);  // cid
+  p[n++] = (uint8_t)type;
+  n += secPutI32v(p + n, nVal);
+  p[n++] = flag;
+  return n;
+}
+
+TEST(testCase, secColDataRejectsNegativeNVal) {
+  uint8_t buf[64] = {0};
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_INT, -1, HAS_NULL | HAS_NONE);
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataRejectsOffsetSizeOverflow) {
+  uint8_t buf[64] = {0};
+  // nVal = 2^30: nVal << 2 overflows int32 and truncates to 0, so the bounds
+  // check passes while the consumer later reads aOffset[0..nVal)
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BINARY, 0x40000000, HAS_VALUE);
+  n += secPutI32v(buf + n, 0);  // nData
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataRejectsNegativeNData) {
+  uint8_t buf[64] = {0};
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BINARY, 1, HAS_VALUE);
+  memset(buf + n, 0, 4);  // aOffset[0]: 4 raw bytes, not varint
+  n += 4;
+  n += secPutI32v(buf + n, -1);  // nData = -1: (uint32_t)-1 wraps the bounds check
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataRejectsFixedDataSizeOverflow) {
+  uint8_t buf[64] = {0};
+  // nVal = INT32_MAX with an 8-byte fixed type: TYPE_BYTES * nVal overflows
+  // int32 and wraps to -8, which bypasses the bounds check as 0xFFFFFFF8
+  int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BIGINT, 0x7FFFFFFF, HAS_VALUE);
+
+  SColData colData = {0};
+  EXPECT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(testCase, secColDataV2JumpRejectsBadLength) {
+  {
+    // negative length: pDecoder->pos += (len - INT_BYTES) underflows
+    uint8_t buf[16] = {0};
+    int32_t len = -8;
+    memcpy(buf, &len, sizeof(len));
+
+    SColData colData = {0};
+    EXPECT_EQ(secDecodeColData(buf, 4, 2, true, &colData), TSDB_CODE_INVALID_MSG);
+  }
+  {
+    // huge length: pos jumps past the end of the buffer
+    uint8_t buf[16] = {0};
+    int32_t len = 0x7FFFFFF0;
+    memcpy(buf, &len, sizeof(len));
+
+    SColData colData = {0};
+    EXPECT_EQ(secDecodeColData(buf, 4, 2, true, &colData), TSDB_CODE_INVALID_MSG);
+  }
+}
+
+TEST(testCase, secColDataStillAcceptsValidPayload) {
+  {  // fixed-length values, no bitmap
+    uint8_t buf[64] = {0};
+    int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_INT, 2, HAS_VALUE);
+    memset(buf + n, 0x11, 8);
+    n += 8;
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colData.nVal, 2);
+    EXPECT_EQ(colData.nData, 8);
+    EXPECT_EQ(((int32_t *)colData.pData)[1], 0x11111111);
+  }
+  {  // var-length values with offset array
+    uint8_t buf[64] = {0};
+    int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_BINARY, 1, HAS_VALUE);
+    memset(buf + n, 0, 4);  // aOffset[0]: 4 raw bytes, not varint
+    n += 4;
+    n += secPutI32v(buf + n, 3);  // nData
+    memcpy(buf + n, "abc", 3);
+    n += 3;
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colData.nVal, 1);
+    EXPECT_EQ(colData.aOffset[0], 0);
+    EXPECT_EQ(memcmp(colData.pData, "abc", 3), 0);
+  }
+  {  // 2-bit bitmap path
+    uint8_t buf[64] = {0};
+    int32_t n = secPutColDataHeader(buf, TSDB_DATA_TYPE_INT, 3, HAS_VALUE | HAS_NULL | HAS_NONE);
+    buf[n++] = 0b00111111;  // BIT2_SIZE(3) == 1
+    memset(buf + n, 0x22, 12);
+    n += 12;
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, n, 0, false, &colData), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colData.nVal, 3);
+    EXPECT_EQ(colData.nData, 12);
+  }
+  {  // v2 jump with a well-formed length
+    uint8_t buf[8] = {0};
+    int32_t len = 8;
+    memcpy(buf, &len, sizeof(len));
+
+    SColData colData = {0};
+    ASSERT_EQ(secDecodeColData(buf, sizeof(buf), 2, true, &colData),
+              TSDB_CODE_SUCCESS);
   }
 }

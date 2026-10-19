@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_08_system_observability.py
 
@@ -59,6 +74,11 @@ _I_HOST  = ExtSrcEnv.INFLUX_HOST
 _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 
+_S_HOST = ExtSrcEnv.SQLSERVER_HOST
+_S_PORT = ExtSrcEnv.SQLSERVER_PORT
+_S_USER = ExtSrcEnv.SQLSERVER_USER
+_S_PASS = ExtSrcEnv.SQLSERVER_PASS
+
 _MASKED = "******"
 
 # ── SHOW EXTERNAL SOURCES / ins_ext_sources column indices (DS §5.4) ───────
@@ -85,6 +105,7 @@ _SQL_RESERVED_WORDS = {
 _mysql    = "mysql"
 _pg       = "postgresql"
 _influxdb = "influxdb"
+_sqlserver = "sqlserver"
 
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
@@ -222,6 +243,17 @@ _CASES = [
      ],
      ],
 
+    ["sys006s", [_sqlserver], ["fq08_s006_s"],
+     "SQL Server source: type=sqlserver, schema='dbo' stored in col[7], OPTIONS visible, password masked (covers SYS-001/SYS-005)",
+     [
+         "drop external source if exists fq08_s006_s",
+         f"create external source fq08_s006_s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='sqlsrvdb' schema='dbo' options('trust_server_certificate'='true','connect_timeout_ms'='3000')",
+         "select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq08_s006_s'",
+         "select count(*) from information_schema.ins_ext_sources where source_name='fq08_s006_s' and create_time is not null",
+         _clear_source_step(),
+     ],
+     ],
+
     # === GROUP B: Non-existent / empty results ================================
     # Covers: s01 (non-existent source name returns 0 rows, not error)
 
@@ -291,7 +323,7 @@ _CASES = [
      ],
 
     ["opt017i", [_influxdb], ["fq08_o017_i"],
-     "InfluxDB OPTIONS: api_token masked; protocol='flight_sql' visible; options is valid JSON (covers SYS-017)",
+     "InfluxDB OPTIONS: api_token masked; protocol value visible; options is valid JSON (covers SYS-017)",
      [
          "drop external source if exists fq08_o017_i",
          f"create external source fq08_o017_i type='influxdb' host='{_I_HOST}' port={_I_PORT} user='u' password='' database='telegraf' options('api_token'='secret_token','protocol'='flight_sql')",
@@ -665,12 +697,6 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             tdSql.execute("drop database if exists fq08_local016")
         except Exception:
             pass
-        # Restore federatedQueryConnectTimeoutMs to default (5000 ms) so that
-        # subsequent test files (e.g. fq_05) see the expected default value.
-        try:
-            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
-        except Exception:
-            pass
         # Ensure qnode is present for subsequent test files
         ExtSrcEnv.ensure_qnode()
 
@@ -740,6 +766,12 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     def _fw_query_once(sql: str, exit: bool = False):
         return tdSql.query(sql, exit=exit, queryTimes=1)
 
+    def _fw_runtime_sql(self, sql: str, src_type: str) -> str:
+        """Patch generic import-time Influx source SQL to runtime protocol."""
+        if src_type != _influxdb:
+            return sql
+        return self._rewrite_influx_source_runtime_sql(sql)
+
     @staticmethod
     def _fw_quote_src_name(src_name: str) -> str:
         name = str(src_name)
@@ -797,30 +829,15 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         # ── SQL string ──────────────────────────────────────────────────────
         if isinstance(step, str):
-            sql      = step
+            sql      = self._fw_runtime_sql(step, src_type)
             stripped = sql.strip()
             is_create = bool(re.match(r"create\s+external\s+source", stripped, re.IGNORECASE))
             is_query  = bool(re.match(r"(select|show|describe|explain)\b", stripped, re.IGNORECASE))
 
             if is_query:
                 ok = self._fw_query_once(sql, exit=False)
-                if ok is not False:
-                    rows_all = tdSql.queryResult or []
-                    # "SHOW EXTERNAL SOURCES" returns ALL sources across the whole
-                    # server, making baseline comparison environment-dependent when
-                    # other tests leave sources behind.  Always filter to only the
-                    # sources declared for this case (source_names) so the result
-                    # is deterministic regardless of server state.
-                    # When source_names is empty (e.g. local016), the filter yields
-                    # 0 rows — which is still deterministic and sufficient to prove
-                    # the command executed without error.
-                    if stripped.lower() == "show external sources":
-                        norm = {self._fw_norm_src_name(n) for n in source_names}
-                        rows_all = [r for r in rows_all
-                                    if self._fw_norm_src_name(r[_COL_NAME]) in norm]
-                    rows = self._fw_fmt_result(tdSql.cursor.description, rows_all)
-                else:
-                    rows = ["ERROR: query failed"]
+                rows = (self._fw_fmt_result(tdSql.cursor.description, tdSql.queryResult or [])
+                        if ok is not False else ["ERROR: query failed"])
                 self._fw_append_step_block(blocks, label, step_tag, "QUERY", sql, rows)
             else:
                 tdSql.sql = sql
@@ -839,7 +856,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         # ── _ErrorStep: execute SQL expecting failure ───────────────────────
         if isinstance(step, _ErrorStep):
-            sql = step.sql
+            sql = self._fw_runtime_sql(step.sql, src_type)
             try:
                 tdSql.cursor.execute(sql)
                 result = "UNEXPECTED_OK (expected error)"
@@ -1020,7 +1037,23 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         )
 
     def _fw_compare_baseline(self, blocks: List[str]):
-        actual   = "\n".join(blocks) + "\n"
+        actual   = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
+        import re as _re
+        _PROTOCOL_SQL_NORM = _re.compile(
+            r"('protocol'\s*=\s*')(?:flight_sql|http)(')",
+            _re.IGNORECASE,
+        )
+        _PROTOCOL_JSON_NORM = _re.compile(
+            r'("protocol"\s*:\s*")(?:flight_sql|http)(")',
+            _re.IGNORECASE,
+        )
+        def _norm_protocol(text: str) -> str:
+            text = _PROTOCOL_SQL_NORM.sub(r"\1<PROTO>\2", text)
+            text = _PROTOCOL_JSON_NORM.sub(r'\1<PROTO>\2', text)
+            text = text.replace("protocol value visible", "protocol visible")
+            return _re.sub(r"protocol='(?:flight_sql|http)' visible",
+                           "protocol visible", text, flags=_re.IGNORECASE)
+        actual = _norm_protocol(actual)
         baseline = self._fw_baseline_file()
         tmp_file = os.path.join(
             tempfile.gettempdir(),
@@ -1039,6 +1072,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
 
         with open(baseline, "r", encoding="utf-8") as f:
             expected = f.read()
+        expected = _norm_protocol(expected)
 
         if expected == actual:
             os.remove(tmp_file)
@@ -1074,7 +1108,9 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         On first run the baseline is auto-created; subsequent runs compare against it.
 
         Labels: common,ci
+
         Since: v3.4.0.0
+
         """
         _only     = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None

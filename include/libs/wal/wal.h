@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -131,7 +133,7 @@ typedef struct {
 #define WAL_TXN_HDR_SIZE     16           // total txn body prefix size
 #define WAL_TXN_EXT_IS_BEGIN (1ULL << 0)  // first WAL entry of this txn on this vnode
 
-// WAL body helpers — always use these instead of accessing wCont->body / wCont->bodyLen directly.
+// WAL body helpers  -  always use these instead of accessing wCont->body / wCont->bodyLen directly.
 // For txn entries (WAL_IS_TXN_MSG), the on-disk body is prefixed with [txnExtFlags:8B][txnId:8B].
 // walContBody / walContBodyLen strip that prefix transparently so callers never need to know.
 static FORCE_INLINE const char *walContBody(const SWalCont *cont) {
@@ -196,7 +198,7 @@ typedef struct SWal {
   volatile int64_t firstPendingTxnIndex;  // first txn walIndex since last fsync; -1 = none
   SHashObj        *txnBeginIndexMap;      // txnId -> int64_t firstWalIndex; tracks in-flight txns for IS_BEGIN
 
-  // reusable write head — MUST be last: SWalCkHead contains a flexible array member
+  // reusable write head  -  MUST be last: SWalCkHead contains a flexible array member
   SWalCkHead writeHead;
 } SWal;
 

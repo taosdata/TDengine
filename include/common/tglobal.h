@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -59,6 +61,8 @@ extern char          tsLocalEp[];
 extern char          tsVersionName[];
 extern uint16_t      tsServerPort;
 extern int32_t       tsVersion;
+// Encoded version of the connected server (0 = not a client connection). See tglobal.c.
+extern int32_t       tsServerVerInt;
 extern int32_t       tsdmConfigVersion;
 extern int32_t       tsConfigInited;
 extern int32_t        tsEncryptKeysStatus;
@@ -84,6 +88,14 @@ extern char tsTLSSvrCertPath[];
 extern char tsTLSSvrKeyPath[];
 extern char tsTLSCliCertPath[];
 extern char tsTLSCliKeyPath[];
+
+typedef struct SEnvelopePublicKey SEnvelopePublicKey;
+
+extern int32_t tsXnodeDsnProtection;
+extern char    tsXnodeDsnPublicKeyFile[];
+extern char    tsXnodedDsnPrivateKeyFile[];
+
+const SEnvelopePublicKey *taosGetXnodeDsnPublicKey(void);
 extern int8_t tsEnableTLS;
 extern int8_t tsEnableSasl;
 
@@ -137,6 +149,7 @@ extern int64_t tsQueueMemoryUsed;
 extern int64_t tsApplyMemoryAllowed;
 extern int64_t tsApplyMemoryUsed;
 extern int32_t tsRetentionSpeedLimitMB;
+extern int32_t tsCompactSpeedLimitMB;
 extern int32_t tsNumOfMnodeStreamMgmtThreads;
 extern int32_t tsNumOfStreamMgmtThreads;
 extern int32_t tsNumOfVnodeStreamReaderThreads;
@@ -165,6 +178,7 @@ extern int32_t tsMnodeHeartbeatIntervalMs;
 extern int32_t tsHeartbeatTimeout;
 extern int32_t tsSnapReplMaxWaitN;
 extern int32_t tsSnapshotRateLimit;
+extern bool    tsSnapshotMediumOnLag;  // use MEDIUM (file-level) snap replication when a follower owns data but lags behind
 extern int64_t tsLogBufferMemoryAllowed;  // maximum allowed log buffer size in bytes for each dnode
 extern int64_t tsSyncApplyQueueSize;
 extern int32_t tsSyncNegotiationWin;  // negotiation window size for sync module
@@ -197,6 +211,7 @@ extern int64_t tsMndLogRetention;
 extern bool    tsMndSkipGrant;
 extern int32_t tsTxnTimeout;
 extern bool    tsEnableWhiteList;
+extern bool    tsAnodeAllowInternalUrl;
 extern bool    tsForceKillTrans;
 extern bool    tsForceScram;
 extern int8_t  tsSodEnforceMode;  // 0: not enforce, 1: enforce mandatory SoD
@@ -293,6 +308,7 @@ extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
 extern bool    tsEnableQueryHb;
+extern bool    tsEnableFollowerRead;
 extern bool    tsEnableScience;
 extern bool    tsRpcCrcEnable;
 extern bool    tsSqlSecurityEnabled;
@@ -309,6 +325,7 @@ extern int32_t tsRedirectPeriod;
 extern int32_t tsRedirectFactor;
 extern int32_t tsRedirectMaxPeriod;
 extern int32_t tsMaxRetryWaitTime;
+extern int32_t tsMaxRetryTimes;
 extern int32_t tsAuthMech;
 extern int32_t tsRetryOnOverloadBaseInterval;
 extern int32_t tsRetryOnOverloadTimeout;
@@ -380,6 +397,7 @@ extern bool    tsWalMultiMountEnable;
 extern bool    tsDiskIDCheckEnabled;
 extern int32_t tsTransPullupInterval;
 extern int32_t tsCompactPullupInterval;
+extern int32_t tsBackupPullupInterval;
 extern int32_t tsSnapSendPullupInterval;
 extern int32_t tsScanPullupInterval;
 extern int32_t tsInstancePullupInterval;
@@ -395,6 +413,7 @@ extern int32_t tsUptimeInterval;
 extern bool    tsUpdateCacheBatch;
 extern bool    tsDisableStream;
 extern int32_t tsStreamBufferSize;
+extern int32_t tsStreamTriggerMaxPendingParams;
 extern int64_t tsStreamBufferSizeBytes;
 extern bool    tsStreamPerfLogEnabled;
 extern bool    tsFilterScalarMode;
@@ -402,6 +421,9 @@ extern int32_t tsPQSortMemThreshold;
 extern int32_t tsStreamNotifyMessageSize;
 extern int32_t tsStreamNotifyFrameSize;
 extern int32_t tsStreamBatchRequestWaitMs;
+extern int32_t tsStreamNotifyWorkerNum;        // number of async notify worker threads per snode
+extern int32_t tsStreamNotifyBatchIntervalMs;  // max wait before flushing a notify batch (ms)
+extern int32_t tsStreamNotifyParamPoolSize;   // KB, total SStreamNotifyPendingItem obj pool size (all streams)
 extern bool    tsCompareAsStrInGreatest;
 extern bool    tsIgnoreNullInGreatest;
 extern bool    tsShowFullCreateTableColumn;  // 0: show create table, and not include column compress info
@@ -415,6 +437,18 @@ extern int32_t tsSsUploadDelaySec;
 extern int32_t tsSsBlockSize;
 extern int32_t tsSsBlockCacheSize;
 extern int32_t tsSsPageCacheSize;
+
+// last cache rocksdb engine tuning
+// block cache size is derived per-vnode from CACHESIZE (see tsdbOpenRocksCache), not a global dnode config.
+#define TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN 16
+#define TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN 1024
+extern int32_t tsLastCacheWriteBufferSize;
+extern int32_t tsLastCacheMaxWriteBufferNumber;
+extern int32_t tsLastCacheBackgroundThreads;
+extern int32_t tsLastCacheBloomFilterBits;
+extern int32_t tsLastCacheMaxOpenFiles;
+extern char    tsLastCacheCompressionType[TSDB_LAST_CACHE_COMPRESSION_TYPE_LEN];
+extern char    tsLastCacheOptionsOverride[TSDB_LAST_CACHE_OPTIONS_OVERRIDE_LEN];
 
 extern int32_t sessionPerUser; 
 extern int32_t sessionConnTime; 
@@ -446,6 +480,8 @@ extern int32_t tsClsRefreshInterval;
 extern char    tsClsLastSucTime[];
 extern char    tsClsLastReqTime[];
 extern char    tsClsLastFailReason[];
+
+extern char    tsRegisterEmail[];
 extern int32_t gGrantClsPreRefreshInterval;
 #define GRANT_CLS_CLOSING 1
 #define GRANT_CLS_OPENING 2

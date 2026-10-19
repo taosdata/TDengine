@@ -6,7 +6,11 @@ description: List of reserved keywords
 
 ## Reserved Keywords
 
-TDengine currently lists **584** reserved keywords, of which **498** are active in the lexical analysis of the current version. The remaining **86** are keywords whose definitions are retained at the syntax level or in historical documentation. Although they are not currently active, they are included for reference and future use.
+TDengine currently lists **586** reserved keywords, of which **499** are active
+in the lexical analysis of the current version. The remaining **87** are keywords
+whose definitions are retained at the syntax level or in historical documentation.
+Although they are not currently active, they are included for reference and
+future use.
 
 When any of these keywords is used as a database name, table name, supertable name, subtable name, data column name, tag column name, or similar identifier, it must be enclosed in backticks (`` ` ``), regardless of letter case. For example: `` `ADD` ``.
 
@@ -263,6 +267,7 @@ The reserved keywords are listed below:
 | `IMPORT`                | |
 | `IN`                    | |
 | `INACTIVE_ACCOUNT_TIME` | `v3.4.0.0`+ |
+| `INCREMENTAL`           | `v3.4.2.0`+ (reserved: the `CREATE INCREMENTAL BACKUP` grammar is retained but incremental backup is not yet supported) |
 | `INDEX`                 | |
 | `INDEXES`               | |
 | `INHERITS`              | `v3.4.2.0`+ |
@@ -475,6 +480,7 @@ The reserved keywords are listed below:
 | `REPLICA`        | |
 | `REPLICAS`       | `v3.3.7.0`+ |
 | `RESET`          | |
+| `RESTART`        | |
 | `RESTORE`        | |
 | `RESTRICT`       | |
 | `RESUME`         | |
@@ -672,6 +678,7 @@ The reserved keywords are listed below:
 | `WINDOW_CLOSE`         | |
 | `WINDOW_OFFSET`        | |
 | `WINDOW_OPEN`          | `v3.3.7.0`+ |
+| `WINDOW_TIME`          | `v3.4.3.0`+ |
 | `WIN_OPTIMIZE_BATCH`   | |
 | `WIN_OPTIMIZE_SINGLE`  | |
 | `WITH`                 | |

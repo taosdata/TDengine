@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -35,11 +37,22 @@ extern "C" {
 
 // vnodeStream.c
 int32_t addUidListToBlock(SArray *uidListAdd, void **block, int64_t ver, int32_t *totalRows, ETableBlockType type);
+int32_t vnodeCollectNodeGroupReadRange(const SStreamRuntimeFuncInfo *pRuntime, STimeWindow *pRange);
+int32_t vnodeCalculateNodeGroupReadRange(STimeRangeNode *node, SStreamRuntimeFuncInfo *pRuntime,
+                                         SStreamRuntimeFuncInfo *pTmpRuntime, int32_t actualNodeId, STimeWindow *pRange,
+                                         bool *pRangeValid);
+
+// On success the caller owns *readRanges; errors leave it NULL.
+int32_t vnodeCalculateNodeGroupReadRanges(STimeRangeNode *node, SStreamRuntimeFuncInfo *runtime,
+                                          SStreamRuntimeFuncInfo *tmpRuntime, int32_t actualNodeId,
+                                          STimeWindow *combined, bool *combinedValid, SArray **readRanges);
 
 // vnodeStreamVTable.c
 int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo,
                                       int64_t walVer, SSTriggerWalNewRsp *pRsp);
 int32_t streamCollectTagCidsFromPartitionCols(SNodeList *partitionCols, SArray **ppTagCids);
+int32_t streamValidateVTableColRef(const SColRef *pRef);
+bool streamVTableInfoHasColumnRef(const SStreamMsgVTableInfo *pVTableInfo);
 int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInfo *sStreamReaderInfo,
                                          int64_t uid, uint64_t gid, int64_t ver, SArray *cids,
                                          SVTableResolveResult *pRes, SMetaReader *metaReader,
@@ -78,9 +91,15 @@ typedef struct SResolveWorkItem {
   int64_t  originVtbUid;
   col_id_t originCid;
   int8_t   kind;
+  int8_t   refType;
+  char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char     refDbName   [TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName  [TSDB_COL_NAME_LEN];
+  int32_t  tagCondLen;
+  char    *tagCondJson;   // Borrowed from the source ref or owned by this work item when ownsTagCond is true.
+  bool     ownsTagCond;
 } SResolveWorkItem;
 
 // Shared cross-vg fanout sync (shared sem + ref/pending counters).
@@ -97,9 +116,12 @@ void               streamFanoutSyncDestroy(SStreamFanoutSync *p);
 bool               streamFanoutSyncRelease(SStreamFanoutSync *p);
 
 bool tagValueEqual(const STagValue *a, const STagValue *b);
+bool streamColResolveItemEqual(const SColResolveItem *pLeft, const SColResolveItem *pRight);
 
 void streamBuildTblColKey(const char *db, const char *tb, const char *col,
                           char *out, int32_t *outLen);
+
+void streamBuildRefKey(const SResolveWorkItem *item, char *out, int32_t *outLen);
 
 int32_t streamWriteRspItemDeepCopy(const SVTableRefResolveRspItem *src,
                                    SVTableRefResolveRspItem *dst);
@@ -107,11 +129,20 @@ int32_t streamWriteRspItemDeepCopy(const SVTableRefResolveRspItem *src,
 SVTableRefResolveRspItem *streamTblRefCacheLookup(SStreamVTableInfoCache *pCache,
                                                   const char *dbName, const char *tableName,
                                                   const char *colName, int8_t kind);
+SVTableRefResolveRspItem *streamTblRefCacheLookupEx(SStreamVTableInfoCache *pCache,
+                                                    const char *dbName, const char *tableName,
+                                                    const char *colName, int8_t kind,
+                                                    const char *tagCondJson, int32_t tagCondLen);
 
 void streamTblRefCacheInsert(SStreamVTableInfoCache *pCache,
                              const char *dbName, const char *tableName,
                              const char *colName, int8_t kind,
                              const SVTableRefResolveRspItem *pItem);
+void streamTblRefCacheInsertEx(SStreamVTableInfoCache *pCache,
+                               const char *dbName, const char *tableName,
+                               const char *colName, int8_t kind,
+                               const char *tagCondJson, int32_t tagCondLen,
+                               const SVTableRefResolveRspItem *pItem);
 
 int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batch,
                                     SArray *outRspItems, SHashObj *dedupMap,

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -49,12 +51,13 @@ enum {
   RES_TYPE__TMQ_RAWDATA,
 };
 
-#define SHOW_VARIABLES_RESULT_COLS       5
+#define SHOW_VARIABLES_RESULT_COLS       6
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD3_LEN (TSDB_CONFIG_SCOPE_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD4_LEN (TSDB_CONFIG_CATEGORY_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD5_LEN (TSDB_CONFIG_INFO_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_VARIABLES_RESULT_FIELD6_LEN (TSDB_CONFIG_REBOOT_LEN + VARSTR_HEADER_SIZE)
 
 #define TD_RES_QUERY(res)          (*(int8_t*)(res) == RES_TYPE__QUERY)
 #define TD_RES_TMQ_RAW(res)        (*(int8_t*)(res) == RES_TYPE__TMQ_RAWDATA)
@@ -194,8 +197,15 @@ typedef struct {
 } SWhiteListInfo;
 
 typedef struct {
+  timezone_t timezone;
+  char       timezoneName[TD_TIMEZONE_LEN];
+  bool       timezoneExplicit;
+} SPreparedTimezone;
+
+typedef struct {
   timezone_t    timezone;
-  char          timezoneName[TD_TIMEZONE_LEN]; /* original IANA name from SET TIMEZONE */
+  /* Validated name; fixed offsets retain the accepted input format. */
+  char          timezoneName[TD_TIMEZONE_LEN];
   bool          timezoneExplicit;
   void         *charsetCxt;
   char          userApp[TSDB_APP_NAME_LEN];
@@ -226,9 +236,9 @@ typedef struct STscObj {
   int8_t         txnState;
   txn_id_t       txnId;
   int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
-  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId → dummy, accumulated during DDL in txn
-  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table" → STableMeta* for tables created in this txn
-  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t) → stbFullName (char[TSDB_TABLE_FNAME_LEN])
+  SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId  ->  dummy, accumulated during DDL in txn
+  SHashObj*      pTxnTableMeta;  // Hash cache: "db.table"  ->  STableMeta* for tables created in this txn
+  SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t)  ->  stbFullName (char[TSDB_TABLE_FNAME_LEN])
   union {
     uint32_t flags;
     struct {
@@ -266,6 +276,18 @@ typedef struct STscObj {
   char  extNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty = none
   char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
 } STscObj;
+
+// Remaining DDL object budget in the current txn, clamped at 0. Returns 0 both when no txn
+// is active (nothing to budget) and when the txn's budget is already exhausted - use txnId,
+// not this return value, to tell whether a txn is active. Passed into the parse context so the WHERE-based bulk tag
+// update can divide it across the target db's vgroups; see SParseContext::txnDdlRemaining.
+static FORCE_INLINE int32_t txnDdlRemainingOps(const STscObj* pTscObj) {
+  if (pTscObj == NULL || pTscObj->txnId == 0) {
+    return 0;
+  }
+  int32_t remaining = TSDB_TXN_MAX_DDL_OPS_PER_TXN - pTscObj->txnDdlCount;
+  return remaining > 0 ? remaining : 0;
+}
 
 typedef struct STscDbg {
   bool memEnable;
@@ -382,11 +404,13 @@ typedef struct SRequestObj {
   char*                effectiveUser;
   int8_t               source;
   int32_t              execPhase;       // EQueryExecPhase
+  bool                 execDispatched;  // Retained across internal stmt retries.
   int64_t              phaseStartTime;  // when current phase started, ms
   int8_t               secureDelete;
-
   TAOS_STMT2          *literal_by_stmt2; // reference only
   char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
+  int32_t              extPushdownAttemptCount;
+  SExtCapSessionOverlay extSessionOverlay;
   uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
 
@@ -450,6 +474,10 @@ int32_t  createTscObj(const char* user, const char* auth, const char* db, int32_
                       STscObj** p);
 void     destroyTscObj(void* pObj);
 int32_t  tscInitSessionTimezone(STscObj *pObj);
+int32_t  tscPrepareSessionTimezone(const char* timezoneName, bool explicitTimezone,
+                                   SPreparedTimezone* pPrepared);
+void     tscCommitSessionTimezone(STscObj* pObj, const SPreparedTimezone* pPrepared);
+int32_t  tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool explicitTimezone);
 STscObj* acquireTscObj(int64_t rid);
 void     releaseTscObj(int64_t rid);
 void     destroyAppInst(void* pAppInfo);
@@ -530,14 +558,21 @@ typedef struct SSqlCallbackWrapper {
   void*          pPlanInfo;
 } SSqlCallbackWrapper;
 
+typedef enum EClientMetaRefreshScope {
+  CLIENT_META_REFRESH_NONE = 0,
+  CLIENT_META_REFRESH_TABLE,
+  CLIENT_META_REFRESH_FULL,
+} EClientMetaRefreshScope;
+
 void    setQueryRequest(int64_t rId);
 int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled);
 void    launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
-int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest, int32_t code);
 int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
-void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+void    doAsyncQuery(SRequestObj* pRequest, EClientMetaRefreshScope refreshScope);
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
@@ -553,7 +588,8 @@ void    handleExtSourceError(SRequestObj* pRequest, int32_t code);
 void    restartAsyncQuery(SRequestObj* pRequest, int32_t code);
 void    destroyCtxInRequest(SRequestObj* pRequest);
 int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj** pNewRequest);
-int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest, bool updateMetaForce);
+int32_t prepareAndParseSqlSyntax(SSqlCallbackWrapper** ppWrapper, SRequestObj* pRequest,
+                                 EClientMetaRefreshScope refreshScope);
 void    returnToUser(SRequestObj* pRequest);
 void    stopAllQueries(SRequestObj* pRequest);
 void    doRequestCallback(SRequestObj* pRequest, int32_t code);

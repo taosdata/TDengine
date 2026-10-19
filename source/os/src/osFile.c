@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,14 +14,18 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "osSemaphore.h"
+#include "osInt.h"
 #include "tdef.h"
 #include "zlib.h"
 
 #ifdef WINDOWS
 #include <WinBase.h>
+#include <aclapi.h>
+#include <authz.h>
 #include <io.h>
 #include <ktmw32.h>
 #include <winioctl.h>
@@ -783,8 +789,21 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
   access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
   access |= (tdFileOptions & TD_FILE_CLOEXEC) ? O_CLOEXEC : 0;
+  access |= (tdFileOptions & TD_FILE_NOFOLLOW) ? O_NOFOLLOW : 0;
 
-  int fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
+  // The create mode is stated here instead of being left to the process
+  // umask, because this is the one place the engine creates files of its
+  // own: data, WAL, meta, user, configuration and key files. None of
+  // those may be reachable by other local users, so owner-only is the
+  // default and the umask may only take bits away from it, never add any.
+  // A caller whose file holds no secret - the log files are the only
+  // ones - opts in to TD_FILE_SHARE_READ.
+  int mode = (S_IRUSR | S_IWUSR);
+  if (tdFileOptions & TD_FILE_SHARE_READ) {
+    mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  }
+
+  int fd = open(path, access, mode);
   if (-1 == fd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
   }
@@ -1150,6 +1169,295 @@ bool errorIsFileNotExist(int32_t code) { return code == TAOS_SYSTEM_ERROR(ENOENT
 
 bool lastErrorIsFileNotExist() {
   return errorIsFileNotExist(terrno);
+}
+
+#ifdef WINDOWS
+int32_t taosInitPrivateFileSecurity(SPrivateFileSecurity *security) {
+  HANDLE  token = NULL;
+  DWORD   size = 0;
+  int32_t code = 0;
+  memset(security, 0, sizeof(*security));
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+    return terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
+  if (GetTokenInformation(token, TokenUser, NULL, 0, &size) || GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  security->user = taosMemoryMalloc(size);
+  if (security->user == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if (!GetTokenInformation(token, TokenUser, security->user, size, &size)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  BYTE systemSid[SECURITY_MAX_SID_SIZE];
+  BYTE adminsSid[SECURITY_MAX_SID_SIZE];
+  DWORD systemSize = sizeof(systemSid);
+  DWORD adminsSize = sizeof(adminsSid);
+  BOOL isAdmin = FALSE;
+  if (!CreateWellKnownSid(WinLocalSystemSid, NULL, systemSid, &systemSize) ||
+      !CreateWellKnownSid(WinBuiltinAdministratorsSid, NULL, adminsSid, &adminsSize) ||
+      !CheckTokenMembership(NULL, adminsSid, &isAdmin)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  PSID sids[] = {security->user->User.Sid, systemSid, adminsSid};
+  size = sizeof(ACL);
+  for (size_t i = 0; i < tListLen(sids); ++i) {
+    size += sizeof(ACCESS_ALLOWED_ACE) - sizeof(DWORD) + GetLengthSid(sids[i]);
+  }
+  security->acl = taosMemoryMalloc(size);
+  if (security->acl == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if (!InitializeAcl(security->acl, size, ACL_REVISION)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  // Services and elevated foreground processes share temporary files; other
+  // users receive no access and cannot inherit a permissive parent ACL.
+  for (size_t i = 0; i < tListLen(sids); ++i) {
+    if (i > 0 && EqualSid(sids[i], sids[0])) continue;
+    if (!AddAccessAllowedAceEx(security->acl, ACL_REVISION, 0, FILE_ALL_ACCESS, sids[i])) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      goto _exit;
+    }
+  }
+  // Use a stable privileged owner when elevated, including for ordinary files.
+  // Store the SID in the ACL allocation, whose lifetime matches the descriptor.
+  void *ownerAce = NULL;
+  PSID ownerSid = isAdmin ? (PSID)adminsSid : security->user->User.Sid;
+  for (DWORD i = 0; i < security->acl->AceCount; ++i) {
+    void *ace = NULL;
+    if (!GetAce(security->acl, i, &ace)) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+      goto _exit;
+    }
+    if (EqualSid(&((ACCESS_ALLOWED_ACE *)ace)->SidStart, ownerSid)) {
+      ownerAce = ace;
+      break;
+    }
+  }
+  if (ownerAce == NULL) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_INVALID_ACL);
+    goto _exit;
+  }
+  if (!InitializeSecurityDescriptor(&security->descriptor, SECURITY_DESCRIPTOR_REVISION) ||
+      !SetSecurityDescriptorOwner(&security->descriptor, &((ACCESS_ALLOWED_ACE *)ownerAce)->SidStart, FALSE) ||
+      !SetSecurityDescriptorDacl(&security->descriptor, TRUE, security->acl, FALSE) ||
+      !SetSecurityDescriptorControl(&security->descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  security->attributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+  security->attributes.lpSecurityDescriptor = &security->descriptor;
+  security->attributes.bInheritHandle = FALSE;
+_exit:
+  CloseHandle(token);
+  if (code != 0) {
+    taosFreePrivateFileSecurity(security);
+    terrno = code;
+  }
+  return code;
+}
+
+void taosFreePrivateFileSecurity(SPrivateFileSecurity *security) {
+  taosMemoryFreeClear(security->acl);
+  taosMemoryFreeClear(security->user);
+}
+
+static int32_t taosCheckDefaultDirectoryOwner(PSID owner) {
+  HANDLE token = NULL;
+  if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
+  union {
+    TOKEN_OWNER owner;
+    char        buffer[sizeof(TOKEN_OWNER) + SECURITY_MAX_SID_SIZE];
+  } info = {0};
+  DWORD   size = 0;
+  int32_t code = 0;
+  if (!GetTokenInformation(token, TokenOwner, &info, sizeof(info), &size)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  } else if (!EqualSid(owner, info.owner.Owner)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_ACCESS_DENIED);
+  }
+  CloseHandle(token);
+  return code;
+}
+
+static int32_t taosCheckTrustedFileOwner(PSID owner) {
+  if (IsWellKnownSid(owner, WinLocalSystemSid) ||
+      IsWellKnownSid(owner, WinBuiltinAdministratorsSid)) return 0;
+
+  // Older foreground processes used an individual administrator SID as owner.
+  // Resolve its group membership, rather than trusting any foreign account.
+  AUTHZ_RESOURCE_MANAGER_HANDLE manager = NULL;
+  AUTHZ_CLIENT_CONTEXT_HANDLE context = NULL;
+  TOKEN_GROUPS *groups = NULL;
+  LUID identifier = {0};
+  DWORD size = 0;
+  int32_t code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_ACCESS_DENIED);
+  if (!AuthzInitializeResourceManager(AUTHZ_RM_FLAG_NO_AUDIT, NULL, NULL, NULL, NULL, &manager) ||
+      !AuthzInitializeContextFromSid(0, owner, manager, NULL, identifier, NULL, &context)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  if (!AuthzGetInformationFromContext(context, AuthzContextInfoGroupsSids, 0, &size, NULL)) {
+    DWORD error = GetLastError();
+    if (error != ERROR_INSUFFICIENT_BUFFER) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(error);
+      goto _exit;
+    }
+  }
+  if (size == 0) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_INVALID_DATA);
+    goto _exit;
+  }
+  groups = taosMemoryMalloc(size);
+  if (groups == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+  if (!AuthzGetInformationFromContext(context, AuthzContextInfoGroupsSids, size, &size, groups)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  for (DWORD i = 0; i < groups->GroupCount; ++i) {
+    if (IsWellKnownSid(groups->Groups[i].Sid, WinBuiltinAdministratorsSid) &&
+        (groups->Groups[i].Attributes & SE_GROUP_ENABLED) &&
+        !(groups->Groups[i].Attributes & SE_GROUP_USE_FOR_DENY_ONLY)) {
+      code = 0;
+      break;
+    }
+  }
+_exit:
+  taosMemoryFree(groups);
+  if (context != NULL) AuthzFreeContext(context);
+  if (manager != NULL) AuthzFreeResourceManager(manager);
+  return code;
+}
+
+int32_t taosCheckPrivateFileHandle(HANDLE handle, bool directory, PSID owner) {
+  BY_HANDLE_FILE_INFORMATION info = {0};
+  if (!GetFileInformationByHandle(handle, &info)) return terrno = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  if ((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) ||
+      !!(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != directory || GetFileType(handle) != FILE_TYPE_DISK) {
+    return terrno = TSDB_CODE_INVALID_PARA;
+  }
+  PSID                 actualOwner = NULL;
+  PSECURITY_DESCRIPTOR descriptor = NULL;
+  DWORD                error =
+      GetSecurityInfo(handle, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, &actualOwner, NULL, NULL, NULL, &descriptor);
+  int32_t code = error == ERROR_SUCCESS ? 0 : TAOS_SYSTEM_WINAPI_ERROR(error);
+  if (code == 0 && (actualOwner == NULL || !EqualSid(owner, actualOwner))) {
+    // Existing Windows directories may use the token's default group owner.
+    code = directory && actualOwner != NULL ? taosCheckDefaultDirectoryOwner(actualOwner)
+                                            : TAOS_SYSTEM_WINAPI_ERROR(ERROR_ACCESS_DENIED);
+    if (code != 0 && actualOwner != NULL) code = taosCheckTrustedFileOwner(actualOwner);
+  }
+  if (descriptor != NULL) LocalFree(descriptor);
+  if (code != 0) terrno = code;
+  return code;
+}
+#endif
+
+TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags) {
+  const int32_t allowed = TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_READ | TD_FILE_WRITE;
+  bool          create = (flags & TD_FILE_CREATE) != 0;
+  if (path == NULL || path[0] == 0 || (flags & ~allowed) ||
+      (create ? (!(flags & TD_FILE_EXCL) || !(flags & (TD_FILE_READ | TD_FILE_WRITE))) : flags != TD_FILE_READ)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  int32_t   code = 0;
+  TdFilePtr file = NULL;
+#ifdef WINDOWS
+  SPrivateFileSecurity security = {0};
+  code = taosInitPrivateFileSecurity(&security);
+  if (code != 0) return NULL;
+  DWORD access = READ_CONTROL;
+  if (flags & TD_FILE_READ) access |= GENERIC_READ;
+  if (flags & TD_FILE_WRITE) access |= GENERIC_WRITE;
+  HANDLE handle = CreateFileA(path, access, FILE_SHARE_READ | FILE_SHARE_WRITE, create ? &security.attributes : NULL,
+                              create ? CREATE_NEW : OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+  if (handle == INVALID_HANDLE_VALUE) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  } else {
+    code = taosCheckPrivateFileHandle(handle, false, security.user->User.Sid);
+  }
+  taosFreePrivateFileSecurity(&security);
+  if (handle == INVALID_HANDLE_VALUE) {
+    terrno = code;
+    return NULL;
+  }
+  if (code != 0) goto _exit;
+#else
+  int access = (flags & TD_FILE_WRITE) ? ((flags & TD_FILE_READ) ? O_RDWR : O_WRONLY) : O_RDONLY;
+  int fd = open(path, access | O_NOFOLLOW | O_CLOEXEC | O_NONBLOCK | (create ? O_CREAT | O_EXCL : 0), 0600);
+  if (fd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return NULL;
+  }
+  struct stat info = {0};
+  if (fstat(fd, &info) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+  if (!S_ISREG(info.st_mode) || info.st_uid != geteuid()) {
+    code = TAOS_SYSTEM_ERROR(EACCES);
+    goto _exit;
+  }
+  if (create && fchmod(fd, 0600) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+#endif
+  file = taosMemoryCalloc(1, sizeof(TdFile));
+  if (file == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+#if FILE_WITH_LOCK
+  code = taosThreadRwlockInit(&file->rwlock, NULL);
+  if (code != 0) goto _exit;
+#endif
+#ifdef WINDOWS
+  file->hFile = handle;
+  file->tdFileOptions = flags;
+#else
+  file->fd = fd;
+#endif
+  return file;
+_exit:
+#ifdef WINDOWS
+  CloseHandle(handle);
+  if (create) DeleteFileA(path);
+#else
+  (void)close(fd);
+  if (create) {
+    TAOS_SKIP_ERROR(taosRemoveFile(path));
+  }
+#endif
+  taosMemoryFree(file);
+  terrno = code;
+  return NULL;
+}
+
+int32_t taosCheckPrivateSocket(const char *path) {
+  if (path == NULL || path[0] == 0) return terrno = TSDB_CODE_INVALID_PARA;
+#ifdef WINDOWS
+  return 0;
+#else
+  struct stat info = {0};
+  if (lstat(path, &info) != 0) return terrno = TAOS_SYSTEM_ERROR(ERRNO);
+  if (!S_ISSOCK(info.st_mode) || info.st_uid != geteuid()) return terrno = TAOS_SYSTEM_ERROR(EACCES);
+  return 0;
+#endif
 }
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
@@ -1607,9 +1915,25 @@ int32_t taosCompressFile(TdFilePtr pSrcFile, char *destFileName) {
 #ifdef WINDOWS
   int32_t pmode = _S_IREAD | _S_IWRITE;
 #else
-  int32_t pmode = S_IRWXU | S_IRWXG | S_IRWXO;
+  // The destination normally sits next to the source in a directory that other users may be able to write to,
+  // so an entry planted at this name must not make us truncate whatever it points to. O_EXCL refuses to reuse
+  // an existing entry and O_NOFOLLOW refuses to follow a symbolic link; the mode keeps the archive out of
+  // reach of other users. pmode is only applied when the entry is created, since neither flag lets an
+  // existing file through.
+  access |= O_EXCL | O_NOFOLLOW;
+  int32_t pmode = S_IRUSR | S_IWUSR;
 #endif
   fd = open(destFileName, access, pmode);
+#ifndef WINDOWS
+  if (-1 == fd && ERRNO == EEXIST) {
+    // A destination already exists: it is either an archive left behind by an earlier failed run, a file of
+    // the attacker's own, or a symbolic link planted at this name. Removing it unlinks the entry itself
+    // without touching what a link points to, and the retry below is still O_EXCL|O_NOFOLLOW, so an entry
+    // planted again in the meantime only makes the retry fail.
+    (void)remove(destFileName);
+    fd = open(destFileName, access, pmode);
+  }
+#endif
   if (-1 == fd) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     ret = terrno;
@@ -1929,3 +2253,184 @@ int64_t taosWritevFile(TdFilePtr pFile, const TaosIOVec *iov, int iovcnt) {
 // ============================================================================
 // Encrypted File Operations Implementation
 // ============================================================================
+
+// ============================================================================
+// Wide-char path file APIs
+//
+// Mirror the plain APIs but interpret the path as UTF-8 on Windows (via
+// _wfopen / CreateFileW / DeleteFileW / MoveFileExW / _wstati64 / _waccess),
+// so non-ASCII (e.g. CJK) file names round-trip correctly.  On POSIX the
+// paths are already UTF-8 byte strings, so these delegate to the plain APIs.
+// ============================================================================
+
+#ifdef WINDOWS
+static WCHAR *taosPathToWide(const char *path, WCHAR *wide, int32_t cap) {
+  if (path == NULL || wide == NULL || cap <= 0) return NULL;
+  if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wide, cap) == 0) return NULL;
+  return wide;
+}
+
+TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+
+  STUB_RAND_IO_ERR(NULL)
+  FILE  *fp = NULL;
+  HANDLE hFile = NULL;
+
+  if (tdFileOptions & TD_FILE_STREAM) {
+    if (tdFileOptions & TD_FILE_EXCL) {
+      terrno = TSDB_CODE_INVALID_PARA;
+      return NULL;
+    }
+    char *mode = NULL;
+    if (tdFileOptions & TD_FILE_APPEND) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
+    } else if (tdFileOptions & TD_FILE_TRUNC) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "wt+" : "wb+";
+    } else if ((tdFileOptions & TD_FILE_READ) && !(tdFileOptions & TD_FILE_WRITE)) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
+    } else {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
+    }
+    WCHAR wmode[16] = {0};
+    MultiByteToWideChar(CP_ACP, 0, mode, -1, wmode, 16);
+    fp = _wfopen(wpath, wmode);
+    if (fp == NULL) {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+      return NULL;
+    }
+  } else {
+    DWORD openMode = 0, access = 0, fileFlag = FILE_ATTRIBUTE_NORMAL, shareMode = FILE_SHARE_READ;
+    openMode = OPEN_EXISTING;
+    if (tdFileOptions & TD_FILE_EXCL) {
+      openMode = CREATE_NEW;
+    } else if ((tdFileOptions & TD_FILE_CREATE) && (tdFileOptions & TD_FILE_TRUNC)) {
+      openMode = CREATE_ALWAYS;
+      access |= GENERIC_WRITE;
+    } else if (tdFileOptions & TD_FILE_CREATE) {
+      openMode = OPEN_ALWAYS;
+    } else if (tdFileOptions & TD_FILE_TRUNC) {
+      openMode = TRUNCATE_EXISTING;
+      access |= GENERIC_WRITE;
+    }
+    if (tdFileOptions & TD_FILE_APPEND) access |= FILE_APPEND_DATA;
+    if (tdFileOptions & TD_FILE_WRITE) access |= GENERIC_WRITE;
+    shareMode |= FILE_SHARE_WRITE;
+    access |= GENERIC_READ;
+    if (tdFileOptions & TD_FILE_AUTO_DEL) fileFlag |= FILE_ATTRIBUTE_TEMPORARY;
+    if (tdFileOptions & TD_FILE_WRITE_THROUGH) fileFlag |= FILE_FLAG_WRITE_THROUGH;
+    hFile = CreateFileW(wpath, access, shareMode, NULL, openMode, fileFlag, NULL);
+    if (hFile != INVALID_HANDLE_VALUE && (tdFileOptions & TD_FILE_APPEND) && (tdFileOptions & TD_FILE_WRITE)) {
+      SetFilePointer(hFile, 0, NULL, FILE_END);
+    }
+    if (hFile == INVALID_HANDLE_VALUE) {
+      DWORD dwError = GetLastError();
+      terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+      return NULL;
+    }
+  }
+
+  TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
+  if (pFile == NULL) {
+    if (hFile != NULL) CloseHandle(hFile);
+    if (fp != NULL) (void)fclose(fp);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+#if FILE_WITH_LOCK
+  (void)taosThreadRwlockInit(&(pFile->rwlock), NULL);
+#endif
+  pFile->fp = fp;
+  pFile->hFile = hFile;
+  pFile->tdFileOptions = tdFileOptions;
+  return pFile;
+}
+
+int32_t taosRemoveFileW(const char *path) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (!DeleteFileW(wpath)) {
+    DWORD dwError = GetLastError();
+    ERRNO = dwError;
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t taosRenameFileW(const char *oldName, const char *newName) {
+  if (oldName == NULL || newName == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  WCHAR wOld[MAX_PATH] = {0};
+  WCHAR wNew[MAX_PATH] = {0};
+  if (taosPathToWide(oldName, wOld, MAX_PATH) == NULL || taosPathToWide(newName, wNew, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  if (!MoveFileExW(wOld, wNew, MOVEFILE_REPLACE_EXISTING)) {
+    DWORD dwError = GetLastError();
+    ERRNO = dwError;
+    terrno = TAOS_SYSTEM_WINAPI_ERROR(dwError);
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {
+  if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  struct _stati64 fileStat;
+  if (_wstati64(wpath, &fileStat) == -1) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  if (size != NULL) *size = fileStat.st_size;
+  if (mtime != NULL) *mtime = fileStat.st_mtime;
+  if (atime != NULL) *atime = fileStat.st_atime;
+  return 0;
+}
+
+bool taosCheckAccessFileW(const char *pathname, int32_t tdFileAccessOptions) {
+  if (pathname == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return false;
+  }
+  int flags = 0;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_EXIST_OK) flags |= F_OK;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_READ_OK) flags |= R_OK;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_WRITE_OK) flags |= W_OK;
+  if (tdFileAccessOptions & TD_FILE_ACCESS_EXEC_OK) flags |= X_OK;
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(pathname, wpath, MAX_PATH) == NULL) return false;
+  return _waccess(wpath, flags) == 0;
+}
+
+bool taosCheckExistFileW(const char *pathname) {
+  return taosCheckAccessFileW(pathname, TD_FILE_ACCESS_EXIST_OK);
+}
+#endif

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -282,8 +284,19 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     return code;
   }
 
+  if (rows > pSupp->forecastRows) {
+    qError("%s anode response rows %d exceeds requested forecast rows %" PRId64, pId, rows, pSupp->forecastRows);
+    goto _OVER;
+  }
+
   // invalid json format
   if (code != 0) {
+    goto _OVER;
+  }
+
+  code = forecastEnsureBlockCapacity(pBlock, resCurRow + rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed to ensure block capacity, code:%s", pId, tstrerror(code));
     goto _OVER;
   }
 
@@ -304,6 +317,11 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     if (tsSize != rows) goto _OVER;
     for (int32_t i = 0; i < tsSize; ++i) {
       SJson* tsJson = tjsonGetArrayItem(tsJsonArray, i);
+      if (tsJson == NULL) {
+        qError("%s anode response ts array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueBigInt(tsJson, &tmpI64);
       colDataSetInt64(pResTsCol, resCurRow, &tmpI64);
       resCurRow++;
@@ -318,6 +336,11 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     if (lowSize != rows) goto _OVER;
     for (int32_t i = 0; i < lowSize; ++i) {
       SJson* lowJson = tjsonGetArrayItem(lowJsonArray, i);
+      if (lowJson == NULL) {
+        qError("%s anode response low array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueDouble(lowJson, &tmpDouble);
       colDataSetDouble(pResLowCol, resCurRow, &tmpDouble);
       resCurRow++;
@@ -332,6 +355,11 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
     if (highSize != rows) goto _OVER;
     for (int32_t i = 0; i < highSize; ++i) {
       SJson* highJson = tjsonGetArrayItem(highJsonArray, i);
+      if (highJson == NULL) {
+        qError("%s anode response high array item %d is NULL", pId, i);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _OVER;
+      }
       tjsonGetObjectValueDouble(highJson, &tmpDouble);
       colDataSetDouble(pResHighCol, resCurRow, &tmpDouble);
       resCurRow++;
@@ -345,6 +373,11 @@ static int32_t forecastAnalysis(SForecastSupp* pSupp, SSDataBlock* pBlock, const
   if (valSize != rows) goto _OVER;
   for (int32_t i = 0; i < valSize; ++i) {
     SJson* valJson = tjsonGetArrayItem(valJsonArray, i);
+    if (valJson == NULL) {
+      qError("%s anode response val array item %d is NULL", pId, i);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _OVER;
+    }
     tjsonGetObjectValueDouble(valJson, &tmpDouble);
 
     colDataSetDouble(pResValCol, resCurRow, &tmpDouble);
@@ -586,6 +619,11 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
           pSupp->targetValSlot = pTarget->slotId;
           pSupp->targetValType = pTarget->node.resType.type;
 
+          if (!IS_MATHABLE_TYPE(pSupp->targetValType)) {
+            qError("%s invalid target column type %d for forecast, must be numeric or timestamp", id, pSupp->targetValType);
+            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          }
+
           // let's add the holtwinters as the default forecast algorithm
           pSupp->pOptions = taosStrdup("algo=holtwinters");
           if (pSupp->pOptions == NULL) {
@@ -600,7 +638,10 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
           pSupp->targetValSlot = pTarget->slotId;
           pSupp->targetValType = pTarget->node.resType.type;
 
-          // set the primary ts column and option info
+          if (!IS_MATHABLE_TYPE(pSupp->targetValType)) {
+            qError("%s invalid target column type %d for forecast, must be numeric or timestamp", id, pSupp->targetValType);
+            return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          }
           for (int32_t i = 0; i < numOfParam; ++i) {
             SNode* pNode = nodesListGetNode(pFunc->pParameterList, i);
             if (nodeType(pNode) == QUERY_NODE_COLUMN) {
@@ -653,6 +694,11 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
                            .colType = p->colType,
                            .type = p->node.resType.type,
                            .bytes = p->node.resType.bytes};
+
+            if (!IS_MATHABLE_TYPE(col.type)) {
+              qError("%s invalid covariate column type %d for forecast, must be numeric or timestamp", id, col.type);
+              return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+            }
 
             tstrncpy(col.name, p->colName, tListLen(col.name));
             void* pRet = taosArrayPush(pSupp->pCovariateSlotList, &col);
@@ -727,7 +773,7 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
 
   code = filterNotSupportForecast(pSupp);
   if (code) {
-    qError("%s not support forecast model, %s", id, pSupp->algoName);
+    qError("%s does not support forecast model, %s", id, pSupp->algoName);
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
@@ -826,6 +872,12 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
         continue;
       }
 
+      if (keyLen + 4 >= sizeof(nameBuf)) {
+        qError("%s dynamic_real key length %"PRIzu" exceeds buffer size, cannot append _col suffix", id, keyLen);
+        code = TSDB_CODE_INVALID_PARA;
+        goto _end;
+      }
+
       memcpy(nameBuf, pKey, keyLen);
       tstrncpy(&nameBuf[keyLen], "_col", tListLen(nameBuf) - keyLen);
 
@@ -895,7 +947,16 @@ static int32_t forecastParseOpt(SForecastSupp* pSupp, const char* id) {
         for (int32_t j = 0; j < num; ++j) {
           char* ps = NULL;
           if (j == 0) {
-            ps = strstr(pList[j], "[") + 1;
+            char* pBracket = strstr(pList[j], "[");
+            if (pBracket == NULL) {
+              qError("%s dynamic real column data row %d missing '[' bracket", id, j);
+              code = TSDB_CODE_INVALID_PARA;
+              taosMemoryFree(d.pName);
+              taosMemoryFree(pList);
+              taosMemoryFree(buf);
+              goto _end;
+            }
+            ps = pBracket + 1;
           } else {
             ps = pList[j];
           }

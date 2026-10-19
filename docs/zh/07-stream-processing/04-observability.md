@@ -67,6 +67,18 @@ ORDER BY type, deploy_id, task_id;
 
 使用 `status` 查看任务是否正常，并使用 `last_update` 判断状态和指标是否仍然新鲜。流级视图没有 `last_update` 列。
 
+## 分析流任务内存
+
+任务周期日志会记录模块可归属对象的容量估算，不是整个 `taosd` 进程的 RSS：
+
+- Reader：`reader_shallow_memory_bytes_estimate` 表示浅层结构内存估算。对于 calc Reader，仅统计外层数组及其容量和各 calc info 结构体本身，不包含 AST、计划字符串、过滤器、条件及结构体内部的运行时数组和上下文分配；对于 trigger Reader，统计已知的哈希表、数组、数据块和虚表缓存结构容量，不递归枚举所有嵌套资源。该指标不代表 Reader 拥有的全部内存。引用外部数据源的 Reader 无法通过该接口枚举结构，对应字段为 `NA`。
+- Trigger：`record=resources` 中的 `trigger_pool_memory_bytes_estimate` 汇总实时/历史上下文对象池的容量。
+- Runner：`runner_owned_memory_bytes_estimate` 汇总执行列表节点和已知输出数据块容量；`executor_memory_bytes_estimate` 汇总每个 executor 任务内部可见的任务对象、算子树、表达式资源、结果块和直接可见的执行器分配。
+
+Runner 的输出数据块和 executor 内存由执行线程在归还执行器或保留续算状态前采样，每个执行器的采样间隔至少为 1 秒；心跳读取最近一次快照，不访问正在计算的算子。其中 `executor_memory_bytes_estimate` 需要遍历算子树，只在开启 query debug 日志时采样；未开启采样时，已创建但尚未采样过的 executor 上报 `NA`（不使用初始的 0），此前已采样到的值则继续沿用。单次计算耗时较长时，日志中的内存估算会滞后于当前分配。Trigger 的公共重算统计也按至少 1 秒的间隔刷新，期间复用已有快照。
+
+这些字段只覆盖当前模块能够确认所有权的对象，字段名中的 `estimate` 表示不包含算子 `info` 内部无法枚举的嵌套分配、共享缓存或第三方库的未跟踪分配，也不能在模块之间重复求和。建议按 `stream_id`、`task_id` 和时间排序，观察容量是否随 `table_count`、对象池 `*_pool_capacity`、`running_exec_count` 或 `pending_notify_count` 同步增长；若模块估算稳定而进程 RSS 增长，再使用 `top` 或更细粒度的分配器/执行器分析工具检查未覆盖的分配。
+
 ## 查看历史计算进度
 
 使用 `STREAM_OPTIONS(FILL_HISTORY)` 或 `STREAM_OPTIONS(FILL_HISTORY_FIRST)` 创建流后，`ins_streams.history_progress_pct` 显示初始历史范围的计算进度：
@@ -113,6 +125,8 @@ SQL 成功返回表示重算请求已被接受，不表示重算已经完成。�
 ## 理解 `NULL` 和零值
 
 一分钟指标统计最近 60 个已经结束的完整秒，不包含当前秒。任务启动、重启或重新部署后，需要形成首个完整窗口；在此之前相应指标为 `NULL`。
+
+Reader、Trigger、Runner 的 DEBUG 周期日志目标约为 180 秒，实际窗口以日志中的 `stats_window_ms` 为准。
 
 - 完整窗口内没有输入或输出时，对应速率为 `0`。
 - Runner 在完整窗口内没有形成结果样本时，结果延迟为 `NULL`。

@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -34,10 +36,10 @@ extern "C" {
 // Design notes:
 //   DECIDING is the 2PC point of no return. Once the MNode writes the COMMIT decision
 //   to the Raft WAL and enters this stage, any subsequent failure (including a leader
-//   switchover) requires the new leader to continue pushing the COMMIT — rollback is
+//   switchover) requires the new leader to continue pushing the COMMIT  -  rollback is
 //   no longer permitted.
 //   The VNode does not need to distinguish between "commit complete" and "rollback
-//   complete" — both mean the shadow data has been processed and the transaction
+//   complete"  -  both mean the shadow data has been processed and the transaction
 //   context can be destroyed. FINISHING is used for both; the VNode records the
 //   specific operation type internally.
 
@@ -68,35 +70,58 @@ int32_t mndRollbackOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId
 int32_t mndCommitOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);    // Raft-safe orphan commit
 
 // ============================================================================
-// MNode Shadow Operation Types — redo-log for STB DDL within user batch txn
+// MNode Shadow Operation Types - in-place + undo-log for STB/stream DDL within
+// user batch txn (ALTER STB defers the schema change to COMMIT; see below)
 // ============================================================================
 //
-// DDL Isolation Semantics (redo-log model):
-//   - STB DDL within a batch txn is NOT applied to SDB/VNodes immediately.
-//   - The full serialized request is stored as a shadow op (pending redo).
-//   - On COMMIT: shadow ops are replayed (STB DDL applied to SDB + broadcast).
-//   - On ROLLBACK: shadow ops are simply discarded (no SDB changes to undo).
+// DDL Isolation Semantics (in-place + undo-log model):
+//   - DDL within a batch txn IS applied to SDB immediately, with the object's
+//     txnId/txnStatus set so that other connections filter it out.
+//   - The shadow op records what was done, so ROLLBACK can undo it.
+//   - On COMMIT: txnId is cleared and txnStatus returns to NORMAL (PRE_DROP /
+//     PRE_CREATE_DROP objects are removed from SDB instead).
+//   - On ROLLBACK: shadow ops are undone (PRE_CREATE objects deleted, PRE_DROP
+//     objects unmarked).
+//   - After a leader transfer or restart, mndTxnRebuildShadowOpsFromSdb()
+//     reconstructs shadow ops by scanning SDB for objects with txnId != 0.
 //
-// Super table DDL goes through MNode Trans framework, not client→VNode direct path.
+// Scope: CREATE/DROP STB and CREATE/DROP STREAM follow the in-place + undo-log
+// model above - the marker is applied now and COMMIT/ROLLBACK only finalise it.
+// ALTER STB is the exception: it marks the STB in place (PRE_ALTER marker +
+// txnAlterReqs chain) but the schema change itself is deferred and replayed at
+// COMMIT from the serialized request carried by the shadow op (redo-style).
+//
+// Super table DDL goes through MNode Trans framework, not client -> VNode direct path.
 // Child/normal table shadow ops are tracked at VNode side (vnodeTxn.c), not here.
+// Stream objects live only in MNode SDB, so they are tracked entirely here.
 
 typedef enum {
-  MND_SHADOW_OP_CREATE_STB = 1,  // Redo: create the super table on COMMIT
-  MND_SHADOW_OP_DROP_STB = 2,    // Redo: drop the super table on COMMIT
-  MND_SHADOW_OP_ALTER_STB = 3,   // Redo: alter the super table on COMMIT
+  MND_SHADOW_OP_CREATE_STB = 1,  // In-place: STB written to SDB with txnId; COMMIT clears markers, ROLLBACK deletes it
+  MND_SHADOW_OP_DROP_STB = 2,    // In-place: STB marked PRE_DROP; COMMIT drops it, ROLLBACK unmarks it
+  MND_SHADOW_OP_ALTER_STB = 3,   // In-place marker, redo at COMMIT: schema change replayed from pReqData on COMMIT
+  MND_SHADOW_OP_CREATE_STREAM =
+      4,                          // In-place: stream marked PRE_CREATE; COMMIT clears the marker then async-deploys
+                                  // (mndApplyTxnStreamActions, after the commit trans is prepared), ROLLBACK removes it
+  MND_SHADOW_OP_DROP_STREAM = 5,  // In-place: stream marked PRE_DROP; undeploy+remove on COMMIT, unmark on ROLLBACK
 } EMndShadowOpType;
 
 typedef struct SMndShadowOp {
   int8_t   opType;                      // EMndShadowOpType
-  tb_uid_t uid;                         // STB UID (suid)
-  char     name[TSDB_TABLE_FNAME_LEN];  // Fully qualified STB name
+  tb_uid_t uid;                         // STB UID (suid); streamId for STREAM op types
+  char name[TSDB_TABLE_FNAME_LEN];      // Fully qualified STB name, or stream name for STREAM op types
+                                    // (stream name here is the bare name, TSDB_STREAM_NAME_LEN <= TSDB_TABLE_NAME_LEN,
+                                    // so the buffer is sufficient; only the STB case holds a qualified name)
   char     db[TSDB_DB_FNAME_LEN];       // DB name
-  void*    pReqData;                    // Serialized DDL request (for COMMIT replay)
+  void*    pReqData;                    // Serialized DDL request; only set for ALTER_STB (NULL otherwise)
   int32_t  reqDataLen;                  // Length of serialized request data
 } SMndShadowOp;
 
-// Record an STB shadow op within the active user txn (redo-log model).
-// The DDL request is NOT executed now; it's stored for COMMIT replay.
+// Record a shadow op within the active user txn (in-place + undo-log model).
+// The DDL marker is applied to SDB immediately (the object carries txnId/txnStatus
+// during the txn); the shadow op records what COMMIT must finalise and ROLLBACK
+// must undo. ALTER STB is the exception: its serialized request (pReqData) is
+// stored here and replayed at COMMIT. Stream ops register with pReqData = NULL -
+// COMMIT/ROLLBACK act on the stream object itself.
 int32_t mndTxnAddShadowOp(SMnode* pMnode, txn_id_t txnId, int8_t opType, const char* stbName, tb_uid_t uid,
                           const char* dbName, void* pReqData, int32_t reqDataLen);
 
@@ -104,9 +129,20 @@ int32_t mndTxnAddShadowOp(SMnode* pMnode, txn_id_t txnId, int8_t opType, const c
 // Returns TSDB_CODE_TXN_RESOURCE_BUSY if conflict found, 0 otherwise.
 int32_t mndTxnCheckStbConflict(SMnode* pMnode, const char* stbName, txn_id_t callerTxnId);
 
+// Merge a single vgId into the txn's participant set, so it receives TDMT_VND_TXN_COMMIT /
+// TDMT_VND_TXN_ROLLBACK at the end of the txn. Needed when the mnode issues a vnode DDL on
+// the client's behalf: the client's pTxnVgSet only accumulates vgIds it routed itself, and
+// mndCollectTxnVgroupIds cannot derive this one from pVgList / shadow ops / pDbList either.
+// Without it the vnode never hears the outcome and the shadow entry stays uncommitted forever.
+// Idempotent: registering the same vgId twice is a no-op.
+int32_t mndTxnAddVgId(SMnode* pMnode, txn_id_t txnId, int32_t vgId);
+
 // Get ALTER STB shadow ops for a specific STB in a given txn.
 // Returns 0 on success; *ppOps is an SArray of SMndShadowOp (caller destroys SArray, not contents).
 // *ppOps is NULL if no ALTER ops found.
+// The returned ops are shallow copies of the txn's own records: pReqData remains owned by
+// the txn (freed when the txn ends), so callers must NOT free pReqData and must NOT retain
+// the ops beyond the current request - they are only valid while the txn is alive.
 int32_t mndTxnGetAlterOpsForStb(SMnode* pMnode, txn_id_t txnId, const char* stbFName, SArray** ppOps);
 
 #ifdef __cplusplus

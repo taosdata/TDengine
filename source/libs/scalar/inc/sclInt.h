@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -12,6 +14,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef TDENGINE_SCALARINT_H
 #define TDENGINE_SCALARINT_H
 
@@ -58,6 +61,13 @@ typedef struct SScalarCtx {
   bool               isStream;
   sclFetchFromRemote fetchFp;
   uint64_t           streamGen;  // per-invocation generation for cache invalidation
+  // Borrowed for one scalar invocation; NULL for non-correlated evaluation.
+  const SCorrelationEvalContext* pCorrelation;
+  // Derived from the first input block and pCorrelation's optional row range.
+  int32_t            correlationRows;
+  int32_t            correlationStart;
+  int32_t            correlationEnd;
+  int64_t            correlationChargedBytes;  // memory reserved for correlation result vectors
 } SScalarCtx;
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
@@ -71,7 +81,9 @@ typedef struct SScalarCtx {
   ((NULL == (_node)) || SCL_IS_NOTNULL_CONST_NODE(_node))
 #define SCL_IS_VAR_VALUE_NODE(_node) ((QUERY_NODE_VALUE == (_node)->type) && IS_STR_DATA_TYPE(((SValueNode*)(_node))->node.resType.type))
 
-#define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList && NULL == (_ctx)->stream.streamTsRange && NULL == (_ctx)->stream.pWins)
+#define SCL_IS_CONST_CALC(_ctx)                                                                          \
+  (NULL == (_ctx)->pBlockList && NULL == (_ctx)->stream.streamTsRange && NULL == (_ctx)->stream.pWins && \
+   NULL == (_ctx)->stream.pStreamRuntimeFuncInfo)
 
 #define SCL_IS_NULL_VALUE_NODE(_node)       \
   ((QUERY_NODE_VALUE == nodeType(_node)) && \

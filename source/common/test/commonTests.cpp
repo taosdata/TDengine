@@ -1,5 +1,27 @@
+/*
+ * Copyright (c) 2021 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
+#include <atomic>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -19,6 +41,99 @@
 #include "tvariant.h"
 #include "tanalytics.h"
 #include "tglobal.h"
+#include "envelope_crypto.h"
+
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+
+#include <unistd.h>
+
+#undef close
+
+namespace {
+
+class ScopedTempPath {
+ public:
+  explicit ScopedTempPath(const std::string &path) : path_(path) {}
+  ~ScopedTempPath() {
+    if (!path_.empty()) {
+      (void)unlink(path_.c_str());
+    }
+  }
+
+ private:
+  std::string path_;
+};
+
+std::string createTemporaryRsaPublicKey() {
+  EVP_PKEY_CTX *context = EVP_PKEY_CTX_new_id(EVP_PKEY_RSA, nullptr);
+  if (context == nullptr || EVP_PKEY_keygen_init(context) != 1 ||
+      EVP_PKEY_CTX_set_rsa_keygen_bits(context, 2048) != 1) {
+    EVP_PKEY_CTX_free(context);
+    return {};
+  }
+
+  EVP_PKEY *key = nullptr;
+  if (EVP_PKEY_keygen(context, &key) != 1) {
+    EVP_PKEY_CTX_free(context);
+    return {};
+  }
+  EVP_PKEY_CTX_free(context);
+
+  BIO *bio = BIO_new(BIO_s_mem());
+  if (bio == nullptr || PEM_write_bio_PUBKEY(bio, key) != 1) {
+    BIO_free(bio);
+    EVP_PKEY_free(key);
+    return {};
+  }
+
+  BUF_MEM *buffer = nullptr;
+  BIO_get_mem_ptr(bio, &buffer);
+  if (buffer == nullptr || buffer->data == nullptr || buffer->length == 0) {
+    BIO_free(bio);
+    EVP_PKEY_free(key);
+    return {};
+  }
+
+  const size_t pem_length = buffer->length;
+
+  char path[] = "/tmp/taos-xnode-public-XXXXXX";
+  const int file_descriptor = mkstemp(path);
+  if (file_descriptor < 0) {
+    BIO_free(bio);
+    EVP_PKEY_free(key);
+    return {};
+  }
+
+  const ssize_t written = write(file_descriptor, buffer->data, buffer->length);
+  const int close_result = close(file_descriptor);
+  BIO_free(bio);
+  EVP_PKEY_free(key);
+  if (written != static_cast<ssize_t>(pem_length) || close_result != 0) {
+    unlink(path);
+    return {};
+  }
+  return path;
+}
+
+SArray *createServerConfigArgs() {
+  SArray *args = taosArrayInit(1, sizeof(SConfigPair));
+  if (args == nullptr) {
+    return nullptr;
+  }
+
+  SConfigPair data_dir = {.name = "dataDir", .value = TD_TMP_DIR_PATH};
+  if (taosArrayPush(args, &data_dir) == nullptr) {
+    taosArrayDestroy(args);
+    return nullptr;
+  }
+  return args;
+}
+
+}  // namespace
 
 #ifdef TD_ENTERPRISE
 namespace {
@@ -52,8 +167,487 @@ class ClsConfigDynamicTest : public ::testing::Test {
 #endif
 
 int main(int argc, char** argv) {
+  if (osDefaultInit() != TSDB_CODE_SUCCESS) {
+    return 1;
+  }
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+TEST(testCase, colDataAssign_zero_rows_without_source) {
+  SColumnInfoData dst = {0};
+  dst.info.type = TSDB_DATA_TYPE_INT;
+  dst.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+
+  // Empty scalar results intentionally have no source column to copy.
+  EXPECT_EQ(colDataAssign(&dst, NULL, 0, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(colDataAssign(&dst, NULL, 1, NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(testCase, colDataAssignNRows_clears_stale_null_bitmap) {
+  SColumnInfoData src = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData dst = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&src, 1, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&dst, 1, true), TSDB_CODE_SUCCESS);
+
+  int32_t value = 42;
+  ASSERT_EQ(colDataSetVal(&src, 0, (const char*)&value, false), TSDB_CODE_SUCCESS);
+  src.hasNull = false;
+  colDataSetNItemsNull(&dst, 0, 1);
+  ASSERT_TRUE(colDataIsNull_s(&dst, 0));
+
+  ASSERT_EQ(colDataAssignNRows(&dst, 0, &src, 0, 1), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(colDataIsNull_s(&dst, 0));
+  EXPECT_EQ(*(int32_t*)dst.pData, value);
+
+  colDataDestroy(&src);
+  colDataDestroy(&dst);
+}
+
+namespace {
+
+// These literals independently describe the legacy wire contract so an
+// implementation layout change remains visible to the compatibility tests.
+constexpr size_t kBlockFlagSegmentOffset = sizeof(int32_t) * 4;
+constexpr uint32_t kBlockColumnInfoFlag = 1u << 31;
+constexpr uint32_t kBlockScanPhaseMask = 3u << 29;
+
+class DataBlockGuard {
+ public:
+  DataBlockGuard() = default;
+  DataBlockGuard(const DataBlockGuard&) = delete;
+  DataBlockGuard& operator=(const DataBlockGuard&) = delete;
+  ~DataBlockGuard() { blockDataDestroy(pBlock_); }
+
+  SSDataBlock* get() const { return pBlock_; }
+  SSDataBlock** put() { return &pBlock_; }
+  SSDataBlock* operator->() const { return pBlock_; }
+
+ private:
+  SSDataBlock* pBlock_ = nullptr;
+};
+
+// Creates a timestamp block tagged with the requested scan phase.
+int32_t createScanPhaseTestBlock(int8_t scanPhase,
+                                 SSDataBlock** ppBlock) {
+  int32_t code = createDataBlock(ppBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SColumnInfoData col =
+      createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY),
+                           PRIMARYKEY_TIMESTAMP_COL_ID);
+  code = blockDataAppendColInfo(*ppBlock, &col);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(*ppBlock);
+    *ppBlock = nullptr;
+    return code;
+  }
+
+  constexpr int32_t kRows = 3;
+  code = blockDataEnsureCapacity(*ppBlock, kRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(*ppBlock);
+    *ppBlock = nullptr;
+    return code;
+  }
+
+  SColumnInfoData* pCol =
+      static_cast<SColumnInfoData*>(taosArrayGet((*ppBlock)->pDataBlock, 0));
+  if (pCol == nullptr) {
+    code = terrno;
+    blockDataDestroy(*ppBlock);
+    *ppBlock = nullptr;
+    return code;
+  }
+
+  TSKEY values[kRows] = {10, 20, 30};
+  for (int32_t i = 0; i < kRows; ++i) {
+    code = colDataSetVal(pCol, i,
+                         reinterpret_cast<const char*>(&values[i]), false);
+    if (code != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(*ppBlock);
+      *ppBlock = nullptr;
+      return code;
+    }
+  }
+
+  (*ppBlock)->info.rows = kRows;
+  (*ppBlock)->info.scanPhase = scanPhase;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Reads the flag segment without assuming the encoded buffer is aligned.
+uint32_t getBlockFlagSegment(const std::vector<char>& encoded) {
+  uint32_t flagSegment = 0;
+  memcpy(&flagSegment, encoded.data() + kBlockFlagSegmentOffset,
+         sizeof(flagSegment));
+  return flagSegment;
+}
+
+// Rewrites the flag segment to emulate a legacy wire layout.
+void setBlockFlagSegment(std::vector<char>* encoded,
+                         uint32_t flagSegment) {
+  memcpy(encoded->data() + kBlockFlagSegmentOffset, &flagSegment,
+         sizeof(flagSegment));
+}
+
+}  // namespace
+
+// Verifies that new and cleaned blocks default to MAIN, while block-copy APIs
+// preserve a source block's non-MAIN phase.
+TEST(ScanPhaseTest, DefaultsAndCopies) {
+  DataBlockGuard empty;
+  ASSERT_EQ(createDataBlock(empty.put()), TSDB_CODE_SUCCESS);
+  ASSERT_NE(empty.get(), nullptr);
+  EXPECT_EQ(empty->info.scanPhase, SCAN_PHASE_MAIN);
+
+  empty->info.scanPhase = SCAN_PHASE_PREV;
+  blockDataCleanup(empty.get());
+  EXPECT_EQ(empty->info.scanPhase, SCAN_PHASE_MAIN);
+
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  DataBlockGuard created;
+  ASSERT_EQ(createOneDataBlock(source.get(), true, created.put()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(created.get(), nullptr);
+  EXPECT_EQ(created->info.scanPhase, SCAN_PHASE_PREV);
+
+  created->info.scanPhase = SCAN_PHASE_MAIN;
+  ASSERT_EQ(copyDataBlock(created.get(), source.get()), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(created->info.scanPhase, SCAN_PHASE_PREV);
+
+  DataBlockGuard assigned;
+  ASSERT_EQ(createDataBlock(assigned.put()), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(assignOneDataBlock(assigned.get(), source.get()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(assigned->info.scanPhase, SCAN_PHASE_PREV);
+}
+
+TEST(ScanPhaseTest, ResetRestoresMainPhase) {
+  DataBlockGuard block;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, block.put()),
+            TSDB_CODE_SUCCESS);
+
+  blockDataReset(block.get());
+  EXPECT_EQ(block->info.scanPhase, SCAN_PHASE_MAIN);
+}
+
+// Verifies the internal codec's phase round trip and wire compatibility: the
+// column-info bit remains visible to legacy decoders, and legacy blocks with
+// zero phase bits decode as MAIN.
+TEST(ScanPhaseTest, InternalCodecAndOldFormatCompatibility) {
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetInternalEncodeSize(source.get());
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  int32_t encodedLen =
+      blockEncodeInternal(source.get(), encoded.data(), encoded.size(), 1);
+  ASSERT_GT(encodedLen, 0);
+
+  uint32_t flagSegment = getBlockFlagSegment(encoded);
+  EXPECT_EQ(flagSegment >> 31, 1u);
+  EXPECT_EQ(flagSegment & kBlockScanPhaseMask,
+            (uint32_t)SCAN_PHASE_PREV << 29);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDecodeInternal(decoded.get(), encoded.data(), nullptr),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_PREV);
+
+  flagSegment &= ~kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+  blockDataCleanup(decoded.get());
+  ASSERT_EQ(blockDecodeInternal(decoded.get(), encoded.data(), nullptr),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_MAIN);
+  EXPECT_NE(flagSegment & kBlockColumnInfoFlag, 0u);
+}
+
+// Verifies that the row-oriented codec pair carries scan phase independently
+// of the internal codec and applies the same legacy zero-to-MAIN fallback.
+TEST(ScanPhaseTest, RowCodecRoundTrip) {
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(SCAN_PHASE_PREV, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetEncodeSizeOfRows(source.get(), 0, 2);
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  int32_t encodedLen = 0;
+  ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(),
+                              1, 0, 2, &encodedLen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_GT(encodedLen, 0);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, 10,
+                                        30),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_PREV);
+
+  uint32_t flagSegment =
+      getBlockFlagSegment(encoded) & ~kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+  blockDataCleanup(decoded.get());
+  ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, 10,
+                                        30),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded->info.scanPhase, SCAN_PHASE_MAIN);
+}
+
+TEST(ScanPhaseTest, InternalCodecRejectsInvalidPhases) {
+  constexpr int8_t kReservedPhase = 3;
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(kReservedPhase, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetInternalEncodeSize(source.get());
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  EXPECT_EQ(blockEncodeInternal(source.get(), encoded.data(), encoded.size(),
+                                1),
+            -1);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+
+  source->info.scanPhase = SCAN_PHASE_MAIN;
+  ASSERT_GT(blockEncodeInternal(source.get(), encoded.data(), encoded.size(),
+                                1),
+            0);
+  uint32_t flagSegment =
+      getBlockFlagSegment(encoded) | kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(blockDecodeInternal(decoded.get(), encoded.data(), nullptr),
+            TSDB_CODE_MSG_DECODE_ERROR);
+  EXPECT_EQ(terrno, TSDB_CODE_MSG_DECODE_ERROR);
+}
+
+TEST(ScanPhaseTest, RowCodecRejectsInvalidPhases) {
+  constexpr int8_t kReservedPhase = 3;
+  DataBlockGuard source;
+  ASSERT_EQ(createScanPhaseTestBlock(kReservedPhase, source.put()),
+            TSDB_CODE_SUCCESS);
+
+  int32_t encodedSize = blockGetEncodeSizeOfRows(source.get(), 0, 2);
+  ASSERT_GT(encodedSize, 0);
+  std::vector<char> encoded(encodedSize);
+  int32_t encodedLen = 0;
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 1,
+                              0, 2, &encodedLen),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+
+  source->info.scanPhase = SCAN_PHASE_MAIN;
+  ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 1,
+                              0, 2, &encodedLen),
+            TSDB_CODE_SUCCESS);
+  uint32_t flagSegment =
+      getBlockFlagSegment(encoded) | kBlockScanPhaseMask;
+  setBlockFlagSegment(&encoded, flagSegment);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()),
+            TSDB_CODE_SUCCESS);
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, 10,
+                                        30),
+            TSDB_CODE_MSG_DECODE_ERROR);
+  EXPECT_EQ(terrno, TSDB_CODE_MSG_DECODE_ERROR);
+}
+
+TEST(XnodeDsnConfigTest, RegistersServerOnlyDisabledByDefault) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+
+  SConfigItem *protection = cfgGetItem(taosGetCfg(), "xnodeDsnProtection");
+  SConfigItem *public_key = cfgGetItem(taosGetCfg(), "xnodeDsnPublicKeyFile");
+  SConfigItem *private_key = cfgGetItem(taosGetCfg(), "xnodedDsnPrivateKeyFile");
+  ASSERT_NE(protection, nullptr);
+  ASSERT_NE(public_key, nullptr);
+  ASSERT_NE(private_key, nullptr);
+  EXPECT_EQ(protection->i32, 0);
+  EXPECT_EQ(protection->scope, CFG_SCOPE_SERVER);
+  EXPECT_EQ(protection->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(public_key->scope, CFG_SCOPE_SERVER);
+  EXPECT_EQ(public_key->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(public_key->category, CFG_CATEGORY_LOCAL);
+  EXPECT_EQ(private_key->scope, CFG_SCOPE_SERVER);
+  EXPECT_EQ(private_key->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(private_key->category, CFG_CATEGORY_LOCAL);
+  EXPECT_STREQ(public_key->str, "");
+  EXPECT_STREQ(private_key->str, "");
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, ProtectionAcceptsOnlyZeroOrOne) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  EXPECT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgSetItem(config, "xnodeDsnProtection", "2", CFG_STYPE_CFG_FILE, true), TSDB_CODE_OUT_OF_RANGE);
+  EXPECT_EQ(cfgSetItem(config, "xnodeDsnProtection", "true", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_INVALID_CFG_VALUE);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, DisabledProtectionDoesNotReadPublicKey) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", "/missing/xnode-public.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, RejectsPathsThatDoNotFitGlobalBuffers) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+
+  const std::string oversized_path(PATH_MAX, 'a');
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", oversized_path.c_str(), CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_INVALID_CFG_VALUE);
+
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, EnabledProtectionRejectsMissingPublicKey) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", "/missing/xnode-public.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_NE(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, EnabledProtectionLoadsValidPublicKey) {
+  const std::string public_key_path = createTemporaryRsaPublicKey();
+  ScopedTempPath cleanup(public_key_path);
+  ASSERT_FALSE(public_key_path.empty());
+
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", public_key_path.c_str(), CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  EXPECT_NE(taosGetXnodeDsnPublicKey(), nullptr);
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, LaterConfigSyncKeepsStartupPublicKey) {
+  const std::string public_key_path = createTemporaryRsaPublicKey();
+  ScopedTempPath cleanup(public_key_path);
+  ASSERT_FALSE(public_key_path.empty());
+
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnProtection", "1", CFG_STYPE_CFG_FILE, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", public_key_path.c_str(), CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodedDsnPrivateKeyFile", "/startup/private-key.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosApplyCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+
+  const SEnvelopePublicKey *startup_key = taosGetXnodeDsnPublicKey();
+  ASSERT_NE(startup_key, nullptr);
+  ASSERT_EQ(unlink(public_key_path.c_str()), 0);
+  ASSERT_EQ(cfgSetItem(config, "xnodeDsnPublicKeyFile", "/missing/reloaded-key.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgSetItem(config, "xnodedDsnPrivateKeyFile", "/reloaded/private-key.pem", CFG_STYPE_CFG_FILE, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(setAllConfigs(config), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosGetXnodeDsnPublicKey(), startup_key);
+  EXPECT_EQ(tsXnodeDsnProtection, 1);
+  EXPECT_STREQ(tsXnodeDsnPublicKeyFile, public_key_path.c_str());
+  EXPECT_STREQ(tsXnodedDsnPrivateKeyFile, "/startup/private-key.pem");
+
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(testCase, blockDataUpdateHasNull_preserves_existing_flags) {
+  for (int32_t type : {TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_VARCHAR}) {
+    SCOPED_TRACE(type);
+    SSDataBlock* pBlock = nullptr;
+    ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(
+        pBlock, blockDataDestroy);
+
+    int32_t number = 42;
+    char text[VARSTR_HEADER_SIZE + 3] = {};
+    varDataSetLen(text, 3);
+    memcpy(varDataVal(text), "abc", 3);
+    int32_t bytes = type == TSDB_DATA_TYPE_INT ? sizeof(number) : sizeof(text);
+    auto col = createColumnInfoData(type, bytes, 0);
+    ASSERT_EQ(blockDataAppendColInfo(pBlock, &col), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(pBlock, 1), TSDB_CODE_SUCCESS);
+    auto* pCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(pBlock->pDataBlock, 0));
+    ASSERT_NE(pCol, nullptr);
+    const char* value = type == TSDB_DATA_TYPE_INT ?
+                        reinterpret_cast<const char*>(&number) : text;
+    ASSERT_EQ(colDataSetVal(pCol, 0, value, false), TSDB_CODE_SUCCESS);
+    pBlock->info.rows = 1;
+
+    // A conservative flag may remain after all NULL rows have been removed.
+    for (bool hasNull : {false, true}) {
+      SCOPED_TRACE(hasNull);
+      pCol->hasNull = hasNull;
+      blockDataUpdateHasNull(pBlock);
+      EXPECT_EQ(pCol->hasNull, hasNull);
+      EXPECT_FALSE(colDataIsNull_s(pCol, 0));
+    }
+  }
 }
 
 TEST(testCase, toUIntegerEx_test) {
@@ -354,17 +948,17 @@ TEST(testCase, Datablock_test_inc) {
 }
 
 TEST(testCase, Datablock_test) {
-  SSDataBlock* b = NULL;
-  int32_t      code = createDataBlock(&b);
+  DataBlockGuard b;
+  int32_t code = createDataBlock(b.put());
   ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
   taosArrayPush(b->pDataBlock, &infoData);
-  blockDataAppendColInfo(b, &infoData);
+  blockDataAppendColInfo(b.get(), &infoData);
 
   SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
-  blockDataAppendColInfo(b, &infoData1);
-  blockDataEnsureCapacity(b, 40);
+  blockDataAppendColInfo(b.get(), &infoData1);
+  blockDataEnsureCapacity(b.get(), 40);
 
   char* str = "the value of: %d";
   char  buf[128] = {0};
@@ -406,8 +1000,8 @@ TEST(testCase, Datablock_test) {
 
   printf("binary column length:%d\n", *(int32_t*)p1->pData);
 
-  ASSERT_EQ(blockDataGetNumOfCols(b), 3);
-  ASSERT_EQ(blockDataGetNumOfRows(b), 40);
+  ASSERT_EQ(blockDataGetNumOfCols(b.get()), 3);
+  ASSERT_EQ(blockDataGetNumOfRows(b.get()), 40);
 
   char* pData = colDataGetData(p1, 3);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
@@ -416,10 +1010,253 @@ TEST(testCase, Datablock_test) {
   SBlockOrderInfo order = {true, TSDB_ORDER_ASC, 0, NULL};
   taosArrayPush(pOrderInfo, &order);
 
-  blockDataSort(b, pOrderInfo);
-  blockDataDestroy(b);
+  blockDataSort(b.get(), pOrderInfo);
 
   taosArrayDestroy(pOrderInfo);
+}
+
+TEST(testCase, DatablockSmaCleanup_test) {
+  SSDataBlock* b = NULL;
+  ASSERT_EQ(createDataBlock(&b), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData fixedCol = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
+  ASSERT_EQ(blockDataAppendColInfo(b, &fixedCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(b, &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(b, 16), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData* pFixedCol = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 0);
+  SColumnInfoData* pVarCol = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
+  ASSERT_NE(pFixedCol, nullptr);
+  ASSERT_NE(pVarCol, nullptr);
+
+  pFixedCol->nullbitmap[0] = 0xff;
+  pFixedCol->nullbitmap[1] = 0x5a;
+  pFixedCol->hasNull = true;
+  pVarCol->varmeta.offset[0] = 123;
+  pVarCol->varmeta.offset[1] = 456;
+  pVarCol->varmeta.length = 32;
+  pVarCol->hasNull = true;
+  pVarCol->reassigned = true;
+  SColumnDataAgg* pBlockAggBuf = (SColumnDataAgg*)taosMemoryCalloc(2, sizeof(SColumnDataAgg));
+  b->pBlockAggBuf = pBlockAggBuf;
+  ASSERT_NE(b->pBlockAggBuf, nullptr);
+  b->pBlockAggBufSize = 2;
+  b->pBlockAgg = b->pBlockAggBuf;
+  b->info.rows = 1;
+  b->info.smaSourceRows = 10;
+
+  blockDataEmpty(b);
+
+  EXPECT_EQ(b->info.capacity, 16);
+  EXPECT_EQ(b->info.rows, 0);
+  EXPECT_EQ(b->info.smaSourceRows, 0);
+  EXPECT_EQ(b->pBlockAgg, nullptr);
+  EXPECT_EQ(b->pBlockAggBuf, pBlockAggBuf);
+  EXPECT_FALSE(pFixedCol->hasNull);
+  EXPECT_EQ((uint8_t)pFixedCol->nullbitmap[0], 0xff);
+  EXPECT_EQ((uint8_t)pFixedCol->nullbitmap[1], 0x5a);
+  EXPECT_FALSE(pVarCol->hasNull);
+  EXPECT_FALSE(pVarCol->reassigned);
+  EXPECT_EQ(pVarCol->varmeta.length, 0);
+  EXPECT_EQ(pVarCol->varmeta.offset[0], 123);
+  EXPECT_EQ(pVarCol->varmeta.offset[1], 456);
+  EXPECT_EQ(pVarCol->varmeta.length, 0);
+  EXPECT_FALSE(pVarCol->hasNull);
+
+  blockDataDestroy(b);
+}
+
+static SSDataBlock* createRecycleTestBlock(uint32_t capacity) {
+  SSDataBlock* pBlock = nullptr;
+  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  if (blockDataAppendColInfo(pBlock, &column) != TSDB_CODE_SUCCESS ||
+      blockDataEnsureCapacity(pBlock, capacity) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+
+  pBlock->info.rows = capacity;
+  return pBlock;
+}
+
+TEST(testCase, DatablockRecycleExpiration_test) {
+  constexpr uint32_t kRecycleCapacity = 100001;
+
+  blockDataRecycleCleanup();
+  blockDataRecycleSetCurrentTime(1000);
+
+  SSDataBlock* pRecycled = createRecycleTestBlock(kRecycleCapacity);
+  ASSERT_NE(pRecycled, nullptr);
+  pRecycled->recycleEnabled = true;
+  blockDataRecycle(pRecycled);
+
+  SSDataBlock* pTemplate = createRecycleTestBlock(kRecycleCapacity);
+  ASSERT_NE(pTemplate, nullptr);
+  SSDataBlock* pResult = nullptr;
+  bool         reused = false;
+
+  blockDataRecycleTrimExpired(1000 + BLOCK_RECYCLE_TIMEOUT_MS - 1);
+  ASSERT_EQ(createOneDataBlockFromRecycle(pTemplate, &pResult, &reused), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(reused);
+  blockDataRecycle(pResult);
+
+  blockDataRecycleTrimExpired(1000 + BLOCK_RECYCLE_TIMEOUT_MS);
+  pResult = nullptr;
+  reused = true;
+  ASSERT_EQ(createOneDataBlockFromRecycle(pTemplate, &pResult, &reused), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(reused);
+  blockDataDestroy(pResult);
+
+  blockDataDestroy(pTemplate);
+  blockDataRecycleCleanup();
+}
+
+struct SBlockRecycleRaceContext {
+  const SSDataBlock*    pTemplate = nullptr;
+  std::atomic<int32_t>  errorCode{TSDB_CODE_SUCCESS};
+  std::atomic<int32_t>  ready{0};
+  std::atomic<bool>     start{false};
+};
+
+static void setBlockRecycleRaceError(SBlockRecycleRaceContext* pContext) {
+  int32_t expected = TSDB_CODE_SUCCESS;
+  pContext->errorCode.compare_exchange_strong(expected, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+}
+
+static void waitForBlockRecycleRaceStart(SBlockRecycleRaceContext* pContext) {
+  pContext->ready.fetch_add(1);
+  while (!pContext->start.load()) {
+    std::this_thread::yield();
+  }
+}
+
+static void recycleBlocksConcurrently(SBlockRecycleRaceContext* pContext) {
+  constexpr uint32_t kRecycleCapacity = 100001;
+  waitForBlockRecycleRaceStart(pContext);
+
+  for (int32_t i = 0; i < 128; ++i) {
+    if (pContext->errorCode.load() != TSDB_CODE_SUCCESS) {
+      return;
+    }
+
+    SSDataBlock* pBlock = createRecycleTestBlock(kRecycleCapacity);
+    if (pBlock == nullptr) {
+      setBlockRecycleRaceError(pContext);
+      return;
+    }
+
+    pBlock->recycleEnabled = true;
+    blockDataRecycle(pBlock);
+  }
+}
+
+static void takeRecycledBlocksConcurrently(SBlockRecycleRaceContext* pContext) {
+  waitForBlockRecycleRaceStart(pContext);
+
+  for (int32_t i = 0; i < 128; ++i) {
+    if (pContext->errorCode.load() != TSDB_CODE_SUCCESS) {
+      return;
+    }
+
+    SSDataBlock* pBlock = nullptr;
+    bool         reused = false;
+    if (createOneDataBlockFromRecycle(pContext->pTemplate, &pBlock, &reused) != TSDB_CODE_SUCCESS || pBlock == nullptr) {
+      setBlockRecycleRaceError(pContext);
+      return;
+    }
+
+    blockDataRecycle(pBlock);
+  }
+}
+
+static void trimRecycledBlocksConcurrently(SBlockRecycleRaceContext* pContext) {
+  waitForBlockRecycleRaceStart(pContext);
+
+  for (int32_t i = 0; i < 128; ++i) {
+    if (pContext->errorCode.load() != TSDB_CODE_SUCCESS) {
+      return;
+    }
+
+    blockDataRecycleTrimExpired(1000 + BLOCK_RECYCLE_TIMEOUT_MS + i);
+  }
+}
+
+TEST(testCase, DatablockRecycleConcurrentTrim_test) {
+  constexpr uint32_t kRecycleCapacity = 100001;
+
+  blockDataRecycleCleanup();
+  blockDataRecycleSetCurrentTime(1000);
+
+  SSDataBlock* pTemplate = createRecycleTestBlock(kRecycleCapacity);
+  ASSERT_NE(pTemplate, nullptr);
+
+  SBlockRecycleRaceContext context;
+  context.pTemplate = pTemplate;
+  std::thread              recycleThread(recycleBlocksConcurrently, &context);
+  std::thread              takeThread(takeRecycledBlocksConcurrently, &context);
+  std::thread              trimThread(trimRecycledBlocksConcurrently, &context);
+  while (context.ready.load() != 3) {
+    std::this_thread::yield();
+  }
+  context.start.store(true);
+
+  recycleThread.join();
+  takeThread.join();
+  trimThread.join();
+
+  EXPECT_EQ(context.errorCode.load(), TSDB_CODE_SUCCESS);
+  blockDataRecycleCleanup();
+  blockDataDestroy(pTemplate);
+}
+
+TEST(testCase, DatablockReassignedVarColumn_test) {
+  SSDataBlock* src = NULL;
+  SSDataBlock* dst = NULL;
+  ASSERT_EQ(createDataBlock(&src), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&dst), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData srcCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  SColumnInfoData dstCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  ASSERT_EQ(blockDataAppendColInfo(src, &srcCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(dst, &dstCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(src, 4), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(dst, 4), TSDB_CODE_SUCCESS);
+
+  char value[32] = {0};
+  STR_TO_VARSTR(value, "table_name")
+  SColumnInfoData* pSrcCol = (SColumnInfoData*)taosArrayGet(src->pDataBlock, 0);
+  SColumnInfoData* pDstCol = (SColumnInfoData*)taosArrayGet(dst->pDataBlock, 0);
+  ASSERT_NE(pSrcCol, nullptr);
+  ASSERT_NE(pDstCol, nullptr);
+  ASSERT_EQ(colDataCopyNItems(pSrcCol, 0, value, 4, false), TSDB_CODE_SUCCESS);
+  src->info.rows = 4;
+  ASSERT_TRUE(pSrcCol->reassigned);
+  ASSERT_EQ(pSrcCol->varmeta.length, varDataTLen(value));
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pSrcCol, i)), "table_name"), 0);
+  }
+
+  ASSERT_EQ(colDataAssignNRows(pDstCol, 0, pSrcCol, 0, 4), TSDB_CODE_SUCCESS);
+  dst->info.rows = 4;
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pDstCol, i)), "table_name"), 0);
+  }
+
+  ASSERT_EQ(colDataAssign(pDstCol, pSrcCol, 4, &src->info), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pDstCol->reassigned);
+  for (int32_t i = 0; i < 4; ++i) {
+    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pDstCol, i)), "table_name"), 0);
+  }
+
+  colInfoDataCleanup(pDstCol, dst->info.capacity);
+  ASSERT_FALSE(pDstCol->reassigned);
+  blockDataDestroy(src);
+  blockDataDestroy(dst);
 }
 
 #if 0
@@ -481,17 +1318,17 @@ TEST(testCase, non_var_dataBlock_split_test) {
 TEST(testCase, var_dataBlock_split_test) {
   int32_t numOfRows = 1000000;
 
-  SSDataBlock* b = NULL;
-  int32_t      code = createDataBlock(&b);
+  DataBlockGuard b;
+  int32_t code = createDataBlock(b.put());
   ASSERT(code == 0);
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
-  blockDataAppendColInfo(b, &infoData);
+  blockDataAppendColInfo(b.get(), &infoData);
 
   SColumnInfoData infoData1 = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 40, 2);
-  blockDataAppendColInfo(b, &infoData1);
+  blockDataAppendColInfo(b.get(), &infoData1);
 
-  blockDataEnsureCapacity(b, numOfRows);
+  blockDataEnsureCapacity(b.get(), numOfRows);
 
   char buf[41] = {0};
   char buf1[100] = {0};
@@ -519,7 +1356,7 @@ TEST(testCase, var_dataBlock_split_test) {
   int32_t stopIndex = 0;
   int32_t count = 1;
   while (1) {
-    blockDataSplitRows(b, true, startIndex, &stopIndex, pageSize);
+    blockDataSplitRows(b.get(), true, startIndex, &stopIndex, pageSize);
     printf("the %d split, from: %d to %d\n", count++, startIndex, stopIndex);
 
     if (stopIndex == numOfRows - 1) {
@@ -528,8 +1365,6 @@ TEST(testCase, var_dataBlock_split_test) {
 
     startIndex = stopIndex + 1;
   }
-
-  blockDataDestroy(b);
 }
 
 void check_tm(const STm* tm, int32_t y, int32_t mon, int32_t d, int32_t h, int32_t m, int32_t s, int64_t fsec) {
@@ -1494,7 +2329,6 @@ TEST(testCase, taosTimeCountIntervalForFill_DST_calendar_days) {
 
   tzfree(ny);
 }
-
 TEST(testCase, formatTimestampTz_negative_fraction) {
   TzRestoreGuard tzGuard;
 

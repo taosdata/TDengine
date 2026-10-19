@@ -1,3 +1,18 @@
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """
 test_fq_05_config_effectiveness.py
 
@@ -56,6 +71,22 @@ _PUSH_T_SQLS = [
 ]
 
 # ---------------------------------------------------------------------------
+# SQL Server test data — same 5 rows as the MySQL push_t fixture, with the
+# T-SQL type mapping (INT / FLOAT / NVARCHAR / BIT) used across the FQ suites.
+# ---------------------------------------------------------------------------
+_SQLSERVER_PUSH_T_SQLS = [
+    "IF OBJECT_ID('dbo.push_t') IS NOT NULL DROP TABLE dbo.push_t",
+    "CREATE TABLE dbo.push_t "
+    "(val INT, score FLOAT, name NVARCHAR(32), flag BIT, status NVARCHAR(16))",
+    "INSERT INTO dbo.push_t VALUES "
+    "(1,1.5,'alpha',1,'active'),"
+    "(2,2.5,'beta',0,'idle'),"
+    "(3,3.5,'gamma',1,'active'),"
+    "(4,4.5,'delta',0,'idle'),"
+    "(5,5.5,'epsilon',1,'active')",
+]
+
+# ---------------------------------------------------------------------------
 # Default values (post-fix) — these are the documented defaults
 # ---------------------------------------------------------------------------
 _DEFAULTS = {
@@ -88,6 +119,74 @@ def _mysql_processlist_count(cfg, database):
     return int(count) if count is not None else 0
 
 
+# ===================================================================
+# Helper: query the SQL Server session view for taosd connections
+# ===================================================================
+def _sqlserver_session_count(cfg, database):
+    """Count SQL Server user sessions with a context on *database*.
+
+    SQL Server has no ``SHOW PROCESSLIST``; ``sys.dm_exec_sessions`` is the
+    equivalent session view (one row per live connection).  taosd pool
+    connections that are idle remain visible there until eviction closes the
+    ODBC handle, at which point the row disappears.
+
+    The counting query itself runs against ``master`` so the observer session
+    is NOT connected to *database* and is therefore not counted (the same
+    self-exclusion the MySQL helper achieves by connecting with
+    database=None).
+    """
+    count = ExtSrcEnv.sqlserver_query_cfg(
+        cfg, "master",
+        f"SELECT COUNT(*) FROM sys.dm_exec_sessions "
+        f"WHERE is_user_process = 1 "
+        f"AND DB_NAME(database_id) = N'{database}'")
+    return int(count) if count is not None else 0
+
+
+# ===================================================================
+# Helper: hold an exclusive table lock on the remote push_t table
+# ===================================================================
+def _sqlserver_hold_table_lock(database, seconds):
+    """Block remote readers of ``dbo.push_t`` for *seconds*.
+
+    SQL Server has no SELECT-embedded SLEEP(), so the deterministic wait used
+    by the MySQL paths cannot be translated literally.  Instead a background
+    sqlcmd session opens a transaction, takes an exclusive table lock with
+    ``WITH (TABLOCKX)`` and holds it with ``WAITFOR DELAY`` before committing.
+    A concurrent plain SELECT (no locking hint) blocks for the whole window,
+    which is what the pool-exhaustion and query-timeout cases need.
+    """
+    ExtSrcEnv.sqlserver_exec(database, [
+        "BEGIN TRANSACTION; "
+        "SELECT COUNT(*) FROM dbo.push_t WITH (TABLOCKX); "
+        # WAITFOR takes HH:MM:SS; the seconds field must stay below 60, so
+        # anything from a minute upwards has to carry into the minutes field.
+        f"WAITFOR DELAY '{int(seconds) // 3600:02d}:{(int(seconds) % 3600) // 60:02d}:{int(seconds) % 60:02d}'; "
+        "COMMIT TRANSACTION",
+    ])
+
+
+def _release_sqlserver_table_lock(database):
+    """Kill the session holding the exclusive lock on dbo.push_t.
+
+    The negative cases hold the lock far longer than any retry budget so the
+    assertion cannot be rescued by a retry; this helper then releases it
+    deterministically instead of waiting the whole window out.
+    """
+    ExtSrcEnv.sqlserver_exec(database, [
+        # T-SQL only accepts constants, variables or their concatenation as the
+        # EXEC() argument - a function call inside EXEC(...) is a syntax error
+        # (Msg 102 near 'CAST'), so build the command in a variable first.
+        "DECLARE @spid INT, @cmd VARCHAR(32); "
+        "SELECT TOP 1 @spid = l.request_session_id FROM sys.dm_tran_locks l "
+        "JOIN sys.objects o ON o.object_id = l.resource_associated_entity_id "
+        "WHERE l.resource_database_id = DB_ID() AND l.resource_type = 'OBJECT' "
+        "AND l.request_mode = 'X' AND o.name = 'push_t'; "
+        "IF @spid IS NOT NULL AND @spid <> @@SPID "
+        "BEGIN SET @cmd = 'KILL ' + CAST(@spid AS VARCHAR(10)); EXEC(@cmd); END",
+    ])
+
+
 class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     """FQ-05: Configuration Effectiveness."""
 
@@ -98,31 +197,9 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
-        # Restore federatedQueryConnectTimeoutMs to default (5000 ms) in case a
-        # previous pytest session's fq_08 left it at a different value.  This
-        # test file's test_001_defaults asserts the value equals 5000.
-        try:
-            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
-        except Exception:
-            pass
 
     def teardown_class(self):
-        # Drop all external sources created by this test file (prefix fq05_)
-        # so they do not pollute subsequent test files via SHOW EXTERNAL SOURCES.
-        try:
-            tdSql.query("show external sources", queryTimes=1)
-            own = [
-                row[0] for row in (tdSql.queryResult or [])
-                if str(row[0]).startswith("fq05_")
-            ]
-            for _src in own:
-                try:
-                    tdSql.execute(f"drop database if exists {_src}", queryTimes=1)
-                    tdSql.execute(f"drop external source if exists {_src}", queryTimes=1)
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        pass
 
     # ==================================================================
     # Recording infrastructure — serialize test SQL + results to temp
@@ -173,7 +250,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         """Write recorded blocks to tmp file and compare with baseline."""
         baseline_file = os.path.join(self._BASELINE_DIR, f"{name}.txt")
         tmp_file = baseline_file + ".tmp"
-        tmp_content = "\n".join(self._rec_blocks) + "\n"
+        tmp_content = ExtSrcEnv.baseline_environment("\n".join(self._rec_blocks) + "\n")
         os.makedirs(self._BASELINE_DIR, exist_ok=True)
         with open(tmp_file, "w") as f:
             f.write(tmp_content)
@@ -259,18 +336,20 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     def _block_port(port):
         """Add iptables DROP rule to silently drop outgoing TCP to 127.0.0.1:port."""
         import subprocess
+        import socket
         subprocess.run(
             ["iptables", "-I", "OUTPUT", "-p", "tcp",
-             "-d", "127.0.0.1", "--dport", str(port), "-j", "DROP"],
+             "-d", socket.gethostbyname(ExtSrcEnv.MYSQL_HOST), "--dport", str(port), "-j", "DROP"],
             check=True, capture_output=True)
 
     @staticmethod
     def _unblock_port(port):
         """Remove iptables DROP rule (idempotent)."""
         import subprocess
+        import socket
         subprocess.run(
             ["iptables", "-D", "OUTPUT", "-p", "tcp",
-             "-d", "127.0.0.1", "--dport", str(port), "-j", "DROP"],
+             "-d", socket.gethostbyname(ExtSrcEnv.MYSQL_HOST), "--dport", str(port), "-j", "DROP"],
             capture_output=True)  # no check — ignore if rule doesn't exist
 
     def _restore_all_defaults(self):
@@ -303,7 +382,13 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     # ==================================================================
 
     def test_fq_05_001_defaults(self):
-        """FQ-05-001: Verify all config default values via SHOW VARIABLES."""
+        """FQ-05-001: Verify all config default values via SHOW VARIABLES.
+
+        FQ-05-001: Verify all config default values via SHOW VARIABLES.
+
+        Since: v3.4.0.0
+
+        """
         self._rec_reset()
         # --- Server-side (SHOW DNODE 1 VARIABLES) ---
         for param, (dnode_val, _) in _DEFAULTS.items():
@@ -324,7 +409,13 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
     # ==================================================================
 
     def test_fq_05_002_alter_and_verify(self):
-        """FQ-05-002: ALTER config values and verify via SHOW VARIABLES."""
+        """FQ-05-002: ALTER config values and verify via SHOW VARIABLES.
+
+        FQ-05-002: ALTER config values and verify via SHOW VARIABLES.
+
+        Since: v3.4.0.0
+
+        """
         self._rec_reset()
         try:
             self._b1_enable()
@@ -484,6 +575,17 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         client ext-connector pool (used by the catalog for schema resolution).
         The two pools are fully independent: ALTER LOCAL only affects the
         catalog phase, ALTER ALL DNODES only affects the data-query phase.
+
+        SQL Server paths (C1-s/C2-s/C3-s/C4-s/C5-s) mirror the MySQL
+        behavioural cases for the 4th external source.  SQL Server runs zero
+        pushdown in step 1 (filters/aggregations execute locally), so only
+        pushdown-independent behaviour is asserted.  These SQL Server paths
+        use plain tdSql calls instead of _rec_query/_rec_error so the recorded
+        block sequence — and therefore the
+        ans/test_fq_05_003_behavioral.txt baseline — stays unchanged.
+
+        Since: v3.4.0.0
+
         """
         self._rec_reset()
         try:
@@ -496,6 +598,12 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._c4_pool_size_client()
             self._c5_idle_ttl()
             self._c5_idle_ttl_client()
+            # --- SQL Server (4th source) — parallel to the MySQL paths above ---
+            self._c1_enable_sqlserver()
+            self._c2_connect_timeout_sqlserver()
+            self._c3_query_timeout_sqlserver()
+            self._c4_pool_size_sqlserver()
+            self._c5_idle_ttl_sqlserver()
         finally:
             self._restore_all_defaults()
         self._check_baseline("test_fq_05_003_behavioral")
@@ -793,9 +901,9 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
 
             t.join(timeout=30)
             if t.is_alive():
-                tdLog.warning("[C4] background slow-query thread did not finish")
+                tdLog.info("[C4] background slow-query thread did not finish")
             if bg_errors:
-                tdLog.warning(f"[C4] background thread error: {bg_errors[0]}")
+                tdLog.info(f"[C4] background thread error: {bg_errors[0]}")
 
             # Recovery: after bg thread releases, serial query works again
             self._rec_query(f"select count(*) from {src}.push_t")
@@ -1317,5 +1425,487 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.mysql_drop_db_cfg(cfg, ext_db)
+            except Exception:
+                pass
+
+    # ==================================================================
+    # Group C — SQL Server (4th source), parallel to the MySQL paths above
+    #
+    # SQL Server runs zero pushdown in step 1: the remote SQL is a base scan
+    # and WHERE / aggregation are evaluated locally, so only behaviour that
+    # is independent of pushdown is asserted here (enable gating, connect
+    # timeout, pool size, idle TTL).
+    #
+    # These paths deliberately use plain tdSql calls instead of
+    # _rec_query / _rec_error: keeping them out of the recording buffer
+    # leaves the ans/test_fq_05_003_behavioral.txt baseline byte-for-byte
+    # unchanged.
+    # ==================================================================
+
+    # ----- C1-s: federatedQueryEnable (SQL Server) -----
+    def _c1_enable_sqlserver(self):
+        tdLog.info("[C1-s] federatedQueryEnable — SQL Server")
+        src = "fq05_en_s"
+        src2 = "fq05_en2_s"
+        ext_db = "fq05_en_sdb"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src, src2)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: enable=1, query succeeds --
+            tdSql.execute("ALTER LOCAL 'federatedQueryEnable' '1'", queryTimes=1)
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryEnable' '1'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C1-s] enable=1 query OK")
+
+            # -- Negative: enable=0, query blocked --
+            tdSql.execute("ALTER LOCAL 'federatedQueryEnable' '0'", queryTimes=1)
+            tdSql.error(f"select count(*) from {src}.push_t")
+            tdLog.info("[C1-s] enable=0 query blocked  OK")
+
+            # -- DDL also blocked by enable=0 (parser-level guard, the same
+            #    code path the MySQL assertions above exercise) --
+            tdSql.error(
+                f"create external source {src2} type='sqlserver' "
+                f"host='{cfg.host}' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"database={ext_db} schema='dbo'",
+                expectedErrno=TSDB_CODE_EXT_FEDERATED_DISABLED)
+            tdSql.error(f"alter external source {src} set host='127.0.0.2'",
+                        expectedErrno=TSDB_CODE_EXT_FEDERATED_DISABLED)
+            tdSql.error(f"drop external source {src}",
+                        expectedErrno=TSDB_CODE_EXT_FEDERATED_DISABLED)
+            tdSql.error(f"refresh external source {src}",
+                        expectedErrno=TSDB_CODE_EXT_FEDERATED_DISABLED)
+            tdSql.error("show external sources",
+                        expectedErrno=TSDB_CODE_EXT_FEDERATED_DISABLED)
+            tdSql.error(f"describe external source {src}",
+                        expectedErrno=TSDB_CODE_EXT_FEDERATED_DISABLED)
+            tdLog.info("[C1-s] enable=0: DDL blocked  OK")
+
+            # -- Restore + re-verify --
+            tdSql.execute("ALTER LOCAL 'federatedQueryEnable' '1'", queryTimes=1)
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C1-s] enable restored, query OK")
+
+        finally:
+            try:
+                tdSql.execute("ALTER LOCAL 'federatedQueryEnable' '1'", queryTimes=1)
+            except Exception:
+                pass
+            try:
+                tdSql.execute("ALTER ALL DNODES 'federatedQueryEnable' '1'", queryTimes=1)
+            except Exception:
+                pass
+            self._cleanup_src(src, src2)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C2-s: federatedQueryConnectTimeoutMs (SQL Server) -----
+    def _c2_connect_timeout_sqlserver(self):
+        tdLog.info("[C2-s] federatedQueryConnectTimeoutMs — SQL Server")
+        src = "fq05_ct_s"
+        ext_db = "fq05_ct_sdb"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: default timeout, reachable source → query succeeds --
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            self._cleanup_src(src)
+            tdLog.info("[C2-s] conn_tmo=5000 query OK")
+
+            # -- Negative: non-routable IP → connect fails --
+            # As with the MySQL [C2] path above, only the failure itself is
+            # asserted, not the exact elapsed time: the SQL Server ODBC driver
+            # applies connect_timeout_ms as SQL_ATTR_LOGIN_TIMEOUT (rounded up
+            # to whole seconds), but its own connect-retry logic and the
+            # scheduler retries make the wall-clock bound environment-specific.
+            tdSql.execute(f"drop database if exists {src}", queryTimes=1)
+            tdSql.execute(f"drop external source if exists {src}", queryTimes=1)
+            tdSql.execute(
+                f"create external source {src} type='sqlserver' "
+                f"host='192.0.2.1' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"database={ext_db} schema='dbo'", queryTimes=1)
+            t0 = time.monotonic()
+            tdSql.error(f"select count(*) from {src}.push_t")
+            elapsed = time.monotonic() - t0
+            tdLog.info(f"[C2-s] non-routable host → query failed in {elapsed:.1f}s  OK")
+            self._cleanup_src(src)
+
+            # -- Dynamic: change timeout, real query still succeeds --
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '600000'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            self._cleanup_src(src)
+
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '100'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C2-s] dynamic conn_tmo=100, reachable SQL Server → query OK")
+
+        finally:
+            try:
+                tdSql.execute("ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
+            except Exception:
+                pass
+            try:
+                tdSql.execute("ALTER LOCAL 'federatedQueryConnectTimeoutMs' '5000'", queryTimes=1)
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C3-s: federatedQueryQueryTimeoutMs (SQL Server) -----
+    def _c3_query_timeout_sqlserver(self):
+        """C3-s: query timeout aborts a slow (lock-blocked) SQL Server scan.
+
+        MySQL uses SELECT SLEEP(); the SQL Server equivalent is a plain scan
+        blocked on an exclusive table lock held by a background sqlcmd session
+        (see _sqlserver_hold_table_lock).  With a 1 s timeout the query must
+        fail instead of waiting out the lock window; with a huge timeout the
+        same slow query succeeds.
+
+        The exact error code is deliberately not pinned, mirroring the MySQL
+        [C3] style: the SQL Server timeout SQLSTATE (HYT00/S1T00) may be
+        classified as a connection error or a query timeout depending on the
+        driver build, and both abort the scan.
+        """
+        tdLog.info("[C3-s] federatedQueryQueryTimeoutMs — SQL Server")
+        src = "fq05_qt_s"
+        ext_db = "fq05_qt_sdb"
+        self._cleanup_src(src)
+        lock_errors = []
+
+        def _hold(seconds):
+            try:
+                _sqlserver_hold_table_lock(ext_db, seconds)
+            except Exception as exc:
+                lock_errors.append(exc)
+
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: huge timeout → lock-blocked scan still succeeds --
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '1000000000'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            lt = threading.Thread(target=_hold, args=(4,), daemon=True)
+            lt.start()
+            time.sleep(1.5)          # let the lock holder acquire TABLOCKX
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            lt.join(timeout=30)
+            tdLog.info("[C3-s] query_tmo=1000000000, lock-blocked scan succeeded  OK")
+
+            # -- Negative: 1s timeout → blocked scan fails instead of waiting
+            #    out the whole lock window --
+            self._cleanup_src(src)
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '1000'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            # Hold far longer than any plausible retry budget so a retry cannot
+            # slip through after the lock is released; release the lock
+            # explicitly once the timeout assertion has been made.
+            lt2 = threading.Thread(target=_hold, args=(60,), daemon=True)
+            lt2.start()
+            time.sleep(1.5)
+            t0 = time.monotonic()
+            try:
+                tdSql.error(f"select count(*) from {src}.push_t")
+            finally:
+                _release_sqlserver_table_lock(ext_db)
+            elapsed = time.monotonic() - t0
+            assert elapsed < 60, (
+                f"[C3-s] query timeout not effective: elapsed={elapsed:.1f}s "
+                f"(expected the 1s timeout to abort the blocked scan)")
+            tdLog.info(f"[C3-s] query_tmo=1000 → blocked scan failed in {elapsed:.1f}s  OK")
+            lt2.join(timeout=5)
+
+            # -- Dynamic: switch from huge back to 1s timeout --
+            self._cleanup_src(src)
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '1000000000'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            self._cleanup_src(src)
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '1000'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            lt3 = threading.Thread(target=_hold, args=(60,), daemon=True)
+            lt3.start()
+            time.sleep(1.5)
+            t0 = time.monotonic()
+            try:
+                tdSql.error(f"select count(*) from {src}.push_t")
+            finally:
+                _release_sqlserver_table_lock(ext_db)
+            elapsed = time.monotonic() - t0
+            assert elapsed < 60, (
+                f"[C3-s] dynamic query timeout not effective: elapsed={elapsed:.1f}s")
+            tdLog.info(f"[C3-s] dynamic query_tmo=1e9→1000 → "
+                       f"blocked scan failed in {elapsed:.1f}s  OK")
+            lt3.join(timeout=5)
+
+            if lock_errors:
+                tdLog.info(f"[C3-s] lock holder error: {lock_errors[0]}")
+
+        finally:
+            try:
+                tdSql.execute("ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '1000000000'", queryTimes=1)
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C4-s: federatedQueryMaxPoolSizePerSource (SQL Server) -----
+    def _c4_pool_size_sqlserver(self):
+        """C4-s: pool cap enforced for SQL Server sources.
+
+        SQL Server has no SELECT-embedded SLEEP(), so the single pool slot is
+        held by a federated base scan that blocks on an exclusive table lock.
+        The lock is taken by a background sqlcmd session running
+        BEGIN TRAN / SELECT ... WITH (TABLOCKX) / WAITFOR DELAY / COMMIT, and
+        is held long enough to outlast the retry loop of the retryable
+        EXT_RESOURCE_EXHAUSTED error.
+        """
+        tdLog.info("[C4-s] federatedQueryMaxPoolSizePerSource — SQL Server")
+        src = "fq05_ps_s"
+        ext_db = "fq05_ps_sdb"
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: pool=64, query succeeds --
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '64'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            self._cleanup_src(src)
+            tdLog.info("[C4-s] pool=64, query OK")
+
+            # -- Negative: pool=1, blocked remote scan → RESOURCE_EXHAUSTED --
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '1'", queryTimes=1)
+            time.sleep(0.5)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            # confirm pool=1 still works for serial queries
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            lock_errors = []
+
+            def _hold_table_lock():
+                """Hold an exclusive lock on dbo.push_t until released below."""
+                try:
+                    _sqlserver_hold_table_lock(ext_db, 60)
+                except Exception as exc:
+                    lock_errors.append(exc)
+
+            bg_errors = []
+
+            def _run_blocked():
+                import taos
+                try:
+                    conn = taos.connect()
+                    try:
+                        cur = conn.cursor()
+                        try:
+                            cur.execute(f"select count(*) from {src}.push_t")
+                            cur.fetchall()
+                        except Exception as exc:
+                            bg_errors.append(exc)
+                        finally:
+                            cur.close()
+                    finally:
+                        conn.close()
+                except Exception as exc:
+                    bg_errors.append(exc)
+
+            lock_thread = threading.Thread(target=_hold_table_lock, daemon=True)
+            lock_thread.start()
+            time.sleep(1.5)      # let the lock holder acquire TABLOCKX
+
+            blocked_thread = threading.Thread(target=_run_blocked, daemon=True)
+            blocked_thread.start()
+            time.sleep(1.5)      # blocked scan now holds the only pool slot
+
+            # pool is full — should get RESOURCE_EXHAUSTED
+            tdSql.error(
+                f"select count(*) from {src}.push_t",
+                expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            )
+            tdLog.info("[C4-s] pool=1 + blocked scan → EXT_RESOURCE_EXHAUSTED  OK")
+            _release_sqlserver_table_lock(ext_db)
+
+            blocked_thread.join(timeout=60)
+            if blocked_thread.is_alive():
+                tdLog.info("[C4-s] blocked-query thread did not finish")
+            lock_thread.join(timeout=30)
+            if lock_errors:
+                tdLog.info(f"[C4-s] lock holder error: {lock_errors[0]}")
+            if bg_errors:
+                tdLog.info(f"[C4-s] background thread error: {bg_errors[0]}")
+
+            # Recovery: lock released, pool slot freed → serial query works
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C4-s] pool=1 recovery OK")
+
+        finally:
+            try:
+                tdSql.execute("ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '64'", queryTimes=1)
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C5-s: federatedQueryIdleConnTtlSec (SQL Server) -----
+    def _c5_idle_ttl_sqlserver(self):
+        """C5-s: idle TTL evicts SQL Server pool connections.
+
+        SQL Server has no SHOW PROCESSLIST; the session view
+        (sys.dm_exec_sessions, see _sqlserver_session_count) is the equivalent
+        observation point.  Only the server-side pool is driven by ALTER ALL
+        DNODES, so — exactly like the MySQL path [C5] — the assertion is that
+        the session count decreases rather than reaching zero: the client-side
+        catalog pool keeps its own TTL and may retain a connection.
+        """
+        tdLog.info("[C5-s] federatedQueryIdleConnTtlSec — SQL Server")
+        src = "fq05_ttl_s"
+        ext_db = "fq05_ttl_sdb"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: TTL=86400 → sessions survive 5s idle --
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '86400'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            cnt_before = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_before >= 1, (
+                f"[C5-s] expected >= 1 SQL Server sessions after query, got {cnt_before}")
+            tdLog.info(f"[C5-s] TTL=86400, session count after query = {cnt_before}")
+
+            time.sleep(5)
+
+            cnt_after = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_after >= 1, (
+                f"[C5-s] TTL=86400: sessions should survive 5s idle, "
+                f"but session count dropped to {cnt_after}")
+            tdLog.info(f"[C5-s] TTL=86400, 5s later session count = {cnt_after}  OK")
+
+            # query still works (reuses idle connection)
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            # -- Negative: TTL=1 → sessions evicted within 12s --
+            self._cleanup_src(src)
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '1'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            cnt_before2 = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_before2 >= 1, (
+                f"[C5-s] expected >= 1 SQL Server sessions after query, got {cnt_before2}")
+            tdLog.info(f"[C5-s] TTL=1, session count after query = {cnt_before2}")
+
+            # Wait for eviction: TTL=1s + probe interval 5s + buffer
+            time.sleep(12)
+
+            cnt_after2 = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_after2 < cnt_before2, (
+                f"[C5-s] TTL=1: server-side connections should be evicted "
+                f"after 12s, but count didn't decrease "
+                f"(before={cnt_before2} after={cnt_after2})")
+            tdLog.info(f"[C5-s] TTL=1, 12s later session count "
+                       f"{cnt_before2} → {cnt_after2}  OK")
+
+            # query still works (creates new connection)
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            # -- Dynamic: TTL 86400→1, observe eviction --
+            self._cleanup_src(src)
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '86400'", queryTimes=1)
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            cnt_dyn1 = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_dyn1 >= 1, (
+                f"[C5-s] dynamic: expected >= 1 sessions, got {cnt_dyn1}")
+
+            # wait 5s with TTL=86400 — connections should stay
+            time.sleep(5)
+            cnt_dyn2 = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_dyn2 >= 1, (
+                f"[C5-s] dynamic: TTL=86400, connections should survive, "
+                f"got {cnt_dyn2}")
+            tdLog.info(f"[C5-s] dynamic TTL=86400, 5s → count={cnt_dyn2}  OK")
+
+            # now switch to TTL=1
+            tdSql.execute("ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '1'", queryTimes=1)
+
+            # wait for eviction (TTL=1s + probe interval 5s + buffer)
+            time.sleep(12)
+
+            cnt_dyn3 = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_dyn3 < cnt_dyn2, (
+                f"[C5-s] dynamic: after switching TTL to 1s, server-side "
+                f"connections should be evicted, but count didn't decrease "
+                f"(before={cnt_dyn2} after={cnt_dyn3})")
+            tdLog.info(f"[C5-s] dynamic TTL=86400→1, 12s later count "
+                       f"{cnt_dyn2} → {cnt_dyn3}  OK")
+
+            # query still works
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C5-s] dynamic recovery query OK")
+
+        finally:
+            try:
+                tdSql.execute("ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '600'", queryTimes=1)
+            except Exception:
+                pass
+            try:
+                tdSql.execute("ALTER LOCAL 'federatedQueryIdleConnTtlSec' '600'", queryTimes=1)
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
             except Exception:
                 pass

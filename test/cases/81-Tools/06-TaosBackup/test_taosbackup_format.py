@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -143,8 +147,8 @@ class TestTaosBackupFormat:
             )
         tdLog.info(f"  [{label}] ~OK  ({v1}, rel_diff={diff/base:.2e})")
 
-    def _crcOf(self, sql, col_idx=0):
-        """Fetch one column from *sql* and return (CRC32, row_count, first_diff_detail).
+    def _crcOf(self, sql, col_idx=0, batch_size=10000):
+        """Fetch one column from *sql* and return (CRC32, row_count).
 
         Each value is serialised as:
             NULL  → b'\\x00'
@@ -156,18 +160,26 @@ class TestTaosBackupFormat:
         The ORDER BY clause in *sql* must be identical for both source and
         destination so that row ordering is deterministic.
         """
-        rows = tdSql.getResult(sql)
-        buf = bytearray()
-        for row in (rows or []):
-            val = row[col_idx]
-            if val is None:
-                buf += b'\x00'
-            elif isinstance(val, (bytes, bytearray)):
-                buf += bytes(val)
-            else:
-                buf += str(val).encode('utf-8')
-            buf += b'\xff\xff'   # row separator
-        return zlib.crc32(bytes(buf)) & 0xFFFFFFFF, len(rows or [])
+        crc = 0
+        row_count = 0
+        tdSql.cursor.execute(sql)
+        while True:
+            rows = tdSql.cursor.fetchmany(batch_size)
+            if not rows:
+                break
+            buf = bytearray()
+            for row in rows:
+                val = row[col_idx]
+                if val is None:
+                    buf += b'\x00'
+                elif isinstance(val, (bytes, bytearray)):
+                    buf += bytes(val)
+                else:
+                    buf += str(val).encode('utf-8')
+                buf += b'\xff\xff'
+            crc = zlib.crc32(buf, crc)
+            row_count += len(rows)
+        return crc & 0xFFFFFFFF, row_count
 
     def checkDbEqual(self, src_db, dst_db, label):
         """Full correctness verification: src_db vs dst_db for the meters STB."""

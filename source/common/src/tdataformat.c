@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -3048,6 +3050,9 @@ static int32_t tTColumnCompare(const void *p1, const void *p2) {
   return 0;
 }
 
+// Requires pTSchema->columns in ascending colId order (tBuildTSchema() keeps the caller's order and
+// does not sort); callers such as tsdbSttFileRW/tsdbDataFileRW and the TMQ scan rely on metadata
+// schemas being ordered by colId.
 const STColumn *tTSchemaSearchColumn(const STSchema *pTSchema, int16_t cid) {
   STColumn tcol = {
       .colId = cid,
@@ -6026,6 +6031,21 @@ static int32_t tEncodeColDataVersion0(SEncoder *pEncoder, SColData *pColData) {
   return code;
 }
 
+/* Validates one SColData field size and hands it back narrowed to uint32. Every such size is a
+ * wire-supplied count multiplied by a constant, and each is later used both as a byte count and as a
+ * row-loop bound, so compute the product in 64 bits and require it to fit the bytes left in the buffer:
+ * a negative count (which turns the product unsigned) or a product that wrapped in 32 bits must not be
+ * able to present itself as a small, in-range size -- e.g. an 8-byte type with nVal = 0x20000000 wraps
+ * to 0 and would otherwise be handed straight to the caller's row loop. */
+static int32_t tColDataCheckFieldSize(const SDecoder *pDecoder, uint64_t size, uint32_t *pSize) {
+  if (pDecoder->pos > pDecoder->size || size > (uint64_t)(pDecoder->size - pDecoder->pos)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  *pSize = (uint32_t)size;
+  return 0;
+}
+
 static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
   int32_t code = 0;
 
@@ -6038,7 +6058,11 @@ static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  // bitmap
+  if (pColData->nVal < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // bitmap (BIT1_SIZE/BIT2_SIZE cannot overflow for nVal >= 0)
   switch (pColData->flag) {
     case (HAS_NULL | HAS_NONE):
     case (HAS_VALUE | HAS_NONE):
@@ -6056,18 +6080,34 @@ static int32_t tDecodeColDataVersion0(SDecoder *pDecoder, SColData *pColData) {
 
   // value
   if (pColData->flag & HAS_VALUE) {
+    uint32_t size = 0;
+
     if (IS_VAR_DATA_TYPE(pColData->type)) {
-      code = tDecodeBinaryWithSize(pDecoder, pColData->nVal << 2, (uint8_t **)&pColData->aOffset);
+      // one 4-byte offset per value; nVal <= INT32_MAX so the 64-bit shift cannot overflow
+      code = tColDataCheckFieldSize(pDecoder, (uint64_t)pColData->nVal << 2, &size);
+      if (code) return code;
+
+      code = tDecodeBinaryWithSize(pDecoder, size, (uint8_t **)&pColData->aOffset);
       if (code) return code;
 
       code = tDecodeI32v(pDecoder, &pColData->nData);
       if (code) return code;
 
-      code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
+      if (pColData->nData < 0) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+
+      code = tColDataCheckFieldSize(pDecoder, (uint64_t)pColData->nData, &size);
+      if (code) return code;
+
+      code = tDecodeBinaryWithSize(pDecoder, size, &pColData->pData);
       if (code) return code;
     } else {
-      pColData->nData = TYPE_BYTES[pColData->type] * pColData->nVal;
-      code = tDecodeBinaryWithSize(pDecoder, pColData->nData, &pColData->pData);
+      code = tColDataCheckFieldSize(pDecoder, (uint64_t)TYPE_BYTES[pColData->type] * (uint64_t)pColData->nVal, &size);
+      if (code) return code;
+
+      pColData->nData = (int32_t)size;
+      code = tDecodeBinaryWithSize(pDecoder, size, &pColData->pData);
       if (code) return code;
     }
   }
@@ -6121,6 +6161,10 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, 
       int32_t len = 0;
       int32_t code = tDecodeI32(pDecoder, &len);
       if (code) return code;
+      if (len < (int32_t)INT_BYTES ||
+          (uint32_t)(len - INT_BYTES) > pDecoder->size - pDecoder->pos) {
+        return TSDB_CODE_INVALID_MSG;
+      }
       pDecoder->pos += (len - INT_BYTES);
       return TSDB_CODE_SUCCESS;
     } else {

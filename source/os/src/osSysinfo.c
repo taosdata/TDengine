@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -195,7 +197,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
                                              IN CONST PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
                                              IN CONST PMINIDUMP_CALLBACK_INFORMATION    CallbackParam);
 
-  // ── 1. load dbghelp ──────────────────────────────────────────────────────
+  // -- 1. load dbghelp ------------------------------------------------------
   HMODULE dll = LoadLibraryA("dbghelp.dll");
   if (dll == NULL) return EXCEPTION_CONTINUE_SEARCH;
   FxMiniDumpWriteDump mdwd = (FxMiniDumpWriteDump)(GetProcAddress(dll, "MiniDumpWriteDump"));
@@ -204,7 +206,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
     return EXCEPTION_CONTINUE_SEARCH;
   }
 
-  // ── 2. build timestamped file paths next to the running executable ───────
+  // -- 2. build timestamped file paths next to the running executable -------
   //      Keeping dumps beside the exe makes them easy to find.
   SYSTEMTIME st;
   GetLocalTime(&st);
@@ -224,7 +226,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
                exeDir, exeName, st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
-  // ── 3. write MiniDump with comprehensive type ─────────────────────────────
+  // -- 3. write MiniDump with comprehensive type -----------------------------
   HANDLE dmpFile = CreateFileW(dmpPath, GENERIC_WRITE, 0, NULL,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if (dmpFile != INVALID_HANDLE_VALUE) {
@@ -248,7 +250,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
     CloseHandle(dmpFile);
   }
 
-  // ── 4. write stack trace text log (usable without PDB on developer side) ──
+  // -- 4. write stack trace text log (usable without PDB on developer side) --
   HANDLE logFile = CreateFileW(logPath, GENERIC_WRITE, 0, NULL,
                                CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
   if (logFile != INVALID_HANDLE_VALUE) {
@@ -272,7 +274,7 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   // Return EXCEPTION_CONTINUE_SEARCH so that Windows Error Reporting (WER /
   // WerFault.exe) can write an out-of-process dump as a fallback.  WerFault
   // runs in a separate process and is therefore immune to stack/heap corruption
-  // in this process — it will still produce a valid dump even when
+  // in this process  -  it will still produce a valid dump even when
   // MiniDumpWriteDump above failed (e.g. due to stack overflow or heap
   // corruption that zeroed out our stack frame).
   // Configure the WER dump directory via (per crashing executable name, e.g.
@@ -766,8 +768,10 @@ int32_t taosGetOsReleaseName(char *releaseName, char* sName, char* ver, int32_t 
       continue;
     }
     if (!dest) continue;
-    const char *p = strchr(line, '=') + 1;
-    if (*p == '"') {
+    const char *eq = strchr(line, '=');
+    if (eq == NULL) continue;  // malformed line, no '='
+    const char *p = eq + 1;
+    if (*p == '"' && size >= 2) {
       p++;
       line[size - 2] = 0;
     }

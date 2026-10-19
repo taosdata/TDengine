@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -524,7 +526,8 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
       return terrno;
     }
 
-    int32_t size = blockDataGetSize(p) + sizeof(int32_t) + taosArrayGetSize(p->pDataBlock) * sizeof(int32_t);
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t) +
+                   taosArrayGetSize(p->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
     if (size > getBufPageSize(pHandle->pBuf)) {
       qError("sort failed at: %s:%d", __func__, __LINE__);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -626,8 +629,11 @@ static int32_t sortComparInit(SMsortComparParam* pParam, SArray* pSources, int32
       SSortSource* pSource = pParam->pSources[i];
       TAOS_CHECK_RETURN(pHandle->fetchfp(pSource->param, &pSource->src.pBlock));
 
-      // set current source is done
-      if (pSource->src.pBlock == NULL) {
+      // set current source is done. An empty (0-row) block must be treated the same way:
+      // the loser-tree init compares element [0] of each source, which reads past the
+      // (1-byte placeholder) var-offset array of an empty block -- heap-buffer-overflow
+      // under ASan, garbage ordering otherwise.
+      if (pSource->src.pBlock == NULL || pSource->src.pBlock->info.rows == 0) {
         setCurrentSourceDone(pSource, pHandle);
       }
     }
@@ -722,7 +728,10 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource* pSource, SMultiwayMergeT
       pSource->fetchUs += elapsed;
       pSource->fetchNum++;
       pHandle->fetchTotalUs += elapsed;
-      if (pSource->src.pBlock == NULL) {
+      if (pSource->src.pBlock == NULL || pSource->src.pBlock->info.rows == 0) {
+        // same empty-block rule as the init loop above: a 0-row block must complete the
+        // source -- the loser tree would otherwise compare element [0] of it and read
+        // past the empty block's var-offset placeholder
         (*numOfCompleted) += 1;
         pSource->src.rowIndex = -1;
         qDebug("adjust merge tree. %d source completed", *numOfCompleted);
@@ -863,6 +872,9 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
   if (pParam->cmpGroupId) {
+    if (pLeftBlock->info.id.baseGId != pRightBlock->info.id.baseGId) {
+      return pLeftBlock->info.id.baseGId < pRightBlock->info.id.baseGId ? -1 : 1;
+    }
     if (pLeftBlock->info.id.groupId != pRightBlock->info.id.groupId) {
       return pLeftBlock->info.id.groupId < pRightBlock->info.id.groupId ? -1 : 1;
     }
@@ -1045,7 +1057,8 @@ static int32_t doSortForEachGroup(SSortHandle* pHandle, int32_t sortTimes, int32
       QUERY_CHECK_NULL(px, code, lino, _err, terrno);
 
       int32_t size =
-          blockDataGetSize(pDataBlock) + sizeof(int32_t) + taosArrayGetSize(pDataBlock->pDataBlock) * sizeof(int32_t);
+          blockDataGetSize(pDataBlock) + sizeof(int32_t) +
+          taosArrayGetSize(pDataBlock->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
       if (size > getBufPageSize(pHandle->pBuf)) {
         code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
         goto _err;
@@ -1270,6 +1283,7 @@ int32_t tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupl
     tsortGetBlockInfo(pTupleHandle, &info);
 
     pBlock->info.scanFlag = info.scanFlag;
+    pBlock->info.scanPhase = info.scanPhase;
     pBlock->info.rows += 1;
 
   } else {
@@ -1299,6 +1313,7 @@ int32_t tsortAppendTupleToBlock(SSortHandle* pHandle, SSDataBlock* pBlock, STupl
     tsortGetBlockInfo(pTupleHandle, &info);
 
     pBlock->info.scanFlag = info.scanFlag;
+    pBlock->info.scanPhase = info.scanPhase;
     pBlock->info.rows += 1;
   }
 
@@ -1899,7 +1914,8 @@ static int32_t appendDataBlockToPageBuf(SSortHandle* pHandle, SSDataBlock* blk, 
     return terrno;
   }
 
-  int32_t size = blockDataGetSize(blk) + sizeof(int32_t) + taosArrayGetSize(blk->pDataBlock) * sizeof(int32_t);
+  int32_t size = blockDataGetSize(blk) + sizeof(int32_t) +
+                 taosArrayGetSize(blk->pDataBlock) * (sizeof(int32_t) + 2 * sizeof(uint8_t));
   if (size > getBufPageSize(pHandle->pBuf)) {
     qError("sort failed at: %s:%d", __func__, __LINE__);
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -2072,7 +2088,8 @@ static int32_t getTotalRows(SArray* pBlockList) {
 
 static int32_t sortBlocksToExtSource(SSortHandle* pHandle, SArray* aBlk, SArray* aExtSrc) {
   int32_t code = TSDB_CODE_SUCCESS;
-  int32_t pageHeaderSize = sizeof(int32_t) + sizeof(int32_t) * blockDataGetNumOfCols(pHandle->pDataBlock);
+  int32_t pageHeaderSize =
+      sizeof(int32_t) + (sizeof(int32_t) + 2 * sizeof(uint8_t)) * blockDataGetNumOfCols(pHandle->pDataBlock);
   int32_t rowCap = blockDataGetCapacityInRow(pHandle->pDataBlock, pHandle->pageSize, pageHeaderSize);
   if (rowCap < 0) {
     return terrno;
@@ -3044,6 +3061,11 @@ int32_t tsortCompAndBuildKeys(const SArray* pSortCols, char* keyBuf, int32_t* ke
     ret = 0;
   } else {
     *keyLen = buildKeys(keyBuf, pSortCols, pTuple->pBlock, pTuple->rowIndex);
+    // buildKeys returns the (negative) error code when a key value overruns the
+    // key buffer; error codes are negative by convention, so pass it through.
+    if (*keyLen < 0) {
+      return *keyLen;
+    }
     ret = 1;
   }
   return ret;

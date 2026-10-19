@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -26,6 +28,7 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,
   SYNC_TIMEOUT_ELECTION,
   SYNC_TIMEOUT_HEARTBEAT,
+  SYNC_TIMEOUT_RESTORE_ELECT,  // fallback timer to restore electBaseLine
 } ESyncTimeoutType;
 
 typedef struct SyncTimeout {

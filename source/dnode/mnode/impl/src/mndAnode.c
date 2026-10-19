@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -14,12 +16,16 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "os.h"
+#include "tanalytics.h"
+#include "ttypes.h"
+#include "tjson.h"
+#include "tglobal.h"
+#include "tutil.h"
 #include "mndAnode.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
-#include "tanalytics.h"
-#include "tjson.h"
 
 #ifdef USE_ANALYTICS
 
@@ -321,6 +327,16 @@ static int32_t mndCreateAnode(SMnode *pMnode, SRpcMsg *pReq, SMCreateAnodeReq *p
   anodeObj.url = taosMemoryCalloc(1, pCreate->urlLen);
   if (anodeObj.url == NULL) goto _OVER;
   (void)memcpy(anodeObj.url, pCreate->url, pCreate->urlLen);
+
+  if (strncasecmp(anodeObj.url, "http://", 7) != 0 && strncasecmp(anodeObj.url, "https://", 8) != 0) {
+    code = TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
+    goto _OVER;
+  }
+
+  if (!tsAnodeAllowInternalUrl && taosIsPrivateUrl(anodeObj.url)) {
+    code = TSDB_CODE_MND_ANODE_BLOCKED_URL;
+    goto _OVER;
+  }
 
   code = mndGetAnodeAlgoList(anodeObj.url, &anodeObj);
   if (code != 0) goto _OVER;
@@ -780,25 +796,25 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
         if (code != 0) goto _end;
 
         // type
-        STR_TO_VARSTR(buf, taosAnalysisAlgoType(t));
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, taosAnalysisAlgoType(t), sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // name
-        STR_TO_VARSTR(buf, algo->name);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->name, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // status
-        STR_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->pStatus == NULL ? "UNAVAIL" : algo->pStatus, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;
 
         // note
-        STR_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote);
+        STR_WITH_MAXSIZE_TO_VARSTR(buf, algo->pNote == NULL ? "" : algo->pNote, sizeof(buf));
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
         code = colDataSetVal(pColInfo, numOfRows, buf, false);
         if (code != 0) goto _end;

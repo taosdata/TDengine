@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2024 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <gtest/gtest.h>
 #include <array>
 #include <fstream>
@@ -597,7 +614,7 @@ TEST(decimal, divide) {
   Decimal128 remainder = {0};
   int8_t     precision1 = 38, scale1 = 5, precision2 = 10, scale2 = 2;
   int8_t     out_scale = 25;
-  int8_t     out_precision = std::min(precision1 - scale1 + scale2 + out_scale, 38);
+  int8_t     out_precision = (std::min)(precision1 - scale1 + scale2 + out_scale, 38);
   int8_t     delta_scale = out_scale + scale2 - scale1;
   printDecimal(&d, TSDB_DATA_TYPE_DECIMAL, precision1, scale1);
   __int128 a = 1;
@@ -1283,6 +1300,47 @@ TEST(decimal_all, test_decimal_compare) {
   ASSERT_TRUE(dec128 == dec64_2);
 }
 
+TEST(decimal_all, decimal64_compare_promoted_scales) {
+  const struct {
+    const char* left;
+    uint8_t     leftScale;
+    const char* right;
+    uint8_t     rightScale;
+    int         comparison;
+  } cases[] = {
+      {"0.100000", 6, "0.1", 1, 0},
+      {"-0.100000", 6, "-0.1", 1, 0},
+      {"0.100001", 6, "0.1", 1, 1},
+      {"-0.100001", 6, "-0.1", 1, -1},
+      {"999999999999999999", 0, "0.999999999999999999", 18, 1},
+      {"-999999999999999999", 0, "-0.999999999999999999", 18, -1},
+      {"0", 0, "0.1", 1, -1},
+      {"1", 0, "0", 18, 1},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(testCase.left);
+    SCOPED_TRACE(testCase.right);
+    Decimal64 left = {0}, right = {0};
+    ASSERT_EQ(decimal64FromStr(testCase.left, strlen(testCase.left), 18, testCase.leftScale, &left), 0);
+    ASSERT_EQ(decimal64FromStr(testCase.right, strlen(testCase.right), 18, testCase.rightScale, &right), 0);
+    SDecimalCompareCtx leftCtx = {&left, TSDB_DATA_TYPE_DECIMAL64, decimalCalcTypeMod(18, testCase.leftScale)};
+    SDecimalCompareCtx rightCtx = {&right, TSDB_DATA_TYPE_DECIMAL64, decimalCalcTypeMod(18, testCase.rightScale)};
+    for (bool reverse : {false, true}) {
+      SCOPED_TRACE(reverse);
+      const auto* lhs = reverse ? &rightCtx : &leftCtx;
+      const auto* rhs = reverse ? &leftCtx : &rightCtx;
+      int comparison = reverse ? -testCase.comparison : testCase.comparison;
+      EXPECT_EQ(decimalCompare(OP_TYPE_EQUAL, lhs, rhs), comparison == 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_NOT_EQUAL, lhs, rhs), comparison != 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_LOWER_THAN, lhs, rhs), comparison < 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_LOWER_EQUAL, lhs, rhs), comparison <= 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_GREATER_THAN, lhs, rhs), comparison > 0);
+      EXPECT_EQ(decimalCompare(OP_TYPE_GREATER_EQUAL, lhs, rhs), comparison >= 0);
+    }
+  }
+}
+
 TEST(decimal_all, ret_type_for_non_decimal_types) {
   std::vector<DecimalRetTypeCheckContent> non_decimal_types;
   SDataType                               decimal_type = {TSDB_DATA_TYPE_DECIMAL64, 10, 2, 8};
@@ -1537,6 +1595,92 @@ TEST(decimal, test_add_check_overflow) {
   Decimal128 tmp2 = {0};
   ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, TEST_decimal128FromDecimal64((Decimal64*)&dec64.dec(), 18, 10, &tmp2, 20, 20));
   ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, TEST_decimal128FromDecimal128((Decimal128*)&dec128.dec(), 20, 12, &tmp2, 19, 11));
+}
+
+static void expectDecimal64Str(const char* str, uint8_t prec, uint8_t scale, const char* expect) {
+  Decimal64 dec = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal64FromStr(str, (int32_t)strlen(str), prec, scale, &dec));
+  checkDecimal(&dec, TSDB_DATA_TYPE_DECIMAL64, prec, scale, expect);
+}
+
+static void expectDecimal64Overflow(const char* str, uint8_t prec, uint8_t scale) {
+  Decimal64 dec = {0};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimal64FromStr(str, (int32_t)strlen(str), prec, scale, &dec));
+}
+
+// Covers the precision/scale guards added for out-of-range plan types and exponents.
+TEST(decimal, outOfRangePrecScale) {
+  expectDecimal64Overflow("1", 0, 0);
+  expectDecimal64Overflow("1", 19, 0);
+  expectDecimal64Overflow("1", 10, 11);
+  expectDecimal64Overflow("1", 255, 255);
+  expectDecimal64Overflow("1e21", 18, 0);
+  expectDecimal64Overflow("1e200", 18, 0);
+  expectDecimal64Overflow("1e-20", 18, 0);
+  expectDecimal64Overflow("1e18", 18, 0);
+  expectDecimal64Str("1e2", 18, 0, "100");
+  expectDecimal64Str("1.5e1", 10, 1, "15.0");
+  expectDecimal64Str("1e17", 18, 0, "100000000000000000");
+  // Exponents saturate at INT32_MAX; the follow-up arithmetic must not overflow.
+  expectDecimal64Overflow("1e2147483647", 18, 0);
+  expectDecimal64Overflow("1.5e2147483647", 18, 2);
+  expectDecimal64Overflow("1.5e99999999999", 18, 2);
+  expectDecimal64Overflow("1e-2147483647", 18, 0);
+  expectDecimal64Str("0.5e-2147483647", 18, 2, "0");
+  expectDecimal64Str("0.5e-99999999999", 18, 2, "0");
+
+  Decimal128 dec128 = {0};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimal128FromStr("1", 1, 0, 0, &dec128));
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimal128FromStr("1", 1, 39, 0, &dec128));
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimal128FromStr("1", 1, 20, 21, &dec128));
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimal128FromStr("1e-40", 6, 38, 0, &dec128));
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimal128FromStr("1e40", 4, 38, 0, &dec128));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal128FromStr("1e2", 3, 38, 0, &dec128));
+  checkDecimal(&dec128, TSDB_DATA_TYPE_DECIMAL, 38, 0, "100");
+
+  Decimal64 a = {0}, b = {0}, sum = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal64FromStr("1.00", 4, 10, 2, &a));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal64FromStr("2.00", 4, 10, 2, &b));
+  SDataType bad = {TSDB_DATA_TYPE_DECIMAL64, 10, 255, 8};
+  SDataType ok = {TSDB_DATA_TYPE_DECIMAL64, 10, 2, 8};
+  SDataType outType = {TSDB_DATA_TYPE_DECIMAL64, 11, 2, 8};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimalOp(OP_TYPE_ADD, &bad, &ok, &outType, &a, &b, &sum));
+  bad.scale = 2;
+  bad.precision = 0;
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimalOp(OP_TYPE_ADD, &bad, &ok, &outType, &a, &b, &sum));
+  outType.scale = 19;
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, decimalOp(OP_TYPE_ADD, &ok, &ok, &outType, &a, &b, &sum));
+
+  int64_t   iv = 1;
+  SDataType inType = {TSDB_DATA_TYPE_BIGINT, 0, 255, 8};
+  SDataType decType = {TSDB_DATA_TYPE_DECIMAL64, 18, 0, 8};
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, convertToDecimal(&iv, &inType, &sum, &decType));
+  inType.scale = 0;
+  decType.precision = 19;
+  ASSERT_EQ(TSDB_CODE_DECIMAL_OVERFLOW, convertToDecimal(&iv, &inType, &sum, &decType));
+
+  // deltaScale = 10 + 30 - 0 = 40, so int256ScaleBy must chunk past the 39-entry table.
+  Decimal128 x = {0}, y = {0}, quot = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal128FromStr("2", 1, 38, 0, &x));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal128FromStr("1", 1, 38, 30, &y));
+  SDataType tx = {TSDB_DATA_TYPE_DECIMAL, 38, 0, 16};
+  SDataType ty = {TSDB_DATA_TYPE_DECIMAL, 38, 30, 16};
+  SDataType tq = {TSDB_DATA_TYPE_DECIMAL, 38, 10, 16};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimalOp(OP_TYPE_DIV, &tx, &ty, &tq, &x, &y, &quot));
+  checkDecimal(&quot, TSDB_DATA_TYPE_DECIMAL, 38, 10, "2.0000000000");
+
+  // decimalToStr takes scale from the plan type; decimal128ToStr writes into a 64-byte stack buffer.
+  char      buf[64] = {0};
+  Decimal64 d64 = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal64FromStr("1", 1, 18, 0, &d64));
+  ASSERT_EQ(TSDB_CODE_INVALID_PARA, decimalToStr(&d64, TSDB_DATA_TYPE_DECIMAL64, 18, 19, buf, sizeof(buf)));
+  ASSERT_EQ(TSDB_CODE_INVALID_PARA, decimalToStr(&d64, TSDB_DATA_TYPE_DECIMAL64, 18, -1, buf, sizeof(buf)));
+  Decimal128 big = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimal128FromStr(string(38, '9').c_str(), 38, 38, 0, &big));
+  ASSERT_EQ(TSDB_CODE_INVALID_PARA, decimalToStr(&big, TSDB_DATA_TYPE_DECIMAL, 38, 80, buf, sizeof(buf)));
+  ASSERT_EQ(TSDB_CODE_INVALID_PARA, decimalToStr(&big, TSDB_DATA_TYPE_DECIMAL, 38, -1, buf, sizeof(buf)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decimalToStr(&big, TSDB_DATA_TYPE_DECIMAL, 38, 38, buf, sizeof(buf)));
+  ASSERT_STREQ(buf, ("0." + string(38, '9')).c_str());
 }
 
 int main(int argc, char** argv) {

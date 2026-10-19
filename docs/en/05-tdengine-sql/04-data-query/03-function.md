@@ -3348,13 +3348,19 @@ UNIQUE(expr)
 
 **Function Classification**: Pipeline set function.
 
-**Function Description**: Returns the deduplicated values of the column. This function is similar to distinct. For the same data, it returns the one with the smallest timestamp. For queries on tables with composite primary keys, if there are multiple records with the smallest timestamp, only the data with the smallest composite primary key is returned.
+**Function Description**: Returns representative rows after deduplicating the expression. This function is similar to `DISTINCT`. When a valid timeline exists, for the same `expr` value, it returns the row with the smallest timestamp. For queries on tables with composite primary keys, if there are multiple records with the smallest timestamp, only the data with the smallest composite primary key is returned. See Usage Notes for representative-row selection in no-timeline mode.
 
 **Return Data Type**: Same as the field of the application.
 
 **Applicable Data Types**: All types of fields.
 
 **Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- For the same `expr` value, `UNIQUE` returns only one representative row. If the query also returns other regular columns or scalar expressions, those results all come from the same representative row.
+- When the input result set contains no `TIMESTAMP` column, that is, in no-timeline mode, `UNIQUE` deduplicates values in the upstream operator's input row order and uses the first row where each value appears as the representative row.
+- In no-timeline mode, `UNIQUE` does not introduce an additional sort. To make representative-row selection stable, use an explicit `ORDER BY` in the subquery to specify the input row order. To make the display order stable, use an explicit `ORDER BY` in the outer query.
 
 ### COLS
 
@@ -3384,6 +3390,8 @@ COLS (func(expr), output_expr1, [, output_expr2] ... )
 
 Sequential analysis functions are tailor-made by TDengine to meet the query scenarios of time-series data. In general databases, implementing similar functionalities usually requires complex query syntax and is inefficient. TDengine has built these functionalities into functions, greatly reducing the user's cost of use.
 
+When the input result set contains no `TIMESTAMP` column, `DIFF`, `CSUM`, `MAVG`, `STATECOUNT`, `LAG`, `LEAD`, and `FILL_FORWARD` can run on the upstream operator's input row order. To make the row order stable, use an explicit `ORDER BY` in the subquery; otherwise, the row order comes from the execution plan's natural output order and is not guaranteed to remain stable across executions, versions, or data distribution changes.
+
 ### CSUM
 
 ```sql
@@ -3393,6 +3401,17 @@ CSUM(expr)
 **Function Classification**: Pipeline set function.
 
 **Function Description**: Cumulative sum, ignoring NULL values.
+
+When used with `PARTITION BY`, `CSUM` starts an independent cumulative sum for each partition. State is not carried between partitions. Within each partition, values are accumulated in effective timeline order. If the input has no `TIMESTAMP` column, accumulation follows the upstream input row order; use `ORDER BY` in a subquery when that order must be stable.
+
+For example, the following query calculates an independent cumulative current for each subtable. The partition expression can also be a tag or ordinary column when valid in the query.
+
+```sql
+SELECT tbname, ts, CSUM(current) AS cumulative_current
+FROM meters
+PARTITION BY tbname
+ORDER BY tbname, ts;
+```
 
 **Return Result Type**: If the input column is an integer type, the return value is long integer (int64_t), for floating-point numbers, the return value is double precision floating point (Double). For unsigned integer types, the return value is unsigned long integer (uint64_t).
 
@@ -3405,8 +3424,9 @@ CSUM(expr)
 **Usage Instructions**:
 
 - Does not support +, -, *, / operations, such as csum(col1) + csum(col2).
-- Can only be used with aggregation functions. This function can be applied to both basic tables and supertables.
+- Cannot be used together with aggregation functions. This function can be applied to both basic tables and supertables.
 - With a degraded timeline, csum does not depend on time values and computes by row order. Still reports errors for real (non-NULL) duplicate timestamps; NULL time rows do not trigger duplicate timestamp checks.
+- When the input result set contains no `TIMESTAMP` column, `CSUM` accumulates values in input row order.
 
 ### DERIVATIVE
 
@@ -3476,6 +3496,7 @@ ignore_option: {
 - When there is no composite primary key, if different subtables have data with the same timestamp, a "Duplicate timestamps not allowed" message will be displayed
 - When using composite primary keys, the timestamp and composite primary key combinations of different subtables may be the same, which row is used depends on which one is found first, meaning that the results of running diff() multiple times in this situation may vary.
 - With a degraded timeline, duplicate timestamp rows output NULL without updating the previous value (the next non-duplicate row uses the last valid row for calculation); NULL time rows also output NULL. Output row count is always N-1.
+- When the input result set contains no `TIMESTAMP` column, `DIFF` computes adjacent-row differences in input row order. The output row count is still N-1.
 
 ### FILL_FORWARD
 
@@ -3496,6 +3517,7 @@ FILL_FORWARD(expr)
 **Usage Notes**:
 
 - Support +, -, *, / operations, such as fill_forward(col1) + fill_forward(col2);
+- When the input result set contains no `TIMESTAMP` column, `FILL_FORWARD` fills NULL values from the previous non-NULL value in input row order.
 
 **Example**:
 
@@ -3532,6 +3554,7 @@ MAVG(expr, k)
 
 - Does not support +, -, *, / operations, such as mavg(col1, k1) + mavg(col2, k1);
 - Can only be used with regular columns, selection, and projection functions, not with aggregation functions;
+- When the input result set contains no `TIMESTAMP` column, `MAVG` calculates the moving average over the input row order.
 - When used with a window clause, `MAVG` is calculated only from samples inside the current window and does not continue state across windows.
 
 ### STATECOUNT
@@ -3553,12 +3576,13 @@ STATECOUNT(expr, oper, val)
 
 **Applicable Data Types**: Numeric types.
 
-**Nested Subquery Support**: Not applicable to subqueries.
+**Nested Subquery Support**: Applicable to inner and outer queries.
 
 **Applicable to**: Tables and supertables.
 
 **Usage Notes**:
 
+- When the input result set contains no `TIMESTAMP` column, `STATECOUNT` counts consecutive states in input row order.
 - When used with a window clause, `STATECOUNT` counts consecutive records only inside the current window and does not accumulate across windows.
 
 ### STATEDURATION
@@ -3613,9 +3637,10 @@ LAG(expr, offset[, default_val])
 - `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
 - `default_val` must be type-compatible with `expr`.
 - `LAG` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- When the input result set contains no `TIMESTAMP` column, `LAG` still returns the value from the row that is `offset` rows before the current row in input row order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
 - When used with a window clause, `LAG` is evaluated only within the current window in window-local row order and does not carry state across windows.
-- `LAG` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./06-window-function.md#value-window-functions).
+- `LAG` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./07-window-function.md#value-window-functions).
 
 ### LEAD
 
@@ -3639,9 +3664,10 @@ LEAD(expr, offset[, default_val])
 - `default_val` is optional. It is returned when the target row does not exist; if omitted, `NULL` is returned.
 - `default_val` must be type-compatible with `expr`.
 - `LEAD` is evaluated on the row order of the input result set; you can use `ORDER BY` to change the evaluation order.
+- When the input result set contains no `TIMESTAMP` column, `LEAD` still returns the value from the row that is `offset` rows after the current row in input row order.
 - It can be used together with `_rowts`, `tbname`, tag columns, and also in subqueries and `PARTITION BY` scenarios.
 - When used with a window clause, `LEAD` is evaluated only within the current window in window-local row order and does not read rows from the next window.
-- `LEAD` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./06-window-function.md#value-window-functions).
+- `LEAD` can also be used as a SQL standard window function together with an `OVER` clause, in which case the parameter rules differ slightly (`offset` may be 0). See [Window Functions](./07-window-function.md#value-window-functions).
 
 ## Time-Series Special Aggregate Functions
 
@@ -3717,6 +3743,194 @@ TWA(expr)
 
 - With a degraded timeline, duplicate timestamp points are skipped (zero area contribution); NULL time rows are skipped for weighting calculation.
 - With a disordered degraded timeline, twa can still execute but negative time differences produce negative weights, causing the weighted average to deviate from the true mean. Use `ORDER BY` in the subquery to ensure ordering.
+
+### TWAVG_LINEAR/TWAVG_LOCF
+
+```sql
+TWAVG_LINEAR(expr)
+TWAVG_LOCF(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Time-weighted average over the query time range, i.e. the integral of `expr` over time divided by the covered time span. The two variants differ only in how the value between two consecutive points is weighted: `TWAVG_LINEAR` assumes the value changes linearly (trapezoidal area) and `TWAVG_LOCF` holds the previous value constant until the next point (last observation carried forward, rectangular area). `TWAVG_LINEAR` is equivalent to `TWA`.
+
+**Version**: ver-3.4.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types (including DECIMAL).
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- At an INTERVAL window boundary, `TWAVG_LINEAR` linearly interpolates the boundary value while `TWAVG_LOCF` carries the previous point forward.
+- Duplicate timestamps and NULL value rows are skipped. Use `ORDER BY` in a subquery to guarantee timeline ordering.
+- DECIMAL input is computed as DOUBLE and the return type is still DOUBLE (unlike `AVG`, which preserves a DECIMAL output).
+
+### TWSUM_LINEAR/TWSUM_LOCF
+
+```sql
+TWSUM_LINEAR(expr [, time_unit])
+TWSUM_LOCF(expr [, time_unit])
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Time-weighted sum, i.e. the time-integral of `expr` (the area under the curve). `TWSUM_LINEAR` uses linear (trapezoidal) weighting between points; `TWSUM_LOCF` uses last-observation-carried-forward (rectangular) weighting. Unlike the average and variance functions, the result carries a time unit; `time_unit` sets that unit (e.g. `1s`, `1m`, `1h`) and defaults to seconds (`1s`) when omitted. The `time_unit` follows the same rules as `ELAPSED` and must not be smaller than the database time precision.
+
+**Version**: ver-3.4.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types including DECIMAL (`expr`); the optional `time_unit` is a time-duration literal.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- A single-point window has zero span and returns 0.
+- Boundary handling and timeline requirements match `TWAVG_LINEAR`/`TWAVG_LOCF`.
+- DECIMAL input is computed as DOUBLE and the return type is still DOUBLE.
+
+### TWVAR_LINEAR/TWVAR_LOCF
+
+```sql
+TWVAR_LINEAR(expr)
+TWVAR_LOCF(expr)
+```
+
+**Function Classification**: Aggregate function.
+
+**Function Description**: Time-weighted population variance over the query time range: the time-weighted mean of the squared deviation from the time-weighted average, i.e. `(1/T)·∫(v−μ)² dt` where `μ` is the time-weighted average. `TWVAR_LINEAR` uses linear (trapezoidal) weighting between points; `TWVAR_LOCF` uses last-observation-carried-forward (rectangular) weighting. The result is unit-free.
+
+**Version**: ver-3.4.3.0
+
+**Return Data Type**: DOUBLE.
+
+**Applicable Data Types**: Numeric types (including DECIMAL).
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- A single-point window has zero spread and returns 0.
+- Boundary handling and timeline requirements match `TWAVG_LINEAR`/`TWAVG_LOCF`.
+- DECIMAL input is computed as DOUBLE and the return type is still DOUBLE.
+
+### VALUE_CHANGES
+
+```sql
+VALUE_CHANGES(expr [, ignore_null])
+
+ignore_null: {
+    0
+  | 1
+}
+```
+
+**Function Classification**: Aggregate function.
+
+**Version**: ver-3.4.3.0
+
+**Function Description**: Counts how many times the value of a column changes between adjacent points along the effective timeline. Scanning rows in ascending timestamp order, each value is compared to the previous participating value; a change is counted when they differ. The first row is never counted. The optional `ignore_null` controls NULL handling and defaults to `1`.
+
+- `1` (default): NULL is ignored; comparison happens only between adjacent non-NULL values, and NULL rows are skipped transparently.
+- `0`: NULL participates in the comparison; a non-NULL↔NULL transition counts as one change, while NULL↔NULL is not a change.
+
+**Return Data Type**: BIGINT.
+
+**Applicable Data Types**: All types (numeric types, timestamp, BOOL, VARCHAR, NCHAR, VARBINARY, DECIMAL).
+
+**Applicable to**: Tables and supertables.
+
+**Usage Instructions**:
+
+- The first row has no predecessor and is not counted; `n` rows yield at most `n-1` changes.
+- Equality reuses the engine's built-in per-type comparison: floating point uses epsilon-tolerant equality, adjacent `NaN` and `NaN` are treated as unchanged, and `NaN` versus a number counts as a change; strings and VARBINARY are compared byte-wise; BOOL is compared as 0/1; DECIMAL is compared as DOUBLE.
+- When used with a window clause (`INTERVAL`/`STATE_WINDOW`/`SESSION`/`EVENT_WINDOW`/`COUNT_WINDOW`), each window is counted independently and the first row of a window is not compared to the previous window's last row.
+- With `PARTITION BY`/`GROUP BY`, each group is counted independently and no comparison crosses groups.
+- For tables with a composite primary key, when multiple rows share the same timestamp only the row with the smallest composite key participates; without a composite key, duplicate timestamps raise "Duplicate timestamps not allowed".
+- An out-of-order effective timeline raises an error; use `ORDER BY ts` in a subquery to enforce ordering before counting.
+- Cannot be used on system tables.
+- Supported as a window aggregate in stream computing; incremental results match the equivalent batch query.
+
+**Examples**:
+
+```sql
+taos> select value_changes(current) from meters;
+ value_changes(current) |
+=========================
+                      2 |
+
+taos> select value_changes(current, 0) from meters;
+ value_changes(current, 0) |
+============================
+                         4 |
+```
+
+### BIT_CHANGES
+
+```sql
+BIT_CHANGES(expr [, mask [, flag]])
+
+mask: a non-negative integer constant from 0 to INT64_MAX; default is 1
+
+flag: {
+    0
+  | 1
+  | 2
+}
+```
+
+**Function Classification**: Aggregate function.
+
+**Version**: ver-3.4.3.0
+
+**Function Description**: Counts changes in selected bits of an integer measurement. For each row, the function first computes `expr & mask`, compares the masked value with the previous participating row, and counts the transition according to `flag`. The first row has no predecessor and is not counted.
+
+**Parameters**:
+
+- `expr`: Required. Supports `TINYINT`, `SMALLINT`, `INT`, `BIGINT`, the corresponding unsigned integer types, and `BOOL`.
+- `mask`: Optional integer constant. Defaults to `1`, which checks the least significant bit. When `mask=0`, every masked value is zero and the result is 0.
+- `flag`: Optional constant `0`, `1`, or `2`. Defaults to `0`.
+  - `0`: Count transitions from `0` to non-zero.
+  - `1`: Count transitions from non-zero to `0`.
+  - `2`: Count transitions in both directions.
+
+**Return Data Type**: BIGINT.
+
+**Applicable to**: Tables, supertables, window queries, and stream computations. Supported windows include `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, and `COUNT_WINDOW`.
+
+**Usage Instructions**:
+
+- NULL/None rows are skipped. They do not participate in comparison and do not reset the previous participating value. For example, `1, NULL, 0` produces one change with `flag=2`.
+- The first row is not counted, so `n` rows produce at most `n-1` comparisons. Empty input produces no result row; a single row or all-NULL input returns 0.
+- With `PARTITION BY` or `GROUP BY`, each group is counted independently and no comparison crosses groups.
+- With a window clause, each window is counted independently; the first row of a window is not compared with the last row of the previous window.
+- `mask` and `flag` must be constants. Column references, strings, and floating-point expressions are invalid.
+- Non-integer `expr`, invalid `mask`/`flag`, and system-table input are rejected.
+
+**Examples**:
+
+Assume that `status_bits` contains `0, 1, 3, 2, 0` in timestamp order:
+
+```sql
+-- Check the least significant bit and count 0 -> non-zero transitions
+taos> select bit_changes(status_bits) from device_status;
+
+-- Check the low four bits and count both directions
+taos> select bit_changes(status_bits, 15, 2) from device_status;
+
+-- Count alarm-bit clears independently for each subtable
+taos> select tbname, bit_changes(status_bits, 4, 1)
+      from meters partition by tbname;
+
+-- Count both directions independently in each 10-minute window
+taos> select _wstart, bit_changes(status_bits, 1, 2)
+      from device_status interval(10m);
+```
 
 ## Interpolation Functions
 

@@ -1,3 +1,18 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 option(TD_EXTERNALS_USE_ONLY "external dependencies use only, otherwise download-build-install" OFF)
 option(TD_ALIGN_EXTERNAL "keep externals' CMAKE_BUILD_TYPE align with the main project" ON)
 option(EXTERNALS_USE_CCACHE "Use ccache for ExternalProject builds (set OFF if ccache corrupts .o files)" ON)
@@ -316,6 +331,65 @@ macro(get_from_local_if_exists url)                       # {
   endif()
 endmacro()                                                # }
 
+# ---------------------------------------------------------------------------
+# Build external static libs with function/data sections so that taosd's
+# --gc-sections (already applied to engine code via platform.cmake) can also
+# dead-strip unused code *inside* these third-party libs at final link.
+# Best-effort seed: a sub-project that sets its own CMAKE_C_FLAGS simply
+# overrides this (no harm); ones that append keep both.
+#
+# Keep the flag list empty unless the final link actually runs --gc-sections,
+# i.e. Linux Release (see the "Linux Release binary size optimization" block
+# in platform.cmake).  Reason:
+#   * -ffunction-sections/-fdata-sections are GCC/Clang-only; handing them to
+#     an MSVC ExternalProject (Windows) makes configure fail outright.
+#   * Darwin has no --gc-sections, so the flags would only slow the build down.
+# ---------------------------------------------------------------------------
+set(TD_EXT_DEADSTRIP_CFLAGS "")
+if(TD_LINUX AND CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(TD_EXT_DEADSTRIP_CFLAGS "-ffunction-sections -fdata-sections")
+endif()
+
+# Same flags for the few sites that append them to an existing option string
+# ("CFLAGS=-fPIC ..."): the separator lives here so that an empty flag list cannot
+# leave a stray trailing space in the configure environment.
+set(TD_EXT_DEADSTRIP_SUFFIX "")
+if(TD_EXT_DEADSTRIP_CFLAGS)
+    set(TD_EXT_DEADSTRIP_SUFFIX " ${TD_EXT_DEADSTRIP_CFLAGS}")
+endif()
+
+# ---------------------------------------------------------------------------
+# CFLAGS/CXXFLAGS for autotools externals built via `configure`
+# (mxml/apr/aprutil/sasl2/gsasl).
+# Setting CFLAGS in the configure environment *replaces* the package's own
+# default optimization/debug flags entirely, so do not hardcode e.g. -g -O2
+# (would override the per-config flags: a Debug build must stay unoptimized)
+# and do not pass -fPIC alone (would silently drop optimization -- see the
+# ext_tz note below).  Mirror the main project's per-config flags instead,
+# the same approach ext_tz uses for its hand-written Makefile.
+if(TD_CONFIG_NAME_RESOLVED STREQUAL "Release")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_RELEASE}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_RELEASE}")
+elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "RelWithDebInfo")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "MinSizeRel")
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+else()
+    set(_td_ext_autotools_config_flags "${CMAKE_C_FLAGS_DEBUG}")
+    set(_td_ext_autotools_cxx_config_flags "${CMAKE_CXX_FLAGS_DEBUG}")
+endif()
+# Never leave these libs unoptimized, even if the config flags are emptied.
+if(_td_ext_autotools_config_flags STREQUAL "")
+    set(_td_ext_autotools_config_flags "-O2")
+endif()
+if(_td_ext_autotools_cxx_config_flags STREQUAL "")
+    set(_td_ext_autotools_cxx_config_flags "-O2")
+endif()
+string(JOIN " " _td_ext_autotools_cflags "-fPIC" "${_td_ext_autotools_config_flags}")
+string(JOIN " " _td_ext_autotools_cxxflags "-fPIC" "${_td_ext_autotools_cxx_config_flags}")
+
 # zlib
 if(TD_LINUX)
     set(ext_zlib_static libz.a)
@@ -337,6 +411,8 @@ ExternalProject_Add(ext_zlib
     URL ${_url}
     URL_HASH SHA256=17e88863f3600672ab49182f217281b6fc4d3c762bde361935e436a95214d05c
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}        # if main project is built in Debug, ext_zlib is too
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DINSTALL_BIN_DIR:PATH=${_ins}/bin
@@ -542,6 +618,7 @@ if(BUILD_TEST)           # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -Dgtest_force_shared_crt:BOOL=ON
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -568,15 +645,23 @@ if(BUILD_TEST)           # {
         INC_DIR          include
     )
     get_from_local_if_exists(
-        "https://github.com/coolxv/cpp-stub/archive/3137465194014d66a8402941e80d2bccc6346f51.tar.gz"
-        "cpp-stub-3137465.tar.gz"
+        "https://github.com/coolxv/cpp-stub/archive/e6bc1c3d5a6ae0c8903b6be65ac4e55509fef394.tar.gz"
+        "cpp-stub-e6bc1c3.tar.gz"
     )
+    set(_cppstub_patch_arg "")
+    if(TD_LINUX OR TD_DARWIN)
+        set(_cppstub_patch_arg
+            PATCH_COMMAND
+                COMMAND patch -p1 -i "${TD_SOURCE_DIR}/cmake/cppstub-x86-alias.patch"
+        )
+    endif()
     ExternalProject_Add(ext_cppstub
         URL ${_url}
         PREFIX "${_base}"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND ""
+        ${_cppstub_patch_arg}
         BUILD_COMMAND ""
         INSTALL_COMMAND ""
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${ext_cppstub_source}/src/stub.h ${_ins}/include/stub.h
@@ -586,6 +671,20 @@ if(BUILD_TEST)           # {
         VERBATIM
     )
     add_dependencies(build_externals ext_cppstub)     # this is for github workflow in cache-miss step.
+
+    if(TD_DARWIN)
+        set(ext_cppstub_macos_enable_tool "${ext_cppstub_source}/tool/macos_enable_stub.sh")
+        macro(DEP_ext_cppstub tgt)
+            cmake_language(CALL DEP_ext_cppstub_INC ${tgt})
+            cmake_language(CALL DEP_ext_cppstub_LIB ${tgt})
+            target_link_libraries(${tgt} PUBLIC stdc++)
+            add_custom_command(TARGET ${tgt} POST_BUILD
+                COMMAND "${ext_cppstub_macos_enable_tool}" "$<TARGET_FILE:${tgt}>"
+                COMMENT "cppstub: enabling runtime patching for ${tgt}"
+                VERBATIM
+            )
+        endmacro()
+    endif()
 endif()        # }
 
 # lz4
@@ -610,6 +709,8 @@ ExternalProject_Add(ext_lz4
     URL_HASH SHA256=537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b
     PREFIX "${_base}"
     SOURCE_SUBDIR build/cmake
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -644,6 +745,8 @@ ExternalProject_Add(ext_cjson
     URL ${_url}
     URL_HASH SHA256=1f0e45ff5c2dca61e88bbc47b2537b64fd8bceb02b4abbdcd85a6c7135e4bd75
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -688,6 +791,7 @@ ExternalProject_Add(ext_xz
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
     CMAKE_ARGS -DCREATE_LZMA_SYMLINKS:BOOL=OFF
     CMAKE_ARGS -DCREATE_XZ_SYMLINKS:BOOL=OFF
@@ -733,10 +837,21 @@ if(NOT TD_WINDOWS)        # {
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/xxhash.Makefile Makefile
         CONFIGURE_COMMAND ""
+        # xxhash.Makefile only adds -fPIC to the shared-lib rule, so libxxhash.a
+        # comes out non-PIC and cannot be linked into -pie executables. MOREFLAGS
+        # appends to CFLAGS and keeps the Makefile's own defaults (-O3 + its
+        # warning set); a bare `CFLAGS=-fPIC` would replace them entirely.
+        #
+        # BUILD_ALWAYS: a flag-only change leaves the externals CI cache step
+        # stamps valid, so the rebuild is skipped and the stale non-PIC archive
+        # keeps being linked.  make -B is needed alongside it: the flags are not
+        # in xxhash.o's prerequisite list, so plain `make` sees the cached
+        # object as up-to-date and re-archives it without recompiling.
         BUILD_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins}
+            COMMAND ${_EXT_ENV_PREFIX} make -B DESTDIR=${_ins} MOREFLAGS=-fPIC
         INSTALL_COMMAND
-            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins} install
+            COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${_ins} MOREFLAGS=-fPIC install
+        BUILD_ALWAYS TRUE
         EXCLUDE_FROM_ALL TRUE
         VERBATIM
     )
@@ -817,6 +932,8 @@ if(BUILD_WITH_UV)        # {
         URL ${_url}
         URL_HASH SHA256=388ffcf3370d4cf7c4b3a3205504eea06c4be5f9e80d2ab32d19f8235accc1cf
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -842,6 +959,28 @@ if(NOT TD_WINDOWS)       # {
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
     endif()
+    # NOTE: tzcode(libtz.a) is built by tz's own hand-written Makefile via
+    #       `make "CFLAGS=${_c_flags}"`, NOT by CMake. So CMAKE_BUILD_TYPE never
+    #       reaches it, and the command-line CFLAGS overrides the Makefile
+    #       default -- without an explicit -O it compiles at -O0, which makes
+    #       mktime() about 2.2x slower than an optimized build.
+    #       Mirror the main project's per-config flags so libtz.a matches the
+    #       outer CMAKE_BUILD_TYPE (Release -> -O3 -DNDEBUG, Debug -> -g, ...)
+    if(TD_CONFIG_NAME_RESOLVED STREQUAL "Release")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_RELEASE}")
+    elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "RelWithDebInfo")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    elseif(TD_CONFIG_NAME_RESOLVED STREQUAL "MinSizeRel")
+        set(_tz_config_flags "${CMAKE_C_FLAGS_MINSIZEREL}")
+    else()
+        set(_tz_config_flags "${CMAKE_C_FLAGS_DEBUG}")
+    endif()
+    # Never leave libtz.a unoptimized, even if the config flags are emptied.
+    if(_tz_config_flags STREQUAL "")
+        set(_tz_config_flags "-O2")
+    endif()
+    separate_arguments(_tz_config_flags_list UNIX_COMMAND "${_tz_config_flags}")
+    list(APPEND _c_flags_list ${_tz_config_flags_list})
     INIT_EXT(ext_tz
         INC_DIR          include
         LIB              usr/lib/${ext_tz_static}
@@ -1012,6 +1151,15 @@ if(NOT TD_WINDOWS)       # {
     # _EXT_CCACHE_EXPORT conditionally sets CCACHE_DISABLE=1.
     # MAKEFLAGS is unset to prevent the parent cmake make's flags (e.g. -s -j1)
     # from leaking into OpenSSL's own make invocation.
+    #
+    # The section flags below are passed as bare trailing arguments, which
+    # Configure collects into %useradd{CFLAGS}/%useradd{CXXFLAGS} and appends
+    # to the target flags -- the documented "./Configure [options] [flags...]"
+    # form (Configure: "push @{$useradd{CFLAGS}}, $_" for any arg that is not a
+    # known option).  Do NOT additionally set CFLAGS=/CXXFLAGS= here: Configure
+    # aborts with "Mixing make variables and additional compiler/linker flags
+    # as configure command line option is not permitted", and it ignores the
+    # environment entirely once %useradd is non-empty.
     ExternalProject_Add(ext_ssl
         URL ${_url}
         URL_HASH SHA256=f0316a2ebd89e7f2352976445458689f80302093788c466692fb2a188b2eacf6
@@ -1021,6 +1169,7 @@ if(NOT TD_WINDOWS)       # {
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
             COMMAND ./Configure --prefix=${_ins} no-shared --libdir=lib
+                    ${TD_EXT_DEADSTRIP_CFLAGS}
         BUILD_COMMAND
             COMMAND sh -c "unset MAKEFLAGS && ${_EXT_CCACHE_EXPORT}make -j4"
         INSTALL_COMMAND
@@ -1034,7 +1183,7 @@ endif()    # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_curl_static libcurl.a)
-        set(_c_flags_list -fPIC -Wno-implicit-function-declaration)
+        set(_c_flags_list -fPIC -Wno-implicit-function-declaration ${TD_EXT_DEADSTRIP_CFLAGS})
     elseif(TD_DARWIN)
         set(ext_curl_static libcurl.a)
         set(_c_flags_list -Wno-implicit-function-declaration)
@@ -1083,6 +1232,10 @@ if(${TD_WINDOWS})
         VERBATIM
     )
 else()
+    find_program(_EXT_CURL_PATCH_EXECUTABLE NAMES patch)
+    if(NOT _EXT_CURL_PATCH_EXECUTABLE)
+        message(FATAL_ERROR "The patch utility is required to build ext_curl")
+    endif()
     string(JOIN " " _c_flags ${_c_flags_list})
     set(_ext_curl_configure_env
         "CFLAGS=${_c_flags}"
@@ -1119,6 +1272,8 @@ else()
         DEPENDS ext_ssl
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
+        PATCH_COMMAND
+            COMMAND sh -c "grep -q sendbuf_payload lib/ws.h && grep -q 'buffer + ws->sendbuf_payload' lib/ws.c || '${_EXT_CURL_PATCH_EXECUTABLE}' -p1 -i '${TD_SOURCE_DIR}/cmake/curl-8.11.1-websocket-send.patch'"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
@@ -1128,7 +1283,10 @@ else()
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
-                    --without-librtmp #--enable-debug
+                    --without-librtmp --without-libgsasl #--enable-debug
+                    # --without-libgsasl: prevent curl's configure from auto-detecting a
+                    # system libgsasl-dev and baking an undeclared dependency into
+                    # libcurl.a (would break final link with undefined gsasl_* refs).
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make -j4
         INSTALL_COMMAND
@@ -1165,6 +1323,8 @@ if(BUILD_GEOS)           # {
         URL ${_url}
         URL_HASH SHA256=0b4fca58fc09677e6230bc8aef527fd2d7cdf9ff55b4ef3af75a775cb8d76e89
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1299,6 +1459,8 @@ if(BUILD_PCRE2)          # {
         URL ${_url}
         URL_HASH SHA256=409c443549b13b216da40049850a32f3e6c57d4224ab11553ab5a786878a158e
         PREFIX "${_base}"
+        CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+        CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1348,6 +1510,8 @@ if(TD_ROCKSDB_USE_EXTERNAL)         # {
             URL_HASH MD5=3b4c97ee45df9c8a5517308d31ab008b
             # GIT_SHALLOW TRUE
             PREFIX "${_base}"
+            CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+            CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
             CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
             CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
             CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1550,6 +1714,7 @@ if(TD_TAOS_TOOLS)
         CMAKE_ARGS -DJANSSON_INCLUDE_DIRS:STRING=${ext_jansson_install}/include
         CMAKE_ARGS -DJANSSON_LIBRARY_DIRS:STRING=${ext_jansson_install}/lib/${ext_jansson_static}
         CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${_c_flags}"
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.CMakeLists.txt.in            ${ext_avro_source}/lang/c/CMakeLists.txt
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different ${TD_SUPPORT_DIR}/in/avro.lang.c.src.avro.msinttypes.h.in     ${ext_avro_source}/lang/c/src/avro/msinttypes.h
@@ -1625,6 +1790,8 @@ ExternalProject_Add(ext_libxml2
     URL_HASH SHA256=5ef0c82e17b26c90ecd06f0feaeb60892bf1f9a8beef89dce20f3425bec337de
     PREFIX "${_base}"
     DEPENDS ${_libxml2_depends}
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
@@ -1678,6 +1845,8 @@ ExternalProject_Add(ext_libs3
     ${_libs3_ts_args}
     DEPENDS ${_libs3_depends}
     PREFIX "${_base}"
+    CMAKE_ARGS "-DCMAKE_C_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
+    CMAKE_ARGS "-DCMAKE_CXX_FLAGS:STRING=${TD_EXT_DEADSTRIP_CFLAGS}"
     CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
     CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
     CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1691,6 +1860,7 @@ ExternalProject_Add(ext_libs3
     CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
     CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
     CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+    CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
     BUILD_COMMAND
         COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
     INSTALL_COMMAND
@@ -1736,6 +1906,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DLIBXML2_LIBS:STRING=${ext_libxml2_libs}
         CMAKE_ARGS -DZLIB_INCLUDE:STRING=${ext_zlib_inc_dir}
         CMAKE_ARGS -DZLIB_LIBS:STRING=${ext_zlib_libs}
+        CMAKE_ARGS -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         PATCH_COMMAND
             COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${TD_SUPPORT_DIR}/in/azure.CMakeLists.txt.in" "${ext_azure_source}/CMakeLists.txt"
         BUILD_COMMAND
@@ -1801,9 +1972,10 @@ if(NOT TD_WINDOWS)        # {
           ${ext_mxml_source}/CHANGES.md
         WORKING_DIRECTORY ${ext_mxml_source}
         COMMAND pwd
-        COMMAND ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
+        COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${ext_mxml_source}/install --enable-shared=no
         COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${ext_mxml_source}/install
         COMMAND ${_EXT_ENV_PREFIX} make DESTDIR=${ext_mxml_source}/install install
+        VERBATIM
     )
 
     add_custom_target(ext_mxml_post
@@ -1813,6 +1985,7 @@ if(NOT TD_WINDOWS)        # {
         COMMAND "${CMAKE_COMMAND}" -E echo ${ext_mxml_source}/install/lib/${ext_mxml_static}
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/include/mxml.h ${_ins}/include/mxml.h
         COMMAND "${CMAKE_COMMAND}" -E copy_if_different ./install/lib/${ext_mxml_static} ${_ins}/lib/${ext_mxml_static}
+        VERBATIM
     )
     add_dependencies(build_externals ext_mxml_post)     # this is for github workflow in cache-miss step.
 
@@ -1845,7 +2018,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DAPR_BUILD_SHARED:BOOL=OFF
         PATCH_COMMAND ""
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no
+            COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${_ins} --enable-shared=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make            # NOTE: do NOT specify DESTDIR=
         INSTALL_COMMAND
@@ -1886,7 +2059,7 @@ if(NOT TD_WINDOWS)        # {
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         PATCH_COMMAND ""
         CONFIGURE_COMMAND
-            COMMAND ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
+            COMMAND "${CMAKE_COMMAND}" -E env "CFLAGS=${_td_ext_autotools_cflags}" ./configure --prefix=${_ins} --enable-shared=no --with-apr=${ext_apr_install}
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make            # NOTE: do NOT specify DESTDIR=
         INSTALL_COMMAND
@@ -1967,8 +2140,8 @@ if(${BUILD_LIBSASL})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                CFLAGS=-Wno-missing-braces
-                CXXFLAGS=-Wno-missing-braces
+                "CFLAGS=${_td_ext_autotools_cflags} -Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
+                "CXXFLAGS=${_td_ext_autotools_cxxflags} -Wno-missing-braces${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure -prefix=${_ins} --with-pic --enable-static=yes --without-openssl --enable-shared=no --enable-plain --enable-anon --enable-scram=no --enable-login=no --enable-digest=no --with-saslauthd=no --with-authdaemond=no
         BUILD_COMMAND
             COMMAND ${_EXT_ENV_PREFIX} make
@@ -2020,7 +2193,7 @@ if(${BUILD_LIBGSASL} AND ${TD_LINUX})      # {
             COMMAND "${CMAKE_COMMAND}" -E env
                 CC=gcc
                 CC_FOR_BUILD=gcc
-                CFLAGS=-fPIC
+                "CFLAGS=${_td_ext_autotools_cflags}${TD_EXT_DEADSTRIP_SUFFIX}"
                 ./configure --prefix=${_ins} --with-pic --enable-static=yes --enable-shared=no
                     --disable-nls --enable-scram-sha256
                     --without-stringprep
@@ -2364,6 +2537,157 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             add_dependencies(build_externals ext_libpq)
         endif()  # NOT PostgreSQL_FOUND
     endif()  # BUILD_WITH_LIBPQ
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # unixODBC 2.3.12  (SQL Server external source, covers the ODBC driver
+    # manager; the Microsoft driver itself ships with the dependency package).
+    # Build-time use is header-only, matching the libpq / MariaDB pattern: the
+    # provider resolves the ODBC entry points at runtime.
+    # ──────────────────────────────────────────────────────────────────────────
+    if(${BUILD_WITH_ODBC})
+        find_package(ODBC QUIET)
+        if(ODBC_FOUND)
+            message(STATUS "[ext_odbc] Using system unixODBC — skipping ExternalProject build")
+            # Record the driver-manager path for extconnector runtime staging.
+            if(DEFINED ODBC_LIBRARIES AND ODBC_LIBRARIES)
+                set(EXT_ODBC_SO_SRCPATH "${ODBC_LIBRARIES}" CACHE INTERNAL "")
+            endif()
+            macro(DEP_ext_odbc tgt)
+                target_include_directories(${tgt} PRIVATE ${ODBC_INCLUDE_DIRS})
+                add_definitions(-D_ext_odbc)
+            endmacro()
+        else()
+            INIT_EXT(ext_odbc
+                INC_DIR  include
+                LIB      lib/libodbc.so
+            )
+            macro(DEP_ext_odbc tgt)
+                target_include_directories(${tgt} PRIVATE ${ext_odbc_inc_dir})
+                add_definitions(-D_ext_odbc)
+                if(NOT TD_EXTERNALS_USE_ONLY)
+                    add_dependencies(${tgt} ext_odbc)
+                endif()
+            endmacro()
+            get_from_local_if_exists(
+                "https://www.unixodbc.org/unixODBC-2.3.12.tar.gz"
+                "unixODBC-2.3.12.tar.gz"
+            )
+            ExternalProject_Add(ext_odbc
+                URL ${_url}
+                URL_HASH SHA256=f210501445ce21bf607ba51ef8c125e10e22dffdffec377646462df5f01915ec
+                PREFIX "${_base}"
+                BUILD_IN_SOURCE TRUE
+                CONFIGURE_COMMAND
+                    COMMAND "${CMAKE_COMMAND}" -E env
+                        "CFLAGS=${_td_ext_autotools_cflags}${TD_EXT_DEADSTRIP_SUFFIX}"
+                        ./configure --prefix=${_ins} --with-pic
+                            --enable-shared --disable-static
+                            --with-iconv=no
+                BUILD_COMMAND
+                    # Build only the driver-manager chain, in unixODBC's own
+                    # SUBDIRS dependency order (libodbcinst needs log/lst/ini).
+                    # exe/ (isql) and Drivers/ are not needed and pull extra
+                    # host dependencies such as readline.
+                    COMMAND ${_EXT_ENV_PREFIX} make -C extras
+                    COMMAND ${_EXT_ENV_PREFIX} make -C log
+                    COMMAND ${_EXT_ENV_PREFIX} make -C lst
+                    COMMAND ${_EXT_ENV_PREFIX} make -C ini
+                    # libltdl is not referenced by DriverManager/Makefile.am;
+                    # skipping it also avoids its autotools-regeneration rule.
+                    COMMAND ${_EXT_ENV_PREFIX} make -C odbcinst
+                    COMMAND ${_EXT_ENV_PREFIX} make -C DriverManager
+                INSTALL_COMMAND
+                    COMMAND ${_EXT_ENV_PREFIX} make -C include install
+                    # sqltypes.h includes the configure-generated unixodbc.h
+                    # (and unixodbc_conf.h); make install does not ship them.
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        <SOURCE_DIR>/unixodbc.h <SOURCE_DIR>/unixodbc_conf.h
+                        ${_ins}/include
+                    COMMAND ${_EXT_ENV_PREFIX} make -C DriverManager install
+                    COMMAND ${_EXT_ENV_PREFIX} make -C odbcinst install
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_odbc)
+        endif()  # NOT ODBC_FOUND
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Microsoft ODBC Driver 18 for SQL Server — prebuilt artifact.
+        # The driver is a Microsoft binary (no source build).  Resolution order:
+        #   1. EXT_MSODBC_SO_SRCPATH      — explicit driver .so path (or its dir)
+        #   2. standard system installs   — /opt/microsoft/msodbcsql18/...
+        #   3. the mirrored artifact      — unpacked when INSTALL_FQ_RUNTIME_LIBS
+        #      is ON (dependency-package / test builds) and LOCAL_URL is set.
+        # The tarball carries the official package contents (lib64/, include/,
+        # share/resources/, doc/) repackaged from msodbcsql18_18.7.1.1-1.
+        # ──────────────────────────────────────────────────────────────────────
+        set(_msodbc_artifact "")
+        set(_msodbc_artifact_hash "")
+        set(_msodbc_deb_arch "")
+        if(NOT ${TD_DARWIN} AND NOT ${TD_WINDOWS})
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-amd64.tar.gz")
+                set(_msodbc_artifact_hash "60a45737ed2a9d619e9966f95246d1fc5bed4bc8e91405ad3a2f040b1948d132")
+                set(_msodbc_deb_arch "amd64")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-arm64.tar.gz")
+                set(_msodbc_artifact_hash "e23fe31dbf1e73d80d547f7f07d7b7d1739dab8a5eeaf6db9885b4893a47269c")
+                set(_msodbc_deb_arch "arm64")
+            endif()
+        endif()
+
+        set(_msodbc_prebuilt "")
+        if(DEFINED EXT_MSODBC_SO_SRCPATH AND NOT "${EXT_MSODBC_SO_SRCPATH}" STREQUAL "")
+            set(_msodbc_prebuilt "${EXT_MSODBC_SO_SRCPATH}")
+        else()
+            foreach(_msodbc_dir
+                    "/opt/microsoft/msodbcsql18/lib64" "/opt/microsoft/msodbcsql18/lib"
+                    "/opt/microsoft/msodbcsql/lib64"   "/opt/microsoft/msodbcsql/lib")
+                file(GLOB _msodbc_found "${_msodbc_dir}/libmsodbcsql-18.*")
+                if(_msodbc_found)
+                    list(GET _msodbc_found 0 _msodbc_prebuilt)
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        if(_msodbc_prebuilt)
+            message(STATUS "[ext_msodbc] Using prebuilt Microsoft ODBC Driver: ${_msodbc_prebuilt}")
+            set(EXT_MSODBC_SO_SRCPATH "${_msodbc_prebuilt}" CACHE INTERNAL "")
+        elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_msodbc] No Microsoft ODBC Driver found (set EXT_MSODBC_SO_SRCPATH to the "
+                "driver .so or its directory); the driver is staged only with INSTALL_FQ_RUNTIME_LIBS=ON")
+        elseif("z${LOCAL_URL}" STREQUAL "z" OR "z${_msodbc_artifact}" STREQUAL "z")
+            message(STATUS
+                "[ext_msodbc] Microsoft ODBC Driver artifact unavailable for this platform/mirror "
+                "(LOCAL_URL=${LOCAL_URL}); the packaged driver will be missing")
+        else()
+            INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
+            get_from_local_if_exists(
+                "https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/msodbcsql18_18.7.1.1-1_${_msodbc_deb_arch}.deb"
+                "${_msodbc_artifact}"
+            )
+            ExternalProject_Add(ext_msodbc
+                URL ${_url}
+                URL_HASH SHA256=${_msodbc_artifact_hash}
+                PREFIX "${_base}"
+                CONFIGURE_COMMAND ""
+                BUILD_COMMAND ""
+                INSTALL_COMMAND
+                    COMMAND ${CMAKE_COMMAND} -E make_directory
+                        "${_ins}/lib" "${_ins}/include" "${_ins}/share"
+                        "${_ins}/share/doc/msodbcsql18"
+                    COMMAND cp -a "<SOURCE_DIR>/lib64/." "${_ins}/lib/"
+                    COMMAND cp -a "<SOURCE_DIR>/include/." "${_ins}/include/"
+                    COMMAND cp -a "<SOURCE_DIR>/share/." "${_ins}/share/"
+                    COMMAND cp -a "<SOURCE_DIR>/doc/." "${_ins}/share/doc/msodbcsql18/"
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_msodbc)
+        endif()  # Microsoft ODBC Driver resolution
+    endif()  # BUILD_WITH_ODBC
 
 endif()   # } TD_ENTERPRISE ext connector client libraries
 

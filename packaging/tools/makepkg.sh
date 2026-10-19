@@ -1,6 +1,19 @@
 #!/bin/bash
+
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-# Generate tar.gz package for all os system
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 set -e
 # set -x
@@ -29,7 +42,6 @@ productName="TDengine"
 serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
-tarName="package.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
@@ -272,15 +284,6 @@ if [ "$verMode" == "cloud" ]; then
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
-cd ${release_dir}
-rm -f "${tarName}"
-if ! tar -zcv -f "${tarName}" -C "${install_dir}" --exclude="./${tarName}" .; then
-  echo "tar ${tarName} error !!!"
-  exit 1
-fi
-find "${install_dir}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-mv -f "${tarName}" "${install_dir}/${tarName}"
-
 cd ${curr_dir}
 cp ${install_files} ${install_dir}
 cp ${install_dir}/install.sh install_temp.sh
@@ -443,9 +446,9 @@ if [ "$pagMode" == "lite" ]; then
 fi
 
 
-final_pkg_name="$(basename "${pkg_name}").tar.gz"
+final_pkg_name="$(basename "${pkg_name}").tar.xz"
 rm -f "${final_pkg_name}"
-if ! tar -zcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
+if ! tar -Jcv -f "${final_pkg_name}" "$(basename "${install_dir}")"; then
   echo "tar ${final_pkg_name} error !!!"
   exit 1
 fi

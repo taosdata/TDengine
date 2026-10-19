@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -205,7 +207,7 @@ int64_t tmq_position(tmq_t* tmq, const char* pTopicName, int32_t vgId) {
       return code;
     }
   } else {
-    tqErrorC("consumer:0x%" PRIx64 " offset type:%d can not be reach here", tmq->consumerId, type);
+    tqErrorC("consumer:0x%" PRIx64 " offset type:%d cannot be reached here", tmq->consumerId, type);
     return TSDB_CODE_INTERNAL_ERROR;
   }
 
@@ -300,6 +302,10 @@ static int32_t tmqGetWalInfoCb(void* param, SDataBuf* pMsg, int32_t code) {
     tqErrorC("consumer:0x%" PRIx64 " failed to get the wal info from vgId:%d for topic:%s", pCommon->consumerId,
              pParam->vgId, pCommon->pTopicName);
 
+  } else if (pMsg->pData == NULL || pMsg->len < sizeof(SMqRspHead)) {
+    code = TSDB_CODE_TMQ_INVALID_MSG;
+    tqErrorC("consumer:0x%" PRIx64 " received short wal info response, len:%u", pCommon->consumerId,
+             pMsg->len);
   } else {
     SMqDataRsp rsp = {0};
     SDecoder   decoder = {0};

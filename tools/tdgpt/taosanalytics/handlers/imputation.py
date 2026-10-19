@@ -1,3 +1,18 @@
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 """imputation handlers: encapsulates imputation business logic"""
 
 from taosanalytics.algo.imputation import (
@@ -6,7 +21,7 @@ from taosanalytics.algo.imputation import (
     do_set_imputation_params,
 )
 from taosanalytics.log import AppLogger
-from taosanalytics.util import do_check_before_exec, parse_options
+from taosanalytics.util import do_check_before_exec, get_algo, parse_options
 
 
 def handle_imputation(request):
@@ -30,9 +45,8 @@ def handle_imputation(request):
         AppLogger.error("invalid imputation params: %s", e)
         return {"msg": f"{e}", "rows": -1}
 
-    algo = req_json["algo"].lower() if "algo" in req_json else "moment"
-
     try:
+        algo = get_algo(req_json, "moment")
         freq = req_json["freq"] if "freq" in req_json else "1ms"
         prec = req_json["prec"] if "prec" in req_json else "ms"
         check_freq_param(payload[ts_index], freq, prec)

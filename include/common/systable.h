@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -68,12 +70,14 @@ extern "C" {
 #define TSDB_INS_TABLE_COMPACTS            "ins_compacts"
 #define TSDB_INS_TABLE_COMPACT_DETAILS     "ins_compact_details"
 #define TSDB_INS_TABLE_SSMIGRATES          "ins_ssmigrates"
+#define TSDB_INS_TABLE_BACKUPS             "ins_backups"
 #define TSDB_INS_TABLE_GRANTS_FULL         "ins_grants_full"
 #define TSDB_INS_TABLE_GRANTS_LOGS         "ins_grants_logs"
 #define TSDB_INS_TABLE_MACHINES            "ins_machines"
 #define TSDB_INS_TABLE_ENCRYPTIONS         "ins_encryptions"
 #define TSDB_INS_TABLE_TSMAS               "ins_tsmas"
 #define TSDB_INS_DISK_USAGE                "ins_disk_usage"
+#define TSDB_INS_TABLE_LAST_CACHE_STATS    "ins_last_cache_stats"
 #define TSDB_INS_TABLE_FILESETS            "ins_filesets"
 #define TSDB_INS_TABLE_TRANSACTION_DETAILS "ins_transaction_details"
 #define TSDB_INS_TABLE_SNAP_SEND_VNODES     "ins_snap_send_vnodes"

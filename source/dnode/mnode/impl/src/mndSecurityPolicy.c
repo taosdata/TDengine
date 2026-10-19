@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -52,7 +54,7 @@ int32_t mndInitSecurityPolicy(SMnode *pMnode) {
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SECURITY_POLICIES, mndRetrieveSecurityPolicies);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_SECURITY_POLICIES, mndCancelGetNextSecurityPolicy);
 
-  // Initialize MAC state cache — starts disabled, updated on successful activation
+  // Initialize MAC state cache  -  starts disabled, updated on successful activation
   pMnode->macActive = MAC_MODE_DISABLED;
 
   return sdbSetTable(pMnode->pSdb, table);
@@ -157,7 +159,7 @@ static int32_t mndSecPolicyActionUpdate(SSdb *pSdb, SSecurityPolicyObj *pOld, SS
   pOld->status = pNew->status;
   tstrncpy(pOld->activator, pNew->activator, sizeof(pOld->activator));
   (void)memcpy(pOld->reserve, pNew->reserve, sizeof(pOld->reserve));
-  // Sync MAC state cache: fires when Raft commit-log is applied — the true success point
+  // Sync MAC state cache: fires when Raft commit-log is applied  -  the true success point
   if (pOld->type == TSDB_SECURITY_POLICY_MAC) {
     pSdb->pMnode->macActive = pOld->status;
   }
@@ -198,7 +200,7 @@ static int32_t mndAppendPolicyToTrans(STrans *pTrans, int32_t policyType) {
 static int32_t mndCreateDefaultSecurityPolicy(SMnode *pMnode) {
   // Idempotent: SOD and MAC are created together in one transaction, so either
   // both exist or neither does. Use SOD as the anchor: if it already exists,
-  // the default policies are present — skip (matches mnode/cluster deploy).
+  // the default policies are present  -  skip (matches mnode/cluster deploy).
   SSecurityPolicyObj *pExist = mndAcquireSecPolicy(pMnode, TSDB_SECURITY_POLICY_SOD);
   if (pExist != NULL) {
     sdbRelease(pMnode->pSdb, pExist);
@@ -206,7 +208,7 @@ static int32_t mndCreateDefaultSecurityPolicy(SMnode *pMnode) {
   }
 
   // One transaction creates both SOD and MAC rows.
-  // key = int32 policyType, no dependency on clusterId → deploy order safe.
+  // key = int32 policyType, no dependency on clusterId  ->  deploy order safe.
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-security-policy");
   if (pTrans == NULL) return terrno;
 
@@ -316,7 +318,7 @@ static int32_t mndRetrieveSecurityPolicies(SRpcMsg *pMsg, SShowObj *pShow, SSDat
       COL_DATA_SET_VAL_GOTO(buf, false, pObj, pShow->pIter, _OVER);
 
     } else {
-      // Unknown policy type — skip row silently
+      // Unknown policy type  -  skip row silently
       sdbRelease(pSdb, pObj);
       continue;
     }

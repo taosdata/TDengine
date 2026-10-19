@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -19,6 +21,7 @@
 #include "tsdbFSet2.h"
 #include "vnd.h"
 #include "tsdbInt.h"
+#include "tlogKeyOp.h"
 
 extern int32_t tsdbAsyncCompact(STsdb *tsdb, const STimeWindow *tw, ETsdbOpType type, bool force);
 
@@ -360,6 +363,8 @@ static bool tsdbShouldRollup(STsdb *tsdb, SRTNer *rtner, SRtnArg *rtnArg) {
 int32_t tsdbRetention(void *arg) {
   int32_t code = 0;
   int32_t lino = 0;
+  int64_t startTs = taosGetTimestampMs();
+  bool    keyOpStarted = false;  // whether the "tier-migrate" START KEYOP log below was actually printed
 
   SRtnArg   *rtnArg = (SRtnArg *)arg;
   STsdb     *pTsdb = rtnArg->tsdb;
@@ -405,6 +410,9 @@ int32_t tsdbRetention(void *arg) {
       TAOS_CHECK_GOTO(tsdbDoRollup(&rtner), &lino, _exit);
 #endif
     } else if (rtnArg->optrType == TSDB_OPTR_NORMAL) {
+      keyOpStarted = true;
+      tsdbInfo(KEYOP("tier-migrate", "START") "vgId:%d, fid:%d, start tier migration/retention check",
+               TD_VID(pVnode), rtnArg->fid);
       TAOS_CHECK_GOTO(tsdbDoRetention(&rtner), &lino, _exit);
     } else {
       goto _exit;
@@ -418,6 +426,16 @@ _exit:
     (void)taosThreadMutexLock(&pTsdb->mutex);
     tsdbFinishTaskOnFileSet(pTsdb, rtnArg->fid, EVA_TASK_RETENTION);
     (void)taosThreadMutexUnlock(&pTsdb->mutex);
+  }
+
+  if (keyOpStarted) {
+    if (code) {
+      tsdbInfo(KEYOP("tier-migrate", "FAIL") "vgId:%d, fid:%d, elapsed:%" PRId64 "ms, since:%s", TD_VID(pVnode),
+               rtnArg->fid, taosGetTimestampMs() - startTs, tstrerror(code));
+    } else {
+      tsdbInfo(KEYOP("tier-migrate", "END") "vgId:%d, fid:%d, elapsed:%" PRId64 "ms", TD_VID(pVnode), rtnArg->fid,
+               taosGetTimestampMs() - startTs);
+    }
   }
 
   // clear resources

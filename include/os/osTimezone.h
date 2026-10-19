@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -40,10 +42,10 @@ time_t     mktime_z(timezone_t, struct tm *);
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
 void       getTimezoneStr(char *tz);
-void       truncateTimezoneString(char *tz);
 
 #endif
 
+void    truncateTimezoneString(char *tz);
 int32_t taosGetLocalTimezoneOffset(int32_t *code);
 /*
  * Return the timezone's current/default UTC offset in seconds.

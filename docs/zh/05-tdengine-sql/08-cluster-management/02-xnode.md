@@ -7,6 +7,8 @@ toc_max_heading_level: 3
 
 Xnode 是 TDengine 数据接入服务的分布式执行节点，负责运行数据同步任务，将外部数据源的数据实时或批量写入 TDengine。本文介绍管理数据接入功能的 SQL 命令，包括 Xnode 节点、数据接入任务、Job 分片以及 Agent。
 
+任务自动恢复由守护进程 `xnoded` 控制，可通过命令行参数 `--auto-resume` 或环境变量 `XNODED_AUTO_RESUME` 配置，默认开启。
+
 ## Xnode 节点管理
 
 Xnode 节点是数据同步服务的基本执行单元，负责具体的数据传输工作。
@@ -26,6 +28,8 @@ CREATE XNODE 'url' TOKEN 'token'
 - **url**：Xnode 节点地址，格式为 `host:port`；端口为 taosX gRPC 端口（默认 `6055`）
 - **name** / **password**：首次创建建议指定 `TOKEN`，或用户名与密码，供守护进程 `xnoded` 连接 `taosd`。未指定时将创建默认 token
 - **token**：用于连接 `taosd` 的认证凭据
+
+正常连接状态下，一个 taosX 实例只接受同一 TDengine 集群的 xnoded 控制连接。若该实例已被其他集群纳管，`CREATE XNODE` 会返回归属冲突错误；误注册不会中断原集群的控制连接。如需将 taosX 迁移到新集群，请先在原集群执行 `DROP XNODE`，再在新集群执行 `CREATE XNODE`。当前 xnoded 身份使用编译期静态 JWT 密钥，`cluster_id` 由客户端声明，因此该机制仅防误操作，不提供抵抗伪造身份或恶意抢占的安全保证。
 
 **示例**
 
@@ -53,6 +57,24 @@ ALTER XNODE SET TOKEN 'token'
 ```sql
 ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
 ALTER XNODE SET USER root PASS 'taosdata';
+```
+
+### 重启守护进程
+
+重启当前 mnode leader 所在 dnode 上的守护进程 `xnoded`。该命令不会重启远端 `taosx` 数据面进程。
+
+该操作需要 `NODE ALTER` 权限，会短暂中断 `xnoded` 守护进程，请勿在短时间内高频执行。
+
+**语法**
+
+```sql
+RESTART XNODE
+```
+
+**示例**
+
+```sql
+RESTART XNODE;
 ```
 
 ### 查看节点
@@ -118,6 +140,8 @@ DROP XNODE FORCE {id | 'url'}
 DROP XNODE 1;
 DROP XNODE 'localhost:6055';
 ```
+
+如需将 taosX 实例注册到其他 TDengine 集群，必须先通过原集群执行 `DROP XNODE` 解除归属。
 
 ## 任务管理
 

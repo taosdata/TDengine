@@ -1,6 +1,8 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
+ * SPDX-License-Identifier: AGPL-3.0-or-later
+ *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -39,11 +41,17 @@ typedef struct SPlanStreamContext {
   bool        hasNotify;
   bool        hasExtWindow;
   bool        disableExtWindow;
+  // Borrowed parser AST inputs; valid only until qCreateQueryPlan() returns.
+  SNode*      pTriggerTable;
+  SNodeList*  pTriggerPartitionList;
+  bool        enableMultiGroupCalc;
   SArray*     calcScanPlanArray;
   SNode*      triggerScanSubplan;
   ENodeType   triggerWinType;
   SNodeList*  triggerScanList;
 } SPlanStreamContext;
+
+typedef struct SJoinPropsStore SJoinPropsStore;
 
 typedef struct SPlanContext {
   uint64_t    queryId;
@@ -54,9 +62,11 @@ typedef struct SPlanContext {
   bool        topicQuery;
   bool        rSmaQuery;
   bool        showRewrite;
+  int8_t      xnodeDsnOutputMode;
   bool        isView;
   bool        isAudit;
   bool        hasScan;
+  bool        splitScan;
   bool        forceNoMergeDataBlock;
   int32_t     sysScanFlag;
   char*       pMsg;
@@ -81,10 +91,20 @@ typedef struct SPlanContext {
   };
   int64_t            allocatorId;
   int64_t            userId;
+  SExtSourceCapability* pExtCapability;
+  SExtCapSessionOverlay* pExtSessionOverlay;
+  int32_t*              pExtPushdownAttempt;
+  SJoinPropsStore*      pJoinPropsStore;
+  void*              pSubqueryState;  // shared planner-only subquery registry for one qCreateQueryPlan run
+  int32_t            subqueryIndex;   // -1 for root query, otherwise original global subQIdx
   void*              timezone;
-  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA name for serialization */
+  char               timezoneName[TD_TIMEZONE_LEN]; /* IANA/POSIX name of client timezone for serialization and federated scan */
   bool               timezoneExplicit;              /* set by SET TIMEZONE / connection option */
   int8_t             firstDayOfWeek;  /* resolved: 0-6 */
+  // Connection charset context (SConvInfo*) bound to this query; borrowed, not
+  // owned. Threaded to the system-table physical scan so NCHAR/JSON tag values
+  // render in the client charset instead of the server default tsCharsetCxt.
+  void*              charsetCxt;
   SPlanStreamContext streamCxt;
 } SPlanContext;
 
@@ -97,6 +117,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 int32_t qContinuePlanPostQuery(void *pPostPlan);
+
+/** Annotate Runner input reuse before child references are rewritten; Readers are borrowed and read-only. */
+int32_t qSetStreamBroadcastReuse(SSubplan* pRunner, const SNodeList* pReaderSubplans);
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan);
 

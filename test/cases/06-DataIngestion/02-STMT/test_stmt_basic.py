@@ -1,13 +1,17 @@
-###################################################################
-#           Copyright (c) 2016 by TAOS Technologies, Inc.
-#                     All rights reserved.
+# Copyright (c) 2016 TAOS Data, Inc. <jhtao@taosdata.com>
 #
-#  This file is proprietary and confidential to TAOS Technologies.
-#  No part of this file may be reproduced, stored, transmitted,
-#  disclosed or used in any form or by any means other than as
-#  expressly provided by the written permission from Jianhui Tao
+# SPDX-License-Identifier: AGPL-3.0-or-later
 #
-###################################################################
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
 
@@ -148,9 +152,9 @@ class TestStmtBasic:
             rows1=result1.fetch_all()
             print(rows1)
             if asc == True:
-                assert str(rows1[0][0]) == "2021-07-21 17:56:32.589000"
+                assert rows1[0][0].strftime("%Y-%m-%d %H:%M:%S.%f") == "2021-07-21 17:56:32.589000"
             else:
-                assert str(rows1[0][0]) == "2021-07-21 17:56:32.592000"
+                assert rows1[0][0].strftime("%Y-%m-%d %H:%M:%S.%f") == "2021-07-21 17:56:32.592000"
             assert rows1[0][10] == 3
             tdLog.debug("close start")
 
@@ -251,7 +255,7 @@ class TestStmtBasic:
             queryparam[0].int(10)
             rows=self.stmtExe(conn,"select * from log where bu < ?",queryparam)
             tdLog.debug("assert 1st case %s"%rows)
-            assert str(rows[0][0]) == "2021-07-21 17:56:32.589111"
+            assert rows[0][0].strftime("%Y-%m-%d %H:%M:%S.%f") == "2021-07-21 17:56:32.589111"
             assert rows[0][10] == 3 , '1st case is failed'
             assert rows[1][10] == 4 , '1st case is failed'
 
@@ -370,11 +374,13 @@ class TestStmtBasic:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_test_stmt_muti_insert_query.py
             - 2025-9-22 Alex Duan Migrated from uncatalog/system-test/1-insert/test_test_stmt_set_tbname_tag.py
+
         """
 
         self.do_stmt_muti_insert_query()
