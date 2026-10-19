@@ -936,6 +936,102 @@ static int32_t walScanActualLogFiles(SWal* pWal, regex_t* pLogRegPattern, SArray
   TAOS_RETURN(TSDB_CODE_SUCCESS);
 }
 
+// Physically delete segment files that the meta file no longer references because they
+// were already retired, and drop them from the scan result.
+//
+// This is the upgrade path for clusters that ran a build where retention could not
+// unlink segments on non-primary mount points. Those segments were removed from meta but
+// survived on disk. walScanActualLogFiles walks every tfs mount, so on restart they come
+// back into the scan result and walRebuildFileInfoSet reinserts them -- and because
+// placement rotates across mounts, the survivors are not contiguous (the ones that had
+// landed on the primary mount really were deleted). walLogEntriesComplete then sees a
+// hole and, with walDeleteOnCorruption on by default, renames away the entire WAL
+// directory.
+//
+// So the orphans have to go before the completeness check runs, not at the next
+// retention cycle -- walOpen never gets that far.
+//
+// The oldest segment in the loaded meta is the authority: meta's first index is always
+// exactly some segment's firstVer (both walEndSnapshot and this repair pass derive it
+// from the oldest entry), so anything strictly below it lies entirely outside the live
+// range and is garbage. Segments at or above it are left alone -- including ones newer
+// than meta knows about, which are legitimately recovered by the existing rebuild.
+//
+// The minimum is computed by scanning rather than reading fileInfoSet[0]: the array is
+// kept in ascending order at runtime, but walMetaDeserialize pushes entries in whatever
+// order the meta file lists them without sorting. Trusting index 0 would mean a
+// hand-edited or reordered meta file yields too high a bound and deletes live segments.
+// n is tiny, so the scan is free insurance against deleting real data.
+//
+// vers.firstVer is folded in as a second, independent lower bound. walOpen only warns
+// when walLoadMeta fails, so a meta file that fails to parse midway through its file
+// list still reaches this point with a partially populated fileInfoSet. vers.firstVer is
+// read out of the "meta" object before that list, so it survives such a parse and caps
+// the bound back down. In a healthy meta the two agree exactly (walEndSnapshot derives
+// one from the other); taking the lower of them only ever purges less, never more.
+//
+// When meta carries no usable segment at all (lost, or a fresh WAL) there is nothing to
+// compare against, so nothing is purged and behavior is unchanged.
+static void walPurgeOrphanLogFiles(SWal* pWal, SArray* actualLog) {
+  int32_t metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
+  if (metaFileNum <= 0) return;
+
+  int64_t oldestInMeta = INT64_MAX;
+  for (int32_t i = 0; i < metaFileNum; i++) {
+    int64_t firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, i))->firstVer;
+    if (firstVer >= 0 && firstVer < oldestInMeta) oldestInMeta = firstVer;
+  }
+  if (pWal->vers.firstVer >= 0) oldestInMeta = TMIN(oldestInMeta, pWal->vers.firstVer);
+
+  // No valid firstVer in meta, or the live range already starts at the very first
+  // version: either way nothing can be below it.
+  if (oldestInMeta == INT64_MAX || oldestInMeta == 0) return;
+
+  int32_t sz = taosArrayGetSize(actualLog);
+  int32_t keep = 0;
+  int32_t purged = 0;
+
+  for (int32_t i = 0; i < sz; i++) {
+    SWalFileInfo* pInfo = (SWalFileInfo*)taosArrayGet(actualLog, i);
+
+    if (pInfo->firstVer >= oldestInMeta) {
+      if (keep != i) {
+        *(SWalFileInfo*)taosArrayGet(actualLog, keep) = *pInfo;
+      }
+      keep++;
+      continue;
+    }
+
+    // Resolve through the diskId the scan recorded, not through fileInfoSet: meta does
+    // not reference this segment at all, so the usual reverse lookup cannot find it.
+    char segDir[WAL_PATH_LEN];
+    char fnameStr[WAL_FILE_LEN];
+    walResolveFileDirAt(pWal, pInfo->diskId, segDir, sizeof(segDir));
+
+    walBuildLogNameAt(segDir, pInfo->firstVer, fnameStr);
+    if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
+      wError("vgId:%d, failed to remove orphan wal log file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
+    } else {
+      wInfo("vgId:%d, removed orphan wal log file %s, below first index:%" PRId64 " in meta", pWal->cfg.vgId, fnameStr,
+            oldestInMeta);
+    }
+
+    walBuildIdxNameAt(segDir, pInfo->firstVer, fnameStr);
+    if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
+      wError("vgId:%d, failed to remove orphan wal idx file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
+    }
+
+    purged++;
+  }
+
+  if (purged > 0) {
+    taosArrayPopTailBatch(actualLog, sz - keep);
+    wWarn("vgId:%d, purged %d orphan wal segment(s) left behind below first index:%" PRId64
+          " in meta, likely leaked by an older build that could not delete segments on non-primary mount points",
+          pWal->cfg.vgId, purged, oldestInMeta);
+  }
+}
+
 int32_t walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
   int32_t     code = 0;
@@ -963,6 +1059,10 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
   wInfo("vgId:%d, actual log file, wal path:%s, num:%d", pWal->cfg.vgId, pWal->path,
         (int32_t)taosArrayGetSize(actualLog));
   printFileSet(pWal->cfg.vgId, actualLog, "actual log file");
+
+  // Drop segments meta already retired before anything downstream can trip over the
+  // holes they leave in the version range (see walPurgeOrphanLogFiles).
+  walPurgeOrphanLogFiles(pWal, actualLog);
 
   int     metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int     actualFileNum = taosArrayGetSize(actualLog);
