@@ -1239,17 +1239,22 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->alterType));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->numOfFields));
-  pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SField));
+  // Allocate the field array ONCE, with the element size chosen by alterType. The previous code
+  // destroyed and re-created pFields on EVERY iteration for ADD_COLUMN_WITH_COMPRESS_OPTION, which
+  // silently dropped all but the last field and left taosArrayGetSize(pFields) != numOfFields; the
+  // mnode later indexed pFields by position and dereferenced NULL (mnode item 169, CWE-476).
+  int32_t withCompressOpt = (pReq->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION);
+  if (withCompressOpt) {
+    pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SFieldWithOptions));
+  } else {
+    pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SField));
+  }
   if (pReq->pFields == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
 
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
-    if (pReq->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COMPRESS_OPTION) {
-      taosArrayDestroy(pReq->pFields);
-      if ((pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SFieldWithOptions))) == NULL) {
-        TAOS_CHECK_EXIT(terrno);
-      }
+    if (withCompressOpt) {
       SFieldWithOptions field = {0};
       TAOS_CHECK_EXIT(tDecodeI8(&decoder, &field.type));
       TAOS_CHECK_EXIT(tDecodeI32(&decoder, &field.bytes));

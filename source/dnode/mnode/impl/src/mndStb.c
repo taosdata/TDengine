@@ -2638,28 +2638,49 @@ _OVER:
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   int32_t code = 0;
+
+  // The comment is always bounded here: mndUpdateTableOptions stores it verbatim into the SStbObj
+  // for TSDB_ALTER_TABLE_UPDATE_OPTIONS and nothing downstream re-checks it, so validate it whenever
+  // a comment is supplied. commentLen >= 0 is the on-wire default and is attacker-controlled, so we
+  // must NOT early-return on it: doing so would skip the pFields validation below for every field
+  // alter type and let a malformed request reach the handlers (NULL-deref crash, mnode item 169).
   if (pAlter->commentLen >= 0) {
-    // TSDB_ALTER_TABLE_UPDATE_OPTIONS: mndUpdateTableOptions stores this comment verbatim into the
-    // SStbObj, so it has to be bounded here (nothing downstream checks it again).
     if ((code = mndCheckStbComment(pAlter->comment, pAlter->commentLen)) != 0) {
       TAOS_RETURN(code);
     }
-    return 0;
   }
-  if (pAlter->ttl != 0) return 0;
-  if (pAlter->keep != -1) return 0;
-  if (pAlter->secureDelete >= 0) return 0;
 
-  // BASE ON alter types don't use pFields
-  if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
-    if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
-      code = TSDB_CODE_MND_INVALID_STB_OPTION;
-      TAOS_RETURN(code);
+  // These alter types never carry a pFields array:
+  //   - TSDB_ALTER_TABLE_UPDATE_OPTIONS carries only option fields (comment/ttl/keep/secureDelete/
+  //     securityLevel), which are validated above / by mndUpdateTableOptions;
+  //   - ADD/DROP_BASE_ON carry numParents instead.
+  // For them no field-array validation is required.
+  if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS ||
+      pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+      pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+        pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+      if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
     }
-    return 0;
+    TAOS_RETURN(0);
   }
 
-  if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
+  // Every remaining (field-operating) alter type must provide a consistent, non-empty pFields array
+  // so the per-alterType handlers in mndApplyAlterStbAction never dereference a NULL field pointer
+  // and crash the mnode write thread (mnode item 169, CWE-476). Enforce this BEFORE any element is
+  // touched: taosArrayGet returns NULL for out-of-range indices, and the handlers index pFields by
+  // position without their own NULL checks.
+  // Tag/column RENAME needs exactly two fields (old name, new name); all other field alters need >= 1.
+  int32_t minFields = 1;
+  if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_NAME ||
+      pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME) {
+    minFields = 2;
+  }
+  if (pAlter->numOfFields < minFields ||
+      pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
     TAOS_RETURN(code);
   }
