@@ -177,11 +177,14 @@ function resolve_requirement_file() {
     echo "${script_dir}/${req_name}"
   elif [ -f "${script_dir}/../${req_name}" ]; then
     echo "${script_dir}/../${req_name}"
+  elif [ -f "${script_dir}/../lib/${req_name}" ]; then
+    echo "${script_dir}/../lib/${req_name}"
   else
     echo -e "${RED}Error: Requirements file not found: ${req_name}${NC}"
     echo -e "${RED}Searched in:${NC}"
     echo -e "${RED}  - ${script_dir}/${req_name}${NC}"
     echo -e "${RED}  - ${script_dir}/../${req_name}${NC}"
+    echo -e "${RED}  - ${script_dir}/../lib/${req_name}${NC}"
     return 1
   fi
 }
@@ -297,9 +300,10 @@ function kill_process() {
 }
 
 function kill_model_service() {
-  for script in stop-tdtsfm.sh stop-time-moe.sh; do
-    script_path="${installDir}/bin/${script}"
-    [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
+  # Kill model server processes directly to avoid relying on potentially stale
+  # installed stop scripts from a previous version with a different CLI interface.
+  for pattern in tdtsfm_server timemoe_server moirai_server chronos_server timesfm_server moment_server; do
+    ${csudo}pkill -f "${pattern}" || :
   done
 }
 
@@ -468,7 +472,7 @@ function install_img() {
 
 function install_resource() {
   ${csudo}mkdir -p ${resourceDir} && ${csudo}chmod 777 ${resourceDir}
-  if [ ${custom_dir_set} -eq 0 ];then 
+  if [ ${custom_dir_set} -eq 0 ];then
     ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
   fi
   # Legacy SQL samples are optional in current release packages.

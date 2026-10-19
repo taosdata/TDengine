@@ -21,7 +21,7 @@ import unittest
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.tool.pyod_util import (
+from lib.taosanalytics.algo.tool.pyod_util import (
     validate_bool_int,
     validate_contamination,
     validate_int_min,

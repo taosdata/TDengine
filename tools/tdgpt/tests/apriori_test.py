@@ -24,8 +24,8 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.association import _convert_to_matrix, do_apriori
-from taosanalytics.algo.tool.apriori import AprioriAnalyzer
+from lib.taosanalytics.algo.assoc.apriori import AprioriAnalyzer
+from lib.taosanalytics.handlers.assoc import _convert_to_matrix, do_apriori
 
 
 class TestAprioriAnalyzer:

@@ -31,8 +31,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taosanalytics.tsfm import foundation_model, foundation_util, response_event
-from taosanalytics.tsfm.foundation_models_db import (
+from lib.tsfm.mgmt import foundation_model, foundation_util, response_event
+from lib.tsfm.mgmt.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     init_dao,

@@ -1,4 +1,4 @@
-# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
@@ -21,7 +21,7 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.tool.batch_env import gen_batch_envelop, get_default_config
+from lib.taosanalytics.algo.envelop.batch_env import gen_batch_envelop, get_default_config
 
 ############################################
 # boundary test cases

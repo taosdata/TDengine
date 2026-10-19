@@ -1,0 +1,58 @@
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+import numpy as np
+from fastdtw import fastdtw
+
+from lib.base import AbstractCorrelationService
+from lib.log import AppLogger
+
+
+class _DtwService(AbstractCorrelationService):
+    """dtw analysis"""
+
+    name = "dtw"
+    desc = """found the dynamic time wrap for two given time series data"""
+    _builtins = True
+
+    def __init__(self):
+        super().__init__()
+        self.radius = 1
+
+    def execute(self):
+        if (
+            self.list is None
+            or self.list1 is None
+            or len(self.list) == 0
+            or len(self.list1) == 0
+        ):
+            raise ValueError("empty time-series data to perform dtw")
+
+        dist, path = fastdtw(
+            np.array(self.list), np.array(self.list1), radius=self.radius
+        )
+        return dist, path
+
+    def set_params(self, params):
+        super().set_params(params)
+
+        if "radius" in params:
+            k = int(params["radius"])
+
+            if k < 1 or k > 10:
+                raise ValueError("radius value out of range, valid range [1, 10]")
+
+            self.radius = k
+            AppLogger.debug(f"dtw radius is set to: {self.radius}")

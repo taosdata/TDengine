@@ -21,8 +21,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taosanalytics.tsfm import executor, foundation_model, foundation_util, response_event
-from taosanalytics.tsfm.foundation_models_db import (
+from lib.tsfm.mgmt import executor, foundation_model, foundation_util, response_event
+from lib.tsfm.mgmt.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     get_dao,
@@ -83,7 +83,7 @@ class TestListAllTsfm:
             ]
         }
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0, stdout=json.dumps(mock_response))
 
             status, code = foundation_model.list_all_tsfm(mock_request)
@@ -98,7 +98,7 @@ class TestListAllTsfm:
         mock_request.remote_addr = "127.0.0.1"
         mock_request.args = {}
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.side_effect = subprocess.TimeoutExpired("cmd", 30)
 
             status, code = foundation_model.list_all_tsfm(mock_request)
@@ -112,7 +112,7 @@ class TestListAllTsfm:
         mock_request.remote_addr = "127.0.0.1"
         mock_request.args = {}
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0, stdout="invalid json")
 
             status, code = foundation_model.list_all_tsfm(mock_request)
@@ -150,7 +150,7 @@ class TestListAllTsfm:
             ],
         }
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 Mock(returncode=0, stdout=json.dumps(check_response)),
                 Mock(returncode=0, stdout=json.dumps(local_response)),
@@ -187,7 +187,7 @@ class TestListAllTsfm:
             "models": [{"name": "moirai", "service_status": "stopped"}],
         }
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 Mock(returncode=0, stdout=json.dumps(check_response)),
                 Mock(returncode=0, stdout=json.dumps(local_response)),
@@ -214,7 +214,7 @@ class TestListAllTsfm:
             "resources": [{"kind": "model", "name": "moirai", "state": "installed", "size": 1}]
         }
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.side_effect = [
                 Mock(returncode=0, stdout=json.dumps(check_response)),
                 Mock(returncode=1, stdout="", stderr="resource list is unavailable"),
@@ -287,7 +287,7 @@ class TestGetModelInfo:
             ]
         }
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0, stdout=json.dumps(mock_response))
 
             status, code = foundation_model.get_model_info(mock_request, "moirai")
@@ -310,7 +310,7 @@ class TestGetModelInfo:
 
         reset_foundation_models.update_model("moirai", downloaded=True)
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0, stdout=json.dumps(mock_response))
 
             status, code = foundation_model.get_model_info(mock_request, "moirai")
@@ -342,7 +342,7 @@ class TestDownloadFoundationModel:
         mock_request.get_json.return_value = {"model_name": "nonexistent"}
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._extract_model_status_in_repository"
+            "lib.tsfm.mgmt.foundation_model._extract_model_status_in_repository"
         ) as mock_validate:
             mock_validate.return_value = (False, None, "Model not found")
 
@@ -363,7 +363,7 @@ class TestDownloadFoundationModel:
         model_info = {"name": "moirai", "model_id": "test"}
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._extract_model_status_in_repository"
+            "lib.tsfm.mgmt.foundation_model._extract_model_status_in_repository"
         ) as mock_validate:
             mock_validate.return_value = (True, model_info, None)
 
@@ -384,7 +384,7 @@ class TestDownloadFoundationModel:
         model_info = {"name": "moirai", "model_id": "test"}
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._extract_model_status_in_repository"
+            "lib.tsfm.mgmt.foundation_model._extract_model_status_in_repository"
         ) as mock_validate:
             mock_validate.return_value = (True, model_info, None)
 
@@ -400,11 +400,11 @@ class TestDownloadFoundationModel:
         mock_request.get_json.return_value = {"model_name": "moirai"}
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._extract_model_status_in_repository"
+            "lib.tsfm.mgmt.foundation_model._extract_model_status_in_repository"
         ) as mock_validate, patch(
-            "taosanalytics.tsfm.foundation_model._trigger_model_download_background"
+            "lib.tsfm.mgmt.foundation_model._trigger_model_download_background"
         ), patch(
-            "taosanalytics.tsfm.foundation_model._runtime_model_download_blocker",
+            "lib.tsfm.mgmt.foundation_model._runtime_model_download_blocker",
             return_value=None,
         ):
             dao = reset_foundation_models
@@ -602,7 +602,7 @@ class TestStartFoundationModel:
         dao.update_model("moirai", downloaded=True, running=False, model_state="idle")
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._trigger_model_start_background"
+            "lib.tsfm.mgmt.foundation_model._trigger_model_start_background"
         ):
             status, code = foundation_model.start_foundation_model(mock_request)
 
@@ -633,7 +633,7 @@ class TestDownloadAndStartFoundationModel:
         mock_request.get_json.return_value = {"model_name": "nonexistent"}
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._extract_model_status_in_repository"
+            "lib.tsfm.mgmt.foundation_model._extract_model_status_in_repository"
         ) as mock_validate:
             mock_validate.return_value = (False, None, "Model not found")
 
@@ -666,7 +666,7 @@ class TestDownloadAndStartFoundationModel:
         dao.update_model("moirai", downloaded=True, running=False, model_state="idle")
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._trigger_model_start_background"
+            "lib.tsfm.mgmt.foundation_model._trigger_model_start_background"
         ):
             status, code = foundation_model.download_and_start_foundation_model(mock_request)
 
@@ -686,11 +686,11 @@ class TestDownloadAndStartFoundationModel:
         mock_request.get_json.return_value = {"model_name": "moirai"}
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._extract_model_status_in_repository"
+            "lib.tsfm.mgmt.foundation_model._extract_model_status_in_repository"
         ) as mock_validate, patch(
-            "taosanalytics.tsfm.foundation_model._trigger_model_download_start_background"
+            "lib.tsfm.mgmt.foundation_model._trigger_model_download_start_background"
         ), patch(
-            "taosanalytics.tsfm.foundation_model._runtime_model_download_blocker",
+            "lib.tsfm.mgmt.foundation_model._runtime_model_download_blocker",
             return_value=None,
         ):
             dao = reset_foundation_models
@@ -873,10 +873,10 @@ class TestRunDownloadTaskCancellation:
             return None
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._try_acquire_download_lock",
+            "lib.tsfm.mgmt.foundation_model._try_acquire_download_lock",
             side_effect=_peer_holds_the_lock_and_op_is_cancelled,
         ) as mock_lock, patch(
-            "taosanalytics.tsfm.foundation_model.time.sleep"
+            "lib.tsfm.mgmt.foundation_model.time.sleep"
         ) as mock_sleep:
             result = foundation_model._run_download_task(
                 task_id, "moirai", "1.0.0", "https://example.com", False
@@ -897,7 +897,7 @@ class TestRunDownloadTaskCancellation:
         )
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._try_acquire_download_lock",
+            "lib.tsfm.mgmt.foundation_model._try_acquire_download_lock",
             return_value=None,
         ) as mock_lock:
             result = foundation_model._run_download_task(
@@ -919,12 +919,12 @@ class TestRunDownloadTaskCancellation:
             return 1234
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._try_acquire_download_lock",
+            "lib.tsfm.mgmt.foundation_model._try_acquire_download_lock",
             side_effect=_op_cancelled_while_acquiring_the_lock,
         ), patch(
-            "taosanalytics.tsfm.foundation_model._release_download_lock"
+            "lib.tsfm.mgmt.foundation_model._release_download_lock"
         ) as mock_release, patch(
-            "taosanalytics.tsfm.foundation_util.get_taosanodectl_cmd"
+            "lib.tsfm.mgmt.foundation_util.get_taosanodectl_cmd"
         ) as mock_cmd:
             result = foundation_model._run_download_task(
                 task_id, "moirai", "1.0.0", "https://example.com", False
@@ -977,7 +977,7 @@ class TestStopFoundationModel:
         dao.update_model("moirai", running=True, model_state="started")
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._trigger_model_stop_background"
+            "lib.tsfm.mgmt.foundation_model._trigger_model_stop_background"
         ):
             status, code = foundation_model.stop_foundation_model(mock_request)
 
@@ -1073,7 +1073,7 @@ class TestDeleteFoundationModel:
         dao.update_model("moirai", downloaded=True, running=False, model_state="idle")
 
         with patch(
-            "taosanalytics.tsfm.foundation_model._trigger_model_delete_background"
+            "lib.tsfm.mgmt.foundation_model._trigger_model_delete_background"
         ), patch.object(foundation_util, "live_worker_names", return_value=[]):
             status, code = foundation_model.delete_foundation_model(mock_request)
 
@@ -1102,7 +1102,7 @@ class TestGetOperationStatus:
         mock_request.remote_addr = "127.0.0.1"
 
         # Create a pending operation
-        from taosanalytics.tsfm.foundation_models_db import AsyncOperation, get_dao
+        from lib.tsfm.mgmt.foundation_models_db import AsyncOperation, get_dao
         dao = get_dao()
         task_id = "download-test-model-abc123"
         operation = AsyncOperation(
@@ -1136,7 +1136,7 @@ class TestGetOperationStatus:
         mock_request.remote_addr = "127.0.0.1"
 
         # Create a completed operation
-        from taosanalytics.tsfm.foundation_models_db import AsyncOperation, get_dao
+        from lib.tsfm.mgmt.foundation_models_db import AsyncOperation, get_dao
         dao = get_dao()
         task_id = "start-test-model-def456"
         operation = AsyncOperation(
@@ -1164,7 +1164,7 @@ class TestGetOperationStatus:
         mock_request.remote_addr = "127.0.0.1"
 
         # Create a failed operation
-        from taosanalytics.tsfm.foundation_models_db import AsyncOperation, get_dao
+        from lib.tsfm.mgmt.foundation_models_db import AsyncOperation, get_dao
         dao = get_dao()
         task_id = "delete-test-model-ghi789"
         operation = AsyncOperation(
@@ -1204,7 +1204,7 @@ class TestValidateModelInRepository:
             ]
         }
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0, stdout=json.dumps(mock_response))
 
             is_valid, model_info, error = foundation_model._extract_model_status_in_repository(
@@ -1219,7 +1219,7 @@ class TestValidateModelInRepository:
         """Test model validation when model doesn't exist."""
         mock_response = {"resources": []}
 
-        with patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             mock_run.return_value = Mock(returncode=0, stdout=json.dumps(mock_response))
 
             is_valid, model_info, error = foundation_model._extract_model_status_in_repository(
@@ -1240,7 +1240,7 @@ class TestValidateModelInRepository:
         """
         with patch("pathlib.Path.exists", return_value=False), patch(
             "shutil.which", return_value=None
-        ), patch("taosanalytics.tsfm.foundation_model.subprocess.run") as mock_run:
+        ), patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as mock_run:
             is_valid, model_info, error = foundation_model._extract_model_status_in_repository(
                 "moirai", "1.0.0", "https://example.com"
             )
