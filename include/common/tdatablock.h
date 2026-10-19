@@ -288,6 +288,8 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void    colInfoDataResetFlags(SColumnInfoData* pColumn);
+void    blockDataResetColFlags(SSDataBlock* pDataBlock);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 void    blockDataReset(SSDataBlock* pDataBlock);
 void    blockDataEmpty(SSDataBlock* pDataBlock);
