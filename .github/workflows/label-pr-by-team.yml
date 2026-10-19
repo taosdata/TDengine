@@ -43,6 +43,7 @@ jobs:
             repositories: ${{ github.event.repository.name }}
             permission-pull-requests: write
             permission-members: read
+            # Temporary validation marker; remove with the test PR.
 
         - name: Add PR Labels
           uses: taosdata/.github/.github/actions/add-pr-labels@390f5ddff13d137d842642ce09eed9f0c648ddc9 # main, pinned 2026-09-17
