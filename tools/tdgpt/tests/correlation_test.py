@@ -25,8 +25,8 @@ from matplotlib import pyplot as plt
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.log import setup_log_info
-from taosanalytics.service_registry import loader
+from lib.log import setup_log_info
+from lib.service_registry import loader
 
 
 def draw_lags_result(lags, ccf_vals, name):
@@ -54,7 +54,7 @@ class CorrelationTest(unittest.TestCase):
     def setUpClass(cls):
         """set up environment for unit test, set the log file path"""
         setup_log_info("unit_test.log")
-        loader.register_all_services()
+        loader.load_all_services()
 
     def test_dtw(self):
         """dtw unit case"""
