@@ -31544,6 +31544,24 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         }
       }
     }
+    // A qualified open window must notify even when history has no closing row.
+    // Multi-start events keep deferring their first sub-window for parent resolution.
+    if (!checkSubEvent && pGroup->pendingWinOpen && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+      SSTriggerWindow *pCurWindow = TRINGBUF_HEAD(&pGroup->winBuf);
+      if (isTrueForSatisfied(&pTask->eventTrueForInfo, pCurWindow->range.skey, pCurWindow->range.ekey,
+                             pCurWindow->wrownum)) {
+        if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN) {
+          code = stHistoryGroupAddCalcParam(pGroup, &pGroup->pendingWinParam, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_OPEN)) {
+          void *px = taosArrayPush(pContext->pNotifyParams, &pGroup->pendingWinParam);
+          QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+        }
+        pGroup->pendingWinParam.extraNotifyContent = NULL;
+        pGroup->pendingWinOpen = false;
+        tDestroySSTriggerCalcParam(&pGroup->pendingWinParam);
+      }
+    }
     stEventTreeDestroyLeafCols(pLeafCols);
     pLeafCols = NULL;
     taosMemoryFreeClear(pLeafMatches);
