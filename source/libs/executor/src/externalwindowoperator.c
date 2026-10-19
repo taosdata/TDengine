@@ -6139,7 +6139,8 @@ static int32_t extWinPrepareStaticEofGroups(SOperatorInfo* pOperator, SExternalW
         SExtWinTrigGrpCtx* pTCtx = extWinLookupTriggerGroup(pExtW, groupId);
         calcGroupId = pTCtx == NULL || pTCtx->pCCtx == NULL ? groupId : pTCtx->pCCtx->groupId;
       }
-      int32_t code = extWinActivateGroup(pOperator, pExtW, pGroup, groupId, calcGroupId, false);
+      // Empty groups must join the sorted output before partial results reach the merge.
+      int32_t code = extWinActivateGroup(pOperator, pExtW, pGroup, groupId, calcGroupId, true);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
