@@ -16,6 +16,14 @@
  */
 
 #include <gtest/gtest.h>
+#ifdef LINUX
+#include <errno.h>
+#include <stddef.h>
+#include <linux/filter.h>
+#include <linux/seccomp.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
+#endif
 #include <stdlib.h>
 #include <time.h>
 #include <random>
@@ -27,6 +35,59 @@
 #include <iostream> 
 
 using namespace std;
+
+#if defined(LINUX) && GTEST_HAS_DEATH_TEST
+TEST(logDeathTest, chmod_failure_is_nonfatal) {
+  char logDir[PATH_MAX] = {0};
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logChmodTest", logDir);
+  ASSERT_EQ(taosMkDir(logDir), 0) << terrstr();
+
+  char logFile[PATH_MAX + 32] = {0};
+  snprintf(logFile, sizeof(logFile), "%s/chmodTest.0", logDir);
+  TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_CREATE | TD_FILE_WRITE);
+  ASSERT_NE(pFile, nullptr) << terrstr();
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+
+  // Confine the injected fchmod failure and logger state to the child process.
+  EXPECT_EXIT(
+      ([&]() {
+        struct sock_filter instructions[] = {
+            BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+            BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, SYS_fchmod, 0, 1),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | EPERM),
+            BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+        };
+        struct sock_fprog filter = {
+            static_cast<unsigned short>(sizeof(instructions) / sizeof(instructions[0])),
+            instructions,
+        };
+        ASSERT_EQ(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+        ASSERT_EQ(prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &filter), 0);
+
+        tstrncpy(tsLogDir, logDir, PATH_MAX);
+        tsAsyncLog = 0;
+        terrno = 0;
+        ASSERT_EQ(taosInitLog("chmodTest", 1, true), 0) << terrstr();
+        EXPECT_NE(terrno, TAOS_SYSTEM_ERROR(EPERM));
+        taosPrintSlowLog("log remains writable after fchmod fails");
+        taosCloseLog();
+
+        int64_t size = 0;
+        EXPECT_EQ(taosStatFile(logFile, &size, nullptr, nullptr), 0);
+        EXPECT_GT(size, 0);
+
+        snprintf(tsLogDir, PATH_MAX, "%s/missing", logDir);
+        EXPECT_EQ(taosInitLog("chmodTest", 1, false),
+                  TAOS_SYSTEM_ERROR(ENOENT));
+        taosCloseLog();
+        _exit(::testing::Test::HasFailure() ? 1 : 0);
+      }()),
+      ::testing::ExitedWithCode(0),
+      "WARNING: failed to set log file permissions");
+
+  taosRemoveDir(logDir);
+}
+#endif
 
 
 TEST(log, check_log_refactor) {
