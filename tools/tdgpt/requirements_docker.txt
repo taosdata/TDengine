@@ -12,7 +12,7 @@ statsmodels==0.14.6
 # pandas, scipy, scikit-learn, and numpy.
 statsforecast==2.1.1
 # Keep pyarrow on a wheel-compatible line for Ubuntu 18.04 / glibc 2.27.
-pyarrow<19
+pyarrow<24
 pyculiarity==0.0.7
 Cython==3.0.11
 pmdarima==2.0.4
