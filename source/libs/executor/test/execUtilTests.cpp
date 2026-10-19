@@ -15306,6 +15306,20 @@ std::vector<uint8_t> makeJsonTagValue() {
 
 using JsonTagTestValue = std::tuple<std::string, int8_t, std::vector<uint8_t>>;
 
+// GCC 13 -O2/-O3 mis-sizes a std::vector<uint8_t> copy when several
+// JsonTagTestValue tuples of different payload lengths are built from one
+// braced initializer (false -Wstringop-overflow under -Werror). Build each
+// spec on its own so the copy length stays tied to that vector.
+static std::vector<uint8_t> jsonTagByte(uint8_t value) {
+  std::vector<uint8_t> data;
+  data.push_back(value);
+  return data;
+}
+
+static JsonTagTestValue jsonTagSpec(const char *key, int8_t type, std::vector<uint8_t> data) {
+  return {std::string(key), type, std::move(data)};
+}
+
 std::vector<uint8_t> makeJsonTagValue(const std::vector<JsonTagTestValue> &values) {
   SArray *pValues = taosArrayInit(values.size(), sizeof(STagVal));
   if (pValues == nullptr) return {};
@@ -15550,15 +15564,14 @@ TEST(BoundedInternalBlockDecoderTest, AcceptsCanonicalVariableJsonNullAndDecimal
 }
 
 TEST(BoundedInternalBlockDecoderTest, AcceptsProductionEncodedSmallAndLargeJsonTags) {
-  const std::vector<JsonTagTestValue> smallValues = {
-      {"bool", TSDB_DATA_TYPE_BOOL, {1}},
-      {"double", TSDB_DATA_TYPE_DOUBLE, std::vector<uint8_t>(DOUBLE_BYTES)},
-      {"nchar", TSDB_DATA_TYPE_NCHAR, {'o', 'k'}},
-      {"null", TSDB_DATA_TYPE_NULL, std::vector<uint8_t>(tDataTypes[TSDB_DATA_TYPE_NULL].bytes)},
-  };
-  const std::vector<JsonTagTestValue> largeValues = {
-      {"large", TSDB_DATA_TYPE_NCHAR, std::vector<uint8_t>(INT8_MAX + 1, 'x')},
-  };
+  std::vector<JsonTagTestValue> smallValues;
+  smallValues.push_back(jsonTagSpec("bool", TSDB_DATA_TYPE_BOOL, jsonTagByte(1)));
+  smallValues.push_back(jsonTagSpec("double", TSDB_DATA_TYPE_DOUBLE, std::vector<uint8_t>(DOUBLE_BYTES)));
+  smallValues.push_back(jsonTagSpec("nchar", TSDB_DATA_TYPE_NCHAR, std::vector<uint8_t>{'o', 'k'}));
+  smallValues.push_back(jsonTagSpec("null", TSDB_DATA_TYPE_NULL,
+                                     std::vector<uint8_t>(tDataTypes[TSDB_DATA_TYPE_NULL].bytes)));
+  std::vector<JsonTagTestValue> largeValues;
+  largeValues.push_back(jsonTagSpec("large", TSDB_DATA_TYPE_NCHAR, std::vector<uint8_t>(INT8_MAX + 1, 'x')));
 
   const auto emptyTag = makeJsonTagValue();
   const auto smallTag = makeJsonTagValue(smallValues);
@@ -15597,13 +15610,11 @@ TEST(BoundedInternalBlockDecoderTest, RejectsUnsupportedSelfConsistentJsonTagEnt
 }
 
 TEST(BoundedInternalBlockDecoderTest, RejectsMalformedJsonTagIndexes) {
-  const std::vector<JsonTagTestValue> smallValues = {
-      {"a", TSDB_DATA_TYPE_BOOL, {1}},
-      {"b", TSDB_DATA_TYPE_BOOL, {0}},
-  };
-  const std::vector<JsonTagTestValue> largeValues = {
-      {"large", TSDB_DATA_TYPE_NCHAR, std::vector<uint8_t>(INT8_MAX + 1, 'x')},
-  };
+  std::vector<JsonTagTestValue> smallValues;
+  smallValues.push_back(jsonTagSpec("a", TSDB_DATA_TYPE_BOOL, jsonTagByte(1)));
+  smallValues.push_back(jsonTagSpec("b", TSDB_DATA_TYPE_BOOL, jsonTagByte(0)));
+  std::vector<JsonTagTestValue> largeValues;
+  largeValues.push_back(jsonTagSpec("large", TSDB_DATA_TYPE_NCHAR, std::vector<uint8_t>(INT8_MAX + 1, 'x')));
 
   std::vector<std::pair<std::string, std::vector<uint8_t>>> malformed;
 
