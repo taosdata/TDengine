@@ -8773,6 +8773,38 @@ TEST_F(ExternalWindowOperatorTest, RuntimeMultiGroupWithoutStaticJoinKeepsLegacy
   expectExtWinProtocol(drainExtWinProtocol(owner.pTaskInfo->pRoot), {{101, 101, 1, 1, false}});
 }
 
+TEST_F(ExternalWindowOperatorTest, SplitCountIncludesEmptyGroupsInSortedOutputAfterReset) {
+  const std::vector<uint64_t> expectedGroups = {101, 202, 303, 404, 505};
+  for (bool calcWithPartition : {false, true}) {
+    SCOPED_TRACE(calcWithPartition);
+    ExternalWindowFactoryOwner owner;
+    ASSERT_EQ(owner.init({1, 1}, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, "count", false, false, 2, false, false, true,
+                         {404, 202}, false, {505, 101, 404, 202, 303}, true, calcWithPartition),
+              TSDB_CODE_SUCCESS);
+
+    for (int pass = 0; pass < 2; ++pass) {
+      SCOPED_TRACE(pass);
+      std::vector<ExternalWindowPublication> publications;
+      ASSERT_EQ(drainExternalWindowPublications(&owner, &publications), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(publications.size(), expectedGroups.size());
+      for (size_t index = 0; index < expectedGroups.size(); ++index) {
+        const auto    &publication = publications[index];
+        const uint64_t groupId = expectedGroups[index];
+        EXPECT_EQ(publication.gid, groupId);
+        EXPECT_EQ(publication.blockBaseGid, groupId);
+        EXPECT_EQ(publication.blockGid, calcWithPartition ? groupId : 0);
+        EXPECT_EQ(publication.rows, 2);
+        EXPECT_EQ(publication.nullRows, 0);
+        EXPECT_EQ(publication.windowIndexes, (std::vector<int32_t>{0, 1}));
+        EXPECT_EQ(publication.values, (std::vector<int64_t>{groupId == 202 || groupId == 404 ? 1 : 0, 0}));
+      }
+      if (pass == 0) {
+        ASSERT_EQ(streamClearStatesForOperators(owner.pTaskInfo), TSDB_CODE_SUCCESS);
+      }
+    }
+  }
+}
+
 TEST_F(ExternalWindowOperatorTest, LegacyEmptySettlementPreservesPublishedGroup) {
   const std::vector<uint64_t> groups = {101, 202, 303, 404, 505};
   for (ENodeType nodeType : {QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL}) {
