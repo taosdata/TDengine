@@ -14,7 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 IF (BUILD_VER_NUMBER STREQUAL "")
-  SET(BUILD_VER_NUMBER "3.4.3.0.alpha")
+  SET(BUILD_VER_NUMBER "3.4.3.3.alpha")
 ENDIF ()
 
 IF (BUILD_VER_COMPATIBLE STREQUAL "")
