@@ -37,16 +37,23 @@
 using namespace std;
 
 #if defined(LINUX) && GTEST_HAS_DEATH_TEST
-TEST(logDeathTest, chmod_failure_is_nonfatal) {
+class LogChmodDeathTest : public ::testing::TestWithParam<bool> {};
+
+TEST_P(LogChmodDeathTest, chmod_failure_is_nonfatal) {
+  bool useSymlink = GetParam();
   char logDir[PATH_MAX] = {0};
   taosGetTmpfilePath(TD_TMP_DIR_PATH, "logChmodTest", logDir);
   ASSERT_EQ(taosMkDir(logDir), 0) << terrstr();
 
   char logFile[PATH_MAX + 32] = {0};
   snprintf(logFile, sizeof(logFile), "%s/chmodTest.0", logDir);
-  TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_CREATE | TD_FILE_WRITE);
-  ASSERT_NE(pFile, nullptr) << terrstr();
-  ASSERT_EQ(taosCloseFile(&pFile), 0);
+  if (useSymlink) {
+    ASSERT_EQ(taosSymLink(logFile, logFile), 0) << terrstr();
+  } else {
+    TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_CREATE | TD_FILE_WRITE);
+    ASSERT_NE(pFile, nullptr) << terrstr();
+    ASSERT_EQ(taosCloseFile(&pFile), 0);
+  }
 
   // Confine the injected fchmod failure and logger state to the child process.
   EXPECT_EXIT(
@@ -61,20 +68,22 @@ TEST(logDeathTest, chmod_failure_is_nonfatal) {
             static_cast<unsigned short>(sizeof(instructions) / sizeof(instructions[0])),
             instructions,
         };
-        ASSERT_EQ(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
-        ASSERT_EQ(prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &filter), 0);
+        EXPECT_EQ(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0), 0);
+        if (::testing::Test::HasFailure()) _exit(1);
+        EXPECT_EQ(prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &filter), 0);
+        if (::testing::Test::HasFailure()) _exit(1);
 
         tstrncpy(tsLogDir, logDir, PATH_MAX);
         tsAsyncLog = 0;
         terrno = 0;
-        ASSERT_EQ(taosInitLog("chmodTest", 1, true), 0) << terrstr();
-        EXPECT_NE(terrno, TAOS_SYSTEM_ERROR(EPERM));
+        EXPECT_EQ(taosInitLog("chmodTest", 1, true), 0) << terrstr();
+        if (::testing::Test::HasFailure()) _exit(1);
+        // The missing .1 file or successful symlink retry leaves this error context.
+        EXPECT_EQ(terrno, TAOS_SYSTEM_ERROR(useSymlink ? ELOOP : ENOENT));
+        taosPrintLog("UTL INFO ", DEBUG_INFO, DEBUG_FILE,
+                     "normal log remains writable after fchmod fails");
         taosPrintSlowLog("log remains writable after fchmod fails");
         taosCloseLog();
-
-        int64_t size = 0;
-        EXPECT_EQ(taosStatFile(logFile, &size, nullptr, nullptr), 0);
-        EXPECT_GT(size, 0);
 
         snprintf(tsLogDir, PATH_MAX, "%s/missing", logDir);
         EXPECT_EQ(taosInitLog("chmodTest", 1, false),
@@ -85,8 +94,18 @@ TEST(logDeathTest, chmod_failure_is_nonfatal) {
       ::testing::ExitedWithCode(0),
       "WARNING: failed to set log file permissions");
 
+  TdFilePtr pFile = taosOpenFile(logFile, TD_FILE_READ);
+  EXPECT_NE(pFile, nullptr) << terrstr();
+  if (pFile != nullptr) {
+    char contents[1024] = {0};
+    EXPECT_GT(taosReadFile(pFile, contents, sizeof(contents) - 1), 0);
+    EXPECT_NE(strstr(contents, "normal log remains writable after fchmod fails"), nullptr);
+    EXPECT_EQ(taosCloseFile(&pFile), 0);
+  }
   taosRemoveDir(logDir);
 }
+
+INSTANTIATE_TEST_SUITE_P(log, LogChmodDeathTest, ::testing::Values(false, true));
 #endif
 
 

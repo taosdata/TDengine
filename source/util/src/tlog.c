@@ -222,14 +222,14 @@ static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
   }
 #ifndef WINDOWS
   if (pFile != NULL) {
-    int32_t savedErrno = terrno;
+    int32_t savedTerrno = terrno;
     int32_t code = taosFchmodFile(pFile, 0666);
     if (code != 0) {
       (void)fprintf(stderr,
                     "WARNING: failed to set log file permissions:%s, reason:%s, code:%d; "
                     "continuing with existing permissions\n",
                     name, tstrerror(code), code);
-      terrno = savedErrno;
+      terrno = savedTerrno;
     }
   }
 #endif
