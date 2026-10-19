@@ -1003,7 +1003,10 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
 
   for (int32_t i = 0; i < pReq->numOfFuncs; ++i) {
     char pFunc[TSDB_FUNC_NAME_LEN] = {0};
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pFunc));
+    // tDecodeCStrTo() bounds the copy against the decoded length only, never against the
+    // destination, so a name longer than the buffer would overflow it. Bound it explicitly:
+    // a name that does not fit is rejected instead of being silently truncated or overrun.
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(&decoder, pFunc, sizeof(pFunc)));
     if (taosArrayPush(pReq->pFuncs, pFunc) == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
