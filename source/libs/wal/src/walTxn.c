@@ -32,11 +32,8 @@
 
 #include "walInt.h"
 
-// Retention tuning knobs for walTxnFilesTrim:
-//   extra hours: keep .txn files no older than (oldest .log createTs - WAL_TXN_TRIM_EXTRA_HOURS)
-//   extra files: keep at most (logCount + WAL_TXN_TRIM_EXTRA_FILES) .txn files
-#define WAL_TXN_TRIM_EXTRA_HOURS 4
-#define WAL_TXN_TRIM_EXTRA_FILES 6
+// WAL_TXN_TRIM_EXTRA_HOURS / WAL_TXN_TRIM_EXTRA_FILES, the retention tuning knobs for
+// walTxnFilesTrim below, are defined in walInt.h.
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -512,6 +509,46 @@ clear_pending:
 //   B: .txn file count > .log file count + WAL_TXN_TRIM_EXTRA_FILES
 //   C: file's WAL range does not overlap the keepVersion-protected region
 // Called after walEndSnapshot trims .log files.
+
+// One discovered .txn file: its segment firstVer plus the level-0 mount point it was
+// found on, so the later unlink targets the disk the file actually lives on.
+typedef struct {
+  int64_t firstVer;
+  SDiskID diskId;
+} SWalTxnTrimFile;
+
+static int32_t walTxnTrimFileCompare(const void *pLeft, const void *pRight) {
+  int64_t l = ((const SWalTxnTrimFile *)pLeft)->firstVer;
+  int64_t r = ((const SWalTxnTrimFile *)pRight)->firstVer;
+  if (l < r) return -1;
+  if (l > r) return 1;
+  return 0;
+}
+
+// Parse "<digits>.txn" and nothing else.
+//
+// sscanf's return value alone does NOT prove the name is a .txn file: for
+// "00000000000000000304.log", "%" PRId64 greedily consumes the digits and the conversion
+// *completes* (return value 1) before the literal "txn" fails to match "log" and scanning
+// stops -- a failed literal match does not undo an already-completed conversion. So every
+// .log and .idx file in the directory was being counted as a .txn file, roughly tripling
+// txnCount. That broke trim two ways: Condition B fired when there was no excess at all,
+// and the duplicate firstVers made the Condition C range calculation below read
+// nextFirstVer == firstVer, understating a file's version range and letting files that
+// overlap the keepVersion-protected region be trimmed.
+//
+// %n records the bytes consumed once the whole format (conversion + literal ".txn") has
+// matched, so comparing it against strlen(name) is what actually proves the match --
+// the same guard walScanActualLogFiles uses in walMeta.c.
+static bool walTxnParseFileName(const char *name, int64_t *pFirstVer) {
+  int64_t firstVer = -1;
+  int32_t consumed = 0;
+  if (sscanf(name, "%" PRId64 "." WAL_TXN_SUFFIX "%n", &firstVer, &consumed) != 1) return false;
+  if (firstVer < 0 || (size_t)consumed != strlen(name)) return false;
+  *pFirstVer = firstVer;
+  return true;
+}
+
 void walTxnFilesTrim(SWal *pWal) {
   if (!pWal->cfg.enableTxnFile) return;
 
@@ -523,12 +560,34 @@ void walTxnFilesTrim(SWal *pWal) {
   int64_t       oldestLogCreateTs = pOldest->createTs;  // seconds
   int64_t       cutoffTs = oldestLogCreateTs - (int64_t)WAL_TXN_TRIM_EXTRA_HOURS * 3600;
 
+  // Start of the live version range. A .txn file below this has no .log segment left and
+  // is unreachable (see the Condition A comment in the trim loop below).
+  //
+  // Taken as the minimum over the whole file list and vers.firstVer rather than from
+  // fileInfoSet[0], for the same reason as walPurgeOrphanLogFiles in walMeta.c: the array
+  // is ascending at runtime but walMetaDeserialize pushes entries in meta-file order
+  // without sorting, and too high a bound here would delete the .txn of a live segment.
+  // Both candidates agree exactly in a healthy WAL; taking the lower only keeps more.
+  int64_t liveFirstVer = INT64_MAX;
+  for (int32_t i = 0; i < logCount; i++) {
+    int64_t fv = ((SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, i))->firstVer;
+    if (fv >= 0 && fv < liveFirstVer) liveFirstVer = fv;
+  }
+  if (pWal->vers.firstVer >= 0) liveFirstVer = TMIN(liveFirstVer, pWal->vers.firstVer);
+  if (liveFirstVer == INT64_MAX) return;  // no usable segment in meta; nothing to compare against
+
   // Scan for .txn files. When pWal->pTfs is bound, a .txn file may live on any level-0
   // mount point (same reason as walScanActualLogFiles in walMeta.c) -- scanning only
   // pWal->path here would make trim under-count txnCount, so files on non-primary disks
   // would never be discovered and never trimmed (a slow disk-space leak, not silent data
   // loss like the walCheckAndRepairMeta bug, but still wrong).
-  SArray *txnFirstVers = taosArrayInit(16, sizeof(int64_t));
+  // Record each file's diskId alongside its firstVer: the .log segment a trimmable .txn
+  // belongs to is by definition already gone from fileInfoSet (Condition B only triggers
+  // once txnCount exceeds logCount), so walBuildTxnName's reverse lookup cannot resolve
+  // it and would build a primary-dir path -- the existence check in the trim loop would
+  // then fail and the file would never be removed. Keep the placement from the scan that
+  // found it.
+  SArray *txnFirstVers = taosArrayInit(16, sizeof(SWalTxnTrimFile));
   if (txnFirstVers == NULL) return;
 
   if (pWal->pTfs == NULL) {
@@ -542,9 +601,9 @@ void walTxnFilesTrim(SWal *pWal) {
       const char *name = taosGetDirEntryName(pEntry);
       if (taosDirEntryIsDir(pEntry)) continue;
       int64_t firstVer = -1;
-      if (sscanf(name, "%" PRId64 "." WAL_TXN_SUFFIX, &firstVer) != 1) continue;
-      if (firstVer < 0) continue;
-      if (taosArrayPush(txnFirstVers, &firstVer) == NULL) continue;
+      if (!walTxnParseFileName(name, &firstVer)) continue;
+      SWalTxnTrimFile item = {.firstVer = firstVer, .diskId = {.level = 0, .id = -1}};
+      if (taosArrayPush(txnFirstVers, &item) == NULL) continue;
     }
     (void)taosCloseDir(&pDir);
   } else {
@@ -559,14 +618,14 @@ void walTxnFilesTrim(SWal *pWal) {
       tstrncpy(bname, pFile->aname, sizeof(bname));
       char   *name = taosDirEntryBaseName(bname);
       int64_t firstVer = -1;
-      if (sscanf(name, "%" PRId64 "." WAL_TXN_SUFFIX, &firstVer) != 1) continue;
-      if (firstVer < 0) continue;
-      if (taosArrayPush(txnFirstVers, &firstVer) == NULL) continue;
+      if (!walTxnParseFileName(name, &firstVer)) continue;
+      SWalTxnTrimFile item = {.firstVer = firstVer, .diskId = pFile->did};
+      if (taosArrayPush(txnFirstVers, &item) == NULL) continue;
     }
     tfsClosedir(pTDir);
   }
 
-  taosArraySort(txnFirstVers, compareInt64Val);
+  taosArraySort(txnFirstVers, walTxnTrimFileCompare);
   int32_t txnCount = (int32_t)taosArrayGetSize(txnFirstVers);
 
   // Condition B: only trim if txnCount > logCount + WAL_TXN_TRIM_EXTRA_FILES.
@@ -585,13 +644,27 @@ void walTxnFilesTrim(SWal *pWal) {
 
   // Trim the oldest `excess` .txn files, provided they satisfy Conditions A and C.
   for (int32_t i = 0; i < excess; i++) {
-    int64_t firstVer = *(int64_t *)taosArrayGet(txnFirstVers, i);
+    SWalTxnTrimFile *pItem = (SWalTxnTrimFile *)taosArrayGet(txnFirstVers, i);
+    int64_t          firstVer = pItem->firstVer;
 
     // Condition C: skip files whose WAL range might contain protected versions.
     if (keepVer >= 0) {
-      int64_t nextFirstVer = (i + 1 < txnCount)
-                             ? *(int64_t *)taosArrayGet(txnFirstVers, i + 1)
-                             : INT64_MAX;
+      // Scan forward to the next *distinct* firstVer rather than taking entry i+1.
+      // Two entries can carry the same firstVer: the pre-fix walBuildTxnName resolved a
+      // segment it could no longer find in fileInfoSet to the primary mount, so a WAL
+      // upgraded from that state can hold <X>.txn on the primary *and* <X>.txn next to
+      // the segment on its real mount, and the tfsOpendir scan above reports both. Entry i+1 would
+      // then be the same firstVer, making nextFirstVer == firstVer -- an empty range that
+      // never exceeds keepVer, so a file that does cover the protected region gets
+      // trimmed. Scanning to the next distinct value keeps the range honest.
+      int64_t nextFirstVer = INT64_MAX;
+      for (int32_t j = i + 1; j < txnCount; j++) {
+        int64_t candidate = ((SWalTxnTrimFile *)taosArrayGet(txnFirstVers, j))->firstVer;
+        if (candidate != firstVer) {
+          nextFirstVer = candidate;
+          break;
+        }
+      }
       if (nextFirstVer > keepVer) {
         // This file may contain entries at or after keepVer. Stop trimming.
         wDebug("vgId:%d, walTxnFilesTrim: stopping at firstVer:%" PRId64 " (keepVer:%" PRId64 ")",
@@ -600,27 +673,49 @@ void walTxnFilesTrim(SWal *pWal) {
       }
     }
 
-    // Condition A: get the createTs of this .txn file.
-    char    fnameStr[WAL_FILE_LEN];
-    int64_t mtime = 0;
-    walBuildTxnName(pWal, firstVer, fnameStr);
-    if (taosStatFile(fnameStr, NULL, &mtime, NULL) < 0) continue;
-    // Use .log segment createTs for the same firstVer; fall back to file mtime.
-    int64_t txnCreateTs = 0;
-    for (int32_t j = 0; j < logCount; j++) {
-      SWalFileInfo *pInfo = (SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, j);
-      if (pInfo->firstVer == firstVer) {
-        txnCreateTs = pInfo->createTs;
-        break;
-      }
-    }
-    if (txnCreateTs == 0) {
-      txnCreateTs = mtime;
-    }
+    char fnameStr[WAL_FILE_LEN];
+    char segDir[WAL_PATH_LEN];
+    walResolveFileDirAt(pWal, pItem->diskId, segDir, sizeof(segDir));
+    walBuildTxnNameAt(segDir, firstVer, fnameStr);
+    if (!taosCheckExistFile(fnameStr)) continue;
 
-    if (txnCreateTs > cutoffTs) {
-      // Condition A not satisfied; stop  -  all subsequent files are newer.
-      break;
+    // Condition A: age guard, and it only applies inside the live version range.
+    //
+    // A .txn file below liveFirstVer is an orphan: walEndSnapshot has already recycled the
+    // .log segment it belongs to, so nothing can read it -- the whole point of trim is to
+    // collect exactly these. Such a file used to fall back to its own mtime and be compared
+    // against cutoffTs, which could never work: cutoffTs derives from the oldest *surviving*
+    // segment's createTs, and after retention runs that segment is by definition the newest
+    // thing on disk. Under fast recycling (wal_retention_period 0 recycles within seconds)
+    // the cutoff therefore sits ~WAL_TXN_TRIM_EXTRA_HOURS in the future relative to every
+    // orphan, the very first iteration failed A, and the `break` ended the loop without
+    // removing anything -- .txn files accumulated without bound while .log files were
+    // correctly recycled. The keepVersion-protected region is Condition C's job, not an age
+    // window's, and walEndSnapshot already clamps recycling to keepVersion, so an orphan is
+    // always below it. Trim orphans on age-independent grounds.
+    //
+    // Inside the live range the age guard still runs and, as written, always keeps the file:
+    // its segment's createTs is >= fileInfoSet[0]->createTs, which is cutoffTs plus
+    // WAL_TXN_TRIM_EXTRA_HOURS. That is the intended behavior -- never drop the .txn of a
+    // segment whose .log is still there -- so the comparison is left in place to express it
+    // rather than hardcoded.
+    if (firstVer >= liveFirstVer) {
+      int64_t txnCreateTs = 0;
+      for (int32_t j = 0; j < logCount; j++) {
+        SWalFileInfo *pInfo = (SWalFileInfo *)taosArrayGet(pWal->fileInfoSet, j);
+        if (pInfo->firstVer == firstVer) {
+          txnCreateTs = pInfo->createTs;
+          break;
+        }
+      }
+      // No matching segment at or above liveFirstVer means the entry does not line up with
+      // any live segment (a rolled-back tail, say). Keep it; it is not provably garbage.
+      if (txnCreateTs == 0 || txnCreateTs > cutoffTs) {
+        // `continue`, not `break`: with orphans no longer gated on a timestamp, the values
+        // this loop tests are no longer monotonic in firstVer, so stopping here could skip
+        // trimmable files further along.
+        continue;
+      }
     }
 
     // Skip the .txn file that corresponds to the currently open write segment.
