@@ -2817,6 +2817,12 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
     }
 
     SNode *pAst = NULL;
+    // @fix(review): pNodeList is declared and initialised to NULL here, BEFORE the goto NEXT
+    // below, so that every path reaching the NEXT label (including the early skip for a
+    // non-SELECT AST) sees a valid NULL pNodeList. Declaring it after the goto would leave it
+    // uninitialised when NEXT calls nodesDestroyList(pNodeList), causing a use-of-uninitialised
+    // pointer crash -- the very failure this fix set out to prevent.
+    SNodeList *pNodeList = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {
       code = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
@@ -2825,7 +2831,15 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
       TAOS_RETURN(code);
     }
 
-    SNodeList *pNodeList = NULL;
+    // @fix(item164): only inspect the AST as a SELECT statement when it actually is one.
+    // A non-SELECT root node passed to nodesCollectColumns((SSelectStmt *)) reads SSelectStmt
+    // offsets from foreign memory and crashes the mnode on every ALTER STB DROP/RENAME COLUMN.
+    // Skip the conflict check for such (legacy/corrupt) ASTs instead of crashing.
+    if (nodeType(pAst) != QUERY_NODE_SELECT_STMT) {
+      mInfo("tsma:%s, persisted AST is not a SELECT statement, skip column conflict check", pSma->name);
+      goto NEXT;
+    }
+
     if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
         0) {
       sdbCancelFetch(pSdb, pIter);
