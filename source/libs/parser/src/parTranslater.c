@@ -39643,6 +39643,11 @@ static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->refSourceName);
   taosMemoryFree(pReq->refSchemaName);
   taosMemoryFree(pReq->filterCondJson);
+  taosMemoryFree(pReq->seriesAlias);
+  taosMemoryFree(pReq->seriesSourceName);
+  taosMemoryFree(pReq->seriesDbName);
+  taosMemoryFree(pReq->seriesMeasurementName);
+  taosMemoryFree(pReq->seriesTagCondJson);
 
   for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
