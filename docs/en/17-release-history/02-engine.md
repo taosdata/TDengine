@@ -30,7 +30,7 @@ Starting with `v3.4.3.0`, TDengine Enterprise Linux installation packages use th
 
 ## TDengine Releases
 
-Download links for TDengine 3.x version installation packages are as follows:
+Download links for TDengine 3.3.6 and earlier installation packages are as follows:
 
 ### 3.3.6.13
 
