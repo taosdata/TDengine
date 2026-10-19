@@ -196,11 +196,30 @@ typedef struct {
 } STxnPendingFile;
 #pragma pack(pop)
 
+// Upper bound for the body length declared by a WAL record header. A body is written by
+// walWriteImpl from a single client/raft message, so a real one is orders of magnitude
+// below this; anything larger -- or negative -- means the bytes being inspected are not a
+// record header that this code wrote.
+//
+// This has to be checked before bodyLen is used for ANYTHING, because every consumer
+// treats it as a trusted length: walValidBodyCksum passes it to taosCheckChecksum as a
+// uint32_t (a negative value becomes ~4 GB and walks off the end of the buffer),
+// walFetchBody/walReadVer size a read with it, walSkipFetchBody seeks by it, and
+// walCheckAndRepairIdxFile advances an idx offset by it. The header checksum is not
+// evidence of sanity here: it is unkeyed CRC32C over the header, so whoever chose the
+// bytes could compute it.
+#define WAL_MAX_BODY_LEN (512 * 1024 * 1024)
+
+static inline bool walValidBodyLen(int32_t bodyLen) { return bodyLen >= 0 && bodyLen <= WAL_MAX_BODY_LEN; }
+
 static inline int walValidHeadCksum(SWalCkHead* pHead) {
   return taosCheckChecksum((uint8_t*)&pHead->head, sizeof(SWalCont), pHead->cksumHead);
 }
 
 static inline int walValidBodyCksum(SWalCkHead* pHead) {
+  // never hand an out-of-range length to the checksum: taosCheckChecksum takes a
+  // uint32_t size and crc32c loops until it is exhausted
+  if (!walValidBodyLen(pHead->head.bodyLen)) return -1;
   return taosCheckChecksum((uint8_t*)pHead->head.body, pHead->head.bodyLen, pHead->cksumBody);
 }
 
