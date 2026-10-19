@@ -15959,14 +15959,31 @@ TEST(BoundedInternalBlockDecoderTest, RejectsSelfConsistentNonCanonicalFixedWidt
   EXPECT_EQ(decodeInternalBlockWithEmptySchema(wrongIntWidth), TSDB_CODE_INVALID_MSG);
 }
 
-TEST(BoundedInternalBlockDecoderTest, RejectsVariableValueLargerThanDeclaredWidth) {
+TEST(BoundedInternalBlockDecoderTest, AcceptsVariableValueLargerThanDeclaredWidth) {
+  // Virtual columns keep the full source value when the column schema only declares the
+  // variable-length header. The bounded decoder still checks that the value fits in the
+  // column payload; it does not reject the value for exceeding info.bytes.
+  const std::string payload(60000, 'x');
   auto oversized = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE,
-                                                  {makeVarStringValue(std::string(60000, 'x'))});
+                                                  {makeVarStringValue(payload)});
   ASSERT_FALSE(oversized.empty());
-  EXPECT_EQ(decodeInternalBlockWithEmptySchema(oversized), TSDB_CODE_INVALID_MSG);
+
+  SSDataBlock *pDecoded = nullptr;
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  blockDataFreeRes(pDecoded);
+  ASSERT_EQ(blockDecodeInternalBounded(pDecoded, reinterpret_cast<const char *>(oversized.data()), oversized.size(),
+                                       nullptr),
+            TSDB_CODE_SUCCESS);
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pDecoded->pDataBlock, 0));
+  ASSERT_NE(pColumn, nullptr);
+  EXPECT_EQ(pColumn->info.bytes, VARSTR_HEADER_SIZE);
+  ASSERT_NE(colDataGetData(pColumn, 0), nullptr);
+  EXPECT_EQ(varDataLen(colDataGetData(pColumn, 0)), 60000);
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(pColumn, 0)), payload.data(), payload.size()), 0);
+  blockDataDestroy(pDecoded);
 
   auto valid = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, 60000 + VARSTR_HEADER_SIZE,
-                                              {makeVarStringValue(std::string(60000, 'x'))});
+                                              {makeVarStringValue(payload)});
   ASSERT_FALSE(valid.empty());
   EXPECT_EQ(decodeInternalBlockWithEmptySchema(valid), TSDB_CODE_SUCCESS);
 }
