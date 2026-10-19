@@ -2384,6 +2384,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pVal);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyNode(pStmt->pFilterCond);
+      nodesDestroyNode(pStmt->pSeriesDecl);
       nodesDestroyList(pStmt->pList);
       break;
     }
