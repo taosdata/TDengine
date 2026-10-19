@@ -62,6 +62,7 @@ typedef struct STaskSubJobCtx {
   void*              rpcHandle;
   int64_t            transporterId;
   int32_t            code;
+  int32_t            rspLen;
   tsem_t             ready;
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>

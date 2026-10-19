@@ -3072,6 +3072,13 @@ int32_t createOneDataBlockWithTwoBlock(const SSDataBlock* pSrcBlock, const SSDat
           }
         }
         QUERY_CHECK_NULL(pDstCol, code, lino, _return, TSDB_CODE_INVALID_PARA);
+        QUERY_CHECK_CONDITION(
+            pDstCol->info.type == pSrcCol->info.type &&
+                (IS_VAR_DATA_TYPE(pDstCol->info.type) || pDstCol->info.bytes == pSrcCol->info.bytes) &&
+                (!IS_DECIMAL_TYPE(pDstCol->info.type) ||
+                 (pDstCol->info.precision == pSrcCol->info.precision &&
+                  pDstCol->info.scale == pSrcCol->info.scale)),
+            code, lino, _return, TSDB_CODE_INVALID_MSG);
         if (pSrcBlock->pBlockAgg) {
           (void)memcpy(&pDstBlock->pBlockAgg[dstIndex], &pSrcBlock->pBlockAgg[j], sizeof(SColumnDataAgg));
           pDstBlock->pBlockAgg[dstIndex].numOfNull = 0;
@@ -4670,32 +4677,27 @@ static bool blockValidateVariableValue(int8_t type, const char* pData, size_t re
 
 static bool blockValidateVariableColumn(const char* pData, size_t dataLen, size_t columnMetaOffset,
                                         size_t columnDataOffset, int32_t numOfRows, int8_t type,
-                                        uint32_t decodedColLen,
-                                        bool canonicalOffsets) {
+                                        uint32_t decodedColLen) {
   if (pData == NULL || columnDataOffset > dataLen || decodedColLen > dataLen - columnDataOffset) return false;
 
-  size_t expectedOffset = 0;
   for (int32_t row = 0; row < numOfRows; ++row) {
     int32_t valueOffset = 0;
     if (!blockDecodeReadBounded(pData, dataLen, &columnMetaOffset, &valueOffset, sizeof(valueOffset))) return false;
     if (valueOffset == -1) continue;
-    // Unfilled virtual-table pseudo columns use zero offsets with no payload.
-    if (!canonicalOffsets && decodedColLen == 0 && valueOffset == 0) continue;
-    if (valueOffset < 0 || (uint32_t)valueOffset >= decodedColLen ||
-        (canonicalOffsets && (size_t)valueOffset != expectedOffset)) {
-      return false;
-    }
+    // The decoder normalizes zero offsets in an empty variable column to NULL.
+    if (decodedColLen == 0 && valueOffset == 0) continue;
+    if (valueOffset < 0 || (uint32_t)valueOffset >= decodedColLen) return false;
 
     size_t remaining = (size_t)decodedColLen - (size_t)valueOffset;
     size_t valueLen = 0;
+    // Virtual columns can carry full source values wider than their declared width.
     if (!blockValidateVariableValue(type, pData + columnDataOffset + valueOffset, remaining, &valueLen) ||
         valueLen > remaining) {
       return false;
     }
-    if (canonicalOffsets) expectedOffset += valueLen;
   }
 
-  return columnMetaOffset == columnDataOffset && (!canonicalOffsets || expectedOffset == decodedColLen);
+  return columnMetaOffset == columnDataOffset;
 }
 
 typedef struct {
@@ -4727,7 +4729,7 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
   if (!blockDecodeReadBounded(pData, blockLen, &offset, &numOfRows, sizeof(numOfRows)) ||
       !blockDecodeReadBounded(pData, blockLen, &offset, &numOfCols, sizeof(numOfCols)) ||
       !blockDecodeSkipBounded(blockLen, &offset, sizeof(int32_t) + sizeof(uint64_t)) || numOfRows <= 0 ||
-      numOfRows > INT32_MAX - 7 || numOfCols <= 0) {
+      numOfRows > INT32_MAX - 7 || numOfCols < 0) {
     return blockDecodeInvalidMessage();
   }
 
@@ -4742,8 +4744,7 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
   (void)decodedSchemaLen;
 
   size_t existingCols = taosArrayGetSize(pBlock->pDataBlock);
-  if ((internal && existingCols != 0 && existingCols != (size_t)numOfCols) ||
-      (!internal && existingCols != 0 && existingCols < (size_t)numOfCols)) {
+  if (existingCols != 0 && existingCols < (size_t)numOfCols) {
     return blockDecodeInvalidMessage();
   }
 
@@ -4773,7 +4774,8 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
 
     if (existingCols != 0) {
       const SColumnInfoData* pExisting = taosArrayGet(pBlock->pDataBlock, i);
-      if (pExisting == NULL || pExisting->info.type != type || pExisting->info.bytes != bytes ||
+      if (pExisting == NULL || pExisting->info.type != type ||
+          (!IS_VAR_DATA_TYPE(type) && pExisting->info.bytes != bytes) ||
           (IS_DECIMAL_TYPE(type) && (pExisting->info.precision != precision || pExisting->info.scale != scale))) {
         return blockDecodeInvalidMessage();
       }
@@ -4809,7 +4811,7 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
     size_t columnDataOffset = offset;
     if (!blockDecodeSkipBounded(blockLen, &offset, decodedColLen) ||
         (IS_VAR_DATA_TYPE(type) && !blockValidateVariableColumn(pData, blockLen, columnMetaOffset, columnDataOffset,
-                                                                numOfRows, type, decodedColLen, internal))) {
+                                                                numOfRows, type, decodedColLen))) {
       return blockDecodeInvalidMessage();
     }
   }
@@ -4877,6 +4879,27 @@ static bool blockValidateTimestampColumn(const char* pData, const SBlockDecodeEn
   }
 
   return false;
+}
+
+int32_t blockIsSingleNullColumnEncoded(const char* pData, size_t dataLen, bool* pIsNull) {
+  if (pIsNull == NULL) return TSDB_CODE_INVALID_PARA;
+  *pIsNull = false;
+
+  SSDataBlock             emptyBlock = {0};
+  SBlockDecodeEncodingInfo info = {0};
+  int32_t code = blockValidateEncoding(&emptyBlock, pData, dataLen, true, true, &info);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (info.numOfCols != 1) return TSDB_CODE_SUCCESS;
+
+  int8_t type = TSDB_DATA_TYPE_NULL;
+  memcpy(&type, pData + info.schemaOffset, sizeof(type));
+  if (type != TSDB_DATA_TYPE_NULL) return TSDB_CODE_SUCCESS;
+
+  for (int32_t row = 0; row < info.numOfRows; ++row) {
+    if (!BMIsNull(pData + info.columnDataOffset, row)) return TSDB_CODE_SUCCESS;
+  }
+  *pIsNull = true;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos) {

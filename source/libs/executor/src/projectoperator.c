@@ -1887,6 +1887,25 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
+static int32_t projectAssignColumn(SColumnInfoData* pDst, const SColumnInfoData* pSrc, int32_t rows,
+                                   const SDataBlockInfo* pBlockInfo) {
+  uint8_t precision = pDst->info.precision;
+  uint8_t scale = pDst->info.scale;
+  if (IS_DECIMAL_TYPE(pDst->info.type) && precision != 0 &&
+      (pSrc->info.precision != 0 || pSrc->info.scale != 0) &&
+      (precision != pSrc->info.precision || scale != pSrc->info.scale)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t code = colDataAssign(pDst, pSrc, rows, pBlockInfo);
+  if (code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pDst->info.type) && precision != 0) {
+    // colDataAssign copies source metadata; Project's declared decimal type owns the output schema.
+    pDst->info.precision = precision;
+    pDst->info.scale = scale;
+  }
+  return code;
+}
+
 int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
                            SqlFunctionCtx* pfCtx, int64_t* numOfRows, bool createNewColModel) {
   int32_t code = 0, lino = 0;
@@ -1919,13 +1938,13 @@ int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t
     SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
     TSDB_CHECK_NULL(pInput, code, lino, _exit, terrno);
 
-    TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
+    TAOS_CHECK_EXIT(projectAssignColumn(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
     *numOfRows = pSrcBlock->info.rows;
 
     return code;
   }
   
-  TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
+  TAOS_CHECK_EXIT(projectAssignColumn(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
   *numOfRows = pInputData->numOfRows;
 
 _exit:

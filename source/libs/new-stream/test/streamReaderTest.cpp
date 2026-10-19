@@ -202,6 +202,9 @@ TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
   const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
   EXPECT_EQ(2, ntohl(pRsp->numOfBlocks));
   EXPECT_EQ(2, be64toh(pRsp->numOfRows));
+  EXPECT_EQ(size - sizeof(*pRsp), ntohl(pRsp->payloadLen));
+  EXPECT_EQ(size - sizeof(*pRsp), ntohl(pRsp->compLen));
+  EXPECT_EQ(0, pRsp->compressed);
 
   const char *pCursor = pRsp->data;
   for (uint64_t expectedGid : {UINT64_C(101), UINT64_C(202)}) {
@@ -221,6 +224,41 @@ TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
   blockDataDestroy(pFirst);
   blockDataDestroy(pEog);
   blockDataDestroy(pSecond);
+  taosArrayDestroy(pBlocks);
+}
+
+TEST(StreamReaderFetchBatchTest, LegacyEmptyResponseHasZeroPayloadLength) {
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  void *pData = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  ASSERT_NE(nullptr, pData);
+  const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(sizeof(*pRsp), size);
+  EXPECT_EQ(0, ntohl(pRsp->payloadLen));
+  EXPECT_EQ(0, ntohl(pRsp->compLen));
+  EXPECT_EQ(1, pRsp->completed);
+  rpcFreeCont(pData);
+  taosArrayDestroy(pBlocks);
+}
+
+int32_t invalidLegacyFetchBlockSize(const SSDataBlock *) { return INT32_MAX; }
+
+TEST(StreamReaderFetchBatchTest, LegacyResponseRejectsOversizedBlock) {
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  SSDataBlock *pBlock = makeReaderFetchDataBlock(101, 11);
+  ASSERT_NE(nullptr, pBlock);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pBlock));
+  Stub sizeStub;
+  sizeStub.set(blockGetInternalEncodeSize, invalidLegacyFetchBlockSize);
+  void *pData = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size_t size = 123;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, streamBuildFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  EXPECT_EQ(nullptr, pData);
+  EXPECT_EQ(0, size);
+  blockDataDestroy(pBlock);
   taosArrayDestroy(pBlocks);
 }
 

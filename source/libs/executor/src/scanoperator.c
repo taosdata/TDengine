@@ -3138,6 +3138,114 @@ _return:
   return code;
 }
 
+static int32_t validateVstbDirectBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate) {
+  if (pBlock == NULL || pTemplate == NULL || pBlock->pDataBlock == NULL || pTemplate->pDataBlock == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pTemplate->pDataBlock);
+  if (taosArrayGetSize(pBlock->pDataBlock) != numOfCols) return TSDB_CODE_INVALID_MSG;
+
+  for (size_t i = 0; i < numOfCols; ++i) {
+    const SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+    const SColumnInfoData* pDst = taosArrayGet(pTemplate->pDataBlock, i);
+    if (pSrc == NULL || pDst == NULL || pSrc->info.slotId != pDst->info.slotId ||
+        pSrc->info.type != pDst->info.type ||
+        (!IS_VAR_DATA_TYPE(pDst->info.type) && pSrc->info.bytes != pDst->info.bytes) ||
+        (IS_DECIMAL_TYPE(pDst->info.type) &&
+         (pSrc->info.precision != pDst->info.precision || pSrc->info.scale != pDst->info.scale))) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createVstbSchemaSlotMap(const SSDataBlock* pTemplate, SSHashObj** ppSlots) {
+  if (pTemplate == NULL || pTemplate->pDataBlock == NULL || ppSlots == NULL) return TSDB_CODE_INVALID_MSG;
+
+  size_t dstCols = taosArrayGetSize(pTemplate->pDataBlock);
+  if (dstCols == 0 || dstCols > TSDB_MAX_COLUMNS) return TSDB_CODE_INVALID_MSG;
+  SSHashObj* pSlots = tSimpleHashInit(dstCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+  if (pSlots == NULL) return terrno;
+
+  for (size_t i = 0; i < dstCols; ++i) {
+    const SColumnInfoData* pCol = taosArrayGet(pTemplate->pDataBlock, i);
+    if (pCol == NULL || pCol->info.slotId < 0 ||
+        tSimpleHashGet(pSlots, &pCol->info.slotId, sizeof(pCol->info.slotId)) != NULL) {
+      tSimpleHashCleanup(pSlots);
+      return TSDB_CODE_INVALID_MSG;
+    }
+    int32_t index = (int32_t)i;
+    int32_t code = tSimpleHashPut(pSlots, &pCol->info.slotId, sizeof(pCol->info.slotId), &index, sizeof(index));
+    if (code != TSDB_CODE_SUCCESS) {
+      tSimpleHashCleanup(pSlots);
+      return code;
+    }
+  }
+
+  *ppSlots = pSlots;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateVstbMappedBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate,
+                                             SSHashObj* pSlots, bool* pDirect) {
+  if (pBlock == NULL || pTemplate == NULL || pSlots == NULL || pBlock->pDataBlock == NULL ||
+      pTemplate->pDataBlock == NULL || pDirect == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  size_t srcCols = taosArrayGetSize(pBlock->pDataBlock);
+  size_t dstCols = taosArrayGetSize(pTemplate->pDataBlock);
+  if (dstCols > TSDB_MAX_COLUMNS) return TSDB_CODE_INVALID_MSG;
+  *pDirect = srcCols == dstCols;
+  uint8_t seen[(TSDB_MAX_COLUMNS + 7) / 8] = {0};
+  size_t mappedCols = 0;
+  bool ignoredTimestamp = false;
+
+  for (size_t i = 0; i < srcCols; ++i) {
+    const SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+    if (pSrc == NULL) return TSDB_CODE_INVALID_MSG;
+    if (pSrc->info.slotId == -1 && pSrc->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      if (ignoredTimestamp) return TSDB_CODE_INVALID_MSG;
+      ignoredTimestamp = true;
+      *pDirect = false;
+      continue;
+    }
+
+    if (++mappedCols > dstCols) return TSDB_CODE_INVALID_MSG;
+    int32_t* pIndex = tSimpleHashGet(pSlots, &pSrc->info.slotId, sizeof(pSrc->info.slotId));
+    if (pIndex == NULL || *pIndex < 0 || (size_t)*pIndex >= dstCols) return TSDB_CODE_INVALID_MSG;
+    uint8_t mask = (uint8_t)(1U << (*pIndex & 7));
+    if (seen[*pIndex >> 3] & mask) return TSDB_CODE_INVALID_MSG;
+    seen[*pIndex >> 3] |= mask;
+    if ((size_t)*pIndex != i) *pDirect = false;
+
+    const SColumnInfoData* pDst = taosArrayGet(pTemplate->pDataBlock, *pIndex);
+    if (pDst == NULL || pSrc->info.type != pDst->info.type ||
+        (!IS_VAR_DATA_TYPE(pDst->info.type) && pSrc->info.bytes != pDst->info.bytes) ||
+        (IS_DECIMAL_TYPE(pDst->info.type) &&
+         (pSrc->info.precision != pDst->info.precision || pSrc->info.scale != pDst->info.scale))) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+#if defined(BUILD_TEST)
+int32_t scanTestValidateVstbDirectBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate) {
+  return validateVstbDirectBlockSchema(pBlock, pTemplate);
+}
+
+int32_t scanTestValidateVstbMappedBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate) {
+  SSHashObj* pSlots = NULL;
+  int32_t code = createVstbSchemaSlotMap(pTemplate, &pSlots);
+  bool direct = false;
+  if (code == TSDB_CODE_SUCCESS) code = validateVstbMappedBlockSchema(pBlock, pTemplate, pSlots, &direct);
+  tSimpleHashCleanup(pSlots);
+  return code;
+}
+#endif
+
 static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -3184,10 +3292,13 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
     QUERY_CHECK_CODE(code, lino, _end);
 
     // A dynamic source may provide only a sparse subset of the virtual columns.
-    // Rebuild the full template block whenever slots are missing so Exchange and
-    // VirtualScan see a stable schema; unmapped slots stay NULL.  This also covers
-    // the existing VStableAgg tag-pseudo-column case.
-    if (taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize(result->pDataBlock)) {
+    // Rebuild when slots are missing or out of order so Exchange and VirtualScan
+    // see the template schema; unmapped slots stay NULL.  This also covers the
+    // existing VStableAgg tag-pseudo-column case.
+    bool direct = false;
+    code = validateVstbMappedBlockSchema(result, pInfo->pOrgBlock, pInfo->pVstbSchemaSlots, &direct);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!direct) {
       blockDataDestroy(pInfo->pVstbOutputBlock);
       pInfo->pVstbOutputBlock = NULL;
       code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
@@ -3552,11 +3663,14 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     // The first block of a single dynamic virtual-table scan is normalized in
     // doVstbSingleDynamicTableScanNext().  Later blocks arrive through this
-    // ordinary continuation path and must obey the same full-slot contract.
+    // ordinary continuation path and must obey the same slot contract.
     if (pOperator->dynamicTask && pInfo->virtualStableScan && NULL != *ppRes) {
       code = blockSetVstbSlotId(*ppRes, pInfo->pBlockColMap);
       QUERY_CHECK_CODE(code, lino, _end);
-      if (taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize((*ppRes)->pDataBlock)) {
+      bool direct = false;
+      code = validateVstbMappedBlockSchema(*ppRes, pInfo->pOrgBlock, pInfo->pVstbSchemaSlots, &direct);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!direct) {
         SSDataBlock* pDense = NULL;
         blockDataDestroy(pInfo->pVstbOutputBlock);
         pInfo->pVstbOutputBlock = NULL;
@@ -3824,6 +3938,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   }
   destroyTableScanBase(&pTableScanInfo->base);
   taosArrayDestroy(pTableScanInfo->pBlockColMap);
+  tSimpleHashCleanup(pTableScanInfo->pVstbSchemaSlots);
   taosMemoryFreeClear(param);
 }
 
@@ -4022,6 +4137,8 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
     pInfo->pResBlock = NULL;
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
+    code = createVstbSchemaSlotMap(pInfo->pOrgBlock, &pInfo->pVstbSchemaSlots);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
   if (pInfo->virtualStableScan) {
