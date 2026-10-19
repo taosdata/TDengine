@@ -8646,8 +8646,8 @@ TEST_F(ExternalWindowOperatorTest, DimensionBatchRepeatedResetReleasesUnreadInpu
     int32_t observations = 0, pages = 0;
     ASSERT_EQ(0, extWinTestGetBroadcastBenchmarkState(owner.pTaskInfo->pRoot, &compact, &payload, &observations,
                                                       &stagePeak, &pages));
-    peakPages = std::max(peakPages, pages);
-    peakPayload = std::max(peakPayload, payload);
+    peakPages = (std::max)(peakPages, pages);
+    peakPayload = (std::max)(peakPayload, payload);
     EXPECT_GT(payload, 0);
     EXPECT_GT(pages, 0);
     ASSERT_EQ(0, streamClearStatesForOperators(owner.pTaskInfo));
@@ -8771,6 +8771,38 @@ TEST_F(ExternalWindowOperatorTest, RuntimeMultiGroupWithoutStaticJoinKeepsLegacy
             TSDB_CODE_SUCCESS);
 
   expectExtWinProtocol(drainExtWinProtocol(owner.pTaskInfo->pRoot), {{101, 101, 1, 1, false}});
+}
+
+TEST_F(ExternalWindowOperatorTest, SplitCountIncludesEmptyGroupsInSortedOutputAfterReset) {
+  const std::vector<uint64_t> expectedGroups = {101, 202, 303, 404, 505};
+  for (bool calcWithPartition : {false, true}) {
+    SCOPED_TRACE(calcWithPartition);
+    ExternalWindowFactoryOwner owner;
+    ASSERT_EQ(owner.init({1, 1}, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, "count", false, false, 2, false, false, true,
+                         {404, 202}, false, {505, 101, 404, 202, 303}, true, calcWithPartition),
+              TSDB_CODE_SUCCESS);
+
+    for (int pass = 0; pass < 2; ++pass) {
+      SCOPED_TRACE(pass);
+      std::vector<ExternalWindowPublication> publications;
+      ASSERT_EQ(drainExternalWindowPublications(&owner, &publications), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(publications.size(), expectedGroups.size());
+      for (size_t index = 0; index < expectedGroups.size(); ++index) {
+        const auto    &publication = publications[index];
+        const uint64_t groupId = expectedGroups[index];
+        EXPECT_EQ(publication.gid, groupId);
+        EXPECT_EQ(publication.blockBaseGid, groupId);
+        EXPECT_EQ(publication.blockGid, calcWithPartition ? groupId : 0);
+        EXPECT_EQ(publication.rows, 2);
+        EXPECT_EQ(publication.nullRows, 0);
+        EXPECT_EQ(publication.windowIndexes, (std::vector<int32_t>{0, 1}));
+        EXPECT_EQ(publication.values, (std::vector<int64_t>{groupId == 202 || groupId == 404 ? 1 : 0, 0}));
+      }
+      if (pass == 0) {
+        ASSERT_EQ(streamClearStatesForOperators(owner.pTaskInfo), TSDB_CODE_SUCCESS);
+      }
+    }
+  }
 }
 
 TEST_F(ExternalWindowOperatorTest, LegacyEmptySettlementPreservesPublishedGroup) {
@@ -10991,7 +11023,8 @@ TEST_F(ExternalWindowOperatorTest, BroadcastWorksForScalarAggregateAndIndefinite
               TSDB_CODE_SUCCESS);
     std::vector<int32_t> baselineValues;
     ASSERT_EQ(drainExternalWindow(&baseline, &baselineValues), TSDB_CODE_SUCCESS);
-    EXPECT_EQ(baselineValues, (std::vector<int32_t>{3, 4}));
+    // CSUM carries the accumulated value across input blocks in the same window.
+    EXPECT_EQ(baselineValues, (std::vector<int32_t>{3, 7}));
 
     ExternalWindowFactoryOwner owner;
     ASSERT_EQ(owner.initExplicit(blocks, nullptr, true, false, 2), TSDB_CODE_SUCCESS);
@@ -11015,7 +11048,8 @@ TEST_F(ExternalWindowOperatorTest, BroadcastWorksForScalarAggregateAndIndefinite
     ASSERT_EQ(drainExternalWindowBroadcast(&owner, -1, -1, -1, &rows), TSDB_CODE_SUCCESS);
     std::vector<int32_t> values;
     for (const auto &row : rows) values.push_back(row.value);
-    EXPECT_EQ(values, (std::vector<int32_t>{3, 4, 3, 4}));
+    // Each broadcast window starts a fresh cumulative sum.
+    EXPECT_EQ(values, (std::vector<int32_t>{3, 7, 3, 7}));
   }
 }
 
@@ -22086,26 +22120,30 @@ struct DimensionAllocationLedger {
   struct Allocation {
     int     category;
     int64_t bytes;
+    int64_t  requestedBytes;
     uint64_t serial;
   };
   std::map<void *, Allocation> live;
   std::array<int64_t, 4>       bytes = {}, peak = {}, acquired = {}, released = {};
+  std::array<int64_t, 4>       requestedBytes = {};
   uint64_t                     lastSerial = 0;
   int                          category = 0;
   bool                         inAllocator = false;
   bool                         enabled = false;
-  void                         add(void *ptr, int kind, uint64_t serial = 0) {
+  void                         add(void *ptr, int kind, int64_t requested, uint64_t serial = 0) {
     if (!enabled || ptr == nullptr || kind == 0) return;
     const int64_t size = taosMemSize(ptr);
-    live[ptr] = {kind, size, serial == 0 ? ++lastSerial : serial};
+    live[ptr] = {kind, size, requested, serial == 0 ? ++lastSerial : serial};
     bytes[kind] += size;
-    peak[kind] = std::max(peak[kind], bytes[kind]);
+    requestedBytes[kind] += requested;
+    peak[kind] = (std::max)(peak[kind], bytes[kind]);
     ++acquired[kind];
   }
   void remove(void *ptr) {
     auto it = live.find(ptr);
     if (it == live.end()) return;
     bytes[it->second.category] -= it->second.bytes;
+    requestedBytes[it->second.category] -= it->second.requestedBytes;
     ++released[it->second.category];
     live.erase(it);
   }
@@ -22117,7 +22155,7 @@ void *dimensionMalloc(int64_t bytes) {
   void *ptr = taosMemMalloc(bytes);
   forwardingProbe->set(taosMemMalloc, dimensionMalloc);
   dimensionLedger.inAllocator = nested;
-  if (!nested) dimensionLedger.add(ptr, dimensionLedger.category);
+  if (!nested) dimensionLedger.add(ptr, dimensionLedger.category, bytes);
   return ptr;
 }
 void *dimensionMallocAlign(uint32_t alignment, int64_t bytes) {
@@ -22127,7 +22165,7 @@ void *dimensionMallocAlign(uint32_t alignment, int64_t bytes) {
   void *ptr = taosMemMallocAlign(alignment, bytes);
   forwardingProbe->set(taosMemMallocAlign, dimensionMallocAlign);
   dimensionLedger.inAllocator = nested;
-  if (!nested) dimensionLedger.add(ptr, dimensionLedger.category);
+  if (!nested) dimensionLedger.add(ptr, dimensionLedger.category, bytes);
   return ptr;
 }
 void *dimensionCalloc(int64_t count, int64_t bytes) {
@@ -22137,7 +22175,7 @@ void *dimensionCalloc(int64_t count, int64_t bytes) {
   void *ptr = taosMemCalloc(count, bytes);
   forwardingProbe->set(taosMemCalloc, dimensionCalloc);
   dimensionLedger.inAllocator = nested;
-  if (!nested) dimensionLedger.add(ptr, dimensionLedger.category);
+  if (!nested) dimensionLedger.add(ptr, dimensionLedger.category, count * bytes);
   return ptr;
 }
 void *dimensionRealloc(void *old, int64_t bytes) {
@@ -22152,7 +22190,7 @@ void *dimensionRealloc(void *old, int64_t bytes) {
   dimensionLedger.inAllocator = nested;
   if (!nested && (ptr != nullptr || bytes == 0)) {
     dimensionLedger.remove(old);
-    dimensionLedger.add(ptr, category, serial);
+    dimensionLedger.add(ptr, category, bytes, serial);
   }
   return ptr;
 }
@@ -22278,10 +22316,10 @@ TEST_F(DimensionScanPreparationTest, AllocationLedgerBoundsLargestGroupAndReleas
       EXPECT_EQ(count, taosArrayGetSize(scanInfo.base.pTableListInfo->pTableList));
       EXPECT_EQ(count, taosHashGetSize(scanInfo.base.pTableListInfo->map));
       if (batch == 0) {
-        maximumWorkspace = std::max(maximumWorkspace, dimensionLedger.bytes[1]);
-        maximumObjects = std::max(maximumObjects, dimensionLedger.live.size());
+        maximumWorkspace = (std::max)(maximumWorkspace, dimensionLedger.requestedBytes[1]);
+        maximumObjects = (std::max)(maximumObjects, dimensionLedger.live.size());
       } else {
-        EXPECT_LE(dimensionLedger.bytes[1], maximumWorkspace);
+        EXPECT_LE(dimensionLedger.requestedBytes[1], maximumWorkspace);
         EXPECT_LE(dimensionLedger.live.size(), maximumObjects);
       }
     }
@@ -22295,7 +22333,7 @@ TEST_F(DimensionScanPreparationTest, AllocationLedgerBoundsLargestGroupAndReleas
   }
   RecordProperty("batches", 12);
   RecordProperty("maximum_group_tables", 4096);
-  RecordProperty("maximum_single_group_workspace_bytes", std::to_string(maximumWorkspace));
+  RecordProperty("maximum_single_group_requested_bytes", std::to_string(maximumWorkspace));
   RecordProperty("maximum_live_workspace_objects", std::to_string(maximumObjects));
   RecordProperty("peak_including_transient_bytes", std::to_string(dimensionLedger.peak[1]));
   RecordProperty("live_after_batches", std::to_string(dimensionLedger.live.size()));
@@ -22684,7 +22722,7 @@ class StreamReaderFetchReceiveTest : public StreamRunnerContextSendTest {
     SColumnInfoData value = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
     ASSERT_EQ(0, blockDataAppendColInfo(dimensionScript.buffer, &value));
     for (int remaining = payloadBytes, index = 2; remaining > 0; ++index) {
-      const int       chunk = std::min(remaining, 8 * 1024 * 1024);
+      const int       chunk = (std::min)(remaining, 8 * 1024 * 1024);
       SColumnInfoData blob = createColumnInfoData(TSDB_DATA_TYPE_BLOB, chunk + BLOBSTR_HEADER_SIZE, index);
       ASSERT_EQ(0, blockDataAppendColInfo(dimensionScript.buffer, &blob));
       remaining -= chunk;
@@ -23495,12 +23533,13 @@ TEST_F(StreamReaderFetchReceiveTest, DimensionBatchRepeatedBatchesReleaseOwners)
       }
     }
     EXPECT_EQ(0, dimensionLedger.bytes[3]);
+    // Allocator usable sizes vary with heap layout; bound the requested live payload.
     if (batch < 2) {
       for (int category : {1, 2, 3})
-        steadyBytes[category] = std::max(steadyBytes[category], dimensionLedger.bytes[category]);
-      steadyAllocations = std::max(steadyAllocations, dimensionLedger.live.size());
+        steadyBytes[category] = (std::max)(steadyBytes[category], dimensionLedger.requestedBytes[category]);
+      steadyAllocations = (std::max)(steadyAllocations, dimensionLedger.live.size());
     } else {
-      for (int category : {1, 2, 3}) EXPECT_LE(dimensionLedger.bytes[category], steadyBytes[category]);
+      for (int category : {1, 2, 3}) EXPECT_LE(dimensionLedger.requestedBytes[category], steadyBytes[category]);
       EXPECT_LE(dimensionLedger.live.size(), steadyAllocations);
     }
   }

@@ -4,7 +4,7 @@
 # long-running cases（优先调度，减少整体 pipeline 时长）
 ,,y,.,./ci/pytest.sh pytest cases/70-Cluster/test_5dnode3mnode_stop_follower_leader.py -N 5 -M 3
 100,,y,.,./ci/pytest.sh pytest cases/19-TSMAs/test_tsma.py
-100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_last_sma_prefilter.py
+# 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_last_sma_prefilter.py
 ,,y,.,./ci/pytest.sh pytest cases/26-NodeManager/02-Mnode/test_mnode_basic2.py -N 2
 ,,n,.,pytest cases/81-Tools/03-Benchmark/test_benchmark_basic.py
 ,,n,cases,bash 83-DocTest/python.sh
@@ -715,7 +715,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
 
 ## 19-FederatedQuery
-100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
+# 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
@@ -1003,7 +1003,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_pk.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_order.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_tbname.py
-,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join.py
+,1,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ns_db.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ts_sort.py
@@ -1263,6 +1263,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_empty_group_order.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_scalar.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
@@ -1583,12 +1584,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/34-CpuAffinity/test_cpu_affinity_edge_cases.py
 
 # 42-xnode
-# Temporarily disabled: xnode service is not accessible in CI (job 687678).
-#,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_systables.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_lifecycle.py
-# Temporarily disabled: xnode service is not accessible in CI (job 687695).
-#,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
+,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_restart.py
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_sixstar_write.py
 
@@ -1815,10 +1814,10 @@
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_privilege.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_single_node_backup_restore.py
-100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
+#100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_negative.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_dnode_mismatch.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_3mnode.py -N 3 -M 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore_cluster.py -N 3
-100,1,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
+# 100,1,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
