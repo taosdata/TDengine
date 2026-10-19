@@ -2380,8 +2380,7 @@ void blockDataReset(SSDataBlock* pDataBlock) {
       continue;
     }
 
-    p->hasNull = false;
-    p->reassigned = false;
+    colInfoDataResetFlags(p);
     if (IS_VAR_DATA_TYPE(p->info.type)) {
       p->varmeta.length = 0;
     }
@@ -2461,6 +2460,31 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+// Clear the per-column null/reassign state flags. Only these two flags are written: the payload,
+// the null bitmap and every other field are left untouched, so the call has no precondition on
+// the column state (empty, partially filled or reused) and is always safe.
+void colInfoDataResetFlags(SColumnInfoData* pColumn) {
+  if (NULL == pColumn) {
+    return;
+  }
+
+  pColumn->hasNull = false;
+  pColumn->reassigned = false;
+}
+
+// Clear the state flags of every column of the block without touching payload or bitmap.
+// See colInfoDataResetFlags() for the exact scope; NULL-safe and state independent.
+void blockDataResetColFlags(SSDataBlock* pDataBlock) {
+  if (NULL == pDataBlock || NULL == pDataBlock->pDataBlock) {
+    return;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (size_t i = 0; i < numOfCols; ++i) {
+    colInfoDataResetFlags((SColumnInfoData*)taosArrayGet(pDataBlock->pDataBlock, i));
+  }
 }
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
