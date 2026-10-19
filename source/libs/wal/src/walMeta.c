@@ -88,160 +88,304 @@ static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
   return snprintf(buf, WAL_FILE_LEN, "%s%smeta-ver.tmp", pWal->path, TD_DIRSEP);
 }
 
-FORCE_INLINE int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
+// ---------------------------------------------------------------------------
+// WAL segment recovery scan
+//
+// A segment file is a chain of records, each [SWalCkHead][body], carrying strictly
+// consecutive versions. A record body is opaque bytes supplied by whoever proposed the
+// entry (a raft peer via TDMT_SYNC_CLIENT_REQUEST, or any client via INSERT), so a body
+// may contain a byte sequence that is byte-for-byte indistinguishable from real framing:
+// WAL_MAGIC plus the two CRC32 values, none of which is keyed, so all of them can be
+// precomputed by whoever chose the body. Recovery must therefore never *search* the file
+// for a record boundary -- a magic search lets body content decide the recovered
+// lastVer/fileSize, and those in turn decide which committed entries survive, where the
+// rebuilt idx entries point, and where later appends are recorded.
+//
+// Instead the scan starts from a boundary it can trust and walks the chain forward,
+// record by record:
+//   * an idx entry that is self-consistent (it sits in the slot its own version maps to)
+//     and resolves to a header carrying that same version. The idx file is a separate
+//     file holding fixed-size {ver, offset} pairs written only by walWriteIndex; nothing
+//     in it is ever derived from a record body, so it cannot be forged through the write
+//     path; or
+//   * offset 0, the first byte of the segment, which is a record boundary by construction.
+// Every step then requires the record to lie fully inside the file, to declare a sane
+// bodyLen, to pass both checksums, and to carry exactly "previous version + 1". The walk
+// stops at the first record that fails any of these and the file is truncated there,
+// which is what raft log semantics require anyway (no holes in the log).
+//
+// Because each step advances by at least sizeof(SWalCkHead) bytes towards a fixed
+// fileSize, the walk is also guaranteed to terminate -- the previous window-based scan
+// could re-read the same window forever when a forward-stage header check failed.
+// ---------------------------------------------------------------------------
+
+// Hard cap on how many idx slots the scan probes backwards while looking for a trusted
+// boundary. Giving up and starting from offset 0 is always correct, only slower, so this
+// bounds the cost of a pathological idx file without changing the result.
+#define WAL_SCAN_IDX_PROBE_MAX 256
+
+typedef struct {
+  TdFilePtr pFile;
+  int64_t   fileSize;   // size of the segment on disk, fixed for the whole scan
+  char*     buf;        // sliding read window over the segment
+  int64_t   capacity;   // bytes allocated for buf
+  int64_t   bufOffset;  // file offset that buf[0] maps to
+  int64_t   bufLen;     // valid bytes currently held in buf
+} SWalScanBuf;
+
+// Make the bytes at [offset, offset + need) available in the scan window and hand back a
+// pointer to them. On success *ppData is NULL only when offset is at/past EOF; *pAvail
+// may be smaller than `need` when the file ends first, which callers treat as a torn
+// record rather than an error.
+static int32_t walScanBufAt(SWal* pWal, SWalScanBuf* pScan, int64_t offset, int64_t need, char** ppData,
+                            int64_t* pAvail) {
+  *ppData = NULL;
+  *pAvail = 0;
+
+  if (offset < 0 || offset >= pScan->fileSize) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  int64_t remain = pScan->fileSize - offset;
+  int64_t want = TMIN(need, remain);
+
+  if (offset >= pScan->bufOffset && offset + want <= pScan->bufOffset + pScan->bufLen) {
+    *ppData = pScan->buf + (offset - pScan->bufOffset);
+    *pAvail = pScan->bufOffset + pScan->bufLen - offset;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  // refill: always read at least a full scan block so that walking a segment record by
+  // record still costs one read per block, not one read per record
+  int64_t readSize = TMIN(TMAX(need, (int64_t)WAL_SCAN_BUF_SIZE), remain);
+  if (pScan->capacity < readSize) {
+    void* ptr = taosMemoryRealloc(pScan->buf, readSize);
+    if (ptr == NULL) {
+      TAOS_RETURN(terrno);
+    }
+    pScan->buf = ptr;
+    pScan->capacity = readSize;
+  }
+
+  pScan->bufOffset = 0;
+  pScan->bufLen = 0;
+
+  if (taosLSeekFile(pScan->pFile, offset, SEEK_SET) < 0) {
+    wError("vgId:%d, failed to lseek log file since %s, offset:%" PRId64, pWal->cfg.vgId, strerror(ERRNO), offset);
+    TAOS_RETURN(terrno);
+  }
+
+  int64_t n = taosReadFile(pScan->pFile, pScan->buf, readSize);
+  if (n < 0) {
+    wError("vgId:%d, failed to read log file since %s, offset:%" PRId64 ", readSize:%" PRId64, pWal->cfg.vgId,
+           strerror(ERRNO), offset, readSize);
+    TAOS_RETURN(terrno);
+  }
+
+  pScan->bufOffset = offset;
+  pScan->bufLen = n;
+
+  *ppData = (n > 0) ? pScan->buf : NULL;
+  *pAvail = n;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+// Validate the single record that is supposed to start at `offset`. `prevVer` is the
+// version of the record immediately before it (firstVer - 1 for the first record of a
+// segment); the version must be exactly prevVer + 1, which is what keeps a chain from
+// ever stepping into a record that the write path never produced.
+static int32_t walScanCheckRecord(SWal* pWal, SWalScanBuf* pScan, int64_t offset, int64_t prevVer,
+                                  int64_t* pRecordLen, int64_t* pVer) {
+  const int64_t walCkHeadSz = sizeof(SWalCkHead);
+  const uint64_t magic = WAL_MAGIC;
+  char*          data = NULL;
+  int64_t        avail = 0;
+
+  *pRecordLen = 0;
+  *pVer = -1;
+
+  TAOS_CHECK_RETURN(walScanBufAt(pWal, pScan, offset, walCkHeadSz, &data, &avail));
+  if (data == NULL || avail < walCkHeadSz) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  // compare the magic bytewise: `offset` is arbitrary, so the header is not aligned
+  if (memcmp(data, &magic, sizeof(magic)) != 0) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  SWalCkHead* pHead = (SWalCkHead*)data;
+  if (walValidHeadCksum(pHead) != 0) {
+    TAOS_RETURN(TSDB_CODE_WAL_CHKSUM_MISMATCH);
+  }
+
+  // bodyLen is attacker-influenced until the body checksum below passes, and it is used
+  // as an unsigned length by the checksum helpers and as an offset delta by every caller,
+  // so range-check it before it is used for anything at all
+  int32_t plainBodyLen = pHead->head.bodyLen;
+  if (!walValidBodyLen(plainBodyLen)) {
+    wWarn("vgId:%d, invalid body length:%d in wal entry header, offset:%" PRId64, pWal->cfg.vgId, plainBodyLen, offset);
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  int32_t cryptedBodyLen = plainBodyLen;
+  if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
+    cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
+  }
+
+  int64_t recordLen = walCkHeadSz + cryptedBodyLen;
+  if (offset + recordLen > pScan->fileSize) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  // the body checksum needs the whole record resident
+  TAOS_CHECK_RETURN(walScanBufAt(pWal, pScan, offset, recordLen, &data, &avail));
+  if (data == NULL || avail < recordLen) {
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  pHead = (SWalCkHead*)data;
+  TAOS_CHECK_RETURN(decryptBody(&pWal->cfg, pHead, plainBodyLen, __FUNCTION__));
+
+  if (walValidBodyCksum(pHead) != 0) {
+    wWarn("vgId:%d, failed to validate checksum of wal entry body, offset:%" PRId64, pWal->cfg.vgId, offset);
+    TAOS_RETURN(TSDB_CODE_WAL_CHKSUM_MISMATCH);
+  }
+
+  int64_t ver = taosGetInt64Aligned(&pHead->head.version);
+  if (ver != prevVer + 1) {
+    // Versions in a segment are strictly consecutive. A gap here means the bytes at
+    // `offset` are not the record that follows prevVer, however well-formed they look.
+    wWarn("vgId:%d, wal entry index:%" PRId64 " does not follow index:%" PRId64 ", offset:%" PRId64, pWal->cfg.vgId,
+          ver, prevVer, offset);
+    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  }
+
+  *pRecordLen = recordLen;
+  *pVer = ver;
+
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+// Pick the boundary the forward walk starts from: the highest idx slot that resolves to
+// a real record, or the start of the segment. Never fails -- any problem with the idx
+// file just leaves the caller walking the whole segment, which is always correct.
+static int32_t walScanFindAnchor(SWal* pWal, SWalFileInfo* pFileInfo, SWalScanBuf* pScan, int64_t* pAnchorVer,
+                                 int64_t* pNextOffset) {
+  *pAnchorVer = pFileInfo->firstVer - 1;
+  *pNextOffset = 0;
+
+  char fnameStr[WAL_FILE_LEN];
+  walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
+
+  int64_t idxSize = 0;
+  if (taosStatFile(fnameStr, &idxSize, NULL, NULL) < 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  int64_t entries = idxSize / (int64_t)sizeof(SWalIdxEntry);
+  if (entries <= 0) {
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  TdFilePtr pIdxFile = taosOpenFile(fnameStr, TD_FILE_READ);
+  if (pIdxFile == NULL) {
+    wWarn("vgId:%d, failed to open idx file %s since %s, wal scan starts from the beginning of the segment",
+          pWal->cfg.vgId, fnameStr, terrstr());
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
+  for (int64_t slot = entries - 1, probes = 0; slot >= 0 && probes < WAL_SCAN_IDX_PROBE_MAX; slot--, probes++) {
+    SWalIdxEntry entry = {0};
+
+    if (taosLSeekFile(pIdxFile, slot * (int64_t)sizeof(SWalIdxEntry), SEEK_SET) < 0) break;
+    if (taosReadFile(pIdxFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) break;
+
+    // walWriteIndex stores the entry for version v at slot (v - firstVer); an entry that
+    // does not satisfy that is leftover garbage, not a usable boundary
+    if (entry.ver != pFileInfo->firstVer + slot || entry.offset < 0 || entry.offset >= pScan->fileSize) {
+      continue;
+    }
+
+    int64_t recordLen = 0;
+    int64_t ver = 0;
+    if (walScanCheckRecord(pWal, pScan, entry.offset, entry.ver - 1, &recordLen, &ver) != TSDB_CODE_SUCCESS) {
+      continue;
+    }
+
+    *pAnchorVer = ver;
+    *pNextOffset = entry.offset + recordLen;
+    wDebug("vgId:%d, wal scan anchored at index:%" PRId64 ", offset:%" PRId64 ", file:%s", pWal->cfg.vgId, ver,
+           entry.offset, fnameStr);
+    break;
+  }
+
+  TAOS_UNUSED(taosCloseFile(&pIdxFile));
+  TAOS_RETURN(TSDB_CODE_SUCCESS);
+}
+
+int32_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx, int64_t* lastVer) {
   int32_t       code = 0, lino = 0;
-  int32_t       sz = taosArrayGetSize(pWal->fileInfoSet);
   int64_t       retVer = -1;
-  void*         ptr = NULL;
   SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+
+  // Everything the _err cleanup touches is declared and initialized here, before the
+  // first `goto _err` -- jumping over an initializer leaves the variable indeterminate.
+  TdFilePtr   pFile = NULL;
+  SWalScanBuf scan = {0};
+  int64_t     fileSize = 0;
+  int64_t     anchorVer = pFileInfo->firstVer - 1;
+  int64_t     prevVer = anchorVer;
+  int64_t     offset = 0;
+  int64_t     lastEntryEndOffset = 0;
 
   char fnameStr[WAL_FILE_LEN];
   walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
 
-  int64_t fileSize = 0;
   TAOS_CHECK_GOTO(taosStatFile(fnameStr, &fileSize, NULL, NULL), &lino, _err);
 
-  TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
+  pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   TSDB_CHECK_NULL(pFile, code, lino, _err, terrno);
 
   // ensure size as non-negative
   pFileInfo->fileSize = TMAX(0, pFileInfo->fileSize);
 
-  int64_t  stepSize = WAL_SCAN_BUF_SIZE;
-  uint64_t magic = WAL_MAGIC;
-  int64_t  walCkHeadSz = sizeof(SWalCkHead);
-  int64_t  end = fileSize;
-  int64_t  capacity = 0;
-  int64_t  readSize = 0;
-  char*    buf = NULL;
-  int64_t  offset = TMIN(pFileInfo->fileSize, fileSize);
-  int64_t  lastEntryBeginOffset = 0;
-  int64_t  lastEntryEndOffset = 0;
-  int64_t  recordLen = 0;
-  bool     forwardStage = false;
+  scan.pFile = pFile;
+  scan.fileSize = fileSize;
 
-  // check recover size
-  if (2 * tsWalFsyncDataSizeLimit + offset < end) {
-    wWarn("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e, %" PRId64 " bytes), offset:%" PRId64
-          ", end:%" PRId64 ", file:%s",
-          pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, end, fnameStr);
+  TAOS_CHECK_GOTO(walScanFindAnchor(pWal, pFileInfo, &scan, &anchorVer, &offset), &lino, _err);
+
+  prevVer = anchorVer;
+  lastEntryEndOffset = offset;
+  if (offset > 0) {
+    retVer = anchorVer;
   }
 
-  // search for the valid last WAL entry, e.g, block by block
-  while (1) {
-    offset = (lastEntryEndOffset > 0) ? offset : TMAX(0, offset - stepSize + walCkHeadSz - 1);
-    end = TMIN(offset + stepSize, fileSize);
+  // check recover size
+  if (2 * tsWalFsyncDataSizeLimit + offset < fileSize) {
+    wWarn("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e, %" PRId64 " bytes), offset:%" PRId64
+          ", end:%" PRId64 ", file:%s",
+          pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, fileSize, fnameStr);
+  }
 
-    readSize = end - offset;
-    capacity = readSize + sizeof(magic);
+  // walk the record chain forward from the trusted boundary
+  while (offset < fileSize) {
+    int64_t recordLen = 0;
+    int64_t ver = -1;
 
-    ptr = taosMemoryRealloc(buf, capacity);
-    TSDB_CHECK_NULL(ptr, code, lino, _err, terrno);
-    buf = ptr;
-
-    int64_t ret = taosLSeekFile(pFile, offset, SEEK_SET);
-    if (ret < 0) {
-      wError("vgId:%d, failed to lseek file since %s, offset:%" PRId64, pWal->cfg.vgId, strerror(ERRNO), offset);
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
+    code = walScanCheckRecord(pWal, &scan, offset, prevVer, &recordLen, &ver);
+    if (code != TSDB_CODE_SUCCESS) {
+      wWarn("vgId:%d, wal entry chain ends at offset:%" PRId64 " of %" PRId64 " since %s, last index:%" PRId64
+            ", file:%s",
+            pWal->cfg.vgId, offset, fileSize, tstrerror(code), retVer, fnameStr);
+      break;
     }
 
-    if (readSize != taosReadFile(pFile, buf, readSize)) {
-      wError("vgId:%d, failed to read file %s since %s, readSize:%" PRId64, pWal->cfg.vgId, fnameStr, strerror(ERRNO),
-             readSize);
-      TAOS_CHECK_GOTO(terrno, &lino, _err);
-    }
-
-    char*       candidate = NULL;
-    char*       haystack = buf;
-    int64_t     pos = 0;
-    SWalCkHead* logContent = NULL;
-
-    while (true) {
-      forwardStage = (lastEntryEndOffset > 0 || offset == 0);
-      terrno = TSDB_CODE_SUCCESS;
-      if (forwardStage) {
-        candidate = (readSize - (haystack - buf)) > 0 ? haystack : NULL;
-      } else {
-        candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(magic));
-      }
-
-      if (candidate == NULL) break;
-      pos = candidate - buf;
-
-      // validate head
-      int64_t len = readSize - pos;
-      if (len < walCkHeadSz) {
-        break;
-      }
-
-      logContent = (SWalCkHead*)(buf + pos);
-      if (walValidHeadCksum(logContent) != 0) {
-        code = TSDB_CODE_WAL_CHKSUM_MISMATCH;
-        wWarn("vgId:%d, failed to validate checksum of wal entry header, offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-              offset + pos, fnameStr);
-        haystack = buf + pos + 1;
-        if (forwardStage) {
-          break;
-        } else {
-          continue;
-        }
-      }
-
-      // validate body
-      int32_t cryptedBodyLen = logContent->head.bodyLen;
-      if (pWal->cfg.encryptData.encryptAlgrName[0] != '\0') {
-        cryptedBodyLen = ENCRYPTED_LEN(cryptedBodyLen);
-      }
-      recordLen = walCkHeadSz + cryptedBodyLen;
-      if (len < recordLen) {
-        int64_t extraSize = recordLen - len;
-        if (capacity < readSize + extraSize + sizeof(magic)) {
-          capacity += extraSize;
-          void* ptr = taosMemoryRealloc(buf, capacity);
-          TSDB_CHECK_NULL(ptr, code, lino, _err, terrno);
-          buf = ptr;
-        }
-        int64_t ret = taosLSeekFile(pFile, offset + readSize, SEEK_SET);
-        if (ret < 0) {
-          wError("vgId:%d, failed to lseek file %s since %s, offset:%" PRId64, pWal->cfg.vgId, fnameStr,
-                 strerror(terrno), offset);
-          code = terrno;
-          break;
-        }
-        if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
-          wError("vgId:%d, failed to read file %s since %s, offset:%" PRId64 ", extraSize:%" PRId64,
-                 pWal->cfg.vgId, fnameStr, strerror(ERRNO), offset + readSize, extraSize);
-          code = terrno;
-          break;
-        }
-      }
-
-      logContent = (SWalCkHead*)(buf + pos);
-      TAOS_CHECK_GOTO(decryptBody(&pWal->cfg, logContent, logContent->head.bodyLen, __FUNCTION__), &lino, _err);
-
-      if (walValidBodyCksum(logContent) != 0) {
-        code = TSDB_CODE_WAL_CHKSUM_MISMATCH;
-        wWarn("vgId:%d, failed to validate checksum of wal entry body, offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-              offset + pos, fnameStr);
-        haystack = buf + pos + 1;
-        if (forwardStage) {
-          break;
-        } else {
-          continue;
-        }
-      }
-
-      // found one
-      retVer = taosGetInt64Aligned(&logContent->head.version);
-      lastEntryBeginOffset = offset + pos;
-      lastEntryEndOffset = offset + pos + recordLen;
-
-      // try next
-      haystack = buf + pos + recordLen;
-    }
-
-    offset = (lastEntryEndOffset > 0) ? lastEntryEndOffset : offset;
-    if (forwardStage && (terrno != TSDB_CODE_SUCCESS || end == fileSize)) break;
+    retVer = ver;
+    prevVer = ver;
+    offset += recordLen;  // recordLen >= sizeof(SWalCkHead) > 0, so this always progresses
+    lastEntryEndOffset = offset;
   }
 
   if (retVer < 0) {
@@ -273,7 +417,7 @@ _err:
     wError("vgId:%d, failed at line %d to scan log file %s since %s", pWal->cfg.vgId, lino, fnameStr, tstrerror(code));
   }
   TAOS_UNUSED(taosCloseFile(&pFile));
-  taosMemoryFree(buf);
+  taosMemoryFree(scan.buf);
   *lastVer = retVer;
 
   TAOS_RETURN(code);
@@ -879,6 +1023,15 @@ int32_t walCheckAndRepairMeta(SWal* pWal) {
       lastVer = pFileInfo->firstVer - 1;
 
       code = TSDB_CODE_SUCCESS;
+    } else if (code != TSDB_CODE_SUCCESS) {
+      // The scan found a valid record chain and reports why it stopped (torn tail,
+      // checksum mismatch, a record that does not continue the chain, ...). It already
+      // truncated the file at the last intact record, which is the repair we want, so
+      // recovery continues -- but clear the diagnostic here instead of leaving it in
+      // `code` for some later step to be judged by.
+      wWarn("vgId:%d, repaired file %s by dropping the damaged tail since %s", pWal->cfg.vgId, fnameStr,
+            tstrerror(code));
+      code = TSDB_CODE_SUCCESS;
     }
     wInfo("vgId:%d, repaired file %s, last index:%" PRId64 ", fileSize:%" PRId64 ", fileSize in meta:%" PRId64,
           pWal->cfg.vgId, fnameStr, lastVer, fileSize, pFileInfo->fileSize);
@@ -927,11 +1080,18 @@ _exit:
 }
 
 static int32_t walReadLogHead(TdFilePtr pLogFile, int64_t offset, SWalCkHead* pCkHead) {
+  if (offset < 0) return TSDB_CODE_WAL_FILE_CORRUPTED;
+
   if (taosLSeekFile(pLogFile, offset, SEEK_SET) < 0) return terrno;
 
   if (taosReadFile(pLogFile, pCkHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) return terrno;
 
+  if (pCkHead->magic != WAL_MAGIC) return TSDB_CODE_WAL_FILE_CORRUPTED;
+
   if (walValidHeadCksum(pCkHead) != 0) return TSDB_CODE_WAL_CHKSUM_MISMATCH;
+
+  // callers advance an idx offset by this length, so it must be a usable one
+  if (!walValidBodyLen(pCkHead->head.bodyLen)) return TSDB_CODE_WAL_FILE_CORRUPTED;
 
   return TSDB_CODE_SUCCESS;
 }
