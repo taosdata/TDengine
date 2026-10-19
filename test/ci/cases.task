@@ -1779,7 +1779,7 @@
 
 # 82-UnitTest
 
-#200,,n,cases,bash 82-UnitTest/test.sh
+# 200,,n,cases,bash 82-UnitTest/test.sh
 
 
 
@@ -1813,10 +1813,10 @@
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_privilege.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_single_node_backup_restore.py
-#100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_negative.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_dnode_mismatch.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_3mnode.py -N 3 -M 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore_cluster.py -N 3
-# 100,1,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
+100,1,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3 --timeout=1800
