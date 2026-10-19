@@ -834,6 +834,47 @@ TEST_F(BoundedBlockDecoderTest, AcceptsProductionReassignedVariableOffsets) {
   EXPECT_EQ(memcmp(varDataVal(value), "six", 3), 0);
 }
 
+TEST_F(BoundedBlockDecoderTest, AcceptsVirtualColumnValueWiderThanDeclaredWidth) {
+  char value[VARSTR_HEADER_SIZE + 10] = {0};
+  varDataSetLen(value, 10);
+  memcpy(varDataVal(value), "0123456789", 10);
+  ASSERT_EQ(colDataSetVal(column(2), 0, value, false), TSDB_CODE_SUCCESS);
+  column(2)->info.bytes = VARSTR_HEADER_SIZE + 4;
+
+  for (bool internal : {false, true}) {
+    std::vector<char> block(blockGetEncodeSize(source) + 64);
+    int32_t len = internal ? blockEncodeInternal(source, block.data(), block.size(), kColumns)
+                           : blockEncode(source, block.data(), block.size(), kColumns);
+    ASSERT_GT(len, 0);
+    block.resize(len);
+
+    SSDataBlock *result = nullptr;
+    ASSERT_EQ(createDataBlock(&result), TSDB_CODE_SUCCESS);
+    int32_t code = internal ? blockDecodeInternalBounded(result, block.data(), block.size(), nullptr)
+                            : blockDecodeBounded(result, block.data(), block.size(), nullptr);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    auto *col = static_cast<SColumnInfoData *>(taosArrayGet(result->pDataBlock, 2));
+    ASSERT_EQ(col->info.bytes, VARSTR_HEADER_SIZE + 4);
+    const char *decodedValue = colDataGetData(col, 0);
+    ASSERT_EQ(varDataLen(decodedValue), 10);
+    EXPECT_EQ(memcmp(varDataVal(decodedValue), "0123456789", 10), 0);
+    blockDataDestroy(result);
+  }
+}
+
+TEST_F(BoundedBlockDecoderTest, AcceptsDifferentVariableWidthsInExistingDestination) {
+  SColumnInfoData variable = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 10, 2);
+  SColumnInfoData timestamp = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+  SColumnInfoData fixed = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(decoded, &timestamp), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(decoded, &fixed), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(decoded, &variable), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDecodeBounded(decoded, encoded.data(), encoded.size(), nullptr), TSDB_CODE_SUCCESS);
+  auto *col = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2));
+  EXPECT_EQ(col->info.bytes, 32);
+  EXPECT_EQ(varDataLen(colDataGetData(col, 0)), 3);
+}
+
 TEST_F(BoundedBlockDecoderTest, EstimatesReassignedVariableDataForEncoding) {
   char value[VARSTR_HEADER_SIZE + 6] = {0};
   varDataSetLen(value, 6);

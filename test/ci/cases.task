@@ -990,6 +990,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/09-WindowProjection/test_window_projection.py
 
 # 14-JoinQueries
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_executor_block_boundary_security.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_groupcache_stable_join_regression.py
 
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py

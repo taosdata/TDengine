@@ -270,11 +270,10 @@ _exit:
 
 static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetchFrame* pFrame, void** data,
                                    size_t* size, int8_t precision, bool finished) {
+  if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
+  *data = NULL;
+  *size = 0;
   if (pFrame != NULL && pFrame->type != STREAM_RUNNER_FETCH_LEGACY) {
-    if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
-    *data = NULL;
-    *size = 0;
-
     int64_t rows = pBlock == NULL ? 0 : pBlock->info.rows;
     int32_t code = tValidateSStreamRunnerFetchFrame(pFrame, rows);
     if (code != TSDB_CODE_SUCCESS || finished ||
@@ -341,7 +340,11 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
   void*   buf =  NULL;
 
   int32_t blockSize = pBlock == NULL ? 0 : blockGetInternalEncodeSize(pBlock);
-  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
+  int64_t payloadSize = (int64_t)INT_BYTES * 2 + blockSize;
+  if (blockSize < 0 || payloadSize > INT32_MAX - (int64_t)sizeof(SRetrieveTableRsp)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + (size_t)payloadSize;
   buf = rpcMallocCont(dataEncodeBufSize);
   if (!buf) {
     code = terrno;
@@ -349,10 +352,13 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
   }
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  memset(pRetrieve, 0, sizeof(*pRetrieve));
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->completed = finished ? 1 : 0;
+  pRetrieve->payloadLen = htonl((int32_t)payloadSize);
+  pRetrieve->compLen = pRetrieve->payloadLen;
   *((int32_t*)(pRetrieve->data)) = blockSize;
   *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
   if (pBlock == NULL || pBlock->info.rows == 0) {
@@ -367,8 +373,8 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
     pRetrieve->numOfCols = htonl(numOfCols);
 
     int32_t actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, numOfCols);
-    if (actualLen < 0) {
-      code = terrno;
+    if (actualLen != blockSize) {
+      code = actualLen < 0 ? terrno : TSDB_CODE_INVALID_MSG;
       goto end;
     }
   }
