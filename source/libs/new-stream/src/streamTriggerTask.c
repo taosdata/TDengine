@@ -11910,7 +11910,7 @@ static int32_t stTriggerTaskProcNestedInputRspAt(SSTriggerRealtimeContext *pCont
     goto _fail;
   }
   const char *pCont = pRsp->pCont;
-  code = blockDecode(pPseudoBlock, pCont, &pCont);
+  code = blockDecodeBounded(pPseudoBlock, pCont, (size_t)pRsp->contLen, &pCont);
   if (code != TSDB_CODE_SUCCESS || pCont != (char *)pRsp->pCont + pRsp->contLen) {
     if (code == TSDB_CODE_SUCCESS) {
       code = TSDB_CODE_INVALID_MSG;
@@ -22227,13 +22227,13 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CONDITION(
           pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ || pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION,
           code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      QUERY_CHECK_CONDITION(pRsp->pCont != NULL && pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_MSG);
       SSTriggerNewVtableMerger *pMerger =
           (pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION) ? pContext->pMerger : pContext->pCalcMerger;
       const char *pCont = pRsp->pCont;
-      code = blockDecode(pMerger->pPseudoColValues, pCont, &pCont);
+      code = blockDecodeBounded(pMerger->pPseudoColValues, pCont, (size_t)pRsp->contLen, &pCont);
       QUERY_CHECK_CODE(code, lino, _end);
-      QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
       code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheckForTurn(pContext, nowNs),
                                                 pFailureRecordedByChild);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -25045,19 +25045,25 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       int32_t vgId = pProgress->taskAddr.nodeId;
 
       if (pRsp->contLen > 0) {
+        QUERY_CHECK_NULL(pRsp->pCont, code, lino, _end, TSDB_CODE_INVALID_MSG);
+        QUERY_CHECK_CONDITION(pRsp->contLen >= (int32_t)sizeof(int32_t), code, lino, _end, TSDB_CODE_INVALID_MSG);
         const char *pCont = pRsp->pCont;
-        int32_t     nBlocks = *(int32_t *)pCont;
+        const char *pEnd = pCont + pRsp->contLen;
+        int32_t     nBlocks = 0;
+        memcpy(&nBlocks, pCont, sizeof(nBlocks));
         pCont += sizeof(int32_t);
+        QUERY_CHECK_CONDITION(nBlocks >= 0 && (size_t)nBlocks <= (size_t)(pEnd - pCont) / sizeof(int32_t), code,
+                              lino, _end, TSDB_CODE_INVALID_MSG);
         for (int32_t i = 0; i < nBlocks; i++) {
           pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
           QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
-          code = blockDecode(pDataBlock, pCont, &pCont);
+          code = blockDecodeBounded(pDataBlock, pCont, (size_t)(pEnd - pCont), &pCont);
           QUERY_CHECK_CODE(code, lino, _end);
           void *px = taosArrayPush(pContext->pTrigDataBlocks, &pDataBlock);
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
           pDataBlock = NULL;
         }
-        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == pEnd, code, lino, _end, TSDB_CODE_INVALID_MSG);
       } else {
         pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
         QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
@@ -25115,10 +25121,11 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->contLen > 0) {
+        QUERY_CHECK_NULL(pRsp->pCont, code, lino, _end, TSDB_CODE_INVALID_MSG);
         const char *pCont = pRsp->pCont;
-        code = blockDecode(pDataBlock, pCont, &pCont);
+        code = blockDecodeBounded(pDataBlock, pCont, (size_t)pRsp->contLen, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
       } else {
         blockDataEmpty(pDataBlock);
       }
@@ -25152,10 +25159,11 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->contLen > 0) {
+        QUERY_CHECK_NULL(pRsp->pCont, code, lino, _end, TSDB_CODE_INVALID_MSG);
         const char *pCont = pRsp->pCont;
-        code = blockDecode(pDataBlock, pCont, &pCont);
+        code = blockDecodeBounded(pDataBlock, pCont, (size_t)pRsp->contLen, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
       } else {
         blockDataEmpty(pDataBlock);
       }
@@ -25186,10 +25194,11 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
       if (pRsp->contLen > 0) {
+        QUERY_CHECK_NULL(pRsp->pCont, code, lino, _end, TSDB_CODE_INVALID_MSG);
         const char *pCont = pRsp->pCont;
-        code = blockDecode(pDataBlock, pCont, &pCont);
+        code = blockDecodeBounded(pDataBlock, pCont, (size_t)pRsp->contLen, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
-        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
       } else {
         blockDataEmpty(pDataBlock);
       }
@@ -25243,11 +25252,11 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
           code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
       QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
-      QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      QUERY_CHECK_CONDITION(pRsp->pCont != NULL && pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_MSG);
       const char *pCont = pRsp->pCont;
-      code = blockDecode(pDataBlock, pCont, &pCont);
+      code = blockDecodeBounded(pDataBlock, pCont, (size_t)pRsp->contLen, &pCont);
       QUERY_CHECK_CODE(code, lino, _end);
-      QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
       QUERY_CHECK_NULL(pContext->pColRefToFetch, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) && pTask->isVirtualTable) {
         SSTriggerHistoryPeerSource *pSource = stHistoryContextFindNestedSourceByRequest(pContext, pReq);

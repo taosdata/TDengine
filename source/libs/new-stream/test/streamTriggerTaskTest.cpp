@@ -13063,6 +13063,15 @@ class NestedHistoryHarness {
     return dispatchAttempt(*pAttempt, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_SUCCESS, std::move(payload), len);
   }
 
+  int32_t respondRawTriggerData(const std::vector<char>& bytes) {
+    CapturedPullAttempt* pAttempt = findPull(STRIGGER_PULL_TSDB_TRIGGER_DATA, kHistorySession);
+    if (pAttempt == nullptr || bytes.empty()) return TSDB_CODE_INVALID_PARA;
+    OwnedRpcPayload payload = OwnedRpcPayload::allocate(bytes.size());
+    if (payload.get() == nullptr) return TSDB_CODE_OUT_OF_MEMORY;
+    memcpy(payload.get(), bytes.data(), bytes.size());
+    return dispatchAttempt(*pAttempt, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_SUCCESS, std::move(payload), bytes.size());
+  }
+
   int32_t respondTriggerGroupRows(const std::vector<std::pair<int64_t, int32_t>>& groups) {
     CapturedPullAttempt* pAttempt = findPull(STRIGGER_PULL_TSDB_TRIGGER_DATA, kHistorySession);
     if (pAttempt == nullptr || groups.empty()) return TSDB_CODE_INTERNAL_ERROR;
@@ -13477,7 +13486,7 @@ class NestedHistoryHarness {
     std::vector<int64_t> versions(rows.size(), 1);
     SSDataBlock*         pBlock = makePipelineBlock(rows, versions);
     if (pBlock != nullptr) {
-      SColumnInfoData startInfo = createColumnInfoData(TSDB_DATA_TYPE_UINT, sizeof(uint8_t), 5);
+      SColumnInfoData startInfo = createColumnInfoData(TSDB_DATA_TYPE_UTINYINT, sizeof(uint8_t), 5);
       SColumnInfoData endInfo = createColumnInfoData(TSDB_DATA_TYPE_BOOL, sizeof(bool), 6);
       if (blockDataAppendColInfo(pBlock, &startInfo) != TSDB_CODE_SUCCESS ||
           blockDataAppendColInfo(pBlock, &endInfo) != TSDB_CODE_SUCCESS ||
@@ -15737,6 +15746,26 @@ TEST_F(StreamHistoryBatchTest, OrdinaryHistoryPacksReadyGroupsIntoOneRequest) {
   const PipelineCalcAttempt* pAttempt = harness.calcAttempt(0);
   ASSERT_NE(nullptr, pAttempt);
   expectHistoryBatchGroups(pAttempt->decoded, 3, false);
+}
+
+TEST_F(StreamHistoryBatchTest, RejectsTruncatedTriggerDataFrames) {
+  for (const std::vector<char>& frame : {std::vector<char>(1, 0),
+                                         std::vector<char>(sizeof(int32_t), 0),
+                                         std::vector<char>(sizeof(int32_t) + 4, 0)}) {
+    NestedHistoryHarness harness;
+    ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionUnitCount, 0,
+                               NestedHistoryHarness::kScanStart + NestedHistoryHarness::kHistoryStep, false, 0, true,
+                               false, 4, false, false, false));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+    std::vector<char> payload = frame;
+    if (payload.size() >= sizeof(int32_t)) {
+      const int32_t count = payload.size() == sizeof(int32_t) ? INT32_MAX : 1;
+      memcpy(payload.data(), &count, sizeof(count));
+    }
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, harness.respondRawTriggerData(payload));
+  }
 }
 
 TEST_F(StreamHistoryBatchTest, OrdinaryHistoryAllocationFailureIsFatalWithoutHeapRestore) {

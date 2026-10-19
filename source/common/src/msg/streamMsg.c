@@ -10802,6 +10802,11 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
 
+  if (buf == NULL || pRsp == NULL || bufLen < (int32_t)sizeof(int32_t)) return TSDB_CODE_INVALID_MSG;
+  int32_t frameLen = 0;
+  memcpy(&frameLen, buf, sizeof(frameLen));
+  if (frameLen < 0 || frameLen > bufLen - (int32_t)sizeof(frameLen)) return TSDB_CODE_INVALID_MSG;
+
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
@@ -10838,7 +10843,9 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
     pRsp->pMetaBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
     if (pRsp->pMetaBlock == NULL) TAOS_CHECK_EXIT(terrno);
     const char* pEnd = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pRsp->pMetaBlock, (char*)decoder.data + decoder.pos, &pEnd));
+    TAOS_CHECK_EXIT(decoder.pos <= decoder.size ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(blockDecodeBounded(pRsp->pMetaBlock, (char*)decoder.data + decoder.pos,
+                                       decoder.size - decoder.pos, &pEnd));
     decoder.pos = (uint8_t*)pEnd - decoder.data;
   }
 
@@ -10850,7 +10857,9 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
     pRsp->pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
     if (pRsp->pDataBlock == NULL) TAOS_CHECK_EXIT(terrno);
     const char* pEnd = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pRsp->pDataBlock, (char*)decoder.data + decoder.pos, &pEnd));
+    TAOS_CHECK_EXIT(decoder.pos <= decoder.size ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(blockDecodeBounded(pRsp->pDataBlock, (char*)decoder.data + decoder.pos,
+                                       decoder.size - decoder.pos, &pEnd));
     decoder.pos = (uint8_t*)pEnd - decoder.data;
 
     int32_t nIdx = 0;

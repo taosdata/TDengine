@@ -4385,6 +4385,13 @@ _return:
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
+int32_t dynCopySysScanName(char* pDst, size_t dstLen, const char* pSrc) {
+  if (pDst == NULL || pSrc == NULL || dstLen == 0 || varDataLen(pSrc) >= dstLen) return TSDB_CODE_INVALID_MSG;
+  memcpy(pDst, varDataVal(pSrc), varDataLen(pSrc));
+  pDst[varDataLen(pSrc)] = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pReqByVg, SHashObj* pHitMap,
                                          SHashObj* pNextRefMap) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -4425,13 +4432,18 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
       char      currentRef[sizeof(((SDynRefKey*)0)->colRef)] = {0};
       SDynRefEdge edge = {0};
       uint8_t   hit = 1;
-      char*     pDb = colDataGetData(pDbNameCol, i);
-      char*     pTb = colDataGetData(pTableNameCol, i);
-      char*     pCol = colDataGetData(pColNameCol, i);
-
-      memcpy(dbName, varDataVal(pDb), varDataLen(pDb));
-      memcpy(tbName, varDataVal(pTb), varDataLen(pTb));
-      memcpy(colName, varDataVal(pCol), varDataLen(pCol));
+      QUERY_CHECK_CONDITION(!colDataIsNull_s(pDbNameCol, i) && !colDataIsNull_s(pTableNameCol, i) &&
+                                !colDataIsNull_s(pColNameCol, i),
+                            code, line, _return, TSDB_CODE_INVALID_MSG);
+      char* pDb = colDataGetData(pDbNameCol, i);
+      char* pTb = colDataGetData(pTableNameCol, i);
+      char* pCol = colDataGetData(pColNameCol, i);
+      code = dynCopySysScanName(dbName, sizeof(dbName), pDb);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = dynCopySysScanName(tbName, sizeof(tbName), pTb);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = dynCopySysScanName(colName, sizeof(colName), pCol);
+      QUERY_CHECK_CODE(code, line, _return);
 
       len = tsnprintf(currentRef, sizeof(currentRef), "%s.%s.%s", dbName, tbName, colName);
       if (len < 0 || len >= sizeof(currentRef)) {

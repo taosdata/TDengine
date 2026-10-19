@@ -2430,6 +2430,9 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf = NULL;
+  if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
+  *data = NULL;
+  *size = 0;
 
   int32_t blockNum = 0;
   size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp);
@@ -2437,19 +2440,26 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetInternalEncodeSize(pBlock);
-    dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
+    STREAM_CHECK_CONDITION_GOTO(blockSize < 0 ||
+                                    (int64_t)blockSize + INT_BYTES * 2 >
+                                        INT32_MAX - (int64_t)dataEncodeBufSize,
+                                TSDB_CODE_INVALID_MSG);
+    dataEncodeBufSize += INT_BYTES * 2 + (size_t)blockSize;
     blockNum++;
   }
   buf = rpcMallocCont(dataEncodeBufSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  memset(pRetrieve, 0, sizeof(*pRetrieve));
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->completed = hasNext ? 0 : 1;
   pRetrieve->numOfRows = 0;
   pRetrieve->numOfBlocks = htonl(blockNum);
+  pRetrieve->payloadLen = htonl((int32_t)(dataEncodeBufSize - sizeof(*pRetrieve)));
+  pRetrieve->compLen = pRetrieve->payloadLen;
 
   char* dataBuf = (char*)(pRetrieve->data);
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
@@ -2461,8 +2471,8 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
         blockEncodeInternal(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
-    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-    dataBuf += (INT_BYTES * 2 + actualLen);
+    STREAM_CHECK_CONDITION_GOTO(actualLen != blockSize, actualLen < 0 ? terrno : TSDB_CODE_INVALID_MSG);
+    dataBuf += INT_BYTES * 2 + blockSize;
   }
   stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
 

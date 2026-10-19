@@ -2927,23 +2927,25 @@ class TDSql:
         if exp_rows > 0:
             exp_cols = len(exp_result[0])
 
+        res_result = []
         for loop in range(retry):
             self.clearResult()
-            if self.query(sql, queryTimes=1, exit=False) and self.getRows() == exp_rows:
+            if self.query(sql, queryTimes=1, exit=False):
                 res_result = self.queryResult
-                all_same = True
-                for r in range(exp_rows):
-                    for c in range(exp_cols):
-                        if not self.compareData(r, c, exp_result[r][c], show):
-                            all_same = False
+                if self.getRows() == exp_rows:
+                    all_same = True
+                    for r in range(exp_rows):
+                        for c in range(exp_cols):
+                            if not self.compareData(r, c, exp_result[r][c], show):
+                                all_same = False
+                                break;
+                        if not all_same:
                             break;
-                    if not all_same:
-                        break;
-                if all_same:
-                    self.printResult(
-                        f"check succeed in {loop} seconds", input_result=res_result
-                    )
-                    return
+                    if all_same:
+                        self.printResult(
+                            f"check succeed in {loop} seconds", input_result=res_result
+                        )
+                        return
 
             if loop != retry - 1:
                 if show:
