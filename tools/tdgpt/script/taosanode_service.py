@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
@@ -1334,7 +1334,7 @@ class TaosanodeService:
         try:
             from waitress import serve
 
-            from taosanalytics.app import app
+            from lib.app import app
         except Exception as e:
             self._handle_startup_failure(
                 python_exe,
