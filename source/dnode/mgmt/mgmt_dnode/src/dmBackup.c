@@ -131,6 +131,7 @@ static int32_t dmBackupFileWriteEncrypted(SDmBackupFile *pBackupFile, const void
     }
     // CBC chaining: the block just encrypted becomes the next IV.
     memcpy(pBackupFile->iv, outBuf, sizeof(pBackupFile->iv));
+    pBackupFile->bufferLen = 0;
   }
 
   while (dataLen >= sizeof(pBackupFile->buffer)) {
