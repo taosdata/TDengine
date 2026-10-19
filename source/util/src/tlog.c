@@ -212,7 +212,8 @@ static void getFullPathName(char *fullName, const char *logName) {
 // meantime merely makes the retry fail and the caller keeps using the file it
 // already has.
 //
-// Set log permissions explicitly so restrictive umasks do not hide root's logs.
+// Try to set log permissions so restrictive umasks do not hide root's logs.
+// Keep writable logs usable when their permissions cannot be changed.
 static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
   TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
   if (pFile == NULL && terrno == TAOS_SYSTEM_ERROR(ELOOP)) {
@@ -221,11 +222,14 @@ static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
   }
 #ifndef WINDOWS
   if (pFile != NULL) {
+    int32_t savedErrno = terrno;
     int32_t code = taosFchmodFile(pFile, 0666);
     if (code != 0) {
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return NULL;
+      (void)fprintf(stderr,
+                    "WARNING: failed to set log file permissions:%s, reason:%s, code:%d; "
+                    "continuing with existing permissions\n",
+                    name, tstrerror(code), code);
+      terrno = savedErrno;
     }
   }
 #endif
