@@ -4224,6 +4224,9 @@ TEST(td_msg_test, stream_ext_pull_timestamp_precision_roundtrip) {
   ASSERT_GT(len, 0);
   std::vector<uint8_t> buf(len);
   ASSERT_EQ(tSerializeSSTriggerExtPullRsp(buf.data(), len, &rsp), len);
+  SSTriggerExtPullRsp truncated = {};
+  EXPECT_NE(tDeserializeSSTriggerExtPullRsp(buf.data(), len / 2, &truncated), TSDB_CODE_SUCCESS);
+  tDestroySSTriggerExtPullRsp(&truncated);
   SSTriggerExtPullRsp decoded = {};
   ASSERT_EQ(tDeserializeSSTriggerExtPullRsp(buf.data(), len, &decoded), 0);
   for (SSDataBlock* block : {decoded.pMetaBlock, decoded.pDataBlock}) {

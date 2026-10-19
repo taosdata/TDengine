@@ -247,6 +247,7 @@ class TestVTableDecimal:
         Since: v3.4.1.0
 
         Labels: create,decimal,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -369,6 +370,7 @@ class TestVTableDecimal:
         Since: v3.4.1.0
 
         Labels: alter,decimal,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -472,6 +474,7 @@ class TestVTableDecimal:
         Since: v3.4.1.0
 
         Labels: decimal,metadata,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -554,6 +557,7 @@ class TestVTableDecimal:
         Since: v3.4.1.0
 
         Labels: decimal,query,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -663,6 +667,7 @@ class TestVTableDecimal:
         Since: v3.4.1.0
 
         Labels: aggregate,decimal,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -788,6 +793,8 @@ class TestVTableDecimal:
             f"union all select dec64_col from {DB_NAME}.vctb_full"
         )
         tdSql.checkRows(6)
+        values = sorted(Decimal(str(tdSql.getData(row, 0))) for row in range(6))
+        assert values == sorted(Decimal(value) for value in ("1.25", "2.50", "3.75") * 2)
 
         tdSql.query(
             "select dec64_from_ctb + 1.00, dec64_from_ctb * 2, dec128_from_ntb - 50.0000 "
@@ -814,6 +821,7 @@ class TestVTableDecimal:
         Since: v3.4.1.0
 
         Labels: decimal,restart,virtual,integration,functional
+
         Jira: None
 
         History:

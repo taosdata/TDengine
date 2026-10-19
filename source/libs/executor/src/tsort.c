@@ -134,8 +134,12 @@ static int32_t msortComparFn(const void* pLeft, const void* pRight, void* param)
 
 // | offset[0] | offset[1] |....| nullbitmap | data |...|
 static void* createTuple(uint32_t columnNum, uint32_t tupleLen) {
-  uint32_t totalLen = sizeof(uint32_t) * columnNum + BitmapLen(columnNum) + tupleLen;
-  return taosMemoryCalloc(1, totalLen);
+  uint64_t totalLen = (uint64_t)sizeof(uint32_t) * columnNum + ((uint64_t)columnNum + 7) / 8 + tupleLen;
+  if (totalLen > UINT32_MAX) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return NULL;
+  }
+  return taosMemoryCalloc(1, (size_t)totalLen);
 }
 
 static void destoryAllocatedTuple(void* t) { taosMemoryFree(t); }
@@ -157,13 +161,15 @@ static inline int32_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, 
                                     size_t length, bool isNull, uint32_t tupleLen, uint32_t* pOffset) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  if (length > UINT32_MAX - offset) return TSDB_CODE_INVALID_MSG;
   tupleSetOffset(*t, colIdx, offset);
 
   if (isNull) {
     tupleSetNull(*t, colIdx, colNum);
   } else {
-    if (offset + length > tupleLen + tupleGetDataStartOffset(colNum)) {
-      void* px = taosMemoryRealloc(*t, offset + length);
+    uint64_t initialLen = (uint64_t)tupleLen + tupleGetDataStartOffset(colNum);
+    if ((uint64_t)offset + length > initialLen) {
+      void* px = taosMemoryRealloc(*t, (size_t)offset + length);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
       *t = px;
@@ -171,7 +177,7 @@ static inline int32_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, 
     tupleSetData(*t, offset, data, length);
   }
 
-  (*pOffset) = offset + length;
+  (*pOffset) = offset + (uint32_t)length;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -214,6 +220,10 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
     return terrno;
   }
 
+  if (colNum > UINT32_MAX || (uint64_t)sizeof(uint32_t) * colNum + ((uint64_t)colNum + 7) / 8 + tupleLen > UINT32_MAX) {
+    taosMemoryFree(t);
+    return TSDB_CODE_INVALID_MSG;
+  }
   void* pTuple = createTuple(colNum, tupleLen);
   if (!pTuple) {
     taosMemoryFree(t);
@@ -221,11 +231,13 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
   }
 
   size_t   colLen = 0;
-  uint32_t offset = tupleGetDataStartOffset(colNum);
+  uint32_t offset = (uint32_t)((uint64_t)sizeof(uint32_t) * colNum + ((uint64_t)colNum + 7) / 8);
   for (size_t colIdx = 0; colIdx < colNum; ++colIdx) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
     if (pCol == NULL) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      taosMemoryFree(pTuple);
+      taosMemoryFree(t);
       return terrno;
     }
 
@@ -238,6 +250,8 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
     }
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      taosMemoryFree(pTuple);
+      taosMemoryFree(t);
       return code;
     }
   }
@@ -2841,13 +2855,14 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
           return terrno;
         }
 
-        tupleLen += pCol->info.bytes;
+        if (pCol->info.bytes <= 0 || (uint64_t)tupleLen + (uint32_t)pCol->info.bytes > UINT32_MAX) {
+          return TSDB_CODE_INVALID_MSG;
+        }
+        tupleLen += (uint32_t)pCol->info.bytes;
         if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-          if (IS_STR_DATA_BLOB(pCol->info.type)) {
-            tupleLen += sizeof(BlobDataLenT);
-          } else {
-            tupleLen += sizeof(VarDataLenT);
-          }
+          uint32_t headerLen = IS_STR_DATA_BLOB(pCol->info.type) ? sizeof(BlobDataLenT) : sizeof(VarDataLenT);
+          if (tupleLen > UINT32_MAX - headerLen) return TSDB_CODE_INVALID_MSG;
+          tupleLen += headerLen;
         }
       }
     }

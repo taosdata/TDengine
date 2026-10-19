@@ -78,6 +78,7 @@ typedef struct {
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
+  int32_t                rspLen;
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
@@ -8155,6 +8156,11 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     }
 
     SRetrieveMetaTableRsp* pRsp = pInfo->pRsp;
+    if (pRsp == NULL || pInfo->rspLen < (int32_t)sizeof(*pRsp) || pRsp->numOfRows < 0) {
+      pTaskInfo->code = TSDB_CODE_INVALID_MSG;
+      taosMemoryFreeClear(pInfo->pRsp);
+      T_LONG_JMP(pTaskInfo->env, pTaskInfo->code);
+    }
     pInfo->req.showId = pRsp->handle;
 
     if (pRsp->numOfRows == 0 || pRsp->completed) {
@@ -8169,7 +8175,8 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
     }
 
     char* pStart = pRsp->data;
-    code = extractDataBlockFromFetchRsp(pInfo->pRes, pRsp->data, pInfo->matchInfo.pList, &pStart, false);
+    code = extractDataBlockFromFetchRsp(pInfo->pRes, pRsp->data, (size_t)pInfo->rspLen - sizeof(*pRsp),
+                                        pInfo->matchInfo.pList, &pStart, false);
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       pTaskInfo->code = code;
@@ -8504,7 +8511,13 @@ static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    if (pMsg->pData == NULL || pMsg->len < (int32_t)sizeof(SRetrieveMetaTableRsp)) {
+      pInfo->rspCode = TSDB_CODE_INVALID_MSG;
+      taosMemoryFree(pMsg->pData);
+      goto _free_ep_set;
+    }
     pInfo->pRsp = pMsg->pData;
+    pInfo->rspLen = pMsg->len;
 
     SRetrieveMetaTableRsp* pRsp = pInfo->pRsp;
     pRsp->numOfRows = htonl(pRsp->numOfRows);
@@ -8521,8 +8534,8 @@ static int32_t loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code) {
     pInfo->rspCode = cvtCode;
     taosMemoryFree(pMsg->pData);
   }
+_free_ep_set:
   taosMemoryFree(pMsg->pEpSet);
-
   // Release our acquired ref BEFORE posting the semaphore.
   // If we post first, the waiter can race ahead: task completes  ->  taosRemoveRef
   // drops the count to 1, then doDestroyTask frees the task memory pool (which

@@ -3954,6 +3954,18 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof
   tDestroySStreamRunnerFetchFrame(&decodedDataFrame);
   rpcFreeCont(data);
 
+  data = nullptr;
+  size = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 3, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data, nullptr);
+  const auto *legacyDataRsp = static_cast<const SRetrieveTableRsp *>(data);
+  EXPECT_EQ(ntohl(legacyDataRsp->payloadLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(ntohl(legacyDataRsp->compLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(legacyDataRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(ntohl(legacyDataRsp->numOfBlocks), 1);
+  EXPECT_EQ(legacyDataRsp->compressed, 0);
+  rpcFreeCont(data);
+
   SStreamRunnerFetchFrame eogFrame = {};
   eogFrame.type = STREAM_RUNNER_FETCH_EOG;
   eogFrame.baseGId = 101;
@@ -3997,6 +4009,8 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof
   EXPECT_EQ(eofRsp->completed, 1);
   EXPECT_EQ(eofRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
   EXPECT_EQ(legacyWithFrameSize, sizeof(SRetrieveTableRsp) + INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->payloadLen), INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->compLen), INT_BYTES * 2);
   rpcFreeCont(legacyWithFrame);
   rpcFreeCont(legacyWithoutFrame);
 }
@@ -4039,6 +4053,25 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseRejectsTotalLengthBeforeAl
   EXPECT_EQ(gStrictResponseAllocationCalls, 0);
   EXPECT_EQ(data, nullptr);
   EXPECT_EQ(size, 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, LegacyFetchResponseRejectsInvalidLengthBeforeAllocation) {
+  SSDataBlock *dataBlock = NewMultiGroupDataBlock(1, 101);
+  ASSERT_NE(dataBlock, nullptr);
+  Stub sizeAndAllocationStub;
+  sizeAndAllocationStub.set(blockGetInternalEncodeSize, mockStrictResponseBlockSize);
+  sizeAndAllocationStub.set(rpcMallocCont, recordStrictResponseAllocation);
+
+  for (int32_t invalidSize : {-1, INT32_MAX}) {
+    gStrictResponseBlockSize = invalidSize;
+    gStrictResponseAllocationCalls = 0;
+    void *data = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+    size_t size = 123;
+    EXPECT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 0, false), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(gStrictResponseAllocationCalls, 0);
+    EXPECT_EQ(data, nullptr);
+    EXPECT_EQ(size, 0);
+  }
 }
 
 TEST_F(StreamRunnerTest, ContinuationResumesAtCanonicalCursor) {

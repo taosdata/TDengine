@@ -42,6 +42,7 @@
 #include "functionMgt.h"
 #include "hashjoin.h"
 #include "interpResultStore.h"
+#include "mergejoin.h"
 #include "libs/new-stream/dataSink.h"
 #include "libs/new-stream/streamReader.h"
 #include "monitor.h"
@@ -69,6 +70,7 @@ SDmNotifyHandle dmNotifyHdl = {};
 #include "tdatablock.h"
 #include "ttime.h"
 #include "tsort.h"
+#include "tfill.h"
 #include "tmsg.h"
 #include "tglobal.h"
 #include "tmd5.h"
@@ -174,6 +176,11 @@ extern "C" int32_t   exchangeTestLoadNextMultiGroupResult(void *pOwner, SSDataBl
 extern "C" int32_t   exchangeTestGetResultQueueSizes(void *pOwner, int32_t *pStrictItems, int32_t *pOrdinaryBlocks);
 extern "C" int32_t   exchangeTestEnableFilterLimitGuards(void *pOwner);
 extern "C" int32_t   exchangeTestResetMultiGroupOwner(void *pOwner);
+extern "C" int32_t   exchangeTestSetDecompBufferState(void *pOwner, int32_t sourceIndex, int32_t size);
+extern "C" int32_t   exchangeTestGetDecompBufferState(void *pOwner, int32_t sourceIndex, bool *pAllocated,
+                                                        int32_t *pSize);
+extern "C" int32_t   fillTestCopyCurrentValIntoBuf(const SRowVal *pRowVal, int32_t colIdx, const char *src,
+                                                    bool isNull, TSKEY rowTs);
 extern "C" void      exchangeTestDestroyMultiGroupOwner(void *pOwner);
 extern "C" void      exchangeTestSetRuntimeLineageAlias(void *pOwner, SArray *pLineage);
 extern "C" const SArray *exchangeTestGetRuntimeLineageAlias(void *pOwner);
@@ -198,6 +205,13 @@ extern "C" int32_t       exchangeTestBeginDelayedDestroy(void *pOwner);
 extern "C" int32_t       exchangeTestFinishDelayedDestroy(void *pOwner);
 extern "C" int32_t       blockDecodeInternalBounded(SSDataBlock *pBlock, const char *pData, size_t dataLen,
                                                     const char **pEndPos);
+extern "C" int32_t extractSingleRspBlock(SRetrieveTableRsp *pRsp, int32_t rspLen, SSDataBlock *pBlock,
+                                          bool dynamicSchema);
+extern "C" int32_t dynCopySysScanName(char *pDst, size_t dstLen, const char *pSrc);
+extern "C" int32_t scanTestValidateVstbDirectBlockSchema(const SSDataBlock *pBlock,
+                                                          const SSDataBlock *pTemplate);
+extern "C" int32_t scanTestValidateVstbMappedBlockSchema(const SSDataBlock *pBlock,
+                                                          const SSDataBlock *pTemplate);
 extern "C" int32_t scanTestOpenOrRebindTableReader(STableScanBase *pBase, STableKeyInfo *pTables, int32_t numOfTables,
                                                    SSDataBlock *pBlock, const char *pTaskId, SHashObj **ppIgnoreTables,
                                                    bool *pOpened);
@@ -15218,6 +15232,8 @@ ExchangeFetchResponseBytes makeLegacyExchangeResponse(uint64_t gid, std::initial
   auto *pRsp = reinterpret_cast<SRetrieveTableRsp *>(result.bytes.data());
   pRsp->completed = completed || values.size() == 0;
   pRsp->streamBlockType = STREAM_RUNNER_FETCH_LEGACY;
+  pRsp->payloadLen = htonl(values.size() == 0 ? 0 : payloadBytes);
+  pRsp->compLen = htonl(values.size() == 0 ? 0 : payloadBytes);
   pRsp->numOfBlocks = htonl(values.size() == 0 ? 0 : 1);
   pRsp->numOfRows = htobe64(static_cast<int64_t>(values.size()));
   pRsp->numOfCols = htonl(values.size() == 0 ? 0 : 1);
@@ -15500,6 +15516,109 @@ TEST(BoundedInternalBlockDecoderTest, PreservesValidInternalDecodeContract) {
   blockDataDestroy(pLegacy);
 }
 
+TEST(BoundedInternalBlockDecoderTest, AcceptsZeroColumnBlockWithRows) {
+  std::array<uint8_t, sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(bool)> encoded = {};
+  int32_t version = 1;
+  int32_t length = static_cast<int32_t>(encoded.size());
+  int32_t rows = 2;
+  int32_t columns = 0;
+  memcpy(encoded.data(), &version, sizeof(version));
+  memcpy(encoded.data() + sizeof(int32_t), &length, sizeof(length));
+  memcpy(encoded.data() + 2 * sizeof(int32_t), &rows, sizeof(rows));
+  memcpy(encoded.data() + 3 * sizeof(int32_t), &columns, sizeof(columns));
+
+  SSDataBlock *pDecoded = nullptr;
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  blockDataFreeRes(pDecoded);
+  const char *pEnd = nullptr;
+  EXPECT_EQ(blockDecodeInternalBounded(pDecoded, reinterpret_cast<const char *>(encoded.data()), encoded.size(),
+                                       &pEnd), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pEnd, reinterpret_cast<const char *>(encoded.data() + encoded.size()));
+  EXPECT_EQ(pDecoded->info.rows, rows);
+  EXPECT_EQ(taosArrayGetSize(pDecoded->pDataBlock), 0);
+  blockDataDestroy(pDecoded);
+
+  columns = -1;
+  memcpy(encoded.data() + 3 * sizeof(int32_t), &columns, sizeof(columns));
+  EXPECT_EQ(decodeInternalBlockWithEmptySchema({encoded.begin(), encoded.end()}), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(BoundedInternalBlockDecoderTest, AcceptsEmptyVariableColumnWithZeroOffsets) {
+  auto encoded = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, TYPE_BYTES[TSDB_DATA_TYPE_VARCHAR],
+                                               {{}, {}, {}, {}});
+  ASSERT_FALSE(encoded.empty());
+  for (size_t row = 0; row < 4; ++row) {
+    setInternalBlockInt32(&encoded, kSingleColumnOffsetsOffset + row * sizeof(int32_t), 0);
+  }
+
+  SSDataBlock *pDecoded = nullptr;
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  blockDataFreeRes(pDecoded);
+  EXPECT_EQ(blockDecodeInternalBounded(pDecoded, reinterpret_cast<const char *>(encoded.data()), encoded.size(),
+                                       nullptr),
+            TSDB_CODE_SUCCESS);
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pDecoded->pDataBlock, 0));
+  ASSERT_NE(pColumn, nullptr);
+  EXPECT_EQ(pColumn->varmeta.length, 0);
+  for (size_t row = 0; row < 4; ++row) {
+    EXPECT_EQ(pColumn->varmeta.offset[row], -1);
+  }
+  blockDataDestroy(pDecoded);
+
+  setInternalBlockInt32(&encoded, kSingleColumnOffsetsOffset, 1);
+  EXPECT_EQ(decodeInternalBlockWithEmptySchema(encoded), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(BoundedInternalBlockDecoderTest, AcceptsReassignedVariableOffsets) {
+  auto encoded = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, TYPE_BYTES[TSDB_DATA_TYPE_VARCHAR],
+                                               {makeVarStringValue("a"), makeVarStringValue("bc")});
+  ASSERT_FALSE(encoded.empty());
+  setInternalBlockInt32(&encoded, kSingleColumnOffsetsOffset, static_cast<int32_t>(makeVarStringValue("a").size()));
+  setInternalBlockInt32(&encoded, kSingleColumnOffsetsOffset + sizeof(int32_t), 0);
+
+  SSDataBlock *pDecoded = nullptr;
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  blockDataFreeRes(pDecoded);
+  ASSERT_EQ(blockDecodeInternalBounded(pDecoded, reinterpret_cast<const char *>(encoded.data()), encoded.size(), nullptr),
+            TSDB_CODE_SUCCESS);
+  auto *pColumn = static_cast<SColumnInfoData *>(taosArrayGet(pDecoded->pDataBlock, 0));
+  ASSERT_NE(pColumn, nullptr);
+  EXPECT_EQ(varDataLen(colDataGetData(pColumn, 0)), 2);
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(pColumn, 0)), "bc", 2), 0);
+  EXPECT_EQ(varDataLen(colDataGetData(pColumn, 1)), 1);
+  EXPECT_EQ(memcmp(varDataVal(colDataGetData(pColumn, 1)), "a", 1), 0);
+  blockDataDestroy(pDecoded);
+}
+
+TEST(BoundedInternalBlockDecoderTest, PreservesReservedColumnsWhenWireHasFewerColumns) {
+  int32_t value = 24;
+  std::vector<uint8_t> bytes(sizeof(value));
+  memcpy(bytes.data(), &value, sizeof(value));
+  auto encoded = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_INT, INT_BYTES, {bytes});
+  ASSERT_FALSE(encoded.empty());
+
+  SSDataBlock *pDecoded = nullptr;
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  SColumnInfoData received = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 1);
+  SColumnInfoData reserved = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, LONG_BYTES, 2);
+  reserved.info.noData = true;
+  ASSERT_EQ(blockDataAppendColInfo(pDecoded, &received), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pDecoded, &reserved), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(blockDecodeInternalBounded(pDecoded, reinterpret_cast<const char *>(encoded.data()), encoded.size(),
+                                       nullptr),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosArrayGetSize(pDecoded->pDataBlock), 2);
+  EXPECT_EQ(pDecoded->info.rows, 1);
+  auto *pValue = static_cast<SColumnInfoData *>(taosArrayGet(pDecoded->pDataBlock, 0));
+  auto *pReserved = static_cast<SColumnInfoData *>(taosArrayGet(pDecoded->pDataBlock, 1));
+  ASSERT_NE(pValue, nullptr);
+  ASSERT_NE(pReserved, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pValue, 0)), value);
+  EXPECT_TRUE(pReserved->info.noData);
+  blockDataDestroy(pDecoded);
+}
+
 TEST(BoundedInternalBlockDecoderTest, RejectsEveryTruncatedPrefixBeforeRead) {
   auto response = makeStrictExchangeDataResponse(101, {10}, {{3, 0}});
   auto encoded = getStrictExchangeInternalBlock(response);
@@ -15515,6 +15634,38 @@ TEST(BoundedInternalBlockDecoderTest, RejectsEveryTruncatedPrefixBeforeRead) {
               TSDB_CODE_INVALID_MSG);
     blockDataDestroy(pDecoded);
   }
+}
+
+TEST(BoundedInternalBlockDecoderTest, ExchangeRejectsTruncatedBlockAndSystemTableSchema) {
+  auto response = makeStrictExchangeDataResponse(101, {10}, {{3, 0}});
+  auto encoded = getStrictExchangeInternalBlock(response);
+  ASSERT_FALSE(encoded.empty());
+
+  SSDataBlock *pDecoded = nullptr;
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  for (size_t len = 0; len < encoded.size(); ++len) {
+    SCOPED_TRACE(len);
+    char *end = nullptr;
+    EXPECT_EQ(extractDataBlockFromFetchRsp(pDecoded, reinterpret_cast<char *>(encoded.data()), len, nullptr, &end,
+                                           false),
+              TSDB_CODE_INVALID_MSG);
+  }
+  blockDataDestroy(pDecoded);
+
+  SArray *pColumns = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pColumns, nullptr);
+  ASSERT_EQ(createDataBlock(&pDecoded), TSDB_CODE_SUCCESS);
+  std::array<char, sizeof(int32_t) + sizeof(SSysTableSchema)> schema = {};
+  int32_t count = htonl(1);
+  memcpy(schema.data(), &count, sizeof(count));
+  for (size_t len = 0; len <= schema.size(); ++len) {
+    SCOPED_TRACE(len);
+    char *end = nullptr;
+    EXPECT_EQ(extractDataBlockFromFetchRsp(pDecoded, schema.data(), len, pColumns, &end, false),
+              TSDB_CODE_INVALID_MSG);
+  }
+  blockDataDestroy(pDecoded);
+  taosArrayDestroy(pColumns);
 }
 
 TEST(BoundedInternalBlockDecoderTest, RejectsMalformedLengthsCountsAndColumnMetadata) {
@@ -15756,11 +15907,6 @@ TEST(BoundedInternalBlockDecoderTest, RejectsMalformedVariableOffsetsAndValueHea
   setInternalBlockInt32(&offsetAtEnd, kSingleColumnOffsetsOffset, static_cast<int32_t>(makeVarStringValue("a").size()));
   malformed.push_back(std::move(offsetAtEnd));
 
-  auto discontinuous = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, TYPE_BYTES[TSDB_DATA_TYPE_VARCHAR],
-                                                     {makeVarStringValue("a"), makeVarStringValue("b")});
-  setInternalBlockInt32(&discontinuous, kSingleColumnOffsetsOffset + sizeof(int32_t), 0);
-  malformed.push_back(std::move(discontinuous));
-
   auto varcharLength = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, TYPE_BYTES[TSDB_DATA_TYPE_VARCHAR],
                                                      {makeVarStringValue("a")});
   const VarDataLenT oversizedVar = UINT16_MAX;
@@ -15811,6 +15957,402 @@ TEST(BoundedInternalBlockDecoderTest, RejectsSelfConsistentNonCanonicalFixedWidt
   auto wrongIntWidth = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_INT, SHORT_BYTES, {{1, 0}});
   ASSERT_FALSE(wrongIntWidth.empty());
   EXPECT_EQ(decodeInternalBlockWithEmptySchema(wrongIntWidth), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(BoundedInternalBlockDecoderTest, RejectsVariableValueLargerThanDeclaredWidth) {
+  auto oversized = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE,
+                                                  {makeVarStringValue(std::string(60000, 'x'))});
+  ASSERT_FALSE(oversized.empty());
+  EXPECT_EQ(decodeInternalBlockWithEmptySchema(oversized), TSDB_CODE_INVALID_MSG);
+
+  auto valid = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, 60000 + VARSTR_HEADER_SIZE,
+                                              {makeVarStringValue(std::string(60000, 'x'))});
+  ASSERT_FALSE(valid.empty());
+  EXPECT_EQ(decodeInternalBlockWithEmptySchema(valid), TSDB_CODE_SUCCESS);
+}
+
+TEST(BoundedInternalBlockDecoderTest, ScalarFetchRejectsTruncatedRpcPayload) {
+  std::array<char, sizeof(SRetrieveTableRsp) + PAYLOAD_PREFIX_LEN> bytes = {};
+  auto *pRsp = reinterpret_cast<SRetrieveTableRsp *>(bytes.data());
+  pRsp->numOfBlocks = 1;
+  pRsp->compLen = PAYLOAD_PREFIX_LEN;
+  pRsp->payloadLen = PAYLOAD_PREFIX_LEN;
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(extractSingleRspBlock(pRsp, sizeof(SRetrieveTableRsp), pBlock, false), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(extractSingleRspBlock(pRsp, bytes.size(), pBlock, false), TSDB_CODE_INVALID_MSG);
+  blockDataDestroy(pBlock);
+}
+
+TEST(BoundedInternalBlockDecoderTest, ScalarFetchAcceptsDynamicTableSchema) {
+  auto response = makeStrictExchangeDataResponse(101, {10}, {{3, 0}});
+  auto encoded = getStrictExchangeInternalBlock(response);
+  ASSERT_FALSE(encoded.empty());
+  std::vector<char> bytes(sizeof(SRetrieveTableRsp) + PAYLOAD_PREFIX_LEN + encoded.size());
+  auto *pRsp = reinterpret_cast<SRetrieveTableRsp *>(bytes.data());
+  memset(pRsp, 0, sizeof(*pRsp));
+  pRsp->numOfBlocks = 1;
+  pRsp->compLen = PAYLOAD_PREFIX_LEN + encoded.size();
+  pRsp->payloadLen = pRsp->compLen;
+  int32_t blockLen = encoded.size();
+  memcpy(pRsp->data, &blockLen, sizeof(blockLen));
+  memcpy(pRsp->data + sizeof(blockLen), &blockLen, sizeof(blockLen));
+  memcpy(pRsp->data + PAYLOAD_PREFIX_LEN, encoded.data(), encoded.size());
+
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData placeholder = createColumnInfoData(TSDB_DATA_TYPE_NULL, 0, 0);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &placeholder), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(extractSingleRspBlock(pRsp, bytes.size(), pBlock, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pBlock->info.rows, 1);
+  EXPECT_EQ(taosArrayGetSize(pBlock->pDataBlock), 1);
+  blockDataDestroy(pBlock);
+}
+
+TEST(BoundedInternalBlockDecoderTest, ScalarFetchAcceptsUntypedNullForTypedColumn) {
+  auto makeResponse = [](const std::vector<uint8_t> &encoded) {
+    std::vector<char> bytes(sizeof(SRetrieveTableRsp) + PAYLOAD_PREFIX_LEN + encoded.size());
+    auto *pRsp = reinterpret_cast<SRetrieveTableRsp *>(bytes.data());
+    memset(pRsp, 0, sizeof(*pRsp));
+    pRsp->numOfBlocks = 1;
+    pRsp->compLen = PAYLOAD_PREFIX_LEN + encoded.size();
+    pRsp->payloadLen = pRsp->compLen;
+    int32_t blockLen = encoded.size();
+    memcpy(pRsp->data, &blockLen, sizeof(blockLen));
+    memcpy(pRsp->data + sizeof(blockLen), &blockLen, sizeof(blockLen));
+    memcpy(pRsp->data + PAYLOAD_PREFIX_LEN, encoded.data(), encoded.size());
+    return bytes;
+  };
+
+  auto nullBlock = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_NULL, TYPE_BYTES[TSDB_DATA_TYPE_NULL], {{}});
+  ASSERT_FALSE(nullBlock.empty());
+  auto response = makeResponse(nullBlock);
+  auto *pRsp = reinterpret_cast<SRetrieveTableRsp *>(response.data());
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData placeholder = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE, 0);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &placeholder), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(extractSingleRspBlock(pRsp, response.size(), pBlock, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pBlock->info.rows, 1);
+  EXPECT_TRUE(colDataIsNull_s(static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0)), 0));
+  EXPECT_EQ(static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0))->info.type, TSDB_DATA_TYPE_NULL);
+  blockDataDestroy(pBlock);
+
+  auto valueBlock = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_INT, INT_BYTES, {{1, 0, 0, 0}});
+  ASSERT_FALSE(valueBlock.empty());
+  response = makeResponse(valueBlock);
+  pRsp = reinterpret_cast<SRetrieveTableRsp *>(response.data());
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &placeholder), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(extractSingleRspBlock(pRsp, response.size(), pBlock, false), TSDB_CODE_INVALID_MSG);
+  blockDataDestroy(pBlock);
+}
+
+TEST(BoundedInternalBlockDecoderTest, SystemTableNameCopyEnforcesDestinationCapacity) {
+  auto name = makeVarStringValue("abcd");
+  std::array<char, 5> destination = {};
+  EXPECT_EQ(dynCopySysScanName(destination.data(), destination.size(),
+                               reinterpret_cast<const char *>(name.data())), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(destination.data(), "abcd");
+  EXPECT_EQ(dynCopySysScanName(destination.data(), destination.size() - 1,
+                               reinterpret_cast<const char *>(name.data())), TSDB_CODE_INVALID_MSG);
+}
+
+TEST(MergeJoinKeyBufferTest, GrowsForActualCompositeKeyLength) {
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData stringCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, VARSTR_HEADER_SIZE, 1);
+  SColumnInfoData intCol = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 2);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &stringCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &intCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, 1), TSDB_CODE_SUCCESS);
+  auto value = makeVarStringValue("long-key");
+  int32_t number = 42;
+  ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0)), 0,
+                          reinterpret_cast<const char *>(value.data()), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 1)), 0,
+                          reinterpret_cast<const char *>(&number), false), TSDB_CODE_SUCCESS);
+  pBlock->info.rows = 1;
+
+  SMJoinColInfo columns[2] = {};
+  columns[0].srcSlot = 0;
+  columns[0].vardata = true;
+  columns[0].bytes = VARSTR_HEADER_SIZE;
+  columns[1].srcSlot = 1;
+  columns[1].bytes = INT_BYTES;
+  SMJoinTableCtx table = {};
+  table.keyNum = 2;
+  table.keyCols = columns;
+  table.keyBufCap = VARSTR_HEADER_SIZE + INT_BYTES;
+  table.keyBuf = static_cast<char *>(taosMemoryMalloc(table.keyBufCap));
+  ASSERT_NE(table.keyBuf, nullptr);
+  ASSERT_EQ(mJoinSetKeyColsData(pBlock, &table), TSDB_CODE_SUCCESS);
+  size_t keyLen = 0;
+  bool nullKey = false;
+  ASSERT_EQ(mJoinCopyKeyColsDataToBuf(&table, 0, &keyLen, &nullKey), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(nullKey);
+  EXPECT_GE(table.keyBufCap, value.size() + INT_BYTES);
+  EXPECT_EQ(keyLen, value.size() + INT_BYTES);
+  EXPECT_EQ(memcmp(table.keyBuf, value.data(), value.size()), 0);
+  EXPECT_EQ(memcmp(table.keyBuf + value.size(), &number, INT_BYTES), 0);
+  taosMemoryFree(table.keyBuf);
+  blockDataDestroy(pBlock);
+}
+
+TEST(MergeJoinKeyBufferTest, UsesEachCompositeKeysType) {
+  SSDataBlock *pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData jsonCol = createColumnInfoData(TSDB_DATA_TYPE_JSON, TYPE_BYTES[TSDB_DATA_TYPE_JSON], 1);
+  SColumnInfoData stringCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16, 2);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &jsonCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &stringCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, 1), TSDB_CODE_SUCCESS);
+  std::array<char, 1> jsonNull = {TSDB_DATA_TYPE_NULL};
+  auto value = makeVarStringValue("abc");
+  ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0)), 0,
+                          jsonNull.data(), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 1)), 0,
+                          reinterpret_cast<const char *>(value.data()), false), TSDB_CODE_SUCCESS);
+  pBlock->info.rows = 1;
+
+  SMJoinColInfo columns[2] = {};
+  columns[0].srcSlot = 0;
+  columns[0].jsonData = true;
+  columns[0].vardata = true;
+  columns[0].bytes = TYPE_BYTES[TSDB_DATA_TYPE_JSON];
+  columns[1].srcSlot = 1;
+  columns[1].vardata = true;
+  columns[1].bytes = 16;
+  SMJoinTableCtx table = {};
+  table.keyNum = 2;
+  table.keyCols = columns;
+  table.keyBufCap = columns[0].bytes + columns[1].bytes;
+  table.keyBuf = static_cast<char *>(taosMemoryMalloc(table.keyBufCap));
+  ASSERT_NE(table.keyBuf, nullptr);
+  ASSERT_EQ(mJoinSetKeyColsData(pBlock, &table), TSDB_CODE_SUCCESS);
+  size_t keyLen = 0;
+  bool nullKey = false;
+  ASSERT_EQ(mJoinCopyKeyColsDataToBuf(&table, 0, &keyLen, &nullKey), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(nullKey);
+  EXPECT_EQ(keyLen, jsonNull.size() + value.size());
+  EXPECT_EQ(memcmp(table.keyBuf + jsonNull.size(), value.data(), value.size()), 0);
+  taosMemoryFree(table.keyBuf);
+  blockDataDestroy(pBlock);
+}
+
+class InterpKeeperBoundaryTest : public ::testing::Test {
+ protected:
+  SSDataBlock* block = nullptr;
+  SArray* keeper = nullptr;
+  char* buffer = nullptr;
+
+  void SetUp() override {
+    buffer = static_cast<char*>(taosMemoryMalloc(16));
+    ASSERT_NE(buffer, nullptr);
+    memset(buffer, 'x', 16);
+    ASSERT_EQ(createDataBlock(&block), TSDB_CODE_SUCCESS);
+    SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 8, 1);
+    ASSERT_EQ(blockDataAppendColInfo(block, &column), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(block, 1), TSDB_CODE_SUCCESS);
+    block->info.rows = 1;
+    keeper = taosArrayInit(1, sizeof(SGroupKeys));
+    ASSERT_NE(keeper, nullptr);
+    SGroupKeys key = {};
+    key.type = TSDB_DATA_TYPE_BINARY;
+    key.bytes = 8;
+    key.isNull = true;
+    key.pData = buffer;
+    ASSERT_NE(taosArrayPush(keeper, &key), nullptr);
+    buffer = nullptr;
+  }
+
+  void TearDown() override {
+    if (keeper != nullptr) {
+      auto* saved = static_cast<SGroupKeys*>(taosArrayGet(keeper, 0));
+      if (saved != nullptr) taosMemoryFree(saved->pData);
+    }
+    taosMemoryFree(buffer);
+    taosArrayDestroy(keeper);
+    blockDataDestroy(block);
+  }
+
+  SGroupKeys* key() {
+    return static_cast<SGroupKeys*>(taosArrayGet(keeper, 0));
+  }
+
+  std::vector<char> value(size_t size) {
+    std::vector<char> data(VARSTR_HEADER_SIZE + size, 'v');
+    varDataSetLen(data.data(), size);
+    return data;
+  }
+
+  void setValue(const std::vector<char>& data) {
+    auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+    ASSERT_EQ(colDataSetVal(column, 0, data.data(), false), TSDB_CODE_SUCCESS);
+  }
+};
+
+TEST_F(InterpKeeperBoundaryTest, CopiesExactCapacityWithoutTouchingGuard) {
+  auto data = value(8 - VARSTR_HEADER_SIZE);
+  setValue(data);
+  ASSERT_EQ(interpTestKeepRows(keeper, block, 0), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(key()->isNull);
+  EXPECT_EQ(memcmp(key()->pData, data.data(), data.size()), 0);
+  for (size_t i = 8; i < 16; ++i) {
+    EXPECT_EQ(key()->pData[i], 'x');
+  }
+}
+
+TEST_F(InterpKeeperBoundaryTest, GrowsForWiderVariableReplacement) {
+  setValue(value(2));
+  ASSERT_EQ(interpTestKeepRows(keeper, block, 0), TSDB_CODE_SUCCESS);
+  // Keep the same snapshot while the next block declares a larger width.
+  SSDataBlock* nextBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&nextBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 64, 1);
+  ASSERT_EQ(blockDataAppendColInfo(nextBlock, &column), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(nextBlock, 1), TSDB_CODE_SUCCESS);
+  nextBlock->info.rows = 1;
+  auto* nextColumn = static_cast<SColumnInfoData*>(taosArrayGet(nextBlock->pDataBlock, 0));
+  auto oversized = value(30);
+  ASSERT_EQ(colDataSetVal(nextColumn, 0, oversized.data(), false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(interpTestKeepRows(keeper, nextBlock, 0), TSDB_CODE_SUCCESS);
+  blockDataDestroy(nextBlock);
+  EXPECT_GE(key()->bytes, oversized.size());
+  EXPECT_EQ(memcmp(key()->pData, oversized.data(), oversized.size()), 0);
+  EXPECT_FALSE(key()->isNull);
+}
+
+TEST_F(InterpKeeperBoundaryTest, KeepsNullWithoutReadingVariablePayload) {
+  auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  colDataSetNULL(column, 0);
+  EXPECT_EQ(interpTestKeepRows(keeper, block, 0), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(key()->isNull);
+  for (size_t i = 0; i < 16; ++i) {
+    EXPECT_EQ(key()->pData[i], 'x');
+  }
+}
+
+TEST_F(InterpKeeperBoundaryTest, CopiesBetweenKeepersUsingDestinationCapacity) {
+  SArray* source = taosArrayInit(1, sizeof(SGroupKeys));
+  ASSERT_NE(source, nullptr);
+  auto data = value(8 - VARSTR_HEADER_SIZE);
+  data.resize(16, 's');
+  SGroupKeys sourceKey = *key();
+  sourceKey.bytes = data.size();
+  sourceKey.pData = data.data();
+  sourceKey.isNull = false;
+  ASSERT_NE(taosArrayPush(source, &sourceKey), nullptr);
+  ASSERT_EQ(interpTestCopyKeeperRow(keeper, source), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(memcmp(key()->pData, data.data(), 8), 0);
+  varDataSetLen(data.data(), 10);
+  EXPECT_EQ(interpTestCopyKeeperRow(keeper, source), TSDB_CODE_SUCCESS);
+  EXPECT_GE(key()->bytes, 10 + VARSTR_HEADER_SIZE);
+  EXPECT_EQ(memcmp(key()->pData, data.data(), 10 + VARSTR_HEADER_SIZE), 0);
+  taosArrayDestroy(source);
+}
+
+TEST_F(InterpKeeperBoundaryTest, RejectsChangedColumnTypeBeforeCopy) {
+  setValue(value(2));
+  key()->type = TSDB_DATA_TYPE_INT;
+  std::array<char, 16> snapshot = {};
+  memcpy(snapshot.data(), key()->pData, snapshot.size());
+  EXPECT_EQ(interpTestKeepRows(keeper, block, 0), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(memcmp(key()->pData, snapshot.data(), snapshot.size()), 0);
+  EXPECT_TRUE(key()->isNull);
+}
+
+TEST_F(InterpKeeperBoundaryTest, RejectsChangedFixedWidthBeforeCopy) {
+  SSDataBlock* fixedBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&fixedBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
+  ASSERT_EQ(blockDataAppendColInfo(fixedBlock, &column), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(fixedBlock, 1), TSDB_CODE_SUCCESS);
+  fixedBlock->info.rows = 1;
+  auto* fixedColumn = static_cast<SColumnInfoData*>(taosArrayGet(fixedBlock->pDataBlock, 0));
+  int32_t number = 42;
+  ASSERT_EQ(colDataSetVal(fixedColumn, 0, reinterpret_cast<char*>(&number), false), TSDB_CODE_SUCCESS);
+  key()->type = TSDB_DATA_TYPE_INT;
+  std::array<char, 16> snapshot = {};
+  memcpy(snapshot.data(), key()->pData, snapshot.size());
+  EXPECT_EQ(interpTestKeepRows(keeper, fixedBlock, 0), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(memcmp(key()->pData, snapshot.data(), snapshot.size()), 0);
+  key()->bytes = 4;
+  EXPECT_EQ(interpTestKeepRows(keeper, fixedBlock, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(memcmp(key()->pData, &number, sizeof(number)), 0);
+  blockDataDestroy(fixedBlock);
+}
+
+TEST_F(InterpKeeperBoundaryTest, RejectsChangedColumnCountBeforeCopy) {
+  setValue(value(2));
+  SColumnInfoData extra = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 2);
+  ASSERT_EQ(blockDataAppendColInfo(block, &extra), TSDB_CODE_SUCCESS);
+  std::array<char, 16> snapshot = {};
+  memcpy(snapshot.data(), key()->pData, snapshot.size());
+  EXPECT_EQ(interpTestKeepRows(keeper, block, 0), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(memcmp(key()->pData, snapshot.data(), snapshot.size()), 0);
+}
+
+TEST(SortTupleBoundaryTest, RejectsOverflowedSchemaLengthBeforeAllocatingTuple) {
+  SSDataBlock *block = nullptr;
+  ASSERT_EQ(createDataBlock(&block), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 3; ++i) {
+    SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, INT32_MAX, i + 1);
+    ASSERT_EQ(blockDataAppendColInfo(block, &column), TSDB_CODE_SUCCESS);
+  }
+  block->info.rows = 1;
+  SArray *orders = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  ASSERT_NE(orders, nullptr);
+  SBlockOrderInfo order = {};
+  order.order = TSDB_ORDER_ASC;
+  order.slotId = 0;
+  order.compFn = reinterpret_cast<void *>(getKeyComparFunc(TSDB_DATA_TYPE_INT, TSDB_ORDER_ASC));
+  ASSERT_NE(taosArrayPush(orders, &order), nullptr);
+  SSortHandle *handle = nullptr;
+  ASSERT_EQ(tsortCreateSortHandle(orders, SORT_SINGLESOURCE_SORT, 1024, 4, nullptr,
+                                  "tuple-overflow", 1, 1, 1024, &handle), TSDB_CODE_SUCCESS);
+  tsortSetForceUsePQSort(handle);
+  tsortSetFetchRawDataFp(handle, [](void *param, SSDataBlock **result) -> int32_t {
+    auto **input = static_cast<SSDataBlock **>(param);
+    *result = *input;
+    *input = nullptr;
+    return TSDB_CODE_SUCCESS;
+  }, nullptr, nullptr);
+  SSDataBlock *input = block;
+  auto *source = static_cast<SSortSource *>(taosMemoryCalloc(1, sizeof(SSortSource)));
+  ASSERT_NE(source, nullptr);
+  source->param = &input;
+  source->onlyRef = true;
+  ASSERT_EQ(tsortAddSource(handle, source), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsortOpen(handle), TSDB_CODE_INVALID_MSG);
+  tsortDestroySortHandle(handle);
+  taosArrayDestroy(orders);
+  blockDataDestroy(block);
+}
+
+TEST(FillBufferTest, MissingRowKeyReturnsErrorEvenWhenTerrnoIsSuccess) {
+  SRowVal row = {};
+  row.pRowVal = taosArrayInit(1, sizeof(SGroupKeys));
+  ASSERT_NE(row.pRowVal, nullptr);
+  terrno = TSDB_CODE_SUCCESS;
+  EXPECT_EQ(fillTestCopyCurrentValIntoBuf(&row, 0, nullptr, true, 0), TSDB_CODE_INVALID_MSG);
+  taosArrayDestroy(row.pRowVal);
+}
+
+TEST(StreamExchangeMultiGroupTest, ResetClearsDecompressionBufferCapacity) {
+  ExchangeMultiGroupOwner owner;
+  ASSERT_NE(owner.handle, nullptr);
+  ASSERT_EQ(exchangeTestSetDecompBufferState(owner.handle, 0, 4096), TSDB_CODE_SUCCESS);
+  bool allocated = false;
+  int32_t size = 0;
+  ASSERT_EQ(exchangeTestGetDecompBufferState(owner.handle, 0, &allocated, &size), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(allocated);
+  ASSERT_EQ(size, 4096);
+
+  ASSERT_EQ(exchangeTestResetMultiGroupOwner(owner.handle), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(exchangeTestGetDecompBufferState(owner.handle, 0, &allocated, &size), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(allocated);
+  EXPECT_EQ(size, 0);
 }
 
 TEST(StreamExchangeMultiGroupTest, QueuedDataPublishesOnlyMatchingOwnedLineageOnEachPop) {
@@ -19389,6 +19931,282 @@ TEST(execUtilTest, interpResultStoreAllocationFailuresPreserveState) {
 
   blockDataDestroy(pBlock);
   interpResultStoreDestroy(pStore);
+}
+
+TEST(VirtualDirectBlockSchemaTest, RejectsReorderedSlotsAndAcceptsWiderVariableSource) {
+  SSDataBlock *source = nullptr;
+  SSDataBlock *expected = nullptr;
+  ASSERT_EQ(createDataBlock(&source), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&expected), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData sourceText = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 64, 2);
+  SColumnInfoData sourceNumber = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 1);
+  SColumnInfoData expectedNumber = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 1);
+  SColumnInfoData expectedText = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16, 2);
+  sourceText.info.slotId = expectedText.info.slotId = 2;
+  sourceNumber.info.slotId = expectedNumber.info.slotId = 1;
+  ASSERT_EQ(blockDataAppendColInfo(source, &sourceNumber), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(source, &sourceText), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(expected, &expectedNumber), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(expected, &expectedText), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(nullptr, expected), TSDB_CODE_INVALID_MSG);
+  SColumnInfoData extra = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 3);
+  ASSERT_EQ(blockDataAppendColInfo(source, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  taosArrayPop(source->pDataBlock);
+
+  auto *text = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 1));
+  text->info.type = TSDB_DATA_TYPE_INT;
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  text->info.type = TSDB_DATA_TYPE_VARCHAR;
+
+  auto *number = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0));
+  number->info.bytes = SHORT_BYTES;
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  number->info.bytes = INT_BYTES;
+
+  std::swap(number->info.slotId, text->info.slotId);
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  std::swap(number->info.slotId, text->info.slotId);
+  number->info.slotId = text->info.slotId;
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  number->info.slotId = 9;
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+
+  blockDataDestroy(source);
+  blockDataDestroy(expected);
+}
+
+TEST(VirtualDirectBlockSchemaTest, RejectsDecimalScaleMismatch) {
+  SSDataBlock *source = nullptr;
+  SSDataBlock *expected = nullptr;
+  ASSERT_EQ(createDataBlock(&source), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&expected), TSDB_CODE_SUCCESS);
+  SColumnInfoData sourceDecimal = createColumnInfoData(TSDB_DATA_TYPE_DECIMAL, 16, 1);
+  SColumnInfoData expectedDecimal = sourceDecimal;
+  sourceDecimal.info.precision = expectedDecimal.info.precision = 10;
+  sourceDecimal.info.scale = 2;
+  expectedDecimal.info.scale = 3;
+  ASSERT_EQ(blockDataAppendColInfo(source, &sourceDecimal), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(expected, &expectedDecimal), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  blockDataDestroy(source);
+  blockDataDestroy(expected);
+}
+
+extern "C" int32_t projectApplyColumn(SSDataBlock *pResult, SSDataBlock *pSrcBlock, int32_t outputSlotId,
+                                      SqlFunctionCtx *pfCtx, int64_t *numOfRows, bool createNewColModel);
+
+TEST(ProjectDecimalSchemaTest, KeepsDeclaredTypeAndRejectsExplicitMismatch) {
+  SSDataBlock *source = nullptr;
+  SSDataBlock *result = nullptr;
+  ASSERT_EQ(createDataBlock(&source), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&result), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData sourceDecimal = createColumnInfoData(TSDB_DATA_TYPE_DECIMAL64, 8, 0);
+  SColumnInfoData resultDecimal = sourceDecimal;
+  resultDecimal.info.precision = 18;
+  resultDecimal.info.scale = 2;
+  ASSERT_EQ(blockDataAppendColInfo(source, &sourceDecimal), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(result, &resultDecimal), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(source, 1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(result, 1), TSDB_CODE_SUCCESS);
+  source->info.rows = 1;
+
+  auto *src = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0));
+  auto *dst = static_cast<SColumnInfoData *>(taosArrayGet(result->pDataBlock, 0));
+  int64_t value = 125;
+  ASSERT_EQ(colDataSetVal(src, 0, reinterpret_cast<const char *>(&value), false), TSDB_CODE_SUCCESS);
+  SqlFunctionCtx ctx = {};
+  SColumnInfoData *input[] = {src};
+  ctx.input.pData = input;
+  ctx.input.numOfRows = 1;
+  int64_t rows = 0;
+  EXPECT_EQ(projectApplyColumn(result, source, 0, &ctx, &rows, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(rows, 1);
+  EXPECT_EQ(dst->info.precision, 18);
+  EXPECT_EQ(dst->info.scale, 2);
+
+  src->info.precision = 18;
+  src->info.scale = 3;
+  EXPECT_EQ(projectApplyColumn(result, source, 0, &ctx, &rows, false), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(dst->info.precision, 18);
+  EXPECT_EQ(dst->info.scale, 2);
+
+  blockDataDestroy(source);
+  blockDataDestroy(result);
+}
+
+TEST(VirtualDirectBlockSchemaTest, ReordersEqualWidthMappedColumns) {
+  SSDataBlock *source = nullptr;
+  SSDataBlock *expected = nullptr;
+  SSDataBlock *result = nullptr;
+  SArray *map = taosArrayInit(2, sizeof(SColIdSlotIdPair));
+  ASSERT_NE(map, nullptr);
+  ASSERT_EQ(createDataBlock(&source), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createDataBlock(&expected), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData srcSecond = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 2);
+  SColumnInfoData srcFirst = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 1);
+  SColumnInfoData dstFirst = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 1);
+  SColumnInfoData dstSecond = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 2);
+  srcSecond.info.slotId = dstSecond.info.slotId = 2;
+  srcFirst.info.slotId = dstFirst.info.slotId = 1;
+  ASSERT_EQ(blockDataAppendColInfo(source, &srcSecond), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(source, &srcFirst), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(expected, &dstFirst), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(expected, &dstSecond), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(source, 1), TSDB_CODE_SUCCESS);
+  source->info.rows = 1;
+  int32_t first = 11;
+  int32_t second = 22;
+  ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0)), 0,
+                          reinterpret_cast<const char *>(&second), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 1)), 0,
+                          reinterpret_cast<const char *>(&first), false), TSDB_CODE_SUCCESS);
+  SColIdSlotIdPair secondPair = {};
+  secondPair.orgColId = 2;
+  secondPair.vtbSlotId = 2;
+  SColIdSlotIdPair firstPair = {};
+  firstPair.orgColId = 1;
+  firstPair.vtbSlotId = 1;
+  ASSERT_NE(taosArrayPush(map, &secondPair), nullptr);
+  ASSERT_NE(taosArrayPush(map, &firstPair), nullptr);
+
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  ASSERT_EQ(scanTestValidateVstbMappedBlockSchema(source, expected), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(createOneDataBlockWithTwoBlock(source, expected, map, &result), TSDB_CODE_SUCCESS);
+  ASSERT_NE(result, nullptr);
+  auto *col0 = static_cast<SColumnInfoData *>(taosArrayGet(result->pDataBlock, 0));
+  auto *col1 = static_cast<SColumnInfoData *>(taosArrayGet(result->pDataBlock, 1));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(col0, 0)), first);
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(col1, 0)), second);
+
+  auto *duplicate = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0));
+  duplicate->info.slotId = 1;
+  EXPECT_EQ(scanTestValidateVstbMappedBlockSchema(source, expected), TSDB_CODE_INVALID_MSG);
+  blockDataDestroy(result);
+  blockDataDestroy(source);
+  blockDataDestroy(expected);
+  taosArrayDestroy(map);
+}
+
+class VirtualMappedBlockSchemaTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(createDataBlock(&source), 0);
+    ASSERT_EQ(createDataBlock(&outputTemplate), 0);
+    map = taosArrayInit(1, sizeof(SColIdSlotIdPair));
+    ASSERT_NE(map, nullptr);
+    SColIdSlotIdPair pair = {};
+    pair.orgColId = 1;
+    pair.vtbSlotId = 3;
+    ASSERT_NE(taosArrayPush(map, &pair), nullptr);
+  }
+  void TearDown() override {
+    blockDataDestroy(result);
+    blockDataDestroy(source);
+    blockDataDestroy(outputTemplate);
+    taosArrayDestroy(map);
+  }
+  void prepare(int8_t type, int32_t sourceBytes, int32_t targetBytes) {
+    SColumnInfoData src = createColumnInfoData(type, sourceBytes, 1);
+    SColumnInfoData dst = createColumnInfoData(type, targetBytes, 1);
+    src.info.slotId = dst.info.slotId = 3;
+    ASSERT_EQ(blockDataAppendColInfo(source, &src), 0);
+    ASSERT_EQ(blockDataAppendColInfo(outputTemplate, &dst), 0);
+    ASSERT_EQ(blockDataEnsureCapacity(source, 1), 0);
+    source->info.rows = 1;
+  }
+  int32_t copy() {
+    return createOneDataBlockWithTwoBlock(source, outputTemplate, map, &result);
+  }
+  SSDataBlock *source = nullptr;
+  SSDataBlock *outputTemplate = nullptr;
+  SSDataBlock *result = nullptr;
+  SArray *map = nullptr;
+};
+
+TEST_F(VirtualMappedBlockSchemaTest, RejectsWiderFixedSourceBeforeCopy) {
+  prepare(TSDB_DATA_TYPE_INT, 8, 4);
+  EXPECT_EQ(copy(), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, RejectsTypeMismatchBeforeCopy) {
+  prepare(TSDB_DATA_TYPE_INT, 4, 4);
+  auto *column = static_cast<SColumnInfoData *>(taosArrayGet(outputTemplate->pDataBlock, 0));
+  column->info.type = TSDB_DATA_TYPE_FLOAT;
+  EXPECT_EQ(copy(), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, RejectsDecimalScaleMismatchBeforeCopy) {
+  prepare(TSDB_DATA_TYPE_DECIMAL, 16, 16);
+  auto *src = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0));
+  auto *dst = static_cast<SColumnInfoData *>(taosArrayGet(outputTemplate->pDataBlock, 0));
+  src->info.precision = dst->info.precision = 10;
+  src->info.scale = 2;
+  dst->info.scale = 3;
+  EXPECT_EQ(copy(), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, PreservesLegalWiderVariableSource) {
+  prepare(TSDB_DATA_TYPE_VARCHAR, 32, 8);
+  char value[32] = {};
+  varDataSetLen(value, 16);
+  memcpy(varDataVal(value), "abcdefghijklmnop", 16);
+  auto *src = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0));
+  ASSERT_EQ(colDataSetVal(src, 0, value, false), 0);
+  ASSERT_EQ(copy(), 0);
+  ASSERT_NE(result, nullptr);
+  auto *dst = static_cast<SColumnInfoData *>(taosArrayGet(result->pDataBlock, 0));
+  EXPECT_EQ(dst->info.slotId, 3);
+  EXPECT_EQ(dst->info.bytes, 32);
+  EXPECT_EQ(memcmp(colDataGetData(dst, 0), value, varDataTLen(value)), 0);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, PreservesMatchingFixedSource) {
+  prepare(TSDB_DATA_TYPE_INT, 4, 4);
+  int32_t value = 42;
+  auto *src = static_cast<SColumnInfoData *>(taosArrayGet(source->pDataBlock, 0));
+  ASSERT_EQ(colDataSetVal(src, 0, reinterpret_cast<const char *>(&value), false), 0);
+  ASSERT_EQ(copy(), 0);
+  auto *dst = static_cast<SColumnInfoData *>(taosArrayGet(result->pDataBlock, 0));
+  EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(dst, 0)), value);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, RebuildsWithUnmappedTimestampColumn) {
+  prepare(TSDB_DATA_TYPE_INT, INT_BYTES, INT_BYTES);
+  SColumnInfoData timestamp = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+  timestamp.info.slotId = -1;
+  ASSERT_EQ(blockDataAppendColInfo(source, &timestamp), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scanTestValidateVstbMappedBlockSchema(source, outputTemplate), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scanTestValidateVstbDirectBlockSchema(source, outputTemplate), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(copy(), TSDB_CODE_SUCCESS);
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(taosArrayGetSize(result->pDataBlock), 1);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, RejectsUnknownSourceColumn) {
+  prepare(TSDB_DATA_TYPE_INT, INT_BYTES, INT_BYTES);
+  SColumnInfoData extra = createColumnInfoData(TSDB_DATA_TYPE_INT, INT_BYTES, 0);
+  extra.info.slotId = 4;
+  ASSERT_EQ(blockDataAppendColInfo(source, &extra), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scanTestValidateVstbMappedBlockSchema(source, outputTemplate), TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(VirtualMappedBlockSchemaTest, RejectsDuplicateUnmappedTimestamp) {
+  prepare(TSDB_DATA_TYPE_INT, INT_BYTES, INT_BYTES);
+  SColumnInfoData timestamp = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+  timestamp.info.slotId = -1;
+  ASSERT_EQ(blockDataAppendColInfo(source, &timestamp), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(source, &timestamp), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(scanTestValidateVstbMappedBlockSchema(source, outputTemplate), TSDB_CODE_INVALID_MSG);
 }
 
 TEST(execUtilTest, interpResultStorePagedRoundTripPreservesBlocks) {
