@@ -5080,22 +5080,26 @@ static int32_t encodeConnectBody(uint8_t *buf, int32_t cap, const char *app, uin
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, cap);
   int32_t code = tStartEncode(&encoder);
-  if (code < 0) return code;
-  if ((code = tEncodeI8(&encoder, 0)) < 0) return code;
-  if ((code = tEncodeI32(&encoder, 1234)) < 0) return code;
-  if ((code = tEncodeCStrWithLen(&encoder, app, appLen)) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "db")) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "user")) < 0) return code;
-  if ((code = tEncodeCStrWithLen(&encoder, passwd, TSDB_PASSWORD_LEN)) < 0) return code;
-  if ((code = tEncodeI64(&encoder, 1)) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "3.4.1.6")) < 0) return code;
-  if ((code = tEncodeI32(&encoder, 0)) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "")) < 0) return code;
-  if ((code = tEncodeI64(&encoder, 2)) < 0) return code;
-  if ((code = tEncodeBinary(&encoder, signature, sizeof(signature))) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, NULL)) < 0) return code;
+  if (code < 0) goto _exit;
+  if ((code = tEncodeI8(&encoder, 0)) < 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 1234)) < 0) goto _exit;
+  if ((code = tEncodeCStrWithLen(&encoder, app, appLen)) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "db")) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "user")) < 0) goto _exit;
+  if ((code = tEncodeCStrWithLen(&encoder, passwd, TSDB_PASSWORD_LEN)) < 0) goto _exit;
+  if ((code = tEncodeI64(&encoder, 1)) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "3.4.1.6")) < 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 0)) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "")) < 0) goto _exit;
+  if ((code = tEncodeI64(&encoder, 2)) < 0) goto _exit;
+  if ((code = tEncodeBinary(&encoder, signature, sizeof(signature))) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, NULL)) < 0) goto _exit;
   tEndEncode(&encoder);
-  return encoder.pos;
+  code = encoder.pos;
+
+_exit:
+  tEncoderClear(&encoder);
+  return code;
 }
 
 TEST(td_msg_test, connect_req_rejects_app_that_does_not_fit) {
@@ -5331,8 +5335,8 @@ TEST(td_msg_test, create_xnode_task_req_releases_partial_decode_on_error) {
   req.sql = static_cast<char *>(taosMemoryCalloc(1, req.sqlLen));
   ASSERT_NE(req.sql, nullptr);
   memcpy(req.sql, sql, req.sqlLen);
-  req.source = xCreateClonedTaskSource(XNODE_TASK_SOURCE_DSN, 11, (char *)"source-dsn");
-  req.sink = xCreateClonedTaskSink(XNODE_TASK_SINK_DSN, 9, (char *)"sink-dsn");
+  req.source = xCreateClonedTaskSource(XNODE_TASK_SOURCE_DSN, (int32_t)strlen("source-dsn"), (char *)"source-dsn");
+  req.sink = xCreateClonedTaskSink(XNODE_TASK_SINK_DSN, (int32_t)strlen("sink-dsn"), (char *)"sink-dsn");
   // name stays NULL: the wire carries a zero length and the decoder rejects the request.
 
   const int32_t size = tSerializeSMCreateXnodeTaskReq(NULL, 0, &req);
@@ -5368,4 +5372,293 @@ TEST(td_msg_test, create_xnode_agent_req_releases_partial_decode_on_error) {
   EXPECT_EQ(tDeserializeSMCreateXnodeAgentReq(frame.data(), size, &decoded), TSDB_CODE_MND_XNODE_INVALID_MSG);
   EXPECT_EQ(decoded.sql, nullptr);
   EXPECT_EQ(decoded.name.ptr, nullptr);
+}
+
+// ============================================================================
+// Regression tests for the bounded TMQ ask-ep response decoder (TD-SEC entry 245,
+// TDMT_MND_TMQ_ASK_EP_RSP). tDecodeSMqAskEpRsp must reject oversized topic/db/fqdn
+// strings, truncated bodies, invalid ep sets and bogus counts without any
+// out-of-bounds read or write.
+// ============================================================================
+
+namespace {
+
+// Hand-rolled legacy wire writer mirroring tcoding.h so tests can forge arbitrary
+// byte streams (a malicious server may send anything; the encoders have no limits).
+struct LegacyEnc {
+  std::vector<uint8_t> v;
+
+  void varu64(uint64_t val) {
+    while (val >= 0x80) {
+      v.push_back((uint8_t)(val | 0x80));
+      val >>= 7;
+    }
+    v.push_back((uint8_t)val);
+  }
+  void str(const char* s) {
+    varu64(strlen(s));
+    v.insert(v.end(), s, s + strlen(s));
+  }
+  void i32(int32_t val) {
+    uint32_t z = ZIGZAGE(int32_t, val);
+    v.push_back((uint8_t)(z & 0xff));
+    v.push_back((uint8_t)((z >> 8) & 0xff));
+    v.push_back((uint8_t)((z >> 16) & 0xff));
+    v.push_back((uint8_t)((z >> 24) & 0xff));
+  }
+  void i64(int64_t val) {
+    uint64_t z = ZIGZAGE(int64_t, val);
+    for (int32_t i = 0; i < 8; i++) {
+      v.push_back((uint8_t)((z >> (8 * i)) & 0xff));
+    }
+  }
+  void i8(int8_t val) { v.push_back((uint8_t)val); }
+  void u16(uint16_t val) {
+    v.push_back((uint8_t)(val & 0xff));
+    v.push_back((uint8_t)(val >> 8));
+  }
+  void allEps(const char* fqdn) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
+      u16(6030);
+      str(fqdn);
+    }
+  }
+};
+
+}  // namespace
+
+TEST(td_msg_test, askep_rsp_decode_roundtrip) {
+  SMqSubVgEp vgEp = {0};
+  vgEp.vgId = 3;
+  vgEp.offset = 42;
+  vgEp.epSet.inUse = 0;
+  vgEp.epSet.numOfEps = 1;
+  vgEp.epSet.eps[0].port = 6030;
+  snprintf(vgEp.epSet.eps[0].fqdn, TSDB_FQDN_LEN, "localhost");
+
+  SMqSubTopicEp topicEp = {0};
+  snprintf(topicEp.topic, TSDB_TOPIC_FNAME_LEN, "topic1");
+  snprintf(topicEp.db, TSDB_DB_FNAME_LEN, "db1");
+  topicEp.vgs = taosArrayInit(1, sizeof(SMqSubVgEp));
+  ASSERT_NE(topicEp.vgs, nullptr);
+  ASSERT_NE(taosArrayPush(topicEp.vgs, &vgEp), nullptr);
+
+  SMqAskEpRsp rsp = {0};
+  rsp.topics = taosArrayInit(1, sizeof(SMqSubTopicEp));
+  ASSERT_NE(rsp.topics, nullptr);
+  ASSERT_NE(taosArrayPush(rsp.topics, &topicEp), nullptr);
+
+  int32_t tlen = tEncodeSMqAskEpRsp(NULL, &rsp);
+  ASSERT_GT(tlen, 0);
+  std::vector<uint8_t> frame((size_t)tlen);
+  void*              p = frame.data();
+  ASSERT_EQ(tEncodeSMqAskEpRsp(&p, &rsp), tlen);
+  tDeleteSMqAskEpRsp(&rsp);
+
+  SMqAskEpRsp decoded = {0};
+  ASSERT_NE(tDecodeSMqAskEpRsp(frame.data(), (int32_t)frame.size(), &decoded), nullptr);
+  EXPECT_EQ(decoded.code, 0);
+  ASSERT_EQ(taosArrayGetSize(decoded.topics), 1);
+  SMqSubTopicEp* pTopic = (SMqSubTopicEp*)taosArrayGet(decoded.topics, 0);
+  EXPECT_STREQ(pTopic->topic, "topic1");
+  EXPECT_STREQ(pTopic->db, "db1");
+  ASSERT_EQ(taosArrayGetSize(pTopic->vgs), 1);
+  SMqSubVgEp* pVg = (SMqSubVgEp*)taosArrayGet(pTopic->vgs, 0);
+  EXPECT_EQ(pVg->vgId, 3);
+  EXPECT_EQ(pVg->offset, 42);
+  EXPECT_EQ(pVg->epSet.inUse, 0);
+  EXPECT_EQ(pVg->epSet.numOfEps, 1);
+  EXPECT_EQ(pVg->epSet.eps[0].port, 6030);
+  EXPECT_STREQ(pVg->epSet.eps[0].fqdn, "localhost");
+
+  tDeleteSMqAskEpRsp(&decoded);
+}
+
+TEST(td_msg_test, askep_rsp_decode_empty_topics) {
+  LegacyEnc e;
+  e.i32(0);  // zero topics
+  e.i32(7);  // code
+  SMqAskEpRsp rsp = {0};
+  ASSERT_NE(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  EXPECT_EQ(rsp.code, 7);
+  EXPECT_EQ(taosArrayGetSize(rsp.topics), 0);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_accept_max_topic_len) {
+  std::string topic((size_t)TSDB_TOPIC_FNAME_LEN - 1, 't');
+  LegacyEnc   e;
+  e.i32(1);
+  e.str(topic.c_str());
+  e.str("db");
+  e.i32(0);
+  e.i32(5);
+  SMqAskEpRsp rsp = {0};
+  ASSERT_NE(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  EXPECT_EQ(rsp.code, 5);
+  ASSERT_EQ(taosArrayGetSize(rsp.topics), 1);
+  SMqSubTopicEp* pTopic = (SMqSubTopicEp*)taosArrayGet(rsp.topics, 0);
+  EXPECT_STREQ(pTopic->topic, topic.c_str());
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_oversized_topic) {
+  std::string big((size_t)TSDB_TOPIC_FNAME_LEN, 't');  // dstCap bytes, no room for NUL
+  LegacyEnc   e;
+  e.i32(1);
+  e.str(big.c_str());
+  e.str("db");
+  e.i32(0);
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_oversized_db) {
+  std::string big((size_t)TSDB_DB_FNAME_LEN, 'd');
+  LegacyEnc   e;
+  e.i32(1);
+  e.str("topic");
+  e.str(big.c_str());
+  e.i32(0);
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_oversized_fqdn) {
+  std::string big((size_t)TSDB_FQDN_LEN, 'f');
+  LegacyEnc   e;
+  e.i32(1);
+  e.str("topic");
+  e.str("db");
+  e.i32(1);  // one vgroup
+  e.i32(1);  // vgId
+  e.i64(0);  // offset
+  e.i8(0);   // inUse
+  e.i8(1);   // numOfEps
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
+    e.u16(6030);
+    e.str(i == 0 ? big.c_str() : "host");
+  }
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_truncated_string) {
+  LegacyEnc e;
+  e.i32(1);
+  e.varu64(100);                   // topic declares 100 bytes...
+  e.v.insert(e.v.end(), 10, 'a');  // ...but only 10 are present
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_missing_code) {
+  LegacyEnc e;
+  e.i32(1);
+  e.str("topic");
+  e.str("db");
+  e.i32(0);  // zero vgroups, no trailing code field
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_huge_topic_count) {
+  LegacyEnc e;
+  e.i32(0x0FFFFFFF);  // ~2^28 topics, cannot fit in the remaining payload
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_negative_topic_count) {
+  LegacyEnc e;
+  e.i32(-1);  // zigzag-encoded -1
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_invalid_epset) {
+  LegacyEnc e;
+  e.i32(1);
+  e.str("topic");
+  e.str("db");
+  e.i32(1);  // one vgroup
+  e.i32(1);  // vgId
+  e.i64(0);  // offset
+  e.i8(0);   // inUse
+  e.i8(TSDB_MAX_REPLICA + 1);  // numOfEps out of range
+  e.allEps("host");
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_invalid_epset_inuse) {
+  for (int8_t numOfEps = 1; numOfEps <= TSDB_MAX_REPLICA; ++numOfEps) {
+    for (int8_t inUse : {int8_t(-1), int8_t(numOfEps + 1)}) {
+      SCOPED_TRACE(static_cast<int>(numOfEps));
+      SCOPED_TRACE(static_cast<int>(inUse));
+      LegacyEnc encoded;
+      encoded.i32(1);
+      encoded.str("topic");
+      encoded.str("db");
+      encoded.i32(1);
+      encoded.i32(1);
+      encoded.i64(0);
+      encoded.i8(inUse);
+      encoded.i8(numOfEps);
+      encoded.allEps("host");
+      encoded.i32(0);
+      SMqAskEpRsp rsp = {0};
+      EXPECT_EQ(tDecodeSMqAskEpRsp(encoded.v.data(), (int32_t)encoded.v.size(), &rsp), nullptr);
+      tDeleteSMqAskEpRsp(&rsp);
+    }
+  }
+}
+
+TEST(td_msg_test, askep_rsp_accept_epset_inuse_boundary) {
+  for (int8_t numOfEps = 0; numOfEps <= TSDB_MAX_REPLICA; ++numOfEps) {
+    for (int8_t inUse = 0; inUse <= numOfEps; ++inUse) {
+      SCOPED_TRACE(static_cast<int>(numOfEps));
+      SCOPED_TRACE(static_cast<int>(inUse));
+      LegacyEnc encoded;
+      encoded.i32(1);
+      encoded.str("topic");
+      encoded.str("db");
+      encoded.i32(1);
+      encoded.i32(1);
+      encoded.i64(0);
+      encoded.i8(inUse);
+      encoded.i8(numOfEps);
+      encoded.allEps("host");
+      encoded.i32(0);
+      SMqAskEpRsp rsp = {0};
+      void* end = tDecodeSMqAskEpRsp(encoded.v.data(), (int32_t)encoded.v.size(), &rsp);
+      EXPECT_EQ(end, encoded.v.data() + encoded.v.size());
+      if (end != nullptr) {
+        EXPECT_EQ(rsp.code, 0);
+        EXPECT_EQ(taosArrayGetSize(rsp.topics), 1);
+        SMqSubTopicEp* topic = (SMqSubTopicEp*)taosArrayGet(rsp.topics, 0);
+        EXPECT_EQ(taosArrayGetSize(topic->vgs), 1);
+        SMqSubVgEp* vg = (SMqSubVgEp*)taosArrayGet(topic->vgs, 0);
+        EXPECT_EQ(vg->epSet.numOfEps, numOfEps);
+        EXPECT_EQ(vg->epSet.inUse, inUse == numOfEps ? 0 : inUse);
+        EXPECT_EQ(vg->epSet.eps[0].port, 6030);
+        EXPECT_STREQ(vg->epSet.eps[0].fqdn, "host");
+      }
+      tDeleteSMqAskEpRsp(&rsp);
+    }
+  }
 }

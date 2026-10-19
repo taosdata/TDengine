@@ -7498,12 +7498,10 @@ static FORCE_INLINE int32_t tEncodeSMqSubVgEp(void** buf, const SMqSubVgEp* pVgE
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
-  buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
-  buf = taosDecodeFixedI64(buf, &pVgEp->offset);
-  buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
-  return buf;
-}
+// Bounded legacy-walker decode for the TMQ ask-ep response. pLen carries the remaining
+// payload length and is decreased as fields are consumed; every string is checked against
+// its destination capacity and every count against the remaining bytes (see tmsg.c).
+void* tDecodeSMqSubVgEp(void* buf, int32_t* pLen, SMqSubVgEp* pVgEp);
 
 typedef struct {
   char    topic[TSDB_TOPIC_FNAME_LEN];
@@ -7512,7 +7510,7 @@ typedef struct {
 } SMqSubTopicEp;
 
 int32_t tEncodeMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp);
-void*   tDecodeMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicEp);
+void*   tDecodeMqSubTopicEp(void* buf, int32_t* pLen, SMqSubTopicEp* pTopicEp);
 void    tDeleteMqSubTopicEp(SMqSubTopicEp* pSubTopicEp);
 
 typedef struct {
@@ -7603,28 +7601,10 @@ static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pR
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
-  // buf = taosDecodeStringTo(buf, pRsp->cgroup);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
-  if (pRsp->topics == NULL) {
-    return NULL;
-  }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqSubTopicEp topicEp;
-    buf = tDecodeMqSubTopicEp(buf, &topicEp);
-    if (buf == NULL) {
-      return NULL;
-    }
-    if ((taosArrayPush(pRsp->topics, &topicEp) == NULL)) {
-      return NULL;
-    }
-  }
-  buf = taosDecodeFixedI32(buf, &pRsp->code);
-
-  return buf;
-}
+// Bounded legacy-walker decode of the ask-ep response body (see tmsg.c). bufLen is the
+// length of the body after the SMqRspHead; a truncated or malicious body is rejected
+// without writing past topic[]/db[] or reading past the received buffer.
+void* tDecodeSMqAskEpRsp(void* buf, int32_t bufLen, SMqAskEpRsp* pRsp);
 
 static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (FDelete)tDeleteMqSubTopicEp);
