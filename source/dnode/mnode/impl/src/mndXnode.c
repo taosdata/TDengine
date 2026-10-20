@@ -802,7 +802,7 @@ static int32_t mndWaitXnodedSocket(SMnode *pMnode, int32_t timeoutMs) {
   while (true) {
     if (mndGetStop(pMnode)) return TSDB_CODE_MNODE_STOPPED;
     if (!mndIsLeader(pMnode)) return TSDB_CODE_SYN_NOT_LEADER;
-    SJson *pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_GET, 100, NULL, 0);
+    SJson *pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_GET, 3000, NULL, 0);
     int32_t requestCode = terrno;
     bool ready = pJson != NULL ||
                  (requestCode != TSDB_CODE_MND_XNODE_URL_CANT_ACCESS &&
