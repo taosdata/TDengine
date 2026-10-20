@@ -158,8 +158,11 @@ class TestFsPerformance(FederatedQueryTestMixin):
             "large": 14_400_000,
         }[scale]
 
-        self._prepare_remote_source(source, remote_db)
         try:
+            # Prepare inside the protected region: a half-initialized remote database/source after
+            # a failure must still be released by the finally block below (_cleanup_remote_source
+            # tolerates partial state).
+            self._prepare_remote_source(source, remote_db)
             self._create_count_stream(stream, sink, source, remote_db)
             insert_elapsed = self._insert_remote_rows(remote_db, rows, base_ms)
             emit_start = time.monotonic()
@@ -180,7 +183,7 @@ class TestFsPerformance(FederatedQueryTestMixin):
             tdLog.info(f"total_elapsed_ms        : {total_elapsed * 1000:.2f}")
             tdLog.info(f"total_rows_per_sec      : {rows_per_sec:.2f}")
             tdLog.info(f"emit_rows_per_sec       : {emit_rows_per_sec:.2f}")
-            print(f"fs performance {scale} ................. [ passed ]")
+            tdLog.info(f"fs performance {scale} ................. [ passed ]")
         finally:
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -200,6 +203,8 @@ class TestFsPerformance(FederatedQueryTestMixin):
         Since: v3.4.2.0
 
         Labels: performance
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 
@@ -225,6 +230,8 @@ class TestFsPerformance(FederatedQueryTestMixin):
 
         Labels: performance
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -248,6 +255,8 @@ class TestFsPerformance(FederatedQueryTestMixin):
         Since: v3.4.2.0
 
         Labels: performance
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 

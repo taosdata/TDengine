@@ -28519,7 +28519,10 @@ _return:
   if (code) {
     parserError("%s failed, code:%d", __func__, code);
   }
-  taosMemoryFreeClear(pTriggerTableMeta);
+  // pTriggerTableMeta is a deep copy (tableMetaDup); free the nested series
+  // entries and tag conditions instead of only the top-level struct.
+  queryFreeTableMeta(pTriggerTableMeta);
+  pTriggerTableMeta = NULL;
   return code;
 }
 
@@ -40638,13 +40641,24 @@ int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pCol
   return code;
 }
 
-static SSeriesDeclNode* findRefSeriesNode(char* refTableName, SNodeList* pSeriesList) {
+static SSeriesDeclNode* findRefSeriesNode(STranslateContext* pCxt, char* refTableName, const char* refDbName,
+                                        SNodeList* pSeriesList) {
   SNode* pSeriesNode = NULL;
+  SNode* pCaseInsensitiveMatch = NULL;
   FOREACH(pSeriesNode, pSeriesList) {
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
-    if (0 == strcasecmp(refTableName, pDecl->alias)) {
+    if (0 == strcmp(refTableName, pDecl->alias)) {
       return pDecl;
     }
+    if (pCaseInsensitiveMatch == NULL && 0 == strcasecmp(refTableName, pDecl->alias)) {
+      pCaseInsensitiveMatch = pSeriesNode;
+    }
+  }
+  // Case-insensitive matching is a convenience fallback: before rewriting a reference into an
+  // external one, make sure the name does not resolve to a real local table that merely differs
+  // from a SERIES alias in case (mirroring the three-segment disambiguation policy).
+  if (pCaseInsensitiveMatch != NULL && !isCachedLocalRefTable(pCxt, refDbName, refTableName)) {
+    return (SSeriesDeclNode*)pCaseInsensitiveMatch;
   }
   return NULL;
 }
@@ -40690,7 +40704,7 @@ static int32_t expandSeriesAliasInColOptions(STranslateContext* pCxt, SNodeList*
     // Check if refTable matches a series alias. We deliberately do NOT gate on refDb being empty:
     // for 2-seg refs like `FROM s1.cpu`, createColumnRefNodeByName auto-fills refDb with the current
     // USE'd database, so a non-empty refDb does not mean the user wrote a 3-seg ref.
-    SSeriesDeclNode* pSeries = findRefSeriesNode(pOpts->refTable, pSeriesList);
+    SSeriesDeclNode* pSeries = findRefSeriesNode(pCxt, pOpts->refTable, pOpts->refDb, pSeriesList);
     if (pSeries) {
       parserDebug("matched series alias in column options, col:%s alias:%s source:%s db:%s table:%s",
                   pCol->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,
@@ -40729,7 +40743,7 @@ static int32_t expandSeriesAliasInColRefs(STranslateContext* pCxt, SNodeList* pC
                 pRef->colName, pRef->refDbName, pRef->refTableName, pRef->refColName);
     // Check if refTableName matches a series alias. Like expandSeriesAliasInColOptions, we do not
     // gate on refDbName being empty  -  2-seg refs auto-fill the current USE'd db.
-    SSeriesDeclNode* pSeries = findRefSeriesNode(pRef->refTableName, pSeriesList);
+    SSeriesDeclNode* pSeries = findRefSeriesNode(pCxt, pRef->refTableName, pRef->refDbName, pSeriesList);
     if (pSeries) {
       parserDebug("matched series alias in column ref, col:%s alias:%s source:%s db:%s table:%s",
                   pRef->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,

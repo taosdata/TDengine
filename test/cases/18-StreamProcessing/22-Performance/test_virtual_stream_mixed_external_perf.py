@@ -136,12 +136,12 @@ class TestVirtualStreamMixedExternalPerf:
     STEP_MS = int(os.environ.get("VSTREAM_EXT_PERF_STEP_MS", "10"))
     DEFAULT_ROWS = int(os.environ.get("VSTREAM_EXT_PERF_ROWS", "5000"))
     DEFAULT_BATCH = int(os.environ.get("VSTREAM_EXT_PERF_BATCH", "1000"))
-    DEFAULT_COUNT_WINDOW = int(os.environ.get("VSTREAM_EXT_PERF_COUNT_WINDOW", "1000"))
+    DEFAULT_COUNT_WINDOW = int(os.environ.get("VSTREAM_EXT_PERF_COUNT_WINDOW", "2500"))
     DEFAULT_TIMEOUT_SEC = int(os.environ.get("VSTREAM_EXT_PERF_TIMEOUT_SEC", "180"))
     LARGE_ROWS = int(os.environ.get("VSTREAM_EXT_PERF_LARGE_ROWS", "100000"))
     LARGE_BATCH = int(os.environ.get("VSTREAM_EXT_PERF_LARGE_BATCH", "5000"))
     LARGE_COUNT_WINDOW = int(
-        os.environ.get("VSTREAM_EXT_PERF_LARGE_COUNT_WINDOW", "1000")
+        os.environ.get("VSTREAM_EXT_PERF_LARGE_COUNT_WINDOW", "20000")
     )
     LARGE_TIMEOUT_SEC = int(os.environ.get("VSTREAM_EXT_PERF_LARGE_TIMEOUT_SEC", "900"))
     SAMPLE_INTERVAL_SEC = float(os.environ.get("VSTREAM_EXT_PERF_SAMPLE_SEC", "1"))
@@ -356,6 +356,16 @@ class TestVirtualStreamMixedExternalPerf:
                 "VSTREAM_EXT_PERF_ROWS must be a multiple of "
                 "VSTREAM_EXT_PERF_COUNT_WINDOW"
             )
+        # A count window closes on local rows and is never recomputed, so the remote rows must
+        # already be visible to the external reader when the window closes. Require at least two
+        # insert batches per window: the first batch gives the reader a fetch round while the
+        # window is still open.
+        if batch >= count_window:
+            raise ValueError(
+                "VSTREAM_EXT_PERF_BATCH must be smaller than "
+                "VSTREAM_EXT_PERF_COUNT_WINDOW so a window never closes "
+                "inside a single insert batch"
+            )
 
     def _run_throughput_scenario(
         self,
@@ -411,6 +421,8 @@ class TestVirtualStreamMixedExternalPerf:
 
         Labels: performance
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -441,6 +453,8 @@ class TestVirtualStreamMixedExternalPerf:
         Since: v3.4.0.0
 
         Labels: performance
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 

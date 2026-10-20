@@ -500,12 +500,16 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger);
  * @param pTableColRefs Array of table column references, each containing original and virtual table column mappings
  * @param pMetas The metadatas of all original tables
  * @param pSlices The hash map from original table uid to its data slice
+ * @param pReaderConsumedEkeys Optional per-EXT-reader consumed ekey map (may be NULL). For external
+ *        trigger readers the row floor is the consumed ekey + 1 instead of pReadRange->skey, so a
+ *        reader that has not yet delivered past the group threshold is not clipped by it.
  * @param orderedInput Whether each source must skip rows older than its accepted version frontier
  * @return int32_t
  */
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
-                                 SSHashObj *pMetas, SSHashObj *pSlices, bool orderedInput);
+                                 SSHashObj *pMetas, SSHashObj *pSlices, SSHashObj *pReaderConsumedEkeys,
+                                 bool orderedInput);
 
 /**
  * @brief Gets next data block from the vtable merger.

@@ -353,7 +353,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         result = _check_pymysql_dependency(tmp_path)
 
         assert result.returncode == 0, result.stderr
-        print("accept available PyMySQL dependency ......... [ passed ]")
+        tdLog.info("accept available PyMySQL dependency ......... [ passed ]")
 
     def do_report_missing_pymysql(self, tmp_path):
         result = _check_pymysql_dependency(tmp_path, module_available=False)
@@ -361,7 +361,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert result.returncode != 0
         assert "MySQL setup requires the pymysql module" in result.stderr
         assert f"{sys.executable} -m pip install pymysql" in result.stderr
-        print("report missing PyMySQL dependency .......... [ passed ]")
+        tdLog.info("report missing PyMySQL dependency .......... [ passed ]")
 
     def do_report_missing_python_interpreter(self, tmp_path):
         result = _check_pymysql_dependency(tmp_path, python_available=False)
@@ -369,7 +369,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert result.returncode != 0
         assert "MySQL setup requires Python, but the interpreter was not found" in result.stderr
         assert "Set FQ_PYTHON to the Python interpreter used by pytest" in result.stderr
-        print("report missing Python interpreter .......... [ passed ]")
+        tdLog.info("report missing Python interpreter .......... [ passed ]")
 
     def test_pymysql_dependency(self, tmp_path):
         """Check the Python dependencies used by MySQL setup
@@ -384,6 +384,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         Since: v3.4.0.0
 
         Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 

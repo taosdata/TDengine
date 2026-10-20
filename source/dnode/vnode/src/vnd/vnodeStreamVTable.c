@@ -163,13 +163,24 @@ static int32_t streamCopyResolvedTagCond(SColRef *pDst, const SColResolveItem *p
   if (pItem->tagCondJson == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
-  pDst->tagCondJson = taosMemoryMalloc((size_t)pItem->tagCondLen + 1);
+
+  // nodesNodeToString() reports the length including the trailing NUL and the
+  // resolver keeps that length, while the direct-reference path
+  // (streamCopyColRefTagCond) stores the NUL-free strnlen() length. Follow the
+  // same contract here: the external registry rejects a NUL inside the stored
+  // range (stStreamExtCanonicalizeJson), so a multi-layer virtual table with an
+  // Influx SERIES tag condition would otherwise fail stream initialization.
+  int32_t tagCondLen = (int32_t)strnlen(pItem->tagCondJson, (size_t)pItem->tagCondLen);
+  if (tagCondLen <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  pDst->tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
   if (pDst->tagCondJson == NULL) {
     return terrno;
   }
-  memcpy(pDst->tagCondJson, pItem->tagCondJson, pItem->tagCondLen);
-  pDst->tagCondJson[pItem->tagCondLen] = '\0';
-  pDst->tagCondLen = pItem->tagCondLen;
+  memcpy(pDst->tagCondJson, pItem->tagCondJson, tagCondLen);
+  pDst->tagCondJson[tagCondLen] = '\0';
+  pDst->tagCondLen = tagCondLen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -923,11 +934,17 @@ static int32_t vnodeFillResolveRspFromColRef(SVnode *pVnode, const SMetaEntry *p
   // after the metadata reader releases its source column reference.
   if (pFound != NULL && pFound->tagCondLen > 0) {
     if (pFound->tagCondJson == NULL) return TSDB_CODE_INVALID_MSG;
-    r->nextRef.tagCondJson = taosMemoryMalloc((size_t)pFound->tagCondLen + 1);
+    // Normalize to the NUL-free length contract used by the direct-reference path
+    // (streamCopyColRefTagCond): the resolver may keep nodesNodeToString()'s length, which
+    // includes the trailing NUL, and a NUL inside the stored range is later rejected by
+    // stStreamExtCanonicalizeJson.
+    int32_t tagCondLen = (int32_t)strnlen(pFound->tagCondJson, (size_t)pFound->tagCondLen);
+    if (tagCondLen <= 0) return TSDB_CODE_INVALID_MSG;
+    r->nextRef.tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
     if (r->nextRef.tagCondJson == NULL) return terrno;
-    memcpy(r->nextRef.tagCondJson, pFound->tagCondJson, pFound->tagCondLen);
-    r->nextRef.tagCondJson[pFound->tagCondLen] = '\0';
-    r->nextRef.tagCondLen = pFound->tagCondLen;
+    memcpy(r->nextRef.tagCondJson, pFound->tagCondJson, tagCondLen);
+    r->nextRef.tagCondJson[tagCondLen] = '\0';
+    r->nextRef.tagCondLen = tagCondLen;
   }
   if (isVtable) {
     if (pFound == NULL) {
@@ -2371,6 +2388,14 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
     // External references are terminal at this vnode. They identify a remote
     // source, not a TDengine table that can be routed to a local vgroup.
     if (w->refType != 0) {
+      // External tables carry no tags: a TAG reference to a remote source has no resolvable
+      // value. Reject it explicitly instead of synthesizing an empty STagValue that downstream
+      // consumers would silently treat as an absent tag.
+      if (w->kind == STREAM_VREF_KIND_TAG) {
+        stError("%s external TAG reference is not supported, source:%s table:%s col:%s", __func__,
+                w->refSourceName, w->refTableName, w->refColName);
+        return TSDB_CODE_OPS_NOT_SUPPORT;
+      }
       SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
       dst->terminated = true;
       dst->nextRef.kind = w->kind;
@@ -2383,11 +2408,17 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
       tstrncpy(dst->nextRef.refColName, w->refColName, TSDB_COL_NAME_LEN);
       if (w->tagCondLen > 0) {
         if (w->tagCondJson == NULL) return TSDB_CODE_INVALID_MSG;
-        dst->nextRef.tagCondJson = taosMemoryMalloc((size_t)w->tagCondLen + 1);
+        // Normalize to the NUL-free length contract used by the direct-reference path
+        // (streamCopyColRefTagCond): the resolver may keep nodesNodeToString()'s length, which
+        // includes the trailing NUL, and a NUL inside the stored range is later rejected by
+        // stStreamExtCanonicalizeJson.
+        int32_t tagCondLen = (int32_t)strnlen(w->tagCondJson, (size_t)w->tagCondLen);
+        if (tagCondLen <= 0) return TSDB_CODE_INVALID_MSG;
+        dst->nextRef.tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
         if (dst->nextRef.tagCondJson == NULL) return terrno;
-        memcpy(dst->nextRef.tagCondJson, w->tagCondJson, w->tagCondLen);
-        dst->nextRef.tagCondJson[w->tagCondLen] = '\0';
-        dst->nextRef.tagCondLen = w->tagCondLen;
+        memcpy(dst->nextRef.tagCondJson, w->tagCondJson, tagCondLen);
+        dst->nextRef.tagCondJson[tagCondLen] = '\0';
+        dst->nextRef.tagCondLen = tagCondLen;
       }
       origToDedupIdx[i] = -1;
       continue;

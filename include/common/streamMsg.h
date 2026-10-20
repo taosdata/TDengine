@@ -763,6 +763,11 @@ typedef struct SStreamExtOrigTblReaderBinding {
   int8_t  kind;  // EStreamExtOrigTblReaderBindingKind
   char    externalColumn[TSDB_COL_NAME_LEN];
   int8_t  expectedType;
+  // Declared precision/scale of the virtual column. Only checked for DECIMAL bindings: a remote
+  // DECIMAL whose precision/scale changed after the stream was created would otherwise be accepted
+  // (same type enum) and silently re-interpret the integer payload under the virtual column's scale.
+  int8_t  expectedPrecision;
+  int8_t  expectedScale;
   int32_t resultColumnSlot;
 } SStreamExtOrigTblReaderBinding;
 

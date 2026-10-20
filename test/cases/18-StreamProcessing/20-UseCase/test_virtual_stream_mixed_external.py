@@ -75,6 +75,15 @@ class TestVirtualStreamMixedExternal:
     THREE_EXT_STATE_SINK = "three_ext_state_sink"
     THREE_EXT_EVENT_SINK = "three_ext_event_sink"
     SAME_SOURCE_TWO_TABLE_SINK = "same_source_two_table_sink"
+    VAR_WIDTH_STREAM = "var_width_stream"
+    VAR_WIDTH_SINK = "var_width_sink"
+    VAR_WIDTH_VSTB = "var_width_vstb"
+    VAR_WIDTH_VTABLE = "var_width_vt"
+    QUOTED_PG_STREAM = "quoted_pg_stream"
+    QUOTED_PG_SINK = "quoted_pg_sink"
+    QUOTED_PG_VSTB = "quoted_pg_vstb"
+    QUOTED_PG_VTABLE = "quoted_pg_vt"
+    QUOTED_PG_STEP_MS = 1000
     BASE_MS = 1767225600000
     THREE_EXT_INTERVAL_STEP_MS = 1000
     three_ext_interval_base_ms = None
@@ -106,6 +115,8 @@ class TestVirtualStreamMixedExternal:
                 cls.THREE_EXT_STATE_STREAM,
                 cls.THREE_EXT_EVENT_STREAM,
                 cls.SAME_SOURCE_TWO_TABLE_STREAM,
+                cls.VAR_WIDTH_STREAM,
+                cls.QUOTED_PG_STREAM,
             ):
                 tdSql.execute(f"DROP STREAM IF EXISTS {cls.DB}.{stream}", queryTimes=30)
             tdSql.execute(f"DROP STREAM IF EXISTS {cls.DB}.influx_col_stream", queryTimes=30)
@@ -570,9 +581,23 @@ class TestVirtualStreamMixedExternal:
             return f"status query failed: {error}"
 
     @classmethod
-    def _wait_three_external_interval_bootstrap(cls):
-        tdLog.info("waiting for interval external reader bootstrap to finish")
-        time.sleep(40)
+    def _wait_three_external_interval_bootstrap(cls, stream_name):
+        tdLog.info(f"waiting for external reader bootstrap to finish, stream={stream_name}")
+        # Keep the original 40s lower bound, but poll the stream status and allow up to 60s on
+        # slow CI machines instead of racing the reader's first history-cutoff sample.
+        lower_bound = time.time() + 40
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            time.sleep(5)
+            try:
+                status = cls._three_external_stream_status(stream_name)
+                if status:
+                    tdLog.debug(f"stream status during bootstrap: {status}")
+            except Exception as error:
+                tdLog.info(f"bootstrap status poll failed: {error}")
+            if time.time() >= lower_bound:
+                return
+        tdLog.info("bootstrap wait reached its upper bound")
 
     @classmethod
     def _wait_totals(cls, child_name, expected_rows, timeout=120):
@@ -817,7 +842,7 @@ class TestVirtualStreamMixedExternal:
             self._verify_creation_failures()
             self._verify_history_guard()
             self._create_stream()
-            self._wait_three_external_interval_bootstrap()
+            self._wait_three_external_interval_bootstrap(self.STREAM)
 
             self._insert_phase(
                 0,
@@ -910,7 +935,7 @@ class TestVirtualStreamMixedExternal:
                 "sum(mysql_extra) AS mysql_extra_sum FROM %%trows"
             )
             tdStream.checkStreamStatus(self.SAME_SOURCE_TWO_TABLE_STREAM)
-            self._wait_three_external_interval_bootstrap()
+            self._wait_three_external_interval_bootstrap(self.SAME_SOURCE_TWO_TABLE_STREAM)
             self._insert_same_source_two_table_rows()
             expected_rows = [
                 (
@@ -926,6 +951,198 @@ class TestVirtualStreamMixedExternal:
         finally:
             self._cleanup_fixture()
 
+    @classmethod
+    def _prepare_var_width_fixture(cls):
+        cls._cleanup_fixture()
+        tdLog.info("creating var-width virtual column fixture objects")
+
+        create_remote_db("mysql", cls.MYSQL_DB)
+        # Single-byte charset keeps the mapping as VARCHAR (bytes = 32 + var header),
+        # while the virtual column declares VARCHAR(64): a legal wider reference.
+        create_mysql_table(
+            cls.MYSQL_DB,
+            "var_t",
+            "ts DATETIME(3) NOT NULL PRIMARY KEY, "
+            "payload VARCHAR(32) CHARACTER SET latin1",
+        )
+        warmup_ts = cls._local_timestamp(cls.BASE_MS - 2000)
+        ExtSrcEnv.mysql_exec(
+            cls.MYSQL_DB,
+            [f"INSERT INTO var_t VALUES ('{warmup_ts}', 'warmup')"],
+        )
+        create_ext_source(cls.MYSQL_SOURCE, "mysql", cls.MYSQL_DB)
+
+        tdSql.execute(f"CREATE DATABASE {cls.DB} VGROUPS 1 PRECISION 'ms'")
+        tdSql.execute(
+            f"CREATE STABLE {cls.DB}.{cls.VAR_WIDTH_VSTB} "
+            "(ts TIMESTAMP, payload VARCHAR(64)) "
+            "TAGS (site NCHAR(16)) VIRTUAL 1"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE {cls.DB}.{cls.VAR_WIDTH_VTABLE} ("
+            f"payload FROM {cls.MYSQL_SOURCE}.{cls.MYSQL_DB}.var_t.payload) "
+            f"USING {cls.DB}.{cls.VAR_WIDTH_VSTB} TAGS('site_w')"
+        )
+        tdLog.info("var-width virtual column fixture is ready")
+
+    @classmethod
+    def _insert_var_width_rows(cls):
+        rows = [
+            f"('{cls._local_timestamp(cls.BASE_MS + index * 1000)}', "
+            f"'payload_{index}')"
+            for index in range(3)
+        ]
+        tdLog.info(f"inserting var-width external rows: rows={len(rows)}")
+        ExtSrcEnv.mysql_exec(
+            cls.MYSQL_DB,
+            [f"INSERT INTO var_t VALUES {', '.join(rows)}"],
+        )
+
+    @classmethod
+    def _wait_var_width_sink(cls, expected_rows, timeout=60):
+        sql = (
+            f"SELECT ts, payload FROM {cls.DB}.{cls.VAR_WIDTH_SINK} "
+            "ORDER BY ts"
+        )
+        deadline = time.time() + timeout
+        last = None
+        while time.time() < deadline:
+            try:
+                result = tdSql.getResult(sql)
+                last = cls._normalize_rows(result)
+                if last == expected_rows:
+                    tdLog.info(f"var-width sink matched: rows={last}")
+                    return
+            except Exception as error:
+                tdLog.info(f"var-width sink not ready: error={error}")
+            time.sleep(0.5)
+        raise TimeoutError(
+            f"var-width sink did not match: got={last}, expected={expected_rows}"
+        )
+
+    def do_var_width_column_reference(self):
+        self._prepare_var_width_fixture()
+        try:
+            tdLog.info("creating var-width virtual column stream")
+            tdSql.execute(
+                f"CREATE STREAM {self.DB}.{self.VAR_WIDTH_STREAM} "
+                "COUNT_WINDOW(1) "
+                f"FROM {self.DB}.{self.VAR_WIDTH_VSTB} PARTITION BY tbname "
+                "STREAM_OPTIONS(IGNORE_DISORDER) "
+                f"INTO {self.DB}.{self.VAR_WIDTH_SINK} "
+                "AS SELECT first(_c0) AS ts, first(payload) AS payload "
+                "FROM %%trows"
+            )
+            tdStream.checkStreamStatus(self.VAR_WIDTH_STREAM)
+            self._wait_three_external_interval_bootstrap(self.VAR_WIDTH_STREAM)
+            self._insert_var_width_rows()
+            expected_rows = [
+                (
+                    self._local_timestamp(self.BASE_MS + index * 1000),
+                    f"payload_{index}",
+                )
+                for index in range(3)
+            ]
+            self._wait_var_width_sink(expected_rows)
+            tdLog.info("var-width virtual column stream [ passed ]")
+        finally:
+            self._cleanup_fixture()
+
+    @classmethod
+    def _prepare_quoted_pg_fixture(cls):
+        cls._cleanup_fixture()
+        tdLog.info("creating quoted PostgreSQL identifier stream fixture")
+        create_remote_db("postgresql", cls.PG_DB)
+        # Quoted identifiers keep their exact case in PostgreSQL; the virtual table reference
+        # must render them as quoted identifiers again, or the reader's generated SQL would
+        # resolve the unquoted form to lower case and fail to fetch any rows.
+        ExtSrcEnv.pg_exec(
+            cls.PG_DB,
+            [
+                'DROP TABLE IF EXISTS public."QuotedCase"',
+                'CREATE TABLE public."QuotedCase" '
+                '(ts TIMESTAMP(3) PRIMARY KEY, "MixedValue" INTEGER)',
+            ],
+        )
+        create_ext_source(cls.PG_SOURCE, "postgresql", cls.PG_DB)
+
+        tdSql.execute(f"CREATE DATABASE {cls.DB} VGROUPS 1 PRECISION 'ms'")
+        tdSql.execute(
+            f"CREATE STABLE {cls.DB}.{cls.QUOTED_PG_VSTB} "
+            "(ts TIMESTAMP, quoted_v INT) TAGS (site NCHAR(16)) VIRTUAL 1"
+        )
+        tdSql.execute(
+            f"CREATE VTABLE {cls.DB}.{cls.QUOTED_PG_VTABLE} ("
+            f"quoted_v FROM {cls.PG_SOURCE}.{cls.PG_DB}.`QuotedCase`.`MixedValue`) "
+            f"USING {cls.DB}.{cls.QUOTED_PG_VSTB} TAGS('site_all')"
+        )
+        tdLog.info("quoted PostgreSQL identifier fixture is ready")
+
+    @classmethod
+    def _insert_quoted_pg_rows(cls):
+        rows = [
+            f"('{cls._local_timestamp(cls.BASE_MS + index * cls.QUOTED_PG_STEP_MS)}', "
+            f"{10 + index})"
+            for index in range(3)
+        ]
+        tdLog.info(f"inserting quoted-PG external rows: rows={len(rows)}")
+        ExtSrcEnv.pg_exec(
+            cls.PG_DB,
+            [f'INSERT INTO public."QuotedCase" VALUES {", ".join(rows)}'],
+        )
+
+    @classmethod
+    def _wait_quoted_pg_sink(cls, expected_rows, timeout=90):
+        sql = (
+            f"SELECT first_ts, quoted_v, row_count, quoted_sum "
+            f"FROM {cls.DB}.{cls.QUOTED_PG_SINK} ORDER BY first_ts"
+        )
+        deadline = time.time() + timeout
+        last = None
+        while time.time() < deadline:
+            try:
+                result = tdSql.getResult(sql)
+                last = cls._normalize_rows(result)
+                if last == expected_rows:
+                    tdLog.info(f"quoted-PG sink matched: rows={last}")
+                    return
+            except Exception as error:
+                tdLog.info(f"quoted-PG sink not ready: error={error}")
+            time.sleep(0.5)
+        raise TimeoutError(
+            f"quoted-PG sink did not match: got={last}, expected={expected_rows}"
+        )
+
+    def do_quoted_pg_identifier_stream(self):
+        self._prepare_quoted_pg_fixture()
+        try:
+            tdLog.info("creating quoted PostgreSQL identifier virtual stream")
+            tdSql.execute(
+                f"CREATE STREAM {self.DB}.{self.QUOTED_PG_STREAM} "
+                "COUNT_WINDOW(1) "
+                f"FROM {self.DB}.{self.QUOTED_PG_VSTB} PARTITION BY tbname "
+                "STREAM_OPTIONS(IGNORE_DISORDER) "
+                f"INTO {self.DB}.{self.QUOTED_PG_SINK} "
+                "(first_ts, quoted_v, row_count, quoted_sum) AS SELECT "
+                "first(_c0), first(quoted_v), count(*), sum(quoted_v) FROM %%trows"
+            )
+            tdStream.checkStreamStatus(self.QUOTED_PG_STREAM)
+            self._wait_three_external_interval_bootstrap(self.QUOTED_PG_STREAM)
+            self._insert_quoted_pg_rows()
+            expected_rows = [
+                (
+                    self._local_timestamp(self.BASE_MS + index * self.QUOTED_PG_STEP_MS),
+                    10 + index,
+                    1,
+                    10 + index,
+                )
+                for index in range(3)
+            ]
+            self._wait_quoted_pg_sink(expected_rows)
+            tdLog.info("quoted PostgreSQL identifier virtual stream [ passed ]")
+        finally:
+            self._cleanup_fixture()
+
     def do_three_external_interval_stream(self):
         self._prepare_three_external_interval_fixture()
         try:
@@ -936,7 +1153,7 @@ class TestVirtualStreamMixedExternal:
                 "_twstart",
             )
             self._insert_three_external_interval_warmup_rows()
-            self._wait_three_external_interval_bootstrap()
+            self._wait_three_external_interval_bootstrap(self.THREE_EXT_INTERVAL_STREAM)
             self._insert_three_external_interval_remote_rows()
             self._insert_three_external_interval_rows()
             expected_rows = [
@@ -1003,7 +1220,7 @@ class TestVirtualStreamMixedExternal:
                 source_name,
             )
             self._insert_three_external_interval_warmup_rows()
-            self._wait_three_external_interval_bootstrap()
+            self._wait_three_external_interval_bootstrap(stream_name)
             self._insert_three_external_interval_remote_rows()
             self._insert_three_external_interval_trigger_values(trigger_values, label)
             try:
@@ -1109,6 +1326,7 @@ class TestVirtualStreamMixedExternal:
                 "AS SELECT first(_c0) as ts, sum(local_value) as local_sum, sum(influx_load) as influx_load_sum FROM %%trows"
             )
             tdStream.checkStreamStatus("influx_col_stream")
+            self._wait_three_external_interval_bootstrap("influx_col_stream")
 
             self._insert_influx_column_rows()
             self._wait_influx_column_sink(
@@ -1139,6 +1357,8 @@ class TestVirtualStreamMixedExternal:
 
         Labels: common,ci,integration,functional
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -1160,6 +1380,8 @@ class TestVirtualStreamMixedExternal:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 
@@ -1183,6 +1405,8 @@ class TestVirtualStreamMixedExternal:
 
         Labels: common,ci,integration,functional
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -1204,6 +1428,8 @@ class TestVirtualStreamMixedExternal:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 
@@ -1227,6 +1453,8 @@ class TestVirtualStreamMixedExternal:
 
         Labels: common,ci,integration,functional
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -1248,6 +1476,8 @@ class TestVirtualStreamMixedExternal:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
 
         Jira: None
 
@@ -1274,6 +1504,8 @@ class TestVirtualStreamMixedExternal:
 
         Labels: common,ci,integration,functional
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -1282,3 +1514,52 @@ class TestVirtualStreamMixedExternal:
         """
         self.do_mixed_external_realtime_lifecycle()
         self.do_influx_column_reference_stream()
+
+    def test_virtual_stream_var_width_column(self):
+        """Stream: virtual column wider than the external varchar mapping
+
+        1. Create a MySQL table whose payload column is VARCHAR(32) with a
+           single-byte charset (mapped as VARCHAR, bytes=34).
+        2. Create a virtual table declaring that column as VARCHAR(64).
+        3. Create a COUNT_WINDOW stream over the pure-external virtual table
+           and verify the merged payload rows land in the sink intact.
+
+        Catalog:
+            - Streams:VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
+        Jira: None
+
+        History:
+            - 2026-10-09 Wang Mingming Add var-width column merge coverage
+        """
+        self.do_var_width_column_reference()
+
+    def test_virtual_stream_quoted_pg_identifier(self):
+        """Stream: quoted PostgreSQL table and column identifiers survive reader SQL rendering
+
+        1. Create a PostgreSQL table named "QuotedCase" with a column "MixedValue".
+        2. Reference both through backtick-quoted names in a virtual table.
+        3. Create a COUNT_WINDOW stream and verify the quoted remote column
+           participates in the trigger rows and in the %%trows aggregation.
+
+        Catalog:
+            - Streams:VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
+        Jira: None
+
+        History:
+            - 2026-10-15 Wang Mingming Add quoted PG identifier stream coverage
+        """
+        self.do_quoted_pg_identifier_stream()
