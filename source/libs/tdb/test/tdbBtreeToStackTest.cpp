@@ -25,6 +25,7 @@
 #include <shared_mutex>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 #include "tlog.h"
 
@@ -176,14 +177,17 @@ TEST(upgrade_test, upgrade_full) {
   TXN *txn = NULL;
   tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
-  for (int i = pBt->root + 1; i <= 700; i++) {
-    SPgno pgno = i;
+  for (int i = pBt->root + 1; i <= pBt->root + 700; i++) {
+    SPgno pgno = 0;
     SPage *pPage = NULL;
     SBtreeInitPageArg arg;
     arg.flags = 0x1 | 0x2;  // root leaf node;
     arg.pBt = pBt;
-    tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, txn);
-    tdbPagerWrite(pPager, pPage);
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(pgno, i);
+    ret = tdbPagerWrite(pPager, pPage);
+    GTEST_ASSERT_EQ(ret, 0);
     tdbPagerReturnPage(pPager, pPage, txn);
   }
 
@@ -247,14 +251,17 @@ TEST(upgrade_test, upgrade_rebalanced) {
   TXN *txn = NULL;
   tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
-  for (int i = pBt->root + 1; i <= 700; i++) {
-    SPgno pgno = i;
+  for (int i = pBt->root + 1; i <= pBt->root + 700; i++) {
+    SPgno pgno = 0;
     SPage *pPage = NULL;
     SBtreeInitPageArg arg;
     arg.flags = 0x1 | 0x2;  // root leaf node;
     arg.pBt = pBt;
-    tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, txn);
-    tdbPagerWrite(pPager, pPage);
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(pgno, i);
+    ret = tdbPagerWrite(pPager, pPage);
+    GTEST_ASSERT_EQ(ret, 0);
     tdbPagerReturnPage(pPager, pPage, txn);
   }
 
@@ -334,13 +341,16 @@ TEST(upgrade_test, push_pop_after_upgrade) {
   tdbBegin(pEnv, &txn, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
 
   for (int i = pBt->root + 1; i <= pBt->root + 700; i++) {
-    SPgno pgno = i;
+    SPgno pgno = 0;
     SPage *pPage = NULL;
     SBtreeInitPageArg arg;
     arg.flags = 0x1 | 0x2;  // root leaf node;
     arg.pBt = pBt;
-    tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, txn);
-    tdbPagerWrite(pPager, pPage);
+    ret = tdbPagerFetchPage(pPager, &pgno, &pPage, tdbBtreeInitPage, &arg, txn);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(pgno, i);
+    ret = tdbPagerWrite(pPager, pPage);
+    GTEST_ASSERT_EQ(ret, 0);
     tdbPagerReturnPage(pPager, pPage, txn);
   }
 
@@ -398,3 +408,212 @@ TEST(upgrade_test, push_pop_after_upgrade) {
   // Close Env
   tdbClose(pEnv);
 }
+
+class TdbFreePageJournalTest
+    : public ::testing::TestWithParam<std::tuple<int, bool, bool>> {
+ protected:
+  enum {
+    kPageSize = 4096,
+    kCachePages = 1024,
+    kLeafFlag = 0x2,
+    kOverflowFlag = 0x4,
+  };
+
+  void SetUp() override {
+    dbName = "tdb-free-page-journal-" + std::to_string(taosGetPId()) + "-" +
+             std::to_string(taosGetTimestampUs());
+    ASSERT_EQ(tdbOpen(dbName.c_str(), kPageSize, kCachePages, &env, 0, nullptr),
+              0);
+  }
+
+  void TearDown() override {
+    if (txn != nullptr) {
+      EXPECT_EQ(tdbPagerAbort(pager(), txn), 0);
+      tdbTxnClose(txn);
+    }
+    tdbClose(env);
+    taosRemoveDir(dbName.c_str());
+  }
+
+  SPager *pager() { return env->pFreeDb->pBt->pPager; }
+
+  void Begin() {
+    ASSERT_EQ(tdbBegin(env, &txn, tdbDefaultMalloc, tdbDefaultFree, nullptr,
+                       TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED),
+              0);
+  }
+
+  void Commit() {
+    ASSERT_EQ(tdbCommit(env, txn), 0);
+    ASSERT_EQ(tdbPostCommit(env, txn), 0);
+    txn = nullptr;
+  }
+
+  void Reopen() {
+    ASSERT_EQ(txn, nullptr);
+    tdbClose(env);
+    env = nullptr;
+    ASSERT_EQ(tdbOpen(dbName.c_str(), kPageSize, kCachePages, &env, 0, nullptr),
+              0);
+  }
+
+  void Seed(int count) {
+    ASSERT_NO_FATAL_FAILURE(Begin());
+    SBtreeInitPageArg arg = {kOverflowFlag, env->pFreeDb->pBt};
+    for (int i = 0; i < count; ++i) {
+      SPgno pgno = 0;
+      SPage *page = nullptr;
+      ASSERT_EQ(tdbPagerFetchPage(pager(), &pgno, &page, tdbBtreeInitPage,
+                                  &arg, txn),
+                0);
+      ASSERT_GT(pgno, pager()->dbOrigSize);
+      ASSERT_EQ(tdbPagerWrite(pager(), page), 0);
+      tdbPagerReturnPage(pager(), page, txn);
+      freePages.push_back(pgno);
+    }
+
+    for (SPgno pgno : freePages) {
+      SPage *page = nullptr;
+      ASSERT_EQ(tdbPagerFetchPage(pager(), &pgno, &page, tdbBtreeInitPage,
+                                  &arg, txn),
+                0);
+      ASSERT_EQ(tdbPagerInsertFreePage(pager(), page, txn), 0);
+      tdbPagerReturnPage(pager(), page, txn);
+    }
+    ASSERT_NO_FATAL_FAILURE(Commit());
+  }
+
+  void Allocate(SPgno expected) {
+    SPgno pgno = 0;
+    SPage *page = nullptr;
+    SBtreeInitPageArg arg = {kLeafFlag, env->pFreeDb->pBt};
+    ASSERT_EQ(tdbPagerFetchPage(pager(), &pgno, &page, tdbBtreeInitPage,
+                                &arg, txn),
+              0);
+    EXPECT_EQ(pgno, expected);
+    EXPECT_EQ(page->pData[0], kLeafFlag);
+    EXPECT_EQ(TDB_PAGE_TOTAL_CELLS(page), 0);
+    EXPECT_EQ(tdbPagerWrite(pager(), page), 0);
+    tdbPagerReturnPage(pager(), page, txn);
+  }
+
+  void CheckUndoImage(SPgno expected, const std::vector<u8> &image) {
+    SPgno records = 0;
+    ASSERT_EQ(tdbGetFileSize(txn->jfd, kPageSize + sizeof(SPgno), &records),
+              0);
+    int matches = 0;
+    std::vector<u8> journalImage(kPageSize);
+    for (SPgno i = 0; i < records; ++i) {
+      SPgno pgno = 0;
+      i64 offset = static_cast<i64>(i) * (kPageSize + sizeof(SPgno));
+      ASSERT_EQ(tdbOsPRead(txn->jfd, &pgno, sizeof(pgno), offset),
+                sizeof(pgno));
+      if (pgno != expected) {
+        continue;
+      }
+      ++matches;
+      ASSERT_EQ(tdbOsPRead(txn->jfd, journalImage.data(), kPageSize,
+                           offset + sizeof(pgno)),
+                kPageSize);
+      ASSERT_EQ(memcmp(journalImage.data(), image.data(), kPageSize), 0);
+    }
+    ASSERT_EQ(matches, 1);
+  }
+
+  TDB *env = nullptr;
+  TXN *txn = nullptr;
+  std::string dbName;
+  std::vector<SPgno> freePages;
+};
+
+TEST_P(TdbFreePageJournalTest, RecycledPagePreservesUndoImage) {
+  ASSERT_NO_FATAL_FAILURE(Seed(std::get<0>(GetParam())));
+  if (std::get<1>(GetParam())) {
+    ASSERT_NO_FATAL_FAILURE(Reopen());
+  }
+
+  SPgno head = freePages.back();
+  i64 offset = static_cast<i64>(head - 1) * kPageSize;
+  std::vector<u8> image(kPageSize);
+  ASSERT_EQ(tdbOsPRead(pager()->fd, image.data(), kPageSize, offset), kPageSize);
+
+  ASSERT_NO_FATAL_FAILURE(Begin());
+  ASSERT_NO_FATAL_FAILURE(Allocate(head));
+  ASSERT_NO_FATAL_FAILURE(CheckUndoImage(head, image));
+
+  SPage *page = nullptr;
+  ASSERT_EQ(tdbPagerFetchFreePage(pager(), head, &page, txn), 0);
+  EXPECT_EQ(tdbPagerInsertFreePage(pager(), page, txn), 0);
+  tdbPagerReturnPage(pager(), page, txn);
+  ASSERT_FALSE(HasFailure());
+  ASSERT_NO_FATAL_FAILURE(Allocate(head));
+  ASSERT_NO_FATAL_FAILURE(CheckUndoImage(head, image));
+
+  if (std::get<2>(GetParam())) {
+    // Leave the undo journal behind to exercise startup recovery.
+    ASSERT_EQ(tdbCommit(env, txn), 0);
+    tdbTxnClose(txn);
+    ASSERT_NO_FATAL_FAILURE(Reopen());
+  } else {
+    ASSERT_EQ(tdbPagerAbort(pager(), txn), 0);
+    tdbTxnClose(txn);
+  }
+
+  std::vector<u8> restored(kPageSize);
+  ASSERT_EQ(tdbOsPRead(pager()->fd, restored.data(), kPageSize, offset),
+            kPageSize);
+  ASSERT_EQ(memcmp(restored.data(), image.data(), kPageSize), 0);
+
+  ASSERT_NO_FATAL_FAILURE(Begin());
+  for (auto it = freePages.rbegin(); it != freePages.rend(); ++it) {
+    SPgno pgno = 0;
+    ASSERT_EQ(tdbBtreePopFreePage(env->pFreeDb->pBt, &pgno, txn), 0);
+    ASSERT_EQ(pgno, *it);
+  }
+  SPgno pgno = 0;
+  ASSERT_EQ(tdbBtreePopFreePage(env->pFreeDb->pBt, &pgno, txn), 0);
+  ASSERT_EQ(pgno, 0);
+  ASSERT_NO_FATAL_FAILURE(Commit());
+
+  ASSERT_NO_FATAL_FAILURE(Reopen());
+  ASSERT_NO_FATAL_FAILURE(Begin());
+  SPgno extendedSize = pager()->dbFileSize + 1;
+  SBtreeInitPageArg arg = {kLeafFlag, env->pFreeDb->pBt};
+  pgno = 0;
+  ASSERT_EQ(tdbPagerFetchPage(pager(), &pgno, &page, tdbBtreeInitPage,
+                              &arg, txn),
+            0);
+  EXPECT_EQ(pgno, extendedSize);
+  EXPECT_GT(pgno, pager()->dbOrigSize);
+  EXPECT_FALSE(tdbPageGetFlag(page, PAGE_FLAG_DIRTY));
+
+  // Recycle an unused extension page before it has ever been written.
+  EXPECT_EQ(tdbPagerInsertFreePage(pager(), page, txn), 0);
+  tdbPagerReturnPage(pager(), page, txn);
+  ASSERT_FALSE(HasFailure());
+  pgno = 0;
+  ASSERT_EQ(tdbPagerFetchPage(pager(), &pgno, &page, tdbBtreeInitPage,
+                              &arg, txn),
+            0);
+  EXPECT_EQ(pgno, extendedSize);
+  EXPECT_EQ(pager()->dbFileSize, extendedSize);
+  EXPECT_GT(pgno, pager()->dbOrigSize);
+  EXPECT_TRUE(tdbPageGetFlag(page, PAGE_FLAG_DIRTY));
+  EXPECT_EQ(page->pData[0], kLeafFlag);
+  EXPECT_EQ(TDB_PAGE_TOTAL_CELLS(page), 0);
+  EXPECT_EQ(tdbPagerWrite(pager(), page), 0);
+  tdbPagerReturnPage(pager(), page, txn);
+  ASSERT_FALSE(HasFailure());
+
+  SPgno records = 0;
+  ASSERT_EQ(tdbGetFileSize(txn->jfd, kPageSize + sizeof(SPgno), &records), 0);
+  ASSERT_EQ(records, 1);
+  ASSERT_EQ(tdbOsPRead(txn->jfd, &pgno, sizeof(pgno), 0), sizeof(pgno));
+  ASSERT_EQ(pgno, env->pFreeDb->pBt->root);
+  ASSERT_NO_FATAL_FAILURE(Commit());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    StackAndCacheStates, TdbFreePageJournalTest,
+    ::testing::Combine(::testing::Values(4, 700), ::testing::Bool(),
+                       ::testing::Bool()));
