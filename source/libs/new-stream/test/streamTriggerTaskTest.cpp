@@ -26766,7 +26766,7 @@ TEST_F(StreamTriggerRetryObservabilityTest, NestedRealtimeCheckFailureIsNotCount
   stub_.set(streamReadCheckPoint, failTriggerCheckpointRead);
   context_.status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   context_.haveReadCheckpoint = false;
-  atomic_store_8(&task_.isCheckpointReady, 1);
+  atomic_store_8(&task_.checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
 
   SSTriggerAHandle responseAhandle = {};
   responseAhandle.param = &request_;
@@ -26805,7 +26805,7 @@ TEST_F(StreamTriggerRetryObservabilityTest, CalcParamPoolShrinksOnlyWhenEmptyAnd
   context_.lastCalcParamPoolShrinkMonoUs = 60000001;
   context_.status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
   context_.haveReadCheckpoint = false;
-  atomic_store_8(&task_.isCheckpointReady, 1);
+  atomic_store_8(&task_.checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
 
   SSTriggerAHandle responseAhandle = {};
   responseAhandle.param = &request_;
@@ -26869,7 +26869,7 @@ TEST_F(StreamTriggerRetryObservabilityTest, FailedResponseRefreshesMutatedOwnerG
   context_.calcParamPool.nodeSize = 16;
   context_.calcParamPool.size = 1;
   context_.calcParamPool.capacity = 1;
-  atomic_store_8(&task_.isCheckpointReady, 1);
+  atomic_store_8(&task_.checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
 
   stTriggerTaskPublishRealtimeDebugGauges(&task_, &context_);
   ASSERT_TRUE(task_.realtimeDebugGauges.validMask & STREAM_TRIGGER_GAUGE_CALC_PARAM_POOL);
@@ -28899,6 +28899,69 @@ TEST_F(StreamTriggerIntervalMergeTest, ExistingWindowRangeMismatchRemainsAnInter
 
   EXPECT_EQ(StartCheck(), TSDB_CODE_INTERNAL_ERROR);
 }
+
+static std::vector<SSTriggerCalcParam> gIntervalGapNotifications;
+
+static int32_t captureIntervalGapNotifications(SStreamTask*, const char*, const char*, int32_t, int64_t, int8_t,
+                                               const SArray*, int32_t, const SSTriggerCalcParam* params,
+                                               int32_t count) {
+  gIntervalGapNotifications.insert(gIntervalGapNotifications.end(), params, params + count);
+  return TSDB_CODE_SUCCESS;
+}
+
+class StreamTriggerIntervalGapTest : public StreamTriggerRowObservabilityTest {
+ protected:
+  void CheckGap(bool ignoreNoData, bool calcOpen, int64_t gapWindows) {
+    ConfigureInterval(10000, 'a', 10000, 'a');
+    gIntervalGapNotifications.clear();
+    stub_.set(streamSendNotifyContent, captureIntervalGapNotifications);
+    task_.ignoreNoDataTrigger = ignoreNoData;
+    task_.notifyEventType = static_cast<ESTriggerEventType>(STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+    if (calcOpen) task_.calcEventType = task_.notifyEventType;
+
+    const TSKEY first = group_.newThreshold - 5;
+    const TSKEY last = first + gapWindows * 10000;
+    auto*       tsCol = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0));
+    for (int32_t i = 3; i < 6; ++i) {
+      const TSKEY ts = last + i;
+      ASSERT_EQ(colDataSetVal(tsCol, i, reinterpret_cast<const char*>(&ts), false), TSDB_CODE_SUCCESS);
+    }
+    auto* meta = static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+    meta->ekey = last + 5;
+    group_.newThreshold = last + 10000;
+
+    ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+    const int64_t closed = ignoreNoData ? 2 : gapWindows + 1;
+    const int64_t opened = closed + 1;
+    ASSERT_EQ(closed + (calcOpen ? opened : 0), taosArrayGetSize(gTriggerRowRequest.params));
+    ASSERT_EQ(calcOpen ? 0 : opened, gIntervalGapNotifications.size());
+    if (ignoreNoData) {
+      for (const auto& param : gIntervalGapNotifications) {
+        EXPECT_EQ(STRIGGER_EVENT_WINDOW_OPEN, param.notifyType);
+        EXPECT_TRUE(param.wstart == first || param.wstart == last || param.wstart == last + 10000);
+      }
+      for (int32_t i = 0; i < taosArrayGetSize(gTriggerRowRequest.params); ++i) {
+        const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(gTriggerRowRequest.params, i));
+        EXPECT_TRUE(param->wstart == first || param->wstart == last || param->wstart == last + 10000);
+        if (param->notifyType == STRIGGER_EVENT_WINDOW_CLOSE) EXPECT_EQ(2, param->wrownum);
+      }
+    }
+    ASSERT_EQ(1, group_.windows.neles);
+    const auto* pending = static_cast<const SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+    EXPECT_EQ(last + 10000, pending->range.skey);
+    EXPECT_EQ(0, pending->wrownum);
+  }
+};
+
+TEST_F(StreamTriggerIntervalGapTest, IgnoreNoDataSuppressesClosedEmptyWindowNotificationsAcrossBatches) {
+  CheckGap(true, false, 2 * STREAM_CALC_REQ_MAX_WIN_NUM);
+}
+
+TEST_F(StreamTriggerIntervalGapTest, IgnoreNoDataSuppressesClosedEmptyWindowOpenCalculations) {
+  CheckGap(true, true, 3);
+}
+
+TEST_F(StreamTriggerIntervalGapTest, DefaultKeepsClosedEmptyWindowEvents) { CheckGap(false, true, 3); }
 
 struct CreateTableRequestState {
   int32_t              sendCalls = 0;
@@ -32235,7 +32298,7 @@ TEST_F(StreamTriggerRecalcBarrierTest, UnfinishedRedeployRestartsAtZero) {
   task_.fillHistoryStartTime = 100;
   realtime_.haveReadCheckpoint = false;
   realtime_.status = STRIGGER_CONTEXT_IDLE;
-  atomic_store_8(&task_.isCheckpointReady, 1);
+  atomic_store_8(&task_.checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
   EncodeHistoryCheckpoint(false, 7);
   stub_.set(streamReadCheckPoint, readRecalcBarrierCheckpoint);
 
@@ -32251,7 +32314,7 @@ TEST_F(StreamTriggerRecalcBarrierTest, UnmatchedCheckpointDefersDenominatorUntil
   task_.fillHistoryStartTime = 100;
   realtime_.haveReadCheckpoint = false;
   realtime_.status = STRIGGER_CONTEXT_IDLE;
-  atomic_store_8(&task_.isCheckpointReady, 1);
+  atomic_store_8(&task_.checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
   EncodeHistoryCheckpoint(false, 8);
   stub_.set(streamReadCheckPoint, readRecalcBarrierCheckpoint);
 
@@ -32297,7 +32360,7 @@ TEST_F(StreamTriggerRecalcBarrierTest, CheckpointHistoryFinishedRestoresOneHundr
   task_.fillHistoryStartTime = 100;
   realtime_.haveReadCheckpoint = false;
   realtime_.status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
-  atomic_store_8(&task_.isCheckpointReady, 1);
+  atomic_store_8(&task_.checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
   EncodeHistoryCheckpoint(true, 7);
   stub_.set(streamReadCheckPoint, readRecalcBarrierCheckpoint);
 

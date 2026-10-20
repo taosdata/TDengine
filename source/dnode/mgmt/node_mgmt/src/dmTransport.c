@@ -283,7 +283,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
   if (pHandle->needCheckVgId) {
-    if (pRpc->contLen > 0) {
+    if (pRpc->contLen >= (int32_t)sizeof(SMsgHead)) {
       const SMsgHead *pHead = pRpc->pCont;
       const int32_t   vgId = ntohl(pHead->vgId);
       switch (vgId) {
@@ -300,7 +300,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           break;
       }
     } else {
-      dGError("msg:%p, type:%s contLen is 0", pRpc, TMSG_INFO(pRpc->msgType));
+      dGError("msg:%p, type:%s invalid header length:%d", pRpc, TMSG_INFO(pRpc->msgType), pRpc->contLen);
       code = TSDB_CODE_INVALID_MSG_LEN;
       goto _OVER;
     }
@@ -471,7 +471,7 @@ static void dmProcessClientRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet)
 }
 
 static void dmProcessServerRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  if (pRpc->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+  if (pRpc->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP || pRpc->msgType == TDMT_STREAM_SYNC_CHECKPOINT_RSP) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
     return;
