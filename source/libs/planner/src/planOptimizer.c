@@ -17389,12 +17389,327 @@ _return:
 // DistinctFilter operator could express. The operator and its serialization are retained so a
 // plan built by an older node still executes during a rolling upgrade; nothing generates one now.
 
+static bool scanHasFixedSecondPk(SNode* pCond, int64_t tableId, int64_t stableId) {
+  if (NULL == pCond) {
+    return false;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+      return false;
+    }
+    SNode* pPart = NULL;
+    FOREACH(pPart, pLogic->pParameterList) {
+      if (scanHasFixedSecondPk(pPart, tableId, stableId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pCond) || OP_TYPE_EQUAL != ((SOperatorNode*)pCond)->opType) {
+    return false;
+  }
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (NULL == pOp->pLeft || NULL == pOp->pRight) {
+    return false;
+  }
+  SNode* pColNode = QUERY_NODE_COLUMN == nodeType(pOp->pLeft) ? pOp->pLeft : pOp->pRight;
+  SNode* pValueNode = pColNode == pOp->pLeft ? pOp->pRight : pOp->pLeft;
+  if (QUERY_NODE_COLUMN != nodeType(pColNode) || QUERY_NODE_VALUE != nodeType(pValueNode) ||
+      ((SValueNode*)pValueNode)->isNull) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pColNode;
+  return COLUMN_TYPE_COLUMN == pCol->colType &&
+         (pCol->tableId == tableId || (stableId != 0 && pCol->tableId == stableId)) && pCol->isPk &&
+         pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID;
+}
+
+static bool scanHasFixedTbname(SNode* pCond) {
+  if (NULL == pCond) {
+    return false;
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND != pLogic->condType) {
+      return false;
+    }
+    SNode* pPart = NULL;
+    FOREACH(pPart, pLogic->pParameterList) {
+      if (scanHasFixedTbname(pPart)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pCond) || OP_TYPE_EQUAL != ((SOperatorNode*)pCond)->opType) {
+    return false;
+  }
+  SOperatorNode* pOp = (SOperatorNode*)pCond;
+  if (NULL == pOp->pLeft || NULL == pOp->pRight) {
+    return false;
+  }
+  SNode* pFuncNode = QUERY_NODE_FUNCTION == nodeType(pOp->pLeft) ? pOp->pLeft : pOp->pRight;
+  SNode* pValueNode = pFuncNode == pOp->pLeft ? pOp->pRight : pOp->pLeft;
+  return QUERY_NODE_FUNCTION == nodeType(pFuncNode) && QUERY_NODE_VALUE == nodeType(pValueNode) &&
+         !((SValueNode*)pValueNode)->isNull &&
+         FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pFuncNode)->funcType;
+}
+
+static bool distinctPkTargetsMatchGroupKeys(SAggLogicNode* pAgg) {
+  SNodeList* pExpected = NULL;
+  if (TSDB_CODE_SUCCESS != createColumnByRewriteExprs(pAgg->pGroupKeys, &pExpected)) {
+    return false;
+  }
+  bool matched = LIST_LENGTH(pExpected) == LIST_LENGTH(pAgg->node.pTargets);
+  if (matched) {
+    SNode* pExpectedCol = NULL;
+    SNode* pTarget = NULL;
+    FORBOTH(pExpectedCol, pExpected, pTarget, pAgg->node.pTargets) {
+      if (!nodesEqualNode(pExpectedCol, pTarget)) {
+        matched = false;
+        break;
+      }
+    }
+  }
+  nodesDestroyList(pExpected);
+  return matched;
+}
+
+static bool eliminateDistinctPkMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      NULL != pNode->pConditions || NULL != pNode->pLimit || NULL != pNode->pSlimit) {
+    return false;
+  }
+
+  SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+  if (NULL == pAgg->pGroupKeys || NULL != pAgg->pAggFuncs || pAgg->hasGroup ||
+      LIST_LENGTH(pAgg->pGroupKeys) != LIST_LENGTH(pNode->pTargets) ||
+      !distinctPkTargetsMatchGroupKeys(pAgg) ||
+      (LIST_LENGTH(pAgg->pGroupKeys) > 1 && NULL != pNode->pParent &&
+       QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode->pParent))) {
+    return false;
+  }
+
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if ((TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType &&
+       TSDB_SUPER_TABLE != pScan->tableType) ||
+      SCAN_TYPE_TABLE != pScan->scanType || NULL != pScan->pGroupTags ||
+      pScan->scanSeq[0] + pScan->scanSeq[1] != 1) {
+    return false;
+  }
+
+  bool hasTs = false;
+  bool hasPk = false;
+  bool hasTbname = false;
+  bool tableHasPk = false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pAgg->pGroupKeys) {
+    if (QUERY_NODE_GROUPING_SET != nodeType(pKey) ||
+        1 != LIST_LENGTH(((SGroupingSetNode*)pKey)->pParameterList)) {
+      return false;
+    }
+    SNode* pExpr = nodesListGetNode(((SGroupingSetNode*)pKey)->pParameterList, 0);
+    if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+      return false;
+    }
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    if (COLUMN_TYPE_TBNAME == pCol->colType) {
+      hasTbname = true;
+      continue;
+    }
+    if (pCol->tableId != pScan->tableId || COLUMN_TYPE_COLUMN != pCol->colType) {
+      return false;
+    }
+    tableHasPk |= pCol->tableHasPk;
+    hasTs |= COLUMN_TYPE_COLUMN == pCol->colType && pCol->isPrimTs &&
+             pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID;
+    hasPk |= COLUMN_TYPE_COLUMN == pCol->colType && pCol->isPk &&
+             pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID;
+  }
+  bool singleTable = TSDB_SUPER_TABLE != pScan->tableType || scanHasFixedTbname(pScan->pTagCond);
+  bool fixedPk = hasTs && tableHasPk && !hasPk && singleTable &&
+                 scanHasFixedSecondPk(pScan->node.pConditions, pScan->tableId,
+                                      TSDB_CHILD_TABLE == pScan->tableType ? pScan->stableId : 0);
+  return hasTs && (!tableHasPk || hasPk || fixedPk) &&
+         (singleTable || hasTbname);
+}
+
+static int32_t eliminateDistinctPkOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode,
+                                                             eliminateDistinctPkMayBeOptimized, NULL);
+  if (NULL == pAgg) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SProjectLogicNode* pProject = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  pProject->node.groupAction = GROUP_ACTION_CLEAR;
+  pProject->node.precision = pAgg->node.precision;
+  pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->ignoreGroupId = true;
+
+  SNode* pKey = NULL;
+  FOREACH(pKey, pAgg->pGroupKeys) {
+    SNode* pExpr = nodesListGetNode(((SGroupingSetNode*)pKey)->pParameterList, 0);
+    SNode* pCopy = NULL;
+    code = nodesCloneNode(pExpr, &pCopy);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = nodesListMakeStrictAppend(&pProject->pProjections, pCopy);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode((SNode*)pProject);
+      return code;
+    }
+  }
+
+  code = replaceLogicNode(pLogicSubplan, (SLogicNode*)pAgg, (SLogicNode*)pProject);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pProject);
+    return code;
+  }
+  TSWAP(pProject->node.pTargets, pAgg->node.pTargets);
+  TSWAP(pProject->node.pChildren, pAgg->node.pChildren);
+  SNode* pChild = NULL;
+  FOREACH(pChild, pProject->node.pChildren) {
+    ((SLogicNode*)pChild)->pParent = (SLogicNode*)pProject;
+  }
+  nodesDestroyNode((SNode*)pAgg);
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool countDistinctPkMatches(SAggLogicNode* pAgg, SScanLogicNode* pScan, SFunctionNode* pFunc) {
+  if (FUNCTION_TYPE_COUNT != pFunc->funcType || !pFunc->isDistinct ||
+      1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pArg)) {
+    return false;
+  }
+  SColumnNode* pCol = (SColumnNode*)pArg;
+  bool countTs = pCol->isPrimTs && pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID;
+  bool countPk = pCol->isPk && pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID;
+  if ((!countTs && !countPk) || COLUMN_TYPE_COLUMN != pCol->colType ||
+      pCol->tableId != pScan->tableId) {
+    return false;
+  }
+  if (TSDB_SUPER_TABLE == pScan->tableType) {
+    if (!countTs || pCol->tableHasPk) {
+      return false;
+    }
+    SNode* pKey = NULL;
+    FOREACH(pKey, pAgg->pGroupKeys) {
+      if (QUERY_NODE_GROUPING_SET != nodeType(pKey) ||
+          1 != LIST_LENGTH(((SGroupingSetNode*)pKey)->pParameterList)) {
+        continue;
+      }
+      SNode* pExpr = nodesListGetNode(((SGroupingSetNode*)pKey)->pParameterList, 0);
+      if (QUERY_NODE_COLUMN == nodeType(pExpr) &&
+          COLUMN_TYPE_TBNAME == ((SColumnNode*)pExpr)->colType) {
+        return true;
+      }
+    }
+    return false;
+  }
+  if (countTs && !pCol->tableHasPk &&
+      !(pScan->noPseudoRefAfterGrp && NULL != pScan->pScanPseudoCols)) {
+    return true;
+  }
+  if (countTs && pCol->tableHasPk &&
+      scanHasFixedSecondPk(pScan->node.pConditions, pScan->tableId, 0)) {
+    return true;
+  }
+
+  SNode* pKey = NULL;
+  FOREACH(pKey, pAgg->pGroupKeys) {
+    if (QUERY_NODE_GROUPING_SET != nodeType(pKey) ||
+        1 != LIST_LENGTH(((SGroupingSetNode*)pKey)->pParameterList)) {
+      continue;
+    }
+    SNode* pExpr = nodesListGetNode(((SGroupingSetNode*)pKey)->pParameterList, 0);
+    if (QUERY_NODE_COLUMN != nodeType(pExpr)) {
+      continue;
+    }
+    SColumnNode* pGroupCol = (SColumnNode*)pExpr;
+    bool groupsPk = countTs && pGroupCol->isPk && pGroupCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID;
+    bool groupsTs = countPk && pGroupCol->isPrimTs && pGroupCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID;
+    if ((groupsPk || groupsTs) && COLUMN_TYPE_COLUMN == pGroupCol->colType &&
+        pGroupCol->tableId == pScan->tableId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool countDistinctPkMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if ((TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType &&
+       TSDB_SUPER_TABLE != pScan->tableType) ||
+      SCAN_TYPE_TABLE != pScan->scanType || NULL != pScan->pGroupTags ||
+      pScan->scanSeq[0] + pScan->scanSeq[1] != 1) {
+    return false;
+  }
+
+  SNode* pFuncNode = NULL;
+  FOREACH(pFuncNode, pAgg->pAggFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pFuncNode)) {
+      continue;
+    }
+    if (countDistinctPkMatches(pAgg, pScan, (SFunctionNode*)pFuncNode)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t countDistinctPkOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode,
+                                                             countDistinctPkMayBeOptimized, NULL);
+  if (NULL == pAgg) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  SNode* pFuncNode = NULL;
+  FOREACH(pFuncNode, pAgg->pAggFuncs) {
+    if (QUERY_NODE_FUNCTION != nodeType(pFuncNode)) {
+      continue;
+    }
+    SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
+    if (countDistinctPkMatches(pAgg, pScan, pFunc)) {
+      pFunc->isDistinct = false;
+    }
+  }
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
   {.pName = "PushDownCondition",          .optimizeFunc = pdcOptimize},
+  // This rewrite requires group keys; TSMA only accepts aggregates without group keys.
+  {.pName = "EliminateDistinctPk",         .optimizeFunc = eliminateDistinctPkOptimize},
+  {.pName = "CountDistinctPk",             .optimizeFunc = countDistinctPkOptimize},
   {.pName = "EliminateNotNullCond",       .optimizeFunc = eliminateNotNullCondOptimize},
   // FqPushdown must run BEFORE Sort/Limit/Project optimizations.  Once it
   // extracts the Sort+Project chain into pRemoteLogicPlan, later rules
