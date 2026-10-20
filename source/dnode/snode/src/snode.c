@@ -834,8 +834,10 @@ _exit:
  * streamReaderExtFetchData (reuses extConnector SQL from P2) ->
  * build SRetrieveTableRsp  ->  send TDMT_STREAM_FETCH_EXT_RSP.
  *
- * Time window: if pStRtFuncInfo is present the curWindow [skey,ekey] is used
- * to bound the external query; otherwise the full table is scanned.
+ * Time window: derived like the vnode reader's processCalaTimeRange.  When the
+ * calc scan carries a time range with time-returning expressions it is
+ * evaluated against the request's window parameters; otherwise the runner's
+ * merged curWindow is used, or the full table is scanned when unbounded.
  */
 static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   int32_t            code     = TSDB_CODE_SUCCESS;
@@ -864,8 +866,8 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, readerTaskId,
                                     (SStreamTask **)&pTask, &taskAddr));
 
-  /* Guard against routing errors: only an EXT (federated) reader task has its
-   * info set to an SStreamExtReaderInfo. If a normal reader's task is reached
+  /* Guard against routing errors: only an EXT calc reader task has its
+   * info set to an array of SStreamExtReaderInfo pointers. If a normal task is reached
    * here (e.g. a FETCH_EXT mis-sent because a source address left isExt
    * uninitialized), pTask->info is a different type  -  fail loudly instead of
    * type-confusing it into an SStreamExtReaderInfo and crashing. */
@@ -877,27 +879,32 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
-  SStreamExtReaderInfo *pInfo =
-    (SStreamExtReaderInfo *)pTask->info;
+  SStreamExtReaderInfo *pInfo = NULL;
+  TAOS_CHECK_EXIT(streamReaderExtGetCalcInfo(pTask, req.execId, &pInfo));
 
-  if (pInfo == NULL) {
-    sndError("ext: handleExtFetchReq reader task streamId=%" PRId64
-             " taskId=%" PRId64 " has NULL info - not yet initialised",
-             streamId, readerTaskId);
-    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO);
-  }
-
-  /* Derive time window from the runtime function info if provided.
-   * A zero/zero window means the runner did not set a time bound
-   * (e.g. full-table aggregate over ext source); treat as unbounded. */
+  /* Derive the fetch time range the same way the vnode reader does for table
+   * scans (vnodeStream.c processCalaTimeRange).  When the calc statement
+   * carries time-returning expressions (STimeRangeNode.needCalc, e.g.
+   * _twstart/_twend or casted localtime placeholders) the bounds must be
+   * evaluated with the current window parameters instead of trusting the raw
+   * merged [wstart, wend] range.  Readers deployed without a scan time range
+   * keep the legacy curWindow behavior (or a full scan). */
   int64_t skey = INT64_MIN;
   int64_t ekey = INT64_MAX;
-  if (req.pStRtFuncInfo != NULL &&
-      (req.pStRtFuncInfo->curWindow.skey != 0 || req.pStRtFuncInfo->curWindow.ekey != 0)) {
-    skey = req.pStRtFuncInfo->curWindow.skey;
-    ekey = req.pStRtFuncInfo->curWindow.ekey;
-    sndDebug("ext: handleExtFetchReq using time window [%" PRId64 ", %" PRId64 "]",
-             skey, ekey);
+  if (req.pStRtFuncInfo != NULL) {
+    TAOS_CHECK_EXIT(streamReaderExtCalcFetchRange(pInfo, req.pStRtFuncInfo, &skey, &ekey));
+    if (pInfo->pCalcTimeRange == NULL) {
+      /* No scan time range to evaluate: a zero/zero window means the runner
+       * did not set a time bound (e.g. full-table aggregate over ext source);
+       * treat it as unbounded, otherwise keep the merged window the runner
+       * published.  With a scan time range the evaluated bounds above are
+       * authoritative (including unbounded and empty ranges). */
+      if (req.pStRtFuncInfo->curWindow.skey != 0 || req.pStRtFuncInfo->curWindow.ekey != 0) {
+        skey = req.pStRtFuncInfo->curWindow.skey;
+        ekey = req.pStRtFuncInfo->curWindow.ekey;
+      }
+    }
+    sndDebug("ext: handleExtFetchReq using time window [%" PRId64 ", %" PRId64 "]", skey, ekey);
   } else {
     sndDebug("ext: handleExtFetchReq no time window bound (full scan)");
   }

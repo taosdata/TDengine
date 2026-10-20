@@ -1608,6 +1608,7 @@ static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, S
   CLONE_NODE_FIELD(pExtTable);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_FIELD(pRemotePlan);
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(pushdownFlags);
   COPY_SCALAR_FIELD(sourceType);
   COPY_CHAR_ARRAY_FIELD(srcHost);
