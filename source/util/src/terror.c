@@ -1327,6 +1327,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST,   "Stream vtable ref c
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_TAG_CHANGED,         "Stream vtable partition tag changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG, "Invalid stream time configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED,    "Failed to load stream timezone")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT, "Stream vtable redeploy timeout")
 
 // Xnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")

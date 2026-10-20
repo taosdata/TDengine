@@ -3050,9 +3050,37 @@ _exit:
   return code;
 }
 
-int32_t stRunnerSetMgmtRsp(SStreamRunnerTask* pTask, SArray* pRspList) {
+int32_t stRunnerSetMgmtRsp(SStreamRunnerTask* pTask, SArray* pRspList, int32_t rspCode) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   int32_t rspNum = taosArrayGetSize(pRspList);
+  if (rspCode != TSDB_CODE_SUCCESS) {
+    if (rspNum <= 0) {
+      // mnode rejected the deploy request before producing any deploy record
+      // (e.g. stream stopped or not running while a heartbeat-borne deploy
+      // request was still in flight, or the runner snapshot is still
+      // recovering). These are transient states that the undeploy/redeploy
+      // flow resolves, so keep the pre-timeout behavior of not failing the
+      // task; the executor-side 60s timeout still guards the case where no
+      // response ever arrives (defect 7138880370).
+      ST_TASK_ELOG("orig reader deploy rejected without records for stream task %" PRIx64 ", code:%s",
+                   pTask->task.taskId, tstrerror(rspCode));
+      return TSDB_CODE_SUCCESS;
+    }
+    // mnode failed mid-deploy with partially built deploy records. Fail the
+    // task with the real mnode error code instead of swapping in a half-baked
+    // vg list that would let the calc proceed on undeployed vgroups.
+    ST_TASK_ELOG("orig reader deploy partially failed for stream task %" PRIx64 ", code:%s",
+                 pTask->task.taskId, tstrerror(rspCode));
+    return rspCode;
+  }
+  if (rspNum <= 0) {
+    // Success response carrying no deploy records: the deploy chain is broken.
+    // Fail with an explicit timeout so the calc stops retrying need-redeploy
+    // forever (defect 7138880370).
+    ST_TASK_ELOG("orig reader deploy response empty for stream task %" PRIx64 ", redeploy chain broken",
+                 pTask->task.taskId);
+    return TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT;
+  }
   SStreamRunnerTaskExecution* pExec = NULL;
   for (int32_t i = 0; i < rspNum; ++i) {
     SStreamOReaderDeployRsp* pRsp = taosArrayGet(pRspList, i);
