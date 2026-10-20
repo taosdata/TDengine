@@ -85,7 +85,7 @@ static bool checkVgroupDnodeIds(const SArray *pLeft, const SArray *pRight) {
   int32_t leftSize = taosArrayGetSize(pLeft);
   int32_t rightSize = taosArrayGetSize(pRight);
   if (leftSize != rightSize) {
-    return false;
+    return true;
   }
 
   for (int32_t i = 0; i < leftSize; ++i) {
@@ -1009,6 +1009,29 @@ END:
   return code;
 }
 
+static bool mndIsDbAlterInProgress(SMnode *pMnode, const char *dbFName) {
+  SSdb   *pSdb   = pMnode->pSdb;
+  STrans *pTrans = NULL;
+  void   *pIter  = NULL;
+  bool    inProgress = false;
+
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_TRANS, pIter, (void **)&pTrans);
+    if (pIter == NULL) break;
+
+    if (pTrans->conflict == TRN_CONFLICT_DB &&
+        strncmp(pTrans->opername, "alter-db", TSDB_TRANS_OPER_LEN) == 0 &&
+        pTrans->dbname[0] != 0 && taosStrcasecmp(pTrans->dbname, dbFName) == 0) {
+      inProgress = true;
+      sdbRelease(pSdb, pTrans);
+      sdbCancelFetch(pSdb, pIter);
+      break;
+    }
+    sdbRelease(pSdb, pTrans);
+  }
+  return inProgress;
+}
+
 static void checkOneTopic(SMnode *pMnode, SMqConsumerObj *pConsumer, SHashObj *rebSubHash, SHashObj *rebSubKeyHash,
                           const char *topic) {
   SMqSubscribeObj *pSub = NULL;
@@ -1036,6 +1059,12 @@ static void checkOneTopic(SMnode *pMnode, SMqConsumerObj *pConsumer, SHashObj *r
       } else {
         mInfo("vnode split, vgId:%d rebalance will be triggered", *pVgId);
       }
+      continue;
+    }
+
+    if (mndIsDbAlterInProgress(pMnode, pVgroup->dbName)) {
+      mInfo("sub:%s vgId:%d db:%s alter replica in progress, skip rebalance check", key, *pVgId, pVgroup->dbName);
+      mndReleaseVgroup(pMnode, pVgroup);
       continue;
     }
 

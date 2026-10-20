@@ -94,11 +94,12 @@
 #endif
 
 #ifndef TD_ENTERPRISE
-static int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
+int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
                                     const char* sourceName, const char* cacheMid0, const char* cacheMid1,
                                     const char* dbName, const char* schemaName, const char* tableName,
                                     bool forceRefresh, SExtTableMeta** ppExtMeta) {
   *ppExtMeta = NULL;
+  parserError("External table metadata is not supported in community builds");
   return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OSS_NOT_SUPPORT, "External table");
 }
 #endif
@@ -29977,6 +29978,7 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
   SHashObj* pHash  = pCxt->streamInfo.extSourceNames;
   SArray*   pSpecs = NULL;
   void*     pIter  = NULL;
+  bool      hasExprSubquery = streamQueryHasExprSubqueryRef(pStmt->pQuery);
 
   if (pHash == NULL || taosHashGetSize(pHash) == 0) {
     parserDebug("buildExtSpecs: no ext sources referenced, skip");
@@ -30172,11 +30174,45 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
        * the stream executor at runtime. */
       if (pStmt->pQuery != NULL && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
         SSelectStmt *pCalcSelect = (SSelectStmt *)pStmt->pQuery;
-        if (pCalcSelect->pWhere != NULL &&
-            !whereHasStreamPlaceholders(pCalcSelect->pWhere)) {
+        /* A derived-table wrapper (SELECT ... FROM (subquery) WHERE ...)
+         * filters AGGREGATED rows; its WHERE must never be pushed to the
+         * remote source (remote schema has no aggregate output columns).
+         * Descend to the base-table select so only genuine base-table
+         * predicates become the remote prefilter. */
+        SSelectStmt *pBaseSelect = pCalcSelect;
+        while (pBaseSelect->pFromTable != NULL &&
+               nodeType(pBaseSelect->pFromTable) == QUERY_NODE_TEMP_TABLE) {
+          SNode *pSub = ((STempTableNode *)pBaseSelect->pFromTable)->pSubquery;
+          if (pSub == NULL || nodeType(pSub) != QUERY_NODE_SELECT_STMT) {
+            pBaseSelect = NULL;
+            break;
+          }
+          pBaseSelect = (SSelectStmt *)pSub;
+        }
+        SNode *pBaseWhere = NULL;
+        /* Only push the base WHERE as a remote prefilter when it filters a
+         * single external table of THIS (trigger) source.  If the base FROM
+         * is a JOIN (or anything but a plain ext table), its predicates may
+         * reference other join sides; renderExtWhereNode renders bare column
+         * names (table aliases are dropped), so pushing them would silently
+         * filter this source's rows by another table's condition and corrupt
+         * the calc result. */
+        if (hasExprSubquery) {
+          parserDebug("buildExtSpecs: skip source-level calc prefilter for expression subqueries, source=%s",
+                      sourceName);
+        }
+        if (!hasExprSubquery && pBaseSelect != NULL && pBaseSelect->pFromTable != NULL &&
+            nodeType(pBaseSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
+          const SRealTableNode *pBaseTbl = (const SRealTableNode *)pBaseSelect->pFromTable;
+          if (pBaseTbl->pExtTableNode != NULL &&
+              strcmp(((const SExtTableNode *)pBaseTbl->pExtTableNode)->sourceName, sourceName) == 0) {
+            pBaseWhere = pBaseSelect->pWhere;
+          }
+        }
+        if (pBaseWhere != NULL && !whereHasStreamPlaceholders(pBaseWhere)) {
           char    pfBuf[4096] = {0};
           int32_t pfOff = 0;
-          int32_t rc = renderExtWhereNode(pCalcSelect->pWhere,
+          int32_t rc = renderExtWhereNode(pBaseWhere,
                                           pSpec->sourceType, extPrec,
                                           pfBuf, sizeof(pfBuf), &pfOff);
           if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {

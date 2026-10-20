@@ -67,8 +67,21 @@ typedef struct SUidIndexEntry {
  * pTagsetIndex: SSHashObj<char[] tagset, uint64_t uid>  (InfluxDB only)
  */
 typedef struct SStreamExtReaderInfo {
-  /* Connection to the external source.  Opened in streamReaderExtOpen. */
+  /* Connection to the external source.  Opened in streamReaderExtOpen and
+   * held for the reader's lifetime by the trigger reader only; NULL for calc
+   * readers (see borrowConn). */
   SExtConnectorHandle *pConn;
+
+  /* Calc readers borrow a pooled connection for each fetch and return it
+   * right after, instead of pinning one per execId for the stream's lifetime
+   * (execReplica instances per calc scan would otherwise exhaust the
+   * per-source pool).  The pool also probes liveness on reuse, so a broken
+   * connection is replaced instead of failing every later fetch. */
+  bool borrowConn;
+
+  /* Serializes use of pConn and the pull state of the trigger reader. */
+  TdThreadMutex connLock;
+  bool          connLockInited;
 
   /* Deploy-time spec snapshot (copy; owned by this struct). */
   SStreamExtTriggerSpec spec;
@@ -98,6 +111,17 @@ typedef struct SStreamExtReaderInfo {
   SSHashObj *pGroupIndex;  /* hash<uint64_t groupId, SArray<uint64_t>*> */
   SSHashObj *pTagsetIndex; /* hash<char[] tagset,  uint64_t uid>; InfluxDB only */
 
+  /* Calc scan time range (STimeRangeNode*, owned) extracted from the calc
+   * reader's scan plan at deploy time.  Each execId owns a separate clone.
+   * mnode deploys one calc reader task per calc scan plan, so each external
+   * scan (including each side of a self-join) has its own replica array.
+   * When the calc statement carries
+   * time-returning expressions (e.g. _twstart/_twend or casted localtime
+   * placeholders), the fetch bounds must be evaluated per request with the
+   * window parameters - the same way vnodeStream.c processCalaTimeRange does
+   * for table scans - instead of trusting the raw merged [wstart, wend]
+   * range.  NULL when the plan has no time range (full scan). */
+  SNode *pCalcTimeRange;
   /* InfluxDB empty-SERIES-match enumeration cache: timestamp (ms) of the last
    * DISTINCT enumeration that matched no tag combinations. Repeated idle pulls
    * skip the information_schema + DISTINCT round-trips within the re-check
@@ -112,8 +136,11 @@ typedef struct SStreamExtReaderInfo {
  *   streamReaderExtOpen   - decrypt password, open extConnector, init 3 hashes
  *   streamReaderExtClose  - close extConnector, cleanup hashes, zero the struct
  * --------------------------------------------------------------------------- */
-int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SStreamExtReaderInfo **ppReaderInfo);
+int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                            SStreamExtReaderInfo **ppReaderInfo);
 void    streamReaderExtClose(SStreamExtReaderInfo *pReaderInfo);
+int32_t streamReaderExtGetCalcInfo(const SStreamReaderTask *pTask, int32_t execId,
+                                  SStreamExtReaderInfo **ppReaderInfo);
 
 /* ---------------------------------------------------------------------------
  * PULL dispatcher
@@ -148,6 +175,28 @@ void streamExtPullRspFree(SSTriggerExtPullRsp *pRsp);
 int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                                  int64_t skey, int64_t ekey,
                                  SSDataBlock **ppOut);
+
+/* ---------------------------------------------------------------------------
+ * EXT fetch time-range evaluation  -  mirrors vnodeStream.c processCalaTimeRange.
+ *
+ *   pReaderInfo : ETR state (pCalcTimeRange may be NULL -> full scan)
+ *   pRt         : stream runtime func info of the fetch request (borrowed)
+ *   pSkey/pEkey : output inclusive fetch bounds.  INT64_MIN/INT64_MAX means
+ *                 unbounded (no range to apply / no windows).  An empty range
+ *                 is reported as skey > ekey (the remote query returns no rows).
+ *
+ * A raw merged [wstart, wend] range is only correct for the standard external
+ * window shape.  When the calc statement carries time-returning expressions
+ * (STimeRangeNode.needCalc), the bounds are evaluated with the current window
+ * parameters, exactly like the non-external reader path.  Multi-group calc
+ * requests are bounded by the union of the per-group ranges.
+ *
+ * When pReaderInfo->pCalcTimeRange is set the result is authoritative: the
+ * caller must not fall back to the runner-published curWindow.
+ * --------------------------------------------------------------------------- */
+int32_t streamReaderExtCalcFetchRange(SStreamExtReaderInfo *pReaderInfo,
+                                      const SStreamRuntimeFuncInfo *pRt,
+                                      int64_t *pSkey, int64_t *pEkey);
 
 #ifdef __cplusplus
 }

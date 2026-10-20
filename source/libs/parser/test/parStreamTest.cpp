@@ -238,6 +238,27 @@ static const SExternalWindowPhysiNode* pstFindExternalWindowNode(const SQueryPla
   return nullptr;
 }
 
+struct SFedScanTimeRangeCount {
+  int32_t total = 0;
+  int32_t withRange = 0;
+};
+
+static void pstCountFedScanTimeRanges(const SPhysiNode* pNode, SFedScanTimeRangeCount* pCount) {
+  if (nullptr == pNode) {
+    return;
+  }
+  if (QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN == nodeType((const SNode*)pNode)) {
+    ++pCount->total;
+    if (nullptr != ((const SFederatedScanPhysiNode*)pNode)->pTimeRange) {
+      ++pCount->withRange;
+    }
+  }
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) {
+    pstCountFedScanTimeRanges((const SPhysiNode*)pChild, pCount);
+  }
+}
+
 struct SWindowTraversalCounts {
   int32_t plans = 0;
   int32_t layers = 0;
@@ -8806,6 +8827,129 @@ TEST_F(ParserStreamTest, TestFederatedStreamExtTriggerBasic) {
       "as select _twstart ts, timezone() as frozen_timezone, "
       "first_day_of_week() as frozen_fdow, count(*) cnt from stream_querydb.stream_t2 "
       "where ts >= _twstart and ts < _twend");
+#endif
+}
+
+TEST_F(ParserStreamTest, ExtDerivedPrefilterDoesNotLeakIntoScalarSubquery) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  registerExtMysqlEvents();
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false},
+      {"v", TSDB_DATA_TYPE_DOUBLE, false, true}};
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "other_events", columns,
+                                      TSDB_TIME_PRECISION_MILLI);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    EXPECT_TRUE(spec->prefilter == nullptr || spec->prefilter[0] == '\0');
+    EXPECT_GE(taosArrayGetSize(request.calcScanPlanList), 2);
+    tFreeSCMCreateStreamReq(&request);
+  });
+  for (const char* table : {"other_events", "events"}) {
+    runAsyncOnly("create stream stream_streamdb.s_fed_scalar interval(1s) sliding(1s) "
+                 "from ext_mysql.events into stream_outdb.stream_out as "
+                 "select ts, (select count(*) from ext_mysql." + std::string(table) + ") as n "
+                 "from (select ts from ext_mysql.events where v >= 20) q");
+  }
+#endif
+}
+
+TEST_F(ParserStreamTest, ExtDerivedSingleScanKeepsPrefilter) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  registerExtMysqlEvents();
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    EXPECT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) EXPECT_NE(std::string(spec->prefilter).find("20"), std::string::npos);
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_fed_single interval(1s) sliding(1s) "
+               "from ext_mysql.events into stream_outdb.stream_out as "
+               "select ts, v from (select ts, v from ext_mysql.events where v >= 20) q");
+#endif
+}
+
+// Calc WINDOW JOIN between a local table and an external table.  The SELECT
+// time range extracted from WHERE is only carried by the scan whose columns it
+// references: the ETR must not clip the other side to the trigger window,
+// otherwise rows that still match within WINDOW_OFFSET would be dropped before
+// the join.  The side whose columns are referenced keeps the range so the ETR
+// can still bound its remote fetch.
+TEST_F(ParserStreamTest, StreamWindowJoinExtScanKeepsOnlyOwnTimeRange) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  registerExtPgMetrics();
+
+  auto expectFedScanRanges = [](const SCMCreateStreamReq& request, int32_t total, int32_t withRange) {
+    ASSERT_NE(nullptr, request.calcScanPlanList);
+    SFedScanTimeRangeCount count;
+    for (int32_t i = 0; i < taosArrayGetSize(request.calcScanPlanList); ++i) {
+      const auto* pScan = (const SStreamCalcScan*)taosArrayGet(request.calcScanPlanList, i);
+      ASSERT_NE(nullptr, pScan);
+      ASSERT_NE(nullptr, pScan->scanPlan);
+      SNode* pScanPlan = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pScan->scanPlan, &pScanPlan));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> scanPlanGuard(pScanPlan, nodesDestroyNode);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pScanPlan));
+      pstCountFedScanTimeRanges(((const SSubplan*)pScanPlan)->pNode, &count);
+    }
+    EXPECT_EQ(total, count.total);
+    EXPECT_EQ(withRange, count.withRange);
+  };
+
+  // WHERE restricts the local side (a.ts): the ext scan for b must not carry
+  // the range (full scan, matching base behavior).
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_NE(query->pCmdMsg, nullptr);
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg,
+                                             query->pCmdMsg->msgLen, &request), 0);
+    expectFedScanRanges(request, 1, 0);
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly(
+      "create stream stream_streamdb.s_wj_local_bound interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select a.ts, a.c1, b.v from stream_querydb.stream_t1 a "
+      "left window join ext_pg.metrics b window_offset(-1s, 1s) "
+      "where a.ts >= _twstart and a.ts < _twend");
+
+  // WHERE restricts the ext side (b.ts): the ext scan keeps the range so the
+  // ETR bounds its remote fetch.
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    ASSERT_NE(query->pCmdMsg, nullptr);
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg,
+                                             query->pCmdMsg->msgLen, &request), 0);
+    expectFedScanRanges(request, 1, 1);
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly(
+      "create stream stream_streamdb.s_wj_ext_bound interval(1s) sliding(1s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select a.ts, a.c1, b.v from stream_querydb.stream_t1 a "
+      "left window join ext_pg.metrics b window_offset(-1s, 1s) "
+      "where b.ts >= _twstart and b.ts < _twend");
 #endif
 }
 

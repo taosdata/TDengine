@@ -20307,7 +20307,16 @@ static int32_t stRealtimeContextSendGroupColValuePull(SSTriggerRealtimeContext *
  * Called from stRealtimeContextCheck when pReaderExtProgress != NULL, which
  * is the case for all streams marked STREAM_IS_REF_EXT_SOURCE.
  */
-static int32_t stRealtimeContextCheckExt(SSTriggerRealtimeContext *pContext, int64_t nowNs) {
+/*
+ * periodDue: a PERIOD window has just closed and must be polled now.  The
+ * idle throttle below is skipped in that case: the period already paces the
+ * pulls, and lastTsNs is stamped at send time, so with a period close to
+ * STREAM_TRIGGER_IDLE_TIME_NS nearly every tick would be throttled.  A
+ * throttled tick leaves the context in FETCH_META, the resumed check finds no
+ * group to check and advances periodWindow without a calc - silently dropping
+ * that window.
+ */
+static int32_t stRealtimeContextCheckExtImpl(SSTriggerRealtimeContext *pContext, int64_t nowNs, bool periodDue) {
   int32_t             code    = TSDB_CODE_SUCCESS;
   int32_t             lino    = 0;
   SStreamTriggerTask *pTask   = pContext->pTask;
@@ -20344,7 +20353,7 @@ static int32_t stRealtimeContextCheckExt(SSTriggerRealtimeContext *pContext, int
     }
 
     // Throttle: avoid hammering a reader that returned no data recently.
-    if (pProgress->lastTsNs != 0 && now - pProgress->lastTsNs < STREAM_TRIGGER_IDLE_TIME_NS) {
+    if (!periodDue && pProgress->lastTsNs != 0 && now - pProgress->lastTsNs < STREAM_TRIGGER_IDLE_TIME_NS) {
       ppProgress =
           (SSTriggerExtProgress **)tSimpleHashIterate(pContext->pReaderExtProgress, ppProgress, &iter);
       continue;
@@ -20380,6 +20389,10 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t stRealtimeContextCheckExt(SSTriggerRealtimeContext *pContext, int64_t nowNs) {
+  return stRealtimeContextCheckExtImpl(pContext, nowNs, false);
 }
 
 /*
@@ -20807,7 +20820,7 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
          * here, so a source with no new rows still gets probed every tick instead
          * of being skipped forever. */
         ST_TASK_DLOG("ext: period window ekey reached, dispatching via stRealtimeContextCheckExt %s", "");
-        code = stRealtimeContextCheckExt(pContext, now);
+        code = stRealtimeContextCheckExtImpl(pContext, now, true);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
