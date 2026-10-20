@@ -20,6 +20,7 @@ target_link_libraries(streamHeartbeatTest PRIVATE dnode)
 target_link_options(streamHeartbeatTest PRIVATE
   -Wl,--wrap=rpcOpen
   -Wl,--wrap=rpcFreeCont
+  -Wl,--wrap=rpcSendResponse
   -Wl,--wrap=dmMarkWrapper
   -Wl,--wrap=dmReleaseWrapper
   -Wl,--wrap=streamHbProcessRspMsg

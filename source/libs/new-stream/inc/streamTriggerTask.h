@@ -896,6 +896,13 @@ typedef struct SSTriggerGroupPendingRecalc {
   SSTriggerRecalcReqList pendingRequests;
 } SSTriggerGroupPendingRecalc;
 
+typedef enum {
+  STREAM_CHECKPOINT_SYNC_PENDING = 0,
+  STREAM_CHECKPOINT_SYNC_READY = 1,
+  STREAM_CHECKPOINT_SYNC_RETRY = 2,
+  STREAM_CHECKPOINT_SYNC_CORRUPTED = 3,
+} EStreamCheckpointSyncState;
+
 typedef struct SStreamTriggerTask {
   SStreamTask                       task;
   SStreamTaskStats                 *pStats;
@@ -1044,7 +1051,7 @@ typedef struct SStreamTriggerTask {
   SStreamRecalcTracker *pRecalcTracker;
 
   // runtime status
-  volatile int8_t           isCheckpointReady;
+  volatile int8_t           checkpointSyncState;
   volatile int8_t           historyFinished;
   volatile int8_t           realtimeStarted;
   volatile int32_t          checkpointVersion;
