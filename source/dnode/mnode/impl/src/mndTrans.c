@@ -1281,7 +1281,7 @@ void mndTransSetChangeless(STrans *pTrans) { pTrans->changeless = true; }
 
 void mndTransSetOper(STrans *pTrans, EOperType oper) { pTrans->oper = oper; }
 
-static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
+static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans, bool *pSyncStarted) {
   int32_t  code = 0;
   SSdbRaw *pRaw = mndTransEncode(pTrans);
   if (pRaw == NULL) {
@@ -1294,6 +1294,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
 
   mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
         pTrans->createdTime);
+  if (pSyncStarted != NULL) *pSyncStarted = true;
   code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync, errno:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id,
@@ -1550,8 +1551,11 @@ static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
   TAOS_RETURN(code);
 }
 
-int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) { return mndTransPrepareWithSyncStatus(pMnode, pTrans, NULL); }
+
+int32_t mndTransPrepareWithSyncStatus(SMnode *pMnode, STrans *pTrans, bool *pSyncStarted) {
   int32_t code = 0;
+  if (pSyncStarted != NULL) *pSyncStarted = false;
   if (pTrans == NULL) {
     TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
   }
@@ -1600,7 +1604,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   TAOS_CHECK_RETURN(mndTransCheckCommitActions(pMnode, pTrans));
 
   mInfo("trans:%d, prepare transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, pSyncStarted)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     sdbWriteLock(pMnode->pSdb, SDB_TRANS);
     tsMaxTransId = TMAX(pTrans->id, tsMaxTransId);
@@ -1635,7 +1639,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   mInfo("trans:%d, commit transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, NULL)) != 0) {
     mError("trans:%d, failed to commit since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1646,7 +1650,7 @@ static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   mInfo("trans:%d, rollback transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, NULL)) != 0) {
     mError("trans:%d, failed to rollback since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1657,7 +1661,7 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   mInfo("trans:%d, pre-finish transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, NULL)) != 0) {
     mError("trans:%d, failed to pre-finish since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2233,7 +2237,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
       mInfo("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
             pAction->id);
       (void)taosThreadMutexUnlock(&pTrans->mutex);
-      code = mndTransSync(pMnode, pTrans);
+      code = mndTransSync(pMnode, pTrans, NULL);
       (void)taosThreadMutexLock(&pTrans->mutex);
       if (code != 0) {
         pTrans->actionPos--;
@@ -2377,7 +2381,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
       mInfo("trans:%d, %s:%d is finished and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
             pAction->id);
       (void)taosThreadMutexUnlock(&pTrans->mutex);
-      code = mndTransSync(pMnode, pTrans);
+      code = mndTransSync(pMnode, pTrans, NULL);
       (void)taosThreadMutexLock(&pTrans->mutex);
       mInfo("trans:%d, try to reset all action msgSent except:%d", pTrans->id, pAction->id);
       for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i) {
