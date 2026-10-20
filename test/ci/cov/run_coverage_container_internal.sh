@@ -47,12 +47,36 @@ THREAD_NO="$2"
 CASE_NAME="$3"
 CONTAINER_TESTDIR="$4"
 DEBUGPATH="$5"
+TEST_EXIT="${6:-0}"
 
 echo "=== 在容器内生成覆盖率信息 ==="
 echo "WORKDIR: $WORKDIR"
 echo "THREAD_NO: $THREAD_NO"
 echo "CASE_NAME: $CASE_NAME"
 echo "DEBUGPATH: $DEBUGPATH"
+echo "TEST_EXIT: $TEST_EXIT"
+
+if [ "$TEST_EXIT" -ne 0 ]; then
+    echo "Note: collecting lcov despite test exit code=$TEST_EXIT"
+fi
+
+COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY:-5}"
+LCOV_COUNTER="${CONTAINER_TESTDIR}/test/.coverage_lcov_counter"
+count=0
+if [ -f "$LCOV_COUNTER" ]; then
+    count=$(cat "$LCOV_COUNTER" 2>/dev/null || echo 0)
+fi
+count=$((count + 1))
+echo "$count" > "$LCOV_COUNTER"
+force_lcov=0
+if [[ "$CASE_NAME" == *UnitTest* ]] || [[ "$CASE_NAME" == *82-UnitTest* ]]; then
+    force_lcov=1
+    echo "Force lcov for UnitTest case: $CASE_NAME"
+fi
+if [ "$force_lcov" -eq 0 ] && [ "$COVERAGE_LCOV_EVERY" -gt 1 ] && [ $((count % COVERAGE_LCOV_EVERY)) -ne 0 ]; then
+    echo "Skip lcov: counter=$count interval=$COVERAGE_LCOV_EVERY"
+    exit 0
+fi
 
 # 定义输出目录
 COVERAGE_OUTPUT_DIR="${CONTAINER_TESTDIR}/test/coverage_info"
@@ -101,29 +125,47 @@ for debug_entry in "${DEBUG_DIRS[@]}"; do
     INFO_FILE_PATH="${COVERAGE_OUTPUT_DIR}/${INFO_FILENAME}"
     
     echo "生成覆盖率信息: $INFO_FILENAME"
-    
-    # 执行 lcov 命令 - 关键：使用正确的源码路径
-    LCOV_CMD="cd ${DEBUG_PATH} && lcov --quiet -d . -capture \
-        --rc lcov_branch_coverage=0 \
-        --rc genhtml_branch_coverage=0 \
-        --no-external \
-        -b /home/TDinternal/community/ \
-        -o ${INFO_FILE_PATH}"
-    
-    echo "执行 lcov 命令: $LCOV_CMD"
-    
-    if eval "$LCOV_CMD" 2>/dev/null; then
-        if [ -s "$INFO_FILE_PATH" ]; then
-            FILE_SIZE=$(stat -c%s "$INFO_FILE_PATH" 2>/dev/null || echo "0")
-            echo "✓ 成功生成: $INFO_FILENAME (大小: $FILE_SIZE 字节)"
-            GENERATED_FILES+=("$INFO_FILE_PATH")
-        else
-            echo "✗ 生成的文件为空: $INFO_FILENAME"
-            rm -f "$INFO_FILE_PATH"
+
+    # ASAN+gcov and parallel tests may produce negative hit counts or missing
+    # generated sources (e.g. parser sql.c); ignore those for CI capture.
+    LCOV_IGNORE="--ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused"
+    LCOV_RC="--rc lcov_branch_coverage=0 --rc max_message_count=0"
+
+    # Product-code dirs equivalent to main's "lcov -d .", but skip contrib/externals.
+    LCOV_DIR_ARGS=()
+    for rel in community/source community/tools community/utils; do
+        if [ ! -d "${DEBUG_PATH}/${rel}" ]; then
+            continue
         fi
+        if ! find "${DEBUG_PATH}/${rel}" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+            continue
+        fi
+        LCOV_DIR_ARGS+=("-d" "${rel}")
+    done
+
+    if [ ${#LCOV_DIR_ARGS[@]} -eq 0 ]; then
+        echo "目录 $DEBUG_PATH 中没有可采集的 GCDA 子目录，跳过"
+        continue
+    fi
+
+    LCOV_LOG="${COVERAGE_OUTPUT_DIR}/lcov_${CASE_NAME}.log"
+    LCOV_CMD="cd ${DEBUG_PATH} && lcov --quiet ${LCOV_DIR_ARGS[*]} -capture ${LCOV_RC} ${LCOV_IGNORE} --no-external -b /home/TDinternal -o ${INFO_FILE_PATH}"
+
+    echo "执行 lcov 命令: $LCOV_CMD"
+
+    LCOV_OUTPUT=$(eval "$LCOV_CMD" 2>&1)
+    lcov_ret=$?
+    echo "$LCOV_OUTPUT" | tee "$LCOV_LOG" | tail -30
+
+    if [ $lcov_ret -eq 0 ] && [ -s "$INFO_FILE_PATH" ]; then
+        FILE_SIZE=$(stat -c%s "$INFO_FILE_PATH" 2>/dev/null || echo "0")
+        echo "✓ 成功生成: $INFO_FILENAME (大小: $FILE_SIZE 字节)"
+        GENERATED_FILES+=("$INFO_FILE_PATH")
+    elif [ $lcov_ret -eq 0 ]; then
+        echo "✗ 生成的文件为空: $INFO_FILENAME"
+        rm -f "$INFO_FILE_PATH"
     else
-        echo "✗ lcov 执行失败: $DEBUG_PATH"
-        # 调试：显示一些文件示例
+        echo "✗ lcov 执行失败: $DEBUG_PATH (详见 $LCOV_LOG)"
         echo "调试：显示 GCDA 文件示例:"
         find "$DEBUG_PATH" -name "*.gcda" -type f | head -5
         echo "调试：显示 GCNO 文件示例:"
@@ -137,27 +179,28 @@ if [ "${#GENERATED_FILES[@]}" -gt 1 ]; then
     MERGED_FILE="${COVERAGE_OUTPUT_DIR}/coverage_${CASE_NAME}_merged.info"
     
     # 构建合并命令
-    MERGE_CMD="lcov --quiet --rc lcov_branch_coverage=0"
+    MERGE_CMD="lcov --quiet --rc lcov_branch_coverage=0 ${LCOV_IGNORE}"
     for info_file in "${GENERATED_FILES[@]}"; do
         MERGE_CMD="$MERGE_CMD --add-tracefile '$info_file'"
     done
     MERGE_CMD="$MERGE_CMD -o '$MERGED_FILE'"
     
     echo "执行合并命令: $MERGE_CMD"
-    if eval "$MERGE_CMD" 2>/dev/null; then
-        if [ -s "$MERGED_FILE" ]; then
-            MERGED_SIZE=$(stat -c%s "$MERGED_FILE" 2>/dev/null || echo "0")
-            echo "✓ 成功合并: coverage_${CASE_NAME}_merged.info (大小: $MERGED_SIZE 字节)"
-            
-            # 删除单独文件，保留合并文件
-            for info_file in "${GENERATED_FILES[@]}"; do
-                rm -f "$info_file"
-            done
-            GENERATED_FILES=("$MERGED_FILE")
-        else
-            echo "✗ 合并文件为空，保留单独文件"
-            rm -f "$MERGED_FILE"
-        fi
+    MERGE_OUTPUT=$(eval "$MERGE_CMD" 2>&1)
+    merge_ret=$?
+    echo "$MERGE_OUTPUT" | tail -20
+    if [ $merge_ret -eq 0 ] && [ -s "$MERGED_FILE" ]; then
+        MERGED_SIZE=$(stat -c%s "$MERGED_FILE" 2>/dev/null || echo "0")
+        echo "✓ 成功合并: coverage_${CASE_NAME}_merged.info (大小: $MERGED_SIZE 字节)"
+
+        # 删除单独文件，保留合并文件
+        for info_file in "${GENERATED_FILES[@]}"; do
+            rm -f "$info_file"
+        done
+        GENERATED_FILES=("$MERGED_FILE")
+    elif [ $merge_ret -eq 0 ]; then
+        echo "✗ 合并文件为空，保留单独文件"
+        rm -f "$MERGED_FILE"
     else
         echo "✗ 合并失败，保留单独文件"
     fi
@@ -244,6 +287,8 @@ if [ -z "$thread_no" ]; then
     exit 1
 fi
 
+export COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY:-5}"
+
 #select whether the compilation environment  includes sanitizer
 if [ "${buildSan}" == "y" ]; then
     DEBUGPATH="debugSan"
@@ -279,12 +324,14 @@ fi
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
-SOURCEDIR=$WORKDIR/src
 MOUNT_DIR=""
 
 # 清理和创建必要的目录
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
-mkdir -p $SOURCEDIR
+_CI_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+# shellcheck source=../compat_packages_mount.sh
+source "${_CI_SCRIPT_DIR}/../compat_packages_mount.sh"
+SOURCEDIR=$(prepare_compat_packages_sourcedir "$WORKDIR")
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
@@ -321,11 +368,12 @@ if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
 fi
 
 # 修改：创建一个复合命令，先运行测试，然后生成覆盖率信息
-composite_cmd="$CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f $CONTAINER_TESTDIR/test/generate_coverage.sh ]; then echo \"Generating coverage information...\"; bash $CONTAINER_TESTDIR/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\"; coverage_gen_code=\$?; echo \"Coverage generation completed with exit code: \$coverage_gen_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
+composite_cmd="${CONTAINER_TESTDIR}/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f ${CONTAINER_TESTDIR}/test/generate_coverage.sh ]; then echo \"Generating coverage information...\"; bash ${CONTAINER_TESTDIR}/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\" \"\$coverage_exit_code\"; coverage_gen_code=\$?; echo \"Coverage generation completed with exit code: \$coverage_gen_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
 
 echo "执行复合命令: $composite_cmd"
 
 docker run \
+    -e COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY}" \
     -v $REP_MOUNT_PARAM \
     -v $REP_MOUNT_DEBUG \
     -v $REP_MOUNT_LIB \

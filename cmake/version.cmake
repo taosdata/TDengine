@@ -13,11 +13,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-IF (BUILD_VER_NUMBER STREQUAL "")
+IF (NOT BUILD_VER_NUMBER)
   SET(BUILD_VER_NUMBER "3.4.3.3.alpha")
 ENDIF ()
 
-IF (BUILD_VER_COMPATIBLE STREQUAL "")
+IF (NOT BUILD_VER_COMPATIBLE)
   SET(BUILD_VER_COMPATIBLE "3.0.0.0")
 ENDIF ()
 

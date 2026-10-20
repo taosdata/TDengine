@@ -47,6 +47,9 @@ message(STATUS "Source directory:    " ${TD_SOURCE_DIR})
 message(STATUS "Support directory:   " ${TD_SUPPORT_DIR})
 message(STATUS "Contrib directory:   " ${TD_CONTRIB_DIR})
 
+if(TDINTERNAL_EMBEDDED_BUILD)
+  message(STATUS "TDinternal embedded build: skip duplicate cmake bootstrap")
+else()
 include(cmake/preinclude.cmake)
 include(cmake/platform.cmake)
 include(cmake/enterprise.cmake)
@@ -69,6 +72,7 @@ else()
   message(STATUS "Using ExternalProject for dependency management")
   include(cmake/external.cmake)
 endif()
+endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
@@ -86,7 +90,7 @@ add_subdirectory(tools)
 add_subdirectory(utils)
 add_subdirectory(examples/c)
 
-if(TD_ENTERPRISE)
+if(TD_ENTERPRISE AND NOT TDINTERNAL_EMBEDDED_BUILD)
   add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
 endif()
 
