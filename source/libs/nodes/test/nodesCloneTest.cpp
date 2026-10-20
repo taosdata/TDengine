@@ -1571,7 +1571,8 @@ SNode* makeCharsetStampedNode(ENodeType type, void* charsetCxt) {
       value->translate = true;
       value->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
       value->node.resType.bytes = VARSTR_HEADER_SIZE + 4;
-      value->datum.p = (char*)taosMemoryCalloc(1, value->node.resType.bytes);
+      // The JSON codec reads the datum as a C string; the terminator is not part of resType.bytes.
+      value->datum.p = (char*)taosMemoryCalloc(1, value->node.resType.bytes + 1);
       EXPECT_NE(value->datum.p, nullptr);
       if (value->datum.p == nullptr) return pNode;
       varDataSetLen(value->datum.p, 4);
