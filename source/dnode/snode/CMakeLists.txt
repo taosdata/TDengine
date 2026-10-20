@@ -34,3 +34,7 @@ target_link_libraries(
     PRIVATE wal
     PRIVATE index
 )
+
+if(BUILD_TEST AND TD_LINUX)
+    add_subdirectory(test)
+endif()

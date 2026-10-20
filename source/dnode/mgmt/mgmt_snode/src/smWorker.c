@@ -185,6 +185,9 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   }
 
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, taskId, &pTask, &taskAddr));
+  if (pTask->type != STREAM_TRIGGER_TASK) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   int64_t errTaskId = 0;
   code = stTriggerTaskProcessRsp(pTask, pMsg, &errTaskId);
