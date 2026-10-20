@@ -7032,12 +7032,16 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
 
   blockDataCleanup(pResBlock);
 
+  // Hoisted out of the per-tuple loop: resolve the BLOB column of the result block once
+  // instead of walking every column for each appended tuple.
+  const SBlobColInfo blobCols = blockDataGetBlobCol(pResBlock);
+
   while (1) {
     while (1) {
       // Close the block before pulling the next tuple when a BLOB column is about to
       // overflow its int32_t byte offsets; the tuple stays in the sort handle and is
       // returned in the next block.
-      if (blockDataBlobExceedLimit(pResBlock)) {
+      if (blockDataBlobInfoExceedLimit(&blobCols, pResBlock)) {
         break;
       }
 
