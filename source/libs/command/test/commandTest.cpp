@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -176,6 +177,162 @@ TEST(ExplainCorrelationTest, StaticPlanShowsCallUnderOwningOperator) {
   taosMemoryFree(pRsp);
   qExplainFreeCtx(pCtx);
   nodesDestroyNode(reinterpret_cast<SNode*>(pPlan));
+}
+
+TEST(ExplainVerboseInfoTest, SortRejectsShortBlobAndAcceptsCompleteBlob) {
+  for (int32_t length : {0, 1, static_cast<int32_t>(sizeof(SSortExecInfo))}) {
+    SQueryPlan* plan = nullptr;
+    SSubplan* subplan = nullptr;
+    SNodeListNode* level = nullptr;
+    SSortPhysiNode* sort = nullptr;
+    SDataBlockDescNode* desc = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode**>(&plan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, reinterpret_cast<SNode**>(&subplan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_NODE_LIST, reinterpret_cast<SNode**>(&level)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, reinterpret_cast<SNode**>(&sort)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode**>(&desc)), TSDB_CODE_SUCCESS);
+    plan->numOfSubplans = 1;
+    plan->explainInfo.mode = EXPLAIN_MODE_ANALYZE;
+    subplan->id.groupId = 1;
+    sort->node.pOutputDataBlockDesc = desc;
+    desc->totalRowSize = sizeof(int32_t);
+    desc->outputRowSize = sizeof(int32_t);
+    subplan->pNode = reinterpret_cast<SPhysiNode*>(sort);
+    ASSERT_EQ(nodesListMakeStrictAppend(&level->pNodeList, reinterpret_cast<SNode*>(subplan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesListMakeStrictAppend(&plan->pSubplans, reinterpret_cast<SNode*>(level)), TSDB_CODE_SUCCESS);
+
+    SExplainCtx* ctx = nullptr;
+    ASSERT_EQ(qExecExplainBegin(plan, &ctx, taosGetTimestampUs()), TSDB_CODE_SUCCESS);
+    SExplainRsp stats = {};
+    stats.numOfPlans = 1;
+    stats.subplanInfo = static_cast<SExplainExecInfo*>(taosMemoryCalloc(1, sizeof(SExplainExecInfo)));
+    ASSERT_NE(stats.subplanInfo, nullptr);
+    stats.subplanInfo[0].verboseLen = length;
+    if (length > 0) {
+      stats.subplanInfo[0].verboseInfo = taosMemoryCalloc(1, length);
+      ASSERT_NE(stats.subplanInfo[0].verboseInfo, nullptr);
+    }
+    SRetrieveTableRsp* response = nullptr;
+    ASSERT_EQ(qExplainUpdateExecInfo(ctx, qExplainGetCurrPlan(ctx, -1), &stats, 1, &response), TSDB_CODE_SUCCESS);
+    int32_t code = qExecExplainEnd(ctx, &response);
+    if (length < sizeof(SSortExecInfo)) {
+      EXPECT_EQ(code, TSDB_CODE_INVALID_MSG);
+      EXPECT_EQ(response, nullptr);
+    } else {
+      EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+      EXPECT_NE(response, nullptr);
+    }
+    taosMemoryFree(response);
+    qExplainFreeCtx(ctx);
+    nodesDestroyNode(reinterpret_cast<SNode*>(plan));
+  }
+}
+
+TEST(ExplainVerboseInfoTest, TableScanRejectsShortBlobAndAcceptsCompleteBlob) {
+  for (int32_t length : {0, 1, static_cast<int32_t>(sizeof(STableScanAnalyzeInfo))}) {
+    SQueryPlan* plan = nullptr;
+    SSubplan* subplan = nullptr;
+    SNodeListNode* level = nullptr;
+    STableScanPhysiNode* scan = nullptr;
+    SDataBlockDescNode* desc = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode**>(&plan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, reinterpret_cast<SNode**>(&subplan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_NODE_LIST, reinterpret_cast<SNode**>(&level)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode**>(&scan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode**>(&desc)), TSDB_CODE_SUCCESS);
+    plan->numOfSubplans = 1;
+    plan->explainInfo.mode = EXPLAIN_MODE_ANALYZE;
+    plan->explainInfo.verbose = true;
+    subplan->id.groupId = 1;
+    scan->scan.node.pOutputDataBlockDesc = desc;
+    ASSERT_EQ(nodesMakeList(&scan->scan.pScanCols), TSDB_CODE_SUCCESS);
+    desc->totalRowSize = sizeof(int32_t);
+    desc->outputRowSize = sizeof(int32_t);
+    subplan->pNode = reinterpret_cast<SPhysiNode*>(scan);
+    ASSERT_EQ(nodesListMakeStrictAppend(&level->pNodeList, reinterpret_cast<SNode*>(subplan)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesListMakeStrictAppend(&plan->pSubplans, reinterpret_cast<SNode*>(level)), TSDB_CODE_SUCCESS);
+
+    SExplainCtx* ctx = nullptr;
+    ASSERT_EQ(qExecExplainBegin(plan, &ctx, taosGetTimestampUs()), TSDB_CODE_SUCCESS);
+    SExplainRsp stats = {};
+    stats.numOfPlans = 1;
+    stats.subplanInfo = static_cast<SExplainExecInfo*>(taosMemoryCalloc(1, sizeof(SExplainExecInfo)));
+    ASSERT_NE(stats.subplanInfo, nullptr);
+    stats.subplanInfo[0].verboseLen = length;
+    if (length > 0) {
+      stats.subplanInfo[0].verboseInfo = taosMemoryCalloc(1, length);
+      ASSERT_NE(stats.subplanInfo[0].verboseInfo, nullptr);
+    }
+    SRetrieveTableRsp* response = nullptr;
+    ASSERT_EQ(qExplainUpdateExecInfo(ctx, qExplainGetCurrPlan(ctx, -1), &stats, 1, &response), TSDB_CODE_SUCCESS);
+    int32_t code = qExecExplainEnd(ctx, &response);
+    if (length < sizeof(STableScanAnalyzeInfo)) {
+      EXPECT_EQ(code, TSDB_CODE_INVALID_PARA);
+      EXPECT_EQ(response, nullptr);
+    } else {
+      EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+      EXPECT_NE(response, nullptr);
+    }
+    taosMemoryFree(response);
+    qExplainFreeCtx(ctx);
+    nodesDestroyNode(reinterpret_cast<SNode*>(plan));
+  }
+}
+
+TEST(ExplainVerboseInfoTest, MergeAndGroupSortRejectShortBlobAndAcceptCompleteBlob) {
+  for (ENodeType nodeType : {QUERY_NODE_PHYSICAL_PLAN_MERGE, QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT}) {
+    for (int32_t length : {0, 1, static_cast<int32_t>(sizeof(SSortExecInfo))}) {
+      SQueryPlan* plan = nullptr;
+      SSubplan* subplan = nullptr;
+      SNodeListNode* level = nullptr;
+      SPhysiNode* sort = nullptr;
+      SDataBlockDescNode* desc = nullptr;
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, reinterpret_cast<SNode**>(&plan)), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, reinterpret_cast<SNode**>(&subplan)), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_NODE_LIST, reinterpret_cast<SNode**>(&level)), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(nodesMakeNode(nodeType, reinterpret_cast<SNode**>(&sort)), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode**>(&desc)), TSDB_CODE_SUCCESS);
+      plan->numOfSubplans = 1;
+      plan->explainInfo.mode = EXPLAIN_MODE_ANALYZE;
+      subplan->id.groupId = 1;
+      sort->pOutputDataBlockDesc = desc;
+      desc->totalRowSize = sizeof(int32_t);
+      desc->outputRowSize = sizeof(int32_t);
+      if (nodeType == QUERY_NODE_PHYSICAL_PLAN_MERGE) {
+        reinterpret_cast<SMergePhysiNode*>(sort)->type = MERGE_TYPE_SORT;
+      }
+      subplan->pNode = sort;
+      ASSERT_EQ(nodesListMakeStrictAppend(&level->pNodeList, reinterpret_cast<SNode*>(subplan)), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(nodesListMakeStrictAppend(&plan->pSubplans, reinterpret_cast<SNode*>(level)), TSDB_CODE_SUCCESS);
+
+      SExplainCtx* ctx = nullptr;
+      ASSERT_EQ(qExecExplainBegin(plan, &ctx, taosGetTimestampUs()), TSDB_CODE_SUCCESS);
+      SExplainRsp stats = {};
+      stats.numOfPlans = 1;
+      stats.subplanInfo = static_cast<SExplainExecInfo*>(taosMemoryCalloc(1, sizeof(SExplainExecInfo)));
+      ASSERT_NE(stats.subplanInfo, nullptr);
+      stats.subplanInfo[0].verboseLen = length;
+      if (length > 0) {
+        stats.subplanInfo[0].verboseInfo = taosMemoryCalloc(1, length);
+        ASSERT_NE(stats.subplanInfo[0].verboseInfo, nullptr);
+      }
+      SRetrieveTableRsp* response = nullptr;
+      ASSERT_EQ(qExplainUpdateExecInfo(ctx, qExplainGetCurrPlan(ctx, -1), &stats, 1, &response), TSDB_CODE_SUCCESS);
+      int32_t code = qExecExplainEnd(ctx, &response);
+      SCOPED_TRACE(static_cast<int>(nodeType));
+      SCOPED_TRACE(length);
+      if (length < sizeof(SSortExecInfo)) {
+        EXPECT_EQ(code, TSDB_CODE_INVALID_MSG);
+        EXPECT_EQ(response, nullptr);
+      } else {
+        EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+        EXPECT_NE(response, nullptr);
+      }
+      taosMemoryFree(response);
+      qExplainFreeCtx(ctx);
+      nodesDestroyNode(reinterpret_cast<SNode*>(plan));
+    }
+  }
 }
 
 namespace {
@@ -416,6 +573,29 @@ TEST_P(ShowCreateFilterTest, GrowsBufferAndKeepsTrailingTags) {
   expectReplay(sql, 2);
 }
 
+TEST_P(ShowCreateFilterTest, RejectsExpandedReferenceThatExceedsTypeBuffer) {
+  memset(refs_[1].refTableName, '`', sizeof(refs_[1].refTableName) - 1);
+  refs_[1].refTableName[sizeof(refs_[1].refTableName) - 1] = '\0';
+  memset(refs_[1].refColName, '`', sizeof(refs_[1].refColName) - 1);
+  refs_[1].refColName[sizeof(refs_[1].refColName) - 1] = '\0';
+
+  std::string sql;
+  EXPECT_EQ(showCreate(&sql), TSDB_CODE_OUT_OF_BUFFER);
+  EXPECT_TRUE(sql.empty());
+}
+
+TEST_P(ShowCreateFilterTest, RejectsCommentThatExceedsResultBuffer) {
+  cfg_.tableType = TSDB_NORMAL_TABLE;
+  cfg_.numOfTags = 0;
+  std::string comment(static_cast<size_t>(tsMaxSQLLength) * 3, 'x');
+  cfg_.commentLen = comment.size();
+  cfg_.pComment = const_cast<char*>(comment.data());
+
+  std::string sql;
+  EXPECT_EQ(showCreate(&sql), TSDB_CODE_OUT_OF_BUFFER);
+  EXPECT_TRUE(sql.empty());
+}
+
 TEST_P(ShowCreateFilterTest, SetNullDoesNotEmitReferenceOrFilter) {
   ASSERT_NO_FATAL_FAILURE(setFilter(1, "device = 'd1'"));
   refs_[1].hasRef = false;
@@ -507,6 +687,46 @@ TEST_P(ShowCreateFilterTest, ParsesAlterFilterAndSetNull) {
   auto clear = parseSQL("ALTER VTABLE vt ALTER COLUMN v1 SET NULL");
   ASSERT_NE(clear, nullptr);
   EXPECT_EQ(reinterpret_cast<SAlterTableStmt*>(clear->pRoot)->pFilterCond, nullptr);
+}
+
+TEST(ShowCreateDatabaseTest, RetentionsUseBoundedOutput) {
+  SDbCfgInfo cfg = {};
+  cfg.pRetensions = taosArrayInit(TSDB_RETENTION_MAX + 1, sizeof(SRetention));
+  ASSERT_NE(cfg.pRetensions, nullptr);
+  SRetention retention = {};
+  retention.freq = INT64_MAX;
+  retention.keep = INT64_MAX;
+  retention.freqUnit = 'm';
+  retention.keepUnit = 'm';
+  for (int32_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
+    ASSERT_NE(taosArrayPush(cfg.pRetensions, &retention), nullptr);
+  }
+
+  SShowCreateDatabaseStmt stmt = {};
+  stmt.type = QUERY_NODE_SHOW_CREATE_DATABASE_STMT;
+  tstrncpy(stmt.dbName, "db", sizeof(stmt.dbName));
+  tstrncpy(stmt.dbFName, "1.db", sizeof(stmt.dbFName));
+  stmt.pCfg = &cfg;
+  SRetrieveTableRsp* rsp = nullptr;
+  ASSERT_EQ(qExecCommand(nullptr, true, 0, reinterpret_cast<SNode*>(&stmt), &rsp, 0, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(rsp, nullptr);
+  SSDataBlock block = {};
+  const char* end = nullptr;
+  ASSERT_EQ(blockDecode(&block, rsp->data + PAYLOAD_PREFIX_LEN, &end), TSDB_CODE_SUCCESS);
+  auto* col = static_cast<SColumnInfoData*>(taosArrayGet(block.pDataBlock, 1));
+  char* value = colDataGetData(col, 0);
+  std::string sql(varDataVal(value), varDataLen(value));
+  EXPECT_NE(sql.find(" RETENTIONS -:"), std::string::npos);
+  EXPECT_EQ(std::count(sql.begin(), sql.end(), ':'), TSDB_RETENTION_MAX);
+  blockDataFreeRes(&block);
+  taosMemoryFree(rsp);
+
+  ASSERT_NE(taosArrayPush(cfg.pRetensions, &retention), nullptr);
+  rsp = nullptr;
+  EXPECT_EQ(qExecCommand(nullptr, true, 0, reinterpret_cast<SNode*>(&stmt), &rsp, 0, nullptr),
+            TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(rsp, nullptr);
+  taosArrayDestroy(cfg.pRetensions);
 }
 
 INSTANTIATE_TEST_SUITE_P(VirtualTables, ShowCreateFilterTest,
