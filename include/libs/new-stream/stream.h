@@ -374,7 +374,13 @@ int32_t streamReadCheckPoint(int64_t streamId, void** data, int64_t* dataLen);
 void    streamDeleteCheckPoint(int64_t streamId);
 int32_t streamSyncWriteCheckpoint(int64_t streamId, SEpSet* epSet, void* data, int64_t dataLen);
 int32_t streamSyncDeleteCheckpoint(int64_t streamId, SEpSet* epSet);
-int32_t streamCheckpointSetReady(int64_t streamId);
+/**
+ * @param result Correlated peer I/O or local checkpoint persistence result.
+ * Pending tasks retry I/O failures; file corruption fails startup on the next resume.
+ * Success marks pending/retrying tasks ready without clearing a corruption error.
+ * @return The original failure, or the task lookup result on success.
+ */
+int32_t streamCheckpointSyncComplete(int64_t streamId, int32_t result);
 // int32_t streamCheckpointSetNotReady(int64_t streamId);
 // bool    streamCheckpointIsReady(int64_t streamId);
 int32_t streamSyncAllCheckpoints(SEpSet* epSet);

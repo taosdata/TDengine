@@ -9732,15 +9732,15 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       SEpSet *epSet = gStreamMgmt.getSynEpset(leaderSid);
       if (epSet != NULL) {
         ST_TASK_DLOG("[checkpoint] trigger task deploy, sync checkpoint leaderSnodeId:%d", leaderSid);
-        atomic_store_8(&pTask->isCheckpointReady, 0);
+        atomic_store_8(&pTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_PENDING);
         code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, NULL, 0);
         if (code != TSDB_CODE_SUCCESS) {
           ST_TASK_WLOG("failed to sync write checkpoint since %s, continue to start realtime check", tstrerror(code));
-          atomic_store_8(&pTask->isCheckpointReady, 1);
+          atomic_store_8(&pTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
           code = TSDB_CODE_SUCCESS;
         }
       } else {
-        atomic_store_8(&pTask->isCheckpointReady, 1);
+        atomic_store_8(&pTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_READY);
       }
 
       if (pTask->pRealtimeContext == NULL) {
@@ -14204,6 +14204,7 @@ int32_t stTriggerTaskLogStats(SStreamTriggerTask *pTask, const SStreamTaskPeriod
 }
 
 int32_t stTriggerTaskGetDelay(SStreamTask *pStreamTask, int64_t *pDelay, bool *pFillHisFinished) {
+  if (pStreamTask == NULL || pStreamTask->type != STREAM_TRIGGER_TASK) return TSDB_CODE_INVALID_MSG;
   SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
   int64_t             now = taosGetTimestampUs();
   *pDelay = (now - atomic_load_64(&pTask->latestVersionTime)) / (NANOSECOND_PER_MSEC / NANOSECOND_PER_USEC);
@@ -20119,7 +20120,9 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
 
   if (!pContext->haveReadCheckpoint) {
     stDebug("[checkpoint] read checkpoint for stream %" PRIx64, pTask->task.streamId);
-    if (atomic_load_8(&pTask->isCheckpointReady) == 1) {
+    int8_t syncState = atomic_load_8(&pTask->checkpointSyncState);
+    QUERY_CHECK_CONDITION(syncState != STREAM_CHECKPOINT_SYNC_CORRUPTED, code, lino, _end, TSDB_CODE_FILE_CORRUPTED);
+    if (syncState == STREAM_CHECKPOINT_SYNC_READY) {
       void   *buf = NULL;
       int64_t len = 0;
       code = streamReadCheckPoint(pTask->task.streamId, &buf, &len);
@@ -20135,7 +20138,17 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
       taosMemoryFree(buf);
       pContext->haveReadCheckpoint = true;
     } else {
-      // wait 1 second and retry
+      // Retry only after a response failed to persist; pending requests must finish first.
+      if (syncState == STREAM_CHECKPOINT_SYNC_RETRY) {
+        SEpSet *epSet = gStreamMgmt.getSynEpset(pTask->leaderSnodeId);
+        QUERY_CHECK_NULL(epSet, code, lino, _end, TSDB_CODE_SNODE_NOT_FOUND);
+        if (atomic_val_compare_exchange_8(&pTask->checkpointSyncState, STREAM_CHECKPOINT_SYNC_RETRY,
+                                          STREAM_CHECKPOINT_SYNC_PENDING) == STREAM_CHECKPOINT_SYNC_RETRY) {
+          code = streamSyncWriteCheckpoint(pTask->task.streamId, epSet, NULL, 0);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+      }
+      // Wait 1 second before checking readiness again.
       int64_t resumeTime = now + 1 * NANOSECOND_PER_SEC;
       code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, resumeTime);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -28627,7 +28640,9 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
                        isTrueForSatisfied(pTrueForInfo, pWin->range.skey,
                                           pWin->range.ekey & (~TRIGGER_GROUP_UNCLOSED_WINDOW_MASK), pWin->wrownum);
     bool forceWinOpen = pWin->forceWinOpen;
-    bool ignore = ((i < nInitWins) && !forceWinOpen) || !meetTrueFor;
+    // Closed empty windows must not emit open events while catching up across a data gap.
+    bool ignore = ((i < nInitWins) && !forceWinOpen) || !meetTrueFor ||
+                  (pTask->ignoreNoDataTrigger && i < numClosed && pWin->wrownum == 0);
     bool deferFirstSubWinOpen = (pTask->triggerType == STREAM_TRIGGER_EVENT && pGroup->numSubWindows == 1 &&
                                  pWin->range.skey == pGroup->parentWindow.range.skey);
     if ((calcOpen || notifyOpen) && !ignore && !deferFirstSubWinOpen && !pContext->recovering) {
