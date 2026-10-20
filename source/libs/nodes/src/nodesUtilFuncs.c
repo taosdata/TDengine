@@ -3064,6 +3064,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pFedNode->pExtTable);
       nodesDestroyList(pFedNode->pScanCols);
       nodesDestroyNode(pFedNode->pRemotePlan);
+      nodesDestroyNode(pFedNode->pTimeRange);
       taosMemoryFreeClear(pFedNode->pColTypeMappings);
       taosMemoryFreeClear(pFedNode->pTimestampTypeHints);
       break;

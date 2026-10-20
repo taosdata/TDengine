@@ -970,6 +970,13 @@ typedef struct SFederatedScanPhysiNode {
   // per-block TIMESTAMP precision conversion to the vtable's declared
   // precision; direct external-table queries leave this false.
   bool                underVTableScan;
+  // --- stream calc scan time range (STimeRangeNode) ---
+  // Set only for external scans under a stream calc clause whose SELECT has a
+  // time-returning time range (e.g. _twstart/_twend or casted localtime
+  // placeholders).  The external-table reader (ETR) evaluates it per fetch - the
+  // same way vnodeStream.c processCalaTimeRange does for table scans - to bound
+  // the remote query.  NULL otherwise.
+  SNode*              pTimeRange;
 } SFederatedScanPhysiNode;
 
 typedef struct SProjectPhysiNode {

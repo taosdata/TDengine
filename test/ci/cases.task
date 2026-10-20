@@ -1406,7 +1406,9 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_small_perf
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_medium_perf
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_large_perf
-
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_001_interval_windowed_time_range_offset
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_002_interval_windowed_time_range_mixed
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_003_period_casted_localtime_bounds
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_out_table.py

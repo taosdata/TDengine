@@ -89,6 +89,31 @@ TARGET_LINK_LIBRARIES(
 )
 add_test(NAME streamReaderTest COMMAND streamReaderTest)
 
+ADD_EXECUTABLE(streamReaderExtRangeTest streamReaderExtRangeTest.cpp)
+DEP_ext_gtest(streamReaderExtRangeTest)
+DEP_ext_cppstub(streamReaderExtRangeTest)
+TARGET_INCLUDE_DIRECTORIES(
+  streamReaderExtRangeTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/new-stream"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/qcom"
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/extconnector"
+  PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+TARGET_LINK_LIBRARIES(
+  streamReaderExtRangeTest
+  # This test replaces extConnectorOpen()/extConnectorClose()/extConnectorExecQuery()
+  # with cppstub, and cppstub can only patch calls made from the main image.  The
+  # connector implementation therefore has to be linked into the test executable
+  # itself, so the static libraries must precede the shared dispatcher: on macOS
+  # libtaos.dylib re-exports the driver, which defines these connector entry points
+  # too, and listing taos first would bind the test to that copy — stub.set() then
+  # fails because macos_enable_stub.sh only rewrites the test executable's __TEXT,
+  # not the dylib's (same reason as the streamNotifyTest comment above).
+  PUBLIC os common executor function index new-stream extconnector taos
+)
+add_test(NAME streamReaderExtRangeTest COMMAND streamReaderExtRangeTest)
+
 ADD_EXECUTABLE(dataSinkTest dataSinkTest.cpp)
 DEP_ext_gtest(dataSinkTest)
 DEP_ext_cppstub(dataSinkTest)

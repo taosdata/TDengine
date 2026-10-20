@@ -257,9 +257,6 @@ class TestCase:
                 f"inserted rows {totalInserted} != expected {_TOTAL_ROWS}"
             )
 
-        # Replica migration may redeliver a row while the consumer is moving
-        # between replicas. Ensure all written rows were consumed without
-        # treating that transient redelivery as data loss.
         if consumedRows < _TOTAL_ROWS:
             tdLog.exit(
                 f"consumed rows {consumedRows} < expected {_TOTAL_ROWS}"
