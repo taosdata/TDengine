@@ -6235,7 +6235,11 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
       char    stbFName[TSDB_TABLE_FNAME_LEN] = {0};
       snprintf(stbFName, sizeof(stbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
       int32_t txnCode = mndTxnGetAlterOpsForStb(pMnode, (txn_id_t)infoReq.txnId, stbFName, &pAlterOps);
-      if (txnCode == 0 && pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
+      if (txnCode != 0) {
+        code = txnCode;
+        goto _OVER;
+      }
+      if (pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
         SDbObj  *pDb = mndAcquireDb(pMnode, infoReq.dbFName);
         SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
         if (pDb != NULL && pStb != NULL) {

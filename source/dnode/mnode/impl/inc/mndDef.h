@@ -321,6 +321,7 @@ typedef struct {
   // pShadowOps is accumulated by mndTxnAddShadowOp() and rebuilt via mndTxnRebuildShadowOpsFromSdb() from SStbObj.txnId
   // on restart
   SArray* pShadowOps;  // MNode-side list of STB shadow operations (array of SMndShadowOp); in-memory only
+  bool    shadowRebuildPending;  // restore must wait for an in-flight stream creation before rebuilding shadow ops
 } STxnObj;
 
 typedef struct {
