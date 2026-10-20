@@ -1141,6 +1141,34 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
   return 0;
 }
 
+// Resolves the BLOB column of a block once, so a row-append loop can bound it with a single
+// pointer comparison instead of walking every column for every appended row.  CREATE TABLE
+// accepts at most one BLOB column per table, so this normally yields exactly one; when a
+// block does carry several, pCol is left NULL and blockDataBlobInfoExceedLimit() falls back
+// to the column walk.
+SBlobColInfo blockDataGetBlobCol(const SSDataBlock* pBlock) {
+  SBlobColInfo info = {.pCol = NULL, .numOfBlobCols = 0};
+  if (pBlock == NULL || pBlock->pDataBlock == NULL) {
+    return info;
+  }
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol == NULL || !IS_STR_DATA_BLOB(pCol->info.type)) {
+      continue;
+    }
+
+    if (++info.numOfBlobCols > 1) {
+      // Several BLOB columns: one cached column cannot bound the block, the caller falls back.
+      info.pCol = NULL;
+      break;
+    }
+    info.pCol = pCol;
+  }
+  return info;
+}
+
 // Returns true when the block must be closed before another row is appended: it already
 // holds as much BLOB payload as a result block is allowed to (see
 // TSDB_MAX_BLOB_BYTES_PER_BLOCK), or one more maximum-sized value would push it over that
@@ -1148,6 +1176,11 @@ int32_t blockDataUpdatePkRange(SSDataBlock* pDataBlock, int32_t pkColumnIndex, b
 // row-count limits that bound every other var-length type are useless for multi-megabyte
 // values.  Callers test it as their loop's close condition - the headroom keeps the row that
 // was just appended safe, and the following row starts a fresh block.
+//
+// This is the exact, always-correct form: it walks every column.  Row-append loops use
+// blockDataGetBlobCol() + blockDataBlobInfoExceedLimit() instead so that the walk happens
+// once per block rather than once per row; that helper comes back here for the multi-BLOB
+// case where a single resolved column cannot bound the block.
 bool blockDataBlobExceedLimit(const SSDataBlock* pBlock) {
   if (pBlock == NULL || pBlock->pDataBlock == NULL) {
     return false;
