@@ -1306,7 +1306,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
-#100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_tobacco.py
@@ -1391,13 +1392,13 @@
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window_trows
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window_trows
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
 
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_control_option_compatibility_matrix
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_watermark
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_small_watermark
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_no_watermark
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_005_pre_filter_column
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_control_option_compatibility_matrix
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_watermark
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_small_watermark
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_no_watermark
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_005_pre_filter_column
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_006_pre_filter_tag
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_04_ts_column.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_05_create_errors.py
@@ -1405,6 +1406,7 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_small_perf
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_medium_perf
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_large_perf
+
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_out_table.py

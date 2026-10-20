@@ -1811,8 +1811,11 @@ static bool stExtFedScanMatchesSource(const SFederatedScanPhysiNode *pFedScan, c
 }
 
 static const SScanLogicNode *stExtFindLogicScanInPlan(const SNode *pNode, const char *sourceName) {
+  // Walk only logical plan nodes: the logical node enum block runs from
+  // QUERY_NODE_LOGIC_PLAN_SCAN through QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC. Do not rely on the
+  // gap between the logical and physical enum ranges staying empty when new node types land.
   if (pNode == NULL || nodeType(pNode) < QUERY_NODE_LOGIC_PLAN_SCAN ||
-      nodeType(pNode) >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN) {
+      nodeType(pNode) > QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC) {
     return NULL;
   }
 
@@ -1887,13 +1890,20 @@ static SNodeList *stExtFindCalcScanColsInPlan(SNode *pNode, const char *sourceNa
 
   if (ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
       ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
-    if (ppFedScan != NULL) {
-      *ppFedScan = NULL;
+    // Local-table scans carry no source identity: when the caller looks for a specific
+    // external source, only the matching FEDERATED_SCAN (or its remote logical scan) can
+    // provide the calc columns. Accept a TABLE_SCAN only for the source-agnostic lookup,
+    // otherwise a mixed WAL/EXT plan could hand the external reader the local table's
+    // column list.
+    if (sourceName == NULL) {
+      if (ppFedScan != NULL) {
+        *ppFedScan = NULL;
+      }
+      if (pScanType != NULL) {
+        *pScanType = ntype;
+      }
+      return ((STableScanPhysiNode *)pNode)->scan.pScanCols;
     }
-    if (pScanType != NULL) {
-      *pScanType = ntype;
-    }
-    return ((STableScanPhysiNode *)pNode)->scan.pScanCols;
   }
 
   if (ntype == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {

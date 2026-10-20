@@ -18968,11 +18968,14 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
       // for UDFs, out-of-range funcIds, and functions with FQ_CAP_NONE.
       bool funcPushable = fqFuncIsPushable(pFunc->funcId, dialect, pOverlay);
       if (!funcPushable && 0 == strcasecmp(pFunc->functionName, "to_unixtimestamp")) {
-        // TO_UNIXTIMESTAMP is a built-in timestamp conversion whose capability
-        // is declared in funcMgtBuiltins.  Some planner rewrites lose funcId/
-        // funcType before FQ pushdown, so fall back to the function name to
-        // preserve the already-correct dialect-specific remote rendering.
-        funcPushable = fqDialectBit(dialect) != 0;
+        // Some planner rewrites lose funcId/funcType before FQ pushdown. Only the real built-in
+        // (name resolves to FUNCTION_TYPE_TO_UNIXTIMESTAMP, not a user-defined function) may
+        // recover pushdown; anything else keeps the FQ_CAP_NONE result so remote rendering
+        // cannot fail on an unexpected function node.
+        int32_t canonicalId = fmGetFuncId(pFunc->functionName);
+        if (canonicalId == FUNCTION_TYPE_TO_UNIXTIMESTAMP && !fmIsUserDefinedFunc(canonicalId)) {
+          funcPushable = fqFuncIsPushable(FUNCTION_TYPE_TO_UNIXTIMESTAMP, dialect, pOverlay);
+        }
         planDebug("FQ-push: func=%s funcId=%d funcType=%d dialect=%d name-based fallback pushable=%d",
                   pFunc->functionName, pFunc->funcId, pFunc->funcType, dialect, (int)funcPushable);
       }

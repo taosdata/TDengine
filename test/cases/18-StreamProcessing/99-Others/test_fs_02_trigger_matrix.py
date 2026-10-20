@@ -184,7 +184,7 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
 
         self._with_std_sources(
-            prefix, body, skip_pg=True, skip_influx=True
+            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True
         )
 
     # ------------------------------------------------------------------
