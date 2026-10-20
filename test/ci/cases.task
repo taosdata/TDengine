@@ -574,6 +574,7 @@
 ## 05-Others
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_trim.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_keep_version_high_availability.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/06-DataIngestion/05-Others/test_wal_multi_mount_retention.py
 
 # 07-DataDeletion
 
@@ -716,7 +717,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
 
 ## 19-FederatedQuery
-# 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
@@ -991,6 +992,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/09-WindowProjection/test_window_projection.py
 
 # 14-JoinQueries
+,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_executor_block_boundary_security.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_groupcache_stable_join_regression.py
 
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full.py
@@ -1181,6 +1183,7 @@
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_observability_runtime.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_vtable_interleaved_col_scatter.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_rebind_redeploy.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_partitionby.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
@@ -1255,6 +1258,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_options_vtable.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/04-Options/test_stream_time_config.py
 ## 05-Notify
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_event_history_notify.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_external_window_multigroup_notify.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_nested_window_notify.py
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
@@ -1264,6 +1268,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_empty_group_order.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_scalar.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
@@ -1303,7 +1308,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
-#100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_tobacco.py
@@ -1388,13 +1394,13 @@
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_006_event_window_trows
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_tm_007_count_window_trows
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_02_trigger_matrix.py::TestFsTriggerMatrix::test_nested_external_trigger_rejected
 
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_control_option_compatibility_matrix
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_watermark
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_small_watermark
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_no_watermark
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_005_pre_filter_column
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_control_option_compatibility_matrix
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_watermark
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_small_watermark
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_001_no_watermark
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_005_pre_filter_column
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_03_options_matrix.py::TestFsOptionsMatrix::test_opt_006_pre_filter_tag
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_04_ts_column.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_05_create_errors.py
@@ -1402,6 +1408,9 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_small_perf
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_medium_perf
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_large_perf
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_001_interval_windowed_time_range_offset
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_002_interval_windowed_time_range_mixed
+100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_08_ext_window_bounds.py::TestFsExtWindowBounds::test_bnd_003_period_casted_localtime_bounds
 ## 99-Others
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_stream_tag_cache.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_out_table.py
@@ -1780,7 +1789,7 @@
 
 # 82-UnitTest
 
-#200,,n,cases,bash 82-UnitTest/test.sh
+# 200,,n,cases,bash 82-UnitTest/test.sh
 
 
 
@@ -1814,10 +1823,10 @@
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_privilege.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_single_node_backup_restore.py
-#100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_negative.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_dnode_mismatch.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_3mnode.py -N 3 -M 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_stream_backup_restore_cluster.py -N 3
-# 100,1,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3
+100,1,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3 --timeout=1800

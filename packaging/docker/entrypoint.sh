@@ -79,22 +79,22 @@ execute_startup() {
     activate_venv "${model}"
 
     # Execute startup script if exists
-    local script_path="/usr/local/taos/taosanode/lib/taosanalytics/tsfmservice"
-    local startup_script="${script_path}/${model}-server.py"
+    local script_path="/usr/local/taos/taosanode/lib/tsfm/service"
+    local startup_script="${script_path}/${model}_server.py"
     if [ -f "${startup_script}" ]; then
         echo "Running startup script: ${startup_script}"
         cd "${script_path}" || exit
         echo "Current directory: $(pwd)"
         if [ "${model}" == "tdtsfm" ]; then
-            echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/taosanalytics/tsfmservice/${model}-server.py &"
-            nohup python3 "${model}-server.py" --action server &
+            echo "Running command: nohup python3 /usr/local/taos/taosanode/lib/tsfm/service/${model}_server.py &"
+            nohup python3 "${model}_server.py" --action server &
         else
             model_args=(--model-folder "${subdir}" --model-name "${model_name}")
             if [ "${ENDPOINT_ENABLE}" == "True" ]; then
                 model_args+=(--enable-ep)
             fi
-            echo "Running command: nohup python3 ${model}-server.py ${model_args[*]} &"
-            nohup python3 "${model}-server.py" "${model_args[@]}" &
+            echo "Running command: nohup python3 ${model}_server.py ${model_args[*]} &"
+            nohup python3 "${model}_server.py" "${model_args[@]}" &
         fi
         SERVER_PID=$!
         if ps -p ${SERVER_PID} > /dev/null; then

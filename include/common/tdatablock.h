@@ -246,6 +246,30 @@ void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows);
 bool    blockDataBlobExceedLimit(const SSDataBlock* pBlock);
+
+// A table can carry at most one BLOB column (CREATE TABLE rejects more), so the row-append
+// loops only ever have to bound a single column.  Resolve it once per block instead of
+// walking every column of the block for every appended row.
+typedef struct SBlobColInfo {
+  const SColumnInfoData* pCol;           // the BLOB column; NULL when the block has none or several
+  int32_t                numOfBlobCols;  // number of BLOB columns in the block
+} SBlobColInfo;
+
+SBlobColInfo blockDataGetBlobCol(const SSDataBlock* pBlock);
+
+// Hot path of the row-append loops: pInfo comes from blockDataGetBlobCol(), so normally only
+// the accumulated payload of that one column is compared against the per-block budget.
+// Leaving room for one more maximum sized value keeps the appended row safe.  When the block
+// holds several BLOB columns that single column cannot bound it, so this falls back to
+// blockDataBlobExceedLimit(), which walks all columns.
+static inline bool blockDataBlobInfoExceedLimit(const SBlobColInfo* pInfo, const SSDataBlock* pBlock) {
+  if (pInfo->numOfBlobCols > 1) {
+    return blockDataBlobExceedLimit(pBlock);
+  }
+  return pInfo->pCol != NULL && (uint64_t)pInfo->pCol->varmeta.length + (uint64_t)TSDB_MAX_BLOB_LEN >
+                                    (uint64_t)TSDB_MAX_BLOB_BYTES_PER_BLOCK;
+}
+
 bool    blockDataMergeExceedLimit(const SSDataBlock* pDest, const SSDataBlock* pSrc);
 void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
@@ -288,6 +312,8 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void    colInfoDataResetFlags(SColumnInfoData* pColumn);
+void    blockDataResetColFlags(SSDataBlock* pDataBlock);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 void    blockDataReset(SSDataBlock* pDataBlock);
 void    blockDataEmpty(SSDataBlock* pDataBlock);
@@ -333,6 +359,7 @@ int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBu
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
 int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
+int32_t blockIsSingleNullColumnEncoded(const char* pData, size_t dataLen, bool* pIsNull);
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 // Decodes one normal block from pData[0, dataLen). On success, pEndPos, when non-NULL, points to the byte after the
 // encoded block; callers retain ownership of pBlock and must release it with blockDataDestroy.

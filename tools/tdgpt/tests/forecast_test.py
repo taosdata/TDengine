@@ -25,9 +25,9 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.forecast import draw_forecast_results
-from taosanalytics.log import setup_log_info
-from taosanalytics.service_registry import loader
+from lib.log import setup_log_info
+from lib.service_registry import loader
+from lib.taosanalytics.handlers.forecast import draw_forecast_results
 
 requires_statsforecast = unittest.skipUnless(
     importlib.util.find_spec("statsforecast") is not None,
@@ -189,7 +189,7 @@ class ForecastTest(unittest.TestCase):
     def setUpClass(cls):
         """set up the environment for unit test"""
         setup_log_info("unit_test.log")
-        loader.register_all_services()
+        loader.load_all_services()
 
     def get_input_list(self):
         """Load deterministic forecast data without external network access."""

@@ -236,10 +236,15 @@ _ERR_MND_SSMIGRATE_ALREADY_EXIST = -2147482429
 
 
 def _err_code(e):
-    """Return the numeric error code carried by a taos connector exception."""
-    for arg in getattr(e, "args", ()):
-        if isinstance(arg, int):
-            return arg
+    """Read the connector error code through wrappers such as tdSql.execute."""
+    while e is not None:
+        code = getattr(e, "errno", None)
+        if isinstance(code, int):
+            return code
+        for arg in e.args:
+            if isinstance(arg, int):
+                return arg
+        e = e.__cause__ if e.__cause__ is not None else e.__context__
     return None
 
 
@@ -292,12 +297,11 @@ class TestSSBasic:
         try:
             tdSql.execute(sql, queryTimes=60, show=True)
         except Exception as e:
-            # Repeating ssmigrate on an already-migrated database fails with
-            # TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST instead of being a no-op, and the client
-            # message is unusable, so match the numeric code. checkUploadToSs below still
-            # verifies that the local data files were uploaded.
+            # An existing migration returns TSDB_CODE_MND_SSMIGRATE_ALREADY_EXIST.
+            # tdSql.execute wraps the connector exception after retrying, so read its
+            # error code from the exception chain. checkUploadToSs still checks uploads.
             if _err_code(e) == _ERR_MND_SSMIGRATE_ALREADY_EXIST:
-                tdLog.info(f"ssmigrate skipped (already exist): {e}")
+                tdLog.info(f"ssmigrate already in progress: {e}")
             else:
                 raise
 
@@ -536,6 +540,7 @@ class TestSSBasic:
 
         History:
             - 2026-10-15 Alex Duan Move to cases/02-Databases/010-SS and adapt to the new framework
+            - 2026-10-16 Bomin Zhang Fix wrapped migration error handling without skipping upload checks
 
         """
         self.sname = "stream1"
@@ -595,9 +600,3 @@ class TestSSBasic:
 
             # release the bucket claimed by this run
             _ss_release_bucket(self.bucketName)
-
-
-
-
-        
-

@@ -839,6 +839,7 @@ Below are the business error codes for each module.
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 | 0x8000701E | Invalid stream time configuration | The stream timezone or first day of week is missing or invalid | Correct the `STREAM_OPTIONS(CONFIG(...))` values and create the stream again |
 | 0x8000701F | Failed to load stream timezone | The configured timezone is unavailable on the executing node | Install the required timezone data or use an available IANA timezone |
+| 0x80007020 | Stream vtable redeploy timeout | A vtable runtime rebind triggered a stream redeploy that did not finish in time | Check the mnode deploy logs, then drop and recreate the stream |
 | 0x80004100 | Stream task does not exist | The stream computing task does not exist                     | Check the server-side error logs |
 | 0x80004118 | Stream rollup tag path is illegal | The ROLLUP BY tag path is invalid | Check and correct the rollup tag path |
 | 0x80004119 | Invalid ROLLUP BY clause | The stream ROLLUP BY clause is invalid | Check and correct the stream creation statement |

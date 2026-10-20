@@ -3758,6 +3758,9 @@ static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, "RemotePlan", nodeToJson, pNode->pRemotePlan);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->pTimeRange != NULL) {
+    code = tjsonAddObject(pJson, "TimeRange", nodeToJson, pNode->pTimeRange);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, "PushdownFlags", pNode->pushdownFlags);
   }
@@ -3823,6 +3826,9 @@ static int32_t jsonToFederatedScanPhysiNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, "RemotePlan", &pNode->pRemotePlan);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, "TimeRange") != NULL) {
+    code = jsonToNodeObject(pJson, "TimeRange", &pNode->pTimeRange);
   }
   if (TSDB_CODE_SUCCESS == code) {
     uint32_t flags = 0;

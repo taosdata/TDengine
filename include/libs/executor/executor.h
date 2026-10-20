@@ -114,6 +114,7 @@ typedef struct SStreamVtableDeployInfo {
   int32_t  rversion;
   SArray*  addVgIds;
   SArray*  addedVgInfo;  // deploy response,SArray<SStreamTaskAddr>
+  int64_t  redeployStartMs;  // redeploy request start time; 0 = none in flight
 } SStreamVtableDeployInfo;
 
 typedef void (*FStreamInputStats)(void* param, uint64_t rows, uint64_t blocks);

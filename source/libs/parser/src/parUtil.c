@@ -726,24 +726,43 @@ static bool isDatabaseFunc(SNode* pNode) {
 
 static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, const char* pCurrDb, SOperatorNode* pOper,
                                             SName* pName) {
-  if (OP_TYPE_EQUAL != pOper->opType) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   SColumnNode* pCol = NULL;
   SValueNode*  pVal = NULL;
   SNode*       pOther = NULL;
-  if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
+
+  if (OP_TYPE_IN == pOper->opType) {
+    // `col IN ('x')` with a single literal is equivalent to `col = 'x'` for
+    // target db/table extraction; longer lists stay unoptimized here
+    if (QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || QUERY_NODE_NODE_LIST != nodeType(pOper->pRight)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    SNodeList* pList = ((SNodeListNode*)pOper->pRight)->pNodeList;
+    if (1 != LIST_LENGTH(pList)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    SNode* pItem = nodesListGetNode(pList, 0);
+    if (QUERY_NODE_VALUE != nodeType(pItem)) {
+      return TSDB_CODE_SUCCESS;
+    }
     pCol = (SColumnNode*)pOper->pLeft;
-    pOther = pOper->pRight;
-  } else if (QUERY_NODE_VALUE == nodeType(pOper->pLeft)) {
-    pVal = (SValueNode*)pOper->pLeft;
-  }
-  if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
-    pCol = (SColumnNode*)pOper->pRight;
-    pOther = pOper->pLeft;
-  } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
-    pVal = (SValueNode*)pOper->pRight;
+    pVal = (SValueNode*)pItem;
+  } else {
+    if (OP_TYPE_EQUAL != pOper->opType) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
+      pCol = (SColumnNode*)pOper->pLeft;
+      pOther = pOper->pRight;
+    } else if (QUERY_NODE_VALUE == nodeType(pOper->pLeft)) {
+      pVal = (SValueNode*)pOper->pLeft;
+    }
+    if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
+      pCol = (SColumnNode*)pOper->pRight;
+      pOther = pOper->pLeft;
+    } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
+      pVal = (SValueNode*)pOper->pRight;
+    }
   }
   if (NULL == pCol) {
     return TSDB_CODE_SUCCESS;

@@ -6138,15 +6138,12 @@ int32_t createExprSubQResBlock(SSDataBlock** ppBlock, SDataType* pResType, int32
 }
 
 
-int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  void*              decompBuf = NULL;
+int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, int32_t rspLen, SSDataBlock* pb, bool dynamicSchema) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   decompBuf = NULL;
 
-  char* pNextStart = pRetrieveRsp->data;
-  char* pStart = pNextStart;
-
-  int32_t index = 0;
+  char* pStart = pRetrieveRsp->data;
 
 #if defined(BUILD_TEST)
   if (TSDB_CODE_SUCCESS != g_execUtilTestExtractSingleRspBlockFailCode) {
@@ -6156,32 +6153,50 @@ int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) 
   }
 #endif
 
-  if (pRetrieveRsp->compressed) {  // decompress the data
-    decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-    QUERY_CHECK_NULL(decompBuf, code, lino, _end, terrno);
+  if (rspLen < (int32_t)sizeof(*pRetrieveRsp) + PAYLOAD_PREFIX_LEN || pRetrieveRsp->numOfBlocks != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _end;
+  }
+  int32_t payloadLen = rspLen - (int32_t)sizeof(*pRetrieveRsp);
+  if (pRetrieveRsp->compLen <= 0 || pRetrieveRsp->compLen > payloadLen || pRetrieveRsp->payloadLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _end;
   }
 
-  int32_t compLen = *(int32_t*)pStart;
+  int32_t compLen = 0;
+  memcpy(&compLen, pStart, sizeof(compLen));
   pStart += sizeof(int32_t);
 
-  int32_t rawLen = *(int32_t*)pStart;
+  int32_t rawLen = 0;
+  memcpy(&rawLen, pStart, sizeof(rawLen));
   pStart += sizeof(int32_t);
-  QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_CONDITION((compLen > 0 && rawLen > 0 && compLen <= rawLen &&
+                         compLen <= payloadLen - PAYLOAD_PREFIX_LEN &&
+                         (pRetrieveRsp->compressed || compLen == rawLen) &&
+                         pRetrieveRsp->payloadLen >= rawLen), code, lino, _end, TSDB_CODE_INVALID_MSG);
 
-  pNextStart = pStart + compLen;
   if (pRetrieveRsp->compressed && (compLen < rawLen)) {
+    decompBuf = taosMemoryMalloc((size_t)rawLen);
+    QUERY_CHECK_NULL(decompBuf, code, lino, _end, terrno);
     int32_t t = tsDecompressString(pStart, compLen, 1, decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
     QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     pStart = decompBuf;
   }
 
-  code = blockDecodeInternal(pb, pStart, (const char**)&pStart);
-  if (code != 0) {
-    taosMemoryFreeClear(pRetrieveRsp);
-    goto _end;
+  size_t expectedCols = taosArrayGetSize(pb->pDataBlock);
+  bool nullWireColumn = false;
+  if (!dynamicSchema && expectedCols == 1) {
+    code = blockIsSingleNullColumnEncoded(pStart, (size_t)rawLen, &nullWireColumn);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (dynamicSchema || nullWireColumn) blockDataFreeRes(pb);
+  code = blockDecodeInternalBounded(pb, pStart, (size_t)rawLen, NULL);
+  if (code == TSDB_CODE_SUCCESS && expectedCols > 0 && taosArrayGetSize(pb->pDataBlock) != expectedCols) {
+    code = TSDB_CODE_INVALID_MSG;
   }
 
 _end:
+  taosMemoryFree(decompBuf);
   if (code != TSDB_CODE_SUCCESS) {
     // The response block is created and destroyed by the caller on both
     // success and failure paths.
@@ -6253,7 +6268,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
         ctx->code = blockDataEnsureCapacity(pResBlock, 1);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+        ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
         ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6314,7 +6329,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     ctx->code = blockDataEnsureCapacity(pResBlock, 1);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
-    ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+    ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
     ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6373,7 +6388,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
       ctx->code = blockDataEnsureCapacity(pResBlock, pRsp->numOfRows);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
-      ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+      ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
       ctx->code = setValueListFromResBlock(ctx, pRemote, pResBlock);
@@ -6471,7 +6486,7 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
         ctx->code = blockDataEnsureCapacity(pResBlock, 1);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+        ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
         ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6552,7 +6567,7 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     ctx->code = blockDataEnsureCapacity(pResBlock, 1);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
-    ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+    ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
     ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6657,7 +6672,7 @@ void handleRemoteTableRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   if (pRsp->numOfRows > 0) {
     ctx->code = createExprSubQResBlock(&pResBlock, NULL, pRemote->resCols);
     if (TSDB_CODE_SUCCESS == ctx->code) {
-      ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+      ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, true);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
       ctx->code = setTableFromResBlock(ctx, pRemote, &pResBlock);
@@ -6712,12 +6727,13 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     ctx->transporterId = -1;
   }
 
-  if (0 == code && NULL == pMsg->pData) {
+  if (0 == code && (NULL == pMsg->pData || pMsg->len < (int32_t)sizeof(SRetrieveTableRsp))) {
     qError("%s invalid rsp msg, msgType:%d, len:%d", idStr, pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
+    ctx->rspLen = pMsg->len;
     SRetrieveTableRsp* pRsp = pMsg->pData;
     pRsp->numOfRows = htobe64(pRsp->numOfRows);
     pRsp->compLen = htonl(pRsp->compLen);

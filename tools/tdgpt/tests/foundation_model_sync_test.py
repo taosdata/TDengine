@@ -41,8 +41,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taosanalytics.tsfm import executor, foundation_model, response_event
-from taosanalytics.tsfm.foundation_models_db import (
+from lib.tsfm.mgmt import executor, foundation_model, response_event
+from lib.tsfm.mgmt.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     init_dao,
@@ -92,7 +92,7 @@ class TestRunningStateReconciliation:
     """The cached `running` flag is rebuilt from the pid files, never assumed."""
 
     def test_live_worker_marks_the_model_running(self, dao):
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=["moirai"]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["moirai"]):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 1
@@ -102,7 +102,7 @@ class TestRunningStateReconciliation:
         """The crash case: the column says running, no worker exists."""
         dao.update_model("moirai", running=True)
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 1
@@ -112,7 +112,7 @@ class TestRunningStateReconciliation:
         """An unreadable liveness is not evidence that the model is stopped."""
         dao.update_model("moirai", running=True)
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=None):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=None):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 0
@@ -120,7 +120,7 @@ class TestRunningStateReconciliation:
 
     def test_a_worker_without_a_row_is_ignored(self, dao):
         """A live worker the catalog does not know leaves every flag alone."""
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=["chronos"]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["chronos"]):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 0
@@ -143,7 +143,7 @@ class TestRunningStateReconciliation:
         """A model stuck in 'starting' with no live worker reverts to idle."""
         dao.update_model("moirai", model_state="starting")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "idle"
@@ -152,7 +152,7 @@ class TestRunningStateReconciliation:
         """A model stuck in 'stopping' whose worker is gone is treated as idle."""
         dao.update_model("moirai", running=True, model_state="stopping")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "idle"
@@ -161,7 +161,7 @@ class TestRunningStateReconciliation:
         """A model stuck in 'stopping' whose worker is still alive reverts to started."""
         dao.update_model("moirai", running=True, model_state="stopping")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=["moirai"]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["moirai"]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "started"
@@ -170,7 +170,7 @@ class TestRunningStateReconciliation:
         """A model in 'deleting' is left alone; the re-queue mechanism handles it."""
         dao.update_model("moirai", model_state="deleting")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "deleting"
@@ -341,11 +341,11 @@ class TestDeleteDeferral:
     @staticmethod
     def _run(task_id="delete-moirai-9", returncode=75, stderr=""):
         with patch(
-            "taosanalytics.tsfm.foundation_util.get_taosanodectl_cmd", return_value=["taosanodectl"]
+            "lib.tsfm.mgmt.foundation_util.get_taosanodectl_cmd", return_value=["taosanodectl"]
         ), patch(
-            "taosanalytics.tsfm.foundation_util.resolve_resource_settings", return_value=("http://x", 30)
+            "lib.tsfm.mgmt.foundation_util.resolve_resource_settings", return_value=("http://x", 30)
         ), patch(
-            "taosanalytics.tsfm.foundation_model.subprocess.run"
+            "lib.tsfm.mgmt.foundation_model.subprocess.run"
         ) as run:
             run.return_value = Mock(returncode=returncode, stdout="", stderr=stderr)
             return foundation_model._run_model_delete_task(task_id, "moirai")

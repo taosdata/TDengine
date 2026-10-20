@@ -632,9 +632,11 @@ static bool fillShouldPause(SFillInfo* pFillInfo, const SSDataBlock* pDstBlock) 
 static int32_t copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
                                      const char* src, bool isNull, TSKEY rowTs) {
   SGroupKeys* pKey = taosArrayGet(pRowVal->pRowVal, colIdx);
+  if (pKey == NULL) return TSDB_CODE_INVALID_MSG;
   if (isNull) {
     pKey->isNull = true;
   } else {
+    if (src == NULL) return TSDB_CODE_INVALID_MSG;
     if (IS_VAR_DATA_TYPE(pKey->type)) {
       int32_t bytes = calcStrBytesByType(pKey->type, (char*)src);
       // A negative length (truncated blob header) would bypass the bound and become
@@ -661,10 +663,18 @@ static int32_t copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
     }
     pKey->isNull = false;
     int64_t* pValueTs = taosArrayGet(pRowVal->pValueTs, colIdx);
+    if (pValueTs == NULL) return TSDB_CODE_INVALID_MSG;
     *pValueTs = rowTs;
   }
   return TSDB_CODE_SUCCESS;
 }
+
+#if defined(BUILD_TEST)
+int32_t fillTestCopyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
+                                      const char* src, bool isNull, TSKEY rowTs) {
+  return copyCurrentValIntoBuf(pRowVal, colIdx, src, isNull, rowTs);
+}
+#endif
 
 /**
   @brief Copy the current row of data from the source block into a buffer for

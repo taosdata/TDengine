@@ -34,6 +34,8 @@
 #include "stream.h"
 #include "streamInt.h"
 #include "streamReader.h"
+#include "streamReaderExt.h"
+#include "extConnector.h"
 #include "streamRunner.h"
 #include "stub.h"
 #include "tmsg.h"
@@ -42,9 +44,236 @@
 
 using reader_fetch_benchmark::ReaderFetchLayout;
 
-extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
+extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                                   void **ppInfo);
+extern "C" void stExtReaderClose(void *pInfo);
 
 namespace {
+
+std::string gInfluxPrecisionSql;
+
+int32_t captureInfluxPrecisionQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *sql,
+                                    SExtQueryHandle **query, SExtConnectorError *) {
+  gInfluxPrecisionSql = sql;
+  *query = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t finishInfluxPrecisionQuery(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                                   SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeInfluxPrecisionQuery(SExtQueryHandle *) {}
+
+TEST(StreamReaderTest, InfluxCalcBoundsUseReaderPrecisionAndSaturate) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                     precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    SSDataBlock *block = nullptr;
+    ASSERT_EQ(streamReaderExtFetchData(&reader, 1700000000, 1700000001, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000LL * factor) + ")"),
+              std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000001LL * factor + factor - 1) + ")"),
+              std::string::npos);
+    ASSERT_EQ(streamReaderExtFetchData(&reader, INT64_MIN, INT64_MAX, &block), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gInfluxPrecisionSql.find("to_timestamp_nanos"), std::string::npos);
+    ASSERT_EQ(streamReaderExtFetchData(&reader, INT64_MIN + 1, INT64_MAX - 1, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" +
+                  std::to_string(factor == 1 ? INT64_MIN + 1 : INT64_MIN) + ")"), std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" +
+                  std::to_string(factor == 1 ? INT64_MAX - 1 : INT64_MAX) + ")"), std::string::npos);
+  }
+}
+
+bool gInfluxTimestampBatchPending = false;
+
+int32_t fetchInfluxTimestampBatch(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                                 SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  if (!gInfluxTimestampBatchPending) return TSDB_CODE_SUCCESS;
+  gInfluxTimestampBatchPending = false;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  column.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &column);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *ts = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  int64_t values[] = {1700000000123456789LL, 1700000000456789123LL};
+  for (int32_t row = 0; row < 2; ++row) {
+    code = colDataSetVal(ts, row, reinterpret_cast<const char *>(&values[row]), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+TEST(StreamReaderTest, InfluxMetaAndLastTimestampShareReaderPrecision) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, fetchInfluxTimestampBatch);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)), TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t divisor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                      precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    int64_t watermark = 1700000000000000000LL / divisor;
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)),
+              TSDB_CODE_SUCCESS);
+    for (auto type : {STRIGGER_PULL_LAST_TS_EXT, STRIGGER_PULL_META_EXT}) {
+      void *response = nullptr;
+      gInfluxTimestampBatchPending = true;
+      ASSERT_EQ(streamReaderExtHandlePull(&reader, type, &request, &response), TSDB_CODE_SUCCESS);
+      auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+      ASSERT_NE(rsp, nullptr);
+      if (type == STRIGGER_PULL_LAST_TS_EXT) {
+        auto *last = static_cast<SExtLastTsInfo *>(taosArrayGet(rsp->pLastTsArr, 0));
+        ASSERT_NE(last, nullptr);
+        EXPECT_EQ(last->ts, 1700000000456789123LL / divisor);
+      } else {
+        ASSERT_NE(rsp->pMetaBlock, nullptr);
+        auto *first = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 1));
+        auto *last = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 2));
+        EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(first, 0)), 1700000000123456789LL / divisor);
+        EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(last, 0)), 1700000000456789123LL / divisor);
+        EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000000000000LL + divisor - 1) + ")"), std::string::npos);
+      }
+      streamExtPullRspFree(rsp);
+    }
+    watermark = 1700000000456789123LL / divisor;
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)),
+              TSDB_CODE_SUCCESS);
+    void *response = nullptr;
+    gInfluxTimestampBatchPending = false;
+    ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+              TSDB_CODE_STREAM_NO_DATA);
+    int64_t scannedThrough = watermark * divisor + divisor - 1;
+    EXPECT_GE(scannedThrough, 1700000000456789123LL);
+    EXPECT_NE(gInfluxPrecisionSql.find("> to_timestamp_nanos(" + std::to_string(scannedThrough) + ")"),
+              std::string::npos);
+    streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  }
+  tSimpleHashCleanup(request.pUidMaxTs);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxDataBoundsUseReaderPrecisionInSingleAndBatchFetch) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)), TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  SExtColTypeMapping mapping = {};
+  mapping.tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  mapping.tdType.bytes = sizeof(int64_t);
+  mapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(mapping.colName, "ts", sizeof(mapping.colName));
+  reader.spec.pColMappings = &mapping;
+  reader.spec.numColMappings = 1;
+  reader.spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.triggerColumns, nullptr);
+  char timestampColumn[TSDB_COL_NAME_LEN] = "ts";
+  ASSERT_NE(taosArrayPush(reader.spec.triggerColumns, timestampColumn), nullptr);
+  for (bool batched : {false, true}) {
+    if (batched) {
+      reader.pInfluxTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+      ASSERT_NE(reader.pInfluxTagCols, nullptr);
+      char tagColumn[TSDB_COL_NAME_LEN] = "host";
+      ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagColumn), nullptr);
+    }
+    for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+      reader.spec.precision = precision;
+      int64_t divisor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                        precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+      SExtUidWindow window = {};
+      window.skey = 1700000000123000000LL / divisor;
+      window.ekey = 1700000000456000000LL / divisor;
+      ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+                TSDB_CODE_SUCCESS);
+      void *response = nullptr;
+      ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+                TSDB_CODE_STREAM_NO_DATA);
+      EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(1700000000123000000)"), std::string::npos);
+      EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000456000000LL + divisor - 1) + ")"), std::string::npos);
+      streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+    }
+  }
+  taosArrayDestroy(reader.pInfluxTagCols);
+  taosArrayDestroy(reader.spec.triggerColumns);
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxCalcBoundsCoverTruncatedNegativeAndZeroTicks) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                     precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    for (int64_t tick : {-2LL, -1LL, 0LL, 1LL}) {
+      SSDataBlock *block = nullptr;
+      ASSERT_EQ(streamReaderExtFetchData(&reader, tick, tick, &block), TSDB_CODE_SUCCESS);
+      int64_t first = tick * factor - (tick <= 0 ? factor - 1 : 0);
+      int64_t last = tick * factor + (tick >= 0 ? factor - 1 : 0);
+      EXPECT_NE(gInfluxPrecisionSql.find(">= to_timestamp_nanos(" + std::to_string(first) + ")"),
+                std::string::npos);
+      EXPECT_NE(gInfluxPrecisionSql.find("<= to_timestamp_nanos(" + std::to_string(last) + ")"),
+                std::string::npos);
+      EXPECT_EQ(first / factor, tick);
+      EXPECT_EQ(last / factor, tick);
+      EXPECT_GT((last + 1) / factor, tick);
+    }
+  }
+}
 
 SNode *gExternalReaderPlan = nullptr;
 int32_t gExternalReaderOpenCalls = 0;
@@ -53,8 +282,9 @@ int32_t cloneExternalReaderPlan(const char *, SNode **ppNode) {
   return nodesCloneNode(gExternalReaderPlan, ppNode);
 }
 
-int32_t stopExternalReaderOpen(void *, const SStreamTask *, void **) {
+int32_t stopExternalReaderOpen(void *, const SStreamTask *, SNode *range, void **) {
   ++gExternalReaderOpenCalls;
+  nodesDestroyNode(range);
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -101,6 +331,7 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
     SStreamReaderDeployMsg message = {};
     message.pExtSpec = &spec;
+    message.msg.calc.execReplica = 1;
     message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
     gExternalReaderOpenCalls = 0;
     Stub stub;
@@ -123,6 +354,128 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     taosMemoryFree(spec.pCalcMappings);
     gExternalReaderPlan = nullptr;
   }
+}
+
+struct ExternalCalcReaderStub {
+  SNode *range;
+};
+
+int32_t gExternalReaderCloseCalls = 0;
+int32_t gExternalReaderFailAt = 0;
+
+int32_t openExternalCalcReaderStub(void *, const SStreamTask *, SNode *range, void **info) {
+  ++gExternalReaderOpenCalls;
+  *info = nullptr;
+  if (gExternalReaderOpenCalls == gExternalReaderFailAt) {
+    nodesDestroyNode(range);
+    return TSDB_CODE_EXT_RESOURCE_EXHAUSTED;
+  }
+  *info = new ExternalCalcReaderStub{range};
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeExternalCalcReaderStub(void *info) {
+  if (info == nullptr) return;
+  auto *reader = static_cast<ExternalCalcReaderStub *>(info);
+  nodesDestroyNode(reader->range);
+  delete reader;
+  ++gExternalReaderCloseCalls;
+}
+
+void finishExternalReaderUndeploy(void *) {}
+
+class ExternalCalcReaderDeployTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    buildExternalReaderPlan(&gExternalReaderPlan, true);
+    ASSERT_NE(gExternalReaderPlan, nullptr);
+    auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_TIME_RANGE, &scan->pTimeRange), TSDB_CODE_SUCCESS);
+    tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+    message.pExtSpec = &spec;
+    message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
+    message.msg.calc.execReplica = 3;
+    gExternalReaderOpenCalls = 0;
+    gExternalReaderCloseCalls = 0;
+    gExternalReaderFailAt = 0;
+    stub.set(nodesStringToNode, cloneExternalReaderPlan);
+    stub.set(stExtReaderOpen, openExternalCalcReaderStub);
+    stub.set(stExtReaderClose, closeExternalCalcReaderStub);
+  }
+
+  void TearDown() override {
+    if (task.info != nullptr) undeploy();
+    streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+    taosArrayDestroy(spec.calcColumns);
+    taosMemoryFree(spec.pCalcMappings);
+    nodesDestroyNode(gExternalReaderPlan);
+    gExternalReaderPlan = nullptr;
+  }
+
+  void undeploy() {
+    SStreamReaderTask *readerTask = &task;
+    task.task.undeployCb = finishExternalReaderUndeploy;
+    EXPECT_EQ(stReaderTaskUndeploy(&readerTask, true), TSDB_CODE_SUCCESS);
+  }
+
+  SStreamReaderTask task = {};
+  SStreamExtTriggerSpec spec = {};
+  SStreamReaderDeployMsg message = {};
+  Stub stub;
+};
+
+TEST_F(ExternalCalcReaderDeployTest, CreatesIndependentReplicasAndClosesAll) {
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gExternalReaderOpenCalls, 3);
+  auto *readers = static_cast<SArray *>(task.info);
+  ASSERT_EQ(taosArrayGetSize(readers), 3);
+  auto *first = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, 0));
+  auto *second = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, 1));
+  ASSERT_NE(first, second);
+  ASSERT_NE(first->range, nullptr);
+  ASSERT_NE(second->range, nullptr);
+  ASSERT_NE(first->range, second->range);
+  reinterpret_cast<STimeRangeNode *>(first->range)->needCalc = true;
+  EXPECT_FALSE(reinterpret_cast<STimeRangeNode *>(second->range)->needCalc);
+  undeploy();
+  EXPECT_EQ(task.info, nullptr);
+  EXPECT_EQ(gExternalReaderCloseCalls, 3);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, RollsBackPreviouslyOpenedReplicas) {
+  gExternalReaderFailAt = 3;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(gExternalReaderOpenCalls, 3);
+  EXPECT_EQ(gExternalReaderCloseCalls, 2);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, RejectsZeroReplicaCount) {
+  message.msg.calc.execReplica = 0;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gExternalReaderOpenCalls, 0);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, OpensReplicasWithoutTimeRange) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  nodesDestroyNode(scan->pTimeRange);
+  scan->pTimeRange = nullptr;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gExternalReaderOpenCalls, 3);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t execId = 0; execId < message.msg.calc.execReplica; ++execId) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, execId));
+    EXPECT_EQ(reader->range, nullptr);
+  }
+}
+
+TEST_F(ExternalCalcReaderDeployTest, FirstOpenFailureLeavesNoInstances) {
+  gExternalReaderFailAt = 1;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(gExternalReaderOpenCalls, 1);
+  EXPECT_EQ(gExternalReaderCloseCalls, 0);
+  EXPECT_EQ(task.info, nullptr);
 }
 
 SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {
@@ -202,6 +555,9 @@ TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
   const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
   EXPECT_EQ(2, ntohl(pRsp->numOfBlocks));
   EXPECT_EQ(2, be64toh(pRsp->numOfRows));
+  EXPECT_EQ(size - sizeof(*pRsp), ntohl(pRsp->payloadLen));
+  EXPECT_EQ(size - sizeof(*pRsp), ntohl(pRsp->compLen));
+  EXPECT_EQ(0, pRsp->compressed);
 
   const char *pCursor = pRsp->data;
   for (uint64_t expectedGid : {UINT64_C(101), UINT64_C(202)}) {
@@ -221,6 +577,41 @@ TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
   blockDataDestroy(pFirst);
   blockDataDestroy(pEog);
   blockDataDestroy(pSecond);
+  taosArrayDestroy(pBlocks);
+}
+
+TEST(StreamReaderFetchBatchTest, LegacyEmptyResponseHasZeroPayloadLength) {
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  void *pData = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  ASSERT_NE(nullptr, pData);
+  const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(sizeof(*pRsp), size);
+  EXPECT_EQ(0, ntohl(pRsp->payloadLen));
+  EXPECT_EQ(0, ntohl(pRsp->compLen));
+  EXPECT_EQ(1, pRsp->completed);
+  rpcFreeCont(pData);
+  taosArrayDestroy(pBlocks);
+}
+
+int32_t invalidLegacyFetchBlockSize(const SSDataBlock *) { return INT32_MAX; }
+
+TEST(StreamReaderFetchBatchTest, LegacyResponseRejectsOversizedBlock) {
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  SSDataBlock *pBlock = makeReaderFetchDataBlock(101, 11);
+  ASSERT_NE(nullptr, pBlock);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pBlock));
+  Stub sizeStub;
+  sizeStub.set(blockGetInternalEncodeSize, invalidLegacyFetchBlockSize);
+  void *pData = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size_t size = 123;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, streamBuildFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  EXPECT_EQ(nullptr, pData);
+  EXPECT_EQ(0, size);
+  blockDataDestroy(pBlock);
   taosArrayDestroy(pBlocks);
 }
 

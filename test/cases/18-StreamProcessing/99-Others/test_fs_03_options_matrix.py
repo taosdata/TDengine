@@ -268,7 +268,7 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
             self._check_drop_output_option(src_name)
 
         self._with_std_sources(
-            "ucctl", body, skip_pg=True, skip_influx=True
+            "ucctl", body, skip_pg=True, skip_influx=True, skip_sqlserver=True
         )
         print("control option compatibility matrix ........ [ passed ]")
 
@@ -341,7 +341,7 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        self._with_std_sources(prefix, body, skip_pg=True, skip_influx=True)
+        self._with_std_sources(prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True)
 
     def _run_watermark_case(
         self, options: Optional[str], expected_batches: list

@@ -55,6 +55,20 @@ DEP_ext_gtest(tdbBtreeToStackTest)
 target_link_libraries(tdbBtreeToStackTest PRIVATE tdb)
 
 add_test(
+    NAME tdbBtreeToStackTest
+    COMMAND tdbBtreeToStackTest
+)
+
+add_test(
     NAME tdbPageFlushTest
     COMMAND tdbPageFlushTest
 )
+
+# The test binaries remove relative database directories such as "tdb".
+foreach(_tdb_test IN ITEMS tdbUtilTest tdbBtreeToStackTest tdbPageFlushTest)
+    set(_tdb_test_work_dir "${CMAKE_CURRENT_BINARY_DIR}/${_tdb_test}")
+    file(MAKE_DIRECTORY "${_tdb_test_work_dir}")
+    set_tests_properties(${_tdb_test} PROPERTIES
+        WORKING_DIRECTORY "${_tdb_test_work_dir}"
+    )
+endforeach()

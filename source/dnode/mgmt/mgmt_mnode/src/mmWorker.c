@@ -349,6 +349,21 @@ static int32_t mmProcessStreamFetchMsg(SMnodeMgmt *pMgmt, SRpcMsg* pMsg) {
   void *pTask = pReaderTask;
   ST_TASK_DLOG("mnode %s start", __func__);
 
+  // Security hardening against item 182:
+  // The reset / first-run branch below rebuilds the reader task from
+  // req.pStRtFuncInfo (it dereferences req.pStRtFuncInfo->pStreamPartColVals when
+  // req.dynTbname is set, and unconditionally TSWAPs *req.pStRtFuncInfo into the
+  // stored runtime info). However, tDeserializeSResFetchReq() only allocates
+  // req.pStRtFuncInfo when the wire carries hasStRtFuncInfo > 0; reset and dynTbname
+  // are decoded independently and afterwards, so a crafted TDMT_STREAM_FETCH frame
+  // with reset=1 (or a first-run fetch where pTaskInfo == NULL) and the runtime-info
+  // section omitted is a valid frame that leaves req.pStRtFuncInfo == NULL.
+  // Dereferencing it would crash the whole taosd process hosting the mnode and every
+  // vnode it carries. Reject such malformed requests *before* any dereference.
+  // The runtime funcInfo is mandatory exactly when the rebuild path is taken.
+  STREAM_CHECK_CONDITION_GOTO(req.pStRtFuncInfo == NULL && (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL),
+                              TSDB_CODE_QRY_INVALID_INPUT);
+
   if (req.reset || sStreamReaderCalcInfo->pTaskInfo == NULL) {
     qDestroyTask(sStreamReaderCalcInfo->pTaskInfo);
     int64_t uid = 0;

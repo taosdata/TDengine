@@ -117,6 +117,9 @@ int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
+// true when the vnode's [hashBegin, hashEnd] owns tbName under the same hash the
+// table-placement router uses; false lets callers skip the meta name-index lookup
+bool vnodeTbNameInHashRange(void *pVnode, const char *tbName);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);

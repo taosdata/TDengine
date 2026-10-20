@@ -48,6 +48,7 @@ class TestMetaSysDb2:
         5. Check table count scan after taosd restart
         6. Check count(distinct ...) function succeeds on ins_tables
         7. Check count with table type filter on ins_tables
+        8. Check table_name =/IN filter results on ins_tables
 
         Since: v3.3.6
 
@@ -61,10 +62,12 @@ class TestMetaSysDb2:
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_odbc.py
             - 2025-12-22 Alex Duan Migrated from uncatalog/system-test/2-query/test_table_count_scan.py
             - 2026-09-21 add check_ins_tables_count_by_type for type-filtered count scan
+            - 2026-10-13 add check_table_name_in_filter for table_name =/IN direct lookup
 
         """
         self.check_ins_tables_count()
         self.check_ins_tables_count_by_type()
+        self.check_table_name_in_filter()
         self.check_table_type()
         self.check_count_distinct()
         self.do_odbc()
@@ -302,6 +305,80 @@ class TestMetaSysDb2:
 
         tdSql.execute("drop database test_type_count_db", show=1)
         tdLog.info("Table count scan by type check passed.")
+
+    def check_table_name_in_filter(self):
+        tdLog.info("Checking table_name =/IN filter on 'information_schema.ins_tables'")
+
+        tdSql.execute("drop database if exists test_in_filter_db", show=1)
+        tdSql.execute("drop database if exists test_in_filter_db2", show=1)
+        tdSql.execute("create database test_in_filter_db vgroups 2", show=1)
+        tdSql.execute("use test_in_filter_db")
+        tdSql.execute("create stable stb (ts timestamp, v int) tags (t1 int)", show=1)
+        tdSql.execute("create table ctb1 using stb tags (1)", show=1)
+        tdSql.execute("create table ctb2 using stb tags (2)", show=1)
+        tdSql.execute("create table ntb1 (ts timestamp, v int)", show=1)
+        tdSql.execute("create database test_in_filter_db2 vgroups 1", show=1)
+        tdSql.execute("create table test_in_filter_db2.ntb2 (ts timestamp, v int)", show=1)
+
+        def rows_of_in(names, db=None):
+            name_list = ",".join(f"'{n}'" for n in names)
+            cond = f"table_name in ({name_list})"
+            if db is not None:
+                cond = f"db_name='{db}' and " + cond
+            tdSql.query(f"select db_name, table_name, stable_name from information_schema.ins_tables where {cond}",
+                        show=1)
+            return {(tdSql.getData(i, 0), tdSql.getData(i, 1), tdSql.getData(i, 2)) for i in range(tdSql.getRows())}
+
+        ## 1. single-element IN behaves like equality
+        rows = rows_of_in(["ctb1"], db="test_in_filter_db")
+        assert rows == {("test_in_filter_db", "ctb1", "stb")}, f"unexpected rows: {rows}"
+
+        ## 2. multi-element IN across child and normal tables
+        rows = rows_of_in(["ctb1", "ntb1", "ctb2"], db="test_in_filter_db")
+        assert rows == {("test_in_filter_db", "ctb1", "stb"),
+                        ("test_in_filter_db", "ctb2", "stb"),
+                        ("test_in_filter_db", "ntb1", None)}, f"unexpected rows: {rows}"
+
+        ## 3. super-table names never appear in ins_tables
+        assert rows_of_in(["stb"], db="test_in_filter_db") == set()
+        assert rows_of_in(["stb", "ctb1"], db="test_in_filter_db") == {("test_in_filter_db", "ctb1", "stb")}
+
+        ## 4. nonexistent names are ignored
+        assert rows_of_in(["not_exist_tb", "ctb2"], db="test_in_filter_db") == \
+            {("test_in_filter_db", "ctb2", "stb")}
+
+        ## 5. duplicate literals still return one row per table
+        assert rows_of_in(["ctb1", "ctb1"], db="test_in_filter_db") == {("test_in_filter_db", "ctb1", "stb")}
+
+        ## 6. IN without db_name covers tables from every db
+        rows = rows_of_in(["ntb1", "ntb2"])
+        assert rows == {("test_in_filter_db", "ntb1", None),
+                        ("test_in_filter_db2", "ntb2", None)}, f"unexpected rows: {rows}"
+
+        ## 7. equality filter still works
+        tdSql.query("select table_name, stable_name from information_schema.ins_tables \
+                    where db_name='test_in_filter_db' and table_name='ctb2'", show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ctb2")
+        tdSql.checkData(0, 1, "stb")
+
+        ## 8. IN result matches the full-scan ground truth
+        tdSql.query("select table_name, stable_name from information_schema.ins_tables \
+                    where db_name='test_in_filter_db'", show=1)
+        truth = {("test_in_filter_db", tdSql.getData(i, 0), tdSql.getData(i, 1)) for i in range(tdSql.getRows())}
+        rows = rows_of_in(["ctb1", "ctb2", "ntb1", "stb"], db="test_in_filter_db")
+        assert rows == truth, f"IN result {rows} != full-scan ground truth {truth}"
+
+        ## 9. IN combined with another condition stays correct
+        tdSql.query("select table_name from information_schema.ins_tables \
+                    where db_name='test_in_filter_db' and table_name in ('ctb1','ntb1') and type='NORMAL_TABLE'",
+                    show=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "ntb1")
+
+        tdSql.execute("drop database test_in_filter_db", show=1)
+        tdSql.execute("drop database test_in_filter_db2", show=1)
+        tdLog.info("Table name =/IN filter check passed.")
 
     def check_count_distinct(self):
         tdSql.query("select count(distinct table_name) from information_schema.ins_tables", show=1)

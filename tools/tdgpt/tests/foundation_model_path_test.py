@@ -17,7 +17,7 @@ import logging
 import sys
 from types import SimpleNamespace
 
-from taosanalytics.tsfm import foundation_util
+from lib.tsfm.mgmt import foundation_util
 
 
 def test_get_taosanodectl_cmd_finds_windows_install_layout(tmp_path, monkeypatch):

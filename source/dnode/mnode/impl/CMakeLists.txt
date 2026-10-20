@@ -66,6 +66,19 @@ if(TD_ENTERPRISE)
   # the extconnector implementation is only linked by Enterprise mndExtSource.c.
   target_link_libraries(mnode PUBLIC extconnector)
 endif()
+
+# extconnector headers are needed by the OSS stream-management code
+# (mndStreamMgmt.c) as well as the enterprise mndExtSource.c.  The OSS
+# extconnector library carries community stubs for the connector entry points,
+# so both the include dirs and the link are safe in community builds (same
+# arrangement as libs/new-stream).
+target_include_directories(
+  mnode
+  PRIVATE "${TD_SOURCE_DIR}/include/libs/extconnector"
+  PRIVATE "${TD_SOURCE_DIR}/source/libs/extconnector/inc"
+)
+target_link_libraries(mnode PRIVATE extconnector)
+
 target_link_libraries(
   mnode PUBLIC scheduler sdb wal transport sync monitor executor qworker new-stream parser audit monitorfw totp xnode txnode mgmt_mnode
 )

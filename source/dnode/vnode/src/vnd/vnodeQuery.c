@@ -1604,6 +1604,22 @@ int8_t vnodeGetSecurityLevel(void *pVnode) {
   return pVnodeObj->config.securityLevel;
 }
 
+// Same ownership rule as vnodeValidateTableHash, but takes the bare table name
+// and returns a bool instead of raising TSDB_CODE_VND_HASH_MISMATCH, so scans
+// can cheaply skip names this vnode cannot own. Mount-prefix trimming mirrors
+// the create/lookup paths (metaFilterTableByHash, vnodeGetTableInfo).
+bool vnodeTbNameInHashRange(void *pVnode, const char *tbName) {
+  SVnode *pVnodeObj = pVnode;
+  char    tbFName[TSDB_TABLE_FNAME_LEN + 1];
+  (void)snprintf(tbFName, sizeof(tbFName), "%s.%s", pVnodeObj->config.dbname, tbName);
+  tbFName[TSDB_TABLE_FNAME_LEN] = '\0';
+  if (pVnodeObj->mounted) tTrimMountPrefix(tbFName);
+
+  uint32_t hashValue = taosGetTbHashVal(tbFName, (int32_t)strlen(tbFName), pVnodeObj->config.hashMethod,
+                                        pVnodeObj->config.hashPrefix, pVnodeObj->config.hashSuffix);
+  return hashValue >= pVnodeObj->config.hashBegin && hashValue <= pVnodeObj->config.hashEnd;
+}
+
 int8_t vnodeGetTsdbPrecision(void *pVnode) {
   SVnode *pVnodeObj = pVnode;
   return pVnodeObj->config.tsdbCfg.precision;

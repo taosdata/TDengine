@@ -947,6 +947,48 @@ static int32_t retainTemporalScanCandidates(SSelectStmt* pSelect,
                                             bool tags,
                                             SNodeList** ppCols);
 
+// True when every column referenced by a stream-calc SELECT time range belongs
+// to the table alias pAlias.  A range without column references (only window
+// placeholders such as _twstart/_twend) also qualifies: it carries no table
+// ownership and can be evaluated for any scan.
+//
+// For a temporal join such as
+//   FROM local a LEFT WINDOW JOIN ext.src b ...
+//   WHERE a.ts >= _twstart AND a.ts < _twend
+// the range is owned by a; pushing it onto b's scan would clip b rows that
+// still match within WINDOW_OFFSET, so b must stay unconstrained.
+static bool extTimeRangeOwnedByAlias(SNode* pTimeRange, const char* pAlias) {
+  if (NULL == pTimeRange || NULL == pAlias || '\0' == pAlias[0] ||
+      QUERY_NODE_TIME_RANGE != nodeType(pTimeRange)) {
+    return false;
+  }
+
+  // nodesWalkExpr does not descend into STimeRangeNode, so collect from the
+  // two bound expressions directly.
+  STimeRangeNode* pRange = (STimeRangeNode*)pTimeRange;
+  SNode*          bounds[2] = {pRange->pStart, pRange->pEnd};
+  SNodeList*      pCols = NULL;
+  if (TSDB_CODE_SUCCESS !=
+      nodesCollectColumnsFromMultiNodes(bounds, 2, NULL, COLLECT_COL_TYPE_ALL, &pCols)) {
+    return false;
+  }
+
+  bool owned = true;
+  SNode* pCol = NULL;
+  FOREACH(pCol, pCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pCol)) {
+      continue;
+    }
+    SColumnNode* pColumn = (SColumnNode*)pCol;
+    if (0 != strcmp(pColumn->tableAlias, pAlias)) {
+      owned = false;
+      break;
+    }
+  }
+  nodesDestroyList(pCols);
+  return owned;
+}
+
 
 // ---------------------------------------------------------------------------
 // createExternalScanLogicNode: builds an SScanLogicNode for an external table
@@ -975,6 +1017,21 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
                               pRealTable->table.tableName, &pScan);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
+  }
+
+  // Stream calc over an external source: keep the SELECT time range on the scan
+  // so the ETR can evaluate time-returning expressions (e.g. _twstart/_twend or
+  // casted localtime placeholders) per fetch, mirroring vnode processCalaTimeRange.
+  //
+  // In a temporal join the range may belong to the other side (e.g.
+  // "FROM local a LEFT WINDOW JOIN ext b ... WHERE a.ts >= _twstart AND
+  // a.ts < _twend"): carrying it onto b's scan would silently drop b rows that
+  // still match within WINDOW_OFFSET. Only scans owning the referenced columns
+  // carry the range; the other side stays unconstrained (full scan).
+  if (TSDB_CODE_SUCCESS == code && inStreamCalcClause(pCxt->pPlanCxt) &&
+      (NULL == pSelect->pTimeRange ||
+       extTimeRangeOwnedByAlias(pSelect->pTimeRange, pRealTable->table.tableAlias))) {
+    code = nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange);
   }
 
   pScan->scanSeq[0]  = pSelect->hasRepeatScanFuncs ? 2 : 1;

@@ -38,6 +38,12 @@
 
 #define DYN_COL_REF_NAME_LEN (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4)
 
+// Upper bound for the vtable redeploy chain (heartbeat -> mnode deploy ->
+// response -> addedVgInfo). Beyond this deadline the calc fails with an
+// explicit timeout error instead of retrying need-redeploy forever
+// (defect 7138880370: unbounded redeploy retry loop).
+#define STREAM_VTABLE_REDEPLOY_TIMEOUT_MS 60000
+
 typedef struct SDynResolvedColRef {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char    dbName[TSDB_DB_NAME_LEN];
@@ -4385,6 +4391,13 @@ _return:
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
+int32_t dynCopySysScanName(char* pDst, size_t dstLen, const char* pSrc) {
+  if (pDst == NULL || pSrc == NULL || dstLen == 0 || varDataLen(pSrc) >= dstLen) return TSDB_CODE_INVALID_MSG;
+  memcpy(pDst, varDataVal(pSrc), varDataLen(pSrc));
+  pDst[varDataLen(pSrc)] = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pReqByVg, SHashObj* pHitMap,
                                          SHashObj* pNextRefMap) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -4425,13 +4438,18 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
       char      currentRef[sizeof(((SDynRefKey*)0)->colRef)] = {0};
       SDynRefEdge edge = {0};
       uint8_t   hit = 1;
-      char*     pDb = colDataGetData(pDbNameCol, i);
-      char*     pTb = colDataGetData(pTableNameCol, i);
-      char*     pCol = colDataGetData(pColNameCol, i);
-
-      memcpy(dbName, varDataVal(pDb), varDataLen(pDb));
-      memcpy(tbName, varDataVal(pTb), varDataLen(pTb));
-      memcpy(colName, varDataVal(pCol), varDataLen(pCol));
+      QUERY_CHECK_CONDITION(!colDataIsNull_s(pDbNameCol, i) && !colDataIsNull_s(pTableNameCol, i) &&
+                                !colDataIsNull_s(pColNameCol, i),
+                            code, line, _return, TSDB_CODE_INVALID_MSG);
+      char* pDb = colDataGetData(pDbNameCol, i);
+      char* pTb = colDataGetData(pTableNameCol, i);
+      char* pCol = colDataGetData(pColNameCol, i);
+      code = dynCopySysScanName(dbName, sizeof(dbName), pDb);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = dynCopySysScanName(tbName, sizeof(tbName), pTb);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = dynCopySysScanName(colName, sizeof(colName), pCol);
+      QUERY_CHECK_CODE(code, line, _return);
 
       len = tsnprintf(currentRef, sizeof(currentRef), "%s.%s.%s", dbName, tbName, colName);
       if (len < 0 || len >= sizeof(currentRef)) {
@@ -5630,6 +5648,7 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
     }
     atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.uid, (int64_t)deployUid);
     (void)atomic_val_compare_exchange_8(pTaskInfo->pStreamRuntimeInfo->vtableDeployGot, 0, 1);
+    atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.redeployStartMs, taosGetMonoTimestampMs());
     taosHashClear(pVtbScan->curOrgTbVg);
     pVtbScan->needRedeploy = true;
     pVtbScan->rversion = rversion;
@@ -6682,7 +6701,17 @@ int32_t virtualTableScanCheckNeedRedeploy(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, line, _return);
     }
     pVtbScan->needRedeploy = false;
+    atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.redeployStartMs, 0);
   } else {
+    // Redeploy response has not arrived yet. Keep returning NEED_REDEPLOY so the
+    // trigger retries the calc while the deploy chain (heartbeat -> mnode ->
+    // deploy response) has time to complete. If the chain never completes, fail
+    // with an explicit timeout error instead of retrying forever.
+    int64_t redeployStartMs = atomic_load_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.redeployStartMs);
+    if (redeployStartMs != 0 && taosGetMonoTimestampMs() - redeployStartMs > STREAM_VTABLE_REDEPLOY_TIMEOUT_MS) {
+      code = TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT;
+      QUERY_CHECK_CODE(code, line, _return);
+    }
     code = TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     QUERY_CHECK_CODE(code, line, _return);
   }

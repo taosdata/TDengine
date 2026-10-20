@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-# source/taos-community/test/cases/18-StreamProcessing/federated/test_fs_common.py
+# Shared helpers for stream-federated-query tests (FS spec).
+# File location: source/taos-community/test/cases/18-StreamProcessing/99-Others/fs_common.py
 """Shared helpers for stream-federated-query tests (FS spec).
 
 Only free-function helpers and one fixture mixin live here; no test classes.

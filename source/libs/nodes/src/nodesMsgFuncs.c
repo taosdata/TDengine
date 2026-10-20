@@ -3320,6 +3320,7 @@ enum {
   PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_SKEY,
   PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_EKEY,
   PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN,
+  PHY_FEDERATED_SCAN_CODE_TIME_RANGE,
 };
 
 static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3385,6 +3386,9 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN, pNode->underVTableScan);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pTimeRange != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_TIME_RANGE, nodeToMsg, pNode->pTimeRange);
   }
   return code;
 }
@@ -3483,6 +3487,9 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->underVTableScan);
+        break;
+      case PHY_FEDERATED_SCAN_CODE_TIME_RANGE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
         break;
       default:
         break;

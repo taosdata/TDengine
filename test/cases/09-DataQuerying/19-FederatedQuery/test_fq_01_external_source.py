@@ -2421,8 +2421,8 @@ _CASES = [
         ],
     ],
 
-    # Schema-change retry semantics: explicit stale-column lookup should retry via cache refresh,
-    # while SELECT * only reflects new columns after an explicit REFRESH.
+    # Schema-change coverage: stale-column lookup retries and explicit REFRESH
+    # after ADD COLUMN (FS section 3.4.6).
     ["081m", [_mysql], ["fq01_src081m"], "DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column", [
             "drop external source if exists fq01_src081m",
             f"create external source fq01_src081m type='mysql' host='{_M_HOST}' port={_M_PORT} user='{_M_USER}' password='{_M_PASS}' database='{_M_DB}'",
@@ -2461,7 +2461,7 @@ _CASES = [
         ],
     ],
 
-    ["082m", [_mysql], ["fq01_src082m"], "ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column", [
+    ["082m", [_mysql], ["fq01_src082m"], "REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6)", [
             "drop external source if exists fq01_src082m",
             f"create external source fq01_src082m type='mysql' host='{_M_HOST}' port={_M_PORT} user='{_M_USER}' password='{_M_PASS}' database='{_M_DB}'",
             "select * from fq01_src082m.src_t where val=5",
@@ -2469,7 +2469,6 @@ _CASES = [
                 f"alter table `{_FW_TABLE}` add column extra_note VARCHAR(32) NULL",
                 f"update `{_FW_TABLE}` set extra_note='after_refresh' where val=5",
             ]),
-            "select * from fq01_src082m.src_t where val=5",
             "refresh external source fq01_src082m",
             "select * from fq01_src082m.src_t where val=5",
             _mysql_exec_step(_M_DB, [
@@ -2480,7 +2479,7 @@ _CASES = [
         ],
     ],
 
-    ["082p", [_pg], ["fq01_src082p"], "ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column", [
+    ["082p", [_pg], ["fq01_src082p"], "REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6)", [
             "drop external source if exists fq01_src082p",
             f"create external source fq01_src082p type='postgresql' host='{_P_HOST}' port={_P_PORT} user='{_P_USER}' password='{_P_PASS}' database='{_P_DB}' schema='{_P_SCHEMA}'",
             f"select * from fq01_src082p.{_FW_TABLE} where val=5",
@@ -2488,7 +2487,6 @@ _CASES = [
                 f"alter table {_P_SCHEMA}.{_FW_TABLE} add column extra_note VARCHAR(32) NULL",
                 f"update {_P_SCHEMA}.{_FW_TABLE} set extra_note='after_refresh' where val=5",
             ]),
-            f"select * from fq01_src082p.{_FW_TABLE} where val=5",
             "refresh external source fq01_src082p",
             f"select * from fq01_src082p.{_FW_TABLE} where val=5",
             _pg_exec_step(_P_DB, [

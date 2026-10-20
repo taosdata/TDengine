@@ -434,6 +434,9 @@ typedef struct SStoreMeta {
   int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema);
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, SVnodeTableNums* pNums);
+  // true when this vnode's [hashBegin, hashEnd] can own tbName under the
+  // table-placement hash; false means the meta name lookup can be skipped
+  bool (*tbNameInHashRange)(void* pVnode, const char* tbName);
   int8_t (*getSecurityLevel)(void* pVnode);
   int32_t (*getDBSize)(void* pVnode, SDbSizeStatisInfo* pInfo);
   int32_t (*getLastCacheStats)(void* pVnode, SLastCacheStats* pStats);

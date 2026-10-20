@@ -490,6 +490,7 @@ typedef struct STableScanInfo {
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
+  SSHashObj*      pVstbSchemaSlots;
   // for virtual super table batch scan
   int32_t         lastBatchIdx;
   int32_t         currentBatchIdx;
@@ -942,7 +943,8 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs);
 int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);                             
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, size_t dataLen, SArray* pColList,
+                                     char** pNextStart, bool isVstbScan);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
                              struct SOperatorInfo* pOperator);
 
@@ -1260,6 +1262,9 @@ void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 #if defined(BUILD_TEST)
+int32_t interpTestKeepRows(SArray* pRows, const SSDataBlock* pBlock,
+                           int32_t rowIndex);
+int32_t interpTestCopyKeeperRow(SArray* pDst, const SArray* pSrc);
 typedef struct SInterpMainFirstOutputTestCtx
     SInterpMainFirstOutputTestCtx;
 int32_t interpTestCreateMainFirstOutput(

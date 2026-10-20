@@ -8995,7 +8995,10 @@ TEST_F(MndStreamHeartbeatTest, MixedInternalAndExternalReaderRequestPreservesBot
   tFreeSMStreamHbRspMsg(&hbRsp);
 }
 
-TEST_F(MndStreamHeartbeatTest, ExternalOnlyReaderRequestReturnsDedicatedResponseWhenStreamNotRunning) {
+TEST_F(MndStreamHeartbeatTest, SingleExtReaderRequestTypeIsRejectedAsUnsupported) {
+  // The single-EXT management request type has no consumer on the trigger side (it always sends
+  // the MIXED type), so the dedicated mnode handler was removed. The request must now be
+  // rejected instead of producing a response nothing can dispatch.
   const int64_t registryEntryId = 202;
   const int64_t deploymentGeneration = 13;
   SStreamExtOrigTblReaderReq *extReq =
@@ -9023,23 +9026,11 @@ TEST_F(MndStreamHeartbeatTest, ExternalOnlyReaderRequestReturnsDedicatedResponse
   SStmGrpCtx ctx = {};
   ctx.pRsp = &hbRsp;
 
-  EXPECT_EQ(msmHandleTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
-  ASSERT_NE(hbRsp.rsps.rspList, nullptr);
-  ASSERT_EQ(taosArrayGetSize(hbRsp.rsps.rspList), 1);
-  SStreamMgmtRsp *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(hbRsp.rsps.rspList, 0));
-  ASSERT_NE(rsp, nullptr);
-  EXPECT_EQ(rsp->header.msgType, STREAM_MSG_EXT_ORIGTBL_READER_INFO);
-  EXPECT_EQ(rsp->reqId, 10);
-  ASSERT_NE(rsp->cont.pExtOrigTblReader, nullptr);
-  EXPECT_EQ(rsp->cont.pExtOrigTblReader->registryEntryId, registryEntryId);
-  EXPECT_EQ(rsp->cont.pExtOrigTblReader->deploymentGeneration, deploymentGeneration);
-#ifdef TD_ENTERPRISE
-  EXPECT_EQ(rsp->cont.pExtOrigTblReader->code, TSDB_CODE_MND_STREAM_NOT_RUNNING);
-#else
-  EXPECT_EQ(rsp->cont.pExtOrigTblReader->code, TSDB_CODE_OPS_NOT_SUPPORT);
-#endif
+  EXPECT_NE(msmHandleTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
 
-  tFreeSMStreamHbRspMsg(&hbRsp);
+  // The rejected request is not consumed: free it here.
+  tFreeSStreamMgmtReq(mgmtReq);
+  taosMemoryFree(mgmtReq);
 }
 
 #ifdef TD_ENTERPRISE
@@ -9101,6 +9092,36 @@ TEST_F(MndStreamExtReaderSchemaTest, RejectsAmbiguousTimestampPrimaryKey) {
   tstrncpy(columns_[0].extTypeName, "timestamp", sizeof(columns_[0].extTypeName));
   EXPECT_EQ(TSDB_CODE_EXT_NO_TS_PRIMARY_KEY, build());
   EXPECT_EQ(nullptr, spec_);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, RejectsDecimalScaleMismatchOnRedeploy) {
+  // The virtual column keeps its declared DECIMAL(10,2) while the remote column changed to
+  // DECIMAL(10,3): same type enum, but re-interpreting the integer payload under the virtual
+  // column's scale would silently scale every value by 10. The redeploy must be rejected.
+  tstrncpy(columns_[2].extTypeName, "decimal(10,3)", sizeof(columns_[2].extTypeName));
+  SStreamExtOrigTblReaderBinding *pBinding =
+      static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0));
+  pBinding->expectedType = TSDB_DATA_TYPE_DECIMAL64;
+  pBinding->expectedPrecision = 10;
+  pBinding->expectedScale = 2;
+  EXPECT_EQ(TSDB_CODE_EXT_TYPE_NOT_MAPPABLE, build());
+  EXPECT_EQ(nullptr, spec_);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, AcceptsMatchingDecimalPrecisionScale) {
+  tstrncpy(columns_[2].extTypeName, "decimal(10,2)", sizeof(columns_[2].extTypeName));
+  SStreamExtOrigTblReaderBinding *pBinding =
+      static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0));
+  pBinding->expectedType = TSDB_DATA_TYPE_DECIMAL64;
+  pBinding->expectedPrecision = 10;
+  pBinding->expectedScale = 2;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  ASSERT_EQ(2, spec_->numColMappings);
+  EXPECT_EQ(TSDB_DATA_TYPE_DECIMAL64, spec_->pColMappings[1].tdType.type);
+  EXPECT_EQ(10, spec_->pColMappings[1].tdType.precision);
+  EXPECT_EQ(2, spec_->pColMappings[1].tdType.scale);
+  EXPECT_EQ(1, rsp_.acceptedTriggerBindingCount);
 }
 
 TEST_F(MndStreamExtReaderSchemaTest, SharedBindingsReusePhysicalColumnSlotsPerKind) {

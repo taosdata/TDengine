@@ -2368,3 +2368,132 @@ TEST(testCase, formatTimestampTz_negative_fraction) {
 #endif
 
 #pragma GCC diagnostic pop
+// ---------------------------------------------------------------------------
+// BLOB byte-bound check used by the row-append loops.
+//
+// A table carries at most one BLOB column, so the append loops resolve that single
+// column once per block (blockDataGetBlobCol) and then only compare its accumulated
+// payload (blockDataBlobInfoExceedLimit).  A block that does hold several BLOB columns
+// cannot be bounded by one pointer: the resolution then reports the column count and the
+// check has to fall back to blockDataBlobExceedLimit(), which walks every column.
+//
+// The block below only sets the accounting fields (varmeta.length), so the 240 MB
+// trigger length is reached without allocating any payload.
+// ---------------------------------------------------------------------------
+namespace {
+
+// One maximum sized value may still be appended at this length without leaving the
+// per-block budget, i.e. the first length at which the block has to be closed is
+// kBlobTriggerLength + 1.
+constexpr uint64_t kBlobTriggerLength =
+    (uint64_t)TSDB_MAX_BLOB_BYTES_PER_BLOCK - (uint64_t)TSDB_MAX_BLOB_LEN;
+
+// A ts column plus `numOfBlobCols` BLOB columns.  When no BLOB column is requested a
+// plain column is added instead, so the block always has more than one column.
+SSDataBlock *makeBlobBoundTestBlock(int32_t numOfBlobCols) {
+  SSDataBlock *pBlock = nullptr;
+  EXPECT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(blockDataEnsureCapacity(pBlock, 4), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  EXPECT_EQ(blockDataAppendColInfo(pBlock, &tsCol), TSDB_CODE_SUCCESS);
+
+  for (int32_t i = 0; i < numOfBlobCols; ++i) {
+    SColumnInfoData blobCol = createColumnInfoData(TSDB_DATA_TYPE_BLOB, 0, (int16_t)(i + 2));
+    EXPECT_EQ(blockDataAppendColInfo(pBlock, &blobCol), TSDB_CODE_SUCCESS);
+  }
+  if (numOfBlobCols == 0) {
+    SColumnInfoData intCol = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+    EXPECT_EQ(blockDataAppendColInfo(pBlock, &intCol), TSDB_CODE_SUCCESS);
+  }
+
+  pBlock->info.rows = 1;
+  return pBlock;
+}
+
+}  // namespace
+
+TEST(BlobBoundCheckTest, NullBlockHasNoBlobColumn) {
+  SBlobColInfo info = blockDataGetBlobCol(nullptr);
+  EXPECT_EQ(info.pCol, nullptr);
+  EXPECT_EQ(info.numOfBlobCols, 0);
+  EXPECT_FALSE(blockDataBlobInfoExceedLimit(&info, nullptr));
+}
+
+TEST(BlobBoundCheckTest, BlockWithoutBlobColumnSkipsTheCheck) {
+  SSDataBlock *pBlock = makeBlobBoundTestBlock(0);
+  ASSERT_NE(pBlock, nullptr);
+
+  SBlobColInfo info = blockDataGetBlobCol(pBlock);
+  EXPECT_EQ(info.pCol, nullptr);
+  EXPECT_EQ(info.numOfBlobCols, 0);
+  EXPECT_FALSE(blockDataBlobInfoExceedLimit(&info, pBlock));
+
+  // even a variable-length column far above the budget must not close the block: the
+  // check only applies to BLOB columns
+  SColumnInfoData *pCol = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, 1);
+  ASSERT_NE(pCol, nullptr);
+  pCol->varmeta.length = (uint32_t)kBlobTriggerLength + 1;
+  EXPECT_FALSE(blockDataBlobInfoExceedLimit(&info, pBlock));
+  EXPECT_FALSE(blockDataBlobExceedLimit(pBlock));
+
+  blockDataDestroy(pBlock);
+}
+
+TEST(BlobBoundCheckTest, SingleBlobColumnIsResolvedOnce) {
+  SSDataBlock *pBlock = makeBlobBoundTestBlock(1);
+  ASSERT_NE(pBlock, nullptr);
+
+  SBlobColInfo info = blockDataGetBlobCol(pBlock);
+  EXPECT_EQ(info.numOfBlobCols, 1);
+  ASSERT_NE(info.pCol, nullptr);
+
+  SColumnInfoData *pBlobCol = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, 1);
+  ASSERT_NE(pBlobCol, nullptr);
+  EXPECT_EQ(info.pCol, (const SColumnInfoData *)pBlobCol);
+
+  // at the trigger length one more maximum sized value only reaches the budget
+  pBlobCol->varmeta.length = (uint32_t)kBlobTriggerLength;
+  EXPECT_FALSE(blockDataBlobInfoExceedLimit(&info, pBlock));
+  EXPECT_FALSE(blockDataBlobExceedLimit(pBlock));
+
+  // one byte more and the block has to be closed; the single column check and the
+  // column walk must agree, otherwise the cached path changes block boundaries
+  pBlobCol->varmeta.length = (uint32_t)kBlobTriggerLength + 1;
+  EXPECT_TRUE(blockDataBlobInfoExceedLimit(&info, pBlock));
+  EXPECT_TRUE(blockDataBlobExceedLimit(pBlock));
+
+  pBlobCol->varmeta.length = 0;
+  EXPECT_FALSE(blockDataBlobInfoExceedLimit(&info, pBlock));
+
+  blockDataDestroy(pBlock);
+}
+
+TEST(BlobBoundCheckTest, SeveralBlobColumnsFallBackToTheColumnWalk) {
+  SSDataBlock *pBlock = makeBlobBoundTestBlock(2);
+  ASSERT_NE(pBlock, nullptr);
+
+  SBlobColInfo info = blockDataGetBlobCol(pBlock);
+  // a single resolved column cannot bound the block: the caller must use the walk
+  EXPECT_EQ(info.pCol, nullptr);
+  EXPECT_EQ(info.numOfBlobCols, 2);
+
+  SColumnInfoData *pFirst = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, 1);
+  SColumnInfoData *pSecond = (SColumnInfoData *)taosArrayGet(pBlock->pDataBlock, 2);
+  ASSERT_NE(pFirst, nullptr);
+  ASSERT_NE(pSecond, nullptr);
+
+  // both columns under budget: the block stays open
+  pFirst->varmeta.length = (uint32_t)kBlobTriggerLength;
+  pSecond->varmeta.length = 1024;
+  EXPECT_FALSE(blockDataBlobInfoExceedLimit(&info, pBlock));
+  EXPECT_FALSE(blockDataBlobExceedLimit(pBlock));
+
+  // only the second column crosses the budget: a single-pointer cache would miss it,
+  // the fallback (column walk) must still close the block
+  pSecond->varmeta.length = (uint32_t)kBlobTriggerLength + 1;
+  EXPECT_TRUE(blockDataBlobInfoExceedLimit(&info, pBlock));
+  EXPECT_TRUE(blockDataBlobExceedLimit(pBlock));
+
+  blockDataDestroy(pBlock);
+}

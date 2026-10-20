@@ -1002,6 +1002,22 @@ static int32_t mndCheckStbComment(const char *pComment, int32_t commentLen) {
   return 0;
 }
 
+// A super table carries at most one rollup function and only these functions are supported. The
+// client-side parser enforces the same restriction (checkTableRollupOption in parTranslater.c),
+// but it is not a trust boundary: the mnode adopts numOfFuncs/pFuncs verbatim from the request
+// and persists them into sdb, from where every mnode and every SHOW STABLES reader replays them.
+#define TSDB_MAX_ROLLUP_FUNCS 1
+
+static bool mndIsValidRollupFunc(const char *pFunc) {
+  static const char *rollupFuncs[] = {"avg", "sum", "min", "max", "last", "first"};
+  for (int32_t i = 0; i < (int32_t)(sizeof(rollupFuncs) / sizeof(rollupFuncs[0])); ++i) {
+    if (0 == strcmp(rollupFuncs[i], pFunc)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   int32_t code = 0;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
@@ -1066,6 +1082,27 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
       TAOS_RETURN(code);
     }
     if (pField1->name[0] == 0) {
+      code = TSDB_CODE_MND_INVALID_STB_OPTION;
+      TAOS_RETURN(code);
+    }
+  }
+
+  // Rollup function list. numOfFuncs / pFuncs are decoded straight off the wire and stored in sdb
+  // as they are, so reject a count or a name outside the supported set before the object is
+  // persisted and replicated. pFuncs is NULL for requests built inside the mnode itself
+  // (mndStreamCreateOutStb), which carries no rollup function at all.
+  int32_t numOfFuncs = (pCreate->pFuncs == NULL) ? 0 : (int32_t)taosArrayGetSize(pCreate->pFuncs);
+  if (pCreate->numOfFuncs < 0 || pCreate->numOfFuncs > TSDB_MAX_ROLLUP_FUNCS || pCreate->numOfFuncs != numOfFuncs) {
+    mError("stb:%s, check: invalid numOfFuncs:%d, actual num of funcs:%d", pCreate->name, pCreate->numOfFuncs,
+           numOfFuncs);
+    code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
+  for (int32_t i = 0; i < numOfFuncs; ++i) {
+    char *pFunc = taosArrayGet(pCreate->pFuncs, i);
+    if (pFunc == NULL || !mndIsValidRollupFunc(pFunc)) {
+      mError("stb:%s, check: invalid rollup func:%s", pCreate->name, (pFunc == NULL) ? "" : pFunc);
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
     }
@@ -2638,28 +2675,49 @@ _OVER:
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   int32_t code = 0;
+
+  // The comment is always bounded here: mndUpdateTableOptions stores it verbatim into the SStbObj
+  // for TSDB_ALTER_TABLE_UPDATE_OPTIONS and nothing downstream re-checks it, so validate it whenever
+  // a comment is supplied. commentLen >= 0 is the on-wire default and is attacker-controlled, so we
+  // must NOT early-return on it: doing so would skip the pFields validation below for every field
+  // alter type and let a malformed request reach the handlers (NULL-deref crash, mnode item 169).
   if (pAlter->commentLen >= 0) {
-    // TSDB_ALTER_TABLE_UPDATE_OPTIONS: mndUpdateTableOptions stores this comment verbatim into the
-    // SStbObj, so it has to be bounded here (nothing downstream checks it again).
     if ((code = mndCheckStbComment(pAlter->comment, pAlter->commentLen)) != 0) {
       TAOS_RETURN(code);
     }
-    return 0;
   }
-  if (pAlter->ttl != 0) return 0;
-  if (pAlter->keep != -1) return 0;
-  if (pAlter->secureDelete >= 0) return 0;
 
-  // BASE ON alter types don't use pFields
-  if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
-    if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
-      code = TSDB_CODE_MND_INVALID_STB_OPTION;
-      TAOS_RETURN(code);
+  // These alter types never carry a pFields array:
+  //   - TSDB_ALTER_TABLE_UPDATE_OPTIONS carries only option fields (comment/ttl/keep/secureDelete/
+  //     securityLevel), which are validated above / by mndUpdateTableOptions;
+  //   - ADD/DROP_BASE_ON carry numParents instead.
+  // For them no field-array validation is required.
+  if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS ||
+      pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+      pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+        pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+      if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
     }
-    return 0;
+    TAOS_RETURN(0);
   }
 
-  if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
+  // Every remaining (field-operating) alter type must provide a consistent, non-empty pFields array
+  // so the per-alterType handlers in mndApplyAlterStbAction never dereference a NULL field pointer
+  // and crash the mnode write thread (mnode item 169, CWE-476). Enforce this BEFORE any element is
+  // touched: taosArrayGet returns NULL for out-of-range indices, and the handlers index pFields by
+  // position without their own NULL checks.
+  // Tag/column RENAME needs exactly two fields (old name, new name); all other field alters need >= 1.
+  int32_t minFields = 1;
+  if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_NAME ||
+      pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME) {
+    minFields = 2;
+  }
+  if (pAlter->numOfFields < minFields ||
+      pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
     TAOS_RETURN(code);
   }
@@ -2817,6 +2875,12 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
     }
 
     SNode *pAst = NULL;
+    // @fix(review): pNodeList is declared and initialised to NULL here, BEFORE the goto NEXT
+    // below, so that every path reaching the NEXT label (including the early skip for a
+    // non-SELECT AST) sees a valid NULL pNodeList. Declaring it after the goto would leave it
+    // uninitialised when NEXT calls nodesDestroyList(pNodeList), causing a use-of-uninitialised
+    // pointer crash -- the very failure this fix set out to prevent.
+    SNodeList *pNodeList = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {
       code = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
@@ -2825,7 +2889,15 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
       TAOS_RETURN(code);
     }
 
-    SNodeList *pNodeList = NULL;
+    // @fix(item164): only inspect the AST as a SELECT statement when it actually is one.
+    // A non-SELECT root node passed to nodesCollectColumns((SSelectStmt *)) reads SSelectStmt
+    // offsets from foreign memory and crashes the mnode on every ALTER STB DROP/RENAME COLUMN.
+    // Skip the conflict check for such (legacy/corrupt) ASTs instead of crashing.
+    if (nodeType(pAst) != QUERY_NODE_SELECT_STMT) {
+      mInfo("tsma:%s, persisted AST is not a SELECT statement, skip column conflict check", pSma->name);
+      goto NEXT;
+    }
+
     if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
         0) {
       sdbCancelFetch(pSdb, pIter);
@@ -6595,21 +6667,34 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)maxDelay, false), pStb, &lino, _ERROR);
 
+    // Build the comma-separated list of rollup function names. The list is stored in sdb and was
+    // historically accepted from the wire unvalidated, so it may hold more/longer names than the
+    // column can display. Track the bytes actually written instead of a remaining-length counter:
+    // the old counter was decremented by strlen(funcName) even when strncat copied fewer bytes,
+    // so once the buffer filled up it went negative and, converted to the size_t bound of strncat,
+    // turned every following append into an unbounded write past the end of this stack buffer.
     char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
-    char   *sep = ", ";
-    int32_t sepLen = strlen(sep);
-    int32_t rollupLen = sizeof(rollup) - VARSTR_HEADER_SIZE - 2;
+    char   *rollupVal = varDataVal(rollup);
+    // One byte of the content area is reserved for the terminating '\0'.
+    int32_t rollupCap = (int32_t)sizeof(rollup) - VARSTR_HEADER_SIZE - 1;
+    int32_t rollupLen = 0;
     for (int32_t i = 0; i < rollupNum; ++i) {
       char *funcName = taosArrayGet(pStb->pFuncs, i);
-      if (i) {
-        (void)strncat(varDataVal(rollup), sep, rollupLen);
-        rollupLen -= sepLen;
+      // Bound the scan to the element size so a name that lost its terminator cannot overrun.
+      int32_t nameLen = (int32_t)strnlen(funcName, TSDB_FUNC_NAME_LEN - 1);
+      int32_t sepLen = (i == 0) ? 0 : 2;  // ", " precedes every name but the first
+      // Stop at the first name that no longer fits; never write a partial one.
+      if (rollupLen + sepLen + nameLen > rollupCap) break;
+      if (sepLen > 0) {
+        memcpy(rollupVal + rollupLen, ", ", sepLen);
+        rollupLen += sepLen;
       }
-      (void)strncat(varDataVal(rollup), funcName, rollupLen);
-      rollupLen -= strlen(funcName);
+      memcpy(rollupVal + rollupLen, funcName, nameLen);
+      rollupLen += nameLen;
     }
-    varDataSetLen(rollup, strlen(varDataVal(rollup)));
+    rollupVal[rollupLen] = '\0';
+    varDataSetLen(rollup, rollupLen);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)rollup, false), pStb, &lino, _ERROR);

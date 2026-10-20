@@ -25,8 +25,9 @@ import pandas as pd
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from taosanalytics.algo.dynamic.forecaster import DeepARModelForecaster
-from taosanalytics.algo.dynamic.model_loader import ModelLoader
+from lib.dynamic.algo.forecaster import DeepARModelForecaster
+from lib.dynamic.model_loader import ModelLoader
+from lib.service_registry import ServiceRegistry
 
 
 class TestModelLoaderPyTorch(unittest.TestCase):
@@ -214,19 +215,15 @@ class TestDeepARServiceRegistry(unittest.TestCase):
 
     def test_deepar_in_forecast_models(self):
         """Test that deepar is registered as a forecast model."""
-        from taosanalytics.service_registry import ServiceRegistry
-
         self.assertIn("deepar", ServiceRegistry._forecast_models)
 
     def test_deepar_not_in_anomaly_models(self):
         """Test that deepar is not misclassified as anomaly model."""
-        from taosanalytics.service_registry import ServiceRegistry
 
         self.assertNotIn("deepar", ServiceRegistry._anomaly_models)
 
     def test_deepar_not_in_regression_models(self):
         """Test that deepar is not misclassified as regression model."""
-        from taosanalytics.service_registry import ServiceRegistry
 
         self.assertNotIn("deepar", ServiceRegistry._regression_models)
 

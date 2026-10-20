@@ -3954,6 +3954,18 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof
   tDestroySStreamRunnerFetchFrame(&decodedDataFrame);
   rpcFreeCont(data);
 
+  data = nullptr;
+  size = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 3, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data, nullptr);
+  const auto *legacyDataRsp = static_cast<const SRetrieveTableRsp *>(data);
+  EXPECT_EQ(ntohl(legacyDataRsp->payloadLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(ntohl(legacyDataRsp->compLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(legacyDataRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(ntohl(legacyDataRsp->numOfBlocks), 1);
+  EXPECT_EQ(legacyDataRsp->compressed, 0);
+  rpcFreeCont(data);
+
   SStreamRunnerFetchFrame eogFrame = {};
   eogFrame.type = STREAM_RUNNER_FETCH_EOG;
   eogFrame.baseGId = 101;
@@ -3997,6 +4009,8 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof
   EXPECT_EQ(eofRsp->completed, 1);
   EXPECT_EQ(eofRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
   EXPECT_EQ(legacyWithFrameSize, sizeof(SRetrieveTableRsp) + INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->payloadLen), INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->compLen), INT_BYTES * 2);
   rpcFreeCont(legacyWithFrame);
   rpcFreeCont(legacyWithoutFrame);
 }
@@ -4039,6 +4053,25 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseRejectsTotalLengthBeforeAl
   EXPECT_EQ(gStrictResponseAllocationCalls, 0);
   EXPECT_EQ(data, nullptr);
   EXPECT_EQ(size, 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, LegacyFetchResponseRejectsInvalidLengthBeforeAllocation) {
+  SSDataBlock *dataBlock = NewMultiGroupDataBlock(1, 101);
+  ASSERT_NE(dataBlock, nullptr);
+  Stub sizeAndAllocationStub;
+  sizeAndAllocationStub.set(blockGetInternalEncodeSize, mockStrictResponseBlockSize);
+  sizeAndAllocationStub.set(rpcMallocCont, recordStrictResponseAllocation);
+
+  for (int32_t invalidSize : {-1, INT32_MAX}) {
+    gStrictResponseBlockSize = invalidSize;
+    gStrictResponseAllocationCalls = 0;
+    void *data = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+    size_t size = 123;
+    EXPECT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 0, false), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(gStrictResponseAllocationCalls, 0);
+    EXPECT_EQ(data, nullptr);
+    EXPECT_EQ(size, 0);
+  }
 }
 
 TEST_F(StreamRunnerTest, ContinuationResumesAtCanonicalCursor) {
@@ -5016,7 +5049,7 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   rsp.vgList = pVgList;
   ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
 
-  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
   auto *pStoredRsp = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0));
   ASSERT_NE(pStoredRsp, nullptr);
   EXPECT_EQ(pStoredRsp->vgList, nullptr);
@@ -5042,6 +5075,67 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
   taosArrayDestroy(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo);
   pExec->runtimeInfo.vtableDeployInfo.addedVgInfo = nullptr;
+}
+
+TEST_F(StreamRunnerTest, MgmtRspRejectedWithoutDeployRecordsKeepsTaskAlive) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // mnode rejected the deploy request before producing any deploy record
+  // (transient state, e.g. runner snapshot still recovering). Keep the
+  // pre-timeout behavior of not failing the task; the executor-side 60s
+  // timeout still guards the case where no response ever arrives.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspPartialFailureReturnsMnodeCodeWithoutSwapping) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pVgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(pVgList, nullptr);
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+  SStreamOReaderDeployRsp rsp = {};
+  rsp.execId = request_.execId;
+  rsp.vgList = pVgList;
+  ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
+
+  // mnode failed mid-deploy with a partially built deploy record: propagate
+  // the real mnode error and never swap in a half-baked vg list that would let
+  // the calc proceed on undeployed vgroups.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR),
+            TSDB_CODE_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  EXPECT_NE(static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0))->vgList, nullptr);
+  taosArrayDestroy(pVgList);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspSuccessWithoutDeployRecordsReturnsRedeployTimeout) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // A success response without deploy records means the redeploy chain is
+  // broken: fail with the explicit timeout so the calc stops retrying
+  // need-redeploy forever (defect 7138880370).
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
 }
 
 TEST_F(StreamRunnerTest, TaskDestroyStopsOperatorBeforeCleaningRetainedOwners) {

@@ -38,6 +38,7 @@ class TestDatabaseShowCreateTable:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -110,6 +111,10 @@ class TestDatabaseShowCreateTable:
         tdSql.query(f"show create table db.normalTbl")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "CREATE TABLE `normaltbl` (`ts` TIMESTAMP, `zone` VARCHAR(8))")
+        create_sql = tdSql.queryResult[0][1]
+        tdSql.execute(create_sql.replace("`normaltbl`", "`normal_copy`", 1))
+        tdSql.query("describe normal_copy")
+        tdSql.checkRows(2)
         tdSql.execute(f"drop database db")
 
     def test_empty_nchar_tag(self):
@@ -125,6 +130,7 @@ class TestDatabaseShowCreateTable:
         Since: v3.3.6.14
 
         Labels: common,ci,nchar,tag,integration,functional
+
         Jira: TS-7526
 
         History:

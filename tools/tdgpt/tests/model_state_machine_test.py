@@ -2,7 +2,7 @@
 
 import pytest
 
-from taosanalytics.tsfm.model_state_machine import ModelState, ModelStateManager
+from lib.tsfm.mgmt.model_state_machine import ModelState, ModelStateManager
 
 
 class TestCalculateNextState:

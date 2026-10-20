@@ -752,11 +752,11 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       SColumnInfoData *columnData = (SColumnInfoData *)taosArrayGet(block->pDataBlock, ref->slotId);
       if (columnData) {
-        qDebug("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d type=%d bytes=%d hasData=%d",
+        qTrace("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d type=%d bytes=%d hasData=%d",
                ref->slotId, ref->colId, (int)block->info.rows, columnData->info.type,
                columnData->info.bytes, columnData->pData != NULL);
       } else {
-        qDebug("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d (missing column)",
+        qTrace("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d (missing column)",
                ref->slotId, ref->colId, (int)block->info.rows);
       }
 #if TAG_FILTER_DEBUG
