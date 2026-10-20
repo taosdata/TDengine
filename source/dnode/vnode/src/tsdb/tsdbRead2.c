@@ -3829,6 +3829,9 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   code = pReader->code;
   TSDB_CHECK_CODE(code, lino, _end);
 
+  // Resolve the BLOB column once for this block fill; the row loop below only compares it.
+  SBlobColInfo blobCols = blockDataGetBlobCol(pResBlock);
+
   while (1) {
     bool hasBlockData = false;
     {
@@ -3879,7 +3882,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
     // Close the block once a BLOB column's int32 byte offsets would overflow, even when
     // capacity was set by an external (larger) block.
-    if (pResBlock->info.rows >= pReader->resBlockInfo.capacity || blockDataBlobExceedLimit(pResBlock)) {
+    if (pResBlock->info.rows >= pReader->resBlockInfo.capacity ||
+        blockDataBlobInfoExceedLimit(&blobCols, pResBlock)) {
       break;
     }
   }
@@ -4362,6 +4366,7 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
     }
 
     int64_t st = taosGetTimestampUs();
+    SBlobColInfo blobCols = blockDataGetBlobCol(pResBlock);
     while (1) {
       // no data in stt block and block, no need to proceed.
       if (!hasDataInSttBlock(pScanInfo)) {
@@ -4371,7 +4376,8 @@ static int32_t doLoadSttBlockSequentially(STsdbReader* pReader) {
       code = buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pSttBlockReader);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      if (pResBlock->info.rows >= pReader->resBlockInfo.capacity || blockDataBlobExceedLimit(pResBlock)) {
+      if (pResBlock->info.rows >= pReader->resBlockInfo.capacity ||
+          blockDataBlobInfoExceedLimit(&blobCols, pResBlock)) {
         break;
       }
     }
@@ -4499,6 +4505,8 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       tsdbDebug("load data in stt block firstly %s", pReader->idStr);
       int64_t st = taosGetTimestampUs();
 
+      SBlobColInfo blobCols = blockDataGetBlobCol(pResBlock);
+
       // let's load data from stt files, make sure clear the cleanStt block flag before load the data from stt files
       initSttBlockReader(pSttBlockReader, pScanInfo, pReader);
       code = pReader->code;
@@ -4512,7 +4520,8 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
         code = buildComposedDataBlockImpl(pReader, pScanInfo, &pReader->status.fileBlockData, pSttBlockReader);
         TSDB_CHECK_CODE(code, lino, _end);
 
-        if (pResBlock->info.rows >= pReader->resBlockInfo.capacity || blockDataBlobExceedLimit(pResBlock)) {
+        if (pResBlock->info.rows >= pReader->resBlockInfo.capacity ||
+            blockDataBlobInfoExceedLimit(&blobCols, pResBlock)) {
           break;
         }
 
@@ -5935,6 +5944,8 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
 
   pBlock = pReader->resBlockInfo.pResBlock;
 
+  SBlobColInfo blobCols = blockDataGetBlobCol(pBlock);
+
   do {
     TSDBROW row = {.type = -1};
     bool    freeTSRow = false;
@@ -5980,7 +5991,7 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
       break;
     }
 
-    if (pBlock->info.rows >= capacity || blockDataBlobExceedLimit(pBlock)) {
+    if (pBlock->info.rows >= capacity || blockDataBlobInfoExceedLimit(&blobCols, pBlock)) {
       break;
     }
   } while (1);
