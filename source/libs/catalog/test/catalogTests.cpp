@@ -2152,6 +2152,17 @@ TEST(tableMeta, updateStbMeta) {
   STableMetaRsp rsp = {0};
   ctgTestBuildSTableMetaRsp(&rsp);
 
+  rsp.numOfTags = -1;
+  EXPECT_NE(catalogUpdateTableMeta(pCtg, &rsp), TSDB_CODE_SUCCESS);
+  EXPECT_NE(catalogAsyncUpdateTableMeta(pCtg, &rsp), TSDB_CODE_SUCCESS);
+  STableMeta *cachedMeta = NULL;
+  ASSERT_EQ(catalogGetCachedTableMeta(pCtg, &n, &cachedMeta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(cachedMeta, nullptr);
+  EXPECT_EQ(cachedMeta->sversion, ctgTestSVersion);
+  EXPECT_EQ(cachedMeta->tableInfo.numOfTags, ctgTestTagNum);
+  taosMemoryFreeClear(cachedMeta);
+  rsp.numOfTags = ctgTestTagNum;
+
   code = catalogUpdateTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
   code = catalogAsyncUpdateTableMeta(pCtg, &rsp);

@@ -35,6 +35,7 @@ class TestDatabaseShowCreateDb:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -57,3 +58,30 @@ class TestDatabaseShowCreateDb:
         tdSql.checkData(0, 0, "db")
 
         tdSql.execute(f"drop database db")
+
+    def test_database_show_create_retentions(self):
+        """SHOW CREATE DATABASE preserves the full RETENTIONS list
+
+        1. Create a database with multiple RETENTIONS entries
+        2. Verify SHOW CREATE DATABASE includes every entry
+
+        Catalog:
+            - Database:Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Codex added RETENTIONS output regression
+
+        """
+
+        tdSql.execute("create database show_retention_db retentions -:7d,15s:21d,1m:365d")
+        tdSql.query("show create database show_retention_db")
+        tdSql.checkRows(1)
+        create_sql = tdSql.queryResult[0][1]
+        assert "RETENTIONS -:7d,15s:21d,1m:365d" in create_sql, create_sql
+        tdSql.execute("drop database show_retention_db")

@@ -291,41 +291,54 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
 
     TAOS_RES *res = taos_query(conn, sql);
     int code = taos_errno(res);
-    if (!res || code) {
+    char *fallbackDdl = NULL;
+    if (code == TSDB_CODE_OUT_OF_BUFFER) {
+        if (res) taos_free_result(res);
+        res = NULL;
+        fallbackDdl = buildCreateSqlFromDescribe(conn, dbName, stbName);
+        if (!fallbackDdl) {
+            releaseConnection(conn);
+            return TSDB_CODE_FAILED;
+        }
+        code = TSDB_CODE_SUCCESS;
+    }
+    if (!fallbackDdl && (!res || code)) {
         logError("show create table failed(0x%08X %s): %s", code, taos_errstr(res), sql);
         if (res) taos_free_result(res);
         releaseConnection(conn);
         return code;
     }
 
-    TAOS_ROW row = taos_fetch_row(res);
-    if (!row || !row[1]) {
-        taos_free_result(res);
-        releaseConnection(conn);
-        return TSDB_CODE_BCK_NO_FIELDS;
-    }
-
-    int32_t *lengths = taos_fetch_lengths(res);
-    int      ddlLen  = lengths[1];
-    char    *ddl     = (char *)row[1];
-
-    // Check if DDL result is truncated (VARCHAR max is 65535)
-    // If length >= DDL_TRUNCATION_THRESHOLD, use DESCRIBE fallback
-    char *fallbackDdl = NULL;
-    if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
-        logWarn("SHOW CREATE TABLE result for `%s`.`%s` is %d bytes "
-            "(likely truncated at 65535), using DESCRIBE fallback",
-            dbName, stbName, ddlLen);
-        taos_free_result(res);
-        fallbackDdl = buildCreateSqlFromDescribe(conn, dbName, stbName);
-        if (!fallbackDdl) {
-            logError("DESCRIBE fallback also failed for `%s`.`%s`", dbName, stbName);
+    int32_t ddlLen = 0;
+    char *ddl = fallbackDdl;
+    if (!fallbackDdl) {
+        TAOS_ROW row = taos_fetch_row(res);
+        if (!row || !row[1]) {
+            taos_free_result(res);
             releaseConnection(conn);
-            return TSDB_CODE_FAILED;
+            return TSDB_CODE_BCK_NO_FIELDS;
         }
-        ddl = fallbackDdl;
-        ddlLen = (int)strlen(ddl);
-        res = NULL;  // already freed
+        int32_t *lengths = taos_fetch_lengths(res);
+        ddlLen = lengths[1];
+        ddl = (char *)row[1];
+
+        if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
+            logWarn("SHOW CREATE TABLE result for `%s`.`%s` is %d bytes "
+                "(likely truncated at 65535), using DESCRIBE fallback",
+                dbName, stbName, ddlLen);
+            taos_free_result(res);
+            res = NULL;
+            fallbackDdl = buildCreateSqlFromDescribe(conn, dbName, stbName);
+            if (!fallbackDdl) {
+                logError("DESCRIBE fallback also failed for `%s`.`%s`", dbName, stbName);
+                releaseConnection(conn);
+                return TSDB_CODE_FAILED;
+            }
+            ddl = fallbackDdl;
+        }
+    }
+    if (fallbackDdl) {
+        ddlLen = (int32_t)strlen(ddl);
     }
 
     // Open stb.sql in APPEND mode so multiple STBs accumulate.
@@ -695,18 +708,30 @@ int backNormalTablesSql(const char *dbName) {
         snprintf(sql, sizeof(sql), "show create table `%s`.`%s`;", dbName, ntbNames[i]);
         TAOS_RES *res = taos_query(conn, sql);
         code = taos_errno(res);
-        if (!res || code != TSDB_CODE_SUCCESS) {
+        char *fallbackDdl = NULL;
+        char *ddl = NULL;
+        int32_t ddlLen = 0;
+        if (code == TSDB_CODE_OUT_OF_BUFFER) {
+            if (res) taos_free_result(res);
+            res = NULL;
+            fallbackDdl = buildCreateSqlFromDescribe(conn, dbName, ntbNames[i]);
+            if (!fallbackDdl) {
+                code = TSDB_CODE_FAILED;
+                break;
+            }
+            code = TSDB_CODE_SUCCESS;
+        }
+        if (!fallbackDdl && (!res || code != TSDB_CODE_SUCCESS)) {
             logError("show create table failed(0x%08X %s): %s", code, taos_errstr(res), sql);
             if (res) taos_free_result(res);
             break;
         }
 
-        TAOS_ROW row = taos_fetch_row(res);
+        TAOS_ROW row = res ? taos_fetch_row(res) : NULL;
         if (row && row[1]) {
             int32_t *lens = taos_fetch_lengths(res);
-            int32_t  ddlLen = lens[1];
-            char    *ddl    = (char *)row[1];
-            char    *fallbackDdl = NULL;
+            ddlLen = lens[1];
+            ddl = (char *)row[1];
 
             // Check if DDL result is truncated
             if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
@@ -721,10 +746,14 @@ int backNormalTablesSql(const char *dbName) {
                     code = TSDB_CODE_FAILED;
                     break;
                 }
-                ddl = fallbackDdl;
-                ddlLen = (int32_t)strlen(ddl);
             }
+        }
 
+        if (fallbackDdl) {
+            ddl = fallbackDdl;
+            ddlLen = (int32_t)strlen(ddl);
+        }
+        if (ddl) {
             if (taosWriteFile(fp, ddl, ddlLen) != ddlLen ||
                 taosWriteFile(fp, "\n", 1) != 1) {
                 logError("write ntb sql to file failed: %s", ntbSqlFile);
