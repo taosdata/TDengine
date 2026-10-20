@@ -5585,8 +5585,12 @@ int32_t msmDeployRunnerOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   }
 
   if (reqNum <= 0) {
+    // Empty req list means the request was corrupted before it reached the
+    // mnode. Fail the request explicitly so the snode side can log the real
+    // error instead of interpreting a success response without deploy records
+    // as a broken redeploy chain.
     mstsWarn("empty req list in origReader req, array:%p", pReqs);
-    goto _exit;
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
   rsp.cont.execRspList = taosArrayInit_s(sizeof(SStreamOReaderDeployRsp), reqNum);

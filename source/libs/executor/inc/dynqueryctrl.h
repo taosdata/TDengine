@@ -189,6 +189,12 @@ typedef struct SDynQueryCtrlOperatorInfo {
   SVtbWindowDynCtrlInfo vtbWindow;
 } SDynQueryCtrlOperatorInfo;
 
+// Runtime redeploy check for virtual-table scans: returns SUCCESS when the
+// deploy response arrived, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY while waiting
+// for it, or TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT once the redeploy chain
+// deadline elapses.
+int32_t virtualTableScanCheckNeedRedeploy(SOperatorInfo* pOperator);
+
 #ifdef __cplusplus
 }
 #endif
