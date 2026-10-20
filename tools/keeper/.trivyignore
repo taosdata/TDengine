@@ -1,0 +1,4 @@
+# GO-2026-5932: golang.org/x/crypto/openpgp is unmaintained (no fixed version available).
+# taoskeeper never imports openpgp; x/crypto is only pulled in transitively for sha3
+# (via gin -> validator), so the vulnerable package is not compiled into the binary.
+GO-2026-5932
