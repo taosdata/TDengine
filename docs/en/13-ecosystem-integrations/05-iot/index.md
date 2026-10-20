@@ -1,13 +1,13 @@
 ---
 sidebar_label: IOT Platforms
 title: Integrate with IOT Platforms
-description: Integrate Node-RED, Ignition, and other IoT platforms with TDengine
+description: Integrate Node-RED, Ignition, Neuron, and other IoT platforms with TDengine
 toc_max_heading_level: 4
 ---
 
 import DocCardList from '@theme/DocCardList';
 import {useCurrentSidebarCategory} from '@docusaurus/theme-common';
 
-This section explains how to read and write TDengine data from IoT platforms such as Node-RED and Ignition. For zero-code ingestion from industrial protocols, see [Zero-Code Data Ingestion](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md). For subscription concepts, see [Data Subscription](../../06-data-subscription/index.md).
+This section explains how to integrate IoT platforms such as Node-RED, Ignition, and Neuron with TDengine. Neuron and the eKuiper InfluxDB v1 sink can write industrial device data to TDengine with batching, encrypted transport, and high availability. For zero-code ingestion from industrial protocols, see [Zero-Code Data Ingestion](../../08-data-ingest-and-delivery/01-no-code-ingestion/index.md). For subscription concepts, see [Data Subscription](../../06-data-subscription/index.md).
 
 <DocCardList items={useCurrentSidebarCategory().items}/>
