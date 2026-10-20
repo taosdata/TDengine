@@ -832,8 +832,9 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
 
   for (int32_t i = 0; i < nodeNum; ++i) {
     const SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
-    if (pExecInfo == NULL || pExecInfo->verboseInfo == NULL) {
-      qError("%s failed at line %d, execInfo or verboseInfo is NULL",
+    if (pExecInfo == NULL || pExecInfo->verboseInfo == NULL ||
+        pExecInfo->verboseLen < sizeof(STableScanAnalyzeInfo)) {
+      qError("%s failed at line %d, scan verboseInfo is missing or too short",
              __func__, __LINE__);
       return TSDB_CODE_INVALID_PARA;
     }
@@ -1113,7 +1114,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         if (pResNode->pExecInfo && taosArrayGetSize(pResNode->pExecInfo) > 0) {
           const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
           if (execInfo != NULL && execInfo->verboseInfo != NULL &&
-              execInfo->verboseLen >= offsetof(SFederatedScanExplainInfo, batchMode)) {
+              execInfo->verboseLen >= offsetof(SFederatedScanExplainInfo, batchMode) &&
+              memchr(((const SFederatedScanExplainInfo *)execInfo->verboseInfo)->remoteSql, '\0',
+                     sizeof(((const SFederatedScanExplainInfo *)execInfo->verboseInfo)->remoteSql)) != NULL) {
             qDebug("Explain FedScan: runtime exec chosen, source=%s table=%s execCount=%d vgId=%d",
                    extSrcName, extTblName, (int32_t)taosArrayGetSize(pResNode->pExecInfo), execInfo->vgId);
             const SFederatedScanExplainInfo *pFedInfo =
@@ -1658,7 +1661,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         if (pResNode->pExecInfo) {
           const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
-          if (execInfo && execInfo->verboseInfo) {
+          if (execInfo && execInfo->verboseInfo && execInfo->verboseLen >= sizeof(SExchangeExplainInfo)) {
             const SExchangeExplainInfo *pExchInfo = (SExchangeExplainInfo *)execInfo->verboseInfo;
             EXPLAIN_ROW_NEW(level + 1, EXPLAIN_NETWORK_FORMAT);
             EXPLAIN_ROW_APPEND(EXPLAIN_EXCHANGE_MODE_FORMAT,
@@ -1740,6 +1743,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+        if (execInfo == NULL || execInfo->verboseInfo == NULL || execInfo->verboseLen < sizeof(SSortExecInfo)) {
+          return TSDB_CODE_INVALID_MSG;
+        }
         SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
         EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
         if (pExecInfo->sortBuffer > 1024 * 1024) {
@@ -2121,6 +2127,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
           int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
           SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          if (execInfo == NULL || execInfo->verboseInfo == NULL || execInfo->verboseLen < sizeof(SSortExecInfo)) {
+            return TSDB_CODE_INVALID_MSG;
+          }
           SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
           EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
           if (pExecInfo->sortBuffer > 1024 * 1024) {
@@ -2347,6 +2356,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+        if (execInfo == NULL || execInfo->verboseInfo == NULL || execInfo->verboseLen < sizeof(SSortExecInfo)) {
+          return TSDB_CODE_INVALID_MSG;
+        }
         SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
         EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
         if (pExecInfo->sortBuffer > 1024 * 1024) {

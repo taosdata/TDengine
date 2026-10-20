@@ -7366,6 +7366,10 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfTags));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfColumns));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pRsp->tableType));
+  if (pRsp->numOfColumns <= 0 || pRsp->numOfColumns > TSDB_MAX_COLUMNS || pRsp->numOfTags < 0 ||
+      pRsp->numOfTags > TSDB_MAX_TAGS) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->delay1));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->delay2));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->watermark1));
@@ -7374,6 +7378,9 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
 
   int32_t numOfFuncs = 0;
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &numOfFuncs));
+  if (numOfFuncs < 0 || numOfFuncs > TSDB_MAX_COLUMNS) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   if (numOfFuncs > 0) {
     pRsp->pFuncs = taosArrayInit(numOfFuncs, TSDB_FUNC_NAME_LEN);
     if (NULL == pRsp->pFuncs) {
@@ -7389,8 +7396,16 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   }
 
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->commentLen));
+  if (pRsp->commentLen < -1 || pRsp->commentLen > TSDB_MAX_MSG_SIZE) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   if (pRsp->commentLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pRsp->pComment));
+    uint64_t commentSize = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pRsp->pComment, &commentSize));
+    if (pRsp->pComment == NULL || commentSize != (uint64_t)pRsp->commentLen + 1 ||
+        memchr(pRsp->pComment, '\0', pRsp->commentLen) != NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   } else {
     pRsp->pComment = NULL;
   }
@@ -7442,6 +7457,9 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
 
       if (!tDecodeIsEnd(&decoder)) {
         TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfTagRefs));
+        if (pRsp->numOfTagRefs < 0 || pRsp->numOfTagRefs > INT16_MAX) {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
         if (pRsp->numOfTagRefs > 0) {
           pRsp->pTagRefs = taosMemoryCalloc(pRsp->numOfTagRefs, sizeof(SColRef));
           if (pRsp->pTagRefs == NULL) {
@@ -11315,6 +11333,9 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeI64(decoder, &pRsp->walRetentionSize));
   TAOS_CHECK_RETURN(tDecodeI64(decoder, &pRsp->walSegmentSize));
   TAOS_CHECK_RETURN(tDecodeI32(decoder, &pRsp->numOfRetensions));
+  if (pRsp->numOfRetensions < 0 || pRsp->numOfRetensions > TSDB_RETENTION_MAX) {
+    TAOS_CHECK_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   if (pRsp->numOfRetensions > 0) {
     pRsp->pRetensions = taosArrayInit(pRsp->numOfRetensions, sizeof(SRetention));
     if (pRsp->pRetensions == NULL) {
@@ -11328,6 +11349,10 @@ int32_t tDeserializeSDbCfgRspImpl(SDecoder *decoder, SDbCfgRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeI64(decoder, &rentension.keep));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &rentension.freqUnit));
     TAOS_CHECK_RETURN(tDecodeI8(decoder, &rentension.keepUnit));
+    if (rentension.freqUnit == 0 || rentension.keepUnit == 0 || strchr("smhdw", rentension.freqUnit) == NULL ||
+        strchr("smhdw", rentension.keepUnit) == NULL) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     if (taosArrayPush(pRsp->pRetensions, &rentension) == NULL) {
       TAOS_CHECK_RETURN(terrno);
     }
@@ -12279,6 +12304,11 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pRsp->tuid));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->vgId));
 
+  if (pRsp->numOfColumns < 0 || pRsp->numOfColumns > TSDB_MAX_COLUMNS || pRsp->numOfTags < 0 ||
+      pRsp->numOfTags > TSDB_MAX_TAGS ||
+      (pRsp->numOfColumns == 0 && (pRsp->tableType != TSDB_CHILD_TABLE || pRsp->numOfTags != 0))) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;
   if (totalCols > 0) {
     pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
@@ -15904,6 +15934,7 @@ _exit:
 }
 
 int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
+  if (bufLen < 0) return TSDB_CODE_INVALID_MSG;
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -15911,6 +15942,10 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfPlans));
+  // Each plan has fixed timing and row-count fields in addition to the verbose payload.
+  if (pRsp->numOfPlans < 0 || pRsp->numOfPlans > bufLen / 80) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   if (pRsp->numOfPlans > 0) {
     pRsp->subplanInfo = taosMemoryCalloc(pRsp->numOfPlans, sizeof(SExplainExecInfo));
     if (pRsp->subplanInfo == NULL) {
@@ -15920,7 +15955,11 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
     TAOS_CHECK_EXIT(tDecodeU64(&decoder, &pRsp->subplanInfo[i].numOfRows));
     TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pRsp->subplanInfo[i].verboseLen));
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, &pRsp->subplanInfo[i].verboseInfo, NULL));
+    uint64_t verboseSize = 0;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, &pRsp->subplanInfo[i].verboseInfo, &verboseSize));
+    if (verboseSize != pRsp->subplanInfo[i].verboseLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->subplanInfo[i].execCreate));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->subplanInfo[i].execStart));
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pRsp->subplanInfo[i].execFirstRow));
@@ -15964,6 +16003,9 @@ void tFreeSExplainRsp(SExplainRsp *pRsp) {
     return;
   }
 
+  if (pRsp->subplanInfo == NULL) {
+    return;
+  }
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
     SExplainExecInfo *pExec = pRsp->subplanInfo + i;
     taosMemoryFree(pExec->verboseInfo);

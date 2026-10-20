@@ -320,4 +320,174 @@ TEST(testCase, clone_create_table_req_rejects_inconsistent_sql) {
   ASSERT_EQ(dst, nullptr);
 }
 
+TEST(TableMetaTest, rejectsInvalidCountsBeforeConstructingCachedMeta) {
+  SSchema schema = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = -1;
+  msg.pSchemas = &schema;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, extendedConstructorRejectsInvalidCountsBeforeAllocation) {
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = -1;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaExFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, acceptsValidCountsAndCopiesSchema) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = 0;
+  msg.pSchemas = schemas;
+
+  STableMeta* meta = nullptr;
+  ASSERT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(meta, nullptr);
+  EXPECT_EQ(meta->tableInfo.numOfColumns, 2);
+  EXPECT_EQ(meta->schema[1].type, TSDB_DATA_TYPE_INT);
+  taosMemoryFree(meta);
+}
+
+TEST(TableMetaTest, rejectsInvalidSchemaBeforeConstructingCachedMeta) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_INT;
+  schemas[0].bytes = sizeof(int32_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, rejectsInvalidReferenceCountsBeforeAllocation) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+  msg.numOfColRefs = -1;
+
+  STableMeta* meta = reinterpret_cast<STableMeta*>(0x1);
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+  msg.numOfColRefs = 1;
+  EXPECT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, acceptsHistoricalTagReferenceSlots) {
+  SSchema schemas[3] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  schemas[2].type = TSDB_DATA_TYPE_INT;
+  schemas[2].bytes = sizeof(int32_t);
+  strcpy(schemas[2].name, "tag");
+  SColRef tagRefs[2] = {};
+  tagRefs[0].id = 3;
+  tagRefs[1].id = 4;
+
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  msg.numOfColumns = 2;
+  msg.numOfTags = 1;
+  msg.pSchemas = schemas;
+  msg.numOfTagRefs = 2;
+  msg.pTagRefs = tagRefs;
+
+  STableMeta* meta = nullptr;
+  ASSERT_EQ(queryCreateTableMetaFromMsg(&msg, false, &meta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(meta, nullptr);
+  EXPECT_EQ(meta->numOfTagRefs, 2);
+  EXPECT_EQ(meta->tableInfo.numOfTags, 1);
+  taosMemoryFree(meta);
+}
+
+TEST(TableMetaTest, rejectsInvalidVirtualChildMetaBeforeAllocation) {
+  SSchema schema = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  strcpy(schema.name, "ts");
+  SColRef colRef = {};
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 1;
+  msg.pSchemas = &schema;
+  msg.numOfColRefs = 1;
+  msg.pColRefs = &colRef;
+
+  SVCTableMeta* meta = reinterpret_cast<SVCTableMeta*>(0x1);
+  msg.numOfColRefs = -1;
+  EXPECT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+
+  msg.numOfColRefs = 1;
+  msg.pSchemas = nullptr;
+  meta = reinterpret_cast<SVCTableMeta*>(0x1);
+  EXPECT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+
+  msg.pSchemas = &schema;
+  msg.numOfSeries = 1;
+  meta = reinterpret_cast<SVCTableMeta*>(0x1);
+  EXPECT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_TSC_INVALID_VALUE);
+  EXPECT_EQ(meta, nullptr);
+}
+
+TEST(TableMetaTest, acceptsVirtualChildWithoutColumnReferences) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  strcpy(schemas[1].name, "value");
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+
+  SVCTableMeta* meta = nullptr;
+  ASSERT_EQ(queryCreateVCTableMetaFromMsg(&msg, &meta), TSDB_CODE_SUCCESS);
+  ASSERT_NE(meta, nullptr);
+  EXPECT_EQ(meta->numOfColRefs, 0);
+  taosMemoryFree(meta);
+}
+
 #pragma GCC diagnostic pop
