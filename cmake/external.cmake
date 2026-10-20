@@ -2702,7 +2702,25 @@ set(TD_ARROW_ARCHIVE_NAME "arrow-${TD_ARROW_GIT_TAG}.tar.gz")
 function(td_prepare_arrow_external arrow_build_profile)
     # Platform-specific cmake args for the Arrow sub-build
     set(ARROW_EXTRA_CMAKE_ARGS "")
+    set(_arrow_dependencies "")
     if(NOT ${TD_WINDOWS})
+        set(_arrow_dependencies ext_ssl)
+        # Arrow forwards CMAKE_PROJECT_INCLUDE to its bundled sub-builds.
+        # Pin both headers and archives there, including stale Thrift caches.
+        # Resolve TD_CONFIG_NAME at generation time for multi-config builds.
+        set(_arrow_openssl_config
+            "${CMAKE_CURRENT_BINARY_DIR}/ext_arrow_${arrow_build_profile}-openssl-${TD_CONFIG_NAME}.cmake")
+        file(GENERATE OUTPUT "${_arrow_openssl_config}" CONTENT
+"set(OPENSSL_ROOT_DIR \"${ext_ssl_install}\" CACHE PATH \"\" FORCE)
+set(OPENSSL_INCLUDE_DIR \"${ext_ssl_inc_dir}\" CACHE PATH \"\" FORCE)
+set(OPENSSL_SSL_LIBRARY \"${ext_ssl_lib_ssl}\" CACHE FILEPATH \"\" FORCE)
+set(OPENSSL_CRYPTO_LIBRARY \"${ext_ssl_lib_crypto}\" CACHE FILEPATH \"\" FORCE)
+set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL \"\" FORCE)
+")
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_PROJECT_INCLUDE:FILEPATH=${_arrow_openssl_config}"
+            -DARROW_OPENSSL_USE_SHARED:BOOL=OFF
+        )
         set(_arrow_c_flags "-ffunction-sections -fdata-sections")
         if(${TD_DARWIN})
             set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
@@ -2838,6 +2856,7 @@ function(td_prepare_arrow_external arrow_build_profile)
     endif()
 
     set(ARROW_EXTRA_CMAKE_ARGS "${ARROW_EXTRA_CMAKE_ARGS}" PARENT_SCOPE)
+    set(_arrow_dependencies "${_arrow_dependencies}" PARENT_SCOPE)
     set(_arrow_ts_args "${_arrow_ts_args}" PARENT_SCOPE)
     set(_arrow_configure_env "${_arrow_configure_env}" PARENT_SCOPE)
     set(_arrow_generator_args "${_arrow_generator_args}" PARENT_SCOPE)
@@ -2962,6 +2981,7 @@ if(${BUILD_WITH_ARROW})
     ExternalProject_Add(ext_arrow
         URL            ${_url}
         URL_HASH       SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+        DEPENDS        ${_arrow_dependencies}
         ${_arrow_ts_args}
         PREFIX         "${_base}"
         STAMP_DIR      "${_base}/src/ext_arrow-url-stamp"
@@ -3050,6 +3070,7 @@ endif()
 ExternalProject_Add(ext_arrow_static
     URL ${_url}
     URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    DEPENDS        ${_arrow_dependencies}
     ${_arrow_ts_args}
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp
