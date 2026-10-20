@@ -5049,7 +5049,7 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   rsp.vgList = pVgList;
   ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
 
-  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
   auto *pStoredRsp = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0));
   ASSERT_NE(pStoredRsp, nullptr);
   EXPECT_EQ(pStoredRsp->vgList, nullptr);
@@ -5075,6 +5075,67 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
   taosArrayDestroy(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo);
   pExec->runtimeInfo.vtableDeployInfo.addedVgInfo = nullptr;
+}
+
+TEST_F(StreamRunnerTest, MgmtRspRejectedWithoutDeployRecordsKeepsTaskAlive) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // mnode rejected the deploy request before producing any deploy record
+  // (transient state, e.g. runner snapshot still recovering). Keep the
+  // pre-timeout behavior of not failing the task; the executor-side 60s
+  // timeout still guards the case where no response ever arrives.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspPartialFailureReturnsMnodeCodeWithoutSwapping) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pVgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(pVgList, nullptr);
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+  SStreamOReaderDeployRsp rsp = {};
+  rsp.execId = request_.execId;
+  rsp.vgList = pVgList;
+  ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
+
+  // mnode failed mid-deploy with a partially built deploy record: propagate
+  // the real mnode error and never swap in a half-baked vg list that would let
+  // the calc proceed on undeployed vgroups.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR),
+            TSDB_CODE_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  EXPECT_NE(static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0))->vgList, nullptr);
+  taosArrayDestroy(pVgList);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspSuccessWithoutDeployRecordsReturnsRedeployTimeout) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // A success response without deploy records means the redeploy chain is
+  // broken: fail with the explicit timeout so the calc stops retrying
+  // need-redeploy forever (defect 7138880370).
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
 }
 
 TEST_F(StreamRunnerTest, TaskDestroyStopsOperatorBeforeCleaningRetainedOwners) {
