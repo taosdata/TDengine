@@ -34,6 +34,8 @@
 #include "stream.h"
 #include "streamInt.h"
 #include "streamReader.h"
+#include "streamReaderExt.h"
+#include "extConnector.h"
 #include "streamRunner.h"
 #include "stub.h"
 #include "tmsg.h"
@@ -45,6 +47,231 @@ using reader_fetch_benchmark::ReaderFetchLayout;
 extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
 
 namespace {
+
+std::string gInfluxPrecisionSql;
+
+int32_t captureInfluxPrecisionQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *sql,
+                                    SExtQueryHandle **query, SExtConnectorError *) {
+  gInfluxPrecisionSql = sql;
+  *query = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t finishInfluxPrecisionQuery(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                                   SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeInfluxPrecisionQuery(SExtQueryHandle *) {}
+
+TEST(StreamReaderTest, InfluxCalcBoundsUseReaderPrecisionAndSaturate) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                     precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    SSDataBlock *block = nullptr;
+    ASSERT_EQ(streamReaderExtFetchData(&reader, 1700000000, 1700000001, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000LL * factor) + ")"),
+              std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000001LL * factor + factor - 1) + ")"),
+              std::string::npos);
+    ASSERT_EQ(streamReaderExtFetchData(&reader, INT64_MIN, INT64_MAX, &block), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gInfluxPrecisionSql.find("to_timestamp_nanos"), std::string::npos);
+    ASSERT_EQ(streamReaderExtFetchData(&reader, INT64_MIN + 1, INT64_MAX - 1, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" +
+                  std::to_string(factor == 1 ? INT64_MIN + 1 : INT64_MIN) + ")"), std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" +
+                  std::to_string(factor == 1 ? INT64_MAX - 1 : INT64_MAX) + ")"), std::string::npos);
+  }
+}
+
+bool gInfluxTimestampBatchPending = false;
+
+int32_t fetchInfluxTimestampBatch(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                                 SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  if (!gInfluxTimestampBatchPending) return TSDB_CODE_SUCCESS;
+  gInfluxTimestampBatchPending = false;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  column.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &column);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *ts = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  int64_t values[] = {1700000000123456789LL, 1700000000456789123LL};
+  for (int32_t row = 0; row < 2; ++row) {
+    code = colDataSetVal(ts, row, reinterpret_cast<const char *>(&values[row]), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+TEST(StreamReaderTest, InfluxMetaAndLastTimestampShareReaderPrecision) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, fetchInfluxTimestampBatch);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)), TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t divisor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                      precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    int64_t watermark = 1700000000000000000LL / divisor;
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)),
+              TSDB_CODE_SUCCESS);
+    for (auto type : {STRIGGER_PULL_LAST_TS_EXT, STRIGGER_PULL_META_EXT}) {
+      void *response = nullptr;
+      gInfluxTimestampBatchPending = true;
+      ASSERT_EQ(streamReaderExtHandlePull(&reader, type, &request, &response), TSDB_CODE_SUCCESS);
+      auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+      ASSERT_NE(rsp, nullptr);
+      if (type == STRIGGER_PULL_LAST_TS_EXT) {
+        auto *last = static_cast<SExtLastTsInfo *>(taosArrayGet(rsp->pLastTsArr, 0));
+        ASSERT_NE(last, nullptr);
+        EXPECT_EQ(last->ts, 1700000000456789123LL / divisor);
+      } else {
+        ASSERT_NE(rsp->pMetaBlock, nullptr);
+        auto *first = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 1));
+        auto *last = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 2));
+        EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(first, 0)), 1700000000123456789LL / divisor);
+        EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(last, 0)), 1700000000456789123LL / divisor);
+        EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000000000000LL + divisor - 1) + ")"), std::string::npos);
+      }
+      streamExtPullRspFree(rsp);
+    }
+    watermark = 1700000000456789123LL / divisor;
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)),
+              TSDB_CODE_SUCCESS);
+    void *response = nullptr;
+    gInfluxTimestampBatchPending = false;
+    ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+              TSDB_CODE_STREAM_NO_DATA);
+    int64_t scannedThrough = watermark * divisor + divisor - 1;
+    EXPECT_GE(scannedThrough, 1700000000456789123LL);
+    EXPECT_NE(gInfluxPrecisionSql.find("> to_timestamp_nanos(" + std::to_string(scannedThrough) + ")"),
+              std::string::npos);
+    streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  }
+  tSimpleHashCleanup(request.pUidMaxTs);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxDataBoundsUseReaderPrecisionInSingleAndBatchFetch) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)), TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  SExtColTypeMapping mapping = {};
+  mapping.tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  mapping.tdType.bytes = sizeof(int64_t);
+  mapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(mapping.colName, "ts", sizeof(mapping.colName));
+  reader.spec.pColMappings = &mapping;
+  reader.spec.numColMappings = 1;
+  reader.spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.triggerColumns, nullptr);
+  char timestampColumn[TSDB_COL_NAME_LEN] = "ts";
+  ASSERT_NE(taosArrayPush(reader.spec.triggerColumns, timestampColumn), nullptr);
+  for (bool batched : {false, true}) {
+    if (batched) {
+      reader.pInfluxTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+      ASSERT_NE(reader.pInfluxTagCols, nullptr);
+      char tagColumn[TSDB_COL_NAME_LEN] = "host";
+      ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagColumn), nullptr);
+    }
+    for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+      reader.spec.precision = precision;
+      int64_t divisor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                        precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+      SExtUidWindow window = {};
+      window.skey = 1700000000123000000LL / divisor;
+      window.ekey = 1700000000456000000LL / divisor;
+      ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+                TSDB_CODE_SUCCESS);
+      void *response = nullptr;
+      ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+                TSDB_CODE_STREAM_NO_DATA);
+      EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(1700000000123000000)"), std::string::npos);
+      EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000456000000LL + divisor - 1) + ")"), std::string::npos);
+      streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+    }
+  }
+  taosArrayDestroy(reader.pInfluxTagCols);
+  taosArrayDestroy(reader.spec.triggerColumns);
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxCalcBoundsCoverTruncatedNegativeAndZeroTicks) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                     precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    for (int64_t tick : {-2LL, -1LL, 0LL, 1LL}) {
+      SSDataBlock *block = nullptr;
+      ASSERT_EQ(streamReaderExtFetchData(&reader, tick, tick, &block), TSDB_CODE_SUCCESS);
+      int64_t first = tick * factor - (tick <= 0 ? factor - 1 : 0);
+      int64_t last = tick * factor + (tick >= 0 ? factor - 1 : 0);
+      EXPECT_NE(gInfluxPrecisionSql.find(">= to_timestamp_nanos(" + std::to_string(first) + ")"),
+                std::string::npos);
+      EXPECT_NE(gInfluxPrecisionSql.find("<= to_timestamp_nanos(" + std::to_string(last) + ")"),
+                std::string::npos);
+      EXPECT_EQ(first / factor, tick);
+      EXPECT_EQ(last / factor, tick);
+      EXPECT_GT((last + 1) / factor, tick);
+    }
+  }
+}
 
 SNode *gExternalReaderPlan = nullptr;
 int32_t gExternalReaderOpenCalls = 0;

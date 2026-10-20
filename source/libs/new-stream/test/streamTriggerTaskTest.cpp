@@ -85,12 +85,118 @@ int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask* pTask, int64_t 
                                              SSTriggerDropRequest** ppRequest);
 int32_t stTestCalcRequestParamCount(const SSTriggerCalcRequest* pReq, int32_t* pCount);
 int32_t stTestFinalizeCalcRequest(SSTriggerCalcRequest* pReq);
+int32_t stTriggerTaskEnsureExtRefBindingIndex(SSTriggerExtOrigTableRef* pRef, SSHashObj** ppIndex);
+int32_t stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef* pRef, int64_t gid, SArray** ppBindings);
+void    stTriggerTaskInvalidateExtRefBindingIndex(SSTriggerExtOrigTableRef* pRef);
+int32_t stTriggerTaskGetInternalGroupInfo(SStreamTriggerTask* pTask, int64_t gid, bool* pHasTrigger, int32_t* pVgId);
+void    stTriggerTaskInvalidateInternalGroupIndex(SStreamTriggerTask* pTask);
+int32_t stRealtimeContextUpdateExtCompletedCutoffForGroup(SSTriggerRealtimeContext* pContext, int64_t gid,
+                                                          int64_t maxEnd);
+int32_t stRealtimeContextUpdateExtCompletedCutoffs(SSTriggerRealtimeContext* pContext, SSHashObj* pGroupMaxEnds);
 }
 
 static void destroyPoolDropRequest(SSTriggerDropRequest** ppRequest) {
   if (ppRequest == nullptr || *ppRequest == nullptr) return;
-  tDestroySSTriggerDropRequest(*ppRequest);
   taosMemoryFreeClear(*ppRequest);
+}
+
+static void* rejectInternalGroupIndexRescan(const SSHashObj*, void*, int32_t*) { return nullptr; }
+
+static SSHashObj* failInternalGroupIndexInit(size_t, _hash_fn_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+TEST(StreamTriggerInternalGroupIndexTest, FailedBuildDoesNotPublishPartialIndex) {
+  SStreamTriggerTask task = {};
+  task.pVirtTableInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+  bool hasTrigger = true;
+  int32_t vgId = -1;
+  {
+    Stub stub;
+    stub.set(tSimpleHashInit, failInternalGroupIndexInit);
+    EXPECT_EQ(stTriggerTaskGetInternalGroupInfo(&task, 1, &hasTrigger, &vgId), TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(task.pInternalGroupIndex, nullptr);
+  }
+  EXPECT_FALSE(hasTrigger);
+  EXPECT_EQ(vgId, 0);
+  EXPECT_EQ(stTriggerTaskGetInternalGroupInfo(&task, 1, &hasTrigger, &vgId), 0);
+  EXPECT_NE(task.pInternalGroupIndex, nullptr);
+  stTriggerTaskInvalidateInternalGroupIndex(&task);
+  tSimpleHashCleanup(task.pVirtTableInfos);
+}
+
+TEST(StreamTriggerInternalGroupIndexTest, IndexesAllGroupsAndRebuildsAfterPatch) {
+  SStreamTriggerTask task = {};
+  task.isVirtualTable = true;
+  task.pVirtTableInfos = tSimpleHashInit(2048, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+  for (int64_t uid = 1; uid <= 2048; ++uid) {
+    SSTriggerVirtTableInfo info = {};
+    info.tbUid = uid;
+    info.vgId = 17;
+    info.tbGids = taosArrayInit(2, sizeof(int64_t));
+    info.pTrigColRefs = taosArrayInit(1, sizeof(SSTriggerTableColRef));
+    ASSERT_NE(info.tbGids, nullptr);
+    ASSERT_NE(info.pTrigColRefs, nullptr);
+    int64_t nestedGid = uid + 10000;
+    ASSERT_NE(taosArrayPush(info.tbGids, &uid), nullptr);
+    ASSERT_NE(taosArrayPush(info.tbGids, &nestedGid), nullptr);
+    SSTriggerTableColRef ref = {};
+    ref.readerKey.readerKind = uid % 2 ? STRIGGER_READER_KIND_INTERNAL : STRIGGER_READER_KIND_EXTERNAL;
+    ASSERT_NE(taosArrayPush(info.pTrigColRefs, &ref), nullptr);
+    ASSERT_EQ(tSimpleHashPut(task.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), 0);
+  }
+  bool firstHasTrigger = false;
+  int32_t firstVgId = 0;
+  ASSERT_EQ(stTriggerTaskGetInternalGroupInfo(&task, 1, &firstHasTrigger, &firstVgId), 0);
+  EXPECT_EQ(tSimpleHashGetSize(task.pInternalGroupIndex), 4096);
+  Stub stub;
+  stub.set(tSimpleHashIterate, rejectInternalGroupIndexRescan);
+  for (int64_t uid = 1; uid <= 2048; ++uid) {
+    bool hasTrigger = false;
+    int32_t vgId = 0;
+    ASSERT_EQ(stTriggerTaskGetInternalGroupInfo(&task, uid, &hasTrigger, &vgId), 0);
+    EXPECT_EQ(hasTrigger, uid % 2 != 0);
+    EXPECT_EQ(vgId, uid % 2 ? 17 : 0);
+    ASSERT_EQ(stTriggerTaskGetInternalGroupInfo(&task, uid + 10000, &hasTrigger, &vgId), 0);
+    EXPECT_EQ(hasTrigger, uid % 2 != 0);
+    EXPECT_EQ(vgId, uid % 2 ? 17 : 0);
+  }
+  stub.reset(tSimpleHashIterate);
+  EXPECT_EQ(tSimpleHashGetSize(task.pInternalGroupIndex), 4096);
+  int64_t uid = 1;
+  auto* info = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(info, nullptr);
+  auto* ref = static_cast<SSTriggerTableColRef*>(taosArrayGet(info->pTrigColRefs, 0));
+  ref->readerKey.readerKind = STRIGGER_READER_KIND_EXTERNAL;
+  stTriggerTaskInvalidateInternalGroupIndex(&task);
+  EXPECT_EQ(task.pInternalGroupIndex, nullptr);
+  bool hasTrigger = true;
+  int32_t vgId = -1;
+  ASSERT_EQ(stTriggerTaskGetInternalGroupInfo(&task, uid, &hasTrigger, &vgId), 0);
+  EXPECT_FALSE(hasTrigger);
+  EXPECT_EQ(vgId, 0);
+  SSTriggerTableColRef calcRef = {};
+  calcRef.readerKey.readerKind = STRIGGER_READER_KIND_INTERNAL;
+  info->pCalcColRefs = taosArrayInit(1, sizeof(calcRef));
+  ASSERT_NE(info->pCalcColRefs, nullptr);
+  ASSERT_NE(taosArrayPush(info->pCalcColRefs, &calcRef), nullptr);
+  stTriggerTaskInvalidateInternalGroupIndex(&task);
+  ASSERT_EQ(stTriggerTaskGetInternalGroupInfo(&task, uid, &hasTrigger, &vgId), 0);
+  EXPECT_FALSE(hasTrigger);
+  EXPECT_EQ(vgId, 17);
+  int32_t iter = 0;
+  info = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashIterate(task.pVirtTableInfos, nullptr, &iter));
+  while (info != nullptr) {
+    taosArrayDestroy(info->tbGids);
+    taosArrayDestroy(info->pTrigColRefs);
+    taosArrayDestroy(info->pCalcColRefs);
+    info = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashIterate(task.pVirtTableInfos, info, &iter));
+  }
+  stTriggerTaskInvalidateInternalGroupIndex(&task);
+  tSimpleHashCleanup(task.pVirtTableInfos);
 }
 
 static int32_t discardQueuedTriggerMessage(void*, EQueueType, SRpcMsg* pMsg) {
@@ -7192,6 +7298,84 @@ class ScopedCheckpointGenerationProbe {
   CheckpointGenerationProbe probe_;
 };
 
+TEST_F(StreamNestedRecoveryTest, ExternalInflightCalcDefersPeriodicAndUndeployCheckpoint) {
+  for (bool undeploy : {false, true}) {
+    SCOPED_TRACE(undeploy);
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_NONE));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startCode());
+    ASSERT_EQ(nullptr, harness.task()->pNestedRecovery);
+    ASSERT_TRUE(harness.feedRows({}, {}));
+    auto* context = harness.context();
+    ASSERT_NE(context, nullptr);
+    ASSERT_EQ(context->pReaderExtProgress, nullptr);
+    context->pReaderExtProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(context->pReaderExtProgress, nullptr);
+    tSimpleHashSetFreeFp(context->pReaderExtProgress, destroyRecoveryTestExtProgress);
+    auto* progress = static_cast<SSTriggerExtProgress*>(taosMemoryCalloc(1, sizeof(SSTriggerExtProgress)));
+    ASSERT_NE(progress, nullptr);
+    progress->pTaskAddr = static_cast<SStreamTaskAddr*>(taosArrayGet(harness.task()->readerList, 0));
+    progress->pOwnerTask = harness.task();
+    progress->sessionId = context->sessionId;
+    progress->triggerSideUidMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(progress->triggerSideUidMaxTs, nullptr);
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(progress->triggerSideUidMaxTs, &kRecoveryLiveExtUid, sizeof(kRecoveryLiveExtUid),
+                             &kRecoveryLiveExtMaxTs, sizeof(kRecoveryLiveExtMaxTs)));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(context->pReaderExtProgress, &kRecoveryLiveExtTaskId, sizeof(kRecoveryLiveExtTaskId),
+                             &progress, POINTER_BYTES));
+    ASSERT_TRUE(setRecoveryCutoverRunningBlocker(harness.task(), true));
+
+    constexpr int64_t checkpointInterval = 10 * NANOSECOND_PER_MINUTE;
+    const int64_t turnNow = 20 * checkpointInterval;
+    const int64_t checkpointClock = turnNow - checkpointInterval - 1;
+    context->lastCheckpointTime = checkpointClock;
+    atomic_store_32(&harness.task()->checkpointVersion, 71);
+    Stub clockStub;
+    clockStub.set(taosClockGetTime, captureRealtimePipelineTurnClock);
+    resetRealtimePipelineTurnClock(turnNow, 0, turnNow);
+    ScopedCheckpointGenerationProbe checkpointProbe;
+
+    ASSERT_FALSE(harness.task()->pendingPeriodicCheckpoint);
+    ASSERT_TRUE(harness.feedRows({}, {}));
+    for (int32_t attempt = 0; attempt < 3; ++attempt) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStartCode());
+    }
+    EXPECT_TRUE(harness.task()->pendingPeriodicCheckpoint);
+    EXPECT_EQ(0, checkpointProbe.probe().writes);
+    EXPECT_EQ(0, checkpointProbe.probe().syncs);
+    EXPECT_TRUE(checkpointProbe.probe().bytes.empty());
+    EXPECT_EQ(71, atomic_load_32(&harness.task()->checkpointVersion));
+    EXPECT_EQ(checkpointClock, context->lastCheckpointTime);
+    auto* watermark = static_cast<int64_t*>(
+        tSimpleHashGet(progress->triggerSideUidMaxTs, &kRecoveryLiveExtUid, sizeof(kRecoveryLiveExtUid)));
+    ASSERT_NE(watermark, nullptr);
+    EXPECT_EQ(kRecoveryLiveExtMaxTs, *watermark);
+
+    if (undeploy) {
+      harness.task()->task.undeployMsg.doCheckpoint = 1;
+      harness.task()->task.undeployMsg.doCleanup = 0;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.hardUndeploy());
+      EXPECT_EQ(0, checkpointProbe.probe().writes);
+      EXPECT_EQ(0, checkpointProbe.probe().syncs);
+      EXPECT_EQ(71, atomic_load_32(&harness.task()->checkpointVersion));
+    } else {
+      ASSERT_TRUE(setRecoveryCutoverRunningBlocker(harness.task(), false));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStartCode());
+      EXPECT_EQ(1, checkpointProbe.probe().writes);
+      EXPECT_EQ(1, checkpointProbe.probe().syncs);
+      EXPECT_EQ(72, atomic_load_32(&harness.task()->checkpointVersion));
+      EXPECT_EQ(turnNow, context->lastCheckpointTime);
+      EXPECT_FALSE(harness.task()->pendingPeriodicCheckpoint);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStartCode());
+      EXPECT_EQ(1, checkpointProbe.probe().writes);
+      EXPECT_EQ(1, checkpointProbe.probe().syncs);
+      EXPECT_EQ(72, atomic_load_32(&harness.task()->checkpointVersion));
+    }
+  }
+}
+
 TEST_F(StreamNestedRecoveryTest, CheckpointDefersBeforeEncoderWriteAndSync) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy));
@@ -9414,12 +9598,12 @@ static NestedVtableOrderedInputProbe* gNestedVtableOrderedInputProbe = nullptr;
 static int32_t captureNestedVtableOrderedInput(SSTriggerNewVtableMerger* pMerger, int64_t vtbUid, int32_t tsSlotId,
                                                int32_t pkSlotId, STimeWindow* pReadRange, SObjList* pTableUids,
                                                SArray* pTableColRefs, SSHashObj* pMetas, SSHashObj* pSlices,
-                                               bool orderedInput) {
+                                               SSHashObj* pReaderConsumedEkeys, bool orderedInput) {
   NestedVtableOrderedInputProbe* pProbe = gNestedVtableOrderedInputProbe;
   pProbe->orderedInputs.push_back(orderedInput);
   pProbe->stub.reset(stNewVtableMergerSetData);
   int32_t code = stNewVtableMergerSetData(pMerger, vtbUid, tsSlotId, pkSlotId, pReadRange, pTableUids, pTableColRefs,
-                                          pMetas, pSlices, orderedInput);
+                                          pMetas, pSlices, pReaderConsumedEkeys, orderedInput);
   return code;
 }
 
@@ -19414,7 +19598,9 @@ TEST_F(StreamNestedHistoryRecoveryBoundaryTest, CheckpointV3BytesRemainUnchanged
   tDecoderClear(&decoder);
   EXPECT_EQ(41, checkpointVersion);
   EXPECT_EQ(42, streamId);
-  EXPECT_EQ(7, formatVersion);
+  // v8 (STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION): the EXT binding completed cutoff moved to
+  // nanosecond wire values; the macro itself lives in streamTriggerTask.c and is not visible here.
+  EXPECT_EQ(8, formatVersion);
   EXPECT_EQ(1, walCount);
   EXPECT_EQ(NestedHistoryHarness::kReaderNodeId, vgId);
   EXPECT_EQ(2, startVer);
@@ -27193,6 +27379,40 @@ static void addExternalCheckpointTriggerBinding(ExternalCheckpointFixture* fixtu
   ASSERT_NE(taosArrayPush(pRef->bindings, &binding), nullptr);
 }
 
+// Registers the rolling completed cutoff a successful calc advanced for the group, in task precision
+// (the fixture task uses TSDB_TIME_PRECISION_MILLI). The checkpoint encoder rewinds it below the
+// oldest still-open window when needed, and the next restart restores it into the frozen per-group
+// recovery map (recoveryCheckpointGroupMaxTs) the trigger-side replay clamp reads.
+static void addExternalCheckpointCompletedCutoff(ExternalCheckpointFixture* fixture, int64_t registryEntryId,
+                                                 int64_t virtualGid, int64_t maxTs) {
+  SSTriggerExtOrigTableRef* pRef = nullptr;
+  for (int32_t i = 0; i < TARRAY_SIZE(fixture->task.pExtOrigTableRefs); ++i) {
+    auto* pCandidate = static_cast<SSTriggerExtOrigTableRef*>(taosArrayGet(fixture->task.pExtOrigTableRefs, i));
+    if (pCandidate->registryEntryId == registryEntryId) {
+      pRef = pCandidate;
+      break;
+    }
+  }
+  ASSERT_NE(pRef, nullptr);
+  auto** ppProgress = static_cast<SSTriggerExtProgress**>(
+      tSimpleHashGet(fixture->context.pReaderExtProgress, &pRef->readerTaskAddr.taskId,
+                     sizeof(pRef->readerTaskAddr.taskId)));
+  ASSERT_NE(ppProgress, nullptr);
+  ASSERT_NE(*ppProgress, nullptr);
+  auto* progress = *ppProgress;
+  if (progress->pCompletedCutoffGroupMaxTs == nullptr) {
+    progress->pCompletedCutoffGroupMaxTs =
+        tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    ASSERT_NE(progress->pCompletedCutoffGroupMaxTs, nullptr);
+  }
+  // Completed cutoffs are maintained in task precision in memory (the v8 wire format stores
+  // nanoseconds); no microsecond conversion happens anywhere on this path.
+  int64_t cutoffKey[2] = {registryEntryId, virtualGid};
+  ASSERT_EQ(tSimpleHashPut(progress->pCompletedCutoffGroupMaxTs, cutoffKey, sizeof(cutoffKey), &maxTs,
+                           sizeof(maxTs)),
+            TSDB_CODE_SUCCESS);
+}
+
 // Registers a group holding one still-open window plus the boundary of its last closed window.
 static SSTriggerRealtimeGroup* addExternalCheckpointGroup(ExternalCheckpointFixture* fixture, int64_t gid,
                                                          int64_t lastClosedSkey, int64_t lastClosedEkey) {
@@ -27279,6 +27499,14 @@ static void addExternalCheckpointRef(ExternalCheckpointFixture* fixture, int64_t
   ASSERT_EQ(tSimpleHashPut(progress->triggerSideUidMaxTs, &logicalUid, sizeof(logicalUid), &watermark,
                            sizeof(watermark)),
             TSDB_CODE_SUCCESS);
+  // Both recovery maps exist on live progress (stRealtimeContextRebindExtProgress): the checkpoint
+  // decoder skips binding cutoffs when recoveryCheckpointMaxTs is missing and only fills the
+  // per-group map when recoveryCheckpointGroupMaxTs is present.
+  progress->recoveryCheckpointMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(progress->recoveryCheckpointMaxTs, nullptr);
+  progress->recoveryCheckpointGroupMaxTs =
+      tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  ASSERT_NE(progress->recoveryCheckpointGroupMaxTs, nullptr);
   ASSERT_EQ(tSimpleHashPut(fixture->context.pReaderExtProgress, &readerTaskId, sizeof(readerTaskId), &progress,
                            POINTER_BYTES),
             TSDB_CODE_SUCCESS);
@@ -27291,6 +27519,8 @@ static void destroyExternalCheckpointFixture(ExternalCheckpointFixture* fixture)
     tSimpleHashCleanup(progress->triggerSideUidMaxTs);
     tSimpleHashCleanup(progress->recoveryCheckpointMaxTs);
     tSimpleHashCleanup(progress->recoveryCheckpointGroupMaxTs);
+    tSimpleHashCleanup(progress->pCompletedCutoffMaxTs);
+    tSimpleHashCleanup(progress->pCompletedCutoffGroupMaxTs);
     tSimpleHashCleanup(progress->pUidWindow);
     tSimpleHashCleanup(progress->pUidToGid);
     tSimpleHashCleanup(progress->pLastTsUidToGid);
@@ -27352,6 +27582,55 @@ static void encodeExternalCheckpoint(ExternalCheckpointFixture* fixture, int32_t
   ASSERT_EQ(stTriggerTaskDoGenCheckpoint(&fixture->task, static_cast<uint8_t*>(*checkpoint), checkpointLen,
                                          checkpointVersion),
             TSDB_CODE_SUCCESS);
+}
+
+TEST(StreamTriggerExternalCheckpointTest, DefersEncodingUntilExternalCalculationCompletes) {
+  ExternalCheckpointFixture fixture;
+  initExternalCheckpointFixture(&fixture, 0x5801);
+  addExternalCheckpointRef(&fixture, 701, "source|db|table", 1, 0x701, 1,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 3000);
+  fixture.task.pSessionRunning = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(fixture.task.pSessionRunning, nullptr);
+  int64_t sessionId = 1;
+  int64_t running = 1;
+  ASSERT_EQ(tSimpleHashPut(fixture.task.pSessionRunning, &sessionId, sizeof(sessionId), &running,
+                           sizeof(running)), TSDB_CODE_SUCCESS);
+  int64_t len = 0;
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(len, 0) << "An in-flight calculation must not checkpoint its consumed EXT rows";
+  running = 0;
+  ASSERT_EQ(tSimpleHashPut(fixture.task.pSessionRunning, &sessionId, sizeof(sessionId), &running,
+                           sizeof(running)), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_GT(len, 0);
+  tSimpleHashCleanup(fixture.task.pSessionRunning);
+  fixture.task.pSessionRunning = nullptr;
+  destroyExternalCheckpointFixture(&fixture);
+}
+
+static SArray* failCheckpointGroupAllocation(size_t, size_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+TEST(StreamTriggerExternalCheckpointTest, RejectsCheckpointWhenReplayGroupAllocationFails) {
+  ExternalCheckpointFixture fixture;
+  initExternalCheckpointFixture(&fixture, 0x5802);
+  fixture.task.triggerType = STREAM_TRIGGER_COUNT;
+  addExternalCheckpointRef(&fixture, 702, "source|db|table", 1, 0x702, 1,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9002, 3000);
+  addExternalCheckpointTriggerBinding(&fixture, 0x702, 7002);
+  addExternalCheckpointOpenWindow(&fixture, 7002, 1000, 3000, 2, INT64_MIN);
+  int64_t len = 0;
+  {
+    Stub stub;
+    stub.set(taosArrayInit, failCheckpointGroupAllocation);
+    EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(len, 0);
+  }
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_GT(len, 0);
+  destroyExternalCheckpointFixture(&fixture);
 }
 
 TEST(StreamTriggerExternalCheckpointTest, RestoresAfterRegistryDiscoveryReordersEntries) {
@@ -27551,6 +27830,160 @@ TEST(StreamTriggerExternalCheckpointTest, RewindsWatermarkForOverlappingCountWin
   // never be rebuilt. Re-reading from 1999 rebuilds exactly the open windows (t1 stays excluded, so
   // the emitted [t1,t3] is not recomputed).
   EXPECT_EQ(1999, *pRestoredWatermark);
+
+  taosMemoryFree(checkpoint);
+  destroyExternalCheckpointFixture(&restored);
+  destroyExternalCheckpointFixture(&saved);
+}
+
+// Two virtual groups share one external reader with uneven progress: the fast group already closed
+// (and committed) a window starting at 160, while the slow group still holds an open COUNT window
+// starting at 100. The shared reader must rewind to 99 so the slow group can rebuild its open
+// window after the restart; the fast group's replayed rows are deduped per group through the
+// completed cutoff persisted with the bindings.
+TEST(StreamTriggerExternalCheckpointTest, RewindsWatermarkForSharedReaderWithUnevenGroups) {
+  const int64_t readerTaskId = 0x751;
+  const int64_t uid = 9030;
+  const int64_t fastGid = 0x7511;
+  const int64_t slowGid = 0x7512;
+
+  ExternalCheckpointFixture saved;
+  initExternalCheckpointFixture(&saved, 0x5700);
+  saved.task.triggerType = STREAM_TRIGGER_COUNT;
+  saved.task.windowCount = 3;
+  addExternalCheckpointRef(&saved, 751, "source-a|db-a|table-a", 7, readerTaskId, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, uid, 3000);
+  addExternalCheckpointTriggerBinding(&saved, readerTaskId, fastGid);
+  addExternalCheckpointTriggerBinding(&saved, readerTaskId, slowGid);
+
+  // Fast group: a window [160,200] already closed and committed, no uncommitted work left.
+  ASSERT_NE(addExternalCheckpointGroup(&saved, fastGid, 160, 200), nullptr);
+  addExternalCheckpointCompletedCutoff(&saved, 751, fastGid, 200);
+  // Slow group: still holds the open window [100,300) that consumed the shared rows 100/200.
+  auto* pSlowGroup = addExternalCheckpointGroup(&saved, slowGid, INT64_MIN, INT64_MIN);
+  ASSERT_NE(pSlowGroup, nullptr);
+  SSTriggerWindow openWin = {.range = {.skey = 100, .ekey = 300}, .wrownum = 2};
+  ASSERT_EQ(taosObjListAppend(&pSlowGroup->windows, &openWin), TSDB_CODE_SUCCESS);
+
+  void* checkpoint = nullptr;
+  int64_t checkpointLen = 0;
+  encodeExternalCheckpoint(&saved, 36, &checkpoint, &checkpointLen);
+
+  ExternalCheckpointFixture restored;
+  initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+  addExternalCheckpointRef(&restored, 751, "source-a|db-a|table-a", 7, readerTaskId, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, uid, 0);
+  addExternalCheckpointTriggerBinding(&restored, readerTaskId, fastGid);
+  addExternalCheckpointTriggerBinding(&restored, readerTaskId, slowGid);
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+            TSDB_CODE_SUCCESS);
+  auto** ppProgress = static_cast<SSTriggerExtProgress**>(
+      tSimpleHashGet(restored.context.pReaderExtProgress, &readerTaskId, sizeof(readerTaskId)));
+  ASSERT_NE(ppProgress, nullptr);
+  ASSERT_NE(*ppProgress, nullptr);
+  auto* pRestoredWatermark = static_cast<int64_t*>(
+      tSimpleHashGet((*ppProgress)->triggerSideUidMaxTs, &uid, sizeof(uid)));
+  ASSERT_NE(pRestoredWatermark, nullptr);
+  // Re-reading from 99 lets the slow group rebuild its [100,?] window with rows 100/200; the fast
+  // group's committed [160,200] is filtered out by its per-group completed cutoff after recovery.
+  EXPECT_EQ(99, *pRestoredWatermark);
+
+  // The fast group's completed cutoff (200) is restored as the frozen per-binding recovery boundary,
+  // so replayed trigger metas that stay below it never re-enter the fast group's window state.
+  auto* pRestoredRef = static_cast<SSTriggerExtOrigTableRef*>(taosArrayGet(restored.task.pExtOrigTableRefs, 0));
+  ASSERT_NE(pRestoredRef, nullptr);
+  auto* pFastBinding = static_cast<SSTriggerExtOrigTableBinding*>(taosArrayGet(pRestoredRef->bindings, 0));
+  auto* pSlowBinding = static_cast<SSTriggerExtOrigTableBinding*>(taosArrayGet(pRestoredRef->bindings, 1));
+  ASSERT_NE(pFastBinding, nullptr);
+  ASSERT_NE(pSlowBinding, nullptr);
+  EXPECT_EQ(200, stRealtimeContextExtTriggerRecoveryCutoff(&restored.context, pRestoredRef, pFastBinding,
+                                                           *ppProgress));
+  // The slow group never completed a calc, so it keeps no boundary and consumes all replayed rows.
+  EXPECT_EQ(INT64_MIN, stRealtimeContextExtTriggerRecoveryCutoff(&restored.context, pRestoredRef, pSlowBinding,
+                                                                 *ppProgress));
+
+  // Simulate the fanout clamp for the replayed shared reader range [99,170]: it is fully covered by
+  // the fast group's cutoff, so the meta is suppressed (no window state is rebuilt from rows 100/200).
+  int64_t fastCutoff =
+      stRealtimeContextExtTriggerRecoveryCutoff(&restored.context, pRestoredRef, pFastBinding, *ppProgress);
+  ASSERT_NE(fastCutoff, INT64_MIN);
+  int64_t replaySkey = 99;
+  int64_t replayEkey = 170;
+  if (replaySkey <= fastCutoff) {
+    replaySkey = fastCutoff + 1;
+  }
+  EXPECT_GT(replaySkey, replayEkey);
+  // A later range that reaches past the cutoff (e.g. the next R row at 300) is only trimmed on the
+  // left: rows in [201,300] stay available to the fast group, so it closes [300,500] with new rows.
+  replaySkey = 99;
+  replayEkey = 300;
+  if (replaySkey <= fastCutoff) {
+    replaySkey = fastCutoff + 1;
+  }
+  EXPECT_EQ(201, replaySkey);
+  EXPECT_EQ(300, replayEkey);
+
+  taosMemoryFree(checkpoint);
+  destroyExternalCheckpointFixture(&restored);
+  destroyExternalCheckpointFixture(&saved);
+}
+
+// A trigger-only reference on a nanosecond-precision task must keep its completed cutoff through the
+// checkpoint round-trip without sub-microsecond loss: the old microsecond wire format truncated a
+// cutoff of 200ns down to 0 and replayed rows above it re-entered the group's window state after the
+// restart. The reference carries no CALC binding at all (the calc query reads an ordinary table via
+// _twstart/_twend), yet its boundary must still be persisted.
+TEST(StreamTriggerExternalCheckpointTest, KeepsNanosecondCutoffForTriggerOnlyBindings) {
+  const int64_t readerTaskId = 0x761;
+  const int64_t uid = 9610;
+  const int64_t fastGid = 0x7611;
+  const int64_t slowGid = 0x7612;
+
+  ExternalCheckpointFixture saved;
+  initExternalCheckpointFixture(&saved, 0x5900);
+  saved.task.precision = TSDB_TIME_PRECISION_NANO;
+  saved.task.triggerType = STREAM_TRIGGER_COUNT;
+  saved.task.windowCount = 3;
+  addExternalCheckpointRef(&saved, 761, "source-a|db-a|table-a", 7, readerTaskId, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, uid, 3000);
+  addExternalCheckpointTriggerBinding(&saved, readerTaskId, fastGid);
+  addExternalCheckpointTriggerBinding(&saved, readerTaskId, slowGid);
+
+  ASSERT_NE(addExternalCheckpointGroup(&saved, fastGid, 160, 200), nullptr);
+  addExternalCheckpointCompletedCutoff(&saved, 761, fastGid, 200);
+  auto* pSlowGroup = addExternalCheckpointGroup(&saved, slowGid, INT64_MIN, INT64_MIN);
+  ASSERT_NE(pSlowGroup, nullptr);
+  SSTriggerWindow openWin = {.range = {.skey = 100, .ekey = 300}, .wrownum = 2};
+  ASSERT_EQ(taosObjListAppend(&pSlowGroup->windows, &openWin), TSDB_CODE_SUCCESS);
+
+  void* checkpoint = nullptr;
+  int64_t checkpointLen = 0;
+  encodeExternalCheckpoint(&saved, 39, &checkpoint, &checkpointLen);
+
+  ExternalCheckpointFixture restored;
+  initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+  restored.task.precision = TSDB_TIME_PRECISION_NANO;
+  addExternalCheckpointRef(&restored, 761, "source-a|db-a|table-a", 7, readerTaskId, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, uid, 0);
+  addExternalCheckpointTriggerBinding(&restored, readerTaskId, fastGid);
+  addExternalCheckpointTriggerBinding(&restored, readerTaskId, slowGid);
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+            TSDB_CODE_SUCCESS);
+  auto** ppProgress = static_cast<SSTriggerExtProgress**>(
+      tSimpleHashGet(restored.context.pReaderExtProgress, &readerTaskId, sizeof(readerTaskId)));
+  ASSERT_NE(ppProgress, nullptr);
+  ASSERT_NE(*ppProgress, nullptr);
+  auto* pRestoredRef = static_cast<SSTriggerExtOrigTableRef*>(taosArrayGet(restored.task.pExtOrigTableRefs, 0));
+  ASSERT_NE(pRestoredRef, nullptr);
+  auto* pFastBinding = static_cast<SSTriggerExtOrigTableBinding*>(taosArrayGet(pRestoredRef->bindings, 0));
+  auto* pSlowBinding = static_cast<SSTriggerExtOrigTableBinding*>(taosArrayGet(pRestoredRef->bindings, 1));
+  ASSERT_NE(pFastBinding, nullptr);
+  ASSERT_NE(pSlowBinding, nullptr);
+  // 200ns survives the round-trip exactly (the microsecond wire format truncated it to 0).
+  EXPECT_EQ(200, stRealtimeContextExtTriggerRecoveryCutoff(&restored.context, pRestoredRef, pFastBinding,
+                                                           *ppProgress));
+  EXPECT_EQ(INT64_MIN, stRealtimeContextExtTriggerRecoveryCutoff(&restored.context, pRestoredRef, pSlowBinding,
+                                                                 *ppProgress));
 
   taosMemoryFree(checkpoint);
   destroyExternalCheckpointFixture(&restored);
@@ -27973,6 +28406,128 @@ static void destroyExternalPatchFixture(ExternalPatchFixture* fixture) {
 }
 
 }  // namespace
+
+namespace {
+
+static std::map<int64_t, SExtUidWindow> gPureExtCalcWindows;
+static int32_t gPureExtCalcPullCount = 0;
+
+static int32_t capturePureExtCalcPull(const SEpSet*, SRpcMsg* message) {
+  if (message->msgType == TDMT_STREAM_TRIGGER_PULL_EXT) {
+    SSTriggerPullRequestUnion decoded = {};
+    EXPECT_EQ(tDeserializeSTriggerPullRequest(static_cast<char*>(message->pCont) + sizeof(SMsgHead),
+                                             message->contLen - sizeof(SMsgHead), &decoded), 0);
+    if (decoded.base.type == STRIGGER_PULL_CALC_DATA_EXT) {
+      ++gPureExtCalcPullCount;
+      int32_t iter = 0;
+      auto* window = static_cast<SExtUidWindow*>(tSimpleHashIterate(decoded.extPullReq.pUidWindow, nullptr, &iter));
+      while (window != nullptr) {
+        int64_t uid = *static_cast<int64_t*>(tSimpleHashGetKey(window, nullptr));
+        gPureExtCalcWindows[uid] = *window;
+        window = static_cast<SExtUidWindow*>(tSimpleHashIterate(decoded.extPullReq.pUidWindow, window, &iter));
+      }
+    }
+    tDestroySTriggerPullRequest(&decoded);
+  }
+  rpcFreeCont(message->pCont);
+  message->pCont = nullptr;
+  destroyAhandle(message->info.ahandle);
+  message->info.ahandle = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void destroyPureExtCalcProgress(void* ptr) {
+  auto** progress = static_cast<SSTriggerExtProgress**>(ptr);
+  if (progress != nullptr && *progress != nullptr) {
+    tSimpleHashCleanup((*progress)->pCalcUidWindow);
+    (*progress)->pCalcUidWindow = nullptr;
+  }
+  destroyRecoveryTestExtProgress(ptr);
+}
+
+}  // namespace
+
+TEST(StreamTriggerPureExternalCalcTest, CalcOnlyReaderBuildsWindowFromBootstrapWithoutWal) {
+  SSTriggerRealtimeGroup group = {};
+  std::unique_ptr<SSHashObj, decltype(&tSimpleHashCleanup)> walMetas(
+      tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY)), tSimpleHashCleanup);
+  ASSERT_NE(walMetas, nullptr);
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession));
+  ASSERT_TRUE(harness.start());
+  auto* task = harness.task();
+  auto* context = harness.context();
+  ASSERT_NE(context, nullptr);
+  tSimpleHashClear(context->pReaderWalProgress);
+  ASSERT_TRUE(harness.detachReaderRoster());
+  ASSERT_EQ(tSimpleHashGetSize(context->pReaderWalProgress), 0);
+  task->isVirtualTable = true;
+  task->virTableInfoReady = true;
+  task->placeHolderBitmap |= PLACE_HOLDER_PARTITION_ROWS;
+  task->precision = TSDB_TIME_PRECISION_MILLI;
+  task->pExtOrigTableRefs = taosArrayInit(1, sizeof(SSTriggerExtOrigTableRef));
+  ASSERT_NE(task->pExtOrigTableRefs, nullptr);
+  auto* ref = addExternalPatchRef(task->pExtOrigTableRefs, 801, "influx|calc-only", 3, 0x8801);
+  ASSERT_NE(ref, nullptr);
+  ref->sourceType = EXT_SOURCE_INFLUXDB;
+  SSTriggerExtOrigTableBinding binding = {};
+  binding.bindingId = 8101;
+  binding.virtualUid = 1001;
+  binding.virtualGid = RealtimePipelineHarness::kGid;
+  binding.kind = STRIGGER_EXT_BINDING_CALC;
+  binding.virtualSlot = 1;
+  binding.resultColumnSlot = 1;
+  ASSERT_NE(taosArrayPush(ref->bindings, &binding), nullptr);
+  ref->acceptedBindingCount = 1;
+  context->pReaderExtProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context->pReaderExtProgress, nullptr);
+  tSimpleHashSetFreeFp(context->pReaderExtProgress, destroyPureExtCalcProgress);
+  auto* progress = static_cast<SSTriggerExtProgress*>(taosMemoryCalloc(1, sizeof(SSTriggerExtProgress)));
+  ASSERT_NE(progress, nullptr);
+  progress->pOwnerTask = task;
+  progress->pTaskAddr = &ref->readerTaskAddr;
+  progress->sessionId = context->sessionId;
+  progress->deploymentGeneration = 3;
+  progress->pLastTsUidToGid = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(progress->pLastTsUidToGid, nullptr);
+  constexpr int64_t logicalUid = 9001;
+  constexpr int64_t readerGid = 777;
+  ASSERT_EQ(tSimpleHashPut(progress->pLastTsUidToGid, &logicalUid, sizeof(logicalUid), &readerGid, sizeof(readerGid)), 0);
+  ASSERT_EQ(tSimpleHashPut(context->pReaderExtProgress, &ref->readerTaskAddr.taskId,
+                           sizeof(ref->readerTaskAddr.taskId), &progress, POINTER_BYTES), 0);
+  EXPECT_EQ(progress->pCalcUidWindow, nullptr);
+  EXPECT_EQ(progress->pUidToGid, nullptr);
+  group.pContext = context;
+  group.gid = RealtimePipelineHarness::kGid;
+  group.newThreshold = 200;
+  group.pWalMetas = walMetas.get();
+  ASSERT_EQ(taosObjListInit(&group.tableUids, &context->tableUidPool), 0);
+  ASSERT_EQ(taosObjListInit(&group.windows, &context->windowPool), 0);
+  ASSERT_EQ(taosObjListInit(&group.pPendingCalcParams, &context->calcParamPool), 0);
+  ASSERT_EQ(taosObjListInit(&group.pPendingParWinCalcParams, &context->calcParamPool), 0);
+  context->pMinGroup = &group;
+  context->boundDetermined = true;
+  context->status = STRIGGER_CONTEXT_SEND_CALC_REQ;
+  context->calcRange = {.skey = INT64_MIN, .ekey = INT64_MIN};
+  ASSERT_EQ(stTriggerTaskAcquireRequest(task, context->sessionId, group.gid, &context->pCalcReq), 0);
+  ASSERT_NE(context->pCalcReq, nullptr);
+  SSTriggerCalcParam param = {};
+  param.wstart = 100;
+  param.wend = 200;
+  ASSERT_NE(taosArrayPush(context->pCalcReq->params, &param), nullptr);
+  gPureExtCalcWindows.clear();
+  gPureExtCalcPullCount = 0;
+  Stub transportStub;
+  transportStub.set(tmsgSendReq, capturePureExtCalcPull);
+  EXPECT_EQ(harness.dispatchSerializedRealtimeStartCode(), 0);
+  EXPECT_EQ(gPureExtCalcPullCount, 1);
+  ASSERT_EQ(gPureExtCalcWindows.size(), 1U);
+  ASSERT_EQ(gPureExtCalcWindows.count(logicalUid), 1U);
+  EXPECT_EQ(gPureExtCalcWindows[logicalUid].skey, 100);
+  EXPECT_EQ(gPureExtCalcWindows[logicalUid].ekey, 200);
+  EXPECT_EQ(progress->pendingCalcPulls, 1);
+  EXPECT_EQ(progress->pullType, STRIGGER_PULL_CALC_DATA_EXT);
+}
 
 TEST(StreamTriggerExternalPatchTest, PreservesUnaffectedRegistryBindingsAndWatermarks) {
   ExternalPatchFixture fixture;
@@ -29356,7 +29911,7 @@ class StreamTriggerVirtualMergerSourceTest : public ::testing::Test {
                           bool expectInternal = true) {
     STimeWindow range = {.skey = kTimestamp, .ekey = kTimestamp};
     ASSERT_EQ(stNewVtableMergerSetData(merger_, virtualUid, 0, -1, &range, &targets_, colRefs_, metas_, slices_,
-                                       task_.ignoreDisorder),
+                                       NULL, task_.ignoreDisorder),
               TSDB_CODE_SUCCESS);
     SSDataBlock* pResult = nullptr;
     int32_t      startIdx = 0;
@@ -35254,11 +35809,6 @@ TEST(StreamTriggerExternalCheckpointTest, SharedRegistryKeepsIndependentGroupCut
       binding.virtualColId = 1;
       ASSERT_NE(taosArrayPush(ref->bindings, &binding), nullptr);
     }
-    auto* progress = *static_cast<SSTriggerExtProgress**>(taosArrayGet(fixture->ownedProgress, 0));
-    progress->recoveryCheckpointMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-    progress->recoveryCheckpointGroupMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
-    ASSERT_NE(progress->recoveryCheckpointMaxTs, nullptr);
-    ASSERT_NE(progress->recoveryCheckpointGroupMaxTs, nullptr);
   }
   auto* savedProgress = *static_cast<SSTriggerExtProgress**>(taosArrayGet(saved.ownedProgress, 0));
   for (int64_t gid : {10, 20}) {
@@ -35532,3 +36082,157 @@ TEST_F(StreamMgmtCapabilityTest, DisabledAllowsActualReaderUndeploy) {
   EXPECT_EQ(taosArrayGetSize(stream->undeployReaders), 1);
 }
 }  // namespace
+
+/* Regression coverage for the completed-cutoff gid index (review note_168649 P1):
+ * the hash stores the SArray pointer itself, so consumers must dereference the
+ * lookup result once before using it as an array. */
+namespace {
+
+SSTriggerExtOrigTableBinding makeExtBinding(int64_t uid, int64_t gid, int8_t kind) {
+  SSTriggerExtOrigTableBinding b = {};
+  b.virtualUid = uid;
+  b.virtualGid = gid;
+  b.kind = kind;
+  return b;
+}
+
+}  // namespace
+
+TEST(StreamTriggerExtRefBindingIndexTest, IndexRoundTripAndInvalidation) {
+  SSTriggerExtOrigTableRef ref = {};
+  ref.registryEntryId = 7;
+  ref.readerTaskAddr.taskId = 42;
+  ref.bindings = taosArrayInit(8, sizeof(SSTriggerExtOrigTableBinding));
+  ASSERT_NE(ref.bindings, nullptr);
+
+  SSTriggerExtOrigTableBinding b1 = makeExtBinding(1, 100, STRIGGER_EXT_BINDING_CALC);
+  SSTriggerExtOrigTableBinding b2 = makeExtBinding(2, 100, STRIGGER_EXT_BINDING_TRIGGER);
+  SSTriggerExtOrigTableBinding b3 = makeExtBinding(3, 200, STRIGGER_EXT_BINDING_CALC);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b1), nullptr);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b2), nullptr);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b3), nullptr);
+
+  SSHashObj* pIndex = nullptr;
+  ASSERT_EQ(stTriggerTaskEnsureExtRefBindingIndex(&ref, &pIndex), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pIndex, nullptr);
+  EXPECT_EQ(pIndex, ref.pGidToBindings);
+
+  SArray* pG100 = nullptr;
+  ASSERT_EQ(stTriggerTaskGetExtRefBindingsForGid(&ref, 100, &pG100), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pG100, nullptr);
+  EXPECT_EQ((int32_t)taosArrayGetSize(pG100), 2);
+  SArray* pG200 = nullptr;
+  ASSERT_EQ(stTriggerTaskGetExtRefBindingsForGid(&ref, 200, &pG200), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pG200, nullptr);
+  EXPECT_EQ((int32_t)taosArrayGetSize(pG200), 1);
+  SArray* pG300 = nullptr;
+  ASSERT_EQ(stTriggerTaskGetExtRefBindingsForGid(&ref, 300, &pG300), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pG300, nullptr);
+
+  // Index entries point at the bindings owned by the ref.
+  SSTriggerExtOrigTableBinding* pB = *(SSTriggerExtOrigTableBinding**)taosArrayGet(pG100, 0);
+  ASSERT_NE(pB, nullptr);
+  EXPECT_EQ(pB->virtualGid, 100);
+
+  // Appending a binding invalidates the cache; the rebuilt index sees the new gid.
+  SSTriggerExtOrigTableBinding b4 = makeExtBinding(4, 300, STRIGGER_EXT_BINDING_CALC);
+  stTriggerTaskInvalidateExtRefBindingIndex(&ref);
+  EXPECT_EQ(ref.pGidToBindings, nullptr);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b4), nullptr);
+  pG300 = nullptr;
+  ASSERT_EQ(stTriggerTaskGetExtRefBindingsForGid(&ref, 300, &pG300), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pG300, nullptr);
+  EXPECT_EQ((int32_t)taosArrayGetSize(pG300), 1);
+
+  if (ref.pGidToBindings != nullptr) {
+    tSimpleHashCleanup(ref.pGidToBindings);
+    ref.pGidToBindings = nullptr;
+  }
+  taosArrayDestroy(ref.bindings);
+}
+
+typedef struct {
+  int64_t registryEntryId;
+  int64_t virtualGid;
+} TestExtBindingCutoffKey;
+
+TEST(StreamTriggerExtCompletedCutoffTest, PerGroupAndBatchConsumersWalkTheGidIndex) {
+  SStreamTriggerTask       task = {};
+  SSTriggerRealtimeContext context = {};
+  context.pTask = &task;
+
+  SSTriggerExtOrigTableRef ref = {};
+  ref.registryEntryId = 7;
+  ref.readerTaskAddr.taskId = 42;
+  ref.bindings = taosArrayInit(8, sizeof(SSTriggerExtOrigTableBinding));
+  ASSERT_NE(ref.bindings, nullptr);
+  SSTriggerExtOrigTableBinding b1 = makeExtBinding(1, 100, STRIGGER_EXT_BINDING_CALC);
+  SSTriggerExtOrigTableBinding b2 = makeExtBinding(2, 100, STRIGGER_EXT_BINDING_TRIGGER);
+  SSTriggerExtOrigTableBinding b3 = makeExtBinding(3, 200, STRIGGER_EXT_BINDING_CALC);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b1), nullptr);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b2), nullptr);
+  ASSERT_NE(taosArrayPush(ref.bindings, &b3), nullptr);
+
+  task.pExtOrigTableRefs = taosArrayInit(1, sizeof(SSTriggerExtOrigTableRef));
+  ASSERT_NE(task.pExtOrigTableRefs, nullptr);
+  ASSERT_NE(taosArrayPush(task.pExtOrigTableRefs, &ref), nullptr);
+
+  context.pReaderExtProgress = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.pReaderExtProgress, nullptr);
+  SSTriggerExtProgress* pProgress =
+      static_cast<SSTriggerExtProgress*>(taosMemoryCalloc(1, sizeof(SSTriggerExtProgress)));
+  ASSERT_NE(pProgress, nullptr);
+  int64_t taskId = 42;
+  ASSERT_EQ(tSimpleHashPut(context.pReaderExtProgress, &taskId, sizeof(taskId), &pProgress, POINTER_BYTES),
+            TSDB_CODE_SUCCESS);
+
+  // Single-group consumer must reach the ref through the index and advance the completed cutoff.
+  ASSERT_EQ(stRealtimeContextUpdateExtCompletedCutoffForGroup(&context, 100, 5000), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pProgress->pCompletedCutoffGroupMaxTs, nullptr);
+  TestExtBindingCutoffKey key100 = {.registryEntryId = 7, .virtualGid = 100};
+  int64_t* pCut = (int64_t*)tSimpleHashGet(pProgress->pCompletedCutoffGroupMaxTs, &key100, sizeof(key100));
+  ASSERT_NE(pCut, nullptr);
+  EXPECT_EQ(*pCut, 5000);
+
+  // Batch consumer walks every indexed group once and advances both groups.
+  SSHashObj* pGroupMaxEnds = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(pGroupMaxEnds, nullptr);
+  int64_t gid100 = 100;
+  int64_t gid200 = 200;
+  int64_t max100 = 7000;
+  int64_t max200 = 9000;
+  ASSERT_EQ(tSimpleHashPut(pGroupMaxEnds, &gid100, sizeof(gid100), &max100, sizeof(max100)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tSimpleHashPut(pGroupMaxEnds, &gid200, sizeof(gid200), &max200, sizeof(max200)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRealtimeContextUpdateExtCompletedCutoffs(&context, pGroupMaxEnds), TSDB_CODE_SUCCESS);
+  TestExtBindingCutoffKey key200 = {.registryEntryId = 7, .virtualGid = 200};
+  pCut = (int64_t*)tSimpleHashGet(pProgress->pCompletedCutoffGroupMaxTs, &key100, sizeof(key100));
+  ASSERT_NE(pCut, nullptr);
+  EXPECT_EQ(*pCut, 7000);
+  pCut = (int64_t*)tSimpleHashGet(pProgress->pCompletedCutoffGroupMaxTs, &key200, sizeof(key200));
+  ASSERT_NE(pCut, nullptr);
+  EXPECT_EQ(*pCut, 9000);
+
+  tSimpleHashCleanup(pGroupMaxEnds);
+  if (pProgress->pCompletedCutoffGroupMaxTs != nullptr) {
+    tSimpleHashCleanup(pProgress->pCompletedCutoffGroupMaxTs);
+    pProgress->pCompletedCutoffGroupMaxTs = nullptr;
+  }
+  taosMemoryFree(pProgress);
+  tSimpleHashCleanup(context.pReaderExtProgress);
+  context.pReaderExtProgress = nullptr;
+  if (context.pGidToExtRefs != nullptr) {
+    tSimpleHashCleanup(context.pGidToExtRefs);
+    context.pGidToExtRefs = nullptr;
+  }
+  taosArrayDestroy(task.pExtOrigTableRefs);
+  if (ref.pGidToBindings != nullptr) {
+    tSimpleHashCleanup(ref.pGidToBindings);
+    ref.pGidToBindings = nullptr;
+  }
+  taosArrayDestroy(ref.bindings);
+}
+
+TEST(StreamTriggerExtCompletedCutoffTest, RejectsNullContext) {
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRealtimeContextUpdateExtCompletedCutoffForGroup(nullptr, 100, 5000));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRealtimeContextUpdateExtCompletedCutoffs(nullptr, nullptr));
+}

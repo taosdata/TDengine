@@ -5315,6 +5315,53 @@ end:
   return code;
 }
 
+static int32_t streamCopyColRef(SColRef* pDst, const SColRef* pSrc) {
+  // Reject half-initialized sources so a colRef with a dangling length but no payload can never
+  // escape the copy.
+  if ((pSrc->tagCondLen > 0 && pSrc->tagCondJson == NULL) ||
+      (pSrc->filterCondLen > 0 && pSrc->filterCondJson == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *pDst = *pSrc;
+  pDst->tagCondJson = NULL;
+  pDst->filterCondJson = NULL;
+  if (pSrc->tagCondLen > 0 && pSrc->tagCondJson != NULL) {
+    // Same NUL-free length contract as the direct-reference path: drop a trailing NUL that the
+    // resolver may have included in the length.
+    int32_t tagCondLen = (int32_t)strnlen(pSrc->tagCondJson, (size_t)pSrc->tagCondLen);
+    if (tagCondLen <= 0) return TSDB_CODE_INVALID_MSG;
+    pDst->tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
+    if (pDst->tagCondJson == NULL) {
+      return terrno;
+    }
+    memcpy(pDst->tagCondJson, pSrc->tagCondJson, tagCondLen);
+    pDst->tagCondJson[tagCondLen] = '\0';
+    pDst->tagCondLen = tagCondLen;
+  }
+  if (pSrc->filterCondLen > 0 && pSrc->filterCondJson != NULL) {
+    int32_t filterCondLen = (int32_t)strnlen(pSrc->filterCondJson, (size_t)pSrc->filterCondLen);
+    if (filterCondLen <= 0) {
+      // Roll back the already-copied condition so a partially initialized col ref never
+      // escapes to a caller that has no failure cleanup for its reserved slot.
+      taosMemoryFreeClear(pDst->tagCondJson);
+      pDst->tagCondLen = 0;
+      return TSDB_CODE_INVALID_MSG;
+    }
+    pDst->filterCondJson = taosMemoryMalloc((size_t)filterCondLen + 1);
+    if (pDst->filterCondJson == NULL) {
+      // Roll back the already-copied condition so a partially initialized col ref never
+      // escapes to a caller that has no failure cleanup for its reserved slot.
+      taosMemoryFreeClear(pDst->tagCondJson);
+      pDst->tagCondLen = 0;
+      return terrno;
+    }
+    memcpy(pDst->filterCondJson, pSrc->filterCondJson, filterCondLen);
+    pDst->filterCondJson[filterCondLen] = '\0';
+    pDst->filterCondLen = filterCondLen;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_t uid, uint64_t gid, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t              code = 0;
   int32_t              lino = 0;
@@ -5350,7 +5397,10 @@ static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_
     vTable->cols.pColRef = taosMemoryCalloc(metaReader->me.colRef.nCols, sizeof(SColRef));
     STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
     for (size_t j = 0; j < metaReader->me.colRef.nCols; j++) {
-      memcpy(vTable->cols.pColRef + j, &metaReader->me.colRef.pColRef[j], sizeof(SColRef));
+      code = streamCopyColRef(&vTable->cols.pColRef[j], &metaReader->me.colRef.pColRef[j]);
+      if (code != 0) {
+        goto end;
+      }
     }
   } else {
     vTable->cols.nCols = taosArrayGetSize(cids);
@@ -5361,7 +5411,10 @@ static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_
       for (size_t j = 0; j < metaReader->me.colRef.nCols; j++) {
         if (metaReader->me.colRef.pColRef[j].hasRef &&
             metaReader->me.colRef.pColRef[j].id == *(col_id_t*)taosArrayGet(cids, i)) {
-          memcpy(vTable->cols.pColRef + i, &metaReader->me.colRef.pColRef[j], sizeof(SColRef));
+          code = streamCopyColRef(&vTable->cols.pColRef[i], &metaReader->me.colRef.pColRef[j]);
+          if (code != 0) {
+            goto end;
+          }
           break;
         }
       }

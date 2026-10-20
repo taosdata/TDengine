@@ -2385,7 +2385,9 @@ _sqlserver_lib_dirs() {
     # FQ_SQLSERVER_LIB_DIR / LD_LIBRARY_PATH.
     local bin="${TAOS_BIN_PATH:-}"
     if [[ -z "${bin}" ]]; then
-        local root; root="$(cd "${SCRIPT_DIR}/../../../../.." 2>/dev/null && pwd -P)"
+        # SCRIPT_DIR is <repo>/source/taos-community/test/cases/09-DataQuerying/19-FederatedQuery,
+        # so six levels up is the repo root (five lands on source/).
+        local root; root="$(cd "${SCRIPT_DIR}/../../../../../.." 2>/dev/null && pwd -P)"
         bin="${root}/debug/build/bin"
     fi
     local cands=()
@@ -2470,6 +2472,27 @@ _sqlserver_start() {
     local ver="$1"
     local base; base="$(sqlserver_base "${ver}")"
     local deps; deps="$(sqlserver_deps_dir "${ver}")"
+    # The engine pins its system databases to the fixed /var/opt/mssql path,
+    # which the official package's postinst creates (mkdir + chown mssql).  A
+    # green (extract-only) deployment never runs postinst, so on a fresh host
+    # the directory is missing; an unprivileged harness cannot create it, and
+    # sqlservr then falls back to "/" as its home and dies with the misleading
+    # "The system directory [/.system] could not be created".  Fail early with
+    # an actionable message instead.
+    if [[ ! -d /var/opt/mssql ]]; then
+        if [[ "$(id -u)" -eq 0 ]]; then
+            info "SQL Server ${ver}: creating /var/opt/mssql (postinst-equivalent)."
+            mkdir -p /var/opt/mssql || return 1
+        else
+            err "SQL Server ${ver}: /var/opt/mssql is missing; initialize it once as root:"
+            err "  sudo mkdir -p /var/opt/mssql && sudo chown -R \"$(id -un):$(id -gn)\" /var/opt/mssql"
+            return 1
+        fi
+    elif [[ ! -w /var/opt/mssql ]]; then
+        err "SQL Server ${ver}: /var/opt/mssql is not writable by $(id -un); fix it once as root:"
+        err "  sudo chown -R \"$(id -un):$(id -gn)\" /var/opt/mssql"
+        return 1
+    fi
     # Cap the engine and disable its memory-pressure self-shutdown.  CI hosts
     # run many case containers at once; with no cgroup limit the engine sizes
     # its caches to the *host's* memory and then either gets OOM-killed or

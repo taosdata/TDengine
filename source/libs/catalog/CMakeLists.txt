@@ -47,6 +47,15 @@ if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
     target_link_options(catalog INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
 endif()
 
+if(UNIX AND NOT APPLE)
+    # catalog.c/ctgAsync.c/ctgCache.c reference extLoadDialectDefaults from
+    # libextconnector.a, which precedes libcatalog.a in the static-library
+    # cycle (extconnector -> nodes -> planner -> catalog). GNU ld may scan the
+    # last libcatalog.a occurrence after the last libextconnector.a occurrence,
+    # leaving the symbol unresolved. Force extraction for catalog consumers.
+    target_link_options(catalog INTERFACE "LINKER:--undefined=extLoadDialectDefaults")
+endif()
+
 if(BUILD_TEST AND NOT TD_WINDOWS)
  target_compile_definitions(catalog PRIVATE BUILD_TEST)
  ADD_SUBDIRECTORY(test)
