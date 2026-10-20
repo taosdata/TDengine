@@ -2905,6 +2905,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     PLAN_ERR_JRET(terrno);
   }
   PLAN_ERR_JRET(fqInitFederatedScanSource(pScan, pExtNode));
+  // Stream calc scans carry the SELECT time range on the logic node; keep it on
+  // the physical node so the ETR can evaluate time-returning bounds per fetch.
+  PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pTimeRange, &pScan->pTimeRange));
 
   // dynamicOp external scan nodes (VStb path) have NULL pTargets/pScanCols;
   // DynQueryCtrl fills them at runtime after the common source initialization.

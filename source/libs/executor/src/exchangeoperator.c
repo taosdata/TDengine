@@ -2522,12 +2522,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
                req.pStRtFuncInfo->curWindow.ekey);
       } else if (fetchMsgType == TDMT_STREAM_FETCH_EXT) {
-        /* P4-E3: EXT fetch - runner requests data from an ETR (external-table
-         * reader) task.  Only set a merged time range when the runner has an
-         * external window operator (%%trows); otherwise leave curWindow as
-         * {0,0} so the ext reader does a full table scan  -  the calc SQL has
-         * no time range filter or uses _twstart/_twend which are evaluated
-         * on the runner side after fetching. */
+        /* P4-E3: EXT fetch  -  runner requests data from an ETR (external-table
+         * reader) task.  The window parameters travel in pStRtFuncInfo; when
+         * the calc scan has a time range the ETR evaluates it itself
+         * (streamReaderExtCalcFetchRange, mirroring vnode processCalaTimeRange)
+         * and ignores curWindow.  curWindow below is only the fallback for ETRs
+         * without a scan time range: a merged range when the runner has an
+         * external window operator (%%trows), otherwise {0,0} so the ext
+         * reader does a full table scan and the runner filters after fetching. */
         if (req.pStRtFuncInfo->withExternalWindow &&
             req.pStRtFuncInfo->triggerType != STREAM_TRIGGER_PERIOD) {
           SArray *pVals = req.pStRtFuncInfo->pStreamPesudoFuncVals;
@@ -2541,7 +2543,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         }
         if (req.pStRtFuncInfo->triggerType == STREAM_TRIGGER_PERIOD) {
           req.pStRtFuncInfo->curWindow = (STimeWindow){0};
-          qDebug("%s stream fetch ext skips dynamic period bounds", GET_TASKID(pTaskInfo));
+          qDebug("%s stream fetch ext publishes no period fallback bounds", GET_TASKID(pTaskInfo));
         }
         needStreamRtInfo = true;
         needStreamGrpInfo = false;

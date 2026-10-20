@@ -911,6 +911,7 @@ static void extBuildSourceCfg(const SStreamExtTriggerSpec *pExtSpec, const char 
   tstrncpy(pCfg->user, pExtSpec->user, sizeof(pCfg->user));
   tstrncpy(pCfg->password, plainPwd, sizeof(pCfg->password));
   tstrncpy(pCfg->default_database, pExtSpec->extDb, sizeof(pCfg->default_database));
+  stDebug("ext: reader connection namespace source:%s db:%s", pExtSpec->sourceName, pExtSpec->extDb);
   tstrncpy(pCfg->options, pExtSpec->options, sizeof(pCfg->options));
   pCfg->meta_version = (int64_t)pExtSpec->connCfgVersion;
 }
@@ -996,8 +997,8 @@ static int32_t extCopyReaderSpec(SStreamExtReaderInfo *pInfo, const SStreamExtTr
                                 "pCalcMappings");
 }
 
-static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStreamExtTriggerSpec *pExtSpec) {
-  const SStreamTask *pTask = pInfo->pTask;
+static int32_t extOpenReaderConnector(const SStreamTask *pTask, const SStreamExtTriggerSpec *pExtSpec,
+                                      SExtConnectorHandle **ppConn) {
   char          plainPwd[TSDB_EXT_SOURCE_PASSWORD_LEN] = {0};
   SExtSourceCfg cfg = {0};
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -1006,7 +1007,7 @@ static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStream
   extBuildSourceCfg(pExtSpec, plainPwd, &cfg);
   memset(plainPwd, 0, sizeof(plainPwd));
 
-  code = extConnectorOpen(&cfg, &pInfo->pConn);
+  code = extConnectorOpen(&cfg, ppConn);
   memset(cfg.password, 0, sizeof(cfg.password));
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: extConnectorOpen failed code:%d source=%s host=%s port=%d",
@@ -1021,7 +1022,7 @@ static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStream
 /* ============================================================
  * Lifecycle: open
  * ============================================================ */
-int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
+int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
                             SStreamExtReaderInfo **ppReaderInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1029,6 +1030,7 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
 
   if (pSpec == NULL || ppReaderInfo == NULL) {
     stError("ext: streamReaderExtOpen invalid args");
+    nodesDestroyNode(pCalcTimeRange);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1041,15 +1043,26 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
   SStreamExtReaderInfo *pInfo = taosMemoryCalloc(1, sizeof(SStreamExtReaderInfo));
   if (pInfo == NULL) {
     stError("ext: OOM allocating SStreamExtReaderInfo");
+    nodesDestroyNode(pCalcTimeRange);
     return terrno;
   }
 
   pInfo->pTask = pTask;
+  pInfo->pCalcTimeRange = pCalcTimeRange;
+  pCalcTimeRange = NULL;
+  code = taosThreadMutexInit(&pInfo->connLock, NULL);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
+  pInfo->connLockInited = true;
+
   code = extCopyReaderSpec(pInfo, pExtSpec);
   if (code != TSDB_CODE_SUCCESS) goto _err;
 
-  code = extOpenReaderConnector(pInfo, pExtSpec);
-  if (code != TSDB_CODE_SUCCESS) goto _err;
+  /* triggerReader is set by stReaderTaskDeploy before the reader is opened. */
+  pInfo->borrowConn = (pTask != NULL && ((const SStreamReaderTask *)pTask)->triggerReader == 0);
+  if (!pInfo->borrowConn) {
+    code = extOpenReaderConnector(pTask, pExtSpec, &pInfo->pConn);
+    if (code != TSDB_CODE_SUCCESS) goto _err;
+  }
   code = extInitReaderHashes(pInfo);
   if (code != TSDB_CODE_SUCCESS) goto _err;
 
@@ -1097,6 +1110,12 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
     pInfo->pInfluxTagCols = NULL;
   }
 
+  /* Free the calc scan time range node kept for fetch-bound evaluation. */
+  if (pInfo->pCalcTimeRange) {
+    nodesDestroyNode(pInfo->pCalcTimeRange);
+    pInfo->pCalcTimeRange = NULL;
+  }
+
   /* Free parsed pPartitionColExprNodes cache. */
   if (pInfo->pPartitionColExprNodes) {
     int32_t n = (int32_t)taosArrayGetSize(pInfo->pPartitionColExprNodes);
@@ -1109,6 +1128,11 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
   }
 
   tCleanupSStreamExtTriggerSpec(&pInfo->spec);
+
+  if (pInfo->connLockInited) {
+    (void)taosThreadMutexDestroy(&pInfo->connLock);
+    pInfo->connLockInited = false;
+  }
 
   /* Zero the whole struct to prevent use-after-free leaking sensitive data. */
   memset(pInfo, 0, sizeof(*pInfo));
@@ -1129,9 +1153,9 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
 /* Called by stReaderTaskDeploy in streamReader.c for ext-source reader tasks.
  * Delegates to streamReaderExtOpen and returns the opaque info pointer
  * via *ppInfo (void*). */
-int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo) {
+int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange, void **ppInfo) {
   SStreamExtReaderInfo *pReaderInfo = NULL;
-  int32_t code = streamReaderExtOpen(pSpec, pTask, &pReaderInfo);
+  int32_t code = streamReaderExtOpen(pSpec, pTask, pCalcTimeRange, &pReaderInfo);
   *ppInfo = (void *)pReaderInfo;
   return code;
 }
@@ -2203,10 +2227,10 @@ static int32_t extDispatchPullRequest(SStreamExtReaderInfo *pInfo,
   }
 }
 
-int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
-                                  int32_t pullType,
-                                  const void *pReqVoid,
-                                  void **ppRsp) {
+static int32_t extHandlePullLocked(SStreamExtReaderInfo *pInfo,
+                                   int32_t pullType,
+                                   const void *pReqVoid,
+                                   void **ppRsp) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SSTriggerExtPullRsp *pRsp = NULL;
 
@@ -2278,6 +2302,21 @@ _exit:
   if (pRsp != NULL) {
     streamExtPullRspFree(pRsp);
   }
+  return code;
+}
+
+int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
+                                  int32_t pullType,
+                                  const void *pReqVoid,
+                                  void **ppRsp) {
+  if (pInfo == NULL || ppRsp == NULL) {
+    stError("ext: handlePull invalid args");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  (void)taosThreadMutexLock(&pInfo->connLock);
+  int32_t code = extHandlePullLocked(pInfo, pullType, pReqVoid, ppRsp);
+  (void)taosThreadMutexUnlock(&pInfo->connLock);
   return code;
 }
 
@@ -4769,6 +4808,215 @@ static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
 }
 
 /* ============================================================
+ * EXT fetch time-range evaluation  -  mirrors vnodeStream.c
+ * processCalaTimeRange for the external-source reader.
+ * ============================================================ */
+
+/* Canonical empty fetch range: renders as "ts >= 1 AND ts <= 0" (no rows)
+ * without pushing extreme timestamps into the remote SQL. */
+#define EXT_FETCH_EMPTY_SKEY 1
+#define EXT_FETCH_EMPTY_EKEY 0
+
+static void extSetEmptyFetchRange(STimeWindow *pWin) {
+  pWin->skey = EXT_FETCH_EMPTY_SKEY;
+  pWin->ekey = EXT_FETCH_EMPTY_EKEY;
+}
+
+/* Evaluate the fetch range spanned by the window parameters in pParams[first..last]
+ * (start bound from pParams[first], end bound from pParams[last]).  pRt supplies the
+ * trigger type / precision; pParams, groupId and pPartColVals replace the request's
+ * own values on a local shallow copy so the scalar placeholders read this parameter
+ * set.  On success *pWin holds an inclusive [skey, ekey]; an empty range is
+ * reported as the canonical empty window and *pEmpty = true. */
+static int32_t extCalcParamsRange(STimeRangeNode *node, const SStreamRuntimeFuncInfo *pRt,
+                                  SArray *pParams, int64_t groupId, SArray *pPartColVals,
+                                  int32_t first, int32_t last, STimeWindow *pWin, bool *pEmpty) {
+  SSTriggerCalcParam *pFirst = taosArrayGet(pParams, first);
+  SSTriggerCalcParam *pLast  = taosArrayGet(pParams, last);
+  if (pFirst == NULL || pLast == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
+  if (!node->needCalc) {
+    win.skey = pFirst->wstart;
+    win.ekey = pLast->wend;
+    /* Sliding windows are half-open; the others already carry an inclusive end. */
+    if (pRt->triggerType == STREAM_TRIGGER_SLIDING && win.ekey != INT64_MIN) win.ekey--;
+  } else {
+    /* Time-returning expressions: evaluate the start bound with the first window
+     * parameter and the end bound with the last one. */
+    SStreamRuntimeFuncInfo tmp = *pRt;  // shallow view; never destroy tmp
+    tmp.isMultiGroupCalc      = false;
+    tmp.pStreamPesudoFuncVals = pParams;
+    tmp.pStreamPartColVals    = pPartColVals;
+    tmp.groupId               = groupId;
+    tmp.curIdx                = first;
+
+    STimeWindow cur   = {0};
+    bool        valid = false;
+    int32_t     code  = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 1);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    win.skey   = cur.skey;
+    tmp.curIdx = last;
+    code = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 2);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    /* streamCalcCurrWinTimeRange returns a half-open end; INT64_MAX = unbounded. */
+    win.ekey = cur.ekey;
+    if (win.ekey != INT64_MAX) {
+      if (win.ekey == INT64_MIN) {
+        /* The evaluated end bound collapsed to the sentinel: the window is
+         * invalid.  Fail loudly instead of silently fetching an empty range,
+         * mirroring vnodeCalculateNodeGroupReadRange's !currentValid ||
+         * current.ekey == INT64_MIN check. */
+        stError("ext: extCalcParamsRange evaluated end bound is INT64_MIN, invalid window");
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      }
+      win.ekey--;
+    }
+  }
+
+  *pEmpty = win.skey > win.ekey;
+  if (*pEmpty) {
+    extSetEmptyFetchRange(&win);
+  }
+  *pWin = win;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamReaderExtGetCalcInfo(const SStreamReaderTask *pTask, int32_t execId,
+                                  SStreamExtReaderInfo **ppReaderInfo) {
+  if (ppReaderInfo == NULL) {
+    stError("ext: calc reader lookup has NULL output, execId:%d", execId);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppReaderInfo = NULL;
+  if (pTask == NULL || pTask->triggerReader != 0 ||
+      !STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
+    stError("ext: calc reader lookup has invalid task:%p execId:%d",
+             pTask, execId);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pTask->info == NULL) {
+    stError("ext: calc reader has no local info, task:%" PRIx64,
+             pTask->task.taskId);
+    return TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO;
+  }
+  SArray *pReaders = pTask->info;
+  if (execId < 0 || (size_t)execId >= taosArrayGetSize(pReaders)) {
+    stError("ext: invalid calc execId:%d replicas:%zu task:%" PRIx64,
+             execId, taosArrayGetSize(pReaders), pTask->task.taskId);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppReaderInfo = taosArrayGetP(pReaders, execId);
+  if (*ppReaderInfo == NULL) {
+    stError("ext: missing calc replica, execId:%d task:%" PRIx64,
+             execId, pTask->task.taskId);
+    return TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO;
+  }
+  stDebug("ext: selected calc reader execId:%d task:%" PRIx64 " info:%p",
+           execId, pTask->task.taskId, *ppReaderInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamReaderExtCalcFetchRange(SStreamExtReaderInfo *pReaderInfo,
+                                      const SStreamRuntimeFuncInfo *pRt,
+                                      int64_t *pSkey, int64_t *pEkey) {
+  if (pReaderInfo == NULL || pSkey == NULL || pEkey == NULL) {
+    stError("ext: streamReaderExtCalcFetchRange invalid args pInfo=%p pRt=%p",
+            pReaderInfo, pRt);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  /* Unbounded full scan: no time range, no window parameters, or an
+   * out-of-range window index. */
+  *pSkey = INT64_MIN;
+  *pEkey = INT64_MAX;
+
+  if (pRt == NULL || pReaderInfo->pCalcTimeRange == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STimeRangeNode *node  = (STimeRangeNode *)pReaderInfo->pCalcTimeRange;
+  STimeWindow     win   = {.skey = INT64_MIN, .ekey = INT64_MAX};
+  bool            empty = false;
+  int32_t         code  = TSDB_CODE_SUCCESS;
+  int32_t         nWin  = 0;
+
+  if (pRt->isMultiGroupCalc) {
+    /* Multi-group calc: the ext fetch carries every group's parameters in
+     * pGroupCalcInfos (pStreamPesudoFuncVals is not populated).  Bound the fetch
+     * with the union of the non-empty per-group [first, last] ranges - the ETR
+     * reads the whole external table, so this is the snode-side counterpart of
+     * vnodeCalculateNodeGroupReadRange without a per-vnode read scope. */
+    STimeWindow             combined = {.skey = INT64_MAX, .ekey = INT64_MIN};
+    bool                    any      = false;
+    int32_t                 iter     = 0;
+    SSTriggerGroupCalcInfo *pGrp     = tSimpleHashIterate(pRt->pGroupCalcInfos, NULL, &iter);
+    while (pGrp != NULL) {
+      const int32_t n = (int32_t)taosArrayGetSize(pGrp->pParams);
+      if (n > 0) {
+        const int64_t *pGid     = tSimpleHashGetKey(pGrp, NULL);
+        STimeWindow    current  = {0};
+        bool           curEmpty = false;
+        code = extCalcParamsRange(node, pRt, pGrp->pParams, *pGid, pGrp->pGroupColVals, 0, n - 1,
+                                  &current, &curEmpty);
+        if (code != TSDB_CODE_SUCCESS) break;
+        if (!curEmpty) {
+          combined.skey = TMIN(combined.skey, current.skey);
+          combined.ekey = TMAX(combined.ekey, current.ekey);
+          any           = true;
+        }
+        nWin += n;
+      }
+      pGrp = tSimpleHashIterate(pRt->pGroupCalcInfos, pGrp, &iter);
+    }
+    if (any) {
+      win = combined;
+    } else {
+      empty = true;
+      extSetEmptyFetchRange(&win);
+    }
+  } else {
+    SArray *vals = pRt->pStreamPesudoFuncVals;
+    nWin = (vals == NULL) ? 0 : (int32_t)taosArrayGetSize(vals);
+    if (nWin > 0) {
+      /* One calc request may carry multiple external windows: bound the fetch
+       * with the first window's start and the last window's end, exactly like
+       * processCalaTimeRange's withExternalWindow single-group branch.
+       * Otherwise only the current window is evaluated. */
+      const int32_t first = pRt->withExternalWindow ? 0 : pRt->curIdx;
+      const int32_t last  = pRt->withExternalWindow ? nWin - 1 : pRt->curIdx;
+      if (first < 0 || last >= nWin) {
+        stError("ext: streamReaderExtCalcFetchRange curIdx:%d out of range nWin:%d",
+                pRt->curIdx, nWin);
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      }
+      code = extCalcParamsRange(node, pRt, vals, pRt->groupId, pRt->pStreamPartColVals, first, last,
+                                &win, &empty);
+    }
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("ext: streamReaderExtCalcFetchRange failed code:%d since %s",
+            code, tstrerror(code));
+    return code;
+  }
+  if (nWin <= 0) {
+    stDebug("ext: streamReaderExtCalcFetchRange no window params, full scan");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pSkey = win.skey;
+  *pEkey = win.ekey;
+  stDebug("ext: streamReaderExtCalcFetchRange needCalc:%d withExtWin:%d multiGroup:%d empty:%d skey:%" PRId64
+          " ekey:%" PRId64 " curIdx:%d nWin:%d",
+          node->needCalc, pRt->withExternalWindow, pRt->isMultiGroupCalc, empty, *pSkey, *pEkey, pRt->curIdx,
+          nWin);
+  return TSDB_CODE_SUCCESS;
+}
+
+/* ============================================================
  * P4-E1: EXT fetch  -  called by the snode runner-queue worker
  * when a TDMT_STREAM_FETCH_EXT message arrives from a runner
  * (calc task).  Executes a time-bounded SELECT against the
@@ -4881,8 +5129,19 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
   ST_TASK_DLOG("ext: streamReaderExtFetchData sql=\"%.200s\" nMappings=%d",
                sql, nMappings);
 
-  code = extQueryExecFetchAll(pReaderInfo->pConn, sql,
-                              (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+  if (pReaderInfo->borrowConn) {
+    /* Borrow a pooled connection just for this fetch (see borrowConn). */
+    SExtConnectorHandle *pConn = NULL;
+    code = extOpenReaderConnector(pTask, &pReaderInfo->spec, &pConn);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    code = extQueryExecFetchAll(pConn, sql, (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+    extConnectorClose(pConn);
+  } else {
+    (void)taosThreadMutexLock(&pReaderInfo->connLock);
+    code = extQueryExecFetchAll(pReaderInfo->pConn, sql,
+                                (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+    (void)taosThreadMutexUnlock(&pReaderInfo->connLock);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: streamReaderExtFetchData failed code:%d", code);
     goto _exit;

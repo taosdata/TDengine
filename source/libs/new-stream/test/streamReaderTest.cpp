@@ -44,7 +44,9 @@
 
 using reader_fetch_benchmark::ReaderFetchLayout;
 
-extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
+extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                                   void **ppInfo);
+extern "C" void stExtReaderClose(void *pInfo);
 
 namespace {
 
@@ -280,8 +282,9 @@ int32_t cloneExternalReaderPlan(const char *, SNode **ppNode) {
   return nodesCloneNode(gExternalReaderPlan, ppNode);
 }
 
-int32_t stopExternalReaderOpen(void *, const SStreamTask *, void **) {
+int32_t stopExternalReaderOpen(void *, const SStreamTask *, SNode *range, void **) {
   ++gExternalReaderOpenCalls;
+  nodesDestroyNode(range);
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -328,6 +331,7 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
     SStreamReaderDeployMsg message = {};
     message.pExtSpec = &spec;
+    message.msg.calc.execReplica = 1;
     message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
     gExternalReaderOpenCalls = 0;
     Stub stub;
@@ -350,6 +354,128 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     taosMemoryFree(spec.pCalcMappings);
     gExternalReaderPlan = nullptr;
   }
+}
+
+struct ExternalCalcReaderStub {
+  SNode *range;
+};
+
+int32_t gExternalReaderCloseCalls = 0;
+int32_t gExternalReaderFailAt = 0;
+
+int32_t openExternalCalcReaderStub(void *, const SStreamTask *, SNode *range, void **info) {
+  ++gExternalReaderOpenCalls;
+  *info = nullptr;
+  if (gExternalReaderOpenCalls == gExternalReaderFailAt) {
+    nodesDestroyNode(range);
+    return TSDB_CODE_EXT_RESOURCE_EXHAUSTED;
+  }
+  *info = new ExternalCalcReaderStub{range};
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeExternalCalcReaderStub(void *info) {
+  if (info == nullptr) return;
+  auto *reader = static_cast<ExternalCalcReaderStub *>(info);
+  nodesDestroyNode(reader->range);
+  delete reader;
+  ++gExternalReaderCloseCalls;
+}
+
+void finishExternalReaderUndeploy(void *) {}
+
+class ExternalCalcReaderDeployTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    buildExternalReaderPlan(&gExternalReaderPlan, true);
+    ASSERT_NE(gExternalReaderPlan, nullptr);
+    auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_TIME_RANGE, &scan->pTimeRange), TSDB_CODE_SUCCESS);
+    tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+    message.pExtSpec = &spec;
+    message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
+    message.msg.calc.execReplica = 3;
+    gExternalReaderOpenCalls = 0;
+    gExternalReaderCloseCalls = 0;
+    gExternalReaderFailAt = 0;
+    stub.set(nodesStringToNode, cloneExternalReaderPlan);
+    stub.set(stExtReaderOpen, openExternalCalcReaderStub);
+    stub.set(stExtReaderClose, closeExternalCalcReaderStub);
+  }
+
+  void TearDown() override {
+    if (task.info != nullptr) undeploy();
+    streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+    taosArrayDestroy(spec.calcColumns);
+    taosMemoryFree(spec.pCalcMappings);
+    nodesDestroyNode(gExternalReaderPlan);
+    gExternalReaderPlan = nullptr;
+  }
+
+  void undeploy() {
+    SStreamReaderTask *readerTask = &task;
+    task.task.undeployCb = finishExternalReaderUndeploy;
+    EXPECT_EQ(stReaderTaskUndeploy(&readerTask, true), TSDB_CODE_SUCCESS);
+  }
+
+  SStreamReaderTask task = {};
+  SStreamExtTriggerSpec spec = {};
+  SStreamReaderDeployMsg message = {};
+  Stub stub;
+};
+
+TEST_F(ExternalCalcReaderDeployTest, CreatesIndependentReplicasAndClosesAll) {
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gExternalReaderOpenCalls, 3);
+  auto *readers = static_cast<SArray *>(task.info);
+  ASSERT_EQ(taosArrayGetSize(readers), 3);
+  auto *first = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, 0));
+  auto *second = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, 1));
+  ASSERT_NE(first, second);
+  ASSERT_NE(first->range, nullptr);
+  ASSERT_NE(second->range, nullptr);
+  ASSERT_NE(first->range, second->range);
+  reinterpret_cast<STimeRangeNode *>(first->range)->needCalc = true;
+  EXPECT_FALSE(reinterpret_cast<STimeRangeNode *>(second->range)->needCalc);
+  undeploy();
+  EXPECT_EQ(task.info, nullptr);
+  EXPECT_EQ(gExternalReaderCloseCalls, 3);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, RollsBackPreviouslyOpenedReplicas) {
+  gExternalReaderFailAt = 3;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(gExternalReaderOpenCalls, 3);
+  EXPECT_EQ(gExternalReaderCloseCalls, 2);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, RejectsZeroReplicaCount) {
+  message.msg.calc.execReplica = 0;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gExternalReaderOpenCalls, 0);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, OpensReplicasWithoutTimeRange) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  nodesDestroyNode(scan->pTimeRange);
+  scan->pTimeRange = nullptr;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gExternalReaderOpenCalls, 3);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t execId = 0; execId < message.msg.calc.execReplica; ++execId) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, execId));
+    EXPECT_EQ(reader->range, nullptr);
+  }
+}
+
+TEST_F(ExternalCalcReaderDeployTest, FirstOpenFailureLeavesNoInstances) {
+  gExternalReaderFailAt = 1;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(gExternalReaderOpenCalls, 1);
+  EXPECT_EQ(gExternalReaderCloseCalls, 0);
+  EXPECT_EQ(task.info, nullptr);
 }
 
 SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {
