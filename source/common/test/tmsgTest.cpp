@@ -46,6 +46,12 @@ struct SExtColTypeMapping {
   char      colName[65];
 };
 
+/* Mirrors streamMsg.c: keep the test-side declaration in sync with plannodes.h. */
+#define TMSG_STATIC_ASSERT(cond, name) typedef char name[(cond) ? 1 : -1]
+TMSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, tdType) == 64, extMappingTdTypeOffsetAssert);
+TMSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, tsPrecision) == 72, extMappingTsPrecOffsetAssert);
+TMSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, colName) == 73, extMappingColNameOffsetAssert);
+
 extern "C" {
 int32_t tEncodeSStreamReaderDeployMsg(SEncoder* pEncoder, const SStreamReaderDeployMsg* pMsg);
 int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg* pMsg);
@@ -3394,6 +3400,8 @@ TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validat
   calcBinding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
   tstrncpy(calcBinding.externalColumn, "voltage", sizeof(calcBinding.externalColumn));
   calcBinding.expectedType = TSDB_DATA_TYPE_FLOAT;
+  calcBinding.expectedPrecision = 3;
+  calcBinding.expectedScale = 4;
   calcBinding.resultColumnSlot = 9;
   ASSERT_NE(taosArrayPush(req.bindings, &calcBinding), nullptr);
 
@@ -3443,6 +3451,8 @@ TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validat
   ASSERT_EQ(outCalcBinding->kind, STREAM_EXT_ORIGTBL_READER_BINDING_CALC);
   ASSERT_STREQ(outCalcBinding->externalColumn, "voltage");
   ASSERT_EQ(outCalcBinding->expectedType, calcBinding.expectedType);
+  ASSERT_EQ(outCalcBinding->expectedPrecision, calcBinding.expectedPrecision);
+  ASSERT_EQ(outCalcBinding->expectedScale, calcBinding.expectedScale);
   ASSERT_EQ(outCalcBinding->resultColumnSlot, calcBinding.resultColumnSlot);
 
   SStreamExtOrigTblReaderReq* clone = NULL;
@@ -3622,6 +3632,7 @@ TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validat
   int32_t vgId = 7;
   SStreamTaskAddr internalReader = {.taskId = 101, .nodeId = 8};
   SStreamExtOrigTblReaderRsp externalReader = {};
+  externalReader.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
   externalReader.registryEntryId = 99;
   externalReader.readerTaskAddr.taskId = 202;
   externalReader.readerTaskAddr.nodeId = 9;
@@ -3687,6 +3698,7 @@ TEST(td_msg_test, ext_orig_reader_many_virtual_bindings_roundtrip) {
   request.bindings = taosArrayInit(2 * virtualCount, sizeof(SStreamExtOrigTblReaderBinding));
   ASSERT_NE(request.bindings, nullptr);
   SStreamExtOrigTblReaderRsp response = {};
+  response.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
   response.results = taosArrayInit(2 * virtualCount, sizeof(SStreamExtOrigTblReaderResult));
   ASSERT_NE(response.results, nullptr);
   for (int32_t virtualIndex = 0; virtualIndex < virtualCount; ++virtualIndex) {
@@ -4938,7 +4950,11 @@ TEST(td_msg_test, clone_mixed_stream_management_request_failure_keeps_source_own
   tFreeSStreamMgmtReq(&source);
 }
 
-TEST(tmsgTest, vtable_resolve_response_preserves_series_conditions_and_legacy_prefix) {
+TEST(tmsgTest, vtable_resolve_response_strips_optional_tagcond_tail) {
+  // Decoder tolerance test for the optional tagCond tail: rebuild a frame with the SAME item
+  // layout but without the extension tail, and verify the decoder accepts it. This is NOT a
+  // cross-version compatibility test -- pre-extension frames had a different item layout
+  // (3 strings instead of 5) and cannot be decoded by the current format.
   SVTableRefResolveRsp source = {};
   source.items = taosArrayInit(2, sizeof(SVTableRefResolveRspItem));
   ASSERT_NE(source.items, nullptr);
@@ -4970,7 +4986,8 @@ TEST(tmsgTest, vtable_resolve_response_preserves_series_conditions_and_legacy_pr
   EXPECT_EQ(second->nextRef.tagCondJson, nullptr);
   tFreeSVTableRefResolveRsp(&decoded);
 
-  // Decode the legacy prefix, then rebuild a frame without the optional tail.
+  // Decode the prefix items of the current format, then rebuild a frame without the optional
+  // tagCond tail.
   SDecoder decoder = {};
   tDecoderInit(&decoder, bytes.data(), size);
   ASSERT_EQ(tStartDecode(&decoder), 0);

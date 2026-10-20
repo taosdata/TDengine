@@ -3175,6 +3175,19 @@ static int32_t msmReLaunchReaderTask(SStreamObj* pStream, SStmTaskAction* pActio
     mstsError("TASK:%" PRId64 " not in taskMap, remain:%d", pAction->id.taskId, taosHashGetSize(mStreamMgmt.taskMap));
     TAOS_CHECK_EXIT(TSDB_CODE_STREAM_INTERNAL_ERROR);
   }
+
+  if (STREAM_IS_REF_EXT_SOURCE(pAction->flag)) {
+    // External-source readers run on the snode and their connector spec is not
+    // retained on mnode after deployment, so this timeout path cannot rebuild
+    // them; enqueueing them as vgroup readers with a snode id as vgId would
+    // never recover the task.  Stop the stream instead: the retry lifecycle
+    // redeploys the whole stream and the trigger re-registers the external
+    // reader through the heartbeat mgmt requests.
+    mstsWarn("EXT reader TASK:%" PRId64 " status not updated, trigger full stream redeploy, streamId:%" PRId64,
+             pAction->id.taskId, streamId);
+    msmStopStreamByError(streamId, pStatus, TSDB_CODE_MND_STREAM_TASK_LOST, mStreamMgmt.hCtx.currentTs);
+    return TSDB_CODE_SUCCESS;
+  }
   
   SStmTaskDeploy info = {0};
   info.task.type = pAction->type;
@@ -5629,6 +5642,8 @@ static int32_t msmHandleTriggerExtSourceIdentity(SStmGrpCtx* pCtx, SStmTaskStatu
   SStreamExtSourceIdentityReq *pIdentityReq = NULL;
   SStreamMgmtRsp  rsp = {0};
 
+  TSDB_CHECK_NULL(pTask, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pTask->pMgmtReq, code, lino, _exit, TSDB_CODE_INVALID_PARA);
   rsp.reqId = pTask->pMgmtReq->reqId;
   rsp.header.msgType = STREAM_MSG_EXT_SOURCE_IDENTITY_INFO;
   if (pCtx->pRsp->rsps.rspList == NULL) {
@@ -5637,9 +5652,11 @@ static int32_t msmHandleTriggerExtSourceIdentity(SStmGrpCtx* pCtx, SStmTaskStatu
   }
 
   TSWAP(pTask->pMgmtReq, pMgmtReq);
+  TSDB_CHECK_NULL(pMgmtReq, code, lino, _exit, TSDB_CODE_INVALID_PARA);
   rsp.task = *(SStreamTask*)pTask;
   rsp.cont.pExtSourceIdentity = taosMemoryCalloc(1, sizeof(SStreamExtSourceIdentityRsp));
   TSDB_CHECK_NULL(rsp.cont.pExtSourceIdentity, code, lino, _exit, terrno);
+  TSDB_CHECK_NULL(pMgmtReq->cont.pExtSourceIdentity, code, lino, _exit, TSDB_CODE_INVALID_PARA);
   TAOS_CHECK_EXIT(tCloneSStreamExtSourceIdentityReq(pMgmtReq->cont.pExtSourceIdentity, &pIdentityReq));
   rsp.cont.pExtSourceIdentity->req = *pIdentityReq;
   taosMemoryFree(pIdentityReq);
@@ -5735,17 +5752,24 @@ static SStmTaskStatus *msmFindExtOrigTblReader(SStmStatus *pStatus, int64_t regi
 
 /* Finds the tombstone of an external original reader whose cleanup already executed. Its registry id and
  * task address are retained so that a retried cleanup request (the heartbeat re-sends every request that
- * was not acknowledged) can return the same result again instead of failing with "not found". */
+ * was not acknowledged) can return the same result again instead of failing with "not found".
+ *
+ * A remove -> re-add -> remove sequence leaves two tombstones for the same registry id, and the
+ * heartbeat retry of the SECOND cleanup must resolve the second reader (T2), not the stale first
+ * tombstone (T1): the trigger validates the returned task id and rejects a mismatched replay with
+ * TSDB_CODE_INVALID_MSG. Tombstones are appended in chronological order, so the LAST match is the
+ * most recent cleanup for that registry. */
 static SStmTaskStatus *msmFindCleanedExtOrigTblReader(SStmStatus *pStatus, int64_t registryEntryId) {
   int32_t readerNum = msmGetTrigOReaderSize(pStatus == NULL ? NULL : pStatus->trigOReaders);
+  SStmTaskStatus *pCleaned = NULL;
   for (int32_t i = 0; i < readerNum; ++i) {
     SStmTaskStatus *pReader = msmGetTrigOReader(pStatus->trigOReaders, i);
     if (pReader != NULL && pReader->extReaderCleaned && STREAM_IS_REF_EXT_SOURCE(pReader->flags) &&
         pReader->id.uid == registryEntryId) {
-      return pReader;
+      pCleaned = pReader;
     }
   }
-  return NULL;
+  return pCleaned;
 }
 
 static void msmFillExtOrigTblReaderAddr(SStmGrpCtx *pCtx, const SStmTaskStatus *pReader,
@@ -5878,6 +5902,34 @@ static void msmRemoveExtOrigTblReaderFromSnodeMap(int64_t streamId, const SStmTa
             streamId, pReader->id.uid, pReader->id.taskId, pReader->id.nodeId);
 }
 
+/* A stream's management requests are strictly sequential, so only the most recent cleanup for a
+ * registry can ever be retried (see msmFindCleanedExtOrigTblReader). Drop older tombstones of the
+ * same registry so repeated remove -> re-add -> remove cycles cannot grow trigOReaders without
+ * bound. */
+static void msmPruneOldExtOrigTblTombstones(SStmStatus *pStatus, const SStmTaskStatus *pKept) {
+  if (pStatus == NULL || pStatus->trigOReaders == NULL || pKept == NULL) {
+    return;
+  }
+  int32_t listNum = taosArrayGetSize(pStatus->trigOReaders);
+  for (int32_t i = 0; i < listNum; ++i) {
+    SArray *pList = taosArrayGetP(pStatus->trigOReaders, i);
+    if (pList == NULL) {
+      continue;
+    }
+    for (int32_t j = taosArrayGetSize(pList) - 1; j >= 0; --j) {
+      SStmTaskStatus *pReader = taosArrayGet(pList, j);
+      if (pReader != NULL && pReader != pKept && pReader->extReaderCleaned &&
+          STREAM_IS_REF_EXT_SOURCE(pReader->flags) && pReader->id.uid == pKept->id.uid) {
+        mstDebug("drop stale external original reader tombstone, registry:%" PRId64
+                 ", task:%" PRId64 ", node:%d",
+                 pReader->id.uid, pReader->id.taskId, pReader->id.nodeId);
+        mstDestroySStmTaskStatus(pReader);
+        taosArrayRemove(pList, j);
+      }
+    }
+  }
+}
+
 static int32_t msmCleanupExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStreamObj *pStream,
                                           const SStreamExtOrigTblReaderReq *pReq,
                                           SStreamExtOrigTblReaderRsp *pRsp) {
@@ -5890,6 +5942,13 @@ static int32_t msmCleanupExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus,
     SStmTaskStatus *pCleaned = msmFindCleanedExtOrigTblReader(pStatus, pReq->registryEntryId);
     if (pCleaned != NULL) {
       msmFillExtOrigTblReaderAddr(pCtx, pCleaned, pRsp);
+      // The first undeploy was delivered inside the very response that got lost. Re-queue it so
+      // a retried cleanup cannot leave the snode reader running without a follow-up undeploy.
+      int32_t code = msmQueueExtOrigTblReaderUndeploy(pCtx, streamId, pCleaned);
+      if (code != TSDB_CODE_SUCCESS) {
+        pRsp->code = code;
+        return code;
+      }
       pRsp->acceptedTriggerBindingCount = 0;
       pRsp->acceptedCalcBindingCount = 0;
       pRsp->results = NULL;
@@ -5923,6 +5982,10 @@ static int32_t msmCleanupExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus,
   // registry lookups skip this entry, so it cannot be mistaken for a live reader.
   pReader->extReaderCleaned = 1;
   pReader->status = STREAM_STATUS_UNDEPLOYED;
+  // The trigger drives exactly one management request at a time, so only the most recent cleanup
+  // for a registry can ever be retried. Drop older tombstones of the same registry so repeated
+  // remove -> re-add -> remove cycles cannot grow trigOReaders without bound.
+  msmPruneOldExtOrigTblTombstones(pStatus, pReader);
   mstsDebug("cleanup external original reader, registry:%" PRId64 ", task:%" PRId64 ", node:%d",
             pReq->registryEntryId, pRsp->readerTaskAddr.taskId, pRsp->readerTaskAddr.nodeId);
   return TSDB_CODE_SUCCESS;
@@ -5972,7 +6035,7 @@ int32_t msmDeployExtOrigTblReaderFromMeta(SStmGrpCtx *pCtx, SStmStatus *pStatus,
   }
   msmInitExtOrigTblReaderRsp(pReq, pRsp);
   bool patchRequested = (pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0;
-  if (patchRequested && TARRAY_SIZE(pReq->bindings) == 0) {
+  if (patchRequested && (pReq->bindings == NULL || TARRAY_SIZE(pReq->bindings) == 0)) {
     return msmCleanupExtOrigTblReader(pCtx, pStatus, pStream, pReq, pRsp);
   }
   if (pReq->sourceConfigVersion != 0 && pReq->sourceConfigVersion != pSource->metaVersion) {
@@ -6111,6 +6174,7 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
   int64_t streamId = pStream->pCreate->streamId;
   SExtSourceObj *pSource = NULL;
   SExtTableMeta *pMeta = NULL;
+  SStmStatus *pStatusRef = NULL;
   int64_t deployTimes = 0;
   int64_t sourceVersion = 0;
 
@@ -6121,7 +6185,8 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
     return pRsp->code;
   }
   deployTimes = pStatus->deployTimes;
-  if ((pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0 && TARRAY_SIZE(pReq->bindings) == 0) {
+  if ((pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0 &&
+      (pReq->bindings == NULL || TARRAY_SIZE(pReq->bindings) == 0)) {
     return msmCleanupExtOrigTblReader(pCtx, pStatus, pStream, pReq, pRsp);
   }
   pSource = mndAcquireExtSource(pCtx->pMnode, pReq->identity.sourceName);
@@ -6137,6 +6202,24 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
   mstsDebug("release stream action lock before external schema fetch, stream:%" PRId64 ", registry:%" PRId64,
             streamId, pReq->registryEntryId);
   sourceVersion = pSource->metaVersion;
+
+  // Pin the stream status across the unlocked fetch window.  taosHashRemove
+  // only marks the entry as removed and defers mstDestroySStmStatus until the
+  // last reference is released, so holding a reference keeps pStatus valid
+  // while the action lock is not held.
+  pStatusRef = (SStmStatus *)taosHashAcquire(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+  if (pStatusRef == NULL || pStatusRef != pStatus) {
+    if (pStatusRef != NULL) {
+      taosHashRelease(mStreamMgmt.streamMap, pStatusRef);
+      pStatusRef = NULL;
+    }
+    pRsp->code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
+    mstsWarn("external reader stream changed before schema fetch, stream:%" PRId64 ", registry:%" PRId64,
+             streamId, pReq->registryEntryId);
+    mndReleaseExtSource(pCtx->pMnode, pSource);
+    return pRsp->code;
+  }
+
   taosWUnLockLatch(&mStreamMgmt.actionQLock);
   code = msmFetchExtOrigTblReaderMeta(pSource, pReq, &pMeta);
   (void)mstWaitLock(&mStreamMgmt.actionQLock, false);
@@ -6163,6 +6246,9 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
 
   extConnectorFreeTableSchema(pMeta);
   mndReleaseExtSource(pCtx->pMnode, pSource);
+  if (pStatusRef != NULL) {
+    taosHashRelease(mStreamMgmt.streamMap, pStatusRef);
+  }
   return code;
 }
 
@@ -6327,8 +6413,29 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
       SExtColTypeMapping *pMapping = &pMappings[mapIndex];
       result.code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pCol->extTypeName,
                                                pCol->extCharsetName, &pMapping->tdType);
+      if (result.code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pMapping->tdType.type)) {
+        // Providers decode DECIMAL mappings through extractDecimalTypeInfoFromBytes(), which expects
+        // bytes packed as (physicalWidth << 24) | (precision << 8) | scale. The raw physical width
+        // stored by extTypeNameToTDengineType() would decode as a zero-width column and the first
+        // fetched block would be rejected.
+        fillBytesForDecimalType(&pMapping->tdType.bytes, pMapping->tdType.type, pMapping->tdType.precision,
+                                pMapping->tdType.scale);
+      }
       if (result.code == TSDB_CODE_SUCCESS && pBinding->expectedType != TSDB_DATA_TYPE_NULL &&
           pBinding->expectedType != pMapping->tdType.type) {
+        result.code = TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+      }
+      if (result.code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pMapping->tdType.type) &&
+          (pBinding->expectedPrecision != pMapping->tdType.precision ||
+           pBinding->expectedScale != pMapping->tdType.scale)) {
+        // The virtual column keeps its declared DECIMAL precision/scale while the reader encodes
+        // values with the remote mapping. Same type enum + different scale would silently
+        // re-interpret the integer payload (1.230 as 1230 -> 12.30), so reject the redeploy
+        // instead; variable-length columns are unaffected and keep their legal width differences.
+        mstWarn("external reader decimal precision/scale mismatch, registry:%" PRId64 ", column:%s"
+                ", expected:(%d,%d) actual:(%d,%d)",
+                pReq->registryEntryId, pBinding->externalColumn, pBinding->expectedPrecision,
+                pBinding->expectedScale, pMapping->tdType.precision, pMapping->tdType.scale);
         result.code = TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
       }
       if (result.code == TSDB_CODE_SUCCESS) {
@@ -6374,100 +6481,24 @@ _error:
 }
 #endif
 
-static void msmInitExtOrigTblReaderRspFields(const SStreamExtOrigTblReaderReq *pReq,
-                                             SStreamExtOrigTblReaderRsp *pRsp) {
-  pRsp->registryEntryId = pReq->registryEntryId;
-  pRsp->deploymentGeneration = pReq->deploymentGeneration;
-  pRsp->protocolVersion = pReq->protocolVersion;
-  pRsp->capabilities = pReq->capabilities;
-  pRsp->identity = pReq->identity;
-}
-
-static int32_t msmDeployTriggerExtOrigReader(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask) {
-  int32_t         code = TSDB_CODE_SUCCESS;
-  int32_t         lino = 0;
-  int64_t         streamId = pTask->streamId;
-  SStreamMgmtReq *pMgmtReq = NULL;
-  SStreamMgmtRsp  rsp = {0};
-  SStmStatus     *pStatus = NULL;
-  SStreamObj     *pStream = NULL;
-
-  if (mStreamMgmt.streamMap != NULL) {
-    pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
-  }
-
-#ifdef TD_ENTERPRISE
-  if (pCtx != NULL && pCtx->pMnode != NULL && mndAcquireStreamById(pCtx->pMnode, streamId, &pStream) != TSDB_CODE_SUCCESS) {
-    pStream = NULL;
-  }
-#endif
-
-  SStreamExtOrigTblReaderReq *pReq = pTask->pMgmtReq->cont.pExtOrigTblReader;
-  TSDB_CHECK_NULL(pReq, code, lino, _exit, TSDB_CODE_INVALID_PARA);
-
-  rsp.reqId = pTask->pMgmtReq->reqId;
-  rsp.header.msgType = STREAM_MSG_EXT_ORIGTBL_READER_INFO;
-  if (pCtx->pRsp->rsps.rspList == NULL) {
-    pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
-    TSDB_CHECK_NULL(pCtx->pRsp->rsps.rspList, code, lino, _exit, terrno);
-  }
-
-  TSWAP(pTask->pMgmtReq, pMgmtReq);
-  rsp.task = *(SStreamTask *)pTask;
-  rsp.cont.pExtOrigTblReader =
-      taosMemoryCalloc(1, sizeof(SStreamExtOrigTblReaderRsp));
-  TSDB_CHECK_NULL(rsp.cont.pExtOrigTblReader, code, lino, _exit, terrno);
-  msmInitExtOrigTblReaderRspFields(pReq, rsp.cont.pExtOrigTblReader);
-
-#ifdef TD_ENTERPRISE
-  if (pStatus != NULL && pStream != NULL) {
-    (void)msmDeployExtOrigTblReader(pCtx, pStatus, pStream, pReq, rsp.cont.pExtOrigTblReader);
-  } else {
-    rsp.cont.pExtOrigTblReader->code = TSDB_CODE_MND_STREAM_NOT_RUNNING;
-  }
-#else
-  rsp.cont.pExtOrigTblReader->code = TSDB_CODE_OPS_NOT_SUPPORT;
-  mstsDebug("external reader deployment is unavailable in community build, registry:%" PRId64,
-            pReq->registryEntryId);
-#endif
-
-_exit:
-  tFreeSStreamMgmtReq(pMgmtReq);
-  taosMemoryFree(pMgmtReq);
-  if (code != TSDB_CODE_SUCCESS) {
-    rsp.code = code;
-    mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }
-  if (pCtx->pRsp->rsps.rspList != NULL) {
-    int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
-    if (pushCode != TSDB_CODE_SUCCESS) {
-      tFreeSStreamMgmtRsp(&rsp);
-      msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
-#ifdef TD_ENTERPRISE
-      mndReleaseStream(pCtx->pMnode, pStream);
-#endif
-      return pushCode;
-    }
-  }
-#ifdef TD_ENTERPRISE
-  if (pCtx != NULL && pCtx->pMnode != NULL) {
-    mndReleaseStream(pCtx->pMnode, pStream);
-  }
-#endif
-  return code;
-}
-
 static int32_t msmDeployTriggerMixedOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   int64_t          streamId = pTask->streamId;
   SStreamMgmtReq*  pMgmtReq = NULL;
   SStreamMgmtReq*  pMixedReq = NULL;
+  SStreamMgmtReq*  pOrigReq = pTask->pMgmtReq;
   SStreamMgmtRsp   rsp = {0};
-  SArray*          pExtReqs = pTask->pMgmtReq->cont.pExtOrigTblReaders;
+  SArray*          pExtReqs = pOrigReq->cont.pExtOrigTblReaders;
   int32_t          extNum = taosArrayGetSize(pExtReqs);
   SStmStatus*      pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   SStreamObj*      pStream = NULL;
+  bool             internalRspPushed = false;
+
+  // Initialize the response identity up front so every exit path (including the internal-branch
+  // failure paths below) pushes a well-formed entry instead of a zeroed reqId/msgType one.
+  rsp.reqId = pOrigReq->reqId;
+  rsp.header.msgType = STREAM_MSG_MIXED_ORIGTBL_READER_INFO;
 
 #ifdef TD_ENTERPRISE
   if (pCtx != NULL && pCtx->pMnode != NULL &&
@@ -6476,8 +6507,12 @@ static int32_t msmDeployTriggerMixedOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusM
   }
 #endif
 
-  if (taosArrayGetSize(pTask->pMgmtReq->cont.pReqs) > 0) {
-    pMixedReq = pTask->pMgmtReq;
+  if (taosArrayGetSize(pOrigReq->cont.pReqs) > 0) {
+    // Take ownership of the request immediately: any early _exit below frees pMixedReq, and the
+    // heartbeat deep-clean (tCleanupStreamHbMsg) would free pTask->pMgmtReq a second time if the
+    // pointer were left dangling.
+    pMixedReq = pOrigReq;
+    pTask->pMgmtReq = NULL;
     SStreamMgmtReq* pInternalReq = taosMemoryCalloc(1, sizeof(SStreamMgmtReq));
     TSDB_CHECK_NULL(pInternalReq, code, lino, _exit, terrno);
     mstsDebug("deploy mixed original readers, internal:%d external:%d", (int32_t)taosArrayGetSize(pMixedReq->cont.pReqs),
@@ -6488,11 +6523,19 @@ static int32_t msmDeployTriggerMixedOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusM
     pMixedReq->cont.pReqs = NULL;
     pTask->pMgmtReq = pInternalReq;
 
+    // The internal handler appends exactly one response entry on success and on failure, so mark
+    // it as pushed BEFORE the call: a failure must propagate onto that entry instead of appending
+    // a second response for the same reqId (with a zeroed task identity).
+    rsp.task = *(SStreamTask *)pTask;
+    internalRspPushed = true;
     code = msmDeployTriggerOrigReader(pCtx, pTask);
     TAOS_CHECK_EXIT(code);
     SStreamMgmtRsp* pInternalRsp =
         taosArrayGet(pCtx->pRsp->rsps.rspList, taosArrayGetSize(pCtx->pRsp->rsps.rspList) - 1);
     TSDB_CHECK_NULL(pInternalRsp, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    // From here on this request's response is the internal handler's entry in
+    // rspList (now converted to MIXED); the shared _exit must propagate later
+    // failures onto it instead of appending a second response.
     pInternalRsp->header.msgType = STREAM_MSG_MIXED_ORIGTBL_READER_INFO;
     pInternalRsp->cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderRsp), extNum);
     TSDB_CHECK_NULL(pInternalRsp->cont.pExtOrigTblReaders, code, lino, _exit, terrno);
@@ -6529,7 +6572,7 @@ static int32_t msmDeployTriggerMixedOrigReader(SStmGrpCtx* pCtx, SStmTaskStatusM
     return TSDB_CODE_SUCCESS;
   }
 
-  rsp.reqId = pTask->pMgmtReq->reqId;
+  rsp.reqId = pOrigReq->reqId;
   rsp.header.msgType = STREAM_MSG_MIXED_ORIGTBL_READER_INFO;
   if (pCtx->pRsp->rsps.rspList == NULL) {
     pCtx->pRsp->rsps.rspList = taosArrayInit(2, sizeof(SStreamMgmtRsp));
@@ -6575,12 +6618,40 @@ _exit:
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
   if (pCtx->pRsp->rsps.rspList != NULL) {
-    int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
-    if (pushCode != TSDB_CODE_SUCCESS) {
-      tFreeSStreamMgmtRsp(&rsp);
-      msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
-      code = pushCode;
-      mstsError("failed to append mixed original reader response, error:%s", tstrerror(code));
+    if (internalRspPushed) {
+      // The internal reader deploy handler already appended this request's
+      // response (now typed MIXED).  Propagate a later failure onto that single
+      // entry; appending another response for the same reqId would make the
+      // trigger process a truncated success followed by the real error.
+      if (code != TSDB_CODE_SUCCESS) {
+        SStreamMgmtRsp *pInternalRsp = NULL;
+        if (taosArrayGetSize(pCtx->pRsp->rsps.rspList) > 0) {
+          pInternalRsp =
+              taosArrayGet(pCtx->pRsp->rsps.rspList, taosArrayGetSize(pCtx->pRsp->rsps.rspList) - 1);
+        }
+        if (pInternalRsp != NULL) {
+          pInternalRsp->code = code;
+        } else {
+          // The internal handler failed before appending its entry: fall back to the local
+          // response so the trigger always receives one reply per request.
+          int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
+          if (pushCode != TSDB_CODE_SUCCESS) {
+            tFreeSStreamMgmtRsp(&rsp);
+            msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+            code = (code != TSDB_CODE_SUCCESS) ? code : pushCode;
+            mstsError("failed to append mixed original reader fallback response, error:%s",
+                      tstrerror(pushCode));
+          }
+        }
+      }
+    } else {
+      int32_t pushCode = taosArrayPush(pCtx->pRsp->rsps.rspList, &rsp) == NULL ? terrno : TSDB_CODE_SUCCESS;
+      if (pushCode != TSDB_CODE_SUCCESS) {
+        tFreeSStreamMgmtRsp(&rsp);
+        msmHandleStreamTaskErr(pCtx, STM_ERR_PROCESSING_ERR, pTask);
+        code = pushCode;
+        mstsError("failed to append mixed original reader response, error:%s", tstrerror(code));
+      }
     }
   }
 #ifdef TD_ENTERPRISE
@@ -6604,9 +6675,6 @@ int32_t msmHandleTaskMgmtReq(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       break;
     case STREAM_MGMT_REQ_TRIGGER_EXT_SOURCE_IDENTITY:
       code = msmHandleTriggerExtSourceIdentity(pCtx, pTask);
-      break;
-    case STREAM_MGMT_REQ_TRIGGER_EXT_ORIGTBL_READER:
-      code = msmDeployTriggerExtOrigReader(pCtx, pTask);
       break;
     case STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER:
       if (taosArrayGetSize(pTask->pMgmtReq->cont.pExtOrigTblReaders) == 0) {

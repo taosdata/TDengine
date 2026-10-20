@@ -292,6 +292,22 @@ TEST_F(VnodeStreamVTableMetadataTest, UidFallbackLoadsVersionAndAllColumnsAndRel
   EXPECT_EQ(nullptr, metaReader_.coder.mList);
 }
 
+// nodesNodeToString() reports the SERIES condition length including the trailing NUL and the
+// resolver keeps that length; a multi-layer virtual table without an own condition hits this
+// fallback. The filled col ref must follow the direct-reference contract (NUL-free length),
+// otherwise stStreamExtCanonicalizeJson rejects the registry identity and the stream cannot start.
+TEST_F(VnodeStreamVTableMetadataTest, ResolvedTagConditionDropsTrailingNulFromLength) {
+  item_.tagCondJson = const_cast<char *>("nul-terminated-series");
+  item_.tagCondLen = (int32_t)(strlen(item_.tagCondJson) + 1);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fill(3, cids_));
+  auto *info = static_cast<VTableInfo *>(taosArrayGet(infos_, 0));
+  ASSERT_EQ(1, info->cols.nCols);
+  EXPECT_STREQ("nul-terminated-series", info->cols.pColRef[0].tagCondJson);
+  EXPECT_EQ((int32_t)strlen("nul-terminated-series"), info->cols.pColRef[0].tagCondLen);
+  EXPECT_EQ(nullptr, metaReader_.coder.mList);
+}
+
 TEST(VnodeStreamVTableHelpers, RejectsExternalWhereBeforeConditionIsDiscarded) {
   SColRef ref = {};
   ref.hasRef = true;

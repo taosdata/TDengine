@@ -97,6 +97,13 @@ typedef struct SStreamExtReaderInfo {
   SSHashObj *pUidIndex;    /* hash<uint64_t uid,    SUidIndexEntry> */
   SSHashObj *pGroupIndex;  /* hash<uint64_t groupId, SArray<uint64_t>*> */
   SSHashObj *pTagsetIndex; /* hash<char[] tagset,  uint64_t uid>; InfluxDB only */
+
+  /* InfluxDB empty-SERIES-match enumeration cache: timestamp (ms) of the last
+   * DISTINCT enumeration that matched no tag combinations. Repeated idle pulls
+   * skip the information_schema + DISTINCT round-trips within the re-check
+   * window; new remote data that appears later still triggers a fresh
+   * enumeration. Reset naturally when the reader is re-deployed for a patch. */
+  int64_t influxEmptyEnumTsMs;
 } SStreamExtReaderInfo;
 
 /* ---------------------------------------------------------------------------
