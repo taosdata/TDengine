@@ -97,16 +97,17 @@ cp ${top_dir}/lib/*.py ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/taosanalytics ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/tsfm ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/dynamic ${lib_install_dir}/ || :
-[ -f "${top_dir}/script/ini_utils.sh" ] && cp ${top_dir}/script/ini_utils.sh ${install_dir}/bin/ || :
-chmod a+x ${install_dir}/bin/* || :
-cp ${top_dir}/script/st*.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
-cp ${top_dir}/script/taosanode_service.py ${install_dir}/bin/ || :
-cp ${top_dir}/script/resource_manifest.py ${install_dir}/bin/ || :
-cp ${top_dir}/script/resource_manager.py ${install_dir}/bin/ || :
-cp ${top_dir}/script/taosanodectl.py ${install_dir}/bin/ || :
-chmod a+x ${install_dir}/bin/taosanode_service.py || :
-chmod a+x ${install_dir}/bin/taosanodectl.py || :
-cp ${top_dir}/script/uninstall.sh ${install_dir}/bin/ && chmod a+x ${install_dir}/bin/* || :
+# Keep the payload explicit: new development scripts must not be shipped by a glob.
+lifecycle_scripts=(
+  start-model.sh stop-model.sh
+  taosanode_service.py taosanodectl.py
+  resource_manifest.py resource_manager.py
+  uninstall.sh
+)
+for lifecycle_script in "${lifecycle_scripts[@]}"; do
+  cp "${script_dir}/${lifecycle_script}" "${install_dir}/bin/"
+done
+chmod a+x "${install_dir}/bin/"*
 if [ "$lite" == "1" ]; then
   cp "${top_dir}/requirements_docker.txt" "${install_dir}/"
   touch "${install_dir}/.tdgpt-lite"
