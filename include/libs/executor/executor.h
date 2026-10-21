@@ -201,6 +201,7 @@ SSDataBlock* createDataBlockFromDescNode(void* pNode);
 void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId);
 
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo);
+int32_t qGetTableListByApi(int64_t suid, void* pVnode, void* node, SArray** tableList, SStorageAPI* pStorageAPI);
 
 /**
  * set the task Id, usually used by message queue process
