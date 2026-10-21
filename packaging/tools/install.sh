@@ -1532,6 +1532,13 @@ function rpm_erase() {
 }
 
 function finished_install_info(){
+    if [ "$imageBuild" -eq 1 ]; then
+      echo
+      log info_color "${productName} image installation completed."
+      echo "Services will be started by the container entrypoint."
+      return 0
+    fi
+
     local entries=()
     local explorer_config_file
     explorer_config_file=$(get_config_file "${explorerName}")
