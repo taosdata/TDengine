@@ -2275,6 +2275,15 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
   SSclCompareCtx ctx = {0};
   int32_t        code = TSDB_CODE_SUCCESS;
 
+  // Only a one-row value can be broadcast. Set parameters do not use numOfRows
+  // to represent their contents, so an empty right-hand set must still be evaluated.
+  if (pLeft->numOfRows == 0 ||
+      (pRight->numOfRows == 0 && !pRight->hashParam.hasHashParam && !pRight->remoteParam.hasRemoteParam)) {
+    pOut->numOfRows = 0;
+    pOut->numOfQualified = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
   ctx.pOut = pOut;
   ctx.optr = optr;
   ctx.qualifiedNum = &pOut->numOfQualified;
