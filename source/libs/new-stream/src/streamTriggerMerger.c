@@ -1097,6 +1097,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   *ppDataBlock = NULL;
 
+_retrieve:
   if (IS_TRIGGER_VTABLE_MERGER_EMPTY(pMerger)) {
     goto _end;
   } else {
@@ -1215,18 +1216,25 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
         }
       }
     }
+    SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+    QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
+    int64_t nextTs = ((int64_t *)pVirTsCol->pData)[nrows - 1] + 1;
     if (pMerger->pFilter != NULL) {
       int32_t status = 0;
       code = filterExecute(pMerger->pFilter, pMerger->pDataBlock, &p, NULL, blockDataGetNumOfCols(pDataBlock), &status);
       QUERY_CHECK_CODE(code, lino, _end);
       code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
       QUERY_CHECK_CODE(code, lino, _end);
+      colDataDestroy(p);
+      taosMemoryFreeClear(p);
+    }
+    pMerger->readRange.skey = TMAX(pMerger->readRange.skey, nextTs);
+    if (blockDataGetNumOfRows(pDataBlock) == 0) {
+      // A filtered batch is neither a row nor EOF. Continue until rows, a fetch,
+      // or the end of the read range, preserving progress through filtered rows.
+      goto _retrieve;
     }
     *ppDataBlock = pMerger->pDataBlock;
-    SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
-    QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
-    int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
-    pMerger->readRange.skey = TMAX(pMerger->readRange.skey, pVirTsData[nrows - 1] + 1);
   }
 
 _end:
@@ -2482,6 +2490,8 @@ _retrieve:
       QUERY_CHECK_CODE(code, lino, _end);
       code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
       QUERY_CHECK_CODE(code, lino, _end);
+      colDataDestroy(p);
+      taosMemoryFreeClear(p);
       int32_t nrowsAfterFilter = blockDataGetNumOfRows(pMerger->pDataBlock);
       ST_TASK_DLOG("vtable merger filter applied, before: %d, after: %d", nrows, nrowsAfterFilter);
       if (nrowsAfterFilter == 0 && nrows == VTABLE_MERGER_NROWS_PER_BLOCK) {

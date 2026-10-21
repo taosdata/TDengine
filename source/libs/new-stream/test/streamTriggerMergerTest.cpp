@@ -24,6 +24,8 @@
 #include <vector>
 
 #include "streamTriggerMerger.h"
+#include "streamTriggerTask.h"
+#include "nodes.h"
 #include "stub.h"
 #include "tdatablock.h"
 
@@ -372,6 +374,250 @@ TEST(StreamTriggerMergerTest, DestroyDoesNotCallBorrowedSourceOps) {
 }
 
 }  // namespace
+
+class StreamHistoryFilteredMergerTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    merger_ = static_cast<SSTriggerVtableMerger *>(taosMemoryCalloc(1, sizeof(SSTriggerVtableMerger)));
+    ASSERT_NE(merger_, nullptr);
+    SSDataBlock *block = MakeBlock(0, 0, false);
+    ASSERT_NE(block, nullptr);
+    SNode *column = nullptr, *value = nullptr, *condition = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), 0);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, &value), 0);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_OPERATOR, &condition), 0);
+    auto *col = reinterpret_cast<SColumnNode *>(column);
+    col->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+    col->node.resType.bytes = sizeof(int64_t);
+    col->slotId = 1;
+    auto *val = reinterpret_cast<SValueNode *>(value);
+    val->node.resType = col->node.resType;
+    val->translate = true;
+    int64_t one = 1;
+    ASSERT_EQ(nodesSetValueNodeValue(val, &one), 0);
+    auto *op = reinterpret_cast<SOperatorNode *>(condition);
+    op->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    op->node.resType.bytes = sizeof(bool);
+    op->opType = OP_TYPE_EQUAL;
+    op->pLeft = column;
+    op->pRight = value;
+    SFilterInfo *filter = nullptr;
+    ASSERT_EQ(filterInitFromNode(condition, &filter, 0, nullptr), 0);
+    condition_ = condition;
+    ASSERT_EQ(stVtableMergerInit(merger_, &task_, &block, &filter, 2), 0);
+
+    refs_ = taosArrayInit(1, sizeof(SSTriggerTableColRef));
+    matches_ = taosArrayInit(1, sizeof(SSTriggerColMatch));
+    metas_ = taosArrayInit(2, sizeof(SSTriggerMetaData));
+    ASSERT_NE(refs_, nullptr);
+    ASSERT_NE(matches_, nullptr);
+    ASSERT_NE(metas_, nullptr);
+    SSTriggerColMatch match = {};
+    match.otbSlotId = match.vtbSlotId = 1;
+    ASSERT_NE(taosArrayPush(matches_, &match), nullptr);
+    SSTriggerTableColRef ref = {};
+    ref.otbUid = 1;
+    ref.pColMatches = matches_;
+    ASSERT_NE(taosArrayPush(refs_, &ref), nullptr);
+  }
+
+  void TearDown() override {
+    stVtableMergerDestroy(&merger_);
+    nodesDestroyNode(condition_);
+    taosArrayDestroy(refs_);
+    taosArrayDestroy(matches_);
+    taosArrayDestroy(metas_);
+  }
+
+  SSDataBlock *MakeBlock(int64_t start, int32_t rows, bool lastMatches) {
+    SSDataBlock *block = nullptr;
+    EXPECT_EQ(createDataBlock(&block), 0);
+    if (block == nullptr) return nullptr;
+    SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+    SColumnInfoData value = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+    EXPECT_EQ(blockDataAppendColInfo(block, &ts), 0);
+    EXPECT_EQ(blockDataAppendColInfo(block, &value), 0);
+    EXPECT_EQ(blockDataEnsureCapacity(block, rows), 0);
+    auto *tsCol = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+    auto *valueCol = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+    for (int32_t row = 0; row < rows; ++row) {
+      int64_t timestamp = start + row;
+      int64_t data = lastMatches && row == rows - 1 ? 1 : 0;
+      EXPECT_EQ(colDataSetVal(tsCol, row, reinterpret_cast<const char *>(&timestamp), false), 0);
+      EXPECT_EQ(colDataSetVal(valueCol, row, reinterpret_cast<const char *>(&data), false), 0);
+    }
+    block->info.rows = rows;
+    return block;
+  }
+
+  void Prepare(std::initializer_list<int32_t> blockRows) {
+    int64_t start = 1;
+    for (int32_t rows : blockRows) {
+      SSTriggerMetaData meta = {};
+      meta.skey = start;
+      meta.ekey = start + rows - 1;
+      meta.nrows = rows;
+      meta.ver = 1;
+      ASSERT_NE(taosArrayPush(metas_, &meta), nullptr);
+      start += rows;
+    }
+    STimeWindow range = {};
+    range.skey = 1;
+    range.ekey = start - 1;
+    ASSERT_EQ(stVtableMergerSetMergeInfo(merger_, &range, refs_), 0);
+    SSTriggerTableMeta table = {};
+    table.tbUid = 1;
+    table.pMetas = metas_;
+    SSHashObj *tables = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(tables, nullptr);
+    ASSERT_EQ(tSimpleHashPut(tables, &table.tbUid, sizeof(table.tbUid), &table, sizeof(table)), 0);
+    EXPECT_EQ(stVtableMergerSetMetaDatas(merger_, tables), 0);
+    tSimpleHashCleanup(tables);
+    SSDataBlock *output = nullptr;
+    ASSERT_EQ(stVtableMergerNextDataBlock(merger_, &output), 0);
+    EXPECT_EQ(output, nullptr);
+    ExpectFetch(1);
+  }
+
+  void ExpectFetch(int64_t start) {
+    SSTriggerMetaData    *meta = nullptr;
+    SSTriggerTableColRef *ref = nullptr;
+    ASSERT_EQ(stVtableMergerGetMetaToFetch(merger_, &meta, &ref), 0);
+    ASSERT_NE(meta, nullptr);
+    EXPECT_EQ(meta->skey, start);
+  }
+
+  void Bind(int64_t start, int32_t rows, bool lastMatches) {
+    SSDataBlock *block = MakeBlock(start, rows, lastMatches);
+    ASSERT_NE(block, nullptr);
+    EXPECT_EQ(stVtableMergerBindDataBlock(merger_, &block), 0);
+    EXPECT_EQ(block, nullptr);
+    blockDataDestroy(block);
+  }
+
+  SStreamTriggerTask     task_ = {};
+  SNode                 *condition_ = nullptr;
+  SSTriggerVtableMerger *merger_ = nullptr;
+  SArray                *refs_ = nullptr;
+  SArray                *matches_ = nullptr;
+  SArray                *metas_ = nullptr;
+};
+
+TEST_F(StreamHistoryFilteredMergerTest, EntirelyFilteredInputReturnsEofWithoutEmptyBlock) {
+  Prepare({3});
+  Bind(1, 3, false);
+  SSDataBlock *output = nullptr;
+  ASSERT_EQ(stVtableMergerNextDataBlock(merger_, &output), 0);
+  EXPECT_EQ(output, nullptr);
+  EXPECT_TRUE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+}
+
+TEST_F(StreamHistoryFilteredMergerTest, SkipsFilteredBatchesWithoutLosingBufferedMatch) {
+  Prepare({8193});
+  Bind(1, 8193, true);
+  SSDataBlock *output = nullptr;
+  ASSERT_EQ(stVtableMergerNextDataBlock(merger_, &output), 0);
+  ASSERT_NE(output, nullptr);
+  ASSERT_EQ(output->info.rows, 1);
+  auto *ts = static_cast<SColumnInfoData *>(taosArrayGet(output->pDataBlock, 0));
+  EXPECT_EQ(*reinterpret_cast<const int64_t *>(colDataGetData(ts, 0)), 8193);
+  ASSERT_EQ(stVtableMergerNextDataBlock(merger_, &output), 0);
+  EXPECT_EQ(output, nullptr);
+  EXPECT_TRUE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+}
+
+TEST_F(StreamHistoryFilteredMergerTest, FilteredFullBatchStillRequestsFollowingData) {
+  Prepare({4096, 1});
+  Bind(1, 4096, false);
+  SSDataBlock *output = nullptr;
+  ASSERT_EQ(stVtableMergerNextDataBlock(merger_, &output), 0);
+  EXPECT_EQ(output, nullptr);
+  EXPECT_FALSE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+  ExpectFetch(4097);
+  Bind(4097, 1, true);
+  ASSERT_EQ(stVtableMergerNextDataBlock(merger_, &output), 0);
+  ASSERT_NE(output, nullptr);
+  ASSERT_EQ(output->info.rows, 1);
+  auto *ts = static_cast<SColumnInfoData *>(taosArrayGet(output->pDataBlock, 0));
+  EXPECT_EQ(*reinterpret_cast<const int64_t *>(colDataGetData(ts, 0)), 4097);
+}
+
+class StreamRealtimeFilteredMergerTest : public StreamHistoryFilteredMergerTest {
+ protected:
+  void SetUp() override {
+    StreamHistoryFilteredMergerTest::SetUp();
+    ASSERT_FALSE(HasFatalFailure());
+    realtime_ = static_cast<SSTriggerNewVtableMerger *>(taosMemoryCalloc(1, sizeof(SSTriggerNewVtableMerger)));
+    ASSERT_NE(realtime_, nullptr);
+    ASSERT_EQ(stNewVtableMergerInit(realtime_, &task_, merger_->pDataBlock, pseudoCols_, condition_), 0);
+    input_ = MakeBlock(1, 8193, true);
+    ASSERT_NE(input_, nullptr);
+    ASSERT_EQ(taosObjPoolInit(&metaPool_, 1, sizeof(SSTriggerMetaData)), 0);
+    ASSERT_EQ(taosObjPoolInit(&tablePool_, 1, sizeof(SSTriggerVirtualTableSliceRef)), 0);
+    ASSERT_EQ(taosObjListInit(&metaList_, &metaPool_), 0);
+    ASSERT_EQ(taosObjListInit(&tables_, &tablePool_), 0);
+    SSTriggerMetaData meta = {};
+    meta.skey = 1;
+    meta.ekey = 8193;
+    meta.nrows = 8193;
+    ASSERT_EQ(taosObjListAppend(&metaList_, &meta), 0);
+    SSTriggerVirtualTableSliceRef table = {};
+    table.virtualUid = 2;
+    table.readerKey = stTriggerReaderDataKey(STRIGGER_READER_KIND_EXTERNAL, 1, 1);
+    ASSERT_EQ(taosObjListAppend(&tables_, &table), 0);
+    auto *ref = static_cast<SSTriggerTableColRef *>(taosArrayGet(refs_, 0));
+    ref->readerKey = table.readerKey;
+    ref->pNewColMatches = matches_;
+    SSTriggerColMatch tsMatch = {};
+    ASSERT_NE(taosArrayPush(matches_, &tsMatch), nullptr);
+    metaHash_ = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    slices_ = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    ASSERT_NE(metaHash_, nullptr);
+    ASSERT_NE(slices_, nullptr);
+    ASSERT_EQ(tSimpleHashPut(metaHash_, &table.readerKey, sizeof(table.readerKey), &metaList_, sizeof(metaList_)), 0);
+    SSTriggerDataSlice slice = {};
+    slice.pDataBlock = input_;
+    slice.endIdx = 8193;
+    ASSERT_EQ(tSimpleHashPut(slices_, &table.readerKey, sizeof(table.readerKey), &slice, sizeof(slice)), 0);
+    STimeWindow range = {};
+    range.skey = 1;
+    range.ekey = 8193;
+    ASSERT_EQ(
+        stNewVtableMergerSetData(realtime_, 2, 0, -1, &range, &tables_, refs_, metaHash_, slices_, nullptr, false), 0);
+  }
+
+  void TearDown() override {
+    stNewVtableMergerDestroy(&realtime_);
+    blockDataDestroy(input_);
+    tSimpleHashCleanup(metaHash_);
+    tSimpleHashCleanup(slices_);
+    taosObjListClear(&tables_);
+    taosObjListClear(&metaList_);
+    taosObjPoolDestroy(&tablePool_);
+    taosObjPoolDestroy(&metaPool_);
+    StreamHistoryFilteredMergerTest::TearDown();
+  }
+
+  SSTriggerNewVtableMerger *realtime_ = nullptr;
+  SSDataBlock              *input_ = nullptr;
+  SSHashObj                *metaHash_ = nullptr;
+  SSHashObj                *slices_ = nullptr;
+  SObjPool                  metaPool_ = {}, tablePool_ = {};
+  SObjList                  metaList_ = {}, tables_ = {};
+  bool                      pseudoCols_[2] = {};
+};
+
+TEST_F(StreamRealtimeFilteredMergerTest, ReleasesSkippedFilterResultsAndReturnsFollowingRow) {
+  SSDataBlock *output = nullptr;
+  int32_t      start = 0, end = 0;
+  ASSERT_EQ(stNewVtableMergerNextDataBlock(realtime_, &output, &start, &end), 0);
+  ASSERT_NE(output, nullptr);
+  ASSERT_EQ(end - start, 1);
+  auto *ts = static_cast<SColumnInfoData *>(taosArrayGet(output->pDataBlock, 0));
+  EXPECT_EQ(*reinterpret_cast<const int64_t *>(colDataGetData(ts, start)), 8193);
+  ASSERT_EQ(stNewVtableMergerNextDataBlock(realtime_, &output, &start, &end), 0);
+  EXPECT_EQ(output, nullptr);
+}
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
