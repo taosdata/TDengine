@@ -1605,7 +1605,7 @@ class TestPrivControl:
         self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
         self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Role privilege should not apply
         
-        # Test 2: User privilege granted first, then role privilege (role should win if later)
+        # Test 2: User privilege granted first, then role privilege (user always win)
         self.login()
         self.revoke_privilege("SELECT", f"{db_name}.st1", user)
         self.revoke_privilege("SELECT", f"{db_name}.st1", role)
@@ -1614,11 +1614,11 @@ class TestPrivControl:
         self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)  # Role: c2 later
         
         self.login(user, pwd)
-        # Role privilege (c2) should win because it's later
-        self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
-        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # User privilege should not apply
+        time.sleep(5) # wait catalog update to propagate
+        self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")  # Role privilege should not apply
         
-        # Test 3: Same update time, user privilege should win
+        # Test 3: User privilege wins regardless of grant order.
         self.login()
         self.revoke_privilege("SELECT", f"{db_name}.st1", user)
         self.revoke_privilege("SELECT", f"{db_name}.st1", role)
@@ -1627,15 +1627,38 @@ class TestPrivControl:
         self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role)
         
         self.login(user, pwd)
-        # User privilege should win when update times are same
+        tdSql.execute(f"reset query cache")
+        # User privilege should win
         self.exec_sql(f"SELECT c1 FROM {db_name}.st1")
         self.exec_sql_failed(f"SELECT c2 FROM {db_name}.st1")  # Role privilege should not apply
+        
+        # Test 4: Two roles both set row/column rules on the same table, the
+        # later-updated role wins (FS 4.2.3, 2.7.3). The user must have NO
+        # user-level rule on st1 here, otherwise the user privilege would win
+        # regardless of roles. role2 is granted after role, so role2's c2 rule
+        # should take effect over role's earlier c1 rule.
+        role2 = "test_role_2"
+        self.login()
+        self.revoke_privilege("SELECT", f"{db_name}.st1", user)  # clear user-level rule
+        self.revoke_privilege("SELECT", f"{db_name}.st1", role)
+        self.create_role(role2)
+        self.grant_role(role2, user)
+        self.grant_privilege("SELECT(c1)", f"{db_name}.st1", role)  # role: c1 first
+        time.sleep(0.1)
+        self.grant_privilege("SELECT(c2)", f"{db_name}.st1", role2)  # role2: c2 later
+        
+        self.login(user, pwd)
+        tdSql.execute(f"reset query cache")
+        # Later-updated role2 (c2) should win over role (c1)
+        self.exec_sql(f"SELECT c2 FROM {db_name}.st1")
+        self.exec_sql_failed(f"SELECT c1 FROM {db_name}.st1")  # Earlier role rule should not apply
         
         # Cleanup
         self.login()
         self.drop_database(db_name)
         self.drop_user(user)
         self.drop_role(role)
+        self.drop_role(role2)
         
         print("Privilege Update Time Priority ........ [ passed ] ")
 
