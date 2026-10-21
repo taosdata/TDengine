@@ -280,3 +280,88 @@ class SVRRegressioner(BaseModelRegressioner):
     def get_param(self) -> dict:
         info = self.model_info or {}
         return dict(info.get("_pipeline_state", {}))
+
+
+class XGBoostRegressioner(BaseModelRegressioner):
+    """XGBoost regressor — pkl only.
+
+    Holds an ``xgboost.XGBRegressor`` (or a dict with a ``model`` key holding one).
+    ``algo`` must read ``xgboost_regression``: a registry name routes a config to
+    exactly one service, and ``xgboost`` already means the classification model, so
+    registering the bare name here would take those models over.
+    """
+
+    target_algo = "XGBOOST_REGRESSION"
+
+    def _build_model(self):
+        model_path = self.model_info.get("model_path")
+        if not model_path:
+            AppLogger.error("XGBoost regression requires model_path (pkl file)")
+            return None
+
+        try:
+            from xgboost import XGBRegressor
+        except ImportError as exc:
+            AppLogger.error(
+                "xgboost is not installed, cannot load %s: %s", model_path, exc
+            )
+            return None
+
+        return self._load_from_pkl(model_path, XGBRegressor)
+
+    def _predict(self, model) -> list:
+        X = np.array(self.input_data, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        X = self._apply_preprocessing(X)
+        return self._to_prediction_list(model, X)
+
+    def get_param(self) -> dict:
+        info = self.model_info or {}
+        return dict(info.get("_pipeline_state", {}))
+
+
+class PLSRegressioner(BaseModelRegressioner):
+    """Partial Least Squares regression (``sklearn PLSRegression``) — pkl only.
+
+    Single-target only. ``PLSRegression.predict`` returns ``(n_samples, n_targets)``;
+    ``_predict`` asserts ``n_targets == 1`` and flattens the column to a plain list.
+    A multi-target model raises ``ValueError`` immediately rather than silently
+    interleaving target values across samples.
+    """
+
+    target_algo = "PLS"
+
+    def _build_model(self):
+        model_path = self.model_info.get("model_path")
+        if not model_path:
+            AppLogger.error("PLS regression requires model_path (pkl file)")
+            return None
+
+        try:
+            from sklearn.cross_decomposition import PLSRegression
+        except ImportError as exc:
+            AppLogger.error(
+                "sklearn.cross_decomposition is not available, cannot load %s: %s",
+                model_path,
+                exc,
+            )
+            return None
+
+        return self._load_from_pkl(model_path, PLSRegression)
+
+    def _predict(self, model) -> list:
+        X = np.array(self.input_data, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+        X = self._apply_preprocessing(X)
+        raw = np.asarray(model.predict(X))
+        if raw.ndim == 2 and raw.shape[1] != 1:
+            raise ValueError(
+                f"PLSRegressioner expects a single-target model but got {raw.shape[1]} targets"
+            )
+        return raw.ravel().tolist()
+
+    def get_param(self) -> dict:
+        info = self.model_info or {}
+        return dict(info.get("_pipeline_state", {}))

@@ -162,3 +162,42 @@ class DecisionTreeClassifier(BaseModelClassifier):
     def get_param(self) -> dict:
         info = self.model_info or {}
         return dict(info.get("_pipeline_state", {}))
+
+
+class XGBoostClassifier(BaseModelClassifier):
+    """XGBoost classifier — pkl only.
+
+    The pickle must hold an ``xgboost.XGBClassifier`` (or a dict with a ``model``
+    key holding one). Going through the sklearn wrapper, rather than a bare
+    ``Booster``, is what keeps the trained label mapping in ``classes_`` with the
+    model; a Booster would return encoded indices instead of the labels the model
+    was fitted on.
+
+    The config's ``algo`` field must read ``xgboost`` (case and ``-``/``_`` are
+    normalised by the base class). xgboost is imported lazily like sklearn above,
+    so this module stays importable where the package is not installed; loading a
+    model then fails with an error naming the missing dependency instead of an
+    ImportError from inside joblib.
+    """
+
+    target_algo = "XGBOOST"
+
+    def _build_model(self):
+        model_path = self.model_info.get("model_path")
+        if not model_path:
+            AppLogger.error("XGBoost requires model_path (pkl file)")
+            return None
+
+        try:
+            from xgboost import XGBClassifier
+        except ImportError as exc:
+            AppLogger.error(
+                "xgboost is not installed, cannot load %s: %s", model_path, exc
+            )
+            return None
+
+        return self._load_from_pkl(model_path, XGBClassifier)
+
+    def get_param(self) -> dict:
+        info = self.model_info or {}
+        return dict(info.get("_pipeline_state", {}))
