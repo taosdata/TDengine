@@ -6,6 +6,10 @@ scipy==1.15.0
 wheel==0.38.1
 urllib3==2.7.0
 scikit-learn==1.5.2
+# XGBoost 3.x backs the dynamic classification models. Pinned to the release
+# validated on the oldest supported target (glibc 2.27): its wheel is the
+# manylinux2014 variant, while newer 3.x wheels target manylinux_2_28.
+xgboost==3.0.1
 outlier-utils==0.0.5
 statsmodels==0.14.6
 # Direct StatsForecast runtime dependencies are pinned explicitly in this file:
