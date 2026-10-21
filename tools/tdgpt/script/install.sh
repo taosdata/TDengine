@@ -336,15 +336,18 @@ function install_bin_and_lib() {
   [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
   ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 
+  # Remove links left by earlier packages before installing the current commands.
+  local legacy_link
+  for legacy_link in start-tdtsfm stop-tdtsfm start-time-moe stop-time-moe start-model-from-remote; do
+    if [ -L "${bin_link_dir}/${legacy_link}" ]; then
+      ${csudo}rm -f "${bin_link_dir}/${legacy_link}"
+    fi
+  done
+
   # Create an array of link names and target scripts
   declare -A links=(
-    ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
-    ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
-    ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
-    ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
     ["start-model"]="${install_main_dir}/bin/start-model.sh"
     ["stop-model"]="${install_main_dir}/bin/stop-model.sh"
-    ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 
   # Iterate over the array and create/remove links as needed
