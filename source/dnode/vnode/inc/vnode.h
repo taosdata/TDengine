@@ -342,7 +342,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 bool    taosXGetTablePrimaryKey(SSnapContext *ctx);
 void    taosXSetTablePrimaryKey(SSnapContext *ctx, int64_t uid);
 int32_t buildSnapContext(SVnode *pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
-                         SSnapContext **ctxRet);
+                         const SArray *pTbUidList, SSnapContext **ctxRet);
 int32_t getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
 int32_t getMetaTableInfoFromSnapshot(SSnapContext *ctx, SMetaTableInfo *info);
 int32_t setForSnapShot(SSnapContext *ctx, int64_t uid);

@@ -522,14 +522,40 @@ END:
   return TAOS_GET_TERRNO(code);
 }
 
+static bool snapCtxUidMatched(SHashObj* pTbUidHash, uint64_t uid) {
+  if (pTbUidHash == NULL) {
+    return true;
+  }
+  return taosHashGet(pTbUidHash, &uid, sizeof(uint64_t)) != NULL;
+}
+
 int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
-                         SSnapContext** ctxRet) {
+                         const SArray* pTbUidList, SSnapContext** ctxRet) {
   int32_t code = 0;
   int32_t lino = 0;
   SDecoder   dc = {0};
   void* pKey = NULL;
   void* pVal = NULL;
   int   vLen = 0, kLen = 0;
+  SHashObj* pTbUidHash = NULL;
+
+  if (pTbUidList != NULL) {
+    pTbUidHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    if (pTbUidHash == NULL) {
+      return terrno;
+    }
+    int32_t numOfTables = (int32_t)taosArrayGetSize(pTbUidList);
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      uint64_t* pUid = (uint64_t*)taosArrayGet(pTbUidList, i);
+      if (pUid == NULL) {
+        continue;
+      }
+      if (taosHashPut(pTbUidHash, pUid, sizeof(uint64_t), NULL, 0) != 0) {
+        taosHashCleanup(pTbUidHash);
+        return terrno;
+      }
+    }
+  }
 
   metaRLock(pVnode->pMeta);
   SSnapContext* ctx = taosMemoryCalloc(1, sizeof(SSnapContext));
@@ -580,6 +606,13 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
         tDecoderClear(&dc);
         continue;
       }
+      // Only keep child tables in the subscribed table list (e.g. qualified
+      // by a tbname like 'f1%' filter); the super table itself is always kept.
+      if (me.uid != ctx->suid && !snapCtxUidMatched(pTbUidHash, me.uid)) {
+        metaDebug("tmqsnap skip child table name:%s, uid:%" PRIi64 ", not in subscribed table list", me.name, me.uid);
+        tDecoderClear(&dc);
+        continue;
+      }
     }
 
     TSDB_CHECK_NULL(taosArrayPush(ctx->idList, &tmp->uid), code, lino, END, terrno);
@@ -604,9 +637,6 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
     if (idData) {
       continue;
     }
-    SIdInfo info = {.version = tmp->version, .index = 0};
-    code = taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
-    TSDB_CHECK_CODE(code, lino, END);
 
     SMetaEntry me = {0};
     tDecoderInit(&dc, pVal, vLen);
@@ -619,7 +649,17 @@ int32_t buildSnapContext(SVnode* pVnode, int64_t snapVersion, int64_t suid, int8
         tDecoderClear(&dc);
         continue;
       }
+      // Keep the same filtering as the idList collection above.
+      if (me.uid != ctx->suid && !snapCtxUidMatched(pTbUidHash, me.uid)) {
+        metaDebug("tmqsnap skip child table name:%s, uid:%" PRIi64 ", not in subscribed table list", me.name, me.uid);
+        tDecoderClear(&dc);
+        continue;
+      }
     }
+
+    SIdInfo info = {.version = tmp->version, .index = 0};
+    code = taosHashPut(ctx->idVersion, &tmp->uid, sizeof(tb_uid_t), &info, sizeof(SIdInfo));
+    TSDB_CHECK_CODE(code, lino, END);
 
     if ((ctx->subType == TOPIC_SUB_TYPE__DB && me.type == TSDB_SUPER_TABLE) ||
         (ctx->subType == TOPIC_SUB_TYPE__TABLE && me.uid == ctx->suid)) {
@@ -644,6 +684,9 @@ END:
   tdbFree(pKey);
   tdbFree(pVal);
   tDecoderClear(&dc);
+  if (pTbUidHash != NULL) {
+    taosHashCleanup(pTbUidHash);
+  }
 
   if (ctx != NULL) {
     tdbTbcClose((TBC*)ctx->pCur);
