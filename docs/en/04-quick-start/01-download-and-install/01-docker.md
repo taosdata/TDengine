@@ -47,6 +47,8 @@ Run the following command to start the TDengine container:
 
 ```shell
 docker run -d \
+  --hostname tdengine \
+  -e TAOS_FQDN=tdengine \
   -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
   -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6060:6060 \
@@ -59,6 +61,8 @@ docker run -d \
 
 For port usage of TDengine services, see [Network Port Requirements](../../12-operations-and-tooling/02-operations/01-planning.md#network-port-requirements) in the operations guide.
 
+This example is for a fresh data directory. `--hostname` sets the container hostname, and `TAOS_FQDN` explicitly sets the TDengine node identity; `--name` only sets the container name. When recreating a container with an existing data directory, retain the original node FQDN instead of changing it to `tdengine`. See [Docker Deployment](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md#preserve-node-identity) for details.
+
 ### Check Container Status
 
 Run the following command to check the container status:
@@ -67,7 +71,14 @@ Run the following command to check the container status:
 docker ps -f name=tdengine-tsdb
 ```
 
-Check the `STATUS` field in the output. If it shows `Up ... (healthy)`, the container has started and is running normally.
+`Up ...` in the `STATUS` field means the container is running, but does not confirm that all services are ready. Docker only displays `healthy` when a health check is configured. For v3.4.1.0 and later, check startup and service status with:
+
+```shell
+docker exec tdengine-tsdb taos-check startup
+docker exec tdengine-tsdb taos-check service
+```
+
+An exit code of `0` means the corresponding check passed. If you use a custom root password, provide the current password as described in [Docker Deployment](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md#custom-passwords-upgrades-and-health-checks).
 
 ### Enter the Container
 
