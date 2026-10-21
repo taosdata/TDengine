@@ -22,6 +22,54 @@ class TestSlidingTriggerCheckAgain:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+    def test_sparse_sliding_groups(self):
+        """Sparse sliding input must not enumerate a year of empty windows.
+
+        1. Insert two distant batches into one group and ordinary data into another.
+        2. Check both groups finish promptly with only nonempty windows.
+
+        Catalog:
+            - StreamProcessing:TriggerMode
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7139408328
+
+        History:
+            - 2026-10-19 Added regression for CI job 709879.
+        """
+        tdStream.dropAllStreamsAndDbs()
+        tdSql.query("show snodes")
+        if tdSql.getRows() == 0:
+            tdStream.createSnode()
+        tdSql.prepare(dbname="sparse_sliding", vgroups=2)
+        tdSql.execute("create stable meters (ts timestamp, v int) tags (g int)")
+        tdSql.execute("create table gap using meters tags (1)")
+        tdSql.execute("create table peer using meters tags (2)")
+        tdSql.execute(
+            "create stream sparse sliding(10s) from meters partition by tbname "
+            "stream_options(ignore_nodata_trigger) into result "
+            "as select _tcurrent_ts ts, count(*) c, sum(v) s from %%trows"
+        )
+        tdStream.checkStreamStatus()
+        tdSql.execute(
+            "insert into gap values "
+            "('2025-01-01 00:00:00.001', 1) "
+            "('2026-01-01 00:00:00.001', 2) "
+            "('2026-01-01 00:00:10.000', 3) "
+            "peer values ('2025-01-01 00:00:00.001', 7) ('2025-01-01 00:00:10.000', 11)"
+        )
+        tdSql.checkResultsByArray(
+            sql="select ts, c, s from sparse_sliding.result order by ts, s",
+            exp_result=[
+                ["2025-01-01 00:00:10.000", 1, 1],
+                ["2025-01-01 00:00:10.000", 2, 18],
+                ["2026-01-01 00:00:10.000", 2, 5],
+            ],
+            retry=30,
+        )
+
     def test_sliding_trigger_check_again(self):
         """Sliding trigger should continue checking after one calc batch
 

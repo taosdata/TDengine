@@ -900,6 +900,101 @@ static void expectDeployFailureKeepsSequentialOwners(SMStreamHbRspMsg* pHeartbea
   EXPECT_EQ(nullptr, pTaskPtr);
 }
 
+class StreamTriggerCacheTeardownTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(nullptr, g_pDataSinkManager.dsStreamTaskList);
+    setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, initStreamDataSink());
+    task_.task.type = STREAM_TRIGGER_TASK;
+    task_.task.streamId = 7137932980LL;
+    task_.task.taskId = 1;
+    task_.task.undeployCb = releaseStackTask;
+    taosInitRWLatch(&task_.calcDataCacheIterLock);
+    taosInitRWLatch(&task_.readerProgressLock);
+  }
+
+  void TearDown() override {
+    if (taskPtr_ != nullptr) {
+      EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskUndeploy(&taskPtr_, true));
+    }
+    blockDataDestroy(block_);
+    destroyDataSinkMgr();
+    setDataSinkMaxMemSize(savedBufferSize_);
+  }
+
+  void CheckUndeploy(bool history, SCleanMode cleanMode) {
+    void**     cache = nullptr;
+    SHashObj** iterators = nullptr;
+    if (history) {
+      task_.pHistoryContext =
+          static_cast<SSTriggerHistoryContext*>(taosMemoryCalloc(1, sizeof(SSTriggerHistoryContext)));
+      ASSERT_NE(nullptr, task_.pHistoryContext);
+      task_.pHistoryContext->pTask = &task_;
+      cache = &task_.pHistoryContext->pCalcDataCache;
+      iterators = &task_.pHistoryContext->pCalcDataCacheIters;
+    } else {
+      task_.pRealtimeContext =
+          static_cast<SSTriggerRealtimeContext*>(taosMemoryCalloc(1, sizeof(SSTriggerRealtimeContext)));
+      ASSERT_NE(nullptr, task_.pRealtimeContext);
+      auto* context = task_.pRealtimeContext;
+      context->pTask = &task_;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, taosObjListInit(&context->dumpTableUids, &context->tableUidPool));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, taosObjListInit(&context->pAllCalcTableUids, &context->tableUidPool));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, taosObjListInit(&context->pCalcTableUids, &context->tableUidPool));
+      cache = &context->pCalcDataCache;
+      iterators = &context->pCalcDataCacheIters;
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, initStreamDataCache(task_.task.streamId, task_.task.taskId, 1, cleanMode, 0, cache));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stCreateCalcDataCacheIterMap(iterators));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&block_));
+    SColumnInfoData info = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(block_, &info));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(block_, 1));
+    auto*       column = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0));
+    const TSKEY ts = 100;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(column, 0, reinterpret_cast<const char*>(&ts), false));
+    block_->info.rows = 1;
+    const int64_t gid = 7;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, putStreamDataCache(*cache, gid, ts, ts, block_, 0, 0));
+
+    void* iterator = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, getStreamDataCache(*cache, gid, ts, ts, &iterator));
+    ASSERT_NE(nullptr, iterator);
+    const int32_t code = taosHashPut(*iterators, &gid, sizeof(gid), &iterator, sizeof(iterator));
+    if (code != TSDB_CODE_SUCCESS) cancelStreamDataCacheIterate(&iterator);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskUndeploy(&taskPtr_, true));
+    EXPECT_EQ(nullptr, taskPtr_);
+    EXPECT_EQ(nullptr, task_.pHistoryContext);
+    EXPECT_EQ(nullptr, task_.pRealtimeContext);
+    EXPECT_EQ(0, taosHashGetSize(g_pDataSinkManager.dsStreamTaskList));
+    EXPECT_EQ(0, g_pDataSinkManager.usedMemSize);
+  }
+
+  SStreamTriggerTask  task_ = {};
+  SStreamTriggerTask* taskPtr_ = &task_;
+  SSDataBlock*        block_ = nullptr;
+  const int64_t       savedBufferSize_ = tsStreamBufferSizeBytes;
+};
+
+TEST_F(StreamTriggerCacheTeardownTest, HistoryReleasesAlignIteratorBeforeCache) {
+  CheckUndeploy(true, DATA_CLEAN_IMMEDIATE);
+}
+
+TEST_F(StreamTriggerCacheTeardownTest, HistoryReleasesSlidingIteratorBeforeCache) {
+  CheckUndeploy(true, DATA_CLEAN_EXPIRED);
+}
+
+TEST_F(StreamTriggerCacheTeardownTest, RealtimeReleasesAlignIteratorBeforeCache) {
+  CheckUndeploy(false, DATA_CLEAN_IMMEDIATE);
+}
+
+TEST_F(StreamTriggerCacheTeardownTest, RealtimeReleasesSlidingIteratorBeforeCache) {
+  CheckUndeploy(false, DATA_CLEAN_EXPIRED);
+}
+
 class StreamTriggerTaskTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -29325,6 +29420,7 @@ class StreamTriggerRowObservabilityTest : public ::testing::Test {
     taosArrayDestroy(context_.pNotifyParams);
     taosArrayDestroy(context_.pParentWindows);
     taosArrayDestroy(context_.pWindows);
+    tSimpleHashCleanup(context_.pSparseWindows);
     tSimpleHashCleanup(context_.pGroupColVals);
     tSimpleHashCleanup(context_.pRanges);
     tSimpleHashCleanup(context_.pSlices);
@@ -29517,6 +29613,830 @@ TEST_F(StreamTriggerIntervalGapTest, IgnoreNoDataSuppressesClosedEmptyWindowOpen
 }
 
 TEST_F(StreamTriggerIntervalGapTest, DefaultKeepsClosedEmptyWindowEvents) { CheckGap(false, true, 3); }
+
+static int32_t deferSparseSlidingRequest(SStreamTriggerTask*, int64_t, int64_t, SSTriggerCalcRequest** ppRequest) {
+  *ppRequest = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+static Stub*   gSparseWindowAppendStub = nullptr;
+static int64_t gSparseWindowAppends = 0;
+
+static void* countSparseWindowAppends(SArray* array, const void* data, int32_t count) {
+  if (array->elemSize == sizeof(SSTriggerNotifyWindow)) gSparseWindowAppends += count;
+  gSparseWindowAppendStub->reset(taosArrayAddBatch);
+  void* result = taosArrayAddBatch(array, data, count);
+  gSparseWindowAppendStub->set(taosArrayAddBatch, countSparseWindowAppends);
+  return result;
+}
+
+static Stub*         gSparseWindowSearchStub = nullptr;
+static __compar_fn_t gSparseWindowCompare = nullptr;
+static int64_t       gSparseWindowComparisons = 0;
+
+static int32_t countSparseWindowComparisons(const void* left, const void* right) {
+  ++gSparseWindowComparisons;
+  return gSparseWindowCompare(left, right);
+}
+
+static int32_t countSparseWindowSearch(const SArray* array, const void* key, __compar_fn_t compare, int32_t flags) {
+  const bool count = array->elemSize == sizeof(SSTriggerNotifyWindow);
+  if (count) gSparseWindowCompare = compare;
+  gSparseWindowSearchStub->reset(taosArraySearchIdx);
+  const int32_t result = taosArraySearchIdx(array, key, count ? countSparseWindowComparisons : compare, flags);
+  gSparseWindowSearchStub->set(taosArraySearchIdx, countSparseWindowSearch);
+  return result;
+}
+
+static Stub*   gSparseTimeStub = nullptr;
+static int64_t gSparseTimeTruncations = 0;
+
+static int64_t countSparseTimeTruncations(int64_t ts, const SInterval* interval) {
+  ++gSparseTimeTruncations;
+  gSparseTimeStub->reset(taosTimeTruncate);
+  const int64_t result = taosTimeTruncate(ts, interval);
+  gSparseTimeStub->set(taosTimeTruncate, countSparseTimeTruncations);
+  return result;
+}
+
+static Stub*   gSparseSortStub = nullptr;
+static int64_t gSparseSortedWindows = 0;
+
+static void countSparseSortedWindows(SArray* array, __compar_fn_t compare) {
+  if (array->elemSize == sizeof(SSTriggerNotifyWindow)) gSparseSortedWindows += taosArrayGetSize(array);
+  gSparseSortStub->reset(taosArraySort);
+  taosArraySort(array, compare);
+  gSparseSortStub->set(taosArraySort, countSparseSortedWindows);
+}
+
+static SSTriggerAHandle gSparsePseudoAhandle = {};
+
+static int32_t captureSparsePseudoPull(const SEpSet* epSet, SRpcMsg* msg) {
+  if (msg->msgType == TDMT_STREAM_TRIGGER_PULL) {
+    auto* sendInfo = static_cast<SMsgSendInfo*>(msg->info.ahandle);
+    gSparsePseudoAhandle = *static_cast<SSTriggerAHandle*>(sendInfo->param);
+  }
+  return captureTriggerRowSend(epSet, msg);
+}
+
+class StreamTriggerSparseSlidingTest : public StreamTriggerRowObservabilityTest {
+ protected:
+  void SetUp() override {
+    StreamTriggerRowObservabilityTest::SetUp();
+    ConfigureInterval(0, 'a', 10, 'a');
+    task_.ignoreNoDataTrigger = true;
+    task_.placeHolderBitmap = PLACE_HOLDER_NEXT_TS;
+    task_.trigPkIndex = -1;
+    stub_.reset(stNewTimestampSorterSetData);
+    stub_.reset(stNewTimestampSorterNextDataBlock);
+    stub_.set(stTriggerTaskAcquireRequest, deferSparseSlidingRequest);
+  }
+
+  void SetRows(const std::vector<TSKEY>& timestamps) {
+    ASSERT_FALSE(timestamps.empty());
+    ASSERT_EQ(blockDataEnsureCapacity(block_, timestamps.size()), TSDB_CODE_SUCCESS);
+    auto* tsCol = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0));
+    auto* verCol = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 1));
+    for (size_t i = 0; i < timestamps.size(); ++i) {
+      const int64_t version = 1;
+      ASSERT_EQ(colDataSetVal(tsCol, i, reinterpret_cast<const char*>(&timestamps[i]), false), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(colDataSetVal(verCol, i, reinterpret_cast<const char*>(&version), false), TSDB_CODE_SUCCESS);
+    }
+    block_->info.rows = timestamps.size();
+    taosObjListClear(metas_);
+    SSTriggerMetaData meta = {};
+    meta.skey = *std::min_element(timestamps.begin(), timestamps.end());
+    meta.ekey = *std::max_element(timestamps.begin(), timestamps.end());
+    meta.ver = 1;
+    ASSERT_EQ(taosObjListAppend(metas_, &meta), TSDB_CODE_SUCCESS);
+    group_.oldThreshold = meta.skey - 1;
+    group_.newThreshold = meta.ekey;
+    SSTriggerDataSlice slice = {};
+    slice.pDataBlock = block_;
+    slice.endIdx = timestamps.size();
+    const int64_t uid = 100;
+    ASSERT_EQ(tSimpleHashPut(context_.pSlices, &uid, sizeof(uid), &slice, sizeof(slice)), TSDB_CODE_SUCCESS);
+    taosObjListClear(&group_.tableUids);
+    const int64_t ids[2] = {uid, reader_->nodeId};
+    ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  }
+
+  void ResumeCheck() {
+    if (group_.nextExecTime != 0) heapRemove(context_.pMaxDelayHeap, &group_.heapNode);
+    group_.nextExecTime = 0;
+    context_.pMinGroup = nullptr;
+    context_.status = STRIGGER_CONTEXT_CHECK_CONDITION;
+    // The next round's data has already arrived in this fixture.
+    progress_->pendingPulls = 0;
+    taosObjListClear(&group_.pPendingCalcParams);
+    if (TD_DLIST_NELES(&context_.groupsToCheck) == 0) TD_DLIST_APPEND(&context_.groupsToCheck, &group_);
+  }
+
+  void SplitTables(int32_t split) {
+    const int64_t firstUid = 100;
+    auto* first = static_cast<SSTriggerDataSlice*>(tSimpleHashGet(context_.pSlices, &firstUid, sizeof(firstUid)));
+    ASSERT_NE(first, nullptr);
+    SSTriggerDataSlice second = *first;
+    first->endIdx = split;
+    second.startIdx = split;
+    const int64_t secondUid = 101;
+    ASSERT_EQ(tSimpleHashPut(context_.pSlices, &secondUid, sizeof(secondUid), &second, sizeof(second)),
+              TSDB_CODE_SUCCESS);
+    const int64_t ids[2] = {secondUid, reader_->nodeId};
+    ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  }
+
+  std::vector<SSTriggerCalcParam> Pending() {
+    std::vector<SSTriggerCalcParam> result;
+    SObjListIter                    iter = {};
+    taosObjListInitIter(&group_.pPendingCalcParams, &iter, TOBJLIST_ITER_FORWARD);
+    while (auto* param = static_cast<SSTriggerCalcParam*>(taosObjListIterNext(&iter))) {
+      result.push_back(*param);
+    }
+    return result;
+  }
+
+  void CheckExistingWindowSearches(const std::vector<int32_t>& laterWindows) {
+    const TSKEY        base = 1752574200000LL;
+    const int32_t      windowCount = 32768;
+    std::vector<TSKEY> rows;
+    for (int32_t i = 1; i <= windowCount; ++i) rows.push_back(base + i * 10);
+    for (int32_t index : laterWindows) rows.push_back(base + (index - 1) * 10 + 5);
+    SetRows(rows);
+    SplitTables(windowCount);
+
+    // Keep the search regression on a full candidate array, independent of missing-window batching.
+    group_.prevWindow.skey = base - 9;
+    group_.prevWindow.ekey = base;
+    for (int32_t i = 1; i <= windowCount; ++i) {
+      SSTriggerNotifyWindow win = {};
+      win.range.skey = base + (i - 1) * 10 + 1;
+      win.range.ekey = base + i * 10;
+      ASSERT_NE(taosArrayPush(context_.pWindows, &win), nullptr);
+    }
+
+    Stub searchStub;
+    gSparseWindowSearchStub = &searchStub;
+    gSparseWindowComparisons = 0;
+    searchStub.set(taosArraySearchIdx, countSparseWindowSearch);
+    const int32_t code = StartCheck();
+    searchStub.reset(taosArraySearchIdx);
+    gSparseWindowSearchStub = nullptr;
+    gSparseWindowCompare = nullptr;
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    const auto params = Pending();
+    ASSERT_EQ(params.size(), static_cast<size_t>(windowCount));
+    for (int32_t i = 0; i < windowCount; ++i) EXPECT_EQ(params[i].currentTs, base + (i + 1) * 10);
+    EXPECT_EQ(group_.prevWindow.ekey, base + windowCount * 10);
+    EXPECT_EQ(group_.windows.neles, 0);
+    RecordProperty("binary_search_comparisons", std::to_string(gSparseWindowComparisons));
+    EXPECT_LE(gSparseWindowComparisons, 64);
+  }
+};
+
+TEST_F(StreamTriggerSparseSlidingTest, EmptyGapDoesNotConsumeWindowBatches) {
+  const TSKEY base = 1752574200000LL;
+  SetRows({base + 1, base + 2, base + 600001, base + 600002, base + 600010});
+
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), 2U);
+  EXPECT_EQ(params[0].currentTs, base + 10);
+  EXPECT_EQ(params[1].currentTs, base + 600010);
+  EXPECT_EQ(params[0].nextTs, base + 20);
+  EXPECT_EQ(params[1].nextTs, base + 600020);
+  EXPECT_EQ(group_.oldThreshold, base + 600010);
+  EXPECT_EQ(group_.prevWindow.ekey, base + 600010);
+  EXPECT_EQ(group_.windows.neles, 0);
+  // Five input rows must not allocate a batch of tens of thousands of empty windows.
+  EXPECT_LE(context_.pWindows->capacity, 256);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, YearGapKeepsOnlyDataAndBoundaryWindows) {
+  const TSKEY base = 1735689600000LL;
+  const TSKEY nextYear = 1767225600000LL;
+  task_.interval.sliding = 10000;
+  SetRows({base + 1, nextYear + 1, nextYear + 10000});
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), 2U);
+  EXPECT_EQ(params[0].currentTs, base + 10000);
+  EXPECT_EQ(params[1].currentTs, nextYear + 10000);
+  EXPECT_LE(context_.pWindows->capacity, 256);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, LaterTableContributesToEarlierWindows) {
+  const TSKEY base = 1752574200000LL;
+  SetRows({base + 1, base + 600001, base + 5, base + 600005});
+  SplitTables(2);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Pending().size(), 1U);
+  EXPECT_EQ(Pending()[0].currentTs, base + 10);
+  ASSERT_EQ(group_.windows.neles, 1);
+  const auto* open = static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+  EXPECT_EQ(open->range.skey, base + 600001);
+  EXPECT_EQ(open->wrownum, 2);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, ManyTablesReuseExistingWindowsWithoutCopyingTheBatch) {
+  const TSKEY        base = 1752574200000LL;
+  const int32_t      windowCount = 2048;
+  const int32_t      laterTables = 32;
+  std::vector<TSKEY> rows;
+  for (int32_t i = 1; i <= windowCount; ++i) rows.push_back(base + i * 10);
+  for (int32_t i = 0; i < laterTables; ++i) rows.push_back(base + 1);
+  SetRows(rows);
+
+  const int64_t firstUid = 100;
+  auto*         first = static_cast<SSTriggerDataSlice*>(tSimpleHashGet(context_.pSlices, &firstUid, sizeof(firstUid)));
+  ASSERT_NE(first, nullptr);
+  first->endIdx = windowCount;
+  for (int32_t i = 0; i < laterTables; ++i) {
+    SSTriggerDataSlice slice = {};
+    slice.pDataBlock = block_;
+    slice.startIdx = windowCount + i;
+    slice.endIdx = slice.startIdx + 1;
+    const int64_t uid = firstUid + i + 1;
+    ASSERT_EQ(tSimpleHashPut(context_.pSlices, &uid, sizeof(uid), &slice, sizeof(slice)), TSDB_CODE_SUCCESS);
+    const int64_t ids[2] = {uid, reader_->nodeId};
+    ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  }
+
+  Stub appendStub;
+  gSparseWindowAppendStub = &appendStub;
+  gSparseWindowAppends = 0;
+  appendStub.set(taosArrayAddBatch, countSparseWindowAppends);
+  const int32_t code = StartCheck();
+  appendStub.reset(taosArrayAddBatch);
+  gSparseWindowAppendStub = nullptr;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), static_cast<size_t>(windowCount));
+  for (int32_t i = 0; i < windowCount; ++i) EXPECT_EQ(params[i].currentTs, base + (i + 1) * 10);
+  EXPECT_EQ(group_.prevWindow.ekey, base + windowCount * 10);
+  EXPECT_EQ(group_.windows.neles, 0);
+  // Building candidates is linear in the window count, independent of later tables hitting existing windows.
+  EXPECT_LE(gSparseWindowAppends, 3 * windowCount);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, AdjacentExistingWindowsAdvanceWithoutRepeatedSearch) {
+  std::vector<int32_t> windows;
+  for (int32_t i = 1; i <= 4096; ++i) windows.push_back(i);
+  CheckExistingWindowSearches(windows);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, DistantExistingWindowsKeepLogarithmicSearch) {
+  CheckExistingWindowSearches({1, 16384, 32768});
+  EXPECT_GT(gSparseWindowComparisons, 0);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, ManyTablesInsertMissingWindowsWithoutCopyingTheBatch) {
+  const TSKEY        base = 1752574200000LL;
+  const int32_t      tailWindows = 2048;
+  const int32_t      laterTables = 64;
+  const int32_t      windowCount = tailWindows + laterTables + 1;
+  std::vector<TSKEY> rows = {base + 10};
+  for (int32_t i = laterTables + 2; i <= windowCount; ++i) rows.push_back(base + i * 10);
+  for (int32_t i = 2; i <= laterTables + 1; ++i) rows.push_back(base + i * 10);
+  SetRows(rows);
+
+  const int64_t firstUid = 100;
+  auto*         first = static_cast<SSTriggerDataSlice*>(tSimpleHashGet(context_.pSlices, &firstUid, sizeof(firstUid)));
+  ASSERT_NE(first, nullptr);
+  first->endIdx = tailWindows + 1;
+  for (int32_t i = 0; i < laterTables; ++i) {
+    SSTriggerDataSlice slice = {};
+    slice.pDataBlock = block_;
+    slice.startIdx = tailWindows + 1 + i;
+    slice.endIdx = slice.startIdx + 1;
+    const int64_t uid = firstUid + i + 1;
+    ASSERT_EQ(tSimpleHashPut(context_.pSlices, &uid, sizeof(uid), &slice, sizeof(slice)), TSDB_CODE_SUCCESS);
+    const int64_t ids[2] = {uid, reader_->nodeId};
+    ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  }
+
+  Stub appendStub;
+  gSparseWindowAppendStub = &appendStub;
+  gSparseWindowAppends = 0;
+  appendStub.set(taosArrayAddBatch, countSparseWindowAppends);
+  const int32_t code = StartCheck();
+  appendStub.reset(taosArrayAddBatch);
+  gSparseWindowAppendStub = nullptr;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), static_cast<size_t>(windowCount));
+  for (int32_t i = 0; i < windowCount; ++i) EXPECT_EQ(params[i].currentTs, base + (i + 1) * 10);
+  EXPECT_EQ(group_.prevWindow.ekey, base + windowCount * 10);
+  EXPECT_EQ(group_.windows.neles, 0);
+  RecordProperty("candidate_appends", std::to_string(gSparseWindowAppends));
+  EXPECT_LE(gSparseWindowAppends, 3 * windowCount);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, ManyTablesReusePendingWindowsBeforeCalendarCalculations) {
+  const TSKEY        base = 1752574200000LL;
+  const int32_t      windowCount = 256;
+  const int32_t      tableCount = 32;
+  std::vector<TSKEY> rows;
+  for (int32_t table = 0; table < tableCount; ++table) {
+    for (int32_t win = 1; win <= windowCount; ++win) rows.push_back(base + win * 10 - (table == 0 ? 0 : 5));
+  }
+  SetRows(rows);
+  taosObjListClear(&group_.tableUids);
+  for (int32_t table = 0; table < tableCount; ++table) {
+    SSTriggerDataSlice slice = {};
+    slice.pDataBlock = block_;
+    slice.startIdx = table * windowCount;
+    slice.endIdx = slice.startIdx + windowCount;
+    const int64_t ids[2] = {100 + table, reader_->nodeId};
+    ASSERT_EQ(tSimpleHashPut(context_.pSlices, ids, sizeof(ids[0]), &slice, sizeof(slice)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(taosArrayGetSize(context_.pWindows), 0);
+  Stub timeStub;
+  gSparseTimeStub = &timeStub;
+  gSparseTimeTruncations = 0;
+  timeStub.set(taosTimeTruncate, countSparseTimeTruncations);
+  const int32_t code = StartCheck();
+  timeStub.reset(taosTimeTruncate);
+  gSparseTimeStub = nullptr;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), static_cast<size_t>(windowCount));
+  for (int32_t i = 0; i < windowCount; ++i) {
+    EXPECT_EQ(params[i].currentTs, base + (i + 1) * 10);
+  }
+  RecordProperty("calendar_truncations", std::to_string(gSparseTimeTruncations));
+  EXPECT_LE(gSparseTimeTruncations, 2 * windowCount + 16);
+}
+
+class StreamTriggerSparseVirtualSlidingTest : public StreamTriggerSparseSlidingTest {
+ protected:
+  void SetUp() override {
+    StreamTriggerSparseSlidingTest::SetUp();
+    task_.isVirtualTable = true;
+    stub_.set(tmsgSendReq, captureSparsePseudoPull);
+    task_.pVirtTableInfos = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pTrigIsPseudoCol = taosArrayInit_s(sizeof(bool), 2);
+    progress_->reqCids = taosArrayInit(1, sizeof(col_id_t));
+    colRefs_ = taosArrayInit(64, sizeof(SArray*));
+    ASSERT_NE(task_.pVirtTableInfos, nullptr);
+    ASSERT_NE(task_.pTrigIsPseudoCol, nullptr);
+    ASSERT_NE(progress_->reqCids, nullptr);
+    ASSERT_NE(colRefs_, nullptr);
+    *static_cast<bool*>(taosArrayGet(task_.pTrigIsPseudoCol, 1)) = true;
+    ASSERT_EQ(createDataBlock(&task_.pVirtTrigBlock), TSDB_CODE_SUCCESS);
+    SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 1);
+    SColumnInfoData name = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_TABLE_NAME_LEN, TSDB_TBNAME_COLUMN_INDEX);
+    ASSERT_EQ(blockDataAppendColInfo(task_.pVirtTrigBlock, &ts), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataAppendColInfo(task_.pVirtTrigBlock, &name), TSDB_CODE_SUCCESS);
+    context_.pMerger = static_cast<SSTriggerNewVtableMerger*>(taosMemoryCalloc(1, sizeof(SSTriggerNewVtableMerger)));
+    ASSERT_NE(context_.pMerger, nullptr);
+    ASSERT_EQ(stNewVtableMergerInit(context_.pMerger, &task_, task_.pVirtTrigBlock,
+                                    static_cast<bool*>(TARRAY_DATA(task_.pTrigIsPseudoCol)), nullptr),
+              TSDB_CODE_SUCCESS);
+    ASSERT_EQ(createDataBlock(&pseudoBlock_), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataAppendColInfo(pseudoBlock_, &name), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(pseudoBlock_, 1), TSDB_CODE_SUCCESS);
+  }
+
+  void BeginVirtualTables() {
+    taosObjListClear(&group_.tableUids);
+    taosObjPoolDestroy(&context_.tableUidPool);
+    ASSERT_EQ(taosObjPoolInit(&context_.tableUidPool, 1, sizeof(SSTriggerVirtualTableSliceRef)), TSDB_CODE_SUCCESS);
+  }
+
+  void AddVirtualTable(int32_t index, int32_t start, int32_t end) {
+    const int64_t                 uid = 1000 + index;
+    SSTriggerVirtualTableSliceRef target = {};
+    target.virtualUid = uid;
+    target.virtualGid = group_.gid;
+    target.readerKey = stTriggerReaderDataKey(STRIGGER_READER_KIND_INTERNAL, 100 + index, 100 + index);
+    ASSERT_EQ(taosObjListAppend(&group_.tableUids, &target), TSDB_CODE_SUCCESS);
+    SObjList tableMetas = {};
+    ASSERT_EQ(taosObjListInit(&tableMetas, &context_.metaPool), TSDB_CODE_SUCCESS);
+    const auto meta = *static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+    ASSERT_EQ(taosObjListAppend(&tableMetas, &meta), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(
+        tSimpleHashPut(group_.pWalMetas, &target.readerKey, sizeof(target.readerKey), &tableMetas, sizeof(tableMetas)),
+        TSDB_CODE_SUCCESS);
+    SSTriggerDataSlice slice = {};
+    slice.pDataBlock = block_;
+    slice.startIdx = start;
+    slice.endIdx = end;
+    ASSERT_EQ(tSimpleHashPut(context_.pSlices, &target.readerKey, sizeof(target.readerKey), &slice, sizeof(slice)),
+              TSDB_CODE_SUCCESS);
+    SSTriggerTableColRef ref = {};
+    ref.readerKey = target.readerKey;
+    ref.otbUid = target.readerKey.logicalUid;
+    ref.otbVgId = reader_->nodeId;
+    ref.pNewColMatches = taosArrayInit(1, sizeof(SSTriggerColMatch));
+    ASSERT_NE(ref.pNewColMatches, nullptr);
+    ASSERT_NE(taosArrayPush(colRefs_, &ref.pNewColMatches), nullptr);
+    SSTriggerColMatch match = {};
+    ASSERT_NE(taosArrayPush(ref.pNewColMatches, &match), nullptr);
+    SSTriggerVirtTableInfo info = {};
+    info.tbUid = uid;
+    info.vgId = reader_->nodeId;
+    info.pTrigColRefs = taosArrayInit(1, sizeof(SSTriggerTableColRef));
+    ASSERT_NE(info.pTrigColRefs, nullptr);
+    ASSERT_NE(taosArrayPush(colRefs_, &info.pTrigColRefs), nullptr);
+    ASSERT_NE(taosArrayPush(info.pTrigColRefs, &ref), nullptr);
+    ASSERT_EQ(tSimpleHashPut(task_.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), TSDB_CODE_SUCCESS);
+  }
+
+  void RespondPseudoColumns(int64_t uid) {
+    ASSERT_EQ(progress_->pendingPulls, 1);
+    ASSERT_EQ(progress_->pullReq.base.type, STRIGGER_PULL_VTABLE_PSEUDO_COL);
+    ASSERT_EQ(progress_->pullReq.virTablePseudoColReq.uid, uid);
+    ASSERT_TRUE(stNewVtableMergerNeedPseudoCols(context_.pMerger));
+    char              name[TSDB_TABLE_NAME_LEN] = {};
+    const std::string value = "vtable_" + std::to_string(uid);
+    STR_TO_VARSTR(name, value.c_str());
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(pseudoBlock_->pDataBlock, 0)), 0, name, false),
+              TSDB_CODE_SUCCESS);
+    pseudoBlock_->info.rows = 1;
+    std::vector<char> payload(blockGetEncodeSize(pseudoBlock_));
+    ASSERT_EQ(blockEncode(pseudoBlock_, payload.data(), payload.size(), 1), static_cast<int32_t>(payload.size()));
+    SSTriggerAHandle ahandle = gSparsePseudoAhandle;
+    SMsgSendInfo     sendInfo = {};
+    sendInfo.param = &ahandle;
+    SRpcMsg response = {};
+    response.msgType = TDMT_STREAM_TRIGGER_PULL_RSP;
+    response.pCont = payload.data();
+    response.contLen = payload.size();
+    response.info.ahandle = &sendInfo;
+    int64_t errorTaskId = 0;
+    ASSERT_EQ(stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    stNewVtableMergerDestroy(&context_.pMerger);
+    int32_t iter = 0;
+    auto*   tableMetas = static_cast<SObjList*>(tSimpleHashIterate(group_.pWalMetas, nullptr, &iter));
+    while (tableMetas != nullptr) {
+      taosObjListClear(tableMetas);
+      tableMetas = static_cast<SObjList*>(tSimpleHashIterate(group_.pWalMetas, tableMetas, &iter));
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(colRefs_); ++i) {
+      taosArrayDestroy(*static_cast<SArray**>(taosArrayGet(colRefs_, i)));
+    }
+    taosArrayDestroy(colRefs_);
+    taosArrayDestroy(progress_->reqCids);
+    tSimpleHashCleanup(task_.pVirtTableInfos);
+    taosArrayDestroy(task_.pTrigIsPseudoCol);
+    blockDataDestroy(task_.pVirtTrigBlock);
+    blockDataDestroy(pseudoBlock_);
+    StreamTriggerSparseSlidingTest::TearDown();
+  }
+
+  SArray*      colRefs_ = nullptr;
+  SSDataBlock* pseudoBlock_ = nullptr;
+};
+
+TEST_F(StreamTriggerSparseVirtualSlidingTest, PseudoColumnPausesDoNotSortEachMissingWindow) {
+  const TSKEY        base = 1752574200000LL;
+  const int32_t      tailWindows = 2048;
+  const int32_t      laterTables = 64;
+  const int32_t      windowCount = tailWindows + laterTables + 1;
+  std::vector<TSKEY> rows = {base + 10};
+  for (int32_t i = laterTables + 2; i <= windowCount; ++i) rows.push_back(base + i * 10);
+  for (int32_t i = 2; i <= laterTables + 1; ++i) rows.push_back(base + i * 10);
+  SetRows(rows);
+  BeginVirtualTables();
+  AddVirtualTable(0, 0, tailWindows + 1);
+  for (int32_t i = 0; i < laterTables; ++i) AddVirtualTable(i + 1, tailWindows + 1 + i, tailWindows + 2 + i);
+  ASSERT_EQ(taosArrayGetSize(context_.pWindows), 0);
+  Stub sortStub;
+  gSparseSortStub = &sortStub;
+  gSparseSortedWindows = 0;
+  sortStub.set(taosArraySort, countSparseSortedWindows);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i <= laterTables; ++i) {
+    ASSERT_TRUE(Pending().empty());
+    RespondPseudoColumns(1000 + i);
+    ASSERT_FALSE(HasFatalFailure());
+  }
+  sortStub.reset(taosArraySort);
+  gSparseSortStub = nullptr;
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), static_cast<size_t>(windowCount));
+  for (int32_t i = 0; i < windowCount; ++i) {
+    EXPECT_EQ(params[i].currentTs, base + (i + 1) * 10);
+  }
+  EXPECT_EQ(group_.prevWindow.ekey, base + windowCount * 10);
+  EXPECT_EQ(group_.windows.neles, 0);
+  RecordProperty("sorted_windows", std::to_string(gSparseSortedWindows));
+  EXPECT_LE(gSparseSortedWindows, 2 * windowCount);
+}
+
+TEST_F(StreamTriggerSparseVirtualSlidingTest, FullBatchRescansVirtualTablesAcrossPseudoColumnPauses) {
+  const TSKEY        base = 1752574200000LL;
+  const int32_t      batch = STREAM_CALC_REQ_MAX_WIN_NUM;
+  std::vector<TSKEY> rows = {base + 10};
+  for (int32_t i = 5; i <= batch + 5; ++i) rows.push_back(base + i * 10);
+  rows.insert(rows.end(), {base + 20, base + 30, base + 30, base + 40});
+  SetRows(rows);
+  BeginVirtualTables();
+  AddVirtualTable(0, 0, batch + 2);
+  AddVirtualTable(1, batch + 2, batch + 4);
+  AddVirtualTable(2, batch + 4, batch + 6);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 3; ++i) {
+    RespondPseudoColumns(1000 + i);
+    ASSERT_FALSE(HasFatalFailure());
+  }
+  auto params = Pending();
+  ASSERT_EQ(params.size(), static_cast<size_t>(batch));
+  for (int32_t i = 0; i < batch; ++i) EXPECT_EQ(params[i].currentTs, base + (i + 1) * 10);
+  EXPECT_EQ(group_.tableUids.neles, 3);
+  EXPECT_EQ(group_.prevWindow.ekey, base + batch * 10);
+
+  ResumeCheck();
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 3; ++i) {
+    RespondPseudoColumns(1000 + i);
+    ASSERT_FALSE(HasFatalFailure());
+  }
+  params = Pending();
+  ASSERT_EQ(params.size(), 5U);
+  for (int32_t i = 0; i < 5; ++i) EXPECT_EQ(params[i].currentTs, base + (batch + i + 1) * 10);
+  EXPECT_EQ(group_.oldThreshold, base + (batch + 5) * 10);
+  EXPECT_EQ(group_.windows.neles, 0);
+  EXPECT_EQ(group_.tableUids.neles, 0);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, MissingWindowSharedAcrossTablesProducesOneTrigger) {
+  const TSKEY base = 1752574200000LL;
+  SetRows({base + 1, base + 51, base + 101, base + 52, base + 60, base + 105});
+  SplitTables(3);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), 2U);
+  EXPECT_EQ(params[0].currentTs, base + 10);
+  EXPECT_EQ(params[1].currentTs, base + 60);
+  ASSERT_EQ(group_.windows.neles, 1);
+  const auto* open = static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+  EXPECT_EQ(open->range.skey, base + 101);
+  EXPECT_EQ(open->wrownum, 2);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, FullMissingWindowBatchesKeepEarliestCandidatesAcrossTables) {
+  const TSKEY          base = 1752574200000LL;
+  const int32_t        batch = STREAM_CALC_REQ_MAX_WIN_NUM;
+  std::vector<TSKEY>   rows;
+  std::vector<int32_t> expected;
+  for (int32_t i = 2 * batch + 1; i <= 3 * batch + 5; ++i) rows.push_back(base + i * 10LL);
+  const int32_t split = rows.size();
+  for (int32_t i = 1; i <= batch + 2; ++i) {
+    rows.push_back(base + i * 10LL);
+    expected.push_back(i);
+  }
+  for (int32_t i = 2 * batch + 1; i <= 3 * batch + 5; ++i) expected.push_back(i);
+  SetRows(rows);
+  SplitTables(split);
+  size_t consumed = 0;
+  for (int32_t round = 0; round < 3; ++round) {
+    if (round != 0) ResumeCheck();
+    ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+    const auto params = Pending();
+    ASSERT_EQ(params.size(), round < 2 ? static_cast<size_t>(batch) : 7U);
+    for (const auto& param : params) {
+      ASSERT_LT(consumed, expected.size());
+      EXPECT_EQ(param.currentTs, base + expected[consumed++] * 10LL);
+    }
+    EXPECT_LE(context_.pWindows->capacity, 4 * batch);
+  }
+  EXPECT_EQ(consumed, expected.size());
+  EXPECT_EQ(group_.prevWindow.ekey, group_.newThreshold);
+  EXPECT_EQ(group_.oldThreshold, group_.newThreshold);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, LaterTableReusesExistingWindowsBeforeAddingMissingWindow) {
+  const TSKEY base = 1752574200000LL;
+  SetRows({base + 1, base + 101, base + 5, base + 51, base + 105});
+  SplitTables(2);
+
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), 2U);
+  EXPECT_EQ(params[0].currentTs, base + 10);
+  EXPECT_EQ(params[1].currentTs, base + 60);
+  EXPECT_EQ(group_.prevWindow.ekey, base + 100);
+  ASSERT_EQ(group_.windows.neles, 1);
+  const auto* open = static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+  EXPECT_EQ(open->range.skey, base + 101);
+  EXPECT_EQ(open->wrownum, 2);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, OpenWindowAccumulatesAcrossRounds) {
+  const TSKEY base = 1752574200000LL;
+  SetRows({base + 1, base + 2});
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(group_.windows.neles, 1);
+  EXPECT_EQ(static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows))->wrownum, 2);
+
+  ResumeCheck();
+  SetRows({base + 3, base + 4});
+  group_.oldThreshold = base + 2;
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(group_.windows.neles, 1);
+  EXPECT_EQ(static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows))->wrownum, 4);
+
+  ResumeCheck();
+  SetRows({base + 600001});
+  group_.oldThreshold = base + 4;
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Pending().size(), 1U);
+  EXPECT_EQ(Pending()[0].currentTs, base + 10);
+  EXPECT_EQ(group_.prevWindow.ekey, base + 600000);
+  ASSERT_EQ(group_.windows.neles, 1);
+  EXPECT_EQ(static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows))->wrownum, 1);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, FullBatchRescansAllTablesWithoutRepeatingClosedWindows) {
+  const TSKEY        base = 1752574200000LL;
+  std::vector<TSKEY> rows;
+  for (int64_t i = 1; i <= STREAM_CALC_REQ_MAX_WIN_NUM + 6; ++i) {
+    if (i != 2) rows.push_back(base + i * 10);
+  }
+  // A later table inserts an earlier window and displaces the first table's last batch candidate.
+  rows.push_back(base + 11);
+  rows.push_back(base + (STREAM_CALC_REQ_MAX_WIN_NUM + 6LL) * 10);
+  SetRows(rows);
+  SplitTables(rows.size() - 2);
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto first = Pending();
+  ASSERT_EQ(first.size(), STREAM_CALC_REQ_MAX_WIN_NUM);
+  EXPECT_EQ(first.front().currentTs, base + 10);
+  EXPECT_EQ(first.back().currentTs, base + STREAM_CALC_REQ_MAX_WIN_NUM * 10LL);
+  EXPECT_LT(group_.oldThreshold, group_.newThreshold);
+
+  ResumeCheck();
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto second = Pending();
+  ASSERT_EQ(second.size(), 6U);
+  for (size_t i = 0; i < second.size(); ++i) {
+    EXPECT_EQ(second[i].currentTs, base + (STREAM_CALC_REQ_MAX_WIN_NUM + i + 1) * 10);
+  }
+  EXPECT_EQ(group_.oldThreshold, group_.newThreshold);
+  EXPECT_EQ(group_.prevWindow.ekey, group_.newThreshold);
+  EXPECT_LE(context_.pWindows->capacity, 2 * STREAM_CALC_REQ_MAX_WIN_NUM);
+}
+
+TEST_F(StreamTriggerSparseSlidingTest, PseudoColumnResumePreservesAllTablesForNextBatch) {
+  const TSKEY        base = 1752574200000LL;
+  std::vector<TSKEY> rows;
+  for (int64_t i = 1; i <= STREAM_CALC_REQ_MAX_WIN_NUM + 5; ++i) rows.push_back(base + i * 10);
+  rows.push_back(base + 1);
+  SetRows(rows);
+  SplitTables(rows.size() - 1);
+
+  // Resume after the first table filled the batch and the second table's pseudo columns arrived.
+  // The pending suffix contains only table 101; the saved list must still contain both tables.
+  for (int64_t uid = 100; uid <= 101; ++uid) {
+    const int64_t ids[2] = {uid, reader_->nodeId};
+    ASSERT_EQ(taosObjListAppend(&context_.dumpTableUids, ids), TSDB_CODE_SUCCESS);
+  }
+  taosObjListClear(&group_.tableUids);
+  const int64_t suffix[2] = {101, reader_->nodeId};
+  ASSERT_EQ(taosObjListAppend(&group_.tableUids, suffix), TSDB_CODE_SUCCESS);
+  group_.prevWindow.skey = base - 9;
+  group_.prevWindow.ekey = base;
+  context_.needCheckAgain = true;
+  for (int64_t i = 1; i <= STREAM_CALC_REQ_MAX_WIN_NUM; ++i) {
+    SSTriggerNotifyWindow win = {};
+    win.range.skey = base + (i - 1) * 10 + 1;
+    win.range.ekey = base + i * 10;
+    win.wrownum = 1;
+    ASSERT_NE(taosArrayPush(context_.pWindows, &win), nullptr);
+  }
+
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(Pending().size(), STREAM_CALC_REQ_MAX_WIN_NUM);
+  EXPECT_EQ(group_.tableUids.neles, 2);
+  EXPECT_EQ(context_.dumpTableUids.neles, 0);
+
+  ResumeCheck();
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto second = Pending();
+  ASSERT_EQ(second.size(), 5U);
+  for (size_t i = 0; i < second.size(); ++i) {
+    EXPECT_EQ(second[i].currentTs, base + (STREAM_CALC_REQ_MAX_WIN_NUM + i + 1) * 10);
+  }
+  EXPECT_EQ(group_.oldThreshold, group_.newThreshold);
+}
+
+struct SparseSlidingCalendarCase {
+  const char* zone;
+  char        unit;
+  int64_t     sliding;
+  int64_t     offset;
+  TSKEY       first;
+  TSKEY       last;
+};
+
+TEST_F(StreamTriggerSparseSlidingTest, MidnightDstAnchorDoesNotCloseWindowEarly) {
+  tzfree(timezone_);
+  timezone_ = tzalloc("America/Sao_Paulo");
+  ASSERT_NE(timezone_, nullptr);
+  task_.interval.timezone = timezone_;
+  task_.interval.intervalUnit = 'm';
+  task_.interval.slidingUnit = 'm';
+  task_.interval.sliding = 7 * 60 * 1000;
+  task_.interval.offset = 0;
+  // Local times: 2018-11-05 01:00:00.001 and 2018-11-06 00:06:00.000.
+  SetRows({1541386800001LL, 1541469960000LL});
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto params = Pending();
+  ASSERT_EQ(params.size(), 1U);
+  EXPECT_EQ(params[0].currentTs, 1541387220000LL);     // 01:07 on the first day.
+  EXPECT_EQ(group_.prevWindow.ekey, 1541469600000LL);  // Midnight on the second day.
+  ASSERT_EQ(group_.windows.neles, 1);
+  const auto* open = static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+  EXPECT_EQ(open->range.skey, 1541469600001LL);
+  EXPECT_EQ(open->range.ekey, 1541470020000LL);  // 00:07, still beyond the input threshold.
+  EXPECT_EQ(open->wrownum, 1);
+}
+
+class StreamTriggerSparseCalendarTest : public StreamTriggerSparseSlidingTest,
+                                        public ::testing::WithParamInterface<SparseSlidingCalendarCase> {};
+
+TEST_P(StreamTriggerSparseCalendarTest, MatchesDenseWindowChainAcrossCalendarBoundaries) {
+  const auto testCase = GetParam();
+  tzfree(timezone_);
+  timezone_ = tzalloc(testCase.zone);
+  ASSERT_NE(timezone_, nullptr);
+  task_.interval.timezone = timezone_;
+  task_.interval.intervalUnit = testCase.unit;
+  task_.interval.slidingUnit = testCase.unit;
+  task_.interval.sliding = testCase.sliding;
+  task_.interval.offset = testCase.offset;
+  const TSKEY              span = testCase.last - testCase.first;
+  const std::vector<TSKEY> tableRows = {
+      testCase.first,    testCase.first + 1, testCase.first + span / 3, testCase.first + 2 * span / 3,
+      testCase.last - 1, testCase.last};
+  std::vector<TSKEY> rows = tableRows;
+  rows.insert(rows.end(), tableRows.begin(), tableRows.end());
+
+  task_.ignoreNoDataTrigger = false;
+  SetRows(rows);
+  SplitTables(tableRows.size());
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  std::vector<SSTriggerCalcParam> expected;
+  for (const auto& param : Pending()) {
+    if (std::any_of(rows.begin(), rows.end(), [&](TSKEY ts) { return ts >= param.prevTs && ts <= param.currentTs; })) {
+      expected.push_back(param);
+    }
+  }
+  const auto      closed = group_.prevWindow;
+  const auto      openCount = group_.windows.neles;
+  SSTriggerWindow open = {};
+  if (openCount != 0) open = *static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+
+  ResumeCheck();
+  taosObjListClear(&group_.windows);
+  group_.prevWindow.skey = INT64_MIN;
+  group_.prevWindow.ekey = INT64_MIN;
+  task_.ignoreNoDataTrigger = true;
+  SetRows(rows);
+  SplitTables(tableRows.size());
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto actual = Pending();
+  ASSERT_EQ(actual.size(), expected.size());
+  for (size_t i = 0; i < actual.size(); ++i) {
+    EXPECT_EQ(actual[i].prevTs, expected[i].prevTs);
+    EXPECT_EQ(actual[i].currentTs, expected[i].currentTs);
+    EXPECT_EQ(actual[i].nextTs, expected[i].nextTs);
+  }
+  EXPECT_EQ(group_.prevWindow.skey, closed.skey);
+  EXPECT_EQ(group_.prevWindow.ekey, closed.ekey);
+  ASSERT_EQ(group_.windows.neles, openCount);
+  if (openCount != 0) {
+    const auto* actualOpen = static_cast<SSTriggerWindow*>(taosObjListGetHead(&group_.windows));
+    EXPECT_EQ(actualOpen->range.skey, open.range.skey);
+    EXPECT_EQ(actualOpen->range.ekey, open.range.ekey);
+    EXPECT_EQ(actualOpen->wrownum, open.wrownum);
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    BoundaryCases, StreamTriggerSparseCalendarTest,
+    ::testing::Values(
+        SparseSlidingCalendarCase{"UTC", 'h', 18000000, 0, 1709856000001LL, 1710205200000LL},
+        SparseSlidingCalendarCase{"UTC", 'h', 18000000, 7200000, 1709856000001LL, 1710205200000LL},
+        SparseSlidingCalendarCase{"America/New_York", 'h', 18000000, 7200000, 1709856000001LL, 1710205200000LL},
+        SparseSlidingCalendarCase{"America/New_York", 'h', 18000000, 7200000, 1730419200001LL, 1730764800000LL},
+        SparseSlidingCalendarCase{"America/New_York", 'd', 86400000, 0, 1709856000001LL, 1710205200000LL},
+        SparseSlidingCalendarCase{"America/New_York", 'w', 604800000, 0, 1709510400001LL, 1711324800000LL},
+        SparseSlidingCalendarCase{"America/New_York", 'd', 172800000, 0, 1709856000001LL, 1710205200000LL},
+        SparseSlidingCalendarCase{"America/Sao_Paulo", 'h', 18000000, 7200000, 1541116800001LL, 1541462400000LL},
+        SparseSlidingCalendarCase{"Pacific/Apia", 'h', 18000000, 7200000, 1325030400001LL, 1325376000000LL},
+        SparseSlidingCalendarCase{"UTC", 'n', 1, 0, 1704067200001LL, 1719792000000LL},
+        SparseSlidingCalendarCase{"UTC", 'y', 1, 0, 1672531200001LL, 1767225600000LL},
+        SparseSlidingCalendarCase{"UTC", 'a', 7, 0, 1709942399901LL, 1709942400100LL},
+        SparseSlidingCalendarCase{"America/Sao_Paulo", 'm', 420000, 0, 1541386800001LL, 1541469960000LL},
+        SparseSlidingCalendarCase{"UTC", 'a', 7, 0, -1201, 21},
+        SparseSlidingCalendarCase{"UTC", 'a', 7, 1, -1201, 21}));
 
 struct CreateTableRequestState {
   int32_t              sendCalls = 0;
