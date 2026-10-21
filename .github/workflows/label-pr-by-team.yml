@@ -41,7 +41,7 @@ jobs:
             private-key: ${{ secrets.TAOSDATA_BOT_KEY }}
             owner: ${{ github.repository_owner }}
             repositories: ${{ github.event.repository.name }}
-            permission-issues: write
+            permission-pull-requests: write
             permission-members: read
 
         - name: Add PR Labels
