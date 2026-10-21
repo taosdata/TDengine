@@ -3971,6 +3971,9 @@ static int32_t extTableNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, "SrcNameFromPath", pNode->srcNameFromPath);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "NsFromPathOnly", pNode->nsFromPathOnly);
+  }
   // pExtMeta is not serialized (runtime only)
   return code;
 }
@@ -3995,6 +3998,7 @@ static int32_t jsonToExtTableNode(const SJson* pJson, void* pObj) {
   tjsonGetStringValue(pJson, "SrcOptions", pNode->srcOptions);
   tjsonGetStringValue(pJson, "RemoteTableName", pNode->remoteTableName);
   tjsonGetBoolValue(pJson, "SrcNameFromPath", &pNode->srcNameFromPath);
+  tjsonGetBoolValue(pJson, "NsFromPathOnly", &pNode->nsFromPathOnly);
   pNode->pExtMeta = NULL;
   return TSDB_CODE_SUCCESS;
 }

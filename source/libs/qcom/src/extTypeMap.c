@@ -1145,8 +1145,23 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
     case EXT_SOURCE_INFLUXDB:
       return TSDB_TIME_PRECISION_NANO;
     case EXT_SOURCE_SQLSERVER:
-      // datetime2/datetimeoffset carry up to 7 fractional digits; the connector
-      // reads them at microsecond resolution (DS 5.3.7).
+      // datetime2/datetimeoffset declare their own fractional-seconds precision
+      // (0..7, 7 when the modifier is omitted).  A declaration with at most 3
+      // fractional digits is millisecond aligned, so it can back a millisecond
+      // virtual table; anything finer keeps the microsecond transport precision
+      // the connector reads at (DS 5.3.7).  `datetime` also stays microsecond:
+      // its 1/300 s ticks are not millisecond exact.  smalldatetime/date are
+      // minute/day aligned and therefore millisecond safe.
+      if (extTypeName != NULL) {
+        if (typeHasPrefix(extTypeName, "datetime2") || typeHasPrefix(extTypeName, "datetimeoffset")) {
+          const char* pParen = strchr(extTypeName, '(');
+          return pParen != NULL && parseTypeLength(extTypeName) <= 3 ? TSDB_TIME_PRECISION_MILLI
+                                                                     : TSDB_TIME_PRECISION_MICRO;
+        }
+        if (typeHasPrefix(extTypeName, "smalldatetime") || typeHasPrefix(extTypeName, "date")) {
+          return TSDB_TIME_PRECISION_MILLI;
+        }
+      }
       return TSDB_TIME_PRECISION_MICRO;
     default:
       break;

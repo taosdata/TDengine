@@ -770,7 +770,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006210 | Virtual table source table does not exist                                  | 虚拟表引用的源表不存在（已被删除或改名）                                  | 确认源表是否存在；重建源表或修正引用 |
 | 0x80006211 | Virtual table source column not found                                      | 虚拟表引用的源表列不存在                                                 | 确认源表 schema；修正引用列或重建源表 |
 | 0x80006212 | Virtual table ref column unresolved                                        | 虚拟表引用列无法解析（链路过深、成环或终端缺失）                           | 用 SHOW VTABLE VALIDATE 定位失败点；修正引用链 |
-| 0x80006213 | External column filters require a direct MySQL or PostgreSQL column reference | 对非 MySQL/PostgreSQL 外部源或间接虚拟表引用指定了新的列过滤条件 | 仅在直接引用 MySQL/PostgreSQL 外部表列时指定条件；虚拟表链使用叶子列保存的条件 |
+| 0x80006213 | External column filters require a direct MySQL, PostgreSQL, or SQL Server column reference | 对非 MySQL/PostgreSQL/SQL Server 外部源或间接虚拟表引用指定了新的列过滤条件 | 仅在直接引用 MySQL/PostgreSQL/SQL Server 外部表列时指定条件；虚拟表链使用叶子列保存的条件 |
 | 0x80006214 | Cannot generate or execute remote SQL with the stored external column filter | 无法生成带保存条件的远端 SQL，或外部数据库拒绝执行该 SQL | 根据错误详情检查列过滤条件和远端数据库支持的语法；保存条件必须在远端执行，不能降级为本地过滤 |
 | 0x80006215 | Invalid external column filter expression | 外部列过滤条件结构非法，或保存的条件无法解析 | 仅使用未限定列名与字面量进行比较，并通过 `AND` 连接；日期和时间使用字符串字面量 |
 | 0x80006216 | Duplicate column in external column filter | 外部列过滤条件中重复使用同一列，列名比较不区分大小写 | 确保每个条件列只出现一次 |

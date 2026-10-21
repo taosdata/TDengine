@@ -506,3 +506,69 @@ RESULT
 6|10|4|45
 NULL|NULL|5|50
 ---
+### xsrc-34 POS
+SQL: SELECT id, val FROM {S}.ta UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-35 POS
+SQL: SELECT id, val FROM {S}.ta UNION ALL SELECT id, val FROM {L}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-36 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {P}.ta UNION ALL SELECT id, val FROM {I}.ta UNION ALL SELECT id, val FROM {L}.ta UNION ALL SELECT id, val FROM {S}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+1|10
+1|10
+1|10
+2|20
+2|20
+2|20
+2|20
+2|20
+3|30
+3|30
+3|30
+3|30
+3|30
+4|40
+4|40
+4|40
+4|40
+4|40
+5|50
+5|50
+5|50
+5|50
+5|50
+6|10
+6|10
+6|10
+6|10
+6|10
+---

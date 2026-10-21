@@ -3688,8 +3688,10 @@ static int32_t sysTableUserColsFillOneCol(const char* dbname, int32_t* pNumOfRow
   if (!pColRefEntry || !pColRefEntry->hasRef) {
     colDataSetNULL(pColInfoData, numOfRows);
   } else {
-    char refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
-    char tmpColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + 1] = {0};
+    char refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_DB_NAME_LEN +
+                     TSDB_NAME_DELIMITER_LEN * 2 + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    char tmpColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_DB_NAME_LEN +
+                     TSDB_NAME_DELIMITER_LEN * 2 + TSDB_COL_FNAME_LEN + 1] = {0};
 
     TSlice refColNameBuf = {0};
     sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
@@ -3702,6 +3704,16 @@ static int32_t sysTableUserColsFillOneCol(const char* dbname, int32_t* pNumOfRow
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pColRefEntry->refDbName, strlen(pColRefEntry->refDbName)),
                      lino, _end);
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+
+    // Render the schema whenever the reference carries one: SQL Server stores
+    // it only when the path named it, PostgreSQL stores its creation-time
+    // default.  Omitting it would make a five-part SQL Server reference
+    // re-parse with the database segment read as a schema.
+    if (pColRefEntry->refSchemaName[0] != '\0') {
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pColRefEntry->refSchemaName, strlen(pColRefEntry->refSchemaName)),
+                       lino, _end);
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    }
 
     QUERY_CHECK_CODE(
         sliceAppend(&refColNameBuf, pColRefEntry->refTableName, strlen(pColRefEntry->refTableName)), lino,
@@ -3889,28 +3901,32 @@ static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_
   if (!colRef || !colRef->pColRef[colIdx].hasRef) {
     colDataSetNULL(pColInfoData, numOfRows);
   } else {
-    char   refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
-    char   tmpColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + 1] = {0};
+    char   refColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_DB_NAME_LEN +
+                      TSDB_NAME_DELIMITER_LEN * 2 + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    char   tmpColName[TSDB_EXT_SOURCE_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_DB_NAME_LEN +
+                      TSDB_NAME_DELIMITER_LEN * 2 + TSDB_COL_FNAME_LEN + 1] = {0};
+    const SColRef* pRefEntry = &colRef->pColRef[colIdx];
     TSlice refColNameBuf = {0};
 
     sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
-    if (colRef->pColRef[colIdx].refSourceName[0] != '\0') {
-      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refSourceName,
-                                   strlen(colRef->pColRef[colIdx].refSourceName)),
+    if (pRefEntry->refSourceName[0] != '\0') {
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pRefEntry->refSourceName, strlen(pRefEntry->refSourceName)),
                        lino, _end);
       QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
     }
-    QUERY_CHECK_CODE(
-        sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refDbName, strlen(colRef->pColRef[colIdx].refDbName)),
-        lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pRefEntry->refDbName, strlen(pRefEntry->refDbName)), lino, _end);
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
-    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refTableName,
-                                 strlen(colRef->pColRef[colIdx].refTableName)),
-                     lino, _end);
+    // Schema is rendered whenever the reference carries one (same rule as
+    // sysTableUserColsFillOneCol above).
+    if (pRefEntry->refSchemaName[0] != '\0') {
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pRefEntry->refSchemaName, strlen(pRefEntry->refSchemaName)),
+                       lino, _end);
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    }
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pRefEntry->refTableName, strlen(pRefEntry->refTableName)), lino,
+                     _end);
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
-    QUERY_CHECK_CODE(
-        sliceAppend(&refColNameBuf, colRef->pColRef[colIdx].refColName, strlen(colRef->pColRef[colIdx].refColName)),
-        lino, _end);
+    QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pRefEntry->refColName, strlen(pRefEntry->refColName)), lino, _end);
     STR_TO_VARSTR(refColName, tmpColName);
 
     code = colDataSetVal(pColInfoData, numOfRows, (char*)refColName, false);
@@ -3997,15 +4013,24 @@ static int32_t sysTableUserColsFillOneVirtualTableTagRef(const char* dbname, int
   code = colDataSetVal(pColInfoData, numOfRows, (char*)&pTagRef->id, false);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  // 6: refColName (format "db.table.col")
+  // 6: refColName (format "db.[schema.]table.col")
   {
-    char   refColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    char   tmpColName[TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN + TSDB_COL_FNAME_LEN] = {0};
+    char   refColName[TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN * 2 +
+                      TSDB_COL_FNAME_LEN + VARSTR_HEADER_SIZE + 1] = {0};
+    char   tmpColName[TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_DB_NAME_LEN + TSDB_NAME_DELIMITER_LEN * 2 +
+                      TSDB_COL_FNAME_LEN + 1] = {0};
     TSlice refColNameBuf = {0};
 
     sliceInit(&refColNameBuf, tmpColName, sizeof(tmpColName));
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refDbName, strlen(pTagRef->refDbName)), lino, _end);
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    // Schema is rendered whenever the reference carries one (same rule as
+    // sysTableUserColsFillOneCol above).
+    if (pTagRef->refSchemaName[0] != '\0') {
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refSchemaName, strlen(pTagRef->refSchemaName)), lino,
+                       _end);
+      QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
+    }
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refTableName, strlen(pTagRef->refTableName)), lino, _end);
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, ".", 1), lino, _end);
     QUERY_CHECK_CODE(sliceAppend(&refColNameBuf, pTagRef->refColName, strlen(pTagRef->refColName)), lino, _end);

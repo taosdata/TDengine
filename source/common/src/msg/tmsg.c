@@ -8339,6 +8339,38 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pTb->refCols[n].hasFilterCond));
     }
   }
+  // Ref schema-name section appended for backward compatibility (SQL Server
+  // five-part refs).  Format: numEntries, then per entry: uid + isTag + colId + refSchemaName.
+  int32_t numRefSchemaEntries = 0;
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
+    for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
+      if (pTb->refCols[n].refSchemaName[0] != '\0') numRefSchemaEntries++;
+    }
+    for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
+      if (pTb->tagRefCols[n].refSchemaName[0] != '\0') numRefSchemaEntries++;
+    }
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numRefSchemaEntries));
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
+    for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
+      SRefColInfo *pCol = pTb->refCols + n;
+      if (pCol->refSchemaName[0] == '\0') continue;
+      TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 0));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSchemaName));
+    }
+    for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
+      SRefColInfo *pCol = pTb->tagRefCols + n;
+      if (pCol->refSchemaName[0] == '\0') continue;
+      TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 1));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSchemaName));
+    }
+  }
 _exit:
 
   return code;
@@ -8512,6 +8544,39 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
       }
     }
   }
+
+  // Ref schema-name section: only present in newer versions
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t numRefSchemaEntries = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numRefSchemaEntries));
+    for (int32_t i = 0; i < numRefSchemaEntries; ++i) {
+      uint64_t uid = 0;
+      int8_t   isTag = 0;
+      int16_t  colId = 0;
+      char     schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
+      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
+      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
+      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, schemaName));
+
+      int32_t numInArray = taosArrayGetSize(pRsp->pTables);
+      for (int32_t j = 0; j < numInArray; ++j) {
+        SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, j);
+        if (NULL == pTb || pTb->uid != uid) {
+          continue;
+        }
+        SRefColInfo *pCols = isTag ? pTb->tagRefCols : pTb->refCols;
+        int32_t      nCols = isTag ? pTb->numOfTagRefs : pTb->numOfColRefs;
+        for (int32_t n = 0; n < nCols; ++n) {
+          if (pCols[n].colId == colId) {
+            tstrncpy(pCols[n].refSchemaName, schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+            break;
+          }
+        }
+        break;
+      }
+    }
+  }
 _exit:
 
   return code;
@@ -8626,6 +8691,40 @@ int32_t tSerializeSVStbRefDbsRspImpl(SEncoder *pEncoder, SVStbRefDbsRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->refSourceName));
   }
 
+  // Schema section appended for backward compatibility (SQL Server five-part
+  // refs): numEntries, then per entry: position in the col/tag ref list +
+  // isTag flag + schema name.  Older decoders stop before this section.
+  int32_t numOfSchemaEntries = 0;
+  for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+    if (pRsp->pColRefCols[i].refSchemaName[0] != '\0') {
+      numOfSchemaEntries++;
+    }
+  }
+  for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+    if (pRsp->pTagRefCols[i].refSchemaName[0] != '\0') {
+      numOfSchemaEntries++;
+    }
+  }
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numOfSchemaEntries));
+  for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+    SRefColInfo* pRef = &pRsp->pColRefCols[i];
+    if (pRef->refSchemaName[0] == '\0') {
+      continue;
+    }
+    TAOS_CHECK_EXIT(tEncodeI16(pEncoder, (int16_t)i));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 0));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->refSchemaName));
+  }
+  for (int32_t i = 0; i < pRsp->numOfTagRefs; ++i) {
+    SRefColInfo* pRef = &pRsp->pTagRefCols[i];
+    if (pRef->refSchemaName[0] == '\0') {
+      continue;
+    }
+    TAOS_CHECK_EXIT(tEncodeI16(pEncoder, (int16_t)i));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 1));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->refSchemaName));
+  }
+
 _exit:
 
   return code;
@@ -8731,6 +8830,25 @@ int32_t tDeserializeSVStbRefDbsRspImpl(SDecoder *pDecoder, SVStbRefDbsRsp *pRsp)
         TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRef->refTableName));
         TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRef->refColName));
         TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRef->refSourceName));
+      }
+    }
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t numOfSchemaEntries = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfSchemaEntries));
+    for (int32_t i = 0; i < numOfSchemaEntries; ++i) {
+      int16_t idx = 0;
+      int8_t  isTag = 0;
+      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &idx));
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
+      SRefColInfo* pRefs = isTag ? pRsp->pTagRefCols : pRsp->pColRefCols;
+      int32_t      num = isTag ? pRsp->numOfTagRefs : pRsp->numOfColRefs;
+      if (idx >= 0 && idx < num && NULL != pRefs) {
+        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pRefs[idx].refSchemaName));
+      } else {
+        char discard[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
+        TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, discard));
       }
     }
   }
@@ -17147,8 +17265,11 @@ static int32_t tDecodeForeignScanFilter(SDecoder* pDecoder, uint64_t* pScanParam
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
  */
-static int32_t tEncodeSForeignTableInfo(SEncoder* pEncoder, const SForeignTableInfo* pTable) {
+static int32_t tEncodeSForeignTableInfo(SEncoder* pEncoder, const SForeignTableInfo* pTable, bool withSchema) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->dbName));
+  if (withSchema) {
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->schemaName));
+  }
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->tableName));
   size_t colSize = taosArrayGetSize(pTable->colMap);
   if (colSize > TSDB_MAX_COLUMNS) {
@@ -17190,8 +17311,11 @@ static int32_t tEncodeSForeignTableInfo(SEncoder* pEncoder, const SForeignTableI
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
  */
-static int32_t tDecodeSForeignTableInfo(SDecoder* pDecoder, SForeignTableInfo* pTable) {
+static int32_t tDecodeSForeignTableInfo(SDecoder* pDecoder, SForeignTableInfo* pTable, bool withSchema) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pTable->dbName));
+  if (withSchema) {
+    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pTable->schemaName));
+  }
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pTable->tableName));
   int32_t colNum = 0;
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &colNum));
@@ -17238,9 +17362,14 @@ static void tDestroyDecodedSForeignTableInfo(void* pData) {
 }
 
 enum {
-  // Legacy payloads store colNum here. One past the valid column limit marks
-  // the explicit V2 header without colliding with a valid legacy message.
+  // Legacy payloads store colNum here. Values past the valid column limit mark
+  // explicit headers without colliding with a valid legacy message:
+  //   V2 - parameter type / colNum / batchNum, no schema anywhere.
+  //   V3 - V2 plus an explicit schema segment (param level, and per table for
+  //        batch payloads). An old decoder reads V3 as an out-of-range colNum
+  //        and rejects the message cleanly instead of misaligning the stream.
   TMSG_FEDERATED_SCAN_CODEC_V2_MARKER = TSDB_MAX_COLUMNS + 1,
+  TMSG_FEDERATED_SCAN_CODEC_V3_MARKER = TSDB_MAX_COLUMNS + 2,
   TMSG_MIN_FOREIGN_TABLE_WIRE_BYTES = 40,
 };
 
@@ -17391,15 +17520,31 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       int32_t colNum = (int32_t)colSize;
       int32_t batchNum = (int32_t)batchSize;
 
+      // The schema segment was added after the base 3.4.4 layout.  Keep
+      // emitting the original payload when no schema is present so older
+      // peers can still decode it; use the V3 header only when a schema has
+      // to be carried.
+      bool withSchema = ('\0' != pFsParam->schemaName[0]);
+      for (int32_t i = 0; i < batchNum && !withSchema; ++i) {
+        SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, i);
+        if (pTable != NULL && '\0' != pTable->schemaName[0]) {
+          withSchema = true;
+        }
+      }
+
       if (pFsParam->paramType == FOREIGN_SCAN_PARAM_BATCH) {
         if (colNum != 0 || batchNum <= 0) {
           return TSDB_CODE_INVALID_PARA;
         }
-        TAOS_CHECK_RETURN(
-            tEncodeI32(pEncoder, TMSG_FEDERATED_SCAN_CODEC_V2_MARKER));
+        TAOS_CHECK_RETURN(tEncodeI32(
+            pEncoder, withSchema ? TMSG_FEDERATED_SCAN_CODEC_V3_MARKER
+                                 : TMSG_FEDERATED_SCAN_CODEC_V2_MARKER));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->paramType));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, batchNum));
+        if (withSchema) {
+          TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->schemaName));
+        }
         TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pFsParam->sourceMetaVersion));
         TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pFsParam->dstPrecision));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->groupId));
@@ -17411,7 +17556,7 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
           if (pTable == NULL) {
             return terrno;
           }
-          TAOS_CHECK_RETURN(tEncodeSForeignTableInfo(pEncoder, pTable));
+          TAOS_CHECK_RETURN(tEncodeSForeignTableInfo(pEncoder, pTable, withSchema));
         }
         break;
       }
@@ -17419,9 +17564,16 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
         return TSDB_CODE_INVALID_PARA;
       }
 
-      // Extend the established single-table layout directly; rolling upgrade
-      // compatibility is not required for this internal operator parameter.
-      TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
+      if (withSchema) {
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, TMSG_FEDERATED_SCAN_CODEC_V3_MARKER));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->paramType));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, 0));  // batchNum
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->schemaName));
+      } else {
+        // Original single-table layout: colNum directly after tableName.
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
+      }
       for (int32_t i = 0; i < colNum; ++i) {
         SColIdNameKV *pColKV = taosArrayGet(pFsParam->colMap, i);
         if (pColKV == NULL) {
@@ -17674,12 +17826,19 @@ static int32_t tDeserializeSOperatorParamDepth(SDecoder *pDecoder, SOperatorPara
       int32_t paramType = FOREIGN_SCAN_PARAM_SINGLE;
       int32_t colNum = 0;
       int32_t batchNum = 0;
+      bool    withSchema = false;
       TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &wireHeader));
-      if (wireHeader == TMSG_FEDERATED_SCAN_CODEC_V2_MARKER) {
+      if (wireHeader == TMSG_FEDERATED_SCAN_CODEC_V2_MARKER ||
+          wireHeader == TMSG_FEDERATED_SCAN_CODEC_V3_MARKER) {
+        withSchema = (wireHeader == TMSG_FEDERATED_SCAN_CODEC_V3_MARKER);
         TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &paramType));
         TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &colNum));
         TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &batchNum));
+        if (withSchema) {
+          TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pFsParam->schemaName));
+        }
       } else {
+        // Original single-table payload: colNum directly after tableName.
         colNum = wireHeader;
       }
 
@@ -17714,7 +17873,7 @@ static int32_t tDeserializeSOperatorParamDepth(SDecoder *pDecoder, SOperatorPara
         }
         for (int32_t i = 0; i < batchNum; ++i) {
           SForeignTableInfo table = {0};
-          int32_t code = tDecodeSForeignTableInfo(pDecoder, &table);
+          int32_t code = tDecodeSForeignTableInfo(pDecoder, &table, withSchema);
           if (code != TSDB_CODE_SUCCESS) {
             tDestroyDecodedSForeignTableInfo(&table);
             taosArrayDestroyEx(pBatchTables,

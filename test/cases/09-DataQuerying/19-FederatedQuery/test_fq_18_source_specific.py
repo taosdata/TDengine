@@ -338,9 +338,12 @@ _CASES = [
      "JOIN {S_VIEW}.{S_VIEW_DB}.dbo.orders o ON v.id = o.user_id "
      "GROUP BY v.id, v.name ORDER BY v.id",
      True, None, {}),
-    # SQL Server collation/case: with zero pushdown the predicate is evaluated
-    # locally by TDengine, so string comparison follows TDengine semantics
-    # (case-sensitive) rather than the remote column's CI collation.
+    # SQL Server collation/case: `name = '<literal>'` is pushed down as an
+    # exact comparison — COLLATE Latin1_General_BIN2 plus a payload-length
+    # check (DS 5.3.11 item 1) — so the remote column's case-insensitive
+    # default collation no longer applies.  'ALPHA' does not match 'alpha':
+    # s-coll-01 returns no rows and s-coll-02 returns one row, matching
+    # TDengine's case-sensitive NCHAR comparison.
     ("s-coll-01",
      "SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'ALPHA' ORDER BY val",
      True, None, {}),
@@ -750,6 +753,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         Labels: common,ci
 
         History:
+            - 2026-10-21 wpan  Refresh the s-coll-01 baseline for the BIN2 exact comparison
             - 2026-09-24 Document vw-m-02/vw-p-02 positive view JOIN coverage
             - 2026-06-xx wpan  Migrated from fq_04 test_fq_sql_influxdb_tags_partition,
                                 fq_04 test_fq_sql_infoschema,

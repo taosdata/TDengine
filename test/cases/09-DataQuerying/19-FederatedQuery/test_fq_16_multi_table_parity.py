@@ -610,6 +610,25 @@ _CROSS_CASES: List[Tuple[str, str, dict]] = [
      "SELECT a.id, a.val, b.bid, b.val2 "
      "FROM {S}.ta a FULL JOIN {P}.tb b ON a.time = b.time",
      {"rows": 7, "ordered": False}),
+    # xsrc-34: SQL Server + InfluxDB UNION ALL -> 12 rows (6+6, identical data)
+    ("xsrc-34",
+     "SELECT id, val FROM {S}.ta "
+     "UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2",
+     {"rows": 12}),
+    # xsrc-35: SQL Server + local UNION ALL -> 12 rows (6+6, identical data)
+    ("xsrc-35",
+     "SELECT id, val FROM {S}.ta "
+     "UNION ALL SELECT id, val FROM {L}.ta ORDER BY 1, 2",
+     {"rows": 12}),
+    # xsrc-36: 5-source UNION ALL (M+P+I+L+S) -> 30 rows (6x5)
+    ("xsrc-36",
+     "SELECT id, val FROM {M}.ta "
+     "UNION ALL SELECT id, val FROM {P}.ta "
+     "UNION ALL SELECT id, val FROM {I}.ta "
+     "UNION ALL SELECT id, val FROM {L}.ta "
+     "UNION ALL SELECT id, val FROM {S}.ta "
+     "ORDER BY 1, 2",
+     {"rows": 30}),
 ]
 
 

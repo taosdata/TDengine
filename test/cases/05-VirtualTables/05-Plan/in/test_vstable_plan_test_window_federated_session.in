@@ -26,3 +26,9 @@ explain verbose true select _wstart, _wend, sum(mysql_a_v + postgres_v) from vt_
 
 # not optimized: aggregate functions must not reference tags
 explain verbose true select _wstart, _wend, sum(scenario) from vt_window_federated_batch.vst_single_source session(ts, 1500a) order by _wstart;
+
+# optimized: SQL Server joins the per-source partial aggregate merge
+explain verbose true select _wstart, _wend, sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_sources session(ts, 1500a) order by _wstart;
+
+# optimized: SQL Server source mixed with the internal table
+explain verbose true select _wstart, _wend, sum(local_v), sum(sqlserver_v) from vt_window_federated_batch.vst_local_ss session(ts, 1500a) order by _wstart;
