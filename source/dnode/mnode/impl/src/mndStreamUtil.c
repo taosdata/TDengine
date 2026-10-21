@@ -2060,6 +2060,17 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
 
+  // Security hardening (see "item 194"): nodesStringToNode returns SUCCESS and
+  // leaves *pNode NULL when scanPlan is a missing/optional JSON key, and it
+  // instantiates whatever NodeType the JSON names. A NULL or wrong-typed node
+  // here would be dereferenced right below (pSubplan->pNode) and crash the
+  // mnode. Reject non-physical-subplan results instead of walking them.
+  if (NULL == pSubplan || QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)pSubplan)) {
+    mstsError("stream:%" PRId64 " scanPlan decoded to invalid node (null:%d, type:%d)", streamId, (pSubplan == NULL),
+              (pSubplan ? nodeType((SNode*)pSubplan) : -1));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
+
   // The calc-scan reader root is usually a TABLE_SCAN. For the virtual-stable-agg pushdown the
   // reader is rooted at a partial aggregate (HASH_AGG -> TableScan); only in that case descend
   // through the aggregate to the nested table scan. For every other plan shape, preserve the

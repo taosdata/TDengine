@@ -1825,6 +1825,18 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
   int64_t key[2] = {streamId, 0};
   SStmTaskSrcAddr addr = {0};  /* zero-init: leave no field (e.g. isExt) as stack garbage */
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
+
+  // Security hardening (see "item 194"): scanPlan is a client-supplied JSON
+  // string; nodesStringToNode returns SUCCESS and leaves pSubplan NULL when the
+  // key is missing, and it builds whatever NodeType the JSON names. Both cases
+  // would be dereferenced below (pSubplan->id.groupId / subplanId) and crash the
+  // mnode. Reject non-physical-subplan results up front.
+  if (NULL == pSubplan || QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)pSubplan)) {
+    mstsError("stream:%" PRId64 " scanPlan decoded to invalid node (null:%d, type:%d)", streamId, (pSubplan == NULL),
+              (pSubplan ? nodeType((SNode*)pSubplan) : -1));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
+
   addr.isFromCache = false;
   /* P4-E2: mark EXT-source readers so msmUpdateLowestPlanSourceAddr can
    * select TDMT_STREAM_FETCH_EXT instead of TDMT_STREAM_FETCH. */
@@ -1886,6 +1898,15 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   int64_t streamId = pStream->pCreate->streamId;
   int64_t key[2] = {streamId, 0};
   TAOS_CHECK_EXIT(nodesStringToNode(pScan->scanPlan, (SNode**)&pSubplan));
+
+  // Security hardening (see "item 194"): identical NULL/type-confusion risk as
+  // msmUPAddScanTask. pScan->scanPlan is an optional JSON key that may be NULL or
+  // decode to a non-physical-subplan node; reject it before dereferencing below.
+  if (NULL == pSubplan || QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)pSubplan)) {
+    mstsError("stream:%" PRId64 " cache scanPlan decoded to invalid node (null:%d, type:%d)", streamId,
+              (pSubplan == NULL), (pSubplan ? nodeType((SNode*)pSubplan) : -1));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
 
   /* Zero-init so addr.isExt (and any future fields) are not left as stack
    * garbage. A cache reader is always a normal TDengine source, never an EXT
@@ -2162,9 +2183,20 @@ int32_t msmUpdatePlanSourceAddr(SStreamTask* pTask, int64_t streamId, SSubplan* 
   source.addr.epSet = pSrc->epset;
   source.addr.nodeId = pSrc->vgId;
 
+  // Security hardening (see "item 194"): a NULL plan, or a client subplan JSON that
+  // omits RootNode (leaving plan->pNode NULL), would crash in qSetSubplanExecutionNode
+  // -> nodeType(NULL). The msttDebug below dereferences plan (and pTask via the macro),
+  // so this check MUST run BEFORE the log; otherwise a NULL plan still crashes before
+  // the guard is reached and the defensive check becomes ineffective.
+  if (NULL == plan || NULL == plan->pNode) {
+    mstsError("stream:%" PRId64 " subplan %d has NULL plan/pNode, cannot set execution source", streamId,
+              (plan ? plan->id.subplanId : -1));
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  }
+
   msttDebug("try to update subplan %d grp %d sourceAddr from subplan %" PRId64 ", clientId:%" PRIx64 ", srcTaskId:%" PRIx64 ", srcNodeId:%d, msgType:%s", 
       plan->id.subplanId, pSrc->groupId, srcSubplanId, source.clientId, source.taskId, source.addr.nodeId, TMSG_INFO(source.fetchMsgType));
-  
+
   return qSetSubplanExecutionNode(plan, pSrc->groupId, &source);
 }
 
@@ -2265,6 +2297,13 @@ int32_t msmUpdateRunnerPlan(SStmGrpCtx* pCtx, SArray* pRunners, int32_t beginIdx
   addr.epset = mndGetDnodeEpsetById(pCtx->pMnode, pDeploy->task.nodeId);
   FOREACH(pNode, pPlan->pParents) {
     SSubplan* pSubplan = (SSubplan*)pNode;
+    // Security hardening (see "item 194"): elements of pPlan->pParents are taken as
+    // SSubplan with no type check. Reject wrong-typed nodes before walking them.
+    if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pNode)) {
+      mstsError("stream:%" PRId64 " parent subplan node type %d is not QUERY_NODE_PHYSICAL_SUBPLAN", streamId,
+                nodeType(pNode));
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    }
     TAOS_CHECK_EXIT(msmGetTaskIdFromSubplanId(pStream, pRunners, beginIdx, pSubplan->id.subplanId, &parentTaskId, &parentTask));
     TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(parentTask, streamId, pSubplan, parentTaskId, &addr, TDMT_STREAM_FETCH_FROM_RUNNER, pPlan->id.subplanId));
   }
@@ -2415,6 +2454,13 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
 
       for (int32_t n = 0; n < taskNum; ++n) {
         SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+        // Security hardening (see "item 194"): list elements are taken as SSubplan
+        // with no type check. Reject wrong-typed nodes before walking them.
+        if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)plan)) {
+          mstsError("stream:%" PRId64 " level:%d subplan[%d] node type %d is not QUERY_NODE_PHYSICAL_SUBPLAN",
+                    streamId, i, n, nodeType((SNode*)plan));
+          TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+        }
         pState = taosArrayReserve(deployList, 1);
 
         pState->id.taskId = msmAssignTaskId();
@@ -2488,6 +2534,16 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
     *pRoot = NULL;
     
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)pRoot));
+    // Security hardening (see "item 194"): re-decoded calcPlan must be a physical
+    // plan; otherwise (*pRoot)->pChildren / pDag->numOfSubplans reads below are a
+    // type-confused over-read. nodesStringToNode may return SUCCESS while leaving
+    // *pRoot NULL (e.g. empty input), so NULL-check first, then type-check - the
+    // same ordering used by the other hardening points (msmUPAddScanTask etc.).
+    if (NULL == *pRoot || QUERY_NODE_PHYSICAL_PLAN != nodeType((SNode*)*pRoot)) {
+      mstsError("stream:%" PRId64 " calcPlan root node invalid (null:%d, type:%d)", streamId, (*pRoot == NULL),
+                (*pRoot ? nodeType((SNode*)*pRoot) : -1));
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    }
     if (subQ) {
       pDag = (SQueryPlan *)nodesListGetNode((*pRoot)->pChildren, dagIdx);
     } else {
@@ -2522,6 +2578,15 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
   int32_t lino = 0;
   int64_t streamId = pStream->pCreate->streamId;
   int32_t newNodeId = 0;
+  // Security hardening (see "item 194"): pDag is a client plan decoded with no type
+  // check. Reading pDag->pSubplans below would be a type-confused over-read for a
+  // non-physical-plan root node. nodesStringToNode may leave pDag NULL on empty
+  // input, so NULL-check first, then type-check.
+  if (NULL == pDag || QUERY_NODE_PHYSICAL_PLAN != nodeType((SNode*)pDag)) {
+    mstsError("stream:%" PRId64 " rebuild calcPlan root node invalid (null:%d, type:%d)", streamId, (pDag == NULL),
+              (pDag ? nodeType((SNode*)pDag) : -1));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
   int32_t levelNum = (int32_t)LIST_LENGTH(pDag->pSubplans);
   int32_t        lowestLevelIdx = levelNum - 1;
   SNodeListNode *plans = NULL;
@@ -2558,6 +2623,13 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
       
       for (int32_t n = 0; n < taskNum; ++n) {
         SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+        // Security hardening (see "item 194"): list elements are taken as SSubplan
+        // with no type check. Reject wrong-typed nodes before walking them.
+        if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)plan)) {
+          mstsError("stream:%" PRId64 " rebuild subplan[%d] node type %d is not QUERY_NODE_PHYSICAL_SUBPLAN",
+                    streamId, n, nodeType((SNode*)plan));
+          TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+        }
 
         int32_t newTaskIdx = MND_SET_RUNNER_TASKIDX(i, n);
         if (pRunner->id.taskIdx != newTaskIdx) {
@@ -2593,6 +2665,15 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
     pDag = NULL;
 
     TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pDag));
+    // Security hardening (see "item 194"): the re-decoded pDag for the next loop
+    // iteration must be validated too - otherwise the entry check above is bypassed
+    // when deployNum > 1 and pDag->pSubplans is dereferenced unvalidated next round.
+    // Same NULL + type guard as the function entry.
+    if (NULL == pDag || QUERY_NODE_PHYSICAL_PLAN != nodeType((SNode*)pDag)) {
+      mstsError("stream:%" PRId64 " rebuild re-decoded calcPlan root node invalid (null:%d, type:%d)", streamId,
+                (pDag == NULL), (pDag ? nodeType((SNode*)pDag) : -1));
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    }
   }
 
 _exit:
@@ -2697,6 +2778,16 @@ static int32_t msmBuildRunnerTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStreamO
   int32_t     subQueryPlans = 0;
 
   TAOS_CHECK_EXIT(nodesStringToNode(pStream->pCreate->calcPlan, (SNode**)&pPlan));
+
+  // Security hardening (see "item 194"): the client calcPlan JSON is decoded with
+  // no type check; a non-physical-plan root (e.g. a tiny LeftValue node) makes the
+  // pPlan->pChildren / numOfSubplans reads below a heap over-read. nodesStringToNode
+  // may leave pPlan NULL on empty input, so NULL-check first, then type-check.
+  if (NULL == pPlan || QUERY_NODE_PHYSICAL_PLAN != nodeType((SNode*)pPlan)) {
+    mstsError("stream:%" PRId64 " calcPlan root node invalid (null:%d, type:%d)", streamId, (pPlan == NULL),
+              (pPlan ? nodeType((SNode*)pPlan) : -1));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
 
   FOREACH(pNode, pPlan->pChildren) {
     SQueryPlan *calcSubQPlan = (SQueryPlan *)pNode;
