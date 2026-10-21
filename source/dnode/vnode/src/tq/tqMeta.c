@@ -335,7 +335,7 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
     TQ_ERR_GO_TO_END(buildSnapContext(reader.vnode, reader.version, 0, handle->execHandle.subType, handle->fetchMeta,
-                                      (SSnapContext**)(&reader.sContext)));
+                                      NULL, (SSnapContext**)(&reader.sContext)));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
   } else if (handle->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
@@ -347,13 +347,18 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
         return TSDB_CODE_SCH_INTERNAL_ERROR;
       }
     }
+    // Resolve the qualified child table list first so that the meta snapshot
+    // stage below only delivers subscribed child tables (e.g. the ones
+    // matching a tbname like 'f1%' filter). This applies to both ONLY META and
+    // WITH META table topics: the snapshot stage must honor the same table
+    // filter as the incremental WAL path.
+    TQ_ERR_GO_TO_END(qGetTableListByApi(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node,
+                                     &tbUidList, &reader.api));
     TQ_ERR_GO_TO_END(buildSnapContext(reader.vnode, reader.version, handle->execHandle.execTb.suid,
-                                      handle->execHandle.subType, handle->fetchMeta,
+                                      handle->execHandle.subType, handle->fetchMeta, tbUidList,
                                       (SSnapContext**)(&reader.sContext)));
     handle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &reader, vgId, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
-    TQ_ERR_GO_TO_END(qGetTableList(handle->execHandle.execTb.suid, pVnode, handle->execHandle.execTb.node, &tbUidList,
-                                handle->execHandle.task));
     tqInfo("vgId:%d, tq try to get ctb for stb subscribe, suid:%" PRId64, pVnode->config.vgId,
            handle->execHandle.execTb.suid);
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
