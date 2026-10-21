@@ -210,7 +210,7 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 <TabItem label="Node.js" value="node">
 
 - **Pre-installation Preparation**
-  - Install the Node.js development environment, using version 14 or above. Download link: [Download Node.js](https://nodejs.org/en/download)
+  - Install the Node.js development environment, using version 18 or above (22 recommended). Download link: [Download Node.js](https://nodejs.org/en/download)
 
 - **Installation**
   - Use npm to install the Node.js connector
