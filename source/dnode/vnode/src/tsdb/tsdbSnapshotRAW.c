@@ -462,7 +462,13 @@ static int32_t tsdbSnapRAWWriteFileSetBegin(STsdbSnapRAWWriter* writer, int32_t 
   STFileSet** fsetPtr = TARRAY2_SEARCH(writer->fsetArr, &fset, tsdbTFileSetCmprFn, TD_EQ);
   writer->ctx->fset = (fsetPtr == NULL) ? NULL : *fsetPtr;
 
-  int32_t level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
+  // Compute the expected storage tier for this file based on its age vs the
+  // keep configuration, and feed it back into ctx->level so the fileset writer
+  // allocates the restored files on the correct disk tier (expLevel/level).
+  // Previously this value was computed but never assigned (dead code), which
+  // left ctx->level at its calloc-initialized 0 and forced every restored file
+  // onto storage tier 0 during redistribute / snapshot restore.
+  writer->ctx->level = tsdbFidLevel(fid, &writer->tsdb->keepCfg, taosGetTimestampSec());
 
   code = tsdbSnapRAWWriteFileSetOpenWriter(writer);
   TSDB_CHECK_CODE(code, lino, _exit);
