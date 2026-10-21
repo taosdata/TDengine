@@ -2236,8 +2236,144 @@ static bool mndValidateSchema(SSchema *pSchemas, int32_t nSchema, SArray *pField
   return rowLen <= maxLen;
 }
 
+// [FIX-ITEM-130] Validate that a create-as-alter (igExists + TAOX/SML source) request only
+// performs the schema changes the SML/TAOX producers are allowed to perform.
+//
+// The regular ALTER STB path (mndAlterStbColumnBytes / mndAlterStbTagBytes) only ever:
+//   - appends new columns/tags (fresh colId), or
+//   - widens the byte length of an EXISTING var-length column/tag,
+// and it never changes a column's type, never shrinks bytes, never drops a
+// column/tag, and keeps the total row/tag length within TSDB_MAX_BYTES_PER_ROW /
+// TSDB_MAX_TAGS_LEN. This create-as-alter path previously trusted the peer-supplied schema
+// verbatim (mndBuildStbFromAlter rebuilt pColumns/pTags entirely from the request), so a
+// crafted request could e.g. retype a DOUBLE column to BOOL or shrink a VARCHAR, which corrupts
+// the schema and later crashes the vnode on commit or overflows the query-reader heap.
+// We enforce the same invariants here, before the altered schema is accepted.
+//
+// NOTE on the `flags` field: a check that an existing colId's flags must be unchanged is
+// intentionally NOT performed. The SML client never transmits column `flags` on the
+// create-as-alter path (clientSml.c smlBuildFields only copies type/bytes/name, leaving
+// flags == 0), so any flags-equality check would reject legitimate SML writes of tables that
+// carry flags such as COL_HAS_TYPE_MOD. The security-critical invariant is the column *type*
+// (covered below), not the flags; flags carries no part of the type-confusion / overflow attack.
+static int32_t mndValidateStbAlterSchema(const SStbObj *pStb, const SMCreateStbReq *createReq) {
+  // ---------- columns ----------
+  bool colFound[TSDB_MAX_COLUMNS];
+  for (int32_t i = 0; i < pStb->numOfColumns; ++i) colFound[i] = false;
+
+  int32_t rowLen = 0;
+  for (int32_t i = 0; i < createReq->numOfColumns; ++i) {
+    SFieldWithOptions *pField = taosArrayGet(createReq->pColumns, i);
+    int32_t            cIndex = mndFindSuperTableColumnIndex(pStb, pField->name);
+    if (cIndex >= 0) {
+      // existing column: must keep its identity, only var-length bytes may grow
+      colFound[cIndex] = true;
+      const SSchema *pOld = &pStb->pColumns[cIndex];
+
+      // type of an existing colId must not change (this is the security-critical invariant:
+      // it blocks e.g. retyping DOUBLE -> BOOL which corrupts the schema and crashes/overflows
+      // the vnode). NOTE: we intentionally do NOT compare `flags` here -- see the function
+      // header comment: the SML client does not transmit flags on this path, so a flags-equality
+      // check would wrongly reject legitimate SML writes.
+      if (pField->type != pOld->type) {
+        mError("stb:%s, create-as-alter rejects type change of column %s (%d -> %d)", pStb->name,
+               pField->name, pOld->type, pField->type);
+        return TSDB_CODE_MND_INVALID_STB_OPTION;
+      }
+      // bytes may only grow, and only for var-length types
+      if (pField->bytes < pOld->bytes) {
+        mError("stb:%s, create-as-alter rejects shrink of column %s (%d -> %d)", pStb->name,
+               pField->name, pOld->bytes, pField->bytes);
+        return TSDB_CODE_MND_INVALID_ROW_BYTES;
+      }
+      if (pField->bytes > pOld->bytes &&
+          !(pOld->type == TSDB_DATA_TYPE_BINARY || pOld->type == TSDB_DATA_TYPE_VARBINARY ||
+            pOld->type == TSDB_DATA_TYPE_NCHAR || pOld->type == TSDB_DATA_TYPE_GEOMETRY)) {
+        mError("stb:%s, create-as-alter rejects widen of non-var column %s", pStb->name, pField->name);
+        return TSDB_CODE_MND_INVALID_STB_OPTION;
+      }
+      rowLen += pField->bytes;
+    } else {
+      // newly appended column: its bytes simply add to the row length
+      rowLen += pField->bytes;
+    }
+  }
+
+  // every existing column must still be present (dropping a column is not allowed)
+  for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+    if (!colFound[i]) {
+      mError("stb:%s, create-as-alter rejects drop of column %s", pStb->name, pStb->pColumns[i].name);
+      return TSDB_CODE_MND_INVALID_STB_OPTION;
+    }
+  }
+
+  int32_t maxBytesPerRow = pStb->virtualStb ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW;
+  if (rowLen > maxBytesPerRow) {
+    mError("stb:%s, create-as-alter row length %d exceeds limit %d", pStb->name, rowLen, maxBytesPerRow);
+    return TSDB_CODE_MND_INVALID_ROW_BYTES;
+  }
+
+  // ---------- tags ----------
+  bool tagFound[TSDB_MAX_TAGS];
+  for (int32_t i = 0; i < pStb->numOfTags; ++i) tagFound[i] = false;
+
+  int32_t tagLen = 0;
+  for (int32_t i = 0; i < createReq->numOfTags; ++i) {
+    SField *pField = taosArrayGet(createReq->pTags, i);
+    int32_t tIndex = mndFindSuperTableTagIndex(pStb, pField->name);
+    if (tIndex >= 0) {
+      // existing tag: type must not change, bytes may only grow for var-length types
+      tagFound[tIndex] = true;
+      const SSchema *pOld = &pStb->pTags[tIndex];
+      if (pField->type != pOld->type) {
+        mError("stb:%s, create-as-alter rejects type change of tag %s", pStb->name, pField->name);
+        return TSDB_CODE_MND_INVALID_STB_OPTION;
+      }
+      if (pField->bytes < pOld->bytes) {
+        mError("stb:%s, create-as-alter rejects shrink of tag %s (%d -> %d)", pStb->name, pField->name,
+               pOld->bytes, pField->bytes);
+        return TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+      }
+      if (pField->bytes > pOld->bytes &&
+          !(pOld->type == TSDB_DATA_TYPE_BINARY || pOld->type == TSDB_DATA_TYPE_VARBINARY ||
+            pOld->type == TSDB_DATA_TYPE_NCHAR || pOld->type == TSDB_DATA_TYPE_GEOMETRY)) {
+        mError("stb:%s, create-as-alter rejects widen of non-var tag %s", pStb->name, pField->name);
+        return TSDB_CODE_MND_INVALID_STB_OPTION;
+      }
+      tagLen += pField->bytes;
+    } else {
+      tagLen += pField->bytes;
+    }
+  }
+
+  // every existing tag must still be present (dropping a tag is not allowed)
+  for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+    if (!tagFound[i]) {
+      mError("stb:%s, create-as-alter rejects drop of tag %s", pStb->name, pStb->pTags[i].name);
+      return TSDB_CODE_MND_INVALID_STB_OPTION;
+    }
+  }
+
+  if (tagLen > TSDB_MAX_TAGS_LEN) {
+    mError("stb:%s, create-as-alter tag length %d exceeds limit %d", pStb->name, tagLen, TSDB_MAX_TAGS_LEN);
+    return TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq *createReq) {
   int32_t code = 0;
+
+  // [FIX-ITEM-130] Reject any schema change the create-as-alter path is not allowed to make
+  // (type change, byte shrink, column/tag drop, row/tag length overflow) before the
+  // request is trusted. See mndValidateStbAlterSchema for the full invariant list and the
+  // note explaining why `flags` is intentionally not compared.
+  if ((code = mndValidateStbAlterSchema(pStb, createReq)) != TSDB_CODE_SUCCESS) {
+    mError("stb:%s, create-as-alter schema validation failed with code %d", pStb->name, code);
+    TAOS_RETURN(code);
+  }
+
   taosRLockLatch(&pStb->lock);
   memcpy(pDst, pStb, sizeof(SStbObj));
   taosRUnLockLatch(&pStb->lock);
