@@ -177,6 +177,7 @@ function log() {
 # =============================  get input parameters =================================================
 
 # set parameters by default value
+imageBuild=0       # Preserve packaged address defaults when building an image
 interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
@@ -193,11 +194,19 @@ Options:
   -e [yes | no]             Interactive FQDN setting
   -d [install dir]          Custom installation directory
   -s                        Silent mode installation
+  --image-build             Image installation without host address rewrites or service/process operations
 EOF
 }
 
-while getopts "hv:e:d:sq:m:" arg; do
+while getopts "hv:e:d:sq:m:-:" arg; do
   case $arg in
+  -)
+    if [ "$OPTARG" != "image-build" ]; then
+      echo "Unknown option: --$OPTARG"
+      exit 1
+    fi
+    imageBuild=1
+    ;;
   e)
     interactiveFqdn=$(echo $OPTARG)
     silent_mode=1
@@ -234,6 +243,12 @@ while getopts "hv:e:d:sq:m:" arg; do
     ;;
   esac
 done
+
+# Image assembly must never prompt for or persist the build host identity.
+if [ "$imageBuild" -eq 1 ]; then
+  silent_mode=1
+  interactiveFqdn=no
+fi
 
 # Package archives carry their role so core and extension can use the same
 # entry point. An explicit -m argument always takes precedence.
@@ -546,12 +561,20 @@ function get_config_file() {
 }
 
 function install_services() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
   for service in "${services[@]}"; do
     install_service ${service}
   done
 }
 
 function kill_process() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
     # use pkill if available, otherwise fallback to pgrep + while-read
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true
@@ -1046,7 +1069,9 @@ function install_taosx_config() {
     mkdir -p "${dataDir}/${xname}"
   fi
   if [ -f "${file_name}" ]; then
-    sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
+    fi
 
     # replace data_dir
     sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/${xname}\"|" "${file_name}"
@@ -1079,7 +1104,9 @@ function install_explorer_config() {
   fi
   if [ -f "${file_name}" ]; then
     # replace fqdn
-    sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
+    fi
 
     # replace data_dir
     sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/explorer\"|" "${file_name}"
@@ -1101,7 +1128,9 @@ function install_adapter_config() {
 
   file_name="${script_dir}/cfg/${adapterName}.toml"
   if [ -f "${file_name}" ]; then
-    sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
+    fi
 
     # replace log path
     sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
@@ -1123,7 +1152,9 @@ function install_keeper_config() {
 
   file_name="${script_dir}/cfg/${keeperName}.toml"
   if [ -f "${file_name}" ]; then
-    sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
+    fi
     sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
@@ -1137,9 +1168,15 @@ function install_keeper_config() {
 function install_taosd_config() {
   file_name="${script_dir}/cfg/${configFile}"
   if [ -f ${file_name} ]; then
-    sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    fi
     echo "monitor 1" >>${script_dir}/cfg/${configFile}
-    echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
+    if [ "$imageBuild" -eq 0 ]; then
+      echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
+    else
+      echo "monitorFQDN localhost" >>${script_dir}/cfg/${configFile}
+    fi
 
     if grep -q "^dataDir " "${script_dir}/cfg/${configFile}"; then
       sed -i "s|^dataDir .*|dataDir ${dataDir}|" "${script_dir}/cfg/${configFile}"
@@ -1399,6 +1436,10 @@ function install_service_on_systemd() {
 }
 
 function install_service() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
   if ((${service_mod} == 0)); then
     install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
@@ -1618,15 +1659,17 @@ function updateProduct() {
 
   # Start to update
 
-  if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
-  elif echo $osinfo | grep -qwi "ubuntu"; then
-    dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
+  # Package-manager uninstall hooks may stop services as well.
+  if [ "$imageBuild" -eq 0 ]; then
+    if echo $osinfo | grep -qwi "centos"; then
+      rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
+    elif echo $osinfo | grep -qwi "ubuntu"; then
+      dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
+    fi
   fi
 
-
   # Stop the service if running
-  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
+  if [ "$imageBuild" -eq 0 ] && ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
       ${sysctl_cmd} stop ${serverName} || :
     elif ((${service_mod} == 1)); then
