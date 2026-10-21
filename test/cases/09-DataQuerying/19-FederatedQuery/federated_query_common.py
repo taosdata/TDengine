@@ -2931,10 +2931,11 @@ class FederatedQueryTestMixin:
         Behavior is controlled by the ``FQ_EXPLAIN_STRICT`` environment variable
         (read on every call so it can be changed between tests without reloading):
 
-        * ``FQ_EXPLAIN_STRICT=1`` / ``true`` / ``yes`` — strict mode: any failure
-          raises ``AssertionError`` and fails the test immediately.
-        * Anything else (default) — non-strict mode: failures are logged as
-          warnings and the calling test continues.
+        * Default (unset) / ``1`` / ``true`` / ``yes`` — strict mode: any failure
+          raises ``AssertionError`` and fails the test immediately.  Phase-2
+          pushdown is implemented, so the assertions are enforced by default.
+        * ``FQ_EXPLAIN_STRICT=0`` / ``false`` / ``no`` — non-strict mode:
+          failures are silently skipped and the calling test continues.
 
         Args:
             sql:        Query string to EXPLAIN (without the leading ``explain``).
@@ -2942,14 +2943,14 @@ class FederatedQueryTestMixin:
                          also triggers an absent-local-operator check when a
                          mapping exists in ``_PUSHDOWN_LOCAL_OP_MAP``.
         """
-        strict = os.getenv("FQ_EXPLAIN_STRICT", "0").strip().lower() in (
+        strict = os.getenv("FQ_EXPLAIN_STRICT", "1").strip().lower() in (
             "1", "true", "yes"
         )
 
         def _fail(msg):
             if strict:
                 raise AssertionError(msg)
-            # Non-strict mode: silently skip (Phase 2 pushdown not yet implemented)
+            # Explicitly disabled (FQ_EXPLAIN_STRICT=0): skip without failing.
 
         ok = tdSql.query(f"explain verbose true {sql}", exit=False)
         if ok is False:

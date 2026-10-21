@@ -6257,7 +6257,7 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
 }
 
 /*
- * Column-name comparison for external column references. Only MySQL folds identifiers
+ * Column-name comparison for external column references. MySQL and SQL Server fold identifiers
  * case-insensitively; every other external source is case-sensitive. This mirrors the parser-side
  * contract externalColumnNamesEqual() (parTranslater.c) so that a reference accepted by DDL
  * resolves to the same external column when the reader bindings are built: a PostgreSQL table
@@ -6265,8 +6265,9 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
  * silently produce a mapping with a different TDengine type.
  */
 static bool msmExtColumnNameEqual(int8_t sourceType, const char *schemaName, const char *bindingName) {
-  return EXT_SOURCE_MYSQL == sourceType ? strcasecmp(schemaName, bindingName) == 0
-                                        : strcmp(schemaName, bindingName) == 0;
+  return (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType)
+             ? strcasecmp(schemaName, bindingName) == 0
+             : strcmp(schemaName, bindingName) == 0;
 }
 
 int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,

@@ -10,7 +10,7 @@ External access is defined through External Source objects. These objects store 
 
 ## Feature Scope
 
-Federated Query is available only for standalone `SELECT` queries and supports MySQL, PostgreSQL, and InfluxDB v3 as external data sources. Except where there is no corresponding concept or types cannot be mapped, external tables support the full range of TDengine query capabilities and can be combined with local tables or tables from other external sources.
+Federated Query is available only for standalone `SELECT` queries and supports MySQL, PostgreSQL, InfluxDB v3, and SQL Server (2019 / 2022) as external data sources. Except where there is no corresponding concept or types cannot be mapped, external tables support the full range of TDengine query capabilities and can be combined with local tables or tables from other external sources.
 
 ### Supported Capabilities
 
@@ -45,7 +45,7 @@ Before use, enable `federatedQueryEnable` on both the client and server. Connect
 
 ### Federated Query Runtime Libraries
 
-Before using Federated Query, you must install the federated query runtime library package that matches your TDengine version on every server that actually executes federated queries. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, and Apache Arrow Flight SQL runtime libraries for InfluxDB.
+Before using Federated Query, you must install the federated query runtime library package that matches your TDengine version on every server that actually executes federated queries. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, Apache Arrow Flight SQL runtime libraries for InfluxDB, and unixODBC plus Microsoft ODBC Driver 18 for SQL Server for SQL Server.
 
 **Note**: Without the corresponding runtime libraries, you cannot create or query external data sources of the respective types. When upgrading TDengine, upgrade the federated query runtime library package to a matching version as well.
 
@@ -76,6 +76,7 @@ The plugin package typically has the following structure after extraction:
 **Notes**
 
 - `libmariadb.so`, `libpq.so`, and Arrow/Parquet related libraries are runtime dependencies for external connectors.
+- SQL Server requires unixODBC and Microsoft ODBC Driver 18 for SQL Server, which are shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. If they are missing, creating or querying an external source with `TYPE = 'sqlserver'` returns an external source type unsupported error.
 - After installation, ensure the dynamic library path can be loaded by `taosd` and `taosc` processes.
 - Appendix: The current internal download URL (intranet) is `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`.
 - This URL is a temporary intranet address; after `v3.4.3.0` is released, use the official link provided by the download center.
@@ -88,7 +89,7 @@ The plugin package typically has the following structure after extraction:
 
 ### Permissions and Security
 
-Passwords are stored with AES-CBC encryption and masked in display and logs. External source access permissions are controlled by the external database itself: the `USER`, `PASSWORD`, or `api_token` specified when creating an external data source represents the access credentials for that external source, and the external database determines the accessible scope accordingly. Only the root user can manage external data source objects in TDengine.
+Passwords are stored with AES-CBC encryption and masked in display and logs. External source access permissions are controlled by the external database itself: the `USER`, `PASSWORD`, or `api_token` specified when creating an external data source represents the access credentials for that external source, and the external database determines the accessible scope accordingly. Only the root user can manage external data source objects in TDengine. SQL Server external sources support SQL Server Authentication only; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported.
 
 **Note**: External communication supports encrypted transport and certificate validation. Do not expose plaintext credentials in SQL, logs, or application configuration.
 
@@ -100,7 +101,7 @@ Use `CREATE EXTERNAL SOURCE` to create an external data source. Create and alter
 
 ```sql
 CREATE EXTERNAL SOURCE [IF NOT EXISTS] source_name
-TYPE = 'mysql' | 'postgresql' | 'influxdb'
+TYPE = 'mysql' | 'postgresql' | 'influxdb' | 'sqlserver'
 HOST = 'hostname'
 PORT = port_number
 USER = 'username'
@@ -122,6 +123,7 @@ Available external source types and their namespaces are as follows:
 | `mysql`      | `DATABASE`                     | Access MySQL databases and tables. |
 | `postgresql` | `DATABASE` and optional `SCHEMA` | `DATABASE` is required; `SCHEMA` can serve as the default schema. |
 | `influxdb`   | `DATABASE`                     | Access InfluxDB databases and Measurements. |
+| `sqlserver`  | `DATABASE` and `SCHEMA`, both optional | Access SQL Server databases, schemas, and tables. When resolving a short path or `USE`, both components must be present after combination; `dbo` is not injected and the login's default schema is not used as a fallback. |
 
 ### Field Descriptions and Constraints
 
@@ -129,16 +131,18 @@ Available external source types and their namespaces are as follows:
 | --------------- | -------- | -------------- | ----------- |
 | `IF NOT EXISTS` | No       | Fixed keyword  | Does not return an error if the object already exists. |
 | `source_name`   | Yes      | Maximum 64 bytes | External data source name, globally unique, and must not share a name with a local database. |
-| `TYPE`          | Yes      | `mysql`, `postgresql`, `influxdb` | External source type, case-insensitive, determines connector and path resolution rules. |
+| `TYPE`          | Yes      | `mysql`, `postgresql`, `influxdb`, `sqlserver` | External source type, case-insensitive, determines connector and path resolution rules. |
 | `HOST`          | Yes      | Hostname or IP, maximum 256 bytes | External data source address; supports full FQDN. |
 | `PORT`          | Yes      | `1` to `65535` | External data source port. |
 | `USER`          | Yes      | Maximum 128 bytes | External data source access account. |
 | `PASSWORD`      | Yes      | Maximum 128 bytes | External data source access password; encrypted when stored and masked when displayed. |
-| `DATABASE`      | Optional for MySQL and InfluxDB; required for PostgreSQL | Maximum 64 bytes | Default database. When no default database is set, queries must explicitly specify the database. PostgreSQL connections cannot switch databases after establishment. |
-| `SCHEMA`        | No       | Maximum 64 bytes | Default schema. When not set, queries that require it must explicitly specify the schema. |
+| `DATABASE`      | Optional for MySQL, InfluxDB, and SQL Server; required for PostgreSQL | Maximum 64 bytes | Default database. When no default database is set, queries must explicitly specify the database. PostgreSQL connections cannot switch databases after establishment. |
+| `SCHEMA`        | No       | Maximum 64 bytes | Default schema. When not set, queries that require it must explicitly specify the schema. SQL Server does not inject `dbo` as a default. |
 | `OPTIONS`       | No       | Key maximum 64 bytes, value maximum 4095 bytes, overall JSON maximum 4095 bytes | Connection extension parameters. |
 
 **Note**: All identifiers follow TDengine database and table naming rules: by default, character types are restricted and names are case-insensitive; escaped identifiers relax character restrictions and are case-sensitive.
+
+**SQL Server namespaces**: `DATABASE` and `SCHEMA` are combined from the source defaults and the values explicitly specified by the query. Components given in the path take precedence; the rest come from the source defaults. If either component is still empty after combination, the query returns `TSDB_CODE_EXT_DEFAULT_NS_MISSING`; there is no implicit fallback—neither `dbo` nor the login's default schema is injected. A three-part column path therefore requires both `DATABASE` and `SCHEMA` defaults on the source, a four-part column path requires the `DATABASE` default, and a five-part column path requires neither. SQL Server only supports databases on the same instance that the login can access; cross-instance access is not supported.
 
 ### OPTIONS Parameters
 
@@ -183,6 +187,16 @@ InfluxDB-specific parameters are as follows:
 | `api_token` | String | Empty | Required InfluxDB authentication token. When this parameter is set, `USER` and `PASSWORD` may be empty. Masked when displayed. |
 | `protocol`  | `flight_sql` or `http` | `flight_sql` | Protocol for communicating with InfluxDB. `flight_sql` uses Arrow Flight SQL (gRPC); `http` uses the HTTP API. Both protocols support common TLS parameters. |
 
+#### SQL Server Parameters
+
+SQL Server-specific parameters are as follows:
+
+| Parameter | Value | Default | Description |
+| -------------------------- | ----- | ------- | ----------- |
+| `trust_server_certificate` | `true` or `false` | `false` | Whether to verify the server certificate. When `true`, certificate chain and host name verification are skipped; this is meaningful only when `tls_enabled = true` and should be used only in test environments. When `false`, the server certificate chain and the host name in the certificate are verified. |
+
+The common TLS and timeout parameters also apply to SQL Server. The first release supports only Microsoft ODBC Driver 18 for SQL Server and does not use `Encrypt=strict` (TDS 8.0 is available only on SQL Server 2022); encryption is controlled by `tls_enabled`.
+
 #### Parameter Behavior and Notes
 
 **Note**: Explicitly setting `connect_timeout_ms` or `read_timeout_ms`, including setting them to `0`, takes precedence over global configuration; global configuration is used only when the key is not set.
@@ -191,7 +205,7 @@ InfluxDB-specific parameters are as follows:
 
 #### Examples
 
-The following examples create three external data sources:
+The following examples create four external data sources:
 
 ```sql
 CREATE EXTERNAL SOURCE mysql_prod
@@ -227,6 +241,34 @@ OPTIONS (
     'api_token' = 'your_token',
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
+);
+
+-- SQL Server 2022: default database and schema, TLS with server certificate verification
+CREATE EXTERNAL SOURCE sqlserver_prod
+TYPE = 'sqlserver'
+HOST = 'sqlserver.example.com'
+PORT = 1433
+USER = 'td_reader'
+PASSWORD = 'your_password'
+DATABASE = Telemetry
+SCHEMA = dbo
+OPTIONS (
+    'tls_enabled' = 'true',
+    'connect_timeout_ms' = '5000',
+    'read_timeout_ms' = '60000'
+);
+
+-- Test environment: encrypted but without certificate verification
+CREATE EXTERNAL SOURCE sqlserver_test
+TYPE = 'sqlserver'
+HOST = '192.0.2.10'
+PORT = 1433
+USER = 'readonly'
+PASSWORD = 'your_password'
+DATABASE = Telemetry
+OPTIONS (
+    'tls_enabled' = 'true',
+    'trust_server_certificate' = 'true'
 );
 ```
 
@@ -413,10 +455,12 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 | InfluxDB        | Field           | Data column. |
 | InfluxDB        | Tag Set         | Subtable; each unique Tag combination corresponds to one subtable. |
 | InfluxDB        | `time`          | Timestamp primary key. |
+| SQL Server      | Database and Schema | A single query namespace. |
+| SQL Server      | Table, View     | Regular table. Views are not required to contain a timestamp column; see [External Tables Without a Timeline](#external-tables-without-a-timeline) for rules when no timeline is present. |
 
-Indexes, stored procedures, and triggers in MySQL, and indexes, sequences, and triggers in PostgreSQL, do not participate in federated query. InfluxDB Buckets and Retention Policies are storage policies and do not affect federated query.
+Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and triggers in PostgreSQL, and synonyms, stored procedures, triggers, indexes, constraints, and SQL Server Agent objects in SQL Server, do not participate in federated query. InfluxDB Buckets and Retention Policies are storage policies and do not affect federated query.
 
-**Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive.
+**Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive; SQL Server follows the collation of the database containing the object, which may differ across databases, and identifiers quoted with brackets or double quotes preserve their original names.
 
 ### Timestamp Primary Key Requirements
 
@@ -425,12 +469,13 @@ When participating in federated query and performing **timeline-dependent** oper
 - MySQL timestamp primary key columns must be of type `DATETIME` or `TIMESTAMP`.
 - PostgreSQL timestamp primary key columns must be of type `TIMESTAMP` or `TIMESTAMPTZ`.
 - The `time` column of an InfluxDB Measurement naturally satisfies this requirement.
+- SQL Server timestamp primary key columns must be of type `datetime2`, `datetimeoffset`, `datetime`, `smalldatetime`, or `date`; `timestamp` / `rowversion` are row-version binary values and `time` represents only a time of day without a date, so neither can be used as a timestamp primary key.
 
-**Note**: The timestamp primary key may be one column in a composite primary key; other columns in the composite primary key and other indexes may exist. However, the same external table cannot have a second primary key column mappable to TDengine `TIMESTAMP`. **MySQL / PostgreSQL views (View) are not subject to timestamp primary key constraints**; see the next section for rules when the result set contains no timestamp column.
+**Note**: The timestamp primary key may be one column in a composite primary key; other columns in the composite primary key and other indexes may exist. However, the same external table cannot have a second primary key column mappable to TDengine `TIMESTAMP`. **MySQL / PostgreSQL / SQL Server views (View) are not subject to timestamp primary key constraints**; see the next section for rules when the result set contains no timestamp column.
 
 ### External Tables Without a Timeline
 
-Refers to regular tables in MySQL / PostgreSQL that lack a primary key time column mappable to `TIMESTAMP`, or external views whose result sets contain no timestamp column. Typical scenarios include device registries and asset dimension tables. InfluxDB Measurements all contain `time` and are not covered by this section.
+Refers to regular tables in MySQL / PostgreSQL / SQL Server that lack a primary key time column mappable to `TIMESTAMP`, or external views whose result sets contain no timestamp column. Typical scenarios include device registries and asset dimension tables. InfluxDB Measurements all contain `time` and are not covered by this section.
 
 | Scenario | Supported | Description |
 | -------- | --------- | ----------- |
@@ -446,6 +491,9 @@ SELECT COUNT(*) FROM pg_prod.public.device_info;
 
 -- Query an external view that contains no timestamp column
 SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
+
+-- SQL Server dimension table without a timestamp primary key
+SELECT * FROM sqlserver_prod.dbo.device_info;
 ```
 
 External tables without a timeline cannot be used with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, Window JOIN, or virtual table column references. In the current version, external regular tables with non-timestamp primary keys may pass virtual table DDL validation, but that path does not have tested time-merge semantics and should not be used in production. To associate external dimension data with TDengine time-series data, first provide join results with a timestamp primary key in the external system, or synchronize dimension data into TDengine before joining.
@@ -456,7 +504,7 @@ External tables without a timeline cannot be used with `INTERVAL`, state/session
 
 External columns are mapped to TDengine data types at query time according to the following rules:
 
-- Types with exact correspondence are mapped directly, for example MySQL `INT` maps to `INT`, PostgreSQL `double precision` maps to `DOUBLE`, and InfluxDB `Float64` maps to `DOUBLE`.
+- Types with exact correspondence are mapped directly, for example MySQL `INT` maps to `INT`, PostgreSQL `double precision` maps to `DOUBLE`, InfluxDB `Float64` maps to `DOUBLE`, SQL Server `int` maps to `INT`, and `float` maps to `DOUBLE`.
 - Types that can be downgraded are allowed to map, but precision or semantic loss may occur. For example, `DATE` is converted to `TIMESTAMP` at midnight, `TIME` is converted to milliseconds from midnight and stored in `BIGINT`, `SET` is serialized as a comma-separated string, and `uuid` is converted to `VARCHAR(36)`. Downgrade conversions are logged.
 - Structured types such as arrays, ranges, composite types, and `hstore` are serialized to JSON or text strings and stored in `NCHAR` or `VARCHAR`; structural semantics are not preserved, and a log entry is recorded.
 - Unrecognized or unsupported external type codes result in errors; if `SELECT *` expands to unmappable columns, the entire query fails.
@@ -469,10 +517,11 @@ When declared length, precision, scale, or container capacity of known external 
 
 Timezone and precision rules for external timestamp columns are as follows:
 
-- Timezone-aware types such as PostgreSQL `timestamptz` and MySQL `TIMESTAMP` are interpreted according to their own timezone.
-- Timezone-naive types such as PostgreSQL `timestamp`, MySQL `DATETIME`, and `DATE` are interpreted according to the connection timezone or client timezone.
-- In single-database queries, TDengine databases use their `PRECISION`; MySQL and PostgreSQL use microsecond precision; InfluxDB uses nanosecond precision.
+- Timezone-aware types such as PostgreSQL `timestamptz`, MySQL `TIMESTAMP`, and SQL Server `datetimeoffset` are interpreted according to their own timezone.
+- Timezone-naive types such as PostgreSQL `timestamp`, MySQL `DATETIME` and `DATE`, and SQL Server `datetime2` / `datetime` / `smalldatetime` / `date` are interpreted according to the connection timezone or client timezone.
+- In single-database queries, TDengine databases use their `PRECISION`; MySQL, PostgreSQL, and SQL Server use microsecond precision; InfluxDB uses nanosecond precision.
 - In multi-database queries, result timestamps use the highest precision among participating databases; lower-precision values are zero-padded. For example, a TDengine millisecond database joined with MySQL yields microsecond precision; joined with InfluxDB, nanosecond precision.
+- SQL Server external timestamps have microsecond precision. When creating a virtual table that references SQL Server external columns, the virtual table's database precision must not be lower than microseconds (for example, `CREATE DATABASE ... PRECISION 'us'`).
 
 ## External Paths and USE
 
@@ -487,8 +536,11 @@ In the `FROM` clause of a query, external table paths resolve to the table level
 | MySQL           | `source_name.table`     | `source_name.database.table` |
 | PostgreSQL      | `source_name.table`     | `source_name.schema.table` |
 | InfluxDB        | `source_name.table`     | `source_name.database.table` |
+| SQL Server      | `source_name.table`     | `source_name.schema.table`, `source_name.database.schema.table` |
 
-Two-part paths use the default `DATABASE` or `SCHEMA` specified when creating the external data source; when no default is set, the full three-part path must be used.
+Two-part paths use the default `DATABASE` or `SCHEMA` specified when creating the external data source; when no default is set, the full path must be used.
+
+**SQL Server path notes**: In a three-part path `source_name.schema.table`, the middle segment is the schema and the database comes from the default value; a four-part path `source_name.database.schema.table` specifies the database and schema in order. Four-part paths can only access other databases on the same SQL Server instance that the login can access; cross-instance access is not supported.
 
 ### Virtual Table External Column Paths
 
@@ -501,6 +553,17 @@ External column references in virtual table DDL append the column name after the
 | MySQL           | `source_name.table.column` | `source_name.database.table.column` |
 | PostgreSQL      | `source_name.table.column` | `source_name.schema.table.column` |
 | InfluxDB        | `source_name.table.column` | `source_name.database.table.column` |
+| SQL Server      | `source_name.table.column` (requires default `DATABASE` and `SCHEMA`), `source_name.schema.table.column` (requires default `DATABASE`) | `source_name.database.schema.table.column` |
+
+**SQL Server column path note**: SQL Server external column references support three forms:
+
+| Form | Path | Required source defaults |
+| ---- | ---- | ------------------------ |
+| Three-part | `source_name.table.column` | `DATABASE` + `SCHEMA` |
+| Four-part | `source_name.schema.table.column` | `DATABASE` |
+| Five-part | `source_name.database.schema.table.column` | None |
+
+All three forms work in `CREATE VTABLE` column definitions, `ALTER VTABLE ... ADD COLUMN ... FROM`, `ALTER VTABLE ... ALTER COLUMN ... SET`, and virtual child table (`CREATE VTABLE ... USING vstb`) column definitions. Relative forms (three-part and four-part) are expanded to the full five-part namespace when written to virtual table metadata, so `SHOW CREATE VTABLE` and `information_schema.ins_columns.col_source` always display `source.database.schema.table.column`; a later `ALTER EXTERNAL SOURCE` changing the default namespace does not change the binding of an existing virtual table.
 
 **Note**: Internal column paths remain `table.column` or `db.table.column`. For external paths, `source_name`, `database`, `schema`, and `column` have a maximum of 64 bytes; `table` has a maximum of 192 bytes. Objects exceeding these limits return an error directly—there is no truncation, renaming, or prefix matching.
 
@@ -512,11 +575,20 @@ SELECT * FROM mysql_prod.meters;
 SELECT * FROM mysql_prod.power.meters;
 SELECT * FROM pg_prod.devices;
 SELECT * FROM pg_prod.public.devices;
+SELECT * FROM sqlserver_prod.sensor_data;
+SELECT * FROM sqlserver_prod.telemetry.sensor_data;
+SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
 
 -- Reference external columns in virtual table DDL
 current FLOAT FROM mysql_prod.meters.current
 current FLOAT FROM mysql_prod.power.meters.current
 owner VARCHAR(64) FROM pg_prod.public.meter_asset.owner
+-- SQL Server three-part (source requires default database and schema)
+value FLOAT FROM sqlserver_prod.sensor_data.value
+-- SQL Server four-part (source requires a default database; schema from the path)
+value FLOAT FROM sqlserver_prod.telemetry.sensor_data.value
+-- SQL Server five-part (full namespace)
+value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
 ```
 
 ### Using USE to Switch External Namespaces
@@ -533,7 +605,9 @@ USE source_name.schema;
 
 #### Description
 
-`USE source_name` requires the external source to have a default namespace set: `DATABASE` for MySQL and InfluxDB, `SCHEMA` for PostgreSQL. When not set, `TSDB_CODE_EXT_DEFAULT_NS_MISSING` is returned. `USE source_name.database` explicitly specifies a database for MySQL or InfluxDB; `USE source_name.schema` explicitly specifies a schema for PostgreSQL—the database for PostgreSQL remains the `DATABASE` specified when creating the external source.
+`USE source_name` requires the external source to have a default namespace set: `DATABASE` for MySQL and InfluxDB, `SCHEMA` for PostgreSQL, and both `DATABASE` and `SCHEMA` for SQL Server after combination. When not set, `TSDB_CODE_EXT_DEFAULT_NS_MISSING` is returned. `USE source_name.database` explicitly specifies a database for MySQL or InfluxDB; `USE source_name.schema` explicitly specifies a schema for PostgreSQL—the database for PostgreSQL remains the `DATABASE` specified when creating the external source.
+
+SQL Server `USE` semantics: `USE source_name` uses the default database and default schema; `USE source_name.database` switches the database and keeps the default schema; `USE source_name.database.schema` switches both. The first release does not provide a schema-only `USE` form; use a three-part table path `source_name.schema.table` when only the schema needs to change. `USE` affects only short-path resolution in the current TDengine session; it does not change the external source definition or the external column origins of existing virtual tables.
 
 **Note**: When resolving names in `USE`, the system first matches registered external data sources, then local databases; because the two are prohibited from sharing names, there is no ambiguity.
 
@@ -551,6 +625,18 @@ SELECT * FROM meters LIMIT 10;
 -- Explicitly select a PostgreSQL schema
 USE pg_prod.public;
 SELECT * FROM devices LIMIT 10;
+
+-- Use the SQL Server default namespace
+USE sqlserver_prod;
+SELECT * FROM sensor_data LIMIT 10;
+
+-- Explicitly switch the SQL Server database (default schema retained)
+USE sqlserver_prod.Archive;
+SELECT * FROM sensor_data LIMIT 10;
+
+-- Switch both the SQL Server database and schema
+USE sqlserver_prod.Archive.telemetry;
+SELECT * FROM sensor_data LIMIT 10;
 
 -- Switch back to a local database and clear external context
 USE power;
@@ -578,6 +664,13 @@ JOIN pg_prod.public.archive_meters a
   ON m.ts = a.ts AND m.meter_id = a.meter_id
 WHERE m.ts >= '2026-04-01 00:00:00'
   AND m.ts < '2026-04-02 00:00:00';
+
+-- SQL Server external table range query
+SELECT ts, value
+FROM sqlserver_prod.telemetry.sensor_data
+WHERE ts >= '2026-01-01 00:00:00'
+  AND ts < '2026-01-02 00:00:00'
+ORDER BY ts;
 ```
 
 Additional examples:
@@ -627,7 +720,7 @@ External tables do not support the `TBNAME` pseudo-column, including `SELECT TBN
 
 #### TAGS
 
-MySQL and PostgreSQL external tables do not support `SELECT TAGS ...`; InfluxDB external tables support `TAGS` but return only Tag combinations that have at least one data point. In TDengine, Tag values can be returned even for subtables with no data—the semantics differ.
+MySQL, PostgreSQL, and SQL Server external tables do not support `SELECT TAGS ...`; InfluxDB external tables support `TAGS` but return only Tag combinations that have at least one data point. In TDengine, Tag values can be returned even for subtables with no data—the semantics differ.
 
 #### JOIN Constraints
 
@@ -706,7 +799,7 @@ SERIES series_alias AS source_name.database_name.measurement_name
 
 This syntax has the following constraints:
 
-- It is supported only for InfluxDB external data sources, not MySQL or PostgreSQL.
+- It is supported only for InfluxDB external data sources, not MySQL, PostgreSQL, or SQL Server.
 - The `SERIES` target must use the complete three-part path `source_name.database_name.measurement_name`; the external source name and database name cannot be omitted.
 - At least one tag condition is required. Conditions support only `tag_name = 'tag_value'` and, at declaration time, must include every tag of the measurement exactly once. Missing, unknown, or duplicate tags cause an error.
 - `series_alias.field_name` represents a measurement field constrained by the declared tag conditions. An alias must be unique within the virtual table and cannot be used to reference an InfluxDB tag.
@@ -864,6 +957,9 @@ Troubleshooting approaches for common issues:
 | External object structure changed | Run `REFRESH EXTERNAL SOURCE source_name` and retry; check type mapping. |
 | Query timeout | Adjust timeout and concurrency settings; narrow time range and result size; check slow queries and indexes on the external source. |
 | Virtual table creation failed | Check external data source name, external database, table and columns, declared type compatibility, timestamp primary key, and external connectivity. |
+| SQL Server cannot connect | Check whether TCP/IP is enabled on SQL Server, whether `PORT` is a fixed TCP port, whether the firewall allows access, and whether SQL Server Authentication is enabled. For a named instance, configure a fixed port instead of relying on SQL Browser. |
+| SQL Server TLS or certificate error | Check the combination of `tls_enabled`, `tls_ca_cert`, and `trust_server_certificate`; in production, use a certificate issued by a trusted CA and do not keep `trust_server_certificate = true` enabled long-term. |
+| SQL Server database or schema error | Check the path order: a three-part table path is `source.schema.table`, and a four-part path is `source.database.schema.table`. Confirm that the login has a user in the target database (or that `guest` is enabled) and has read permission on objects in the target schema. |
 
 ## Version and Compatibility
 
@@ -876,10 +972,13 @@ Supported and tested external database versions are as follows:
 | MySQL      | 5.7, 8.x           | 8.0            | Version 8.0 and above recommended. MariaDB 10.x is compatible but not specifically tested. |
 | PostgreSQL | 14 and above       | 16             | Requires support for the standard SQL feature set. |
 | InfluxDB   | v3.x               | v3.0           | v1.x and v2.x are not supported. |
+| SQL Server | 2019 (15.x), 2022 (16.x) | 2022 | Requires Microsoft ODBC Driver 18 for SQL Server; only on-premises deployments and self-managed IaaS instances are supported. |
+
+**SQL Server support scope**: Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
 
 ### Installation, Upgrade, and Uninstall
 
-**Note**: In addition to the main TDengine installation package, you must install the federated query runtime library package (or the Federated Query plugin package from the download center) that matches your TDengine version. This package provides runtime libraries for external connectors and should be installed on every machine that executes federated queries and hosts `taosc`; upgrade it in sync with TDengine.
+**Note**: In addition to the main TDengine installation package, you must install the federated query runtime library package (or the Federated Query plugin package from the download center) that matches your TDengine version. This package provides runtime libraries for external connectors (unixODBC and Microsoft ODBC Driver 18 for SQL Server are also shipped in the package and do not need separate registration) and should be installed on every machine that executes federated queries and hosts `taosc`; upgrade it in sync with TDengine.
 
 Verify the following in order:
 

@@ -2668,6 +2668,23 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
 
     if (pRequest->extPushdownAttemptCount >= EXT_MAX_PUSHDOWN_ATTEMPTS) {
       extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay, EXT_DEMOTE_REASON_RETRY_ESCALATION);
+
+      // The budget is spent and the all-coarse baseline plan (no expression
+      // pushdown) has already run once, yet the remote source keeps failing
+      // with the same error: this failure sits inside the remote object itself
+      // (e.g. a view whose CAST fails on a row value), so no further demote can
+      // change the statement.  Restarting again would loop forever - surface
+      // the error to the user instead (DS 5.3.10).
+      if (pRequest->extPushdownAttemptCount > EXT_MAX_PUSHDOWN_ATTEMPTS) {
+        tscWarn("req:0x%" PRIx64
+                ", ext pushdown demote budget exhausted after %d attempts for source:'%s', "
+                "surfacing remote error, QID:0x%" PRIx64,
+                pRequest->self, pRequest->extPushdownAttemptCount, pRequest->extSourceName,
+                pRequest->requestId);
+        pRequest->code = TSDB_CODE_EXT_REMOTE_INTERNAL;
+        returnToUser(pRequest);
+        return;
+      }
     }
 
     restartAsyncQuery(pRequest, code);

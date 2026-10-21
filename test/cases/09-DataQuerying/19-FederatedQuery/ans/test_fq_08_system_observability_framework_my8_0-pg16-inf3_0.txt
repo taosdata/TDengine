@@ -813,6 +813,106 @@ CASE END: CASE-obs012mp[MYS]
 DESC: MySQL + PG sources registered independently; each routes to external path; combined count=2; no interference (covers SYS-012)
 ================================================================================================
 ================================================================================================
+CASE START: CASE-obs012ms[SQL]
+DESC: MySQL + SQL Server sources registered independently; each routes to external path; combined count=2; no interference (covers SYS-012, SQL Server leg)
+================================================================================================
+### CASE-obs012ms[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq08_ob012m2
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-002 EXEC
+SQL: drop external source if exists fq08_ob012s
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-003 SQLSERVER-SETUP
+SQL: -- sqlserver setup database=fq08_ob012_ss_ext
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-004 EXEC
+SQL: create external source fq08_ob012m2 type='mysql' host='127.0.0.1' port=13306 user='root' password='taosdata'
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012m2|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs012ms[SQL] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq08_ob012m2
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012m2|mysql|127.0.0.1|13306|root|******|||{}
+---
+### CASE-obs012ms[SQL] STEP-005 EXEC
+SQL: create external source fq08_ob012s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq08_ob012_ss_ext' schema='dbo'
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012s|sqlserver|127.0.0.1|1433|sa|******|fq08_ob012_ss_ext|dbo|{}
+---
+### CASE-obs012ms[SQL] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq08_ob012s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_ob012s|sqlserver|127.0.0.1|1433|sa|******|fq08_ob012_ss_ext|dbo|{}
+---
+### CASE-obs012ms[SQL] STEP-006 QUERY
+SQL: select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob012m2'
+RESULT:
+source_name|type
+fq08_ob012m2|mysql
+---
+### CASE-obs012ms[SQL] STEP-007 QUERY
+SQL: select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob012s'
+RESULT:
+source_name|type
+fq08_ob012s|sqlserver
+---
+### CASE-obs012ms[SQL] STEP-008 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name in ('fq08_ob012m2','fq08_ob012s')
+RESULT:
+count(*)
+2
+---
+### CASE-obs012ms[SQL] STEP-009 ERROR
+SQL: select * from fq08_ob012m2.testdb.t1 limit 1
+RESULT:
+ERROR_OK
+---
+### CASE-obs012ms[SQL] STEP-010 ERROR
+SQL: select * from fq08_ob012s.missing_t limit 1
+RESULT:
+ERROR_OK
+---
+### CASE-obs012ms[SQL] STEP-011 CLEANUP
+SQL: drop external source if exists fq08_ob012m2
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-011 CLEANUP
+SQL: drop external source if exists fq08_ob012s
+RESULT:
+OK
+---
+### CASE-obs012ms[SQL] STEP-012 SQLSERVER-CLEANUP
+SQL: -- sqlserver drop database=fq08_ob012_ss_ext
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-obs012ms[SQL]
+DESC: MySQL + SQL Server sources registered independently; each routes to external path; combined count=2; no interference (covers SYS-012, SQL Server leg)
+================================================================================================
+================================================================================================
 CASE START: CASE-obs014m[MYS]
 DESC: Lifecycle: CREATE→catalog-register→SELECT via external path→DROP→confirm removed from catalog (covers SYS-014)
 ================================================================================================

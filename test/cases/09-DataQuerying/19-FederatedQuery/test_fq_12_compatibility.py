@@ -74,6 +74,8 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             self._cleanup(f"comp002_pg_v{ver_cfg.version.replace('.', '')}")
         for ver_cfg in ExtSrcEnv.influx_version_configs():
             self._cleanup(f"comp003_influx_v{ver_cfg.version.replace('.', '')}")
+        for ver_cfg in ExtSrcEnv.sqlserver_version_configs():
+            self._cleanup(f"comp13_sqlserver_v{ver_cfg.version.replace('.', '')}")
         for db in TestFq12Compatibility._ALL_LOCAL_DBS:
             tdSql.execute(f"drop database if exists {db}")
 
@@ -86,6 +88,8 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             self._cleanup(f"comp002_pg_v{ver_cfg.version.replace('.', '')}")
         for ver_cfg in ExtSrcEnv.influx_version_configs():
             self._cleanup(f"comp003_influx_v{ver_cfg.version.replace('.', '')}")
+        for ver_cfg in ExtSrcEnv.sqlserver_version_configs():
+            self._cleanup(f"comp13_sqlserver_v{ver_cfg.version.replace('.', '')}")
         for db in TestFq12Compatibility._ALL_LOCAL_DBS:
             tdSql.execute(f"drop database if exists {db}")
 
@@ -461,7 +465,8 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         TS: Key conversion functions stable across versions
 
         Validate that key function-conversion SQL constructs are parseable
-        for each source type.
+        for each source type, including SQL Server (T-SQL four-part path
+        forms).
 
         Catalog:
             - Query:FederatedCompatibility
@@ -474,13 +479,16 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         History:
             - 2026-04-14 wpan Rewrite to match TS COMP-009
+            - 2026-10-16 wpan Add the SQL Server dialect to the function matrix
 
         """
         cfg_mysql = self._mysql_cfg()
         cfg_pg = self._pg_cfg()
+        cfg_ss = self._sqlserver_cfg()
         src_mysql = "comp009_mysql"
         src_pg = "comp009_pg"
-        self._cleanup(src_mysql, src_pg)
+        src_ss = "comp009_ss"
+        self._cleanup(src_mysql, src_pg, src_ss)
 
         tdSql.execute(
             f"create external source {src_mysql} type='mysql' "
@@ -491,26 +499,35 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             f"host='{cfg_pg.host}' port={cfg_pg.port} user='u' password='p' "
             f"database='pgdb' schema='public'"
         )
+        tdSql.execute(
+            f"create external source {src_ss} type='sqlserver' "
+            f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' "
+            f"password='{cfg_ss.password}' database='ssdb' schema='dbo'"
+        )
 
         # Key conversion functions that should parse without syntax error
         test_sqls = [
             # COUNT/SUM/AVG — universal
             f"select count(*), sum(v), avg(v) from {src_mysql}.db.t1",
             f"select count(*), sum(v), avg(v) from {src_pg}.pgdb.t1",
+            f"select count(*), sum(v), avg(v) from {src_ss}.ssdb.dbo.t1",
             # String functions
             f"select length(name), upper(name), lower(name) from {src_mysql}.db.t1",
             f"select length(name), upper(name), lower(name) from {src_pg}.pgdb.t1",
+            f"select length(name), upper(name), lower(name) from {src_ss}.ssdb.dbo.t1",
             # Date functions
             f"select now() from {src_mysql}.db.t1",
+            f"select now() from {src_ss}.ssdb.dbo.t1",
             # Math functions
             f"select abs(v), ceil(v), floor(v) from {src_mysql}.db.t1",
+            f"select abs(v), ceil(v), floor(v) from {src_ss}.ssdb.dbo.t1",
         ]
 
         for sql in test_sqls:
             # Queries on non-existent external tables must fail (any error acceptable)
             tdSql.error(sql)
 
-        self._cleanup(src_mysql, src_pg)
+        self._cleanup(src_mysql, src_pg, src_ss)
 
     # ------------------------------------------------------------------
     # COMP-010  Case/quoting compatibility
@@ -753,6 +770,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         """
         first_result = None
+        prev_active = getattr(self, "_active_sqlserver_ver", None)
         for ver_cfg in ExtSrcEnv.sqlserver_version_configs():
             tag = ver_cfg.version.replace(".", "")
             ext_db = f"comp13_sqlserver_{tag}"
@@ -802,6 +820,9 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     f"FQSS-COMP SQL Server {ver_cfg.version}: 3 rows OK, dialect SQL text OK")
             finally:
                 self._cleanup(src)
+                # Do not leak the iteration's version into later tests that
+                # resolve _active_sqlserver_ver.
+                self._active_sqlserver_ver = prev_active
                 try:
                     ExtSrcEnv.sqlserver_drop_db_cfg(ver_cfg, ext_db)
                 except Exception:

@@ -799,7 +799,9 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT id, ISNOTNULL(nullable_val) FROM {tbl} ORDER BY time",),
         ("SELECT FILL_FORWARD(nullable_val) FROM {tbl} ORDER BY time",),
         ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST",),
-        ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST",),
+        # The two NULL rows tie on nullable_val; the id key keeps the order
+        # deterministic across sources (a tie order is not specified).
+        ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST, id",),
     ],
     # ── corr: CORR 相关系数（val/score 完全线性相关 → CORR = 1.0）
     "corr": [
@@ -1257,28 +1259,48 @@ class TestFq14ResultParity(ParityTestBase):
 
     def _run_join_ts_external_sort_matrix(self):
         failed = []
-        for case_id, sql_template, opts in _JOIN_TS_EXT_SORT_MATRIX:
-            ordered = opts.get("ordered", True)
-            ref_sql = sql_template.format(**self._join_ts_source_map(local_ref=True))
-            mix_sql = sql_template.format(**self._join_ts_source_map())
-            try:
-                ref = self._get_rows(ref_sql)
-                rows = self._get_rows(mix_sql)
-                if not ordered:
-                    ref = sorted(ref, key=lambda r: [str(x) for x in r])
-                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
-                self._compare_rows(ref, rows, ref_sql, mix_sql, case_id, set())
-                tdLog.info(f"[join-ts-ext {case_id}] PASS")
-            except (AssertionError, QueryError) as exc:
-                failed.append((case_id, sql_template, str(exc)))
-                tdLog.info(f"[join-ts-ext {case_id}] FAIL: {str(exc).splitlines()[0]}")
+        # The matrix was authored for the MySQL/PG pair.  Execute it once per
+        # external pair so SQL Server is covered with the identical sort /
+        # TIMETRUNCATE shapes: first with SQL Server substituting the MySQL
+        # leg, then with SQL Server substituting the PG leg.  Cases that do
+        # not use the leg being substituted are skipped (the other pass
+        # covers them).
+        leg_bindings = [
+            ("mysql/pg", {}),
+            ("sqlserver/pg", {"mysql": "sqlserver"}),
+            ("mysql/sqlserver", {"pg": "sqlserver"}),
+        ]
+        total = 0
+        for pair_label, remap in leg_bindings:
+            for case_id, sql_template, opts in _JOIN_TS_EXT_SORT_MATRIX:
+                if remap and not any(f"{{{k}}}" in sql_template for k in remap):
+                    continue
+                ordered = opts.get("ordered", True)
+                ref_sql = sql_template.format(**self._join_ts_source_map(local_ref=True))
+                src_map = self._join_ts_source_map()
+                for k, v in remap.items():
+                    src_map[k] = src_map[v]
+                mix_sql = sql_template.format(**src_map)
+                label = f"{case_id}[{pair_label}]"
+                total += 1
+                try:
+                    ref = self._get_rows(ref_sql)
+                    rows = self._get_rows(mix_sql)
+                    if not ordered:
+                        ref = sorted(ref, key=lambda r: [str(x) for x in r])
+                        rows = sorted(rows, key=lambda r: [str(x) for x in r])
+                    self._compare_rows(ref, rows, ref_sql, mix_sql, label, set())
+                    tdLog.info(f"[join-ts-ext {label}] PASS")
+                except (AssertionError, QueryError) as exc:
+                    failed.append((label, sql_template, str(exc)))
+                    tdLog.info(f"[join-ts-ext {label}] FAIL: {str(exc).splitlines()[0]}")
 
         if failed:
             all_errors = "\n".join(
                 f"\n[{case_id}] {sql}\n  {detail}" for case_id, sql, detail in failed
             )
             raise AssertionError(
-                f"{len(failed)} of {len(_JOIN_TS_EXT_SORT_MATRIX)} "
+                f"{len(failed)} of {total} "
                 f"JOIN TIMETRUNCATE external sort case(s) failed:{all_errors}"
             )
 
@@ -1578,33 +1600,16 @@ class TestFq14ResultParity(ParityTestBase):
                 outer_tail = normalized_sql.rsplit(" ON ", 1)[-1]
                 outer_tail = outer_tail.split(" ORDER BY ", 1)[0]
                 outer_where = " WHERE " in outer_tail
-                if label == "SQLServer":
-                    # SQL Server runs the federated-query pushdown baseline: JOIN
-                    # and WHERE stay local, so both join legs render as separate
-                    # remote scans and neither predicate may leak into remote SQL.
-                    assert len(remote_lines) == 2, (
-                        f"[{case_id} {label}] expected two remote input scans: {remote_lines!r}"
-                    )
-                    assert all(" join " not in line.lower() for line in remote_lines), (
-                        f"[{case_id} {label}] JOIN leaked into a remote input scan: {remote_lines!r}"
-                    )
-                    assert " WHERE " not in normalized_sql, (
-                        f"[{case_id} {label}] predicate leaked into baseline remote SQL: {remote_sql}"
-                    )
-                    plan_details = [
-                        "REMOTE JOIN: NO",
-                        "REMOTE WHERE: NO",
-                    ]
-                elif case_id in ("join-22", "join-28"):
+                if case_id in ("join-22", "join-28"):
                     if case_id == "join-22":
-                        derived_pattern = r"FROM \(SELECT .+ WHERE .+\) [`\"]?a[`\"]? LEFT JOIN"
+                        derived_pattern = r"FROM \(SELECT .+ WHERE .+\) [`\"\[]?a[`\"\]]? LEFT JOIN"
                     else:
-                        derived_pattern = r"RIGHT JOIN \(SELECT .+ WHERE .+\) [`\"]?b[`\"]? ON"
+                        derived_pattern = r"RIGHT JOIN \(SELECT .+ WHERE .+\) [`\"\[]?b[`\"\]]? ON"
                     preserved_derived = re.search(
                         derived_pattern, remote_sql, flags=re.IGNORECASE
                     ) is not None
                     predicate_count = len(
-                        re.findall(r"[`\"]?val[`\"]?\s*>\s*20", remote_sql, re.IGNORECASE)
+                        re.findall(r"[`\"\[]?val[`\"\]]?\s*>\s*20", remote_sql, re.IGNORECASE)
                     )
                     assert preserved_derived, (
                         f"[{case_id} {label}] preserved side is not a filtered derived table: "
@@ -1625,7 +1630,7 @@ class TestFq14ResultParity(ParityTestBase):
                     ]
                 elif case_id == "join-27":
                     predicate_count = len(
-                        re.findall(r"[`\"]?val[`\"]?\s*<\s*30", remote_sql, re.IGNORECASE)
+                        re.findall(r"[`\"\[]?val[`\"\]]?\s*<\s*30", remote_sql, re.IGNORECASE)
                     )
                     assert outer_where, (
                         f"[{case_id} {label}] nullable-side predicate is not in outer WHERE: "
@@ -1718,7 +1723,8 @@ class TestFq14ResultParity(ParityTestBase):
         MySQL lowercases mixed-case columns, so DESC and SELECT treat
         Mapped_Val as mapped_val. PostgreSQL and InfluxDB preserve the
         original case, so unquoted mapped_val is rejected and quoted
-        Mapped_Val is required for metadata and binding.
+        Mapped_Val is required for metadata and binding. SQL Server keeps the
+        stored case but matches names case-insensitively, like MySQL.
 
         Catalog: - Query:FederatedResultParity
 
@@ -1728,6 +1734,7 @@ class TestFq14ResultParity(ParityTestBase):
 
         History:
             - 2026-09-01 xsren Mixed-case identifier parity for MySQL/PG/InfluxDB
+            - 2026-10-16 wpan Add the SQL Server identifier leg
         """
         tables = dict(self._ext_sources())
 
@@ -1748,6 +1755,22 @@ class TestFq14ResultParity(ParityTestBase):
             assert "Mapped_Val" in fields and "mapped_val" not in fields
             tdSql.error(f"SELECT mapped_val FROM {tables[provider]}")
             tdSql.query(f"SELECT id, `Mapped_Val` FROM {tables[provider]} WHERE `Mapped_Val` > 103 ORDER BY id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4)
+            tdSql.checkData(0, 1, 104)
+            tdSql.checkData(1, 0, 5)
+            tdSql.checkData(1, 1, 105)
+
+        # SQL Server keeps the stored case in the metadata but exposes a
+        # case-insensitive catalog (its default collation), exactly like MySQL:
+        # every name variant folds onto the stored column.
+        tdSql.query(f"DESC {tables['SQLServer']}")
+        ss_fields = [str(row[0]) for row in tdSql.queryResult]
+        assert "Mapped_Val" in ss_fields and "mapped_val" not in ss_fields
+        for name in ("Mapped_Val", "mapped_val", "`Mapped_Val`", "`mapped_val`"):
+            tdSql.query(
+                f"SELECT id, {name} FROM {tables['SQLServer']} "
+                f"WHERE {name} > 103 ORDER BY id")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 4)
             tdSql.checkData(0, 1, 104)
@@ -1783,7 +1806,7 @@ class TestFq14ResultParity(ParityTestBase):
 
     # ── 乱序数据写入 ─────────────────────────────────────────────────────
     def _rewrite_all_data(self, row_indices):
-        """Drop and re-insert parity data in all 4 DBs using *row_indices* order."""
+        """Drop and re-insert parity data in all DBs using *row_indices* order."""
         ordered_rows    = [_ROWS[i] for i in row_indices]
         ordered_rows_dt = [_ROWS_DT[i] for i in row_indices]
         mapped_rows = [row[:3] + (100 + row[1],) + row[3:] for row in ordered_rows]
@@ -1814,6 +1837,14 @@ class TestFq14ResultParity(ParityTestBase):
         self._run_ext_op_with_recover(
             "pg rewrite",
             lambda: ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_DB, pg_sqls),
+        )
+
+        # --- SQL Server ---
+        ss_sqls = ["DELETE FROM dbo.parity_t"] + parity_make_insert_sqls(
+            mapped_rows_dt, schema="dbo")
+        self._run_ext_op_with_recover(
+            "sqlserver rewrite",
+            lambda: ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, ss_sqls),
         )
 
         # --- InfluxDB (no DELETE; drop + recreate bucket) ---

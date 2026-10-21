@@ -916,6 +916,30 @@ const char *taosWindowsNameToIana(const char *winName) {
   return NULL;
 }
 
+const char *taosIanaNameToWindows(const char *ianaName) {
+  if (ianaName == NULL || ianaName[0] == '\0') return NULL;
+  // Two passes over the same Windows<->IANA tables taosWindowsNameToIana()
+  // uses: first accept a canonical Windows spelling as-is (T-SQL AT TIME ZONE
+  // takes it directly, e.g. 'UTC'), then map an IANA name to its Windows
+  // canonical equivalent.
+#ifdef WINDOWS
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz[i][0], ianaName) == 0) return win_tz[i][0];
+  }
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz[i][1], ianaName) == 0) return win_tz[i][0];
+  }
+#else
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz_xplat[i][0], ianaName) == 0) return win_tz_xplat[i][0];
+  }
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz_xplat[i][1], ianaName) == 0) return win_tz_xplat[i][0];
+  }
+#endif
+  return NULL;
+}
+
 #define TZ_SLOTS 8
 
 typedef struct {

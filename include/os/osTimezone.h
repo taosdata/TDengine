@@ -71,6 +71,14 @@ void    cleanupTimezoneInfo();
  */
 const char *taosWindowsNameToIana(const char *winName);
 
+/*
+ * Map an IANA timezone name to its Windows canonical equivalent (the T-SQL
+ * "AT TIME ZONE" spelling).  The input is returned unchanged when it already
+ * names a Windows zone, and NULL when no mapping exists.  Mirrors
+ * taosWindowsNameToIana() over the same tables; available on all platforms.
+ */
+const char *taosIanaNameToWindows(const char *ianaName);
+
 #ifdef WINDOWS
 int64_t getWindowsTimezoneOffset(void);
 #endif
