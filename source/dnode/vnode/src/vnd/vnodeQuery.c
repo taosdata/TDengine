@@ -1016,6 +1016,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       tstrncpy(pTb->refCols[refColsNum].refTableName, mr.me.colRef.pColRef[j].refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pTb->refCols[refColsNum].refDbName, mr.me.colRef.pColRef[j].refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(pTb->refCols[refColsNum].refSourceName, mr.me.colRef.pColRef[j].refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(pTb->refCols[refColsNum].refSchemaName, mr.me.colRef.pColRef[j].refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
 
       snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
 
@@ -1038,6 +1039,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       tstrncpy(pTb->tagRefCols[tagRefColsNum].refTableName, mr.me.colRef.pTagRef[j].refTableName, TSDB_TABLE_NAME_LEN);
       tstrncpy(pTb->tagRefCols[tagRefColsNum].refDbName, mr.me.colRef.pTagRef[j].refDbName, TSDB_DB_NAME_LEN);
       tstrncpy(pTb->tagRefCols[tagRefColsNum].refSourceName, mr.me.colRef.pTagRef[j].refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+      tstrncpy(pTb->tagRefCols[tagRefColsNum].refSchemaName, mr.me.colRef.pTagRef[j].refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
 
       snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->tagRefCols[tagRefColsNum].refDbName, pTb->tagRefCols[tagRefColsNum].refTableName);
 

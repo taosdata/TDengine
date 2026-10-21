@@ -32,7 +32,7 @@ TDengine 在标准 SQL 之上，针对时序与物联网场景扩展了标签过
   普通 Join，以及面向时序的 ASOF Join、Window Join。详见 [关联查询](../05-tdengine-sql/04-data-query/05-join.md)。
 
 - **联邦查询**
-  在一条 SQL 中读取 MySQL、PostgreSQL、InfluxDB 等外部数据源，并与本地时序数据联合分析。详见 [联邦查询](../05-tdengine-sql/04-data-query/06-federated-query.md)。
+  在一条 SQL 中读取 MySQL、PostgreSQL、InfluxDB、SQL Server 等外部数据源，并与本地时序数据联合分析。详见 [联邦查询](../05-tdengine-sql/04-data-query/06-federated-query.md)。
 
 - **窗口函数**
   `OVER` 窗口函数。详见 [窗口函数](../05-tdengine-sql/04-data-query/07-window-function.md)。

@@ -3517,6 +3517,7 @@ enum {
   EXT_TABLE_CODE_REMOTE_TABLE_NAME,
   EXT_TABLE_CODE_TABLE_ALIAS,
   EXT_TABLE_CODE_SRC_NAME_FROM_PATH,
+  EXT_TABLE_CODE_NS_FROM_PATH_ONLY,
 };
 
 static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3565,6 +3566,9 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_SRC_NAME_FROM_PATH, pNode->srcNameFromPath);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_NS_FROM_PATH_ONLY, pNode->nsFromPathOnly);
   }
   return code;
 }
@@ -3619,6 +3623,9 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_SRC_NAME_FROM_PATH:
         code = tlvDecodeBool(pTlv, &pNode->srcNameFromPath);
+        break;
+      case EXT_TABLE_CODE_NS_FROM_PATH_ONLY:
+        code = tlvDecodeBool(pTlv, &pNode->nsFromPathOnly);
         break;
       default:
         break;

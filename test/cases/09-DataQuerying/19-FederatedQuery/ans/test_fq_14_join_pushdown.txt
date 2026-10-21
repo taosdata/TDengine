@@ -21,9 +21,10 @@ LOCAL FILTER: NO
 ---
 ### join-22 SQLServer
 SQL: SELECT a.id, b.val FROM fq_parity_src_s.parity_t a LEFT JOIN fq_parity_src_s.parity_t b ON a.time = b.time WHERE a.val > 20 ORDER BY a.id
-REMOTE JOIN: NO
-REMOTE WHERE: NO
-LOCAL FILTER: YES
+PRESERVED DERIVED: YES
+OUTER WHERE: NO
+PREDICATE COUNT: 1
+LOCAL FILTER: NO
 ---
 ### join-27 MySQL
 SQL: SELECT a.id, b.val FROM fq_parity_src_m.parity_t a RIGHT JOIN fq_parity_src_m.parity_t b ON a.time = b.time WHERE a.val < 30 ORDER BY b.id
@@ -45,9 +46,9 @@ LOCAL FILTER: NO
 ---
 ### join-27 SQLServer
 SQL: SELECT a.id, b.val FROM fq_parity_src_s.parity_t a RIGHT JOIN fq_parity_src_s.parity_t b ON a.time = b.time WHERE a.val < 30 ORDER BY b.id
-REMOTE JOIN: NO
-REMOTE WHERE: NO
-LOCAL FILTER: YES
+NULLABLE OUTER WHERE: YES
+PREDICATE COUNT: 1
+LOCAL FILTER: NO
 ---
 ### join-28 MySQL
 SQL: SELECT a.id, b.val FROM fq_parity_src_m.parity_t a RIGHT JOIN fq_parity_src_m.parity_t b ON a.time = b.time WHERE b.val > 20 ORDER BY b.id
@@ -72,7 +73,8 @@ LOCAL FILTER: NO
 ---
 ### join-28 SQLServer
 SQL: SELECT a.id, b.val FROM fq_parity_src_s.parity_t a RIGHT JOIN fq_parity_src_s.parity_t b ON a.time = b.time WHERE b.val > 20 ORDER BY b.id
-REMOTE JOIN: NO
-REMOTE WHERE: NO
-LOCAL FILTER: YES
+PRESERVED DERIVED: YES
+OUTER WHERE: NO
+PREDICATE COUNT: 1
+LOCAL FILTER: NO
 ---

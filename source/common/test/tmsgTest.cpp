@@ -4099,6 +4099,7 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_SINGLE};
   tstrncpy(fsParam.sourceName, "influx1", sizeof(fsParam.sourceName));
   tstrncpy(fsParam.dbName, "extdb", sizeof(fsParam.dbName));
+  tstrncpy(fsParam.schemaName, "dbo", sizeof(fsParam.schemaName));
   tstrncpy(fsParam.tableName, "cpu", sizeof(fsParam.tableName));
   fsParam.dstPrecision = 2;
   fsParam.colMap = taosArrayInit(2, sizeof(SColIdNameKV));
@@ -4139,22 +4140,34 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   bool    wireReuse = false;
   char    wireSourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
   char    wireDbName[TSDB_DB_NAME_LEN] = {0};
+  char    wireSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
   char    wireTableName[TSDB_TABLE_NAME_LEN] = {0};
+  int32_t wireMarker = 0;
+  int32_t wireParamType = 0;
   int32_t wireColNum = 0;
+  int32_t wireBatchNum = 0;
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireOpType), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireDownstreamIdx), 0);
   ASSERT_EQ(tDecodeBool(&wireDecoder, &wireReuse), 0);
   ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireSourceName), 0);
   ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireDbName), 0);
   ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireTableName), 0);
+  ASSERT_EQ(tDecodeI32(&wireDecoder, &wireMarker), 0);
+  ASSERT_EQ(tDecodeI32(&wireDecoder, &wireParamType), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireColNum), 0);
+  ASSERT_EQ(tDecodeI32(&wireDecoder, &wireBatchNum), 0);
+  ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireSchemaName), 0);
   ASSERT_EQ(wireOpType, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
   ASSERT_EQ(wireDownstreamIdx, 1);
   ASSERT_FALSE(wireReuse);
   ASSERT_STREQ(wireSourceName, "influx1");
   ASSERT_STREQ(wireDbName, "extdb");
   ASSERT_STREQ(wireTableName, "cpu");
+  ASSERT_EQ(wireMarker, TSDB_MAX_COLUMNS + 2);
+  ASSERT_EQ(wireParamType, FOREIGN_SCAN_PARAM_SINGLE);
   ASSERT_EQ(wireColNum, 2);
+  ASSERT_EQ(wireBatchNum, 0);
+  ASSERT_STREQ(wireSchemaName, "dbo");
   tDecoderClear(&wireDecoder);
 
   SOperatorParam out = {0};
@@ -4188,6 +4201,139 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   taosArrayDestroy(pOut->colMap);
   taosMemoryFree(pOut->tagCond);
   taosMemoryFree(pOut->filterCondJson);
+  taosMemoryFree(pOut);
+}
+
+TEST(td_msg_test, federated_scan_op_param_legacy_single_without_schema) {
+  // Exact pre-schema layout: sourceName, dbName, tableName, colNum, body.
+  std::vector<uint8_t> buf(512, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), buf.size());
+  ASSERT_EQ(tEncodeI32(&encoder, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "mysql1"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "db1"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "t1"), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI16(&encoder, 2), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "c1"), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, TSDB_TIME_PRECISION_MILLI), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  SForeignScanOperatorParam* pOut = (SForeignScanOperatorParam*)out.value;
+  ASSERT_NE(pOut, nullptr);
+  ASSERT_EQ(pOut->paramType, FOREIGN_SCAN_PARAM_SINGLE);
+  ASSERT_STREQ(pOut->sourceName, "mysql1");
+  ASSERT_STREQ(pOut->dbName, "db1");
+  ASSERT_STREQ(pOut->schemaName, "");
+  ASSERT_STREQ(pOut->tableName, "t1");
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOut->colMap), 1);
+  ASSERT_STREQ(((SColIdNameKV*)taosArrayGet(pOut->colMap, 0))->colName, "c1");
+  taosArrayDestroy(pOut->colMap);
+  taosMemoryFree(pOut);
+}
+
+TEST(td_msg_test, federated_scan_op_param_without_schema_keeps_legacy_wire) {
+  SOperatorParam param = {0};
+  param.opType = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+  SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_SINGLE};
+  tstrncpy(fsParam.sourceName, "mysql1", sizeof(fsParam.sourceName));
+  tstrncpy(fsParam.dbName, "db1", sizeof(fsParam.dbName));
+  tstrncpy(fsParam.tableName, "t1", sizeof(fsParam.tableName));
+  param.value = &fsParam;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  tEncoderClear(&encoder);
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  int32_t opType = 0, downstreamIdx = 0, wireHeader = 0;
+  bool    reuse = false;
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
+  char    dbName[TSDB_DB_NAME_LEN] = {0};
+  char    tableName[TSDB_TABLE_NAME_LEN] = {0};
+  ASSERT_EQ(tDecodeI32(&decoder, &opType), 0);
+  ASSERT_EQ(tDecodeI32(&decoder, &downstreamIdx), 0);
+  ASSERT_EQ(tDecodeBool(&decoder, &reuse), 0);
+  ASSERT_EQ(tDecodeCStrTo(&decoder, sourceName), 0);
+  ASSERT_EQ(tDecodeCStrTo(&decoder, dbName), 0);
+  ASSERT_EQ(tDecodeCStrTo(&decoder, tableName), 0);
+  ASSERT_EQ(tDecodeI32(&decoder, &wireHeader), 0);
+  ASSERT_EQ(wireHeader, 0);  // a bare colNum, not the V2/V3 marker
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, federated_scan_batch_op_param_v2_without_schema) {
+  std::vector<uint8_t> buf(512, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), buf.size());
+  ASSERT_EQ(tEncodeI32(&encoder, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "pg_prod"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, TSDB_MAX_COLUMNS + 1), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, FOREIGN_SCAN_PARAM_BATCH), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 42), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, TSDB_TIME_PRECISION_MILLI), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 7), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 1000), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 2000), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, true), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "db1"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "t1"), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, TSDB_TIME_PRECISION_MILLI), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  SForeignScanOperatorParam* pOut = (SForeignScanOperatorParam*)out.value;
+  ASSERT_NE(pOut, nullptr);
+  ASSERT_EQ(pOut->paramType, FOREIGN_SCAN_PARAM_BATCH);
+  ASSERT_STREQ(pOut->schemaName, "");
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOut->pBatchTables), 1);
+  SForeignTableInfo* pTable = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, 0);
+  ASSERT_STREQ(pTable->dbName, "db1");
+  ASSERT_STREQ(pTable->schemaName, "");
+  ASSERT_STREQ(pTable->tableName, "t1");
+  taosArrayDestroy(pTable->colMap);
+  taosMemoryFree(pTable->pPushedCondJson);
+  taosArrayDestroy(pOut->pBatchTables);
   taosMemoryFree(pOut);
 }
 
@@ -4406,6 +4552,7 @@ TEST(td_msg_test, stream_reader_deploy_ext_spec_column_mapping_roundtrip) {
 TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_BATCH};
   tstrncpy(fsParam.sourceName, "pg_prod", sizeof(fsParam.sourceName));
+  tstrncpy(fsParam.schemaName, "public", sizeof(fsParam.schemaName));
   fsParam.sourceMetaVersion = 42;
   fsParam.dstPrecision = TSDB_TIME_PRECISION_MILLI;
   fsParam.groupId = 7;
@@ -4416,6 +4563,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
 
   SForeignTableInfo table1 = {0};
   tstrncpy(table1.dbName, "metrics", sizeof(table1.dbName));
+  tstrncpy(table1.schemaName, "public", sizeof(table1.schemaName));
   tstrncpy(table1.tableName, "sensor_a", sizeof(table1.tableName));
   table1.dstPrecision = TSDB_TIME_PRECISION_MILLI;
   table1.virtualChildUid = 101;
@@ -4434,6 +4582,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
 
   SForeignTableInfo table2 = {0};
   tstrncpy(table2.dbName, "archive", sizeof(table2.dbName));
+  tstrncpy(table2.schemaName, "archive_schema", sizeof(table2.schemaName));
   tstrncpy(table2.tableName, "sensor_b", sizeof(table2.tableName));
   table2.dstPrecision = TSDB_TIME_PRECISION_MICRO;
   table2.rowLimit = 128;
@@ -4474,6 +4623,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   bool    wireReuse = false;
   char    wireSourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
   char    wireDbName[TSDB_DB_NAME_LEN] = {0};
+  char    wireSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
   char    wireTableName[TSDB_TABLE_NAME_LEN] = {0};
   int32_t wireMarker = 0;
   int32_t wireParamType = 0;
@@ -4489,16 +4639,18 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireParamType), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireColNum), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireBatchNum), 0);
+  ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireSchemaName), 0);
   ASSERT_EQ(wireOpType, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
   ASSERT_EQ(wireDownstreamIdx, 3);
   ASSERT_FALSE(wireReuse);
   ASSERT_STREQ(wireSourceName, "pg_prod");
   ASSERT_STREQ(wireDbName, "");
   ASSERT_STREQ(wireTableName, "");
-  ASSERT_EQ(wireMarker, TSDB_MAX_COLUMNS + 1);
+  ASSERT_EQ(wireMarker, TSDB_MAX_COLUMNS + 2);
   ASSERT_EQ(wireParamType, FOREIGN_SCAN_PARAM_BATCH);
   ASSERT_EQ(wireColNum, 0);
   ASSERT_EQ(wireBatchNum, 2);
+  ASSERT_STREQ(wireSchemaName, "public");
   tDecoderClear(&wireDecoder);
 
   SOperatorParam out = {0};
@@ -4511,6 +4663,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_NE(pOut, nullptr);
   ASSERT_EQ(pOut->paramType, FOREIGN_SCAN_PARAM_BATCH);
   ASSERT_STREQ(pOut->sourceName, "pg_prod");
+  ASSERT_STREQ(pOut->schemaName, "public");
   ASSERT_EQ(pOut->sourceMetaVersion, 42);
   ASSERT_EQ(pOut->groupId, 7);
   ASSERT_EQ(pOut->window.skey, 1000);
@@ -4519,6 +4672,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   SForeignTableInfo* pOut1 = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, 0);
   SForeignTableInfo* pOut2 = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, 1);
   ASSERT_STREQ(pOut1->dbName, "metrics");
+  ASSERT_STREQ(pOut1->schemaName, "public");
   ASSERT_STREQ(pOut1->tableName, "sensor_a");
   ASSERT_EQ(pOut1->virtualChildUid, 101);
   ASSERT_EQ(pOut1->scanParamId, 1001);
@@ -4528,6 +4682,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_EQ(pOut1->pPushedCond, nullptr);
   ASSERT_STREQ(((SColIdNameKV*)taosArrayGet(pOut1->colMap, 0))->colName, "value");
   ASSERT_STREQ(pOut2->dbName, "archive");
+  ASSERT_STREQ(pOut2->schemaName, "archive_schema");
   ASSERT_STREQ(pOut2->tableName, "sensor_b");
   ASSERT_EQ(pOut2->rowLimit, 128);
   ASSERT_EQ(pOut2->virtualChildUid, 202);

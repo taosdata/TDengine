@@ -3843,7 +3843,8 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     created = true;
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
     pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
-    if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType) {
+    if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType ||
+        EXT_SOURCE_SQLSERVER == pExtTableNode->sourceType) {
       SExtTableNode* pScanTable = (SExtTableNode*)pExtScan->pExtTableNode;
       // Keep each condition group's slot identity distinct without changing the remote table name.
       snprintf(pScanTable->table.tableAlias, sizeof(pScanTable->table.tableAlias), "_vtb_ext_%d",
