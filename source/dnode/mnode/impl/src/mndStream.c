@@ -1102,12 +1102,82 @@ int32_t mndValidateStreamTimeConfig(const SCMCreateStreamReq *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Validate the client-supplied physical plan JSON before the stream is persisted.
+ *
+ * The plan strings (calcPlan / calcScanPlanList[].scanPlan) are decoded into node
+ * graphs by nodesStringToNode, which instantiates whatever NodeType the JSON names
+ * and leaves *pNode NULL when a key is absent (see security finding "item 194").
+ * The mnode later walks these graphs as trusted SQueryPlan / SSubplan nodes and
+ * dereferences pNode; a wrong-typed or NULL node crashes the mnode leader and,
+ * because the SStreamObj is committed to sdb, replays into a persistent crash loop
+ * on every restart. Rejecting here means a malformed plan is never committed.
+ *
+ * Note: calcPlan is intentionally OPTIONAL (a NULL calcPlan is a valid stream shape);
+ * only a non-NULL calcPlan that fails to decode to a physical plan is rejected. */
+static int32_t mndValidateStreamPlan(const SCMCreateStreamReq *pCreate) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t streamId = pCreate->streamId;
+
+  if (pCreate->calcPlan != NULL) {
+    SNode *pPlan = NULL;
+    code = nodesStringToNode(pCreate->calcPlan, &pPlan);
+    if (TSDB_CODE_SUCCESS != code || NULL == pPlan) {
+      mstsError("stream:%s invalid calcPlan (decode code:%s, node null:%d)", pCreate->name, tstrerror(code),
+                (pPlan == NULL));
+      nodesDestroyNode(pPlan);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
+    if (QUERY_NODE_PHYSICAL_PLAN != nodeType(pPlan)) {
+      mstsError("stream:%s calcPlan root node type %d is not QUERY_NODE_PHYSICAL_PLAN", pCreate->name,
+                nodeType(pPlan));
+      nodesDestroyNode(pPlan);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
+    nodesDestroyNode(pPlan);
+  }
+
+  if (pCreate->calcScanPlanList != NULL) {
+    int32_t num = taosArrayGetSize(pCreate->calcScanPlanList);
+    for (int32_t i = 0; i < num; ++i) {
+      SStreamCalcScan *pScan = taosArrayGet(pCreate->calcScanPlanList, i);
+      // A calc scan without a scanPlan (or a NULL scan) is a deterministic NULL
+      // dereference in the deploy worker - reject it instead of persisting it.
+      if (pScan == NULL || pScan->scanPlan == NULL) {
+        mstsError("stream:%s calcScanPlanList[%d] has a NULL scanPlan", pCreate->name, i);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      }
+      SNode *pSub = NULL;
+      code = nodesStringToNode(pScan->scanPlan, &pSub);
+      if (TSDB_CODE_SUCCESS != code || NULL == pSub) {
+        mstsError("stream:%s calcScanPlanList[%d] scanPlan decode failed (code:%s, node null:%d)", pCreate->name, i,
+                  tstrerror(code), (pSub == NULL));
+        nodesDestroyNode(pSub);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      }
+      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pSub)) {
+        mstsError("stream:%s calcScanPlanList[%d] scanPlan root node type %d is not QUERY_NODE_PHYSICAL_SUBPLAN",
+                  pCreate->name, i, nodeType(pSub));
+        nodesDestroyNode(pSub);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      }
+      nodesDestroyNode(pSub);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
   char   *pUser = RPC_MSG_USER(pReq);
 
   code = mndValidateStreamTimeConfig(pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  // Security hardening (see "item 194"): reject a malformed client plan before the
+  // stream is committed to sdb, so a bad plan can never replay into a crash loop.
+  code = mndValidateStreamPlan(pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
 #ifdef TD_ENTERPRISE
