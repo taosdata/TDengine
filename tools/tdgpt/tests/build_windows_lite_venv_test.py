@@ -79,7 +79,7 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
     runtime_dir.mkdir()
     (runtime_dir / "python.exe").write_bytes(b"python")
     requirements = tmp_path / "requirements_docker.txt"
-    requirements.write_text("requests==2.32.3\n", encoding="utf-8")
+    requirements.write_text("requests==2.33\n", encoding="utf-8")
     work_dir = tmp_path / "work"
     output_dir = tmp_path / "output"
     args = argparse.Namespace(
@@ -118,7 +118,7 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
         module.subprocess,
         "run",
         lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="requests==2.32.3\n", stderr=""
+            args=[], returncode=0, stdout="requests==2.33\n", stderr=""
         ),
     )
 
