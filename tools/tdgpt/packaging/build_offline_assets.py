@@ -23,15 +23,11 @@ import argparse
 import copy
 import datetime
 import io
-import os
-import subprocess
-import sys
 import tarfile
 import time
 from pathlib import Path
 from typing import Iterable, Optional
 
-DEFAULT_UV_EXE = Path(__file__).resolve().parent / "bin" / "uv.exe"
 MODEL_NAME_ALIASES = {
     "tdtsfm": "tdtsfm",
     "timemoe": "timemoe",
@@ -54,79 +50,6 @@ def ok(message: str) -> None:
 
 def fail(message: str) -> RuntimeError:
     return RuntimeError(message)
-
-
-def run_command(cmd: list[str], env: Optional[dict[str, str]] = None) -> None:
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env, check=False)
-    if result.returncode == 0:
-        return
-    if result.stdout:
-        print(result.stdout, file=sys.stderr, end="")
-    if result.stderr:
-        print(result.stderr, file=sys.stderr, end="")
-    raise fail(f"Command failed with exit code {result.returncode}: {' '.join(cmd)}")
-
-
-def resolve_uv_exe(cli_value: str) -> Path:
-    if cli_value:
-        candidate = Path(cli_value).resolve()
-        if candidate.exists():
-            return candidate
-        raise FileNotFoundError(f"uv.exe not found: {candidate}")
-
-    if DEFAULT_UV_EXE.exists():
-        return DEFAULT_UV_EXE.resolve()
-
-    result = subprocess.run(
-        ["where", "uv"], capture_output=True, text=True, check=False
-    )
-    if result.returncode == 0:
-        first = result.stdout.splitlines()[0].strip()
-        if first:
-            return Path(first).resolve()
-
-    raise FileNotFoundError(
-        "uv.exe was not found. Provide --uv-exe or place uv.exe under packaging/bin/."
-    )
-
-
-def find_python_runtime_home(root_dir: Path) -> Path:
-    candidates: list[Path] = []
-    for python_exe in root_dir.rglob("python.exe"):
-        parent = python_exe.parent
-        if parent.name.lower() == "scripts":
-            continue
-        if (parent / "Lib").exists():
-            candidates.append(parent)
-    if not candidates:
-        raise FileNotFoundError(f"Unable to locate a Python runtime under {root_dir}")
-    candidates.sort(key=lambda item: (len(item.parts), len(str(item))))
-    return candidates[0]
-
-
-def prepare_runtime_source(
-    python_runtime_dir: Optional[Path],
-    uv_exe: str,
-    python_version: str,
-    work_dir: Path,
-) -> Path:
-    if python_runtime_dir is not None:
-        runtime_dir = python_runtime_dir.resolve()
-        if not (runtime_dir / "python.exe").exists():
-            raise FileNotFoundError(
-                f"python.exe not found under --python-runtime-dir: {runtime_dir}"
-            )
-        return runtime_dir
-
-    uv_path = resolve_uv_exe(uv_exe)
-    uv_store = work_dir / "uv-python-store"
-    env = os.environ.copy()
-    env["UV_PYTHON_INSTALL_DIR"] = str(uv_store)
-    info(f"Installing Python {python_version} with uv into {uv_store}")
-    run_command([str(uv_path), "python", "install", python_version], env=env)
-    runtime_dir = find_python_runtime_home(uv_store)
-    info(f"Resolved Python runtime: {runtime_dir}")
-    return runtime_dir
 
 
 def ensure_directory(path: Path, label: str) -> Path:

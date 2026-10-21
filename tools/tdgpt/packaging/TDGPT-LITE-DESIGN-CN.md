@@ -603,7 +603,7 @@ Linux 包可额外提供以下兼容别名，全部只转发到 `taosanodectl`�
 /usr/bin/status-model     -> taosanodectl model status
 ```
 
-Windows 提供同名 `.bat` 包装命令。现有 `start.sh`、`stop.sh`、`start-model.sh`、`stop-model.sh` 仅是包内兼容实现，不再作为对外文档或自动化接口。
+Windows 提供同名 `.bat` 包装命令。`start-model.sh`、`stop-model.sh` 保留模型命令兼容入口；`start.sh`、`stop.sh` 和单模型包装脚本已移除，主服务使用 `taosanodectl service`。
 
 ### 10.3 职责边界
 
