@@ -526,7 +526,9 @@ Different object types support different permission types. The specific mapping 
 #### User and Role Permissions
 
 - In most cases, effective permissions are cumulative, forming a union of direct user permissions and inherited role permissions.
-- For row/column permissions, only a single rule takes effect — neither the union nor the intersection. If both the user and the roles have row/column permissions of the same type, the one updated more recently takes precedence; if update times are identical, the user permission takes precedence.
+- For row/column permissions, only a single rule takes effect — neither the union nor the intersection:
+  - If both the user and the roles have row/column permissions of the same type, the user permission takes precedence.
+  - If the user has no such permission but multiple roles do, the role permission with the most recent update time takes precedence.
 
 #### Database Permissions
 
