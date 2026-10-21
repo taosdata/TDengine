@@ -562,6 +562,24 @@ class ExtSrcEnv:
         return "".join(lines)
 
     @classmethod
+    def _lifecycle_socket_timeout(cls):
+        """Return the client wait for one host-side lifecycle operation.
+
+        The lease owner enforces FQ_LIFECYCLE_TIMEOUT_S itself. Stay above it
+        so a slow stop or start is reported by the owner, with its container
+        diagnostics, instead of failing as a client-side socket timeout.
+        """
+        raw = os.getenv("FQ_LIFECYCLE_TIMEOUT_S", "150")
+        try:
+            budget = int(raw)
+        except ValueError:
+            raise RuntimeError(f"FQ_LIFECYCLE_TIMEOUT_S must be an integer: {raw!r}")
+        if budget <= 0:
+            raise RuntimeError(f"FQ_LIFECYCLE_TIMEOUT_S must be positive: {raw!r}")
+        # Above the remote lease's own margin so the owner still reports first.
+        return budget + 60
+
+    @classmethod
     def _external_service_action(cls, action, service, ver):
         """Delegate lifecycle operations to the owner of an exclusive lease.
 
@@ -576,7 +594,7 @@ class ExtSrcEnv:
             import json
             import socket
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.settimeout(120)
+                conn.settimeout(cls._lifecycle_socket_timeout())
                 conn.connect(endpoint)
                 conn.sendall(json.dumps([action, service, ver]).encode() + b"\n")
                 with conn.makefile("rb") as reply:
@@ -589,7 +607,8 @@ class ExtSrcEnv:
             raise RuntimeError(
                 f"External {service} {ver} needs {action}, but no "
                 "FQ_SERVICE_CONTROL is configured for this exclusive lease")
-        subprocess.run([hook, action, service, ver], check=True, timeout=120,
+        subprocess.run([hook, action, service, ver], check=True,
+                       timeout=cls._lifecycle_socket_timeout(),
                        env=_fq_subprocess_env())
         return True
 
