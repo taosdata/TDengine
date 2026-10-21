@@ -17667,6 +17667,24 @@ TEST_F(StreamNestedHistoryVirtualTest, OneExistingMergerPerLogicalTable) {
   EXPECT_EQ(nullptr, harness.historyGroup()->pNestedPeerSources);
 }
 
+TEST_F(StreamNestedHistoryVirtualTest, FilteredEmptySourcesFinishWithoutInvalidRowRange) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual());
+  ASSERT_EQ(nullptr, harness.task()->histTriggerFilter);
+  harness.task()->histTriggerFilter = makeDeployParityEventComparison(1, OP_TYPE_EQUAL, 0);
+  ASSERT_NE(nullptr, harness.task()->histTriggerFilter);
+  auto* column =
+      reinterpret_cast<SColumnNode*>(reinterpret_cast<SOperatorNode*>(harness.task()->histTriggerFilter)->pLeft);
+  column->node.resType.type = TSDB_DATA_TYPE_INT;
+  column->node.resType.bytes = sizeof(int32_t);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualHistoryToMeta());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, finishVirtualDataRound(harness));
+  EXPECT_EQ(nullptr, harness.pendingNestedEvent(0));
+  EXPECT_EQ(nullptr, harness.historyGroup()->pPeerMerger);
+  EXPECT_EQ(nullptr, harness.historyGroup()->pNestedPeerSources);
+}
+
 TEST_F(StreamNestedHistoryVirtualTest, MetaNeedInputUsesExistingPullState) {
   NestedHistoryHarness harness;
   ASSERT_TRUE(harness.deployVirtual());

@@ -596,6 +596,88 @@ int32_t scltMakeTargetNode(SNode **pNode, int64_t dataBlockId, int16_t slotId, S
 }
 }  // namespace
 
+TEST(ScalarCompareTest, EmptyColumnsDoNotBroadcastAgainstConstants) {
+  const int32_t leftTypes[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_BIGINT};
+  const int32_t rightTypes[] = {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_VARCHAR};
+  const int32_t rowCounts[][2] = {{0, 1}, {1, 0}, {0, 0}, {0, 3}, {3, 0}, {1, 3}, {3, 1}};
+  for (int32_t leftType : leftTypes) {
+    for (int32_t rightType : rightTypes) {
+      for (const auto &rows : rowCounts) {
+        SCOPED_TRACE(::testing::Message() << leftType << "," << rightType << " rows=" << rows[0] << "," << rows[1]);
+        SColumnInfoData leftCol = createColumnInfoData(leftType, 8, 0);
+        SColumnInfoData rightCol = createColumnInfoData(rightType, 8, 1);
+        SColumnInfoData resultCol = createColumnInfoData(TSDB_DATA_TYPE_BOOL, sizeof(bool), 2);
+        SScalarParam    left = {}, right = {}, output = {};
+        left.columnData = &leftCol;
+        left.numOfRows = rows[0];
+        right.columnData = &rightCol;
+        right.numOfRows = rows[1];
+        output.columnData = &resultCol;
+        ASSERT_EQ(colInfoDataEnsureCapacity(&leftCol, rows[0], true), TSDB_CODE_SUCCESS);
+        ASSERT_EQ(colInfoDataEnsureCapacity(&rightCol, rows[1], true), TSDB_CODE_SUCCESS);
+        ASSERT_EQ(colInfoDataEnsureCapacity(&resultCol, 3, true), TSDB_CODE_SUCCESS);
+        leftCol.hasNull = rightCol.hasNull = false;
+        int64_t value = 1;
+        char    text[VARSTR_HEADER_SIZE + 1] = {};
+        varDataSetLen(text, 1);
+        varDataVal(text)[0] = '1';
+        for (int32_t row = 0; row < rows[0]; ++row) {
+          ASSERT_EQ(
+              colDataSetVal(&leftCol, row,
+                            leftType == TSDB_DATA_TYPE_VARCHAR ? text : reinterpret_cast<const char *>(&value), false),
+              0);
+        }
+        for (int32_t row = 0; row < rows[1]; ++row) {
+          ASSERT_EQ(
+              colDataSetVal(&rightCol, row,
+                            rightType == TSDB_DATA_TYPE_VARCHAR ? text : reinterpret_cast<const char *>(&value), false),
+              0);
+        }
+        ASSERT_EQ(vectorCompareImpl(&left, &right, &output, -1, -1, OP_TYPE_EQUAL), TSDB_CODE_SUCCESS);
+        const int32_t expectedRows = rows[0] == 0 || rows[1] == 0 ? 0 : 3;
+        EXPECT_EQ(output.numOfRows, expectedRows);
+        EXPECT_EQ(output.numOfQualified, expectedRows);
+        for (int32_t row = 0; row < expectedRows; ++row) {
+          EXPECT_EQ(*colDataGetData(&resultCol, row), 1);
+        }
+        colDataDestroy(&leftCol);
+        colDataDestroy(&rightCol);
+        colDataDestroy(&resultCol);
+      }
+    }
+  }
+}
+
+TEST(ScalarCompareTest, EmptySetsStillProduceOneResultPerInputRow) {
+  for (bool remote : {false, true}) {
+    for (bool negated : {false, true}) {
+      SColumnInfoData leftCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0);
+      SColumnInfoData rightCol = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+      SColumnInfoData resultCol = createColumnInfoData(TSDB_DATA_TYPE_BOOL, sizeof(bool), 2);
+      ASSERT_EQ(colInfoDataEnsureCapacity(&leftCol, 3, true), 0);
+      ASSERT_EQ(colInfoDataEnsureCapacity(&resultCol, 3, true), 0);
+      SScalarParam left = {}, right = {}, output = {};
+      left.columnData = &leftCol;
+      left.numOfRows = 3;
+      right.columnData = &rightCol;
+      right.hashParam.hasHashParam = !remote;
+      right.remoteParam.hasRemoteParam = remote;
+      right.remoteParam.isMinVal = !negated;
+      output.columnData = &resultCol;
+      const int32_t op = remote ? OP_TYPE_GREATER_THAN : negated ? OP_TYPE_NOT_IN : OP_TYPE_IN;
+      ASSERT_EQ(vectorCompareImpl(&left, &right, &output, -1, -1, op), 0);
+      EXPECT_EQ(output.numOfRows, 3);
+      EXPECT_EQ(output.numOfQualified, negated ? 3 : 0);
+      for (int32_t row = 0; row < 3; ++row) {
+        EXPECT_EQ(*colDataGetData(&resultCol, row), negated);
+      }
+      colDataDestroy(&leftCol);
+      colDataDestroy(&rightCol);
+      colDataDestroy(&resultCol);
+    }
+  }
+}
+
 TEST(constantTest, ncharComparisonKeepsLiteralUntouched) {
   char ncharValue[VARSTR_HEADER_SIZE + 2 * TSDB_NCHAR_SIZE] = {0};
   varDataSetLen(ncharValue, 2 * TSDB_NCHAR_SIZE);
