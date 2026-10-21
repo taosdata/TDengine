@@ -1632,3 +1632,109 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
                 ExtSrcEnv.sqlserver_drop_db(ext_db)
             except Exception:
                 pass
+
+    # ------------------------------------------------------------------
+    # STAB-S05S  SQL Server: partial failure with a peer source healthy
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_s05s_sqlserver_multi_source_partial_failure(self):
+        """Multi-source isolation with SQL Server down — peer source unaffected
+
+        The STAB-S05 scenario executed with SQL Server in the stopped role:
+        two external sources (SQL Server and PostgreSQL) are registered; the
+        SQL Server instance is stopped, so SQL Server queries must fail with a
+        connection-layer availability error while the PostgreSQL source keeps
+        returning correct data (sources are isolated).  After the instance is
+        restarted the SQL Server source answers again without being rebuilt.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-16 wpan Add the SQL Server leg of STAB-S05
+
+        """
+        _test_name = "STAB-S05S_sqlserver_partial_failure"
+        self._start_test(_test_name, "sqlserver down, pg still healthy", 1)
+        src_ss = "fq_stab_s05s_ss"
+        src_p = "fq_stab_s05s_p"
+        ext_db_ss = "fq_stab_s05s_ss_ext"
+        ext_db_p = "fq_stab_s05s_p_ext"
+        cfg_ss = self._sqlserver_cfg()
+        cfg_p = self._pg_cfg()
+        self._cleanup_src(src_ss, src_p)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db_ss)
+            ExtSrcEnv.sqlserver_exec(ext_db_ss, [
+                "IF OBJECT_ID('dbo.stab_ss') IS NOT NULL DROP TABLE dbo.stab_ss",
+                "CREATE TABLE dbo.stab_ss (id INT PRIMARY KEY, val INT)",
+                "INSERT INTO dbo.stab_ss VALUES (1, 333)",
+            ])
+            self._mk_sqlserver_real(
+                src_ss, database=ext_db_ss, schema="dbo",
+                extra_options="'connect_timeout_ms'='500'",
+            )
+
+            ExtSrcEnv.pg_create_db_cfg(cfg_p, ext_db_p)
+            ExtSrcEnv.pg_exec_cfg(cfg_p, ext_db_p, [
+                "drop table if exists public.stab_p",
+                "create table public.stab_p (id int primary key, val int)",
+                "insert into public.stab_p values (1, 222)",
+            ])
+            self._mk_pg_real(src_p, database=ext_db_p, schema="public")
+
+            # Both sources work initially
+            tdSql.query(f"select val from {src_ss}.stab_ss")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+            tdSql.query(f"select val from {src_p}.stab_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 222)
+
+            # Stop SQL Server; the PostgreSQL source must still work
+            ExtSrcEnv.stop_sqlserver_instance(cfg_ss.version)
+            try:
+                # Bounded wait until the instance's port is really closed
+                # (guard against a lingering-listener race after the stop).
+                deadline = time.time() + 30
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg_ss.host, cfg_ss.port):
+                    time.sleep(0.5)
+
+                tdSql.error(
+                    f"select val from {src_ss}.stab_ss",
+                    expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
+                )
+                tdSql.query(f"select val from {src_p}.stab_p")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 222)
+            finally:
+                started = ExtSrcEnv.start_sqlserver_instance(cfg_ss.version)
+            if not started:
+                raise AssertionError(
+                    f"SQL Server {cfg_ss.version} did not become ready after restart")
+
+            # Recovery: the same source answers again without being rebuilt
+            tdSql.query(f"select val from {src_ss}.stab_ss")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_ss, src_p)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db_ss)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass

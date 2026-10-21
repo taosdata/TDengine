@@ -2496,6 +2496,585 @@ _CASES = [
             _clear_source_step(),
         ],
     ],
+    # ══════════════════════════════════════════════════════════════════════
+    # SQL Server legs of the per-engine groups above — the same scenarios
+    # executed against the 4th external source (T-SQL create/alter/drop,
+    # SQL Server namespace paths and the SS OPTIONS whitelist).
+    # ══════════════════════════════════════════════════════════════════════
+
+    ## 002s — same scenario as 002/002i/002p
+    ["002s", [_sqlserver], ["fq01_src002s"], "CREATE IF NOT EXISTS is idempotent; second create with different params is ignored (SQL Server)", [
+            "drop external source if exists fq01_src002s",
+            f"create external source fq01_src002s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            f"create external source if not exists fq01_src002s type='sqlserver' host='{_S_HOST}' port=1434 user='alt_user' password='alt_pass' database='alt_db' schema='alt_schema'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 003s — same scenario as 003/003i/003p
+    ["003s", [_sqlserver], ["fq01_src003s"], "duplicate CREATE raises ALREADY_EXISTS (SQL Server)", [
+            "drop external source if exists fq01_src003s",
+            f"create external source fq01_src003s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            f"create external source fq01_src003s type='sqlserver' host='{_S_HOST}' port=1434 user='alt_user' password='alt_pass' database='alt_db' schema='alt_schema'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 004s — same scenario as 004/004i/004p
+    ["004s", [_sqlserver], ["fq01_src004s"], "ALTER options then re-query (SQL Server)", [
+            "drop external source if exists fq01_src004s",
+            f"create external source fq01_src004s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_src004s set options('connect_timeout_ms'='1500')",
+            "describe external source fq01_src004s",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 005s — same scenario as 005/005i/005p
+    ["005s", [_sqlserver], ["fq01_src005s"], "REFRESH is idempotent (SQL Server)", [
+            "drop external source if exists fq01_src005s",
+            f"create external source fq01_src005s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "refresh external source fq01_src005s",
+            _q_count_step(),
+            "refresh external source fq01_src005s",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 006s — same scenario as 006/006i/006p
+    ["006s", [_sqlserver], ["fq01_src006s"], "DROP IF EXISTS is idempotent (SQL Server)", [
+            "drop external source if exists fq01_src006s",
+            f"create external source fq01_src006s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "drop external source if exists fq01_src006s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src006s'",
+            "drop external source if exists fq01_src006s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src006s'",
+        ],
+    ],
+
+    ## 013s — same scenario as 013/013i/013p
+    ["013s", [_sqlserver], ["fq01_src013s"], "missing mandatory fields each produce a syntax error (SQL Server)", [
+            "drop external source if exists fq01_src013s",
+            # missing type=
+            f"create external source fq01_src013s host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # missing host=
+            f"create external source fq01_src013s type='sqlserver' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # missing port=
+            f"create external source fq01_src013s type='sqlserver' host='{_S_HOST}' user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # missing user=
+            f"create external source fq01_src013s type='sqlserver' host='{_S_HOST}' port={_S_PORT} password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # missing password= (errno varies by implementation; just check any error)
+            f"create external source fq01_src013s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # bare name only
+            "create external source fq01_src013s",
+            # valid create at end confirms parser is not stuck
+            f"create external source fq01_src013s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 016s — same scenario as 016m/016p/016i
+    ["016s", [_sqlserver], ["fq01_src016s"], "type-specific options persist and alter (SQL Server)", [
+            "drop external source if exists fq01_src016s",
+            f"create external source fq01_src016s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('trust_server_certificate'='true', 'connect_timeout_ms'='3000')",
+            "describe external source fq01_src016s",
+            _q_count_step(),
+            "alter external source fq01_src016s set options('connect_timeout_ms'='1500')",
+            "describe external source fq01_src016s",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 017s — same scenario as 017m/017p/017i
+    ["017s", [_sqlserver], ["fq01_src017s"], "sensitive fields (password) are always masked in SHOW and DESCRIBE (SQL Server)", [
+            "drop external source if exists fq01_src017s",
+            # Create with a deliberately wrong secret – connectivity not the goal
+            f"create external source fq01_src017s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='AlwaysMask!987' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "describe external source fq01_src017s",
+            # Alter to a different secret
+            "alter external source fq01_src017s set password='NewMask!654'",
+            "describe external source fq01_src017s",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 018s — same scenario as 018/018i/018p
+    ["018s", [_sqlserver], ["fq01_src018s"], "ALTER with multiple fields combined (SQL Server)", [
+            "drop external source if exists fq01_src018s",
+            f"create external source fq01_src018s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            f"alter external source fq01_src018s set host='{_S_HOST}', port={_S_PORT}, user='{_S_USER}', password='{_S_PASS}'",
+            "describe external source fq01_src018s",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 019s — same scenario as 019m/019p/019i
+    ["019s", [_sqlserver], ["fq01_src019s"], "ALTER database then revert (SQL Server)", [
+            "drop external source if exists fq01_src019s",
+            f"create external source fq01_src019s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_src019s set database='fq01_fw_alt_sdb'",
+            "describe external source fq01_src019s",
+            f"alter external source fq01_src019s set database='{_S_DB}'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 020s — same scenario as 020/020i/020p
+    ["020s", [_sqlserver], ["fq01_src020s"], "repeated drop / re-create semantics (SQL Server)", [
+            "drop external source if exists fq01_src020s",
+            f"create external source fq01_src020s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "drop external source if exists fq01_src020s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src020s'",
+            "drop external source if exists fq01_src020s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src020s'",
+            f"create external source fq01_src020s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "drop external source fq01_src020s",
+            "drop external source fq01_src020s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src020s'",
+        ],
+    ],
+
+    ## 025s — same scenario as 025/025i/025p
+    ["025s", [_sqlserver], ["fq01_src025s"], "host / user / password / database too long each raise NAME_OR_PASSWD_TOO_LONG (SQL Server)", [
+            "drop external source if exists fq01_src025s",
+            f"create external source fq01_src025s type='sqlserver' host='{'h' * 257}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            f"create external source fq01_src025s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{'u' * 129}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            f"create external source fq01_src025s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{'p' * 129}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            f"create external source fq01_src025s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{'d' * 65}' schema='{_S_SCHEMA}'",
+            f"create external source fq01_src025s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 028s — same scenario as 028/028i/028p
+    ["028s", [_sqlserver], ["fq01_src028s"], "ins_ext_sources reflects CREATE / ALTER / DROP lifecycle (SQL Server)", [
+            "drop external source if exists fq01_src028s",
+            f"create external source fq01_src028s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "select source_name, host, `type` from information_schema.ins_ext_sources where source_name='fq01_src028s'",
+            "alter external source fq01_src028s set host='10.0.0.2'",
+            "select source_name, host, `type` from information_schema.ins_ext_sources where source_name='fq01_src028s'",
+            _clear_source_step(),
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src028s'",
+        ],
+    ],
+
+    ## 029s — same scenario as 029/029p/029i
+    ["029s", [_sqlserver], ["fq01_src029s"], "querying a non-existent source raises EXT_SOURCE_NOT_FOUND (SQL Server)", [
+            f"select * from fq01_src029s_ghost.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            f"select * from fq01_src029s_ghost.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+        ],
+    ],
+
+    ## 030s — same scenario as 030/030i/030p
+    ["030s", [_sqlserver], ["fq01_src030s"], "create with unreachable host, then recover via ALTER + REFRESH (SQL Server)", [
+            "drop external source if exists fq01_src030s",
+            f"create external source fq01_src030s type='sqlserver' host='192.0.2.200' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='500')",
+            _q_count_step(negative=True),
+            f"alter external source fq01_src030s set host='{_S_HOST}', port={_S_PORT}",
+            "describe external source fq01_src030s",
+            "refresh external source fq01_src030s",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 031s — same scenario as 031/031i/031p
+    ["031s", [_sqlserver], ["fq01_src031s"], "query against an unreachable source fails with connect_timeout_ms configured (SQL Server)", [
+            "drop external source if exists fq01_src031s",
+            f"create external source fq01_src031s type='sqlserver' host='192.0.2.200' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='1000')",
+            f"select * from fq01_src031s.{_S_DB}.{_S_SCHEMA}.ghost_table",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 032s — same scenario as 032/032i/032p
+    ["032s", [_sqlserver], ["fq01_src032s"], "doc-style CREATE IF NOT EXISTS (as shown in user docs, SQL Server)", [
+            "drop external source if exists fq01_src032s",
+            f"create external source if not exists fq01_src032s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            f"create external source if not exists fq01_src032s type='sqlserver' host='{_S_HOST}' port=1434 user='alt_user' password='alt_pass' database='alt_db' schema='alt_schema'",
+            _q_count_step(),
+            "describe external source fq01_src032s",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 033s — same scenario as 033/033i/033p
+    ["033s", [_sqlserver], ["fq01_src033s"], "SHOW EXTERNAL SOURCES includes non-null create_time (SQL Server)", [
+            "drop external source if exists fq01_src033s",
+            f"create external source fq01_src033s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select source_name, `type`, create_time from information_schema.ins_ext_sources where source_name='fq01_src033s'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 034s — same scenario as 034m/034p/034i
+    ["034s", [_sqlserver], ["fq01_src034s"], "all-types positive summary: CREATE / type opts / count / ALTER opts / count / DROP (SQL Server)", [
+            "drop external source if exists fq01_src034s",
+            f"create external source fq01_src034s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('trust_server_certificate'='true', 'connect_timeout_ms'='3000')",
+            _q_count_step(),
+            "select count(*) from information_schema.ins_ext_sources",
+            "describe external source fq01_src034s",
+            "alter external source fq01_src034s set options('connect_timeout_ms'='1500')",
+            _q_count_step(),
+            _clear_source_step(),
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src034s'",
+        ],
+    ],
+
+    ## 035s — same scenario as 035/035i/035p
+    ["035s", [_sqlserver], ["fq01_src035s"], "non-admin user sees SHOW + DESCRIBE with masked password (SQL Server)", [
+            "drop external source if exists fq01_src035s",
+            f"create external source fq01_src035s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            "drop user if exists fq01fw035usr",
+            "create user fq01fw035usr pass 'FqFrame!2026'",
+            _connect("fq01fw035usr", "FqFrame!2026"),
+            "show external sources",
+            "describe external source fq01_src035s",
+            _connect_root(),
+            "drop user if exists fq01fw035usr",
+            _clear_source_step(),
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src035s'",
+        ],
+    ],
+
+    ## 038s — same scenario as 038/038i/038p
+    ["038s", [_sqlserver], ["fq01_src038s"], "valid boundary values: host 256, port 1, port 65535, user 128, pass 128, db 64 (SQL Server)", [
+            "drop external source if exists fq01_src038s",
+            # host 256 chars
+            f"create external source fq01_src038s type='sqlserver' host='{'h' * 256}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "describe external source fq01_src038s",
+            _clear_source_step(),
+            # port 1
+            f"create external source fq01_src038s type='sqlserver' host='{_S_HOST}' port=1 user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _clear_source_step(),
+            # port 65535
+            f"create external source fq01_src038s type='sqlserver' host='{_S_HOST}' port=65535 user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _clear_source_step(),
+            # user 128 chars
+            f"create external source fq01_src038s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{'u' * 128}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _clear_source_step(),
+            # password 128 chars
+            f"create external source fq01_src038s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{'p' * 128}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _clear_source_step(),
+            # database 64 chars
+            f"create external source fq01_src038s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{'d' * 64}' schema='{_S_SCHEMA}'",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 041s — same scenario as 041/041i/041p
+    ["041s", [_sqlserver], ["fq01_src041s"], "ALTER USER-only and ALTER PASSWORD-only each update independently (SQL Server)", [
+            "drop external source if exists fq01_src041s",
+            f"create external source fq01_src041s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            # ALTER USER only — password unchanged
+            "alter external source fq01_src041s set user='alt_user'",
+            "describe external source fq01_src041s",
+            "show external sources",
+            # ALTER PASSWORD only — user unchanged
+            "alter external source fq01_src041s set password='AltPass!999'",
+            "describe external source fq01_src041s",
+            "show external sources",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 042s — same scenario as 042/042i/042p
+    ["042s", [_sqlserver], ["fq01_src042s"], "ALTER OPTIONS patch-merge: adding a new key retains existing keys (SQL Server)", [
+            "drop external source if exists fq01_src042s",
+            f"create external source fq01_src042s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='1000')",
+            "describe external source fq01_src042s",
+            # Add read_timeout_ms; connect_timeout_ms must still be present
+            "alter external source fq01_src042s set options('read_timeout_ms'='3000')",
+            "describe external source fq01_src042s",
+            # Multi-key merge; all keys must survive
+            "alter external source fq01_src042s set options('connect_timeout_ms'='500', 'trust_server_certificate'='true')",
+            "describe external source fq01_src042s",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 043s — same scenario as 043/043i/043p
+    ["043s", [_sqlserver], ["fq01_src043s"], "ALTER OPTIONS value='' removes that key while preserving others (SQL Server)", [
+            "drop external source if exists fq01_src043s",
+            f"create external source fq01_src043s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='1000', 'read_timeout_ms'='2000')",
+            "describe external source fq01_src043s",
+            # Empty value removes read_timeout_ms; connect_timeout_ms must survive
+            "alter external source fq01_src043s set options('read_timeout_ms'='')",
+            "describe external source fq01_src043s",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 045s — same scenario as 045m/045p/045i
+    ["045s", [_sqlserver], ["fq01_src045s"], "ALTER DATABASE='' clears database field; subsequent set restores it (SQL Server)", [
+            "drop external source if exists fq01_src045s",
+            f"create external source fq01_src045s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "describe external source fq01_src045s",
+            # clear DATABASE
+            "alter external source fq01_src045s set database=''",
+            "describe external source fq01_src045s",
+            # restore to a valid value
+            f"alter external source fq01_src045s set database='{_S_DB}'",
+            "describe external source fq01_src045s",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 047s — same scenario as 047m/047p/047i
+    ["047s", [_sqlserver], ["fq01_src047s", "fq01_src047s_bad"], "timeout option boundary and invalid values are enforced; failed ALTER leaves source usable (SQL Server)", [
+            "drop external source if exists fq01_src047s",
+            "drop external source if exists fq01_src047s_bad",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s_bad'",
+            f"create external source fq01_src047s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='0', 'read_timeout_ms'='0')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "describe external source fq01_src047s",
+            _q_count_step(),
+            "alter external source fq01_src047s set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "describe external source fq01_src047s",
+            _q_count_step(),
+            "alter external source fq01_src047s set options('connect_timeout_ms'='99')",
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "describe external source fq01_src047s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            _q_count_step(),
+            "alter external source fq01_src047s set options('read_timeout_ms'='600001')",
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "describe external source fq01_src047s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            _q_count_step(),
+            f"create external source fq01_src047s_bad type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='600001')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s_bad'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'",
+            "select source_name, options from information_schema.ins_ext_sources where source_name in ('fq01_src047s', 'fq01_src047s_bad') order by source_name",
+            "describe external source fq01_src047s_bad",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 048s — same scenario as 048m/048p/048i
+    ["048s", [_sqlserver], ["fq01_src048s", "fq01_src048s_bad"], "OPTIONS total length budget: valid combined payload accepted, oversized payload rejected (SQL Server)", [
+            "drop external source if exists fq01_src048s",
+            "drop external source if exists fq01_src048s_bad",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s_bad'",
+            f"create external source fq01_src048s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('tls_enabled'='false', 'tls_client_cert'='{'a' * 1500}', 'tls_client_key'='{'b' * 1500}')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s'",
+            "select source_name, length(options), options from information_schema.ins_ext_sources where source_name='fq01_src048s'",
+            "describe external source fq01_src048s",
+            _q_count_step(),
+            f"create external source fq01_src048s_bad type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('tls_enabled'='false', 'tls_client_cert'='{'a' * 2500}', 'tls_client_key'='{'b' * 2500}')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s_bad'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s'",
+            "select source_name, length(options), options from information_schema.ins_ext_sources where source_name='fq01_src048s'",
+            "describe external source fq01_src048s_bad",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 049s — same scenario as 049m/049p/049i
+    ["049s", [_sqlserver], ["fq01_src049s"], "ALTER DATABASE changes 2-segment path resolution; REFRESH after restore makes default path usable again (SQL Server)", [
+            "drop external source if exists fq01_src049s",
+            f"create external source fq01_src049s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select count(*) from fq01_src049s.src_t",
+            "alter external source fq01_src049s set database='fq01_fw_alt_sdb'",
+            "describe external source fq01_src049s",
+            "select count(*) from fq01_src049s.src_t",
+            f"alter external source fq01_src049s set database='{_S_DB}'",
+            "refresh external source fq01_src049s",
+            "describe external source fq01_src049s",
+            "select count(*) from fq01_src049s.src_t",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 050s — same scenario as 050m/050p/050i
+    ["050s", [_sqlserver], ["fq01_src050s"], "REFRESH reflects external SQL Server schema change (add/drop column) with observable query behavior", [
+            "drop external source if exists fq01_src050s",
+            f"create external source fq01_src050s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select count(*) from fq01_src050s.src_t",
+            "select extra_note from fq01_src050s.src_t where val=5",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_note NVARCHAR(32) NULL",
+                f"UPDATE dbo.{_FW_TABLE} SET extra_note=N'after_refresh' WHERE val=5",
+            ]),
+            "select extra_note from fq01_src050s.src_t where val=5",
+            "refresh external source fq01_src050s",
+            "select extra_note from fq01_src050s.src_t where val=5",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} DROP COLUMN extra_note",
+            ]),
+            "refresh external source fq01_src050s",
+            "select extra_note from fq01_src050s.src_t where val=5",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 052s — same scenario as 052m/052p/052i
+    ["052s", [_sqlserver], ["fq01_src052s"], "single ALTER combining base fields and OPTIONS supports add/remove patch semantics (SQL Server)", [
+            "drop external source if exists fq01_src052s",
+            f"create external source fq01_src052s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('read_timeout_ms'='2000', 'trust_server_certificate'='true')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+            _q_count_step(),
+            f"alter external source fq01_src052s set host='{_S_HOST}', port={_S_PORT}, user='{_S_USER}', password='{_S_PASS}', database='{_S_DB}', options('read_timeout_ms'='', 'connect_timeout_ms'='350', 'trust_server_certificate'='true')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+            "describe external source fq01_src052s",
+            _q_count_step(),
+            _clear_source_step(),
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+        ],
+    ],
+
+    ## 055s — same scenario as 055i/055p (namespace path with explicit segments)
+    ["055s", [_sqlserver], ["fq01_src055s"], "namespace paths: 2-/3-/4-segment forms query SQL Server with explicit database/schema (FS §3.5)", [
+            "drop external source if exists fq01_src055s",
+            f"create external source fq01_src055s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # 2-segment path: source.table (uses default database + schema)
+            f"select count(*) from fq01_src055s.{_FW_TABLE}",
+            # 3-segment path: source.schema.table (database from default)
+            f"select count(*) from fq01_src055s.{_S_SCHEMA}.{_FW_TABLE}",
+            # 4-segment path: source.database.schema.table (fully explicit)
+            f"select count(*) from fq01_src055s.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            # All forms should return the same single row
+            f"select val, score, name, flag from fq01_src055s.{_FW_TABLE} order by ts limit 1",
+            f"select val, score, name, flag from fq01_src055s.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE} order by ts limit 1",
+            # Clear the database default: the fully-qualified path still resolves
+            "alter external source fq01_src055s set database=''",
+            "describe external source fq01_src055s",
+            f"select count(*) from fq01_src055s.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+            # Restore default database
+            f"alter external source fq01_src055s set database='{_S_DB}'",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 062s — same scenario as 062m/062p/062i
+    ["062s", [_sqlserver], ["fq01_src062s"], "DROP after recent query succeeds; subsequent query fails (FS §3.4.5.2, SQL Server)", [
+            "drop external source if exists fq01_src062s",
+            f"create external source fq01_src062s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _q_count_step(),
+            # DROP the source immediately after a successful query
+            "drop external source fq01_src062s",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src062s'",
+            # Query against dropped source must fail
+            f"select count(*) from fq01_src062s.{_S_DB}.{_S_SCHEMA}.{_FW_TABLE}",
+        ],
+    ],
+
+    ## 064s — same scenario as 064m/064p/064i
+    ["064s", [_sqlserver], ["fq01_src064s"], "OPTIONS with unrecognized key on CREATE is rejected (FS §3.4.1.4, SQL Server)", [
+            "drop external source if exists fq01_src064s",
+            # Unknown option key must be rejected.
+            f"create external source fq01_src064s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('totally_unknown_key'='value123')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src064s'",
+            # Rejection path keeps metadata clean.
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src064s'",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 069s — same scenario as 069m/069p/069i
+    ["069s", [_sqlserver], ["fq01_src069s"], "REFRESH on unreachable SQL Server source succeeds (metadata-only, FS §3.4.6)", [
+            "drop external source if exists fq01_src069s",
+            # Create source pointing to non-routable IP
+            f"create external source fq01_src069s type='sqlserver' host='192.0.2.200' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('connect_timeout_ms'='1000')",
+            # REFRESH succeeds — metadata-only, no connectivity check
+            "refresh external source fq01_src069s",
+            # Source object still exists after REFRESH
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src069s'",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 071s — same scenario as 071m/071p/071i
+    ["071s", [_sqlserver], ["fq01_src071s"], "FS §3.4.1.5 CREATE example adapted to test env — structure matches doc (SQL Server)", [
+            "drop external source if exists fq01_src071s",
+            # FS example structure: TYPE HOST PORT USER PASSWORD DATABASE SCHEMA
+            f"create external source fq01_src071s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "show external sources",
+            "describe external source fq01_src071s",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 077s — same scenario as 077m/077p/077i
+    ["077s", [_sqlserver], ["fq01_src077s"], "DESCRIBE output and ins_ext_sources row cover all 10 DS §5.4 columns with consistent values (SQL Server source)", [
+            "drop external source if exists fq01_src077s",
+            f"create external source fq01_src077s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "describe external source fq01_src077s",
+            "select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options`, create_time from information_schema.ins_ext_sources where source_name='fq01_src077s'",
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 081s — same scenario as 081m/081p/081i
+    ["081s", [_sqlserver], ["fq01_src081s"], "DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column (SQL Server)", [
+            "drop external source if exists fq01_src081s",
+            f"create external source fq01_src081s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_note NVARCHAR(32) NULL",
+                f"UPDATE dbo.{_FW_TABLE} SET extra_note=N'after_refresh' WHERE val=5",
+            ]),
+            "refresh external source fq01_src081s",
+            "select extra_note from fq01_src081s.src_t where val=5",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} DROP COLUMN extra_note",
+            ]),
+            "select extra_note from fq01_src081s.src_t where val=5",
+            "select * from fq01_src081s.src_t where val=5",
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
+    ## 082s — same scenario as 082m/082p/082i
+    ["082s", [_sqlserver], ["fq01_src082s"], "ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column (SQL Server)", [
+            "drop external source if exists fq01_src082s",
+            f"create external source fq01_src082s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            "select * from fq01_src082s.src_t where val=5",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_note NVARCHAR(32) NULL",
+                f"UPDATE dbo.{_FW_TABLE} SET extra_note=N'after_refresh' WHERE val=5",
+            ]),
+            "select * from fq01_src082s.src_t where val=5",
+            "refresh external source fq01_src082s",
+            "select * from fq01_src082s.src_t where val=5",
+            _sqlserver_exec_step(_S_DB, [
+                f"ALTER TABLE dbo.{_FW_TABLE} DROP COLUMN extra_note",
+            ]),
+            _q_count_step(),
+            _clear_source_step(),
+        ],
+    ],
+
     ## 001s — same basic lifecycle as 001m/001p/001i
     ["001s", [_sqlserver], ["fq01_src001s"], "basic create / show (auto) / describe (auto) / query / drop", [
             "drop external source if exists fq01_src001s",

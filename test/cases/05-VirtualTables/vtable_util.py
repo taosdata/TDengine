@@ -631,10 +631,10 @@ def _create_vtable_database(db_name, precision="ns"):
     Used for ext-source mode where all columns come from the external source —
     no local origin tables are needed, only the database itself.
 
-    `precision` follows the source's inherent ts precision: an external scan
-    declares the source precision (µs for SQL Server), and ts literals in a
-    filter are parsed with it, so a database finer than the source makes every
-    ts-range filter compare µs constants against ns values and miss.
+    `precision` follows the source's timestamp-column precision: an external
+    scan declares it, and ts literals in a filter are parsed with it, so a
+    database coarser than the source would lose precision.  SQL Server uses the
+    declared datetime2/datetimeoffset modifier (<=3 -> ms, >3 -> us).
     """
     tdSql.execute(f"drop database if exists {db_name};")
     tdSql.execute(f"create database {db_name} vgroups 2 precision '{precision}';")
@@ -644,9 +644,8 @@ def _create_vtable_database(db_name, precision="ns"):
 def _ext_source_db_precision(adapter):
     """Local database precision for a source-specific vtable fixture.
 
-    SQL Server exposes timestamps at microsecond resolution (DS 5.3.7), so its
-    vtable database is created with PRECISION 'us' - the same convention the
-    dedicated SQL Server vtable suites use.
+    SQL Server vtable fixtures keep PRECISION 'us' so both the millisecond
+    (datetime2(<=3)) and microsecond (datetime2(>3)) source columns are legal.
     """
     return "us" if getattr(adapter, "BACKEND", "") == "sqlserver" else "ns"
 

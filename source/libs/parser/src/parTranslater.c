@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include "cJSON.h"
 #include "extConnector.h"
+#include "extDialect.h"
 #include "nodes.h"
 #include "parInt.h"
 #include "parUtil.h"
@@ -1379,6 +1380,8 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
             tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
             tstrncpy((*pMeta)->colRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->colRef[j].refSourceName));
+            tstrncpy((*pMeta)->colRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->colRef[j].refSchemaName));
             break;
           }
         }
@@ -1402,6 +1405,8 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
             tstrncpy((*pMeta)->tagRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->tagRef[j].refColName));
             tstrncpy((*pMeta)->tagRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->tagRef[j].refSourceName));
+            tstrncpy((*pMeta)->tagRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->tagRef[j].refSchemaName));
             break;
           }
         }
@@ -1634,6 +1639,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
             tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
             tstrncpy((*pMeta)->colRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->colRef[j].refSourceName));
+            tstrncpy((*pMeta)->colRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->colRef[j].refSchemaName));
             break;
           }
         }
@@ -1657,6 +1664,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
             tstrncpy((*pMeta)->tagRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->tagRef[j].refColName));
             tstrncpy((*pMeta)->tagRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->tagRef[j].refSourceName));
+            tstrncpy((*pMeta)->tagRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->tagRef[j].refSchemaName));
             break;
           }
         }
@@ -2915,8 +2924,12 @@ static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode
 static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode** pColRef, bool* pFound);
 
 static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, const char* queryName) {
-  return EXT_SOURCE_MYSQL == sourceType ? 0 == strcasecmp(schemaName, queryName)
-                                        : 0 == strcmp(schemaName, queryName);
+  // MySQL and SQL Server expose case-insensitive catalogs by default, so name
+  // variants fold onto the stored column and the resolved column echoes the
+  // stored case; PostgreSQL compares quoted/identifier names literally.
+  return (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType)
+             ? 0 == strcasecmp(schemaName, queryName)
+             : 0 == strcmp(schemaName, queryName);
 }
 
 static bool externalTableColumnNameEqual(const SRealTableNode* pTable, const char* schemaName,
@@ -11299,7 +11312,16 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   tstrncpy(pExtNode->srcSchema, pExtInfo->schema_name, sizeof(pExtNode->srcSchema));
   tstrncpy(pExtNode->srcOptions, pExtInfo->options, sizeof(pExtNode->srcOptions));
   pExtNode->metaVersion = pExtInfo->meta_version;
-  pExtNode->capability = pExtInfo->capability;
+  // The node owns its capability hashes: freeExtSourceInfo() below destroys the
+  // ones inside pExtInfo, so a struct assignment would leave dangling pointers
+  // that extCapClone() crashes on when the plan is copied.
+  PAR_ERR_JRET(extCapClone(&pExtInfo->capability, &pExtNode->capability));
+  // The cached source info does not always carry the dialect profile yet (its
+  // async catalog update may still be pending).  Without it the planner judges
+  // every SQL Server predicate under the MySQL dialect and pushes constructs
+  // T-SQL cannot reproduce exactly.  Load the dialect defaults here, mirroring
+  // translateExternalTableImpl() for direct external references.
+  PAR_ERR_JRET(extLoadDialectDefaults(pExtNode->sourceType, &pExtNode->capability));
 
   // Compute tsPrimaryColIdx from pExtMeta: must be isPrimaryKey=true AND maps to TIMESTAMP.
   pExtNode->tsPrimaryColIdx = -1;
@@ -11523,6 +11545,7 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
       tstrncpy(pMeta->colRef[j].refTableName, pResolved->refTableName, sizeof(pMeta->colRef[j].refTableName));
       tstrncpy(pMeta->colRef[j].refColName, pResolved->refColName, sizeof(pMeta->colRef[j].refColName));
       tstrncpy(pMeta->colRef[j].refSourceName, pResolved->refSourceName, sizeof(pMeta->colRef[j].refSourceName));
+      tstrncpy(pMeta->colRef[j].refSchemaName, pResolved->refSchemaName, sizeof(pMeta->colRef[j].refSchemaName));
       const SColRef* pResolvedLeaf = findResolvedLeafColRef(pRsp, pResolved->colId);
       if (NULL != pResolvedLeaf) {
         PAR_ERR_RET(patchResolvedColRefConds(&pMeta->colRef[j], pResolvedLeaf));
@@ -11562,7 +11585,10 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
     return TSDB_CODE_SUCCESS;
   }
   EExtSourceType sourceType = (EExtSourceType)pExtNode->sourceType;
-  bool           isRelationalSource = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType;
+  // SQL Server is relational in the same sense (remote primary key, mappable
+  // types), so a stale binding reports EXT_SCHEMA_CHANGED like MySQL/PG.
+  bool           isRelationalSource = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
+                            EXT_SOURCE_SQLSERVER == sourceType;
 
   int32_t schemaIdx = -1;
   for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; i++) {
@@ -35859,6 +35885,8 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef);
+static int32_t disambiguateAlterExternalRef(STranslateContext* pCxt, SAlterTableStmt* pStmt);
+static int32_t expandAlterExternalRefNamespace(STranslateContext* pCxt, SAlterTableStmt* pStmt);
 static int32_t serializeFilterCond(SNode* pFilterCond, int32_t* pLen, char** ppJson);
 // Validate a CREATE-time tags list for normal / virtual-normal tables. Mirrors buildAddTagReq on the
 // ALTER path: tag count cap, decimal rejection, VARCHAR/VARBINARY/NCHAR length cap, total tag length
@@ -36158,27 +36186,70 @@ static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTag
   return -1;
 }
 
-static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef) {
-  if (pColRef == NULL || pColRef->refSourceName[0] == '\0') {
+// Expand a reference's namespace with the source's configured defaults.
+//
+// PostgreSQL stores the source's creation-time default schema per reference:
+// this saved value is what detects a later ALTER SOURCE ... SET schema.
+// MySQL and InfluxDB have no schema segment.
+//
+// SQL Server accepts relative column paths: a three-part path
+// (source.table.column) uses the source's default database and schema, and a
+// four-part path (source.schema.table.column) names the schema but uses the
+// default database.  Expand both to the explicit five-part namespace here so
+// the persisted reference is self-contained: the planner keys external scan
+// nodes by the resolved (database, schema), and a stable namespace keeps the
+// rendered DDL replayable.
+static int32_t normalizeExternalRefNamespace(STranslateContext* pCxt, const char* refSourceName,
+                                             char* refDbName, size_t dbCap, char* refSchemaName,
+                                             size_t schemaCap) {
+  if (refSourceName == NULL || refSourceName[0] == '\0') {
     return TSDB_CODE_SUCCESS;
   }
 
   // A schema segment captured from the reference path takes precedence; the
   // source's configured default is only a fallback (DS 5.3.10 item 7).
-  if (pColRef->refSchemaName[0] != '\0') {
+  if (refSchemaName[0] != '\0') {
     return TSDB_CODE_SUCCESS;
   }
 
   SExtSourceInfo* pInfo = NULL;
-  int32_t         code = getExternalSourceInfo(pCxt, pColRef->refSourceName, &pInfo);
+  int32_t         code = getExternalSourceInfo(pCxt, refSourceName, &pInfo);
   if (TSDB_CODE_SUCCESS != code || NULL == pInfo) {
     freeExtSourceInfo(pInfo);
     return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_EXT_SOURCE_NOT_FOUND;
   }
 
-  tstrncpy(pColRef->refSchemaName, pInfo->schema_name, sizeof(pColRef->refSchemaName));
+  EExtSourceType sourceType = (EExtSourceType)pInfo->type;
+  if (EXT_SOURCE_POSTGRESQL == sourceType) {
+    tstrncpy(refSchemaName, pInfo->schema_name, schemaCap);
+  } else if (EXT_SOURCE_SQLSERVER == sourceType && refSchemaName[0] == '\0') {
+    if (refDbName[0] != '\0') {
+      // Four-part path: the middle segment is the schema; the database comes
+      // from the source.
+      tstrncpy(refSchemaName, refDbName, schemaCap);
+      refDbName[0] = '\0';
+    } else {
+      tstrncpy(refSchemaName, pInfo->schema_name, schemaCap);
+    }
+  }
+
+  // Freeze the resolved database into the reference (DS 5.3.10): a relative
+  // path uses the source's default, and every stored reference then carries
+  // the complete namespace, so col_source and SHOW CREATE stay re-playable.
+  if (refDbName[0] == '\0') {
+    tstrncpy(refDbName, pInfo->database, dbCap);
+  }
   freeExtSourceInfo(pInfo);
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef) {
+  if (pColRef == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return normalizeExternalRefNamespace(pCxt, pColRef->refSourceName, pColRef->refDbName,
+                                       sizeof(pColRef->refDbName), pColRef->refSchemaName,
+                                       sizeof(pColRef->refSchemaName));
 }
 
 static int32_t buildVChildOwnTagValue(STranslateContext* pCxt, STableMeta* pStbMeta, SValueNode* pVal,
@@ -38528,12 +38599,15 @@ int32_t getExternalSourceInfo(STranslateContext* pCxt, const char* sourceName, S
 
 static int32_t rejectUnsupportedExternalFilter(STranslateContext* pCxt, const SNode* pFilterCond,
                                                EExtSourceType sourceType) {
-  if (NULL == pFilterCond || EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType) {
+  // Relational sources carry a remote primary key, which is what the filter
+  // binding validates against (DS 5.3.10 / phase-2 VTBLP-001..003).
+  if (NULL == pFilterCond || EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
+      EXT_SOURCE_SQLSERVER == sourceType) {
     return TSDB_CODE_SUCCESS;
   }
   return generateSyntaxErrMsgExt(
       &pCxt->msgBuf, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
-      "external column filters are supported only for direct MySQL or PostgreSQL references");
+      "external column filters are supported only for direct MySQL, PostgreSQL or SQL Server references");
 }
 
 static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceName, const char* refDb,
@@ -38621,11 +38695,14 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
                                           colName, pExtCol->extTypeName));
   }
 
-  // (7) External table must have a timestamp primary key column. MySQL and PostgreSQL
-  // bindings additionally require every non-timestamp primary-key column to be fixed
-  // by the stored external-column filter.
+  // (7) External table must have a timestamp primary key column. The relational
+  // sources (MySQL, PostgreSQL and SQL Server) additionally require every
+  // non-timestamp primary-key column to be fixed by the stored external-column
+  // filter; this call also converts the filter literals to the remote column
+  // types, which the rendering depends on.
   const SExtColumnDef* pTsPk = NULL;
-  if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType) {
+  if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
+      EXT_SOURCE_SQLSERVER == sourceType) {
     int32_t tsPrimaryKeyIndex = -1;
     PAR_ERR_JRET(nodesValidateExternalFilter(sourceType, pExtMeta, pFilterCond, pCxt->pParseCxt->timezone,
                                              pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len,
@@ -38812,6 +38889,10 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       }
     }
 
+    // Series aliases were expanded above; resolve any remaining three-segment
+    // external reference (source.table.column).
+    PAR_ERR_RET(disambiguateAlterExternalRef(pCxt, pStmt));
+
     if (expandedFromSeries || pStmt->refType != 1) {
       EExtSourceType sourceType = expandedFromSeries ? EXT_SOURCE_INFLUXDB : EXT_SOURCE_TDENGINE;
       PAR_ERR_RET(rejectUnsupportedExternalFilter(pCxt, pFilterCond, sourceType));
@@ -38836,6 +38917,14 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       // local reference
       PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pStmt->refDbName,
                               pStmt->refTableName, pStmt->refColName, colType, pTableMeta->tableInfo.precision));
+    }
+
+    // Validation used the raw path segments (the async cache key); store the
+    // explicit five-part namespace so planning keys stay stable. Series
+    // aliases expand to an InfluxDB ref whose source info is not part of the
+    // ALTER pre-scan; they keep the historical (already resolved) namespace.
+    if (!expandedFromSeries) {
+      PAR_ERR_RET(expandAlterExternalRefNamespace(pCxt, pStmt));
     }
 
     pReq->type = pStmt->dataType.type;
@@ -39175,6 +39264,12 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
     }
   }
 
+  // Resolve three-segment external refs. A matched series alias keeps the
+  // existing expansion semantics.
+  if (NULL == pMatchedSeries) {
+    PAR_ERR_RET(disambiguateAlterExternalRef(pCxt, pStmt));
+  }
+
   bool isDirectExternalRef = pStmt->refType == 1 && pStmt->refSourceName[0] != '\0';
   if (!isDirectExternalRef) {
     EExtSourceType sourceType = NULL != pMatchedSeries ? EXT_SOURCE_INFLUXDB : EXT_SOURCE_TDENGINE;
@@ -39186,6 +39281,9 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
                                     pStmt->refSchemaName, pStmt->refTableName,
                                     pStmt->refColName, pStmt->colName, colType,
                                     pTableMeta->tableInfo.precision, pStmt->pFilterCond));
+    // Validation used the raw path segments (the async cache key); store the
+    // explicit five-part namespace so planning keys stay stable.
+    PAR_ERR_RET(expandAlterExternalRefNamespace(pCxt, pStmt));
     pReq->colName = taosStrdup(pStmt->colName);
     pReq->refSourceName = taosStrdup(pStmt->refSourceName);
     pReq->refDbName = taosStrdup(pStmt->refDbName);
@@ -40639,6 +40737,12 @@ int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* 
     pOpts->refType = 1;
     tstrncpy(pOpts->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     tstrncpy(pOpts->refDb, pInfo->database, TSDB_DB_NAME_LEN);
+    // SQL Server needs both components: filling the schema here keeps the
+    // resolved namespace distinguishable from a four-part path (where refDb
+    // carries the schema) in the later expansion step.
+    if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
+      tstrncpy(pOpts->refSchema, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    }
   } else if (isMissingExtSourceInfo(code, pInfo, pOpts->refDb)) {
     // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
@@ -40669,12 +40773,56 @@ int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pCol
     pColRef->refType = 1;
     tstrncpy(pColRef->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     tstrncpy(pColRef->refDbName, pInfo->database, TSDB_DB_NAME_LEN);
+    // SQL Server needs both components (see disambiguateThreeSegColOptions).
+    if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
+      tstrncpy(pColRef->refSchemaName, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    }
   } else if (isMissingExtSourceInfo(code, pInfo, pColRef->refDbName)) {
     // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
   }
   freeExtSourceInfo(pInfo);
   return code;
+}
+
+// Resolve a column reference carried by an ALTER statement before validation.
+// A three-segment path may name an external source in its first segment (the
+// same disambiguation CREATE VTABLE applies). The namespace is expanded to its
+// explicit form only after validation, because the async meta cache is keyed
+// by the raw path segments. Callers handle series aliases first; those never
+// reach here.
+static int32_t disambiguateAlterExternalRef(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (pStmt->refType != 1 && pStmt->refSourceName[0] == '\0' && pStmt->refDbName[0] != '\0' &&
+      pStmt->refTableName[0] != '\0' && !isCachedLocalRefTable(pCxt, pStmt->refDbName, pStmt->refTableName)) {
+    SExtSourceInfo* pInfo = NULL;
+    int32_t         code = getExternalSourceInfo(pCxt, pStmt->refDbName, &pInfo);
+    if (TSDB_CODE_SUCCESS == code && isMatchedExtSourceInfo(pInfo, pStmt->refDbName)) {
+      char sourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
+      tstrncpy(sourceName, pStmt->refDbName, sizeof(sourceName));
+      pStmt->refType = 1;
+      tstrncpy(pStmt->refSourceName, sourceName, sizeof(pStmt->refSourceName));
+      pStmt->refDbName[0] = '\0';
+    } else if (isMissingExtSourceInfo(code, pInfo, pStmt->refDbName)) {
+      // Not an external source - keep the internal db.table.col reference.
+      code = TSDB_CODE_SUCCESS;
+    }
+    freeExtSourceInfo(pInfo);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Persist the explicit five-part namespace of an external reference once the
+// reference has been validated (see normalizeExternalRefNamespace).
+static int32_t expandAlterExternalRefNamespace(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (pStmt->refType != 1 || pStmt->refSourceName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+  return normalizeExternalRefNamespace(pCxt, pStmt->refSourceName, pStmt->refDbName,
+                                       sizeof(pStmt->refDbName), pStmt->refSchemaName,
+                                       sizeof(pStmt->refSchemaName));
 }
 
 static SSeriesDeclNode* findRefSeriesNode(STranslateContext* pCxt, char* refTableName, const char* refDbName,

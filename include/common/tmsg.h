@@ -1286,7 +1286,9 @@ typedef struct {
   col_id_t id;
   int8_t   refType;                                   // 0=internal, 1=external (DS section 6.2.7)
   char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];   // external source name (refType=1)
-  char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema captured at virtual-table creation (PG only)
+  char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema: named by the reference path
+                                                       // (5-part SQL Server ref) or, for PostgreSQL only, the
+                                                       // source's creation-time default schema
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -1338,6 +1340,7 @@ typedef struct {
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
   char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name, empty for internal refs
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema (SQL Server / PG), empty otherwise
   bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
@@ -5657,6 +5660,7 @@ typedef struct SOrgTbInfo {
 typedef struct SForeignSourceInfo {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // SQL Server / PostgreSQL namespace; empty otherwise
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;   // SArray<SColIdNameKV>
   char*   tagCond;  // heap, owned; external series filter shared by this group (may be NULL)
@@ -5742,6 +5746,7 @@ typedef enum EForeignScanParamType {
 
 typedef struct SForeignTableInfo {
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // SQL Server / PostgreSQL namespace; empty otherwise
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;       // SArray<SColIdNameKV>
   int8_t  dstPrecision;
@@ -5762,6 +5767,7 @@ typedef struct SForeignScanOperatorParam {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   int64_t sourceMetaVersion;
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // SQL Server / PostgreSQL namespace; empty otherwise
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;  // SArray<SColIdNameKV>
   // Destination precision for TIMESTAMP columns of the virtual table this

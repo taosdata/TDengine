@@ -104,6 +104,30 @@ static bool extExtractFuncNameFallback(const char* pMsg, char* pBuf, int32_t buf
     return false;
   }
 
+  /* SQL Server names the object inside quotes rather than after "function ",
+   * and its wording ("built-in function name") contains the generic marker -
+   * the scanner below would return "name" instead of the function.  Extract
+   * the quoted token directly first:
+   *   195:  "'FOO' is not a recognized built-in function name."
+   *   2812: "Could not find stored procedure 'FOO'." */
+  if (NULL != taosStrCaseStr(pMsg, "is not a recognized built-in function name") ||
+      NULL != taosStrCaseStr(pMsg, "could not find stored procedure")) {
+    const char* pOpen = strchr(pMsg, '\'');
+    if (NULL != pOpen) {
+      const char* pClose = strchr(pOpen + 1, '\'');
+      if (NULL != pClose && pClose > pOpen + 1) {
+        int32_t len = (int32_t)(pClose - pOpen - 1);
+        if (len > bufLen - 1) {
+          len = bufLen - 1;
+        }
+        memcpy(pBuf, pOpen + 1, (size_t)len);
+        pBuf[len] = '\0';
+        return true;
+      }
+    }
+    return false;
+  }
+
   const char* pPos = taosStrCaseStr(pMsg, "function ");
   if (NULL == pPos) {
     pPos = taosStrCaseStr(pMsg, "unknown function");
@@ -288,9 +312,23 @@ int32_t extClassifyRemoteError(int32_t tdCode, const char* remoteSqlState, int32
     return TSDB_CODE_SUCCESS;
   }
 
+  // SQL Server 195/2812: "'xxx' is not a recognized built-in function name" /
+  // "Could not find stored procedure 'xxx'" - the pushed expression named a
+  // function T-SQL does not have (DS 5.3.8.1, precise -> catalog demote).
+  if (extContainsNoCase(remoteMessage, "is not a recognized built-in function name") ||
+      extContainsNoCase(remoteMessage, "could not find stored procedure")) {
+    pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_FUNC_MISS;
+    pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_FUNC;
+    extFillDiagnosticDetail(pDiag, remoteMessage);
+    return TSDB_CODE_SUCCESS;
+  }
+
   // PostgreSQL/InfluxDB: column not in GROUP BY - the pushed-down AGG clause is invalid.
+  // SQL Server 8120/8121: "Column 'x' is invalid in the select list because it is not
+  // contained in either an aggregate function or the GROUP BY [HAVING] clause."
   if (extContainsNoCase(remoteMessage, "must appear in the group by clause") ||
       extContainsNoCase(remoteMessage, "not in group by clause") ||
+      extContainsNoCase(remoteMessage, "not contained in either an aggregate function") ||
       extContainsNoCase(remoteMessage, "schema error: no field named")) {
     pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
     pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
@@ -308,7 +346,16 @@ int32_t extClassifyRemoteError(int32_t tdCode, const char* remoteSqlState, int32
 
   if (extContainsNoCase(remoteMessage, "type mismatch") ||
       extContainsNoCase(remoteMessage, "cannot cast") ||
-      extContainsNoCase(remoteMessage, "incompatible type")) {
+      extContainsNoCase(remoteMessage, "incompatible type") ||
+      // SQL Server 206/241/8114/8115: "Operand type clash ..." /
+      // "Conversion failed when converting ..." (DS 5.3.8.1).  Error 245 also
+      // lands here: the demote chain can re-render the offending comparison
+      // and recover.  When demoting cannot help -- a failure inside the remote
+      // object itself, e.g. a view whose CAST fails on a row value -- the
+      // client's bounded pushdown-attempt budget stops the retries and surfaces
+      // the error instead of restarting forever (DS 5.3.10).
+      extContainsNoCase(remoteMessage, "operand type clash") ||
+      extContainsNoCase(remoteMessage, "conversion failed when converting")) {
     pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH;
     pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_TYPE;
     extFillDiagnosticDetail(pDiag, remoteMessage);

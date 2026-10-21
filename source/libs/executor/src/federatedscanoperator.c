@@ -49,6 +49,37 @@
 enum { FED_SCAN_RESULT_BLOCK_ROWS = 4096 };
 
 // Map EExtSourceType to a human-readable string for logging and EXPLAIN output.
+// Identifier quoting for the hand-built VStb remote SQL.  MySQL uses backticks,
+// SQL Server brackets (a literal ']' is escaped by doubling), PostgreSQL and
+// InfluxDB double quotes.
+typedef struct SFedScanQuote {
+  char open;
+  char close;
+} SFedScanQuote;
+
+static SFedScanQuote fedScanQuoteFor(EExtSourceType srcType) {
+  SFedScanQuote q = {'"', '"'};
+  if (EXT_SOURCE_MYSQL == srcType) {
+    q.open = '`';
+    q.close = '`';
+  } else if (EXT_SOURCE_SQLSERVER == srcType) {
+    q.open = '[';
+    q.close = ']';
+  }
+  return q;
+}
+
+// SQL dialect of a source type, for the renderers embedded in this file.
+static EExtSQLDialect fedScanDialectFor(EExtSourceType srcType) {
+  switch (srcType) {
+    case EXT_SOURCE_MYSQL:      return EXT_SQL_DIALECT_MYSQL;
+    case EXT_SOURCE_POSTGRESQL: return EXT_SQL_DIALECT_POSTGRES;
+    case EXT_SOURCE_INFLUXDB:   return EXT_SQL_DIALECT_INFLUXQL;
+    case EXT_SOURCE_SQLSERVER:  return EXT_SQL_DIALECT_SQLSERVER;
+    default:                    return EXT_SQL_DIALECT_MYSQL;
+  }
+}
+
 static const char* fedScanSourceTypeName(int8_t srcType) {
   switch ((EExtSourceType)srcType) {
     case EXT_SOURCE_MYSQL:      return "mysql";
@@ -367,7 +398,7 @@ static bool fedScanTagCondMentionsColumn(const SNode* pCond, const char* colName
   return false;
 }
 
-static int32_t fedScanBuildMissingTagFilter(const SNode* pCond, const SExtTableMeta* pMeta, char q,
+static int32_t fedScanBuildMissingTagFilter(const SNode* pCond, const SExtTableMeta* pMeta, SFedScanQuote q,
                                             char** ppSql, int32_t* pSqlLen) {
   if (ppSql == NULL || pSqlLen == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -393,7 +424,7 @@ static int32_t fedScanBuildMissingTagFilter(const SNode* pCond, const SExtTableM
     }
 
     offset += snprintf(pSql + offset, cap - offset, "%s%c%s%c = ''",
-                       offset > 0 ? " AND " : "", q, pCol->colName, q);
+                       offset > 0 ? " AND " : "", q.open, pCol->colName, q.close);
   }
 
   if (offset == 0) {
@@ -410,7 +441,8 @@ typedef struct SVStbPushedCondSql {
   char*                            buf;
   int32_t                          cap;
   int32_t                          len;
-  char                             q;
+  SFedScanQuote                    q;
+  EExtSQLDialect                   dialect;
   const SExtTableMeta*             pMeta;
   const SForeignScanOperatorParam* pFsParam;
 } SVStbPushedCondSql;
@@ -469,7 +501,7 @@ static int32_t fedScanCondSqlAppendQuotedIdent(SVStbPushedCondSql* pSql, const c
     return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
-  int32_t code = fedScanCondSqlAppendChar(pSql, pSql->q);
+  int32_t code = fedScanCondSqlAppendChar(pSql, pSql->q.open);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -479,7 +511,7 @@ static int32_t fedScanCondSqlAppendQuotedIdent(SVStbPushedCondSql* pSql, const c
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    if (*p == pSql->q) {
+    if (*p == pSql->q.close) {
       code = fedScanCondSqlAppendChar(pSql, *p);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -487,7 +519,7 @@ static int32_t fedScanCondSqlAppendQuotedIdent(SVStbPushedCondSql* pSql, const c
     }
   }
 
-  return fedScanCondSqlAppendChar(pSql, pSql->q);
+  return fedScanCondSqlAppendChar(pSql, pSql->q.close);
 }
 
 static const char* fedScanFindRemoteCondColName(const SVStbPushedCondSql* pSql, col_id_t colId) {
@@ -548,6 +580,57 @@ static int32_t fedScanRenderPushedCondValue(SVStbPushedCondSql* pSql, SValueNode
     (void)snprintf(buf, sizeof(buf), pVal->node.resType.type == TSDB_DATA_TYPE_FLOAT ? "%.9g" : "%.17g",
                    pVal->datum.d);
     return fedScanCondSqlAppend(pSql, buf);
+  }
+
+  if (pSql->dialect == EXT_SQL_DIALECT_SQLSERVER) {
+    // T-SQL renderings that nodesGetStrValueFromNode cannot express: the
+    // boolean literals must be 1 / 0 (DS 5.3.12 R2) and a bare epoch integer
+    // is not comparable with datetime2.  Values without an exact T-SQL form
+    // stay local (the caller strips that fragment from the pushed WHERE).
+    switch (pVal->node.resType.type) {
+      case TSDB_DATA_TYPE_BOOL:
+        return fedScanCondSqlAppend(pSql, pVal->datum.b ? "1" : "0");
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_GEOMETRY: {
+        // The decoded value is authoritative; varDataLen bounds the loop so a
+        // non-terminated buffer can never leak trailing bytes into the literal.
+        const char* pText = NULL;
+        int32_t     textLen = 0;
+        if (pVal->datum.p != NULL) {
+          pText = varDataVal(pVal->datum.p);
+          textLen = (int32_t)varDataLen(pVal->datum.p);
+        } else if (pVal->literal != NULL) {
+          pText = pVal->literal;
+          textLen = (int32_t)strlen(pText);
+        } else {
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        int32_t code = fedScanCondSqlAppendChar(pSql, '\'');
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+        for (int32_t i = 0; i < textLen; ++i) {
+          // A T-SQL string literal escapes an embedded quote by doubling it.
+          if (pText[i] == '\'') {
+            code = fedScanCondSqlAppendChar(pSql, '\'');
+            if (code != TSDB_CODE_SUCCESS) {
+              return code;
+            }
+          }
+          code = fedScanCondSqlAppendChar(pSql, pText[i]);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+        }
+        return fedScanCondSqlAppendChar(pSql, '\'');
+      }
+      default:
+        break;
+    }
   }
 
   char* pValue = nodesGetStrValueFromNode(pVal);
@@ -714,6 +797,7 @@ static int32_t fedScanRenderPushedCondExpr(SVStbPushedCondSql* pSql, SNode* pNod
 static int32_t fedScanTryRenderPushedCond(SVStbPushedCondSql* pDst, SNode* pCond, bool* pRendered) {
   SVStbPushedCondSql tmp = {
       .q = pDst->q,
+      .dialect = pDst->dialect,
       .pMeta = pDst->pMeta,
       .pFsParam = pDst->pFsParam,
   };
@@ -749,8 +833,9 @@ static int32_t fedScanTryRenderPushedCond(SVStbPushedCondSql* pDst, SNode* pCond
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t fedScanBuildVStbPushedCondSql(SForeignScanOperatorParam* pFsParam, const SExtTableMeta* pMeta, char q,
-                                             char** ppSql, int32_t* pSqlLen, bool* pFullyRendered) {
+static int32_t fedScanBuildVStbPushedCondSql(SForeignScanOperatorParam* pFsParam, const SExtTableMeta* pMeta,
+                                             SFedScanQuote q, EExtSQLDialect dialect, char** ppSql, int32_t* pSqlLen,
+                                             bool* pFullyRendered) {
   if (ppSql == NULL || pSqlLen == NULL || pFullyRendered == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -764,6 +849,7 @@ static int32_t fedScanBuildVStbPushedCondSql(SForeignScanOperatorParam* pFsParam
 
   SVStbPushedCondSql sql = {
       .q = q,
+      .dialect = dialect,
       .pMeta = pMeta,
       .pFsParam = pFsParam,
   };
@@ -835,6 +921,11 @@ static int32_t fedScanBuildVStbStoredFilterSql(const SForeignScanOperatorParam* 
       break;
     case EXT_SOURCE_POSTGRESQL:
       dialect = EXT_SQL_DIALECT_POSTGRES;
+      break;
+    case EXT_SOURCE_SQLSERVER:
+      // DS 5.3.9 / TS FQSS-VTBLP-001: the declared filter renders through the
+      // shared renderer, so SQL Server reuses the T-SQL dialect branch there.
+      dialect = EXT_SQL_DIALECT_SQLSERVER;
       break;
     default:
       code = TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED;
@@ -1546,6 +1637,18 @@ static EExtTimestampTzClass fedScanClassifyTimestampType(
         fedScanTypeStartsWith(typeName, "date")) {
       return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
     }
+  } else if (srcType == EXT_SOURCE_SQLSERVER) {
+    // datetimeoffset carries an offset (absolute instant); datetime2 /
+    // datetime / smalldatetime / date store the client's wall clock.  The
+    // longer prefix must be tested first.
+    if (fedScanTypeStartsWith(typeName, "datetimeoffset")) {
+      return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+    }
+    if (fedScanTypeStartsWith(typeName, "datetime") ||
+        fedScanTypeStartsWith(typeName, "smalldatetime") ||
+        fedScanTypeStartsWith(typeName, "date")) {
+      return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+    }
   }
   return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
 }
@@ -1690,6 +1793,19 @@ static void fedScanFormatError(SFederatedScanOperatorInfo* pInfo, int32_t code,
     offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
                        ", remote_sqlstate=%s", pErr->remoteSqlstate);
   }
+  if (NULL != pErr && (EExtSourceType)pErr->sourceType == EXT_SOURCE_SQLSERVER) {
+    /* SQL Server carries both: the T-SQL native error number drives the
+     * precise pushdown-demote classification (DS 5.3.8.1), the SQLSTATE
+     * drives the coarse 42xxx fallback. */
+    if (pErr->remoteCode != 0) {
+      offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
+                         ", remote_code=%d", pErr->remoteCode);
+    }
+    if (pErr->remoteSqlstate[0] != '\0') {
+      offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
+                         ", remote_sqlstate=%s", pErr->remoteSqlstate);
+    }
+  }
   if (NULL != pErr && (EExtSourceType)pErr->sourceType == EXT_SOURCE_INFLUXDB && pErr->httpStatus != 0) {
     offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
                        ", http_status=%d", pErr->httpStatus);
@@ -1801,10 +1917,14 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   SFederatedScanPhysiNode* pFedNode = pInfo->pFedScanNode;
   SExtTableNode*           pExtTable = (SExtTableNode*)pFedNode->pExtTable;
   EExtSourceType           srcType = (EExtSourceType)pFedNode->sourceType;
-  bool                     isRelationalSource = EXT_SOURCE_MYSQL == srcType || EXT_SOURCE_POSTGRESQL == srcType;
+  // SQL Server is a relational source with a real schema: schema drift must be
+  // reported as EXT_SCHEMA_CHANGED (DS 9.1.2) and tz-naive timestamp columns
+  // take the client-timezone comparison path, exactly like MySQL / PostgreSQL.
+  bool                     isRelationalSource = EXT_SOURCE_MYSQL == srcType || EXT_SOURCE_POSTGRESQL == srcType ||
+                                               EXT_SOURCE_SQLSERVER == srcType;
 
-  // Determine SQL dialect: quote character and table path format
-  char q = (srcType == EXT_SOURCE_MYSQL) ? '`' : '"';
+  // Determine SQL dialect: quote characters and table path format
+  SFedScanQuote q = fedScanQuoteFor(srcType);
 
   // Build a temporary SExtTableNode with the specific remote table name
   SExtTableNode tempExtTable = {0};
@@ -1814,6 +1934,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   tstrncpy(tempExtTable.table.tableName, pFsParam->tableName, sizeof(tempExtTable.table.tableName));
   // For PG: use srcSchema as schemaName (falls back to "public")
   // For MySQL: use srcDatabase as dbName (table lookup needs it)
+  // For SQL Server: the runtime reference carries the exact database/schema of
+  // the bound table (DS 5.3.6); prefer them over the plan-time defaults.
   if (srcType == EXT_SOURCE_POSTGRESQL) {
     if (pFedNode->srcSchema[0] != '\0') {
       tstrncpy(tempExtTable.schemaName, pFedNode->srcSchema, sizeof(tempExtTable.schemaName));
@@ -1821,6 +1943,15 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   } else if (srcType == EXT_SOURCE_MYSQL) {
     if (pFedNode->srcDatabase[0] != '\0') {
       tstrncpy(tempExtTable.table.dbName, pFedNode->srcDatabase, sizeof(tempExtTable.table.dbName));
+    }
+  } else if (srcType == EXT_SOURCE_SQLSERVER) {
+    if (pFsParam->dbName[0] != '\0') {
+      tstrncpy(tempExtTable.table.dbName, pFsParam->dbName, sizeof(tempExtTable.table.dbName));
+    }
+    if (pFsParam->schemaName[0] != '\0') {
+      tstrncpy(tempExtTable.schemaName, pFsParam->schemaName, sizeof(tempExtTable.schemaName));
+    } else if (pFedNode->srcSchema[0] != '\0') {
+      tstrncpy(tempExtTable.schemaName, pFedNode->srcSchema, sizeof(tempExtTable.schemaName));
     }
   }
 
@@ -1931,8 +2062,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   int32_t pushedCondSqlLen = 0;
   bool    pushedCondFullyRendered = false;
-  code = fedScanBuildVStbPushedCondSql(pFsParam, pMeta, q, &pushedCondSql, &pushedCondSqlLen,
-                                       &pushedCondFullyRendered);
+  code = fedScanBuildVStbPushedCondSql(pFsParam, pMeta, q, fedScanDialectFor(srcType), &pushedCondSql,
+                                       &pushedCondSqlLen, &pushedCondFullyRendered);
   QUERY_CHECK_CODE(code, lino, _return);
 
   mappings = taosMemoryCalloc(totalCols, sizeof(SExtColTypeMapping));
@@ -1995,7 +2126,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
           timezoneConversionSupported);
     } else {
       int32_t written = snprintf(sqlBuf + offset, sqlBufLen - offset,
-                                 "%c%s%c", q, pTsCol->colName, q);
+                                 "%c%s%c", q.open, pTsCol->colName, q.close);
       code = written < 0 || written >= sqlBufLen - offset
                  ? TSDB_CODE_OUT_OF_RANGE
                  : TSDB_CODE_SUCCESS;
@@ -2067,7 +2198,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
                 timezoneConversionSupported);
           } else {
             written = snprintf(sqlBuf + offset, sqlBufLen - offset,
-                               "%c%s%c", q, pCol->colName, q);
+                               "%c%s%c", q.open, pCol->colName, q.close);
             if (written < 0 || written >= sqlBufLen - offset) {
               code = TSDB_CODE_OUT_OF_RANGE;
             } else {
@@ -2111,6 +2242,27 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       // PG: "schema"."table"
       const char* schema = pFedNode->srcSchema[0] ? pFedNode->srcSchema : "public";
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\".\"%s\"", schema, remoteTable);
+      break;
+    }
+    case EXT_SOURCE_SQLSERVER: {
+      // SQL Server: [database].[schema].[table].  Both namespace segments are
+      // carried explicitly (DS 5.3.6): the connector never injects a default
+      // schema, so an unqualified name would resolve against the login's
+      // defaults instead of the reference's namespace.  The runtime reference
+      // namespace wins over the plan-time defaults when present.
+      const char* db = pFsParam->dbName[0]
+                           ? pFsParam->dbName
+                           : (pFedNode->srcDatabase[0] ? pFedNode->srcDatabase : NULL);
+      const char* schema = pFsParam->schemaName[0]
+                               ? pFsParam->schemaName
+                               : (pFedNode->srcSchema[0] ? pFedNode->srcSchema : NULL);
+      if (db != NULL && schema != NULL) {
+        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM [%s].[%s].[%s]", db, schema, remoteTable);
+      } else if (schema != NULL) {
+        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM [%s].[%s]", schema, remoteTable);
+      } else {
+        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM [%s]", remoteTable);
+      }
       break;
     }
     case EXT_SOURCE_INFLUXDB:
@@ -2158,6 +2310,15 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
                                 ? pFsParam->dstPrecision
                                 : TSDB_TIME_PRECISION_MILLI;
     int8_t sourcePrecision = fedScanGetCondPrecision(srcType, pMeta, tsIdx);
+    // Comparison-literal timezone: InfluxDB always takes UTC, and for SQL
+    // Server a tz-aware column (datetimeoffset) holds an absolute instant, so
+    // its literal is rendered as UTC while a tz-naive column
+    // (datetime2/datetime/...) keeps the client's wall clock (DS 5.3.7).
+    EExtTimestampTzClass tsTzClass =
+        fedScanClassifyTimestampType(srcType, pMeta->pCols[tsIdx].extTypeName);
+    bool boundAsUtc = (srcType == EXT_SOURCE_INFLUXDB) ||
+                      (srcType == EXT_SOURCE_SQLSERVER &&
+                       tsTzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE);
     int64_t skey = hasSkey ? fedScanConvertTimeBound(scanRange.skey, rangePrecision,
                                                      sourcePrecision, true)
                            : INT64_MIN;
@@ -2175,12 +2336,13 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     if (hasSkey) {
       char  skeyBuf[64];
       char* pFormatted = NULL;
-      if (srcType == EXT_SOURCE_INFLUXDB)
+      if (boundAsUtc)
         pFormatted = formatTimestampUTC(skeyBuf, sizeof(skeyBuf), skey, sourcePrecision);
       else
         pFormatted = formatTimestampTz(skeyBuf, sizeof(skeyBuf), skey, sourcePrecision, timezone);
       QUERY_CHECK_NULL(pFormatted, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c >= '%s'", q, tsRemoteNameBuf, q, skeyBuf);
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c >= '%s'", q.open, tsRemoteNameBuf, q.close,
+                         skeyBuf);
     }
     if (hasSkey && hasEkey) {
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " AND ");
@@ -2188,12 +2350,13 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     if (hasEkey) {
       char  ekeyBuf[64];
       char* pFormatted = NULL;
-      if (srcType == EXT_SOURCE_INFLUXDB)
+      if (boundAsUtc)
         pFormatted = formatTimestampUTC(ekeyBuf, sizeof(ekeyBuf), ekey, sourcePrecision);
       else
         pFormatted = formatTimestampTz(ekeyBuf, sizeof(ekeyBuf), ekey, sourcePrecision, timezone);
       QUERY_CHECK_NULL(pFormatted, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c <= '%s'", q, tsRemoteNameBuf, q, ekeyBuf);
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c <= '%s'", q.open, tsRemoteNameBuf, q.close,
+                         ekeyBuf);
     }
   }
 
@@ -2221,7 +2384,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   // ORDER BY ts ASC is required: the vstable sort-merge dedup assumes each
   // external source returns rows in ascending timestamp order.
-  offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " ORDER BY %c%s%c ASC", q, tsRemoteNameBuf, q);
+  offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " ORDER BY %c%s%c ASC", q.open, tsRemoteNameBuf, q.close);
   if (pFsParam->rowLimit > 0 && (pFsParam->pPushedCond == NULL || pushedCondFullyRendered)) {
     if (EXT_SOURCE_SQLSERVER == srcType) {
       // T-SQL has no LIMIT clause.  The statement always carries ORDER BY ts ASC
@@ -2848,9 +3011,9 @@ static int32_t fedScanBuildTableKey(const SForeignScanOperatorParam* pFsParam, c
   }
 
   len = snprintf(buf, bufLen,
-                 "%s.%s.%s.%" PRId64 ".%u.%u.%u.%" PRIu64 ".%d.%" PRIu64 ".%d.%" PRId64 ".%" PRIu64
+                 "%s.%s.%s.%s.%" PRId64 ".%u.%u.%u.%" PRIu64 ".%d.%" PRIu64 ".%d.%" PRId64 ".%" PRIu64
                  ".%" PRId64 ".%" PRId64 ".%" PRIu64,
-                 pFsParam->sourceName, pFsParam->dbName, pFsParam->tableName,
+                 pFsParam->sourceName, pFsParam->dbName, pFsParam->schemaName, pFsParam->tableName,
                  pFsParam->sourceMetaVersion, colMapHash, tagCondHash, pushedCondHash,
                  pFsParam->scanParamId, pFsParam->filterCondLen, filterCondHash, pFsParam->dstPrecision,
                  pFsParam->rowLimit > 0 ? pFsParam->rowLimit : 0,
@@ -3266,6 +3429,7 @@ static SForeignScanOperatorParam* fedScanBuildBatchTableViewImpl(
                                  ? pBatch->sourceMetaVersion
                                  : pInfo->pFedScanNode->metaVersion;
   tstrncpy(pView->dbName, pTable->dbName, sizeof(pView->dbName));
+  tstrncpy(pView->schemaName, pTable->schemaName, sizeof(pView->schemaName));
   tstrncpy(pView->tableName, pTable->tableName, sizeof(pView->tableName));
   pView->colMap = pTable->colMap;
   pView->dstPrecision = (pTable->dstPrecision >= TSDB_TIME_PRECISION_MILLI &&
@@ -3982,6 +4146,62 @@ static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
   return TSDB_CODE_SUCCESS;
 }
 
+// The optimizer injects a virtual table's timestamp range into the external
+// scan as a *source-precision* condition (it doubles as the remote condition).
+// The scan converts every fetched timestamp to the virtual table's precision
+// before applying its local filter, so the injected literal must be converted
+// as well.  Without this, a fine local database (PRECISION 'ns') fed by a
+// coarser source (SQL Server, us) compares microseconds against nanoseconds
+// and silently drops the leg.  Direct external scans keep the scan precision
+// equal to the source precision, so the conversion is a no-op for them.
+static EDealRes fedScanNormalizeLocalTsLiteral(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_OPERATOR != nodeType(pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SOperatorNode* pOp = (SOperatorNode*)pNode;
+  if (pOp->opType < OP_TYPE_GREATER_THAN || pOp->opType >= OP_TYPE_IS_NOT_UNKNOWN) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  // Unary predicates (IS [NOT] NULL / TRUE / FALSE / UNKNOWN) carry a NULL
+  // operand; nodeType() dereferences its argument.
+  if (pOp->pLeft == NULL || pOp->pRight == NULL) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SColumnNode* pCol = NULL;
+  SValueNode*  pValue = NULL;
+  if (QUERY_NODE_COLUMN == nodeType(pOp->pLeft) && QUERY_NODE_VALUE == nodeType(pOp->pRight)) {
+    pCol = (SColumnNode*)pOp->pLeft;
+    pValue = (SValueNode*)pOp->pRight;
+  } else if (QUERY_NODE_VALUE == nodeType(pOp->pLeft) && QUERY_NODE_COLUMN == nodeType(pOp->pRight)) {
+    pCol = (SColumnNode*)pOp->pRight;
+    pValue = (SValueNode*)pOp->pLeft;
+  } else {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
+      pValue->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP ||
+      pValue->placeholderNo > 0 || pValue->isNull) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  int8_t srcPrecision = (int8_t)pValue->node.resType.precision;
+  int8_t dstPrecision = *(int8_t*)pContext;
+  if (srcPrecision == dstPrecision ||
+      srcPrecision < TSDB_TIME_PRECISION_MILLI || srcPrecision > TSDB_TIME_PRECISION_NANO ||
+      dstPrecision < TSDB_TIME_PRECISION_MILLI || dstPrecision > TSDB_TIME_PRECISION_NANO) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  pValue->datum.i = convertTimePrecision(pValue->datum.i, srcPrecision, dstPrecision);
+  *(int64_t*)&pValue->typeData = pValue->datum.i;
+  pValue->node.resType.precision = dstPrecision;
+  pCol->node.resType.precision = dstPrecision;
+  return DEAL_RES_CONTINUE;
+}
+
 // ---------------------------------------------------------------------------
 // createFederatedScanOperatorInfo  -  public factory function
 // ---------------------------------------------------------------------------
@@ -4033,8 +4253,20 @@ int32_t createFederatedScanOperatorInfo(SOperatorInfo*           pDownstream,
                   false, OP_NOT_OPENED, pInfo, pTaskInfo);
 
   // Initialize local filter from pConditions (for conditions like like_in_set
-  // that cannot be pushed down to the remote source)
+  // that cannot be pushed down to the remote source).  Timestamp literals
+  // injected by the planner carry the source precision; normalize them to the
+  // precision of the blocks this operator emits (see
+  // fedScanNormalizeLocalTsLiteral).
   if (pFedScanNode->node.pConditions != NULL) {
+    int8_t localTsPrecision = -1;
+    if (pFedScanNode->node.pOutputDataBlockDesc != NULL) {
+      localTsPrecision = (int8_t)pFedScanNode->node.pOutputDataBlockDesc->precision;
+    }
+    if (localTsPrecision >= TSDB_TIME_PRECISION_MILLI &&
+        localTsPrecision <= TSDB_TIME_PRECISION_NANO) {
+      nodesWalkExpr((SNode*)pFedScanNode->node.pConditions, fedScanNormalizeLocalTsLiteral,
+                    &localTsPrecision);
+    }
     code = filterInitFromNode((SNode*)pFedScanNode->node.pConditions,
                               &pOperator->exprSupp.pFilterInfo, 0,
                               pTaskInfo->pStreamRuntimeInfo);

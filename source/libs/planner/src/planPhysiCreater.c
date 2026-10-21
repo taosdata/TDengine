@@ -2733,6 +2733,21 @@ static EExtTimestampTzClass fqPlanClassifyTimestampType(int8_t sourceType, const
         return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
       }
       break;
+    case EXT_SOURCE_SQLSERVER:
+      // DS 5.3.7: datetimeoffset carries an absolute instant (tz-aware), the
+      // other temporal types store the client wall clock (tz-naive).  Without
+      // this hint the renderer cannot tell the two apart once the plan leaves
+      // the catalog, and a tz-aware column would be computed on the stored
+      // offset instead of the client timezone.
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "datetimeoffset")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "datetime") ||
+          fqTypeStartsWithIgnoreCase(pExtTypeName, "smalldatetime") ||
+          fqTypeStartsWithIgnoreCase(pExtTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
     default:
       break;
   }
