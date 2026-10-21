@@ -125,8 +125,19 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     if (fp == NULL) {
       mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
       code = TSDB_CODE_MSG_NOT_PROCESSED;
-      taosArrayDestroy(batchRsp.pRsps);
-      return -1;
+      goto _exit;
+    }
+
+    // [Security fix for finding item 224] Reject nested TDMT_MND_BATCH_META to prevent
+    // uncontrolled recursion (CWE-674). mndProcessBatchMetaMsg is itself registered in
+    // msgFp for TDMT_MND_BATCH_META (see mndInitQuery), so an inner batch-meta message
+    // would make this handler call itself synchronously on the inner blob with no depth
+    // bound, eventually exhausting the mnode-read worker stack (8 MiB on Linux) / heap.
+    // No legitimate client ever nests a batch-meta message inside another batch-meta.
+    if (req->msgType == TDMT_MND_BATCH_META) {
+      mError("msg:%p, nested TDMT_MND_BATCH_META is not allowed, app:%p", pMsg, pMsg->info.ahandle);
+      code = TSDB_CODE_INVALID_MSG;
+      goto _exit;
     }
 
     if ((*fp)(&reqMsg)) {

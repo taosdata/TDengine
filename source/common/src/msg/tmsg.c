@@ -16075,6 +16075,14 @@ int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq) {
   int32_t   code = 0;
   int32_t   lino;
   SMsgHead *pHead = buf;
+
+  // [Security fix for finding item 224] Validate the input buffer before writing the
+  // SMsgHead back into it. A nested innermost blob of 0 bytes (tDecodeBinaryAlloc returns
+  // NULL) or < sizeof(SMsgHead) bytes would otherwise dereference NULL / write OOB here.
+  if (buf == NULL || bufLen < (int32_t)sizeof(SMsgHead)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   pHead->vgId = pReq->header.vgId;
   pHead->contLen = pReq->header.contLen;
 
