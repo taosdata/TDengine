@@ -3163,7 +3163,7 @@ FIRST(expr)
 
 **Function Classification**: Pipeline aggregate function.
 
-**Function Description**: Calculates the first non-NULL value written in a column of a table/supertable.
+**Function Description**: Returns the non-NULL value of the column on the earliest row of the effective timeline. The comparison uses the effective timeline, not the argument column. An argument that is a non-primary-key `TIMESTAMP` is not sorted by that column's value.
 
 **Return Data Type**: Same as the applied field.
 
@@ -3173,11 +3173,42 @@ FIRST(expr)
 
 **Usage Instructions**:
 
-- To return the first non-NULL value of each column (smallest timestamp), use FIRST(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), FIRST(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
+- To return the first non-NULL value of each column (earliest on the effective timeline), use `FIRST(*)`. When querying a supertable, if `multiResultFunctionStarReturnTags` is set to 0 (the default), `FIRST(*)` returns only the ordinary columns of the supertable; if set to 1, it returns both ordinary columns and tag columns.
+- `FIRST(expr)` is not equivalent to `ORDER BY expr ASC LIMIT 1`. When querying a table or supertable directly, the effective timeline is the primary-key timestamp. To select the row with the smallest non-primary-key timestamp column, use `ORDER BY ... ASC LIMIT 1` on that column. For how the effective timeline is chosen, see [Timeline](./01-query.md#timeline).
 - If all values in a column in the result set are NULL, the return for that column is also NULL;
 - If all columns in the result set are NULL, no results are returned.
 - For tables with composite primary keys, if there are multiple entries with the smallest timestamp, only the data with the smallest composite primary key is returned.
 - With a degraded timeline, NULL time rows are skipped during time-value comparison; the row with the smallest non-NULL time is returned. If all time values are NULL, an empty result is returned. When no TIMESTAMP column exists, the first row in input order is returned.
+
+**Example**
+
+The primary key of table `t` is `ts`. `pub_ts` is an ordinary timestamp column:
+
+```sql
+taos> SELECT ts, pub_ts, val FROM t;
+           ts            |         pub_ts          | val |
+==========================================================
+ 2026-01-01 00:00:00.000 | 2026-01-03 00:00:00.000 | a   |
+ 2026-01-02 00:00:00.000 | 2026-01-01 00:00:00.000 | b   |
+
+taos> SELECT FIRST(ts) FROM t;
+        first(ts)        |
+==========================
+ 2026-01-01 00:00:00.000 |
+
+taos> SELECT FIRST(pub_ts) FROM t;
+      first(pub_ts)      |
+==========================
+ 2026-01-03 00:00:00.000 |
+```
+
+`FIRST(ts)` returns the earliest primary-key timestamp, `2026-01-01 00:00:00.000`. `FIRST(pub_ts)` returns `pub_ts` on that row, which is `2026-01-03 00:00:00.000`. To select the earliest row by `pub_ts` itself, use:
+
+```sql
+SELECT pub_ts, val FROM t ORDER BY pub_ts ASC LIMIT 1;
+```
+
+This statement returns the row whose `pub_ts` is `2026-01-01 00:00:00.000` and whose `val` is `b`.
 
 ### LAST
 
@@ -3187,7 +3218,7 @@ LAST(expr)
 
 **Function Classification**: Pipeline aggregate function.
 
-**Function Description**: Returns the last non-NULL value written in a column of a table/supertable.
+**Function Description**: Same as [FIRST](#first), but returns the non-NULL value of the column on the latest row of the effective timeline. The argument column is not used for ordering, and this is not equivalent to `ORDER BY expr DESC LIMIT 1`.
 
 **Return Data Type**: Same as the applied field.
 
@@ -3197,7 +3228,7 @@ LAST(expr)
 
 **Usage Instructions**:
 
-- To return the last (timestamp largest) non-NULL value of each column, you can use LAST(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
+- To return the last non-NULL value of each column (latest on the effective timeline), use LAST(\*); when querying a supertable, and if multiResultFunctionStarReturnTags is set to 0 (default), LAST(\*) only returns the normal columns of the supertable; if set to 1, it returns both the normal and tag columns of the supertable.
 - If all values in a column in the result set are NULL, the return result for that column is also NULL; if all columns in the result set are NULL, no result is returned.
 - When used with supertables, if there are multiple rows with the same timestamp and it is the largest, one will be randomly returned, and it is not guaranteed that the same row will be selected in multiple runs.
 - For tables with composite primary keys, if there are multiple records with the maximum timestamp, only the data with the largest corresponding composite primary key is returned.
