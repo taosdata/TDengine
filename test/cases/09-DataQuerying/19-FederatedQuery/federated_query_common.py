@@ -562,6 +562,24 @@ class ExtSrcEnv:
         return "".join(lines)
 
     @classmethod
+    def _lifecycle_socket_timeout(cls):
+        """Return the client wait for one host-side lifecycle operation.
+
+        The lease owner enforces FQ_LIFECYCLE_TIMEOUT_S itself. Stay above it
+        so a slow stop or start is reported by the owner, with its container
+        diagnostics, instead of failing as a client-side socket timeout.
+        """
+        raw = os.getenv("FQ_LIFECYCLE_TIMEOUT_S", "150")
+        try:
+            budget = int(raw)
+        except ValueError:
+            raise RuntimeError(f"FQ_LIFECYCLE_TIMEOUT_S must be an integer: {raw!r}")
+        if budget <= 0:
+            raise RuntimeError(f"FQ_LIFECYCLE_TIMEOUT_S must be positive: {raw!r}")
+        # Above the remote lease's own margin so the owner still reports first.
+        return budget + 60
+
+    @classmethod
     def _external_service_action(cls, action, service, ver):
         """Delegate lifecycle operations to the owner of an exclusive lease.
 
@@ -576,7 +594,7 @@ class ExtSrcEnv:
             import json
             import socket
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.settimeout(120)
+                conn.settimeout(cls._lifecycle_socket_timeout())
                 conn.connect(endpoint)
                 conn.sendall(json.dumps([action, service, ver]).encode() + b"\n")
                 with conn.makefile("rb") as reply:
@@ -589,7 +607,8 @@ class ExtSrcEnv:
             raise RuntimeError(
                 f"External {service} {ver} needs {action}, but no "
                 "FQ_SERVICE_CONTROL is configured for this exclusive lease")
-        subprocess.run([hook, action, service, ver], check=True, timeout=120,
+        subprocess.run([hook, action, service, ver], check=True,
+                       timeout=cls._lifecycle_socket_timeout(),
                        env=_fq_subprocess_env())
         return True
 
@@ -2912,10 +2931,11 @@ class FederatedQueryTestMixin:
         Behavior is controlled by the ``FQ_EXPLAIN_STRICT`` environment variable
         (read on every call so it can be changed between tests without reloading):
 
-        * ``FQ_EXPLAIN_STRICT=1`` / ``true`` / ``yes`` — strict mode: any failure
-          raises ``AssertionError`` and fails the test immediately.
-        * Anything else (default) — non-strict mode: failures are logged as
-          warnings and the calling test continues.
+        * Default (unset) / ``1`` / ``true`` / ``yes`` — strict mode: any failure
+          raises ``AssertionError`` and fails the test immediately.  Phase-2
+          pushdown is implemented, so the assertions are enforced by default.
+        * ``FQ_EXPLAIN_STRICT=0`` / ``false`` / ``no`` — non-strict mode:
+          failures are silently skipped and the calling test continues.
 
         Args:
             sql:        Query string to EXPLAIN (without the leading ``explain``).
@@ -2923,14 +2943,14 @@ class FederatedQueryTestMixin:
                          also triggers an absent-local-operator check when a
                          mapping exists in ``_PUSHDOWN_LOCAL_OP_MAP``.
         """
-        strict = os.getenv("FQ_EXPLAIN_STRICT", "0").strip().lower() in (
+        strict = os.getenv("FQ_EXPLAIN_STRICT", "1").strip().lower() in (
             "1", "true", "yes"
         )
 
         def _fail(msg):
             if strict:
                 raise AssertionError(msg)
-            # Non-strict mode: silently skip (Phase 2 pushdown not yet implemented)
+            # Explicitly disabled (FQ_EXPLAIN_STRICT=0): skip without failing.
 
         ok = tdSql.query(f"explain verbose true {sql}", exit=False)
         if ok is False:

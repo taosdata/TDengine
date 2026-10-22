@@ -117,9 +117,12 @@ class ModelLoader:
                     X[col_mask, col_idx] = fill_val
 
         # Handle standardization (center/scale)
-        center = np.array(pipeline_state.get("center"))
-        scale = np.array(pipeline_state.get("scale"))
+        # Both halves must be present: a state with only fill values (the usual
+        # XGBoost case) has neither key, and np.array(None) is an object array --
+        # not None -- so testing before converting is what keeps the guard honest.
+        center = pipeline_state.get("center")
+        scale = pipeline_state.get("scale")
         if center is not None and scale is not None:
-            X = (X - center) / (scale + 1e-8)
+            X = (X - np.array(center)) / (np.array(scale) + 1e-8)
 
         return X

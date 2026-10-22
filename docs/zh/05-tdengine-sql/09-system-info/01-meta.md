@@ -806,16 +806,31 @@ SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
 
 ## INS_TAGS
 
-提供表的标签名、类型与取值，便于按标签检索与核对元数据。除子表外，也包含带标签的普通表与虚拟普通表的标签，此时 `stable_name` 列为 `NULL`。也可以使用 [`SHOW TAGS`](./03-show.md#show-tags) 查询。
+提供表的标签名、类型与当前取值，便于按标签检索与核对元数据。也可以使用 [`SHOW TAGS`](./03-show.md#show-tags) 查询，两者的 `tag_value` 一致。
+
+覆盖普通子表、带自有标签的普通表、虚拟子表和带标签的虚拟普通表。普通表和虚拟普通表没有所属超级表，`stable_name` 为 `NULL`。普通子表的 `stable_name` 是其超级表名，虚拟子表的 `stable_name` 是其虚拟超级表名。
+
+`tag_value` 是当前标签值。标签引用的定义（`FROM db_name.table_name.tag_name`）由 [`SHOW CREATE VTABLE`](../02-ddl/04-virtualtable.md#显示虚拟表创建语句) 返回。
+
+| 表 | 标签来源 | `tag_value` |
+| --- | --- | --- |
+| 普通子表 | 字面量 | 本表当前保存的值 |
+| 普通表 | 字面量 | 本表当前保存的值 |
+| 虚拟子表 | 字面量 | 本表当前保存的值 |
+| 虚拟子表 | 标签引用 | 源标签的当前值 |
+| 虚拟普通表 | 字面量 | 本表当前保存的值 |
+| 虚拟普通表 | 标签引用 | 源标签的当前值 |
+
+源表执行 `ALTER TABLE ... SET TAG` 后，引用该标签的虚拟子表和虚拟普通表在下一次查询中返回新值。字面量标签保持本表的值。
 
 | #   | **列名** | **数据类型** | **说明** |
 | --- | ------------- | -------------- | --- |
 | 1   | `table_name`  | VARCHAR(192)   | 表名 |
 | 2   | `db_name`     | VARCHAR(64)    | 该表所在的数据库的名称 |
-| 3   | `stable_name` | VARCHAR(192)   | 所属的超级表表名 |
+| 3   | `stable_name` | VARCHAR(192)   | 所属的超级表或虚拟超级表名。普通表和虚拟普通表为 `NULL` |
 | 4   | `tag_name`    | VARCHAR(64)    | tag 的名称 |
 | 5   | `tag_type`    | VARCHAR(32)    | tag 的类型 |
-| 6   | `tag_value`   | VARCHAR(16384) | tag 的值 |
+| 6   | `tag_value`   | VARCHAR(16384) | 当前标签值。字面量为本表保存的值，标签引用为源标签的当前值 |
 
 ## INS_TOKENS
 

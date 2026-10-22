@@ -68,6 +68,8 @@ Mixed table-DDL + stream scenarios (one transaction spanning both object kinds):
 from new_test_framework.utils import tdLog, tdSql
 import taos
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 
 class TestBatchMetaTxnStream:
@@ -1105,6 +1107,21 @@ class TestBatchMetaTxnStream:
         tdSql.execute(partitioned_stream("m14_c", "m14_c_out"))
         assert "m14_c_out" in self._stables(), \
             "output STB should be visible to its own txn (read-your-own-writes)"
+        assert self._stream_status("m14_c") == "pending_create", \
+            "CREATE STREAM must finish both the output table and stream marker"
+        tdSql.query("desc m14_c_out")
+        assert tdSql.queryRows > 0, "output STB should be describable inside the txn"
+        conn2, cursor2 = self._other_conn()
+        try:
+            cursor2.execute("show stables")
+            assert "m14_c_out" not in {r[0] for r in cursor2.fetchall()}, \
+                "uncommitted output STB leaked to another session"
+            cursor2.execute("show streams")
+            assert "m14_c" not in {r[0] for r in cursor2.fetchall()}, \
+                "uncommitted stream leaked to another session"
+        finally:
+            cursor2.close()
+            conn2.close()
         tdSql.execute("COMMIT")
         assert "m14_c_out" in self._stables(), "output STB missing after COMMIT"
         status = self._wait_status("m14_c", ("Running", "Idle"))
@@ -1117,6 +1134,10 @@ class TestBatchMetaTxnStream:
         # (c) ROLLBACK: the table is this txn's side effect and must be undone.
         tdSql.execute("BEGIN")
         tdSql.execute(partitioned_stream("m14_r", "m14_r_out"))
+        assert "m14_r_out" in self._stables(), \
+            "output STB must exist before an immediate ROLLBACK"
+        assert self._stream_status("m14_r") == "pending_create", \
+            "stream marker must exist before an immediate ROLLBACK"
         tdSql.execute("ROLLBACK")
         assert "m14_r_out" not in self._stables(), \
             "output STB created by the rolled-back txn should have been undone"
@@ -1169,6 +1190,8 @@ class TestBatchMetaTxnStream:
             tdSql.execute(nodelay_stream("m15_r", "m15_r_out"))
             assert "m15_r_out" in self._tables(), \
                 "nodelay output table should be created inside the txn"
+            assert self._stream_status("m15_r") == "pending_create", \
+                "CREATE STREAM must finish both the nodelay table and stream marker"
             # Readable from this txn, and empty: a new stream emits nothing before COMMIT.
             tdSql.query("select count(*) from m15_r_out")
             tdSql.checkData(0, 0, 0)
@@ -1439,6 +1462,191 @@ class TestBatchMetaTxnStream:
         tdLog.info("m19 PASSED: nested-window stream rejected inside a txn, "
                    "accepted outside one, txn usable after rejection")
 
+    def test_stream_output_creation_visibility(self):
+        """Stream creation completes its output table and marker before returning.
+
+        1. Create partitioned and NODELAY streams across multiple vgroups in transactions.
+        2. Immediately check both objects, then roll back and check their removal.
+
+        Catalog:
+            - MetaData:Transaction
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7138111536
+
+        History:
+            - 2026-10-20 Add immediate output table visibility regression
+        """
+        tdSql.execute("create database txn_stm_visibility vgroups 16")
+        tdSql.execute("use txn_stm_visibility")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        try:
+            for partitioned in (True, False):
+                source = "stb partition by tbname" if partitioned else "ct1"
+                option = "" if partitioned else "NODELAY_CREATE_SUBTABLE"
+                for i in range(16):
+                    name = f"visibility_{int(partitioned)}_{i}"
+                    out = f"{name}_out"
+                    tdSql.execute("BEGIN")
+                    tdSql.execute(
+                        f"create stream {name} interval(10s) sliding(10s) from {source}"
+                        f" into {out} {option}"
+                        " as select _twstart ts, count(*) cnt from %%trows"
+                    )
+                    tables = self._stables() if partitioned else self._tables()
+                    assert out in tables, f"{out} missing immediately after CREATE STREAM"
+                    assert self._stream_status(name) == "pending_create", \
+                        f"{name} marker missing immediately after CREATE STREAM"
+                    tdSql.execute("ROLLBACK")
+                    tables = self._stables() if partitioned else self._tables()
+                    assert out not in tables, f"{out} survived ROLLBACK"
+                    assert name not in self._stream_names(), f"{name} survived ROLLBACK"
+        finally:
+            tdSql.execute_ignore_error("ROLLBACK")
+            tdSql.execute("drop database txn_stm_visibility")
+            tdSql.execute("use txn_stm")
+
+    def test_concurrent_stream_name_is_reserved(self):
+        """Concurrent transactions cannot create the same stream with different outputs.
+
+        1. Allow a stream and a stable to share a name in different transactions.
+        2. Race two transactions creating the same stream and distinct output tables.
+        3. Commit the winner, roll back the loser, and verify the winner survives.
+        4. Repeat for partitioned and NODELAY outputs, reusing the released stream name.
+
+        Catalog:
+            - MetaData:Transaction
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7138111536
+
+        History:
+            - 2026-10-20 Add concurrent stream name reservation regression
+        """
+        tdSql.execute("create database txn_stm_concurrent vgroups 16")
+        tdSql.execute("use txn_stm_concurrent")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        tdSql.execute("create table ct1 using stb tags(1)")
+        connections = [taos.connect(), taos.connect()]
+        cursors = [connection.cursor() for connection in connections]
+        try:
+            for cursor in cursors:
+                cursor.execute("use txn_stm_concurrent")
+                cursor.execute("BEGIN")
+            cursors[0].execute("create stable same_name (ts timestamp, v int) tags (t1 int)")
+            cursors[1].execute(
+                "create stream same_name interval(10s) sliding(10s) from ct1"
+                " into separate_output as select _twstart ts, count(*) cnt from %%trows"
+            )
+            for cursor in cursors:
+                cursor.execute("ROLLBACK")
+            for partitioned in (True, False):
+                source = "stb partition by tbname" if partitioned else "ct1"
+                option = "" if partitioned else "NODELAY_CREATE_SUBTABLE"
+                name = f"concurrent_stream_{int(partitioned)}"
+                for attempt in range(8):
+                    outputs = [f"{name}_{attempt}_{side}" for side in range(2)]
+                    for cursor in cursors:
+                        cursor.execute("BEGIN")
+                    barrier = Barrier(2, timeout=30)
+
+                    def create(side):
+                        barrier.wait()
+                        try:
+                            cursors[side].execute(
+                                f"create stream {name} interval(10s) sliding(10s) from {source}"
+                                f" into {outputs[side]} {option}"
+                                " as select _twstart ts, count(*) cnt from %%trows"
+                            )
+                            return None
+                        except Exception as error:
+                            return str(error)
+
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        results = list(executor.map(create, range(2)))
+                    winners = [side for side, error in enumerate(results) if error is None]
+                    assert len(winners) == 1, f"same-name CREATE STREAM results: {results}"
+                    winner = winners[0]
+                    loser = 1 - winner
+                    assert "0x3317" in results[loser] or \
+                        "being modified by another transaction" in results[loser], results[loser]
+                    cursors[winner].execute("COMMIT")
+                    cursors[loser].execute("ROLLBACK")
+                    assert name in self._stream_names(), "loser rollback removed the winner's stream"
+                    tdSql.query(f"show create stream {name}")
+                    assert outputs[winner] in tdSql.queryResult[0][1], tdSql.queryResult
+                    tables = self._stables() if partitioned else self._tables()
+                    assert outputs[winner] in tables, tables
+                    assert outputs[loser] not in tables, tables
+                    tdSql.execute(f"drop stream {name}")
+                    kind = "stable" if partitioned else "table"
+                    tdSql.execute(f"drop {kind} {outputs[winner]}")
+        finally:
+            for cursor, connection in zip(cursors, connections):
+                try:
+                    cursor.execute("ROLLBACK")
+                except Exception:
+                    pass
+                finally:
+                    cursor.close()
+                    connection.close()
+            tdSql.execute("drop database txn_stm_concurrent")
+            tdSql.execute("use txn_stm")
+
+    def test_failed_stream_creation_releases_output_name(self):
+        """A failed output-table build must not retain another session's table name.
+
+        1. Fail partitioned stream creation in a database that permits only one stable.
+        2. Create and alter the same output name from another connection.
+        3. Roll back the failed transaction and verify the replacement table survives.
+
+        Catalog:
+            - MetaData:Transaction
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7138111536
+
+        History:
+            - 2026-10-20 Add failed stream output shadow cleanup regression
+        """
+        tdSql.execute("create database txn_stm_failure vgroups 2 single_stable 1")
+        tdSql.execute("use txn_stm_failure")
+        tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
+        connection = taos.connect()
+        cursor = connection.cursor()
+        try:
+            cursor.execute("use txn_stm_failure")
+            tdSql.execute("BEGIN")
+            tdSql.error(
+                "create stream failed_output_stream interval(10s) sliding(10s)"
+                " from stb partition by tbname into failed_output"
+                " as select _twstart ts, count(*) cnt from %%trows",
+                expectErrInfo="Database is single stable mode", fullMatched=False,
+            )
+            cursor.execute("drop stable stb")
+            cursor.execute("create stable failed_output (ts timestamp, v int) tags (t1 int)")
+            cursor.execute("alter stable failed_output add column extra int")
+            tdSql.execute("ROLLBACK")
+            cursor.execute("describe failed_output")
+            assert "extra" in [row[0] for row in cursor.fetchall()]
+            cursor.execute("drop stable failed_output")
+        finally:
+            tdSql.execute_ignore_error("ROLLBACK")
+            cursor.close()
+            connection.close()
+            tdSql.execute("drop database txn_stm_failure")
+            tdSql.execute("use txn_stm")
+
     def test_meta_batch_txn_stream(self):
         """Batch meta txn phase 2: CREATE/DROP STREAM in a transaction.
 
@@ -1482,9 +1690,17 @@ class TestBatchMetaTxnStream:
         33. nested_window_rejected_in_txn (nested-window streams are refused inside a
             txn with TXN_INVALID_OPERATION, accepted outside one)
 
+        Catalog:
+            - MetaData:Transaction
+
         Since: v3.4.3.0
 
         Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7138111536
+
+        History:
+            - 2026-10-20 Add output table and stream marker visibility regression
         """
         self.s1_create_commit()
         self.s2_create_rollback()

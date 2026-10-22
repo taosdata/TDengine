@@ -435,10 +435,11 @@ def create_mysql_remote_table(table, matrix):
         f"{n} {t}" for n, t, _ in matrix)
     create_mysql_table(_MY_DB, table, cols)
 
-def create_sqlserver_remote_table(table, matrix, schema="dbo", rows=None):
-    # SQL Server temporal primary keys are exposed at microsecond resolution
-    # (DS 5.3.7), so datetime2(3) is the standard probe key here.
-    cols = "ts datetime2(3) NOT NULL PRIMARY KEY, " + ", ".join(
+def create_sqlserver_remote_table(table, matrix, schema="dbo", rows=None,
+                                  ts_type="datetime2(3)"):
+    # The virtual-table precision follows the declared fractional precision of
+    # the timestamp primary key (datetime2(3) -> ms, datetime2(>3) -> us).
+    cols = f"ts {ts_type} NOT NULL PRIMARY KEY, " + ", ".join(
         f"{n} {t}" for n, t, _ in matrix)
     create_sqlserver_table(_SS_DB, table, cols, rows=rows, schema=schema)
 
@@ -682,16 +683,19 @@ class TestVtableCreateExtSource:
             "ss", _SS_COMPAT,
             lambda c: f"{_SS_SRC}.{_SS_DB}.dbo.t_typematrix_ss.{c}")
 
-        # (d) TIMESTAMP precision cross-product (4 sources × 3 local precisions).
+        # (d) TIMESTAMP precision cross-product (5 sources × 3 local precisions).
         create_pg_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_mysql_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_influx_remote_table("ts_p_inf")
         create_sqlserver_remote_table("ts_p", [("v", "INT", "int")])
+        create_sqlserver_remote_table("ts_p_us", [("v", "INT", "int")],
+                                      ts_type="datetime2(6)")
         backends = [
             ("pg",  "us", "int",    f"{_PG_SRC}.{_PG_DB}.ts_p.v"),
             ("my",  "ms", "int",    f"{_MY_SRC}.{_MY_DB}.ts_p.v"),
             ("inf", "ns", "bigint", f"{_INF_SRC}.{_INF_DB}.ts_p_inf.c_int"),
-            ("ss",  "us", "int",    f"{_SS_SRC}.{_SS_DB}.dbo.ts_p.v"),
+            ("ss",    "ms", "int", f"{_SS_SRC}.{_SS_DB}.dbo.ts_p.v"),
+            ("ss_us", "us", "int", f"{_SS_SRC}.{_SS_DB}.dbo.ts_p_us.v"),
         ]
         precision_rank = {"ms": 0, "us": 1, "ns": 2}
         for prec in ("ms", "us", "ns"):
@@ -706,7 +710,7 @@ class TestVtableCreateExtSource:
                     f"ts timestamp, "
                     f"v {v_type} FROM {v_ref})")
                 if precision_rank[prec] < precision_rank[source_prec]:
-                    tdSql.error(sql)
+                    tdSql.error(sql, expectedErrno=0x268f)
                 else:
                     tdSql.execute(sql)
                     tdSql.query(f"DESCRIBE {vname}")
@@ -800,7 +804,7 @@ class TestVtableCreateExtSource:
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_4seg' "
             f"AND col_name='v'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_4seg.v")
+        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.public.t_4seg.v")
         tdSql.execute("DROP VTABLE v_4seg")
 
         # (h) 3-component source.table.col resolves through the default
@@ -816,18 +820,30 @@ class TestVtableCreateExtSource:
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3disamb_short' "
             f"AND col_name='v'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_3disamb.v")
+        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.public.t_3disamb.v")
         tdSql.execute("DROP VTABLE v_3disamb_short")
         tdSql.execute(
             f"CREATE VTABLE v_3disamb (ts timestamp, "
-            f"v int FROM {_PG_SRC}.{_PG_DB}.t_3disamb.v)")
+            f"v int FROM {_PG_SRC}.t_3disamb.v)")
         tdSql.query(
             "SELECT col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3disamb' "
             f"AND col_name='v'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_3disamb.v")
+        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.public.t_3disamb.v")
         tdSql.execute("DROP VTABLE v_3disamb")
+
+        # The same binding through the explicit 4-component form.
+        tdSql.execute(
+            f"CREATE VTABLE v_3disamb4 (ts timestamp, "
+            f"v int FROM {_PG_SRC}.{_PG_DB}.t_3disamb.v)")
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3disamb4' "
+            f"AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.public.t_3disamb.v")
+        tdSql.execute("DROP VTABLE v_3disamb4")
 
         # (i) 3-seg without source name stays local ref → must be rejected.
         create_pg_remote_table("t_3local", [("v", "INTEGER", "int")])
@@ -871,8 +887,8 @@ class TestVtableCreateExtSource:
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_3mix4' "
             f"AND col_name IN ('v', 'v2') ORDER BY col_source")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.t_3disamb.v")
-        tdSql.checkData(1, 0, f"{_PG_SRC}.{_PG_DB}.t_4seg.v")
+        tdSql.checkData(0, 0, f"{_PG_SRC}.{_PG_DB}.public.t_3disamb.v")
+        tdSql.checkData(1, 0, f"{_PG_SRC}.{_PG_DB}.public.t_4seg.v")
         tdSql.execute("DROP VTABLE v_3mix4")
 
     def test_reject_remote_views_for_normal_and_child_vtables(self):
@@ -1004,8 +1020,8 @@ class TestVtableCreateExtSource:
     #
     # SQL Server namespaces are <database>.<schema>.<object>, so column
     # references use the 5-segment path source.database.schema.table.column
-    # (DS 5.3.3). SQL Server temporal columns are exposed at microsecond
-    # resolution, which is why the local database uses PRECISION 'ns'.
+    # (DS 5.3.3). The local database uses PRECISION 'ns' so the sub-millisecond
+    # axes (datetime2(>3), datetime) are legal here as well.
     # -------------------------------------------------------------------
 
     def test_sqlserver_legal_references_and_schema(self):
@@ -1101,6 +1117,235 @@ class TestVtableCreateExtSource:
             tdSql.checkData(0, 0, "ts")
             tdSql.checkData(0, 1, "TIMESTAMP")
             tdSql.execute(f"DROP VTABLE {vname}")
+
+    def test_sqlserver_ts_precision_matrix(self):
+        """FQSS-VTBL-012: vtable precision follows the timestamp declaration.
+
+        A millisecond database — the engine default and the precision IDMP
+        creates — must accept every millisecond-aligned SQL Server time axis:
+        datetime2(0..3), datetimeoffset(0..3), smalldatetime and date.  It must
+        still reject the finer datetime2(4..7), datetimeoffset(4..7) and
+        datetime (1/300 s ticks), which a microsecond database accepts.
+
+        Since: v3.4.4.0
+
+        """
+        cases = [
+            ("p_dt2_0", "datetime2(0) NOT NULL PRIMARY KEY",      "ms"),
+            ("p_dt2_1", "datetime2(1) NOT NULL PRIMARY KEY",      "ms"),
+            ("p_dt2_2", "datetime2(2) NOT NULL PRIMARY KEY",      "ms"),
+            ("p_dt2_3", "datetime2(3) NOT NULL PRIMARY KEY",      "ms"),
+            ("p_dt2_4", "datetime2(4) NOT NULL PRIMARY KEY",      "us"),
+            ("p_dt2_5", "datetime2(5) NOT NULL PRIMARY KEY",      "us"),
+            ("p_dt2_6", "datetime2(6) NOT NULL PRIMARY KEY",      "us"),
+            ("p_dt2_7", "datetime2(7) NOT NULL PRIMARY KEY",      "us"),
+            ("p_dt2",   "datetime2 NOT NULL PRIMARY KEY",         "us"),
+            ("p_dto_0", "datetimeoffset(0) NOT NULL PRIMARY KEY", "ms"),
+            ("p_dto_1", "datetimeoffset(1) NOT NULL PRIMARY KEY", "ms"),
+            ("p_dto_2", "datetimeoffset(2) NOT NULL PRIMARY KEY", "ms"),
+            ("p_dto_3", "datetimeoffset(3) NOT NULL PRIMARY KEY", "ms"),
+            ("p_dto_4", "datetimeoffset(4) NOT NULL PRIMARY KEY", "us"),
+            ("p_dto_5", "datetimeoffset(5) NOT NULL PRIMARY KEY", "us"),
+            ("p_dto_6", "datetimeoffset(6) NOT NULL PRIMARY KEY", "us"),
+            ("p_dto_7", "datetimeoffset(7) NOT NULL PRIMARY KEY", "us"),
+            ("p_dto",   "datetimeoffset NOT NULL PRIMARY KEY",    "us"),
+            ("p_dt",    "datetime NOT NULL PRIMARY KEY",          "us"),
+            ("p_sdt",   "smalldatetime NOT NULL PRIMARY KEY",     "ms"),
+            ("p_date",  "date NOT NULL PRIMARY KEY",              "ms"),
+        ]
+        rank = {"ms": 0, "us": 1, "ns": 2}
+        for table, ts_decl, source_prec in cases:
+            create_sqlserver_table(_SS_DB, table, f"ts {ts_decl}, v INT")
+            ref = f"{_SS_SRC}.{_SS_DB}.dbo.{table}.v"
+            for db_prec in ("ms", "us", "ns"):
+                db = f"vtcreate_ssp_{table}_{db_prec}"
+                tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
+                tdSql.execute(f"CREATE DATABASE {db} PRECISION '{db_prec}'")
+                tdSql.execute(f"USE {db}")
+                vname = f"v_{table}_{db_prec}"
+                sql = f"CREATE VTABLE {vname} (ts timestamp, v int FROM {ref})"
+                if rank[db_prec] < rank[source_prec]:
+                    tdSql.error(sql, expectedErrno=0x268f)
+                else:
+                    tdSql.execute(sql)
+                    tdSql.query(f"DESCRIBE {vname}")
+                    tdSql.checkData(0, 0, "ts")
+                    tdSql.checkData(0, 1, "TIMESTAMP")
+                    tdSql.execute(f"DROP VTABLE {vname}")
+                tdSql.execute(f"DROP DATABASE {db}")
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+        # The IDMP path: a database created without an explicit precision keeps
+        # the engine default (ms), and a datetime2(3) reference must work there.
+        create_sqlserver_remote_table(
+            "r_ms_default", [("v", "INT", "int")],
+            rows=["('2024-01-01 00:00:00.123', 7)"])
+        default_db = "vtcreate_ssp_default"
+        tdSql.execute(f"DROP DATABASE IF EXISTS {default_db}")
+        tdSql.execute(f"CREATE DATABASE {default_db}")
+        tdSql.execute(f"USE {default_db}")
+        tdSql.query("SELECT `precision` FROM information_schema.ins_databases "
+                    f"WHERE name = '{default_db}'")
+        tdSql.checkData(0, 0, "ms")
+        tdSql.execute(
+            "CREATE VTABLE v_ms_default (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r_ms_default.v)")
+        tdSql.query("SELECT ts, v FROM v_ms_default")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "2024-01-01 00:00:00.123")
+        tdSql.checkData(0, 1, 7)
+        tdSql.query("SELECT v FROM v_ms_default "
+                    "WHERE ts = '2024-01-01 00:00:00.123'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 7)
+        tdSql.execute("DROP VTABLE v_ms_default")
+        tdSql.execute(f"DROP DATABASE {default_db}")
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+    def test_sqlserver_relative_column_paths(self):
+        """FQSS-VTBL-011/012: relative SQL Server column paths.
+
+        A three-part path (source.table.column) resolves with the source's
+        default database and schema; a four-part path
+        (source.schema.table.column) keeps the schema named by the path and
+        takes the database from the source. Both are stored as the explicit
+        five-part namespace, so `col_source` and the rendered DDL stay
+        self-contained. The same forms are accepted by virtual child tables,
+        and the namespace prerequisites are enforced: the three-part form
+        needs both defaults, the four-part form needs the database default.
+
+        Since: v3.4.4.0
+
+        """
+        create_sqlserver_remote_table(
+            "r_relpath", [("v", "INT", "int"), ("w", "INT", "int")],
+            rows=["('2024-01-01 00:00:00.000', 11, 110)"])
+        create_sqlserver_remote_table(
+            "r_relpath", [("v", "INT", "int")],
+            rows=["('2024-01-01 00:00:00.000', 21)"], schema="other")
+
+        def _col_source(table, col):
+            tdSql.query(
+                "SELECT col_source FROM information_schema.ins_columns "
+                f"WHERE db_name='{_LOCAL_DB}' AND table_name='{table}' "
+                f"AND col_name='{col}'")
+            tdSql.checkRows(1)
+            return str(tdSql.queryResult[0][0])
+
+        # --- three-part: source's default database + schema ---
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_rel3")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_rel3 (ts timestamp, "
+            f"v int FROM {_SS_SRC}.r_relpath.v)")
+        tdSql.query("SELECT v FROM v_ss_rel3")
+        tdSql.checkData(0, 0, 11)
+        assert _col_source("v_ss_rel3", "v") == \
+            f"{_SS_SRC}.{_SS_DB}.dbo.r_relpath.v"
+
+        # --- four-part: schema from the path, database from the source ---
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_rel4")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_rel4 (ts timestamp, "
+            f"v int FROM {_SS_SRC}.dbo.r_relpath.v)")
+        tdSql.query("SELECT v FROM v_ss_rel4")
+        tdSql.checkData(0, 0, 11)
+        assert _col_source("v_ss_rel4", "v") == \
+            f"{_SS_SRC}.{_SS_DB}.dbo.r_relpath.v"
+
+        # The path schema wins over the source's default schema.
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_rel4_other")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_rel4_other (ts timestamp, "
+            f"v int FROM {_SS_SRC}.other.r_relpath.v)")
+        tdSql.query("SELECT v FROM v_ss_rel4_other")
+        tdSql.checkData(0, 0, 21)
+        assert _col_source("v_ss_rel4_other", "v") == \
+            f"{_SS_SRC}.{_SS_DB}.other.r_relpath.v"
+
+        # --- ALTER ADD COLUMN with relative paths ---
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_rel3 ADD COLUMN w int FROM {_SS_SRC}.r_relpath.w")
+        tdSql.query("SELECT w FROM v_ss_rel3")
+        tdSql.checkData(0, 0, 110)
+        assert _col_source("v_ss_rel3", "w") == \
+            f"{_SS_SRC}.{_SS_DB}.dbo.r_relpath.w"
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_rel4 ADD COLUMN w int FROM {_SS_SRC}.dbo.r_relpath.w")
+        tdSql.query("SELECT w FROM v_ss_rel4")
+        tdSql.checkData(0, 0, 110)
+
+        # --- ALTER COLUMN ... SET with relative paths ---
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_rel4 ALTER COLUMN v SET {_SS_SRC}.r_relpath.w")
+        tdSql.query("SELECT v FROM v_ss_rel4")
+        tdSql.checkData(0, 0, 110)
+        assert _col_source("v_ss_rel4", "v") == \
+            f"{_SS_SRC}.{_SS_DB}.dbo.r_relpath.w"
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_rel4 ALTER COLUMN v SET {_SS_SRC}.dbo.r_relpath.v")
+        tdSql.query("SELECT v FROM v_ss_rel4")
+        tdSql.checkData(0, 0, 11)
+
+        # --- virtual child tables accept the relative forms ---
+        tdSql.execute("DROP STABLE IF EXISTS vstb_ss_rel")
+        tdSql.execute(
+            "CREATE STABLE vstb_ss_rel (ts timestamp, v int) "
+            "TAGS (site nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_ss_rel3 (v FROM {_SS_SRC}.r_relpath.v) "
+            "USING vstb_ss_rel TAGS ('rel3')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_ss_rel4 (v FROM {_SS_SRC}.dbo.r_relpath.v) "
+            "USING vstb_ss_rel TAGS ('rel4')")
+        tdSql.query("SELECT v FROM vctb_ss_rel3")
+        tdSql.checkData(0, 0, 11)
+        tdSql.query("SELECT v FROM vctb_ss_rel4")
+        tdSql.checkData(0, 0, 11)
+        assert _col_source("vctb_ss_rel3", "v") == \
+            f"{_SS_SRC}.{_SS_DB}.dbo.r_relpath.v"
+        tdSql.execute("DROP STABLE vstb_ss_rel")
+
+        tdSql.execute("DROP VTABLE v_ss_rel3")
+        tdSql.execute("DROP VTABLE v_ss_rel4")
+        tdSql.execute("DROP VTABLE v_ss_rel4_other")
+
+        # --- namespace prerequisites ---
+        # A source without a database default cannot resolve relative paths,
+        # but the five-part path still works.
+        _NO_DB_SRC = f"{_P}ss_nodb"
+        _NO_SCHEMA_SRC = f"{_P}ss_noschema"
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_NO_DB_SRC}")
+        tdSql.execute(
+            f"CREATE EXTERNAL SOURCE {_NO_DB_SRC} TYPE='sqlserver' "
+            f"HOST='{ExtSrcEnv.SQLSERVER_HOST}' PORT={ExtSrcEnv.SQLSERVER_PORT} "
+            f"USER='{ExtSrcEnv.SQLSERVER_USER}' PASSWORD='{ExtSrcEnv.SQLSERVER_PASS}' "
+            "SCHEMA=dbo")
+        tdSql.error(
+            "CREATE VTABLE v_ss_nodb3 (ts timestamp, "
+            f"v int FROM {_NO_DB_SRC}.r_relpath.v)")
+        tdSql.error(
+            "CREATE VTABLE v_ss_nodb4 (ts timestamp, "
+            f"v int FROM {_NO_DB_SRC}.dbo.r_relpath.v)")
+
+        # A source without a schema default rejects the three-part path; the
+        # four-part path names the schema itself and therefore works.
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_NO_SCHEMA_SRC}")
+        tdSql.execute(
+            f"CREATE EXTERNAL SOURCE {_NO_SCHEMA_SRC} TYPE='sqlserver' "
+            f"HOST='{ExtSrcEnv.SQLSERVER_HOST}' PORT={ExtSrcEnv.SQLSERVER_PORT} "
+            f"USER='{ExtSrcEnv.SQLSERVER_USER}' PASSWORD='{ExtSrcEnv.SQLSERVER_PASS}' "
+            f"DATABASE={_SS_DB}")
+        tdSql.error(
+            "CREATE VTABLE v_ss_noschema3 (ts timestamp, "
+            f"v int FROM {_NO_SCHEMA_SRC}.r_relpath.v)")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_noschema4 (ts timestamp, "
+            f"v int FROM {_NO_SCHEMA_SRC}.dbo.r_relpath.v)")
+        tdSql.query("SELECT v FROM v_ss_noschema4")
+        tdSql.checkData(0, 0, 11)
+        tdSql.execute("DROP VTABLE v_ss_noschema4")
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_NO_DB_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_NO_SCHEMA_SRC}")
 
     def test_sqlserver_missing_objects_and_ts_requirement(self):
         """FQSS-VTBL-008/010: SQL Server negative reference paths.
@@ -1289,13 +1534,14 @@ class TestVtableCreateExtSource:
             "SELECT count(*) FROM information_schema.ins_tables "
             f"WHERE db_name='{_LOCAL_DB}' AND stable_name='vstb_patent'")
         tdSql.checkData(0, 0, 3)
-        # Verify col_source in ins_columns shows full 4-seg refs for each child.
+        # Verify col_source in ins_columns shows the full ref (including the
+        # PostgreSQL source schema) for each child.
         tdSql.query(
             "SELECT col_name, col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_pg' "
             "AND col_name='temperature'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.kpi_pg.temperature")
+        tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.public.kpi_pg.temperature")
         tdSql.query(
             "SELECT col_name, col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_my' "
@@ -1329,7 +1575,8 @@ class TestVtableCreateExtSource:
             f"t2 FROM {_PG_SRC}.{_PG_DB}.kpi_pg.temperature, "
             f"t3 FROM {_PG_SRC}.{_PG_DB}.kpi_pg.humidity) "
             f"USING vstb_mix TAGS ('mixed')")
-        # Verify ins_columns: 2-seg stays local; external refs are full 4-seg.
+        # Verify ins_columns: 2-seg stays local; external refs carry the full
+        # namespace (PostgreSQL: source.database.schema.table.column).
         tdSql.query(
             "SELECT col_name, col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_mix' "
@@ -1338,9 +1585,9 @@ class TestVtableCreateExtSource:
         tdSql.checkData(0, 0, "t1")
         tdSql.checkData(0, 1, f"{_LOCAL_DB}.local_kpi.temperature")
         tdSql.checkData(1, 0, "t2")
-        tdSql.checkData(1, 1, f"{_PG_SRC}.{_PG_DB}.kpi_pg.temperature")
+        tdSql.checkData(1, 1, f"{_PG_SRC}.{_PG_DB}.public.kpi_pg.temperature")
         tdSql.checkData(2, 0, "t3")
-        tdSql.checkData(2, 1, f"{_PG_SRC}.{_PG_DB}.kpi_pg.humidity")
+        tdSql.checkData(2, 1, f"{_PG_SRC}.{_PG_DB}.public.kpi_pg.humidity")
         tdSql.execute("DROP STABLE IF EXISTS vstb_mix")
         tdSql.execute("DROP TABLE local_kpi")
 

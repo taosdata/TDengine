@@ -4057,9 +4057,13 @@ static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
 }
 
 static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
+  // MySQL and SQL Server fold filter-column names case-insensitively (matching
+  // the parser-side contract externalColumnNamesEqual()); PostgreSQL compares
+  // names literally.
+  bool caseInsensitive = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType;
   for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    bool equal = EXT_SOURCE_MYSQL == sourceType ? 0 == strcasecmp(pExtMeta->pCols[i].colName, colName)
-                                                : 0 == strcmp(pExtMeta->pCols[i].colName, colName);
+    bool equal = caseInsensitive ? 0 == strcasecmp(pExtMeta->pCols[i].colName, colName)
+                                 : 0 == strcmp(pExtMeta->pCols[i].colName, colName);
     if (equal) {
       return i;
     }
@@ -4192,6 +4196,12 @@ static int32_t validateExternalFilterOperator(SExternalFilterCxt* pCxt, SOperato
                                pColumn->colName);
     QUERY_CHECK_CODE(code, lino, _return);
   }
+  // SQL Server character ordering is collation-driven (case/accent/trailing
+  // space rules) and a supplementary-plane literal cannot travel through the
+  // ODBC SQL path.  Neither rejects the DDL: the planner keeps every predicate
+  // the dialect cannot render exactly in the local FederatedScan filter
+  // (fqSplitStoredFilterForLocal), so the declared filter still returns
+  // TDengine-equivalent rows without a silent result difference.
 
   const SExtColumnDef* pExtCol = &pCxt->pExtMeta->pCols[colIdx];
   SDataType            mappedType = {0};
@@ -4300,7 +4310,11 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
   QUERY_CHECK_NULL(pExtMeta->pCols, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(pExtMeta->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
-  if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType) {
+  if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType &&
+      EXT_SOURCE_SQLSERVER != pCxt->sourceType) {
+    // Non-relational sources (InfluxDB) have no remote primary key, so a
+    // declared filter cannot be bound; SQL Server is relational and follows
+    // the same primary-key coverage rules as MySQL / PostgreSQL.
     if (NULL != pFilterCond) {
       code =
           externalFilterError(pCxt, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,

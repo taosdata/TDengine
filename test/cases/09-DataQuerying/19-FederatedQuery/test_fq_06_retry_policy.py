@@ -325,8 +325,11 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             ExtSrcEnv.sqlserver_create_db(s_db)
             ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
             self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
-            # Verify works before stop; no _verify_pushdown_explain here —
-            # SQL Server runs zero pushdown in step 1 (base scan only).
+            # Verify works before stop.  Same pushdown expectation as the
+            # MySQL/PG/InfluxDB legs above: phase-2 SQL Server capability bits
+            # are enabled, so COUNT must reach the remote for this dialect too.
+            self._verify_pushdown_explain(
+                f"select count(*) from {s_src}.push_t", "COUNT")
             tdSql.query(f"select count(*) from {s_src}.push_t")
             tdSql.checkData(0, 0, 5)
             # Dimension a/b) Stop instance → connection error, retry class.
@@ -965,8 +968,10 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 f"select source_name from information_schema.ins_ext_sources "
                 f"where source_name = '{s_src}'")
             tdSql.checkRows(1)
-            # Dimension b) Verify query works (available state)
-            # (no _verify_pushdown_explain — SQL Server zero pushdown, base scan only)
+            # Dimension b) Verify query works (available state); same pushdown
+            # expectation as the MySQL/PG/InfluxDB legs above.
+            self._verify_pushdown_explain(
+                f"select count(*) from {s_src}.push_t", "COUNT")
             tdSql.query(f"select count(*) from {s_src}.push_t")
             tdSql.checkData(0, 0, 5)
             # Dimension c) Stop instance → state transitions to degraded/unavailable;

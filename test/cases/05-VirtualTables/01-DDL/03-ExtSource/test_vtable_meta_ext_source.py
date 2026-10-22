@@ -61,8 +61,9 @@ def _ensure_env():
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
     create_remote_db("sqlserver", _SS_DB)
     # The same table name under two schemas: metadata must keep the schema
-    # segment of the persisted reference even though the display form of
-    # col_source renders only source.database.table.column.
+    # segment of the persisted reference, and col_source must render it
+    # (source.database.schema.table.column) so the display form stays
+    # re-parseable.
     create_sqlserver_table(_SS_DB, "r",
                            "ts datetime2(3) NOT NULL PRIMARY KEY, v INT, w INT",
                            ["('2024-01-01 00:00:00.000', 11, 10)"])
@@ -256,9 +257,9 @@ class TestVtableMetaExtSource:
         tdSql.checkData(1, 0, "ts")
         tdSql.checkData(1, 1, None)
         tdSql.checkData(2, 0, "v")
-        tdSql.checkData(2, 1, f"{_PG_SRC}.{_PG_DB}.r.v")
+        tdSql.checkData(2, 1, f"{_PG_SRC}.{_PG_DB}.public.r.v")
         tdSql.checkData(3, 0, "w")
-        tdSql.checkData(3, 1, f"{_PG_SRC}.{_PG_DB}.r.w")
+        tdSql.checkData(3, 1, f"{_PG_SRC}.{_PG_DB}.public.r.w")
 
     def test_refresh_external_source_preserves_existing_metadata(self):
         """Preserve virtual-table metadata when refreshing an unchanged source
@@ -291,9 +292,9 @@ class TestVtableMetaExtSource:
             "AND col_name IN ('v', 'w') ORDER BY col_name")
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, "v")
-        tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.r.v")
+        tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.public.r.v")
         tdSql.checkData(1, 0, "w")
-        tdSql.checkData(1, 1, f"{_PG_SRC}.{_PG_DB}.r.w")
+        tdSql.checkData(1, 1, f"{_PG_SRC}.{_PG_DB}.public.r.w")
 
     def test_show_create_quoted_identifier_vtable_roundtrip(self):
         """Replay external references containing quoted mixed-case identifiers
@@ -441,7 +442,7 @@ class TestVtableMetaExtSource:
             "AND col_name='v'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "v")
-        tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.r.v")
+        tdSql.checkData(0, 1, f"{_PG_SRC}.{_PG_DB}.public.r.v")
 
     def test_show_create_series_vtable_roundtrip(self):
         """Replay SHOW CREATE for a normal virtual table with an InfluxDB SERIES
@@ -549,7 +550,8 @@ class TestVtableMetaExtSource:
         """Expose SQL Server column references and keep the schema binding
 
         1. Read the referenced columns of the dbo- and other-schema vtables from ins_columns
-        2. Verify the col_source display form and that both bindings resolve their own schema
+        2. Verify the col_source display form (full reference incl. schema) and
+           that both bindings resolve their own schema
 
         Catalog:
             - VirtualTable
@@ -575,20 +577,19 @@ class TestVtableMetaExtSource:
         tdSql.checkData(1, 0, "ts")
         tdSql.checkData(1, 1, None)
         tdSql.checkData(2, 0, "v")
-        tdSql.checkData(2, 1, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.checkData(2, 1, f"{_SS_SRC}.{_SS_DB}.dbo.r.v")
         tdSql.checkData(3, 0, "w")
-        tdSql.checkData(3, 1, f"{_SS_SRC}.{_SS_DB}.r.w")
+        tdSql.checkData(3, 1, f"{_SS_SRC}.{_SS_DB}.dbo.r.w")
 
-        # col_source renders source.database.table.column: the SQL Server
-        # schema segment is kept in the persisted reference but is not part
-        # of the display form.  Both vtables therefore render the same
-        # col_source; their values prove the schemas are still applied.
+        # col_source renders the full external reference, including the
+        # schema segment that the create path named explicitly, so the
+        # rendered statement stays re-parseable for SQL Server.
         tdSql.query(
             "SELECT col_source FROM information_schema.ins_columns "
             f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_meta_ss_other' "
             "AND col_name='v'")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.checkData(0, 0, f"{_SS_SRC}.{_SS_DB}.other.r.v")
         tdSql.query("SELECT v FROM v_meta_ss")
         tdSql.checkData(0, 0, 11)
         tdSql.query("SELECT v FROM v_meta_ss_other")
@@ -619,7 +620,7 @@ class TestVtableMetaExtSource:
             "AND col_name='v'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, "v")
-        tdSql.checkData(0, 1, f"{_SS_SRC}.{_SS_DB}.r.v")
+        tdSql.checkData(0, 1, f"{_SS_SRC}.{_SS_DB}.dbo.r.v")
 
     def test_show_create_sqlserver_vtable_contains_source(self):
         """Render a SQL Server reference in SHOW CREATE
@@ -644,12 +645,16 @@ class TestVtableMetaExtSource:
         for expected in (_SS_SRC, _SS_DB, "r", "v", "local_only"):
             if expected not in sql:
                 tdLog.exit(f"expected {expected} in {sql}")
-        # SHOW CREATE renders the reference as the 4-segment form
-        # source.database.table.column (the SQL Server schema segment is not
-        # emitted).  Replaying it would make the SQL Server ref resolver
-        # treat the database segment as a schema, so a round-trip is not
-        # attempted here; the schema binding is verified behaviorally in
-        # test_sqlserver_ins_columns_keeps_schema_binding and in the
-        # persistence suite (FQSS-VTBL-006).
+        # SHOW CREATE renders the full reference — source.database.schema.table
+        # .column — for SQL Server, so the rendered statement can be replayed
+        # as-is: the resolved schema binding survives the round trip.
+        if "dbo" not in sql:
+            tdLog.exit(f"expected the schema segment in {sql}")
         tdSql.query("SELECT v FROM v_meta_ss")
         tdSql.checkData(0, 0, 11)
+
+        tdSql.execute(f"drop vtable if exists {_LOCAL_DB}.v_meta_ss_copy")
+        tdSql.execute(sql.replace("v_meta_ss", "v_meta_ss_copy", 1))
+        tdSql.query(f"SELECT v FROM {_LOCAL_DB}.v_meta_ss_copy")
+        tdSql.checkData(0, 0, 11)
+        tdSql.execute(f"drop vtable if exists {_LOCAL_DB}.v_meta_ss_copy")

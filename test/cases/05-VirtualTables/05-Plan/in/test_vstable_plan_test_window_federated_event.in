@@ -26,3 +26,9 @@ explain verbose true select _wstart, _wend, count(*) from vt_window_federated_ba
 
 # not optimized: one aggregate expression must not span execution units
 explain verbose true select _wstart, _wend, sum(mysql_a_v + postgres_v) from vt_window_federated_batch.vst_mixed_sources event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# optimized: SQL Server joins the per-source partial aggregate merge
+explain verbose true select _wstart, _wend, sum(mysql_a_v), avg(mysql_b_v), avg(postgres_v), avg(sqlserver_v) from vt_window_federated_batch.vst_ss_sources event_window start with state_col = 1 end with state_col = 2 order by _wstart;
+
+# optimized: SQL Server source mixed with the internal table
+explain verbose true select _wstart, _wend, sum(local_v), sum(sqlserver_v) from vt_window_federated_batch.vst_local_ss event_window start with state_col = 1 end with state_col = 2 order by _wstart;

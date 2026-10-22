@@ -22,7 +22,7 @@ edition = "2021"
 anyhow = "1"
 chrono = "0.4"
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+tokio = { version = ">=1, <1.54", features = ["rt", "macros", "rt-multi-thread"] }
 log = "0.4"
 pretty_env_logger = "0.5.0"
 

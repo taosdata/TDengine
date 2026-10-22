@@ -35,7 +35,7 @@ The key parameters for creating a consumer include:
 - `auto.commit.interval.ms`: Interval for automatically committing offsets (default: `5000`).
 - `msg.with.table.name`: Whether to parse the table name from messages.
 - `enable.replay`: Whether to enable data replay.
-- `session.timeout.ms`: Timeout after missed consumer heartbeats (default: `12000`).
+- `session.timeout.ms`: Timeout after missed consumer heartbeats (default: `45000` since v3.4.3.6; previously `12000`).
 - `max.poll.interval.ms`: Maximum interval between consumer polls (default: `300000`).
 - `fetch.max.wait.ms`: Maximum server wait time for a single fetch response (default: `1000`).
 - `min.poll.rows`: Minimum number of rows returned per server fetch (default: `4096`).

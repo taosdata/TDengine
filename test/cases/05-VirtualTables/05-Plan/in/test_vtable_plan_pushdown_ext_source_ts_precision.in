@@ -29,3 +29,11 @@ explain verbose true select cast(ts as bigint), v_mysql_ms, v_postgres_us, v_inf
 select cast(ts as bigint), v_mysql_ms, v_postgres_us, v_influx_ns from vtp_mixed_ns.mixed_external where ts = '2024-01-01T00:00:00.000+00:00' and v_postgres_us >= 0;
 explain verbose true select cast(ts as bigint), v_native, v_mysql_us, v_postgres_ms, v_influx_ns from vtp_mixed_ns.mixed_native_external where ts = '2024-01-01T00:00:00.000+00:00' and v_native >= 0;
 select cast(ts as bigint), v_native, v_mysql_us, v_postgres_ms, v_influx_ns from vtp_mixed_ns.mixed_native_external where ts = '2024-01-01T00:00:00.000+00:00' and v_native >= 0;
+explain verbose true select cast(ts as bigint) from vtp_sqlserver_ms_us.dense_vtable where ts = '2024-01-01T00:00:00.000+00:00' and v >= 0;
+select cast(ts as bigint) from vtp_sqlserver_ms_us.dense_vtable where ts = '2024-01-01T00:00:00.000+00:00' and v >= 0;
+explain verbose true select cast(ts as bigint) from vtp_sqlserver_us_us.dense_vtable where ts = '2024-01-01T00:00:00.000+00:00' and v >= 0;
+select cast(ts as bigint) from vtp_sqlserver_us_us.dense_vtable where ts = '2024-01-01T00:00:00.000+00:00' and v >= 0;
+explain verbose true select cast(ts as bigint), v_sqlserver_us, v_mysql_us from vtp_mixed_us.mixed_sqlserver_mysql where ts = '2024-01-01T00:00:00.000+00:00' and v_mysql_us >= 0;
+select cast(ts as bigint), v_sqlserver_us, v_mysql_us from vtp_mixed_us.mixed_sqlserver_mysql where ts = '2024-01-01T00:00:00.000+00:00' and v_mysql_us >= 0;
+explain verbose true select cast(ts as bigint), v_mysql_us, v_postgres_us, v_sqlserver_us from vtp_mixed_us.mixed_us_external where ts = '2024-01-01T00:00:00.000+00:00' and v_mysql_us >= 0;
+select cast(ts as bigint), v_mysql_us, v_postgres_us, v_sqlserver_us from vtp_mixed_us.mixed_us_external where ts = '2024-01-01T00:00:00.000+00:00' and v_mysql_us >= 0;

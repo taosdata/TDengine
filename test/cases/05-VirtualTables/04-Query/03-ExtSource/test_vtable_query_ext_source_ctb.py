@@ -251,15 +251,6 @@ class TestVTableQueryExtSourceAllCtb(_ExtSourceCtbQueryBase):
         vtb_util = VtableQueryUtil()
         vtb_util.prepare_all_ext_source_vtables()
 
-    # The all-source fixture is pinned to an ns database (InfluxDB's inherent
-    # precision), while SQL Server is us and zero-pushdown: its local ts range
-    # filter then compares us literals against ns data and drops that leg's
-    # rows.  Recorded as a step-1 limitation in DS 9.6.10 问题二; the same case
-    # runs green for every single-source class, including the SQL Server ones,
-    # because those fixtures use a us database.
-    @pytest.mark.xfail(
-        reason="DS 9.6.10 problem 2: us source precision vs ns fixture database",
-        strict=False)
     def test_projection_timerange_filter(self):
         """Projection with a timestamp-range filter over the all-sources table.
 

@@ -176,6 +176,17 @@ class _MysqlDropDbStep:
     def __init__(self, database: str):
         self.database = database
 
+class _SqlserverSetupStep:
+    """Create a SQL Server database and run setup SQLs."""
+    def __init__(self, database: str, sqls: List[str]):
+        self.database = database
+        self.sqls     = sqls
+
+class _SqlserverDropDbStep:
+    """Drop a SQL Server database (cleanup)."""
+    def __init__(self, database: str):
+        self.database = database
+
 
 # ── Step factory helpers ───────────────────────────────────────────────────
 
@@ -432,6 +443,30 @@ _CASES = [
          _error_step("select * from fq08_ob012_m.testdb.t1 limit 1", errno=TSDB_CODE_EXT_TABLE_NOT_EXIST),
          _error_step("select * from fq08_ob012_p.pgdb.t1 limit 1",   errno=TSDB_CODE_EXT_TABLE_NOT_EXIST),
          _clear_source_step(),
+     ],
+     ],
+
+    ["obs012ms", [_sqlserver], ["fq08_ob012m2", "fq08_ob012s"],
+     "MySQL + SQL Server sources registered independently; each routes to external path; combined count=2; no interference (covers SYS-012, SQL Server leg)",
+     [
+         "drop external source if exists fq08_ob012m2",
+         "drop external source if exists fq08_ob012s",
+         _SqlserverSetupStep("fq08_ob012_ss_ext", [
+             "IF OBJECT_ID('dbo.t1') IS NOT NULL DROP TABLE dbo.t1",
+             "CREATE TABLE dbo.t1 (id INT PRIMARY KEY)",
+         ]),
+         f"create external source fq08_ob012m2 type='mysql' host='{_M_HOST}' port={_M_PORT} user='{_M_USER}' password='{_M_PASS}'",
+         f"create external source fq08_ob012s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='fq08_ob012_ss_ext' schema='dbo'",
+         "select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob012m2'",
+         "select source_name, `type` from information_schema.ins_ext_sources where source_name='fq08_ob012s'",
+         "select count(*) from information_schema.ins_ext_sources where source_name in ('fq08_ob012m2','fq08_ob012s')",
+         _error_step("select * from fq08_ob012m2.testdb.t1 limit 1", errno=TSDB_CODE_EXT_TABLE_NOT_EXIST),
+         # Default database + schema resolve to fq08_ob012_ss_ext/dbo (created
+         # above); the missing table must surface as TABLE_NOT_EXIST, proving
+         # the query reached the SQL Server path rather than failing locally.
+         _error_step("select * from fq08_ob012s.missing_t limit 1", errno=TSDB_CODE_EXT_TABLE_NOT_EXIST),
+         _clear_source_step(),
+         _SqlserverDropDbStep("fq08_ob012_ss_ext"),
      ],
      ],
 
@@ -1022,6 +1057,31 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             except Exception as _e:
                 result = f"ERROR: {str(_e)[:200]}"
             self._fw_append_step_block(blocks, label, step_tag, "MYSQL-CLEANUP", sql, result)
+            return
+
+        # ── _SqlserverSetupStep: create SQL Server DB + run setup SQLs ──────
+        if isinstance(step, _SqlserverSetupStep):
+            sql = f"-- sqlserver setup database={step.database}"
+            try:
+                cfg = next(ExtSrcEnv.sqlserver_version_configs())
+                ExtSrcEnv.sqlserver_create_db_cfg(cfg, step.database)
+                ExtSrcEnv.sqlserver_exec_cfg(cfg, step.database, step.sqls)
+                result = "OK"
+            except Exception as _e:
+                result = f"ERROR: {str(_e)[:200]}"
+            self._fw_append_step_block(blocks, label, step_tag, "SQLSERVER-SETUP", sql, result)
+            return
+
+        # ── _SqlserverDropDbStep: drop SQL Server database ──────────────────
+        if isinstance(step, _SqlserverDropDbStep):
+            sql = f"-- sqlserver drop database={step.database}"
+            try:
+                cfg = next(ExtSrcEnv.sqlserver_version_configs())
+                ExtSrcEnv.sqlserver_drop_db_cfg(cfg, step.database)
+                result = "OK"
+            except Exception as _e:
+                result = f"ERROR: {str(_e)[:200]}"
+            self._fw_append_step_block(blocks, label, step_tag, "SQLSERVER-CLEANUP", sql, result)
             return
 
         raise ValueError(f"Unknown step type: {type(step).__name__}")

@@ -534,6 +534,28 @@ static int32_t mndTxnRepopulateConflictMap(SMnode *pMnode, STxnObj *pTxn) {
   return 0;
 }
 
+static int32_t mndTxnResumeShadowRebuild(SMnode *pMnode, STxnObj *pTxn, bool needAlterData) {
+  int32_t code = 0, lino = 0;
+  taosRLockLatch(&pTxn->lock);
+  bool pending = pTxn->shadowRebuildPending;
+  taosRUnLockLatch(&pTxn->lock);
+  if (!pending) return TSDB_CODE_SUCCESS;
+
+  // Metadata requests can also resume recovery. Serialize them with DDL and
+  // recheck after taking the write latch so the shadow list is published once.
+  taosWLockLatch(&pTxn->lock);
+  if (pTxn->shadowRebuildPending) {
+    TAOS_CHECK_EXIT(mndTxnCheckPendingStreamCreate(pMnode, pTxn->id));
+    TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn, needAlterData));
+    TAOS_CHECK_EXIT(mndTxnRepopulateConflictMap(pMnode, pTxn));
+    pTxn->shadowRebuildPending = false;
+  }
+
+_exit:
+  taosWUnLockLatch(&pTxn->lock);
+  return code;
+}
+
 static int32_t mndTxnAfterRestored(SMnode *pMnode) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -558,6 +580,30 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
       case UTXN_STAGE_PREPARING: {
         mInfo("txn:%" PRIi64 ", restored in ACTIVE stage, queued for batch shadow rebuild", pTxn->id);
         activeCnt++;
+        if (pTxn->pShadowOps == NULL && mndTxnCheckPendingStreamCreate(pMnode, pTxn->id) != 0) {
+          // The pending STrans can still publish PRE_CREATE markers after this scan.
+          taosWLockLatch(&pTxn->lock);
+          pTxn->shadowRebuildPending = true;
+          taosWUnLockLatch(&pTxn->lock);
+          numRecovered++;
+          break;
+        }
+        if (pTxn->shadowRebuildPending) {
+          int32_t rebuildCode = mndTxnResumeShadowRebuild(pMnode, pTxn, true);
+          if (rebuildCode != 0) {
+            mError("txn:%" PRIi64 ", failed to resume shadow rebuild: %s", pTxn->id, tstrerror(rebuildCode));
+            int32_t markCode = mndMarkTxnAbortedInSdb(pMnode, pTxn);
+            if (markCode != 0 && markCode != TSDB_CODE_ACTION_IN_PROGRESS) {
+              mError("txn:%" PRIi64 ", failed to mark txn ABORTED in SDB: %s", pTxn->id, tstrerror(markCode));
+            }
+          } else {
+            taosWLockLatch(&pTxn->lock);
+            pTxn->lastActiveTime = taosGetTimestampMs();
+            taosWUnLockLatch(&pTxn->lock);
+          }
+          numRecovered++;
+          break;
+        }
         if (pActiveTxns && pTxn->pShadowOps == NULL) {
           taosArrayPush(pActiveTxns, &pTxn);
           // Do NOT sdbRelease here  -  keep reference alive for Phase 2
@@ -1650,6 +1696,13 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
     return TSDB_CODE_TXN_NOT_EXIST;
   }
 
+  int32_t code = mndTxnCheckPendingStreamCreate(pMnode, txnId);
+  if (code == 0) code = mndTxnResumeShadowRebuild(pMnode, pTxn, true);
+  if (code != 0) {
+    mndReleaseTxn(pMnode, pTxn);
+    return code;
+  }
+
   taosWLockLatch(&pTxn->lock);
 
   if (pTxn->stage == UTXN_STAGE_ABORTED) {
@@ -1709,6 +1762,46 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
   return TSDB_CODE_SUCCESS;
 }
 
+void mndTxnRemoveShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const char *name, tb_uid_t uid) {
+  STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
+  if (pTxn == NULL) return;
+
+  taosWLockLatch(&pTxn->lock);
+  int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+  for (int32_t i = numOps - 1; i >= 0; --i) {
+    SMndShadowOp *pOp = taosArrayGet(pTxn->pShadowOps, i);
+    if (pOp->opType != opType || pOp->uid != uid || strcmp(pOp->name, name) != 0) continue;
+
+    taosMemoryFreeClear(pOp->pReqData);
+    taosArrayRemove(pTxn->pShadowOps, i);
+
+    // Earlier statements may still hold the same name in this transaction.
+    bool hasName = false;
+    for (int32_t j = 0; j < taosArrayGetSize(pTxn->pShadowOps); ++j) {
+      SMndShadowOp *pRemaining = taosArrayGet(pTxn->pShadowOps, j);
+      if (strcmp(pRemaining->name, name) == 0) {
+        hasName = true;
+        break;
+      }
+    }
+    SHashObj *pConflictMap = pMnode->txnMgmt.pStbConflictMap;
+    if (!hasName && pConflictMap != NULL) {
+      size_t    nameLen = strnlen(name, TSDB_TABLE_FNAME_LEN);
+      txn_id_t *pOwner = taosHashGet(pConflictMap, name, nameLen);
+      if (pOwner != NULL && *pOwner == txnId && taosHashRemove(pConflictMap, name, nameLen) != 0) {
+        mWarn("txn:%" PRIi64 ", failed to remove conflict map entry for failed statement:%s", txnId, name);
+      }
+    }
+    if (taosArrayGetSize(pTxn->pShadowOps) == 0) {
+      taosArrayDestroy(pTxn->pShadowOps);
+      pTxn->pShadowOps = NULL;
+    }
+    break;
+  }
+  taosWUnLockLatch(&pTxn->lock);
+  mndReleaseTxn(pMnode, pTxn);
+}
+
 /**
  * Get ALTER STB shadow ops for a specific STB in a given txn.
  * Returns an SArray of SMndShadowOp* (pointers into the txn's pShadowOps).
@@ -1721,6 +1814,12 @@ int32_t mndTxnGetAlterOpsForStb(SMnode *pMnode, txn_id_t txnId, const char *stbF
 
   STxnObj *pTxn = mndAcquireTxn(pMnode, txnId);
   if (pTxn == NULL) return TSDB_CODE_SUCCESS;  // txn not found, not an error for this use
+
+  int32_t code = mndTxnResumeShadowRebuild(pMnode, pTxn, true);
+  if (code != 0) {
+    mndReleaseTxn(pMnode, pTxn);
+    return code;
+  }
 
   taosRLockLatch(&pTxn->lock);
 
@@ -1792,6 +1891,66 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
     }
     mInfo("stb:%s, conflict with txn:%" PRIi64, stbName, *pOwner);
     return TSDB_CODE_TXN_RESOURCE_BUSY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const char *name) {
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  STrans *pTrans = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_TRANS, pIter, (void **)&pTrans)) != NULL) {
+    SMndTxnStreamCreate pending = {0};
+    bool                valid = false;
+    // Updates swap and free userData under the SDB_TRANS lock. sdbFetch holds a reference,
+    // but does not keep that lock held while we copy the payload.
+    sdbReadLock(pSdb, SDB_TRANS);
+    if (pTrans->originRpcType == TDMT_MND_CREATE_STREAM && pTrans->userDataLen == sizeof(pending) &&
+        pTrans->userData != NULL) {
+      memcpy(&pending, pTrans->userData, sizeof(pending));
+      valid = pending.txnId != 0;
+    }
+    sdbUnLock(pSdb, SDB_TRANS);
+    sdbRelease(pSdb, pTrans);
+    if (valid && (name != NULL ? strncmp(pending.name, name, sizeof(pending.name)) == 0 : pending.txnId == txnId)) {
+      sdbCancelFetch(pSdb, pIter);
+      return true;
+    }
+  }
+  return false;
+}
+
+int32_t mndTxnCheckPendingStreamCreate(SMnode *pMnode, txn_id_t txnId) {
+  return mndTxnHasPendingStreamCreate(pMnode, txnId, NULL) ? TSDB_CODE_MND_TRANS_CONFLICT : TSDB_CODE_SUCCESS;
+}
+
+int32_t mndTxnCheckStreamConflict(SMnode *pMnode, const char *name, txn_id_t callerTxnId) {
+  if (mndTxnHasPendingStreamCreate(pMnode, 0, name)) return TSDB_CODE_TXN_RESOURCE_BUSY;
+
+  SSdb    *pSdb = pMnode->pSdb;
+  void    *pIter = NULL;
+  STxnObj *pTxn = NULL;
+  while ((pIter = sdbFetch(pSdb, SDB_TXN, pIter, (void **)&pTxn)) != NULL) {
+    bool conflict = false;
+    taosRLockLatch(&pTxn->lock);
+    if (pTxn->id != callerTxnId && (pTxn->stage == UTXN_STAGE_ACTIVE || pTxn->stage == UTXN_STAGE_PREPARING ||
+                                    pTxn->stage == UTXN_STAGE_COMMITTING || pTxn->stage == UTXN_STAGE_ROLLINGBACK)) {
+      // STBs and streams may share a name, so the mixed STB conflict map is insufficient.
+      for (int32_t i = 0; i < taosArrayGetSize(pTxn->pShadowOps); ++i) {
+        SMndShadowOp *pOp = taosArrayGet(pTxn->pShadowOps, i);
+        if ((pOp->opType == MND_SHADOW_OP_CREATE_STREAM || pOp->opType == MND_SHADOW_OP_DROP_STREAM) &&
+            strcmp(pOp->name, name) == 0) {
+          conflict = true;
+          break;
+        }
+      }
+    }
+    taosRUnLockLatch(&pTxn->lock);
+    sdbRelease(pSdb, pTxn);
+    if (conflict) {
+      sdbCancelFetch(pSdb, pIter);
+      return TSDB_CODE_TXN_RESOURCE_BUSY;
+    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -2925,6 +3084,9 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
   STrans *pTrans = NULL;
   SArray *pStreamActs = NULL;  // batch-meta-txn (stream phase 2): deferred stream side effects
 
+  TAOS_CHECK_EXIT(mndTxnCheckPendingStreamCreate(pMnode, pTxn->id));
+  TAOS_CHECK_EXIT(mndTxnResumeShadowRebuild(pMnode, pTxn, true));
+
   // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn  ->  client reconnects  ->  COMMIT)
   TAOS_CHECK_EXIT(mndTxnRebuildShadowOpsFromSdb(pMnode, pTxn, true));
 
@@ -3113,6 +3275,9 @@ _exit:
 static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int32_t reason) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
+
+  TAOS_CHECK_EXIT(mndTxnCheckPendingStreamCreate(pMnode, pTxn->id));
+  TAOS_CHECK_EXIT(mndTxnResumeShadowRebuild(pMnode, pTxn, false));
 
   // Rebuild shadow ops from SDB if needed (e.g. after MNode restart with ACTIVE txn  ->  timeout rollback)
   // needAlterData=false: ROLLBACK only clears SStbObj markers (name/uid); pReqData is never read.

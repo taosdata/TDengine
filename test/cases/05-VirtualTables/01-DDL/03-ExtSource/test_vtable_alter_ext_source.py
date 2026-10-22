@@ -323,6 +323,51 @@ class TestVtableAlterExtSource:
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.execute("DROP VTABLE IF EXISTS v_ss_dropsrc")
 
+    def test_sqlserver_relative_path_alter(self):
+        """FQSS-VTBL-012: ALTER accepts relative SQL Server column paths.
+
+        A vtable bound through the five-part path can gain columns through the
+        three-part (source defaults) and four-part (path schema + source
+        database) forms, and ALTER COLUMN ... SET accepts both. The stored
+        binding is expanded to the explicit five-part namespace.
+
+        Since: v3.4.4.0
+
+        """
+        tdSql.execute("DROP VTABLE IF EXISTS v_ss_relalter")
+        tdSql.execute(
+            "CREATE VTABLE v_ss_relalter (ts timestamp, "
+            f"v int FROM {_SS_SRC}.{_SS_DB}.dbo.r1.v)")
+
+        # ADD COLUMN: three-part and four-part.
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_relalter ADD COLUMN w3 int FROM {_SS_SRC}.r1.w")
+        tdSql.query("SELECT w3 FROM v_ss_relalter ORDER BY ts")
+        tdSql.checkData(0, 0, 10)
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_relalter ADD COLUMN w4 int FROM {_SS_SRC}.dbo.r1.w")
+        tdSql.query("SELECT w4 FROM v_ss_relalter ORDER BY ts")
+        tdSql.checkData(1, 0, 20)
+
+        # ALTER COLUMN ... SET: three-part then four-part.
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_relalter ALTER COLUMN v SET {_SS_SRC}.r1.w")
+        tdSql.query("SELECT v FROM v_ss_relalter ORDER BY ts")
+        tdSql.checkData(0, 0, 10)
+        tdSql.execute(
+            f"ALTER VTABLE v_ss_relalter ALTER COLUMN v SET {_SS_SRC}.dbo.r1.v")
+        tdSql.query("SELECT v FROM v_ss_relalter ORDER BY ts")
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_ss_relalter' "
+            "AND col_name='w3'")
+        tdSql.checkRows(1)
+        assert str(tdSql.queryResult[0][0]) == \
+            f"{_SS_SRC}.{_SS_DB}.dbo.r1.w", tdSql.queryResult[0][0]
+        tdSql.execute("DROP VTABLE v_ss_relalter")
+
     # -------------------------------------------------------------------
     # 4.2 — vstb
     # -------------------------------------------------------------------

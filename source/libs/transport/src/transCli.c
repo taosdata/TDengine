@@ -374,13 +374,16 @@ static FORCE_INLINE void logConnMissHit(SCliConn* pConn);
 #endif
 
 // snprintf may cause performance problem
-#define CONN_CONSTRUCT_HASH_KEY(key, ip, port) \
-  do {                                         \
-    char*   t = key;                           \
-    int16_t len = strlen(ip);                  \
-    if (ip != NULL) memcpy(t, ip, len);        \
-    t[len] = ':';                              \
-    TAOS_UNUSED(titoa(port, 10, &t[len + 1])); \
+#define CONN_CONSTRUCT_HASH_KEY(key, ip, port)                                       \
+  do {                                               \
+    char*   t = key;                                \
+    int16_t len = strlen(ip);                       \
+    /* Devon scan item 324: clamp to fqdn size so a stray */                         \
+    /* non-NUL-terminated source cannot overflow the key buffer */                   \
+    if (len > TSDB_FQDN_LEN - 1) len = TSDB_FQDN_LEN - 1;                           \
+    if (ip != NULL) memcpy(t, ip, len);             \
+    t[len] = ':';                                   \
+    TAOS_UNUSED(titoa(port, 10, &t[len + 1]));      \
   } while (0)
 
 #define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
@@ -628,6 +631,14 @@ int32_t cliHandleState_mayHandleReleaseResp(SCliConn* conn, STransMsgHead* pHead
             qId);
 
     STransCtx* p = taosHashGet(conn->pQTable, &qId, sizeof(qId));
+    // Devon scan item 351: only release state that belongs to this connection. A peer-supplied
+    // qId used to be applied to the process-global ref set unconditionally, letting a rogue
+    // server destroy handles owned by other connections. Unknown qIds are ignored.
+    if (p == NULL) {
+      tDebug("%s conn:%p, ignore release req:%" PRId64 " not registered on this conn",
+             CONN_GET_INST_LABEL(conn), conn, qId);
+      return 0;
+    }
     transCtxCleanup(p);
 
     code = taosHashRemove(conn->pQTable, &qId, sizeof(qId));
@@ -2917,6 +2928,15 @@ FORCE_INLINE bool cliTryUpdateEpset(SCliReq* pReq, STransMsg* pResp) {
     return false;
   }
   int32_t tlen = tSerializeSEpSet(NULL, 0, &epset);
+
+  // Devon scan item 195: a hasEpSet response whose body is shorter than the canonical
+  // serialized SEpSet used to produce a negative len here, ending in a negative-length
+  // rpcMallocCont/memcpy (size_t wrap, deterministic crash). Reject it instead.
+  if (pResp->contLen < tlen) {
+    tError("invalid epset resp, contLen:%d, expect at least:%d", pResp->contLen, tlen);
+    pResp->code = TSDB_CODE_INVALID_MSG;
+    return false;
+  }
 
   char*   buf = NULL;
   int32_t len = pResp->contLen - tlen;

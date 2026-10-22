@@ -53,6 +53,9 @@
 #include "../../inc/mndStb.h"
 #include "../../inc/mndStream.h"
 #include "../../inc/mndStreamRecalc.h"
+#include "../../inc/mndSync.h"
+#include "../../inc/mndTrans.h"
+#include "../../inc/mndTxn.h"
 #include "../../inc/mndUser.h"
 #include "../../inc/mndVgroup.h"
 #include "sdb.h"
@@ -325,6 +328,491 @@ STrans *createTestTrans() {
   }
 
   return pTrans;
+}
+
+bool   *gPrepareSyncStarted = nullptr;
+int32_t gPrepareProposalCalls = 0;
+
+void ignorePrepareSdbLock(SSdb *, int32_t) {}
+
+SSdbRaw *failPrepareRawAllocation(ESdbType, int8_t, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+int32_t failPrepareProposal(SMnode *, SSdbRaw *raw, int32_t transId) {
+  ++gPrepareProposalCalls;
+  EXPECT_TRUE(*gPrepareSyncStarted);
+  EXPECT_EQ(raw->type, SDB_TRANS);
+  EXPECT_EQ(raw->status, SDB_STATUS_READY);
+  int32_t encodedId = 0;
+  EXPECT_EQ(sdbGetRawInt32(raw, 0, &encodedId), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(encodedId, transId);
+  return TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+}
+
+class MndTransPrepareStatusTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    trans_ = createTestTrans();
+    ASSERT_NE(trans_, nullptr);
+    trans_->conflict = TRN_CONFLICT_NOTHING;
+    trans_->exec = TRN_EXEC_PARALLEL;
+    gPrepareSyncStarted = &syncStarted_;
+    gPrepareProposalCalls = 0;
+    stub_.set(sdbWriteLock, ignorePrepareSdbLock);
+    stub_.set(sdbUnLock, ignorePrepareSdbLock);
+    stub_.set(mndSyncPropose, failPrepareProposal);
+  }
+
+  void TearDown() override {
+    stub_.clear();
+    gPrepareSyncStarted = nullptr;
+    mndTransDrop(trans_);
+    terrno = savedErrno_;
+  }
+
+  SMnode  node_ = {};
+  STrans *trans_ = nullptr;
+  bool    syncStarted_ = true;
+  int32_t savedErrno_ = 0;
+  Stub    stub_;
+};
+
+TEST_F(MndTransPrepareStatusTest, CommitValidationFailureDoesNotStartSync) {
+  EXPECT_EQ(mndTransPrepareWithSyncStatus(&node_, trans_, &syncStarted_), TSDB_CODE_MND_TRANS_CLOG_IS_NULL);
+  EXPECT_FALSE(syncStarted_);
+  EXPECT_EQ(gPrepareProposalCalls, 0);
+}
+
+TEST_F(MndTransPrepareStatusTest, EncodeAllocationFailureDoesNotStartSync) {
+  mndTransSetChangeless(trans_);
+  stub_.set(sdbAllocRaw, failPrepareRawAllocation);
+  EXPECT_EQ(mndTransPrepareWithSyncStatus(&node_, trans_, &syncStarted_), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_FALSE(syncStarted_);
+  EXPECT_EQ(gPrepareProposalCalls, 0);
+}
+
+TEST_F(MndTransPrepareStatusTest, ProposalFailureStillMarksSyncAsStarted) {
+  mndTransSetChangeless(trans_);
+  syncStarted_ = false;
+  EXPECT_EQ(mndTransPrepareWithSyncStatus(&node_, trans_, &syncStarted_), TSDB_CODE_MND_TRANS_SYNC_TIMEOUT);
+  EXPECT_TRUE(syncStarted_);
+  EXPECT_EQ(gPrepareProposalCalls, 1);
+}
+
+STxnObj *gShadowRemovalTxn = nullptr;
+
+void *acquireShadowRemovalTxn(SSdb *, ESdbType type, const void *key) {
+  return type == SDB_TXN && *static_cast<const txn_id_t *>(key) == gShadowRemovalTxn->id ? gShadowRemovalTxn : nullptr;
+}
+
+void releaseShadowRemovalTxn(SSdb *, void *) {}
+
+class MndStreamShadowRemovalTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    txn_.id = static_cast<txn_id_t>(1) << 32;
+    txn_.pShadowOps = taosArrayInit(3, sizeof(SMndShadowOp));
+    ASSERT_NE(txn_.pShadowOps, nullptr);
+    node_.txnMgmt.pStbConflictMap =
+        taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    ASSERT_NE(node_.txnMgmt.pStbConflictMap, nullptr);
+    gShadowRemovalTxn = &txn_;
+    stub_.set(sdbAcquire, acquireShadowRemovalTxn);
+    stub_.set(sdbRelease, releaseShadowRemovalTxn);
+  }
+
+  void TearDown() override {
+    stub_.clear();
+    gShadowRemovalTxn = nullptr;
+    taosArrayDestroy(txn_.pShadowOps);
+    taosHashCleanup(node_.txnMgmt.pStbConflictMap);
+    terrno = savedErrno_;
+  }
+
+  SMnode  node_ = {};
+  STxnObj txn_ = {};
+  int32_t savedErrno_ = 0;
+  Stub    stub_;
+};
+
+TEST_F(MndStreamShadowRemovalTest, RemovesLatestExactMatchAndPreservesOtherOwners) {
+  SMndShadowOp op = {};
+  op.opType = MND_SHADOW_OP_CREATE_STREAM;
+  op.uid = 7;
+  tstrncpy(op.name, "1.db.stream", sizeof(op.name));
+  ASSERT_NE(taosArrayPush(txn_.pShadowOps, &op), nullptr);
+  op.opType = MND_SHADOW_OP_CREATE_STB;
+  ASSERT_NE(taosArrayPush(txn_.pShadowOps, &op), nullptr);
+  op.opType = MND_SHADOW_OP_CREATE_STREAM;
+  ASSERT_NE(taosArrayPush(txn_.pShadowOps, &op), nullptr);
+  ASSERT_EQ(taosHashPut(node_.txnMgmt.pStbConflictMap, op.name, strlen(op.name), &txn_.id, sizeof(txn_.id)), 0);
+
+  mndTxnRemoveShadowOp(&node_, txn_.id, op.opType, op.name, op.uid);
+  ASSERT_EQ(taosArrayGetSize(txn_.pShadowOps), 2);
+  EXPECT_EQ(static_cast<SMndShadowOp *>(taosArrayGet(txn_.pShadowOps, 0))->opType, MND_SHADOW_OP_CREATE_STREAM);
+  EXPECT_EQ(static_cast<SMndShadowOp *>(taosArrayGet(txn_.pShadowOps, 1))->opType, MND_SHADOW_OP_CREATE_STB);
+  auto *owner = static_cast<txn_id_t *>(taosHashGet(node_.txnMgmt.pStbConflictMap, op.name, strlen(op.name)));
+  ASSERT_NE(owner, nullptr);
+  EXPECT_EQ(*owner, txn_.id);
+
+  mndTxnRemoveShadowOp(&node_, txn_.id, op.opType, op.name, op.uid + 1);
+  EXPECT_EQ(taosArrayGetSize(txn_.pShadowOps), 2);
+  mndTxnRemoveShadowOp(&node_, txn_.id, op.opType, op.name, op.uid);
+  ASSERT_EQ(taosArrayGetSize(txn_.pShadowOps), 1);
+  EXPECT_EQ(static_cast<SMndShadowOp *>(taosArrayGet(txn_.pShadowOps, 0))->opType, MND_SHADOW_OP_CREATE_STB);
+
+  const txn_id_t otherOwner = txn_.id + 1;
+  ASSERT_EQ(taosHashPut(node_.txnMgmt.pStbConflictMap, op.name, strlen(op.name), &otherOwner, sizeof(otherOwner)), 0);
+  mndTxnRemoveShadowOp(&node_, txn_.id, MND_SHADOW_OP_CREATE_STB, op.name, op.uid);
+  EXPECT_EQ(txn_.pShadowOps, nullptr);
+  owner = static_cast<txn_id_t *>(taosHashGet(node_.txnMgmt.pStbConflictMap, op.name, strlen(op.name)));
+  ASSERT_NE(owner, nullptr);
+  EXPECT_EQ(*owner, otherOwner);
+}
+
+class MndTxnPendingStreamCreateTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    SSdbOpt options = {};
+    options.path = TD_TMP_DIR_PATH "stream_create_pending";
+    options.pMnode = &node_;
+    taosRemoveDir(options.path);
+    node_.pSdb = sdbInit(&options);
+    ASSERT_NE(node_.pSdb, nullptr);
+    ASSERT_EQ(mndInitTrans(&node_), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mndInitTxn(&node_), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mndInitStb(&node_), TSDB_CODE_SUCCESS);
+    // Recovery scans stream markers without starting the stream runtime.
+    SSdbTable table = {};
+    table.sdbType = SDB_STREAM;
+    table.keyType = SDB_KEY_BINARY;
+    ASSERT_EQ(sdbSetTable(node_.pSdb, table), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    if (node_.pSdb != nullptr) sdbCleanup(node_.pSdb);
+    mndCleanupTxn(&node_);
+    taosRemoveDir(TD_TMP_DIR_PATH "stream_create_pending");
+    terrno = savedErrno_;
+  }
+
+  bool WriteRaw(SSdbRaw *raw, ESdbStatus status) {
+    if (raw == nullptr) return false;
+    if (sdbSetRawStatus(raw, status) != TSDB_CODE_SUCCESS) {
+      sdbFreeRaw(raw);
+      return false;
+    }
+    return sdbWrite(node_.pSdb, raw) == TSDB_CODE_SUCCESS;
+  }
+
+  bool WritePending(tmsg_t origin = TDMT_MND_CREATE_STREAM, ESdbStatus status = SDB_STATUS_READY) {
+    STrans *trans = createTestTrans();
+    if (trans == nullptr) return false;
+    auto *pending = static_cast<SMndTxnStreamCreate *>(taosMemoryCalloc(1, sizeof(SMndTxnStreamCreate)));
+    if (pending == nullptr) {
+      mndTransDrop(trans);
+      return false;
+    }
+    pending->txnId = txnId_;
+    tstrncpy(pending->name, name_, sizeof(pending->name));
+    trans->id = 7;
+    trans->stage = TRN_STAGE_REDO_ACTION;
+    trans->originRpcType = origin;
+    mndTransSetUserData(trans, pending, sizeof(*pending));
+    SSdbRaw *raw = mndTransEncode(trans);
+    mndTransDrop(trans);
+    // sdbWrite runs the registered real decoder and transfers ownership to SDB.
+    return WriteRaw(raw, status);
+  }
+
+  bool WriteUserTxn() {
+    STxnObj txn = {};
+    txn.id = txnId_;
+    txn.stage = UTXN_STAGE_ACTIVE;
+    return WriteRaw(node_.pSdb->encodeFps[SDB_TXN](&txn), SDB_STATUS_READY);
+  }
+
+  void ExpectRecoveryState(bool deferred) {
+    auto *txn = static_cast<STxnObj *>(sdbAcquire(node_.pSdb, SDB_TXN, &txnId_));
+    ASSERT_NE(txn, nullptr);
+    EXPECT_EQ(txn->stage, UTXN_STAGE_ACTIVE);
+    EXPECT_EQ(txn->shadowRebuildPending, deferred);
+    EXPECT_EQ(txn->pShadowOps, nullptr);
+    sdbRelease(node_.pSdb, txn);
+  }
+
+  SMnode         node_ = {};
+  int32_t        savedErrno_ = 0;
+  const txn_id_t txnId_ = static_cast<txn_id_t>(1) << 32;
+  const char    *name_ = "1.db.pending_stream";
+};
+
+TEST_F(MndTxnPendingStreamCreateTest, RoundTripPreservesBlockersWithoutRuntimeShadow) {
+  ASSERT_TRUE(WriteUserTxn());
+  ASSERT_TRUE(WritePending());
+  STrans *stored = mndAcquireTrans(&node_, 7);
+  ASSERT_NE(stored, nullptr);
+  EXPECT_EQ(stored->originRpcType, TDMT_MND_CREATE_STREAM);
+  EXPECT_EQ(stored->userDataLen, sizeof(SMndTxnStreamCreate));
+  EXPECT_NE(stored->userData, nullptr);
+  SMndTxnStreamCreate recovered = {};
+  if (stored->userData != nullptr && stored->userDataLen == sizeof(recovered)) {
+    memcpy(&recovered, stored->userData, sizeof(recovered));
+  }
+  mndReleaseTrans(&node_, stored);
+  EXPECT_EQ(recovered.txnId, txnId_);
+  EXPECT_STREQ(recovered.name, name_);
+  ExpectRecoveryState(false);
+
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_MND_TRANS_CONFLICT);
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_ + 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_), TSDB_CODE_TXN_RESOURCE_BUSY);
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_ + 1), TSDB_CODE_TXN_RESOURCE_BUSY);
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, "1.db.other_stream", txnId_), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(MndTxnPendingStreamCreateTest, IgnoresOtherRpcTypesAndClearsBlockersWhenPendingIsDeleted) {
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STB));
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STB, SDB_STATUS_DROPPED));
+
+  ASSERT_TRUE(WritePending());
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_MND_TRANS_CONFLICT);
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_), TSDB_CODE_TXN_RESOURCE_BUSY);
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STREAM, SDB_STATUS_DROPPED));
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(MndTxnPendingStreamCreateTest, RestoreDefersShadowRebuildUntilPendingIsDeleted) {
+  ASSERT_TRUE(WriteUserTxn());
+  ASSERT_TRUE(WritePending());
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  ExpectRecoveryState(true);
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_MND_TRANS_CONFLICT);
+
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STREAM, SDB_STATUS_DROPPED));
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  ExpectRecoveryState(false);
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_SUCCESS);
+}
+
+class MndTxnDeferredSchemaTest : public MndTxnPendingStreamCreateTest {
+ protected:
+  void SetUp() override {
+    MndTxnPendingStreamCreateTest::SetUp();
+    ASSERT_EQ(mndInitDb(&node_), TSDB_CODE_SUCCESS);
+    SDbObj db = {};
+    tstrncpy(db.name, "1.db", sizeof(db.name));
+    db.uid = 100;
+    ASSERT_TRUE(WriteRaw(mndDbActionEncode(&db), SDB_STATUS_READY));
+    stub_.set(mndAcquireUser, AcquireUser);
+    stub_.set(mndReleaseUser, ReleaseUser);
+    // Keep validation, shadow registration and schema responses real; omit Raft submission.
+    stub_.set(mndTransPrepare, PrepareTrans);
+    ASSERT_TRUE(WriteUserTxn());
+    ASSERT_TRUE(WriteAlterMarker());
+    ASSERT_TRUE(WritePending());
+    ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+    ExpectRecoveryState(true);
+  }
+
+  void TearDown() override {
+    stub_.clear();
+    MndTxnPendingStreamCreateTest::TearDown();
+  }
+
+  static int32_t AcquireUser(SMnode *, const char *, SUserObj **user) {
+    static SUserObj root = {};
+    root.superUser = 1;
+    root.enable = 1;
+    root.passwordLifeTime = -1;
+    *user = &root;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static void    ReleaseUser(SMnode *, SUserObj *) {}
+  static int32_t PrepareTrans(SMnode *, STrans *) { return TSDB_CODE_SUCCESS; }
+
+  bool WriteAlterMarker() {
+    SSchema columns[2] = {};
+    columns[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    columns[0].bytes = 8;
+    columns[0].colId = 1;
+    tstrncpy(columns[0].name, "ts", sizeof(columns[0].name));
+    columns[1].type = TSDB_DATA_TYPE_INT;
+    columns[1].bytes = 4;
+    columns[1].colId = 2;
+    tstrncpy(columns[1].name, "v", sizeof(columns[1].name));
+    SSchema tag = {};
+    tag.type = TSDB_DATA_TYPE_INT;
+    tag.bytes = 4;
+    tag.colId = 3;
+    tstrncpy(tag.name, "t", sizeof(tag.name));
+    SColCmpr compression[2] = {};
+    compression[0].id = 1;
+    compression[1].id = 2;
+
+    SMAlterStbReq alter = {};
+    tstrncpy(alter.name, "1.db.stb", sizeof(alter.name));
+    alter.alterType = TSDB_ALTER_TABLE_ADD_COLUMN;
+    alter.numOfFields = 1;
+    alter.txnId = txnId_;
+    alter.securityLevel = -1;
+    alter.pFields = taosArrayInit(1, sizeof(SField));
+    if (alter.pFields == nullptr) return false;
+    SField field = {};
+    field.type = TSDB_DATA_TYPE_INT;
+    field.bytes = 4;
+    tstrncpy(field.name, "x", sizeof(field.name));
+    taosArrayPush(alter.pFields, &field);
+    const int32_t     length = tSerializeSMAlterStbReq(nullptr, 0, &alter);
+    const int32_t     count = 1;
+    std::vector<char> chain(2 * sizeof(int32_t) + length);
+    memcpy(chain.data(), &count, sizeof(count));
+    memcpy(chain.data() + sizeof(count), &length, sizeof(length));
+    tSerializeSMAlterStbReq(chain.data() + 2 * sizeof(int32_t), length, &alter);
+    tFreeSMAltertbReq(&alter);
+
+    SStbObj stb = {};
+    tstrncpy(stb.name, "1.db.stb", sizeof(stb.name));
+    tstrncpy(stb.db, "1.db", sizeof(stb.db));
+    stb.uid = 101;
+    stb.dbUid = 100;
+    stb.numOfColumns = 2;
+    stb.numOfTags = 1;
+    stb.nextColId = 4;
+    stb.pColumns = columns;
+    stb.pTags = &tag;
+    stb.pCmpr = compression;
+    stb.txnId = txnId_;
+    stb.txnStatus = META_TXN_PRE_ALTER;
+    stb.pTxnAlterReqs = chain.data();
+    stb.txnAlterReqsLen = static_cast<int32_t>(chain.size());
+    return WriteRaw(mndStbActionEncode(&stb), SDB_STATUS_READY);
+  }
+
+  template <typename Request>
+  int32_t SendRequest(tmsg_t type, int32_t (*serialize)(void *, int32_t, Request *), Request *request,
+                      STableMetaRsp *meta = nullptr) {
+    const int32_t length = serialize(nullptr, 0, request);
+    if (length <= 0) return TSDB_CODE_INVALID_MSG;
+    std::vector<char> data(length);
+    if (serialize(data.data(), length, request) != length) return TSDB_CODE_INVALID_MSG;
+    SRpcMsg rpc = {};
+    rpc.info.node = &node_;
+    rpc.msgType = type;
+    rpc.pCont = data.data();
+    rpc.contLen = length;
+    int32_t code = node_.msgFp[TMSG_INDEX(type)](&rpc);
+    if (code == 0 && meta != nullptr) {
+      code = tDeserializeSTableMetaRsp(rpc.info.rsp, rpc.info.rspLen, meta);
+    }
+    if (code != 0) EXPECT_EQ(rpc.info.rsp, nullptr);
+    rpcFreeCont(rpc.info.rsp);
+    return code;
+  }
+
+  int32_t ReadMeta(txn_id_t txnId, STableMetaRsp *meta) {
+    STableInfoReq request = {};
+    tstrncpy(request.dbFName, "1.db", sizeof(request.dbFName));
+    tstrncpy(request.tbName, "stb", sizeof(request.tbName));
+    request.txnId = txnId;
+    return SendRequest(TDMT_MND_TABLE_META, tSerializeSTableInfoReq, &request, meta);
+  }
+
+  int32_t DropColumn() {
+    SMAlterStbReq request = {};
+    tstrncpy(request.name, "1.db.stb", sizeof(request.name));
+    request.alterType = TSDB_ALTER_TABLE_DROP_COLUMN;
+    request.numOfFields = 1;
+    request.txnId = txnId_;
+    request.securityLevel = -1;
+    request.pFields = taosArrayInit(1, sizeof(SField));
+    SField field = {};
+    tstrncpy(field.name, "x", sizeof(field.name));
+    taosArrayPush(request.pFields, &field);
+    const int32_t code = SendRequest(TDMT_MND_ALTER_STB, tSerializeSMAlterStbReq, &request);
+    tFreeSMAltertbReq(&request);
+    return code;
+  }
+
+  Stub stub_;
+};
+
+TEST_F(MndTxnDeferredSchemaTest, GetterRejectsPendingAndRecoversPersistedAlter) {
+  SArray *ops = nullptr;
+  EXPECT_EQ(mndTxnGetAlterOpsForStb(&node_, txnId_, "1.db.stb", &ops), TSDB_CODE_MND_TRANS_CONFLICT);
+  EXPECT_EQ(ops, nullptr);
+  taosArrayDestroy(ops);
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STREAM, SDB_STATUS_DROPPED));
+
+  ASSERT_EQ(mndTxnGetAlterOpsForStb(&node_, txnId_, "1.db.stb", &ops), TSDB_CODE_SUCCESS);
+  ASSERT_NE(ops, nullptr);
+  EXPECT_EQ(taosArrayGetSize(ops), 1);
+  auto         *op = static_cast<SMndShadowOp *>(taosArrayGet(ops, 0));
+  SMAlterStbReq alter = {};
+  EXPECT_EQ(tDeserializeSMAlterStbReq(op->pReqData, op->reqDataLen, &alter), 0);
+  EXPECT_EQ(alter.alterType, TSDB_ALTER_TABLE_ADD_COLUMN);
+  ASSERT_EQ(taosArrayGetSize(alter.pFields), 1);
+  EXPECT_STREQ(static_cast<SField *>(taosArrayGet(alter.pFields, 0))->name, "x");
+  tFreeSMAltertbReq(&alter);
+  taosArrayDestroy(ops);
+}
+
+TEST_F(MndTxnDeferredSchemaTest, MetadataRejectsPendingThenReturnsRecoveredColumn) {
+  STableMetaRsp meta = {};
+  EXPECT_EQ(ReadMeta(txnId_, &meta), TSDB_CODE_MND_TRANS_CONFLICT);
+  tFreeSTableMetaRsp(&meta);
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STREAM, SDB_STATUS_DROPPED));
+
+  ASSERT_EQ(ReadMeta(txnId_, &meta), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(meta.numOfColumns, 3);
+  EXPECT_STREQ(meta.pSchemas[2].name, "x");
+  tFreeSTableMetaRsp(&meta);
+  ASSERT_EQ(ReadMeta(0, &meta), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(meta.numOfColumns, 2);
+  tFreeSTableMetaRsp(&meta);
+}
+
+TEST_F(MndTxnDeferredSchemaTest, AlterValidationRecoversPriorColumn) {
+  EXPECT_EQ(DropColumn(), TSDB_CODE_MND_TRANS_CONFLICT);
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STREAM, SDB_STATUS_DROPPED));
+  EXPECT_EQ(DropColumn(), TSDB_CODE_ACTION_IN_PROGRESS);
+
+  STableMetaRsp meta = {};
+  ASSERT_EQ(ReadMeta(txnId_, &meta), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(meta.numOfColumns, 2);
+  tFreeSTableMetaRsp(&meta);
+}
+
+TEST_F(MndTxnDeferredSchemaTest, ConcurrentReadsRecoverOneCompleteAlterList) {
+  ASSERT_TRUE(WritePending(TDMT_MND_CREATE_STREAM, SDB_STATUS_DROPPED));
+  std::atomic<bool>        start(false);
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 8; ++i) {
+    readers.emplace_back([this, &start] {
+      while (!start.load()) std::this_thread::yield();
+      SArray *ops = nullptr;
+      EXPECT_EQ(mndTxnGetAlterOpsForStb(&node_, txnId_, "1.db.stb", &ops), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(taosArrayGetSize(ops), 1);
+      taosArrayDestroy(ops);
+    });
+  }
+  start.store(true);
+  for (auto &reader : readers) reader.join();
+
+  auto *txn = static_cast<STxnObj *>(sdbAcquire(node_.pSdb, SDB_TXN, &txnId_));
+  ASSERT_NE(txn, nullptr);
+  EXPECT_FALSE(txn->shadowRebuildPending);
+  EXPECT_EQ(taosArrayGetSize(txn->pShadowOps), 1);
+  sdbRelease(node_.pSdb, txn);
 }
 
 void destroyRecoveredRunnerLists(SStmStatus *pStatus) {

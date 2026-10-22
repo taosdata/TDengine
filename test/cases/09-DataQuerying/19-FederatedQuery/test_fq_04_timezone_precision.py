@@ -1325,7 +1325,10 @@ _TPC_PARITY_CASES = [
     ("tpc-09", "SELECT _qstart, _qend, COUNT(*) FROM {tbl} WHERE ts >= '2024-01-01' AND ts < '2024-01-01 00:05:00'"),
     ("tpc-10", "SELECT _qduration, COUNT(*) FROM {tbl} WHERE ts >= '2024-01-01' AND ts < '2024-01-01 00:05:00'"),
     ("tpc-11", "SELECT _wstart, COUNT(*) FROM {tbl} INTERVAL(2m) SLIDING(1m) ORDER BY _wstart"),
-    ("tpc-12", "SELECT _wstart, val, COUNT(*) FROM {tbl} PARTITION BY val INTERVAL(5m)"),
+    # All five partitions fall in one 5m window, so every row shares _wstart and
+    # the source-returned order is engine-dependent: compare order-insensitively.
+    ("tpc-12", "SELECT _wstart, val, COUNT(*) FROM {tbl} PARTITION BY val INTERVAL(5m)",
+     {"ordered": False}),
     ("tpc-13", "SELECT CAST(_wstart AS BIGINT), COUNT(*) FROM {tbl} INTERVAL(1m) ORDER BY _wstart"),
     ("tpc-14", "SELECT _wstart, _wend, COUNT(*) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(1m)) w) ORDER BY _wstart"),
     ("tpc-15", "SELECT _wstart, val, COUNT(*) FROM {tbl} PARTITION BY val SESSION(ts, 30s)"),

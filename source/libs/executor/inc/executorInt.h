@@ -317,8 +317,8 @@ typedef struct SExchangeInfo {
 // Separators and decimal forms of all fixed-width fields in the cache key.
 #define FED_SCAN_TABLE_KEY_SUFFIX_LEN 256
 #define FED_SCAN_TABLE_KEY_LEN \
-  (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + \
-   FED_SCAN_TABLE_KEY_SUFFIX_LEN)
+  (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + \
+   TSDB_TABLE_NAME_LEN + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
 
 // Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
 typedef struct SFedScanTableCtx {

@@ -31,9 +31,9 @@ Covers the step-1 virtual-table matrix from the SQL Server TS section 6.5:
   FQSS-VTBL-010  a view without a time column cannot be a column source
   FQSS-VTBL-011  vtable queries stay local (zero pushdown) and match the source
 
-The local database uses microsecond precision because SQL Server external
-timestamps are exposed at microsecond resolution (DS 5.3.7); a millisecond
-database would reject the references by design.
+The local database uses microsecond precision so every SQL Server temporal
+type is legal here: the referenced time axis follows the declared column
+precision (datetime2(<=3) -> ms, datetime2(>3)/datetime -> us).
 """
 import os
 import sys
@@ -256,11 +256,11 @@ class TestVtableQueryExtSourceSqlServer:
             "SELECT col_source FROM information_schema.ins_columns "
             f"WHERE db_name = '{_LOCAL_DB}' AND table_name = 'vt_other' AND col_name = 'v'")
         col_source = str(tdSql.queryResult[0][0])
-        # col_source renders source.database.table.column: the schema segment is
-        # kept in the persisted reference (both bindings return their own rows
-        # above) but is not part of the display form.  The meta suite pins the
-        # same convention for its two-schema vtables.
-        assert col_source == f"{_SRC}.{_REMOTE_DB}.r_mixed.v", \
+        # col_source renders the full external reference — including the schema
+        # segment — so that the rendered statement stays re-parseable: the
+        # four-part form would bind its middle segment to the schema on replay
+        # and silently resolve another schema.
+        assert col_source == f"{_SRC}.{_REMOTE_DB}.other.r_mixed.v", \
             f"unexpected col_source: {col_source!r}"
 
     # ------------------------------------------------------------------
@@ -351,35 +351,59 @@ class TestVtableQueryExtSourceSqlServer:
             f"ts TIMESTAMP, v INT FROM {_SRC}.{_REMOTE_DB}.dbo.v_no_ts.v)")
 
     # ------------------------------------------------------------------
-    # FQSS-VTBL-011
+    # FQSS-VTBLP-001..003 (phase 2)
     # ------------------------------------------------------------------
-    def test_vtbl_zero_pushdown_query(self):
-        """FQSS-VTBL-011: vtable queries stay local and match the source.
+    def test_vtbl_pushdown_filter(self):
+        """FQSS-VTBLP-001..003: external-column filters push down to SQL Server.
 
-        EXPLAIN must show plain remote scans (no pushed WHERE / aggregation),
-        and the aggregated result must equal the value read directly from
-        SQL Server.
+        Phase 2 renders the vtable's declared filter and the query predicates
+        into the remote T-SQL statement, qualifying the table as
+        ``[database].[schema].[table]`` (FQSS-PUSH-001); the rows returned for
+        the filtered virtual table still match what the source returns for the
+        same predicate.
 
         Since: v3.4.4.0
 
         """
-        tdSql.query("EXPLAIN VERBOSE TRUE SELECT COUNT(*), SUM(v) FROM vt_mixed")
+        ref = f"{_SRC}.{_REMOTE_DB}.dbo.r_mixed.v"
+        tdSql.execute("DROP VTABLE IF EXISTS vt_filtered")
+        tdSql.execute(f"CREATE VTABLE vt_filtered (ts TIMESTAMP, v INT FROM {ref} WHERE v > 11)")
+
+        # FQSS-VTBLP-002: the remote statement qualifies the table as
+        # [database].[schema].[table] and carries the declared filter rendered
+        # as T-SQL (the query's own predicate is applied by the local plan,
+        # exactly as it is for MySQL / PostgreSQL virtual tables).
+        tdSql.query("EXPLAIN VERBOSE TRUE SELECT v FROM vt_filtered WHERE v < 20")
         plan = "\n".join(
             str(cell) for row in (tdSql.queryResult or []) for cell in row if cell is not None
         )
         remote_lines = [line for line in plan.splitlines() if "remote sql:" in line.lower()]
         assert remote_lines, f"no Remote SQL in vtable plan: {plan!r}"
-        for line in remote_lines:
-            upper = line.upper()
-            assert " WHERE " not in upper, f"predicate pushed in baseline mode: {line!r}"
-            assert "SUM(" not in upper and "COUNT(" not in upper, (
-                f"aggregate pushed in baseline mode: {line!r}")
+        remote = " ".join(remote_lines).lower()
+        assert "[vt_ss_db].[dbo].[r_mixed]" in remote, (
+            f"remote SQL lacks the three-part qualifier: {remote!r}")
+        assert "[v] > 11" in remote, f"declared filter not pushed: {remote!r}"
 
-        tdSql.query("SELECT COUNT(*), SUM(v) FROM vt_mixed")
-        tdSql.checkData(0, 0, 2)
-        tdSql.checkData(0, 1, 23)
+        # FQSS-VTBLP-001/003: the declared filter bounds the visible rows
+        # (v > 11 removes the 11 row) and the local predicate is applied on top.
+        tdSql.query("SELECT v FROM vt_filtered ORDER BY ts")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
+
+        tdSql.query("SELECT v FROM vt_filtered WHERE v < 20")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 12)
+
+        tdSql.query("SELECT v FROM vt_filtered WHERE v < 12")
+        tdSql.checkRows(0)
 
         direct = ExtSrcEnv.sqlserver_query(
-            _REMOTE_DB, "SELECT COUNT(*), SUM(v) FROM dbo.r_mixed")
+            _REMOTE_DB, "SELECT COUNT(*) FROM dbo.r_mixed WHERE v > 11")
         direct_count = int(str(direct[0]).strip()) if direct else -1
-        assert direct_count == 2, f"remote row count changed: {direct!r}"
+        assert direct_count == 1, f"remote filtered row count changed: {direct!r}"
+
+        # An aggregate over the filtered vtable stays consistent with it.
+        tdSql.query("SELECT COUNT(*), SUM(v) FROM vt_filtered")
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 12)
+        tdSql.execute("DROP VTABLE IF EXISTS vt_filtered")

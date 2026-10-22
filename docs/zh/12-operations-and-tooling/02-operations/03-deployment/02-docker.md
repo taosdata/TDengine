@@ -20,6 +20,7 @@ TDengine 镜像启动时默认激活 HTTP 服务，使用下列命令便可创�
 
 ```shell
 docker run -d --name tdengine \
+--hostname tdengine -e TAOS_FQDN=tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
 -v ~/data/taos/dnode/log:/var/log/taos \
 -p 6041:6041 tdengine/tsdb-ee
@@ -51,6 +52,20 @@ Query OK, 2 rows in database (0.033802s)
 
 在容器中，`taos` shell 或者各种连接器（例如 JDBC-JNI）与服务器通过容器的 hostname 建立连接。从容器外访问容器内的 TDengine 比较复杂，通过 RESTful/WebSocket 连接方式是最简单的方法。
 
+## 重建容器时保持节点身份 {#preserve-node-identity}
+
+对于使用镜像安装模式构建的新镜像，未通过 `TAOS_FQDN` 或配置文件指定 `fqdn` 时，TDengine 默认使用运行容器的主机名，而不是构建镜像时的主机名。`--hostname`（简写 `-h`）设置容器主机名；`--name` 仅设置容器名称。未指定 `--hostname` 时，Docker 会自动生成主机名。
+
+首次部署建议像上述示例一样显式设置稳定的主机名和 `TAOS_FQDN`。重启同一个容器通常不会改变主机名，但删除并重建容器后，自动生成的主机名可能变化。复用原数据目录或升级镜像时，必须保持原节点 FQDN；历史镜像可能使用 `localhost` 或其他值，不应直接改成示例中的 `tdengine`。
+
+删除旧容器前，记录节点 endpoint：
+
+```shell
+docker exec tdengine taos -s "show dnodes;"
+```
+
+例如，原 endpoint 为 `old-node:6030`，重建时应继续挂载原数据目录，并使用 `--hostname old-node -e TAOS_FQDN=old-node`，保留原端口配置。集群中的各节点还需要能够解析并访问该地址。不要手动修改数据目录中的节点身份文件。
+
 ## 在 host 网络模式下启动 TDengine
 
 运行以下命令可以在 host 网络模式下启动 TDengine，这样可以使用主机的 FQDN 建立连接，而不是使用容器的 hostname。
@@ -75,7 +90,7 @@ Query OK, 1 rows in database (0.010654s)
 
 :::note
 
-- `v3.3.6.0` 版本后，默认的 `fqdn` 从 `buildkitsandbox` 变更为 `localhost`，如果是全新启动不会有任何问题，如果是升级启动，运行容器时需要将 `-e TAOS_FQDN=<old_value>` 和 `-h <old_value>` 指定为之前的 `fqdn`，否则可能会无法启动。
+- 不同历史镜像的默认 FQDN 可能不同。升级或复用已有数据目录时，请保留原节点 FQDN，具体操作参见 [重建容器时保持节点身份](#preserve-node-identity)。
 - 如果涉及 root 密码变更、镜像升级或 `taos-check` 的版本差异，请以前文“Docker 镜像在不同版本阶段的行为差异”中的说明为准。
   
 :::
@@ -85,6 +100,7 @@ Query OK, 1 rows in database (0.010654s)
 ```shell
 docker run -d \
    --name tdengine \
+   --hostname tdengine \
    -e TAOS_FQDN=tdengine \
    -p 6030:6030 \
    -p 6041-6049:6041-6049 \

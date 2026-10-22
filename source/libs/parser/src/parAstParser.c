@@ -721,6 +721,13 @@ static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRef
   return false;
 }
 
+// A column reference may name an external source in its first segment
+// (col TYPE FROM source.table.col). Whether that segment is an external source
+// or a local database is only decided at translate time, so reserve the
+// external interpretation speculatively here; a name that is not a registered
+// source leaves the reservation unused and the caller's local reservation
+// wins. Mirrors the 2-segment speculative reservation in
+// collectMetaKeyFromRealTable.
 static int32_t collectMetaKeyFromPossibleExtRef(SCollectMetaKeyCxt* pCxt, const char* dbName,
                                                const char* tableName) {
 #ifdef TD_ENTERPRISE
@@ -875,8 +882,8 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
       SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
       if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] != '\0') {
         PAR_ERR_RET(reserveExtSourceInCache(pOptions->refSourceName, pCxt->pMetaCache));
-        PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb, "",
-                                             pOptions->refTable, pCxt->pMetaCache));
+        PAR_ERR_RET(reserveExtTableMetaInCache(pOptions->refSourceName, pOptions->refDb,
+                                               pOptions->refSchema, pOptions->refTable, pCxt->pMetaCache));
         continue;
       }
       if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
@@ -1314,6 +1321,12 @@ static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTab
       PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,
                                          pStmt->refTableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, pCxt->pMetaCache));
     } else if (pStmt->refDbName[0] != '\0' && pStmt->refTableName[0] != '\0') {
+      // Column refs may name an external source in their first segment; the
+      // local interpretation is already reserved by collectMetaKeyFromAlterTable.
+      if (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
+          pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF) {
+        PAR_ERR_RET(collectMetaKeyFromPossibleExtRef(pCxt, pStmt->refDbName, pStmt->refTableName));
+      }
       PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName, NULL,
                                          PRIV_DB_USE, PRIV_OBJ_DB, pCxt->pMetaCache));
       PAR_ERR_RET(reserveUserAuthInCache(pCxt->pParseCxt->acctId, pCxt->pParseCxt->pUser, pStmt->refDbName,

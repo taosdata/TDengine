@@ -83,6 +83,26 @@ _EXTERNAL_CASES = (
         "value_type": "bigint",
         "expected_rows": {"ms": 1, "us": 3, "ns": 2001},
     },
+    {
+        "backend": "sqlserver",
+        "source_precision": "ms",
+        "source_name": "vtp_ss_ms_src",
+        "external_db": "vtp_ss_ms_ext",
+        "timestamp_type": "datetime2(3)",
+        "value_type": "int",
+        # datetime2(3) declares millisecond precision, so it is legal in every
+        # virtual-table database and every row stays distinct.
+        "expected_rows": {"ms": 2001, "us": 2001, "ns": 2001},
+    },
+    {
+        "backend": "sqlserver",
+        "source_precision": "us",
+        "source_name": "vtp_ss_us_src",
+        "external_db": "vtp_ss_us_ext",
+        "timestamp_type": "datetime2(6)",
+        "value_type": "int",
+        "expected_rows": {"ms": 3, "us": 2001, "ns": 2001},
+    },
 )
 _MIXED_CASES = (
     {
@@ -99,6 +119,16 @@ _MIXED_CASES = (
         "name": "mixed_native_external",
         "sources": (("mysql", "us"), ("postgres", "ms"), ("influx", "ns")),
         "include_native": True,
+    },
+    {
+        "name": "mixed_sqlserver_mysql",
+        "sources": (("sqlserver", "us"), ("mysql", "us")),
+        "include_native": False,
+    },
+    {
+        "name": "mixed_us_external",
+        "sources": (("mysql", "us"), ("postgres", "us"), ("sqlserver", "us")),
+        "include_native": False,
     },
 )
 
@@ -131,6 +161,31 @@ def _precision_is_legal(source_precision, vtable_precision):
         _PRECISION_RANK[vtable_precision]
         >= _PRECISION_RANK[source_precision]
     )
+
+
+def _source_is_legal(source, vtable_precision):
+    """Whether one (backend, source_precision) source fits a vtable database.
+
+    Every backend now declares the precision of the timestamp primary key
+    column: MySQL/PG from the type modifier and SQL Server from the
+    datetime2/datetimeoffset modifier (datetime2(<=3) is millisecond aligned).
+    The shared rank rule therefore applies uniformly.
+    """
+    _, source_precision = source
+    return _precision_is_legal(source_precision, vtable_precision)
+
+
+def _external_table_path(case):
+    """Remote table path used in a vtable column reference.
+
+    SQL Server: the middle segment of a three-part path is the schema
+    (DS §5.3.4), so the database is qualified explicitly (five-part column
+    path source.database.schema.table.column).
+    """
+    path = f"{case['source_name']}.{case['external_db']}"
+    if case["backend"] == "sqlserver":
+        return f"{path}.dbo.dense_ts"
+    return f"{path}.dense_ts"
 
 
 def _source_timestamps(source_precision, vtable_precision):
@@ -207,6 +262,8 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
             cls._prepare_mysql_data(case)
         elif case["backend"] == "postgres":
             cls._prepare_postgres_data(case)
+        elif case["backend"] == "sqlserver":
+            cls._prepare_sqlserver_data(case)
         else:
             cls._prepare_influx_data(case)
 
@@ -265,6 +322,38 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         )
 
     @staticmethod
+    def _prepare_sqlserver_data(case):
+        external_db = case["external_db"]
+        ExtSrcEnv.sqlserver_drop_db(external_db)
+        ExtSrcEnv.sqlserver_create_db(external_db)
+        ExtSrcEnv.sqlserver_exec(
+            external_db,
+            [
+                f"create table dbo.dense_ts (ts {case['timestamp_type']} "
+                "not null primary key, v int not null)",
+            ],
+        )
+
+        tick_us = 1000 if case["source_precision"] == "ms" else 1
+        values = []
+        for value in range(_ROW_COUNT):
+            timestamp = _BASE_TIME + timedelta(microseconds=value * tick_us)
+            timestamp_text = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")
+            if case["source_precision"] == "ms":
+                timestamp_text = timestamp_text[:-3]
+            values.append(f"('{timestamp_text}', {value})")
+
+        # One INSERT carries at most 1000 row constructors and sqlcmd receives
+        # the whole statement as a single argv entry, so rows ship in bounded
+        # batches - the same limit the SQL Server adapter's CSV loader uses.
+        for start in range(0, _ROW_COUNT, 200):
+            batch = ",".join(values[start : start + 200])
+            ExtSrcEnv.sqlserver_exec(
+                external_db,
+                [f"insert into dbo.dense_ts (ts, v) values {batch}"],
+            )
+
+    @staticmethod
     def _prepare_influx_data(case):
         external_db = case["external_db"]
         ExtSrcEnv.influx_drop_db(external_db)
@@ -308,6 +397,13 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
                 f"user='{adapter.user}' password='{adapter.password}' "
                 f"database={external_db} schema=public"
             )
+        elif case["backend"] == "sqlserver":
+            tdSql.execute(
+                f"create external source {source_name} type='sqlserver' "
+                f"host='{adapter.host}' port={adapter.port} "
+                f"user='{adapter.user}' password='{adapter.password}' "
+                f"database={external_db} schema=dbo"
+            )
         else:
             tdSql.execute(
                 f"create external source {source_name} type='influxdb' "
@@ -326,15 +422,14 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
                 f"create database {local_db} vgroups 2 "
                 f"precision '{vtable_precision}'"
             )
-            if not _precision_is_legal(
-                case["source_precision"], vtable_precision
+            if not _source_is_legal(
+                (case["backend"], case["source_precision"]), vtable_precision
             ):
                 continue
             tdSql.execute(f"use {local_db}")
             tdSql.execute(
                 "create vtable dense_vtable (ts timestamp, "
-                f"v {case['value_type']} from {case['source_name']}."
-                f"{case['external_db']}.dense_ts.v)"
+                f"v {case['value_type']} from {_external_table_path(case)}.v)"
             )
             tdSql.execute(
                 "create stable dense_vstable (ts timestamp, "
@@ -342,7 +437,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
             )
             tdSql.execute(
                 "create vtable dense_vchild ("
-                f"v from {case['source_name']}.{case['external_db']}.dense_ts.v) "
+                f"v from {_external_table_path(case)}.v) "
                 "using dense_vstable "
                 f"tags ('{case['backend']}_{case['source_precision']}')"
             )
@@ -361,7 +456,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
 
             for mixed_case in _MIXED_CASES:
                 if any(
-                    not _precision_is_legal(source[1], vtable_precision)
+                    not _source_is_legal(source, vtable_precision)
                     for source in mixed_case["sources"]
                 ):
                     continue
@@ -372,7 +467,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
                     case = _external_case(source)
                     column_defs.append(
                         f"{_source_column(source)} {case['value_type']} from "
-                        f"{case['source_name']}.{case['external_db']}.dense_ts.v"
+                        f"{_external_table_path(case)}.v"
                     )
                 tdSql.execute(
                     f"create vtable {mixed_case['name']} "
@@ -396,8 +491,9 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
     def do_validate_dense_timestamp_results(self):
         for case in _EXTERNAL_CASES:
             for vtable_precision in _VTABLE_PRECISIONS:
-                if not _precision_is_legal(
-                    case["source_precision"], vtable_precision
+                if not _source_is_legal(
+                    (case["backend"], case["source_precision"]),
+                    vtable_precision,
                 ):
                     continue
                 local_db = _local_db(case, vtable_precision)
@@ -456,8 +552,9 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
     def do_validate_vstable_timestamp_filter_results(self):
         for case in _EXTERNAL_CASES:
             for vtable_precision in _VTABLE_PRECISIONS:
-                if not _precision_is_legal(
-                    case["source_precision"], vtable_precision
+                if not _source_is_legal(
+                    (case["backend"], case["source_precision"]),
+                    vtable_precision,
                 ):
                     continue
                 expected_timestamp = (
@@ -499,7 +596,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
 
             for mixed_case in _MIXED_CASES:
                 if any(
-                    not _precision_is_legal(source[1], vtable_precision)
+                    not _source_is_legal(source, vtable_precision)
                     for source in mixed_case["sources"]
                 ):
                     continue
@@ -636,8 +733,8 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
     def test_timestamp_precision_matrix(self):
         """Validate timestamp pushdown for single and mixed sources.
 
-        1. Check dense results for 11 legal single-source precision combinations.
-        2. Check four legal mixed-precision, mixed-database and native/external cases.
+        1. Check dense results for 16 legal single-source precision combinations.
+        2. Check six legal mixed-precision, mixed-database and native/external cases.
         3. Check that virtual scans retain their own precision in cross-precision joins.
         4. Compare EXPLAIN plans and matching query results.
 
@@ -663,7 +760,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
     def test_vstable_timestamp_filter_plan(self):
         """Validate federated timestamp pushdown plans for virtual super tables.
 
-        1. Check timestamp-filter results for all 11 legal precision combinations.
+        1. Check timestamp-filter results for all 16 legal precision combinations.
         2. Compare timestamp ranges and FederatedScan nodes in each plan.
 
         Catalog:

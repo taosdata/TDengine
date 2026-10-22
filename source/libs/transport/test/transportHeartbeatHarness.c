@@ -103,6 +103,112 @@ _exit:
   taosHashCleanup(peer.conn.pQTable);
   return code;
 }
+
+// Devon scan item 195: a hasEpSet response whose body is shorter than the canonical serialized
+// SEpSet must be rejected instead of driving a negative-length rpcMallocCont/memcpy.
+// bodyLen < canonical size  -> return 1 when the response is rejected with INVALID_MSG
+// bodyLen == canonical size -> return 2 when the response is accepted (legit traffic unaffected)
+// negative                  -> test setup failure
+int32_t testCliTryUpdateEpsetShort(int32_t bodyLen, int canonicalLen) {
+  SEpSet epset = {0};
+  epset.inUse = 0;
+  epset.numOfEps = 1;
+  epset.eps[0].port = htons(6030);
+  (void)snprintf(epset.eps[0].fqdn, sizeof(epset.eps[0].fqdn), "h1");
+
+  int32_t selfLen = tSerializeSEpSet(NULL, 0, &epset);
+  if (selfLen <= 0 || selfLen != canonicalLen) return -1;
+  if (bodyLen > 4 * 1024) return -1;
+
+  char* body = rpcMallocCont(bodyLen);
+  if (body == NULL) return -2;
+
+  int32_t code = 0;
+  if (bodyLen < canonicalLen) {
+    // attacker shape: a minimal wire form the decoder accepts (variable-length fqdn entries
+    // instead of the canonical fixed-width encoding), followed by zero padding
+    SEncoder enc = {0};
+    tEncoderInit(&enc, body, bodyLen);
+    code = tStartEncode(&enc);
+    if (code == 0) code = tEncodeI8(&enc, epset.inUse);
+    if (code == 0) code = tEncodeI8(&enc, epset.numOfEps);
+    for (int32_t i = 0; code == 0 && i < TSDB_MAX_REPLICA; i++) {
+      code = tEncodeU16(&enc, epset.eps[i].port);
+      if (code == 0) code = tEncodeCStr(&enc, epset.eps[i].fqdn);
+    }
+    if (code == 0) tEndEncode(&enc);
+    tEncoderClear(&enc);
+  } else {
+    code = tSerializeSEpSet(body, bodyLen, &epset);
+  }
+  if (code < 0) {
+    rpcFreeCont(body);
+    return -3;
+  }
+
+  SReqCtx   ctx = {0};
+  SCliReq   req = {0};
+  STransMsg resp = {0};
+  req.ctx = &ctx;
+  resp.info.hasEpSet = 1;
+  resp.pCont = body;
+  resp.contLen = bodyLen;
+
+  bool accepted = cliTryUpdateEpset(&req, &resp);
+  rpcFreeCont(resp.pCont);
+  taosMemoryFree(ctx.epSet);
+
+  if (bodyLen < canonicalLen) {
+    return (!accepted && resp.code == TSDB_CODE_INVALID_MSG) ? 1 : 0;
+  }
+  return accepted ? 2 : 0;
+}
+
+// Devon scan item 351: a TDMT_SCH_TASK_RELEASE frame carrying a qId that is not registered on
+// the receiving connection must be ignored. Registers registeredQid, releases releaseQid and
+// returns 1 while registeredQid is still present; 0 otherwise; negative on setup failure.
+int32_t testCliReleaseRespGate(int64_t releaseQid, int64_t registeredQid) {
+  STrans   instance = {0};
+  SCliThrd thread = {0};
+  SCliConn conn = {0};
+
+  thread.pInst = &instance;
+  conn.hostThrd = &thread;
+  transQueueInit(&conn.reqsToSend, NULL);
+  transQueueInit(&conn.reqsSentOut, NULL);
+  conn.pQTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  thread.pIdConnTable = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  if (conn.pQTable == NULL || thread.pIdConnTable == NULL) {
+    return -1;
+  }
+
+  STransCtx ctx = {.st = 4242};
+  if (taosHashPut(conn.pQTable, &registeredQid, sizeof(registeredQid), &ctx, sizeof(ctx)) != 0) {
+    return -2;
+  }
+
+  STransMsgHead head = {0};
+  head.version = TRANS_VER;
+  head.msgLen = htonl(sizeof(head));
+  head.msgType = TDMT_SCH_TASK_RELEASE;
+  head.qid = taosHton64(releaseQid);
+
+  (void)cliHandleState_mayHandleReleaseResp(&conn, &head);
+
+  int32_t present = taosHashGet(conn.pQTable, &registeredQid, sizeof(registeredQid)) != NULL;
+
+  while (transQueueSize(&conn.reqsSentOut) > 0) {
+    queue* item = transQueuePop(&conn.reqsSentOut);
+    destroyReq(QUEUE_DATA(item, SCliReq, q));
+  }
+  while (transQueueSize(&conn.reqsToSend) > 0) {
+    queue* item = transQueuePop(&conn.reqsToSend);
+    destroyReq(QUEUE_DATA(item, SCliReq, q));
+  }
+  taosHashCleanup(conn.pQTable);
+  taosHashCleanup(thread.pIdConnTable);
+  return present;
+}
 #else
 #include "../src/transComm.c"
 

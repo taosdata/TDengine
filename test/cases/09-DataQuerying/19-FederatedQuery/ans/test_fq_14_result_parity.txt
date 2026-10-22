@@ -3391,7 +3391,7 @@ RESULT
 5|50
 ---
 ### null-12 POS
-SQL: SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST
+SQL: SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST, id
 RESULT
 1|10
 3|30

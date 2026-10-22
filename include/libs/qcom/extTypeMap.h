@@ -65,8 +65,11 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
 
 /**
  * Return the precision accepted by an external timestamp column in predicates.
- * MySQL DATETIME/TIMESTAMP fractional precision is derived from extTypeName;
- * PostgreSQL and InfluxDB use their native microsecond/nanosecond precision.
+ * MySQL DATETIME/TIMESTAMP, PostgreSQL TIMESTAMP and SQL Server
+ * DATETIME2/DATETIMEOFFSET derive it from the fractional precision declared in
+ * extTypeName; SQL Server SMALLDATETIME/DATE are millisecond-aligned, its
+ * DATETIME (1/300 s ticks) and the remaining types fall back to microsecond,
+ * and InfluxDB uses its native nanosecond precision.
  */
 int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName,
                                   int8_t fallbackPrecision);

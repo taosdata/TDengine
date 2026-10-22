@@ -29,10 +29,12 @@ _EXTERNAL_DB = "vt_window_federated_batch_ext"
 _MYSQL_SOURCE_A = "vt_window_batch_mysql_a"
 _MYSQL_SOURCE_B = "vt_window_batch_mysql_b"
 _POSTGRES_SOURCE = "vt_window_batch_pg"
+_SQLSERVER_SOURCE = "vt_window_batch_ss"
 _EXTERNAL_SOURCES = (
     _MYSQL_SOURCE_A,
     _MYSQL_SOURCE_B,
     _POSTGRES_SOURCE,
+    _SQLSERVER_SOURCE,
 )
 
 
@@ -43,7 +45,7 @@ class TestVTablePlanWindowFederatedBatch:
         ExtSrcEnv.ensure_qnode()
         cls.adapters = {
             backend: VtableQueryUtil._EXT_SOURCE_ADAPTERS[backend]()
-            for backend in ("mysql", "postgres")
+            for backend in ("mysql", "postgres", "sqlserver")
         }
         for adapter in cls.adapters.values():
             adapter.ensure_running()
@@ -91,6 +93,31 @@ class TestVTablePlanWindowFederatedBatch:
             ],
         )
 
+        ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_create_db(_EXTERNAL_DB)
+        # SQL Server row values are one decimal order above the MySQL / PG
+        # fixtures so the Remote SQL text and the merged window results stay
+        # distinguishable between sources.
+        ExtSrcEnv.sqlserver_exec(
+            _EXTERNAL_DB,
+            [
+                "create table dbo.remote_primary "
+                "(ts datetime2(6) not null primary key, state_col int, v int)",
+                "insert into dbo.remote_primary values "
+                "('2024-01-01 00:00:00', 1, 10000), "
+                "('2024-01-01 00:00:01', 1, 20000), "
+                "('2024-01-01 00:00:02', 2, 30000), "
+                "('2024-01-01 00:00:03', 2, 40000)",
+                "create table dbo.remote_aux "
+                "(ts datetime2(6) not null primary key, v int)",
+                "insert into dbo.remote_aux values "
+                "('2024-01-01 00:00:00', 100000), "
+                "('2024-01-01 00:00:01', 200000), "
+                "('2024-01-01 00:00:02', 300000), "
+                "('2024-01-01 00:00:03', 400000)",
+            ],
+        )
+
     @classmethod
     def create_external_sources(cls):
         for source in _EXTERNAL_SOURCES:
@@ -112,6 +139,14 @@ class TestVTablePlanWindowFederatedBatch:
             f"database={_EXTERNAL_DB} schema=public"
         )
 
+        sqlserver = cls.adapters["sqlserver"]
+        tdSql.execute(
+            f"create external source {_SQLSERVER_SOURCE} type='sqlserver' "
+            f"host='{sqlserver.host}' port={sqlserver.port} "
+            f"user='{sqlserver.user}' password='{sqlserver.password}' "
+            f"database={_EXTERNAL_DB} schema=dbo"
+        )
+
     @classmethod
     def create_virtual_stables(cls):
         mysql_primary_a = (
@@ -123,6 +158,15 @@ class TestVTablePlanWindowFederatedBatch:
         mysql_aux_a = f"{_MYSQL_SOURCE_A}.{_EXTERNAL_DB}.remote_aux"
         mysql_aux_b = f"{_MYSQL_SOURCE_B}.{_EXTERNAL_DB}.remote_aux"
         postgres = f"{_POSTGRES_SOURCE}.{_EXTERNAL_DB}.remote_values"
+        # SQL Server: the middle segment of a three-part path is the schema
+        # (DS §5.3.4), so the database is qualified explicitly (five-part
+        # column path source.database.schema.table.column).
+        sqlserver_primary = (
+            f"{_SQLSERVER_SOURCE}.{_EXTERNAL_DB}.dbo.remote_primary"
+        )
+        sqlserver_aux = (
+            f"{_SQLSERVER_SOURCE}.{_EXTERNAL_DB}.dbo.remote_aux"
+        )
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
         tdSql.execute(f"create database {_LOCAL_DB} precision 'ns'")
@@ -194,6 +238,35 @@ class TestVTablePlanWindowFederatedBatch:
             "using vst_local_external tags (4)"
         )
 
+        tdSql.execute(
+            "create stable vst_ss_sources "
+            "(ts timestamp, state_col int, mysql_a_v int, "
+            "mysql_b_v int, postgres_v int, sqlserver_v int) "
+            "tags (scenario int) virtual 1"
+        )
+        tdSql.execute(
+            "create vtable vct_ss_sources ("
+            f"state_col from {mysql_primary_a}.state_col, "
+            f"mysql_a_v from {mysql_primary_a}.v, "
+            f"mysql_b_v from {mysql_aux_b}.v, "
+            f"postgres_v from {postgres}.v, "
+            f"sqlserver_v from {sqlserver_primary}.v) "
+            "using vst_ss_sources tags (7)"
+        )
+
+        tdSql.execute(
+            "create stable vst_local_ss "
+            "(ts timestamp, state_col int, local_v int, sqlserver_v int) "
+            "tags (scenario int) virtual 1"
+        )
+        tdSql.execute(
+            "create vtable vct_local_ss ("
+            "state_col from local_values.state_col, "
+            "local_v from local_values.v, "
+            f"sqlserver_v from {sqlserver_aux}.v) "
+            "using vst_local_ss tags (8)"
+        )
+
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -201,6 +274,7 @@ class TestVTablePlanWindowFederatedBatch:
             tdSql.execute(f"drop external source if exists {source}")
         ExtSrcEnv.mysql_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.pg_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
 
     @staticmethod
     def compare_plan_and_results():
@@ -252,6 +326,19 @@ class TestVTablePlanWindowFederatedBatch:
                 "state_window(state_col, 0) order by _wstart",
                 ((1, 3, 30, 300, 3000), (2, 7, 70, 700, 7000)),
             ),
+            (
+                "select _wstart, _wend, state_col, sum(mysql_a_v), "
+                "sum(mysql_b_v), sum(postgres_v), sum(sqlserver_v) "
+                f"from {_LOCAL_DB}.vst_ss_sources "
+                "state_window(state_col, 0) order by _wstart",
+                ((1, 30, 300, 3000, 30000), (2, 70, 700, 7000, 70000)),
+            ),
+            (
+                "select _wstart, _wend, state_col, sum(local_v), "
+                f"sum(sqlserver_v) from {_LOCAL_DB}.vst_local_ss "
+                "state_window(state_col, 0) order by _wstart",
+                ((1, 3, 300000), (2, 7, 700000)),
+            ),
         )
 
         session_cases = (
@@ -275,6 +362,13 @@ class TestVTablePlanWindowFederatedBatch:
                 "session(ts, 1500a) order by _wstart",
                 ((2.5, 25.0, 250.0, 2500.0),),
             ),
+            (
+                "select _wstart, _wend, sum(mysql_a_v), sum(mysql_b_v), "
+                "sum(postgres_v), sum(sqlserver_v) "
+                f"from {_LOCAL_DB}.vst_ss_sources "
+                "session(ts, 1500a) order by _wstart",
+                ((100, 1000, 10000, 100000),),
+            ),
         )
 
         event_cases = (
@@ -293,6 +387,14 @@ class TestVTablePlanWindowFederatedBatch:
                 "event_window start with state_col = 1 "
                 "end with state_col = 2 order by _wstart",
                 ((2.0, 20.0, 200.0, 2000.0),),
+            ),
+            (
+                "select _wstart, _wend, sum(mysql_a_v), "
+                "avg(mysql_b_v), avg(postgres_v), avg(sqlserver_v) "
+                f"from {_LOCAL_DB}.vst_ss_sources "
+                "event_window start with state_col = 1 "
+                "end with state_col = 2 order by _wstart",
+                ((60, 200.0, 2000.0, 20000.0),),
             ),
         )
 
@@ -325,6 +427,16 @@ class TestVTablePlanWindowFederatedBatch:
                 (
                     (1.5, 15.0, 150.0, 1500.0),
                     (3.5, 35.0, 350.0, 3500.0),
+                ),
+            ),
+            (
+                "select _wstart, _wend, sum(mysql_a_v), sum(mysql_b_v), "
+                "sum(postgres_v), sum(sqlserver_v) "
+                f"from {_LOCAL_DB}.vst_ss_sources "
+                "interval(2s) order by _wstart",
+                (
+                    (30, 300, 3000, 30000),
+                    (70, 700, 7000, 70000),
                 ),
             ),
         )

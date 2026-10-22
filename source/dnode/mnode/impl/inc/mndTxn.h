@@ -125,9 +125,24 @@ typedef struct SMndShadowOp {
 int32_t mndTxnAddShadowOp(SMnode* pMnode, txn_id_t txnId, int8_t opType, const char* stbName, tb_uid_t uid,
                           const char* dbName, void* pReqData, int32_t reqDataLen);
 
+// Remove the latest matching op after a statement fails before its internal transaction is proposed.
+void mndTxnRemoveShadowOp(SMnode* pMnode, txn_id_t txnId, int8_t opType, const char* name, tb_uid_t uid);
+
 // Check if any active txn (other than callerTxnId) has shadow ops on stbName.
 // Returns TSDB_CODE_TXN_RESOURCE_BUSY if conflict found, 0 otherwise.
 int32_t mndTxnCheckStbConflict(SMnode* pMnode, const char* stbName, txn_id_t callerTxnId);
+
+// Check pending stream names independently of the STB namespace.
+int32_t mndTxnCheckStreamConflict(SMnode* pMnode, const char* name, txn_id_t callerTxnId);
+
+// Persisted in CREATE_STREAM STrans.userData until the output table and stream marker finish.
+typedef struct {
+  txn_id_t txnId;
+  char     name[TSDB_STREAM_FNAME_LEN];
+} SMndTxnStreamCreate;
+
+// Return MND_TRANS_CONFLICT while this txn has a pending internal CREATE_STREAM transaction.
+int32_t mndTxnCheckPendingStreamCreate(SMnode* pMnode, txn_id_t txnId);
 
 // Merge a single vgId into the txn's participant set, so it receives TDMT_VND_TXN_COMMIT /
 // TDMT_VND_TXN_ROLLBACK at the end of the txn. Needed when the mnode issues a vnode DDL on
@@ -140,6 +155,8 @@ int32_t mndTxnAddVgId(SMnode* pMnode, txn_id_t txnId, int32_t vgId);
 // Get ALTER STB shadow ops for a specific STB in a given txn.
 // Returns 0 on success; *ppOps is an SArray of SMndShadowOp (caller destroys SArray, not contents).
 // *ppOps is NULL if no ALTER ops found.
+// Resumes deferred shadow recovery; returns MND_TRANS_CONFLICT while internal stream
+// creation is pending, or the recovery error. On error *ppOps remains NULL.
 // The returned ops are shallow copies of the txn's own records: pReqData remains owned by
 // the txn (freed when the txn ends), so callers must NOT free pReqData and must NOT retain
 // the ops beyond the current request - they are only valid while the txn is alive.

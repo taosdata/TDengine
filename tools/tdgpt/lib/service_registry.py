@@ -58,10 +58,15 @@ class ServiceRegistry:
         "elasticnet",
         "svr",
         "polynomial_regression",
+        # `xgboost` (bare) belongs to the classification models: this list is
+        # checked before it, so reusing the name here would route classifiers away.
+        "xgboost_regression",
+        "pls",
     ]
     _classification_models = [
         "logistic_regression",
         "decision_tree",
+        "xgboost",
     ]
     _clustering_models = ["kmeans", "dbscan", "gmm"]
 

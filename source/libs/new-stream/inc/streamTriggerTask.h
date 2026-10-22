@@ -718,6 +718,7 @@ struct SSTriggerRealtimeContext {
   SSTriggerNewVtableMerger    *pMerger;
   SArray                      *pParentWindows;  // SArray<SSTriggerNotifyWindow>, valid parent windows in this round
   SArray                      *pWindows;        // SArray<SSTriggerNotifyWindow>, valid windows in this round
+  SSHashObj                   *pSparseWindows;  // pending sliding windows, retained across pseudo-column pulls
   SArray                      *pNotifyParams;   // SArray<SSTriggerCalcParam>
   STimeWindow                  calcRange;
   SSTriggerCalcParam          *pCurParam;

@@ -114,6 +114,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
   column_reference:
     [db_name.]table_name.col_name
     | ext_source_name.db_name.table_name.col_name [WHERE filter_condition]
+    | ext_source_name.database_name.schema_name.table_name.col_name [WHERE filter_condition]
     | series_alias.col_name
 
   vtag_def:
@@ -121,7 +122,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     | tag_name type_name FROM [db_name.]table_name.tag_name
 ```
 
-For a TDengine table or an existing virtual table, `column_reference` is `[db_name.]table_name.col_name`, so the column definition remains `type_name [FROM [db_name.]table_name.col_name]`. `ext_source_name` names an existing external data source, and `series_alias` names an InfluxDB `SERIES` declaration. For the optional `WHERE filter_condition` on external references, see [External Column Reference Filters](#external-column-reference-filters).
+For a TDengine table or an existing virtual table, `column_reference` is `[db_name.]table_name.col_name`, so the column definition remains `type_name [FROM [db_name.]table_name.col_name]`. `ext_source_name` names an existing external data source, and `series_alias` names an InfluxDB `SERIES` declaration. For the optional `WHERE filter_condition` on external references, see [External Column Reference Filters](#external-column-reference-filters). SQL Server external column references support three forms: the three-part `ext_source_name.table_name.col_name` (requires default `DATABASE` and `SCHEMA` on the source), the four-part `ext_source_name.schema.table_name.col_name` (requires a default `DATABASE`), and the five-part `ext_source_name.database.schema.table_name.col_name`; relative forms are expanded to the full five-part namespace when stored.
 
 The same `column_reference` definition applies to virtual-subtable column reference lists and to `ALTER VTABLE` with `ADD COLUMN ... FROM` or `ALTER COLUMN ... SET`.
 
@@ -222,7 +223,7 @@ Usage Notes:
 10. Virtual supertables only support creating virtual subtables, and virtual subtables can only use virtual supertables as templates.
 11. Ensure virtual tables' column/tag data types match their source columns/tags.
 12. Virtual table names must be unique within a database and cannot conflict with table names, and it is recommended that view names do not duplicate virtual table names (not enforced). When a view and a virtual table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the virtual table with the same name.
-13. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. TDengine supertables, views, and TDengine tables with composite primary keys are not supported as direct sources. For MySQL and PostgreSQL external tables, see [External Column Reference Filters](#external-column-reference-filters).
+13. When creating virtual subtables or virtual basic tables, `FROM` columns can come from regular tables, subtables, or existing virtual tables. TDengine supertables, views, and TDengine tables with composite primary keys are not supported as direct sources. For MySQL, PostgreSQL, and SQL Server external tables, see [External Column Reference Filters](#external-column-reference-filters).
 14. In `TAGS (...)` for a virtual subtable, each tag can be a literal value or a tag-ref. Supported tag-ref forms are `table.tag`, `FROM table.tag`, and `tag_name FROM table.tag`. Use `db_name.table.tag` for cross-database references.
 15. Reference-related limits and behaviors are described in the "Virtual-Table Reference Capabilities" section below.
 16. Rules for virtual basic table tags (the `TAGS` clause) are described in the "Virtual Basic Table Tags" section below.
@@ -232,7 +233,7 @@ Usage Notes:
 
 ### External Column Reference Filters
 
-Virtual basic tables and virtual subtables can reference data columns in MySQL or PostgreSQL external tables and append `WHERE` to each column reference. The condition is saved in the virtual-table definition. Each query filters the external rows before aligning the referenced columns by timestamp.
+Virtual basic tables and virtual subtables can reference data columns in MySQL, PostgreSQL, or SQL Server external tables and append `WHERE` to each column reference. The condition is saved in the virtual-table definition. Each query filters the external rows before aligning the referenced columns by timestamp.
 
 ```sql
 filter_condition:
@@ -245,10 +246,10 @@ comparison_operator: = | != | <> | < | <= | > | >=
 
 **Filter constraints**
 
-- `WHERE` is supported only for direct data-column references to MySQL or PostgreSQL external tables. It cannot be appended to references to TDengine tables, other virtual tables, tag columns, or InfluxDB `SERIES`. Indirect references through other virtual tables retain filters already saved on the underlying references.
+- `WHERE` is supported only for direct data-column references to MySQL, PostgreSQL, or SQL Server external tables. It cannot be appended to references to TDengine tables, other virtual tables, tag columns, or InfluxDB `SERIES`. Indirect references through other virtual tables retain filters already saved on the underlying references.
 - The external table must have a primary key containing exactly one column that maps to TDengine `TIMESTAMP`. Every other primary-key column must be covered by `column = literal` in each reference's `WHERE`, ensuring at most one row per timestamp after filtering. `WHERE` is optional when the timestamp column is the entire primary key.
 - Each comparison must have an unqualified column name from the current external table on the left and a numeric, string, or boolean literal on the right. The filter may use external columns that are not referenced by the virtual table. Literals must convert to the external column's data type; timestamp values must be string literals.
-- Each external column may appear only once in a filter. MySQL column matching is case insensitive. PostgreSQL column matching is case sensitive: identifiers without backticks are converted to lowercase, so use backticks to preserve column names containing uppercase letters. For example, PostgreSQL columns named `device` and `Device` are distinct and may both appear in the same filter. Non-timestamp primary-key columns require `=`; other columns support the comparison operators listed above. Multiple comparisons must be joined by `AND`; parentheses are allowed.
+- Each external column may appear only once in a filter. MySQL and SQL Server column matching is case insensitive (for SQL Server, the database collation applies). PostgreSQL column matching is case sensitive: identifiers without backticks are converted to lowercase, so use backticks to preserve column names containing uppercase letters. For example, PostgreSQL columns named `device` and `Device` are distinct and may both appear in the same filter. Non-timestamp primary-key columns require `=`; other columns support the comparison operators listed above. Multiple comparisons must be joined by `AND`; parentheses are allowed.
 - `OR`, `NOT`, `IN`, `LIKE`, `IS NULL`, `NULL` values, functions, arithmetic expressions, subqueries, and parameter placeholders are not supported. `BETWEEN` expands into two comparisons of the same column and is therefore also unsupported.
 - A query's `WHERE` cannot replace the primary-key filter required in a column definition. Different columns can reference different filtered results from the same external table. Filters apply independently; timestamps are the union of the filtered results for references involved in the query, with missing values filled with `NULL`.
 
@@ -347,7 +348,7 @@ In a virtual table, a referenced column or tag does not store copied data. Inste
 
 - A tag-ref must point to a tag column, not a data column, and the source tag type must match the target virtual tag type.
 - A col-ref must point to a data column, not a tag column, and the source column type must match the target virtual column type.
-- TDengine supertables, views, and TDengine tables with composite primary keys are not supported as reference sources. MySQL and PostgreSQL external tables can use composite primary keys that meet the [filter requirements](#external-column-reference-filters).
+- TDengine supertables, views, and TDengine tables with composite primary keys are not supported as reference sources. MySQL, PostgreSQL, and SQL Server external tables can use composite primary keys that meet the [filter requirements](#external-column-reference-filters).
 - Reference cycles are not allowed and are rejected during validation.
 - The total reference-chain depth cannot exceed 32 hops; validation or query execution returns `0x8000620C` when the chain exceeds that limit.
 

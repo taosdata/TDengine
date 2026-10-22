@@ -40,6 +40,36 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 模型权重使用独立模型资源包。产品验收应记录实际运行的解释器路径及版本，
 不得以打包工具 Python 或系统 Python 代替主 venv、TSFM runtime 执行导入和推理检查。
 
+### 2.1.2 产品与资源版本分别管理
+
+以下为 `3.4.3.3` 本轮交付和验收使用的版本；后续发版以实际发布清单、资源
+manifest 和 SHA-256 为准，不根据产品版本推导资源版本。
+
+| 对象 | 本轮版本 | 升级方式 |
+| --- | --- | --- |
+| TDgpt Enterprise Lite 程序 | `3.4.3.3` | 使用对应平台的产品安装包，或替换对应架构的 Lite 镜像 |
+| 安装用 Python runtime | Python `3.12.12` | 由依赖部署流程提供，不能用打包工具或系统 Python 代替 |
+| Lite 主 venv | `1.0.2` | 安装/升级产品时显式传入对应平台的离线包；Apex 使用清单中的依赖版本和 SHA-256 |
+| 动态资源发布清单 | 默认 `1.0.0` | `resource check/apply --release <版本、URL 或本地清单>` 显式选择 |
+| 共享 TSFM runtime | 默认 `1.0.0` 清单中的 runtime | 通过资源命令单独导入或替换，不随主 venv 升级 |
+| 模型权重 | 各模型独立版本 | 按发布清单中的 `model_version`、资源版本与 SHA-256 识别 |
+
+`1.0.2` 是 Lite 主 venv 资源版本，不是 Python 版本，也不表示动态模型已切换到
+`tsfm/1.0.2`。当前 CLI 的 `--release` 默认值仍为 `1.0.0`，不能仅修改本文示例
+就视为已升级动态资源。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
+
+本轮三平台主 venv 资源为：
+
+```text
+tdengine-tdgpt-lite-venv-1.0.2-linux-x64.tar.xz
+tdengine-tdgpt-lite-venv-1.0.2-linux-arm64.tar.xz
+tdengine-tdgpt-lite-venv-1.0.2-windows-x64.zip
+```
+
+资源位于 `tdengine-tdgpt-enterprise/deps/`；构建与验收时应核对清单，复用已发布
+资源不等于从 requirements 重建环境。资源构建方法见
+[TDGPT-LITE-BUILD-CN.md](TDGPT-LITE-BUILD-CN.md)。
+
 ### 2.2 安装行为
 
 Lite 安装流程必须显式使用 `--model-source none`，只安装 TDgpt 程序、配置、控制脚本和主 venv，并注册对应平台的服务。安装过程中不得扫描、下载或导入模型资源、TSFM runtime 或用户模型 venv。
@@ -222,7 +252,7 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
   "runtimes": [
     {
       "kind": "runtime",
-      "name": "tsfm",
+      "name": "tsfm_runtime",
       "version": "1.0.0",
       "platform": "linux",
       "arch": "x64",
@@ -332,6 +362,42 @@ HTTP 错误，也不触发自动升级。手工保留目录但缺少状态文件
 以上通道指针、清单缓存、`--release-manifest` 和细分状态为后续实现范围；当前版本
 仍支持通过 `--release <本地-json路径>` 手工执行离线 `check`。
 
+### 7.2.2 当前可执行的升级操作
+
+升级 Lite 程序或主 venv 时，使用产品安装器并显式提供所需主 venv 包；
+`resource apply/import` 不管理主 venv。已有模型和共享 TSFM runtime 保留，
+不会因为产品或主 venv 版本变化自动下载新资源。
+
+升级共享 TSFM runtime 前，先记录正在运行的模型并停止全部模型 worker。
+使用 `--replace` 显式替换，再校验资源并逐个恢复原先运行的模型。例如 Linux：
+
+```bash
+sudo /usr/bin/taosanodectl model status all
+sudo /usr/bin/taosanodectl model stop all
+sudo /usr/bin/taosanodectl resource import \
+  --package "/opt/tdgpt-offline/<新版本的当前平台-runtime-归档>" \
+  --expected-sha256 "<发布清单中的归档SHA256>" --replace
+sudo /usr/bin/taosanodectl resource verify all
+sudo /usr/bin/taosanodectl model start "<原先运行的模型名>"
+sudo /usr/bin/taosanodectl model status "<原先运行的模型名>"
+```
+
+Windows 使用相同参数，通过第 10.2 节的 `.bat` 入口执行。只升级一个模型时，
+停止该模型后导入其 ZIP 并指定 `--replace`，共享 runtime 无需同时替换。
+在线升级也必须显式选择已发布清单；先 `resource check`，再对目标执行
+`resource apply <目标> --release <清单> --replace`。共享 runtime 的目标名为
+`tsfm_runtime`；不要使用 `all` 代替单个目标，以免安装清单中的全部模型。
+
+即使 Python 依赖版本不变，仅清理文件或改变归档压缩格式也会改变归档 SHA-256。
+发布新的资源包时必须更新文件名、大小、SHA-256 和对应资源版本，不覆盖已发布的
+不可变清单。旧清单仍指向旧 gzip 文件时，不能只把下载 URL 后缀改成 `.tar.xz`；
+须先发布并核验实际 XZ 文件及新清单，再显式切换消费方。
+
+目录校验通过不等于模型可用；还需确认主服务就绪，并完成相关模型的权重加载及
+预测/补值请求。以下原子切换、整组升级和启动失败自动回滚描述包含目标设计，
+当前操作不能依赖自动恢复全部模型；应保留旧清单和资源包，失败时停止相关模型，
+使用旧包显式替换并重新验收。
+
 ### 7.3 下载与缓存
 
 下载缓存位于 `resource/cache`。资源先下载到以归档 SHA-256 命名的 `.part` 文件，支持 HTTP Range 断点续传；下载完成并通过 SHA-256 校验后，再原子改名为正式缓存文件。缓存中已有相同 SHA-256 的完整归档时不得重复下载。
@@ -367,7 +433,9 @@ Lite 升级不得删除 `model/dynamic`、`model/tsfm`、`model/user`、`model_v
 再通过 `taosanodectl resource import` 导入。导入器只从该路径读取归档，资源
 实际安装到 TDgpt 数据目录；导入成功后可删除临时归档。
 
-内网发布目录为
+以下是当前默认 `1.0.0` 发布清单对应的资源，Linux runtime 仍为历史 gzip 文件；
+不要将其误认为本轮 Lite 主 venv `1.0.2`。新构建的 Linux runtime 使用 XZ，
+导入时以所选发布清单的实际文件名与 SHA-256 为准。内网目录为
 `https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/`。离线介质
 应从该目录取得以下文件；发布清单用于核对版本和 SHA-256，不作为
 `resource import --package` 的输入。
@@ -423,7 +491,8 @@ TSFM runtime 时必须先停止全部使用它的模型；升级单个模型时�
 
 ## 8. Docker 部署
 
-Docker 镜像只包含 Lite 服务与主运行环境。Docker 部署必须分别挂载以下三个动态
+Lite Docker 镜像只包含 Lite 服务与主运行环境；Full 镜像仍保留预置模型及其
+运行环境，不能按 Lite 的“无模型”初始状态验收。Lite Docker 部署必须分别挂载以下三个动态
 资源目录，而不是覆盖整个 TDgpt 数据根目录：
 
 ```yaml
@@ -522,11 +591,18 @@ API 请求的 resource_base_url
 
 每个平台和架构分别发布：
 
-- TDgpt Lite 安装包；
-- Python runtime；
-- Lite 主 venv 离线包；
-- 官方 TSFM venv 资源包，Linux 使用 `tar.gz`，Windows 使用 ZIP；
+- TDgpt Lite 安装包：Linux 新包使用 `tar.xz`，Windows 使用 EXE；
+- Python runtime：Linux 新构建包使用 `tar.xz`，Windows 使用 ZIP；已发布依赖清单仍可引用历史 gzip；
+- Lite 主 venv 离线包：Linux `tar.xz`，Windows ZIP；
+- 官方 TSFM venv 资源包：Linux 新构建包使用 `tar.xz`，Windows ZIP；当前默认 `1.0.0` 清单仍引用 Linux gzip；
 - 每个官方 TSFM 模型资源包，所有平台统一使用 ZIP。
+
+Linux 产品安装包直接包含程序目录，不再生成内层 `package.tar.gz` 或
+`package.tar.xz`。Lite 镜像的离线 `docker save` 归档使用 XZ，文件名为
+`tdengine-tdgpt-enterprise-lite-docker-<产品版本>-linux-<x64|arm64>.tar.xz`；
+它与产品安装包是不同产物。XZ 是离线归档格式，不改变 registry 的镜像层格式。
+Linux 解压目标需提供 `xz`，Python 资源导入解释器需支持 `lzma`；历史 gzip 导入
+继续兼容。格式变化须同步构建、NAS 文件名、Apex 清单、下载 URL、SHA-256 和验收入口。
 
 共享 TSFM venv 包的 manifest 必须绑定 `platform`、`arch`、`python_version`、`runtime_id` 和 `requirements_sha256`。不同平台、架构或 runtime 的 venv 包不得混用。下载目录或产品资源清单必须提供每个 venv 包和模型 ZIP 的归档 SHA-256；`requirements_sha256` 只校验依赖锁文件，不能替代资源包完整性校验。
 
@@ -547,7 +623,7 @@ API 请求的 resource_base_url
 
 ### 10.1 唯一控制入口
 
-后续以 `taosanodectl` 作为跨平台唯一的稳定接口。它调用 `taosanode_service.py`，屏蔽 Linux 的 systemd/进程模式、Windows 服务模式和 Docker 前台模式的差异；业务脚本、安装器和自动化平台不得直接调用 `start.sh`、`stop.sh` 或 Python 脚本。
+对外以 `taosanodectl` 作为跨平台统一的稳定接口。它调用 `taosanode_service.py`，屏蔽 Linux 的 systemd/进程模式、Windows 服务模式和 Docker 前台模式的差异。业务脚本和自动化平台应使用该接口；安装器及兼容包装脚本内部仍可调用 `taosanode_service.py`。
 
 ```text
 taosanodectl service start
@@ -592,18 +668,27 @@ taosanodectl model status [<model_name|all>]
 | Windows 安装包 | `C:\TDengine\taosanode\bin\taosanodectl.bat` |
 | Docker | 容器内 `taosanodectl`；主服务由容器 entrypoint 前台运行 |
 
-Linux 包可额外提供以下兼容别名，全部只转发到 `taosanodectl`：
+Linux 安装器当前只创建以下两个模型命令兼容链接；脚本内部调用
+`taosanode_service.py` 的 `model-start`、`model-stop`：
 
 ```text
-/usr/bin/start-taosanode  -> taosanodectl service start
-/usr/bin/stop-taosanode   -> taosanodectl service stop
-/usr/bin/status-taosanode -> taosanodectl service status
-/usr/bin/start-model      -> taosanodectl model start
-/usr/bin/stop-model       -> taosanodectl model stop
-/usr/bin/status-model     -> taosanodectl model status
+/usr/bin/start-model -> <安装目录>/bin/start-model.sh
+/usr/bin/stop-model  -> <安装目录>/bin/stop-model.sh
 ```
 
-Windows 提供同名 `.bat` 包装命令。现有 `start.sh`、`stop.sh`、`start-model.sh`、`stop-model.sh` 仅是包内兼容实现，不再作为对外文档或自动化接口。
+Linux 当前不创建 `start-taosanode`、`stop-taosanode`、`status-taosanode` 或
+`status-model` 别名；主服务使用 `taosanodectl service`，模型状态使用
+`taosanodectl model status`。`start-model.sh`、`stop-model.sh` 保留在包内；
+`start.sh`、`stop.sh` 以及 `start-tdtsfm.sh`、`stop-tdtsfm.sh`、
+`start-time-moe.sh`、`stop-time-moe.sh` 四个单模型包装脚本已移除。
+
+Windows 打包工具在安装目录的 `bin` 下生成 `start-taosanode.bat`、
+`stop-taosanode.bat`、`status-taosanode.bat`、`start-model.bat`、
+`stop-model.bat` 和 `status-model.bat`，内部直接调用 `taosanode_service.py`。
+这些兼容包装脚本与 `taosanodectl.bat` 的参数及交互行为并不完全相同：例如
+Windows 的模型启停包装脚本省略目标时默认使用 `all`，部分脚本会等待按键。
+自动化应使用 `taosanodectl.bat service ...` 或 `taosanodectl.bat model ...`，
+并显式指定模型启停目标。
 
 ### 10.3 职责边界
 

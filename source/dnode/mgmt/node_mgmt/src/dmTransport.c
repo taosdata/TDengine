@@ -167,9 +167,18 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t       code = -1;
   SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
-  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
-
   const STraceId *trace = &pRpc->info.traceId;
+
+  // Devon scan item 57 (msgType hardening): an out-of-range msgType used to index
+  // msgHandles via TMSG_INDEX() before any validation, reading tMsgDict out of bounds
+  // and dereferencing a wild handle. Drop unknown message types instead.
+  if (!tmsgIsValid(pRpc->msgType)) {
+    dGError("msg:%p, invalid msgType:0x%x, drop it", pRpc, pRpc->msgType);
+    code = TSDB_CODE_MSG_NOT_PROCESSED;
+    goto _OVER;
+  }
+
+  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   dGDebug("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64 " %" PRIx64 ":%" PRIx64, TMSG_INFO(pRpc->msgType),
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 

@@ -14,7 +14,7 @@ The source code for the Node.js connector is hosted on [GitHub](https://github.c
 
 ## Node.js Version Compatibility
 
-Supports Node.js 14 and above.
+Supports Node.js 18 and above (22 recommended).
 
 ## Supported Platforms
 
@@ -87,7 +87,7 @@ The table below shows the mapping between TDengine DataType and Node.js DataType
 
 ## Usage Restrictions
 
-- The Node.js connector (`@tdengine/websocket`) supports Node.js version 14 and above. Versions below 14 may have package compatibility issues.
+- The Node.js connector (`@tdengine/websocket`) supports Node.js version 18 and above. Versions below 18 may have package compatibility issues.
 - Currently, only WebSocket connections are supported, and taosAdapter needs to be started in advance.
 - After using the connector, you need to call taos.connectorDestroy(); to release the connector resources.
 - To set the time zone for time strings in SQL statements, you need to configure the time zone settings of taosc on the machine where taosAdapter is located.

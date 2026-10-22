@@ -19,12 +19,14 @@ from lib.base import AbstractClassificationService
 from lib.dynamic.algo.classifier import (
     DecisionTreeClassifier,
     LogisticRegressionClassifier,
+    XGBoostClassifier,
 )
 from lib.log import AppLogger
 
 _CLASSIFIER_CLASSES = {
     "logistic_regression": LogisticRegressionClassifier,
     "decision_tree": DecisionTreeClassifier,
+    "xgboost": XGBoostClassifier,
 }
 
 
@@ -33,7 +35,7 @@ class DynamicClassificationService(AbstractClassificationService):
     A simple dynamic classification service driven by a JSON config file.
     The classifier is constructed and executed when execute() is called.
 
-    Currently supported algorithms: logisticregression, decisiontree.
+    Currently supported algorithms: logistic_regression, decision_tree, xgboost.
     """
 
     def __init__(self, name: str, desc: str, algo: str, path: str):

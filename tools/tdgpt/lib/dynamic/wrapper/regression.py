@@ -20,9 +20,11 @@ from lib.dynamic.algo.regressioner import (
     ElasticNetRegressioner,
     LassoRegressioner,
     LinearRegressioner,
+    PLSRegressioner,
     PolynomialRegressioner,
     RidgeRegressioner,
     SVRRegressioner,
+    XGBoostRegressioner,
 )
 from lib.log import AppLogger
 
@@ -33,6 +35,10 @@ _DETECTOR_CLASSES = {
     "elasticnet": ElasticNetRegressioner,
     "polynomial": PolynomialRegressioner,
     "svr": SVRRegressioner,
+    # `xgboost` alone is the classification model; the registry maps one name to
+    # one service, so the regressor needs its own.
+    "xgboost_regression": XGBoostRegressioner,
+    "pls": PLSRegressioner,
 }
 
 
@@ -41,7 +47,8 @@ class DynamicRegressionService(AbstractRegressionService):
     A simple dynamic regression service driven by a JSON config file.
     The detector is constructed and executed when execute() is called.
 
-    Currently supported algorithms: linear, lasso, ridge, elasticnet, polynomial, svr.
+    Currently supported algorithms: linear, lasso, ridge, elasticnet, polynomial, svr,
+    xgboost_regression, pls.
     """
 
     def __init__(self, name: str, desc: str, algo: str, path: str):

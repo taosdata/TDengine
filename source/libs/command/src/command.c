@@ -839,7 +839,16 @@ static int32_t appendColumnFields(char* buf, int32_t bufSize, int32_t* len, STab
 
     if (hasColRef(pCfg->tableType) && pRef && pRef->hasRef) {
       if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
-        if (appendFmt(type, LTYPE_LEN, &typeLen, " FROM `%s`", pRef->refSourceName) != TSDB_CODE_SUCCESS || appendFmt(type, LTYPE_LEN, &typeLen, ".`%s`", pRef->refDbName) != TSDB_CODE_SUCCESS) return TSDB_CODE_OUT_OF_BUFFER;
+        /* Render the schema explicitly when the reference carries one: a
+         * four-part SQL Server display form is re-parsed with the middle
+         * segment as the schema, so replaying a rendered statement without it
+         * would silently bind another namespace.  SQL Server only stores a
+         * schema here when the reference path named one; PostgreSQL stores its
+         * creation-time default schema, whose five-part form also replays. */
+        if (appendFmt(type, LTYPE_LEN, &typeLen, " FROM `%s`", pRef->refSourceName) != TSDB_CODE_SUCCESS ||
+            appendFmt(type, LTYPE_LEN, &typeLen, ".`%s`", pRef->refDbName) != TSDB_CODE_SUCCESS) return TSDB_CODE_OUT_OF_BUFFER;
+        if (pRef->refSchemaName[0] != '\0' &&
+            appendFmt(type, LTYPE_LEN, &typeLen, ".`%s`", pRef->refSchemaName) != TSDB_CODE_SUCCESS) return TSDB_CODE_OUT_OF_BUFFER;
       } else {
         if (appendFmt(type, LTYPE_LEN, &typeLen, " FROM `%s`", pRef->refDbName) != TSDB_CODE_SUCCESS) return TSDB_CODE_OUT_OF_BUFFER;
       }
@@ -895,7 +904,7 @@ static int32_t appendColRefFields(char* buf, int32_t bufSize, int32_t* len, STab
   for (int32_t i = 1; i < pCfg->numOfColumns; ++i) {
     SSchema* pSchema = pCfg->pSchemas + i;
     SColRef* pRef = pCfg->pColRefs ? pCfg->pColRefs + i : NULL;
-    char     type[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_COL_FNAME_LEN + 20];
+    char     type[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_COL_FNAME_LEN + 24];
     int      typeLen = 0;
 
     if (hasColRef(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
@@ -909,11 +918,18 @@ static int32_t appendColRefFields(char* buf, int32_t bufSize, int32_t* len, STab
         if (code != TSDB_CODE_SUCCESS) return code;
       }
       if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
-        // External ref: always emit full 4-segment path source.db.table.col
+        // External ref: emit the full path source.[db.][schema.]table.col.
+        // The schema is rendered when the reference carries one; dropping it
+        // on replay would silently bind another namespace (same rule as
+        // appendColumnFields above).
         if (appendFmt(type, sizeof(type), &typeLen, "FROM `%s`", pRef->refSourceName) != TSDB_CODE_SUCCESS ||
-            appendFmt(type, sizeof(type), &typeLen, ".`%s`.", pRef->refDbName) != TSDB_CODE_SUCCESS ||
-            appendFmt(type, sizeof(type), &typeLen, "`%s`.", expandIdentifier(pRef->refTableName, expandName)) != TSDB_CODE_SUCCESS ||
-            appendFmt(type, sizeof(type), &typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName)) != TSDB_CODE_SUCCESS)
+            appendFmt(type, sizeof(type), &typeLen, ".`%s`", pRef->refDbName) != TSDB_CODE_SUCCESS)
+          return TSDB_CODE_OUT_OF_BUFFER;
+        if (pRef->refSchemaName[0] != '\0' &&
+            appendFmt(type, sizeof(type), &typeLen, ".`%s`", pRef->refSchemaName) != TSDB_CODE_SUCCESS)
+          return TSDB_CODE_OUT_OF_BUFFER;
+        if (appendFmt(type, sizeof(type), &typeLen, ".`%s`", expandIdentifier(pRef->refTableName, expandName)) != TSDB_CODE_SUCCESS ||
+            appendFmt(type, sizeof(type), &typeLen, ".`%s`", expandIdentifier(pRef->refColName, expandName)) != TSDB_CODE_SUCCESS)
           return TSDB_CODE_OUT_OF_BUFFER;
       } else {
         // Internal ref: db.table.col
@@ -1079,10 +1095,19 @@ static int32_t appendTagValues(char* buf, int32_t bufSize, int32_t* len, STableC
       char expandRefTable[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
       char expandRefCol[(SHOW_CREATE_TB_RESULT_FIELD1_LEN << 1) + 1] = {0};
       if (pTagRef->refType == 1 && pTagRef->refSourceName[0] != '\0') {
-        code = appendFmt(buf + VARSTR_HEADER_SIZE, bufSize - VARSTR_HEADER_SIZE, len,
-                         "FROM `%s`.`%s`.`%s`.`%s`", pTagRef->refSourceName, pTagRef->refDbName,
-                         expandIdentifier(pTagRef->refTableName, expandRefTable),
-                         expandIdentifier(pTagRef->refColName, expandRefCol));
+        /* Same re-parseability rule as the column references above: render the
+         * schema whenever the reference carries one. */
+        if (pTagRef->refSchemaName[0] != '\0') {
+          code = appendFmt(buf + VARSTR_HEADER_SIZE, bufSize - VARSTR_HEADER_SIZE, len,
+                           "FROM `%s`.`%s`.`%s`.`%s`.`%s`", pTagRef->refSourceName, pTagRef->refDbName,
+                           pTagRef->refSchemaName, expandIdentifier(pTagRef->refTableName, expandRefTable),
+                           expandIdentifier(pTagRef->refColName, expandRefCol));
+        } else {
+          code = appendFmt(buf + VARSTR_HEADER_SIZE, bufSize - VARSTR_HEADER_SIZE, len,
+                           "FROM `%s`.`%s`.`%s`.`%s`", pTagRef->refSourceName, pTagRef->refDbName,
+                           expandIdentifier(pTagRef->refTableName, expandRefTable),
+                           expandIdentifier(pTagRef->refColName, expandRefCol));
+        }
       } else {
         code = appendFmt(buf + VARSTR_HEADER_SIZE, bufSize - VARSTR_HEADER_SIZE, len, "FROM `%s`.`%s`.`%s`",
                          pTagRef->refDbName, expandIdentifier(pTagRef->refTableName, expandRefTable),

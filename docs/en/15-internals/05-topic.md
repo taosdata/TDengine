@@ -91,7 +91,7 @@ The state transition process for consumers is shown in the following diagram. In
 
 ![Consumer state transition](../assets/topic-06.webp)
 
-If a consumer's heartbeat is lost for more than 12s, after the rebalance process, its status will be updated to clear, and then the consumer will be deleted by the system.
+If a consumer's heartbeat is lost for longer than `session.timeout.ms` (default: 45s since v3.4.3.6; previously 12s), after the rebalance process, its status will be updated to clear, and then the consumer will be deleted by the system.
 
 When a consumer actively exits, it will send an unsubscribe message. This message will clear all topics subscribed by the consumer and set the consumer's status to rebalancing. Subsequently, upon detecting a consumer in the rebalancing state, the rebalance process will be initiated. After a successful rebalance, the consumer's status will be updated to clear, and then the consumer will be deleted by the system. This series of measures ensures the orderly exit of consumers and the stability of the system.
 

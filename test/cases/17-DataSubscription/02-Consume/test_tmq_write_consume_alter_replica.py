@@ -76,6 +76,7 @@ class TestCase:
                 "enable.auto.commit":           "true",
                 "auto.commit.interval.ms":      "1000",
                 "auto.offset.reset":            "earliest",
+                "session.timeout.ms":           "12000",
                 "experimental.snapshot.enable": "false",
             })
             consumer.subscribe([self.topicName])

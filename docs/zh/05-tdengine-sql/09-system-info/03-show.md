@@ -553,7 +553,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-显示子表的标签信息，也支持带标签的普通表和虚拟普通表。对使用 tag-ref 的虚拟子表或虚拟普通表，结果为当前解析后的标签值；普通表和虚拟普通表的自有标签显示本表的值。更完整字段见 [`INS_TAGS`](./01-meta.md#ins_tags)。
+显示普通子表、带自有标签的普通表、虚拟子表和带标签的虚拟普通表的标签。结果与 [`INS_TAGS`](./01-meta.md#ins_tags) 的 `tag_value` 相同，都是当前标签值：字面量显示本表保存的值，虚拟子表和虚拟普通表的标签引用显示源标签的当前值。源表执行 `ALTER TABLE ... SET TAG` 后，再次执行本命令即可看到新值。普通表不支持标签引用。标签引用的定义由 [`SHOW CREATE VTABLE`](../02-ddl/04-virtualtable.md#显示虚拟表创建语句) 返回。字段说明见 [`INS_TAGS`](./01-meta.md#ins_tags)。
 
 ## SHOW TOKENS
 

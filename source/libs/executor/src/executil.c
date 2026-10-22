@@ -2919,6 +2919,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 }
 
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo) {
+  return qGetTableListByApi(suid, pVnode, node, tableList, &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+}
+
+int32_t qGetTableListByApi(int64_t suid, void* pVnode, void* node, SArray** tableList, SStorageAPI* pStorageAPI) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SSubplan*      pSubplan = (SSubplan*)node;
@@ -2930,7 +2934,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
   STableListInfo* pTableListInfo = tableListCreate();
   QUERY_CHECK_NULL(pTableListInfo, code, lino, _end, terrno);
   code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
-                      pTableListInfo, NULL, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL, 0);
+                      pTableListInfo, NULL, "qGetTableList", pStorageAPI, NULL, 0);
   QUERY_CHECK_CODE(code, lino, _end);
   *tableList = pTableListInfo->pTableList;
   pTableListInfo->pTableList = NULL;

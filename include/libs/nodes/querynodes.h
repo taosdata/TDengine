@@ -591,6 +591,15 @@ typedef struct SExtTableNode {
   //         wrote a bare table or db.tbl) - the raw subquery SQL has no source
   //         qualifier and may be inlined verbatim (DIRECT_SQL).
   bool                  srcNameFromPath;
+  // true  = the object's remote namespace (database + schema for sources with
+  //         two namespace levels) was given entirely by the user's path
+  //         segments, so the raw text is namespace-complete;
+  // false = at least one namespace component came from the source default or
+  //         the USE context.  Consumed by the subquery DIRECT_SQL decision:
+  //         a dialect whose remote connection carries no default namespace
+  //         (SQL Server, DS 5.3.5) must re-render (2b) unless the raw text is
+  //         namespace-complete.
+  bool                  nsFromPathOnly;
 } SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024

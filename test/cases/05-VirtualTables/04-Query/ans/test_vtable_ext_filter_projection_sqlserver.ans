@@ -1,0 +1,94 @@
+
+taos> alter local "timezone" "UTC";
+
+taos> select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.filter_normal order by ts;
+         ts_ms         |      a      |      b      |      c      |   bounded   |   empty_v   |
+==============================================================================================
+      1704067200000000 |          10 |         100 |          20 | NULL        | NULL        |
+      1704067201000000 |          11 |         110 | NULL        |          11 | NULL        |
+      1704067202000000 | NULL        | NULL        |          22 | NULL        | NULL        |
+      1704067203000000 |          13 |         130 |          23 |          13 | NULL        |
+      1704067205000000 |          15 | NULL        | NULL        |          15 | NULL        |
+      1704067206000000 | NULL        | NULL        |          26 | NULL        | NULL        |
+
+taos> select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.child_1 order by ts;
+         ts_ms         |      a      |      b      |      c      |   bounded   |   empty_v   |
+==============================================================================================
+      1704067200000000 |          10 |         100 |          20 | NULL        | NULL        |
+      1704067201000000 |          11 |         110 | NULL        |          11 | NULL        |
+      1704067202000000 | NULL        | NULL        |          22 | NULL        | NULL        |
+      1704067203000000 |          13 |         130 |          23 |          13 | NULL        |
+      1704067205000000 |          15 | NULL        | NULL        |          15 | NULL        |
+      1704067206000000 | NULL        | NULL        |          26 | NULL        | NULL        |
+
+taos> select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.chain order by ts;
+         ts_ms         |      a      |      b      |      c      |   bounded   |   empty_v   |
+==============================================================================================
+      1704067200000000 |          10 |         100 |          20 | NULL        | NULL        |
+      1704067201000000 |          11 |         110 | NULL        |          11 | NULL        |
+      1704067202000000 | NULL        | NULL        |          22 | NULL        | NULL        |
+      1704067203000000 |          13 |         130 |          23 |          13 | NULL        |
+      1704067205000000 |          15 | NULL        | NULL        |          15 | NULL        |
+      1704067206000000 | NULL        | NULL        |          26 | NULL        | NULL        |
+
+taos> select cast(ts as bigint) as ts_ms, a, b from vfilter_query.filter_normal order by ts;
+         ts_ms         |      a      |      b      |
+====================================================
+      1704067200000000 |          10 |         100 |
+      1704067201000000 |          11 |         110 |
+      1704067203000000 |          13 |         130 |
+      1704067205000000 |          15 | NULL        |
+
+taos> select cast(ts as bigint) as ts_ms, c from vfilter_query.chain order by ts;
+         ts_ms         |      c      |
+======================================
+      1704067200000000 |          20 |
+      1704067202000000 |          22 |
+      1704067203000000 |          23 |
+      1704067206000000 |          26 |
+
+taos> select cast(ts as bigint) as ts_ms, bounded from vfilter_query.filter_normal order by ts;
+         ts_ms         |   bounded   |
+======================================
+      1704067201000000 |          11 |
+      1704067203000000 |          13 |
+      1704067205000000 |          15 |
+
+taos> select empty_v from vfilter_query.filter_normal;
+
+taos> select scenario, cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.filter_stable order by scenario, ts;
+  scenario   |         ts_ms         |      a      |      b      |      c      |   bounded   |   empty_v   |
+============================================================================================================
+           1 |      1704067200000000 |          10 |         100 |          20 | NULL        | NULL        |
+           1 |      1704067201000000 |          11 |         110 | NULL        |          11 | NULL        |
+           1 |      1704067202000000 | NULL        | NULL        |          22 | NULL        | NULL        |
+           1 |      1704067203000000 |          13 |         130 |          23 |          13 | NULL        |
+           1 |      1704067205000000 |          15 | NULL        | NULL        |          15 | NULL        |
+           1 |      1704067206000000 | NULL        | NULL        |          26 | NULL        | NULL        |
+           2 |      1704067200000000 |          20 |         200 |          10 | NULL        | NULL        |
+           2 |      1704067201000000 | NULL        | NULL        |          11 | NULL        | NULL        |
+           2 |      1704067202000000 |          22 |         220 | NULL        |          22 | NULL        |
+           2 |      1704067203000000 |          23 |         230 |          13 |          23 | NULL        |
+           2 |      1704067205000000 | NULL        | NULL        |          15 | NULL        | NULL        |
+           2 |      1704067206000000 |          26 |         260 | NULL        |          26 | NULL        |
+
+taos> select cast(ts as bigint) as ts_ms, a, b, c, bounded, empty_v from vfilter_query.chain_stable order by ts;
+         ts_ms         |      a      |      b      |      c      |   bounded   |   empty_v   |
+==============================================================================================
+      1704067200000000 |          10 |         100 |          20 | NULL        | NULL        |
+      1704067201000000 |          11 |         110 | NULL        |          11 | NULL        |
+      1704067202000000 | NULL        | NULL        |          22 | NULL        | NULL        |
+      1704067203000000 |          13 |         130 |          23 |          13 | NULL        |
+      1704067205000000 |          15 | NULL        | NULL        |          15 | NULL        |
+      1704067206000000 | NULL        | NULL        |          26 | NULL        | NULL        |
+
+taos> select cast(ts as bigint) as ts_ms, a, b, c from vfilter_query.filter_stable where scenario = 2 order by ts;
+         ts_ms         |      a      |      b      |      c      |
+==================================================================
+      1704067200000000 |          20 |         200 |          10 |
+      1704067201000000 | NULL        | NULL        |          11 |
+      1704067202000000 |          22 |         220 | NULL        |
+      1704067203000000 |          23 |         230 |          13 |
+      1704067205000000 | NULL        | NULL        |          15 |
+      1704067206000000 |          26 |         260 | NULL        |
+

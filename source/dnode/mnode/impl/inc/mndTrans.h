@@ -107,6 +107,8 @@ static int32_t mndTrancCheckConflict(SMnode *pMnode, STrans *pTrans) {
 }
 #endif
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
+// Optional pSyncStarted is false until sync proposal is attempted. True does not imply success.
+int32_t mndTransPrepareWithSyncStatus(SMnode *pMnode, STrans *pTrans, bool *pSyncStarted);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);

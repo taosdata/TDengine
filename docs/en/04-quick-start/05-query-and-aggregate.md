@@ -32,7 +32,7 @@ On top of standard SQL, TDengine extends querying for time-series and IoT scenar
   Standard joins, plus time-series–oriented ASOF Join and Window Join. See [Join Queries](../05-tdengine-sql/04-data-query/05-join.md).
 
 - **Federated query**
-  Read MySQL, PostgreSQL, InfluxDB, and other external sources in one SQL statement and analyze them together with local time-series data. See [Federated Query](../05-tdengine-sql/04-data-query/06-federated-query.md).
+  Read MySQL, PostgreSQL, InfluxDB, SQL Server, and other external sources in one SQL statement and analyze them together with local time-series data. See [Federated Query](../05-tdengine-sql/04-data-query/06-federated-query.md).
 
 - **Window functions**
   `OVER` window functions. See [Window Functions](../05-tdengine-sql/04-data-query/07-window-function.md).
