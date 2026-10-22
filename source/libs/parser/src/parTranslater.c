@@ -11466,18 +11466,44 @@ _return:
   return code;
 }
 
-static const SColRef* findResolvedLeafColRef(const SVStbRefDbsRsp* pRsp, col_id_t rootColId) {
-  if (NULL == pRsp || NULL == pRsp->pResolvedColRefs) {
-    return NULL;
-  }
+typedef struct SColRefIndex {
+  // Store array positions plus one so zero represents a missing column ID.
+  int32_t colRefIndex;
+  int32_t leafIndex;
+} SColRefIndex;
 
-  for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
-    if (pRsp->pResolvedColRefs[i].id == rootColId &&
-        pRsp->pResolvedColRefs[i].filterCondLen > 0) {
-      return &pRsp->pResolvedColRefs[i];
+static int32_t buildColRefIndex(const STableMeta* pMeta, const SVStbRefDbsRsp* pRsp,
+                                SColRefIndex** ppIndex, int32_t* pMaxColId) {
+  *pMaxColId = 0;
+  for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+    if (pMeta->colRef[i].hasRef && pMeta->colRef[i].id > *pMaxColId) {
+      *pMaxColId = pMeta->colRef[i].id;
     }
   }
-  return NULL;
+
+  *ppIndex = taosMemoryCalloc(*pMaxColId + 1, sizeof(SColRefIndex));
+  if (NULL == *ppIndex) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+    const SColRef* pRef = &pMeta->colRef[i];
+    if (pRef->hasRef && pRef->id > 0 && (*ppIndex)[pRef->id].colRefIndex == 0) {
+      (*ppIndex)[pRef->id].colRefIndex = i + 1;
+    }
+  }
+
+  if (NULL != pRsp->pResolvedColRefs) {
+    for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+      const SColRef* pRef = &pRsp->pResolvedColRefs[i];
+      if (pRef->id > 0 && pRef->id <= *pMaxColId && pRef->filterCondLen > 0 &&
+          (*ppIndex)[pRef->id].leafIndex == 0) {
+        (*ppIndex)[pRef->id].leafIndex = i + 1;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t patchResolvedColRefConds(SColRef* pColRef, const SColRef* pResolved) {
@@ -11518,8 +11544,22 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
     return TSDB_CODE_SUCCESS;
   }
 
+  SColRefIndex* pIndex = NULL;
+  int32_t       maxColId = 0;
+  PAR_ERR_JRET(buildColRefIndex(pMeta, pRsp, &pIndex, &maxColId));
+
   for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
     SRefColInfo* pResolved = &pRsp->pColRefCols[i];
+    if (pResolved->colId <= 0 || pResolved->colId > maxColId || pIndex[pResolved->colId].colRefIndex == 0) {
+      continue;
+    }
+
+    int32_t colRefIndex = pIndex[pResolved->colId].colRefIndex - 1;
+    SColRef* pColRef = &pMeta->colRef[colRefIndex];
+    if (!pColRef->hasRef) {
+      continue;
+    }
+
     bool         isNullRef = '\0' == pResolved->refDbName[0] && '\0' == pResolved->refTableName[0] &&
                             '\0' == pResolved->refColName[0] && '\0' == pResolved->refSourceName[0];
 
@@ -11528,33 +11568,28 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
       continue;
     }
 
-    for (int32_t j = 0; j < pMeta->numOfColRefs; ++j) {
-      if (!pMeta->colRef[j].hasRef || pMeta->colRef[j].id != pResolved->colId) {
-        continue;
-      }
+    if (isNullRef) {
+      SColRef cleared = {.id = pColRef->id};
+      tstrncpy(cleared.colName, pColRef->colName, sizeof(cleared.colName));
+      tFreeSColRefArray(pColRef, 1);
+      *pColRef = cleared;
+      continue;
+    }
 
-      if (isNullRef) {
-        SColRef cleared = {.id = pMeta->colRef[j].id};
-        tstrncpy(cleared.colName, pMeta->colRef[j].colName, sizeof(cleared.colName));
-        tFreeSColRefArray(&pMeta->colRef[j], 1);
-        pMeta->colRef[j] = cleared;
-        break;
-      }
-
-      tstrncpy(pMeta->colRef[j].refDbName, pResolved->refDbName, sizeof(pMeta->colRef[j].refDbName));
-      tstrncpy(pMeta->colRef[j].refTableName, pResolved->refTableName, sizeof(pMeta->colRef[j].refTableName));
-      tstrncpy(pMeta->colRef[j].refColName, pResolved->refColName, sizeof(pMeta->colRef[j].refColName));
-      tstrncpy(pMeta->colRef[j].refSourceName, pResolved->refSourceName, sizeof(pMeta->colRef[j].refSourceName));
-      tstrncpy(pMeta->colRef[j].refSchemaName, pResolved->refSchemaName, sizeof(pMeta->colRef[j].refSchemaName));
-      const SColRef* pResolvedLeaf = findResolvedLeafColRef(pRsp, pResolved->colId);
-      if (NULL != pResolvedLeaf) {
-        PAR_ERR_RET(patchResolvedColRefConds(&pMeta->colRef[j], pResolvedLeaf));
-      }
-      break;
+    tstrncpy(pColRef->refDbName, pResolved->refDbName, sizeof(pColRef->refDbName));
+    tstrncpy(pColRef->refTableName, pResolved->refTableName, sizeof(pColRef->refTableName));
+    tstrncpy(pColRef->refColName, pResolved->refColName, sizeof(pColRef->refColName));
+    tstrncpy(pColRef->refSourceName, pResolved->refSourceName, sizeof(pColRef->refSourceName));
+    tstrncpy(pColRef->refSchemaName, pResolved->refSchemaName, sizeof(pColRef->refSchemaName));
+    int32_t leafIndex = pIndex[pResolved->colId].leafIndex;
+    if (leafIndex > 0) {
+      PAR_ERR_JRET(patchResolvedColRefConds(pColRef, &pRsp->pResolvedColRefs[leafIndex - 1]));
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  taosMemoryFree(pIndex);
+  return code;
 }
 
 static int32_t buildColRefTableKey(const SColRef* pColRef, char* buf, int32_t bufLen) {
