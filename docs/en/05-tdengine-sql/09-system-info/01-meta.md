@@ -806,16 +806,31 @@ Queries must specify equality conditions for both `db_name` and `table_name`. Wi
 
 ## INS_TAGS
 
-Provides table tag names, types, and values for tag-based retrieval and metadata verification. In addition to subtables, tags of basic tables and virtual basic tables are also included, in which case the `stable_name` column is `NULL`. The same information can also be queried using [`SHOW TAGS`](./03-show.md#show-tags).
+Provides table tag names, types, and current values for tag-based retrieval and metadata verification. The same information can also be queried using [`SHOW TAGS`](./03-show.md#show-tags). The `tag_value` from both sources is the same.
+
+The table covers subtables, basic tables with their own tags, virtual subtables, and virtual basic tables that have tags. A basic table or virtual basic table has no parent supertable, so `stable_name` is `NULL`. For a subtable, `stable_name` is the supertable name. For a virtual subtable, `stable_name` is the virtual supertable name.
+
+`tag_value` is the current tag value. The tag-reference definition (`FROM db_name.table_name.tag_name`) is returned by [`SHOW CREATE VTABLE`](../02-ddl/04-virtualtable.md#show-creation-statement).
+
+| Table | Tag source | `tag_value` |
+| --- | --- | --- |
+| Subtable | Literal | The value currently stored on this table |
+| Basic table | Literal | The value currently stored on this table |
+| Virtual subtable | Literal | The value currently stored on this table |
+| Virtual subtable | Tag reference | The current value of the source tag |
+| Virtual basic table | Literal | The value currently stored on this table |
+| Virtual basic table | Tag reference | The current value of the source tag |
+
+After `ALTER TABLE ... SET TAG` on the source table, the next query of a virtual subtable or virtual basic table that references the tag returns the new value. A literal tag keeps the value stored on its own table.
 
 | #   | **Column Name** | **Data Type** | **Description** |
 | --- | ------------- | -------------- | --- |
 | 1   | `table_name`  | VARCHAR(192)   | Table name |
 | 2   | `db_name`     | VARCHAR(64)    | Name of the database containing the table |
-| 3   | `stable_name` | VARCHAR(192)   | Name of the associated supertable |
+| 3   | `stable_name` | VARCHAR(192)   | Name of the supertable or virtual supertable. `NULL` for a basic table or virtual basic table |
 | 4   | `tag_name`    | VARCHAR(64)    | Tag name |
 | 5   | `tag_type`    | VARCHAR(32)    | Tag type |
-| 6   | `tag_value`   | VARCHAR(16384) | Tag value |
+| 6   | `tag_value`   | VARCHAR(16384) | Current tag value. A literal is the value stored on this table. A tag reference is the current value of the source tag |
 
 ## INS_TOKENS
 
