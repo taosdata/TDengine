@@ -16533,6 +16533,19 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
         if ((pVscan->hasTagRef || isStreamCalc) && pFirst->pConditions) {
           return false;
         }
+        // Tag-ref queries put STagRefSourceLogicNode children first in the VirtualScan
+        // child list (see buildVirtualScanTree in planLogicCreater.c).  The VStableAgg
+        // restructure assumes the children are [TagScan?, RealTableScan] and casts them
+        // to SScanLogicNode; a TagRefSource child would be type-confused (its
+        // sourceTableName bytes read as pScanPseudoCols, crash), and the pushed-down
+        // aggregation cannot resolve ref-tag values anyway (they are NULL in vnode
+        // meta).  Fall back to the unoptimized DynQueryCtrl VTB_SCAN path.
+        SNode* pVScanChild = NULL;
+        FOREACH(pVScanChild, pFirst->pChildren) {
+          if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pVScanChild)) {
+            return false;
+          }
+        }
         // In stream calc, the VTB_AGG pushdown reader cannot scatter results correctly when
         // the virtual table interleaves column refs across multiple physical source tables
         // (see vscanRefsInterleaveSourceTables). Fall back to the unoptimized VTB_SCAN path.
