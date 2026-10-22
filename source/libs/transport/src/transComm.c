@@ -1366,7 +1366,11 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   if (pReqEpSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (pReqEpSet->numOfEps == 0 || pReqEpSet->numOfEps > TSDB_MAX_EP_NUM || pReqEpSet->inUse >= TSDB_MAX_EP_NUM) {
+  // Devon scan item 324: inUse must index inside the numOfEps-sized eps[] array (it used to be
+  // bounded by TSDB_MAX_EP_NUM instead), and numOfEps must not exceed the SEpSet source array
+  // (TSDB_MAX_REPLICA) the variable-length SReqEpSet is copied from.
+  if (pReqEpSet->numOfEps <= 0 || pReqEpSet->numOfEps > TSDB_MAX_REPLICA || pReqEpSet->inUse < 0 ||
+      pReqEpSet->inUse >= pReqEpSet->numOfEps) {
     return TSDB_CODE_INVALID_PARA;
   }
   return TSDB_CODE_SUCCESS;
@@ -1968,7 +1972,11 @@ int32_t transValidReqEpset(SReqEpSet* pReqEpSet) {
   if (pReqEpSet == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (pReqEpSet->numOfEps == 0 || pReqEpSet->numOfEps > TSDB_MAX_EP_NUM || pReqEpSet->inUse >= TSDB_MAX_EP_NUM) {
+  // Devon scan item 324: inUse must index inside the numOfEps-sized eps[] array (it used to be
+  // bounded by TSDB_MAX_EP_NUM instead), and numOfEps must not exceed the SEpSet source array
+  // (TSDB_MAX_REPLICA) the variable-length SReqEpSet is copied from.
+  if (pReqEpSet->numOfEps <= 0 || pReqEpSet->numOfEps > TSDB_MAX_REPLICA || pReqEpSet->inUse < 0 ||
+      pReqEpSet->inUse >= pReqEpSet->numOfEps) {
     return TSDB_CODE_INVALID_PARA;
   }
   return TSDB_CODE_SUCCESS;
