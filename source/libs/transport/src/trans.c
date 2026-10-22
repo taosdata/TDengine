@@ -221,8 +221,11 @@ void rpcCloseImpl(void* arg) {
 
 void* rpcMallocCont(int64_t contLen) {
   int64_t size = contLen + TRANS_MSG_OVERHEAD;
-  if (size >= TRANS_PACKET_LIMIT) {
-    tError("failed to malloc msg, size:%" PRId64 " exceeds limit:%d", size, TRANS_PACKET_LIMIT);
+  // Devon scan item 195: a negative contLen used to slip through the TRANS_PACKET_LIMIT check
+  // (size wraps into [0, TRANS_MSG_OVERHEAD)) and return a pointer past a tiny allocation.
+  if (contLen < 0 || size >= TRANS_PACKET_LIMIT) {
+    tError("failed to malloc msg, contLen:%" PRId64 ", size:%" PRId64 " exceeds limit:%d", contLen, size,
+           TRANS_PACKET_LIMIT);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
