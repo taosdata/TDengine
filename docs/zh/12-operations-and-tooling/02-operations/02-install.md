@@ -137,6 +137,15 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
     <PkgList productName="TDengine TSDB-OSS" platform="macOS"/>
 2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
 
+:::note
+
+- macOS OSS 的 PKG 安装包执行系统级安装，需要管理员权限。安装完成后，TDengine 服务由系统 LaunchDaemon 以 `root` 身份运行；请使用 `sudo start-all.sh`、`sudo stop-all.sh` 或 `sudo launchctl` 管理服务。
+- 安装后的默认配置、数据、日志和临时目录分别位于 `/etc/taos`、`/var/lib/taos`、`/var/log/taos` 和系统临时目录。普通用户可以直接运行 `taos` 等客户端访问服务，但不要使用普通用户直接启动默认配置下的 `taosd`。
+- 如果需要以普通用户运行 `taosd`，请在配置文件中指定该用户拥有的独立数据、日志和临时目录，不要与系统服务共用默认目录。
+- 从旧版本升级时，保留现有数据目录的属主和权限。不要对 `/var/lib/taos`、`/var/log/taos` 或其内容执行递归 `chmod` 或 `chown`。
+
+:::
+
 </TabItem>
 </Tabs>
 
@@ -221,6 +230,8 @@ sudo launchctl print system/com.tdengine.taosd
 :::info
 
 - `launchctl` 命令管理 `com.tdengine.taosd` 需要管理员权限，务必在前面加 `sudo` 来增强安全性。
+- 系统服务以 `root` 身份运行。普通用户运行 `taos`、`taosBenchmark` 或其他客户端时不需要使用 `sudo`。
+- 不要让系统服务和普通用户启动的 `taosd` 同时使用 `/etc/taos`、`/var/lib/taos`、`/var/log/taos` 或同一个临时目录；用户态运行请使用独立配置和目录。
 - `sudo launchctl list | grep taosd` 指令返回的第一列是 `taosd` 程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
 - 故障排查：
 - 如果服务异常请查看系统日志 `launchd.log` 或者 `/var/log/taos` 目录下 `taosdlog` 日志获取更多信息。
