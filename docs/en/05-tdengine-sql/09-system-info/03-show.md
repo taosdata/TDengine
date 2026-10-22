@@ -553,7 +553,7 @@ SHOW TAGS FROM child_table_name [FROM db_name];
 SHOW TAGS FROM [db_name.]child_table_name;
 ```
 
-Displays tag information for a subtable; basic tables and virtual basic tables with tags are also supported. For a virtual subtable or virtual basic table that uses tag references, the result contains the currently resolved tag values; owned tags of basic tables and virtual basic tables show the table's own value. For the complete set of fields, see [`INS_TAGS`](./01-meta.md#ins_tags).
+Displays tags of subtables, basic tables with their own tags, virtual subtables, and virtual basic tables that have tags. The result is the same as `tag_value` in [`INS_TAGS`](./01-meta.md#ins_tags): a literal shows the value stored on this table, and a tag reference of a virtual subtable or virtual basic table shows the current value of the source tag. After `ALTER TABLE ... SET TAG` on the source table, run this command again to see the new value. A basic table does not support tag references. The tag-reference definition is returned by [`SHOW CREATE VTABLE`](../02-ddl/04-virtualtable.md#show-creation-statement). See [`INS_TAGS`](./01-meta.md#ins_tags) for the field descriptions.
 
 ## SHOW TOKENS
 
