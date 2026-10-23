@@ -50,9 +50,9 @@ class TestConfig:
 
     def test_config_model_scripts(self, mock_config):
         """Test that model scripts are configured"""
-        assert mock_config.models["tdtsfm"]["script"] == "tdtsfm-server.py"
-        assert mock_config.models["timemoe"]["script"] == "timemoe-server.py"
-        assert mock_config.models["chronos"]["script"] == "chronos-server.py"
+        assert mock_config.models["tdtsfm"]["script"] == "tdtsfm_server.py"
+        assert mock_config.models["timemoe"]["script"] == "timemoe_server.py"
+        assert mock_config.models["chronos"]["script"] == "chronos_server.py"
 
     def test_config_model_ports(self, mock_config):
         """Test that model ports are configured"""
@@ -79,8 +79,8 @@ workers = 4
 timeouts = {"model_startup": 240}
 resource_dir = 'C:/TDengine/taosanode/resource'
 models = {
-    "tdtsfm": {"script": "tdtsfm-server.py", "port": 6061, "required": True},
-    "timemoe": {"script": "timemoe-server.py", "port": 6062, "required": True},
+    "tdtsfm": {"script": "tdtsfm_server.py", "port": 6061, "required": True},
+    "timemoe": {"script": "timemoe_server.py", "port": 6062, "required": True},
 }
 """)
 

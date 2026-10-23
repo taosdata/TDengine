@@ -28322,6 +28322,141 @@ TEST(StreamTriggerExternalCheckpointTest, RejectsCanonicalRegistryIdentityMismat
   destroyExternalCheckpointFixture(&saved);
 }
 
+class StreamTriggerCheckpointVersionTest : public ::testing::TestWithParam<int32_t> {
+ protected:
+  ExternalCheckpointFixture restored;
+
+  void SetUp() override {
+    initExternalCheckpointFixture(&restored, 0x5401);
+    int32_t              vgId = 3;
+    SSTriggerWalProgress progress = {};
+    ASSERT_EQ(tSimpleHashPut(restored.context.pReaderWalProgress, &vgId, sizeof(vgId), &progress, sizeof(progress)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override { destroyExternalCheckpointFixture(&restored); }
+
+  // Encode the released v5-v8 layouts independently of the current checkpoint writer.
+  void encodeCheckpoint(std::vector<uint8_t>* checkpoint, bool withBinding = false) {
+    checkpoint->resize(256);
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, checkpoint->data(), checkpoint->size());
+    ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 34), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI64(&encoder, restored.task.task.streamId), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, GetParam()), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 1), TSDB_CODE_SUCCESS);  // WAL readers
+    ASSERT_EQ(tEncodeI32(&encoder, 3), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI64(&encoder, 5), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI64(&encoder, 9), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // history cutoffs
+    ASSERT_EQ(tEncodeI8(&encoder, 1), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, withBinding ? 1 : 0), TSDB_CODE_SUCCESS);  // EXT registries
+    if (withBinding) {
+      ASSERT_EQ(tEncodeI64(&encoder, 541), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(tEncodeCStr(&encoder, "source|db|table"), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(tEncodeI64(&encoder, 37), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(tEncodeI8(&encoder, STRIGGER_READER_WATERMARK_ACTIVE), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // UID watermarks
+      if (GetParam() >= 6) {
+        ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // UID mappings
+      }
+      if (GetParam() >= 7) {
+        ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // bootstrap UID mappings
+      }
+    }
+    ASSERT_EQ(tEncodeI32(&encoder, withBinding ? 1 : 0), TSDB_CODE_SUCCESS);  // EXT bindings
+    if (withBinding) {
+      ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);    // virtual UID
+      ASSERT_EQ(tEncodeI64(&encoder, 701), TSDB_CODE_SUCCESS);  // virtual GID
+      ASSERT_EQ(tEncodeI8(&encoder, STRIGGER_EXT_BINDING_TRIGGER), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // slot
+      ASSERT_EQ(tEncodeI16(&encoder, 0), TSDB_CODE_SUCCESS);  // column ID
+      const int64_t cutoff = GetParam() < 8 ? 1234567890123456LL : 1234567890123456789LL;
+      ASSERT_EQ(tEncodeI64(&encoder, cutoff), TSDB_CODE_SUCCESS);
+    }
+    tEndEncode(&encoder);
+    checkpoint->resize(encoder.pos);
+    tEncoderClear(&encoder);
+  }
+
+  void checkBindingCutoff(int8_t precision, int64_t expected, bool groupCutoff = true) {
+    restored.task.precision = precision;
+    addExternalCheckpointRef(&restored, 541, "source|db|table", 37, 0x641, 71, STRIGGER_READER_WATERMARK_ACTIVE, 9301,
+                             0);
+    addExternalCheckpointTriggerBinding(&restored, 0x641, 701);
+    auto* ref = static_cast<SSTriggerExtOrigTableRef*>(taosArrayGet(restored.task.pExtOrigTableRefs, 0));
+    auto* binding = static_cast<SSTriggerExtOrigTableBinding*>(taosArrayGet(ref->bindings, 0));
+    auto* progress = *static_cast<SSTriggerExtProgress**>(taosArrayGet(restored.ownedProgress, 0));
+    if (!groupCutoff) {
+      tSimpleHashCleanup(progress->recoveryCheckpointGroupMaxTs);
+      progress->recoveryCheckpointGroupMaxTs = nullptr;
+    }
+    std::vector<uint8_t> checkpoint;
+    ASSERT_NO_FATAL_FAILURE(encodeCheckpoint(&checkpoint, true));
+    ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, checkpoint.data(), checkpoint.size()), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(restored.context.extCheckpointRecovered);
+    EXPECT_EQ(expected, stRealtimeContextExtTriggerRecoveryCutoff(&restored.context, ref, binding, progress));
+    auto* watermark = static_cast<int64_t*>(
+        tSimpleHashGet(progress->triggerSideUidMaxTs, &ref->registryEntryId, sizeof(ref->registryEntryId)));
+    ASSERT_NE(watermark, nullptr);
+    const int64_t expectedWatermark =
+        precision == TSDB_TIME_PRECISION_NANO && GetParam() == 8 ? 1234567890123456789LL : expected;
+    EXPECT_EQ(*watermark, expectedWatermark);
+    if (!groupCutoff) {
+      auto* fallback = static_cast<int64_t*>(
+          tSimpleHashGet(progress->recoveryCheckpointMaxTs, &ref->registryEntryId, sizeof(ref->registryEntryId)));
+      ASSERT_NE(fallback, nullptr);
+      EXPECT_EQ(*fallback, 1234567890123456LL);
+    }
+  }
+};
+
+TEST_P(StreamTriggerCheckpointVersionTest, RestoresWalProgressWithEmptyBindings) {
+  restored.task.isVirtualTable = false;
+  std::vector<uint8_t> checkpoint;
+  ASSERT_NO_FATAL_FAILURE(encodeCheckpoint(&checkpoint));
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, checkpoint.data(), checkpoint.size()), TSDB_CODE_SUCCESS);
+  int32_t vgId = 3;
+  auto*   progress =
+      static_cast<SSTriggerWalProgress*>(tSimpleHashGet(restored.context.pReaderWalProgress, &vgId, sizeof(vgId)));
+  ASSERT_NE(progress, nullptr);
+  EXPECT_EQ(progress->startVer, 5);
+  EXPECT_EQ(progress->savedVer, 9);
+  EXPECT_EQ(progress->doneVer, 5);
+  EXPECT_EQ(progress->lastScanVer, 5);
+  EXPECT_EQ(restored.task.checkpointVersion, 34);
+  EXPECT_EQ(restored.task.historyFinished, 1);
+  EXPECT_TRUE(restored.context.boundDetermined);
+}
+
+TEST_P(StreamTriggerCheckpointVersionTest, RestoresBindingCutoffInMilliseconds) {
+  checkBindingCutoff(TSDB_TIME_PRECISION_MILLI, 1234567890123LL);
+}
+
+TEST_P(StreamTriggerCheckpointVersionTest, RestoresBindingCutoffInMicroseconds) {
+  checkBindingCutoff(TSDB_TIME_PRECISION_MICRO, 1234567890123456LL);
+}
+
+TEST_P(StreamTriggerCheckpointVersionTest, RestoresBindingCutoffInNanoseconds) {
+  checkBindingCutoff(TSDB_TIME_PRECISION_NANO, GetParam() < 8 ? 1234567890123456000LL : 1234567890123456789LL);
+}
+
+TEST_P(StreamTriggerCheckpointVersionTest, KeepsRegistryFallbackInMicroseconds) {
+  checkBindingCutoff(TSDB_TIME_PRECISION_NANO, 1234567890123456000LL, false);
+}
+
+TEST_P(StreamTriggerCheckpointVersionTest, RejectsTrailingBytesAfterBindings) {
+  std::vector<uint8_t> checkpoint;
+  ASSERT_NO_FATAL_FAILURE(encodeCheckpoint(&checkpoint));
+  checkpoint.push_back(0);
+  int32_t payloadLen = static_cast<int32_t>(checkpoint.size() - sizeof(int32_t));
+  memcpy(checkpoint.data(), &payloadLen, sizeof(payloadLen));
+  EXPECT_EQ(stTriggerTaskParseCheckpoint(&restored.task, checkpoint.data(), checkpoint.size()), TSDB_CODE_INVALID_MSG);
+}
+
+INSTANTIATE_TEST_SUITE_P(CheckpointFormats, StreamTriggerCheckpointVersionTest, ::testing::Values(5, 6, 7, 8));
+
 TEST(StreamTriggerExternalCheckpointTest, AcceptsLegacyCheckpointWithoutRegistrySection) {
   ExternalCheckpointFixture restored;
   initExternalCheckpointFixture(&restored, 0x5400);

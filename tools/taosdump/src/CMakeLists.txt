@@ -244,17 +244,15 @@ endif()
 #
 # libtaos.so owns the public C API and dispatches to the driver it dlopen()s;
 # libtaosnative.so is only needed for the engine internals the tool uses
-# directly (functions *and* globals such as gMemPoolHandle).  Both are listed,
-# and the order no longer matters on Linux: the driver does not export the
-# public names there (it hands them to the dispatcher through tdNativeApiTable),
-# so taos_options() cannot be bound to the driver even if CMake hoists it ahead
-# of libtaos.so.  macOS keeps resolving the internals through libtaos.dylib's
-# re-export of the driver dylib instead.
+# directly (functions *and* globals such as gMemPoolHandle).  Both are listed, and
+# the order does not matter: on Linux the driver does not export the public names
+# (it hands them to the dispatcher through tdNativeApiTable), and on macOS the
+# linker binds each name to the first library that defines it.
 #
 # No --copy-dt-needed-entries: naming libtaosnative.so explicitly is what pulls
 # the internals in, and mold rejects that option outright.
 TARGET_LINK_LIBRARIES(taosdump PRIVATE taos)
-if(TD_LINUX)
+if(NOT TD_WINDOWS)
     TARGET_LINK_LIBRARIES(taosdump PRIVATE ${TAOS_NATIVE_LIB})
 endif()
 

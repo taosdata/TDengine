@@ -6045,6 +6045,15 @@ static int32_t call_op_cmp(SXndWhereContext *pctx, FOpCmp opFn) {
   SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
   bool        ret = false;
 
+  // Defense-in-depth: a malformed AST could push fewer operands than an operator
+  // consumes; taosArrayPop returns NULL on an empty stack, so reject instead of
+  // dereferencing a NULL SValueNode.
+  if (pval1 == NULL || pval2 == NULL) {
+    mError("xnode evaluate where cond: operator with missing operand (NULL stack pop)");
+    code = TSDB_CODE_MND_XNODE_INVALID_MSG;
+    goto _OVER;
+  }
+
   if (pval1->node.type != pval2->node.type) {
     code = TSDB_CODE_MND_XNODE_WHERE_COL_TYPE_DIFF;
     mError("xnode type not same, v1 type: %d, v2 type: %d", pval1->node.type, pval2->node.type);
@@ -6105,6 +6114,12 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
       pval->datum.u = taosStr2Int64(pval->literal, NULL, 10);
     }
     if (pval->node.resType.type == TSDB_DATA_TYPE_BINARY) {
+      // Defense-in-depth: a NULL literal would make strlen() segfault below.
+      if (pval->literal == NULL) {
+        mError("xnode evaluate where cond: binary value node with NULL literal");
+        pctx->code = TSDB_CODE_MND_XNODE_INVALID_MSG;
+        return DEAL_RES_END;
+      }
       if (pval->datum.p == NULL) {
         pval->datum.p = taosStrndupi(pval->literal, strlen(pval->literal) + 1);
       }
@@ -6114,6 +6129,12 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
       pval->datum.p = NULL;
     }
     if (pval->node.resType.type == TSDB_DATA_TYPE_BOOL) {
+      // Defense-in-depth: a NULL literal would make pval->literal[0] segfault below.
+      if (pval->literal == NULL) {
+        mError("xnode evaluate where cond: bool value node with NULL literal");
+        pctx->code = TSDB_CODE_MND_XNODE_INVALID_MSG;
+        return DEAL_RES_END;
+      }
       pval->datum.b = pval->literal[0] == 't' || pval->literal[0] == 'T';
     }
     SXndRefValueNode refVal = {0};
@@ -6172,6 +6193,13 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
         SValueNode *pval2 = (SValueNode *)taosArrayPop(pctx->stack);
         SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
 
+        // Defense-in-depth against malformed AST (should be caught by validation).
+        if (pval1 == NULL || pval2 == NULL) {
+          mError("xnode evaluate where cond: AND with missing operand (NULL stack pop)");
+          pctx->code = TSDB_CODE_MND_XNODE_INVALID_MSG;
+          return DEAL_RES_END;
+        }
+
         pval.nd.datum.b = pval1->datum.b && pval2->datum.b;
         if (NULL == taosArrayPush(pctx->stack, &pval)) {
           mError("xnode walker AND array push err: %s", tstrerror(terrno));
@@ -6187,6 +6215,13 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
         SValueNode *pval2 = (SValueNode *)taosArrayPop(pctx->stack);
         SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
 
+        // Defense-in-depth against malformed AST (should be caught by validation).
+        if (pval1 == NULL || pval2 == NULL) {
+          mError("xnode evaluate where cond: OR with missing operand (NULL stack pop)");
+          pctx->code = TSDB_CODE_MND_XNODE_INVALID_MSG;
+          return DEAL_RES_END;
+        }
+
         pval.nd.datum.b = pval1->datum.b || pval2->datum.b;
         if (NULL == taosArrayPush(pctx->stack, &pval)) {
           mError("xnode walker OR array push err: %s", tstrerror(terrno));
@@ -6200,6 +6235,13 @@ static EDealRes evaluateWaker(SNode *pNode, void *pWhereCtx) {
       }
       case LOGIC_COND_TYPE_NOT: {
         SValueNode *pval1 = (SValueNode *)taosArrayPop(pctx->stack);
+
+        // Defense-in-depth against malformed AST (should be caught by validation).
+        if (pval1 == NULL) {
+          mError("xnode evaluate where cond: NOT with missing operand (NULL stack pop)");
+          pctx->code = TSDB_CODE_MND_XNODE_INVALID_MSG;
+          return DEAL_RES_END;
+        }
 
         pval.nd.datum.b = !pval1->datum.b;
         if (NULL == taosArrayPush(pctx->stack, &pval)) {
@@ -6254,6 +6296,171 @@ static bool evaluateWhereCond(SNode *pWhere, SHashObj *pDataMap, int32_t *code) 
 _exit:
   freeSXndWhereContext(&ctx);
   return ret;
+}
+
+/*
+ * Bounds on a peer-supplied WHERE AST string.
+ *
+ * The AST is parsed from JSON by nodesStringToNode() -> makeNodeByJson(), which recurses one C
+ * stack frame per nested node (pLeft/pRight of an Operator, each element of a LogicCondition's
+ * Parameters array, etc.). That recursion DEPTH equals the JSON nesting depth, so a deeply
+ * nested (e.g. many nested AND/NOT) AST would overflow the C stack DURING CONVERSION - BEFORE
+ * the evaluator or this validator ever runs. We therefore reject over-long / over-deep input up
+ * front with an O(n), fully iterative scan that itself uses no recursion.
+ */
+#define XNODE_WHERE_AST_MAX_LEN   (16 * 1024)  // 16 KiB: a WHERE clause is tiny
+#define XNODE_WHERE_AST_MAX_DEPTH 256           // hard cap on nested {}/[] levels
+
+/*
+ * Iteratively check the raw AST JSON string for length and maximum nesting depth.
+ * Braces/brackets that appear inside string literals are ignored (tracked via inStr) so a
+ * literal value containing '{' does not inflate the depth. Returns
+ * TSDB_CODE_MND_XNODE_INVALID_MSG when the bounds are exceeded.
+ */
+static int32_t mndXnodeCheckWhereAstString(const char *ast) {
+  if (ast == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  size_t len = strlen(ast);
+  if (len > XNODE_WHERE_AST_MAX_LEN) {
+    mError("xnode where ast too long: %zu bytes (max %d)", len, XNODE_WHERE_AST_MAX_LEN);
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+  int  depth = 0;
+  int  maxDepth = 0;
+  bool inStr = false;
+  for (size_t i = 0; i < len; ++i) {
+    char c = ast[i];
+    if (inStr) {
+      if (c == '\\') {
+        i++;  // skip the escaped character
+        continue;
+      }
+      if (c == '"') inStr = false;
+      continue;
+    }
+    if (c == '"') {
+      inStr = true;
+    } else if (c == '{' || c == '[') {
+      depth++;
+      if (depth > maxDepth) maxDepth = depth;
+      if (depth > XNODE_WHERE_AST_MAX_DEPTH) {
+        mError("xnode where ast nesting depth %d exceeds max %d", depth, XNODE_WHERE_AST_MAX_DEPTH);
+        return TSDB_CODE_MND_XNODE_INVALID_MSG;
+      }
+    } else if (c == '}' || c == ']') {
+      if (depth > 0) depth--;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * Validate the decoded WHERE AST before the post-order evaluator runs over it.
+ *
+ * The WHERE clause of DROP/REBALANCE XNODE JOB is shipped to the mnode as a peer-supplied
+ * serialized AST string (CowStr `ast`). nodesStringToNode / jsonToNodeObject reconstruct any
+ * node type from JSON and tolerate structurally incomplete trees: an OPERATOR node may be
+ * missing its Left/Right child, a LOGIC_CONDITION may carry the wrong number of operands, and
+ * a VALUE node may carry a NULL literal. The evaluator (call_op_cmp / evaluateWaker) assumes
+ * the well-formed tree that the SQL parser would produce and dereferences taosArrayPop results
+ * and pval->literal without checks, which produces deterministic NULL-pointer dereferences and
+ * segfaults the mnode leader.
+ *
+ * This function enforces exactly the structural invariants the evaluator relies on and rejects
+ * any malformed tree up front with TSDB_CODE_MND_XNODE_INVALID_MSG, so the RPC returns an error
+ * instead of crashing. `depth` guards against pathological trees that somehow survive the
+ * pre-parse length/nesting check (defense-in-depth); the real stack-overflow protection is
+ * mndXnodeCheckWhereAstString(), applied before nodesStringToNode().
+ */
+static int32_t mndXnodeValidateWhereAst(SNode *pNode, int32_t depth) {
+  if (depth > XNODE_WHERE_AST_MAX_DEPTH) {
+    mError("xnode validate where ast: exceeded max depth %d", XNODE_WHERE_AST_MAX_DEPTH);
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+  if (pNode == NULL) {
+    mError("xnode validate where ast: NULL node");
+    return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+      // Column existence is validated later when the per-job map lookup happens.
+      return TSDB_CODE_SUCCESS;
+
+    case QUERY_NODE_VALUE: {
+      SValueNode *pVal = (SValueNode *)pNode;
+      // The evaluator dereferences pval->literal for BINARY (strlen) and BOOL
+      // (literal[0]) without a NULL check; jsonToValueNode leaves literal NULL
+      // when LiteralSize is 0, so reject such nodes before evaluation.
+      if ((pVal->node.resType.type == TSDB_DATA_TYPE_BINARY ||
+           pVal->node.resType.type == TSDB_DATA_TYPE_BOOL) &&
+          pVal->literal == NULL) {
+        mError("xnode validate where ast: value node with NULL literal for binary/bool type");
+        return TSDB_CODE_MND_XNODE_INVALID_MSG;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode *pOp = (SOperatorNode *)pNode;
+      switch (pOp->opType) {
+        case OP_TYPE_GREATER_THAN:
+        case OP_TYPE_GREATER_EQUAL:
+        case OP_TYPE_LOWER_THAN:
+        case OP_TYPE_LOWER_EQUAL:
+        case OP_TYPE_EQUAL:
+        case OP_TYPE_NOT_EQUAL:
+          break;
+        default:
+          mError("xnode validate where ast: unsupported operator type %d", pOp->opType);
+          return TSDB_CODE_MND_XNODE_INVALID_MSG;
+      }
+      // call_op_cmp pops exactly two operands; an operator missing a child would
+      // make taosArrayPop return NULL and then dereference it.
+      if (pOp->pLeft == NULL || pOp->pRight == NULL) {
+        mError("xnode validate where ast: operator missing operand");
+        return TSDB_CODE_MND_XNODE_INVALID_MSG;
+      }
+      int32_t code = mndXnodeValidateWhereAst(pOp->pLeft, depth + 1);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      return mndXnodeValidateWhereAst(pOp->pRight, depth + 1);
+    }
+
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode *pLogic = (SLogicConditionNode *)pNode;
+      int32_t              childCount = (int32_t)LIST_LENGTH(pLogic->pParameterList);
+      switch (pLogic->condType) {
+        case LOGIC_COND_TYPE_AND:
+        case LOGIC_COND_TYPE_OR:
+          if (childCount != 2) {
+            mError("xnode validate where ast: logic cond %d expects 2 operands, got %d", pLogic->condType,
+                   childCount);
+            return TSDB_CODE_MND_XNODE_INVALID_MSG;
+          }
+          break;
+        case LOGIC_COND_TYPE_NOT:
+          if (childCount != 1) {
+            mError("xnode validate where ast: logic NOT expects 1 operand, got %d", childCount);
+            return TSDB_CODE_MND_XNODE_INVALID_MSG;
+          }
+          break;
+        default:
+          mError("xnode validate where ast: unsupported logic cond type %d", pLogic->condType);
+          return TSDB_CODE_MND_XNODE_INVALID_MSG;
+      }
+      SNode *pChild = NULL;
+      FOREACH(pChild, pLogic->pParameterList) {
+        int32_t code = mndXnodeValidateWhereAst(pChild, depth + 1);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+
+    default:
+      mError("xnode validate where ast: unsupported node type %d", nodeType(pNode));
+      return TSDB_CODE_MND_XNODE_INVALID_MSG;
+  }
 }
 
 static int32_t filterJobsByWhereCond(SNode *pWhere, SArray *pArray, SArray **ppResult) {
@@ -6371,7 +6578,14 @@ static int32_t mndProcessRebalanceXnodeJobsWhereReq(SRpcMsg *pReq) {
     }
   }
   if (NULL != rebalanceReq.ast.ptr) {
+    // Bound the peer-supplied AST length/nesting BEFORE parsing: the JSON->SNode
+    // conversion (makeNodeByJson) recurses on nesting depth and would otherwise
+    // overflow the C stack, contradicting the goal of not crashing on bad ASTs.
+    TAOS_CHECK_GOTO(mndXnodeCheckWhereAstString(rebalanceReq.ast.ptr), NULL, _OVER);
     TAOS_CHECK_GOTO(nodesStringToNode(rebalanceReq.ast.ptr, &pWhere), NULL, _OVER);
+    // Reject a peer-supplied AST that violates the structural invariants the evaluator
+    // relies on (missing operands / NULL literal) before evaluating it over any xnode job.
+    TAOS_CHECK_GOTO(mndXnodeValidateWhereAst(pWhere, 0), NULL, _OVER);
     TAOS_CHECK_GOTO(filterJobsByWhereCond(pWhere, pArray, &pResult), NULL, _OVER);
     httpRebalanceAuto(pResult);
   } else {
@@ -6426,7 +6640,14 @@ static int32_t dropXnodeJobByWhereCond(SMnode *pMnode, SRpcMsg *pReq, SMDropXnod
 
   if (NULL != dropReq->ast.ptr) {
     TAOS_CHECK_GOTO(mndAcquireXnodeJobsAll(pMnode, &pArray), &lino, _OVER);
+    // Bound the peer-supplied AST length/nesting BEFORE parsing: the JSON->SNode
+    // conversion (makeNodeByJson) recurses on nesting depth and would otherwise
+    // overflow the C stack, contradicting the goal of not crashing on bad ASTs.
+    TAOS_CHECK_GOTO(mndXnodeCheckWhereAstString(dropReq->ast.ptr), &lino, _OVER);
     TAOS_CHECK_GOTO(nodesStringToNode(dropReq->ast.ptr, &pWhere), &lino, _OVER);
+    // Reject a peer-supplied AST that violates the structural invariants the evaluator
+    // relies on (missing operands / NULL literal) before evaluating it over any xnode job.
+    TAOS_CHECK_GOTO(mndXnodeValidateWhereAst(pWhere, 0), &lino, _OVER);
 
     for (int32_t i = 0; i < pArray->size; i++) {
       SXnodeJobObj *pJob = taosArrayGet(pArray, i);

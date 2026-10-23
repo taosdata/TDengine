@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from collections.abc import Callable
 from typing import Any, Optional
 
+from conf import Configure
 from flask import Flask, jsonify, request
 from startup_args import StartupArgsError, parse_model_server_args
 from transformers import (
@@ -52,8 +53,6 @@ from transformers.modeling_outputs import (
     MoeModelOutputWithPast,
 )
 from transformers.utils import ModelOutput
-
-from lib.conf import Configure
 
 app = Flask(__name__)
 

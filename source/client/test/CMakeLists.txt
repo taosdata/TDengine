@@ -299,3 +299,206 @@ if(TD_WINDOWS OR TD_DARWIN)
         TIMEOUT 900
     )
 endif()
+
+# libtaos.so's self-contained helpers (source/client/wrapper/src/wrapperLite*.c) are a
+# second source of truth for engine constants, for the per-type width table and for
+# the wrapper log file layout.  They are compiled into this test directly: they are
+# -fvisibility=hidden inside libtaos.so, and they define the same names as os/util
+# (taosMemFree, taosPrintLog, taosRealPath, ...), so linking the engine archives
+# next to them would be a duplicate-symbol error.
+set(TD_LITE_SRC
+    "${TD_SOURCE_DIR}/source/client/wrapper/src/wrapperLiteErr.c"
+    "${TD_SOURCE_DIR}/source/client/wrapper/src/wrapperLiteOs.c"
+    "${TD_SOURCE_DIR}/source/client/wrapper/src/wrapperLiteLog.c"
+)
+
+ADD_EXECUTABLE(liteConsistencyTest liteConsistencyTest.cpp ${TD_LITE_SRC})
+DEP_ext_gtest(liteConsistencyTest)
+# A Windows path cannot be pasted into a string literal -- every backslash would
+# have to be escaped, and "\0" in "C:\workspace\0\..." would truncate it -- and
+# LoadLibrary searches the directory of the running image (build/bin, where the
+# driver is) for a bare name, so Windows gets the file name only.
+if(WIN32)
+    set(TD_LITE_NATIVE_LIB_REF "$<TARGET_FILE_NAME:${TAOS_NATIVE_LIB}>")
+else()
+    set(TD_LITE_NATIVE_LIB_REF "$<TARGET_FILE:${TAOS_NATIVE_LIB}>")
+endif()
+if(WIN32)
+    # The engine headers this test includes pull some of their dependencies from the
+    # bundled externals there (tdef.h/tlog.h -> os.h -> regex.h, pthread.h, ...).
+    # The engine gets those include directories through os, which this test
+    # deliberately does not link (the local implementations define the same symbols
+    # as os/util), and the local implementations need pthreadVC3.lib themselves.
+    foreach(_lite_ext_inc ${ext_pthread_inc_dir} ${ext_msvcregex_inc_dir}
+                          ${ext_iconv_inc_dir} ${ext_wcwidth_inc_dir})
+        if(_lite_ext_inc)
+            TARGET_INCLUDE_DIRECTORIES(liteConsistencyTest PRIVATE "${_lite_ext_inc}")
+        endif()
+    endforeach()
+    if(ext_pthread_libs)
+        TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE ${ext_pthread_libs})
+    endif()
+endif()
+TARGET_INCLUDE_DIRECTORIES(
+        liteConsistencyTest PRIVATE
+        "${TD_SOURCE_DIR}/include"
+        "${TD_SOURCE_DIR}/include/os"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/source/client/wrapper/inc"
+        # taosNativeApi.h: the table the dispatcher reads the driver's entry points
+        # from, which the configDir hand-over case has to use as well (dlsym of the
+        # public names answers NULL for the native driver).
+        "${TD_SOURCE_DIR}/source/client/inc"
+)
+# dlopen/dlsym (LoadLibrary/GetProcAddress on Windows) for the tDataTypes[]
+# comparison in the test, and the engine's own pthread use in the local
+# implementations.
+TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE ${CMAKE_DL_LIBS})
+# The concurrency cases use std::thread, which needs the platform threads library
+# (pthread_create on Linux/macOS) to be on the link line.
+FIND_PACKAGE(Threads REQUIRED)
+TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE Threads::Threads)
+TARGET_COMPILE_DEFINITIONS(
+        liteConsistencyTest PRIVATE
+        # Same two variables as source/util/src/version.c.in, so the local
+        # td_version fallback cannot drift from the engine's string.
+        "TD_LITE_VERSION=\"${BUILD_VER_NUMBER}.${TD_EDITION}\""
+        # The engine's tDataTypes[] table has no header; the test loads it out of
+        # the driver built in this tree (see the test's comment for the fallback).
+        "TD_LITE_NATIVE_LIB_PATH=\"${TD_LITE_NATIVE_LIB_REF}\""
+)
+ADD_DEPENDENCIES(liteConsistencyTest ${TAOS_NATIVE_LIB})
+
+add_test(
+        NAME liteConsistencyTest
+        COMMAND liteConsistencyTest
+)
+
+# The JNI entry points inside libtaos.so are looked up by name: this library has no
+# JNI_OnLoad and the Java side calls no registerNatives, so TSDBJNIConnector.java
+# resolves Java_com_taosdata_jdbc_* straight out of the dynamic symbol table.  The
+# expected names come from the sources that implement them (the generated
+# com_*.h headers still carry a few names of retired classes such as
+# TDDBJNIConnector), so the test cannot drift away from what is implemented.
+set(_td_jni_sources
+        "${TD_SOURCE_DIR}/source/client/wrapper/src/clientJniConnector.c"
+        "${TD_SOURCE_DIR}/source/client/wrapper/src/clientTmqConnector.c"
+)
+set(_td_jni_names "")
+foreach(_src IN LISTS _td_jni_sources)
+    if(EXISTS "${_src}")
+        file(READ "${_src}" _td_jni_content)
+        string(REGEX MATCHALL "Java_[A-Za-z0-9_]+" _td_jni_found "${_td_jni_content}")
+        list(APPEND _td_jni_names ${_td_jni_found})
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES _td_jni_names)
+list(LENGTH _td_jni_names _td_jni_count)
+if(_td_jni_count LESS 60)
+    message(FATAL_ERROR "only ${_td_jni_count} JNI entry points found in the wrapper sources")
+endif()
+set(_td_jni_lines "")
+foreach(_n IN LISTS _td_jni_names)
+    string(APPEND _td_jni_lines "    \"${_n}\",\n")
+endforeach()
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/td_jni_expected.h"
+        "/* Generated by CMake from the wrapper's JNI headers -- do not edit. */\n"
+        "#pragma once\nstatic const char *const kTdJniEntryPoints[] = {\n${_td_jni_lines}};\n"
+        "static const int kTdJniEntryPointCount = ${_td_jni_count};\n"
+)
+
+# Same Windows reasoning as the native driver path below: a path cannot be pasted
+# into a string literal and LoadLibrary searches the running image's directory.
+if(WIN32)
+    set(TD_LITE_DISPATCHER_LIB_REF "$<TARGET_FILE_NAME:${TAOS_LIB}>")
+else()
+    set(TD_LITE_DISPATCHER_LIB_REF "$<TARGET_FILE:${TAOS_LIB}>")
+endif()
+
+ADD_EXECUTABLE(jniSurfaceTest jniSurfaceTest.cpp)
+DEP_ext_gtest(jniSurfaceTest)
+TARGET_LINK_LIBRARIES(jniSurfaceTest PRIVATE ${TAOS_LIB} ${CMAKE_DL_LIBS})
+TARGET_INCLUDE_DIRECTORIES(
+        jniSurfaceTest PRIVATE
+        "${TD_SOURCE_DIR}/include"
+        "${TD_SOURCE_DIR}/include/client"
+        "${CMAKE_CURRENT_BINARY_DIR}"
+)
+TARGET_COMPILE_DEFINITIONS(
+        jniSurfaceTest PRIVATE
+        "TD_LITE_DISPATCHER_LIB_PATH=\"${TD_LITE_DISPATCHER_LIB_REF}\""
+)
+if(WIN32)
+    # taos.h pulls the engine headers, which include the bundled externals there.
+    foreach(_jni_ext_inc ${ext_msvcregex_inc_dir} ${ext_pthread_inc_dir} ${ext_iconv_inc_dir} ${ext_wcwidth_inc_dir})
+        if(_jni_ext_inc)
+            TARGET_INCLUDE_DIRECTORIES(jniSurfaceTest PRIVATE "${_jni_ext_inc}")
+        endif()
+    endforeach()
+    if(ext_pthread_libs)
+        TARGET_LINK_LIBRARIES(jniSurfaceTest PRIVATE ${ext_pthread_libs})
+    endif()
+endif()
+ADD_DEPENDENCIES(jniSurfaceTest ${TAOS_LIB} ${TAOS_NATIVE_LIB})
+
+add_test(
+        NAME jniSurfaceTest
+        COMMAND jniSurfaceTest
+)
+set_tests_properties(jniSurfaceTest PROPERTIES
+        ENVIRONMENT "TDENGINE_DRIVER=native")
+
+# jniSurfaceTest above resolves the entry points but never starts a JVM, so it
+# cannot see what the JNI layer does when a lookup fails (a jar from a different
+# release than libtaos.so).  jniVersionSkewTest.sh covers that by hand: it needs a
+# JDK, so it is deliberately not registered here.
+
+# libtaos.so loads exactly one driver, chosen by TDENGINE_DRIVER, and the choice is
+# per process and made once -- so ctest runs the same binary once per mode.  Only
+# the dispatcher is linked: naming a driver here would put it into the load-time
+# dependency list and the test could no longer tell a link-time dependency from a
+# run-time decision.  The WebSocket connector comes from taos-connector-rust, a
+# separate component that some builds do not stage, so that mode skips when it is
+# missing.
+ADD_EXECUTABLE(driverIsolationTest driverIsolationTest.cpp)
+DEP_ext_gtest(driverIsolationTest)
+TARGET_LINK_LIBRARIES(driverIsolationTest PRIVATE ${TAOS_LIB} Threads::Threads)
+TARGET_INCLUDE_DIRECTORIES(
+        driverIsolationTest PRIVATE
+        "${TD_SOURCE_DIR}/include"
+        "${TD_SOURCE_DIR}/include/os"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
+        "${TD_SOURCE_DIR}/source/client/wrapper/inc"
+)
+ADD_DEPENDENCIES(driverIsolationTest ${TAOS_LIB} ${TAOS_NATIVE_LIB})
+
+add_test(
+        NAME driverIsolationTest.native
+        COMMAND driverIsolationTest
+)
+set_tests_properties(driverIsolationTest.native PROPERTIES
+        ENVIRONMENT "TDENGINE_DRIVER=native")
+
+add_test(
+        NAME driverIsolationTest.ws
+        COMMAND driverIsolationTest
+)
+set_tests_properties(driverIsolationTest.ws PROPERTIES
+        ENVIRONMENT "TDENGINE_DRIVER=websocket")
+
+# The concurrent taos_init() case wants the *first* initialisation of its process to
+# be the concurrent one -- that is the lock-free path a multi-threaded client walks --
+# and the case above needs the opposite (the loader must be untouched before init),
+# so the two cannot share a process.  A filter gives this case a process of its own.
+# Only the native driver is used: it is always built next to the dispatcher, whereas
+# the WebSocket connector is a separate component that may not be staged here.
+add_test(
+        NAME driverIsolationTest.concurrent
+        COMMAND driverIsolationTest --gtest_filter=driverIsolation.concurrentInitLoadsTheDriverOnce
+)
+set_tests_properties(driverIsolationTest.concurrent PROPERTIES
+        ENVIRONMENT "TDENGINE_DRIVER=native")

@@ -51,6 +51,9 @@ class ModelStateManager:
     # Define all valid state transitions
     VALID_TRANSITIONS: dict[ModelState, Set[ModelState]] = {
         ModelState.MISSING: {ModelState.DOWNLOADING, ModelState.DELETING},
+        # No `downloading -> deleting` edge: a delete during a download is
+        # refused by the request layer (see _validate_delete_state) instead of
+        # being queued, so the graph does not need to describe that ordering.
         ModelState.DOWNLOADING: {ModelState.IDLE, ModelState.MISSING},
         ModelState.IDLE: {ModelState.STARTING, ModelState.DELETING},
         ModelState.STARTING: {ModelState.STARTED, ModelState.IDLE},
@@ -197,6 +200,39 @@ class ModelStateManager:
             f"Invalid transition: {current_state} → {next_state}. "
             f"Allowed transitions: {', '.join(s.value for s in allowed)}"
         )
+
+    @staticmethod
+    def can_perform_operation(
+        operation: str,
+        current_state: str,
+        operation_status: str = "queued",
+    ) -> Tuple[bool, Optional[str]]:
+        """Check whether *operation* may be recorded from *current_state*.
+
+        Answers the same question ``calculate_next_state`` answers, but without a
+        row to write: the target state of the operation's first status is looked
+        up and the transition validated. Callers use it to refuse a request
+        before recording it, so the client gets a client error and no operation
+        row is created for work that would be refused anyway.
+
+        Args:
+            operation: The async operation type (download, start, stop, delete).
+            current_state: The current model_state value.
+            operation_status: Status the operation is recorded with.
+
+        Returns:
+            (is_allowed, reason_if_not_allowed)
+        """
+        if operation in ModelStateManager.COMPOSITE_OPERATIONS:
+            return True, None
+
+        target = ModelStateManager.STATE_TRANSITIONS.get((operation, operation_status))
+        if target is None:
+            # Unknown operations are not judged here; calculate_next_state is the
+            # place that reports them.
+            return True, None
+
+        return ModelStateManager.can_transition(current_state, target.value)
 
     @staticmethod
     def can_perform_action(

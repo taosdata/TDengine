@@ -17,6 +17,7 @@
 
 #include "bse.h"
 #include "bseCache.h"
+#include "tencode.h"
 #include "bseSnapshot.h"
 #include "bseTable.h"
 #include "bseTableMgt.h"
@@ -793,20 +794,24 @@ void tableReaderShouldPutToCache(STableReader *p, int8_t cache) { p->putInCache 
 int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t    lino = 0;
   int32_t    code = 0;
-  SMetaBlock block = {0};
+  SMetaBlock block = p->blockMeta;
+  SBlockWrapper wrapper = {0};
+  SBlockWithMeta *pIndexed = NULL;
+  SCacheItem *pItem = NULL;
 
   STableReaderMgt   *pMgt = (STableReaderMgt *)p->pReaderMgt;
   SBtableMetaReader *pMeta = p->pMetaReader;
 
-  code = tableMetaReaderLoadBlockMeta(pMeta, seq, &block);
-  TSDB_CHECK_CODE(code, lino, _error);
+  if (block.size <= 0 || !seqRangeContains(&block.range, seq)) {
+    code = tableMetaReaderLoadBlockMeta(pMeta, seq, &block);
+    TSDB_CHECK_CODE(code, lino, _error);
+    p->blockMeta = block;
+  }
 
-  SBlockWrapper wrapper = {0};
   SBlkHandle    blkhandle = {.offset = block.offset, .size = block.size, .range = block.range};
 
-  SCacheItem *pItem = NULL;
   code = blockCacheGet(pMgt->pBlockCache, &blkhandle.range, (void **)&pItem);
-  if (code != 0) {
+  if (code == TSDB_CODE_NOT_FOUND) {
     code = blockWrapperInit(&wrapper, block.size + 16);
     TSDB_CHECK_CODE(code, lino, _error);
 
@@ -814,28 +819,27 @@ int32_t tableReaderGet(STableReader *p, int64_t seq, uint8_t **pValue, int32_t *
              block.offset, block.range.sseq, block.range.eseq);
 
     code = tableLoadBlock(p->pDataFile, &blkhandle, &wrapper);
-    if (code != 0) {
-      blockWrapperCleanup(&wrapper);
-      TSDB_CHECK_CODE(code, lino, _error);
-    }
-
-    code = blockCachePut(pMgt->pBlockCache, &block.range, wrapper.data);
     TSDB_CHECK_CODE(code, lino, _error);
 
-  } else {
-    wrapper.data = pItem->pItem;
-    wrapper.pCachItem = pItem;
+    code = blockWithMetaInit(wrapper.data, &pIndexed);
+    TSDB_CHECK_CODE(code, lino, _error);
+    code = blockCachePut(pMgt->pBlockCache, &block.range, pIndexed);
+    TSDB_CHECK_CODE(code, lino, _error);
+    pIndexed = NULL;
+    wrapper.data = NULL;
+    code = blockCacheGet(pMgt->pBlockCache, &block.range, (void **)&pItem);
   }
-
-  code = blockSeek(wrapper.data, seq, pValue, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  if (wrapper.pCachItem != NULL) {
-    bseCacheUnrefItem(wrapper.pCachItem);
-  }
-  blockWrapperClearMeta(&wrapper);
+  code = blockWithMetaSeek(pItem->pItem, seq, pValue, len);
+  TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
+  if (pItem != NULL) {
+    bseCacheUnrefItem(pItem);
+  }
+  blockWithMetaCleanup(pIndexed);
+  blockWrapperCleanup(&wrapper);
   if (code != 0) {
     bseError("failed to get table reader data at line %d since %s", lino, tstrerror(code));
   }
@@ -1690,6 +1694,12 @@ void tableReaderIterDestroy(STableReaderIter *pIter) {
 int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
   int32_t code = 0;
   int32_t lino = 0;
+  SDecoder decoder = {0};
+
+  *pMeta = NULL;
+  if (pBlock->offset < 0 || pBlock->offset > pBlock->len) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
 
   SBlockWithMeta *p = taosMemCalloc(1, sizeof(SBlockWithMeta));
   if (p == NULL) {
@@ -1701,27 +1711,32 @@ int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
 
-  uint8_t *p1 = (uint8_t *)pBlock->data;
-  uint8_t *p2 = (uint8_t *)p1;
-  while (p2 - p1 < pBlock->len) {
-    int64_t         k;
-    int32_t         vlen = 0;
-    SBlockIndexMeta meta = {0};
-    int32_t         offset = 0;
-    p2 = taosDecodeVariantI64((void **)p2, &k);
-    offset = p2 - p1;
-    p2 = taosDecodeVariantI32((void **)p2, &vlen);
-
-    meta.seq = k;
-    meta.offset = offset;
+  // Payloads precede the packed (seq, length) index in the on-disk format.
+  tDecoderInit(&decoder, (uint8_t *)pBlock->data + pBlock->offset, pBlock->len - pBlock->offset);
+  int64_t offset = 0;
+  int64_t lastSeq = 0;
+  while (decoder.pos < decoder.size) {
+    SBlockIndexMeta meta = {.offset = offset};
+    code = tDecodeI64v(&decoder, &meta.seq);
+    TSDB_CHECK_CODE(code, lino, _error);
+    code = tDecodeI32v(&decoder, &meta.len);
+    TSDB_CHECK_CODE(code, lino, _error);
+    if (meta.seq <= lastSeq || meta.len < 0 || meta.len > pBlock->offset - offset) {
+      TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
+    }
     if (taosArrayPush(p->pMeta, &meta) == NULL) {
       TSDB_CHECK_CODE(code = terrno, lino, _error);
     }
-    p2 += vlen;
+    offset += meta.len;
+    lastSeq = meta.seq;
+  }
+  if (offset != pBlock->offset) {
+    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _error);
   }
 
   *pMeta = p;
 _error:
+  tDecoderClear(&decoder);
   if (code != 0) {
     bseError("failed to init block with meta since %s", tstrerror(code));
     blockWithMetaCleanup(p);
@@ -1749,8 +1764,14 @@ int comprareFunc(const void *pLeft, const void *pRight) {
 
 int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int32_t *len) {
   int32_t         code = 0;
+  if (p == NULL || p->pBlock == NULL || p->pMeta == NULL || pValue == NULL || len == NULL) {
+    bseError("failed to seek indexed block since %s", tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pValue = NULL;
+  *len = 0;
   SBlockIndexMeta key = {.seq = seq, .offset = 0};
-  int32_t         idx = taosArraySearchIdx(p->pMeta, &seq, comprareFunc, TD_EQ);
+  int32_t         idx = taosArraySearchIdx(p->pMeta, &key, comprareFunc, TD_EQ);
   if (idx < 0) {
     return TSDB_CODE_NOT_FOUND;
   }
@@ -1759,13 +1780,17 @@ int32_t blockWithMetaSeek(SBlockWithMeta *p, int64_t seq, uint8_t **pValue, int3
     return TSDB_CODE_NOT_FOUND;
   }
 
+  if (p->pBlock->offset < 0 || p->pBlock->offset > p->pBlock->len ||
+      pMeta->offset < 0 || pMeta->offset > p->pBlock->offset ||
+      pMeta->len < 0 || pMeta->len > p->pBlock->offset - pMeta->offset) {
+    bseError("failed to seek indexed block seq:%" PRId64 " since %s", seq,
+             tstrerror(TSDB_CODE_FILE_CORRUPTED));
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
   uint8_t *data = (uint8_t *)p->pBlock->data + pMeta->offset;
 
-  data = taosDecodeVariantI32((void *)data, len);
-  if (*len <= 0) {
-    return TSDB_CODE_NOT_FOUND;
-  }
-  *pValue = taosMemCalloc(1, *len);
+  *len = pMeta->len;
+  *pValue = taosMemCalloc(1, TMAX(*len, 1));
   if (*pValue == NULL) {
     return terrno;
   }
@@ -1861,6 +1886,7 @@ int32_t tableMetaCommit(SBTableMeta *pMeta, SArray *pBlock) {
 
   code = taosRenameFile(tempMetaPath, metaPath);
   TSDB_CHECK_CODE(code, lino, _error);
+  (void)atomic_add_fetch_64(&pMeta->pBse->readerEpoch, 1);
 
 _error:
   if (code != 0) {

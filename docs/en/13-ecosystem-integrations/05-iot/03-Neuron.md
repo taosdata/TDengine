@@ -5,19 +5,13 @@ description: Write industrial device data to TDengine with Neuron and the eKuipe
 toc_max_heading_level: 5
 ---
 
-[Neuron](https://github.com/emqx/neuron) is an industrial IoT connectivity platform developed by EMQ. It supports industrial protocols such as Modbus, OPC UA, and BACnet.
-
-[eKuiper](https://github.com/lf-edge/ekuiper) is an open-source, lightweight edge stream processing engine. It processes data with SQL and forwards results through output actions called sinks.
-
-[NeuronEX](https://docs.emqx.com/en/neuronex/latest/) is EMQ's industrial edge data collection and processing software. It combines Neuron's protocol connectivity with eKuiper's stream processing and provides a unified web interface for configuring data collection, processing, and forwarding.
+[Neuron](https://github.com/emqx/neuron) is an industrial IoT connectivity platform developed by EMQ. It supports industrial protocols such as Modbus, OPC UA, and BACnet. [eKuiper](https://github.com/lf-edge/ekuiper) is an open-source, lightweight edge stream processing engine. It processes data with SQL and forwards results through output actions called sinks. [NeuronEX](https://docs.emqx.com/en/neuronex/latest/) is EMQ's industrial edge data collection and processing software. It combines Neuron's protocol connectivity with eKuiper's stream processing and provides a unified web interface for configuring data collection, processing, and forwarding.
 
 This guide describes how to write Modbus power meter data to TDengine through the InfluxDB v1 sink in NeuronEX. This integration enables access to more than 70 industrial protocols supported by NeuronEX, subject to the version and license.
 
 ![NeuronEX and TDengine integration architecture](../../assets/iot-neuron-architecture.webp)
 
-*Figure 1. NeuronEX and TDengine integration architecture*
-
-In Figure 1, solid arrows indicate data flow, and the dashed box indicates the optional nginx component. Neuron converts Modbus data into JSON collection reports. eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and sends batches to taosAdapter. Schemaless writes automatically create the supertable and subtables. To use mutual TLS (mTLS) or taosAdapter failover, deploy nginx as described later in this guide.
+Neuron converts Modbus data into JSON collection reports. eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and sends batches to taosAdapter. Schemaless writes automatically create the supertable and subtables. To use mutual TLS (mTLS) or taosAdapter failover, deploy nginx as described later in this guide.
 
 ## Prerequisites
 

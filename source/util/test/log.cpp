@@ -149,6 +149,53 @@ TEST(log, check_log_refactor) {
   taosRemoveDir(logDir);
 }
 
+TEST(log, rotate_by_real_lines) {
+  // RAII guard: this test mutates process-global log state (tsNumOfLogLines / tsLogDir / the initialized
+  // log handle). If any ASSERT/EXPECT aborts the test early, the globals must still be restored so later
+  // cases (e.g. TEST(log, misc)) are not polluted by a leftover tsNumOfLogLines=100 or a stray log dir.
+  struct LogStateGuard {
+    char    savedLogDir[PATH_MAX] = {0};
+    int32_t savedLines = 0;
+    bool    savedAsync = false;
+    bool    savedDebugFile = false;
+    char    logDir[PATH_MAX] = {0};
+    ~LogStateGuard() {
+      taosCloseLog();
+      tsNumOfLogLines = savedLines;
+      tsAsyncLog = savedAsync;
+      tstrncpy(tsLogDir, savedLogDir, PATH_MAX);
+      taosRemoveDir(logDir);
+    }
+  } guard;
+
+  taosGetTmpfilePath(TD_TMP_DIR_PATH, "logLinesTest", guard.logDir);
+  tstrncpy(guard.savedLogDir, tsLogDir, PATH_MAX);
+  guard.savedLines = tsNumOfLogLines;
+  guard.savedAsync = tsAsyncLog;
+  ASSERT_EQ(taosMkDir(guard.logDir), 0) << terrstr();
+  tstrncpy(tsLogDir, guard.logDir, PATH_MAX);
+  tsAsyncLog = 0;
+  int32_t oldLines = tsNumOfLogLines;
+  tsNumOfLogLines = 100;
+  ASSERT_EQ(taosInitLog("linesTest", 1, false), 0) << terrstr();
+  uDebugFlag = 143;
+
+  // the active file may be .0 or .1 depending on the global log state; rotation makes both exist
+  char file0[PATH_MAX + 32] = {0}, file1[PATH_MAX + 32] = {0};
+  snprintf(file0, sizeof(file0), "%s/linesTest.0", guard.logDir);
+  snprintf(file1, sizeof(file1), "%s/linesTest.1", guard.logDir);
+  auto bothExist = [&]() { return taosCheckExistFile(file0) && taosCheckExistFile(file1); };
+  ASSERT_FALSE(bothExist());
+
+  // few calls, but each call is long (~3.9KB, estimated as ~65 lines): must still trigger rotation
+  std::string multi;
+  for (int i = 0; i < 60; ++i) multi += std::string(64, 'a') + "\n";
+  uInfoL("multi lines:\n%s", multi.c_str());
+  EXPECT_FALSE(bothExist());
+  uInfoL("multi lines:\n%s", multi.c_str());
+  EXPECT_TRUE(bothExist());
+}
+
 extern char *tsLogOutput;
 static void *taosLogCrashMockFunc(void *param) {
   printf("%s:%d entry\n", __func__, __LINE__);

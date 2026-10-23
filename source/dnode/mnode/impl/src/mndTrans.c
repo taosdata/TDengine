@@ -893,10 +893,25 @@ static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
   return 0;
 }
 
+// [Security fix for finding item 268] The new array is decoded from an untrusted raw (a
+// replicated trans), so it is not guaranteed to be at least as long as the stored one: the
+// old code walked the OLD array and dereferenced taosArrayGet(pNewArray, i) unchecked,
+// which is a NULL dereference for any replicated trans carrying fewer actions than the
+// trans already in sdb. Walk only the common prefix instead; a size mismatch is not
+// expected in the legitimate flow (both arrays are encoded from the same trans), so log it.
 static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
-  for (int32_t i = 0; i < taosArrayGetSize(pOldArray); ++i) {
+  int32_t oldNum = (int32_t)taosArrayGetSize(pOldArray);
+  int32_t newNum = (int32_t)taosArrayGetSize(pNewArray);
+
+  if (oldNum != newNum) {
+    mWarn("trans action array size mismatch while updating, old:%d new:%d, only the first %d actions are updated",
+          oldNum, newNum, TMIN(oldNum, newNum));
+  }
+
+  for (int32_t i = 0; i < TMIN(oldNum, newNum); ++i) {
     STransAction *pOldAction = taosArrayGet(pOldArray, i);
     STransAction *pNewAction = taosArrayGet(pNewArray, i);
+    if (pOldAction == NULL || pNewAction == NULL) break;
     pOldAction->rawWritten = pNewAction->rawWritten;
     pOldAction->msgSent = pNewAction->msgSent;
     pOldAction->msgReceived = pNewAction->msgReceived;

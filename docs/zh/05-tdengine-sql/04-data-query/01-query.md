@@ -25,7 +25,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
 
 select_list:
     select_expr [, select_expr] ...
@@ -174,8 +174,9 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
 | `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
 | `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
-| `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 FAST 执行路径 | 无 `PARTITION BY`、`FILL`、窗口偏移或滑动，且不使用日/周/月/年自然时间单位的超级表 `INTERVAL` 聚合查询 |
-| `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
+| `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 partial 或 merge FAST 执行路径 | 支持无分区、按标签分区、按 `tbname` 及其他标签分区，以及符合条件的 TSMA 改写计划；窗口和分区限制见下文 |
+| `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `PARTITION BY`、`LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
+| `INTERVAL_LIMIT`      | 无 | 对符合条件的 `INTERVAL` 查询按子表裁剪后续扫描，减少获取前几个窗口所需的工作量，默认关闭 | 带正数 `LIMIT`、窗口直接读取 Table Scan 且扫描与窗口输出顺序一致的查询；完整限制见下文 |
 | `JOIN_ALGO` | `HASH`、`MERGE` 或 `THETA`，仅一个参数 | 自 `v3.4.3.0` 起支持，指定 JOIN 算法偏好，不适用时回退；详见 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint) | 普通 JOIN |
 | `HASH_JOIN` | 无 | 已有写法，对应 `JOIN_ALGO(HASH)` | 普通 JOIN |
 | `MERGE_JOIN` | 无 | 自 `v3.4.3.0` 起支持，对应 `JOIN_ALGO(MERGE)` | 普通 JOIN |
@@ -193,7 +194,59 @@ SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
+SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 5;
 ```
+
+### FAST_INTERVAL
+
+`FAST_INTERVAL()` 可用于符合条件的超级表窗口聚合，以及 TSMA 改写后符合条件的窗口计算。它可能只优化 partial 阶段，也可能同时优化 merge 阶段；最终采用哪条路径取决于执行计划中的分区方式、聚合函数和中间结果大小。
+
+适用条件包括：
+
+- 查询时间范围的上下界确定，使用固定时长的滚动窗口，滑动步长等于窗口长度，且没有窗口偏移和 `FILL`。
+- 窗口不使用 `d`、`w`、`n`、`y` 自然时间单位；窗口数量须满足执行路径限制。
+- 分区可以包含 `tbname` 和其他标签，但不能包含普通数据列。分区不含 `tbname` 时，只支持直接标签列，不支持分区表达式，并且不能带 `LIMIT` 或 `SLIMIT`。
+
+例如，以下查询按标签 `tag0` 分区：
+
+```sql
+SELECT /*+ FAST_INTERVAL() */ tag0, _wstart, AVG(c1)
+FROM stable1
+WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00'
+PARTITION BY tag0
+INTERVAL(10m);
+```
+
+TSMA 场景还需要已有可用的预聚合并启用 TSMA 查询优化；此 Hint 不会创建 TSMA。TSMA 改写可能改变 FAST 的适用性，因此应分别核对单独使用和组合使用时的计划。使用 `EXPLAIN VERBOSE TRUE` 检查窗口算子是否显示 `mode=fast`，再通过 `EXPLAIN ANALYZE` 比较整条查询的耗时。
+
+### INTERVAL_LIMIT
+
+`INTERVAL_LIMIT()` 不接收参数，默认不启用。将它紧跟在包含 `INTERVAL` 和 `LIMIT` 的同一层 `SELECT` 后；外层查询的 Hint 不会启用子查询中的扫描裁剪。带参数的写法（例如 `INTERVAL_LIMIT(1)`）不会启用此优化。
+
+启用后，每张子表完整保留前 `LIMIT + OFFSET` 个非空输入窗口，并在确认最后一个保留窗口完整后跳过该子表的后续数据。其他子表仍会参与聚合，查询结果保持原有语义。`LIMIT 5 OFFSET 20` 对应保留前 25 个窗口。
+
+当前适用范围与限制：
+
+- 普通非重叠 `INTERVAL` 聚合，`LIMIT` 大于 0，窗口直接读取 Table Scan，且扫描顺序与窗口输出顺序一致。
+- 支持 `COUNT`、`SUM`、`AVG`、`MIN`、`MAX`，以及相应的窗口伪列和分组键。
+- 不适用于虚拟表和流计算。
+- 不满足条件时保留原执行路径，包括带 `HAVING`、`FILL`、重叠滑动窗口、按聚合值排序，或者窗口与扫描之间存在独立 `Partition` 等情况。扫描仍为升序而输出要求降序时，也不会启用裁剪。
+
+可通过详细执行计划验证是否启用，例如：
+
+```sql
+EXPLAIN VERBOSE TRUE
+SELECT /*+ INTERVAL_LIMIT() */ _wstart, MAX(c1)
+FROM stable1
+INTERVAL(1m)
+LIMIT 5 OFFSET 20;
+```
+
+计划中的 Table Scan 出现 `interval_limit=25` 表示已启用对应裁剪。对于分别满足条件的查询，可以在同一注释中组合 `FAST_INTERVAL()` 与 `INTERVAL_LIMIT()`，例如 `/*+ FAST_INTERVAL() INTERVAL_LIMIT() */`。
+
+该优化主要适合只需少量窗口的查询。`LIMIT` 较大或无法减少扫描时，额外的窗口跟踪可能增加开销；建议通过 `EXPLAIN ANALYZE` 对比启用前后的扫描行数和查询耗时，按需使用。
+
+### PARTITION_FIRST
 
 从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
 

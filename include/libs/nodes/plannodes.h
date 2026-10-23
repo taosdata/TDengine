@@ -142,6 +142,7 @@ typedef struct SScanLogicNode {
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
   bool               lastOnlyScan;
+  int64_t            intervalLimit;  // per-table window prefix; zero disables pruning
   int64_t            interval;
   int64_t            offset;
   int64_t            sliding;
@@ -512,6 +513,7 @@ typedef struct SWindowLogicNode {
   EWindowAlgorithm      windowAlgo;
   bool                  fastInterval;  // FAST_INTERVAL hint selected this node's dedicated execution path
   bool                  exInterval;    // EX_INTERVAL hint selected this node's dedicated execution path
+  bool                  intervalLimitHint;  // Capture the owning SELECT before project rewrites move hints.
   SNodeList*            pTsmaSubplans;
   // for interval window
   int64_t               interval;
@@ -854,6 +856,7 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   bool           lastOnlyScan;
+  int64_t        intervalLimit;  // per-table window prefix; zero disables pruning
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
   bool           groupSort;

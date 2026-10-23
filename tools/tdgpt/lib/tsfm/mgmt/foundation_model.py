@@ -24,6 +24,7 @@ import os
 import subprocess
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from lib.log import AppLogger
@@ -45,9 +46,12 @@ from lib.tsfm.mgmt.foundation_models_db import (
 )
 from lib.tsfm.mgmt.model_state_machine import ModelStateManager, ModelStateTransitionError
 from lib.tsfm.mgmt.response_event import (
+    DOWNLOAD_FAMILY,
     RUNTIME_RESOURCE_NAME,
     OperationType,
     TaskStatus,
+    _parse_resource_timestamp,
+    _read_resource_task_states,
     do_build_operation_response,
 )
 
@@ -60,9 +64,278 @@ from lib.tsfm.mgmt.response_event import (
 _PENDING_DELETES_RESUMED = False
 _MODELS_INITIALIZED = False
 
+# States that describe a settled model instead of one an operation is moving. A
+# worker that dies -- or one started from the CLI -- leaves exactly these wrong,
+# and nothing else corrects them, so they are re-derived from the pid files.
+_SETTLED_STATES = frozenset({"missing", "downloading", "idle", "started"})
+
+# Operation statuses that still own a model's state: the work is queued, running,
+# or waiting for a retry, so nothing else may decide where the model is.
+_INFLIGHT_STATUSES = frozenset(
+    {TaskStatus.QUEUED.value, TaskStatus.RUNNING.value, "deferred"}
+)
+
+# How often a state write is retried when another process moves the state between
+# the read and the compare-and-set. Three attempts cover a burst of two requests;
+# beyond that the caller is told instead of looping.
+_STATE_UPDATE_ATTEMPTS = 3
+
+
+def _settled_state_from_workers(model, is_running, downloaded=None):
+    """Return the settled state worker liveness implies, or None to leave it be.
+
+    ``model_state`` is only written when an operation completes, so a worker that
+    exited without a recorded stop -- crashed, killed, or gone after a restart --
+    leaves the row at ``started``, and a worker started from the CLI leaves it at
+    ``idle``. ``started`` only permits a transition to ``stopping``, so a stale
+    one refuses the next start *and* every delete; the model is wedged until
+    someone edits the database. The pid files are the authority here for the same
+    reason they are at startup.
+
+    Transient states (``starting``/``stopping``/``deleting``) are never judged
+    here: an operation owns them, and the worker it is about to spawn may
+    legitimately not exist yet. ``deleting`` is additionally driven by the
+    restart re-queue mechanism.
+
+    Args:
+        model: The model row to judge.
+        is_running: Whether that model's worker process is alive.
+        downloaded: Whether its files are installed, when that was checked against
+            the inventory; defaults to the cached flag. ``idle`` and ``missing``
+            are told apart by this, so a stale flag would name a state the files
+            contradict.
+
+    Returns:
+        str: The state the files and the processes describe, or None when the
+            stored state already says it (or is not one this function judges).
+    """
+    stored = model.model_state or "missing"
+    if stored not in _SETTLED_STATES:
+        return None
+
+    if downloaded is None:
+        downloaded = model.downloaded
+
+    if is_running:
+        implied = "started"
+    elif downloaded:
+        implied = "idle"
+    else:
+        implied = "missing"
+
+    return None if implied == stored else implied
+
+
+def _has_inflight_operation(dao, model_name):
+    """Whether any operation for this model is still queued, running or retrying.
+
+    Used to decide who owns a transient state: an operation that has not reported
+    an outcome yet owns it, and its worker may simply not exist yet. `deferred` is
+    stored as `queued` with a `retry_after` in the payload, but it is matched here
+    too so a row written by an older version cannot be mistaken for a dead one.
+    """
+    return any(
+        op.status in _INFLIGHT_STATUSES
+        for op in dao.list_async_operations(model_name=model_name, active_only=True)
+    )
+
+
+# Statuses the resource manager writes into its own task file while it is still
+# applying a resource (see script/resource_manager.py).
+_CLI_INFLIGHT_STATUSES = frozenset({"downloading", "verifying", "importing"})
+
+
+def _cli_inflight_downloads():
+    """Return the resources the CLI is still applying, according to its task files.
+
+    `async_operations` is written by this API, so a restart turns a running
+    download into `interrupted` while the detached `resource apply` child keeps
+    writing the model directory (see fail_stale_running_operations). The task file
+    that child maintains is the only record that survives that, and it is the same
+    source the phase view reads.
+
+    One scan per request is enough: the delete and stop guards are on mutually
+    exclusive routes, and the runtime guard replaces the model guard rather than
+    adding to it.
+
+    Returns:
+        list[str]: Names of resources with a live, in-flight task file (sorted).
+    """
+    stale_after = timedelta(seconds=foundation_util.resource_task_stale_seconds())
+    inflight = set()
+    for state in _read_resource_task_states():
+        if state.get("status") not in _CLI_INFLIGHT_STATUSES:
+            continue
+        updated_at = _parse_resource_timestamp(state.get("updated_at"))
+        if updated_at is None or datetime.now(timezone.utc) - updated_at > stale_after:
+            continue
+        name = state.get("name")
+        if name:
+            inflight.add(str(name))
+    return sorted(inflight)
+
+
+def _cli_task_file_resources():
+    """Return resources whose task file reports an in-flight status, ignoring staleness.
+
+    Unlike _cli_inflight_downloads, this does not filter on updated_at. It is used
+    as a conservative guard: if the file exists with an in-flight status we cannot
+    prove the process has finished, even if the timestamp is missing or unparseable.
+    """
+    present = set()
+    for state in _read_resource_task_states():
+        if state.get("status") not in _CLI_INFLIGHT_STATUSES:
+            continue
+        name = state.get("name")
+        if name:
+            present.add(str(name))
+    return sorted(present)
+
+
+def _download_in_flight_reason(model_name):
+    """Return why a download of *model_name* refuses a delete/stop now, or None.
+
+    Two records can prove a download is running, and only one of them survives a
+    restart of this API: its own operation row, and the task file the CLI child
+    keeps rewriting. Both are asked, because the row alone reports `interrupted`
+    for a download that is in fact still applying files.
+    """
+    download = foundation_util.get_active_download_op(model_name)
+    if download is not None:
+        return f"its download is in flight (task '{download.task_id}')"
+
+    if model_name in _cli_inflight_downloads():
+        return "the resource manager is still applying it"
+
+    return None
+
+
+def _refresh_model_state(dao, model, live):
+    """Write the state the host's own records describe onto one row, before judging it.
+
+    A request decides what may be done to a model from ``model_state``, but that
+    column is only written when an operation completes. Two records are therefore
+    asked again here -- the pid files and the installed-resource inventory, the
+    same sources ``reconcile_model_running_state`` uses at startup -- and any
+    difference is written, so the request and the state machine judge the same,
+    real state instead of the lifecycle a crash (or a CLI operation) left behind.
+
+    ``models.running`` and ``models.downloaded`` are the cached copies of those two
+    answers. They go stale in both directions and are what start/stop decide on, so
+    they are corrected in the same write. One conditional UPDATE carries all three
+    fields: a crash between two writes is what left a state saying "installed" next
+    to a flag saying "not downloaded", which reconciliation then "corrected" in the
+    wrong direction.
+
+    Two states are left alone, because they are owned by something other than a
+    worker: ``downloading`` while a download is in flight, and ``deleting`` while
+    a restart re-queues it. ``starting``/``stopping`` are corrected only when no
+    operation for this model is in flight -- otherwise their worker may simply not
+    exist yet.
+
+    Args:
+        dao: Foundation models DAO.
+        model: Model row fetched for this request.
+        live: Result of ``foundation_util.live_worker_names()`` -- a list of
+            names, or None when liveness could not be determined.
+
+    Returns:
+        tuple:
+            model: The model to judge, carrying the corrected values.
+            error: None, or why the state cannot be trusted -- liveness is unknown,
+                or the correction could not be written. A caller that decides on
+                that state must refuse the request rather than guess.
+    """
+    if live is None:
+        # An unreadable liveness is not evidence that a model is stopped, and the
+        # cached flags cannot be checked either. Refuse instead of guessing: the
+        # wrong guess either spawns a second worker or refuses a legitimate stop.
+        return model, (
+            "Cannot verify whether a model worker is running: "
+            "`taosanodectl model status` did not answer"
+        )
+
+    if model.model_state == "downloading" and (
+        foundation_util.get_active_download_op(model.name)
+        or model.name in _cli_inflight_downloads()
+    ):
+        # A download is genuinely in flight and owns the state; its completion
+        # advances it. Do not mistake the missing worker for a dead download.
+        # Include the CLI task file check so a post-restart interrupted row
+        # (get_active_download_op returns None) is not prematurely "repaired"
+        # to idle/missing while the CLI child is still writing.
+        return model, None
+
+    live_names = set(live)
+
+    for attempt in range(1, _STATE_UPDATE_ATTEMPTS + 1):
+        is_running = model.name in live_names
+
+        # A live worker proves its own files are installed, so the inventory is
+        # only needed to judge a model that is not running. Re-probe on each
+        # attempt so the value is consistent with the freshly-read model row.
+        inventory = None
+        if not is_running:
+            inventory = foundation_util.installed_resource_names()
+
+        installed = None if inventory is None else model.name in inventory
+
+        settled = _settled_state_from_workers(
+            model,
+            is_running,
+            downloaded=installed,
+        )
+        if settled is None and model.model_state in ("starting", "stopping"):
+            # A start or stop that never reported an outcome. Correct it only when
+            # no operation owns the state: a start that has not spawned its worker
+            # yet looks exactly like this from the outside.
+            if not _has_inflight_operation(dao, model.name):
+                settled = "started" if is_running else "idle"
+
+        updates = {}
+        if settled is not None and settled != model.model_state:
+            updates["model_state"] = settled
+        if bool(model.running) != is_running:
+            updates["running"] = is_running
+        if installed is not None and bool(model.downloaded) != installed:
+            updates["downloaded"] = installed
+
+        if not updates:
+            return model, None
+
+        if dao.update_model_if_state_unchanged(
+            model.name, model.model_state or "missing", **updates
+        ):
+            AppLogger.info(
+                "Repaired model '%s' from the host's own records: %s",
+                model.name,
+                ", ".join(f"{field}={value}" for field, value in updates.items()),
+            )
+            for field, value in updates.items():
+                setattr(model, field, value)
+            return model, None
+
+        # Another writer moved the state between the read and this write. Re-read
+        # and recompute instead of overwriting the answer they just recorded.
+        fresh = dao.get_model(model.name)
+        if fresh is None:
+            return model, f"Model '{model.name}' disappeared while its state was reconciled"
+
+        AppLogger.info(
+            "Model '%s' changed state while reconciling (attempt %d); re-reading",
+            model.name,
+            attempt,
+        )
+        model = fresh
+
+    return model, (
+        f"Cannot reconcile the state of model '{model.name}': "
+        "it kept changing while the request was processed"
+    )
+
 
 def reconcile_model_running_state():
-    """Rebuild the cached `running` flags from the workers that are actually alive.
+    """Rebuild the cached `running` flag and `model_state` from live workers.
 
     A model worker is not a child of this service: Models.start detaches it into a
     session of its own, so it survives a restart of the API. The cached column,
@@ -72,12 +345,21 @@ def reconcile_model_running_state():
     live worker that looks stopped refuses every stop, and a forced replace is
     allowed to overwrite the files it has loaded.
 
+    ``model_state`` goes stale in exactly the same way. A worker that died without
+    a recorded stop leaves the row at ``started``, which the state machine only
+    lets move to ``stopping`` -- so the model can be neither started nor deleted
+    until the row is corrected. That is what this pass does for every settled
+    state, after fixing the transient ones an interrupted operation leaves.
+
     So the pid files are asked instead (the same source the delete path trusts)
-    and their answer is written. Liveness that could not be probed changes
-    nothing: an unknown answer is not evidence that a model is stopped.
+    and their answer is written. The installed-resource inventory is asked for the
+    same reason -- ``downloaded`` is only a cache of it -- and it is what tells a
+    model whose directory was removed (``missing``) from one that is merely
+    stopped (``idle``). Liveness that could not be probed changes nothing: an
+    unknown answer is not evidence that a model is stopped.
 
     Returns:
-        int: Number of model rows whose flag was corrected.
+        int: Number of model rows whose `running` flag was corrected.
     """
     live = foundation_util.live_worker_names()
     if live is None:
@@ -87,24 +369,43 @@ def reconcile_model_running_state():
         return 0
 
     running_names = set(live)
+
+    # The same inventory the request path reads: `downloaded` is only a cache of
+    # it, and `idle`/`missing` are told apart by whether the files are there. An
+    # unreadable inventory changes nothing -- an unknown answer is not evidence
+    # that a model was removed.
+    inventory = foundation_util.installed_resource_names()
+    installed_names = None if inventory is None else set(inventory)
+
     dao = get_dao()
     corrected = 0
     for model in dao.list_models():
         is_running = model.name in running_names
+        installed = None if installed_names is None else model.name in installed_names
+
+        flags = {}
         if model.running != is_running:
-            if dao.update_model(model.name, running=is_running):
+            flags["running"] = is_running
+        if installed is not None and bool(model.downloaded) != installed:
+            flags["downloaded"] = installed
+
+        if flags and dao.update_model(model.name, **flags):
+            if "running" in flags:
                 corrected += 1
-                AppLogger.info(
-                    "Reconciled model '%s' running state: %s -> %s",
-                    model.name,
-                    model.running,
-                    is_running,
-                )
+            AppLogger.info(
+                "Reconciled model '%s' host state: %s",
+                model.name,
+                ", ".join(f"{field}={value}" for field, value in flags.items()),
+            )
+            for field, value in flags.items():
+                setattr(model, field, value)
 
         # Reconcile model_state for transient states left behind by an interrupted
-        # operation. Deleting is excluded: its re-queue mechanism drives the final
-        # state. Downloading is excluded: fail_stale_running_operations marks it
-        # interrupted and _complete_async_operation drives the state from there.
+        # operation, then for the settled states a dead worker leaves wrong.
+        # Deleting is excluded: its re-queue mechanism drives the final state.
+        # Downloading is skipped when the CLI task file shows the child is still
+        # applying — fail_stale_running_operations interrupts the row but a
+        # detached resource-apply child may still be writing the model directory.
         stale_state = model.model_state
         if stale_state == "starting":
             # The start was interrupted; no worker launched or it was killed.
@@ -118,6 +419,29 @@ def reconcile_model_running_state():
             AppLogger.info(
                 "Reconciled model '%s' model_state: stopping -> %s", model.name, next_state
             )
+        else:
+            # `started` with no worker is the crash case: the row names a state
+            # that only permits `stopping`, so both the next start and every
+            # delete would be refused. `idle`, `missing` and `downloading` are
+            # corrected the same way, from the pid files and the installed files.
+            # Exception: skip the correction for `downloading` when the CLI task
+            # file reports the child is still applying — the interrupted row
+            # means the API restarted, not that the child is done.
+            if stale_state == "downloading" and model.name in _cli_inflight_downloads():
+                AppLogger.info(
+                    "Skipping reconcile of model '%s' model_state: CLI apply is still in flight",
+                    model.name,
+                )
+                continue
+            settled = _settled_state_from_workers(model, is_running, downloaded=installed)
+            if settled is not None:
+                dao.update_model(model.name, model_state=settled)
+                AppLogger.info(
+                    "Reconciled model '%s' model_state: %s -> %s",
+                    model.name,
+                    stale_state,
+                    settled,
+                )
 
     AppLogger.info(
         "Model running-state reconciliation complete: %d corrected (live workers: %s)",
@@ -287,6 +611,118 @@ def _reconcile_local_model_state(model_name, local_model):
     )
 
 
+def _describe_transition(current_state, operation, operation_status):
+    """Return ``(next_state, error_message)`` for one operation outcome."""
+    try:
+        next_state = ModelStateManager.calculate_next_state(
+            operation=operation,
+            operation_status=operation_status,
+            current_state=current_state,
+        )
+        return next_state, None
+    except (ValueError, ModelStateTransitionError) as exc:
+        return None, str(exc)
+
+
+def _completion_flags(operation, model_name):
+    """Legacy columns an operation leaves behind once it succeeded.
+
+    They are written in the *same* UPDATE as ``model_state``: two writes can be
+    interrupted between them, and that leaves a state saying "installed" next to a
+    flag saying "not downloaded". Reconciliation reads the flag to decide what the
+    state should be, so such a pair is then corrected in the wrong direction.
+    """
+    if model_name == RUNTIME_RESOURCE_NAME:
+        # The runtime is a resource without a model row of its own.
+        return {}
+
+    if operation == OperationType.DOWNLOAD.value:
+        return {"downloaded": True}
+    if operation == OperationType.START.value:
+        return {"running": True}
+    if operation == OperationType.DOWNLOAD_START.value:
+        # Combined operation: a successful completion means the model was
+        # downloaded AND its service started.
+        return {"downloaded": True, "running": True}
+    if operation == OperationType.STOP.value:
+        return {"running": False}
+    if operation == OperationType.DELETE.value:
+        return {"downloaded": False, "running": False}
+    return {}
+
+
+def _apply_operation_outcome(dao, model_name, operation, operation_status, flags=None):
+    """Record one operation outcome as a single conditional write.
+
+    ``model_state`` is derived from the state the row actually holds, and the
+    write only lands if that state is still the one it was derived from. Two
+    workers recording outcomes at the same time would otherwise both read the same
+    state and the later write would silently replace the earlier answer; here the
+    loser re-reads and judges its operation against the state that now exists.
+
+    ``flags`` are the legacy columns of a successful operation, written together
+    with the state so the two can never disagree.
+
+    Args:
+        dao: Foundation models DAO.
+        model_name: Model (or runtime resource) name.
+        operation: Operation type the outcome belongs to.
+        operation_status: queued/running/completed/failed/interrupted.
+        flags: Extra model columns to write in the same statement.
+
+    Returns:
+        None on success, or an error message when the transition is refused or the
+        row would not stop moving.
+    """
+    for attempt in range(1, _STATE_UPDATE_ATTEMPTS + 1):
+        model = dao.get_model(model_name)
+        if not model:
+            # No row: the shared runtime, or a model deleted underneath us.
+            return None
+
+        current = model.model_state or "missing"
+
+        target = ModelStateManager.STATE_TRANSITIONS.get((operation, operation_status))
+        if target is not None and target.value == current:
+            # The outcome is already recorded: the winner of a race wrote exactly
+            # this state. The legacy flags (downloaded, running) may still be
+            # stale if this writer lost the CAS after setting the state but
+            # before writing the flags — write them now without a state condition
+            # since the target state is already in place.
+            if flags:
+                dao.update_model(model_name, **flags)
+            return None
+
+        next_state, error = _describe_transition(current, operation, operation_status)
+        if error:
+            AppLogger.error("Failed to advance model_state for %s: %s", model_name, error)
+            return error
+
+        fields = dict(flags or {})
+        if next_state != current:
+            fields["model_state"] = next_state
+        if not fields:
+            return None
+
+        if dao.update_model_if_state_unchanged(model_name, current, **fields):
+            return None
+
+        AppLogger.info(
+            "model_state of '%s' moved while recording '%s/%s' (attempt %d); re-reading",
+            model_name,
+            operation,
+            operation_status,
+            attempt,
+        )
+
+    error = (
+        f"Cannot record '{operation}/{operation_status}' for model '{model_name}': "
+        "its state kept changing"
+    )
+    AppLogger.error(error)
+    return error
+
+
 def _advance_model_state(dao, model_name, operation, operation_status):
     """Update model_state in the DB based on an operation/status transition.
 
@@ -296,20 +732,70 @@ def _advance_model_state(dao, model_name, operation, operation_status):
 
     Returns None on success, or an error message string if the transition is invalid.
     """
+    return _apply_operation_outcome(dao, model_name, operation, operation_status)
+
+
+def _state_conflict_response(operation, model_name, reason, ip):
+    """Answer an operation whose state could not be recorded.
+
+    Reached when the state moved between the request being judged and its row
+    being written -- two requests for the same model, or a worker finishing at the
+    same moment. That is "try again", not "the server is broken": the client gets
+    a retryable answer in its own terms, and the state machine's wording stays in
+    the log, where it belongs.
+
+    Args:
+        operation: Verb for the message ("start", "delete", "download and start").
+        model_name: Model (or runtime resource) name.
+        reason: Why the transition was refused; logged, not returned.
+        ip: Client address, for the log line.
+
+    Returns:
+        tuple: (response_dict, 503)
+    """
+    AppLogger.error("%s refused for '%s': %s, ip:%s", operation, model_name, reason, ip)
+    return {
+        "status": "error",
+        "message": (
+            f"Cannot {operation} '{model_name}' right now: its state changed while "
+            "the request was processed. Retry in a moment."
+        ),
+        "model_name": model_name,
+    }, 503
+
+
+def _repair_after_refused_transition(dao, model_name, operation, status, error):
+    """Escalate a refused completion, then re-derive the state from the workers.
+
+    An operation that has already finished must not quietly leave ``model_state``
+    describing something else. The refusal is logged as an error -- it used to be
+    a single log line indistinguishable from any other -- and the pid files are
+    asked right away, so a state left stale by a crash is corrected now instead of
+    at the next request or restart.
+
+    The operation's legacy flags are deliberately not written here: they would
+    describe an outcome the state machine just refused. The local inventory
+    reconciles them the next time the model is listed or applied.
+    """
+    AppLogger.error(
+        "Operation '%s/%s' finished for model '%s' but its state was not recorded: %s",
+        operation,
+        status,
+        model_name,
+        error,
+    )
+
     model = dao.get_model(model_name)
-    if not model:
-        return None
-    try:
-        next_state = ModelStateManager.calculate_next_state(
-            operation=operation,
-            operation_status=operation_status,
-            current_state=model.model_state or "missing",
+    if model is None:
+        return
+
+    _, repair_error = _refresh_model_state(dao, model, foundation_util.live_worker_names())
+    if repair_error:
+        AppLogger.error(
+            "Cannot reconcile model '%s' after the refused transition: %s",
+            model_name,
+            repair_error,
         )
-        dao.update_model(model_name, model_state=next_state)
-        return None
-    except (ValueError, ModelStateTransitionError) as e:
-        AppLogger.error("Failed to advance model_state for %s: %s", model_name, e)
-        return str(e)
 
 
 def _complete_async_operation(task_id, model_name, operation, status, error=None):
@@ -351,29 +837,13 @@ def _complete_async_operation(task_id, model_name, operation, status, error=None
         duration,
     )
 
-    # Update unified model_state using state machine
-    _advance_model_state(dao, model_name, operation, status)
-
-    # Update legacy model state fields (for backward compatibility)
-    if status == TaskStatus.COMPLETED.value:
-        if operation == OperationType.DOWNLOAD.value:
-            # An explicitly downloaded runtime has no model row of its own, so
-            # only a model download flips the downloaded flag.
-            if model_name != RUNTIME_RESOURCE_NAME:
-                foundation_util.update_model_state(model_name, downloaded=True)
-        elif operation == OperationType.START.value:
-            foundation_util.update_model_state(model_name, running=True)
-        elif operation == OperationType.DOWNLOAD_START.value:
-            # Combined operation: a successful completion means the model was
-            # downloaded AND its service started.
-            foundation_util.update_model_state(model_name, downloaded=True, running=True)
-        elif operation == OperationType.STOP.value:
-            foundation_util.update_model_state(model_name, running=False)
-        elif operation == OperationType.DELETE.value:
-            # The shared runtime is a resource without a model row of its own;
-            # there is nothing to update for it.
-            if model_name != RUNTIME_RESOURCE_NAME:
-                foundation_util.update_model_state(model_name, downloaded=False, running=False)
+    # One write carries both the state and the legacy flags of a successful
+    # operation, so an interruption cannot leave them describing different
+    # lifecycles (see _completion_flags).
+    flags = _completion_flags(operation, model_name) if status == TaskStatus.COMPLETED.value else {}
+    err = _apply_operation_outcome(dao, model_name, operation, status, flags)
+    if err:
+        _repair_after_refused_transition(dao, model_name, operation, status, err)
 
     dao.cleanup_old_operations(days=1)
 
@@ -1370,6 +1840,19 @@ def download_foundation_model(request):
     if active_op:
         return _reuse_download_response(active_op, model_name)
 
+    # The flags below are also only written when an operation completes, so a
+    # crashed worker leaves them describing a lifecycle that is over. Correct
+    # them from the pid files first: otherwise a dead model is refused a replace
+    # ("stop it first", where the stop itself answers "not running"), and a stale
+    # `downloading` state fails the transition queued further down. Unlike
+    # start/stop/delete, a download is decided by the files and the CLI rather
+    # than by a worker, so an unknown liveness only means the cached flags stand.
+    model, state_error = _refresh_model_state(
+        dao, model, foundation_util.live_worker_names()
+    )
+    if state_error:
+        AppLogger.warning("Cannot verify worker liveness before the download: %s", state_error)
+
     if model.downloaded and not replace:
         AppLogger.warning(
             "Download request for already downloaded model: %s (use replace=true to force), ip:%s",
@@ -1400,7 +1883,6 @@ def download_foundation_model(request):
         return rejection
 
     # Generate unique task ID for async tracking
-    # Format: download-{model_name}-{random_hex}
     task_id = foundation_util.make_task_id("download", model_name)
 
     # Record async operation for progress tracking
@@ -1432,7 +1914,11 @@ def download_foundation_model(request):
 
     err = _advance_model_state(dao, model_name, OperationType.DOWNLOAD.value, TaskStatus.QUEUED.value)
     if err:
-        return {"error": err, "model_name": model_name}, 500
+        # The download was claimed but its state transition was refused, so no
+        # worker will run it. Dropping the row hands the model straight back to
+        # the next request instead of leaving a queued download that never ends.
+        dao.delete_async_operation(task_id)
+        return _state_conflict_response("download", model_name, err, request.remote_addr)
     # Spawn background process to download via taosanodectl
     _trigger_model_download_background(task_id, model_name, release, resource_base_url, replace)
 
@@ -1923,12 +2409,57 @@ def _create_async_operation_task(request, model_name, operation, operation_type,
             "message": f"Model '{model_name}' not found",
         }, 404
 
+    # Liveness is asked once for this request: it both repairs the stored state
+    # (a crash leaves model_state, not only `running`, describing a lifecycle
+    # that is over) and answers the validators below, so the request and the
+    # state machine judge the same, real state.
+    live = foundation_util.live_worker_names()
+    model, state_error = _refresh_model_state(dao, model, live)
+    if state_error:
+        AppLogger.error(
+            "%s request for model '%s' left undecided: %s, ip:%s",
+            operation.capitalize(),
+            model_name,
+            state_error,
+            request.remote_addr,
+        )
+        return {
+            "status": "error",
+            "message": state_error,
+            "model_name": model_name,
+        }, 503
+
     # Validate model state
-    is_valid, error_msg = validate_fn(model, model_name, operation.capitalize(), request.remote_addr)
+    is_valid, error_msg = validate_fn(
+        model, model_name, operation.capitalize(), request.remote_addr, live
+    )
     if not is_valid:
         return {
             "status": "error",
             "message": error_msg,
+        }, 400
+
+    # Judge the transition here as well, with the table that will record it: a
+    # state that cannot reach this operation's target is a client error, not an
+    # internal one, and refusing it before the row exists keeps every "not now"
+    # answer on the same status code.
+    current_state = model.model_state or "missing"
+    allowed, reason = ModelStateManager.can_perform_operation(operation_type, current_state)
+    if not allowed:
+        AppLogger.error(
+            "%s request refused for model '%s': %s, ip:%s",
+            operation.capitalize(),
+            model_name,
+            reason,
+            request.remote_addr,
+        )
+        return {
+            "status": "error",
+            "message": (
+                f"Cannot {operation} model '{model_name}' while it is in the "
+                f"'{current_state}' state"
+            ),
+            "model_name": model_name,
         }, 400
 
     # Generate task ID for async tracking
@@ -1951,7 +2482,11 @@ def _create_async_operation_task(request, model_name, operation, operation_type,
     dao.create_async_operation(op)
     err = _advance_model_state(dao, model_name, operation_type, TaskStatus.QUEUED.value)
     if err:
-        return {"error": err, "model_name": model_name}, 500
+        # The transition was refused, so no worker will ever run this row. It is
+        # dropped instead of left queued: an operation that is reported as
+        # in-flight but never runs blocks the next attempt and misleads /status.
+        dao.delete_async_operation(task_id)
+        return _state_conflict_response(operation, model_name, err, request.remote_addr)
 
     # Spawn background process
     trigger_fn(task_id, model_name)
@@ -1973,8 +2508,12 @@ def _create_async_operation_task(request, model_name, operation, operation_type,
     }, 202
 
 
-def _validate_start_state(model, model_name, operation, ip):
-    """Validate model state for start operation."""
+def _validate_start_state(model, model_name, operation, ip, live=None):
+    """Validate model state for start operation.
+
+    ``live`` is the liveness probe the caller already ran, so this request does
+    not spawn a second one; ``model.running`` has just been corrected from it.
+    """
     if not model.downloaded:
         AppLogger.error(
             "%s request for non-downloaded model: %s, ip:%s",
@@ -1996,9 +2535,32 @@ def _validate_start_state(model, model_name, operation, ip):
     return True, None
 
 
-def _validate_stop_state(model, model_name, operation, ip):
-    """Validate model state for stop operation."""
+def _validate_stop_state(model, model_name, operation, ip, live=None):
+    """Validate model state for stop operation.
+
+    ``live`` is the liveness probe the caller already ran, so this request does
+    not spawn a second one; ``model.running`` has just been corrected from it.
+
+    A model whose own download is still running has no worker to stop, and the
+    state machine has no `downloading -> stopping` edge either, so the download is
+    named as the reason instead of the misleading "not running". Contention with
+    the download of *another* model is different -- that is only the lifecycle
+    lock, which the stop worker waits on (see _run_model_stop_task).
+    """
     if not model.running:
+        reason = _download_in_flight_reason(model_name)
+        if reason is not None:
+            AppLogger.warning(
+                "%s request while a download is in flight: %s, ip:%s",
+                operation,
+                model_name,
+                ip,
+            )
+            return False, (
+                f"Cannot stop model '{model_name}' while {reason}. "
+                "It has not started yet."
+            )
+
         AppLogger.warning(
             "%s request for non-running model: %s, ip:%s",
             operation,
@@ -2010,19 +2572,27 @@ def _validate_stop_state(model, model_name, operation, ip):
     return True, None
 
 
-def _validate_delete_state(model, model_name, operation, ip):
+def _validate_delete_state(model, model_name, operation, ip, live=None):
     """Validate model state for delete operation.
 
-    Ask the pid files rather than the cached ``models.running`` column: a worker
-    started from the CLI, or one that outlived a restart, is not reflected there.
-    When liveness cannot be determined the request is let through -- the
-    resource-delete command checks the same pids again and refuses with a clear
-    reason, so an unknown answer never deletes a live worker's directory.
+    Decided by the pid files rather than the cached ``models.running`` column: a
+    worker started from the CLI, or one that outlived a restart, is not reflected
+    there. ``live`` is the probe the caller already ran (and used to repair
+    ``model_state``), so it is not repeated here. When liveness cannot be
+    determined the request is let through -- the resource-delete command checks
+    the same pids again and refuses with a clear reason, so an unknown answer
+    never deletes a live worker's directory.
+
+    A download in flight refuses the delete. The delete runs `resource delete`,
+    which takes the same lifecycle lock as the download, so it would only get
+    exit 75 and be retried by the executor for as long as the download lasts --
+    while the state machine, which has no `downloading -> deleting` edge, would
+    have to record nothing in the meantime. Telling the client to retry is more
+    honest than queueing work that cannot start.
 
     A model is deletable whether or not it is downloaded: deleting a model that
     never finished downloading is how a half-installed model is cleaned up.
     """
-    live = foundation_util.live_worker_names()
     if live and model_name in live:
         AppLogger.error(
             "%s request for running model: %s, ip:%s",
@@ -2031,6 +2601,19 @@ def _validate_delete_state(model, model_name, operation, ip):
             ip,
         )
         return False, f"Cannot delete running model '{model_name}'. Stop it first."
+
+    download = _download_in_flight_reason(model_name)
+    if download is not None:
+        AppLogger.error(
+            "%s request while a download is in flight: %s, ip:%s",
+            operation,
+            model_name,
+            ip,
+        )
+        return False, (
+            f"Cannot delete model '{model_name}' while {download}. "
+            "Retry once it finishes."
+        )
 
     return True, None
 
@@ -2350,6 +2933,43 @@ def download_and_start_foundation_model(request):
     dao = get_dao()
     model = dao.get_model(model_name)
 
+    if model:
+        # The cached flags are only written when an operation completes, so a
+        # crashed worker leaves a model that looks running -- and that answer
+        # refuses both this request and the stop meant to clear it. Ask the pid
+        # files instead; the same call repairs a stale `downloading` state. A
+        # download is decided by the files and the CLI, so an unknown liveness
+        # only means the cached flags stand.
+        model, state_error = _refresh_model_state(
+            dao, model, foundation_util.live_worker_names()
+        )
+        if state_error:
+            AppLogger.warning(
+                "Cannot verify worker liveness before the download-and-start: %s", state_error
+            )
+
+    # Reject intermediate states (starting, stopping, downloading, deleting).
+    # ALLOWED_ACTIONS limits download_start to missing/idle; checking here before
+    # _advance_model_state means the caller gets a clear 400 instead of a state
+    # conflict error from the CAS path.
+    if model:
+        current_state = model.model_state or "missing"
+        allowed, reason = ModelStateManager.can_perform_action(current_state, "download_start")
+        if not allowed:
+            AppLogger.error(
+                "Download-and-start request refused for model '%s': %s, ip:%s",
+                model_name,
+                reason,
+                request.remote_addr,
+            )
+            return {
+                "status": "error",
+                "message": (
+                    f"Cannot download-and-start model '{model_name}' while it is in the "
+                    f"'{current_state}' state"
+                ),
+            }, 400
+
     # A running model cannot be replaced or started again.
     if model and model.running:
         AppLogger.error(
@@ -2442,7 +3062,12 @@ def download_and_start_foundation_model(request):
 
     err = _advance_model_state(dao, model_name, OperationType.DOWNLOAD_START.value, TaskStatus.QUEUED.value)
     if err:
-        return {"error": err, "model_name": model_name}, 500
+        # Claimed but refused: drop the row so the model is not left with a
+        # queued download-and-start that no worker will ever pick up.
+        dao.delete_async_operation(task_id)
+        return _state_conflict_response(
+            "download and start", model_name, err, request.remote_addr
+        )
     # Spawn the background download-then-start task.
     _trigger_model_download_start_background(task_id, model_name, release, resource_base_url, replace)
 
@@ -2476,20 +3101,24 @@ def download_and_start_foundation_model(request):
 def _runtime_delete_blocker(dao):
     """Return why the shared TSFM runtime must not be destroyed, if at all.
 
-    Exactly two conditions refuse the request:
+    Three conditions refuse the request:
 
     1. a model worker process that is *actually alive* (pid-file liveness, not the
        cached `models.running` column);
     2. a model start that has not finished yet (queued/running). That window has
        no pid to observe -- the worker process does not exist until the start
-       spawns it -- and it is about to create one.
+       spawns it -- and it is about to create one;
+    3. a download that has not finished yet (queued/running). The runtime is what
+       the download installs into and what the models it installs execute from,
+       so removing the tree underneath it is refused and answered now instead of
+       being queued behind the lifecycle lock and retried until the download
+       ends.
 
-    Nothing else blocks. An `interrupted` operation row is history and is never
-    reclaimed, so refusing on it used to lock this endpoint permanently (a single
-    restart during a start or download was enough); and an in-flight download is
-    not a refusal reason either -- the lifecycle lock in taosanode_service.py
-    serializes it against this delete, which is why the delete is retried until
-    that lock is free instead of failing fast here.
+    An `interrupted` operation row is history and is never reclaimed, so it is not
+    a reason to refuse (a single restart during a start or download used to lock
+    this endpoint permanently). Neither is lock contention between two resource
+    operations of other models: that is serialization, which the caller never
+    sees, and the delete worker still defers on it.
 
     Returns:
         str: Error message, or None when deleting the runtime is safe.
@@ -2503,19 +3132,49 @@ def _runtime_delete_blocker(dao):
 
     # Filter on queued/running explicitly: active_only also returns interrupted
     # rows, and those must never be a reason to refuse.
-    starting = sorted(
-        {
-            op.model_name
-            for op in dao.list_async_operations(active_only=True)
-            if op.operation == OperationType.START.value
-            and op.status in (TaskStatus.QUEUED.value, TaskStatus.RUNNING.value)
-        }
-    )
+    active = [
+        op
+        for op in dao.list_async_operations(active_only=True)
+        if op.status in (TaskStatus.QUEUED.value, TaskStatus.RUNNING.value)
+    ]
+
+    starting = sorted({op.model_name for op in active if op.operation == OperationType.START.value})
     if starting:
         return (
             "Cannot delete shared TSFM runtime while model workers are starting: "
             + ", ".join(starting)
         )
+
+    downloading = sorted(
+        {op.model_name for op in active if op.operation in DOWNLOAD_FAMILY}
+        | set(_cli_inflight_downloads())
+    )
+    if downloading:
+        return (
+            "Cannot delete shared TSFM runtime while a download is in flight: "
+            + ", ".join(downloading)
+        )
+
+    # An interrupted download row means the API restarted while the CLI child was
+    # running. The row is history (never reclaimed) but the child may still be
+    # writing into the runtime tree. Conservatively refuse if a task file with an
+    # in-flight status exists for any model that has an interrupted download row —
+    # we cannot prove the process has finished when the timestamp is missing or
+    # unparseable.
+    interrupted_models = {
+        op.model_name
+        for op in dao.list_async_operations(active_only=True)
+        if op.status == TaskStatus.INTERRUPTED.value and op.operation in DOWNLOAD_FAMILY
+    }
+    if interrupted_models:
+        task_file_present = set(_cli_task_file_resources()) & interrupted_models
+        if task_file_present:
+            return (
+                "Cannot delete shared TSFM runtime: download process may still be "
+                "running after a restart (task file present for: "
+                + ", ".join(sorted(task_file_present))
+                + ")"
+            )
 
     return None
 
@@ -2549,7 +3208,10 @@ def _start_delete_operation(model_name, message):
 
     err = _advance_model_state(dao, model_name, OperationType.DELETE.value, TaskStatus.QUEUED.value)
     if err:
-        return {"error": err, "model_name": model_name}, 500
+        # Same rule as the model paths: nothing runs a row whose transition was
+        # refused, so it is dropped rather than reported as in flight.
+        dao.delete_async_operation(task_id)
+        return _state_conflict_response("delete", model_name, err, None)
 
     _trigger_model_delete_background(task_id, model_name)
     return {
@@ -2569,15 +3231,16 @@ def delete_foundation_runtime(request):
     from disk; installed model directories are left untouched, but they cannot
     start again until a runtime is installed (downloaded or imported) anew.
 
-    Refused while a model worker is running or still starting, because the
-    runtime it is executing from would be removed underneath it.
+    Refused while a model worker is running, still starting, or a download is
+    in flight: the runtime is what that worker executes from, and what the
+    download installs into, so it would be removed underneath them.
 
     Also reachable through the model delete endpoint by passing
     ``model_name = "tsfm_runtime"``, which is how that endpoint routes here.
 
     Returns:
         JSON response with task_id for async tracking (HTTP 202), or HTTP 400
-        when a model worker is running or starting.
+        when a model worker is running, starting, or a download is in flight.
     """
     AppLogger.debug(
         "Received shared TSFM runtime delete request, ip:%s", request.remote_addr

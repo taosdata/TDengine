@@ -111,7 +111,6 @@ ELSE()
 ENDIF()
 
 SET(TAOS_LIB taos)
-SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
 SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 

@@ -9322,6 +9322,16 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->scanType = SCAN_TYPE_LAST_ROW;
   pScan->igLastNull = pAgg->hasLast ? true : false;
 
+  // With partition by tbname the cache scan emits one table at a time, so
+  // each group arrives contiguously and is complete once the next group
+  // starts. Emit groups as they complete instead of blocking until every
+  // group is built: a blocking aggregate keeps one result row per table and
+  // spills them to the temporary file.
+  if (pScan->tableType == TSDB_SUPER_TABLE && isPartTableAgg(pAgg)) {
+    pScan->groupOrderScan = true;
+    pAgg->node.forceCreateNonBlockingOptr = true;
+  }
+
   SNode* pNode = NULL;
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
@@ -17458,6 +17468,82 @@ _return:
   return code;
 }
 
+static bool intervalLimitFunctionsAreBounded(const SNodeList* pFuncs) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) return false;
+    switch (((SFunctionNode*)pNode)->funcType) {
+      case FUNCTION_TYPE_COUNT:
+      case FUNCTION_TYPE_SUM:
+      case FUNCTION_TYPE_AVG:
+      case FUNCTION_TYPE_MIN:
+      case FUNCTION_TYPE_MAX:
+      case FUNCTION_TYPE_WSTART:
+      case FUNCTION_TYPE_WEND:
+      case FUNCTION_TYPE_WDURATION:
+      case FUNCTION_TYPE_GROUP_KEY:
+        break;
+      default:
+        return false;
+    }
+  }
+  return LIST_LENGTH(pFuncs) > 0;
+}
+
+static bool intervalLimitCanPruneScan(SLogicNode* pNode, void* pCtx) {
+  if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_WINDOW ||
+      LIST_LENGTH(pNode->pChildren) != 1 || pNode->pLimit == NULL ||
+      pNode->pConditions != NULL) {
+    return false;
+  }
+  SWindowLogicNode* pWindow = (SWindowLogicNode*)pNode;
+  if (!pWindow->intervalLimitHint) return false;
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (pWindow->winType != WINDOW_TYPE_INTERVAL ||
+      intervalWindowHasOverlappingWindows(pWindow) ||
+      intervalWindowHasFill(pWindow) ||
+      !intervalLimitFunctionsAreBounded(pWindow->pFuncs) ||
+      nodeType(pChild) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+      pNode->inputTsOrder != pNode->outputTsOrder) {
+    return false;
+  }
+
+  SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+  if (pScan->scanType != SCAN_TYPE_TABLE || pScan->intervalLimit != 0 ||
+      pChild->pLimit != NULL || pChild->pSlimit != NULL ||
+      pScan->virtualStableScan || pChild->dynamicOp ||
+      pScan->pExtScanRange != NULL || pScan->offset == AUTO_DURATION_VALUE ||
+      pScan->scanSeq[0] + pScan->scanSeq[1] != 1 ||
+      pChild->outputTsOrder != pNode->outputTsOrder ||
+      pScan->interval <= 0 || pScan->interval != pWindow->interval) {
+    return false;
+  }
+
+  SLimitNode* pLimit = (SLimitNode*)pNode->pLimit;
+  int64_t limit = pLimit->limit->datum.i;
+  int64_t offset = pLimit->offset ? pLimit->offset->datum.i : 0;
+  return limit > 0 && offset >= 0 && limit <= INT64_MAX - offset;
+}
+
+static int32_t intervalLimitOptimize(SOptimizeContext* pCxt,
+                                     SLogicSubplan* pLogicSubplan) {
+  if (inStreamCalcClause(pCxt->pPlanCxt) || pCxt->pPlanCxt->rSmaQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode,
+                                         intervalLimitCanPruneScan, NULL);
+  if (pNode == NULL) return TSDB_CODE_SUCCESS;
+
+  SLimitNode* pLimit = (SLimitNode*)pNode->pLimit;
+  SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  // A table's (N+1)th nonempty window cannot enter the group's first N
+  // windows. Keep each retained window complete, including across blocks.
+  pScan->intervalLimit = pLimit->limit->datum.i +
+                        (pLimit->offset ? pLimit->offset->datum.i : 0);
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 // DISTINCT aggregates no longer use a plan node. COUNT/SUM/AVG dedup internally via
 // SSpillDistinctSet (see builtinsimpl.c), which handles multi-column DISTINCT, mixing DISTINCT
 // with plain aggregates, and spilling past a memory budget -- none of which the row-deleting
@@ -17830,6 +17916,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "VtableTagScan",              .optimizeFunc = vtableTagScanOptimize},
   {.pName = "VStableAgg",                 .optimizeFunc = vstableAggOptimize},
   {.pName = "VtableTwoPass",              .optimizeFunc = vtableTwoPassOptimize},
+  {.pName = "IntervalLimit",              .optimizeFunc = intervalLimitOptimize},
 };
 // clang-format on
 

@@ -146,6 +146,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPrimaryKey;      // primary key column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
+  SColumnDataAgg    constColumnAgg;  // statistics for the current constant input, after filtering.
   uint64_t uid;  // table uid, used to set the tag value when building the final query result for selectivity functions.
 } SInputColumnInfoData;
 

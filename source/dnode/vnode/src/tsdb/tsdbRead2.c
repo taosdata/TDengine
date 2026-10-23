@@ -685,24 +685,6 @@ static void initReaderStatus(SReaderStatus* pStatus) {
   pStatus->loadFromFile = true;
 }
 
-// A result block stores every var-length column's values back-to-back and records each
-// row's byte offset as an `int32_t` (VarDataOffsetT).  BLOB is the only var-length type
-// that can blow past INT32_MAX bytes inside a single block (other var types are capped at
-// TSDB_MAX_FIELD_LEN, so even a full block stays around 268MB), so cap the block's row
-// count when a BLOB column is materialized.  Past the cap the column's byte count no longer
-// fits the int32_t used for it (see colDataGetFullLength, which returns int32_t) and callers
-// compute wild pointers (SIGSEGV in e.g. tlength()).
-static int32_t tsdbReaderMaxRowsPerBlock(SQueryTableDataCond* pCond, int32_t maxRows) {
-  const int32_t maxSafeRows = (int32_t)(INT32_MAX / TSDB_MAX_BLOB_LEN);
-
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    if (IS_STR_DATA_BLOB(pCond->colList[i].type)) {
-      return TMIN(maxRows, maxSafeRows);
-    }
-  }
-  return maxRows;
-}
-
 static int32_t createResBlock(SQueryTableDataCond* pCond, int32_t capacity, SSDataBlock** pResBlock) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
@@ -2003,6 +1985,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
 
   int32_t colIndex = 0;
   int32_t num = pBlockData->nColData;
+  SBlobColInfo blobCols = blockDataGetBlobCol(pResBlock);
   while (i < numOfOutputCols && colIndex < num) {
     rowIndex = 0;
 
@@ -2025,6 +2008,13 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
             TSDB_CHECK_CODE(code, lino, _end);
             code = doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
             TSDB_CHECK_CODE(code, lino, _end);
+            if (IS_STR_DATA_BLOB(pColData->info.type) && blockDataBlobInfoExceedLimit(&blobCols, pResBlock)) {
+              // Bound materialized bytes, not metadata rows: a row cap would
+              // force clean blocks to bypass SMA even for COUNT(blob).
+              dumpedRows = rowIndex;
+              processedRows = rowIndex;
+              break;
+            }
           }
         }
       }
@@ -6220,8 +6210,6 @@ static int32_t openReaderWithRanges(void* pVnode, SQueryTableDataCond* pCond, vo
   }
 
   capacity = pConf->tsdbCfg.maxRows;
-  // Keep a block's BLOB column below INT32_MAX bytes (see tsdbReaderMaxRowsPerBlock).
-  capacity = tsdbReaderMaxRowsPerBlock(pCond, capacity);
   skipInitialCleanup = pCond->type != TIMEWINDOW_RANGE_EXTERNAL &&
                        (pResBlock == NULL ||
                         (pResBlock->info.capacity == 0 && pResBlock->info.rows == 0 && pResBlock->pBlockAgg == NULL));

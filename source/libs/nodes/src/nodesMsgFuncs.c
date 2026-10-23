@@ -3854,6 +3854,7 @@ enum {
   // reinterpret an existing code (INTERP_MODE must stay at its released value).
   PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE,
   PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN,
+  PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3979,6 +3980,10 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
     code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN, true);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
+    code = tlvEncodeI64(pEncoder, PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
+                         pNode->intervalLimit);
+  }
 
   return code;
 }
@@ -4072,6 +4077,7 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
   pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   pNode->lastOnlyScan = false;
+  pNode->intervalLimit = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -4128,6 +4134,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->lastOnlyScan);
+        break;
+      case PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT:
+        code = tlvDecodeI64(pTlv, &pNode->intervalLimit);
         break;
       default:
         break;

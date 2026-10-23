@@ -3160,6 +3160,10 @@ _OVER:
 }
 
 const char *mndGetDbStr(const char *src) {
+  // [FIX-198] Guard against NULL input. streamDB of a legacy/corrupt stream object
+  // persisted in sdb before the required-field check may be NULL; SHOW STREAMS
+  // (mstSetStreamAttrResBlock) passes it here, and strstr(NULL) would crash the mnode.
+  if (src == NULL) return "";
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
   if (pos == NULL) return src;

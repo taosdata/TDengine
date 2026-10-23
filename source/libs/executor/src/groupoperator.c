@@ -1290,14 +1290,10 @@ static int32_t partitionEnsureSpillFile(SPartitionOperatorInfo* pInfo) {
     return TSDB_CODE_SUCCESS;
   }
 
-  char path[PATH_MAX] = {0};
-  taosGetTmpfilePath(tsTempDir, "partition-spill", path);
-  pInfo->spill.pFile =
-      taosOpenFile(path, TD_FILE_CREATE | TD_FILE_READ | TD_FILE_WRITE |
-                             TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+  pInfo->spill.pFile = taosOpenTempFile(tsTempDir, "partition-spill");
   if (pInfo->spill.pFile == NULL) {
     qError("%s %s failed at line %d, open spill file:%s, since %s",
-           GET_TASKID(pInfo->pTaskInfo), __func__, __LINE__, path,
+           GET_TASKID(pInfo->pTaskInfo), __func__, __LINE__, tsTempDir,
            tstrerror(terrno));
     return terrno;
   }

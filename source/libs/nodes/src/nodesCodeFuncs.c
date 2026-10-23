@@ -1184,6 +1184,7 @@ static const char* jkScanLogicPlanInterpMode = "InterpMode";
 static const char* jkScanLogicPlanDynamicScanFuncs = "DynamicScanFuncs";
 static const char* jkScanLogicPlanDataRequired = "DataRequired";
 static const char* jkScanLogicPlanLastOnlyScan = "LastOnlyScan";
+static const char* jkScanLogicPlanIntervalLimit = "IntervalLimit";
 static const char* jkScanLogicPlanTagCond = "TagCond";
 static const char* jkScanLogicPlanGroupTags = "GroupTags";
 static const char* jkScanLogicPlanOnlyMetaCtbIdx = "OnlyMetaCtbIdx";
@@ -1238,6 +1239,10 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
     code = tjsonAddBoolToObject(pJson, jkScanLogicPlanLastOnlyScan, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanIntervalLimit,
+                                   pNode->intervalLimit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkScanLogicPlanTagCond, nodeToJson, pNode->pTagCond);
@@ -1320,6 +1325,12 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanLastOnlyScan) != NULL) {
     code = tjsonGetBoolValue(pJson, jkScanLogicPlanLastOnlyScan, &pNode->lastOnlyScan);
+  }
+  pNode->intervalLimit = 0;
+  if (TSDB_CODE_SUCCESS == code &&
+      tjsonGetObjectItem(pJson, jkScanLogicPlanIntervalLimit) != NULL) {
+    code = tjsonGetBigIntValue(pJson, jkScanLogicPlanIntervalLimit,
+                               &pNode->intervalLimit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkScanLogicPlanTagCond, &pNode->pTagCond);
@@ -1523,6 +1534,7 @@ static int32_t jsonToLogicMergeNode(const SJson* pJson, void* pObj) {
 }
 
 static const char* jkWindowLogicPlanWinType = "WinType";
+static const char* jkWindowLogicPlanIntervalLimitHint = "IntervalLimitHint";
 static const char* jkWindowLogicPlanFuncs = "Funcs";
 static const char* jkWindowLogicPlanInterval = "Interval";
 static const char* jkWindowLogicPlanOffset = "Offset";
@@ -1550,6 +1562,9 @@ static int32_t logicWindowNodeToJson(const void* pObj, SJson* pJson) {
   int32_t code = logicPlanNodeToJson(pObj, pJson);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkWindowLogicPlanWinType, pNode->winType);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->intervalLimitHint) {
+    code = tjsonAddBoolToObject(pJson, jkWindowLogicPlanIntervalLimitHint, true);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkWindowLogicPlanFuncs, pNode->pFuncs);
@@ -1615,6 +1630,10 @@ static int32_t jsonToLogicWindowNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkWindowLogicPlanWinType, pNode->winType, code);
+  }
+  pNode->intervalLimitHint = false;
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkWindowLogicPlanIntervalLimitHint) != NULL) {
+    code = tjsonGetBoolValue(pJson, jkWindowLogicPlanIntervalLimitHint, &pNode->intervalLimitHint);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkWindowLogicPlanFuncs, &pNode->pFuncs);
@@ -3243,6 +3262,7 @@ static const char* jkTableScanPhysiPlanPrimCondExpr = "PrimCondExpr";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
 static const char* jkTableScanPhysiPlanLastOnlyScan = "LastOnlyScan";
+static const char* jkTableScanPhysiPlanIntervalLimit = "IntervalLimit";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
 static const char* jkTableScanPhysiPlanInterval = "Interval";
 static const char* jkTableScanPhysiPlanOffset = "Offset";
@@ -3313,6 +3333,10 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
     code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanLastOnlyScan, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanIntervalLimit,
+                                   pNode->intervalLimit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkTableScanPhysiPlanDynamicScanFuncs, pNode->pDynamicScanFuncs);
@@ -3452,6 +3476,12 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkTableScanPhysiPlanLastOnlyScan) != NULL) {
     code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanLastOnlyScan, &pNode->lastOnlyScan);
+  }
+  pNode->intervalLimit = 0;
+  if (TSDB_CODE_SUCCESS == code &&
+      tjsonGetObjectItem(pJson, jkTableScanPhysiPlanIntervalLimit) != NULL) {
+    code = tjsonGetBigIntValue(pJson, jkTableScanPhysiPlanIntervalLimit,
+                               &pNode->intervalLimit);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkTableScanPhysiPlanDynamicScanFuncs, &pNode->pDynamicScanFuncs);

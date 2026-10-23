@@ -378,6 +378,87 @@ class FoundationModelsDAO:
         result = self._with_db(_update, f"Failed to update model: {name} : %s", name, **kwargs)
         return result if result is not None else False
 
+    def update_model_if_state_unchanged(self, name: str, expected_state: str, **kwargs) -> bool:
+        """Update a model record only while `model_state` still holds *expected_state*.
+
+        A compare-and-set. Several writers touch this row -- the worker of an
+        operation recording its outcome, and a request reconciling a worker that
+        died -- and `update_model` overwrites whatever is there. A writer that
+        computed the new state from a state it read must not overwrite a value
+        somebody else has moved on from: it passes the state it reasoned about and
+        is told when that no longer holds. The caller then re-reads and decides
+        again instead of resurrecting an obsolete answer.
+
+        Args:
+            name: Model name
+            expected_state: The `model_state` the caller read and based its
+                decision on. A NULL column is compared as "missing", the value
+                the rest of the code treats it as.
+            **kwargs: Fields to update (model_state, downloaded, running, ...)
+
+        Returns:
+            True if the row was written; False if its state had already moved (or
+            the row does not exist), so nothing was written.
+
+        Raises:
+            ValueError: If no updatable fields are provided (all kwargs are None).
+                This is a caller contract violation — not a runtime race — so it
+                is not silently swallowed as False.
+        """
+        # NULL in the database is treated as "missing" everywhere else; normalise
+        # here so callers can pass model.model_state directly without the CAS
+        # silently never matching a NULL row.
+        if expected_state is None:
+            expected_state = "missing"
+
+        update_fields_check = {
+            column: kwargs[column]
+            for column in _MODEL_UPDATE_COLUMNS
+            if kwargs.get(column) is not None
+        }
+        if not update_fields_check:
+            raise ValueError(
+                f"update_model_if_state_unchanged called for '{name}' with no fields to update"
+            )
+
+        def _update(conn, cursor, name: str, expected_state: str, **kwargs):
+            update_fields = {
+                column: kwargs[column]
+                for column in _MODEL_UPDATE_COLUMNS
+                if kwargs.get(column) is not None
+            }
+
+            if "downloaded" in update_fields:
+                update_fields["downloaded"] = 1 if update_fields["downloaded"] else 0
+            if "running" in update_fields:
+                update_fields["running"] = 1 if update_fields["running"] else 0
+
+            columns = [column for column in _MODEL_UPDATE_COLUMNS if column in update_fields]
+            set_clause = ", ".join(f"{column} = ?" for column in columns) + ", updated_at = ?"
+            values = [update_fields[column] for column in columns] + [time.time(), name, expected_state]
+
+            cursor.execute(
+                f"UPDATE models SET {set_clause} "
+                "WHERE name = ? AND COALESCE(model_state, 'missing') = ?",
+                values,
+            )
+            conn.commit()
+
+            updated = cursor.rowcount == 1
+            if not updated:
+                AppLogger.info("Conditional update of model '%s' skipped: model_state is no longer '%s'", name, expected_state)
+
+            return updated
+
+        result = self._with_db(
+            _update,
+            f"Failed to update model conditionally: {name} : %s",
+            name,
+            expected_state,
+            **kwargs,
+        )
+        return result if result is not None else False
+
     def list_models(self) -> list[FoundationModel]:
         """List all models.
 

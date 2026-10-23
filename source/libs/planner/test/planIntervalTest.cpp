@@ -143,6 +143,20 @@ TEST_F(PlanIntervalTest, fastIntervalHint) {
   ASSERT_FALSE(findPlanNode("MergeAlignedInterval"));
   ASSERT_TRUE(planContains("\"FastInterval\":true"));
 
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ TBNAME, tag1, _WSTART, AVG(c1) FROM st1") + range +
+      "PARTITION BY TBNAME, tag1 INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Exchange"));
+  ASSERT_TRUE(exchangeSubplansContain("HashInterval"));
+  ASSERT_FALSE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+
+  run(std::string("SELECT /*+ SPLIT_SCAN() FAST_INTERVAL() */ TBNAME, tag1, tag2, _WSTART, AVG(c1) FROM st1") +
+      range + "PARTITION BY tag1, TBNAME, tag2 INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Exchange"));
+  ASSERT_TRUE(exchangeSubplansContain("HashInterval"));
+  ASSERT_FALSE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+
   run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
       "PARTITION BY c1 INTERVAL(10s)");
   ASSERT_TRUE(findPlanNode("Merge"));
@@ -151,10 +165,30 @@ TEST_F(PlanIntervalTest, fastIntervalHint) {
   run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
       "PARTITION BY tag1 INTERVAL(10s)");
   ASSERT_TRUE(findPlanNode("Merge"));
-  ASSERT_FALSE(planContains("\"FastInterval\""));
+  ASSERT_TRUE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(exchangeSubplansContain("HashInterval"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+  ASSERT_FALSE(planContains("\"ExInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ tag1, tag2, _WSTART, AVG(c1) FROM st1") + range +
+      "PARTITION BY tag1, tag2 INTERVAL(10s)");
+  ASSERT_TRUE(findPlanNode("Merge"));
+  ASSERT_TRUE(findPlanNode("MergeAlignedInterval"));
+  ASSERT_TRUE(planContains("\"FastInterval\":true"));
+
+  for (const char* suffix : {"PARTITION BY tag1 + 1 INTERVAL(10s)",
+                            "PARTITION BY tag1 INTERVAL(10s) SLIMIT 1",
+                            "PARTITION BY tag1 INTERVAL(10s) LIMIT 1"}) {
+    run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range + suffix);
+    ASSERT_FALSE(planContains("\"FastInterval\""));
+  }
 
   run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
       "PARTITION BY TBNAME, c1 INTERVAL(10s)");
+  ASSERT_FALSE(planContains("\"FastInterval\""));
+
+  run(std::string("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*) FROM st1") + range +
+      "PARTITION BY TBNAME, tag1, c1 INTERVAL(10s)");
   ASSERT_FALSE(planContains("\"FastInterval\""));
 }
 

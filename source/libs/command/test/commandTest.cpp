@@ -21,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <tuple>
+#include <vector>
 
 extern "C" {
 #include "command.h"
@@ -339,6 +340,45 @@ namespace {
 
 using QueryPtr = std::unique_ptr<SQuery, decltype(&qDestroyQuery)>;
 using FilterCase = std::tuple<int8_t, EExtSourceType>;
+
+TEST(ShowCreateTableTest, ReturnsTruncatedWideTableDefinition) {
+  constexpr int32_t kColumnCount = 2500;
+  std::vector<SSchema> schemas(kColumnCount);
+  for (int32_t i = 0; i < kColumnCount; ++i) {
+    schemas[i].colId = i + 1;
+    schemas[i].type = i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_INT;
+    schemas[i].bytes = tDataTypes[schemas[i].type].bytes;
+    std::string name = "column_" + std::to_string(i) + std::string(20, 'x');
+    tstrncpy(schemas[i].name, name.c_str(), sizeof(schemas[i].name));
+  }
+
+  STableCfg cfg = {};
+  cfg.tableType = TSDB_NORMAL_TABLE;
+  cfg.numOfColumns = kColumnCount;
+  cfg.pSchemas = schemas.data();
+  SDbCfgInfo dbCfg = {};
+  SShowCreateTableStmt stmt = {};
+  stmt.type = QUERY_NODE_SHOW_CREATE_TABLE_STMT;
+  tstrncpy(stmt.tableName, "wide", sizeof(stmt.tableName));
+  stmt.pTableCfg = &cfg;
+  stmt.pDbCfg = &dbCfg;
+
+  SRetrieveTableRsp* rsp = nullptr;
+  ASSERT_EQ(qExecCommand(nullptr, true, 0, reinterpret_cast<SNode*>(&stmt), &rsp, 0, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(rsp, nullptr);
+  SSDataBlock block = {};
+  const char* end = nullptr;
+  ASSERT_EQ(blockDecode(&block, rsp->data + PAYLOAD_PREFIX_LEN, &end), TSDB_CODE_SUCCESS);
+  auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block.pDataBlock, 1));
+  char* value = colDataGetData(column, 0);
+  std::string sql(varDataVal(value), varDataLen(value));
+  EXPECT_EQ(sql.size(), static_cast<size_t>(UINT16_MAX));
+  EXPECT_EQ(sql.find("CREATE TABLE `wide` (`column_0"), 0U);
+  EXPECT_NE(sql.find("`column_1000"), std::string::npos);
+  EXPECT_EQ(sql.find("`column_2200"), std::string::npos);
+  blockDataFreeRes(&block);
+  taosMemoryFree(rsp);
+}
 
 class ShowCreateFilterTest : public testing::TestWithParam<FilterCase> {
  protected:

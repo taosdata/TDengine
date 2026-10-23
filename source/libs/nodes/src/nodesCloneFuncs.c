@@ -1082,6 +1082,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   COPY_SCALAR_FIELD(dataRequired);
   COPY_SCALAR_FIELD(lastOnlyScan);
+  COPY_SCALAR_FIELD(intervalLimit);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
@@ -1316,6 +1317,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(fastInterval);
   COPY_SCALAR_FIELD(exInterval);
+  COPY_SCALAR_FIELD(intervalLimitHint);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
   COPY_SCALAR_FIELD(indefRowsFunc);
@@ -1721,6 +1723,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   COPY_SCALAR_FIELD(lastOnlyScan);
+  COPY_SCALAR_FIELD(intervalLimit);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(interval);

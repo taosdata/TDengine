@@ -17,9 +17,9 @@
 
 #include "version.h"
 #include "wrapper.h"
-/* uWarn: the entry-point report belongs in the client log, not on the caller's
- * terminal (see taosDriverReportMissing()). */
-#include "tlog.h"
+
+/* Last include on purpose: re-points the memory macros at the local libc shims. */
+#include "wrapperLiteMem.h"
 
 
 /*
@@ -447,7 +447,10 @@ static const char * td_taos_get_server_info_not_provided(TAOS *taos) {
 }
 
 static const char *td_taos_get_client_info_not_provided() {
-  return td_version;
+  /* The driver always provides taos_get_client_info; this fallback only has to
+   * answer with the version of this build (same source as the engine's
+   * td_version, see tdLiteVersionString()). */
+  return tdLiteVersionString();
 }
 
 static int td_taos_get_current_db_not_provided(TAOS *taos, char *database, int len, int *required) {
@@ -1263,6 +1266,10 @@ void taosDriverReportMissing(void) {
     return;
   }
 
+  /* Assembled first so the report reaches the log in a single write.  The
+   * engine's logger is not linked in, so it goes to the wrapper's own log
+   * instead of the caller's terminal (taos -Z 1 starts would otherwise print it
+   * every time). */
   char    msg[512];
   int32_t len = snprintf(msg, sizeof(msg), "taos: the loaded driver does not provide %d of %d entry points:",
                          missingCount, total);
@@ -1289,5 +1296,5 @@ void taosDriverReportMissing(void) {
     (void)snprintf(msg + len, sizeof(msg) - len, ", ...");
   }
 
-  uWarn("%s", msg);
+  tdLiteLogAppend(TD_LITE_DEBUG_WARN, "WRP WARN  ", "%s", msg);
 }

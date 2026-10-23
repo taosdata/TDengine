@@ -13,7 +13,10 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import platform
 import time
+
+import pytest
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
@@ -59,6 +62,10 @@ class TestDatabaseShowCreateDb:
 
         tdSql.execute(f"drop database db")
 
+    @pytest.mark.skipif(
+        platform.system() == "Windows",
+        reason="RETENTIONS is currently unsupported on Windows",
+    )
     def test_database_show_create_retentions(self):
         """SHOW CREATE DATABASE preserves the full RETENTIONS list
 
@@ -80,6 +87,9 @@ class TestDatabaseShowCreateDb:
         """
 
         tdSql.execute("create database show_retention_db retentions -:7d,15s:21d,1m:365d")
+        # Wait until the create-database transaction is committed so that
+        # SHOW CREATE DATABASE reads the final retentions configuration.
+        clusterComCheck.checkTransactions()
         tdSql.query("show create database show_retention_db")
         tdSql.checkRows(1)
         create_sql = tdSql.queryResult[0][1]

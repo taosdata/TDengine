@@ -51,8 +51,6 @@ typedef struct SGcFileCacheCtx {
   int64_t         fileSize;
   int32_t         fileId;
   SHashObj*       pCacheFile;
-  int32_t         baseNameLen;
-  char            baseFilename[256];  
 } SGcFileCacheCtx;
 
 typedef struct SGcDownstreamCtx {

@@ -163,6 +163,49 @@ class TestBlobCastFunc:
         tdSql.query(f"select cast(v_big as blob) from {DB}.tnum where id=1")
         tdSql.checkData(0, 0, b'100')
 
+    def cast_decimal_to_blob(self):
+        tdSql.query("select cast(cast(1.50 as decimal(10,2)) as blob)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, b"1.50")
+
+        cases = [
+            ("decimal(10,2)", "1.50", b"1.50"),
+            ("decimal(10,2)", "-1234.56", b"-1234.56"),
+            ("decimal(10,2)", "0.00", b"0"),
+            ("decimal(18,0)", "999999999999999999", b"999999999999999999"),
+            ("decimal(18,18)", "-0.000000000000000001", b"-0.000000000000000001"),
+            (
+                "decimal(38,18)",
+                "12345678901234567890.123456789012345678",
+                b"12345678901234567890.123456789012345678",
+            ),
+            (
+                "decimal(38,18)",
+                "-12345678901234567890.123456789012345678",
+                b"-12345678901234567890.123456789012345678",
+            ),
+            ("decimal(38,18)", "0.000000000000000000", b"0"),
+        ]
+        for index, (data_type, value, expected) in enumerate(cases):
+            table = f"{DB}.t_decimal_{index}"
+            tdSql.execute(f"create table {table} (ts timestamp, v {data_type})")
+            tdSql.execute(
+                f"insert into {table} values (1735689600000, '{value}') "
+                "(1735689600001, NULL)"
+            )
+            for target in ("blob", "varchar(128)", "varchar(3)"):
+                want = expected if target == "blob" else expected.decode("ascii")
+                if target == "varchar(3)":
+                    want = want[:3]
+                tdSql.query(f"select cast(cast('{value}' as {data_type}) as {target})")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, want)
+                tdSql.query(f"select cast(v as {target}) from {table} order by ts")
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 0, want)
+                tdSql.checkData(1, 0, None)
+        tdLog.info("decimal to blob and varchar ................ [ passed ]")
+
 
     def cast_blob_to_nchar(self):
         tdLog.info("cast blob to nchar")
@@ -370,14 +413,17 @@ class TestBlobCastFunc:
         15. BLOB in WHERE clause with CAST
         16. Aggregate functions with LENGTH(BLOB)
         17. GROUP BY with BLOB substr/cast (expect error)
+        18. CAST DECIMAL constants and columns to BLOB/VARCHAR with NULL and boundary values
 
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2026-03-20 Created BLOB cast/substr/length function tests
+            - 2026-10-21 Cover DECIMAL formatting with different output capacities
 
         """
         self._prepare_db()
@@ -389,6 +435,7 @@ class TestBlobCastFunc:
         self.cast_blob_to_float()
         self.cast_blob_to_bool()
         self.cast_numeric_to_blob()
+        self.cast_decimal_to_blob()
         self.cast_blob_to_nchar()
         self.cast_blob_to_binary()
         self.cast_null_blob()

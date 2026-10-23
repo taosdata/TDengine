@@ -366,17 +366,17 @@ model_dir = 'c:/TDengine/taosanode/model/'  # Windows
 # Model definitions
 models = {
     "tdtsfm": {
-        "script": "tdtsfm-server.py",
+        "script": "tdtsfm_server.py",
         "port": 6061,
         "required": True,  # Must exist
     },
     "timemoe": {
-        "script": "timemoe-server.py",
+        "script": "timemoe_server.py",
         "port": 6062,
         "required": True,  # Must exist
     },
     "chronos": {
-        "script": "chronos-server.py",
+        "script": "chronos_server.py",
         "port": 6063,
         "required": False,  # Optional
     },

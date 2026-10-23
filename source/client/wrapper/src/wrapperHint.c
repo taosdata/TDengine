@@ -17,14 +17,44 @@
 
 #include "wrapperHint.h"
 
+/* Last include on purpose: re-points the memory macros at the local libc shims. */
+#include "wrapperLiteMem.h"
+
+/* Every hint below is written to the terminal *and* mirrored into the wrapper's own
+ * log file: a WebSocket-only deployment has no other place where "the driver is
+ * missing" can be read after the fact, and this hint is the only explanation the
+ * user gets for a failed taos_init().
+ *
+ * One named wrapper instead of a `#define printf`: the attribute keeps -Wformat
+ * checking for every hand-formatted multi-line hint below, which the macro used to
+ * switch off. */
+static int tdHintPrintf(const char *format, ...)
+#ifdef __GNUC__
+    __attribute__((format(printf, 1, 2)))
+#endif
+    ;
+
+static int tdHintPrintf(const char *format, ...) {
+  char    buf[1024] = {0};
+  va_list ap;
+  va_start(ap, format);
+  (void)vsnprintf(buf, sizeof(buf), format, ap);
+  va_end(ap);
+
+  tdLiteLogAppend(1, "WRP HINT  ", "%s", buf);
+  (void)fputs(buf, stdout);
+  fflush(stdout);
+  return 0;
+}
+
 // tdengine
 void tdengineErrorHint(uint32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_DLL_NOT_LOAD:
-      printf("Hint: Please make sure you have installed TDengine client or try re-install TDengine client.\n");
+      tdHintPrintf("Hint: Please make sure you have installed TDengine client or try re-install TDengine client.\n");
       break;
     case TSDB_CODE_DLL_FUNC_NOT_LOAD:
-      printf("Hint: TDengine client libraries do not match, try re-installing the TDengine client.\n");
+      tdHintPrintf("Hint: TDengine client libraries do not match, try re-installing the TDengine client.\n");
       break;
     default:
       break;
@@ -35,33 +65,33 @@ void tdengineErrorHint(uint32_t errCode) {
 void linuxErrorHint(uint32_t code) {
   switch (code) {
     case 2:  // ENOENT - No such file or directory
-      printf("Hint: Check the following possible causes:\n");
-      printf("  1. TDengine client library may not be installed. Try re-installing it.\n");
-      printf("  2. Environment variables for shared library loading (e.g., LD_LIBRARY_PATH, DYLD_LIBRARY_PATH) may be misconfigured or corrupted.\n");
+      tdHintPrintf("Hint: Check the following possible causes:\n");
+      tdHintPrintf("  1. TDengine client library may not be installed. Try re-installing it.\n");
+      tdHintPrintf("  2. Environment variables for shared library loading (e.g., LD_LIBRARY_PATH, DYLD_LIBRARY_PATH) may be misconfigured or corrupted.\n");
       break;
 
     case 13: // EACCES - Permission denied
-      printf("Hint: Permission denied. Please check the following:\n");
-      printf("  1. Verify file permissions of the shared library.\n");
-      printf("  2. Check SELinux or AppArmor security policies if enabled.\n");
+      tdHintPrintf("Hint: Permission denied. Please check the following:\n");
+      tdHintPrintf("  1. Verify file permissions of the shared library.\n");
+      tdHintPrintf("  2. Check SELinux or AppArmor security policies if enabled.\n");
       break;
 
     case 22: // EINVAL - Invalid argument
-      printf("Hint: The shared library file may be corrupted or not a valid ELF file.\n");
-      printf("  Try re-installing the TDengine client library.\n");
+      tdHintPrintf("Hint: The shared library file may be corrupted or not a valid ELF file.\n");
+      tdHintPrintf("  Try re-installing the TDengine client library.\n");
       break;
 
     case 36: // ENAMETOOLONG - File name too long
-      printf("Hint: The library path is too long. Try shortening the installation path.\n");
+      tdHintPrintf("Hint: The library path is too long. Try shortening the installation path.\n");
       break;
 
     default:
       // For other errno values, show generic message
-      printf("Hint: Failed to load shared library. Error code: %u\n", code);
-      printf("  Common solutions:\n");
-      printf("  1. Ensure TDengine client library is properly installed.\n");
-      printf("  2. Check library path configuration (LD_LIBRARY_PATH, DYLD_LIBRARY_PATH).\n");
-      printf("  3. Verify system has sufficient resources (memory, file descriptors).\n");
+      tdHintPrintf("Hint: Failed to load shared library. Error code: %u\n", code);
+      tdHintPrintf("  Common solutions:\n");
+      tdHintPrintf("  1. Ensure TDengine client library is properly installed.\n");
+      tdHintPrintf("  2. Check library path configuration (LD_LIBRARY_PATH, DYLD_LIBRARY_PATH).\n");
+      tdHintPrintf("  3. Verify system has sufficient resources (memory, file descriptors).\n");
       break;
   }
 }
@@ -70,46 +100,46 @@ void linuxErrorHint(uint32_t code) {
 void winErrorHint(uint32_t code) {
   switch (code) {
     case 2:   // ERROR_FILE_NOT_FOUND
-      printf("Hint: Check the following possible causes:\n");
-      printf("  1. Verify TDengine client library is installed. Try re-installing it.\n");
-      printf("  2. Check PATH environment variable includes the library directory.\n");
+      tdHintPrintf("Hint: Check the following possible causes:\n");
+      tdHintPrintf("  1. Verify TDengine client library is installed. Try re-installing it.\n");
+      tdHintPrintf("  2. Check PATH environment variable includes the library directory.\n");
       break;
       
     case 3:   // ERROR_PATH_NOT_FOUND
-      printf("Hint: The specified path was not found.\n");
-      printf("  Check the installation directory path is correct.\n");
+      tdHintPrintf("Hint: The specified path was not found.\n");
+      tdHintPrintf("  Check the installation directory path is correct.\n");
       break;
       
     case 5:   // ERROR_ACCESS_DENIED
-      printf("Hint: Access denied when loading DLL.\n");
-      printf("  1. Run with administrator privileges.\n");
-      printf("  2. Check file permissions and antivirus software settings.\n");
+      tdHintPrintf("Hint: Access denied when loading DLL.\n");
+      tdHintPrintf("  1. Run with administrator privileges.\n");
+      tdHintPrintf("  2. Check file permissions and antivirus software settings.\n");
       break;
       
     case 126: // ERROR_MOD_NOT_FOUND
-      printf("Hint: The specified module could not be found.\n");
-      printf("  1. DLL dependencies may be missing. Use 'dumpbin /dependents' to check.\n");
-      printf("  2. Install Visual C++ Redistributable packages if needed.\n");
+      tdHintPrintf("Hint: The specified module could not be found.\n");
+      tdHintPrintf("  1. DLL dependencies may be missing. Use 'dumpbin /dependents' to check.\n");
+      tdHintPrintf("  2. Install Visual C++ Redistributable packages if needed.\n");
       break;
       
     case 193: // ERROR_BAD_EXE_FORMAT
-      printf("Hint: The DLL is not a valid Windows application.\n");
-      printf("  1. Ensure you're using the correct architecture (x86/x64).\n");
-      printf("  2. Re-install TDengine client library for your platform.\n");
+      tdHintPrintf("Hint: The DLL is not a valid Windows application.\n");
+      tdHintPrintf("  1. Ensure you're using the correct architecture (x86/x64).\n");
+      tdHintPrintf("  2. Re-install TDengine client library for your platform.\n");
       break;
       
     case 998: // ERROR_NOACCESS
-      printf("Hint: Invalid access to memory location.\n");
-      printf("  The DLL file may be corrupted. Try re-installing.\n");
+      tdHintPrintf("Hint: Invalid access to memory location.\n");
+      tdHintPrintf("  The DLL file may be corrupted. Try re-installing.\n");
       break;
       
     default:
-      printf("Hint: Failed to load DLL. Windows error code: %u\n", code);
-      printf("  Common solutions:\n");
-      printf("  1. Ensure TDengine client library is properly installed.\n");
-      printf("  2. Check all DLL dependencies are available.\n");
-      printf("  3. Verify Visual C++ Runtime is installed.\n");
-      printf("  4. Run 'sfc /scannow' to check system file integrity.\n");
+      tdHintPrintf("Hint: Failed to load DLL. Windows error code: %u\n", code);
+      tdHintPrintf("  Common solutions:\n");
+      tdHintPrintf("  1. Ensure TDengine client library is properly installed.\n");
+      tdHintPrintf("  2. Check all DLL dependencies are available.\n");
+      tdHintPrintf("  3. Verify Visual C++ Runtime is installed.\n");
+      tdHintPrintf("  4. Run 'sfc /scannow' to check system file integrity.\n");
       break;
   }
 }

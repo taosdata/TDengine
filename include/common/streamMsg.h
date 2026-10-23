@@ -576,6 +576,27 @@ typedef enum EStreamTaskType {
 
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
+// Bounds-checked accessors for the static stream enum string tables.
+// type/status may be supplied on the wire (e.g. a forged stream heartbeat) and,
+// if out of range, would index far past the end of the table and either crash the
+// mnode (reading an invalid pointer as a C string) or leak adjacent memory via
+// SHOW STREAM TASKS (CWE-129: Improper Array Index Validation). These helpers
+// always stay within the table and return a fixed fallback string instead.
+static inline const char* mndStreamTaskTypeStr(int32_t type) {
+  if (type < STREAM_READER_TASK || type > STREAM_RUNNER_TASK) {
+    return "UnknownTaskType";
+  }
+  return gStreamTaskTypeStr[type];
+}
+
+static inline const char* mndStreamStatusStr(int32_t status) {
+  int32_t n = (int32_t)(sizeof(gStreamStatusStr) / sizeof(gStreamStatusStr[0]));
+  if (status < STREAM_STATUS_UNDEPLOYED || status >= n) {
+    return "UnknownStatus";
+  }
+  return gStreamStatusStr[status];
+}
+
 /* External source trigger spec, carried for each EXT reader task in
  * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>)  -  this is the
  * sole persisted home; SStreamObj itself does not keep a separate copy.

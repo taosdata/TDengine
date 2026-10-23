@@ -1018,6 +1018,63 @@ static bool mndIsValidRollupFunc(const char *pFunc) {
   return false;
 }
 
+// [FIX-ITEM-333] Validate that a super-table column/tag byte width is consistent with its data type.
+//
+// The mnode persists client-supplied column/tag widths verbatim. For fixed-width types the canonical
+// storage width is ALWAYS tDataTypes[type].bytes (libtaos always sets SField.bytes to that value, see
+// parTranslater.c calcTypeBytes / columnDefNodeToField). A width that differs from the canonical value
+// is malformed and, once persisted into the schema and shipped to the vnodes, lets the TMQ reader
+// (tqRead.c buildResSDataBlock) and the stream virtual-table tag builder (vnodeStream.c) copy that
+// many bytes out of the 8/16-byte SValue union, over-reading vnode stack/heap.
+//
+// For variable-length types (binary / varbinary / nchar / geometry) the width must be large enough to
+// hold the var-length header and must not exceed the per-type maximum (the same bound the client-side
+// parser enforces in parTranslater.c). 'isColumn' selects the column vs. tag length limit.
+//
+// This is a trust boundary: TDengine's RPC transport does not authenticate the peer, so any 6030 peer
+// can assert an existing user and submit a hand-built CREATE/ALTER STB frame with an inflated width.
+//
+// Returns TSDB_CODE_SUCCESS when the width is acceptable, otherwise a negative TSDB error code.
+static int32_t mndCheckFieldWidth(int32_t type, int32_t bytes, bool isColumn) {
+  if (type <= TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+    return TSDB_CODE_MND_INVALID_STB_OPTION;
+  }
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    // a var column/tag must at least be able to hold an empty payload (header only)
+    if (bytes < VARSTR_HEADER_SIZE) {
+      return TSDB_CODE_MND_INVALID_STB_OPTION;
+    }
+    int32_t maxBytes = 0;
+    switch (type) {
+      case TSDB_DATA_TYPE_NCHAR:
+        maxBytes = isColumn ? TSDB_MAX_NCHAR_LEN : TSDB_MAX_TAGS_LEN;
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
+        maxBytes = isColumn ? TSDB_MAX_BINARY_LEN : TSDB_MAX_TAGS_LEN;
+        break;
+      default:
+        // json/blob and any other var type: fall back to the generic per-row / per-tag limit.
+        maxBytes = isColumn ? TSDB_MAX_BYTES_PER_ROW : TSDB_MAX_TAGS_LEN;
+        break;
+    }
+    if (bytes > maxBytes) {
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Fixed-width type: the persisted width MUST equal the canonical type width.
+  if (bytes != tDataTypes[type].bytes) {
+    mError("mndCheckFieldWidth: fixed-type %d (canonical bytes=%d) rejects declared bytes=%d", (int)type,
+           (int)tDataTypes[type].bytes, (int)bytes);
+    return TSDB_CODE_MND_INVALID_STB_OPTION;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   int32_t code = 0;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
@@ -1065,6 +1122,11 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
     }
+    // [FIX-ITEM-333] reject a fixed-width column whose bytes != tDataTypes[type].bytes, and bound
+    // var-length columns to their per-type maximum before the width is persisted and shipped to vnodes.
+    if ((code = mndCheckFieldWidth(pField1->type, pField1->bytes, true)) != TSDB_CODE_SUCCESS) {
+      TAOS_RETURN(code);
+    }
     if (pField1->name[0] == 0) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
@@ -1081,8 +1143,40 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
     }
+    // [FIX-ITEM-333] same per-field width validation as for columns, but using the tag length limit.
+    if ((code = mndCheckFieldWidth(pField1->type, pField1->bytes, false)) != TSDB_CODE_SUCCESS) {
+      TAOS_RETURN(code);
+    }
     if (pField1->name[0] == 0) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
+      TAOS_RETURN(code);
+    }
+  }
+
+  // [FIX-ITEM-333] Enforce the total row / tag length budgets. CREATE STB previously had no such check
+  // (the ALTER path enforces it via mndValidateSchema); an individually-valid column/tag sum can still
+  // exceed TSDB_MAX_BYTES_PER_ROW / TSDB_MAX_TAGS_LEN, which the vnode would then try to materialise.
+  {
+    int32_t rowLen = 0;
+    for (int32_t i = 0; i < pCreate->numOfColumns; ++i) {
+      SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+      rowLen += pField->bytes;
+    }
+    int32_t maxBytesPerRow = pCreate->virtualStb ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW;
+    if (rowLen > maxBytesPerRow) {
+      mError("stb:%s, create row length %d exceeds limit %d", pCreate->name, rowLen, maxBytesPerRow);
+      code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+      TAOS_RETURN(code);
+    }
+
+    int32_t tagLen = 0;
+    for (int32_t i = 0; i < pCreate->numOfTags; ++i) {
+      SField *pField = taosArrayGet(pCreate->pTags, i);
+      tagLen += pField->bytes;
+    }
+    if (tagLen > TSDB_MAX_TAGS_LEN) {
+      mError("stb:%s, create tag length %d exceeds limit %d", pCreate->name, tagLen, TSDB_MAX_TAGS_LEN);
+      code = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
       TAOS_RETURN(code);
     }
   }
@@ -2264,6 +2358,14 @@ static int32_t mndValidateStbAlterSchema(const SStbObj *pStb, const SMCreateStbR
   int32_t rowLen = 0;
   for (int32_t i = 0; i < createReq->numOfColumns; ++i) {
     SFieldWithOptions *pField = taosArrayGet(createReq->pColumns, i);
+    // [FIX-ITEM-333] validate the per-field width before it is trusted: fixed-width types must carry
+    // their canonical width and var-length types must stay within their per-type maximum.
+    int32_t widthCode = mndCheckFieldWidth(pField->type, pField->bytes, true);
+    if (widthCode != TSDB_CODE_SUCCESS) {
+      mError("stb:%s, create-as-alter rejects invalid width for column %s (type=%d bytes=%d)", pStb->name,
+             pField->name, (int)pField->type, (int)pField->bytes);
+      return widthCode;
+    }
     int32_t            cIndex = mndFindSuperTableColumnIndex(pStb, pField->name);
     if (cIndex >= 0) {
       // existing column: must keep its identity, only var-length bytes may grow
@@ -2320,6 +2422,13 @@ static int32_t mndValidateStbAlterSchema(const SStbObj *pStb, const SMCreateStbR
   int32_t tagLen = 0;
   for (int32_t i = 0; i < createReq->numOfTags; ++i) {
     SField *pField = taosArrayGet(createReq->pTags, i);
+    // [FIX-ITEM-333] validate the per-field width (fixed-type canonical width / var-type per-type max)
+    int32_t widthCode = mndCheckFieldWidth(pField->type, pField->bytes, false);
+    if (widthCode != TSDB_CODE_SUCCESS) {
+      mError("stb:%s, create-as-alter rejects invalid width for tag %s (type=%d bytes=%d)", pStb->name,
+             pField->name, (int)pField->type, (int)pField->bytes);
+      return widthCode;
+    }
     int32_t tIndex = mndFindSuperTableTagIndex(pStb, pField->name);
     if (tIndex >= 0) {
       // existing tag: type must not change, bytes may only grow for var-length types
@@ -2962,6 +3071,11 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   for (int32_t i = 0; i < ntags; i++) {
     SField *pField = taosArrayGet(pFields, i);
+    // [FIX-ITEM-333] reject a fixed-width tag whose bytes != tDataTypes[type].bytes, and bound
+    // var-length tags to their per-type maximum before the width reaches the vnodes.
+    if ((code = mndCheckFieldWidth(pField->type, pField->bytes, false)) != TSDB_CODE_SUCCESS) {
+      TAOS_RETURN(code);
+    }
     if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
       code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       TAOS_RETURN(code);
@@ -3337,6 +3451,12 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
     TAOS_RETURN(code);
   }
 
+  // [FIX-ITEM-333] bound the widened tag width to its per-type maximum (the client-side parser
+  // enforces this; the mnode must not trust a width beyond TSDB_MAX_TAGS_LEN either).
+  if ((code = mndCheckFieldWidth(pTag->type, pField->bytes, false)) != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(code);
+  }
+
   if (pField->bytes <= pTag->bytes) {
     code = TSDB_CODE_MND_INVALID_ROW_BYTES;
     TAOS_RETURN(code);
@@ -3429,6 +3549,11 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
   for (int32_t i = 0; i < ncols; i++) {
     if (withCompress) {
       SFieldWithOptions *pField = taosArrayGet(pReq->pFields, i);
+      // [FIX-ITEM-333] reject a fixed-width column whose bytes != tDataTypes[type].bytes, and bound
+      // var-length columns to their per-type maximum before the width reaches the vnodes.
+      if ((code = mndCheckFieldWidth(pField->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
       if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
         code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
         TAOS_RETURN(code);
@@ -3463,6 +3588,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     } else {
       SField *pField = taosArrayGet(pReq->pFields, i);
+      // [FIX-ITEM-333] same per-field width validation as the withCompress branch.
+      if ((code = mndCheckFieldWidth(pField->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
       if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
         code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
         TAOS_RETURN(code);
@@ -3581,6 +3710,12 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
   if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_VARBINARY ||
         pCol->type == TSDB_DATA_TYPE_NCHAR || pCol->type == TSDB_DATA_TYPE_GEOMETRY)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
+  // [FIX-ITEM-333] bound the widened column width to its per-type maximum (the client-side parser
+  // enforces this; the mnode must not trust a width beyond TSDB_MAX_BINARY_LEN / TSDB_MAX_NCHAR_LEN).
+  if ((code = mndCheckFieldWidth(pCol->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
     TAOS_RETURN(code);
   }
 

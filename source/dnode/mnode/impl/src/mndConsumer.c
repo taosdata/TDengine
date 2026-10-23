@@ -899,7 +899,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
 
-  if (tDecodeSMqConsumerObj(buf, pConsumer, sver) == NULL) {
+  if (tDecodeSMqConsumerObj(buf, (const void *)((const char *)buf + len), pConsumer, sver) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;  // TODO set correct error code
     goto CM_DECODE_OVER;
   }
@@ -994,10 +994,31 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
     atomic_store_32(&pOldConsumer->pollStatus, 0);
     mInfo("consumer:0x%" PRIx64 " subscribe update, modify existed consumer, reset hb/poll status", pOldConsumer->consumerId);
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE_REB) {
-    (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
-    pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
-    pOldConsumer->rebalanceTime = taosGetTimestampMs();
-    mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
+    // A rebalance result is computed from a subscription snapshot and persisted asynchronously
+    // (raft proposal + redo actions on all vgroups), so a subscribe/unsubscribe request can be
+    // committed in between. Such a request sets the consumer to REBALANCE and moves the changed
+    // topics into rebNewTopics/rebRemovedTopics, waiting for the next rebalance round to apply
+    // them. Overwriting the status with READY here makes checkOneConsumer() skip those pending
+    // changes (the READY branch only handles vgroup split, offline and unsubscribe-all cases), so
+    // the never-applied rebRemovedTopics keeps checkConsumer() reporting
+    // TSDB_CODE_MND_TOPIC_SUBSCRIBED and `drop topic` keeps failing until the session times out,
+    // while currentTopics stays stale as well.
+    // Drop the stale result instead and leave the consumer in REBALANCE, so that the next round
+    // rebalances the latest state. rebalanceTime is intentionally kept: it still refers to the
+    // last accepted rebalance.
+    int32_t curStatus = atomic_load_32(&pOldConsumer->status);
+    if (curStatus != MQ_CONSUMER_STATUS_READY) {
+      mInfo("tmq rebalance consumer:0x%" PRIx64
+            " skip stale rebalance update since consumer status is %d(%s), epoch:%d, pending new topics:%d, "
+            "pending removed topics:%d, a newer subscribe/unsubscribe request is pending rebalance",
+            pOldConsumer->consumerId, curStatus, mndConsumerStatusName(curStatus), pOldConsumer->epoch,
+            (int)taosArrayGetSize(pOldConsumer->rebNewTopics), (int)taosArrayGetSize(pOldConsumer->rebRemovedTopics));
+    } else {
+      (void)atomic_add_fetch_32(&pOldConsumer->epoch, 1);
+      pOldConsumer->status = MQ_CONSUMER_STATUS_READY;
+      pOldConsumer->rebalanceTime = taosGetTimestampMs();
+      mInfo("tmq rebalance consumer:0x%" PRIx64 " rebalance update, only rebalance time", pOldConsumer->consumerId);
+    }
   } else if (pNewConsumer->updateType == CONSUMER_ADD_REB) {
     void *tmp = taosArrayGetP(pNewConsumer->rebNewTopics, 0);
     MND_TMQ_NULL_CHECK(tmp);

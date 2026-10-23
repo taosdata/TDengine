@@ -53,7 +53,7 @@ class TestIntervalHints:
             for _ in range(repeat):
                 self._equal(expected, self._rows(hinted), ordered)
 
-    def _assert_plan_mode(self, sql, hint, fast_interval, ex_interval):
+    def _assert_plan_mode(self, sql, hint, fast_interval, ex_interval, merge_fast=None):
         tdSql.query(f"explain verbose true {self._hinted_sql(sql, hint)}", queryTimes=1)
         plan = "\n".join(str(row) for row in tdSql.queryResult)
         modes = {mode for mode in ("fast", "ex", "normal") if f"mode={mode}" in plan}
@@ -63,6 +63,9 @@ class TestIntervalHints:
         assert modes == {expected_mode}, (
             f"hint={hint}, expected_mode={expected_mode}, modes={modes}, plan={plan}"
         )
+        if merge_fast is not None:
+            merge_lines = [str(row) for row in tdSql.queryResult if "Merge Aligned Interval" in str(row)]
+            assert merge_lines and all(("mode=fast" in row) == merge_fast for row in merge_lines), plan
 
     # --- impl ---
     def do_prepare_data(self):
@@ -198,6 +201,150 @@ class TestIntervalHints:
         self._assert_hint_results(query, ordered=False, repeat=2)
         print("tbname partition interval results ... [ passed ]")
 
+    def do_verify_tbname_tag_partition_results(self):
+        tdSql.execute(
+            "create stable interval_hints.st_tags(ts timestamp, f double) "
+            "tags(t int, label varchar(20))"
+        )
+        tables = (
+            ("tag_ct0", "1, 'same'", ("1", "3", "5")),
+            ("tag_ct1", "1, 'same'", ("11", "13", "15")),
+            ("tag_ct_null", "NULL, NULL", ("NULL", "7", "NULL")),
+        )
+        for table, tags, values in tables:
+            tdSql.execute(f"create table interval_hints.{table} using interval_hints.st_tags tags({tags})")
+            first, second, third = values
+            tdSql.execute(
+                f"insert into interval_hints.{table} values "
+                f"('2024-01-01 00:00:00', {first}) "
+                f"('2024-01-01 00:00:05', {second}) "
+                f"('2024-01-01 00:00:10', {third})"
+            )
+        tdSql.execute(
+            "create table interval_hints.tag_ct_empty using interval_hints.st_tags tags(NULL, 'empty')"
+        )
+        expected_values = [
+            ["tag_ct0", 1, "same", 2, 2.0],
+            ["tag_ct0", 1, "same", 1, 5.0],
+            ["tag_ct1", 1, "same", 2, 12.0],
+            ["tag_ct1", 1, "same", 1, 15.0],
+            ["tag_ct_null", None, None, 2, 7.0],
+            ["tag_ct_null", None, None, 1, None],
+        ]
+        query = (
+            "select tbname, t, label, count(*), avg(f), _wstart "
+            "from interval_hints.st_tags where ts >= '2024-01-01 00:00:00' "
+            "and ts < '2024-01-01 00:00:20' partition by {keys} interval(10s)"
+        )
+        for keys in ("tbname, t", "tbname, t, label", "t, tbname, label"):
+            sql = query.format(keys=keys)
+            expected = self._rows(sql)
+            self._equal(expected_values, [row[:5] for row in expected], ordered=False)
+            for hint in ("FAST_INTERVAL()", "SPLIT_SCAN() FAST_INTERVAL()"):
+                self._assert_plan_mode(sql, hint, True, False)
+                for _ in range(2):
+                    self._equal(expected, self._rows(self._hinted_sql(sql, hint)), ordered=False)
+
+        fallback = query.format(keys="tbname, t, label, f")
+        self._assert_plan_mode(fallback, "FAST_INTERVAL()", False, False)
+        self._assert_hint_results(fallback, ordered=False)
+
+        # Four tables across two vgroups require at least 120000 slots in one
+        # vgroup for these 60000 windows, exceeding the former 100000 limit.
+        large_slots = query.format(keys="tbname, t, label").replace(
+            "00:00:20", "00:01:00"
+        ).replace("interval(10s)", "interval(1a)")
+        self._assert_plan_mode(large_slots, "FAST_INTERVAL()", True, False)
+        self._assert_hint_results(large_slots, ordered=False, repeat=2)
+        print("tbname and tag partition results .... [ passed ]")
+
+    def do_verify_tag_partition_results(self):
+        tdSql.query(
+            "select vgroup_id from information_schema.ins_tables "
+            "where db_name = 'interval_hints' and table_name = 'tag_ct0'"
+        )
+        target_vgroup = tdSql.getData(0, 0)
+        cross_table = None
+        for index in range(32):
+            table = f"tag_cross{index}"
+            tdSql.execute(f"create table interval_hints.{table} using interval_hints.st_tags tags(1, 'same')")
+            tdSql.query(
+                "select vgroup_id from information_schema.ins_tables "
+                f"where db_name = 'interval_hints' and table_name = '{table}'"
+            )
+            if tdSql.getData(0, 0) != target_vgroup:
+                cross_table = table
+                break
+        tdSql.checkAssert(cross_table is not None)
+        tdSql.execute(
+            f"insert into interval_hints.{cross_table} values "
+            "('2024-01-01 00:00:00', 100) ('2024-01-01 00:00:10', 20)"
+        )
+        query = (
+            "select t, label, _wstart, count(*), count(f), sum(f), avg(f) "
+            "from interval_hints.st_tags where ts >= '2024-01-01 00:00:00' "
+            "and ts < '2024-01-01 00:00:20' partition by t, label interval(10s)"
+        )
+        expected = self._rows(query)
+        self._equal(
+            [[1, "same", 5, 5, 128.0, 25.6], [1, "same", 3, 3, 40.0, 40.0 / 3],
+             [None, None, 2, 1, 7.0, 7.0], [None, None, 1, 0, None, None]],
+            [row[:2] + row[3:] for row in expected], ordered=False,
+        )
+        queries = (
+            query,
+            query.replace("partition by t, label", "partition by label, t"),
+            query.replace("t, label, _wstart", "t, _wstart").replace("partition by t, label", "partition by t"),
+        )
+        for sql in queries:
+            expected = self._rows(sql)
+            for hint in ("FAST_INTERVAL()", "SPLIT_SCAN() FAST_INTERVAL()"):
+                self._assert_plan_mode(sql, hint, True, False, merge_fast=True)
+                self._equal(expected, self._rows(self._hinted_sql(sql, hint)), ordered=False)
+        filtered = query.replace("where ts >=", "where f > 2 and ts >=")
+        self._assert_plan_mode(filtered, "FAST_INTERVAL()", True, False, merge_fast=True)
+        self._assert_hint_results(filtered, ordered=False)
+
+        sparse = query.replace("00:00:20", "00:01:00").replace("interval(10s)", "interval(1a)")
+        self._assert_plan_mode(sparse, "FAST_INTERVAL()", True, False, merge_fast=True)
+        self._assert_hint_results(sparse, ordered=False)
+        # At least one vgroup has 18 distinct tag groups and 60000 windows,
+        # forcing the optional FAST index to fall back above one million slots.
+        for index in range(36):
+            tdSql.execute(
+                f"create table interval_hints.tag_budget{index} using interval_hints.st_tags "
+                f"tags({index + 100}, 'empty')"
+            )
+        self._assert_hint_results(sparse, ordered=False)
+        nested = (
+            "select ts, t, label, diff(mv) from ("
+            "select _wstart as ts, t, label, cast(cast(floor(avg(f) / 5) as bool) as int) as mv "
+            "from interval_hints.st_tags where ts > '2024-01-01 00:00:00' "
+            "and ts < '2024-01-01 00:00:20' partition by t, label interval(10s)) partition by t, label"
+        )
+        self._assert_hint_results(nested, ordered=False)
+        inner_fast = nested.replace("select _wstart", "select /*+ FAST_INTERVAL() */ _wstart", 1)
+        self._equal(self._rows(nested), self._rows(inner_fast), ordered=False)
+        self._assert_plan_mode(inner_fast, "FAST_INTERVAL()", True, False, merge_fast=True)
+        self._assert_plan_mode(query, "EX_INTERVAL()", False, False)
+        # More windows than the merge result batch, and unequal source counts.
+        values = " ".join(f"({1704153600000 + i * 1000}, {i % 11})" for i in range(6000))
+        tdSql.execute(f"insert into interval_hints.tag_ct0 values {values}")
+        values = " ".join(f"({1704153600000 + i * 1000}, {i % 7})" for i in range(0, 6000, 3))
+        tdSql.execute(f"insert into interval_hints.{cross_table} values {values}")
+        dense = (
+            "select t, label, _wstart, count(*), count(f), sum(f), avg(f), min(f), max(f) "
+            "from interval_hints.st_tags where ts >= 1704153600000 "
+            "and ts < 1704159600000 partition by t, label interval(1s)"
+        )
+        self._assert_plan_mode(dense, "FAST_INTERVAL()", True, False, merge_fast=True)
+        self._assert_hint_results(dense, ordered=False, repeat=2)
+        self._assert_hint_results(dense + " having count(*) < 0", ordered=False)
+        tdSql.query("explain analyze verbose true " + self._hinted_sql(dense, "FAST_INTERVAL()"))
+        merge_lines = [str(row) for row in tdSql.queryResult if "Merge Aligned Interval" in str(row)]
+        assert len(merge_lines) == 1 and "rows=6000 " in merge_lines[0], merge_lines
+        print("tag partition merge FAST results .. [ passed ]")
+
     def do_verify_fallback_results(self):
         query = (
             "select _wstart, _wend, _wduration, count(*), sum(f), avg(f), sum(d), avg(d) "
@@ -210,7 +357,7 @@ class TestIntervalHints:
             (query.replace("interval(10s)", "interval(10s, 1s)"), True, False, False),
             (query.replace("interval(10s)", "interval(1d)"), True, False, False),
             (query.replace("avg(f)", "avg(f + 1)", 1), True, True, False),
-            (query.replace("interval(10s)", "partition by t interval(10s)"), False, False, False),
+            (query.replace("interval(10s)", "partition by t + 1 interval(10s)"), False, False, False),
         ]
         for fallback_query, ordered, fast_interval, ex_interval in fallback_queries:
             self._assert_plan_mode(fallback_query, "FAST_INTERVAL()", fast_interval, False)
@@ -284,6 +431,10 @@ class TestIntervalHints:
         1. Verify deterministic multi-vgroup aggregates against exact expected values
         2. Compare FAST_INTERVAL and EX_INTERVAL results with the normal executor path
         3. Cover NULL inputs, empty windows, repeated execution, and unsupported shapes
+        4. Verify tbname with multiple tags keeps child tables separate
+        5. Cover grouped FAST indexes exceeding 100000 slots
+        6. Verify tag-only partial and merge FAST with shared tags across vgroups and capacity fallback
+        7. Cover grouped merge batches, unequal source counts, empty filtered output, and EXPLAIN row counts
 
         Catalog: Timeseries:TimeWindow
 
@@ -302,5 +453,7 @@ class TestIntervalHints:
         self.do_verify_sparse_windows()
         self.do_verify_dense_windows()
         self.do_verify_tbname_partition_results()
+        self.do_verify_tbname_tag_partition_results()
+        self.do_verify_tag_partition_results()
         self.do_verify_fallback_results()
         self.do_verify_error_and_cleanup()

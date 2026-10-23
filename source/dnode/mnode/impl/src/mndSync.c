@@ -170,12 +170,72 @@ _OUT:
   TAOS_RETURN(code);
 }
 
+// [Security fix for finding item 268] Validate the SSdbRaw header of a committed raft
+// entry against the frame that carries it. mndProcessWriteMsg is the mnode FSM apply
+// callback, i.e. the last gate before untrusted bytes reach the sdb decoders: an entry can
+// be appended by any peer that reaches the mnode listener (TDMT_SYNC_CLIENT_REQUEST) or
+// delivered by a node presenting a configured replica's SRaftId (AppendEntries), and every
+// replica applies it. The header was therefore never produced by this node and must be
+// checked before use:
+// 1. the 8-byte header must be fully present in the frame, otherwise reading type/dataLen
+//    is itself an over-read of the RPC buffer;
+// 2. the raw must describe a transaction. mndSyncPropose() is the only producer of mnode
+//    raft entries and it always proposes mndTransEncode() output (type SDB_TRANS), so any
+//    other type is either forged or a producer bug. Rejecting it here is what stops a raw
+//    of type SDB_VGROUP/SDB_DNODE/... from being handed to sdbWriteWithoutFree, which
+//    would dispatch on that type and insert/update/delete rows in the INT32-keyed metadata
+//    tables directly, bypassing the transaction machinery;
+// 3. dataLen must not claim more bytes than the frame actually carries. Every sdbGetRaw*
+//    getter bounds its reads by pRaw->dataLen alone, so an oversized dataLen makes
+//    mndTransDecode (and mndTransUpdateActions downstream) read past the RPC buffer.
+// The bound is "<=" rather than "==" so that a future producer appending padding cannot
+// wedge the apply loop on every replica; trailing bytes are harmless because all reads are
+// bounded by dataLen.
+static int32_t mndValidateApplyRaw(const SRpcMsg *pMsg) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    mError("vgId:1, invalid sync apply msg since the content is empty, apply msg:%p", pMsg);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  if (pMsg->contLen < (int32_t)sizeof(SSdbRaw)) {
+    mError("vgId:1, invalid sync apply msg since contLen:%d is shorter than a raw header:%d", pMsg->contLen,
+           (int32_t)sizeof(SSdbRaw));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const SSdbRaw *pRaw = (const SSdbRaw *)pMsg->pCont;
+  if (pRaw->type != SDB_TRANS) {
+    mError("vgId:1, invalid sync apply msg since raw type:%s(%d) is not %s(%d)", sdbTableName(pRaw->type), pRaw->type,
+           sdbTableName(SDB_TRANS), SDB_TRANS);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t maxDataLen = pMsg->contLen - (int32_t)sizeof(SSdbRaw);
+  if (pRaw->dataLen < 0 || pRaw->dataLen > maxDataLen) {
+    mError("vgId:1, invalid sync apply msg since raw dataLen:%d is out of range [0, %d]", pRaw->dataLen, maxDataLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return 0;
+}
+
 int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
   STrans    *pTrans = NULL;
   int32_t    code = -1;
-  int32_t    transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
+  int32_t    transId = 0;
+
+  // [Security fix for finding item 268] Validate the untrusted raw header before it is
+  // dereferenced by sdbGetIdFromRaw or decoded by mndTransValidate. A raw failing any
+  // check is rejected: nothing is written to sdb and pMeta->code reports the failure.
+  code = mndValidateApplyRaw(pMsg);
+  if (code != 0) {
+    pMeta->code = code;
+    goto _OUT;
+  }
+
+  transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
 
   if (transId <= 0) {
     mError("trans:%d, invalid commit msg, cache transId:%d seq:%" PRId64, transId, pMgmt->transId, pMgmt->transSeq);
@@ -184,9 +244,9 @@ int32_t mndProcessWriteMsg(SMnode *pMnode, SRpcMsg *pMsg, SFsmCbMeta *pMeta) {
   }
 
   mInfo("trans:%d, process sync proposal, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
-        " role:%s raw:%p sec:%d seq:%" PRId64,
+        " role:%s raw:%p contLen:%d dataLen:%d sec:%d seq:%" PRId64,
         transId, pMgmt->transId, pMeta->code, pMeta->index, pMeta->term, pMeta->lastConfigIndex, syncStr(pMeta->state),
-        pRaw, pMgmt->transSec, pMgmt->transSeq);
+        pRaw, pMsg->contLen, pRaw->dataLen, pMgmt->transSec, pMgmt->transSeq);
 
   code = mndTransValidate(pMnode, pRaw);
   if (code != 0) {

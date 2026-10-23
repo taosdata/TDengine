@@ -109,20 +109,15 @@ _error:
 int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem) {
   int32_t code = 0;
   int32_t lino = 0;
+  SCacheItem *pItem = NULL;
+  SListNode *pListNode = NULL;
 
   (void)taosThreadMutexLock(&pCache->mutex);
 
   SCacheItem **ppItem = taosHashGet(pCache->pCache, key, keyLen);
   if (ppItem != NULL && *ppItem != NULL) {
-    SCacheItem *pItem = (SCacheItem *)*ppItem;
-    if ((tdListPopNode(pCache->lruList, pItem->pNode)) == NULL) {
-      bseWarn("node does not exist in lru list");
-    }
-
-    bseCacheRefItem(pItem);
-    code = taosHashRemove(pCache->pCache, key, keyLen);
+    code = lruCacheRemoveNolock(pCache, key, keyLen);
     TSDB_CHECK_CODE(code, lino, _error);
-    pCache->size--;
   }
 
   while (pCache->size >= pCache->cap) {
@@ -134,7 +129,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
     }
   }
 
-  SCacheItem *pItem = taosMemCalloc(1, sizeof(SCacheItem));
+  pItem = taosMemCalloc(1, sizeof(SCacheItem));
   if (pItem == NULL) {
     TSDB_CHECK_CODE(code = terrno, lino, _error);
   }
@@ -143,7 +138,7 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   pItem->pKey = *(SSeqRange *)key;
   pItem->freeFunc = pCache->freeElemFunc;
 
-  SListNode *pListNode = tdListAdd(pCache->lruList, &pItem);
+  pListNode = tdListAdd(pCache->lruList, &pItem);
   if (pListNode == NULL) {
     TSDB_CHECK_CODE(terrno, lino, _error);
   }
@@ -157,6 +152,12 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
 
 _error:
   if (code != 0) {
+    // A failed insertion leaves ownership of pElem with the caller.
+    if (pListNode != NULL) {
+      SListNode *pDetached = tdListPopNode(pCache->lruList, pListNode);
+      taosMemoryFree(pDetached);
+    }
+    taosMemoryFree(pItem);
     bseError("failed to put cache lru at line %d since %s", lino, tstrerror(code));
   } else {
     pCache->size++;

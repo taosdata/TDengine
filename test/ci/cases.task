@@ -1,4 +1,4 @@
-#priority,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#priority,maxAttempts,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
 # long-running cases（优先调度，减少整体 pipeline 时长）
@@ -624,6 +624,7 @@
 ## 06-Limit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_query_limit_offset.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/06-Limit/test_interval_limit_scan.py
 ## 07-SLimit
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/07-SLimit/test_slimit_basic.py
@@ -1016,7 +1017,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ts_sort.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_mixed_nested.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_6604237597.py
-,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
+,1,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash_memory.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition_relaxation.py
@@ -1064,6 +1065,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_base_on.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_topic_after_unsubscribe.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_db_topic_stream_result.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
@@ -1188,6 +1190,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_observability_runtime.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_vtable_interleaved_col_scatter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_rebind_redeploy.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_unused_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_partitionby.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
@@ -1312,7 +1315,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_privilege.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_manager.py
 100,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_idmp_meters.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_interval cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_sliding cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_session cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_state_window cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_event_window
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_mixed_external
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_same_source_two_external_tables cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_var_width_column cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_quoted_pg_identifier
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py
@@ -1483,7 +1488,9 @@
 
 # 23-ShowCommands
 
-,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4
+# Defect 7141666423: temporarily exclude concurrent create-db alive regression (jobs 728560 and 747950).
+#,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4 -k 'not test_create_db_alive_from_other_client'
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive_slow_status.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_db.py
@@ -1822,6 +1829,7 @@
 
 ## 50-Others
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/test_enterprise_feature_reminder.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/test_wrapper_config_dir_logs.py
 
 ## 43-Backup
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py

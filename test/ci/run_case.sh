@@ -177,7 +177,7 @@ fi
 _ci_command_start_ms=$(date +%s%3N)
 echo "[ci-timing] stage=container-preparation elapsed_ms=$(( _ci_command_start_ms - _ci_entry_start_ms ))"
 echo "[ci-timing] stage=test-command event=start"
-$TIMEOUT_CMD $cmd
+$TIMEOUT_CMD bash -c "$cmd"
 RET=$?
 echo "[ci-timing] stage=test-command elapsed_ms=$(( $(date +%s%3N) - _ci_command_start_ms )) rc=${RET}"
 # pytest exit code 5 = no tests collected / all skipped → treat as pass

@@ -19,8 +19,8 @@ class MoiraiRuntimeImportTest(unittest.TestCase):
     def test_server_imports_in_fresh_process(self):
         script = Path(os.environ.get(
             "TDGPT_MOIRAI_SERVER",
-            Path(__file__).resolve().parents[1] / "taosanalytics" /
-            "tsfmservice" / "moirai-server.py",
+            Path(__file__).resolve().parents[1] / "lib" /
+            "tsfm" / "service" / "moirai_server.py",
         ))
         for attempt in range(3):
             with self.subTest(attempt=attempt):

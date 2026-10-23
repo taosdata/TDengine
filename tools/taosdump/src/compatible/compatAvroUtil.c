@@ -32,6 +32,7 @@
 #include <string.h>
 #include <taoserror.h>
 #include <osDir.h>
+#include <osSleep.h>
 
 #ifndef TSDB_MAX_ALLOWED_SQL_LEN
 #define TSDB_MAX_ALLOWED_SQL_LEN (4*1024*1024u)
@@ -170,6 +171,39 @@ AvroStbChange *avroFindStbChange(AvroDBChange *dc, const char *stbName) {
     return (AvroStbChange *)avroHashMapFind(&dc->stbMap, stbName);
 }
 
+static bool avroIsNotExistError(int code) {
+    return code == TSDB_CODE_PAR_TABLE_NOT_EXIST ||
+           code == TSDB_CODE_TDB_TABLE_NOT_EXIST ||
+           code == TSDB_CODE_MND_STB_NOT_EXIST ||
+           code == TSDB_CODE_MND_DB_NOT_EXIST;
+}
+
+// Errors that mean the DESCRIBE request itself failed (network / timeout /
+// connection loss) rather than the server answering "no such table".  Only an
+// explicit not-exist answer may be taken as a fact about the table; a check
+// whose request never completed has to be retried before the restore gives up.
+static bool avroIsRetryableCheckError(int code) {
+    switch (code) {
+        case TSDB_CODE_RPC_NETWORK_UNAVAIL:
+        case TSDB_CODE_RPC_NETWORK_ERROR:
+        case TSDB_CODE_RPC_NETWORK_BUSY:
+        case TSDB_CODE_RPC_BROKEN_LINK:
+        case TSDB_CODE_RPC_TIMEOUT:
+        case TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED:
+        case TSDB_CODE_RPC_SOMENODE_BROKEN_LINK:
+        case TSDB_CODE_TIMEOUT_ERROR:
+        case TSDB_CODE_TSC_INVALID_CONNECTION:
+        case TSDB_CODE_TSC_DISCONNECTED:
+        case TSDB_CODE_TSC_SESS_CONN_TIMEOUT:
+            return true;
+        default:
+            return false;
+    }
+}
+
+#define AVRO_DESCRIBE_MAX_ATTEMPTS   3
+#define AVRO_DESCRIBE_RETRY_BASE_MS  500
+
 // ---- getTableDes: query server for DESCRIBE table ----
 
 int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
@@ -179,12 +213,46 @@ int avroGetTableDes(TAOS *taos, const char *dbName, const char *tableName,
     char sql[512];
     snprintf(sql, sizeof(sql), "DESCRIBE `%s`.`%s`", dbName, tableName);
 
-    TAOS_RES *res = taos_query(taos, sql);
-    int code = taos_errno(res);
-    if (code != 0) {
-        logError("avro: DESCRIBE %s.%s failed(0x%08X, %s)", dbName, tableName, code, taos_errstr(res));
+    // A failed DESCRIBE is not evidence that the table is absent: when the
+    // request itself fails (network busy, timeout, broken connection) the
+    // check simply did not happen.  Only the server's explicit not-exist
+    // answer is treated as a fact.  Transient network errors are retried; if
+    // they persist the restore is aborted by the caller (an unreachable
+    // server makes continuing pointless).
+    TAOS_RES *res = NULL;
+    int code = 0;
+    for (int attempt = 1; ; attempt++) {
+        res = taos_query(taos, sql);
+        code = taos_errno(res);
+        if (code == 0) break;
+
+        bool retryable = avroIsRetryableCheckError(code);
+        if (!retryable || attempt >= AVRO_DESCRIBE_MAX_ATTEMPTS) {
+            if (code == TSDB_CODE_MND_DB_NOT_EXIST) {
+                logDebug("avro: schema pre-check skipped for %s.%s: database does not exist",
+                         dbName, tableName);
+            } else if (avroIsNotExistError(code)) {
+                logDebug("avro: schema pre-check for %s.%s: table does not exist; "
+                         "schema comparison will be skipped",
+                         dbName, tableName);
+            } else if (retryable) {
+                logError("avro: DESCRIBE %s.%s failed(0x%08X, %s) after %d attempts; "
+                         "cannot verify the schema",
+                         dbName, tableName, code, taos_errstr(res), attempt);
+            } else {
+                logError("avro: DESCRIBE %s.%s failed(0x%08X, %s)",
+                         dbName, tableName, code, taos_errstr(res));
+            }
+            taos_free_result(res);
+            return code;
+        }
+
+        logWarn("avro: DESCRIBE %s.%s failed(0x%08X, %s), retry %d/%d",
+                dbName, tableName, code, taos_errstr(res), attempt,
+                AVRO_DESCRIBE_MAX_ATTEMPTS);
         taos_free_result(res);
-        return -1;
+        res = NULL;
+        taosMsleep(AVRO_DESCRIBE_RETRY_BASE_MS * attempt);
     }
 
     TAOS_ROW    row;
@@ -393,9 +461,17 @@ int avroAddStbChanged(AvroDBChange *dc, const char *dbName,
     AvroTableDes *serverDes = avroAllocTableDes(TSDB_MAX_COLUMNS);
     if (!serverDes) return -1;
 
-    if (avroGetTableDes(taos, dbName, stbName, serverDes, TSDB_MAX_COLUMNS, false) < 0) {
+    // Get server-side schema via DESCRIBE.  avroGetTableDes() retries
+    // transient network errors, so a negative return here is either an
+    // explicit "does not exist" (schema comparison can be skipped) or a real
+    // failure that must abort the restore — never a silent skip.
+    int code = avroGetTableDes(taos, dbName, stbName, serverDes,
+                               TSDB_MAX_COLUMNS, false);
+    if (code < 0) {
         avroFreeTableDes(serverDes, true);
-        // Table might not exist on server yet — not necessarily an error
+        if (!avroIsNotExistError(code)) return code;
+        logDebug("avro: %s.%s not present on server yet, skip schema comparison",
+                 dbName, stbName);
         if (ppStbChange) *ppStbChange = NULL;
         return 0;
     }

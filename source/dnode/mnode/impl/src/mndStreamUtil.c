@@ -650,7 +650,10 @@ static bool mstChkSetDbInUse(SMnode *pMnode, void *pObj, void *p1, void *p2, voi
   }
 
   SStmCheckDbInUseCtx* pCtx = (SStmCheckDbInUseCtx*)p2;
-  if (pCtx->ignoreCurrDb && 0 == strcmp(pStream->pCreate->streamDB, p1)) {
+  // [FIX-198] streamDB may be NULL for legacy/corrupt stream objects persisted in sdb
+  // before the required-field check was added. Tolerate it instead of crashing the mnode.
+  if (pCtx->ignoreCurrDb && pStream->pCreate->streamDB != NULL &&
+      0 == strcmp(pStream->pCreate->streamDB, p1)) {
     return true;
   }
   
@@ -1146,7 +1149,7 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
 void mstLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
   mstsDebug("%s[%d]: task %" PRIx64 " deployId:%d SID:%" PRId64 " nodeId:%d tidx:%d type:%s flags:%" PRIx64 " status:%s lastUpTs:%" PRId64, 
       name, idx, pTask->id.taskId, pTask->id.deployId, pTask->id.seriousId, pTask->id.nodeId, pTask->id.taskIdx,
-      gStreamTaskTypeStr[pTask->type], pTask->flags, gStreamStatusStr[pTask->status], pTask->lastUpTs);
+      mndStreamTaskTypeStr(pTask->type), pTask->flags, mndStreamStatusStr(pTask->status), pTask->lastUpTs);
 }
 
 void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
@@ -1473,7 +1476,7 @@ _end:
 int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusSize, char* msg, int32_t msgSize) {
   char tmpBuf[256];
   
-  STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[pTask->status], statusSize);
+  STR_WITH_MAXSIZE_TO_VARSTR(status, mndStreamStatusStr(pTask->status), statusSize);
   if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
     if (pTask->extraErrMsg != NULL) {
       snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s", tstrerror(pTask->errCode), pTask->extraErrMsg);

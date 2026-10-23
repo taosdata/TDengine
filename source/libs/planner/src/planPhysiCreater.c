@@ -1852,6 +1852,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
   pTableScan->lastOnlyScan = pScanLogicNode->lastOnlyScan;
+  pTableScan->intervalLimit = pScanLogicNode->intervalLimit;
   pTableScan->pDynamicScanFuncs = NULL;
   int32_t code = nodesCloneList(pScanLogicNode->pDynamicScanFuncs, &pTableScan->pDynamicScanFuncs);
   if (TSDB_CODE_SUCCESS != code) {

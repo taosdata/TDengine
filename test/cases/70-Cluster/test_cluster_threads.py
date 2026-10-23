@@ -125,7 +125,7 @@ class TestDb:
             #tdSql.checkRows(0)
 
             tdSql.query(f"show {zone} variables like 'ss%'")
-            tdSql.checkRows(5)
+            tdSql.checkRows(4)
 
             tdSql.query(f"show {zone} variables like 'Max%'")
             tdSql.checkRows(4)

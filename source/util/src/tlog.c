@@ -31,6 +31,10 @@
 #define LOG_MAX_STACK_LINE_BUFFER_SIZE (LOG_MAX_STACK_LINE_SIZE + 3)
 #define LOG_MAX_LINE_DUMP_SIZE         (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 128)
+// estimated bytes per log line, used to estimate line count from file size or a bulk message
+#define LOG_EST_BYTES_PER_LINE 60
+// a bulk message (e.g. a json dump) longer than this is counted as len / LOG_EST_BYTES_PER_LINE lines
+#define LOG_BULK_MSG_THRESHOLD 512
 
 #define LOG_FILE_DAY_LEN 64
 
@@ -718,7 +722,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   int64_t filesize = 0;
   TAOS_CHECK_EXIT(taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL));
 
-  tsLogObj.lines = (int32_t)(filesize / 60);
+  tsLogObj.lines = (int32_t)(filesize / LOG_EST_BYTES_PER_LINE);
 
   if (taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END) < 0) {
     TAOS_CHECK_EXIT(terrno);
@@ -777,6 +781,15 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
                   taosGetSelfPthreadId(), LOG_EDITION_FLG, flags);
 }
 
+// a single log (e.g. monitor report json) may span many lines; estimate by length only when it is long.
+// The estimate must never be 0, otherwise a long message would never add lines and the log would never
+// rotate; keep the divide-by-LOG_EST_BYTES_PER_LINE result floored at 1.
+static inline int32_t taosEstimateLogLines(int32_t len) {
+  if (len <= LOG_BULK_MSG_THRESHOLD) return 1;
+  int32_t n = len / LOG_EST_BYTES_PER_LINE;
+  return n > 0 ? n : 1;
+}
+
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceSufficient()) {
     taosUpdateLogNums(level);
@@ -787,7 +800,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     }
 
     if (tsNumOfLogLines > 0) {
-      TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
+      TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, taosEstimateLogLines(len)));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
         TAOS_UNUSED(taosOpenNewLogFile());
       }

@@ -27,16 +27,15 @@
 #include <dlfcn.h>
 #endif
 
-#ifdef WINDOWS
-#define DRIVER_NATIVE_NAME    "taosnative.dll"
-#define DRIVER_WSBSOCKET_NAME "taosws.dll"
-#elif defined(DARWIN)
-#define DRIVER_NATIVE_NAME    "libtaosnative.dylib"
-#define DRIVER_WSBSOCKET_NAME "libtaosws.dylib"
-#else
-#define DRIVER_NATIVE_NAME    "libtaosnative.so"
-#define DRIVER_WSBSOCKET_NAME "libtaosws.so"
-#endif
+/* Must come last: it re-points the memory and strdup macros at the local
+ * libc-backed implementations, which is what removes the tmempool globals
+ * (gMemPoolHandle / threadPoolSession / threadPoolEnabled) from this TU. */
+#include "wrapperLiteMem.h"
+
+/* Driver file names: per platform, and shared with the test that asserts driver
+ * isolation, so they are defined in wrapperLite.h. */
+#define DRIVER_NATIVE_NAME    TD_LITE_DRIVER_NATIVE_FILE
+#define DRIVER_WSBSOCKET_NAME TD_LITE_DRIVER_WS_FILE
 
 /* The native driver hides its public entry points: they would compete with this
  * dispatcher in symbol lookup for every consumer that links both libraries, and
@@ -137,7 +136,7 @@ static int32_t taosResolveDriverPath(char *driverPath, int32_t pathLen, const ch
       continue;
     }
 
-    char *copy = taosStrdupi(pathList);
+    char *copy = tdLiteStrdup(pathList);
     if (copy == NULL) {
       return -1;
     }
@@ -287,16 +286,30 @@ int32_t taosDriverInit(EDriverType driverType) {
 #endif
 
   if (tsDriver == NULL) {
-    printf("failed to load %s since %s [0x%X]\r\n", driverName, terrstr(), terrno);
+    tdLiteLogMsg(1, "WRP ERROR ", "failed to load %s since %s [0x%X]", driverName, terrstr(), terrno);
     showWrapperHint(terrno);
     return code;
   }
 
+  /* Hand the directory over before anything can start the engine with its default:
+   * configDir may have been set by the JNI layer or by taos_options() before the
+   * driver existed, and the driver only knows its own copy of the option.
+   *
+   * tdLiteConfigDirGiven() is the caller's own string, not the canonical one: the
+   * engine normalizes the value itself (taos_options_imp quotes a path with spaces),
+   * while the WebSocket driver takes it as a plain path -- handing that one the
+   * quoted form would make the quote characters part of the directory name.  Nothing
+   * is pushed when no caller ever set a directory: then the driver's own default is
+   * the right answer, exactly as before the dispatcher existed. */
   LOAD_FUNC(fp_taos_set_config, "taos_set_config");
 
   LOAD_FUNC(fp_taos_init, "taos_init");
   LOAD_FUNC(fp_taos_cleanup, "taos_cleanup");
   LOAD_FUNC(fp_taos_options, "taos_options");
+  const char *cfgDirGiven = tdLiteConfigDirGiven();
+  if (cfgDirGiven != NULL && cfgDirGiven[0] != 0) {
+    (void)(*fp_taos_options)(TSDB_OPTION_CONFIGDIR, cfgDirGiven);
+  }
   LOAD_FUNC(fp_taos_set_option, "taos_set_option");
   LOAD_FUNC(fp_taos_options_connection, "taos_options_connection");
   LOAD_FUNC(fp_taos_connect, "taos_connect");
@@ -509,7 +522,8 @@ int32_t taosDriverInit(EDriverType driverType) {
 
 _OVER:
   if (code != 0) {
-    printf("failed to load function %s from %s since %s [0x%X]\r\n", funcName, driverPath, terrstr(), terrno);
+    tdLiteLogMsg(1, "WRP ERROR ", "failed to load function %s from %s since %s [0x%X]", funcName, driverPath,
+                terrstr(), terrno);
     showWrapperHint(terrno);
     taosDriverCleanup();
   }

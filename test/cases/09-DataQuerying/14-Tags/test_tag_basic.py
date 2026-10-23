@@ -21,6 +21,163 @@ class TestTagBasic:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+    def test_constant_tag_aggregate(self):
+        """Single-table constant tag aggregation
+
+        1. Filtered SUM/AVG/COUNT across tables and vgroups, including NULL tags
+        2. Memory and file blocks, with ordinary data-column aggregation
+        3. DISTINCT, tag filters, mixed-table windows and ordered subquery fallback
+        4. Integer partial sums wider than block statistics
+        5. Reuse constant tag blocks for empty-table count placeholders
+
+        Catalog:
+            - Query:Tags
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-13 Codex Add constant tag aggregate regression
+            - 2026-10-22 Jing Sima Cover empty groups after constant tag blocks
+        """
+        self.do_constant_tag_aggregate()
+        self.do_constant_tag_empty_groups()
+
+    def do_constant_tag_empty_groups(self):
+        db = "constant_tag_empty_groups"
+        tdSql.execute(f"drop database if exists {db}")
+        try:
+            tdSql.execute(f"create database {db} vgroups 1 keep 5000")
+            tdSql.execute(f"use {db}")
+            tdSql.execute("create stable st(ts timestamp, v int) "
+                          "tags(t_float_null float, iv bigint, label varchar(8))")
+            tables = ("empty_group_a", "empty_group_b", "empty_group_c")
+            values = "(1451606400000,1)(1451606400001,2)(1451606400002,3)"
+            for table in tables:
+                tdSql.execute(f"create table {table} using st tags(NULL,7,'x')")
+                tdSql.execute(f"insert into {table} values {values}")
+
+            for on_disk in (False, True):
+                for empty_table in tables:
+                    # Rotate the empty group so a populated group precedes it
+                    # regardless of the executor's table/group traversal order.
+                    tdSql.execute(f"delete from {empty_table}")
+                    if on_disk:
+                        tdSql.execute(f"flush database {db}")
+                    for grouping in ("group by", "partition by"):
+                        tdSql.query("select tbname,count(t_float_null) from st "
+                                    f"{grouping} tbname order by tbname")
+                        tdSql.checkRows(len(tables))
+                        for row, table in enumerate(tables):
+                            tdSql.checkData(row, 0, table)
+                            tdSql.checkData(row, 1, 0)
+
+                        tdSql.query("select tbname,count(t_float_null),count(iv),"
+                                    "count(label),count(v),count(*) from st "
+                                    f"{grouping} tbname order by tbname")
+                        tdSql.checkRows(len(tables))
+                        for row, table in enumerate(tables):
+                            count = 0 if table == empty_table else 3
+                            expected = (table, 0, count, count, count, count)
+                            for col, value in enumerate(expected):
+                                tdSql.checkData(row, col, value)
+                    tdSql.execute(f"insert into {empty_table} values {values}")
+            print("constant tag empty groups ......................... [ passed ]")
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+
+    def do_constant_tag_aggregate(self):
+        db = "constant_tag_aggregate"
+        tdSql.execute(f"drop database if exists {db}")
+        try:
+            tdSql.execute(f"create database {db} vgroups 2 keep 5000")
+            tdSql.execute(f"use {db}")
+            tdSql.execute("create stable st(ts timestamp, velocity double, v double) "
+                          "tags(fleet varchar(16), f double, iv bigint, label varchar(16))")
+            tables = [
+                ("a", "F", "8", "'A'", [(0, "2", "11"), (10, "0", "12"),
+                                            (20, "3", "NULL"), (30, "NULL", "14")]),
+                ("b", "F", "10", "'B'", [(1, "2", "21"), (11, "3", "22"), (21, "4", "23")]),
+                ("c", "F", "NULL", "NULL", [(2, "2", "31"), (12, "0", "32")]),
+                ("d", "G", "20", "'D'", [(3, "2", "41"), (13, "3", "42")]),
+                ("null_tbl", "H", "NULL", "NULL", [(4, "2", "51")]),
+            ]
+            for table, fleet, tag, label, rows in tables:
+                tdSql.execute(f"create table {table} using st tags('{fleet}', {tag}, {tag}, {label})")
+                for offset, velocity, value in rows:
+                    tdSql.execute(f"insert into {table} values({1451606400000 + offset}, {velocity}, {value})")
+
+            expected = [
+                ("F", 46, 9.2, 5, 46, 9.2, 5, 5, 108, 21.6, 5, 6),
+                ("G", 40, 20, 2, 40, 20, 2, 2, 83, 41.5, 2, 2),
+                ("H", None, None, 0, None, None, 0, 0, 51, 51, 1, 1),
+            ]
+            direct = ("select fleet,sum(f),avg(f),count(f),sum(iv),avg(iv),count(iv),count(label),"
+                      "sum(v),avg(v),count(v),count(*) from st where velocity>1 group by fleet order by fleet")
+            dense = ("select fleet,sum(f+0),avg(f+0),count(f+0),sum(iv+0),avg(iv+0),count(iv+0),count(label),"
+                     "sum(v),avg(v),count(v),count(*) from st where velocity>1 group by fleet order by fleet")
+            for on_disk in (False, True):
+                if on_disk:
+                    tdSql.execute(f"flush database {db}")
+                for sql in (direct, dense):
+                    tdSql.query(sql)
+                    tdSql.checkRows(len(expected))
+                    for row, values in enumerate(expected):
+                        for col, value in enumerate(values):
+                            tdSql.checkData(row, col, value)
+
+                # Also cover scans that can supply block statistics on disk.
+                tdSql.query("select fleet,sum(f),avg(f),count(f),sum(iv),avg(iv),count(iv) "
+                            "from st group by fleet order by fleet")
+                for row, values in enumerate([("F", 62, 62 / 7, 7, 62, 62 / 7, 7),
+                                              ("G", 40, 20, 2, 40, 20, 2),
+                                              ("H", None, None, 0, None, None, 0)]):
+                    for col, value in enumerate(values):
+                        tdSql.checkData(row, col, value)
+
+                tdSql.query("select sum(distinct f),avg(distinct f),count(distinct f) from st where velocity>1")
+                tdSql.checkData(0, 0, 38)
+                tdSql.checkData(0, 1, 38 / 3)
+                tdSql.checkData(0, 2, 3)
+                tdSql.query("select fleet,sum(f),avg(f),count(f) from st "
+                            "where velocity>1 and f>9 group by fleet order by fleet")
+                tdSql.checkRows(2)
+                for row, values in enumerate([("F", 30, 10, 3), ("G", 40, 20, 2)]):
+                    for col, value in enumerate(values):
+                        tdSql.checkData(row, col, value)
+
+                tdSql.query("select sum(f),avg(f),count(f) from "
+                            "(select ts,f from st where velocity>1 order by ts limit 4)")
+                tdSql.checkData(0, 0, 38)
+                tdSql.checkData(0, 1, 38 / 3)
+                tdSql.checkData(0, 2, 3)
+                tdSql.query("select fleet,sum(f),avg(f),count(f) from st where velocity>1 "
+                            "partition by fleet interval(1d) order by fleet")
+                tdSql.checkRows(3)
+                for row, values in enumerate([("F", 46, 9.2, 5), ("G", 40, 20, 2), ("H", None, None, 0)]):
+                    for col, value in enumerate(values):
+                        tdSql.checkData(row, col, value)
+
+            # Keep empty-table count placeholders on the original path.
+            tdSql.execute("create table empty_tbl using st tags('G',30,30,'E')")
+            tdSql.query("select count(f),count(iv),count(label),count(*) from empty_tbl where velocity>1")
+            tdSql.checkRows(1)
+            for col in range(4):
+                tdSql.checkData(0, col, 0)
+            tdSql.execute("create stable wide(ts timestamp, velocity int) tags(t bigint)")
+            tdSql.execute("create table wide_a using wide tags(9223372036854775807)")
+            tdSql.execute("insert into wide_a values(1451606400000,2)(1451606400001,2)(1451606400002,2)")
+            for expression in ("t", "t+0"):
+                tdSql.query(f"select avg({expression}),count({expression}) from wide where velocity>1")
+                tdSql.checkData(0, 0, float(9223372036854775807))
+                tdSql.checkData(0, 1, 3)
+            print("constant tag aggregate ......................... [ passed ]")
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+
     def test_tag_basic(self):
         """Tag query
 
@@ -35,6 +192,7 @@ class TestTagBasic:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

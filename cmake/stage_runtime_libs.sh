@@ -24,6 +24,8 @@ Usage:
   stage_runtime_libs.sh copy-ldd  <src-lib> <dst-dir>
   stage_runtime_libs.sh copy-ldd-glob <src-dir> <dst-dir> <glob>...
   stage_runtime_libs.sh fix-darwin-rpaths <dst-dir>
+  stage_runtime_libs.sh fix-linux-rpaths <dst-dir>
+  stage_runtime_libs.sh copy-msodbc-resources <src-dir> <dst-dir>
 EOF
 }
 
@@ -207,6 +209,49 @@ fix_darwin_rpaths() {
   done
 }
 
+copy_msodbc_resources() {
+  local src_dir=$1 dst_dir=$2
+  local resources="${src_dir}/../share/resources"
+  [ -f "${resources}/en_US/msodbcsqlr18.rll" ] || {
+    echo "Microsoft ODBC resources missing next to ${src_dir}" >&2
+    return 1
+  }
+  mkdir -p "${dst_dir}/../share/resources"
+  cp -a "${resources}/." "${dst_dir}/../share/resources/"
+}
+
+# Every bundled ELF needs its own RUNPATH: DT_RUNPATH is not transitive.
+# Patch copies only; the external dependency cache must remain untouched.
+fix_linux_rpaths() {
+  local dst_dir=$1 lib dynamic
+  [ "$(uname -s)" = Linux ] || return 0
+  command -v readelf >/dev/null 2>&1 || {
+    echo "readelf is required to inspect private FQ runtime libraries" >&2
+    return 1
+  }
+  shopt -s nullglob
+  for lib in "${dst_dir}"/lib*.so*; do
+    [ -f "${lib}" ] && [ ! -L "${lib}" ] || continue
+    case "$(basename "${lib}")" in
+      libtaos.so*|libtaosnative.so*|libtaosws.so*|libtaospyudf.so*) continue ;;
+    esac
+    # Replace build-machine paths. The same layout is used by build/lib and
+    # installed driver/. Microsoft driver resources stay in ../share/resources.
+    dynamic=$(readelf -d "${lib}" 2>&1) || {
+      echo "Cannot inspect FQ runtime ${lib}: ${dynamic}" >&2
+      return 1
+    }
+    if printf '%s\n' "${dynamic}" | grep -Eq '\(RUNPATH\).*\[\$ORIGIN\]'; then
+      continue
+    fi
+    command -v patchelf >/dev/null 2>&1 || {
+      echo "patchelf is required to prepare private FQ runtime library: ${lib}" >&2
+      return 1
+    }
+    patchelf --set-rpath '$ORIGIN' "${lib}"
+  done
+}
+
 should_skip_ldd_dep() {
   local dep=$1
   local base
@@ -275,6 +320,16 @@ main() {
       [ $# -ge 4 ] || { usage >&2; exit 1; }
       shift
       copy_ldd_glob "$@"
+      ;;
+    copy-msodbc-resources)
+      [ $# -eq 3 ] || { usage >&2; exit 1; }
+      shift
+      copy_msodbc_resources "$@"
+      ;;
+    fix-linux-rpaths)
+      [ $# -eq 2 ] || { usage >&2; exit 1; }
+      shift
+      fix_linux_rpaths "$@"
       ;;
     fix-darwin-rpaths)
       [ $# -eq 2 ] || { usage >&2; exit 1; }

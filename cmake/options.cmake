@@ -184,6 +184,8 @@ if(TD_ENTERPRISE)
     option(BUILD_WITH_ODBC    "If build with unixODBC (ext source: SQL Server)" ON)
     option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
     if(TD_WINDOWS)
+        set(BUILD_WITH_ODBC OFF CACHE BOOL
+            "SQL Server FQ is not supported on Windows yet" FORCE)
         set(BUILD_WITH_MARIADB OFF CACHE BOOL
             "If build with MariaDB Connector/C (ext source: MySQL)" FORCE)
         set(BUILD_WITH_LIBPQ OFF CACHE BOOL

@@ -1998,14 +1998,22 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   }
 #endif
   // save white list
-  int32_t num = pUser->pIpWhiteListDual->num;
+  // Guard against a partially-initialised SUserObj whose whitelist pointers are
+  // NULL (e.g. an all-zero object handed in by a buggy caller). The size
+  // reservation above (lines ~1728-1733) already treats a NULL pIpWhiteListDual
+  // as an empty list, so we encode the same way here: an empty IpWhiteList
+  // (num == 0, len == 0) instead of dereferencing a NULL pointer. The decoder
+  // creates a default whitelist when it sees a NULL/empty one, so this round-trips.
+  int32_t num = (pUser->pIpWhiteListDual != NULL) ? pUser->pIpWhiteListDual->num : 0;
   int32_t tlen = sizeof(SIpWhiteListDual) + num * sizeof(SIpRange) + 4;
   int32_t maxBufLen = TMAX(tlen, sizeExt);
   if ((buf = taosMemoryCalloc(1, maxBufLen)) == NULL) {
     TAOS_CHECK_GOTO(terrno, NULL, _OVER);
   }
   int32_t len = 0;
-  TAOS_CHECK_GOTO(tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteListDual, &len), &lino, _OVER);
+  if (pUser->pIpWhiteListDual != NULL) {
+    TAOS_CHECK_GOTO(tSerializeIpWhiteList(buf, tlen, pUser->pIpWhiteListDual, &len), &lino, _OVER);
+  }
 
   SDB_SET_INT32(pRaw, dataPos, len, _OVER);
   SDB_SET_BINARY(pRaw, dataPos, buf, len, _OVER);
@@ -2030,8 +2038,12 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT32(pRaw, dataPos, pUser->allowTokenNum, _OVER);
   SDB_SET_INT32(pRaw, dataPos, pUser->tokenNum, _OVER);
 
-  SDB_SET_INT32(pRaw, dataPos, pUser->pTimeWhiteList->num, _OVER);
-  for (int32_t i = 0; i < pUser->pTimeWhiteList->num; i++) {
+  // Guard against a NULL pTimeWhiteList the same way: encode an empty list
+  // instead of dereferencing a NULL pointer (see comment on pIpWhiteListDual
+  // above). The decoder always allocates pTimeWhiteList, so num == 0 round-trips.
+  int32_t timeWhiteNum = (pUser->pTimeWhiteList != NULL) ? pUser->pTimeWhiteList->num : 0;
+  SDB_SET_INT32(pRaw, dataPos, timeWhiteNum, _OVER);
+  for (int32_t i = 0; i < timeWhiteNum; i++) {
     SDateTimeWhiteListItem *range = &pUser->pTimeWhiteList->ranges[i];
     SDB_SET_BOOL(pRaw, dataPos, range->absolute, _OVER);
     SDB_SET_BOOL(pRaw, dataPos, range->neg, _OVER);
@@ -4409,6 +4421,26 @@ int32_t mndAlterUserFromRole(SRpcMsg *pReq, SUserObj *pOperUser, SAlterRoleReq *
   if(pUser->superUser) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
   }
+
+  // Community-edition guard for the user/role privilege model.
+  // GRANT/REVOKE of privileges (TSDB_ALTER_ROLE_PRIVILEGES) and roles
+  // (TSDB_ALTER_ROLE_ROLE) to a user is an enterprise-only feature. The code
+  // that populates newUser for these alter types is compiled out under
+  // #ifndef TD_ENTERPRISE (see the big #ifdef TD_ENTERPRISE block that follows
+  // the community guard below). Without this guard the function would fall
+  // through to
+  // mndAlterUserEx() with an all-zero SUserObj whose pIpWhiteListDual and
+  // pTimeWhiteList pointers are NULL; mndUserActionEncode() then dereferences
+  // them and the mnode write-queue worker crashes with a NULL pointer
+  // dereference (dmLogCrash -> process termination). Reject these alter types
+  // up front in the community build so the server stays up and the target
+  // user's sdb row is never touched.
+#ifndef TD_ENTERPRISE
+  if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES ||
+      pAlterReq->alterType == TSDB_ALTER_ROLE_ROLE) {
+    TAOS_CHECK_EXIT(TSDB_CODE_OPS_NOT_SUPPORT);
+  }
+#endif
 
   ETrnFunc stopFunc = 0;
   if (pAlterReq->alterType == TSDB_ALTER_ROLE_PRIVILEGES) {

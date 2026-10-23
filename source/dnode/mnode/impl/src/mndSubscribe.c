@@ -1835,7 +1835,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, SUB_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_SUBSCRIBE_RESERVE_SIZE, SUB_DECODE_OVER);
 
-  if (tDecodeSubscribeObj(buf, pSub, sver) == NULL) {
+  if (tDecodeSubscribeObj(buf, (const void *)((const char *)buf + tlen), pSub, sver) == NULL) {
     goto SUB_DECODE_OVER;
   }
 

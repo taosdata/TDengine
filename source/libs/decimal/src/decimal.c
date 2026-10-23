@@ -508,7 +508,8 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
     pos = snprintf(buf, sizeof(buf), "-");
   }
   decimal64GetWhole(pInt, scale, &whole);
-  pos += snprintf(buf + pos, bufLen - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));
+  // bufLen describes pBuf, not this fixed-size formatting buffer.
+  pos += snprintf(buf + pos, sizeof(buf) - pos, "%" PRId64, DECIMAL64_GET_VALUE(&whole));
   if (scale > 0) {
     decimal64GetFrac(pInt, scale, &frac);
     if (DECIMAL64_GET_VALUE(&frac) != 0 || DECIMAL64_GET_VALUE(&whole) != 0) {
@@ -516,7 +517,7 @@ int32_t decimal64ToStr(const DecimalType* pInt, uint8_t scale, char* pBuf, int32
       pos += 1;
       // NOTE: never generate format string dynamically
       //       decimalTest has been passed.
-      snprintf(buf + pos, bufLen - pos, "%0*" PRIu64, scale, DECIMAL64_GET_VALUE(&frac));
+      snprintf(buf + pos, sizeof(buf) - pos, "%0*" PRIu64, scale, DECIMAL64_GET_VALUE(&frac));
     }
   }
   TAOS_STRNCPY(pBuf, buf, bufLen);

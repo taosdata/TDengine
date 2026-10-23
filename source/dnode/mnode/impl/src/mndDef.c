@@ -179,16 +179,118 @@ static void freeVgDnodeId(void* data) {
   taosArrayDestroy(*ppDnodeIds);
 }
 
-static void *tDecodeSMqVgEp(const void *buf, int32_t *vgId, int8_t sver) {
-  buf = taosDecodeFixedI32(buf, vgId);
+// ---------------------------------------------------------------------------
+// Bounded decode helpers for the legacy TMQ sdb row decoders.
+//
+// The mnode TMQ tables (SDB_CONSUMER / SDB_SUBSCRIBE / SDB_TOPIC) are rebuilt
+// from SSdbRaw payload bytes by legacy `void *` walkers that used to receive NO
+// buffer length and performed NO destination-capacity / no remaining-length
+// checks. A crafted payload (an injected raft log entry, a pushed snapshot, or a
+// corrupted sdb.data that is re-decoded on every restart) could therefore read /
+// write past the buffer and overflow the fixed-size struct members on the mnode
+// heap (CWE-122 heap overflow / CWE-125 heap over-read). See security finding
+// "item 240".
+//
+// These helpers thread an explicit end-of-buffer pointer (bufEnd) and reject any
+// read that would run past it or overflow a fixed-size destination. They return
+// NULL on violation so the caller can abort the decode and leave the heap intact.
+// ---------------------------------------------------------------------------
+#define TMQ_DECODE_MAX_COUNT (1024 * 1024)  // generous cap to avoid insane allocations
+
+#define MQ_NEED(buf, bufEnd, n) ((const uint8_t *)(buf) + (n) <= (const uint8_t *)(bufEnd))
+
+// Bounded unsigned varint decode (mirrors taosDecodeVariantU64) that never reads past bufEnd.
+static const void *tDecodeVarintUSafe(const void *buf, const void *bufEnd, uint64_t *pVal) {
+  *pVal = 0;
+  for (int32_t i = 0; i < 10; i++) {
+    if ((const uint8_t *)buf + i >= (const uint8_t *)bufEnd) return NULL;
+    uint8_t b = ((const uint8_t *)buf)[i];
+    if (b < 0x80) {
+      *pVal |= ((uint64_t)b) << (7 * i);
+      return (const uint8_t *)buf + i + 1;
+    }
+    *pVal |= ((uint64_t)(b & 0x7F)) << (7 * i);
+  }
+  return NULL;
+}
+
+// Bounded string-into-fixed-buffer decode (mirrors taosDecodeStringTo).
+static const void *tDecodeStrToSafe(const void *buf, const void *bufEnd, char *dest, int32_t destCap) {
+  uint64_t size = 0;
+  buf = tDecodeVarintUSafe(buf, bufEnd, &size);
+  if (buf == NULL) return NULL;
+  if (size > (uint64_t)((const uint8_t *)bufEnd - (const uint8_t *)buf)) return NULL;  // source over-read
+  if (size >= (uint64_t)destCap) return NULL;                                          // dest overflow (keep '\0')
+  if (size > 0) memcpy(dest, buf, (size_t)size);
+  dest[size] = '\0';
+  return (const uint8_t *)buf + size;
+}
+
+// Bounded heap string decode (mirrors taosDecodeString).
+static const void *tDecodeStrSafe(const void *buf, const void *bufEnd, char **out) {
+  uint64_t size = 0;
+  buf = tDecodeVarintUSafe(buf, bufEnd, &size);
+  if (buf == NULL) return NULL;
+  if (size > (uint64_t)((const uint8_t *)bufEnd - (const uint8_t *)buf)) return NULL;
+  if (size > TMQ_DECODE_MAX_COUNT) return NULL;
+  char *v = (char *)taosMemoryMalloc((size_t)size + 1);
+  if (v == NULL) return NULL;
+  if (size > 0) memcpy(v, buf, (size_t)size);
+  v[size] = '\0';
+  *out = v;
+  return (const uint8_t *)buf + size;
+}
+
+// Bounded fixed-width readers (mirror taosDecodeFixed*) with a buffer-end guard.
+static const void *tDecodeI8Safe(const void *buf, const void *bufEnd, int8_t *v) {
+  if (!MQ_NEED(buf, bufEnd, 1)) return NULL;
+  return taosDecodeFixedI8(buf, v);
+}
+static const void *tDecodeI16Safe(const void *buf, const void *bufEnd, int16_t *v) {
+  if (!MQ_NEED(buf, bufEnd, 2)) return NULL;
+  return taosDecodeFixedI16(buf, v);
+}
+static const void *tDecodeI32Safe(const void *buf, const void *bufEnd, int32_t *v) {
+  if (!MQ_NEED(buf, bufEnd, 4)) return NULL;
+  return taosDecodeFixedI32(buf, v);
+}
+static const void *tDecodeI64Safe(const void *buf, const void *bufEnd, int64_t *v) {
+  if (!MQ_NEED(buf, bufEnd, 8)) return NULL;
+  return taosDecodeFixedI64(buf, v);
+}
+static const void *tDecodeU16Safe(const void *buf, const void *bufEnd, uint16_t *v) {
+  if (!MQ_NEED(buf, bufEnd, 2)) return NULL;
+  return taosDecodeFixedU16(buf, v);
+}
+
+// Bounded SEpSet decode (mirrors taosDecodeSEpSet) restricting each fqdn to its buffer.
+static const void *tDecodeSEpSetSafe(const void *buf, const void *bufEnd, SEpSet *pEp) {
+  if (!MQ_NEED(buf, bufEnd, sizeof(pEp->inUse) + sizeof(pEp->numOfEps))) return NULL;
+  buf = taosDecodeFixedI8(buf, &pEp->inUse);
+  buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
+    buf = tDecodeU16Safe(buf, bufEnd, &pEp->eps[i].port);
+    if (buf == NULL) return NULL;
+    buf = tDecodeStrToSafe(buf, bufEnd, pEp->eps[i].fqdn, (int32_t)sizeof(pEp->eps[i].fqdn));
+    if (buf == NULL) return NULL;
+  }
+  return buf;
+}
+
+static void *tDecodeSMqVgEp(const void *buf, const void *bufEnd, int32_t *vgId, int8_t sver) {
+  buf = tDecodeI32Safe(buf, bufEnd, vgId);
+  if (buf == NULL) return NULL;
   if (sver == 1) {
     uint64_t size = 0;
-    buf = taosDecodeVariantU64(buf, &size);
-    buf = POINTER_SHIFT(buf, size);
+    buf = tDecodeVarintUSafe(buf, bufEnd, &size);
+    if (buf == NULL) return NULL;
+    if (size > (uint64_t)((const uint8_t *)bufEnd - (const uint8_t *)buf)) return NULL;  // bounded skip
+    buf = (const uint8_t *)buf + size;
   }
   if (sver <= 3) {
     SEpSet epSet = {0};
-    buf = taosDecodeSEpSet(buf, &epSet);
+    buf = tDecodeSEpSetSafe(buf, bufEnd, &epSet);
+    if (buf == NULL) return NULL;
   }
   return (void *)buf;
 }
@@ -357,88 +459,130 @@ int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
   return tlen;
 }
 
-void *tDecodeSMqConsumerObj(const void *buf, SMqConsumerObj *pConsumer, int8_t sver) {
+void *tDecodeSMqConsumerObj(const void *buf, const void *bufEnd, SMqConsumerObj *pConsumer, int8_t sver) {
   int32_t sz;
-  buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
-  buf = taosDecodeStringTo(buf, pConsumer->clientId);
-  buf = taosDecodeStringTo(buf, pConsumer->cgroup);
-  buf = taosDecodeFixedI8(buf, &pConsumer->updateType);
-  buf = taosDecodeFixedI32(buf, &pConsumer->epoch);
-  buf = taosDecodeFixedI32(buf, &pConsumer->status);
+  buf = tDecodeI64Safe(buf, bufEnd, &pConsumer->consumerId);
+  if (buf == NULL) goto END;
+  buf = tDecodeStrToSafe(buf, bufEnd, pConsumer->clientId, (int32_t)sizeof(pConsumer->clientId));
+  if (buf == NULL) goto END;
+  buf = tDecodeStrToSafe(buf, bufEnd, pConsumer->cgroup, (int32_t)sizeof(pConsumer->cgroup));
+  if (buf == NULL) goto END;
+  buf = tDecodeI8Safe(buf, bufEnd, &pConsumer->updateType);
+  if (buf == NULL) goto END;
+  buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->epoch);
+  if (buf == NULL) goto END;
+  buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->status);
+  if (buf == NULL) goto END;
 
-  buf = taosDecodeFixedI32(buf, &pConsumer->pid);
+  buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->pid);
+  if (buf == NULL) goto END;
   if (sver <= 3) {
     SEpSet ep = {0};
-    buf = taosDecodeSEpSet(buf, &ep);
+    buf = tDecodeSEpSetSafe(buf, bufEnd, &ep);
+    if (buf == NULL) goto END;
   }
-  buf = taosDecodeFixedI64(buf, &pConsumer->createTime);
-  buf = taosDecodeFixedI64(buf, &pConsumer->subscribeTime);
-  buf = taosDecodeFixedI64(buf, &pConsumer->rebalanceTime);
+  buf = tDecodeI64Safe(buf, bufEnd, &pConsumer->createTime);
+  if (buf == NULL) goto END;
+  buf = tDecodeI64Safe(buf, bufEnd, &pConsumer->subscribeTime);
+  if (buf == NULL) goto END;
+  buf = tDecodeI64Safe(buf, bufEnd, &pConsumer->rebalanceTime);
+  if (buf == NULL) goto END;
 
   // current topics
-  buf = taosDecodeFixedI32(buf, &sz);
+  buf = tDecodeI32Safe(buf, bufEnd, &sz);
+  if (buf == NULL) goto END;
+  if (sz < 0 || sz > TMQ_DECODE_MAX_COUNT) goto END;
   pConsumer->currentTopics = taosArrayInit(sz, sizeof(void *));
   if (pConsumer->currentTopics == NULL) {
-    return NULL;
+    goto END;
   }
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
-    buf = taosDecodeString(buf, &topic);
+    buf = tDecodeStrSafe(buf, bufEnd, &topic);
+    if (buf == NULL) goto END;
     if (taosArrayPush(pConsumer->currentTopics, &topic) == NULL) {
-      return NULL;
+      goto END;
     }
   }
 
   // reb new topics
-  buf = taosDecodeFixedI32(buf, &sz);
+  buf = tDecodeI32Safe(buf, bufEnd, &sz);
+  if (buf == NULL) goto END;
+  if (sz < 0 || sz > TMQ_DECODE_MAX_COUNT) goto END;
   pConsumer->rebNewTopics = taosArrayInit(sz, sizeof(void *));
+  if (pConsumer->rebNewTopics == NULL) goto END;
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
-    buf = taosDecodeString(buf, &topic);
+    buf = tDecodeStrSafe(buf, bufEnd, &topic);
+    if (buf == NULL) goto END;
     if (taosArrayPush(pConsumer->rebNewTopics, &topic) == NULL) {
-      return NULL;
+      goto END;
     }
   }
 
   // reb removed topics
-  buf = taosDecodeFixedI32(buf, &sz);
+  buf = tDecodeI32Safe(buf, bufEnd, &sz);
+  if (buf == NULL) goto END;
+  if (sz < 0 || sz > TMQ_DECODE_MAX_COUNT) goto END;
   pConsumer->rebRemovedTopics = taosArrayInit(sz, sizeof(void *));
+  if (pConsumer->rebRemovedTopics == NULL) goto END;
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
-    buf = taosDecodeString(buf, &topic);
+    buf = tDecodeStrSafe(buf, bufEnd, &topic);
+    if (buf == NULL) goto END;
     if (taosArrayPush(pConsumer->rebRemovedTopics, &topic) == NULL) {
-      return NULL;
+      goto END;
     }
   }
 
-  // reb removed topics
-  buf = taosDecodeFixedI32(buf, &sz);
+  // assigned topics
+  buf = tDecodeI32Safe(buf, bufEnd, &sz);
+  if (buf == NULL) goto END;
+  if (sz < 0 || sz > TMQ_DECODE_MAX_COUNT) goto END;
   pConsumer->assignedTopics = taosArrayInit(sz, sizeof(void *));
+  if (pConsumer->assignedTopics == NULL) goto END;
   for (int32_t i = 0; i < sz; i++) {
     char *topic;
-    buf = taosDecodeString(buf, &topic);
+    buf = tDecodeStrSafe(buf, bufEnd, &topic);
+    if (buf == NULL) goto END;
     if (taosArrayPush(pConsumer->assignedTopics, &topic) == NULL) {
-      return NULL;
+      goto END;
     }
   }
 
   if (sver > 1) {
-    buf = taosDecodeFixedI8(buf, &pConsumer->withTbName);
-    buf = taosDecodeFixedI8(buf, &pConsumer->autoCommit);
-    buf = taosDecodeFixedI32(buf, &pConsumer->autoCommitInterval);
-    buf = taosDecodeFixedI32(buf, &pConsumer->resetOffsetCfg);
+    buf = tDecodeI8Safe(buf, bufEnd, &pConsumer->withTbName);
+    if (buf == NULL) goto END;
+    buf = tDecodeI8Safe(buf, bufEnd, &pConsumer->autoCommit);
+    if (buf == NULL) goto END;
+    buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->autoCommitInterval);
+    if (buf == NULL) goto END;
+    buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->resetOffsetCfg);
+    if (buf == NULL) goto END;
   }
   if (sver > 2) {
-    buf = taosDecodeFixedI32(buf, &pConsumer->maxPollIntervalMs);
-    buf = taosDecodeFixedI32(buf, &pConsumer->sessionTimeoutMs);
-    buf = taosDecodeStringTo(buf, pConsumer->user);
-    buf = taosDecodeStringTo(buf, pConsumer->fqdn);
+    buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->maxPollIntervalMs);
+    if (buf == NULL) goto END;
+    buf = tDecodeI32Safe(buf, bufEnd, &pConsumer->sessionTimeoutMs);
+    if (buf == NULL) goto END;
+    buf = tDecodeStrToSafe(buf, bufEnd, pConsumer->user, (int32_t)sizeof(pConsumer->user));
+    if (buf == NULL) goto END;
+    buf = tDecodeStrToSafe(buf, bufEnd, pConsumer->fqdn, (int32_t)sizeof(pConsumer->fqdn));
+    if (buf == NULL) goto END;
   } else {
     pConsumer->maxPollIntervalMs = DEFAULT_MAX_POLL_INTERVAL;
     pConsumer->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
   }
 
   return (void *)buf;
+
+END:
+  // On any early decode failure pConsumer may be only partially built (some of the
+  // currentTopics/rebNewTopics/rebRemovedTopics/assignedTopics arrays and their heap-allocated
+  // topic strings may already be allocated). pConsumer itself is still owned by the caller's
+  // pRow, so clear its contents here but do NOT taosMemoryFree it.
+  tClearSMqConsumerObj(pConsumer);
+  return NULL;
 }
 
 int32_t tEncodeOffRows(void **buf, SArray *offsetRows) {
@@ -478,37 +622,50 @@ int32_t tEncodeSMqConsumerEp(void **buf, const SMqConsumerEp *pConsumerEp) {
   return tlen + tEncodeOffRows(buf, pConsumerEp->offsetRows);
 }
 
-void *tDecodeOffRows(const void *buf, SArray **offsetRows, int8_t sver) {
+void *tDecodeOffRows(const void *buf, const void *bufEnd, SArray **offsetRows, int8_t sver) {
   int32_t szVgs = 0;
-  buf = taosDecodeFixedI32(buf, &szVgs);
+  buf = tDecodeI32Safe(buf, bufEnd, &szVgs);
+  if (buf == NULL) return NULL;
+  if (szVgs < 0 || szVgs > TMQ_DECODE_MAX_COUNT) return NULL;
   if (szVgs > 0) {
     *offsetRows = taosArrayInit(szVgs, sizeof(OffsetRows));
     if (NULL == *offsetRows) return NULL;
     for (int32_t j = 0; j < szVgs; ++j) {
       OffsetRows *offRows = taosArrayReserve(*offsetRows, 1);
-      buf = taosDecodeFixedI32(buf, &offRows->vgId);
-      buf = taosDecodeFixedI64(buf, &offRows->rows);
-      buf = taosDecodeFixedI8(buf, &offRows->offset.type);
+      if (offRows == NULL) return NULL;
+      buf = tDecodeI32Safe(buf, bufEnd, &offRows->vgId);
+      if (buf == NULL) return NULL;
+      buf = tDecodeI64Safe(buf, bufEnd, &offRows->rows);
+      if (buf == NULL) return NULL;
+      buf = tDecodeI8Safe(buf, bufEnd, &offRows->offset.type);
+      if (buf == NULL) return NULL;
       if (offRows->offset.type == TMQ_OFFSET__SNAPSHOT_DATA || offRows->offset.type == TMQ_OFFSET__SNAPSHOT_META) {
-        buf = taosDecodeFixedI64(buf, &offRows->offset.uid);
-        buf = taosDecodeFixedI64(buf, &offRows->offset.ts);
+        buf = tDecodeI64Safe(buf, bufEnd, &offRows->offset.uid);
+        if (buf == NULL) return NULL;
+        buf = tDecodeI64Safe(buf, bufEnd, &offRows->offset.ts);
+        if (buf == NULL) return NULL;
       } else if (offRows->offset.type == TMQ_OFFSET__LOG) {
-        buf = taosDecodeFixedI64(buf, &offRows->offset.version);
+        buf = tDecodeI64Safe(buf, bufEnd, &offRows->offset.version);
+        if (buf == NULL) return NULL;
       } else {
         // do nothing
       }
       if (sver > 2) {
-        buf = taosDecodeFixedI64(buf, &offRows->ever);
+        buf = tDecodeI64Safe(buf, bufEnd, &offRows->ever);
+        if (buf == NULL) return NULL;
       }
     }
   }
   return (void *)buf;
 }
 
-void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t sver) {
-  buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
+void *tDecodeSMqConsumerEp(const void *buf, const void *bufEnd, SMqConsumerEp *pConsumerEp, int8_t sver) {
+  buf = tDecodeI64Safe(buf, bufEnd, &pConsumerEp->consumerId);
+  if (buf == NULL) return NULL;
   int32_t sz = 0;
-  buf = taosDecodeFixedI32(buf, &sz);
+  buf = tDecodeI32Safe(buf, bufEnd, &sz);
+  if (buf == NULL) return NULL;
+  if (sz < 0 || sz > TMQ_DECODE_MAX_COUNT) return NULL;
   pConsumerEp->vgs = taosArrayInit(sz, sizeof(int32_t));
   if (pConsumerEp->vgs == NULL) {
     return NULL;
@@ -519,13 +676,15 @@ void *tDecodeSMqConsumerEp(const void *buf, SMqConsumerEp *pConsumerEp, int8_t s
       return NULL;
     }
     if (sver <= 3) {
-      buf = tDecodeSMqVgEp(buf, vgId, sver);
+      buf = tDecodeSMqVgEp(buf, bufEnd, vgId, sver);
     } else {
-      buf = taosDecodeFixedI32(buf, vgId);
+      buf = tDecodeI32Safe(buf, bufEnd, vgId);
     }
+    if (buf == NULL) return NULL;
   }
   if (sver > 1) {
-    buf = tDecodeOffRows(buf, &pConsumerEp->offsetRows, sver);
+    buf = tDecodeOffRows(buf, bufEnd, &pConsumerEp->offsetRows, sver);
+    if (buf == NULL) return NULL;
   }
 
   return (void *)buf;
@@ -699,17 +858,25 @@ int32_t tEncodeSubscribeObj(void **buf, const SMqSubscribeObj *pSub) {
   return tlen;
 }
 
-void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
+void *tDecodeSubscribeObj(const void *buf, const void *bufEnd, SMqSubscribeObj *pSub, int8_t sver) {
   //
-  buf = taosDecodeStringTo(buf, pSub->key);
-  buf = taosDecodeFixedI64(buf, &pSub->dbUid);
-  buf = taosDecodeFixedI32(buf, &pSub->vgNum);
-  buf = taosDecodeFixedI8(buf, &pSub->subType);
-  buf = taosDecodeFixedI8(buf, &pSub->withMeta);
-  buf = taosDecodeFixedI64(buf, &pSub->stbUid);
+  buf = tDecodeStrToSafe(buf, bufEnd, pSub->key, (int32_t)sizeof(pSub->key));
+  if (buf == NULL) goto END;
+  buf = tDecodeI64Safe(buf, bufEnd, &pSub->dbUid);
+  if (buf == NULL) goto END;
+  buf = tDecodeI32Safe(buf, bufEnd, &pSub->vgNum);
+  if (buf == NULL) goto END;
+  buf = tDecodeI8Safe(buf, bufEnd, &pSub->subType);
+  if (buf == NULL) goto END;
+  buf = tDecodeI8Safe(buf, bufEnd, &pSub->withMeta);
+  if (buf == NULL) goto END;
+  buf = tDecodeI64Safe(buf, bufEnd, &pSub->stbUid);
+  if (buf == NULL) goto END;
 
   int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
+  buf = tDecodeI32Safe(buf, bufEnd, &sz);
+  if (buf == NULL) goto END;
+  if (sz < 0 || sz > TMQ_DECODE_MAX_COUNT) goto END;
 
   pSub->consumerHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pSub->consumerHash == NULL) {
@@ -719,7 +886,7 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
 
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp consumerEp = {0};
-    buf = tDecodeSMqConsumerEp(buf, &consumerEp, sver);
+    buf = tDecodeSMqConsumerEp(buf, bufEnd, &consumerEp, sver);
     if (buf == NULL) {
       freeSMqConsumerEp(&consumerEp);
       goto END;
@@ -733,7 +900,9 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   }
 
   int32_t len = 0;
-  buf = taosDecodeFixedI32(buf, &len);
+  buf = tDecodeI32Safe(buf, bufEnd, &len);
+  if (buf == NULL) goto END;
+  if (len < 0 || len > TMQ_DECODE_MAX_COUNT) goto END;
   pSub->unassignedVgs = taosArrayInit(len, sizeof(int32_t));
   if (pSub->unassignedVgs == NULL) {
     goto END;
@@ -744,13 +913,15 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
       goto END;
     }
     if (sver <= 3) {
-      buf = tDecodeSMqVgEp(buf, vgId, sver);
+      buf = tDecodeSMqVgEp(buf, bufEnd, vgId, sver);
     } else {
-      buf = taosDecodeFixedI32(buf, vgId);
+      buf = tDecodeI32Safe(buf, bufEnd, vgId);
     }
+    if (buf == NULL) goto END;
   }
 
-  buf = taosDecodeStringTo(buf, pSub->dbName);
+  buf = tDecodeStrToSafe(buf, bufEnd, pSub->dbName, (int32_t)sizeof(pSub->dbName));
+  if (buf == NULL) goto END;
 
   pSub->vgDnodeId = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pSub->vgDnodeId == NULL) {
@@ -759,13 +930,18 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   taosHashSetFreeFp(pSub->vgDnodeId, freeVgDnodeId);
   if (sver > 4) {
     int32_t vgDnodeNum = 0;
-    buf = taosDecodeFixedI32(buf, &vgDnodeNum);
+    buf = tDecodeI32Safe(buf, bufEnd, &vgDnodeNum);
+    if (buf == NULL) goto END;
+    if (vgDnodeNum < 0 || vgDnodeNum > TMQ_DECODE_MAX_COUNT) goto END;
     for (int32_t i = 0; i < vgDnodeNum; ++i) {
       int32_t vgId = 0;
       int32_t dnodeNum = 0;
       SArray *pDnodeIds = NULL;
-      buf = taosDecodeFixedI32(buf, &vgId);
-      buf = taosDecodeFixedI32(buf, &dnodeNum);
+      buf = tDecodeI32Safe(buf, bufEnd, &vgId);
+      if (buf == NULL) goto END;
+      buf = tDecodeI32Safe(buf, bufEnd, &dnodeNum);
+      if (buf == NULL) goto END;
+      if (dnodeNum < 0 || dnodeNum > TMQ_DECODE_MAX_COUNT) goto END;
       pDnodeIds = taosArrayInit(dnodeNum, sizeof(int32_t));
       if (pDnodeIds == NULL) {
         mError("failed to decode subscribe vg dnode ids, vgId:%d dnodeNum:%d", vgId, dnodeNum);
@@ -778,7 +954,11 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
           taosArrayDestroy(pDnodeIds);
           goto END;
         }
-        buf = taosDecodeFixedI32(buf, pDnodeId);
+        buf = tDecodeI32Safe(buf, bufEnd, pDnodeId);
+        if (buf == NULL) {
+          taosArrayDestroy(pDnodeIds);
+          goto END;
+        }
       }
       if (taosHashPut(pSub->vgDnodeId, &vgId, sizeof(int32_t), &pDnodeIds, sizeof(SArray*)) != 0) {
         mError("failed to store subscribe vg dnode ids, vgId:%d dnodeNum:%d", vgId, dnodeNum);
@@ -789,7 +969,8 @@ void *tDecodeSubscribeObj(const void *buf, SMqSubscribeObj *pSub, int8_t sver) {
   }
 
   if (sver > 1) {
-    buf = tDecodeOffRows(buf, &pSub->offsetRows, sver);
+    buf = tDecodeOffRows(buf, bufEnd, &pSub->offsetRows, sver);
+    if (buf == NULL) goto END;
   }
   return (void *)buf;
 
