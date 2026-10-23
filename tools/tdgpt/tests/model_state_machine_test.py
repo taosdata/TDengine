@@ -98,6 +98,9 @@ class TestCanTransition:
     @pytest.mark.parametrize("current,next_state", [
         ("missing",  "started"),
         ("idle",     "stopping"),
+        # A delete during a download is refused by the request layer, so the
+        # graph deliberately has no edge for it.
+        ("downloading", "deleting"),
         ("started",  "deleting"),
         ("started",  "idle"),
     ])
@@ -115,6 +118,43 @@ class TestCanTransition:
         ok, err = ModelStateManager.can_transition("idle", "limbo")
         assert ok is False
         assert "Unknown next state" in err
+
+
+class TestCanPerformOperation:
+    """can_perform_operation answers the transition question without writing."""
+
+    @pytest.mark.parametrize("operation,state", [
+        ("start",  "idle"),
+        ("stop",   "started"),
+        ("delete", "idle"),
+        ("delete", "missing"),
+        # composite operations skip the intermediate states
+        ("download_start", "started"),
+        ("download_start", "missing"),
+    ])
+    def test_allowed(self, operation, state):
+        ok, reason = ModelStateManager.can_perform_operation(operation, state)
+        assert ok is True
+        assert reason is None
+
+    @pytest.mark.parametrize("operation,state", [
+        ("start",  "started"),
+        ("start",  "starting"),
+        ("start",  "missing"),
+        ("stop",   "idle"),
+        ("delete", "starting"),
+        ("delete", "stopping"),
+        ("delete", "downloading"),
+    ])
+    def test_refused(self, operation, state):
+        ok, reason = ModelStateManager.can_perform_operation(operation, state)
+        assert ok is False
+        assert reason is not None
+
+    def test_unknown_operation_is_not_judged(self):
+        ok, reason = ModelStateManager.can_perform_operation("reboot", "idle")
+        assert ok is True
+        assert reason is None
 
 
 class TestCanPerformAction:
