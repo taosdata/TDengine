@@ -41,10 +41,15 @@ typedef struct {
 } STableBuilderMgt;
 
 typedef struct {
+  // Legacy table-cache container; it does not own pCachedReader.
   STableCache   *pTableCache;
   SBlockCache   *pBlockCache;
   TdThreadRwlock mutex;
   SBse          *pBse;
+  // Manager-owned; access/close only under mutex's write lock, or on destruction.
+  STableReader  *pCachedReader;
+  // SBse.readerEpoch observed at open; a mismatch requires reopening the reader.
+  int64_t        readerEpoch;
 
   SSubTableMgt *pMgt;
   int64_t       timestamp;
@@ -104,6 +109,9 @@ int32_t bseTableMgtSetBlockCacheSize(STableMgt *pMgt, int32_t cap);
 
 int32_t bseTableMgtSetTableCacheSize(STableMgt *pMgt, int32_t cap);
 
+// pBlock->offset is the payload byte count; packed (seq, length) entries start
+// at pBlock->data + pBlock->offset. The wrapper borrows pBlock; cleanup frees
+// only the parsed index and wrapper. The block-cache callback frees the payload.
 int32_t blockWithMetaInit(SBlock *pBlock, SBlockWithMeta **pMeta);
 
 void blockWithMetaCleanup(SBlockWithMeta *p);
