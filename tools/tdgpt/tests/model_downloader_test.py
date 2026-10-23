@@ -27,7 +27,7 @@ sys.path.append(os.path.join(tdgpt_root, "lib", "taosanalytics", "misc"))
 
 # The model servers moved to lib/tsfm/service (they used to live in
 # taosanalytics/tsfmservice).
-tsfmservice_dir = os.path.join(tdgpt_root, "lib", "tsfm", "service")
+model_service_dir = os.path.join(tdgpt_root, "lib", "tsfm", "service")
 
 
 def test_model_downloader_invalid_bool_exits(monkeypatch, capsys):
@@ -54,7 +54,7 @@ def test_model_downloader_invalid_bool_exits(monkeypatch, capsys):
     assert "notabool" in capsys.readouterr().out
 
 
-def test_tsfmservice_download_helper_path_has_import_precedence():
+def test_model_service_download_helper_path_has_import_precedence():
     for server in [
         "chronos_server.py",
         "timemoe_server.py",
@@ -62,7 +62,7 @@ def test_tsfmservice_download_helper_path_has_import_precedence():
         "moirai_server.py",
         "moment_server.py",
     ]:
-        with open(os.path.join(tsfmservice_dir, server), encoding="utf-8") as handle:
+        with open(os.path.join(model_service_dir, server), encoding="utf-8") as handle:
             source = handle.read()
             assert (
                 'sys.path.append(os.path.join(os.path.dirname(__file__), "..", "..", "taosanalytics", "misc"))'
