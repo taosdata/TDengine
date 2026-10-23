@@ -1,4 +1,4 @@
-#priority,rerunTimes,Run with Sanitizer,casePath,caseCommand
+#priority,maxAttempts,Run with Sanitizer,casePath,caseCommand
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
 # long-running cases（优先调度，减少整体 pipeline 时长）
@@ -1016,7 +1016,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_ts_sort.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_mixed_nested.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_6604237597.py
-,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
+,1,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_left_asof_join_diff_64bit.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_hash_memory.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_condition_relaxation.py
