@@ -342,6 +342,107 @@ function install_avro() {
   fi
 }
 
+# Preserve general-purpose system library links: legacy installs may have
+# overwritten their original targets. Remove only dedicated FQ exports. Resolve every link
+# before deleting any, so aliases and dangling versioned targets are handled.
+function cleanup_legacy_fq_runtime() {
+  local driver_dir="$1" conf_file="$2" cleanup_sudo="$3"
+  shift 3
+  local canonical_driver dir link target
+  local changed=0
+  local managed_links=()
+  local ownership
+  canonical_driver=$(readlink -m -- "$driver_dir")
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    for link in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so* \
+                "$dir"/libltdl.so* "$dir"/libgssapi_krb5.so* "$dir"/libkrb5.so* \
+                "$dir"/libk5crypto.so* "$dir"/libcom_err.so* "$dir"/libkrb5support.so* \
+                "$dir"/libkeyutils.so*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m -- "$link" 2>/dev/null) || continue
+      case "$target" in
+        "$canonical_driver/"*)
+          # Shared runtime SONAMEs may have replaced package-owned links.
+          # Remove them only when a package manager confirms the link path is
+          # unowned; ambiguous query failures preserve the link.
+          case "${link##*/}" in
+            libssl.so*|libcrypto.so*|libz.so*|libltdl.so*|libgssapi_krb5.so*|libkrb5.so*|\
+            libk5crypto.so*|libcom_err.so*|libkrb5support.so*|libkeyutils.so*)
+              ownership=unknown
+              if command -v dpkg-query >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(dpkg-query -S -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"no path found matching pattern"* ]]; then
+                  ownership=unowned
+                fi
+              elif command -v rpm >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(rpm -qf -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"is not owned by any package"* ]]; then
+                  ownership=unowned
+                fi
+              fi
+              if [ "$ownership" = owned ] && command -v rpm >/dev/null 2>&1; then
+                local package rpm_target restored_target
+                package=$(rpm -qf --qf '%{NAME}\n' -- "$link" 2>/dev/null) || package=""
+                rpm_target=""
+                if [ -n "$package" ]; then
+                  rpm_target=$(rpm -q --dump "$package" 2>/dev/null | awk -v path="$link" '$1 == path && $5 ~ /^012/ { print $NF; found=1; exit } END { if (!found) exit 1 }') || rpm_target=""
+                fi
+                if [ -n "$rpm_target" ] && [ -e "$(dirname "$link")/$rpm_target" ]; then
+                  restored_target=$(readlink -m -- "$(dirname "$link")/$rpm_target" 2>/dev/null) || restored_target=""
+                  case "$restored_target" in
+                    "$canonical_driver/"*) restored_target="" ;;
+                  esac
+                  if [ -n "$restored_target" ]; then
+                    ${cleanup_sudo}ln -sfn -- "$rpm_target" "$link"
+                    changed=1
+                    echo "Restored package-owned symlink $link -> $rpm_target"
+                    continue
+                  fi
+                fi
+                echo "Warning: preserving $link; RPM target could not be safely restored" >&2
+                continue
+              fi
+              if [ "$ownership" != unowned ]; then
+                echo "Warning: preserving $link; package ownership is $ownership" >&2
+                continue
+              fi
+              ;;
+          esac
+          managed_links+=("$link")
+          ;;
+      esac
+    done
+  done
+  for link in "${managed_links[@]-}"; do
+    [ -n "$link" ] || continue
+    ${cleanup_sudo}rm -f -- "$link"
+    changed=1
+  done
+  # The old installer wrote exactly one driver path. Leave symlinks and any
+  # customized configuration untouched, even when the filename is the same.
+  if [ -n "$conf_file" ] && [ -f "$conf_file" ] && [ ! -L "$conf_file" ] &&
+     [ "$(cat -- "$conf_file")" = "$driver_dir" ]; then
+    ${cleanup_sudo}rm -f -- "$conf_file"
+    changed=1
+  elif [ -n "$conf_file" ] && { [ -e "$conf_file" ] || [ -L "$conf_file" ]; }; then
+    echo "Warning: customized loader configuration preserved: $conf_file; review FQ driver exports manually" >&2
+  fi
+  if [ "$changed" -eq 1 ] && { [ "$(id -u)" -eq 0 ] || [ -n "$cleanup_sudo" ]; } &&
+     command -v ldconfig >/dev/null 2>&1; then
+    ${cleanup_sudo}ldconfig || echo "Warning: failed to update library cache (ldconfig)" >&2
+  fi
+}
+
 function install_lib() {
   copy_driver_runtime_libs() {
     local patterns=()
@@ -377,6 +478,8 @@ function install_lib() {
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libltdl.so*" "libgssapi_krb5.so*" "libkrb5.so*" "libk5crypto.so*" \
+      "libcom_err.so*" "libkrb5support.so*" "libkeyutils.so*" \
       "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
       "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for src in "${install_main_dir}/driver"/${pattern}; do
@@ -396,6 +499,8 @@ function install_lib() {
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libltdl.so*" "libgssapi_krb5.so*" "libkrb5.so*" "libk5crypto.so*" \
+      "libcom_err.so*" "libkrb5support.so*" "libkeyutils.so*" "libz.so*" \
       "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
       "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for src in "${binary_dir}/build/lib"/${pattern}; do
@@ -404,33 +509,10 @@ function install_lib() {
           ${csudo}chmod 755 "${install_main_dir}/driver/$(basename "${src}")"
       done
     done
-  }
-
-  link_driver_runtime_libs() {
-    local target_dir=$1
-    local patterns=()
-    local lib=""
-
-    [ -d "${target_dir}" ] || return
-
-    if [ "$osType" != "Darwin" ]; then
-      patterns=(
-        "libssl.so*"
-        "libcrypto.so*"
-      )
-    else
-      patterns=(
-        "libssl*.dylib*"
-        "libcrypto*.dylib*"
-      )
+    if [ -d "${binary_dir}/build/share/resources" ]; then
+      ${csudo}mkdir -p "${install_main_dir}/share/resources"
+      ${csudo}cp -a "${binary_dir}/build/share/resources/." "${install_main_dir}/share/resources/"
     fi
-
-    for pattern in "${patterns[@]}"; do
-      for lib in "${install_main_dir}/driver"/${pattern}; do
-        [ -e "${lib}" ] || continue
-        ${csudo}ln -sf "${lib}" "${target_dir}/$(basename "${lib}")"
-      done
-    done
   }
 
   remove_managed_driver_links() {
@@ -442,10 +524,10 @@ function install_lib() {
     [ -d "${dir}" ] || return
 
     for pattern in \
-      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libssl.so*" "libcrypto.so*" \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*" \
-      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" \
+      "libssl*.dylib*" "libcrypto*.dylib*" "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
       for link_path in "${dir}"/${pattern}; do
         [ -L "${link_path}" ] || continue
         resolved=$(readlink -f "${link_path}" 2>/dev/null || true)
@@ -456,22 +538,6 @@ function install_lib() {
         esac
       done
     done
-  }
-
-  configure_driver_runtime_path() {
-    local conf_file="/etc/ld.so.conf.d/tdengine-connector.conf"
-
-    if [ "$osType" = "Darwin" ]; then
-      return
-    fi
-
-    if [ -d /etc/ld.so.conf.d ]; then
-      echo "${install_main_dir}/driver" | ${csudo}tee "${conf_file}" >/dev/null || \
-        echo -e "failed to write ${conf_file}"
-      ${csudo}ldconfig
-    else
-      echo "/etc/ld.so.conf.d not found!"
-    fi
   }
 
   # Remove links
@@ -485,6 +551,11 @@ function install_lib() {
       remove_managed_driver_links "${dir}"
     fi
   }
+
+  if [ "$osType" != "Darwin" ]; then
+    cleanup_legacy_fq_runtime "${install_main_dir}/driver" \
+      "/etc/ld.so.conf.d/tdengine-connector.conf" "$csudo" "$lib_link_dir" "$lib64_link_dir"
+  fi
 
   remove_links ${lib_link_dir}
 
@@ -603,16 +674,20 @@ function install_lib() {
     copy_driver_runtime_libs
     copy_fq_runtime_libs || :
     remove_fq_runtime_libs
-    link_driver_runtime_libs "${lib_link_dir}"
+    if [ "$osType" = "Darwin" ]; then
+      # Preserve the existing macOS linking behavior; Linux uses private RUNPATH.
+      for lib in "${install_main_dir}/driver"/libssl*.dylib* "${install_main_dir}/driver"/libcrypto*.dylib*; do
+        [ -e "${lib}" ] || continue
+        ${csudo}ln -sf "${lib}" "${lib_link_dir}/$(basename "${lib}")"
+      done
+    fi
   fi
 
   install_jemalloc
   #install_avro lib
   #install_avro lib64
 
-  if [ "$osType" != "Darwin" ]; then
-    configure_driver_runtime_path
-  fi
+  # Do not register driver/ in the global dynamic-loader search path.
 }
 
 function install_header() {

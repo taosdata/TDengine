@@ -111,6 +111,9 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       COMMAND /bin/bash "${_stage_runtime_libs_script}"
         fix-darwin-rpaths
         "${_td_runtime_lib_dir}"
+      COMMAND /bin/bash "${_stage_runtime_libs_script}"
+        fix-linux-rpaths
+        "${_td_runtime_lib_dir}"
       COMMENT "Staging federated-query provider runtime libraries -> build/lib/"
       VERBATIM
     )
@@ -173,6 +176,18 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       endif()
       _stage_fq_provider_runtime("${_msodbc_runtime_dir}"
         "libmsodbcsql*.so*" "libmsodbcsql*.dylib*")
+    endif()
+    if(TARGET ext_msodbc)
+      set(_msodbc_resource_libdir "${ext_msodbc_install}/lib")
+    elseif(DEFINED _msodbc_runtime_dir)
+      set(_msodbc_resource_libdir "${_msodbc_runtime_dir}")
+    endif()
+    if(DEFINED _msodbc_resource_libdir)
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND /bin/bash "${_stage_runtime_libs_script}"
+          copy-msodbc-resources "${_msodbc_resource_libdir}" "${_td_runtime_lib_dir}"
+        VERBATIM
+      )
     endif()
   endif()
 endif()
@@ -286,6 +301,9 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
         "${_td_runtime_lib_dir}"
       COMMAND /bin/bash "${_stage_runtime_libs_script}"
         fix-darwin-rpaths
+        "${_td_runtime_lib_dir}"
+      COMMAND /bin/bash "${_stage_runtime_libs_script}"
+        fix-linux-rpaths
         "${_td_runtime_lib_dir}"
       COMMENT "Staging Influx Arrow runtime dependencies -> build/lib/"
       VERBATIM
