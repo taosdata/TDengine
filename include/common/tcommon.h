@@ -262,6 +262,7 @@ typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAggBuf;      // reusable storage for block SMA results
   uint32_t        pBlockAggBufSize;  // number of entries in pBlockAggBuf
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SArray*         pConstTagCols;  // owned SConstTagColumn; local single-table scan->aggregate only.
   SDataBlockInfo  info;
   uint64_t        recycleKey;
   int64_t         recycleTime;
@@ -287,6 +288,12 @@ typedef struct SColumnInfoData {
   bool        hasNull;     // if current column data has null value.
   bool        reassigned;  // if current column data is reassigned.
 } SColumnInfoData;
+
+typedef struct SConstTagColumn {
+  int32_t         slotId;
+  uint64_t        uid;  // zero until the current single-table block supplies a value.
+  SColumnInfoData column;  // one owned value; logical rows come from the input block.
+} SConstTagColumn;
 
 typedef struct SQueryTableDataCond {
   uint64_t     suid;

@@ -8201,6 +8201,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   }
 
   pWindow->winType = WINDOW_TYPE_INTERVAL;
+  pWindow->intervalLimitHint = getOptHint(pSelect->pHint, HINT_INTERVAL_LIMIT);
   pWindow->interval = ((SValueNode*)pInterval->pInterval)->datum.i;
   pWindow->intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
   pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
