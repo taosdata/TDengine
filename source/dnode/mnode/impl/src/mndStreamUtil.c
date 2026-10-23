@@ -1149,7 +1149,7 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
 void mstLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
   mstsDebug("%s[%d]: task %" PRIx64 " deployId:%d SID:%" PRId64 " nodeId:%d tidx:%d type:%s flags:%" PRIx64 " status:%s lastUpTs:%" PRId64, 
       name, idx, pTask->id.taskId, pTask->id.deployId, pTask->id.seriousId, pTask->id.nodeId, pTask->id.taskIdx,
-      gStreamTaskTypeStr[pTask->type], pTask->flags, gStreamStatusStr[pTask->status], pTask->lastUpTs);
+      mndStreamTaskTypeStr(pTask->type), pTask->flags, mndStreamStatusStr(pTask->status), pTask->lastUpTs);
 }
 
 void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
@@ -1476,7 +1476,7 @@ _end:
 int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusSize, char* msg, int32_t msgSize) {
   char tmpBuf[256];
   
-  STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[pTask->status], statusSize);
+  STR_WITH_MAXSIZE_TO_VARSTR(status, mndStreamStatusStr(pTask->status), statusSize);
   if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
     if (pTask->extraErrMsg != NULL) {
       snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s", tstrerror(pTask->errCode), pTask->extraErrMsg);
