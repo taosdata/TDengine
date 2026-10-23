@@ -27177,3 +27177,110 @@ TEST_F(ExternalWindowOperatorTest, RuntimeFilterHighMatchRate) {
     ASSERT_EQ(streamClearStatesForOperators(owner.pTaskInfo), 0);
   }
 }
+
+TEST(SortSpillSecurityTest, RowIdFileRoundTripAcrossReadBlocks) {
+  const int32_t rowCount = 1000;
+  const int32_t pageSize = 4096;
+  const int32_t rowCacheSize = 4096;
+  const int64_t valueMultiplier = 7;
+  char directory[PATH_MAX];
+#ifdef WINDOWS
+  char temp[PATH_MAX];
+  ASSERT_GT(GetTempPathA(sizeof(temp), temp), 0U);
+#else
+  const char* temp = "/tmp";
+#endif
+  taosGetTmpfilePath(temp, "sort-spill-test", directory);
+  ASSERT_EQ(taosMkDir(directory), 0);
+  struct RestoreEnvironment {
+    int64_t space;
+    std::string savedDir;
+    std::string testDir;
+    ~RestoreEnvironment() {
+      tsTempSpace.size.avail = space;
+      tstrncpy(tsTempDir, savedDir.c_str(), PATH_MAX);
+      taosRemoveDir(testDir.c_str());
+    }
+  } restore{tsTempSpace.size.avail, tsTempDir, directory};
+  tsTempSpace.size.avail = 1024 * 1024 * 1024;
+  tstrncpy(tsTempDir, directory, PATH_MAX);
+  SSDataBlock* block = nullptr;
+  SSDataBlock* output = nullptr;
+  SArray* orders = nullptr;
+  SSortHandle* handle = nullptr;
+  SSortSource* source = nullptr;
+  struct ReleaseSortResources {
+    SSDataBlock*& block;
+    SSDataBlock*& output;
+    SArray*& orders;
+    SSortHandle*& handle;
+    SSortSource*& source;
+    ~ReleaseSortResources() {
+      tsortDestroySortHandle(handle);
+      taosMemoryFree(source);
+      taosArrayDestroy(orders);
+      blockDataDestroy(output);
+      blockDataDestroy(block);
+    }
+  } release{block, output, orders, handle, source};
+  ASSERT_EQ(createDataBlock(&block), 0);
+  SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+  SColumnInfoData val = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 2);
+  ASSERT_EQ(blockDataAppendColInfo(block, &ts), 0);
+  ASSERT_EQ(blockDataAppendColInfo(block, &val), 0);
+  ASSERT_EQ(blockDataEnsureCapacity(block, rowCount), 0);
+  auto* tsCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(block->pDataBlock, 0));
+  auto* valCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(block->pDataBlock, 1));
+  for (int64_t i = 0; i < rowCount; ++i) {
+    int64_t value = i * valueMultiplier;
+    ASSERT_EQ(colDataSetVal(tsCol, i, reinterpret_cast<char*>(&i), false), 0);
+    ASSERT_EQ(colDataSetVal(valCol, i, reinterpret_cast<char*>(&value),
+                            false), 0);
+  }
+  block->info.rows = rowCount;
+  block->info.id.uid = 1;
+  orders = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  ASSERT_NE(orders, nullptr);
+  SBlockOrderInfo order = {};
+  order.order = TSDB_ORDER_ASC;
+  order.slotId = 0;
+  order.compFn = reinterpret_cast<void*>(
+      getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, TSDB_ORDER_ASC));
+  ASSERT_NE(taosArrayPush(orders, &order), nullptr);
+  ASSERT_EQ(tsortCreateSortHandle(orders, SORT_BLOCK_TS_MERGE, pageSize, 4,
+                                  block, "spill-security", 0, 0, 0, &handle),
+            0);
+  ASSERT_EQ(tsortSetSortByRowId(handle, rowCacheSize), 0);
+  tsortSetFetchRawDataFp(handle, [](void* param, SSDataBlock** result) {
+    auto** input = static_cast<SSDataBlock**>(param);
+    *result = *input;
+    *input = nullptr;
+    return 0;
+  }, nullptr, nullptr);
+  SSDataBlock* input = block;
+  source = static_cast<SSortSource*>(
+      taosMemoryCalloc(1, sizeof(SSortSource)));
+  ASSERT_NE(source, nullptr);
+  source->param = &input;
+  source->onlyRef = true;
+  ASSERT_EQ(tsortAddSource(handle, source), 0);
+  source = nullptr;
+  ASSERT_EQ(tsortOpen(handle), 0);
+  ASSERT_EQ(createOneDataBlock(block, false, &output), 0);
+  ASSERT_EQ(blockDataEnsureCapacity(output, rowCount), 0);
+  for (int64_t i = 0; i < rowCount; ++i) {
+    STupleHandle* tuple = nullptr;
+    ASSERT_EQ(tsortNextTuple(handle, &tuple), 0);
+    ASSERT_NE(tuple, nullptr);
+    ASSERT_EQ(tsortAppendTupleToBlock(handle, output, tuple), 0);
+    auto* column = static_cast<SColumnInfoData*>(
+        taosArrayGet(output->pDataBlock, 1));
+    EXPECT_EQ(*reinterpret_cast<int64_t*>(colDataGetData(column, i)),
+              i * valueMultiplier);
+  }
+  STupleHandle* tuple = nullptr;
+  EXPECT_EQ(tsortNextTuple(handle, &tuple), 0);
+  EXPECT_EQ(tuple, nullptr);
+}

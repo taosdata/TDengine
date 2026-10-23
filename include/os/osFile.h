@@ -90,6 +90,15 @@ typedef struct TdFile *TdFilePtr;
 // current user. Opening existing files does not reset their DACL.
 // Only the final component is checked for links; callers are responsible for the parent path.
 TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags);
+// Reserve 37 bytes for '-' and the UUID in a 255-byte component.
+enum { TD_TMP_FILE_PREFIX_MAX_LEN = 218 };
+
+// Create an owner-only, read/write file and remove it on close or earlier.
+// dir may be a symbolic link; resolve it once when opening the directory.
+// Directory handles anchor creation; no persistent subdirectory is retained.
+// Return NULL and set terrno on failure. prefix must be non-empty, contain
+// at most TD_TMP_FILE_PREFIX_MAX_LEN bytes, and exclude separators/colons.
+TdFilePtr taosOpenTempFile(const char *dir, const char *prefix);
 // Succeed only if path is a unix socket (not a link) owned by the effective UID; always succeeds on Windows.
 int32_t   taosCheckPrivateSocket(const char *path);
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
