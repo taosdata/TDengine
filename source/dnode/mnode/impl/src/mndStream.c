@@ -1804,7 +1804,9 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    if (0 == strcmp(pStream->pCreate->streamDB, pDb->name)) {
+    // [FIX-198] streamDB may be NULL for legacy/corrupt stream objects persisted in sdb
+    // before the required-field check was added. Tolerate it instead of crashing the mnode.
+    if (pStream->pCreate->streamDB != NULL && 0 == strcmp(pStream->pCreate->streamDB, pDb->name)) {
       mInfo("start to drop stream %s in db %s", pStream->pCreate->name, pDb->name);
       
       pStream->updateTime = taosGetTimestampMs();
@@ -3082,6 +3084,52 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
   }
 
   streamId = pCreate->streamId;
+
+  // [FIX-198] Reject CREATE STREAM requests that are missing required string fields.
+  // The JSON form of SCMCreateStreamReq (jsonToSCMCreateStreamReq -> tjsonDupStringValue)
+  // leaves any absent key as a NULL pointer instead of failing. Many downstream paths
+  // dereference these strings without a NULL check:
+  //   - mndAcquireStream(name)  -> sdbGetkeySize does strlen(name)        (NULL name crash)
+  //   - auditRecord(sql, strlen(sql))                                     (NULL sql crash)
+  //   - mndStreamCreateOutStb -> strlen(outTblName) for super-table output (NULL outTblName crash)
+  //   - persisted NULL streamDB crashes every DROP DATABASE / SHOW STREAMS (mstChkSetDbInUse,
+  //     mndDropStreamByDb, mstSetStreamAttrResBlock).
+  // Reject the request early (before mndAcquireStream) so a malformed JSON body can never
+  // crash the mnode leader or commit a corrupt stream object to sdb.
+  if (pCreate->name == NULL || pCreate->name[0] == '\0') {
+    // [FIX-198] name is the very field under test (may be NULL), so pass streamId as the
+    // variadic arg required by the mstsError macro rather than pCreate->name.
+    mstsError("failed to create stream since required field 'name' is missing or empty, streamId:%" PRIx64,
+              streamId);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  if (pCreate->sql == NULL || pCreate->sql[0] == '\0') {
+    mstsError("stream:%s failed to create since required field 'sql' is missing or empty", pCreate->name);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  if (pCreate->streamDB == NULL || pCreate->streamDB[0] == '\0') {
+    mstsError("stream:%s failed to create since required field 'streamDB' is missing or empty", pCreate->name);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  // [FIX-198] outTblName is dereferenced (strlen / %s) whenever an output table is configured:
+  //   - super-table output: strlen(outTblName) in mndStreamCreateOutStb path and %s in logs
+  //   - normal-table output (nodelayCreateSubtable): strlen(outTblName) inside mndStreamCreateOutTable
+  //     (mndGenerateUid / taosStrdup at mndStream.c:866/870) and %s in logs
+  // Both the "create output table" (!outStbExists) and "use existing table" (outStbExists) paths
+  // reference outTblName, so require it for any configured output table. Streams with no output
+  // table (outTblType == 0) must NOT be required to supply outTblName.
+  if ((TSDB_SUPER_TABLE == pCreate->outTblType ||
+       (TSDB_NORMAL_TABLE == pCreate->outTblType && pCreate->nodelayCreateSubtable)) &&
+      (pCreate->outTblName == NULL || pCreate->outTblName[0] == '\0')) {
+    mstsError("stream:%s failed to create since required field 'outTblName' is missing or empty for an "
+              "output table",
+              pCreate->name);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
 
   mstsInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);
 
