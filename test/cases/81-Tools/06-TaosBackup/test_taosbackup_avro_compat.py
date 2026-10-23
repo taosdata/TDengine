@@ -103,11 +103,20 @@ class TestTaosBackupAvroCompat:
         tdLog.info(f"Restoring AVRO fixture from {_AVRO_FULL_DIR}")
         tdSql.execute(f"drop database if exists {DST_DB}")
         rlist = etool.taosdump(
-            f'-W "{_AVRO_FULL_ORIG_DB}={DST_DB}" -i {_AVRO_FULL_DIR}'
+            f'-g -W "{_AVRO_FULL_ORIG_DB}={DST_DB}" -i {_AVRO_FULL_DIR}'
         )
         output = "\n".join(rlist) if rlist else ""
         if "SUCCESS" not in output:
             tdLog.exit(f"taosBackup AVRO restore failed:\n{output[:600]}")
+        assert "DEBUG: avro ntb: execute SQL: CREATE TABLE" in output, (
+            "debug output should include normal-table DDL:\n" + output
+        )
+        assert "DEBUG: avro tbtags: execute SQL: CREATE TABLE" in output, (
+            "debug output should include child-table DDL:\n" + output
+        )
+        assert "DESCRIBE avro_dst.ntb1 failed" not in output, (
+            "normal-table schema check should run after the table is created:\n" + output
+        )
 
         # --- Verify database exists ---
         tdSql.query("select name from information_schema.ins_databases")

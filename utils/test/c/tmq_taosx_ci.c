@@ -21,10 +21,15 @@
 #include <string.h>
 #include <time.h>
 #include "cJSON.h"
-#include "osMath.h"
 #include "taos.h"
 #include "tmsg.h"
 #include "types.h"
+// osMath.h is not self-contained: it uses int32_t/int64_t without including
+// <stdint.h>.  glibc's stdlib.h/string.h happen to provide those types, MSVC's
+// do not, so on Windows it must be included after types.h (-> os.h ->
+// <stdint.h>) or the build fails with C2143/C2081 inside osMath.h and every
+// header that depends on __compar_fn_t (talgo.h, tarray.h).
+#include "osMath.h"
 
 static int running = 1;
 TdFilePtr  g_fp = NULL;
