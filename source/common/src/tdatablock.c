@@ -433,7 +433,16 @@ static int32_t colDataSetValHelp(SColumnInfoData* pColumnInfoData, uint32_t rowI
     (void)memmove(pColumnInfoData->pData + len, overlap ? (pColumnInfoData->pData + offset) : pData, dataLen);
     pColumnInfoData->varmeta.length += dataLen;
   } else {
-    memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex, pData, pColumnInfoData->info.bytes);
+    // [FIX-ITEM-333] For fixed-width types the copy must never exceed the canonical type width.
+    // The column's info.bytes is taken from the persisted schema; a malformed / attacker-controlled
+    // width larger than the SValue union (which holds the source datum) would over-read vnode
+    // stack/heap here. Clamp the copy to the canonical width (equal to info.bytes for a well-formed
+    // schema). Defense-in-depth: the mnode already rejects such widths at CREATE/ALTER STB time.
+    int32_t copyBytes = pColumnInfoData->info.bytes;
+    if (copyBytes > tDataTypes[type].bytes) {
+      copyBytes = tDataTypes[type].bytes;
+    }
+    memcpy(pColumnInfoData->pData + pColumnInfoData->info.bytes * rowIndex, pData, (size_t)copyBytes);
     colDataClearNull_f(pColumnInfoData->nullbitmap, rowIndex);
   }
 
@@ -2500,7 +2509,16 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 
     // here we employ the aligned malloc function, to make sure that the address of allocated memory is aligned
     // to MALLOC_ALIGN_BYTES
-    tmp = taosMemoryMallocAlign(MALLOC_ALIGN_BYTES, numOfRows * pColumn->info.bytes);
+    // [FIX-ITEM-333] Guard against integer overflow in the capacity computation. numOfRows is uint32_t and
+    // info.bytes is int32_t; their product was historically evaluated in uint32_t and could wrap for an
+    // attacker-controlled (inflated) fixed-type width, yielding an undersized allocation whose later
+    // per-row memcpy of info.bytes overflows the heap. Compute the size in uint64_t and reject it before
+    // allocating if it no longer fits the original uint32_t arithmetic domain (i.e. it would have wrapped).
+    uint64_t allocSize = (uint64_t)numOfRows * (uint64_t)pColumn->info.bytes;
+    if (allocSize > (uint64_t)UINT32_MAX) {
+      return TSDB_CODE_FAILED;
+    }
+    tmp = taosMemoryMallocAlign(MALLOC_ALIGN_BYTES, (size_t)allocSize);
     if (tmp == NULL) {
       return terrno;
     }
