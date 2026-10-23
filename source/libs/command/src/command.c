@@ -1526,8 +1526,10 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   }
 #undef APPEND_CREATE_SQL
 
-  QUERY_CHECK_CONDITION(len <= UINT16_MAX, code, lino, _return, TSDB_CODE_OUT_OF_BUFFER);
-  varDataLen(buf2) = len;
+  if (NULL != pFilterSQL) {
+    QUERY_CHECK_CONDITION(len <= UINT16_MAX, code, lino, _return, TSDB_CODE_OUT_OF_BUFFER);
+  }
+  varDataLen(buf2) = (len > UINT16_MAX) ? UINT16_MAX : len;
 
   code = colDataSetVal(pCol2, 0, buf2, false);
   QUERY_CHECK_CODE(code, lino, _return);
