@@ -31,7 +31,9 @@ _DEFAULT_MODEL_START_TIMEOUT = 300
 
 
 def make_task_id(operation: str, model_name: str) -> str:
-    """Generate a unique task identifier for an async operation."""
+    """Generate a unique task identifier for an async operation.
+       Format: {operation}-{model_name}-{random_hex}
+    """
     return f"{operation}-{model_name}-{uuid.uuid4().hex[:8]}"
 
 
@@ -216,6 +218,110 @@ def live_worker_names():
         str(entry.get("model"))
         for entry in statuses
         if isinstance(entry, dict) and entry.get("running") and entry.get("model")
+    )
+
+
+# Default for how long a resource task file keeps witnessing a live CLI child.
+# Overridable through `resource_task_stale_seconds` (see the getter below).
+DEFAULT_RESOURCE_TASK_STALE_SECONDS = 300
+
+
+def resource_task_stale_seconds():
+    """How old a resource task file may be and still witness a live CLI child.
+
+    The resource manager rewrites its task file on every progress callback, so a
+    file that has not moved for longer than this belongs to a download whose
+    process is gone. The window therefore has to be wider than the progress
+    granularity of the slowest link in use.
+
+    Getting it wrong is not symmetric: guessing "gone" too early only sends the
+    delete worker back to its deferral (it retries while the lifecycle lock is
+    held), while guessing "still alive" too long keeps refusing a delete the
+    caller is entitled to.
+
+    Returns:
+        int: The window in seconds. Never zero: a zero window would treat every
+            download as finished.
+    """
+    config = Configure.get_instance()
+    try:
+        value = int(
+            config._conf.get(
+                "resource_task_stale_seconds", DEFAULT_RESOURCE_TASK_STALE_SECONDS
+            )
+        )
+    except (TypeError, ValueError, AttributeError):
+        return DEFAULT_RESOURCE_TASK_STALE_SECONDS
+
+    return value if value > 0 else DEFAULT_RESOURCE_TASK_STALE_SECONDS
+
+
+def installed_resource_names():
+    """Return the models whose files are present on disk, or None if unknown.
+
+    Reads `taosanodectl resource list --format json`, the inventory the CLI builds
+    from the installed directories themselves -- the same source `get_model_info`
+    reports. `models.downloaded` is only a cache of this answer, written when this
+    API finishes a download, so a directory installed or removed from the CLI
+    leaves it describing a lifecycle that no longer holds.
+
+    Includes both ``installed`` and ``invalid`` entries: a directory that failed
+    manifest validation still exists on disk. Treating it as absent would cause
+    callers to set ``downloaded=False`` and ``model_state=missing``, potentially
+    triggering delete logic against a directory that is present. Corruption is a
+    separate concern from absence.
+
+    Returns:
+        list[str]: Model names whose directory is present (sorted).
+        None: The inventory could not be read. Callers must not read that as
+            "nothing is installed".
+    """
+    try:
+        taosanodectl = get_taosanodectl_cmd()
+    except FileNotFoundError as exc:
+        AppLogger.warning("Cannot probe the installed resources: %s", exc)
+        return None
+
+    _, exec_timeout = resolve_resource_settings()
+    cmd = taosanodectl + ["resource", "list", "--format", "json"]
+
+    log_invocation("installed resource probe", cmd=" ".join(cmd))
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
+    except subprocess.TimeoutExpired:
+        AppLogger.warning("Installed resource probe timed out (>%ss)", exec_timeout)
+        return None
+    except (OSError, subprocess.SubprocessError) as exc:
+        AppLogger.warning("Installed resource probe failed: %s", exc)
+        return None
+
+    if result.returncode != 0:
+        AppLogger.warning(
+            "Installed resource probe exited %s: %s",
+            result.returncode,
+            (result.stderr or "").strip()[:500],
+        )
+        return None
+
+    try:
+        inventory = json.loads(result.stdout)
+    except (TypeError, ValueError):
+        AppLogger.warning(
+            "Cannot parse installed resource output: %s", (result.stdout or "")[:200]
+        )
+        return None
+
+    models = inventory.get("models") if isinstance(inventory, dict) else None
+    if not isinstance(models, list):
+        return None
+
+    return sorted(
+        str(entry.get("name"))
+        for entry in models
+        if isinstance(entry, dict)
+        and entry.get("install_status") in ("installed", "invalid")
+        and entry.get("name")
     )
 
 

@@ -67,8 +67,8 @@ from resource_manager import (
 from resource_manifest import SHARED_RUNTIME_NAME, validate_tsfm_model, validate_tsfm_runtime
 
 # Exit codes the REST layer switches on (see _CLI_EXIT_* in
-# taosanalytics/tsfmservice/foundation_model.py -- the two modules are separate
-# deployment units and cannot import each other).
+# lib/tsfm/mgmt/foundation_model.py -- the two modules are separate deployment
+# units and cannot import each other).
 #
 #   0   success
 #   75  transient: another resource operation holds the lifecycle lock, or the
@@ -550,7 +550,7 @@ class Config:
         """Get default model configurations"""
         return {
             "tdtsfm": {
-                "script": "tdtsfm-server.py",
+                "script": "tdtsfm_server.py",
                 "default_model": None,
                 "port": 6061,
                 "endpoint": "/tdtsfm",
@@ -558,7 +558,7 @@ class Config:
                 "required": True,
             },
             "timemoe": {
-                "script": "timemoe-server.py",
+                "script": "timemoe_server.py",
                 "default_model": "Maple728/TimeMoE-200M",
                 "port": 6062,
                 "endpoint": "/ds_predict",
@@ -566,28 +566,28 @@ class Config:
                 "required": True,
             },
             "moirai": {
-                "script": "moirai-server.py",
+                "script": "moirai_server.py",
                 "default_model": "Salesforce/moirai-moe-1.0-R-small",
                 "port": 6064,
                 "endpoint": "/ds_predict",
                 "required": False,
             },
             "chronos": {
-                "script": "chronos-server.py",
+                "script": "chronos_server.py",
                 "default_model": "amazon/chronos-bolt-base",
                 "port": 6063,
                 "endpoint": "/ds_predict",
                 "required": False,
             },
             "timesfm": {
-                "script": "timesfm-server.py",
+                "script": "timesfm_server.py",
                 "default_model": "google/timesfm-2.5-200m-pytorch",
                 "port": 6065,
                 "endpoint": "/ds_predict",
                 "required": False,
             },
             "moment": {
-                "script": "moment-server.py",
+                "script": "moment_server.py",
                 "default_model": "AutonLab/MOMENT-1-base",
                 "port": 6066,
                 "endpoint": "/imputation",
@@ -725,7 +725,7 @@ class ProcessManager:
             model_name = service_name[len("model-"):]
             model_config = self.config.models.get(model_name, {})
             script_name = str(model_config.get("script", "")).lower()
-            markers = [script_name, model_name.lower(), "taosanalytics\\tsfmservice", "taosanalytics/tsfmservice"]
+            markers = [script_name, model_name.lower(), "tsfm\\service", "tsfm/service"]
             if script_name and script_name in commandline:
                 return True
             if any(marker and marker in commandline for marker in markers[1:]) and "python" in commandline:
@@ -1203,7 +1203,7 @@ class TaosanodeService:
         return ".".join(part for part in prefix_parts if part)
 
     def _discover_runtime_dependencies(self, entry_module: str = "taosanalytics.app") -> List[str]:
-        package_root = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+        package_root = os.path.join(self.config.install_dir, "lib")
         entry_path = self._resolve_local_module_path(entry_module, package_root)
         if not entry_path:
             return []
@@ -1422,7 +1422,7 @@ class TaosanodeService:
 
         try:
             python_exe = self.process_mgr._get_python_exe()
-            lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
+            lib_dir = os.path.join(self.config.install_dir, "lib")
             env = self._build_runtime_env()
 
             if IS_LINUX and foreground:
@@ -1848,7 +1848,7 @@ class ModelService:
             )
         args: List[str] = []
 
-        # tdtsfm-server loads its own fixed weights and has no model-name or
+        # tdtsfm_server.py loads its own fixed weights and has no model-name or
         # model-index flag, but it does need to be told *where* they are:
         # Configure.get_model_directory() cannot answer that on its own, because a
         # dynamic resource is installed under the `tsfm` subdirectory of the model
@@ -1946,7 +1946,7 @@ class ModelService:
 
         # Build command
         service_dir = os.path.join(
-            self.config.install_dir, "lib", "taosanalytics", "tsfmservice"
+            self.config.install_dir, "lib", "tsfm", "service"
         )
         script_path = os.path.join(service_dir, model_config["script"])
 
