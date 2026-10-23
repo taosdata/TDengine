@@ -35,6 +35,15 @@ MESSAGE(STATUS "build parser unit test")
 SET(CMAKE_CXX_STANDARD 11)
 AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
+ADD_EXECUTABLE(aggregateBatchTests aggregateBatchTests.cpp)
+DEP_ext_gtest(aggregateBatchTests)
+DEP_ext_cppstub(aggregateBatchTests)
+TARGET_LINK_LIBRARIES(aggregateBatchTests
+        PRIVATE os util common executor qcom function planner scalar nodes vnode)
+TARGET_INCLUDE_DIRECTORIES(aggregateBatchTests
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+add_test(NAME aggregateBatchTests COMMAND aggregateBatchTests)
+
 ADD_EXECUTABLE(joinTests joinTests.cpp)
 DEP_ext_gtest(joinTests)
 DEP_ext_cppstub(joinTests)
