@@ -1063,6 +1063,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_base_on.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_bugs.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_drop_topic_after_unsubscribe.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_db_topic_stream_result.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
