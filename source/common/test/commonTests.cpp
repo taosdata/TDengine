@@ -1237,21 +1237,28 @@ TEST(testCase, DatablockReassignedVarColumn_test) {
   src->info.rows = 4;
   ASSERT_TRUE(pSrcCol->reassigned);
   ASSERT_EQ(pSrcCol->varmeta.length, varDataTLen(value));
-  for (int32_t i = 0; i < 4; ++i) {
-    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pSrcCol, i)), "table_name"), 0);
-  }
+
+  // A var record is length prefixed and is NOT NUL terminated, so strcmp() would read one byte
+  // past the record. Compare the payload by its declared length instead.
+  auto checkColumnValue = [](const SColumnInfoData* pCol, const char* expected) {
+    const int32_t expectLen = (int32_t)strlen(expected);
+    for (int32_t i = 0; i < 4; ++i) {
+      const char* pVal = (const char*)colDataGetData(pCol, i);
+      ASSERT_NE(pVal, nullptr) << "row " << i;
+      ASSERT_EQ((int32_t)varDataLen(pVal), expectLen) << "row " << i;
+      EXPECT_EQ(memcmp(varDataVal(pVal), expected, expectLen), 0) << "row " << i;
+    }
+  };
+
+  checkColumnValue(pSrcCol, "table_name");
 
   ASSERT_EQ(colDataAssignNRows(pDstCol, 0, pSrcCol, 0, 4), TSDB_CODE_SUCCESS);
   dst->info.rows = 4;
-  for (int32_t i = 0; i < 4; ++i) {
-    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pDstCol, i)), "table_name"), 0);
-  }
+  checkColumnValue(pDstCol, "table_name");
 
   ASSERT_EQ(colDataAssign(pDstCol, pSrcCol, 4, &src->info), TSDB_CODE_SUCCESS);
   ASSERT_TRUE(pDstCol->reassigned);
-  for (int32_t i = 0; i < 4; ++i) {
-    ASSERT_EQ(strcmp(varDataVal(colDataGetData(pDstCol, i)), "table_name"), 0);
-  }
+  checkColumnValue(pDstCol, "table_name");
 
   colInfoDataCleanup(pDstCol, dst->info.capacity);
   ASSERT_FALSE(pDstCol->reassigned);
@@ -1365,6 +1372,299 @@ TEST(testCase, var_dataBlock_split_test) {
 
     startIndex = stopIndex + 1;
   }
+}
+
+// The var data of a block is not guaranteed to be stored in row order: the stream wal reader
+// appends the rows of each table slice in the write order, which may differ from the row index
+// order. offset[endIndex + 1] - offset[startIndex] is negative in that case, and used to be
+// propagated into blockEncodeAsRows() as a huge size_t length, crashing the memmove.
+TEST(testCase, blockEncodeAsRowsWithOutOfOrderVarData) {
+  int32_t      numOfRows = 12;
+  SSDataBlock* b = NULL;
+
+  ASSERT_EQ(createDataBlock(&b), 0);
+
+  SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+  ASSERT_EQ(blockDataAppendColInfo(b, &tsCol), TSDB_CODE_SUCCESS);
+  SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 32, 2);
+  ASSERT_EQ(blockDataAppendColInfo(b, &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(b, numOfRows), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData* pTs = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 0);
+  SColumnInfoData* pVar = (SColumnInfoData*)taosArrayGet(b->pDataBlock, 1);
+  ASSERT_NE(pTs, nullptr);
+  ASSERT_NE(pVar, nullptr);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    TSKEY ts = 1792575900000LL + i;
+    colDataSetVal(pTs, i, (const char*)&ts, false);
+  }
+
+  // rows [6, 12) are written before rows [0, 6), so offset[5] > offset[6]
+  int32_t order[12] = {6, 7, 8, 9, 10, 11, 0, 1, 2, 3, 4, 5};
+  char    varbuf[128] = {0};
+  for (int32_t k = 0; k < numOfRows; ++k) {
+    char raw[32] = {0};
+    snprintf(raw, sizeof(raw), "value_of_row_%d", order[k]);
+    STR_TO_VARSTR(varbuf, raw)
+    colDataSetVal(pVar, order[k], varbuf, false);
+    memset(varbuf, 0, sizeof(varbuf));
+  }
+  b->info.rows = numOfRows;
+
+  ASSERT_GT(pVar->varmeta.offset[5], pVar->varmeta.offset[6]);
+
+  // single row which is the last row of the later written slice
+  int64_t encodeSize = blockGetEncodeSizeOfRows(b, 5, 5);
+  ASSERT_GT(encodeSize, 0);
+
+  char* buf = (char*)taosMemoryCalloc(1, (size_t)encodeSize);
+  ASSERT_NE(buf, nullptr);
+  int32_t len = 0;
+  int32_t code = blockEncodeAsRows(b, buf, (size_t)encodeSize, 2, 5, 5, &len);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(len, (int32_t)encodeSize);
+
+  // the whole range, containing the non-monotonic jump, must be encodable as well
+  int64_t fullSize = blockGetEncodeSizeOfRows(b, 0, numOfRows - 1);
+  ASSERT_GT(fullSize, 0);
+  char* buf2 = (char*)taosMemoryCalloc(1, (size_t)fullSize);
+  ASSERT_NE(buf2, nullptr);
+  len = 0;
+  code = blockEncodeAsRows(b, buf2, (size_t)fullSize, 2, 0, numOfRows - 1, &len);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(len, (int32_t)fullSize);
+
+  // the encoded data must be decodable and the values must be in row order
+  SSDataBlock* dec = (SSDataBlock*)taosMemoryCalloc(1, sizeof(SSDataBlock));
+  ASSERT_NE(dec, nullptr);
+  ASSERT_EQ(blockSpecialDecodeLaterPart(dec, buf2, 0, TSKEY_MIN, TSKEY_MAX), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(dec->info.rows, numOfRows);
+
+  SColumnInfoData* pDecVar = (SColumnInfoData*)taosArrayGet(dec->pDataBlock, 1);
+  ASSERT_NE(pDecVar, nullptr);
+  for (int32_t r = 0; r < numOfRows; ++r) {
+    char exp[32] = {0};
+    snprintf(exp, sizeof(exp), "value_of_row_%d", r);
+    const char* pVal = colDataGetData(pDecVar, r);
+    ASSERT_NE(pVal, nullptr) << "row " << r;
+    int32_t n = varDataLen((char*)pVal);
+    ASSERT_EQ(n, (int32_t)strlen(exp)) << "row " << r;
+    EXPECT_EQ(memcmp(varDataVal((char*)pVal), exp, n), 0) << "row " << r;
+  }
+  blockDataDestroy(dec);
+
+  taosMemoryFree(buf);
+  taosMemoryFree(buf2);
+  blockDataDestroy(b);
+}
+
+TEST(testCase, blockEncodeAsRowsWithShortTrailingVarData) {
+  for (const char* value : {"", "a"}) {
+    for (bool outOfOrder : {false, true}) {
+      SCOPED_TRACE(value);
+      SCOPED_TRACE(outOfOrder);
+      DataBlockGuard source;
+      ASSERT_EQ(createDataBlock(source.put()), TSDB_CODE_SUCCESS);
+      SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+      SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 32, 2);
+      ASSERT_EQ(blockDataAppendColInfo(source.get(), &tsCol), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(blockDataAppendColInfo(source.get(), &varCol), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(blockDataEnsureCapacity(source.get(), 2), TSDB_CODE_SUCCESS);
+      auto* timestamps = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 0);
+      auto* strings = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 1);
+      ASSERT_NE(timestamps, nullptr);
+      ASSERT_NE(strings, nullptr);
+      for (int32_t row = 0; row < 2; ++row) {
+        TSKEY timestamp = 1792575900000LL + row;
+        ASSERT_EQ(colDataSetVal(timestamps, row, (const char*)&timestamp, false), TSDB_CODE_SUCCESS);
+      }
+      int32_t tailRow = outOfOrder ? 0 : 1;
+      char varbuf[32] = {0};
+      STR_TO_VARSTR(varbuf, "prefix")
+      ASSERT_EQ(colDataSetVal(strings, 1 - tailRow, varbuf, false), TSDB_CODE_SUCCESS);
+      STR_TO_VARSTR(varbuf, value)
+      ASSERT_EQ(colDataSetVal(strings, tailRow, varbuf, false), TSDB_CODE_SUCCESS);
+      source->info.rows = 2;
+      ASSERT_EQ(strings->varmeta.length - strings->varmeta.offset[tailRow],
+                VARSTR_HEADER_SIZE + strlen(value));
+
+      for (bool singleRow : {false, true}) {
+        SCOPED_TRACE(singleRow);
+        int32_t start = singleRow ? tailRow : 0;
+        int32_t end = singleRow ? tailRow : 1;
+        int64_t encodedSize = blockGetEncodeSizeOfRows(source.get(), start, end);
+        ASSERT_GT(encodedSize, 0);
+        std::vector<char> encoded((size_t)encodedSize);
+        int32_t encodedLen = 0;
+        ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 2, start, end, &encodedLen),
+                  TSDB_CODE_SUCCESS);
+        ASSERT_EQ(encodedLen, encodedSize);
+        DataBlockGuard decoded;
+        ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()), TSDB_CODE_SUCCESS);
+        ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, TSKEY_MIN, TSKEY_MAX),
+                  TSDB_CODE_SUCCESS);
+        ASSERT_EQ(decoded->info.rows, end - start + 1);
+        auto* decodedStrings = (SColumnInfoData*)taosArrayGet(decoded->pDataBlock, 1);
+        ASSERT_NE(decodedStrings, nullptr);
+        for (int32_t row = start; row <= end; ++row) {
+          const char* expected = row == tailRow ? value : "prefix";
+          const char* actual = colDataGetData(decodedStrings, row - start);
+          ASSERT_NE(actual, nullptr);
+          ASSERT_EQ(varDataLen(actual), strlen(expected));
+          EXPECT_EQ(memcmp(varDataVal(actual), expected, strlen(expected)), 0);
+        }
+      }
+    }
+  }
+}
+
+// colDataCopyNItems() broadcasts one value to many rows and keeps a single copy of the payload
+// (the column is marked reassigned and every row points at the same offset). The row encoding
+// must keep that single copy: expanding it per row multiplies the encoded size by the row count,
+// which for a 3KB tag over 4096 rows exceeds the 10MiB align window capacity.
+TEST(testCase, blockEncodeAsRowsWithSharedVarData) {
+  const int32_t numOfRows = 4096;
+  const int32_t valueLen = 3072;
+
+  DataBlockGuard source;
+  ASSERT_EQ(createDataBlock(source.put()), TSDB_CODE_SUCCESS);
+  SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+  SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_BINARY, 4096, 2);
+  ASSERT_EQ(blockDataAppendColInfo(source.get(), &tsCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(source.get(), &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(source.get(), numOfRows), TSDB_CODE_SUCCESS);
+
+  auto* timestamps = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 0);
+  auto* strings = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 1);
+  ASSERT_NE(timestamps, nullptr);
+  ASSERT_NE(strings, nullptr);
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    TSKEY timestamp = 1792575900000LL + row;
+    ASSERT_EQ(colDataSetVal(timestamps, row, (const char*)&timestamp, false), TSDB_CODE_SUCCESS);
+  }
+
+  std::vector<char> value(VARSTR_HEADER_SIZE + valueLen, 'x');
+  VarDataLenT       payloadLen = valueLen;
+  memcpy(value.data(), &payloadLen, VARSTR_HEADER_SIZE);
+  ASSERT_EQ(colDataCopyNItems(strings, 0, value.data(), numOfRows, false), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(strings->reassigned);
+  ASSERT_EQ(strings->varmeta.length, (uint32_t)(VARSTR_HEADER_SIZE + valueLen));
+  source->info.rows = numOfRows;
+
+  int64_t encodedSize = blockGetEncodeSizeOfRows(source.get(), 0, numOfRows - 1);
+  ASSERT_GT(encodedSize, 0);
+  // one payload copy plus the per-row offset array, far below the 10MiB align block capacity
+  ASSERT_LT(encodedSize, 10 * 1024 * 1024);
+  ASSERT_LT(encodedSize, (int64_t)numOfRows * (VARSTR_HEADER_SIZE + valueLen) / 2);
+
+  std::vector<char> encoded((size_t)encodedSize);
+  int32_t           encodedLen = 0;
+  ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 2, 0, numOfRows - 1, &encodedLen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(encodedLen, encodedSize);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, TSKEY_MIN, TSKEY_MAX), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(decoded->info.rows, numOfRows);
+  auto* decodedStrings = (SColumnInfoData*)taosArrayGet(decoded->pDataBlock, 1);
+  ASSERT_NE(decodedStrings, nullptr);
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    const char* actual = colDataGetData(decodedStrings, row);
+    ASSERT_NE(actual, nullptr) << "row " << row;
+    ASSERT_EQ(varDataLen((char*)actual), valueLen) << "row " << row;
+    EXPECT_EQ(memcmp(varDataVal((char*)actual), value.data() + VARSTR_HEADER_SIZE, valueLen), 0) << "row " << row;
+  }
+}
+
+// A broadcast column whose rows were all nulled afterwards keeps reassigned set but no longer
+// carries a usable record. The shared-span fast path must fall back to the row-by-row layout
+// instead of treating the stale offset as a shared value.
+TEST(testCase, blockEncodeAsRowsWithReassignedAllNullVarData) {
+  const int32_t numOfRows = 4;
+
+  DataBlockGuard source;
+  ASSERT_EQ(createDataBlock(source.put()), TSDB_CODE_SUCCESS);
+  SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+  SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 2);
+  ASSERT_EQ(blockDataAppendColInfo(source.get(), &tsCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(source.get(), &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(source.get(), numOfRows), TSDB_CODE_SUCCESS);
+
+  auto* timestamps = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 0);
+  auto* strings = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 1);
+  ASSERT_NE(timestamps, nullptr);
+  ASSERT_NE(strings, nullptr);
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    TSKEY timestamp = 1792575900000LL + row;
+    ASSERT_EQ(colDataSetVal(timestamps, row, (const char*)&timestamp, false), TSDB_CODE_SUCCESS);
+  }
+
+  char value[32] = {0};
+  STR_TO_VARSTR(value, "table_name")
+  ASSERT_EQ(colDataCopyNItems(strings, 0, value, numOfRows, false), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(strings->reassigned);
+
+  colDataSetNItemsNull(strings, 0, numOfRows);
+  ASSERT_TRUE(strings->reassigned);
+  source->info.rows = numOfRows;
+
+  int64_t encodedSize = blockGetEncodeSizeOfRows(source.get(), 0, numOfRows - 1);
+  ASSERT_GT(encodedSize, 0);
+
+  std::vector<char> encoded((size_t)encodedSize);
+  int32_t           encodedLen = 0;
+  ASSERT_EQ(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 2, 0, numOfRows - 1, &encodedLen),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(encodedLen, encodedSize);
+
+  DataBlockGuard decoded;
+  ASSERT_EQ(createOneDataBlock(source.get(), false, decoded.put()), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockSpecialDecodeLaterPart(decoded.get(), encoded.data(), 0, TSKEY_MIN, TSKEY_MAX), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(decoded->info.rows, numOfRows);
+  auto* decodedStrings = (SColumnInfoData*)taosArrayGet(decoded->pDataBlock, 1);
+  ASSERT_NE(decodedStrings, nullptr);
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    EXPECT_TRUE(colDataIsNull_s(decodedStrings, row)) << "row " << row;
+  }
+}
+
+// A corrupt var offset on a broadcast column must be reported as an error by the row-by-row
+// fallback, not silently trusted by the shared-span fast path.
+TEST(testCase, blockEncodeAsRowsWithReassignedInvalidVarOffset) {
+  const int32_t numOfRows = 4;
+
+  DataBlockGuard source;
+  ASSERT_EQ(createDataBlock(source.put()), TSDB_CODE_SUCCESS);
+  SColumnInfoData tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+  SColumnInfoData varCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 2);
+  ASSERT_EQ(blockDataAppendColInfo(source.get(), &tsCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(source.get(), &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(source.get(), numOfRows), TSDB_CODE_SUCCESS);
+
+  auto* timestamps = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 0);
+  auto* strings = (SColumnInfoData*)taosArrayGet(source->pDataBlock, 1);
+  ASSERT_NE(timestamps, nullptr);
+  ASSERT_NE(strings, nullptr);
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    TSKEY timestamp = 1792575900000LL + row;
+    ASSERT_EQ(colDataSetVal(timestamps, row, (const char*)&timestamp, false), TSDB_CODE_SUCCESS);
+  }
+
+  char value[32] = {0};
+  STR_TO_VARSTR(value, "table_name")
+  ASSERT_EQ(colDataCopyNItems(strings, 0, value, numOfRows, false), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(strings->reassigned);
+  strings->varmeta.offset[2] = (int32_t)0x7FFFFFF0;
+  source->info.rows = numOfRows;
+
+  EXPECT_EQ(blockGetEncodeSizeOfRows(source.get(), 0, numOfRows - 1), -1);
+
+  std::vector<char> encoded(1024);
+  int32_t           encodedLen = 0;
+  EXPECT_NE(blockEncodeAsRows(source.get(), encoded.data(), encoded.size(), 2, 0, numOfRows - 1, &encodedLen),
+            TSDB_CODE_SUCCESS);
 }
 
 void check_tm(const STm* tm, int32_t y, int32_t mon, int32_t d, int32_t h, int32_t m, int32_t s, int64_t fsec) {
