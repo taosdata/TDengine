@@ -463,6 +463,9 @@ typedef struct STableScanInfo {
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
+  SHashObj*       pIntervalLimitStates;  // uid -> ordered window prefix state
+  int64_t         intervalLimit;
+  int32_t         intervalTsSlot;
   SSDataBlock*    pGroupEndBlock;
   SArray*         pReaderGroups;  // owned, sorted unique uint64_t trigger gids
   int32_t         readerGroupIndex;
