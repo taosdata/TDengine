@@ -3491,11 +3491,14 @@ static bool needSplitSubplan(SLogicSubplan* pLogicSubplan) {
   return (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren);
 }
 
+static bool contextAllowsGroupMerge(SPlanContext* pCxt) {
+  return !pCxt->forceNoMergeDataBlock && !inStreamCalcClause(pCxt) &&
+         !inStreamTriggerClause(pCxt);
+}
+
 static bool interpCanMergeDataBlock(SPlanContext* pCxt,
                                    const SInterpFuncLogicNode* pInterp) {
-  if (pCxt->forceNoMergeDataBlock || inStreamCalcClause(pCxt) ||
-      inStreamTriggerClause(pCxt) ||
-      GROUP_ACTION_KEEP == pInterp->node.groupAction) {
+  if (!contextAllowsGroupMerge(pCxt)) {
     return false;
   }
 
@@ -3508,33 +3511,22 @@ static bool interpCanMergeDataBlock(SPlanContext* pCxt,
     return false;
   }
 
-  for (const SLogicNode* pParent = pInterp->node.pParent; pParent != NULL;
-       pParent = pParent->pParent) {
-    if (GROUP_ACTION_KEEP == pParent->groupAction ||
-        DATA_ORDER_LEVEL_NONE != pParent->requireDataOrder) {
-      return false;
-    }
-    switch (nodeType(pParent)) {
-      case QUERY_NODE_LOGIC_PLAN_PROJECT:
-        if (pParent->pSlimit != NULL ||
-            (pParent->pLimit != NULL &&
-             !((const SProjectLogicNode*)pParent)->inputIgnoreGroup)) {
-          return false;
-        }
-        break;
-      case QUERY_NODE_LOGIC_PLAN_SORT:
-        if (((const SSortLogicNode*)pParent)->groupSort) {
-          return false;
-        }
-        break;
-      default:
-        return false;
-    }
-  }
-  return true;
+  return planCanMergeOutputGroups(&pInterp->node);
 }
 
-static void setInterpMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
+static void setLastRowAggMergeDecision(SPlanContext* pCxt,
+                                       SAggLogicNode* pAgg) {
+  if (!pAgg->node.forceCreateNonBlockingOptr ||
+      !isLastRowPartTableAgg(pAgg)) {
+    return;
+  }
+  if (!contextAllowsGroupMerge(pCxt) ||
+      !planCanMergeOutputGroups(&pAgg->node)) {
+    pAgg->node.groupAction = GROUP_ACTION_KEEP;
+  }
+}
+
+static void setGroupMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_INTERP_FUNC == nodeType(pNode)) {
     if (interpCanMergeDataBlock(pCxt, (const SInterpFuncLogicNode*)pNode)) {
       pNode->resultDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -3542,11 +3534,13 @@ static void setInterpMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
     } else {
       pNode->groupAction = GROUP_ACTION_KEEP;
     }
+  } else if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    setLastRowAggMergeDecision(pCxt, (SAggLogicNode*)pNode);
   }
 
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {
-    setInterpMergeDecision(pCxt, (SLogicNode*)pChild);
+    setGroupMergeDecision(pCxt, (SLogicNode*)pChild);
   }
 }
 
@@ -3554,7 +3548,7 @@ int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   // Preserve consumer requirements before splitting severs parent links.
   // Only terminal output through projections or global sorts can lose groups
   // and their timestamp ordering guarantees.
-  setInterpMergeDecision(pCxt, pLogicSubplan->pNode);
+  setGroupMergeDecision(pCxt, pLogicSubplan->pNode);
 
   if (!needSplitSubplan(pLogicSubplan)) {
     setVgroupsInfo(pLogicSubplan->pNode, pLogicSubplan);

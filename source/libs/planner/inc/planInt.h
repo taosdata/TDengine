@@ -157,9 +157,14 @@ int32_t     collectTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 // Collect only aliases that identify scan sources, excluding expression references.
 int32_t     collectSourceTableAliasFromNodes(SNode* pNode, SSHashObj** ppRes);
 bool        isPartTableAgg(SAggLogicNode* pAgg);
+bool        isLastRowPartTableAgg(SAggLogicNode* pAgg);
 bool        isPartTagAgg(SAggLogicNode* pAgg);
 bool        isPartTableWinodw(SWindowLogicNode* pWindow);
 bool        isPartTableInterp(SInterpFuncLogicNode* pInterp);
+// Call before splitting, while pParent still spans the full consumer chain.
+// Checks consumers of merged groups, including their ordering requirements;
+// callers must separately check producer and query-context restrictions.
+bool planCanMergeOutputGroups(const SLogicNode* pNode);
 void        planPromoteScanToTableMerge(SScanLogicNode* pScan, EDataOrderLevel requireLevel,
                                         EDataOrderLevel resultLevel);
 int32_t     planReplaceMergeWithSort(SScanLogicNode* pScan, bool* pReplaced);
