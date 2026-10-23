@@ -17,6 +17,9 @@
 
 from new_test_framework.utils import tdLog, tdSql, eutil
 
+import re
+from collections import Counter
+
 COMPARE_DATA = 0
 COMPARE_LEN = 1
 
@@ -974,6 +977,7 @@ class TestFuncLast:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-12-12 Alex Duan Migrated from uncatalog/system-test/2-query/test_last_row_interval.py
 
@@ -992,6 +996,7 @@ class TestFuncLast:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-12-29 Tony Zhang Created
         """
@@ -1039,6 +1044,7 @@ class TestFuncLast:
         Since: v3.3.8.9
 
         Labels: common,ci,integration,functional
+
         History:
             - 2026-03-03 Tony Zhang created
 
@@ -1065,3 +1071,303 @@ class TestFuncLast:
         tdSql.query('select LAST_ROW(q_blob), LAST(q_blob) from table_lastrow_2_2.regular_table_1')
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, b"")
+
+    def vehicle_id(self, index):
+        return f"car_{index:05d}"
+
+    def initial_row(self, index):
+        return (
+            self.base_ts + (index % 17 != 0),
+            self.vehicle_id(index),
+            None if index % 7 == 0 else index,
+            None if index % 13 == 0 else f"gantry_{index}",
+            1 if index % 11 == 0 else None,
+        )
+
+    def sql_value(self, value):
+        if value is None:
+            return "NULL"
+        if isinstance(value, str):
+            return "'" + value.replace("'", "''") + "'"
+        return str(value)
+
+    def select_sql(self, db, tag=False, clause="PARTITION BY tbname"):
+        vehicle = "tag_vehicle_id" if tag else "last_row(vehicle_id)"
+        return (
+            "SELECT CAST(latest_ts AS BIGINT), vehicle_id, vehicle_type, "
+            "gantry_id, ex_station_id FROM ("
+            "SELECT last_row(ts) AS latest_ts, "
+            f"{vehicle} AS vehicle_id, "
+            "last_row(vehicle_type) AS vehicle_type, "
+            "last_row(gantry_id) AS gantry_id, "
+            "last_row(ex_station_id) AS ex_station_id "
+            f"FROM {db}.vehicles {clause})"
+        )
+
+    def expected_rows(self, business=False):
+        rows = self.expected.values()
+        if business:
+            rows = [row for row in rows if
+                    row[0] >= self.base_ts + 1 and row[4] is None]
+        return sorted(rows, key=lambda row: row[1])
+
+    def check_rows(self, sql, expected):
+        tdSql.query(sql, queryTimes=1)
+        actual = sorted(tdSql.queryResult, key=lambda row: row[1])
+        assert len(actual) == len(expected), (len(actual), len(expected))
+        for index, (row, wanted) in enumerate(zip(actual, expected)):
+            assert tuple(row) == wanted, (index, row, wanted)
+
+    def explain(self, sql, analyze=False):
+        prefix = "EXPLAIN ANALYZE" if analyze else "EXPLAIN"
+        tdSql.query(f"{prefix} VERBOSE TRUE {sql}", queryTimes=1)
+        return "\n".join(row[0] for row in tdSql.queryResult)
+
+    def business_filter(self):
+        return (f" WHERE latest_ts >= {self.base_ts + 1} "
+                "AND ex_station_id IS NULL")
+
+    def do_prepare(self):
+        self.cached_db = "last_row_partition_batch_cache"
+        self.scan_db = "last_row_partition_batch_scan"
+        self.databases = (self.cached_db, self.scan_db)
+        # Cross full output batches and a tail over two vgroups.
+        self.table_count = 8193
+        self.base_ts = 1750046400000
+        self.expected = {i: self.initial_row(i)
+                         for i in range(self.table_count)}
+        for db, model in zip(self.databases, ("both", "none")):
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
+            tdSql.execute(
+                f"CREATE DATABASE {db} VGROUPS 2 KEEP 36500 "
+                f"CACHEMODEL '{model}'"
+            )
+            tdSql.execute(
+                f"CREATE STABLE {db}.vehicles (ts TIMESTAMP, "
+                "uuid VARCHAR(16) PRIMARY KEY, vehicle_id VARCHAR(32), "
+                "vehicle_type INT, gantry_id VARCHAR(32), "
+                "ex_station_id INT) TAGS (tag_vehicle_id VARCHAR(32))"
+            )
+            for start in range(0, self.table_count, 64):
+                parts = []
+                for index in range(start, min(start + 64, self.table_count)):
+                    row = self.expected[index]
+                    values = ",".join(self.sql_value(v) for v in row[1:])
+                    parts.append(
+                        f"{db}.v{index} USING {db}.vehicles "
+                        f"TAGS ('{row[1]}') VALUES "
+                        f"({self.base_ts - 100},'old','old',-1,'old',9) "
+                        f"({row[0]},'a','earlier',-1,'earlier',9) "
+                        f"({row[0]},'b',{values})"
+                    )
+                tdSql.execute("INSERT INTO " + " ".join(parts))
+            tdSql.execute(
+                f"CREATE TABLE {db}.empty_vehicle "
+                f"USING {db}.vehicles TAGS ('empty')"
+            )
+        print("prepare last_row partition batches .......... [passed]")
+
+    def do_results(self):
+        all_rows = self.expected_rows()
+        business = self.expected_rows(business=True)
+        assert len(business) > 6144
+        for db in self.databases:
+            for tag, clause in (
+                (False, "PARTITION BY tbname"),
+                (True, "PARTITION BY tbname, tag_vehicle_id"),
+                (False, "GROUP BY tbname"),
+            ):
+                sql = self.select_sql(db, tag, clause)
+                self.check_rows(sql, all_rows)
+                self.check_rows(sql + self.business_filter(), business)
+            sql = self.select_sql(db)
+            self.check_rows(sql + f" WHERE latest_ts > {self.base_ts + 1}",
+                            [])
+            self.check_rows(sql + " ORDER BY vehicle_id LIMIT 5 OFFSET 3071",
+                            all_rows[3071:3076])
+            self.check_rows(sql + " LIMIT 0", [])
+
+            tdSql.query(self.select_sql(db, clause=(
+                "WHERE tag_vehicle_id != 'empty' "
+                "PARTITION BY tbname SLIMIT 2")), queryTimes=1)
+            tdSql.checkRows(2)
+            limited = [tuple(row) for row in tdSql.queryResult]
+            assert len({row[1] for row in limited}) == 2
+            expected_by_id = {row[1]: row for row in all_rows}
+            for row in limited:
+                assert row == expected_by_id[row[1]], row
+        print("last_row values, filters and limits ......... [passed]")
+
+    def do_star(self):
+        reference = None
+        expected = {row[1]: row for row in self.expected_rows()}
+        for db in self.databases:
+            tdSql.query(
+                f"SELECT last_row(*) FROM {db}.vehicles PARTITION BY tbname",
+                queryTimes=1,
+            )
+            tdSql.checkRows(self.table_count)
+            rows = sorted(tdSql.queryResult, key=lambda row: row[2])
+            assert len({row[2] for row in rows}) == self.table_count
+            for row in rows:
+                assert row[1] == "b", row
+                assert tuple(row[2:]) == expected[row[2]][1:], row
+            if reference is not None:
+                assert rows == reference
+            reference = rows
+        print("last_row star and composite keys ............ [passed]")
+
+    def do_batch_plan(self):
+        sql = self.select_sql(self.cached_db)
+        for suffix in ("", self.business_filter()):
+            plan = self.explain(sql + suffix, analyze=True)
+            assert "Last Row Scan" in plan, plan
+            aggregate = plan.split("-> Aggregate", 1)[1].split(
+                "-> Last Row Scan", 1)[0]
+            assert "blocking=0" in aggregate, plan
+            if suffix:
+                assert "Filter: conditions=" in aggregate, plan
+            calls = re.search(r"times=([\d.]+)(?:\((\d+)\))?", aggregate)
+            assert calls is not None, plan
+            maximum = float(calls[2] or calls[1])
+            # Allow threshold changes without accepting one-row blocks.
+            assert 2 <= maximum < self.table_count / 64, plan
+        print("nonblocking aggregate batches ............... [passed]")
+
+    def do_mutations(self):
+        for db in self.databases:
+            tdSql.execute(f"DROP TABLE {db}.v2")
+            tdSql.execute(
+                f"INSERT INTO {db}.v0 VALUES "
+                f"({self.base_ts + 2},'c','{self.vehicle_id(0)}',42,NULL,NULL)"
+            )
+            index = self.table_count
+            tdSql.execute(
+                f"INSERT INTO {db}.v{index} USING {db}.vehicles "
+                f"TAGS ('{self.vehicle_id(index)}') VALUES "
+                f"({self.base_ts + 2},'c','{self.vehicle_id(index)}',"
+                "43,'new',NULL)"
+            )
+        del self.expected[2]
+        self.expected[0] = (self.base_ts + 2, self.vehicle_id(0),
+                            42, None, None)
+        self.expected[self.table_count] = (
+            self.base_ts + 2, self.vehicle_id(self.table_count),
+            43, "new", None,
+        )
+        for flush in (False, True):
+            for db in self.databases:
+                if flush:
+                    tdSql.flushDb(db)
+                sql = self.select_sql(db)
+                self.check_rows(sql, self.expected_rows())
+                self.check_rows(sql + self.business_filter(),
+                                self.expected_rows(business=True))
+        print("last_row insert, drop and flush ............. [passed]")
+
+    def do_batch_consumers(self):
+        counts = Counter(None if row[2] is None else row[2] % 5
+                         for row in self.expected.values())
+        order = lambda row: (row[0] is not None, row[0] or 0)
+        expected = sorted(counts.items(), key=order)
+        for db in self.databases:
+            regroup_sql = (
+                "SELECT vehicle_type % 5, COUNT(*) FROM ("
+                "SELECT last_row(vehicle_type) AS vehicle_type "
+                f"FROM {db}.vehicles PARTITION BY tbname) "
+                "GROUP BY vehicle_type % 5"
+            )
+            tdSql.query(regroup_sql, queryTimes=1)
+            assert sorted(tdSql.queryResult, key=order) == expected
+
+            window_sql = (
+                "SELECT CAST(_wstart AS BIGINT), COUNT(*) FROM ("
+                "SELECT last_row(ts) AS ts "
+                f"FROM {db}.vehicles PARTITION BY tbname) INTERVAL(1s)"
+            )
+            window_counts = Counter(row[0] // 1000 * 1000
+                                    for row in self.expected.values())
+            tdSql.query(window_sql, queryTimes=1)
+            assert sorted(tdSql.queryResult) == sorted(window_counts.items())
+
+            if db == self.cached_db:
+                for sql in (regroup_sql, window_sql):
+                    plan = self.explain(sql)
+                    assert "Last Row Scan" in plan, plan
+                    aggregate = plan.split("-> Last Row Scan", 1)[0]
+                    aggregate = aggregate.rsplit("-> Aggregate", 1)[1]
+                    assert "blocking=0" in aggregate, plan
+                    assert "Merge ResBlocks: False" in aggregate, plan
+
+            tdSql.execute(
+                f"CREATE TABLE {db}.window_left (ts TIMESTAMP, v INT)"
+            )
+            tdSql.execute(
+                f"CREATE TABLE {db}.window_right (ts TIMESTAMP, v INT)"
+            )
+            tdSql.execute(
+                f"INSERT INTO {db}.window_left VALUES "
+                f"({self.base_ts},1) ({self.base_ts + 10000},2) "
+                f"({self.base_ts + 20000},3)"
+            )
+            tdSql.execute(
+                f"INSERT INTO {db}.window_right VALUES "
+                f"({self.base_ts - 500},1) ({self.base_ts + 500},2) "
+                f"({self.base_ts + 10000},5)"
+            )
+            sql = (
+                "SELECT CAST(l.ts AS BIGINT), SUM(r.v) "
+                f"FROM {db}.window_left l LEFT WINDOW JOIN "
+                f"{db}.window_right r WINDOW_OFFSET(-1s,1s)"
+            )
+            tdSql.query(sql, queryTimes=1)
+            assert sorted(tdSql.queryResult) == [
+                (self.base_ts, 3), (self.base_ts + 10000, 5),
+                (self.base_ts + 20000, None),
+            ]
+            plan = self.explain(sql)
+            aggregate = plan.split("-> Aggregate", 1)[1].split("->", 1)[0]
+            assert "blocking=0" in aggregate, plan
+            # Group ids are cleared, so LIMIT counts rows across windows.
+            assert "Merge ResBlocks: True" in aggregate, plan
+            tdSql.query(f"{sql} LIMIT 1", queryTimes=1)
+            tdSql.checkRows(1)
+        print("group consumers and nonblocking output ...... [passed]")
+
+    def do_partition_batch(self):
+        try:
+            self.do_prepare()
+            self.do_results()
+            self.do_star()
+            self.do_batch_plan()
+            self.do_batch_consumers()
+            self.do_mutations()
+        finally:
+            for db in self.databases:
+                tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
+        print("last_row partition batch regression ......... [passed]")
+
+    def test_last_row_partition_batch(self):
+        """LAST_ROW partition aggregation batches across child tables
+
+        1. Compare cached and uncached results with independent expected values.
+        2. Cover composite keys, NULLs, empty tables, filters and output tails.
+        3. Check nonblocking plans and bounded aggregate output calls.
+        4. Verify LIMIT, SLIMIT, insert, drop and flush behavior.
+        5. Keep groups for ancestor aggregation and interval windows.
+        6. Cover unmerged ordinary WINDOW JOIN aggregation.
+
+        Catalog:
+            - Query/PartitionBy
+
+        Since: v3.4.3.3
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-22 Add last-row partition batching regression
+
+        """
+        self.do_partition_batch()
