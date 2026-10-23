@@ -1483,7 +1483,9 @@
 
 # 23-ShowCommands
 
-,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4
+# Defect 7141666423: temporarily exclude concurrent create-db alive regression (jobs 728560 and 747950).
+#,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive.py -N 4 -k 'not test_create_db_alive_from_other_client'
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive_slow_status.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_db.py
