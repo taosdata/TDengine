@@ -5,19 +5,13 @@ description: 使用 Neuron 和 eKuiper 的 InfluxDB v1 sink 将工业设备数�
 toc_max_heading_level: 5
 ---
 
-[Neuron](https://github.com/emqx/neuron) 是 EMQ 开发的工业物联网连接平台，支持 Modbus、OPC UA、BACnet 等多种工业协议。
-
-[eKuiper](https://github.com/lf-edge/ekuiper) 是开源的轻量级边缘流处理引擎，使用 SQL 处理数据，并通过输出动作（sink）转发。
-
-[NeuronEX](https://docs.emqx.com/zh/neuronex/latest/) 是 EMQ 的工业边缘数据采集与处理软件，集成 Neuron 的协议采集和 eKuiper 的流处理能力，提供统一的 Web 界面配置设备采集、数据处理及转发。
+[Neuron](https://github.com/emqx/neuron) 是 EMQ 开发的工业物联网连接平台，支持 Modbus、OPC UA、BACnet 等多种工业协议。[eKuiper](https://github.com/lf-edge/ekuiper) 是开源的轻量级边缘流处理引擎，使用 SQL 处理数据，并通过输出动作（sink）转发。[NeuronEX](https://docs.emqx.com/zh/neuronex/latest/) 是 EMQ 的工业边缘数据采集与处理软件，集成 Neuron 的协议采集和 eKuiper 的流处理能力，提供统一的 Web 界面配置设备采集、数据处理及转发。
 
 本文介绍如何通过 NeuronEX 的 InfluxDB v1 sink 将 Modbus 电表数据写入 TDengine。该方式可接入 NeuronEX 支持的 70 多种工业协议，具体以版本及授权为准。
 
 ![NeuronEX 与 TDengine 集成架构](../../assets/iot-neuron-architecture.webp)
 
-*图 1 NeuronEX 与 TDengine 集成架构*
-
-如图 1 所示，实线表示数据流向，虚线框表示可选的 nginx 节点。Neuron 将 Modbus 数据转为 JSON 采集报告，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。需要双向 TLS 认证（mTLS）或 taosAdapter 故障切换时，按后文部署 nginx。
+Neuron 将 Modbus 数据转为 JSON 采集报告，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。需要双向 TLS 认证（mTLS）或 taosAdapter 故障切换时，按后文部署 nginx。
 
 ## 前置条件
 
