@@ -617,6 +617,22 @@ Notes:
 - If a file is corrupted, the command automatically salvages the readable parts and prints a warning. If no complete data can be salvaged, the command fails with a non-zero exit code. If any input file fails, the process exits with a non-zero exit code.
 - Archive files are deduplicated: only the first batch is kept for each failure reason in each file, so an archive file does not contain every invalid row. Refer to the task monitoring metrics for the total number of invalid rows.
 
+### Migrate Tasks When Upgrading from v3.3.6.x or v3.3.8.x to v3.4.x
+
+taosX v3.3.6.x and v3.3.8.x store tasks in SQLite, while v3.4.x stores them in mnode. The upgrade does not migrate existing tasks automatically. Without exporting them before the upgrade, the tasks will not appear in taosExplorer afterward. Follow these steps in order:
+
+1. **Export before upgrading:** In taosExplorer, open **Data In** > **Data In Task**, select all tasks to migrate, and click **Export Task**. Save the exported JSON file and keep it available for the import.
+
+   ![Select tasks on the Data In Task page and click Export Task](../../assets/taosx-task-migration-export-en.webp)
+
+2. **Import after upgrading:** On the same page in v3.4.x, click **Import Task** and upload the JSON file exported before the upgrade. In the dialog, select the tasks to import and click **Confirm**.
+
+   ![Select tasks from the uploaded JSON file and confirm the import](../../assets/taosx-task-migration-import-en.webp)
+
+3. **Start the tasks that should run:** Imported tasks have the **Created** status. Select a task and click **Start Task** in the toolbar. You can start tasks one at a time or select all tasks that should run and start them in bulk.
+
+   ![A task with Created status and the Start Task button in the toolbar](../../assets/taosx-task-migration-start-en.webp)
+
 ## taosX Monitoring Metrics
 
 taosX reports monitoring metrics to taosKeeper, which are written into the monitoring database by taosKeeper, defaulting to the `log` database, which can be modified in the taoskeeper configuration file. Here is a detailed introduction to these monitoring metrics.
