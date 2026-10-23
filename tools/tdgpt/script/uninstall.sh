@@ -108,7 +108,7 @@ run_python_service_command() {
 force_kill_leftovers() {
   local patterns=(
     "${installDir}/cfg/taosanode.config.py"
-    "${installDir}/lib/taosanalytics/tsfmservice/"
+    "${installDir}/lib/tsfm/service/"
     "${dataDir}/venv/bin/python3 -m gunicorn"
     "${dataDir}/moirai_venv/bin/python3"
     "${dataDir}/momentfm_venv/bin/python3"
