@@ -233,7 +233,7 @@ if [[ $SANITIZER_EXPLICIT -eq 0 && -z "$CASE_NAME" && -n "$CMD" ]]; then
     if [[ -f "$TASK_FILE" ]]; then
         PY_FILE=$(echo "$CMD" | grep -oP '[^ ]+\.py' | head -1 || true)
         if [[ -n "$PY_FILE" ]]; then
-            # cases.task 格式：priority,rerunTimes,sanitizer(y/n),casePath,caseCommand
+            # cases.task 格式：priority,maxAttempts,sanitizer(y/n),casePath,caseCommand
             SAN=$(grep -v '^#' "$TASK_FILE" | grep -v '^[[:space:]]*$' | \
                   grep "$PY_FILE" | head -1 | cut -d',' -f3 | tr -d ' ' || true)
             if [[ "$SAN" == "y" ]]; then
