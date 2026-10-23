@@ -150,31 +150,31 @@ typedef enum EStreamRawUpdateKind {
 
 #define msttFatal(param, ...)                                                                               \
   mstFatal("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 #define msttError(param, ...)                                                                               \
   mstError("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 #define msttWarn(param, ...)                                                                              \
   mstWarn("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 #define msttInfo(param, ...)                                                                              \
   mstInfo("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 #define msttDebug(param, ...)                                                                               \
   mstDebug("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 #define msttDebugL(param, ...)                                                                               \
   mstDebugL("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 #define msttTrace(param, ...)                                                                               \
   mstTrace("%s NODE:%d %" PRIx64 " %s TASK:%" PRIx64 " SID:%" PRId64 " " param, gMndStreamState[mStreamMgmt.state],\
-          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, gStreamTaskTypeStr[((SStreamTask *)pTask)->type],   \
+          ((SStreamTask *)pTask)->nodeId, ((SStreamTask *)pTask)->streamId, mndStreamTaskTypeStr(((SStreamTask *)pTask)->type),   \
            ((SStreamTask *)pTask)->taskId, ((SStreamTask *)pTask)->seriousId, __VA_ARGS__)
 
 #define mstsFatal(param, ...) mstFatal("%s %" PRIx64 " " param, gMndStreamState[mStreamMgmt.state], streamId, __VA_ARGS__)
