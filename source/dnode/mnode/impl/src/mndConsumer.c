@@ -899,7 +899,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
 
-  if (tDecodeSMqConsumerObj(buf, pConsumer, sver) == NULL) {
+  if (tDecodeSMqConsumerObj(buf, (const void *)((const char *)buf + len), pConsumer, sver) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;  // TODO set correct error code
     goto CM_DECODE_OVER;
   }
