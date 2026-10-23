@@ -23,6 +23,7 @@
 #include "osLz4.h"
 #include "query.h"
 #include "querytask.h"
+#include "talgo.h"
 #include "taoserror.h"
 #include "tchecksum.h"
 #include "tcommon.h"
@@ -45,6 +46,8 @@ typedef struct SOpenWindowInfo {
 } SOpenWindowInfo;
 
 #define FAST_INTERVAL_LOCAL_RESULT_BATCH_ROWS 256
+// Bound the group/window index separately from the per-group window count.
+#define FAST_INTERVAL_MAX_SLOTS 1000000
 
 typedef enum EExIntervalCellType {
   EX_INTERVAL_CELL_WSTART = 1,
@@ -769,6 +772,9 @@ typedef struct SFastMergeIntervalInfo {
   bool               inputCompleted;
   bool               resultRowActive;
   bool               batchProcess;
+  bool               grouped;
+  bool               groupActive;
+  uint64_t           groupId;
 } SFastMergeIntervalInfo;
 
 static void cleanupFastWatermarkHeap(SFastWatermarkHeap* pHeap) {
@@ -917,20 +923,38 @@ static int32_t fastIntervalGetGroupSlot(SFastIntervalInfo* pFast, uint64_t group
     *pGroupSlot = pFast->currentGroupSlot;
     return TSDB_CODE_SUCCESS;
   }
-  for (int32_t i = 0; i < pFast->numOfGroups; ++i) {
-    if (pFast->pGroupIds[i] == groupId) {
-      pFast->currentGroupId = groupId;
-      pFast->currentGroupSlot = i;
-      *pGroupSlot = i;
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-  if (pFast->numOfGroups >= pFast->groupCapacity) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-  int32_t slot = pFast->numOfGroups++;
-  pFast->pGroupIds[slot] = groupId;
+  uint64_t* pGroup = taosbsearch(&groupId, pFast->pGroupIds, pFast->numOfGroups, sizeof(uint64_t),
+                                compareUint64Val, TD_EQ);
+  if (pGroup == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  int32_t slot = (int32_t)(pGroup - pFast->pGroupIds);
   pFast->currentGroupId = groupId;
   pFast->currentGroupSlot = slot;
   *pGroupSlot = slot;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t initFastIntervalGroups(SFastIntervalInfo* pFast, const STableListInfo* pTables, int32_t numOfTables) {
+  int32_t capacity = pFast->grouped ? TMAX(numOfTables, 1) : 1;
+  pFast->pGroupIds = taosMemoryCalloc((size_t)capacity, sizeof(uint64_t));
+  if (pFast->pGroupIds == NULL) return terrno;
+  if (!pFast->grouped) {
+    pFast->numOfGroups = pFast->groupCapacity = 1;
+    return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    const STableKeyInfo* pTable = tableListGetInfo(pTables, i);
+    if (pTable == NULL) return TSDB_CODE_INVALID_PARA;
+    pFast->pGroupIds[i] = pTable->groupId;
+  }
+  // Legacy cross-vgroup merge expects each source ordered by groupId, then
+  // window start. Prebuild compact slots in that order, including shared tags.
+  taosSort(pFast->pGroupIds, numOfTables, sizeof(uint64_t), compareUint64Val);
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    if (pFast->numOfGroups == 0 || pFast->pGroupIds[i] != pFast->pGroupIds[pFast->numOfGroups - 1]) {
+      pFast->pGroupIds[pFast->numOfGroups++] = pFast->pGroupIds[i];
+    }
+  }
+  pFast->groupCapacity = TMAX(pFast->numOfGroups, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1062,22 +1086,31 @@ static int32_t initFastIntervalInfo(SIntervalAggOperatorInfo* pInfo, SOperatorIn
     return TSDB_CODE_INVALID_PARA;
   }
 
-  bool    grouped = pScanInfo->hasGroupByTag;
-  int32_t groupCapacity = grouped ? TMAX(numOfTables, 1) : 1;
+  pFast->grouped = pScanInfo->hasGroupByTag;
+  code = initFastIntervalGroups(pFast, pScanInfo->base.pTableListInfo, numOfTables);
+  if (code != TSDB_CODE_SUCCESS) {
+    destroyFastIntervalInfo(pFast);
+    return code;
+  }
   int64_t numOfWindows = delta / pInfo->interval.interval + 1;
-  int64_t totalSlots = numOfWindows * groupCapacity;
-  if (numOfWindows <= 0 || numOfWindows > EX_INTERVAL_MAX_WINDOWS || totalSlots > EX_INTERVAL_MAX_WINDOWS ||
+  int64_t totalSlots = numOfWindows * pFast->groupCapacity;
+  if (numOfWindows <= 0 || numOfWindows > EX_INTERVAL_MAX_WINDOWS || totalSlots > FAST_INTERVAL_MAX_SLOTS ||
       numOfWindows > INT64_MAX / pInfo->aggSup.resultRowSize) {
-    taosMemoryFree(pFast);
-    return TSDB_CODE_OUT_OF_MEMORY;
+    destroyFastIntervalInfo(pFast);
+    // FAST is optional: a large tag/window product must remain executable with
+    // the legacy result cache, whose output obeys the same merge contract.
+    SOperatorInfo* pOperator = pInfo->pOperator;
+    SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+    const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pOperator->pPhyNode;
+    return resetAggSup(&pOperator->exprSupp, &pInfo->aggSup, pTaskInfo, pNode->window.pFuncs, NULL,
+                        sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
+                        &pTaskInfo->storageAPI.functionStore);
   }
 
-  pFast->groupCapacity = groupCapacity;
-  pFast->pGroupIds = taosMemoryCalloc((size_t)pFast->groupCapacity, sizeof(uint64_t));
   pFast->pRowIndexes = taosMemoryCalloc((size_t)totalSlots, sizeof(int32_t));
   pFast->activeBitmapWords = (int32_t)(((uint64_t)totalSlots + 63) / 64);
   pFast->pActiveBitmap = taosMemoryCalloc((size_t)pFast->activeBitmapWords, sizeof(uint64_t));
-  if (numOfTables > 0 && !grouped) {
+  if (numOfTables > 0 && !pFast->grouped) {
     code = initFastWatermarkHeap(&pFast->tableWatermarks, numOfTables);
   }
   if (pFast->pGroupIds == NULL || pFast->pRowIndexes == NULL || pFast->pActiveBitmap == NULL ||
@@ -1089,7 +1122,6 @@ static int32_t initFastIntervalInfo(SIntervalAggOperatorInfo* pInfo, SOperatorIn
   pFast->firstWindowStart = first.skey;
   pFast->interval = pInfo->interval.interval;
   pFast->numOfWindows = (int32_t)numOfWindows;
-  pFast->grouped = grouped;
   pFast->minActiveWindow = (int32_t)totalSlots;
   pFast->maxActiveWindow = -1;
   pFast->currentGroupSlot = -1;
@@ -1192,6 +1224,16 @@ static void cleanupFastMergeIntervalInfo(SMergeAlignedIntervalAggOperatorInfo* p
   SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
   if (pMiaInfo->intervalAggOperatorInfo != NULL && pMiaInfo->intervalAggOperatorInfo->pOperator != NULL) {
     cleanupFastMergeIntervalResultRow(pFast, &pMiaInfo->intervalAggOperatorInfo->pOperator->exprSupp);
+  }
+  if (pFast->grouped && pMiaInfo->intervalAggOperatorInfo != NULL) {
+    SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+    SExprSupp* pSup = &pIaInfo->pOperator->exprSupp;
+    for (int32_t i = pFast->minActiveWindow; i <= pFast->maxActiveWindow; ++i) {
+      if (pFast->pWindowRowCounts[i] == 0) continue;
+      SResultRow* pRow = (SResultRow*)((char*)pFast->pResultRows +
+                           (size_t)i * pIaInfo->aggSup.resultRowSize);
+      cleanupFastMergeResultRow(pRow, pSup, pSup->rowEntryInfoOffset);
+    }
   }
   blockDataDestroy(pFast->pCachedRows);
   taosMemoryFreeClear(pFast->pWindowRowCounts);
@@ -1908,14 +1950,7 @@ static bool isCalculatedWin(SIntervalAggOperatorInfo* pInfo, const STimeWindow* 
     }
     int32_t groupSlot = 0;
     if (fastIntervalGrouped(pFast)) {
-      groupSlot = -1;
-      for (int32_t i = 0; i < pFast->numOfGroups; ++i) {
-        if (pFast->pGroupIds[i] == tableGroupId) {
-          groupSlot = i;
-          break;
-        }
-      }
-      if (groupSlot < 0) return false;
+      if (fastIntervalGetGroupSlot(pFast, tableGroupId, &groupSlot) != TSDB_CODE_SUCCESS) return false;
     }
     int32_t index = groupSlot * pFast->numOfWindows + (int32_t)windowIndex;
     return pFast->pRowIndexes[index] > 0;
@@ -4817,16 +4852,28 @@ static int32_t initFastMergeIntervalInfo(SMergeAlignedIntervalAggOperatorInfo* p
   }
 
   SPhysiNode* pChild = (SPhysiNode*)nodesListGetNode(pNode->window.node.pChildren, 0);
-  if (pChild == NULL || pChild->type != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
-    qError("FAST_INTERVAL requires one root exchange child");
+  if (pChild == NULL || pChild->pOutputDataBlockDesc == NULL) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
-  SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pChild;
-  int32_t             numOfSources = LIST_LENGTH(pExchange->pSrcEndPoints);
-  if (numOfSources <= 0 || pExchange->seqRecvData || !pExchange->fastInterval ||
-      pExchange->node.pOutputDataBlockDesc == NULL) {
-    qError("FAST_INTERVAL requires a non-sequential exchange with source endpoints");
+  bool grouped = pChild->type == QUERY_NODE_PHYSICAL_PLAN_MERGE;
+  int32_t numOfSources = 0;
+  if (grouped) {
+    const SMergePhysiNode* pMerge = (const SMergePhysiNode*)pChild;
+    if (pMerge->type != MERGE_TYPE_SORT || !pMerge->groupSort ||
+        pMerge->ignoreGroupId) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    // Each TSMA or raw boundary subplan has its own set of input channels.
+    numOfSources = LIST_LENGTH(pMerge->node.pChildren);
+  } else if (pChild->type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    const SExchangePhysiNode* pExchange = (const SExchangePhysiNode*)pChild;
+    if (pExchange->seqRecvData || !pExchange->fastInterval) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    numOfSources = LIST_LENGTH(pExchange->pSrcEndPoints);
+  }
+  if (numOfSources <= 0) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
@@ -4861,22 +4908,29 @@ static int32_t initFastMergeIntervalInfo(SMergeAlignedIntervalAggOperatorInfo* p
     return terrno;
   }
 
-  pFast->pCachedRows = createDataBlockFromDescNode(pExchange->node.pOutputDataBlockDesc);
-  if (pFast->pCachedRows == NULL) {
-    code = terrno;
-    goto _error;
+  pFast->grouped = grouped;
+  if (grouped) {
+    // A complete tag group usually has more than the legacy 512-row batch.
+    initResultSizeInfo(&pIaInfo->pOperator->resultInfo, 4096);
+    code = blockDataEnsureCapacity(pIaInfo->binfo.pRes,
+                                    pIaInfo->pOperator->resultInfo.capacity);
+  } else {
+    pFast->pCachedRows = createDataBlockFromDescNode(pChild->pOutputDataBlockDesc);
+    if (pFast->pCachedRows == NULL) {
+      code = terrno;
+      goto _error;
+    }
+    code = blockDataEnsureCapacity(pFast->pCachedRows,
+                                    (int32_t)(numOfWindows * numOfSources));
   }
-
-  int32_t totalRows = (int32_t)(numOfWindows * numOfSources);
-  code = blockDataEnsureCapacity(pFast->pCachedRows, totalRows);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
+  if (code != TSDB_CODE_SUCCESS) goto _error;
 
   pFast->pWindowRowCounts = taosMemoryCalloc((size_t)numOfWindows, sizeof(int32_t));
   pFast->activeBitmapWords = (int32_t)(((uint64_t)numOfWindows + 63) / 64);
   pFast->pActiveBitmap = taosMemoryCalloc((size_t)pFast->activeBitmapWords, sizeof(uint64_t));
-  code = initFastWatermarkHeap(&pFast->sourceProgress, numOfSources);
+  if (!grouped) {
+    code = initFastWatermarkHeap(&pFast->sourceProgress, numOfSources);
+  }
   if (pFast->pWindowRowCounts == NULL || pFast->pActiveBitmap == NULL || code != TSDB_CODE_SUCCESS) {
     if (code == TSDB_CODE_SUCCESS) {
       code = terrno;
@@ -4896,7 +4950,8 @@ static int32_t initFastMergeIntervalInfo(SMergeAlignedIntervalAggOperatorInfo* p
   pFast->numOfSources = numOfSources;
   pFast->minActiveWindow = pFast->numOfWindows;
   pFast->maxActiveWindow = -1;
-  pFast->resultRowCapacity = pIaInfo->pOperator->resultInfo.threshold;
+  pFast->resultRowCapacity = grouped ? pFast->numOfWindows
+                                     : pIaInfo->pOperator->resultInfo.threshold;
   pFast->pResultRows = taosMemoryCalloc((size_t)pFast->resultRowCapacity, pIaInfo->aggSup.resultRowSize);
   pFast->pActiveWindows = taosMemoryCalloc((size_t)pFast->resultRowCapacity, sizeof(int32_t));
   if (pFast->pResultRows == NULL || pFast->pActiveWindows == NULL) {
@@ -5342,6 +5397,116 @@ static int32_t collectFastMergeIntervalRows(SOperatorInfo* pOperator, bool* pWat
   return TSDB_CODE_SUCCESS;
 }
 
+// Consume contiguous partial tuples directly into one result state per window.
+// The array belongs to the current group and survives downstream block reuse.
+static int32_t aggregateFastMergeIntervalGroupBlock(SOperatorInfo* pOperator,
+                                                     SSDataBlock* pBlock) {
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+  SExprSupp* pSup = &pOperator->exprSupp;
+  SColumnInfoData* pTs = taosArrayGet(pBlock->pDataBlock, pIaInfo->primaryTsIndex);
+  if (pTs == NULL || pTs->pData == NULL ||
+      pTs->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int32_t code = setInputDataBlock(pSup, pBlock, pIaInfo->binfo.inputTsOrder,
+                                    pBlock->info.scanFlag, true);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  int64_t* timestamps = (int64_t*)pTs->pData;
+  for (int32_t start = 0; start < pBlock->info.rows;) {
+    int64_t delta = timestamps[start] - pFast->firstWindowStart;
+    if (colDataIsNull(pTs, pBlock->info.rows, start, NULL) || delta < 0 ||
+        delta % pFast->interval != 0 ||
+        delta / pFast->interval >= pFast->numOfWindows) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    int32_t window = (int32_t)(delta / pFast->interval);
+    int32_t end = start + 1;
+    while (end < pBlock->info.rows && timestamps[end] == timestamps[start] &&
+           !colDataIsNull(pTs, pBlock->info.rows, end, NULL)) {
+      ++end;
+    }
+    if (end - start > pFast->numOfSources - pFast->pWindowRowCounts[window]) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    SResultRow* pRow = (SResultRow*)((char*)pFast->pResultRows +
+                         (size_t)window * pIaInfo->aggSup.resultRowSize);
+    if (pFast->pWindowRowCounts[window] == 0) {
+      pRow->win.skey = timestamps[start];
+      pRow->win.ekey = timestamps[start] + pFast->interval - 1;
+      pFast->pActiveBitmap[window >> 6] |= 1ULL << (window & 63);
+      ++pFast->activeCount;
+      pFast->minActiveWindow = TMIN(pFast->minActiveWindow, window);
+      pFast->maxActiveWindow = TMAX(pFast->maxActiveWindow, window);
+    }
+    pFast->pWindowRowCounts[window] += end - start;
+    code = setResultRowInitCtx(pRow, pSup->pCtx, pSup->numOfExprs,
+                               pSup->rowEntryInfoOffset);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &pRow->win, 1);
+    code = applyAggFunctionOnPartialTuples(
+        pOperator->pTaskInfo, pSup->pCtx, &pIaInfo->twAggSup.timeWindowData,
+        start, end - start, pBlock->info.rows, pSup->numOfExprs);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    start = end;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Merge(sort) supplies whole-group blocks. Borrow the first block of the next
+// group until the current group has been emitted; do not fetch again meanwhile.
+static int32_t collectFastMergeIntervalGroup(SOperatorInfo* pOperator) {
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+
+  memset(pFast->pWindowRowCounts, 0,
+         (size_t)pFast->numOfWindows * sizeof(int32_t));
+  memset(pFast->pActiveBitmap, 0,
+         (size_t)pFast->activeBitmapWords * sizeof(uint64_t));
+  pFast->activeCount = 0;
+  pFast->minActiveWindow = pFast->numOfWindows;
+  pFast->maxActiveWindow = -1;
+  pFast->denseMode = false;
+  pFast->nextWindow = 0;
+  pFast->sealedWindowExclusive = 0;
+  pFast->groupActive = false;
+
+  while (true) {
+    SSDataBlock* pBlock = pMiaInfo->prefetchedBlock;
+    pMiaInfo->prefetchedBlock = NULL;
+    if (pBlock == NULL) {
+      pBlock = getNextBlockFromDownstreamRemainDetach(pOperator, 0);
+    }
+    if (pBlock == NULL) {
+      if (pOperator->pTaskInfo->code != TSDB_CODE_SUCCESS) {
+        return pOperator->pTaskInfo->code;
+      }
+      pFast->inputCompleted = true;
+      break;
+    }
+    if (pBlock->info.rows == 0) continue;
+    if (pFast->groupActive && pBlock->info.id.groupId != pFast->groupId) {
+      pMiaInfo->prefetchedBlock = pBlock;
+      break;
+    }
+    pFast->groupActive = true;
+    pFast->groupId = pBlock->info.id.groupId;
+    if (pIaInfo->scalarSupp.pExprInfo != NULL) {
+      SExprSupp* pSup = &pIaInfo->scalarSupp;
+      int32_t code = projectApplyFunctions(
+          pSup->pExprInfo, pBlock, pBlock, pSup->pCtx, pSup->numOfExprs,
+          NULL, GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    int32_t code = aggregateFastMergeIntervalGroupBlock(pOperator, pBlock);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  pFast->sealedWindowExclusive = pFast->numOfWindows;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t fastMergeIntervalNextActiveWindow(const SFastMergeIntervalInfo* pFast, int32_t start) {
   if (pFast == NULL || pFast->pActiveBitmap == NULL || start < 0 || start >= pFast->numOfWindows) {
     return pFast == NULL ? -1 : pFast->numOfWindows;
@@ -5465,6 +5630,47 @@ _cleanup:
     setOperatorCompleted(pOperator);
   }
   return doFilterWithTaskCorrelation(pRes, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                     pOperator->pTaskInfo);
+}
+
+static int32_t buildFastMergeIntervalGroupResult(SOperatorInfo* pOperator) {
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+  SExprSupp* pSup = &pOperator->exprSupp;
+  SSDataBlock* pRes = pIaInfo->binfo.pRes;
+  blockDataCleanup(pRes);
+  pRes->info.id.groupId = pFast->groupId;
+  pRes->info.version = pOperator->pTaskInfo->version;
+  pRes->info.dataLoad = 1;
+  while (pRes->info.rows < pOperator->resultInfo.threshold) {
+    int32_t window = fastMergeIntervalNextActiveWindow(pFast, pFast->nextWindow);
+    if (window >= pFast->numOfWindows) {
+      pFast->nextWindow = pFast->numOfWindows;
+      break;
+    }
+    SResultRow* pRow = (SResultRow*)((char*)pFast->pResultRows +
+                         (size_t)window * pIaInfo->aggSup.resultRowSize);
+    int32_t code = setResultRowInitCtx(pRow, pSup->pCtx, pSup->numOfExprs,
+                                       pSup->rowEntryInfoOffset);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    doUpdateNumOfRows(pSup->pCtx, pRow, pSup->numOfExprs,
+                       pSup->rowEntryInfoOffset);
+    if (pRow->numOfRows > 0) {
+      updateTimeWindowInfo(&pIaInfo->twAggSup.timeWindowData, &pRow->win, 0);
+      code = copyResultrowToDataBlock(
+          pSup->pExprInfo, pSup->numOfExprs, pRow, pSup->pCtx, pRes,
+          pSup->rowEntryInfoOffset, pOperator->pTaskInfo);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      pRes->info.rows += pRow->numOfRows;
+    }
+    cleanupFastMergeResultRow(pRow, pSup, pSup->rowEntryInfoOffset);
+    memset(pRow, 0, pIaInfo->aggSup.resultRowSize);
+    pFast->pWindowRowCounts[window] = 0;
+    pFast->pActiveBitmap[window >> 6] &= ~(1ULL << (window & 63));
+    pFast->nextWindow = window + 1;
+  }
+  return doFilterWithTaskCorrelation(pRes, pSup->pFilterInfo, NULL, NULL,
                                      pOperator->pTaskInfo);
 }
 
@@ -5796,6 +6002,34 @@ _end:
   }
 }
 
+static int32_t fastMergeIntervalGroupNext(SOperatorInfo* pOperator,
+                                           SSDataBlock** ppRes) {
+  SMergeAlignedIntervalAggOperatorInfo* pMiaInfo = pOperator->info;
+  SIntervalAggOperatorInfo* pIaInfo = pMiaInfo->intervalAggOperatorInfo;
+  SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+  SSDataBlock* pRes = pIaInfo->binfo.pRes;
+  *ppRes = NULL;
+
+  while (pOperator->status != OP_EXEC_DONE) {
+    if (!pFast->groupActive || pFast->nextWindow >= pFast->numOfWindows) {
+      if (pFast->inputCompleted) {
+        setOperatorCompleted(pOperator);
+        break;
+      }
+      int32_t code = collectFastMergeIntervalGroup(pOperator);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      if (!pFast->groupActive) continue;
+    }
+    int32_t code = buildFastMergeIntervalGroupResult(pOperator);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pRes->info.rows > 0) {
+      *ppRes = pRes;
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   SExecTaskInfo*                        pTaskInfo = pOperator->pTaskInfo;
   int32_t                               code = TSDB_CODE_SUCCESS;
@@ -5835,6 +6069,11 @@ static int32_t mergeAlignedIntervalAggNext(SOperatorInfo* pOperator, SSDataBlock
   }
   if (pMiaInfo->pFastInterval != NULL) {
     SFastMergeIntervalInfo* pFast = pMiaInfo->pFastInterval;
+    if (pFast->grouped) {
+      code = fastMergeIntervalGroupNext(pOperator, ppRes);
+      if (code != TSDB_CODE_SUCCESS) pTaskInfo->code = code;
+      return code;
+    }
     while (1) {
       bool watermarkAdvanced = pFast->nextWindow < pFast->sealedWindowExclusive;
       while (!watermarkAdvanced && !pFast->inputCompleted) {

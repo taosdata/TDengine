@@ -973,6 +973,13 @@ static bool isExIntervalHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kExIntervalHint, pToken->n);
 }
 
+static bool isIntervalLimitHint(const SToken* pToken) {
+  static const char kIntervalLimitHint[] = "INTERVAL_LIMIT";
+
+  return pToken->n == (int32_t)strlen(kIntervalLimitHint) &&
+         0 == strncasecmp(pToken->z, kIntervalLimitHint, pToken->n);
+}
+
 static bool isSplitScanHint(const SToken* pToken) {
   static const char kSplitScanHint[] = "SPLIT_SCAN";
 
@@ -1037,6 +1044,9 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
     case HINT_NO_BATCH_SCAN:
     case HINT_FAST_INTERVAL:
     case HINT_EX_INTERVAL:
+      break;
+    case HINT_INTERVAL_LIMIT:
+      if (paramNum != 0 || hasHint(*ppHintList, HINT_INTERVAL_LIMIT)) return true;
       break;
     case HINT_SPLIT_SCAN:
       if (NULL != *ppParams) return true;
@@ -1295,6 +1305,15 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
             break;
           }
           opt = HINT_SPLIT_SCAN;
+          break;
+        }
+        if (!inParamList && isIntervalLimitHint(&t0)) {
+          lastComma = false;
+          if (0 != opt || inParamList) {
+            quit = true;
+            break;
+          }
+          opt = HINT_INTERVAL_LIMIT;
           break;
         }
       case TK_MERGE:

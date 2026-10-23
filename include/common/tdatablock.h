@@ -39,6 +39,8 @@ typedef struct SBlockOrderInfo {
 #define BLOCK_VERSION_2 2
 #define BLOCK_RECYCLE_TIMEOUT_MS 60000
 
+SConstTagColumn* blockDataGetConstTagColumn(const SSDataBlock* pBlock, int32_t slotId);
+
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define CharPos(r_)              ((r_) >> NBIT)

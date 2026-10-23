@@ -1179,6 +1179,8 @@ TEST_F(ParserSelectTest, interval) {
 
 TEST_F(ParserSelectTest, intervalHints) {
   useDb("root", "test");
+  run("SELECT /*+ INTERVAL_LIMIT() */ _WSTART, MAX(c1) FROM st1 INTERVAL(10s) LIMIT 5");
+  run("SELECT /*+ FAST_INTERVAL() INTERVAL_LIMIT() */ _WSTART, COUNT(*) FROM st1 INTERVAL(10s) LIMIT 5");
   run("SELECT /*+ FAST_INTERVAL() */ _WSTART, COUNT(*), AVG(c1) FROM st1 "
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' INTERVAL(10s)");
   run("SELECT /*+ EX_INTERVAL() */ _WSTART, _WEND, _WDURATION, COUNT(*), SUM(c1), AVG(c1) FROM st1 "

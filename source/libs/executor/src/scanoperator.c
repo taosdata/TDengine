@@ -214,6 +214,91 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct STableIntervalLimitState {
+  TSKEY   windowStart;
+  TSKEY   windowEnd;
+  int64_t windows;
+} STableIntervalLimitState;
+
+static int32_t getTableIntervalLimitState(STableScanInfo* pInfo, uint64_t uid,
+                                          STableIntervalLimitState** ppState) {
+  if (pInfo->pIntervalLimitStates == NULL) {
+    int32_t tables = taosArrayGetSize(pInfo->base.pTableListInfo->pTableList);
+    pInfo->pIntervalLimitStates = taosHashInit(
+        tables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+        HASH_NO_LOCK);
+    if (pInfo->pIntervalLimitStates == NULL) return terrno;
+  }
+  *ppState = taosHashGet(pInfo->pIntervalLimitStates, &uid, sizeof(uid));
+  if (*ppState == NULL) {
+    STableIntervalLimitState state = {0};
+    int32_t code = taosHashPut(pInfo->pIntervalLimitStates, &uid, sizeof(uid),
+                                &state, sizeof(state));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    *ppState = taosHashGet(pInfo->pIntervalLimitStates, &uid, sizeof(uid));
+    if (*ppState == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t applyTableIntervalLimit(STableScanInfo* pInfo,
+                                        SSDataBlock* pBlock) {
+  if (pInfo->intervalLimit <= 0 || pInfo->intervalTsSlot < 0 ||
+      pBlock->info.rows == 0 || pBlock->info.id.uid == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableIntervalLimitState* pState = NULL;
+  int32_t code = getTableIntervalLimitState(pInfo, pBlock->info.id.uid, &pState);
+  if (code != TSDB_CODE_SUCCESS || pState->windows < 0) return code;
+
+  const SInterval* pInterval = &pInfo->base.pdInfo.interval;
+  bool loaded = pBlock->info.dataLoad;
+  SColumnInfoData* pTs = loaded
+      ? taosArrayGet(pBlock->pDataBlock, pInfo->intervalTsSlot) : NULL;
+  if ((!loaded && taosTimeTruncate(pBlock->info.window.skey, pInterval) !=
+                      taosTimeTruncate(pBlock->info.window.ekey, pInterval)) ||
+      (loaded && (pTs == NULL || pTs->pData == NULL))) {
+    // A metadata-only block must belong to one window to count it safely.
+    pState->windows = -1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t rows = loaded ? (int32_t)pBlock->info.rows : 1;
+  for (int32_t i = 0; i < rows;) {
+    TSKEY ts = loaded ? *(TSKEY*)colDataGetData(pTs, i)
+                      : pBlock->info.window.skey;
+    if (pState->windows == 0 || ts < pState->windowStart ||
+        ts > pState->windowEnd) {
+      if (pState->windows == pInfo->intervalLimit) {
+        // Seeing a later window proves the retained one is complete for this
+        // UID. The shared ignore list skips its remaining file/STT/mem blocks.
+        code = insertTableToScanIgnoreList(pInfo, pBlock->info.id.uid);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        blockDataKeepFirstNRows(pBlock, loaded ? i : 0);
+        if (loaded && pBlock->info.rows > 0) {
+          code = blockDataUpdateTsWindow(pBlock, pInfo->intervalTsSlot);
+        }
+        return code;
+      }
+      pState->windows += 1;
+      pState->windowStart = taosTimeTruncate(ts, pInterval);
+      pState->windowEnd = taosTimeGetIntervalEnd(pState->windowStart, pInterval);
+    }
+    if (!loaded) break;
+    // Reuse the interval operator's ordered range lookup instead of
+    // recalculating the window for every row in the block.
+    int32_t order = pInfo->base.cond.order;
+    TSKEY end = order == TSDB_ORDER_ASC ? pState->windowEnd
+                                      : pState->windowStart;
+    int32_t forward = getNumOfRowsInTimeWindow(
+        &pBlock->info, (TSKEY*)pTs->pData, i, end, binarySearchForKey, NULL, order);
+    if (forward <= 0) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    i += forward;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool isLastColumnExpr(const SqlFunctionCtx* pCtx) {
   if (NULL == pCtx) {
     return false;
@@ -848,12 +933,40 @@ static void freeCachedMetaItem(const void* key, size_t keyLen, void* value, void
   freeTableCachedVal(value);
 }
 
+// The placeholder retains ordinary NULL metadata for diagnostics and checks;
+// its payload is omitted. Only the immediate aggregate reads the owned value.
+static SColumnInfoData* getConstTagOutputColumn(SSDataBlock* pBlock, int32_t slotId) {
+  SConstTagColumn* pConst = blockDataGetConstTagColumn(pBlock, slotId);
+  if (pConst == NULL || pBlock->info.id.uid == 0 || pBlock->info.blankFill) {
+    if (pConst != NULL) {
+      pConst->uid = 0;
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+      pCol->info.noData = false;
+    }
+    return NULL;
+  }
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  // Empty-table placeholders reuse this block and write NULL fixed-width
+  // values. Keep their buffer even while only the owned constant is read.
+  pCol->hasNull = true;
+  pCol->info.noData = true;
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    taosMemoryFreeClear(pCol->pData);
+    pCol->varmeta.length = 0;
+    pCol->varmeta.allocLen = 0;
+  }
+  colInfoDataCleanup(&pConst->column, 1);
+  pConst->uid = pBlock->info.id.uid;
+  return &pConst->column;
+}
+
 static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t numOfExpr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
     int32_t dstSlotId = pExpr[j].base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-    colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
+    SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, dstSlotId);
+    colDataSetNNULL(pConstCol ? pConstCol : pColInfoData, 0, pConstCol ? 1 : pBlock->info.rows);
   }
 }
 
@@ -999,6 +1112,14 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {  // these are tags
+      SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, pExpr1->base.resSchema.slotId);
+      int32_t tagRows = pBlock->info.rows;
+      if (pConstCol != NULL) {
+        pColInfoData = pConstCol;
+        tagRows = 1;
+      } else {
+        pColInfoData->info.noData = false;
+      }
       STagVal tagVal = {0};
       tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
       const char* p = NULL;
@@ -1015,9 +1136,13 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
       if (isNullVal) {
-        colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
+        colDataSetNNULL(pColInfoData, 0, tagRows);
       } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-        code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
+        if (pColInfoData->pData == NULL && !IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          code = colInfoDataEnsureCapacity(pColInfoData, tagRows, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = colDataSetNItems(pColInfoData, 0, data, tagRows, 1, false);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
         }
@@ -1483,6 +1608,11 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
     if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
       break;
+    }
+
+    if (status != FUNC_DATA_REQUIRED_FILTEROUT) {
+      code = applyTableIntervalLimit(pTableScanInfo, pBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     // current block is filter out according to filter condition, continue load the next block
@@ -3932,6 +4062,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   blockDataDestroy(pTableScanInfo->pOrgBlock);
   blockDataDestroy(pTableScanInfo->pVstbOutputBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
+  taosHashCleanup(pTableScanInfo->pIntervalLimitStates);
   if (pTableScanInfo->virtualStableScan && pTableScanInfo->readerCache) {
     cleanReaderForVTable(pTableScanInfo);
     taosHashCleanup(pTableScanInfo->readerCache);
@@ -4053,6 +4184,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   blockDataEmpty(pInfo->pOrgBlock);
   taosHashClear(pInfo->pIgnoreTables);
   taosArrayDestroy(pInfo->pBlockColMap);
+  taosHashClear(pInfo->pIntervalLimitStates);
   pInfo->pBlockColMap = NULL;
   return beginReaderStatsEpoch(&pInfo->base);
 }
@@ -4108,6 +4240,15 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
 
   pInfo->base.pdInfo.interval = extractIntervalInfo(pTableScanNode);
+  pInfo->intervalLimit = pTableScanNode->intervalLimit;
+  pInfo->intervalTsSlot = -1;
+  for (int32_t i = 0; i < pInfo->base.cond.numOfCols; ++i) {
+    if (pInfo->base.cond.colList[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pInfo->intervalTsSlot = pInfo->base.cond.pSlotList
+          ? pInfo->base.cond.pSlotList[i] : i;
+      break;
+    }
+  }
   pInfo->base.readHandle = *readHandle;
   pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;
 
