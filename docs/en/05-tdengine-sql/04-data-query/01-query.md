@@ -23,7 +23,7 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
 hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
 
 select_list:
     select_expr [, select_expr] ...
@@ -172,8 +172,9 @@ The currently supported Hints list is as follows:
 |  SMALLDATA_TS_SORT  | None          | When sorting supertable data by timestamp, if the query column length is greater than or equal to 256 but the number of rows is not large, using this hint can improve performance    | When sorting supertable data by timestamp       |
 | SMALLDATA_SCAN_SORT | None          | When a supertable query needs timestamp-ordered scan output, use a plain table scan plus a sort instead of a table merge scan; for small per-vnode data this can be faster. It applies wherever the engine would otherwise use a table merge scan to produce timestamp order: ORDER BY ts, and also SESSION / STATE_WINDOW (no explicit ORDER BY required). It has no effect on INTERVAL windows (which do not use a table merge scan), nor on ORDER BY of non-timestamp columns | Small per-vnode supertable data needing timestamp order |
 |      SKIP_TSMA      | None          | Explicitly disable TSMA query optimization                                                                                                                                            | Queries with Agg functions                      |
-|    FAST_INTERVAL    | None          | Enable the FAST execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                               | Supertable `INTERVAL` aggregate queries with no `PARTITION BY`, `FILL`, window offset, or sliding window, and without day/week/month/year calendar units |
-|     EX_INTERVAL     | None          | Enable the EX execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                                 | Queries meeting the base `FAST_INTERVAL` window conditions, without `LIMIT` or `SLIMIT`, with one table scan whose vgroups are on one dnode, and with a select list limited to `_wstart`, `_wend`, `_wduration`, and supported `COUNT`, `SUM`, or `AVG` expressions |
+|    FAST_INTERVAL    | None          | Enable partial or merge FAST execution for eligible fixed-window `INTERVAL` aggregate queries                                                                                      | Supports unpartitioned queries, tag partitions, partitions by `tbname` with other tags, and eligible TSMA-rewritten plans; see the window and partition restrictions below |
+|     EX_INTERVAL     | None          | Enable the EX execution path for eligible fixed-window `INTERVAL` aggregate queries                                                                                                 | Queries meeting the base `FAST_INTERVAL` window conditions, without `PARTITION BY`, `LIMIT`, or `SLIMIT`, with one table scan whose vgroups are on one dnode, and with a select list limited to `_wstart`, `_wend`, `_wduration`, and supported `COUNT`, `SUM`, or `AVG` expressions |
+|   INTERVAL_LIMIT    | None          | Prune subsequent scans per subtable for eligible `INTERVAL` queries that need only the first few windows; disabled by default                                                       | A positive `LIMIT`, a window directly above a Table Scan, and matching scan and window-output order; see the full restrictions below |
 | `JOIN_ALGO` | One of `HASH`, `MERGE`, `THETA` | Available from `v3.4.3.0`; join algorithm preference with fallback when inapplicable; see [Join Algorithms and Hints](./05-join.md#join-algorithms-and-hints) | Ordinary joins |
 | `HASH_JOIN` | None | Existing form corresponding to `JOIN_ALGO(HASH)` | Ordinary joins |
 | `MERGE_JOIN` | None | Available from `v3.4.3.0`; corresponds to `JOIN_ALGO(MERGE)` | Ordinary joins |
@@ -191,7 +192,59 @@ SELECT /*+ SMALLDATA_TS_SORT() */ * from stable1 order by ts;
 SELECT /*+ SMALLDATA_SCAN_SORT() */ * from stable1 order by ts;
 SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
+SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 5;
 ```
+
+### FAST_INTERVAL
+
+`FAST_INTERVAL()` applies to eligible supertable window aggregations and eligible window calculations after TSMA rewriting. It can optimize only the partial stage or both the partial and merge stages. The chosen path depends on the partitioning, aggregate functions, and intermediate-result size in the execution plan.
+
+Eligibility conditions include:
+
+- A query time range with both bounds determined, fixed-duration tumbling windows with the slide equal to the interval, and no window offset or `FILL`.
+- No `d`, `w`, `n`, or `y` calendar units. The number of windows must also fit the execution-path limits.
+- Partitions may contain `tbname` and other tags, but no regular data columns. Without `tbname`, only direct tag columns are supported, partition expressions are unsupported, and the query must have no `LIMIT` or `SLIMIT`.
+
+For example, this query partitions by the tag `tag0`:
+
+```sql
+SELECT /*+ FAST_INTERVAL() */ tag0, _wstart, AVG(c1)
+FROM stable1
+WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00'
+PARTITION BY tag0
+INTERVAL(10m);
+```
+
+TSMA execution also requires an existing usable pre-aggregation and enabled TSMA query optimization; this hint does not create a TSMA. TSMA rewriting can change FAST eligibility, so check plans separately for individual and combined use. Use `EXPLAIN VERBOSE TRUE` to check whether a window operator shows `mode=fast`, and compare the total query time with `EXPLAIN ANALYZE`.
+
+### INTERVAL_LIMIT
+
+`INTERVAL_LIMIT()` takes no parameters and is disabled by default. Place it immediately after the `SELECT` at the same query level as the `INTERVAL` and `LIMIT` clauses. An outer-query hint does not enable scan pruning inside a subquery. A parameterized form such as `INTERVAL_LIMIT(1)` does not enable this optimization.
+
+When enabled, each subtable keeps its first `LIMIT + OFFSET` nonempty input windows in full. Subsequent data from that subtable is skipped only after the last retained window is known to be complete. Other subtables still contribute to aggregation, preserving query-result semantics. `LIMIT 5 OFFSET 20` retains the first 25 windows.
+
+Current scope and restrictions:
+
+- A regular, nonoverlapping `INTERVAL` aggregation with a positive `LIMIT`, a window directly above a Table Scan, and matching scan and window-output order.
+- Supported functions are `COUNT`, `SUM`, `AVG`, `MIN`, and `MAX`, together with the corresponding window pseudocolumns and group keys.
+- Virtual tables and stream processing are not supported.
+- Ineligible queries keep the original execution path. Examples include `HAVING`, `FILL`, overlapping sliding windows, ordering by aggregate values, or an independent `Partition` between the window and scan. Pruning is also disabled when the scan remains ascending but output must be descending.
+
+Use a verbose execution plan to verify eligibility, for example:
+
+```sql
+EXPLAIN VERBOSE TRUE
+SELECT /*+ INTERVAL_LIMIT() */ _wstart, MAX(c1)
+FROM stable1
+INTERVAL(1m)
+LIMIT 5 OFFSET 20;
+```
+
+An `interval_limit=25` field on Table Scan indicates that pruning is enabled. For queries that meet both sets of conditions, combine `FAST_INTERVAL()` and `INTERVAL_LIMIT()` in one comment, such as `/*+ FAST_INTERVAL() INTERVAL_LIMIT() */`.
+
+This optimization is intended mainly for queries needing only a few windows. A large `LIMIT`, or a plan that cannot reduce scanning, can incur additional window-tracking overhead. Use `EXPLAIN ANALYZE` to compare scanned rows and query time before enabling it for a workload.
+
+### PARTITION_FIRST
 
 Starting from v3.4.3.0, `PARTITION_FIRST` also applies to state-window queries on a supertable partitioned by tag columns or `tbname`. In this execution path, Table Merge Scan first scans the relevant subtables, an independent Partition operator then forms partitions by the tag columns or `tbname`, and `STATE_WINDOW` calculates windows within each partition. A multi-vnode query preserves the primary-timestamp order within each partition. If the table has a second primary key, it is also used to determine the order of rows with the same timestamp.
 
