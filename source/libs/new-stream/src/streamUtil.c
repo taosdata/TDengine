@@ -2986,6 +2986,8 @@ static int32_t streamNotifyQueueEnsureScheduled(SStreamNotifyWorkerPool* pPool, 
   if (!pQueue->pendingDestroy && !pQueue->inGlobalList && !pQueue->consuming) {
     TD_DLIST_APPEND_WITH_FIELD(&pPool->globalQueueList, pQueue, STREAM_NOTIFY_QUEUE_DLIST_FIELD);
     pQueue->inGlobalList = true;
+    stDebug("[notify] streamId:%" PRIx64 " queue scheduled, pending:%" PRId64 " estimatedBytes:%zu", pQueue->streamId,
+            pQueue->paramList.neles, pQueue->pendingBytes);
   }
 
   taosThreadMutexUnlock(&pPool->mapLock);
@@ -3209,6 +3211,9 @@ static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamNam
   }
 
   if (enqueued > 0) {
+    stDebug("[notify] streamId:%" PRIx64 " groupId:%" PRId64
+            " enqueue processed, params:%d notifyParams:%d pending:%" PRId64 " estimatedBytes:%zu",
+            streamId, groupId, nParam, enqueued, pQueue->paramList.neles, pQueue->pendingBytes);
     code = streamNotifyQueueEnsureScheduled(pPool, pQueue);
     if (code != TSDB_CODE_SUCCESS) {
       lino = __LINE__;
@@ -3402,9 +3407,18 @@ static bool streamWorkerSendToQueueUrls(SStreamNotifyQueue* pQueue, const char* 
   (void)taosThreadMutexLock(&pQueue->lock);
   for (int32_t i = ppItems[0]->nextUrl; i < (int32_t)taosArrayGetSize(pQueue->pUrls); i++) {
     char* url = *(char**)taosArrayGet(pQueue->pUrls, i);
+    int64_t sendStartMonoMs = taosGetMonoTimestampMs();
+    stDebug("[notify_worker] streamId:%" PRIx64 " groupId:%" PRId64
+            " send begin, urlIndex:%d url:%s items:%d bytes:%zu sendFailures:%d",
+            pQueue->streamId, ppItems[0]->groupId, i, url != NULL ? url : "<null>", nItems, msgLen,
+            ppItems[0]->sendFailures);
     taosThreadMutexUnlock(&pQueue->lock);
     bool sent = url == NULL || streamWorkerSendOnUrl(url, msg, msgLen);
     (void)taosThreadMutexLock(&pQueue->lock);
+    stDebug("[notify_worker] streamId:%" PRIx64 " groupId:%" PRId64
+            " send end, urlIndex:%d url:%s items:%d bytes:%zu result:%s elapsedMs:%" PRId64,
+            pQueue->streamId, ppItems[0]->groupId, i, url != NULL ? url : "<null>", nItems, msgLen,
+            url == NULL ? "skipped" : (sent ? "success" : "failed"), taosGetMonoTimestampMs() - sendStartMonoMs);
     if (!sent) {
       return false;
     }
@@ -3442,6 +3456,10 @@ static int32_t streamWorkerFlushGroupBatch(SStreamNotifyQueue* pQueue, SStreamNo
       break;
     }
     pMergedItems[nMerged++] = ppItems[i];
+    stTrace("[notify_worker] streamId:%" PRIx64 " groupId:%" PRId64 " batch item:%d notifyType:%d wstart:%" PRId64
+            " wend:%" PRId64 " precision:%d triggerTime:%" PRId64,
+            pQueue->streamId, groupId, i, ppItems[i]->param.notifyType, ppItems[i]->param.wstart,
+            ppItems[i]->param.wend, pQueue->precision, ppItems[i]->param.triggerTime);
   }
 
   if (nMerged <= 0) {
@@ -3457,6 +3475,10 @@ static int32_t streamWorkerFlushGroupBatch(SStreamNotifyQueue* pQueue, SStreamNo
     return 0;
   }
 
+  stDebug("[notify_worker] streamId:%" PRIx64 " groupId:%" PRId64
+          " batch ready, items:%d bytes:%zu nextUrl:%d urls:%" PRId64 " sendFailures:%d",
+          pQueue->streamId, groupId, nMerged, msgLen, ppItems[0]->nextUrl, taosArrayGetSize(pQueue->pUrls),
+          ppItems[0]->sendFailures);
   bool sendOk = streamWorkerSendToQueueUrls(pQueue, msg, msgLen, pMergedItems, nMerged);
   taosMemoryFree(msg);
   if (!sendOk) {
@@ -3577,6 +3599,9 @@ static void streamWorkerConsumeQueue(SStreamNotifyWorkerPool* pPool, SStreamNoti
     return;
   }
 
+  int64_t consumeStartMonoMs = taosGetMonoTimestampMs();
+  stDebug("[notify_worker] streamId:%" PRIx64 " consume begin, pending:%" PRId64 " estimatedBytes:%zu",
+          pQueue->streamId, pQueue->paramList.neles, pQueue->pendingBytes);
   streamId = pQueue->streamId;
   dropMode = !(pQueue->addOptions & NOTIFY_ON_FAILURE_PAUSE);
   if (dropMode) {
@@ -3645,6 +3670,10 @@ static void streamWorkerConsumeQueue(SStreamNotifyWorkerPool* pPool, SStreamNoti
   }
 
 _release:
+  stDebug("[notify_worker] streamId:%" PRIx64 " consume end, pending:%" PRId64
+          " estimatedBytes:%zu pendingDestroy:%d shuttingDown:%d elapsedMs:%" PRId64,
+          streamId, pQueue->paramList.neles, pQueue->pendingBytes, pQueue->pendingDestroy, pPool->shuttingDown,
+          taosGetMonoTimestampMs() - consumeStartMonoMs);
   pQueue->consuming = false;
   if (!pPool->shuttingDown && !pQueue->pendingDestroy && streamNotifyQueueHasPendingParams(pQueue)) {
     (void)streamNotifyQueueEnsureScheduled(pPool, pQueue);
