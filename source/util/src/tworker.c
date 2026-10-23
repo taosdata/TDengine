@@ -1314,11 +1314,21 @@ int32_t tAddTaskIntoDispatchWorkerPool(SDispatchWorkerPool *pPool, void *pMsg) {
   (void)taosThreadMutexLock(&pPool->poolLock);
   code = pPool->dispatchFp(pPool, pMsg, &idx);
   if (code == 0) {
-    pWorker = pPool->pWorkers + idx;
-    if (pWorker->queue) {
-      code = taosWriteQitem(pWorker->queue, pMsg);
+    // SECURITY (finding item204): a dispatch function that returns a worker index outside
+    // [0, pPool->num) would make 'pPool->pWorkers + idx' read/write out of bounds and then
+    // dereference a garbage queue pointer through taosWriteQitem. Reject such indices up-front
+    // instead of indexing the worker array with an attacker-/caller-influenced out-of-range value.
+    if (idx < 0 || idx >= pPool->num) {
+      uError("dispatchFp returned out-of-range worker index %d (valid range [0,%d)) for pool:%s",
+             idx, pPool->num, pPool->name);
+      code = TSDB_CODE_INVALID_PARA;
     } else {
-      code = TSDB_CODE_INTERNAL_ERROR;
+      pWorker = pPool->pWorkers + idx;
+      if (pWorker->queue) {
+        code = taosWriteQitem(pWorker->queue, pMsg);
+      } else {
+        code = TSDB_CODE_INTERNAL_ERROR;
+      }
     }
   }
   (void)taosThreadMutexUnlock(&pPool->poolLock);
