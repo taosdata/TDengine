@@ -20,6 +20,9 @@
 #include "com_taosdata_jdbc_TSDBJNIConnector.h"
 #include "jniCommon.h"
 
+/* Last include on purpose: re-points the memory macros at the local libc shims. */
+#include "wrapperLiteMem.h"
+
 int __init = 0;
 
 JavaVM *g_vm = NULL;
@@ -61,6 +64,23 @@ jclass g_consumerClass;
 // deprecated
 jmethodID g_commitCallback;
 
+/* Set to 1 by jniGetGlobalMethod() once every id below resolved, see jniCommon.h. */
+int32_t g_jniReady = 0;
+
+/* FindClass() returns NULL (with a pending NoClassDefFoundError) when the class
+ * is not on the classpath, i.e. jar and libtaos.so come from different releases.
+ * The exception is cleared here because the mismatch is reported to the caller as
+ * an error code, not as an exception thrown out of initImp().  Shared with
+ * clientTmqConnector.c through jniCommon.h. */
+jclass jniFindClassChecked(JNIEnv *env, const char *name) {
+  jclass clazz = (*env)->FindClass(env, name);
+  if (clazz == NULL) {
+    tdLiteLogMsg(1, "JNI ERROR ", "cannot find class %s, the Java connector and this library do not match", name);
+    (*env)->ExceptionClear(env);
+  }
+  return clazz;
+}
+
 void jniGetGlobalMethod(JNIEnv *env) {
   // make sure init function executed once
   switch (atomic_val_compare_exchange_32(&__init, 0, 1)) {
@@ -78,58 +98,76 @@ void jniGetGlobalMethod(JNIEnv *env) {
     (void)(*env)->GetJavaVM(env, &g_vm);
   }
 
-  jclass arrayListClass = (*env)->FindClass(env, "java/util/ArrayList");
+  jclass arrayListClass = jniFindClassChecked(env, "java/util/ArrayList");
+  if (arrayListClass == NULL) goto unusable;
   g_arrayListClass = (*env)->NewGlobalRef(env, arrayListClass);
-  g_arrayListConstructFp = (*env)->GetMethodID(env, g_arrayListClass, "<init>", "()V");
-  g_arrayListAddFp = (*env)->GetMethodID(env, g_arrayListClass, "add", "(Ljava/lang/Object;)Z");
+  JNI_METHOD(g_arrayListConstructFp, g_arrayListClass, "<init>", "()V");
+  JNI_METHOD(g_arrayListAddFp, g_arrayListClass, "add", "(Ljava/lang/Object;)Z");
   (*env)->DeleteLocalRef(env, arrayListClass);
 
-  jclass metadataClass = (*env)->FindClass(env, "com/taosdata/jdbc/ColumnMetaData");
+  jclass metadataClass = jniFindClassChecked(env, "com/taosdata/jdbc/ColumnMetaData");
+  if (metadataClass == NULL) goto unusable;
   g_metadataClass = (*env)->NewGlobalRef(env, metadataClass);
-  g_metadataConstructFp = (*env)->GetMethodID(env, g_metadataClass, "<init>", "()V");
-  g_metadataColtypeField = (*env)->GetFieldID(env, g_metadataClass, "colType", "I");
-  g_metadataColnameField = (*env)->GetFieldID(env, g_metadataClass, "colName", "Ljava/lang/String;");
-  g_metadataColsizeField = (*env)->GetFieldID(env, g_metadataClass, "colSize", "I");
-  g_metadataColindexField = (*env)->GetFieldID(env, g_metadataClass, "colIndex", "I");
+  JNI_METHOD(g_metadataConstructFp, g_metadataClass, "<init>", "()V");
+  JNI_FIELD(g_metadataColtypeField, g_metadataClass, "colType", "I");
+  JNI_FIELD(g_metadataColnameField, g_metadataClass, "colName", "Ljava/lang/String;");
+  JNI_FIELD(g_metadataColsizeField, g_metadataClass, "colSize", "I");
+  JNI_FIELD(g_metadataColindexField, g_metadataClass, "colIndex", "I");
   (*env)->DeleteLocalRef(env, metadataClass);
 
-  jclass rowdataClass = (*env)->FindClass(env, "com/taosdata/jdbc/TSDBResultSetRowData");
+  jclass rowdataClass = jniFindClassChecked(env, "com/taosdata/jdbc/TSDBResultSetRowData");
+  if (rowdataClass == NULL) goto unusable;
   g_rowdataClass = (*env)->NewGlobalRef(env, rowdataClass);
-  g_rowdataConstructor = (*env)->GetMethodID(env, g_rowdataClass, "<init>", "(I)V");
-  g_rowdataClearFp = (*env)->GetMethodID(env, g_rowdataClass, "clear", "()V");
-  g_rowdataSetBooleanFp = (*env)->GetMethodID(env, g_rowdataClass, "setBoolean", "(IZ)V");
-  g_rowdataSetByteFp = (*env)->GetMethodID(env, g_rowdataClass, "setByte", "(IB)V");
-  g_rowdataSetShortFp = (*env)->GetMethodID(env, g_rowdataClass, "setShort", "(IS)V");
-  g_rowdataSetIntFp = (*env)->GetMethodID(env, g_rowdataClass, "setInt", "(II)V");
-  g_rowdataSetLongFp = (*env)->GetMethodID(env, g_rowdataClass, "setLong", "(IJ)V");
-  g_rowdataSetFloatFp = (*env)->GetMethodID(env, g_rowdataClass, "setFloat", "(IF)V");
-  g_rowdataSetDoubleFp = (*env)->GetMethodID(env, g_rowdataClass, "setDouble", "(ID)V");
-  g_rowdataSetStringFp = (*env)->GetMethodID(env, g_rowdataClass, "setString", "(ILjava/lang/String;)V");
-  g_rowdataSetTimestampFp = (*env)->GetMethodID(env, g_rowdataClass, "setTimestamp", "(IJI)V");
-  g_rowdataSetByteArrayFp = (*env)->GetMethodID(env, g_rowdataClass, "setByteArray", "(I[B)V");
+  JNI_METHOD(g_rowdataConstructor, g_rowdataClass, "<init>", "(I)V");
+  JNI_METHOD(g_rowdataClearFp, g_rowdataClass, "clear", "()V");
+  JNI_METHOD(g_rowdataSetBooleanFp, g_rowdataClass, "setBoolean", "(IZ)V");
+  JNI_METHOD(g_rowdataSetByteFp, g_rowdataClass, "setByte", "(IB)V");
+  JNI_METHOD(g_rowdataSetShortFp, g_rowdataClass, "setShort", "(IS)V");
+  JNI_METHOD(g_rowdataSetIntFp, g_rowdataClass, "setInt", "(II)V");
+  JNI_METHOD(g_rowdataSetLongFp, g_rowdataClass, "setLong", "(IJ)V");
+  JNI_METHOD(g_rowdataSetFloatFp, g_rowdataClass, "setFloat", "(IF)V");
+  JNI_METHOD(g_rowdataSetDoubleFp, g_rowdataClass, "setDouble", "(ID)V");
+  JNI_METHOD(g_rowdataSetStringFp, g_rowdataClass, "setString", "(ILjava/lang/String;)V");
+  JNI_METHOD(g_rowdataSetTimestampFp, g_rowdataClass, "setTimestamp", "(IJI)V");
+  JNI_METHOD(g_rowdataSetByteArrayFp, g_rowdataClass, "setByteArray", "(I[B)V");
   (*env)->DeleteLocalRef(env, rowdataClass);
 
-  jclass blockdataClass = (*env)->FindClass(env, "com/taosdata/jdbc/TSDBResultSetBlockData");
+  jclass blockdataClass = jniFindClassChecked(env, "com/taosdata/jdbc/TSDBResultSetBlockData");
+  if (blockdataClass == NULL) goto unusable;
   jclass g_blockdataClass = (*env)->NewGlobalRef(env, blockdataClass);
-  g_blockdataSetByteArrayFp = (*env)->GetMethodID(env, g_blockdataClass, "setByteArray", "([B)V");
-  g_blockdataSetNumOfRowsFp = (*env)->GetMethodID(env, g_blockdataClass, "setNumOfRows", "(I)V");
-  g_blockdataSetNumOfColsFp = (*env)->GetMethodID(env, g_blockdataClass, "setNumOfCols", "(I)V");
+  JNI_METHOD(g_blockdataSetByteArrayFp, g_blockdataClass, "setByteArray", "([B)V");
+  JNI_METHOD(g_blockdataSetNumOfRowsFp, g_blockdataClass, "setNumOfRows", "(I)V");
+  JNI_METHOD(g_blockdataSetNumOfColsFp, g_blockdataClass, "setNumOfCols", "(I)V");
   (*env)->DeleteLocalRef(env, blockdataClass);
 
-  jclass tmqClass = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/TMQConnector");
-  jclass g_tmqClass = (*env)->NewGlobalRef(env, tmqClass);
-  g_createConsumerErrorCallback =
-      (*env)->GetMethodID(env, g_tmqClass, "setCreateConsumerErrorMsg", "(Ljava/lang/String;)V");
-  g_topicListCallback = (*env)->GetMethodID(env, g_tmqClass, "setTopicList", "([Ljava/lang/String;)V");
+  jclass tmqClass = jniFindClassChecked(env, "com/taosdata/jdbc/tmq/TMQConnector");
+  if (tmqClass == NULL) goto unusable;
+  /* assigned to the globals declared in jniCommon.h, not to locals of the same
+   * name, so a second TU reading them sees the refs instead of NULL */
+  g_tmqClass = (*env)->NewGlobalRef(env, tmqClass);
+  JNI_METHOD(g_createConsumerErrorCallback, g_tmqClass, "setCreateConsumerErrorMsg", "(Ljava/lang/String;)V");
+  JNI_METHOD(g_topicListCallback, g_tmqClass, "setTopicList", "([Ljava/lang/String;)V");
   (*env)->DeleteLocalRef(env, tmqClass);
 
-  jclass consumerClass = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/TaosConsumer");
-  jclass g_consumerClass = (*env)->NewGlobalRef(env, consumerClass);
-  g_commitCallback = (*env)->GetMethodID(env, g_consumerClass, "commitCallbackHandler", "(I)V");
+  jclass consumerClass = jniFindClassChecked(env, "com/taosdata/jdbc/tmq/TaosConsumer");
+  if (consumerClass == NULL) goto unusable;
+  g_consumerClass = (*env)->NewGlobalRef(env, consumerClass);
+  JNI_METHOD(g_commitCallback, g_consumerClass, "commitCallbackHandler", "(I)V");
   (*env)->DeleteLocalRef(env, consumerClass);
 
+  /* Publish before __init leaves 1: threads waiting in the switch above spin on
+   * __init, so the store below is the release that makes this visible to them. */
+  atomic_store_32(&g_jniReady, 1);
   atomic_store_32(&__init, 2);
   jniDebug("native method register finished");
+  return;
+
+unusable:
+  /* Whatever was cached so far stays NULL for what failed; the entry points that
+   * use those ids check g_jniReady and return TSDB_CODE_DLL_NOT_LOAD.  __init must
+   * still reach 2 or the threads waiting in the switch above would spin for ever. */
+  atomic_store_32(&__init, 2);
+  tdLiteLogMsg(1, "JNI ERROR ", "JNI initialization failed, the Java connector and this library do not match");
 }
 
 int32_t check_for_params(jobject jobj, jlong conn, jlong res) {
@@ -150,28 +188,50 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_initImp(JNIEnv *e
   if (jconfigDir != NULL) {
     const char *confDir = (*env)->GetStringUTFChars(env, jconfigDir, NULL);
     if (confDir && strlen(confDir) != 0) {
-      tstrncpy(configDir, confDir, TSDB_FILENAME_LEN);
+      /* Through the public option rather than tdLiteSetConfigDir() alone: it applies
+       * the engine's own normalization (quoted when the path has spaces, see
+       * taos_options_imp) with the engine's PATH_MAX bound instead of
+       * TSDB_FILENAME_LEN, which used to cut a longer config directory off, and it
+       * hands the value to a driver that is already loaded.  A driver loaded later
+       * receives it when it is (see wrapperDriver.c), so this works whether or not the
+       * driver happens to export its own configDir. */
+      (void)taos_options(TSDB_OPTION_CONFIGDIR, confDir);
     }
     (*env)->ReleaseStringUTFChars(env, jconfigDir, confDir);
   }
 
   jniGetGlobalMethod(env);
-  jniDebug("jni initialized successfully, config directory:%s", configDir);
+  jniDebug("jni initialized successfully, config directory:%s", tdLiteConfigDir());
 }
 
 JNIEXPORT jobject createTSDBException(JNIEnv *env, int code, char *msg) {
   // find class
   jclass exception_clazz = (*env)->FindClass(env, "com/taosdata/jdbc/TSDBException");
+  if (exception_clazz == NULL) {
+    /* No exception object can be built, so the caller has to report it through
+     * its own return value: returning NULL here is a Java-side exception, not a
+     * JVM abort, which is what an unchecked GetMethodID(NULL, ...) would be. */
+    jniError("cannot find class com/taosdata/jdbc/TSDBException, code:0x%x, msg:%s", code, msg == NULL ? "" : msg);
+    (*env)->ExceptionClear(env);
+    return NULL;
+  }
+
   // find methods
   jmethodID init_method = (*env)->GetMethodID(env, exception_clazz, "<init>", "()V");
   jmethodID setCode_method = (*env)->GetMethodID(env, exception_clazz, "setCode", "(I)V");
   jmethodID setMessage_method = (*env)->GetMethodID(env, exception_clazz, "setMessage", "(Ljava/lang/String;)V");
+  if (init_method == NULL || setCode_method == NULL || setMessage_method == NULL) {
+    jniError("com/taosdata/jdbc/TSDBException is not the expected version, code:0x%x", code);
+    (*env)->ExceptionClear(env);
+    return NULL;
+  }
+
   // new exception
   jobject exception_obj = (*env)->NewObject(env, exception_clazz, init_method);
   // set code
   (*env)->CallVoidMethod(env, exception_obj, setCode_method, code);
   // set message
-  jstring message = (*env)->NewStringUTF(env, msg);
+  jstring message = (*env)->NewStringUTF(env, msg == NULL ? "" : msg);
   (*env)->CallVoidMethod(env, exception_obj, setMessage_method, message);
 
   return exception_obj;
@@ -511,6 +571,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getSchemaMetaData
     return code;
   }
 
+  JNI_REQUIRE_CACHED_IDS(TSDB_CODE_DLL_NOT_LOAD);
+
   TAOS_RES   *tres = (TAOS_RES *)res;
   TAOS_FIELD *fields = taos_fetch_fields(tres);
 
@@ -560,6 +622,10 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchRowImp(JNIEn
     jniError("jobj:%p, conn:%p, resultset is null", jobj, tscon);
     return JNI_RESULT_SET_NULL;
   }
+
+  /* The row setter ids are resolved once in jniGetGlobalMethod(); without them the
+   * CallVoidMethod() calls below would abort the JVM. */
+  JNI_REQUIRE_CACHED_IDS(TSDB_CODE_DLL_NOT_LOAD);
 
   TAOS_FIELD *fields = taos_fetch_fields(result);
 
@@ -662,6 +728,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_fetchBlockImp(JNI
     return code;
   }
 
+  JNI_REQUIRE_CACHED_IDS(TSDB_CODE_DLL_NOT_LOAD);
+
   TAOS_RES *tres = (TAOS_RES *)res;
 
   int32_t numOfFields = taos_num_fields(tres);
@@ -740,7 +808,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_validateCreateTab
 }
 
 JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTsCharset(JNIEnv *env, jobject jobj) {
-  return (*env)->NewStringUTF(env, (const char *)tsCharset);
+  return (*env)->NewStringUTF(env, tdLiteCharset());
 }
 
 /**
@@ -1021,14 +1089,14 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
 
   b->num = numOfRows;
   b->buffer_type = dataType;  // todo check data type
-  b->buffer_length = IS_VAR_DATA_TYPE(dataType) ? dataBytes : tDataTypes[dataType].bytes;
+  b->buffer_length = IS_VAR_DATA_TYPE(dataType) ? dataBytes : tdLiteDataTypeBytes(dataType);
   b->is_null = nullArray;
   b->buffer = colBuf;
   b->length = (int32_t *)lengthArray;
 
   // set the length and is_null array
   if (!IS_VAR_DATA_TYPE(dataType)) {
-    int32_t bytes = tDataTypes[dataType].bytes;
+    int32_t bytes = tdLiteDataTypeBytes(dataType);
     for (int32_t i = 0; i < numOfRows; ++i) {
       b->length[i] = bytes;
     }
@@ -1300,11 +1368,23 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_schemalessInsert
 JNIEXPORT jobject createSchemalessResp(JNIEnv *env, int totalRows, int code, const char *msg) {
   // find class
   jclass schemaless_clazz = (*env)->FindClass(env, "com/taosdata/jdbc/SchemalessResp");
+  if (schemaless_clazz == NULL) {
+    jniError("cannot find class com/taosdata/jdbc/SchemalessResp, code:0x%x", code);
+    (*env)->ExceptionClear(env);
+    return NULL;
+  }
+
   // find methods
   jmethodID init_method = (*env)->GetMethodID(env, schemaless_clazz, "<init>", "()V");
   jmethodID setCode_method = (*env)->GetMethodID(env, schemaless_clazz, "setCode", "(I)V");
   jmethodID setMsg_method = (*env)->GetMethodID(env, schemaless_clazz, "setMsg", "(Ljava/lang/String;)V");
   jmethodID setTotalRows_method = (*env)->GetMethodID(env, schemaless_clazz, "setTotalRows", "(I)V");
+  if (init_method == NULL || setCode_method == NULL || setMsg_method == NULL || setTotalRows_method == NULL) {
+    jniError("com/taosdata/jdbc/SchemalessResp is not the expected version, code:0x%x", code);
+    (*env)->ExceptionClear(env);
+    return NULL;
+  }
+
   // new schemaless
   jobject schemaless_obj = (*env)->NewObject(env, schemaless_clazz, init_method);
   // set code
@@ -1312,7 +1392,7 @@ JNIEXPORT jobject createSchemalessResp(JNIEnv *env, int totalRows, int code, con
   // set totalRows
   (*env)->CallVoidMethod(env, schemaless_obj, setTotalRows_method, totalRows);
   // set message
-  jstring message = (*env)->NewStringUTF(env, msg);
+  jstring message = (*env)->NewStringUTF(env, msg == NULL ? "" : msg);
   (*env)->CallVoidMethod(env, schemaless_obj, setMsg_method, message);
 
   return schemaless_obj;
@@ -1451,21 +1531,35 @@ typedef struct TABLE_VG_ID_FIELD_CACHE {
 TABLE_VG_ID_FIELD_CACHE tableVgIdFieldCache;
 
 void cacheTableVgIDField(JNIEnv *env, jobject jobj) {
-  if (tableVgIdFieldCache.cached) {
+  if (tableVgIdFieldCache.cached != 0) {
     return;
   }
 
   tableVgIdFieldCache.clazz = (*env)->GetObjectClass(env, jobj);
   tableVgIdFieldCache.codeField = (*env)->GetFieldID(env, tableVgIdFieldCache.clazz, "code", "I");
   tableVgIdFieldCache.vgIDField = (*env)->GetFieldID(env, tableVgIdFieldCache.clazz, "vgID", "I");
+  if (tableVgIdFieldCache.codeField == NULL || tableVgIdFieldCache.vgIDField == NULL) {
+    /* remembered as failed: SetIntField() with a NULL field id is fatal, and the
+     * caller must fall back to returning the object untouched */
+    jniError("the response object has no code/vgID field, the Java connector and this library do not match");
+    (*env)->ExceptionClear(env);
+    tableVgIdFieldCache.cached = -1;
+    return;
+  }
+
   tableVgIdFieldCache.cached = 1;
 }
 
 JNIEXPORT jobject JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_getTableVgID(JNIEnv *env, jobject jobj, jlong conn,
                                                                                jstring jdb, jstring jtable,
                                                                                jobject resp) {
-  if (!tableVgIdFieldCache.cached) {
+  if (tableVgIdFieldCache.cached == 0) {
     cacheTableVgIDField(env, resp);
+  }
+
+  if (tableVgIdFieldCache.cached != 1) {
+    jniError("jobj:%p, cannot report the vgroup id", jobj);
+    return resp;
   }
 
   TAOS *taos = (TAOS *)conn;

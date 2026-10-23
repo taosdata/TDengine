@@ -44,24 +44,20 @@ endif()
 # keep exporting ~850 engine symbols for this tool alone.
 #
 # libtaos.so is named above, so the dispatcher is always the first definition of
-# the public API on this link line.  On Linux the driver is named as well, which
-# is safe: it does not export the public names there -- it hands them to the
-# dispatcher through tdNativeApiTable -- so taos_options() cannot be bound to it
-# even if CMake hoists it ahead of libtaos.so.  macOS gets the engine symbols
-# through libtaos.dylib's re-export of the driver dylib (see
-# source/client/wrapper/CMakeLists.txt) and so does not name it here.
+# the public API on this link line.  The driver is named as well on every platform
+# where the dispatcher is thin: it does not export the public names on Linux (it
+# hands them to the dispatcher through tdNativeApiTable), and on macOS the linker
+# binds each name to the first library that defines it, so taos_options() stays in
+# the dispatcher even if CMake hoists the driver ahead of libtaos.so.
 #
 # Windows keeps the previous setup (engine archives linked in here) because its
-# dispatcher is still fat, so its exports already satisfy the shell.
-if(TD_LINUX OR TD_DARWIN)
+# tools have always embedded them.
+if(NOT TD_WINDOWS)
     target_link_libraries(
         shell
         PUBLIC ${LINK_WEBSOCKET}
     )
-    if(TD_LINUX)
-        # macOS resolves these through libtaos.dylib's re-export of the driver.
-        target_link_libraries(shell PRIVATE ${TAOS_NATIVE_LIB})
-    endif()
+    target_link_libraries(shell PRIVATE ${TAOS_NATIVE_LIB})
 else()
     target_link_libraries(
         shell

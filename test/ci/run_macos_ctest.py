@@ -131,6 +131,12 @@ def run_group(debug_dir, artifact_dir, name, environment, *, include=None, exclu
         print(f"[macos-ci] ERROR: no CTest results parsed for {name}", flush=True)
         results = [{"name": f"{name}-ctest-parser", "status": "ParseError", "detail": "CTest output did not match the expected result format"}]
         return 1, results
+    # Print the per-test outcome as well: ctest only writes a passing test's output to
+    # the log file, so without this the job log shows just the group banner and the
+    # final count, and a case that did not run (or skipped) is invisible there.
+    for case in results:
+        duration = f"  {case['duration']} sec" if case.get("duration") else ""
+        print(f"[macos-ci] {case['name']}: {case['status']}{duration}", flush=True)
     return result.returncode, results
 
 
