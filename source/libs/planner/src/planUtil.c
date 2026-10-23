@@ -678,6 +678,39 @@ void planSetParentOrder(SLogicNode* pNode, EOrder order,
   planSetParentOrder(pNode->pParent, order, pNodeForcePropagate);
 }
 
+bool planCanMergeOutputGroups(const SLogicNode* pNode) {
+  if (GROUP_ACTION_KEEP == pNode->groupAction) {
+    return false;
+  }
+
+  for (const SLogicNode* pParent = pNode->pParent; pParent != NULL;
+       pParent = pParent->pParent) {
+    if (GROUP_ACTION_KEEP == pParent->groupAction ||
+        DATA_ORDER_LEVEL_NONE != pParent->requireDataOrder) {
+      return false;
+    }
+    switch (nodeType(pParent)) {
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+        // Clearing output groups does not imply group-independent input.
+        if (pParent->pSlimit != NULL ||
+            (pParent->pLimit != NULL &&
+             !((const SProjectLogicNode*)pParent)->inputIgnoreGroup)) {
+          return false;
+        }
+        break;
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+        if (((const SSortLogicNode*)pParent)->groupSort) {
+          return false;
+        }
+        break;
+      default:
+        // A consumer may use group IDs even if it creates its own groups.
+        return false;
+    }
+  }
+  return true;
+}
+
 int32_t planCreateIsNotNullCond(const SNode* pExpr, SNode** ppCond) {
   SOperatorNode* pOp = NULL;
   PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pOp));
@@ -1050,6 +1083,18 @@ bool isPartTableAgg(SAggLogicNode* pAgg) {
            stbNotSystemScan((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0));
   }
   return pAgg->isPartTb || keysHasTbname(stbGetPartKeys((SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0)));
+}
+
+// Partition-by-table aggregation directly over a group-ordered cache scan,
+// whose groups each arrive whole.
+bool isLastRowPartTableAgg(SAggLogicNode* pAgg) {
+  if (NULL != pAgg->pGroupKeys || !isPartTableAgg(pAgg)) {
+    return false;
+  }
+  const SNode* pInput = nodesListGetNode(pAgg->node.pChildren, 0);
+  return QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pInput) &&
+         SCAN_TYPE_LAST_ROW == ((const SScanLogicNode*)pInput)->scanType &&
+         ((const SScanLogicNode*)pInput)->groupOrderScan;
 }
 
 static bool stbHasPartTag(SNodeList* pPartKeys) {
