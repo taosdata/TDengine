@@ -50,6 +50,7 @@ enum {
 typedef struct {
   int64_t seq;
   int64_t offset;
+  int32_t len;
 } SBlockIndexMeta;
 
 typedef struct {
@@ -162,6 +163,8 @@ typedef struct {
   SBtableMetaReader *pMetaReader;
   SBlockWrapper      blockWrapper;
   SSeqRange range;
+  // Last lookup's data-block metadata; discarded when the reader is reopened.
+  SMetaBlock blockMeta;
 
   int64_t timestamp;
 } STableReader;

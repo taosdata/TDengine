@@ -68,6 +68,8 @@ struct SBse {
   SBseCommitInfo commitInfo;
   // SRetention     retention;
   int64_t latestSt;
+  // Access only through atomic_*_64; a change invalidates cached file readers.
+  int64_t readerEpoch;
   // int32_t        keepDays;
   // int32_t        keeps;
   // int8_t         precision;
