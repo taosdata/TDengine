@@ -9322,6 +9322,16 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->scanType = SCAN_TYPE_LAST_ROW;
   pScan->igLastNull = pAgg->hasLast ? true : false;
 
+  // With partition by tbname the cache scan emits one table at a time, so
+  // each group arrives contiguously and is complete once the next group
+  // starts. Emit groups as they complete instead of blocking until every
+  // group is built: a blocking aggregate keeps one result row per table and
+  // spills them to the temporary file.
+  if (pScan->tableType == TSDB_SUPER_TABLE && isPartTableAgg(pAgg)) {
+    pScan->groupOrderScan = true;
+    pAgg->node.forceCreateNonBlockingOptr = true;
+  }
+
   SNode* pNode = NULL;
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
