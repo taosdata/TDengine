@@ -32,6 +32,7 @@
 #include "parser.h"
 #include "tlockfree.h"
 #include "tname.h"
+#include "tcoding.h"  // ZIGZAGD used by the bounded topic-row decoders below
 
 #define MND_TOPIC_VER_SUPPORT_OWNER 4
 #define MND_TOPIC_VER_NUMBER        MND_TOPIC_VER_SUPPORT_OWNER
@@ -163,6 +164,124 @@ TOPIC_ENCODE_OVER:
   return pRaw;
 }
 
+// ---------------------------------------------------------------------------
+// Bounded helpers for decoding an sdb topic row payload.
+//
+// These mirror the on-disk encoding produced by the TMQ topic encoder but never
+// read past bufEnd and bound every fixed-size destination. This closes the heap
+// over-read / over-allocation / over-write reported in security finding "item 240"
+// for mndTopicActionDecode (sqlLen, the legacy AST length, and the SSchemaWrapper
+// nCols / column-name handling).
+// ---------------------------------------------------------------------------
+#define TMQ_TOPIC_AST_MAX_LEN (16 * 1024 * 1024)
+#define TMQ_TOPIC_SCHEMA_MAX_COLS 4096
+// Hard cap on the size of a topic's persisted SQL. This must be at least as large as any
+// legitimate topic SQL the system can create (the server-side SQL length is bounded by the
+// configured maxSQLLength, whose documented maximum is 64MB). Capping it here prevents a
+// crafted/truncated raw from requesting a near-INT32_MAX allocation in mndTopicActionDecode
+// before the SDB_GET_BINARY length check runs (resource-exhaustion DoS, security finding "item 240").
+#define TMQ_TOPIC_SQL_MAX_LEN (64 * 1024 * 1024)
+#define MQ_TOPIC_NEED(buf, bufEnd, n) ((const uint8_t *)(buf) + (n) <= (const uint8_t *)(bufEnd))
+
+static const void *tTopicDecodeVarintU(const void *buf, const void *bufEnd, uint64_t *pVal) {
+  *pVal = 0;
+  for (int32_t i = 0; i < 10; i++) {
+    if ((const uint8_t *)buf + i >= (const uint8_t *)bufEnd) return NULL;
+    uint8_t b = ((const uint8_t *)buf)[i];
+    if (b < 0x80) {
+      *pVal |= ((uint64_t)b) << (7 * i);
+      return (const uint8_t *)buf + i + 1;
+    }
+    *pVal |= ((uint64_t)(b & 0x7F)) << (7 * i);
+  }
+  return NULL;
+}
+
+// Bounded string-into-fixed-buffer decode (mirrors taosDecodeStringTo): the
+// declared length is validated against both the source buffer and the destination
+// capacity, leaving room for the NUL terminator.
+static const void *tTopicDecodeStrTo(const void *buf, const void *bufEnd, char *dest, int32_t destCap) {
+  uint64_t size = 0;
+  buf = tTopicDecodeVarintU(buf, bufEnd, &size);
+  if (buf == NULL) return NULL;
+  if (size > (uint64_t)((const uint8_t *)bufEnd - (const uint8_t *)buf)) return NULL;  // source over-read
+  if (size >= (uint64_t)destCap) return NULL;                                          // dest overflow (keep '\0')
+  if (size > 0) memcpy(dest, buf, (size_t)size);
+  dest[size] = '\0';
+  return (const uint8_t *)buf + size;
+}
+
+static const void *tTopicDecodeI8(const void *buf, const void *bufEnd, int8_t *v) {
+  if (!MQ_TOPIC_NEED(buf, bufEnd, 1)) return NULL;
+  *v = ((const int8_t *)buf)[0];
+  return (const uint8_t *)buf + 1;
+}
+
+// Fixed 16-bit field: read little-endian then undo the zigzag applied on encode.
+static const void *tTopicDecodeI16(const void *buf, const void *bufEnd, int16_t *v) {
+  if (!MQ_TOPIC_NEED(buf, bufEnd, 2)) return NULL;
+  uint16_t u = 0;
+  memcpy(&u, buf, 2);
+  *v = (int16_t)ZIGZAGD(int16_t, u);
+  return (const uint8_t *)buf + 2;
+}
+
+// Fixed 32-bit field: read little-endian then undo the zigzag applied on encode.
+static const void *tTopicDecodeI32(const void *buf, const void *bufEnd, int32_t *v) {
+  if (!MQ_TOPIC_NEED(buf, bufEnd, 4)) return NULL;
+  uint32_t u = 0;
+  memcpy(&u, buf, 4);
+  *v = (int32_t)ZIGZAGD(int32_t, u);
+  return (const uint8_t *)buf + 4;
+}
+
+// Bounded, byte-compatible replacement for taosDecodeSSchemaWrapper:
+// variant-i32 nCols/version, fixed i8/i8/i32/i16 per column, then a
+// length-prefixed name, with every read capped to bufEnd and the name to its buffer.
+static const void *tDecodeSchemaWrapperSafe(const void *buf, const void *bufEnd, SSchemaWrapper *pSW) {
+  uint64_t u = 0;
+  buf = tTopicDecodeVarintU(buf, bufEnd, &u);  // nCols (variant i32, zigzag)
+  if (buf == NULL) return NULL;
+  pSW->nCols = (int32_t)ZIGZAGD(int32_t, u);
+  buf = tTopicDecodeVarintU(buf, bufEnd, &u);  // version (variant i32, zigzag)
+  if (buf == NULL) return NULL;
+  pSW->version = (int32_t)ZIGZAGD(int32_t, u);
+
+  if (pSW->nCols < 0 || pSW->nCols > TMQ_TOPIC_SCHEMA_MAX_COLS) return NULL;
+  if (pSW->nCols > 0) {
+    pSW->pSchema = (SSchema *)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
+    if (pSW->pSchema == NULL) return NULL;
+    for (int32_t i = 0; i < pSW->nCols; i++) {
+      const void *r = tTopicDecodeI8(buf, bufEnd, &pSW->pSchema[i].type);
+      if (r == NULL) goto TOPIC_SCHEMA_DECODE_ERR;
+      buf = r;
+      r = tTopicDecodeI8(buf, bufEnd, &pSW->pSchema[i].flags);
+      if (r == NULL) goto TOPIC_SCHEMA_DECODE_ERR;
+      buf = r;
+      r = tTopicDecodeI32(buf, bufEnd, &pSW->pSchema[i].bytes);
+      if (r == NULL) goto TOPIC_SCHEMA_DECODE_ERR;
+      buf = r;
+      r = tTopicDecodeI16(buf, bufEnd, &pSW->pSchema[i].colId);
+      if (r == NULL) goto TOPIC_SCHEMA_DECODE_ERR;
+      buf = r;
+      r = tTopicDecodeStrTo(buf, bufEnd, pSW->pSchema[i].name, (int32_t)sizeof(pSW->pSchema[i].name));
+      if (r == NULL) goto TOPIC_SCHEMA_DECODE_ERR;
+      buf = r;
+    }
+  } else {
+    pSW->pSchema = NULL;
+  }
+  return buf;
+
+  // A malformed/truncated raw may fail mid-column; since pSW->pSchema is already
+  // heap-allocated (and the caller frees only pRow, not this detached pointer), free
+  // it here and null it to avoid a leak on the decode-failure path (up to
+  // TMQ_TOPIC_SCHEMA_MAX_COLS * sizeof(SSchema) bytes).
+TOPIC_SCHEMA_DECODE_ERR:
+  taosMemoryFreeClear(pSW->pSchema);
+  return NULL;
+}
+
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   if (pRaw == NULL) return NULL;
   int32_t code = 0;
@@ -207,7 +326,15 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pTopic->stbName, TSDB_TABLE_FNAME_LEN, TOPIC_DECODE_OVER);
   }
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
-  pTopic->sql = taosMemoryCalloc(pTopic->sqlLen, sizeof(char));
+  // A malformed / malicious raw may declare a negative or huge sqlLen. Reject the
+  // negative case, and allocate one extra byte so sql is always NUL-terminated even
+  // when sqlLen == 0 (it is later passed to strlen() in mndRetrieveTopic), preventing
+  // an out-of-bounds read on the decode/retrieve path (security finding "item 240").
+  // Also reject an absurdly large positive sqlLen: otherwise the taosMemoryCalloc below
+  // would attempt a near-INT32_MAX allocation before SDB_GET_BINARY's length check runs,
+  // enabling a memory-exhaustion DoS.
+  if (pTopic->sqlLen < 0 || pTopic->sqlLen > TMQ_TOPIC_SQL_MAX_LEN) goto TOPIC_DECODE_OVER;
+  pTopic->sql = taosMemoryCalloc((size_t)pTopic->sqlLen + 1, sizeof(char));
   if (pTopic->sql == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
@@ -217,8 +344,11 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   if (sver < MND_TOPIC_VER_SUPPORT_OWNER) {
     int32_t astLen = 0;
     SDB_GET_INT32(pRaw, dataPos, &astLen, TOPIC_DECODE_OVER);
+    // Bound the AST length: reject negatives and absurd sizes to avoid huge
+    // allocations / over-reads from a crafted legacy (sver < MND_TOPIC_VER_SUPPORT_OWNER) raw.
+    if (astLen < 0 || astLen > TMQ_TOPIC_AST_MAX_LEN) goto TOPIC_DECODE_OVER;
     if (astLen) {
-      ast = taosMemoryCalloc(astLen, sizeof(char));
+      ast = taosMemoryCalloc((size_t)astLen + 1, sizeof(char));
       if (ast == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         goto TOPIC_DECODE_OVER;
@@ -250,7 +380,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
         goto TOPIC_DECODE_OVER;
       }
       SDB_GET_BINARY(pRaw, dataPos, buf, len, TOPIC_DECODE_OVER);
-      if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
+      if (tDecodeSchemaWrapperSafe(buf, (const char *)buf + len, &pTopic->schema) == NULL) {
         goto TOPIC_DECODE_OVER;
       }
     } else {
