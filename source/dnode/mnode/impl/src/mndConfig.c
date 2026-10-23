@@ -1284,6 +1284,29 @@ static uint8_t mndBuildShowVarPrivMask(SMnode *pMnode, SUserObj *pUser, const ch
 }
 #endif
 
+// SECURITY (item 226): list of global config item names that carry sensitive material and must
+// never be returned by SHOW VARIABLES / SHOW CLUSTER VARIABLES. Kept in sync with cfgDumpCfgImpl
+// in tconfig.c, which omits the same names when dumping the config to logs/files. Returning
+// ssAccessString (the shared-storage access string carrying cloud accessKeyId + secretAccessKey) or
+// the xnode DSN key file paths through SHOW VARIABLES would leak cluster credentials and key material
+// to any caller able to reach the mnode, so these items are unconditionally omitted for every caller,
+// regardless of privilege level or build flavour (community/enterprise).
+static bool mndIsSecretConfigItem(const char *name) {
+  if (name == NULL) {
+    return false;
+  }
+  if (strcmp(name, "ssAccessString") == 0) {
+    return true;  // shared-storage (S3/COS/Azure) access string: accessKeyId + secretAccessKey
+  }
+  if (strcmp(name, "xnodeDsnPublicKeyFile") == 0) {
+    return true;  // xnode DSN public key file path (sensitive key material)
+  }
+  if (strcmp(name, "xnodedDsnPrivateKeyFile") == 0) {
+    return true;  // xnode DSN private key file path (sensitive key material)
+  }
+  return false;
+}
+
 static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, uint8_t showPrivMask) {
   if (pItems == NULL) {
     return NULL;
@@ -1300,6 +1323,16 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
     SConfigItem   *pItem = taosArrayGet(pItems, i);
     SVariablesInfo info = {0};
     tstrncpy(info.name, pItem->name, sizeof(info.name));
+
+    // SECURITY (item 226): never expose secret-bearing items such as the shared-storage access
+    // string or the DSN key files. Omit them for every caller regardless of the LIKE pattern or
+    // privilege mask, consistent with the redaction already applied by cfgDumpCfgImpl when dumping
+    // the config. This prevents leaking cloud object-store credentials / key material via
+    // SHOW VARIABLES even to an authenticated user.
+    if (mndIsSecretConfigItem(pItem->name)) {
+      continue;
+    }
+
     if (likePattern != NULL && rawStrPatternMatch(pItem->name, likePattern) != TSDB_PATTERN_MATCH) {
       continue;
     }
