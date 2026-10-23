@@ -5233,7 +5233,7 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     }
   }
 
-  if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_NANO_VERSION) {
+  if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_VERSION) {
     int32_t nExtBindings = 0;
     code = tDecodeI32(&decoder, &nExtBindings);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -5275,11 +5275,13 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
 
       STriggerExtBindingCutoffKey cutoffKey = {.registryEntryId = pMatchedRef->registryEntryId,
                                                .virtualGid = virtualGid};
-      // v8 wire values are nanoseconds (lossless for every task precision). The group-level
-      // recovery map is consumed in task precision, while the registry-level fallback map keeps
-      // the legacy microsecond unit (stRealtimeContextBuildExtCalcUidWindow converts it back).
-      int64_t maxTsTask = convertTimePrecision(maxTs, TSDB_TIME_PRECISION_NANO, pTask->precision);
-      int64_t maxTsMicro = convertTimePrecision(maxTs, TSDB_TIME_PRECISION_NANO, TSDB_TIME_PRECISION_MICRO);
+      // v5-v7 binding cutoffs use microseconds; v8 uses nanoseconds. The group-level recovery
+      // map uses task precision, while the registry-level fallback keeps microseconds.
+      int8_t  cutoffPrecision = formatVer >= STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_NANO_VERSION
+                                    ? TSDB_TIME_PRECISION_NANO
+                                    : TSDB_TIME_PRECISION_MICRO;
+      int64_t maxTsTask = convertTimePrecision(maxTs, cutoffPrecision, pTask->precision);
+      int64_t maxTsMicro = convertTimePrecision(maxTs, cutoffPrecision, TSDB_TIME_PRECISION_MICRO);
       if (pExtProg->recoveryCheckpointGroupMaxTs != NULL) {
         code = tSimpleHashPut(pExtProg->recoveryCheckpointGroupMaxTs, &cutoffKey, sizeof(cutoffKey), &maxTsTask,
                               sizeof(maxTsTask));
@@ -5307,7 +5309,7 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
         continue;
       }
 
-      int64_t restoreMaxTs = convertTimePrecision(maxTs, TSDB_TIME_PRECISION_NANO, pTask->precision);
+      int64_t restoreMaxTs = maxTsTask;
       code = tSimpleHashPut(pExtProg->triggerSideUidMaxTs, &pMatchedRef->registryEntryId,
                             sizeof(pMatchedRef->registryEntryId), &restoreMaxTs, sizeof(restoreMaxTs));
       QUERY_CHECK_CODE(code, lino, _end);
