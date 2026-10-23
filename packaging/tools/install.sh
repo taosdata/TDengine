@@ -525,7 +525,121 @@ function install_extension_package() {
   echo "TDengine extension package has been installed successfully."
 }
 
+# Preserve general-purpose system library links: legacy installs may have
+# overwritten their original targets. Remove only dedicated FQ exports. Resolve every link
+# before deleting any, so aliases and dangling versioned targets are handled.
+function cleanup_legacy_fq_runtime() {
+  local driver_dir="$1" conf_file="$2" cleanup_sudo="$3"
+  shift 3
+  local canonical_driver dir link target
+  local changed=0
+  local managed_links=()
+  local ownership
+  canonical_driver=$(readlink -m -- "$driver_dir")
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    for link in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so* \
+                "$dir"/libltdl.so* "$dir"/libgssapi_krb5.so* "$dir"/libkrb5.so* \
+                "$dir"/libk5crypto.so* "$dir"/libcom_err.so* "$dir"/libkrb5support.so* \
+                "$dir"/libkeyutils.so*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m -- "$link" 2>/dev/null) || continue
+      case "$target" in
+        "$canonical_driver/"*)
+          # Shared runtime SONAMEs may have replaced package-owned links.
+          # Remove them only when a package manager confirms the link path is
+          # unowned; ambiguous query failures preserve the link.
+          case "${link##*/}" in
+            libssl.so*|libcrypto.so*|libz.so*|libltdl.so*|libgssapi_krb5.so*|libkrb5.so*|\
+            libk5crypto.so*|libcom_err.so*|libkrb5support.so*|libkeyutils.so*)
+              ownership=unknown
+              if command -v dpkg-query >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(dpkg-query -S -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"no path found matching pattern"* ]]; then
+                  ownership=unowned
+                fi
+              elif command -v rpm >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(rpm -qf -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"is not owned by any package"* ]]; then
+                  ownership=unowned
+                fi
+              fi
+              if [ "$ownership" = owned ] && command -v rpm >/dev/null 2>&1; then
+                local package rpm_target restored_target
+                package=$(rpm -qf --qf '%{NAME}\n' -- "$link" 2>/dev/null) || package=""
+                rpm_target=""
+                if [ -n "$package" ]; then
+                  rpm_target=$(rpm -q --dump "$package" 2>/dev/null | awk -v path="$link" '$1 == path && $5 ~ /^012/ { print $NF; found=1; exit } END { if (!found) exit 1 }') || rpm_target=""
+                fi
+                if [ -n "$rpm_target" ] && [ -e "$(dirname "$link")/$rpm_target" ]; then
+                  restored_target=$(readlink -m -- "$(dirname "$link")/$rpm_target" 2>/dev/null) || restored_target=""
+                  case "$restored_target" in
+                    "$canonical_driver/"*) restored_target="" ;;
+                  esac
+                  if [ -n "$restored_target" ]; then
+                    ${cleanup_sudo}ln -sfn -- "$rpm_target" "$link"
+                    changed=1
+                    echo "Restored package-owned symlink $link -> $rpm_target"
+                    continue
+                  fi
+                fi
+                echo "Warning: preserving $link; RPM target could not be safely restored" >&2
+                continue
+              fi
+              if [ "$ownership" != unowned ]; then
+                echo "Warning: preserving $link; package ownership is $ownership" >&2
+                continue
+              fi
+              ;;
+          esac
+          managed_links+=("$link")
+          ;;
+      esac
+    done
+  done
+  for link in "${managed_links[@]-}"; do
+    [ -n "$link" ] || continue
+    ${cleanup_sudo}rm -f -- "$link"
+    changed=1
+  done
+  # The old installer wrote exactly one driver path. Leave symlinks and any
+  # customized configuration untouched, even when the filename is the same.
+  if [ -n "$conf_file" ] && [ -f "$conf_file" ] && [ ! -L "$conf_file" ] &&
+     [ "$(cat -- "$conf_file")" = "$driver_dir" ]; then
+    ${cleanup_sudo}rm -f -- "$conf_file"
+    changed=1
+  elif [ -n "$conf_file" ] && { [ -e "$conf_file" ] || [ -L "$conf_file" ]; }; then
+    echo "Warning: customized loader configuration preserved: $conf_file; review FQ driver exports manually" >&2
+  fi
+  if [ "$changed" -eq 1 ] && { [ "$(id -u)" -eq 0 ] || [ -n "$cleanup_sudo" ]; } &&
+     command -v ldconfig >/dev/null 2>&1; then
+    ${cleanup_sudo}ldconfig || echo "Warning: failed to update library cache (ldconfig)" >&2
+  fi
+}
+
 function install_fq_runtime_links() {
+  if [ "$osType" != "Darwin" ]; then
+    local legacy_conf=""
+    if [ "$user_mode" -eq 0 ]; then
+      legacy_conf="/etc/ld.so.conf.d/tdengine-connector.conf"
+    fi
+    cleanup_legacy_fq_runtime "${installDir}/driver" "$legacy_conf" "" \
+      "$lib_link_dir" "$lib64_link_dir"
+  fi
+  # Keep Microsoft driver resources relative to the private driver directory.
+  if [ -d "${script_dir}/share/resources" ]; then
+    mkdir -p "${installDir}/share/resources"
+    cp -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
+  fi
   local runtime_dir="${1:-${installDir}/driver}"
   local link_name target_name
   [ -d "$runtime_dir" ] || return 0
