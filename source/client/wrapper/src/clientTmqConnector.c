@@ -19,8 +19,15 @@
 #include "jniCommon.h"
 #include "taos.h"
 
+/* Last include on purpose: re-points the memory macros at the local libc shims. */
+#include "wrapperLiteMem.h"
+
 int       __init_tmq = 0;
 jmethodID g_offsetCallback;
+
+/* Set to 1 by tmqAssignmentMethod() once the Assignment ids below resolved, see
+ * jniCommon.h. */
+int32_t g_jniAssignmentReady = 0;
 
 jclass    g_assignmentClass;
 jmethodID g_assignmentConstructor;
@@ -46,13 +53,23 @@ void tmqGlobalMethod(JNIEnv *env) {
     (void)((*env)->GetJavaVM(env, &g_vm));
   }
 
-  jclass offset = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/OffsetWaitCallback");
+  jclass offset = jniFindClassChecked(env, "com/taosdata/jdbc/tmq/OffsetWaitCallback");
+  if (offset == NULL) goto unusable;
   jclass g_offsetCallbackClass = (*env)->NewGlobalRef(env, offset);
-  g_offsetCallback = (*env)->GetMethodID(env, g_offsetCallbackClass, "commitCallbackHandler", "(I)V");
+  JNI_METHOD(g_offsetCallback, g_offsetCallbackClass, "commitCallbackHandler", "(I)V");
   (*env)->DeleteLocalRef(env, offset);
 
   atomic_store_32(&__init_tmq, 2);
   jniDebug("tmq method register finished");
+  return;
+
+unusable:
+  /* __init_tmq still has to reach 2, or the threads waiting in the switch above
+   * would spin for ever.  The callback that uses the id is skipped (see
+   * commit_cb()), the entry points that use it return an error code. */
+  atomic_store_32(&__init_tmq, 2);
+  tdLiteLogMsg(1, "JNI ERROR ",
+               "TMQ JNI initialization failed, the Java connector and this library do not match");
 }
 
 int  __init_assignment = 0;
@@ -73,18 +90,28 @@ void tmqAssignmentMethod(JNIEnv *env) {
     (void)((*env)->GetJavaVM(env, &g_vm));
   }
 
-  jclass assignment = (*env)->FindClass(env, "com/taosdata/jdbc/tmq/Assignment");
+  jclass assignment = jniFindClassChecked(env, "com/taosdata/jdbc/tmq/Assignment");
+  if (assignment == NULL) goto unusable;
   g_assignmentClass = (*env)->NewGlobalRef(env, assignment);
-  g_assignmentConstructor = (*env)->GetMethodID(env, g_assignmentClass, "<init>", "()V");
-  g_assignmentSetVgId = (*env)->GetMethodID(env, g_assignmentClass, "setVgId", "(I)V");                    // int
-  g_assignmentSetCurrentOffset = (*env)->GetMethodID(env, g_assignmentClass, "setCurrentOffset", "(J)V");  // long
-  g_assignmentSetBegin = (*env)->GetMethodID(env, g_assignmentClass, "setBegin", "(J)V");                  // long
-  g_assignmentSetEnd = (*env)->GetMethodID(env, g_assignmentClass, "setEnd", "(J)V");                      // long
+  JNI_METHOD(g_assignmentConstructor, g_assignmentClass, "<init>", "()V");
+  JNI_METHOD(g_assignmentSetVgId, g_assignmentClass, "setVgId", "(I)V");                    // int
+  JNI_METHOD(g_assignmentSetCurrentOffset, g_assignmentClass, "setCurrentOffset", "(J)V");  // long
+  JNI_METHOD(g_assignmentSetBegin, g_assignmentClass, "setBegin", "(J)V");                  // long
+  JNI_METHOD(g_assignmentSetEnd, g_assignmentClass, "setEnd", "(J)V");                      // long
 
   (*env)->DeleteLocalRef(env, assignment);
 
+  /* Publish before __init_assignment leaves 1, the waiters in the switch above
+   * spin on it. */
+  atomic_store_32(&g_jniAssignmentReady, 1);
   atomic_store_32(&__init_assignment, 2);
   jniDebug("tmq method assignment finished");
+  return;
+
+unusable:
+  atomic_store_32(&__init_assignment, 2);
+  tdLiteLogMsg(1, "JNI ERROR ",
+               "TMQ assignment JNI initialization failed, the Java connector and this library do not match");
 }
 
 // deprecated
@@ -100,7 +127,9 @@ void commit_cb(tmq_t *tmq, int32_t code, void *param) {
   }
 
   jobject obj = (jobject)param;
-  (*env)->CallVoidMethod(env, obj, g_commitCallback, code);
+  if (g_commitCallback != NULL) {
+    (*env)->CallVoidMethod(env, obj, g_commitCallback, code);
+  }
 
   (*env)->DeleteGlobalRef(env, obj);
   param = NULL;
@@ -123,7 +152,9 @@ void consumer_callback(tmq_t *tmq, int32_t code, void *param) {
   }
 
   jobject obj = (jobject)param;
-  (*env)->CallVoidMethod(env, obj, g_offsetCallback, code);
+  if (g_offsetCallback != NULL) {
+    (*env)->CallVoidMethod(env, obj, g_offsetCallback, code);
+  }
   (*env)->DeleteGlobalRef(env, obj);
   param = NULL;
 
@@ -187,7 +218,9 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqConsumerNewIm
   tmq_t *tmq = tmq_consumer_new((tmq_conf_t *)conf, msg, len);
   if (strlen(msg) > 0) {
     jniError("jobj:%p, config:%p, tmq create consumer error:%s", jobj, conf, msg);
-    (*env)->CallVoidMethod(env, jconsumer, g_createConsumerErrorCallback, (*env)->NewStringUTF(env, msg));
+    if (g_createConsumerErrorCallback != NULL) {
+      (*env)->CallVoidMethod(env, jconsumer, g_createConsumerErrorCallback, (*env)->NewStringUTF(env, msg));
+    }
     taosMemoryFreeClear(msg);
     return TMQ_CONSUMER_CREATE_ERROR;
   }
@@ -261,6 +294,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqSubscriptionIm
     jniError("jobj:%p, tmq is closed", jobj);
     return TMQ_CONSUMER_NULL;
   }
+
+  JNI_REQUIRE_CACHED_IDS(TSDB_CODE_DLL_NOT_LOAD);
 
   tmq_list_t *topicList = NULL;
   int32_t     res = tmq_subscription((tmq_t *)tmq, &topicList);
@@ -464,6 +499,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_fetchRawBlockImp(
     return code;
   }
 
+  JNI_REQUIRE_CACHED_IDS(TSDB_CODE_DLL_NOT_LOAD);
+
   TAOS_RES *tres = (TAOS_RES *)res;
 
   void   *data = NULL;
@@ -545,6 +582,8 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqGetTopicAssign
     jniDebug("jobj:%p, topic is null", jobj);
     return TMQ_TOPIC_NULL;
   }
+
+  JNI_REQUIRE_ASSIGNMENT_IDS(TSDB_CODE_DLL_NOT_LOAD);
 
   const char *topicName = (*env)->GetStringUTFChars(env, jtopic, NULL);
 

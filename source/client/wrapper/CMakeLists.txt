@@ -15,12 +15,52 @@
 
 aux_source_directory(src WRAPPER_SRC)
 
+# The engine helpers this dispatcher needs are compiled in instead of being imported
+# from the driver (see inc/wrapperLite.h).  Those three files define 15 names the engine's
+# os/util also define -- taosPrintLog, taosRealPath, taosLoadDll, taosGetErrno,
+# atomic_*, ... -- so they belong to this library alone; the list below exists to give
+# them hidden visibility, so that a consumer which also loads the driver keeps
+# resolving those names to the engine's copies.
+#
+# (This used to be a shared/static split, with src/wrapperLiteStatic.c forwarding the
+# same tdLite* API to the engine for a taos_static archive.  That archive is gone:
+# the engine's static client, for a consumer that wants no dispatcher and no .so, is
+# taosnative_static.)
+set(TD_TAOS_LITE_SRC
+    src/wrapperLiteErr.c
+    src/wrapperLiteOs.c
+    src/wrapperLiteLog.c
+)
+
 if(TD_WINDOWS)
     configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../src/taos.rc.in "${CMAKE_CURRENT_BINARY_DIR}/taos.rc")
     add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC} "${CMAKE_CURRENT_BINARY_DIR}/taos.rc")
 else()
     add_library(${TAOS_LIB} SHARED ${WRAPPER_SRC})
 endif()
+
+# The self-contained helpers must stay invisible outside the shared object:
+# exporting them would let them interpose the driver's copies for every consumer
+# that loads both libraries, and a consumer reaching one of these helpers would then
+# get wrapper state instead of the engine's.  Hidden visibility keeps the intra-DSO
+# references working (other TUs in this library still bind to these definitions)
+# while removing them from the export table.
+# Windows needs nothing here: it exports nothing without __declspec, and MSVC has
+# no -fvisibility (it reports D9002 for it).
+if(NOT WIN32)
+    set_source_files_properties(${TD_TAOS_LITE_SRC} PROPERTIES COMPILE_OPTIONS "-fvisibility=hidden")
+endif()
+
+# Version string for the local fallback (taos_get_client_info() and the JNI's
+# getServerVersion answer from here when the driver has no taos_get_client_info).
+# Assembled from the same two CMake variables as source/util/src/version.c.in so
+# this library's answer is the engine's td_version by construction; the unit test
+# fails loudly if this define is ever dropped.
+# TD_TAOS_LITE_SHARED switches on the memory macro overrides in inc/wrapperLiteMem.h,
+# which are what keep this library independent of the engine's memory pool.
+target_compile_definitions(${TAOS_LIB} PRIVATE
+    TD_TAOS_LITE_SHARED
+    "TD_LITE_VERSION=\"${BUILD_VER_NUMBER}.${TD_EDITION}\"")
 
 # NOTE: no version script for libtaos.so.  It is a driver dispatcher only, so it
 # neither needs to export engine symbols nor may it embed them: the public C API
@@ -94,12 +134,29 @@ target_include_directories(${TAOS_LIB} PRIVATE
 # is a separately generated artifact that still needs a macOS validation run -- so
 # there the dispatcher is thin but the engine symbols are not hidden yet.
 if(TD_LINUX OR TD_DARWIN)
-    target_link_libraries(
-        ${TAOS_LIB}
-        PRIVATE "$<TARGET_FILE:${TAOS_NATIVE_LIB}>"
-    )
     add_dependencies(${TAOS_LIB} ${TAOS_NATIVE_LIB})
     if(TD_LINUX)
+        # libtaos.so now carries its own implementations of the engine helpers it
+        # used to import (src/wrapperLite*.c, built with -fvisibility=hidden so they
+        # are not exported and cannot interpose the driver).  The driver therefore
+        # no longer has to be in DT_NEEDED: a WebSocket-only deployment needs just
+        # libtaos.so and libtaosws.so.  taosDriverInit() keeps dlopen()ing the
+        # driver at run time (colocated $ORIGIN, develop path, then the system
+        # search path -- see wrapperDriver.c), and add_dependencies only fixes the
+        # build order.
+        #
+        # The rpath/--disable-new-dtags block below is kept even though it is now
+        # inert for this library: it documented why the *linked* driver had to
+        # resolve to $ORIGIN (and why sanitizers must see a normalized module
+        # name).  It becomes load-bearing again the moment the driver is linked
+        # back in, e.g. on macOS.
+        #
+        # The local implementations call pthread_once/pthread_mutex and
+        # dlopen/dlsym.  Those live in libc from glibc 2.34 on, but the core image
+        # (GCC 7, older glibc) needs them named explicitly.
+        set(THREADS_PREFER_PTHREAD_FLAG ON)
+        find_package(Threads REQUIRED)
+        target_link_libraries(${TAOS_LIB} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
         # The driver is a hard dependency of the dispatcher, not something only our
         # own dlopen() pulls in: the dispatcher reads driver globals (gMemPoolHandle,
         # configDir, jniDebugFlag, the atomics), and data relocations are eager, so
@@ -123,20 +180,33 @@ if(TD_LINUX OR TD_DARWIN)
             BUILD_RPATH_USE_ORIGIN TRUE)
     endif()
     if(TD_DARWIN)
-        # Mach-O has no --copy-dt-needed-entries, and ld64 does not look for
-        # undefined symbols in the dependencies of a dylib it links.  A consumer
-        # that links only libtaos.dylib would therefore fail on the engine
-        # symbols the CLI tools use directly (gMemPoolHandle, cfgDumpCfg,
-        # osDefaultInit, ...).  Re-exporting the driver is the Mach-O equivalent:
-        # its symbols join libtaos.dylib's export table, while the dispatcher's
-        # own definitions still win for the names both libraries define, so
-        # taos_options() keeps landing in libtaos.dylib instead of bypassing it
-        # (the two-level namespace records the providing library per symbol).
-        target_link_options(${TAOS_LIB} PRIVATE
-            "LINKER:-reexport_library,$<TARGET_FILE:${TAOS_NATIVE_LIB}>")
+        # macOS used to link the driver (and re-export it) so that consumers would
+        # see the engine symbols.  They name libtaosnative.dylib themselves now, the
+        # same way they do on Linux, which keeps the driver out of this library's
+        # load commands -- the property the whole thin dispatcher exists for.  The
+        # driver's own export table still lists the public API (the Mach-O
+        # equivalent of taosnative.ver is a separate artifact), so every consumer
+        # must keep naming the dispatcher first on its link line.
+        #
+        # taosConfigureMacosClientRpath() above still sets the loader path for the
+        # driver this library dlopen()s at run time.
     endif()
 else()
-    target_link_libraries(${TAOS_LIB} PUBLIC os util)
+    # Windows used to fold os/util (and their transitive dependencies) into
+    # taos.dll.  It builds the same self-contained helpers as the other two
+    # platforms now, so the engine archives are only a *usage requirement* here:
+    # consumers link them on their own line, as they were already built before,
+    # and taos.dll itself neither contains engine code nor needs taosnative.dll.
+    #
+    # The local helpers need pthread-win32 for pthread_mutex/pthread_once;
+    # Threads::Threads is empty under MSVC.
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries(${TAOS_LIB} PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+    if(ext_pthread_libs)
+        target_link_libraries(${TAOS_LIB} PRIVATE ${ext_pthread_libs})
+    endif()
+    target_link_libraries(${TAOS_LIB} INTERFACE os util)
 endif()
 
 # Consumers of the dispatcher use engine internals that live only in
@@ -190,38 +260,16 @@ function(td_taos_collect_include_dirs out_var)
     set(${out_var} "${_dirs}" PARENT_SCOPE)
 endfunction()
 
-# Not needed on Windows: its dispatcher is still fat, so `PUBLIC os util` above
-# already advertises these paths.
+# Not needed on Windows: `INTERFACE os util` above already advertises these paths.
+td_taos_collect_include_dirs(TAOS_ENGINE_INCLUDES os util)
+# The dispatcher's own translation units include engine headers for compilation
+# only (jniCommon.h -> ttypes.h, taosNativeApi.h), and on Windows those headers
+# pull further ones from the bundled externals (os.h -> regex.h, pthread.h).  Those
+# paths used to arrive through `PUBLIC os util`, which the library no longer links.
+target_include_directories(${TAOS_LIB} PRIVATE ${TAOS_ENGINE_INCLUDES})
 if(TD_LINUX OR TD_DARWIN)
-    td_taos_collect_include_dirs(TAOS_ENGINE_INCLUDES os util)
     target_include_directories(${TAOS_LIB} INTERFACE ${TAOS_ENGINE_INCLUDES})
 endif()
-
-add_library(${TAOS_LIB_STATIC} STATIC ${WRAPPER_SRC})
-
-if(TD_DARWIN)
-    target_compile_options(${TAOS_LIB_STATIC} PRIVATE -Wno-error=deprecated-non-prototype)
-endif()
-
-target_include_directories(
-    ${TAOS_LIB_STATIC}
-    PUBLIC "${TD_SOURCE_DIR}/include/client"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
-    # Same sources as the shared variant (wrapperDriver.c includes
-    # taosNativeApi.h), so it needs the same paths -- without these the static
-    # library fails to compile in configurations that build it (BUILD_TEST=ON,
-    # the enterprise build, macOS/Windows smoke).
-    PRIVATE "${TD_SOURCE_DIR}/include"
-    PRIVATE "${TD_SOURCE_DIR}/include/os"
-    PRIVATE "${TD_SOURCE_DIR}/include/util"
-    PRIVATE "${TD_SOURCE_DIR}/include/common"
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-
-target_link_libraries(
-    ${TAOS_LIB_STATIC}
-    PUBLIC os util
-)
 
 # if(${BUILD_TEST})
 # ADD_SUBDIRECTORY(test)
