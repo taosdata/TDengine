@@ -34,13 +34,14 @@ IF(TD_LINUX)
 
     # libtaos.so owns the public API; the engine internals benchUtil.c uses
     # directly (decimal64FromStr, ...) live only in the driver.  On Linux the
-    # driver no longer exports the public names, so naming it here cannot shadow
-    # the dispatcher; macOS resolves them through libtaos.dylib's re-export.
+    # driver does not export the public names, so naming it here cannot shadow the
+    # dispatcher; on macOS the linker binds each name to the first library that
+    # defines it.
     TARGET_LINK_LIBRARIES(
             benchmarkTest
             PRIVATE taos toolscJson
     )
-    if(TD_LINUX)
+    if(NOT TD_WINDOWS)
         TARGET_LINK_LIBRARIES(benchmarkTest PRIVATE ${TAOS_NATIVE_LIB})
     endif()
 
