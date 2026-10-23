@@ -76,7 +76,7 @@ echo "#########Step 3############"
 echo "#########create data directory"
 mkdir -p ${dataDir}/taos/{data,core,tmp,soft}
 mkdir -p ${logDir}
-chmod 777 ${dataDir}/taos/tmp
+chmod 1777 "${dataDir}/taos/tmp"
 chmod 777 ${logDir}
 
 echo "#########install suggest package and disable firewall"
