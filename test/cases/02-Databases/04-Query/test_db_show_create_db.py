@@ -80,6 +80,9 @@ class TestDatabaseShowCreateDb:
         """
 
         tdSql.execute("create database show_retention_db retentions -:7d,15s:21d,1m:365d")
+        # Wait until the create-database transaction is committed so that
+        # SHOW CREATE DATABASE reads the final retentions configuration.
+        clusterComCheck.checkTransactions()
         tdSql.query("show create database show_retention_db")
         tdSql.checkRows(1)
         create_sql = tdSql.queryResult[0][1]
