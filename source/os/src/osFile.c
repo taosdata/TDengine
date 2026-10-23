@@ -29,6 +29,7 @@
 #include <io.h>
 #include <ktmw32.h>
 #include <winioctl.h>
+#include <winternl.h>
 #define F_OK 0
 #define X_OK 1
 #define W_OK 2
@@ -1465,6 +1466,210 @@ _exit:
   taosMemoryFree(file);
   terrno = code;
   return NULL;
+}
+
+#ifdef WINDOWS
+static int32_t taosCreateTempHandle(const char *dir, const char *name,
+                                    TdFilePtr file) {
+  typedef NTSTATUS(NTAPI * CreateFileFn)(
+      PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STATUS_BLOCK,
+      PLARGE_INTEGER, ULONG, ULONG, ULONG, ULONG, PVOID, ULONG);
+  typedef ULONG(NTAPI * StatusToErrorFn)(NTSTATUS);
+  HMODULE module = GetModuleHandleA("ntdll.dll");
+  CreateFileFn createFile = module == NULL ? NULL :
+      (CreateFileFn)GetProcAddress(module, "NtCreateFile");
+  StatusToErrorFn statusToError = module == NULL ? NULL :
+      (StatusToErrorFn)GetProcAddress(module, "RtlNtStatusToDosError");
+  if (createFile == NULL || statusToError == NULL) {
+    return TAOS_SYSTEM_WINAPI_ERROR(ERROR_PROC_NOT_FOUND);
+  }
+  SPrivateFileSecurity security = {0};
+  int32_t code = taosInitPrivateFileSecurity(&security);
+  if (code != 0) return code;
+  DWORD access = FILE_LIST_DIRECTORY | FILE_TRAVERSE | FILE_READ_ATTRIBUTES;
+  DWORD sharing = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+  DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+  HANDLE parent = CreateFileA(dir, access, sharing, NULL, OPEN_EXISTING,
+                              flags, NULL);
+  if (parent == INVALID_HANDLE_VALUE) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    goto _exit;
+  }
+  BY_HANDLE_FILE_INFORMATION info = {0};
+  if (!GetFileInformationByHandle(parent, &info)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  } else if (!(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+    code = TAOS_SYSTEM_WINAPI_ERROR(ERROR_DIRECTORY);
+  }
+  if (code == 0) {
+    WCHAR wideName[PATH_MAX];
+    int length = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, name, -1,
+                                    wideName, PATH_MAX);
+    if (length == 0) {
+      code = TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+    } else {
+      UNICODE_STRING unicode = {0};
+      unicode.Buffer = wideName;
+      unicode.Length = (USHORT)((length - 1) * sizeof(WCHAR));
+      unicode.MaximumLength = (USHORT)(length * sizeof(WCHAR));
+      OBJECT_ATTRIBUTES attributes = {0};
+      attributes.Length = sizeof(attributes);
+      attributes.RootDirectory = parent;
+      attributes.ObjectName = &unicode;
+      attributes.SecurityDescriptor = &security.descriptor;
+      IO_STATUS_BLOCK status = {0};
+      HANDLE handle = NULL;
+      // RootDirectory pins path resolution to the opened directory, just
+      // as openat does on POSIX. Do not reopen by a full pathname.
+      NTSTATUS result = createFile(
+          &handle, GENERIC_READ | GENERIC_WRITE | DELETE | SYNCHRONIZE |
+          READ_CONTROL, &attributes, &status, NULL, FILE_ATTRIBUTE_TEMPORARY,
+          0, FILE_CREATE, FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT |
+          FILE_SYNCHRONOUS_IO_NONALERT | FILE_DELETE_ON_CLOSE, NULL, 0);
+      if (result < 0) {
+        code = TAOS_SYSTEM_WINAPI_ERROR(statusToError(result));
+      } else {
+        file->hFile = handle;
+        file->tdFileOptions = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_AUTO_DEL;
+      }
+    }
+  }
+_exit:
+  if (parent != INVALID_HANDLE_VALUE) CloseHandle(parent);
+  taosFreePrivateFileSecurity(&security);
+  return code;
+}
+#else
+static int32_t taosCreateTempHandle(const char *dir, const char *name,
+                                    TdFilePtr file) {
+  // Resolve the configured path once; all child operations use this handle.
+  int parent = open(dir, O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+  if (parent < 0) return TAOS_SYSTEM_ERROR(ERRNO);
+  int32_t code = 0;
+  int directory = -1;
+  int fd = -1;
+  char privateName[64] = {0};
+  bool created = false;
+  bool fileLinked = false;
+  for (int32_t attempt = 0; attempt < 32; ++attempt) {
+    char uuid[37] = {0};
+    code = taosGetSystemUUIDLimit36(uuid, sizeof(uuid));
+    if (code != 0) goto _exit;
+    (void)snprintf(privateName, sizeof(privateName), "tdengine-query-%s",
+                   uuid);
+    if (mkdirat(parent, privateName, 0700) == 0) {
+      created = true;
+      break;
+    }
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    if (ERRNO != EEXIST) goto _exit;
+  }
+  if (!created) goto _exit;
+  directory = openat(parent, privateName,
+                     O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+  if (directory < 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+  struct stat info = {0};
+  if (fstat(directory, &info) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+  if (info.st_uid != geteuid() || (info.st_mode & 0777) != 0700) {
+    code = TAOS_SYSTEM_ERROR(EACCES);
+    goto _exit;
+  }
+  fd = openat(directory, name, O_CREAT | O_EXCL | O_RDWR | O_NOFOLLOW |
+              O_CLOEXEC, 0600);
+  if (fd < 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+  fileLinked = true;
+  if (fchmod(fd, 0600) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+  if (unlinkat(directory, name, 0) != 0) {
+    code = TAOS_SYSTEM_ERROR(ERRNO);
+    goto _exit;
+  }
+  fileLinked = false;
+  code = 0;
+_exit:
+  if (fileLinked && unlinkat(directory, name, 0) != 0 && ERRNO != ENOENT) {
+    int cleanupError = ERRNO;
+    uWarn("failed to remove temporary file:%s/%s/%s, reason:%s", dir,
+          privateName, name, strerror(cleanupError));
+  }
+  if (directory >= 0) (void)close(directory);
+  if (created && unlinkat(parent, privateName, AT_REMOVEDIR) != 0 &&
+      ERRNO != ENOENT) {
+    int cleanupError = ERRNO;
+    uWarn("failed to remove temporary directory:%s/%s, reason:%s", dir,
+          privateName, strerror(cleanupError));
+  }
+  (void)close(parent);
+  if (code != 0) {
+    if (fd >= 0) (void)close(fd);
+  } else {
+    file->fd = fd;
+  }
+  return code;
+}
+#endif
+
+TdFilePtr taosOpenTempFile(const char *dir, const char *prefix) {
+  if (dir == NULL || dir[0] == 0 || strlen(dir) >= PATH_MAX ||
+      prefix == NULL || prefix[0] == 0 ||
+      strlen(prefix) > TD_TMP_FILE_PREFIX_MAX_LEN ||
+      strpbrk(prefix, "/\\:") != NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  char directory[PATH_MAX];
+  memcpy(directory, dir, strlen(dir) + 1);
+  size_t length = strlen(directory);
+  // Normalize separators without changing a filesystem root.
+  while (length > 1 && (directory[length - 1] == '/'
+#ifdef WINDOWS
+                        || directory[length - 1] == '\\'
+#endif
+                        )) {
+#ifdef WINDOWS
+    if (length == 3 && directory[1] == ':') break;
+#endif
+    directory[--length] = 0;
+  }
+  char uuid[37] = {0};
+  int32_t code = taosGetSystemUUIDLimit36(uuid, sizeof(uuid));
+  if (code != 0) {
+    terrno = code;
+    return NULL;
+  }
+  char name[PATH_MAX];
+  int count = snprintf(name, sizeof(name), "%s-%s", prefix, uuid);
+  if (count < 0 || count >= sizeof(name)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  TdFilePtr file = taosMemoryCalloc(1, sizeof(TdFile));
+  if (file == NULL) return NULL;
+  code = taosThreadRwlockInit(&file->rwlock, NULL);
+  if (code != 0) {
+    taosMemoryFree(file);
+    terrno = code;
+    return NULL;
+  }
+  code = taosCreateTempHandle(directory, name, file);
+  if (code != 0) {
+    (void)taosThreadRwlockDestroy(&file->rwlock);
+    taosMemoryFree(file);
+    terrno = code;
+    return NULL;
+  }
+  return file;
 }
 
 int32_t taosCheckPrivateSocket(const char *path) {
