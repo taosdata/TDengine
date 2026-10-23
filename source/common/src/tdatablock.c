@@ -2346,6 +2346,38 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+SConstTagColumn* blockDataGetConstTagColumn(const SSDataBlock* pBlock, int32_t slotId) {
+  if (pBlock == NULL || pBlock->pConstTagCols == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pConstTagCols); ++i) {
+    SConstTagColumn* pCol = taosArrayGet(pBlock->pConstTagCols, i);
+    if (pCol->slotId == slotId) {
+      return pCol;
+    }
+  }
+  return NULL;
+}
+
+static void freeConstTagColumns(SSDataBlock* pBlock) {
+  if (pBlock->pConstTagCols == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pConstTagCols); ++i) {
+    SConstTagColumn* pCol = taosArrayGet(pBlock->pConstTagCols, i);
+    colDataDestroy(&pCol->column);
+  }
+  taosArrayDestroy(pBlock->pConstTagCols);
+  pBlock->pConstTagCols = NULL;
+}
+
+static void resetConstTagColumns(SSDataBlock* pBlock) {
+  if (pBlock->pConstTagCols == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pConstTagCols); ++i) {
+    SConstTagColumn* pCol = taosArrayGet(pBlock->pConstTagCols, i);
+    pCol->uid = 0;
+    colInfoDataCleanup(&pCol->column, 1);
+  }
+}
+
 void blockDataCleanup(SSDataBlock* pDataBlock) {
   if(pDataBlock == NULL) {
     return;
@@ -2361,6 +2393,7 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   if (pDataBlock == NULL) {
     return;
   }
+  resetConstTagColumns(pDataBlock);
   if (pDataBlock->pBlockAgg != pDataBlock->pBlockAggBuf) {
     taosMemoryFreeClear(pDataBlock->pBlockAgg);
   }
@@ -2400,6 +2433,7 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
 }
 
 void blockDataReset(SSDataBlock* pDataBlock) {
+  resetConstTagColumns(pDataBlock);
   pDataBlock->pBlockAgg = NULL;
   SDataBlockInfo* pInfo = &pDataBlock->info;
   if (pInfo->capacity == 0) {
@@ -2569,6 +2603,8 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
     return;
   }
 
+  freeConstTagColumns(pBlock);
+
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
@@ -2596,6 +2632,8 @@ void blockDataFreeCols(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return;
   }
+
+  freeConstTagColumns(pBlock);
 
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {

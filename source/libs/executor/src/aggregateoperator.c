@@ -75,6 +75,90 @@ static void functionCtxRestore(SqlFunctionCtx* pCtx, SFunctionCtxStatus* pStatus
 
 static int32_t resetAggregateOperatorState(SOperatorInfo* pOper);
 
+typedef struct {
+  int32_t slotId;
+  bool    referenced;
+} SConstTagSlotCheck;
+
+static EDealRes constTagSlotWalker(SNode* pNode, void* pContext) {
+  SConstTagSlotCheck* pCheck = pContext;
+  if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->slotId == pCheck->slotId) {
+    pCheck->referenced = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+// Negotiate a local representation with an immediate aggregate consumer. Tag
+// slots referenced by filters, scalar expressions or other functions stay dense.
+static int32_t enableConstTagInputs(SOperatorInfo* pScan, SExprSupp* pAggSup, const SAggPhysiNode* pAggNode) {
+  STableScanInfo* pScanInfo = pScan->info;
+  const STableScanPhysiNode* pScanNode = pScan->pPhyNode;
+  if (pScanNode == NULL || pScanNode->scan.node.dynamicOp || pScan->dynamicTask ||
+      pScan->pTaskInfo->localFetch.directBlock || pScanInfo->virtualStableScan || pScanInfo->pBatchColMap ||
+      pAggNode->pExprs != NULL || pScanNode->scan.node.pLimit != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSDataBlock* pBlock = pScanInfo->pResBlock;
+  SExprSupp* pPseudoSup = &pScanInfo->base.pseudoSup;
+  for (int32_t i = 0; i < pPseudoSup->numOfExprs; ++i) {
+    const SExprInfo* pTagExpr = &pPseudoSup->pExprInfo[i];
+    if (pTagExpr->pExpr->nodeType != QUERY_NODE_COLUMN || pTagExpr->base.numOfParams != 1 ||
+        pTagExpr->base.pParam[0].pCol->colType != COLUMN_TYPE_TAG) {
+      continue;
+    }
+    int32_t slotId = pTagExpr->base.resSchema.slotId;
+    SConstTagSlotCheck check = {.slotId = slotId};
+    nodesWalkExpr(pScanNode->scan.node.pConditions, constTagSlotWalker, &check);
+    if (check.referenced) {
+      continue;
+    }
+
+    bool used = false;
+    bool supported = true;
+    for (int32_t j = 0; j < pAggSup->numOfExprs && supported; ++j) {
+      const SqlFunctionCtx* pCtx = &pAggSup->pCtx[j];
+      const SExprInfo* pExpr = &pAggSup->pExprInfo[j];
+      for (int32_t k = 0; k < pExpr->base.numOfParams; ++k) {
+        const SFunctParam* pParam = &pExpr->base.pParam[k];
+        if (pParam->type != FUNC_PARAM_TYPE_COLUMN || pParam->pCol->slotId != slotId) {
+          continue;
+        }
+        used = true;
+        int32_t type = fmGetFuncTypeFromId(pCtx->functionId);
+        supported = !pCtx->isDistinctFunc && k == 0 && pExpr->base.numOfParams == 1 &&
+                    (type == FUNCTION_TYPE_COUNT || type == FUNCTION_TYPE_SUM ||
+                     type == FUNCTION_TYPE_AVG || type == FUNCTION_TYPE_AVG_PARTIAL);
+        if (!supported) {
+          break;
+        }
+      }
+    }
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (!used || !supported || pCol == NULL || IS_DECIMAL_TYPE(pCol->info.type) ||
+        pCol->info.type == TSDB_DATA_TYPE_JSON) {
+      continue;
+    }
+    if (pBlock->pConstTagCols == NULL) {
+      pBlock->pConstTagCols = taosArrayInit(1, sizeof(SConstTagColumn));
+      if (pBlock->pConstTagCols == NULL) return terrno;
+    }
+    SConstTagColumn col = {.slotId = slotId, .column = {.info = pCol->info}};
+    col.column.info.noData = false;
+    int32_t code = colInfoDataEnsureCapacity(&col.column, 1, false);
+    if (code != TSDB_CODE_SUCCESS) {
+      colDataDestroy(&col.column);
+      return code;
+    }
+    if (taosArrayPush(pBlock->pConstTagCols, &col) == NULL) {
+      colDataDestroy(&col.column);
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createAggregateOperatorInfo(SOperatorInfo** pDownstreams, int32_t numDownstreams,
                                     SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo,
                                     SOperatorInfo** pOptrInfo) {
@@ -145,6 +229,10 @@ int32_t createAggregateOperatorInfo(SOperatorInfo** pDownstreams, int32_t numDow
     STableScanInfo* pTableScanInfo = pDownstreams[0]->info;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
+    if (numDownstreams == 1) {
+      code = enableConstTagInputs(pDownstreams[0], &pOperator->exprSupp, pAggNode);
+      TSDB_CHECK_CODE(code, lino, _error);
+    }
   }
 
   code = appendDownstream(pOperator, pDownstreams, numDownstreams);
