@@ -62,6 +62,19 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* toke
     }
   }
 
+  // Killing another user's queries/connections and altering roles (granting or
+  // revoking privileges) are cluster-management operations that must be performed
+  // by the superuser only. In the community build mndCheckOperPrivilege previously
+  // only special-cased CREATE_FUNC/DROP_FUNC/FLUSH_MNODE, so any enabled account
+  // could kill arbitrary sessions (denial of service) or rewrite role grants
+  // (privilege escalation) -- the KILL/ALTER ROLE gaps reported in item 282.
+  if (operType == MND_OPER_KILL_QUERY || operType == MND_OPER_KILL_CONN ||
+      operType == MND_OPER_ALTER_ROLE) {
+    if (!pUser->superUser) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
 _OVER:
   mndReleaseUser(pMnode, pUser);
   TAOS_RETURN(code);
@@ -122,7 +135,37 @@ _OVER:
   }
   TAOS_RETURN(code);
 }
-int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) { return 0; }
+int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) {
+  int32_t   code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  // A TOTP secret is a per-principal second factor. In the community build this
+  // helper used to unconditionally return success, so ANY enabled account could
+  // rotate or drop ANOTHER user's TOTP secret (disabling that principal's 2FA or
+  // taking over its binding). Enforce the documented model: a superuser may
+  // manage any principal's TOTP secret; a non-superuser may only manage their
+  // own (mirroring the self-only password-change rule in mndCheckAlterUserPrivilege).
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  }
+  if (pOperUser->superUser) {
+    goto _OVER;
+  }
+  if (strncmp(opUser, pUser->user, TSDB_USER_LEN) == 0) {
+    // operator manages its own TOTP secret
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("mndCheckTotpSecretPrivilege failed at line:%d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) { return 0; }
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) { return 0; }
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,
