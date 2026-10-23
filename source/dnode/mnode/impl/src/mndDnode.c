@@ -843,7 +843,36 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   int32_t code = tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq);
   if (code != 0) {
     tFreeSStatisReq(&statisReq);
+    mError("statis req from %s dropped: failed to deserialize payload, code:%s", RPC_MSG_USER(pReq),
+           tstrerror(code));
     TAOS_RETURN(code);
+  }
+
+  // Devon item 350: TDMT_MND_STATIS previously relayed the request body to taoskeeper
+  // without authenticating the sender. The RPC transport only carries a *claimed* user name
+  // (it never verifies a password and does not require a prior TDMT_MND_CONNECT handshake for
+  // non-CONNECT message types), so any peer able to reach the shared 6030 listener could forward
+  // arbitrary content to the monitoring endpoints, acting as a confused deputy toward taoskeeper.
+  // Require the claimed user to actually exist in the cluster, exactly like every other mnode
+  // message handler, before relaying anything.
+  SUserObj *pUser = NULL;
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
+  if (code != 0) {
+    tFreeSStatisReq(&statisReq);
+    mError("statis req from %s dropped: claimed user does not exist or cannot be acquired, code:%s",
+           RPC_MSG_USER(pReq), tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  mndReleaseUser(pMnode, pUser);
+  pUser = NULL;
+
+  // taoskeeper interpolates the relayed body into SQL executed with its stored root credentials,
+  // so a non-JSON / malformed payload must never reach the monitoring endpoints. Reject anything
+  // that is not well-formed JSON before forwarding it.
+  if (statisReq.pCont == NULL || !tjsonValidateJson(statisReq.pCont)) {
+    tFreeSStatisReq(&statisReq);
+    mError("statis req from %s dropped: payload is not valid JSON", RPC_MSG_USER(pReq));
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
   if (tsMonitorLogProtocol) {
