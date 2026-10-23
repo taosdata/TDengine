@@ -718,6 +718,46 @@ TEST(decimal, toStr) {
   ASSERT_EQ(buf2[0], buf[0]);
 }
 
+TEST(decimal, toStrWithDifferentOutputCapacities) {
+  struct TestCase {
+    const char* input;
+    uint8_t scale;
+    string expected;
+  };
+  const TestCase cases[] = {
+      {"1.50", 2, "1.50"},
+      {"-1234.56", 2, "-1234.56"},
+      {"0.00", 2, "0"},
+      {"1.00", 2, "1.00"},
+      {"999999999999999999", 0, "999999999999999999"},
+      {"-999999999999999999", 0, "-999999999999999999"},
+      {"0.000000000000000001", 18, "0.000000000000000001"},
+      {"-0.000000000000000001", 18, "-0.000000000000000001"},
+  };
+  const int32_t capacities[] = {TSDB_MAX_FIELD_LEN, 128, 65, 64, 8, 4, 2, 1};
+  for (const auto& test : cases) {
+    Decimal64 value = {0};
+    ASSERT_EQ(decimal64FromStr(test.input, strlen(test.input), 18, test.scale, &value),
+              TSDB_CODE_SUCCESS);
+    for (int32_t capacity : capacities) {
+      SCOPED_TRACE(test.input);
+      SCOPED_TRACE(capacity);
+      std::array<char, TSDB_MAX_FIELD_LEN + 2> buffer;
+      buffer.fill('#');
+      ASSERT_EQ(decimalToStr(&value, TSDB_DATA_TYPE_DECIMAL64, 18, test.scale,
+                             buffer.data() + 1, capacity),
+                TSDB_CODE_SUCCESS);
+      size_t copied = TMIN(test.expected.size(), static_cast<size_t>(capacity));
+      EXPECT_EQ(string(buffer.data() + 1, copied), test.expected.substr(0, copied));
+      EXPECT_EQ(buffer.front(), '#');
+      EXPECT_EQ(buffer[capacity + 1], '#');
+      if (static_cast<size_t>(capacity) > test.expected.size()) {
+        EXPECT_EQ(buffer[test.expected.size() + 1], '\0');
+      }
+    }
+  }
+}
+
 SDataType getDecimalType(uint8_t prec, uint8_t scale) {
   if (prec > TSDB_DECIMAL_MAX_PRECISION) throw std::string("invalid prec: ") + std::to_string(prec);
   uint8_t type = decimalTypeFromPrecision(prec);

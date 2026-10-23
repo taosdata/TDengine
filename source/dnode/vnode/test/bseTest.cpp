@@ -15,6 +15,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <atomic>
+#include <thread>
+
 #include <gtest/gtest.h>
 
 #ifdef LINUX
@@ -35,6 +38,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
 #include "bse.h"
+#include "bseTableMgt.h"
 #endif
 
 int main(int argc, char **argv) {
@@ -976,7 +980,7 @@ TEST(bseCase, encryptionPerformanceComparisonTest) {
     
     bseClose(bse);
   }
-  
+
   // Test with encryption
   {
     SBse   *bse = NULL;
@@ -1003,3 +1007,184 @@ TEST(bseCase, encryptionPerformanceComparisonTest) {
   }
 #endif
 }
+
+#ifdef LINUX
+class BseIndexedReaderTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    encryptKeysStatus = atomic_load_32(&tsEncryptKeysStatus);
+    ASSERT_NE(mkdtemp(path), nullptr);
+    atomic_store_32(&tsEncryptKeysStatus, TSDB_ENCRYPT_KEY_STAT_DISABLED);
+    cfg.vgId = 2;
+    cfg.blockSize = 512;
+    ASSERT_EQ(bseOpen(path, &cfg, &bse), 0);
+    ASSERT_NE(bse, nullptr);
+  }
+
+  void TearDown() override {
+    bseClose(bse);
+    taosRemoveDir(path);
+    atomic_store_32(&tsEncryptKeysStatus, encryptKeysStatus);
+  }
+
+  void AppendRows(int count) {
+    SBseBatch *batch = nullptr;
+    ASSERT_EQ(bseBatchInit(bse, &batch, count), 0);
+    for (int i = 0; i < count; ++i) {
+      size_t row = values.size();
+      std::string value(row % 127 + 1, static_cast<char>('a' + row % 26));
+      value += std::to_string(row);
+      int64_t seq = 0;
+      ASSERT_EQ(bseBatchPut(batch, &seq, reinterpret_cast<uint8_t *>(&value[0]), value.size()), 0);
+      values.push_back({seq, value});
+    }
+    ASSERT_EQ(bseCommitBatch(bse, batch), 0);
+    ASSERT_EQ(bseCommit(bse), 0);
+  }
+
+  struct StoredValue {
+    int64_t seq;
+    std::string value;
+  };
+
+  bool Matches(const StoredValue &row) const {
+    uint8_t *value = nullptr;
+    int32_t len = 0;
+    int32_t code = bseGet(bse, row.seq, &value, &len);
+    bool matches = code == 0 && value != nullptr && len == static_cast<int32_t>(row.value.size()) &&
+                   memcmp(value, row.value.data(), row.value.size()) == 0;
+    taosMemoryFree(value);
+    return matches;
+  }
+
+  void CheckRows() const {
+    for (size_t i = 0; i < values.size(); ++i) {
+      ASSERT_TRUE(Matches(values[i])) << i;
+    }
+    // More than 48 small blocks exercise eviction; reverse order revisits both
+    // recently cached and evicted blocks with non-forward sequence lookups.
+    for (size_t i = values.size(); i > 0; --i) {
+      ASSERT_TRUE(Matches(values[i - 1])) << i - 1;
+    }
+  }
+
+  char path[64] = "/tmp/td-bse-index-XXXXXX";
+  int32_t encryptKeysStatus = 0;
+  SBse *bse = nullptr;
+  SBseCfg cfg = {};
+  std::vector<StoredValue> values;
+};
+
+TEST_F(BseIndexedReaderTest, CommitInvalidationEvictionAndRecovery) {
+  for (int round = 0; round < 3; ++round) {
+    ASSERT_NO_FATAL_FAILURE(AppendRows(256));
+    ASSERT_NO_FATAL_FAILURE(CheckRows());
+  }
+  bseClose(bse);
+  bse = nullptr;
+  ASSERT_EQ(bseOpen(path, &cfg, &bse), 0);
+  ASSERT_NE(bse, nullptr);
+  ASSERT_NO_FATAL_FAILURE(CheckRows());
+}
+
+TEST_F(BseIndexedReaderTest, ReloadClearsCurrentBuilderAndCachedReaders) {
+  ASSERT_NO_FATAL_FAILURE(AppendRows(128));
+  ASSERT_NO_FATAL_FAILURE(CheckRows());
+  ASSERT_EQ(bseReload(bse), 0);
+  ASSERT_NO_FATAL_FAILURE(CheckRows());
+  ASSERT_NO_FATAL_FAILURE(AppendRows(128));
+  ASSERT_NO_FATAL_FAILURE(CheckRows());
+}
+
+TEST_F(BseIndexedReaderTest, ConcurrentReadsDuringCommit) {
+  ASSERT_NO_FATAL_FAILURE(AppendRows(256));
+  ASSERT_NO_FATAL_FAILURE(CheckRows());
+  const auto prefix = values;
+  std::atomic<bool> failed(false);
+  std::atomic<int> started(0);
+  std::atomic<bool> committing(true);
+  std::vector<std::thread> readers;
+  for (int thread = 0; thread < 4; ++thread) {
+    readers.emplace_back([this, &prefix, &failed, &started, &committing, thread]() {
+      started.fetch_add(1);
+      for (size_t i = 0; committing.load() || i < prefix.size() * 4; ++i) {
+        size_t index = (i * 17 + thread) % prefix.size();
+        if (!Matches(prefix[index])) {
+          failed.store(true);
+          return;
+        }
+      }
+    });
+  }
+  while (started.load() != 4) {
+    taosMsleep(1);
+  }
+  // Readers use only committed immutable values. Builder locks are released
+  // before entering the cached-reader lock; commits publish a new reader epoch.
+  for (int round = 0; round < 3; ++round) {
+    AppendRows(128);
+    if (HasFatalFailure()) {
+      break;
+    }
+  }
+  committing.store(false);
+  for (auto &reader : readers) {
+    reader.join();
+  }
+  EXPECT_FALSE(failed.load());
+  ASSERT_NO_FATAL_FAILURE(CheckRows());
+}
+
+TEST_F(BseIndexedReaderTest, EncryptionAndCompression) {
+  for (int8_t compression = kNoCompres; compression <= kZxCompress; ++compression) {
+    bseClose(bse);
+    bse = nullptr;
+    values.clear();
+    std::string codecPath = std::string(path) + "/codec-" + std::to_string(compression);
+    SBseCfg codecCfg = cfg;
+    codecCfg.compressType = compression;
+    tstrncpy(codecCfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR, TSDB_ENCRYPT_ALGR_NAME_LEN);
+    tstrncpy(codecCfg.encryptKey, "0123456789abcdef", ENCRYPT_KEY_LEN + 1);
+    ASSERT_EQ(bseOpen(codecPath.c_str(), &codecCfg, &bse), 0);
+    ASSERT_NE(bse, nullptr);
+    ASSERT_STREQ(bse->cfg.encryptAlgrName, TSDB_ENCRYPT_ALGO_SM4_STR);
+    ASSERT_STREQ(bse->cfg.encryptKey, codecCfg.encryptKey);
+    ASSERT_NO_FATAL_FAILURE(AppendRows(64));
+    ASSERT_NO_FATAL_FAILURE(CheckRows());
+    bseClose(bse);
+    bse = nullptr;
+    ASSERT_EQ(bseOpen(codecPath.c_str(), &codecCfg, &bse), 0);
+    ASSERT_NE(bse, nullptr);
+    ASSERT_NO_FATAL_FAILURE(CheckRows());
+  }
+}
+
+TEST_F(BseIndexedReaderTest, IndexedSeekRejectsCorruptRanges) {
+  SBlock block = {};
+  block.len = 4;
+  block.offset = 4;
+  SArray *index = taosArrayInit(1, sizeof(SBlockIndexMeta));
+  ASSERT_NE(index, nullptr);
+  SBlockWithMeta indexed = {&block, index};
+  SBlockIndexMeta entry = {.seq = 1, .offset = 0, .len = -1};
+  ASSERT_NE(taosArrayPush(index, &entry), nullptr);
+  auto *stored = static_cast<SBlockIndexMeta *>(taosArrayGet(index, 0));
+  uint8_t *value = nullptr;
+  int32_t length = 0;
+  EXPECT_EQ(blockWithMetaSeek(&indexed, 1, &value, &length), TSDB_CODE_FILE_CORRUPTED);
+  EXPECT_EQ(value, nullptr);
+  taosMemoryFree(value);
+  value = nullptr;
+  stored->len = 1;
+  stored->offset = -1;
+  EXPECT_EQ(blockWithMetaSeek(&indexed, 1, &value, &length), TSDB_CODE_FILE_CORRUPTED);
+  EXPECT_EQ(value, nullptr);
+  taosMemoryFree(value);
+  value = nullptr;
+  stored->offset = 4;
+  EXPECT_EQ(blockWithMetaSeek(&indexed, 1, &value, &length), TSDB_CODE_FILE_CORRUPTED);
+  EXPECT_EQ(value, nullptr);
+  taosMemoryFree(value);
+  taosArrayDestroy(index);
+}
+#endif
