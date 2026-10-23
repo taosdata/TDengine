@@ -5463,6 +5463,138 @@ void colDataGetOffsetAndLen(const SColumnInfoData* pColumnInfoData, int32_t numO
   }
 }
 
+// Compute the span that covers every var record referenced by [startIndex, endIndex].
+//
+// A broadcast column (see colDataCopyNItems()/colDataCopyAndReassign(), which set reassigned)
+// keeps ONE copy of the payload while several rows point at the same offset. Expanding those
+// rows one by one would multiply the encoded size by the row count, so the shared span is kept
+// as long as every referenced record lies completely inside it.
+static bool colDataSharedSpan(const SColumnInfoData* pColInfoData, int32_t startIndex, int32_t endIndex,
+                              int32_t* pOffset, int64_t* pLen) {
+  int32_t spanOffset = -1;
+  int64_t spanEnd = -1;
+
+  for (int32_t row = startIndex; row <= endIndex; ++row) {
+    int32_t offset = pColInfoData->varmeta.offset[row];
+    if (offset < 0) {
+      continue;  // null value of var type
+    }
+
+    if ((int64_t)offset >= (int64_t)pColInfoData->varmeta.length) {
+      return false;  // corrupt offset, let the row-by-row walk below report it
+    }
+
+    int64_t rowLen = blockDataVarRecordLen(pColInfoData->info.type, pColInfoData->pData + offset,
+                                           (int64_t)pColInfoData->varmeta.length - offset);
+    if (rowLen <= 0 || (int64_t)offset + rowLen > (int64_t)pColInfoData->varmeta.length) {
+      return false;
+    }
+
+    if (spanOffset < 0 || offset < spanOffset) {
+      spanOffset = offset;
+    }
+    if ((int64_t)offset + rowLen > spanEnd) {
+      spanEnd = (int64_t)offset + rowLen;
+    }
+  }
+
+  if (spanOffset < 0 || spanEnd <= (int64_t)spanOffset) {
+    return false;
+  }
+
+  *pOffset = spanOffset;
+  *pLen = spanEnd - spanOffset;
+  return true;
+}
+
+// Get the layout of the rows in [startIndex, endIndex].
+//
+// The var data of a column is NOT guaranteed to be stored in row order (for instance, the rows
+// filled by the stream wal reader are appended in the write order, which may differ from the row
+// index order), so the length must be accumulated row by row. Computing it as
+// offset[endIndex + 1] - offset[startIndex] can return a negative value, which then turns into a
+// huge size_t length and crashes the memmove/copy in blockEncodeAsRows.
+static int32_t colDataGetRowsLayout(const SColumnInfoData* pColInfoData, int32_t numOfRows, int32_t startIndex,
+                                    int32_t endIndex, int32_t* pOffset, int64_t* pLen, bool* pContiguous,
+                                    bool* pAllNull) {
+  *pOffset = 0;
+  *pLen = 0;
+  *pContiguous = true;
+  *pAllNull = true;
+
+  if (!IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+    if (pColInfoData->info.type != TSDB_DATA_TYPE_NULL) {
+      *pOffset = pColInfoData->info.bytes * startIndex;
+      *pLen = (int64_t)pColInfoData->info.bytes * (endIndex - startIndex + 1);
+      *pAllNull = false;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pColInfoData->pData == NULL || pColInfoData->varmeta.offset == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t start = startIndex < 0 ? 0 : startIndex;
+  int32_t end = endIndex < numOfRows ? endIndex : numOfRows - 1;
+  if (start > end) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pColInfoData->reassigned) {
+    int32_t sharedOffset = 0;
+    int64_t sharedLen = 0;
+    if (colDataSharedSpan(pColInfoData, start, end, &sharedOffset, &sharedLen)) {
+      *pOffset = sharedOffset;
+      *pLen = sharedLen;
+      *pContiguous = true;
+      *pAllNull = false;
+      return TSDB_CODE_SUCCESS;
+    }
+    // the shared span does not cover every row, fall back to the row-by-row layout below
+  }
+
+  int64_t expectOffset = -1;
+  int32_t firstOffset = -1;
+  int64_t total = 0;
+  for (int32_t row = start; row <= end; ++row) {
+    int32_t offset = pColInfoData->varmeta.offset[row];
+    if (offset < 0) {
+      continue;  // null value of var type
+    }
+
+    if ((int64_t)offset >= (int64_t)pColInfoData->varmeta.length) {
+      uError("invalid var data offset:%d, length:%u, row:%d, colType:%d", offset, pColInfoData->varmeta.length, row,
+             pColInfoData->info.type);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    int64_t rowLen = blockDataVarRecordLen(pColInfoData->info.type, pColInfoData->pData + offset,
+                                          (int64_t)pColInfoData->varmeta.length - offset);
+    if (rowLen <= 0 || (int64_t)offset + rowLen > (int64_t)pColInfoData->varmeta.length) {
+      uError("invalid var data len:%" PRId64 ", offset:%d, length:%u, row:%d, colType:%d", rowLen, offset,
+             pColInfoData->varmeta.length, row, pColInfoData->info.type);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
+    *pAllNull = false;
+    if (firstOffset < 0) {
+      firstOffset = offset;
+      expectOffset = offset;
+    } else if (offset != expectOffset) {
+      *pContiguous = false;
+    }
+    expectOffset = (int64_t)offset + rowLen;
+    total += rowLen;
+  }
+
+  if (firstOffset >= 0) {
+    *pOffset = firstOffset;
+  }
+  *pLen = total;
+  return TSDB_CODE_SUCCESS;
+}
+
 size_t blockDataGetSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
   size_t total = 0;
   size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -5472,27 +5604,40 @@ size_t blockDataGetSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int
       continue;
     }
 
-    int32_t colSize = 0;
-    int32_t offset = 0;
     int32_t numOfRows = endIndex - startIndex + 1;
+
+    int32_t offset = 0;
+    int64_t colSize = 0;
+    bool    contiguous = true;
+    bool    allNull = true;
+    if (colDataGetRowsLayout(pColInfoData, pBlock->info.rows, startIndex, endIndex, &offset, &colSize, &contiguous,
+                             &allNull) != TSDB_CODE_SUCCESS) {
+      return 0;
+    }
 
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
       total += sizeof(int32_t) * numOfRows;
     } else {
-      if (pColInfoData->info.type != TSDB_DATA_TYPE_NULL) {
-        total += (pColInfoData->info.bytes * numOfRows) + BitmapLen(numOfRows);
-      }
+      total += BitmapLen(numOfRows);
     }
-
-    colDataGetOffsetAndLen(pColInfoData, pBlock->info.rows, startIndex, endIndex, &offset, &colSize);
     total += colSize;
   }
 
   return total;
 }
 
-int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex){
-  return blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + blockDataGetSizeOfRows(pBlock, startIndex, endIndex);
+int64_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex) {
+  if (pBlock == NULL || pBlock->pDataBlock == NULL || startIndex < 0 || startIndex > endIndex ||
+      endIndex >= pBlock->info.rows) {
+    return -1;
+  }
+
+  size_t bodySize = blockDataGetSizeOfRows(pBlock, startIndex, endIndex);
+  if (bodySize == 0) {
+    return -1;
+  }
+
+  return (int64_t)blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock)) + (int64_t)bodySize;
 }
 
 // return error code if failed
@@ -5505,7 +5650,15 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
     return code;
   }
 
-  int32_t dataLen = 0;
+  // keep the same contract as blockGetEncodeSizeOfRows(), so that a direct caller can not
+  // walk out of the var data offsets/meta with a negative startIndex
+  if (startIndex < 0 || startIndex > endIndex || endIndex >= pBlock->info.rows) {
+    uError("invalid row range, startIndex:%d endIndex:%d, rows:%" PRId64, startIndex, endIndex, pBlock->info.rows);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int64_t dataLen = 0;
+  int64_t bufLimit = (dataBuflen > (size_t)INT64_MAX) ? INT64_MAX : (int64_t)dataBuflen;
 
   // todo extract method
   int32_t* version = (int32_t*)data;
@@ -5576,16 +5729,50 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
       return terrno;
     }
 
+    // the var data may not be stored in row order, compute the layout of the range row by row
+    int32_t skipOffset = 0;
+    int64_t colSize = 0;
+    bool    contiguous = true;
+    bool    allNull = true;
+    code = colDataGetRowsLayout(pColRes, numOfRows, startIndex, endIndex, &skipOffset, &colSize, &contiguous, &allNull);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("failed to get column data layout, colIdx:%d colType:%d since %s", col, pColRes->info.type,
+             tstrerror(code));
+      return code;
+    }
+    if (colSize > INT32_MAX) {
+      uError("invalid colSize:%" PRId64 ", colIdx:%d colType:%d while encoding block", colSize, col,
+             pColRes->info.type);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+
     // copy the null bitmap
     size_t metaSize = 0;
     if (IS_VAR_DATA_TYPE(pColRes->info.type)) {
       metaSize = realRows * sizeof(int32_t);
-      if(dataLen + metaSize > dataBuflen) goto _exit;
-      TAOS_UNUSED(memcpy(data, (char*)pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize));
-      TAOS_UNUSED(resetVarDataOffset((int32_t*)data, realRows));
+      if (dataLen + (int64_t)metaSize > bufLimit) goto _exit;
+      if (pColRes->varmeta.offset == NULL) {
+        memset(data, 0xFF, metaSize);  // no var data at all, all rows are null
+      } else if (contiguous) {
+        TAOS_UNUSED(memcpy(data, (char*)pColRes->varmeta.offset + (startIndex * sizeof(int32_t)), metaSize));
+        TAOS_UNUSED(resetVarDataOffset((int32_t*)data, realRows));
+      } else {
+        // rebuild the offsets according to the row order, since the data is packed in row order below
+        int32_t* pOffsets = (int32_t*)data;
+        int32_t  curOffset = 0;
+        for (int32_t j = 0; j < realRows; ++j) {
+          int32_t rowOffset = pColRes->varmeta.offset[j + startIndex];
+          if (rowOffset < 0) {
+            pOffsets[j] = -1;
+            continue;
+          }
+          pOffsets[j] = curOffset;
+          curOffset += calcStrBytesByType(pColRes->info.type, pColRes->pData + rowOffset);
+        }
+      }
     } else {
       metaSize = BitmapLen(realRows);
-      if(dataLen + metaSize > dataBuflen) goto _exit;
+      if (dataLen + (int64_t)metaSize > bufLimit) goto _exit;
       for (int32_t j = 0; j < realRows; ++j) {
         if (colDataIsNull_f(pColRes, j + startIndex)) {
           colDataSetNull_f(data, j);
@@ -5596,16 +5783,29 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
     data += metaSize;
     dataLen += metaSize;
 
-    int32_t skipOffset;
-    colDataGetOffsetAndLen(pColRes, numOfRows, startIndex, endIndex, &skipOffset, &colSizes[col]);
-    dataLen += colSizes[col];
-    if (dataLen > dataBuflen) goto _exit;
-    if (pColRes->pData != NULL) {
-      (void)memmove(data, pColRes->pData + skipOffset, colSizes[col]);
-    }
-    data += colSizes[col];
+    colSizes[col] = (int32_t)colSize;
+    dataLen += colSize;
+    if (dataLen > bufLimit) goto _exit;
 
-    if (colSizes[col] <= 0 && !colDataIsNull_s(pColRes, 0) && pColRes->info.type != TSDB_DATA_TYPE_NULL) {
+    if (colSize > 0 && pColRes->pData != NULL) {
+      if (contiguous) {
+        (void)memmove(data, pColRes->pData + skipOffset, colSize);
+      } else {
+        char* pDst = data;
+        for (int32_t j = startIndex; j <= endIndex; ++j) {
+          int32_t rowOffset = pColRes->varmeta.offset[j];
+          if (rowOffset < 0) {
+            continue;
+          }
+          int32_t rowLen = calcStrBytesByType(pColRes->info.type, pColRes->pData + rowOffset);
+          (void)memmove(pDst, pColRes->pData + rowOffset, rowLen);
+          pDst += rowLen;
+        }
+      }
+    }
+    data += (int32_t)colSize;
+
+    if (colSizes[col] <= 0 && !allNull && pColRes->info.type != TSDB_DATA_TYPE_NULL) {
       uError("Invalid colSize:%d colIdx:%d colType:%d while encoding block", colSizes[col], col, pColRes->info.type);
       return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
     }
@@ -5619,18 +5819,18 @@ int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataBufl
   *blankFill = pBlock->info.blankFill;
   data += sizeof(bool);
 
-  *actualLen = dataLen;
+  *actualLen = (int32_t)dataLen;
 #ifndef NO_UNALIGNED_ACCESS
   *groupId = pBlock->info.id.groupId;
 #else
   taosSetPUInt64Aligned(groupId, &pBlock->info.id.groupId);
 #endif
-  if (dataLen > dataBuflen) goto _exit;
+  if (dataLen > bufLimit) goto _exit;
 
-  *pLen = dataLen;
+  *pLen = (int32_t)dataLen;
   return TSDB_CODE_SUCCESS;
 _exit:
-  uError("blockEncode dataLen:%d, dataBuflen:%zu", dataLen, dataBuflen);
+  uError("blockEncode dataLen:%" PRId64 ", dataBuflen:%zu", dataLen, dataBuflen);
   return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
 }
 
