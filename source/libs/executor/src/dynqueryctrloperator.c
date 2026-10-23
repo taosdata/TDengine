@@ -5569,6 +5569,9 @@ static int32_t dynCollectResolvedOrgTbVgFromArray(SOperatorInfo* pOperator, SArr
     int32_t      vgId = 0;
 
     QUERY_CHECK_NULL(pColRef, code, line, _return, terrno)
+    if (!colNeedScan(pOperator, pColRef->colId)) {
+      continue;
+    }
     if (pColRef->colrefName == NULL) {
       continue;
     }
@@ -5618,6 +5621,9 @@ static int32_t dynCollectResolvedOrgTbVgFromChildTables(SOperatorInfo* pOperator
       int32_t      vgId = 0;
 
       QUERY_CHECK_NULL(pColRef, code, line, _return, terrno)
+      if (!colNeedScan(pOperator, pColRef->colId)) {
+        continue;
+      }
       if (pColRef->colrefName == NULL) {
         continue;
       }
