@@ -90,7 +90,70 @@ jstring jniFromNCharToByteArray(JNIEnv *, char *, int32_t);
 
 extern JavaVM *g_vm;
 
+/* 1 once every cached class/member id above has been resolved, 0 when one of the
+ * lookups failed -- which means the Java side and this library come from
+ * different releases (an old tdengine-jdbc jar with a new libtaos.so, or the
+ * other way round).  Calling through a NULL jclass/jmethodID/jfieldID is
+ * undefined behaviour: HotSpot aborts the whole JVM instead of reporting an
+ * error.  Entry points that dereference one of those ids therefore check this
+ * first and fail with TSDB_CODE_DLL_NOT_LOAD. */
+extern int32_t g_jniReady;
+
+/* Same, for the TMQ-only ids resolved by tmqAssignmentMethod(). */
+extern int32_t g_jniAssignmentReady;
+
+/* Guard for the entry points that use a cached id.  retval has to match the
+ * enclosing function's return type -- TSDB_CODE_DLL_NOT_LOAD for an int,
+ * 0 or a NULL-equivalent handle for a jlong/jobject. */
+#define JNI_REQUIRE_CACHED_IDS(retval)                                                      \
+  do {                                                                                      \
+    if (atomic_load_32(&g_jniReady) != 1) {                                                 \
+      jniError("JNI layer is unusable: the Java connector and this library do not match"); \
+      return retval;                                                                        \
+    }                                                                                       \
+  } while (0)
+
+#define JNI_REQUIRE_ASSIGNMENT_IDS(retval)                                                  \
+  do {                                                                                      \
+    if (atomic_load_32(&g_jniAssignmentReady) != 1) {                                       \
+      jniError("JNI layer is unusable: the Java connector and this library do not match"); \
+      return retval;                                                                        \
+    }                                                                                       \
+  } while (0)
+
 void jniGetGlobalMethod(JNIEnv *env);
+
+/* FindClass() with the result checked: returns NULL (and prints which class was
+ * missing) when jar and libtaos.so come from different releases, instead of the
+ * NULL that a later GetMethodID() would turn into a JVM abort.  The pending
+ * NoClassDefFoundError is cleared, the failure is reported as an error code. */
+jclass jniFindClassChecked(JNIEnv *env, const char *name);
+
+/* GetMethodID()/GetFieldID() with the result checked.  Both jump to the
+ * `unusable` label of the enclosing function on failure, so that label has to be
+ * defined there (see jniGetGlobalMethod() / tmqAssignmentMethod()).  tdLiteLogMsg,
+ * not jniError: these run before the wrapper log exists and with jniDebugFlag
+ * still 0, so a debug-flagged message would be dropped exactly when it is the only
+ * explanation for the failures the caller reports afterwards. */
+#define JNI_METHOD(dst, clazz, name, sig)                                      \
+  do {                                                                         \
+    (dst) = (*env)->GetMethodID(env, (clazz), (name), (sig));                  \
+    if ((dst) == NULL) {                                                       \
+      tdLiteLogMsg(1, "JNI ERROR ", "cannot find method %s%s", (name), (sig)); \
+      (*env)->ExceptionClear(env);                                             \
+      goto unusable;                                                           \
+    }                                                                          \
+  } while (0)
+
+#define JNI_FIELD(dst, clazz, name, sig)                                      \
+  do {                                                                        \
+    (dst) = (*env)->GetFieldID(env, (clazz), (name), (sig));                  \
+    if ((dst) == NULL) {                                                      \
+      tdLiteLogMsg(1, "JNI ERROR ", "cannot find field %s%s", (name), (sig)); \
+      (*env)->ExceptionClear(env);                                            \
+      goto unusable;                                                          \
+    }                                                                         \
+  } while (0)
 
 int32_t check_for_params(jobject jobj, jlong conn, jlong res);
 
