@@ -394,7 +394,7 @@ def process_pytest_file(
                     rf.write(result_str)
                 continue
 
-            # 解析 pytest 命令 - 格式: priority,rerunTimes,sanitizer(y/n),path,command
+            # 解析 pytest 命令 - 格式: priority,maxAttempts,sanitizer(y/n),path,command
             # 检查格式: 第三列是 y/n，第五列决定使用 ./ci/pytest.sh 还是 pytest
             parts = line.split(",")
             if len(parts) < 5:
