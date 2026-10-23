@@ -650,7 +650,10 @@ static bool mstChkSetDbInUse(SMnode *pMnode, void *pObj, void *p1, void *p2, voi
   }
 
   SStmCheckDbInUseCtx* pCtx = (SStmCheckDbInUseCtx*)p2;
-  if (pCtx->ignoreCurrDb && 0 == strcmp(pStream->pCreate->streamDB, p1)) {
+  // [FIX-198] streamDB may be NULL for legacy/corrupt stream objects persisted in sdb
+  // before the required-field check was added. Tolerate it instead of crashing the mnode.
+  if (pCtx->ignoreCurrDb && pStream->pCreate->streamDB != NULL &&
+      0 == strcmp(pStream->pCreate->streamDB, p1)) {
     return true;
   }
   
