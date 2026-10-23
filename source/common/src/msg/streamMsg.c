@@ -1483,6 +1483,22 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   // SKIP SESSIONID
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->taskIdx));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pTask->status));
+  // Wire-supplied type/status are later used as indices into the static
+  // gStreamTaskTypeStr / gStreamStatusStr tables (logging macros and SHOW STREAM
+  // TASKS). Reject the message immediately if either is out of its enum range so
+  // that no downstream code ever indexes the tables with an attacker-controlled
+  // value (CWE-129). This is the single decode point for every stream task
+  // message (heartbeat, task start/undeploy/deploy, mgmt response).
+  if (pTask->type < STREAM_READER_TASK || pTask->type > STREAM_RUNNER_TASK) {
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
+  if (pTask->status < STREAM_STATUS_UNDEPLOYED || pTask->status > STREAM_STATUS_DROPPING) {
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->detailStatus));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->errorCode));
   int32_t req = 0;
