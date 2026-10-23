@@ -61,8 +61,7 @@ struct SDiskbasedBuf {
   uint64_t   fileSize;  // disk file size
   TdFilePtr  pFile;
   int32_t    allocateId;  // allocated page id
-  char*      path;        // file path
-  char*      prefix;      // file name prefix
+  char*      prefix;      // temporary file directory
   int32_t    pageSize;    // current used page size
   int32_t    inMemPages;  // numOfPages that are allocated in memory
   SPageInfo* pFreePageHead;
@@ -90,17 +89,7 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  if (pBuf->path == NULL) {  // prepare the file name when needed it
-    char path[PATH_MAX] = {0};
-    taosGetTmpfilePath(pBuf->prefix, "paged-buf", path);
-    pBuf->path = taosStrdup(path);
-    if (pBuf->path == NULL) {
-      return terrno;
-    }
-  }
-
-  pBuf->pFile =
-      taosOpenFile(pBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+  pBuf->pFile = taosOpenTempFile(pBuf->prefix, "paged-buf");
   if (pBuf->pFile == NULL) {
     return terrno;
   }
@@ -109,8 +98,9 @@ static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
   if (taosFStatFile(pBuf->pFile, &realSize, NULL) != TSDB_CODE_SUCCESS) {
     realSize = -1;
   }
-  uDebug("paged buffer file opened, path:%s, realSize:%" PRId64 ", nextPos:%" PRIu64 ", fileSize:%" PRIu64 ", %s",
-         pBuf->path, realSize, pBuf->nextPos, pBuf->fileSize, pBuf->id);
+  uDebug("paged buffer file opened, dir:%s, realSize:%" PRId64
+         ", nextPos:%" PRIu64 ", fileSize:%" PRIu64 ", %s", pBuf->prefix,
+         realSize, pBuf->nextPos, pBuf->fileSize, pBuf->id);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -922,9 +912,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   dBufPrintStatis(pBuf);
 
-  bool needRemoveFile = false;
   if (pBuf->pFile != NULL) {
-    needRemoveFile = true;
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
         "size:%.2f Kb, %s",
@@ -933,8 +921,8 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
     int32_t code = taosCloseFile(&pBuf->pFile);
     if (TSDB_CODE_SUCCESS != code) {
-      uError("failed to close paged buffer file when destroying, path:%s, closeCode:%d, err:%s, %s", pBuf->path, code,
-             tstrerror(code), pBuf->id);
+      uError("failed to close paged buffer file, dir:%s, code:%d, err:%s, %s",
+             pBuf->prefix, code, tstrerror(code), pBuf->id);
     }
   } else {
     uDebug("Paged buffer closed, total:%.2f Kb, no file created, %s", pBuf->totalBufSize / 1024.0, pBuf->id);
@@ -960,15 +948,6 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
           ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
     }
   }
-
-  if (needRemoveFile) {
-    int32_t ret = taosRemoveFile(pBuf->path);
-    if (ret != 0) {  // print the error and discard this error info
-      uDebug("WARNING tPage remove file failed. path=%s, code:%s", pBuf->path, strerror(ERRNO));
-    }
-  }
-
-  taosMemoryFreeClear(pBuf->path);
 
   size_t n = taosArrayGetSize(pBuf->pIdList);
   for (int32_t i = 0; i < n; ++i) {
@@ -1269,7 +1248,8 @@ void clearDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (pBuf->pFile != NULL) {
     int32_t code = taosFtruncateFile(pBuf->pFile, 0);
     if (code != TSDB_CODE_SUCCESS) {
-      uWarn("failed to truncate paged buffer file, path:%s, code:%s, %s", pBuf->path, tstrerror(code), pBuf->id);
+      uWarn("failed to truncate paged buffer file, dir:%s, code:%s, %s",
+            pBuf->prefix, tstrerror(code), pBuf->id);
     }
   }
 
