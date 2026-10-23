@@ -3056,7 +3056,7 @@ _CASES = [
     ],
 
     ## 082s — same scenario as 082m/082p/082i
-    ["082s", [_sqlserver], ["fq01_src082s"], "ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column (SQL Server)", [
+    ["082s", [_sqlserver], ["fq01_src082s"], "REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6, SQL Server)", [
             "drop external source if exists fq01_src082s",
             f"create external source fq01_src082s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
             "select * from fq01_src082s.src_t where val=5",
@@ -3064,7 +3064,6 @@ _CASES = [
                 f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_note NVARCHAR(32) NULL",
                 f"UPDATE dbo.{_FW_TABLE} SET extra_note=N'after_refresh' WHERE val=5",
             ]),
-            "select * from fq01_src082s.src_t where val=5",
             "refresh external source fq01_src082s",
             "select * from fq01_src082s.src_t where val=5",
             _sqlserver_exec_step(_S_DB, [

@@ -13966,7 +13966,7 @@ DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SEL
 ================================================================================================
 ================================================================================================
 CASE START: CASE-082s[SQL]
-DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column (SQL Server)
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6, SQL Server)
 ================================================================================================
 ### CASE-082s[SQL] STEP-001 EXEC
 SQL: drop external source if exists fq01_src082s
@@ -14002,43 +14002,37 @@ RESULT:
 1
 1
 ---
-### CASE-082s[SQL] STEP-005 QUERY
-SQL: select * from fq01_src082s.src_t where val=5
-RESULT:
-ts|val|score|name|flag
-2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
----
-### CASE-082s[SQL] STEP-006 EXEC
+### CASE-082s[SQL] STEP-005 EXEC
 SQL: refresh external source fq01_src082s
 RESULT:
 OK
 ---
-### CASE-082s[SQL] STEP-007 QUERY
+### CASE-082s[SQL] STEP-006 QUERY
 SQL: select * from fq01_src082s.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
 2024-01-01 00:04:00+08:00|5|5.5|epsilon|True|after_refresh
 ---
-### CASE-082s[SQL] STEP-008 QUERY
+### CASE-082s[SQL] STEP-007 QUERY
 SQL: select 1
 RESULT:
 1
 1
 ---
-### CASE-082s[SQL] STEP-009 COUNT
+### CASE-082s[SQL] STEP-008 COUNT
 SQL: select count(*) from fq01_src082s.dbo.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-082s[SQL] STEP-010 CLEANUP
+### CASE-082s[SQL] STEP-009 CLEANUP
 SQL: drop external source if exists fq01_src082s
 RESULT:
 OK
 ---
 ================================================================================================
 CASE END: CASE-082s[SQL]
-DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column (SQL Server)
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6, SQL Server)
 ================================================================================================
 ================================================================================================
 CASE START: CASE-001s[SQL]
