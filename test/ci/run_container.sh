@@ -317,13 +317,33 @@ function _stage_fq_ext_env_cache() {
     done
 }
 
-mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/var_taoslog
-mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
-mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
-rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
-if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/test" ]; then
-    echo "cp -rf ${REPDIR}/test/* ${TMP_DIR}/thread_volume/$thread_no/"
-    cp -rf "${REPDIR}/test/"* "${TMP_DIR}/thread_volume/$thread_no/"
+TEST_VOLUME="${TMP_DIR}/thread_volume/${thread_no}"
+TEST_VOLUME_READY="${TEST_VOLUME}/.ci-test-tree-ready"
+mkdir -p "${TEST_VOLUME}/sim/var_taoslog"
+mkdir -p "${TEST_VOLUME}/sim/tsim"
+mkdir -p "${TEST_VOLUME}/coredump"
+rm -rf "${TEST_VOLUME}/coredump"/*
+
+# The volume is mounted directly as the container's test directory.  Copy the
+# tree once per slot and publish the marker only after the required entrypoints
+# are present; a failed copy therefore retries on the next case.
+if [ ! -f "${TEST_VOLUME_READY}" ] || \
+   [ ! -f "${TEST_VOLUME}/ci/run_case.sh" ] || \
+   [ ! -d "${TEST_VOLUME}/cases" ] || \
+   [ ! -f "${TEST_VOLUME}/requirements.txt" ]; then
+    rm -f "${TEST_VOLUME_READY}"
+    echo "[ci] preparing test tree for slot ${thread_no}"
+    if ! cp -rf "${REPDIR}/test/"* "${TEST_VOLUME}/"; then
+        echo "ERROR: failed to prepare test tree in ${TEST_VOLUME}" >&2
+        exit 1
+    fi
+    if [ ! -f "${TEST_VOLUME}/ci/run_case.sh" ] || \
+       [ ! -d "${TEST_VOLUME}/cases" ] || \
+       [ ! -f "${TEST_VOLUME}/requirements.txt" ]; then
+        echo "ERROR: incomplete test tree in ${TEST_VOLUME}" >&2
+        exit 1
+    fi
+    : > "${TEST_VOLUME_READY}"
 fi
 
 # if [ ! -f "${SOURCEDIR}/${packageName}" ]; then
