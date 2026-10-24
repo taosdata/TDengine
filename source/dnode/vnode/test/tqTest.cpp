@@ -34,6 +34,9 @@
 SDmNotifyHandle dmNotifyHdl = {}; // zero-init (state = 0)
 
 #include "tq.h"
+#include "executor.h"
+#include "stub.h"
+#include "tdatablock.h"
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
@@ -78,6 +81,93 @@ TEST(testCase, tqOffsetTest) {
   tqOffsetRestoreFromFile(pTq, TQ_OFFSET_NAME);
   taosRemoveFile(TQ_OFFSET_NAME);
   tqClose(pTq);
+}
+
+namespace {
+
+SSDataBlock* snapshotBlock = nullptr;
+int32_t snapshotReads = 0;
+int32_t snapshotResponses = 0;
+STqOffsetVal snapshotResponseOffset = {};
+SMqBatchMetaRsp snapshotMeta = {};
+
+int32_t prepareSnapshot(qTaskInfo_t, STqOffsetVal*, int8_t) { return TSDB_CODE_SUCCESS; }
+void setSnapshotParams(qTaskInfo_t, int8_t, int32_t, int64_t, int8_t, int64_t) {}
+
+int32_t readSnapshot(qTaskInfo_t, SSDataBlock** block, uint64_t*) {
+  ++snapshotReads;
+  taosMsleep(20);
+  if (snapshotReads > 1) {
+    return TSDB_CODE_FAILED;
+  }
+  *block = snapshotBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+SMqBatchMetaRsp* extractSnapshotMeta(qTaskInfo_t) { return &snapshotMeta; }
+
+int32_t extractSnapshotOffset(qTaskInfo_t, STqOffsetVal* offset) {
+  offset->type = TMQ_OFFSET__SNAPSHOT_DATA;
+  offset->uid = 42;
+  offset->ts = 1000;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sendSnapshotResponse(STqHandle*, const SRpcMsg*, const SMqPollReq*, SMqDataRsp* response,
+                             int32_t, int32_t) {
+  ++snapshotResponses;
+  EXPECT_EQ(response->blockNum, 0);
+  snapshotResponseOffset = response->rspOffset;
+  return TSDB_CODE_SUCCESS;
+}
+
+}
+
+TEST(testCase, filtered_snapshot_returns_progress_on_timeout) {
+  snapshotReads = 0;
+  snapshotResponses = 0;
+  snapshotResponseOffset = {};
+  snapshotMeta = {};
+  ASSERT_EQ(createDataBlock(&snapshotBlock), TSDB_CODE_SUCCESS);
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t),
+                                               PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT_EQ(blockDataAppendColInfo(snapshotBlock, &column), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(snapshotBlock, 1), TSDB_CODE_SUCCESS);
+  auto* timestampColumn = static_cast<SColumnInfoData*>(taosArrayGet(snapshotBlock->pDataBlock, 0));
+  int64_t timestamp = 1000;
+  ASSERT_EQ(colDataSetVal(timestampColumn, 0, reinterpret_cast<const char*>(&timestamp), false), TSDB_CODE_SUCCESS);
+  snapshotBlock->info.rows = 1;
+
+  Stub stub;
+  stub.set(qStreamPrepareScan, prepareSnapshot);
+  stub.set(qStreamSetParams, setSnapshotParams);
+  stub.set(qExecTask, readSnapshot);
+  stub.set(qStreamExtractMetaMsg, extractSnapshotMeta);
+  stub.set(qStreamExtractOffset, extractSnapshotOffset);
+  stub.set(tqSendDataRsp, sendSnapshotResponse);
+
+  SVnode vnode = {};
+  vnode.config.tsdbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  STQ queue = {};
+  queue.pVnode = &vnode;
+  STqHandle handle = {};
+  handle.execHandle.subType = TOPIC_SUB_TYPE__DB;
+  SMqPollReq request = {};
+  request.reqOffset.type = TMQ_OFFSET__SNAPSHOT_DATA;
+  request.reqOffset.uid = 42;
+  request.startTs = 2000;
+  request.timeout = 10;
+  request.minPollRows = 4096;
+  SRpcMsg message = {};
+
+  EXPECT_EQ(tqExtractDataForMq(&queue, &handle, &request, &message), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(snapshotReads, 1);
+  EXPECT_EQ(snapshotResponses, 1);
+  EXPECT_EQ(snapshotResponseOffset.type, TMQ_OFFSET__SNAPSHOT_DATA);
+  EXPECT_EQ(snapshotResponseOffset.uid, 42);
+  EXPECT_EQ(snapshotResponseOffset.ts, 1000);
+  blockDataDestroy(snapshotBlock);
+  snapshotBlock = nullptr;
 }
 
 #pragma GCC diagnostic pop
