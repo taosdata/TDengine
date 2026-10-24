@@ -1,0 +1,40 @@
+## Data Mapping and Collection Configuration Guidelines
+
+Before onboarding, understand how Neuron objects map to TDengine objects and what kind of collection configuration onboards smoothly.
+
+### Object Mapping
+
+| Neuron object | TDengine object | Description |
+| --- | --- | --- |
+| Device (southbound node) `node_name` | Subtable | One subtable per device; the subtable carries a `device` tag recording the device name |
+| Collection group `group_name` | Supertable | One collection group maps to one supertable; devices in the group share the table schema |
+| Tag `values.*` | Measurement column | Each tag maps to one measurement column |
+| Report timestamp `timestamp` | Timestamp column `_ts` | Millisecond precision |
+
+One-click onboarding performs this mapping automatically and additionally attaches fixed tags: `device` (device name), `group_name` (collection group name), `protocol` (the plugin protocol used by the device), and `gateway` (the Neuron gateway address, used to distinguish multiple gateways writing to the same database). The subtable name defaults to "prefix + device name"; when a device name cannot be written as-is or a device belongs to multiple collection groups, TDengine generates a name from the tag set. Manual onboarding lets you define tags and subtable naming yourself. Attributes such as location, unit, and business hierarchy are not part of collection configuration; one-click onboarding does not infer them — use manual onboarding to define them when needed.
+
+### Naming and Grouping Guidelines
+
+The following guidelines apply to the collection configuration in Neuron itself, regardless of the onboarding method. Following them produces the clearest, most readable table structure:
+
+1. **Device names are globally unique.** Devices with the same name write to the same subtable, mixing their data. Device names are naturally unique within one Neuron instance; when multiple Neuron gateways write to the same database, device names may collide — set a distinct subtable name prefix for each gateway.
+2. **Use well-behaved characters in device names.** Letters, digits, underscores, hyphens, and Chinese characters are all fine, including names starting with a digit. Avoid periods `.`, quotes, backslashes, and control characters; otherwise the device name cannot be used directly as a subtable name and a generated name is used instead, which is less intuitive when troubleshooting.
+3. **Put each device in only one collection group.** Subtable names are globally unique within a TDengine database and are not isolated by supertable, so a device that spans groups cannot reuse its device name as the subtable name in each group.
+4. **Keep device schemas consistent within a collection group.** A collection group maps to a supertable, so devices in one group should have identical tag names and types; otherwise same-named columns conflict. Put devices with different schemas in different groups.
+5. **Use valid identifiers for group names.** A group name with lowercase letters, digits, and underscores, not starting with a digit and at most 64 characters long, can be used directly as the supertable name.
+6. **Use well-behaved characters in tag names.** Tag names are normalized when converted to column names (lowercased, special characters replaced with underscores, a prefix added when starting with a digit); reserved names such as `ts`, `_ts`, `ets`, `device`, and `group_name` are renamed automatically. Tag names containing backticks or backslashes cannot be converted to column names.
+
+### Type Mapping
+
+Neuron tag types map to TDengine column types as follows. One-click onboarding applies this table automatically and creates tables on first write; for manual onboarding, use this table as a reference when writing your own rules:
+
+| Neuron tag type | TDengine column type | Description |
+| --- | --- | --- |
+| `INT8`/`INT16`/`INT32`/`INT64`, `UINT8`/`UINT16`/`UINT32`, `BIT`, `WORD`/`DWORD`/`LWORD` | `BIGINT` | |
+| `UINT64` | `BIGINT` | Values outside the signed 64-bit range are truncated (known limitation) |
+| `FLOAT`, `DOUBLE` | `DOUBLE` | |
+| `BOOL` | `BOOL` | |
+| `STRING` | `NCHAR` | |
+| `BYTES` | `NCHAR` | Written as base64 text |
+| `ARRAY_*` | `NCHAR` | Written as JSON array text |
+| Integer tags with a scale factor | `DOUBLE` | Converted to a floating-point value according to the scale |
