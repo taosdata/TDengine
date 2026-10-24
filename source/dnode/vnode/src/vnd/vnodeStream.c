@@ -5747,7 +5747,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     STREAM_CHECK_NULL_GOTO(pDst, terrno);
     STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, vtableName, strlen(vtableName), false));
   } else {
-    // Virtual child table: resolve tags via chain resolver (single uid, cache-bypass).
+    // Virtual child table: resolve tags with shared routing and private ref results.
     singleUid = taosArrayInit(1, sizeof(int64_t));
     STREAM_CHECK_NULL_GOTO(singleUid, terrno);
     int64_t uidVal = req->virTablePseudoColReq.uid;
@@ -5766,8 +5766,12 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
       STREAM_CHECK_NULL_GOTO(taosArrayPush(tagOnly, &cid), terrno);
     }
 
-    // PSEUDO_COL bypasses cache  -  pass NULL so resolver does not read/write it.
-    code = streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
+    // Share only the reader's db -> vgroup routing map. The resolver uses a
+    // private tblRefCache and returns a caller-owned result hash, leaving
+    // the reader's tblRefCache and uid2Result untouched. Passing NULL here used
+    // to disable that map as well and made every pseudo-column request re-issue
+    // TDMT_MND_GET_DB_INFO to mnode for the same db.
+    code = streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
                                        req->virTablePseudoColReq.ver,
                                        singleUid, emptyCols, tagOnly, &uid2Result);
     taosArrayDestroy(tagOnly); tagOnly = NULL;

@@ -220,8 +220,7 @@ bool stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_
         !stReaderAddArrayMemory(&total, pInfo->vtbCache->reqTagCids) ||
         !stReaderAddArrayMemory(&total, pInfo->vtbCache->uidSlice) ||
         !stReaderAddMemoryBytes(&total, tSimpleHashGetMemSize(pInfo->vtbCache->uid2Result)) ||
-        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->dbVgInfo)) ||
-        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->tblRefCache))) {
+        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->dbVgInfo))) {
       return false;
     }
   }
@@ -1378,7 +1377,7 @@ static void destroyBlock(void* data) {
   blockDataDestroy(*(SSDataBlock**)data);
 }
 
-static void tblRefCacheItemFree(void *param) {
+void streamTblRefCacheItemFree(void *param) {
   SVTableRefResolveRspItem *p = (SVTableRefResolveRspItem *)param;
   if (p) {
     taosMemoryFreeClear(p->tagData);
@@ -1396,17 +1395,20 @@ int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   pCache->reqTagCids  = NULL;
   pCache->uid2Result  = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  pCache->tblRefCache = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  // Reference results are cached by the call-private resolve view
+  // (streamResolveCacheInit / streamResolveCacheEnableRefCache), so a
+  // reader-lifetime hash here would be allocated and never written. Both
+  // lookup and insert skip a NULL tblRefCache.
+  pCache->tblRefCache = NULL;
   pCache->uidSlice    = taosArrayInit(64, sizeof(int64_t));
   pCache->sliceCursor = 0;
   pCache->lastCheckMs = 0;
   pCache->valid       = false;
-  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice || !pCache->tblRefCache) {
+  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice) {
     streamVTableInfoCacheDestroy(pCache);
     return terrno;
   }
   tSimpleHashSetFreeFp(pCache->uid2Result, streamVTableResolveResultDestroy);
-  taosHashSetFreeFp(pCache->tblRefCache, tblRefCacheItemFree);
   return 0;
 }
 
