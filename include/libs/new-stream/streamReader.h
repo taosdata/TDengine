@@ -70,6 +70,9 @@ typedef struct SStreamVTableInfoCache {
   SArray     *reqTagCids;     // SArray<col_id_t>
   SSHashObj  *uid2Result;     // key: int64_t uid, value: SVTableResolveResult*
   SHashObj   *dbVgInfo;       // key: dbFName, value: SUseDbRsp
+  // Call-private resolve views only (streamResolveCacheInit). NULL on the reader
+  // cache: reference results are no longer shared across resolve calls, so the
+  // reader never allocates or writes this hash.
   SHashObj   *tblRefCache;    // key: "dbName\0tableName\0colName", value: SVTableRefResolveRspItem
   int64_t     lastCheckMs;
   // Sliced recheck cursor: every throttle tick scans at most
@@ -84,6 +87,9 @@ typedef struct SStreamVTableInfoCache {
 int32_t streamVTableInfoCacheInit   (SStreamVTableInfoCache *pCache);
 void    streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache);
 void    streamVTableResolveResultDestroy(void *pRes);
+// Release one tblRefCache entry (tagData + nextRef.tagCondJson). Single
+// definition shared by the reader cache and the call-private resolver cache.
+void    streamTblRefCacheItemFree(void *param);
 
 typedef struct SStreamTableKeyInfo {
   int64_t uid;
