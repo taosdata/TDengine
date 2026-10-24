@@ -848,6 +848,7 @@ Below are the business error codes for each module.
 | 0x8000411C | PARTITION BY is not supported for the given external source type | The external source type does not support PARTITION BY | Remove PARTITION BY, or use an external source type that supports it |
 | 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | Internal stream state for the external reader is missing | Report the issue to developers on GitHub |
 | 0x8000411F | Influxdb tag key is too long or convert error | the length of key or value in influxdb's tags is invalidate | If the tag name exceeds 64 characters or the tag value exceeds 256 characters, an error will be reported.After modifying the data, re-establish the stream |
+| 0x80004120 | External timestamp primary key is finer than the microsecond stream cursor | The external timestamp primary key is finer than the microsecond cursor the stream reader uses (for example SQL Server `datetime2(7)` / `datetimeoffset(7)`) | Reduce the fractional precision of the external timestamp column to 6 digits or less, then recreate the stream |
 
 #### xnode
 

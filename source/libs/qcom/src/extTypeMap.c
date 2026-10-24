@@ -36,7 +36,7 @@
 #  include <strings.h>  // strcasecmp / strncasecmp
 #endif
 
-#include "query.h"    // qError
+#include "query.h"                 // qError
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcommon.h"  // VARSTR_HEADER_SIZE
@@ -48,14 +48,24 @@
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-// Case-insensitive prefix match, optionally followed by '(' or whitespace.
-static bool typeHasPrefix(const char *typeName, const char *prefix) {
+// Case-insensitive match on a whole type token: the name must be the prefix
+// itself, or continue with '(' / whitespace.  Use this when the prefix is the
+// complete type name, so that "date" does not match "datetime".
+static bool typeHasTokenPrefix(const char *typeName, const char *prefix) {
   size_t prefixLen = strlen(prefix);
   if (strncasecmp(typeName, prefix, prefixLen) != 0) {
     return false;
   }
   char c = typeName[prefixLen];
   return c == '\0' || c == '(' || c == ' ';
+}
+
+// Case-insensitive match on a type family prefix, without a token boundary:
+// the timezone classifier groups "datetime2(6)" / "smalldatetime" / "datetime"
+// under one family, so "date" has to match "datetime" as well.  Use
+// typeHasTokenPrefix() when the prefix names a single type.
+static bool typeFamilyStartsWith(const char *typeName, const char *prefix) {
+  return strncasecmp(typeName, prefix, strlen(prefix)) == 0;
 }
 
 // Parse the length parameter from a type string like "VARCHAR(255)".
@@ -519,10 +529,10 @@ static bool pgEncodingNeedsNchar(const char *enc) {
 
 static int32_t pgTypeMap(const char *typeName, const char *encoding, SDataType *pTd) {
   // Handle "[]" array suffix and array/range/tsvector prefix early.
-  if (strstr(typeName, "[]") || typeHasPrefix(typeName, "array") ||
-      typeHasPrefix(typeName, "int4range") || typeHasPrefix(typeName, "int8range") ||
-      typeHasPrefix(typeName, "numrange") || typeHasPrefix(typeName, "tsrange") ||
-      typeHasPrefix(typeName, "tstzrange") || typeHasPrefix(typeName, "daterange") ||
+  if (strstr(typeName, "[]") || typeHasTokenPrefix(typeName, "array") ||
+      typeHasTokenPrefix(typeName, "int4range") || typeHasTokenPrefix(typeName, "int8range") ||
+      typeHasTokenPrefix(typeName, "numrange") || typeHasTokenPrefix(typeName, "tsrange") ||
+      typeHasTokenPrefix(typeName, "tstzrange") || typeHasTokenPrefix(typeName, "daterange") ||
       strcasecmp(typeName, "tsvector") == 0 || strcasecmp(typeName, "tsquery") == 0) {
     SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
     return TSDB_CODE_SUCCESS;
@@ -1130,13 +1140,13 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
   switch (srcType) {
     case EXT_SOURCE_MYSQL:
       if (extTypeName != NULL &&
-          (typeHasPrefix(extTypeName, "datetime") || typeHasPrefix(extTypeName, "timestamp") ||
-           typeHasPrefix(extTypeName, "date"))) {
+          (typeHasTokenPrefix(extTypeName, "datetime") || typeHasTokenPrefix(extTypeName, "timestamp") ||
+           typeHasTokenPrefix(extTypeName, "date"))) {
         return parseTypeLength(extTypeName) > 3 ? TSDB_TIME_PRECISION_MICRO : TSDB_TIME_PRECISION_MILLI;
       }
       break;
     case EXT_SOURCE_POSTGRESQL:
-      if (extTypeName != NULL && typeHasPrefix(extTypeName, "timestamp")) {
+      if (extTypeName != NULL && typeHasTokenPrefix(extTypeName, "timestamp")) {
         const char* pParen = strchr(extTypeName, '(');
         return pParen != NULL && parseTypeLength(extTypeName) <= 3 ? TSDB_TIME_PRECISION_MILLI
                                                                    : TSDB_TIME_PRECISION_MICRO;
@@ -1153,12 +1163,12 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
       // its 1/300 s ticks are not millisecond exact.  smalldatetime/date are
       // minute/day aligned and therefore millisecond safe.
       if (extTypeName != NULL) {
-        if (typeHasPrefix(extTypeName, "datetime2") || typeHasPrefix(extTypeName, "datetimeoffset")) {
+        if (typeHasTokenPrefix(extTypeName, "datetime2") || typeHasTokenPrefix(extTypeName, "datetimeoffset")) {
           const char* pParen = strchr(extTypeName, '(');
           return pParen != NULL && parseTypeLength(extTypeName) <= 3 ? TSDB_TIME_PRECISION_MILLI
                                                                      : TSDB_TIME_PRECISION_MICRO;
         }
-        if (typeHasPrefix(extTypeName, "smalldatetime") || typeHasPrefix(extTypeName, "date")) {
+        if (typeHasTokenPrefix(extTypeName, "smalldatetime") || typeHasTokenPrefix(extTypeName, "date")) {
           return TSDB_TIME_PRECISION_MILLI;
         }
       }
@@ -1170,4 +1180,85 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
   return fallbackPrecision >= TSDB_TIME_PRECISION_MILLI && fallbackPrecision <= TSDB_TIME_PRECISION_NANO
              ? fallbackPrecision
              : TSDB_TIME_PRECISION_MILLI;
+}
+
+bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs) {
+  // MySQL and SQL Server expose case-insensitive catalogs by default, so name
+  // variants fold onto the stored column and the resolved column echoes the
+  // stored case; PostgreSQL and InfluxDB compare identifiers literally.
+  if (lhs == NULL || rhs == NULL) {
+    return lhs == rhs;
+  }
+  bool caseInsensitive = (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_SQLSERVER);
+  return caseInsensitive ? strcasecmp(lhs, rhs) == 0 : strcmp(lhs, rhs) == 0;
+}
+
+bool extTimestampTypeHasSubMicroFraction(EExtSourceType srcType, const char *extTypeName) {
+  // Only SQL Server can declare a timestamp finer than the microsecond the
+  // connectors transport (DS 5.3.7): MySQL/PostgreSQL stop at 6 fractional
+  // digits and InfluxDB is read at its native nanosecond resolution, which the
+  // InfluxDB reader keeps.
+  if (srcType != EXT_SOURCE_SQLSERVER || extTypeName == NULL) {
+    return false;
+  }
+  if (!typeHasTokenPrefix(extTypeName, "datetime2") && !typeHasTokenPrefix(extTypeName, "datetimeoffset")) {
+    return false;
+  }
+  // An omitted modifier means the default precision of 7.
+  const char *pParen = strchr(extTypeName, '(');
+  int32_t     digits = (pParen != NULL) ? parseTypeLength(extTypeName) : 7;
+  return digits > 6;
+}
+
+int8_t extTimestampTypeTzClass(EExtSourceType srcType, const char *extTypeName) {
+  if (extTypeName == NULL || extTypeName[0] == '\0') {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  switch (srcType) {
+    case EXT_SOURCE_MYSQL:
+      if (typeFamilyStartsWith(extTypeName, "timestamp")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (typeFamilyStartsWith(extTypeName, "datetime") || typeFamilyStartsWith(extTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    case EXT_SOURCE_POSTGRESQL:
+      // "timestamp(6) with time zone" also starts with "timestamp", so the
+      // aware forms must be tested first.
+      if (typeFamilyStartsWith(extTypeName, "timestamptz") ||
+          taosStrCaseStr(extTypeName, "with time zone") != NULL) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (typeFamilyStartsWith(extTypeName, "timestamp") || typeFamilyStartsWith(extTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    case EXT_SOURCE_SQLSERVER:
+      // DS 5.3.7: datetimeoffset carries an absolute instant (tz-aware), the
+      // other temporal types store the client wall clock (tz-naive).
+      // "datetimeoffset" must be tested before the "datetime" prefix, which
+      // also covers datetime2.
+      if (typeFamilyStartsWith(extTypeName, "datetimeoffset")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (typeFamilyStartsWith(extTypeName, "datetime") || typeFamilyStartsWith(extTypeName, "smalldatetime") ||
+          typeFamilyStartsWith(extTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    case EXT_SOURCE_INFLUXDB:
+      if (typeFamilyStartsWith(extTypeName, "timestamp")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (typeFamilyStartsWith(extTypeName, "date32") || typeFamilyStartsWith(extTypeName, "date64")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    default:
+      break;
+  }
+
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
 }

@@ -283,6 +283,40 @@ class PlanFederatedStoredFilterTest : public testing::TestWithParam<EExtSourceTy
   SFederatedScanPhysiNode* physical_ = NULL;
 };
 
+TEST_P(PlanFederatedStoredFilterTest, SqlServerTimestampClassesSurvivePlanTransport) {
+  auto *table = reinterpret_cast<SExtTableNode *>(scan_->pExtTableNode);
+  table->sourceType = EXT_SOURCE_SQLSERVER;
+  taosMemoryFree(table->pExtMeta->pCols);
+  const char *types[] = {"datetimeoffset(6)", "datetime2(6)", "datetime", "smalldatetime", "date"};
+  const int32_t count = sizeof(types) / sizeof(types[0]);
+  table->pExtMeta->pCols = static_cast<SExtColumnDef *>(taosMemoryCalloc(count, sizeof(SExtColumnDef)));
+  ASSERT_NE(table->pExtMeta->pCols, nullptr);
+  table->pExtMeta->numOfCols = count;
+  for (int32_t i = 0; i < count; ++i) {
+    auto &column = table->pExtMeta->pCols[i];
+    snprintf(column.colName, sizeof(column.colName), "ts%d", i);
+    tstrncpy(column.extTypeName, types[i], sizeof(column.extTypeName));
+  }
+  createPlan();
+  ASSERT_NE(physical_, nullptr);
+  char *serialized = nullptr;
+  ASSERT_EQ(nodesNodeToString(reinterpret_cast<SNode *>(physical_), false, &serialized, nullptr),
+            TSDB_CODE_SUCCESS);
+  SNode *decoded = nullptr;
+  int32_t code = nodesStringToNode(serialized, &decoded);
+  taosMemoryFree(serialized);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(decoded, nodesDestroyNode);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  auto *restored = reinterpret_cast<SFederatedScanPhysiNode *>(decoded);
+  ASSERT_NE(restored, nullptr);
+  ASSERT_EQ(restored->numTimestampTypeHints, count);
+  for (int32_t i = 0; i < count; ++i) {
+    EXPECT_STREQ(restored->pTimestampTypeHints[i].extTypeName, types[i]);
+    EXPECT_EQ(restored->pTimestampTypeHints[i].tzClass,
+              i == 0 ? EXT_TIMESTAMP_TZ_CLASS_AWARE : EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+  }
+}
+
 TEST_P(PlanFederatedStoredFilterTest, KeepsFilterRemoteWithoutOptimizer) {
   createPlan();
   ASSERT_NE(physical_, nullptr);
