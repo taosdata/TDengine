@@ -1,42 +1,43 @@
 ---
 sidebar_label: Neuron
 title: Integration with Neuron
-description: Write industrial device data to TDengine with Neuron and the eKuiper InfluxDB v1 sink, with support for batching, HTTPS, and high availability
+description: Write industrial device data collected by Neuron to TDengine through one-click onboarding in Explorer or a manually configured eKuiper InfluxDB v1 sink, with support for batching, HTTPS, and high availability
 toc_max_heading_level: 5
 ---
 
+import NeuronPrerequisites from './resource/_neuron-prerequisites.mdx'
+import NeuronMapping from './resource/_neuron-mapping.mdx'
+import NeuronOneClick from './resource/_neuron-one-click.mdx'
+
 [Neuron](https://github.com/emqx/neuron) is an industrial IoT connectivity platform developed by EMQ. It supports industrial protocols such as Modbus, OPC UA, and BACnet. [eKuiper](https://github.com/lf-edge/ekuiper) is an open-source, lightweight edge stream processing engine. It processes data with SQL and forwards results through output actions called sinks. [NeuronEX](https://docs.emqx.com/en/neuronex/latest/) is EMQ's industrial edge data collection and processing software. It combines Neuron's protocol connectivity with eKuiper's stream processing and provides a unified web interface for configuring data collection, processing, and forwarding.
 
-This guide describes how to write Modbus power meter data to TDengine through the InfluxDB v1 sink in NeuronEX. This integration enables access to more than 70 industrial protocols supported by NeuronEX, subject to the version and license.
+This guide describes two ways to write data collected by Neuron to TDengine:
 
-![NeuronEX and TDengine integration architecture](../../assets/iot-neuron-architecture.webp)
+- **One-click onboarding**: On the edge gateway page of TDengine Explorer, enter the Neuron address and credentials; Explorer automatically configures the data stream, processing rules, and collection subscriptions. Suitable for most scenarios.
+- **Manual onboarding**: Manually configure the data stream, processing rule, and InfluxDB v1 write action in the NeuronEX interface. Suitable when you need custom tags, business attributes, or data transformation.
 
-Neuron converts Modbus data into JSON collection reports. eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and sends batches to taosAdapter. Schemaless writes automatically create the supertable and subtables. To use mutual TLS (mTLS) or taosAdapter failover, deploy nginx as described later in this guide.
+Both methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and sends batches to taosAdapter; schemaless writes automatically create the supertable and subtables. This integration can ingest data from the more than 70 industrial protocols supported by Neuron, subject to the version and license.
 
-## Prerequisites
+<figure style={{width: 'fit-content', margin: '0 auto'}}>
 
-- Install and start TDengine 3.4.3.3 or later. See [Download and Install](../../04-quick-start/01-download-and-install/02-package.md). Prepare a dedicated account with table creation and write permissions.
-- Install NeuronEX 4.0.0 or later. See [Install NeuronEX](https://docs.emqx.com/en/neuronex/latest/installation/introduction.html). Confirm that the version and license support Modbus TCP, data processing, the InfluxDB v1 sink, and the 12 collection tags in this example. For buffering during a connection outage and resending after recovery, confirm that the bundled eKuiper includes the retry fix described in [Store and Forward](#store-and-forward). Standalone Neuron and eKuiper deployments require a separate data channel.
-- Ensure that NeuronEX can reach the taosAdapter HTTP port, which is `6041` by default.
-- Prepare the IP addresses, ports, unit IDs, register addresses, and byte order settings for four Modbus TCP power meters. Synchronize the clock on the collection host.
+![Neuron and TDengine integration architecture](../../assets/iot-neuron-architecture.webp)<br/>
+*Neuron and TDengine integration architecture*
 
-## Data Mapping
+</figure>
 
-In NeuronEX, add each power meter and configure its connection. Create a collection group and set its collection interval. Then add tags for current, voltage, and phase, specifying a register address and data type for each tag. Collection data maps to TDengine as follows:
+As shown in the figure, solid arrows indicate data flow, and the dashed box indicates the optional nginx component. Neuron converts device data into JSON collection reports; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and sends batches to taosAdapter; schemaless writes automatically create the supertable and subtables. To use mutual TLS (mTLS) or taosAdapter failover, deploy nginx as described later in this guide.
 
-| Neuron data | TDengine object | Configuration |
-| --- | --- | --- |
-| Device name, `node_name` | Subtable name and `device` TAG | The rule outputs `device`; the sink maps it to both `tbname` and the `device` tag |
-| Collection group name, `group_name` | Filters reports entering the rule | SQL selects the `electrical_readings` group; the sink's `measurement` setting independently specifies the supertable name |
-| Tags `values.current`, `values.voltage`, and `values.phase` | Measurement columns `current`, `voltage`, and `phase` | SQL extracts the tags; the sink's `fields` setting selects the columns to write |
-| Report timestamp, `timestamp` | Timestamp column `_ts` | SQL outputs `ets`; the sink sets `tsFieldName=ets` and `precision=ms` |
-| Location and business group | TAGs `location` and `group_id` | SQL assigns attributes based on the device name; the sink's `tags` setting selects the tags |
+<NeuronPrerequisites />
 
-In this example, each complete collection report from a meter becomes one row in its corresponding subtable. Current, voltage, and phase map to three measurement columns.
+<NeuronMapping />
 
-A Neuron tag is a collection point and maps to a measurement column. A TDengine TAG is a subtable attribute. `group_id` is a business group identifier configured separately from the collection group name. You can also map `group_name` to a TAG, but the group name must remain fixed for a given subtable.
+<NeuronOneClick />
 
-## Example Data Model
+## Manual Onboarding
+
+This section demonstrates the complete manual onboarding process in the NeuronEX interface using four Modbus TCP power meters as an example, for users who need custom tags, business attributes, or data transformation. **The meters are only an example — you can follow the same procedure with other devices**: replace step 3 with the collection configuration for your own device (select the appropriate protocol plugin, create a collection group, and add tags). The remaining steps (creating the database, stream, processing rule, and write action) are independent of the device type and are performed identically.
+
+### Example Data Model
 
 This example uses two power meters in each of two workshops at one factory. Each meter reports current, voltage, and phase once per second. All four devices share the `meters` supertable and write to separate subtables. Each device uses a collection group named `electrical_readings`.
 
@@ -60,9 +61,25 @@ The business fields follow the [meters data modeling example](../../04-quick-sta
 
 The Influx line protocol encoding determines the actual field types, which differ from the standard meters example. Tag values containing only ASCII characters still produce `NCHAR` columns.
 
-## Configuration
+### Data Mapping in This Example
 
-### 1. Create a Database
+In NeuronEX, first add the meter devices and configure their connections, then create a collection group and set its collection interval, and finally add tags such as current, voltage, and phase, specifying a register address and data type for each tag. Collection data maps to TDengine as follows:
+
+| Neuron data | TDengine object | Configuration |
+| --- | --- | --- |
+| Device name, `node_name` | Subtable name and `device` TAG | The rule outputs `device`; the sink maps it to both `tbname` and the `device` tag |
+| Collection group name, `group_name` | Filters reports entering the rule | SQL selects the `electrical_readings` group; the sink's `measurement` setting independently specifies the supertable name |
+| Tags `values.current`, `values.voltage`, and `values.phase` | Measurement columns `current`, `voltage`, and `phase` | SQL extracts the tags; the sink's `fields` setting selects the columns to write |
+| Report timestamp, `timestamp` | Timestamp column `_ts` | SQL outputs `ets`; the sink sets `tsFieldName=ets` and `precision=ms` |
+| Location and business group | TAGs `location` and `group_id` | SQL assigns attributes based on the device name; the sink's `tags` setting selects the tags |
+
+In this example, each complete collection report from a meter becomes one row in its corresponding subtable. Current, voltage, and phase map to three measurement columns.
+
+A Neuron tag is a collection point and maps to a measurement column. A TDengine TAG is a subtable attribute. `group_id` is a business group identifier configured separately from the collection group name. You can also map `group_name` to a TAG, but the group name must remain fixed for a given subtable.
+
+### Configuration Procedure
+
+#### 1. Create a Database
 
 Run the following statement in a TDengine SQL client. Do not manually create the supertable or subtables.
 
@@ -70,7 +87,7 @@ Run the following statement in a TDengine SQL client. Do not manually create the
 CREATE DATABASE IF NOT EXISTS neuron_meters_demo PRECISION 'ms';
 ```
 
-### 2. Check the Direct Connection Endpoint
+#### 2. Check the Direct Connection Endpoint
 
 Run the following command on the NeuronEX host or inside its container. Replace `adapter-host` with the actual taosAdapter hostname or IP address.
 
@@ -78,9 +95,9 @@ Run the following command on the NeuronEX host or inside its container. Replace 
 curl -i http://adapter-host:6041/influxdb/v1/ping
 ```
 
-A `204 No Content` response indicates that the endpoint is reachable. The InfluxDB v1 client calls this endpoint at startup. If it returns `404`, check the path and confirm that TDengine is version 3.4.3.3 or later. NeuronEX can connect directly to taosAdapter without nginx. For encrypted transport or taosAdapter failover, configure nginx as described in [Encrypted Transport and High Availability](#encrypted-transport-and-high-availability-optional).
+A `204 No Content` response indicates that the endpoint is reachable. The InfluxDB v1 client calls this endpoint at startup. If it returns `404`, check the path and confirm that TDengine is version 3.4.3.6 or later. NeuronEX can connect directly to taosAdapter without nginx. For encrypted transport or taosAdapter failover, configure nginx as described in [Encrypted Transport and High Availability](#encrypted-transport-and-high-availability-optional).
 
-### 3. Configure Modbus Collection
+#### 3. Configure Modbus Collection
 
 1. Go to **Data Collection → South Devices**. Add four **Modbus TCP** devices with the example names and configure their connections.
 
@@ -107,7 +124,7 @@ A `204 No Content` response indicates that the endpoint is reachable. The Influx
 3. Save and start the devices. Confirm that each device is running and connected. In **Data Collection → Data Monitoring**, select each device and collection group, then verify that all three values are correct and continue to update.
 4. Go to **Data Collection → North Apps**. Subscribe the built-in `DataProcessing` application to the `electrical_readings` group on all four devices to send reports to eKuiper. Creating devices and a rule does not automatically create this subscription.
 
-### 4. Create a Data Stream
+#### 4. Create a Data Stream
 
 A stream defines the field structure of collection reports. Rules read data from this stream.
 
@@ -138,7 +155,7 @@ A stream defines the field structure of collection reports. Rules read data from
 
 An explicit schema preserves voltage as an integer instead of treating schemaless JSON numbers as floating-point values. `BIGINT` is an eKuiper integer type and does not specify the Modbus register width. Enable **Shared** to let multiple rules reuse the same source.
 
-### 5. Create a Data Processing Rule
+#### 5. Create a Data Processing Rule
 
 1. Go to **Data Processing → Rules → Create Rule** and set the rule ID to `meters_to_tdengine`.
 2. Enter the following statement in the SQL editor.
@@ -167,7 +184,7 @@ All four devices share one rule. When adding or replacing devices of the same ty
 
 If collection reports contain metadata such as location and business group identifiers, declare those fields in the stream and select them directly in SQL as TAG values. This reduces per-device mapping configuration. This example assigns these attributes with `CASE` expressions.
 
-### 6. Configure the InfluxDB v1 Action
+#### 6. Configure the InfluxDB v1 Action
 
 The following JSON is a complete InfluxDB v1 action configuration and corresponds to the interface settings below. Replace the address, username, and password.
 
@@ -262,6 +279,8 @@ Writes to the same subtable with the same millisecond timestamp overwrite existi
 
 ## Verify the Results
 
+Regardless of the onboarding method, confirm ingestion through query results — a running rule or a successful ping does not confirm that data is being written. The following SQL uses the database and table names from the manual onboarding example; for one-click onboarding, substitute your target database and mapped supertable names.
+
 1. In a TDengine SQL client, check the automatically generated schema and device tags.
 
    ```sql
@@ -288,11 +307,9 @@ Writes to the same subtable with the same millisecond timestamp overwrite existi
    FROM neuron_meters_demo.meters PARTITION BY TBNAME;
    ```
 
-Use query results to confirm ingestion. A running rule or successful ping does not confirm that data is being written.
-
 ## Monitor Operation
 
-Go to **Data Processing → Rules**, find `meters_to_tdengine`, and select **More → Statistics** to view the statistics for each stage.
+Rule runtime metrics are viewed on the Neuron side: in NeuronEX, go to **Data Processing → Rules**, find the rule (`meters_to_tdengine` in the manual onboarding example; rules created by one-click onboarding are also listed there), and click **More → Statistics** to view the statistics cards for each stage. Key metrics:
 
 | Metric | Expected status or action |
 | --- | --- |
@@ -305,7 +322,7 @@ Go to **Data Processing → Rules**, find `meters_to_tdengine`, and select **Mor
 
 In IDMP, configure a TDengine TSDB connection under **Admin Console → Connections**. For that connection, select **More → Easy Import**, then select `neuron_meters_demo.meters`.
 
-Use the `location` tag as the path, set the path level to `0`, and enter `${location}` as the expression. Import `device` and `group_id` as static attributes. Split `location` at periods into factory and workshop levels, and use each subtable name as a leaf meter element.
+Set the `device` tag as a path with path start level `0` and expression `${device}`; set the `location` tag as a path with path start level `1` and expression `${location}`. Import `group_id` as a static attribute. `location` is split at periods into factory and workshop levels, and `device` (the subtable name) becomes the leaf meter element.
 
 After import, open the **Element Explorer** to view the following hierarchy. Select a meter to view its `current`, `voltage`, and `phase` measurement attributes.
 
@@ -323,12 +340,12 @@ For detailed import instructions, see [Build Data Models from TDengine TSDB](htt
 
 ## Store and Forward
 
-The InfluxDB v1 sink in eKuiper provides buffering and forwarding for this example. When a downstream service is temporarily unavailable, the sink caches data if capacity is available and the error is retryable. After connectivity recovers, it resends data with the original subtable names and report timestamps.
+The InfluxDB v1 sink in eKuiper provides buffering and forwarding for this integration. When a downstream service is temporarily unavailable, the sink caches data if capacity is available and the error is retryable. After connectivity recovers, it resends data with the original subtable names and report timestamps. Rules created by one-click onboarding already have the cache enabled (batching at 1,000 rows or 100 ms) and need no additional configuration.
 
 To use this feature:
 
 - Confirm that eKuiper includes the Influx v1 retry fix in [PR #4201](https://github.com/lf-edge/ekuiper/pull/4201). Without it, resending might fail. Before deployment, provide EMQX with the NeuronEX and bundled eKuiper versions and confirm that the fix is included.
-- Under **Data Processing → Rules**, edit the rule's **InfluxDB v1** action. Expand **Sink Properties**, set **Enable Cache** (`enableCache`) to `True`, and configure capacity and the resend interval. See the parameter table and screenshot in [Configure the InfluxDB v1 Action](#6-configure-the-influxdb-v1-action). Mount the eKuiper data directory on persistent storage.
+- For manual onboarding, under **Data Processing → Rules**, edit the rule's **InfluxDB v1** action. Expand **Sink Properties**, set **Enable Cache** (`enableCache`) to `True`, and configure capacity and the resend interval. See the parameter table and screenshot in [Configure the InfluxDB v1 Action](#6-configure-the-influxdb-v1-action). Mount the eKuiper data directory on persistent storage.
 - Monitor disk space, cache length, and exceptions. If the backlog keeps growing, adjust the collection interval, batching settings, or collection group assignments.
 
 A build containing the fix passed connection outage and recovery testing, and all test data was resent successfully. Authentication, permission, or schema errors can also be retried continuously and block subsequent data; correct these errors manually. Errors during data conversion or Influx point construction do not necessarily trigger retries.
@@ -343,7 +360,7 @@ For parameter details, see [eKuiper Sink Cache and Sending Mechanism](https://ek
 
 ## Encrypted Transport and High Availability (Optional)
 
-For mTLS or taosAdapter failover, deploy nginx and change the sink address to the nginx endpoint. A basic direct HTTP connection does not require this configuration.
+For mTLS or taosAdapter failover, deploy nginx and change the sink address to the nginx endpoint. A basic direct HTTP connection does not require this configuration. For one-click onboarding, enter the nginx address as the **TDengine Address** in the wizard.
 
 ### Configure mTLS and Multiple taosAdapter Instances
 
@@ -421,7 +438,7 @@ The following results are from an existing performance test and are provided for
 | Deployment | Ubuntu 24.04, Linux x86_64, all components running as native processes on one host |
 | Neuron | Open-source version 2.15.0, custom build with a Modbus transaction ID rollover fix |
 | eKuiper | `2.4.2+pr4201-perfcore` test build with an Influx error classification fix |
-| TDengine | Enterprise Edition 3.4.3.3; ms precision, `VGROUPS 16`, `WAL_LEVEL 1`, `WAL_FSYNC_PERIOD 3000` |
+| TDengine | Enterprise Edition 3.4.3.6; ms precision, `VGROUPS 16`, `WAL_LEVEL 1`, `WAL_FSYNC_PERIOD 3000` |
 | Collection | 16 drivers × 4 groups × 128 logical meters × 3 measurements, totaling 24,576 configured tags; 100ms interval |
 | Northbound | 8 applications subscribe to separate collection groups; 8 groups per application, each application with its own source, rule, and output action |
 | Batching and security | 100ms batch interval, `batchSize=10000`, about 1,024 rows per request on average; cache enabled, `bufferLength=20000`, `disableBufferFullDiscard=true`, nginx mTLS, CA verification |
@@ -452,6 +469,10 @@ These results support capacity planning and do not represent TDengine's write li
 
 | Symptom | Checks and actions |
 | --- | --- |
+| One-click onboarding reports "No acquisition groups with readable points were found" | Configure device collection in Neuron first; confirm devices are running and connected, with tag values visible in **Data Monitoring** |
+| One-click onboarding fails with a subtable name conflict | The subtable name conflicts with an existing table in the database; set a **Table Name Prefix** for the integration to distinguish it, and confirm that same-named measurement columns have compatible types |
+| Data stops being written after the TDengine password is changed | Click **Refresh Configuration** on the integration detail page to update the rules with the current login credentials |
+| The detail page shows "Configuration Preserved; Verification Pending" | Confirm that Neuron is collecting and the rules are running in eKuiper, then click **Check Data** to verify again |
 | Incorrect collected values | Check the unit ID, register addresses, byte order, and whether floating-point addresses overlap |
 | A rule stops automatically after starting | Check whether the license includes data processing; a rule running under a test license can stop after 60 minutes |
 | HTTPS connection fails | Check the CA, server certificate SAN, client certificate, and certificate paths inside the container |
@@ -462,4 +483,5 @@ These results support capacity planning and do not represent TDengine's write li
 
 - [eKuiper InfluxDB v1 Sink](https://ekuiper.org/docs/en/latest/guide/sinks/plugin/influx.html)
 - [eKuiper Sink Cache and Sending Mechanism](https://ekuiper.org/docs/en/latest/guide/sinks/overview.html)
+- [Neuron Open Source Documentation](https://docs.emqx.com/en/neuron/latest/)
 - [NeuronEX Configuration](https://docs.emqx.com/en/neuronex/latest/configuration/introduction.html)
