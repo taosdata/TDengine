@@ -325,6 +325,9 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
+// Same as blockDataTrimFirstRows(), but also reclaims the payload of the trimmed rows of
+// variable-length columns instead of leaving it in the block for the encoder to ship.
+int32_t blockDataTrimFirstRowsCompact(SSDataBlock* pBlock, size_t n);
 void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);

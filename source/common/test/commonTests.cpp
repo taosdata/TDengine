@@ -206,6 +206,75 @@ TEST(testCase, colDataAssignNRows_clears_stale_null_bitmap) {
 
 namespace {
 
+// TDengine stores a length header in front of every variable-length value.
+void setVarRow(SColumnInfoData* pCol, int32_t row, const char* text) {
+  if (text == nullptr) {
+    EXPECT_EQ(colDataSetVal(pCol, row, nullptr, true), TSDB_CODE_SUCCESS);
+    return;
+  }
+
+  int32_t len = static_cast<int32_t>(strlen(text));
+  std::vector<char> buf(VARSTR_HEADER_SIZE + len);
+  varDataSetLen(buf.data(), len);
+  memcpy(varDataVal(buf.data()), text, len);
+  EXPECT_EQ(colDataSetVal(pCol, row, buf.data(), false), TSDB_CODE_SUCCESS);
+}
+
+std::string getVarRow(SColumnInfoData* pCol, int32_t row) {
+  if (colDataIsNull_s(pCol, row)) {
+    return "<null>";
+  }
+
+  char* p = static_cast<char*>(colDataGetData(pCol, row));
+  return std::string(varDataVal(p), varDataLen(p));
+}
+
+}  // namespace
+
+// Dropping leading rows from a variable-length column must also drop their payload, otherwise
+// the encoder keeps shipping bytes the caller explicitly asked to skip.
+TEST(testCase, blockDataTrimFirstRowsCompact_reclaims_var_payload) {
+  constexpr int32_t kRows = 4;
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(pBlock, blockDataDestroy);
+
+  auto tsCol = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), PRIMARYKEY_TIMESTAMP_COL_ID);
+  auto varCol = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16, 2);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &tsCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(pBlock, &varCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(pBlock, kRows), TSDB_CODE_SUCCESS);
+
+  auto* pTs = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0));
+  auto* pVar = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 1));
+  ASSERT_NE(pTs, nullptr);
+  ASSERT_NE(pVar, nullptr);
+
+  const TSKEY tsValues[kRows] = {10, 20, 30, 40};
+  const char* texts[kRows] = {"aa", "bbbb", nullptr, "cc"};
+  for (int32_t i = 0; i < kRows; ++i) {
+    ASSERT_EQ(colDataSetVal(pTs, i, reinterpret_cast<const char*>(&tsValues[i]), false), TSDB_CODE_SUCCESS);
+    setVarRow(pVar, i, texts[i]);
+  }
+  pBlock->info.rows = kRows;
+
+  int32_t fullLen = pVar->varmeta.length;
+  ASSERT_GT(fullLen, 0);
+
+  // Keep the NULL row and "cc"; the payload of "aa" and "bbbb" must not stay in the column.
+  ASSERT_EQ(blockDataTrimFirstRowsCompact(pBlock, 2), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(pBlock->info.rows, 2);
+  EXPECT_EQ(*reinterpret_cast<TSKEY*>(colDataGetData(pTs, 0)), tsValues[2]);
+  EXPECT_EQ(*reinterpret_cast<TSKEY*>(colDataGetData(pTs, 1)), tsValues[3]);
+  EXPECT_TRUE(colDataIsNull_s(pVar, 0));
+  EXPECT_EQ(getVarRow(pVar, 1), "cc");
+  EXPECT_EQ(pVar->varmeta.length, static_cast<int32_t>(VARSTR_HEADER_SIZE + 2));
+  EXPECT_LT(pVar->varmeta.length, fullLen);
+}
+
+namespace {
+
 // These literals independently describe the legacy wire contract so an
 // implementation layout change remains visible to the compatibility tests.
 constexpr size_t kBlockFlagSegmentOffset = sizeof(int32_t) * 4;
