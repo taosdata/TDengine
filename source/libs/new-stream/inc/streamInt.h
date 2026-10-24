@@ -72,6 +72,7 @@ typedef struct SStreamNotifyPendingItem {
   SSTriggerCalcParam param;
   int64_t            groupId;
   char*              tableName;
+  char*              triggerTableName;  // owned; NULL represents an empty name
   int32_t            nextUrl;  // successful URL prefix; retained across worker reschedules
   int32_t            sendFailures;
 } SStreamNotifyPendingItem;
@@ -199,12 +200,15 @@ int32_t streamBuildNotifyTriggerId(int64_t groupId, int64_t windowStart, const c
 int32_t streamBuildBlockResultNotifyContent(const SStreamRunnerTask* pTask, const SSDataBlock* pBlock, char** ppContent,
                                             const SArray* pFields, const int32_t startRow, const int32_t endRow,
                                             bool* pHasNotifyRows);
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
-                                const SSTriggerCalcParam* pParams, int32_t nParam);
+// Copy a counted tbname group value; absent or ineligible names produce an empty string.
+int32_t streamGetNotifyTriggerTableName(bool partByTbname, const SArray* pValues, char* pName, int32_t nameSize);
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                const char* triggerTableName, int32_t triggerType, int64_t groupId, int8_t precision,
+                                const SArray* pNotifyAddrUrls, int32_t addOptions, const SSTriggerCalcParam* pParams,
+                                int32_t nParam);
 int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
-                                          int32_t triggerType, int64_t groupId, int8_t precision,
-                                          const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                          const char* triggerTableName, int32_t triggerType, int64_t groupId,
+                                          int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                           const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
                                           bool* pAccepted);
 int32_t streamNotifyWorkerPoolInit(SStreamNotifyWorkerPool* pPool, int32_t numWorkers);
@@ -212,9 +216,10 @@ void    streamNotifyWorkerPoolDestroy(SStreamNotifyWorkerPool* pPool);
 void    streamNotifyQueueUnregister(int64_t streamId);
 
 int32_t streamSendNestedResultNotifyContent(SStreamTask* pTask, const char* pStreamName, const char* pTableName,
-                                            int32_t triggerType, int64_t gid, const SArray* pNotifyAddrUrls,
-                                            int32_t addOptions, const SSTriggerCalcParam* pParams,
-                                            const char* const* pTriggerIds, int32_t nParam);
+                                            const char* triggerTableName, int32_t triggerType, int64_t gid,
+                                            const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                            const SSTriggerCalcParam* pParams, const char* const* pTriggerIds,
+                                            int32_t nParam);
 
 int32_t stBuildNestedTriggerId(int64_t gid, const SWindowLineage* pLineage, TSKEY leafStart, int32_t windowIndex,
                                char triggerId[STREAM_NESTED_TRIGGER_ID_LEN]);
@@ -223,15 +228,16 @@ int32_t stResolveNestedLeafWindowIndex(int32_t runtimeTriggerType, const SLeafIn
 
 int32_t stTriggerNoticeBatchCreate(SStreamTriggerNoticeBatch** ppBatch);
 int32_t stTriggerNoticeBatchStageWindow(SStreamTriggerNoticeBatch* pBatch, const SStreamTriggerTask* pTask,
-                                        const char* pTableName, int64_t gid, int32_t triggerType,
-                                        const SStreamNestedPendingCalcEvent* pEvent);
+                                        const char* pTableName, const char* triggerTableName, int64_t gid,
+                                        int32_t triggerType, const SStreamNestedPendingCalcEvent* pEvent);
 bool    stTriggerNoticeBatchHasItems(const SStreamTriggerNoticeBatch* pBatch);
 void    stTriggerNoticeBatchSend(SStreamTriggerNoticeBatch** ppBatch);
 void    stTriggerNoticeBatchAbort(SStreamTriggerNoticeBatch** ppBatch);
 
-int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, const char* pTableName, int64_t gid,
-                                             int32_t triggerType, const SStreamNestedPendingCalcEvent* pEvent,
-                                             char** ppPayload, int32_t* pPayloadLen);
+int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, const char* pTableName,
+                                             const char* triggerTableName, int64_t gid, int32_t triggerType,
+                                             const SStreamNestedPendingCalcEvent* pEvent, char** ppPayload,
+                                             int32_t* pPayloadLen);
 int32_t streamSendNotifyPayloadOnce(const char* pUrl, const char* pPayload, int32_t payloadLen);
 int32_t streamSendNotifyPayloadCached(const char* pUrl, const char* pPayload, int32_t payloadLen);
 int32_t streamEnqueueNotifyPayload(const char* pUrl, const char* pPayload, int32_t payloadLen);

@@ -671,6 +671,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
       "events": [
         {
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "triggerTableName": "",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887097,
           "triggerId": "window-id-67890",
@@ -680,6 +681,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
         },
         {
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "triggerTableName": "",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887197,
           "triggerId": "window-id-67890",
@@ -699,6 +701,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
       "events": [
         {
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "triggerTableName": "",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887231,
           "triggerId": "window-id-13579",
@@ -716,6 +719,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
         },
         {
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "triggerTableName": "",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
           "triggerId": "window-id-24680",
@@ -762,6 +766,7 @@ event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 这部分是所有 event 对象所共有的字段。
 
 - tableName：字符串类型，是对应目标子表的表名，当没有输出的时候，该字段不存在。
+- triggerTableName：字符串类型，始终存在。按 `PARTITION BY tbname` 分组时，填写不含库名前缀的触发子表名，非虚拟子表和虚拟子表均适用；虚拟表填写虚拟子表名。仅按 tag 分组、没有 `PARTITION BY` 或无法取得名称时填写 `""`。该字段与输出表名 `tableName` 独立。
 - eventType：字符串类型，表示事件类型，支持 ON_TIME、WINDOW_OPEN、WINDOW_CLOSE、IDLE、RESUME 五种类型。
 - eventTime：长整型时间戳，表示事件生成时间，精确到毫秒，即：'00:00, Jan 1 1970 UTC' 以来的毫秒数。
 - triggerId：字符串类型，触发事件的唯一标识符，确保打开和关闭事件（如果有的话）的 ID 一致，便于外部系统将两者关联。如果 taosd 发生故障重启，部分事件可能会重复发送，会保证同一事件的 triggerId 保持不变。

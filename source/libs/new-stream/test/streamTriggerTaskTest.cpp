@@ -2018,8 +2018,8 @@ static void stageNestedNotice(SStreamTriggerTask* pTask) {
   SStreamTriggerNoticeBatch* pBatch = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchCreate(&pBatch));
   ASSERT_NE(nullptr, pBatch);
-  ASSERT_EQ(TSDB_CODE_SUCCESS,
-            stTriggerNoticeBatchStageWindow(pBatch, pTask, "t1", event.leafIdentity.gid, STREAM_TRIGGER_COUNT, &event));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchStageWindow(pBatch, pTask, "t1", NULL, event.leafIdentity.gid,
+                                                               STREAM_TRIGGER_COUNT, &event));
   stTriggerNoticeBatchSend(&pBatch);
   EXPECT_EQ(nullptr, pBatch);
   destroyNestedPendingEventSource(&event);
@@ -2384,7 +2384,7 @@ TEST_F(StreamNestedRealtimeTest, SingleWindowTriggerIdUnchanged) {
     stub.set(tcurlSend, captureLegacyNotifySend);
     stub.set(tcurlClose, captureLegacyNotifyClose);
     ASSERT_EQ(TSDB_CODE_SUCCESS,
-              streamSendNotifyContent(&task, "1.legacy_stream", nullptr, STREAM_TRIGGER_COUNT, 42,
+              streamSendNotifyContent(&task, "1.legacy_stream", nullptr, NULL, STREAM_TRIGGER_COUNT, 42,
                                       TSDB_TIME_PRECISION_MILLI, pUrls, NOTIFY_ON_FAILURE_PAUSE, &param, 1));
   }
 
@@ -2424,8 +2424,8 @@ TEST_F(StreamNestedRealtimeTest, NestedNoticeReplacesDuplicateKeysAndDerivesIden
 
   char*         pPayload = nullptr;
   int32_t       payloadLen = 0;
-  const int32_t code = streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_COUNT,
-                                                            &event, &pPayload, &payloadLen);
+  const int32_t code = streamBuildNestedTriggerWindowNotice(&task, "t1", "virtual_source", event.leafIdentity.gid,
+                                                            STREAM_TRIGGER_COUNT, &event, &pPayload, &payloadLen);
   EXPECT_EQ(TSDB_CODE_SUCCESS, code);
   if (pPayload != nullptr) {
     EXPECT_EQ(strlen(pPayload), static_cast<size_t>(payloadLen));
@@ -2440,6 +2440,9 @@ TEST_F(StreamNestedRealtimeTest, NestedNoticeReplacesDuplicateKeysAndDerivesIden
     cJSON* pEvent = cJSON_GetArrayItem(pEvents, 0);
     ASSERT_TRUE(cJSON_IsObject(pEvent));
 
+    cJSON* pTriggerTableName = cJSON_GetObjectItemCaseSensitive(pEvent, "triggerTableName");
+    ASSERT_TRUE(cJSON_IsString(pTriggerTableName));
+    EXPECT_STREQ("virtual_source", pTriggerTableName->valuestring);
     EXPECT_EQ(1, countJsonMembersNamed(pEvent, "windowStart"));
     EXPECT_EQ(1, countJsonMembersNamed(pEvent, "shared"));
     EXPECT_EQ(1, countJsonMembersNamed(pEvent, "triggerId"));
@@ -2464,12 +2467,15 @@ TEST_F(StreamNestedRealtimeTest, NestedNoticeReplacesDuplicateKeysAndDerivesIden
   ASSERT_NE(nullptr, pParentScope);
   pParentScope->openingTs = 91;
   ASSERT_EQ(TSDB_CODE_SUCCESS,
-            streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_COUNT, &event,
-                                                 &pPayload, &payloadLen));
+            streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, STREAM_TRIGGER_COUNT,
+                                                 &event, &pPayload, &payloadLen));
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> pSecondRoot(cJSON_Parse(pPayload), cJSON_Delete);
   ASSERT_NE(nullptr, pSecondRoot);
   cJSON* pSecondEvent = nestedNoticeEvent(pSecondRoot.get());
   ASSERT_NE(nullptr, pSecondEvent);
+  cJSON* pSecondName = cJSON_GetObjectItemCaseSensitive(pSecondEvent, "triggerTableName");
+  ASSERT_TRUE(cJSON_IsString(pSecondName));
+  EXPECT_STREQ("", pSecondName->valuestring);
   cJSON* pSecondTriggerId = cJSON_GetObjectItemCaseSensitive(pSecondEvent, "triggerId");
   ASSERT_TRUE(cJSON_IsString(pSecondTriggerId));
   EXPECT_STREQ("aceb62fc567b7d5b91b2d51260e9339d", cJSON_GetStringValue(pSecondTriggerId));
@@ -2502,8 +2508,8 @@ TEST_F(StreamNestedRealtimeTest, NestedEventNoticePreservesInternalParentIdentit
   char*   pPayload = nullptr;
   int32_t payloadLen = 0;
   ASSERT_EQ(TSDB_CODE_SUCCESS,
-            streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_EVENT, &event,
-                                                 &pPayload, &payloadLen));
+            streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, STREAM_TRIGGER_EVENT,
+                                                 &event, &pPayload, &payloadLen));
   ASSERT_NE(nullptr, pPayload);
   EXPECT_EQ(strlen(pPayload), static_cast<size_t>(payloadLen));
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)> pRoot(cJSON_Parse(pPayload), cJSON_Delete);
@@ -2567,8 +2573,8 @@ TEST_F(StreamNestedRealtimeTest, NestedNoticeRejectsInconsistentRuntimeLeafAndEv
     char*   pPayload = nullptr;
     int32_t payloadLen = 0;
     EXPECT_EQ(TSDB_CODE_INVALID_PARA,
-              streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, testCase.runtimeTriggerType,
-                                                   &event, &pPayload, &payloadLen));
+              streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid,
+                                                   testCase.runtimeTriggerType, &event, &pPayload, &payloadLen));
     EXPECT_EQ(nullptr, pPayload);
     EXPECT_EQ(0, payloadLen);
     taosMemoryFree(pPayload);
@@ -2622,8 +2628,8 @@ TEST_F(StreamNestedRealtimeTest, NestedEventNoticeRejectsMalformedInternalParent
     char*   pPayload = nullptr;
     int32_t payloadLen = 0;
     EXPECT_EQ(TSDB_CODE_INVALID_PARA,
-              streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_EVENT, &event,
-                                                   &pPayload, &payloadLen));
+              streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, STREAM_TRIGGER_EVENT,
+                                                   &event, &pPayload, &payloadLen));
     EXPECT_EQ(nullptr, pPayload);
     EXPECT_EQ(0, payloadLen);
 
@@ -2666,8 +2672,8 @@ TEST_F(StreamNestedRealtimeTest, NestedEventResultCannotCreateSuppressReplaceOrR
     char*   pPayload = nullptr;
     int32_t payloadLen = 0;
     ASSERT_EQ(TSDB_CODE_SUCCESS,
-              streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_EVENT, &event,
-                                                   &pPayload, &payloadLen));
+              streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, STREAM_TRIGGER_EVENT,
+                                                   &event, &pPayload, &payloadLen));
     std::unique_ptr<char, decltype(&freeNestedNoticePayload)> payload(pPayload, freeNestedNoticePayload);
     std::unique_ptr<cJSON, decltype(&cJSON_Delete)>           root(cJSON_Parse(pPayload), cJSON_Delete);
     ASSERT_NE(nullptr, root);
@@ -2689,8 +2695,8 @@ TEST_F(StreamNestedRealtimeTest, NestedEventResultCannotCreateSuppressReplaceOrR
   char*   pPayload = nullptr;
   int32_t payloadLen = 0;
   ASSERT_EQ(TSDB_CODE_SUCCESS,
-            streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_EVENT, &event,
-                                                 &pPayload, &payloadLen));
+            streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, STREAM_TRIGGER_EVENT,
+                                                 &event, &pPayload, &payloadLen));
   std::unique_ptr<char, decltype(&freeNestedNoticePayload)> payload(pPayload, freeNestedNoticePayload);
   std::unique_ptr<cJSON, decltype(&cJSON_Delete)>           root(cJSON_Parse(pPayload), cJSON_Delete);
   ASSERT_NE(nullptr, root);
@@ -2737,8 +2743,8 @@ TEST_F(StreamNestedRealtimeTest, NestedNonEventNoticesDropParentFromExtraAndResu
     char*   pPayload = nullptr;
     int32_t payloadLen = 0;
     ASSERT_EQ(TSDB_CODE_SUCCESS,
-              streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, testCase.triggerType, &event,
-                                                   &pPayload, &payloadLen));
+              streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, testCase.triggerType,
+                                                   &event, &pPayload, &payloadLen));
     std::unique_ptr<char, decltype(&freeNestedNoticePayload)> payload(pPayload, freeNestedNoticePayload);
     std::unique_ptr<cJSON, decltype(&cJSON_Delete)>           root(cJSON_Parse(pPayload), cJSON_Delete);
     ASSERT_NE(nullptr, root);
@@ -2779,7 +2785,7 @@ TEST_F(StreamNestedRealtimeTest, NestedResultSenderPreservesInternalParentIdenti
     stub.set(tcurlSend, captureLegacyNotifySend);
     stub.set(tcurlClose, captureLegacyNotifyClose);
     ASSERT_EQ(TSDB_CODE_SUCCESS,
-              streamSendNestedResultNotifyContent(&task, "1.nested_event_notice", "t1", STREAM_TRIGGER_EVENT,
+              streamSendNestedResultNotifyContent(&task, "1.nested_event_notice", "t1", NULL, STREAM_TRIGGER_EVENT,
                                                   event.leafIdentity.gid, pUrls, 0, &event.calcParam, triggerIds, 1));
   }
 
@@ -2816,8 +2822,8 @@ TEST_F(StreamNestedRealtimeTest, NestedEventNoticeBuilderOomPublishesNothingAndN
   Stub    reallocStub;
   reallocStub.set(taosMemRealloc, failNestedNoticeRealloc);
   EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
-            streamBuildNestedTriggerWindowNotice(&task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_EVENT, &event,
-                                                 &pPayload, &payloadLen));
+            streamBuildNestedTriggerWindowNotice(&task, "t1", NULL, event.leafIdentity.gid, STREAM_TRIGGER_EVENT,
+                                                 &event, &pPayload, &payloadLen));
   reallocStub.reset(taosMemRealloc);
   EXPECT_EQ(nullptr, pPayload);
   EXPECT_EQ(0, payloadLen);
@@ -2827,15 +2833,16 @@ TEST_F(StreamNestedRealtimeTest, NestedEventNoticeBuilderOomPublishesNothingAndN
   SStreamTriggerNoticeBatch* pFailedBatch = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchCreate(&pFailedBatch));
   reallocStub.set(taosMemRealloc, failNestedNoticeRealloc);
-  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, stTriggerNoticeBatchStageWindow(pFailedBatch, &task, "t1", event.leafIdentity.gid,
-                                                                     STREAM_TRIGGER_EVENT, &event));
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+            stTriggerNoticeBatchStageWindow(pFailedBatch, &task, "t1", NULL, event.leafIdentity.gid,
+                                            STREAM_TRIGGER_EVENT, &event));
   reallocStub.reset(taosMemRealloc);
   stTriggerNoticeBatchAbort(&pFailedBatch);
   EXPECT_EQ(nullptr, pFailedBatch);
 
   SStreamTriggerNoticeBatch* pNextBatch = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchCreate(&pNextBatch));
-  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchStageWindow(pNextBatch, &task, "t1", event.leafIdentity.gid,
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchStageWindow(pNextBatch, &task, "t1", NULL, event.leafIdentity.gid,
                                                                STREAM_TRIGGER_EVENT, &event));
   resetNestedOutboxCapture();
   gNestedOutboxSendResults = {TSDB_CODE_SUCCESS};
@@ -3010,8 +3017,8 @@ TEST_F(StreamNestedRealtimeTest, NoticeBatchWithNoValidDestinationSkipsMalformed
   SStreamTriggerNoticeBatch* pBatch = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchCreate(&pBatch));
   ASSERT_NE(nullptr, pBatch);
-  EXPECT_EQ(TSDB_CODE_SUCCESS,
-            stTriggerNoticeBatchStageWindow(pBatch, &task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_COUNT, &event));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchStageWindow(pBatch, &task, "t1", NULL, event.leafIdentity.gid,
+                                                               STREAM_TRIGGER_COUNT, &event));
   resetNestedOutboxCapture();
   Stub stub;
   stub.set(streamSendNotifyPayloadOnce, captureNestedOutboxSend);
@@ -3028,8 +3035,8 @@ TEST_F(StreamNestedRealtimeTest, NoticeBatchAbortReleasesStagedDestinations) {
   SStreamNestedPendingCalcEvent event = makeNestedPendingEvent();
   SStreamTriggerNoticeBatch*    pBatch = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchCreate(&pBatch));
-  ASSERT_EQ(TSDB_CODE_SUCCESS,
-            stTriggerNoticeBatchStageWindow(pBatch, &task, "t1", event.leafIdentity.gid, STREAM_TRIGGER_COUNT, &event));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerNoticeBatchStageWindow(pBatch, &task, "t1", NULL, event.leafIdentity.gid,
+                                                               STREAM_TRIGGER_COUNT, &event));
   stTriggerNoticeBatchAbort(&pBatch);
   EXPECT_EQ(nullptr, pBatch);
   stTriggerNoticeBatchAbort(&pBatch);
@@ -3478,8 +3485,8 @@ static int32_t failNestedHistoryCachePut(void*, const SStreamCacheScope*, TSKEY,
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 
-static int32_t failNestedHistoryNoticeStage(SStreamTriggerNoticeBatch*, const SStreamTriggerTask*, const char*, int64_t,
-                                            int32_t, const SStreamNestedPendingCalcEvent*) {
+static int32_t failNestedHistoryNoticeStage(SStreamTriggerNoticeBatch*, const SStreamTriggerTask*, const char*,
+                                            const char*, int64_t, int32_t, const SStreamNestedPendingCalcEvent*) {
   return TSDB_CODE_OUT_OF_MEMORY;
 }
 
@@ -4905,13 +4912,41 @@ class RealtimePipelineHarness {
                      : processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_STREAM_NO_CONTEXT, nullptr, 0);
   }
 
+  int32_t dispatchExtGroupColValue(const char* tableName) {
+    int32_t index = findPull(STRIGGER_PULL_GROUP_COL_VALUE_EXT);
+    if (index < 0) return TSDB_CODE_INVALID_PARA;
+    SSTriggerExtPullRsp rsp = {};
+    rsp.pullType = STRIGGER_PULL_GROUP_COL_VALUE_EXT;
+    rsp.pGroupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    if (rsp.pGroupColVals == nullptr) return terrno;
+    SStreamGroupValue value = {};
+    value.isTbname = true;
+    value.data.type = TSDB_DATA_TYPE_VARCHAR;
+    // Borrow until synchronous serialization, just as dispatchGroupColValue does.
+    value.data.pData = reinterpret_cast<uint8_t*>(const_cast<char*>(tableName));
+    value.data.nData = tableName == nullptr ? 0 : static_cast<int32_t>(strlen(tableName));
+    if (tableName != nullptr && taosArrayPush(rsp.pGroupColVals, &value) == nullptr) {
+      taosArrayDestroy(rsp.pGroupColVals);
+      return terrno;
+    }
+    int32_t len = tSerializeSSTriggerExtPullRsp(nullptr, 0, &rsp);
+    void*   payload = len > 0 ? rpcMallocCont(len) : nullptr;
+    int32_t actual = payload == nullptr ? TSDB_CODE_OUT_OF_MEMORY : tSerializeSSTriggerExtPullRsp(payload, len, &rsp);
+    taosArrayDestroy(rsp.pGroupColVals);
+    if (actual != len) {
+      rpcFreeCont(payload);
+      return actual < 0 ? actual : TSDB_CODE_INVALID_MSG;
+    }
+    return processPull(index, TDMT_STREAM_TRIGGER_PULL_EXT_RSP, TSDB_CODE_SUCCESS, payload, len);
+  }
+
   int32_t dispatchGroupColError(int64_t gid, int32_t responseCode) {
     int32_t index = findGroupColPull(gid);
     return index < 0 ? TSDB_CODE_INVALID_PARA
                      : processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, responseCode, nullptr, 0);
   }
 
-  int32_t dispatchGroupColValue(int64_t gid, int64_t value) {
+  int32_t dispatchGroupColValue(int64_t gid, int64_t value, const char* tableName = nullptr) {
     int32_t index = findGroupColPull(gid);
     if (index < 0) return TSDB_CODE_INVALID_PARA;
 
@@ -4920,6 +4955,13 @@ class RealtimePipelineHarness {
     SStreamGroupValue groupValue = {};
     groupValue.data.type = TSDB_DATA_TYPE_BIGINT;
     groupValue.data.val = value;
+    if (tableName != nullptr) {
+      groupValue.isTbname = true;
+      groupValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+      // Borrow only until synchronous serialization; the array does not own this string.
+      groupValue.data.pData = reinterpret_cast<uint8_t*>(const_cast<char*>(tableName));
+      groupValue.data.nData = static_cast<int32_t>(strlen(tableName));
+    }
     if (taosArrayPush(info.gInfo, &groupValue) == nullptr) {
       taosArrayDestroy(info.gInfo);
       return terrno;
@@ -5638,6 +5680,11 @@ class RealtimePipelineHarness {
                                    .tableBlock = pTableBlock,
                                    .ver = version,
                                    .verTime = version * 1000};
+    // META_ONLY carries metadata without data rows or slice indexes, matching the reader wire format.
+    if (pendingSends_[index].pullType == STRIGGER_PULL_WAL_META_NEW) {
+      response.indexHash = nullptr;
+      response.dataBlock = nullptr;
+    }
     int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
     void*              pPayload = len > 0 ? rpcMallocCont(len) : nullptr;
     int32_t            actual =
@@ -5757,6 +5804,11 @@ class RealtimePipelineHarness {
                                    .metaBlock = pMetaBlock,
                                    .ver = groups.back().version,
                                    .verTime = groups.back().version * 1000};
+    // META_ONLY carries metadata without data rows or slice indexes, matching the reader wire format.
+    if (pendingSends_[index].pullType == STRIGGER_PULL_WAL_META_NEW) {
+      response.indexHash = nullptr;
+      response.dataBlock = nullptr;
+    }
     int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
     void*              pPayload = len > 0 ? rpcMallocCont(len) : nullptr;
     int32_t            actual =
@@ -20889,6 +20941,133 @@ TEST_F(StreamNestedRealtimeTest, CalcAndNotifyUsesRunnerNoticeOnly) {
   EXPECT_TRUE(gLegacyNotifyPayload.empty());
 }
 
+TEST_F(StreamNestedRealtimeTest, IdleNotifyWaitsForNameBeforeReadingMoreWal) {
+  for (auto plan : {RealtimePipelinePlan::LegacySession, RealtimePipelinePlan::NestedSessionHierarchy}) {
+    SCOPED_TRACE(static_cast<int>(plan));
+    gRealtimePipelineClockNs = NANOSECOND_PER_MSEC;
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(plan, false, STRIGGER_EVENT_WINDOW_NONE, STRIGGER_EVENT_IDLE | STRIGGER_EVENT_RESUME, 0, 1,
+                             true, 50, false, 2));
+    harness.task()->stbPartByTbname = true;
+    harness.task()->partitionByTbname = true;
+    harness.task()->addOptions |= NOTIFY_ON_FAILURE_PAUSE;
+    Stub clockStub;
+    clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+    ASSERT_TRUE(harness.start());
+    if (plan == RealtimePipelinePlan::LegacySession) harness.context()->walMode = STRIGGER_WAL_META_ONLY;
+    ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+    ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId + 1, 1000));
+    ASSERT_TRUE(harness.feedGroupsForReader(RealtimePipelineHarness::kReaderTaskId,
+                                            {{42, 1001, {1000}, {1}, 2}, {43, 1002, {1000}, {1}, 2}}));
+    gRealtimePipelineClockNs = 51 * NANOSECOND_PER_MSEC;
+    ASSERT_TRUE(harness.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId + 1));
+    ASSERT_TRUE(gLegacyNotifyPayload.empty());
+    ASSERT_TRUE(harness.context()->notifyGroupColValuePending);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColValue(42, 0, "sensor_a"));
+    EXPECT_EQ(1, harness.groupColPullCount(42));
+    EXPECT_EQ(1, harness.group(42)->idleState);
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> idle(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+    ASSERT_NE(nullptr, idle);
+    cJSON* event = nestedNoticeEvent(idle.get());
+    EXPECT_STREQ("IDLE", cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "eventType")));
+    EXPECT_STREQ("sensor_a", cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "triggerTableName")));
+    gLegacyNotifyPayload.clear();
+    ASSERT_TRUE(harness.context()->notifyGroupColValuePending);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColNoContext(43));
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> missing(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+    ASSERT_NE(nullptr, missing);
+    event = nestedNoticeEvent(missing.get());
+    EXPECT_STREQ("IDLE", cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "eventType")));
+    EXPECT_STREQ("", cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "triggerTableName")));
+    EXPECT_EQ(1, harness.group(43)->idleState);
+    gLegacyNotifyPayload.clear();
+    ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+    ASSERT_TRUE(harness.feedGroupsForReader(RealtimePipelineHarness::kReaderTaskId, {{42, 1001, {1005}, {2}, 3}}));
+    ASSERT_TRUE(harness.feedZeroRowWalForReader(RealtimePipelineHarness::kReaderTaskId + 1));
+    EXPECT_EQ(0, harness.group(42)->idleState);
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> resume(cJSON_Parse(gLegacyNotifyPayload.c_str()), cJSON_Delete);
+    ASSERT_NE(nullptr, resume);
+    event = nestedNoticeEvent(resume.get());
+    EXPECT_STREQ("RESUME", cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "eventType")));
+    EXPECT_STREQ("sensor_a", cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "triggerTableName")));
+    EXPECT_EQ(1, harness.groupColPullCount(42));
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, NotifyOnlyWaitsForGroupNameBeforeStagingWindow) {
+  for (bool missing : {false, true}) {
+    SCOPED_TRACE(missing);
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_NONE,
+                             STRIGGER_EVENT_WINDOW_CLOSE));
+    harness.task()->stbPartByTbname = true;
+    harness.task()->partitionByTbname = true;
+    ASSERT_TRUE(harness.start());
+    ASSERT_TRUE(harness.feedRows({1000, 1015}, {1, 2}));
+    EXPECT_EQ(0, harness.noticeSendCount());
+    EXPECT_EQ(0, harness.calcSendCount());
+    EXPECT_TRUE(harness.context()->notifyGroupColValuePending);
+    EXPECT_EQ(1, harness.groupColPullCount(42));
+    if (missing) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColNoContext(42));
+    } else {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColValue(42, 0, "sensor_a"));
+    }
+    EXPECT_FALSE(harness.context()->notifyGroupColValuePending);
+    EXPECT_EQ(1, harness.groupColPullCount(42));
+    ASSERT_EQ(1, harness.noticeSendCount());
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_Parse(harness.noticePayload().c_str()), cJSON_Delete);
+    ASSERT_NE(root, nullptr);
+    cJSON* event = nestedNoticeEvent(root.get());
+    cJSON* name = cJSON_GetObjectItemCaseSensitive(event, "triggerTableName");
+    ASSERT_TRUE(cJSON_IsString(name));
+    EXPECT_STREQ(name->valuestring, missing ? "" : "sensor_a");
+    EXPECT_STREQ("2f0a3aa99365141f693d55a7e2c7da2d",
+                 cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "triggerId")));
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, ExtNotifyNameUsesReaderRouteAndResumesTheWindow) {
+  for (bool missing : {false, true}) {
+    SCOPED_TRACE(missing);
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_NONE,
+                             STRIGGER_EVENT_WINDOW_CLOSE));
+    ASSERT_TRUE(harness.start());
+    ASSERT_TRUE(harness.feedRows({1000}, {1}));
+    auto* context = harness.context();
+    auto* group = harness.group();
+    ASSERT_NE(group, nullptr);
+    context->pReaderExtProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(context->pReaderExtProgress, nullptr);
+    tSimpleHashSetFreeFp(context->pReaderExtProgress, destroyRecoveryTestExtProgress);
+    auto* progress = static_cast<SSTriggerExtProgress*>(taosMemoryCalloc(1, sizeof(SSTriggerExtProgress)));
+    ASSERT_NE(progress, nullptr);
+    progress->pTaskAddr = static_cast<SStreamTaskAddr*>(taosArrayGet(harness.task()->readerList, 0));
+    progress->pOwnerTask = harness.task();
+    progress->sessionId = context->sessionId;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(context->pReaderExtProgress, &progress->pTaskAddr->taskId,
+                                                sizeof(int64_t), &progress, POINTER_BYTES));
+    group->extReaderTaskId = progress->pTaskAddr->taskId;
+    group->vgId = -1;  // EXT groups have no entry in the WAL reader map.
+    harness.task()->partitionByTbname = true;
+    harness.task()->stbPartByTbname = true;
+    harness.task()->notifyEventType = STRIGGER_EVENT_WINDOW_CLOSE;
+    ASSERT_TRUE(harness.feedRows({1015}, {2}));
+    ASSERT_TRUE(context->notifyGroupColValuePending);
+    EXPECT_EQ(0, harness.groupColPullCount(42));
+    EXPECT_EQ(1, progress->pendingPulls);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchExtGroupColValue(missing ? nullptr : "influx_series"));
+    EXPECT_FALSE(context->notifyGroupColValuePending);
+    ASSERT_EQ(1, harness.noticeSendCount());
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_Parse(harness.noticePayload().c_str()), cJSON_Delete);
+    ASSERT_NE(root, nullptr);
+    cJSON* event = nestedNoticeEvent(root.get());
+    EXPECT_STREQ(missing ? "" : "influx_series",
+                 cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(event, "triggerTableName")));
+  }
+}
+
 TEST_F(StreamNestedRealtimeTest, NotifyWithoutCalcQueuesBeforeReturning) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_NONE,
@@ -20941,8 +21120,8 @@ TEST_F(StreamNestedRealtimeTest, NotifyWithoutCalcQueuesBeforeReturning) {
   ASSERT_EQ(1, cJSON_GetArraySize(pEvents));
 
   cJSON* pEvent = cJSON_GetArrayItem(pEvents, 0);
-  ASSERT_TRUE(hasExactMembers(
-      pEvent, {"eventType", "eventTime", "triggerId", "triggerType", "groupId", "windowStart", "windowEnd"}));
+  ASSERT_TRUE(hasExactMembers(pEvent, {"eventType", "eventTime", "triggerId", "triggerType", "groupId",
+                                       "triggerTableName", "windowStart", "windowEnd"}));
   EXPECT_EQ(nullptr, cJSON_GetObjectItemCaseSensitive(pEvent, "tableName"));
   cJSON* pEventType = cJSON_GetObjectItemCaseSensitive(pEvent, "eventType");
   cJSON* pEventTime = cJSON_GetObjectItemCaseSensitive(pEvent, "eventTime");
@@ -29728,8 +29907,8 @@ TEST_F(StreamTriggerIntervalMergeTest, ExistingWindowRangeMismatchRemainsAnInter
 
 static std::vector<SSTriggerCalcParam> gIntervalGapNotifications;
 
-static int32_t captureIntervalGapNotifications(SStreamTask*, const char*, const char*, int32_t, int64_t, int8_t,
-                                               const SArray*, int32_t, const SSTriggerCalcParam* params,
+static int32_t captureIntervalGapNotifications(SStreamTask*, const char*, const char*, const char*, int32_t, int64_t,
+                                               int8_t, const SArray*, int32_t, const SSTriggerCalcParam* params,
                                                int32_t count) {
   gIntervalGapNotifications.insert(gIntervalGapNotifications.end(), params, params + count);
   return TSDB_CODE_SUCCESS;

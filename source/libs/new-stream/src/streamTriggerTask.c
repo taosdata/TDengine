@@ -925,6 +925,14 @@ static int32_t stTriggerTaskSetCalcReqRollupTbCount(SStreamTriggerTask *pTask, S
   return TSDB_CODE_SUCCESS;
 }
 
+static bool stTriggerTaskNeedNotifyTableName(const SStreamTriggerTask *pTask) {
+  return pTask->partitionByTbname && pTask->notifyEventType != STRIGGER_EVENT_WINDOW_NONE &&
+         taosArrayGetSize(pTask->pNotifyAddrUrls) > 0;
+}
+
+static int32_t stTriggerTaskGetNotifyTableName(SStreamTriggerTask *pTask, SSHashObj *pGroupColVals, int64_t gid,
+                                               char *pName);
+
 static bool stTriggerTaskNeedGroupColVals(SStreamTriggerTask *pTask, bool createTable) {
   return (createTable && pTask->hasPartitionBy) || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_IDX) ||
          (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_TBNAME) ||
@@ -1119,6 +1127,8 @@ static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
 // Force PERIOD's "fire regardless of new data" semantics onto groupsToCheck.
 static int32_t stRealtimeContextForcePeriodGroupsToCheck(SSTriggerRealtimeContext *pContext);
 static int32_t stRealtimeContextCheckForTurn(SSTriggerRealtimeContext *pContext, int64_t nowNs);
+static int32_t stRealtimeContextPrepareNotifyName(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup,
+                                                  bool *pReady);
 // Get or lazily create a realtime group by gid.
 static int32_t stRealtimeContextGetOrCreateGroup(SSTriggerRealtimeContext *pContext, int64_t gid, int32_t vgId,
                                                  SSTriggerRealtimeGroup **ppGroup);
@@ -2806,6 +2816,7 @@ typedef struct {
   SList                      *pPendingNestedParWinEvents;
   void                       *pCalcDataCache;
   SSHashObj                  *pWalMetas;
+  SSHashObj                  *pGroupColVals;
   bool                        isHistory;
   bool                        notifyHistory;
   SSTriggerHistoryGroup      *pHistoryGroup;
@@ -3045,7 +3056,11 @@ static int32_t stTriggerTaskStageNestedLeafEffects(const SStreamNestedEffectCont
       }
       tdListAppendNode(&pStaged->pendingNestedEvents, pNode);
     } else if (!pEffectContext->suppressOutput) {
-      code = stTriggerNoticeBatchStageWindow(pStaged->pNoticeBatch, pTask, NULL, pEffectContext->gid,
+      char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+      code =
+          stTriggerTaskGetNotifyTableName(pTask, pEffectContext->pGroupColVals, pEffectContext->gid, triggerTableName);
+      if (code != TSDB_CODE_SUCCESS) goto _exit;
+      code = stTriggerNoticeBatchStageWindow(pStaged->pNoticeBatch, pTask, NULL, triggerTableName, pEffectContext->gid,
                                              pTask->triggerType, &event);
       if (code != TSDB_CODE_SUCCESS) {
         goto _exit;
@@ -8177,6 +8192,26 @@ _end:
   return code;
 }
 
+static int32_t stTriggerTaskGetNotifyTableName(SStreamTriggerTask *pTask, SSHashObj *pGroupColVals, int64_t gid,
+                                               char *pName) {
+  pName[0] = '\0';
+  if (!pTask->partitionByTbname) return TSDB_CODE_SUCCESS;
+  if (pTask->isVirtualTable) {
+    int32_t                 iter = 0;
+    SSTriggerVirtTableInfo *pInfo = tSimpleHashGet(pTask->pVirtTableInfos, &gid, sizeof(gid));
+    if (pInfo == NULL) {
+      pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
+      while (pInfo != NULL && !stTriggerTaskMatchVirtTableInfo(pInfo, gid)) {
+        pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter);
+      }
+    }
+    if (pInfo != NULL) tstrncpy(pName, pInfo->tbName, TSDB_TABLE_NAME_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
+  SArray **ppValues = tSimpleHashGet(pGroupColVals, &gid, sizeof(gid));
+  return streamGetNotifyTriggerTableName(true, ppValues == NULL ? NULL : *ppValues, pName, TSDB_TABLE_NAME_LEN);
+}
+
 static int32_t stTriggerTaskAppendVirtTableGid(SSTriggerVirtTableInfo *pInfo, int64_t gid) {
   if (pInfo->tbGids == NULL) {
     pInfo->tbGids = taosArrayInit(1, sizeof(int64_t));
@@ -9487,7 +9522,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   pTask->isVirtualTable = pMsg->isTriggerTblVirt;
   pTask->isSuperTable = pMsg->isTriggerTblStb;
   pTask->stbPartByTbname = false;
-  if ((pMsg->isTriggerTblStb || pMsg->isTriggerTblVirt) && pMsg->partitionCols != NULL) {
+  pTask->partitionByTbname = false;
+  if (pMsg->partitionCols != NULL) {
     code = nodesStringToList(pMsg->partitionCols, &pPartitionCols);
     QUERY_CHECK_CODE(code, lino, _end);
     SSTriggerPartitionFacts partitionFacts = {0};
@@ -9500,7 +9536,8 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
                      pMsg->isTriggerTblVirt);
       }
     }
-    pTask->stbPartByTbname = partitionFacts.partitionByTbname;
+    pTask->partitionByTbname = partitionFacts.partitionByTbname;
+    pTask->stbPartByTbname = (pMsg->isTriggerTblStb || pMsg->isTriggerTblVirt) && pTask->partitionByTbname;
   }
   pTask->ignoreNoDataTrigger = pMsg->igNoDataTrigger;
   pTask->hasTriggerFilter = pMsg->triggerHasPF;
@@ -10751,6 +10788,9 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
   // response path does, then resume the state machine.
   if (rspPullType == STRIGGER_PULL_GROUP_COL_VALUE_EXT) {
     int64_t gid = pProgress->pendingGroupColValGid;
+    if (pContext->notifyGroupColValuePending) {
+      QUERY_CHECK_CONDITION(pContext->notifyGroupColValueGid == gid, code, lino, _end_free_rsp, TSDB_CODE_INVALID_MSG);
+    }
     if (pExtRsp->pGroupColVals == NULL) {
       pExtRsp->pGroupColVals = taosArrayInit(0, sizeof(SStreamGroupValue));
       QUERY_CHECK_NULL(pExtRsp->pGroupColVals, code, lino, _end_free_rsp, terrno);
@@ -10783,6 +10823,7 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
     }
     pExtRsp->pGroupColVals = NULL;  // ownership transferred to pContext->pGroupColVals (or freed above)
     QUERY_CHECK_CODE(code, lino, _end_free_rsp);
+    pContext->notifyGroupColValuePending = false;
     tDestroySSTriggerExtPullRsp(pExtRsp);
     code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheckForTurn(pContext, nowNs),
                                               pFailureRecordedByChild);
@@ -11774,6 +11815,7 @@ static int32_t stRealtimeGroupSubmitNestedPeer(SSTriggerRealtimeGroup *pGroup, i
   SSTriggerRealtimeContext  *pContext = pGroup->pContext;
   SStreamNestedEffectContext effectContext = {
       .pTask = pContext->pTask,
+      .pGroupColVals = pContext->pGroupColVals,
       .sessionId = pContext->sessionId,
       .gid = pGroup->gid,
       .pPendingNestedEvents = &pGroup->pendingNestedEvents,
@@ -11839,6 +11881,7 @@ static int32_t stRealtimeContextCollectNestedDelayed(SSTriggerRealtimeContext *p
     SWindowChainSubmitResult   result = {.pAcceptedBatches = pAcceptedBatches, .pCandidates = pCandidates};
     SStreamNestedEffectContext effectContext = {
         .pTask = pContext->pTask,
+        .pGroupColVals = pContext->pGroupColVals,
         .sessionId = pContext->sessionId,
         .gid = pGroup->gid,
         .pPendingNestedEvents = &pGroup->pendingNestedEvents,
@@ -11938,6 +11981,7 @@ static int32_t stRealtimeGroupDrainNestedInputs(SSTriggerRealtimeGroup *pGroup, 
     SSTriggerRealtimeContext  *pContext = pGroup->pContext;
     SStreamNestedEffectContext effectContext = {
         .pTask = pContext->pTask,
+        .pGroupColVals = pContext->pGroupColVals,
         .sessionId = pContext->sessionId,
         .gid = pGroup->gid,
         .pPendingNestedEvents = &pGroup->pendingNestedEvents,
@@ -19060,7 +19104,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
     needTagValue = true;
   }
 
-  if (needTagValue && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
+  if ((needTagValue || stTriggerTaskNeedNotifyTableName(pTask)) && taosArrayGetSize(pCalcReq->groupColVals) == 0) {
     void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(int64_t));
     if (px == NULL) {
       code = stRealtimeContextSendGroupColValuePull(pContext, pGroup->gid);
@@ -19068,13 +19112,13 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
       goto _end;
     } else {
       SArray *pGroupColVals = *(SArray **)px;
-      if (pGroupColVals == NULL) {
+      if (pGroupColVals == NULL && needTagValue) {
         ST_TASK_WLOG("skip calc since group %" PRId64 " may have been dropped", pGroup->gid);
         code = stTriggerTaskReleaseRequest(pTask, &pContext->pCalcReq, false);
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
-      for (int32_t i = 0; i < TARRAY_SIZE(pGroupColVals); i++) {
+      for (int32_t i = 0; i < taosArrayGetSize(pGroupColVals); i++) {
         SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
         SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
         QUERY_CHECK_NULL(pDst, code, lino, _end, terrno);
@@ -20030,6 +20074,13 @@ static int32_t stRealtimeContextCheckIdleGroup(SSTriggerRealtimeContext *pContex
       break;
     }
 
+    if (notifyIdle && !calcIdle) {
+      bool nameReady = false;
+      code = stRealtimeContextPrepareNotifyName(pContext, pGroup, &nameReady);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!nameReady) goto _end;
+    }
+
     if (calcIdle || notifyIdle) {
       code = streamBuildIdleNotifyContent(STRIGGER_EVENT_IDLE, idleDurationMs, &pExtraNotifyContent);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -20061,8 +20112,12 @@ static int32_t stRealtimeContextCheckIdleGroup(SSTriggerRealtimeContext *pContex
       code = stRealtimeGroupUpdateExecTime(pGroup, nested ? nowNs : taosGetTimestampNs(), true);
       QUERY_CHECK_CODE(code, lino, _end);
     } else if (notifyIdle) {
-      code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                     pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
+      char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+      code = stTriggerTaskGetNotifyTableName(pTask, pContext->pGroupColVals, pGroup->gid, triggerTableName);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code =
+          streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, triggerTableName, pTask->triggerType,
+                                  pGroup->gid, pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
       taosMemoryFreeClear(pExtraNotifyContent);
       QUERY_CHECK_CODE(code, lino, _end);
       stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_NOTIFY, 1, streamTaskGetMonotonicUs());
@@ -20245,7 +20300,8 @@ _end:
 static int32_t stRealtimeContextSendGroupColValuePull(SSTriggerRealtimeContext *pContext, int64_t gid) {
   SStreamTriggerTask *pTask = pContext->pTask;
   if (pContext->pReaderExtProgress == NULL) {
-    if (pTask->multiGroupBatch || BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
+    if (pContext->notifyGroupColValuePending || pTask->multiGroupBatch ||
+        BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
       void *px = tSimpleHashGet(pContext->pGroups, &gid, sizeof(gid));
       if (px == NULL) {
         return TSDB_CODE_INTERNAL_ERROR;
@@ -20498,6 +20554,33 @@ static int32_t stRealtimeContextCheckForTurn(SSTriggerRealtimeContext *pContext,
              : stRealtimeContextCheck(pContext);
 }
 
+static int32_t stRealtimeContextPrepareNotifyName(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup,
+                                                  bool *pReady) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  *pReady = true;
+  if (!stTriggerTaskNeedNotifyTableName(pTask) || pTask->isVirtualTable || pContext->suppressOutput ||
+      tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(pGroup->gid)) != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  *pReady = false;
+  if (pContext->notifyGroupColValuePending || stRealtimeContextHasPendingWalPulls(pContext)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pContext->pReaderExtProgress != NULL) {
+    int32_t                iter = 0;
+    SSTriggerExtProgress **ppProgress = tSimpleHashIterate(pContext->pReaderExtProgress, NULL, &iter);
+    while (ppProgress != NULL) {
+      if ((*ppProgress)->pendingPulls > 0) return TSDB_CODE_SUCCESS;
+      ppProgress = tSimpleHashIterate(pContext->pReaderExtProgress, ppProgress, &iter);
+    }
+  }
+  pContext->notifyGroupColValuePending = true;
+  pContext->notifyGroupColValueGid = pGroup->gid;
+  int32_t code = stRealtimeContextSendGroupColValuePull(pContext, pGroup->gid);
+  if (code != TSDB_CODE_SUCCESS) pContext->notifyGroupColValuePending = false;
+  return code;
+}
+
 static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int64_t now) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -20541,6 +20624,8 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     }
     goto _end;
   }
+
+  if (pContext->notifyGroupColValuePending) goto _end;
 
   // A matured deferred group owns local work that can be dispatched even when a
   // WAL pull is still in flight.  Allow this case to proceed; the tail of this
@@ -20885,6 +20970,10 @@ _check:
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0 && pContext->status != STRIGGER_CONTEXT_ACQUIRE_REQUEST &&
          pContext->status != STRIGGER_CONTEXT_SEND_CALC_REQ) {
     SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+    bool                    notifyNameReady = false;
+    code = stRealtimeContextPrepareNotifyName(pContext, pGroup, &notifyNameReady);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!notifyNameReady) goto _end;
     if (nested) {
       if (!pContext->suppressOutput && pContext->nestedPendingParamCount >= tsStreamTriggerMaxPendingParams) {
         break;
@@ -20927,8 +21016,11 @@ _check:
         }
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                         pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
+          char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+          code = stTriggerTaskGetNotifyTableName(pTask, pContext->pGroupColVals, pGroup->gid, triggerTableName);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, triggerTableName, pTask->triggerType,
+                                         pGroup->gid, pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
           stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_NOTIFY, 1, streamTaskGetMonotonicUs());
@@ -22159,6 +22251,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         goto _end;
       }
 
+    _resumeWalMetaIdle:;
       int64_t latestVersionTime = INT64_MAX;
       bool    recoveryDone = true;
       int32_t iter = 0;
@@ -22176,6 +22269,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       // Check for idle groups
       code = stRealtimeContextCheckIdleGroup(pContext, nowNs);
       QUERY_CHECK_CODE(code, lino, _end);
+      if (pContext->notifyGroupColValuePending) {
+        pContext->notifyIdleContinuation = STRIGGER_PULL_WAL_META_NEW;
+        goto _end;
+      }
 
       if (pContext->recovering && recoveryDone) {
         ST_TASK_DLOG("realtime WAL recovery completed before data check, clear recovering flag, pool size: %" PRId64
@@ -22457,6 +22554,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         goto _end;
       }
 
+    _resumeWalDataIdle:
       if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
         int64_t latestVersionTime = INT64_MAX;
         int32_t iter = 0;
@@ -22471,6 +22569,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         // Check for idle groups
         code = stRealtimeContextCheckIdleGroup(pContext, nowNs);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->notifyGroupColValuePending) {
+          pContext->notifyIdleContinuation = STRIGGER_PULL_WAL_META_DATA_NEW;
+          goto _end;
+        }
       }
 
       pContext->catchUp = (TD_DLIST_NELES(&pContext->groupsToCheck) == 0);
@@ -22608,6 +22710,31 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CONDITION(pProgress->groupColValuePullGid == pRequest->gid, code, lino, _end,
                               TSDB_CODE_INVALID_MSG);
         stRealtimeContextReleaseGroupColValuePull(pProgress);
+      }
+      if (pContext->notifyGroupColValuePending) {
+        QUERY_CHECK_CONDITION(pContext->notifyGroupColValueGid == pRequest->gid, code, lino, _end,
+                              TSDB_CODE_INVALID_MSG);
+        SStreamGroupInfo groupInfo = {0};
+        if (pRsp->contLen > 0) {
+          code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = tSimpleHashPut(pContext->pGroupColVals, &pRequest->gid, sizeof(pRequest->gid), &groupInfo.gInfo,
+                              POINTER_BYTES);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroyEx(groupInfo.gInfo, tDestroySStreamGroupValue);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        pContext->notifyGroupColValuePending = false;
+        // Resume the finished WAL round before another pull can reset the idle timestamps.
+        int8_t idleContinuation = pContext->notifyIdleContinuation;
+        pContext->notifyIdleContinuation = 0;
+        if (idleContinuation == STRIGGER_PULL_WAL_META_NEW) goto _resumeWalMetaIdle;
+        if (idleContinuation == STRIGGER_PULL_WAL_META_DATA_NEW) goto _resumeWalDataIdle;
+        code =
+            stTriggerTaskAttributeChildFailure(stRealtimeContextCheckForTurn(pContext, nowNs), pFailureRecordedByChild);
+        QUERY_CHECK_CODE(code, lino, _end);
+        break;
       }
       QUERY_CHECK_CONDITION(
           (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND || pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ ||
@@ -23882,6 +24009,11 @@ static void stHistoryContextDestroy(void *ptr) {
 }
 
 static FORCE_INLINE SSTriggerHistoryGroup *stHistoryContextGetCurrentGroup(SSTriggerHistoryContext *pContext) {
+  if (pContext->notifyGroupColValuePending) {
+    SSTriggerHistoryGroup **ppGroup =
+        tSimpleHashGet(pContext->pGroups, &pContext->notifyGroupColValueGid, sizeof(pContext->notifyGroupColValueGid));
+    return ppGroup == NULL ? NULL : *ppGroup;
+  }
   if (pContext->pMinGroup != NULL) {
     return pContext->pMinGroup;
   } else if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
@@ -24755,6 +24887,8 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     goto _end;
   }
 
+  if (pContext->notifyGroupColValuePending) goto _end;
+
   if (pContext->pendingToFinish) {
     code = stHistoryContextTryFinish(pContext);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -24853,6 +24987,16 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerHistoryGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+    if (stTriggerTaskNeedNotifyTableName(pTask) && !pTask->isVirtualTable &&
+        (!pContext->isHistory || pTask->notifyHistory) &&
+        tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(pGroup->gid)) == NULL) {
+      pContext->notifyGroupColValuePending = true;
+      pContext->notifyGroupColValueGid = pGroup->gid;
+      code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_GROUP_COL_VALUE);
+      if (code != TSDB_CODE_SUCCESS) pContext->notifyGroupColValuePending = false;
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
+    }
     switch (pContext->status) {
       case STRIGGER_CONTEXT_FETCH_META: {
         pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
@@ -24898,8 +25042,11 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         }
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                         pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
+          char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+          code = stTriggerTaskGetNotifyTableName(pTask, pContext->pGroupColVals, pGroup->gid, triggerTableName);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, triggerTableName, pTask->triggerType,
+                                         pGroup->gid, pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
           stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_NOTIFY, 1, streamTaskGetMonotonicUs());
@@ -25120,8 +25267,11 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         }
 
         if (taosArrayGetSize(pContext->pNotifyParams) > 0) {
-          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                         pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
+          char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+          code = stTriggerTaskGetNotifyTableName(pTask, pContext->pGroupColVals, pGroup->gid, triggerTableName);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, triggerTableName, pTask->triggerType,
+                                         pGroup->gid, pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions,
                                          TARRAY_DATA(pContext->pNotifyParams), TARRAY_SIZE(pContext->pNotifyParams));
           QUERY_CHECK_CODE(code, lino, _end);
           stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_NOTIFY, 1, streamTaskGetMonotonicUs());
@@ -25930,9 +26080,11 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
     }
 
     case STRIGGER_PULL_GROUP_COL_VALUE: {
-      QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ, code, lino, _end,
-                            TSDB_CODE_INTERNAL_ERROR);
+      QUERY_CHECK_CONDITION(pContext->notifyGroupColValuePending || pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ,
+                            code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerGroupColValueRequest *pRequest = (SSTriggerGroupColValueRequest *)pReq;
+      QUERY_CHECK_CONDITION(!pContext->notifyGroupColValuePending || pContext->notifyGroupColValueGid == pRequest->gid,
+                            code, lino, _end, TSDB_CODE_INVALID_MSG);
       SStreamGroupInfo               groupInfo = {0};
       if (pRsp->contLen > 0) {
         code = tDeserializeSStreamGroupInfo(pRsp->pCont, pRsp->contLen, &groupInfo);
@@ -25943,6 +26095,7 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         taosArrayClearEx(groupInfo.gInfo, tDestroySStreamGroupValue);
         QUERY_CHECK_CODE(code, lino, _end);
       }
+      pContext->notifyGroupColValuePending = false;
       code = stTriggerTaskAttributeChildFailure(stHistoryContextCheck(pContext), pFailureRecordedByChild);
       QUERY_CHECK_CODE(code, lino, _end);
       break;
@@ -26634,8 +26787,12 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
         code = stRealtimeGroupUpdateExecTime(pGroup, nested ? nowNs : taosGetTimestampNs(), true);
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (notifyResume) {
-        code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, pTask->triggerType, pGroup->gid,
-                                       pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions, &param, 1);
+        char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+        code = stTriggerTaskGetNotifyTableName(pTask, pContext->pGroupColVals, pGroup->gid, triggerTableName);
+        QUERY_CHECK_CODE(code, lino, _end);
+        code = streamSendNotifyContent(&pTask->task, pTask->streamName, NULL, triggerTableName, pTask->triggerType,
+                                       pGroup->gid, pTask->precision, pTask->pNotifyAddrUrls, pTask->addOptions, &param,
+                                       1);
         taosMemoryFreeClear(pExtraNotifyContent);
         QUERY_CHECK_CODE(code, lino, _end);
         stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_NOTIFY, 1, streamTaskGetMonotonicUs());
@@ -31800,6 +31957,7 @@ static int32_t stHistoryGroupDriveNested(SSTriggerHistoryGroup *pGroup) {
     SSTriggerHistoryContext   *pContext = pGroup->pContext;
     SStreamNestedEffectContext effectContext = {
         .pTask = pContext->pTask,
+        .pGroupColVals = pContext->pGroupColVals,
         .sessionId = pContext->sessionId,
         .gid = pGroup->gid,
         .pPendingNestedEvents = &pGroup->pendingNestedEvents,
@@ -31872,6 +32030,7 @@ static int32_t stHistoryGroupFinalizeNestedLeaf(SSTriggerHistoryGroup *pGroup) {
 
   SStreamNestedEffectContext effectContext = {
       .pTask = pContext->pTask,
+      .pGroupColVals = pContext->pGroupColVals,
       .sessionId = pContext->sessionId,
       .gid = pGroup->gid,
       .pPendingNestedEvents = &pGroup->pendingNestedEvents,

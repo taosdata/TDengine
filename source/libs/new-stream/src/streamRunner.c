@@ -1135,6 +1135,12 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
     return TSDB_CODE_SUCCESS;
   }
 
+  // isTbname marks the actual partition value, including direct child-table sources.
+  char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+  TAOS_CHECK_GOTO(streamGetNotifyTriggerTableName(true, pExec->runtimeInfo.funcInfo.pStreamPartColVals,
+                                                  triggerTableName, sizeof(triggerTableName)),
+                  &lino, _exit);
+
   if (tbname[0] == '\0') {
     TAOS_CHECK_EXIT(stRunnerGetNotifyTbName(pTask, pExec, &tbname));
   }
@@ -1178,16 +1184,16 @@ static int32_t streamDoNotificationCurrentWins(SStreamRunnerTask* pTask, SStream
 
   if (nested) {
     attempted = nParam > 0;
-    code = streamSendNestedResultNotifyContent(&pTask->task, pTask->streamName, tbname,
+    code = streamSendNestedResultNotifyContent(&pTask->task, pTask->streamName, tbname, triggerTableName,
                                                pExec->runtimeInfo.funcInfo.triggerType,
                                                pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                                pTask->addOptions, params, pTriggerIds, nParam);
     accepted = attempted && code == TSDB_CODE_SUCCESS;
   } else {
     code = streamSendNotifyContentWithResult(
-        &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
-        pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision,
-        pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam, &attempted, &accepted);
+        &pTask->task, pTask->streamName, tbname, triggerTableName, pExec->runtimeInfo.funcInfo.triggerType,
+        pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision, pTask->notification.pNotifyAddrUrls,
+        pTask->addOptions, params, nParam, &attempted, &accepted);
   }
   TAOS_CHECK_EXIT(code);
 
@@ -1234,6 +1240,11 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
     return TSDB_CODE_SUCCESS;
   }
 
+  char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+  TAOS_CHECK_GOTO(streamGetNotifyTriggerTableName(true, pExec->runtimeInfo.funcInfo.pStreamPartColVals,
+                                                  triggerTableName, sizeof(triggerTableName)),
+                  &lino, _exit);
+
   if (tbname[0] == '\0') {
     TAOS_CHECK_EXIT(stRunnerGetNotifyTbName(pTask, pExec, &tbname));
   }
@@ -1279,16 +1290,16 @@ static int32_t streamDoNotification(SStreamRunnerTask* pTask, SStreamRunnerTaskE
 
   if (nested) {
     attempted = nParam > 0;
-    code = streamSendNestedResultNotifyContent(&pTask->task, pTask->streamName, tbname,
+    code = streamSendNestedResultNotifyContent(&pTask->task, pTask->streamName, tbname, triggerTableName,
                                                pExec->runtimeInfo.funcInfo.triggerType,
                                                pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls,
                                                pTask->addOptions, params, pTriggerIds, nParam);
     accepted = attempted && code == TSDB_CODE_SUCCESS;
   } else {
     code = streamSendNotifyContentWithResult(
-        &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
-        pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision,
-        pTask->notification.pNotifyAddrUrls, pTask->addOptions, params, nParam, &attempted, &accepted);
+        &pTask->task, pTask->streamName, tbname, triggerTableName, pExec->runtimeInfo.funcInfo.triggerType,
+        pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision, pTask->notification.pNotifyAddrUrls,
+        pTask->addOptions, params, nParam, &attempted, &accepted);
   }
 
 _exit:
@@ -1322,6 +1333,11 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
   int32_t    code = 0;
   int32_t    lino = 0;
   const bool nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+
+  char triggerTableName[TSDB_TABLE_NAME_LEN] = {0};
+  TAOS_CHECK_GOTO(streamGetNotifyTriggerTableName(true, pExec->runtimeInfo.funcInfo.pStreamPartColVals,
+                                                  triggerTableName, sizeof(triggerTableName)),
+                  &lino, _exit);
 
   if (tbname[0] == '\0') {
     TAOS_CHECK_GOTO(stRunnerGetNotifyTbName(pTask, pExec, &tbname), &lino, _exit);
@@ -1357,14 +1373,14 @@ static int32_t streamDoNotification1For1(SStreamRunnerTask* pTask, SStreamRunner
       if (code == TSDB_CODE_SUCCESS) {
         attempted = pTriggerCalcParams->notifyType != STRIGGER_EVENT_WINDOW_NONE;
         code = streamSendNestedResultNotifyContent(
-            &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+            &pTask->task, pTask->streamName, tbname, triggerTableName, pExec->runtimeInfo.funcInfo.triggerType,
             pExec->runtimeInfo.funcInfo.groupId, pTask->notification.pNotifyAddrUrls, pTask->addOptions,
             pTriggerCalcParams, pTriggerIds, 1);
         accepted = attempted && code == TSDB_CODE_SUCCESS;
       }
     } else {
       code = streamSendNotifyContentWithResult(
-          &pTask->task, pTask->streamName, tbname, pExec->runtimeInfo.funcInfo.triggerType,
+          &pTask->task, pTask->streamName, tbname, triggerTableName, pExec->runtimeInfo.funcInfo.triggerType,
           pExec->runtimeInfo.funcInfo.groupId, pExec->runtimeInfo.funcInfo.precision,
           pTask->notification.pNotifyAddrUrls, pTask->addOptions, pTriggerCalcParams, 1, &attempted, &accepted);
     }
@@ -2170,6 +2186,7 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
     if (pReq->params || pReq->brandNew) {
       TSWAP(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, pReq->params);
     }
+    pExec->runtimeInfo.funcInfo.stbPartByTbname = pReq->stbPartByTbname;
     pExec->runtimeInfo.funcInfo.groupId = pReq->gid;
     winNum = legacyCreateOnly || canonicalCreateOnly
                  ? 0
