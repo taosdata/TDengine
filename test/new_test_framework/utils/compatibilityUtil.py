@@ -444,7 +444,7 @@ class CompatibilityBase:
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
-    def updateNewVersion(self, bPath, cPaths, upgrade, retry_times=30):
+    def updateNewVersion(self, bPath, cPaths, upgrade, retry_times=300):
         tdLog.printNoPrefix("==========step2:update new version ")
         # upgrade only one dnode
         if upgrade == 0:
