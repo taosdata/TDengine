@@ -1470,9 +1470,9 @@ static int32_t streamAddNotifyCommonFields(cJSON* pObject, const char* pEventTyp
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t streamBuildNestedNotifyContent(const char* pTableName, int64_t gid, int32_t triggerType,
-                                              const SSTriggerCalcParam* pParam, const char* pTriggerId,
-                                              char** ppContent) {
+static int32_t streamBuildNestedNotifyContent(const char* pTableName, const char* triggerTableName, int64_t gid,
+                                              int32_t triggerType, const SSTriggerCalcParam* pParam,
+                                              const char* pTriggerId, char** ppContent) {
   if (pParam == NULL || ppContent == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1514,6 +1514,10 @@ static int32_t streamBuildNestedNotifyContent(const char* pTableName, int64_t gi
 
   code = streamAddNotifyCommonFields(pObject, pEventType, pTriggerType, gid);
   if (code != TSDB_CODE_SUCCESS) goto _exit;
+  if (cJSON_AddStringToObject(pObject, "triggerTableName", triggerTableName != NULL ? triggerTableName : "") == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
   if (pTableName != NULL && cJSON_AddStringToObject(pObject, "tableName", pTableName) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -1594,9 +1598,10 @@ _exit:
   return code;
 }
 
-int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, const char* pTableName, int64_t gid,
-                                             int32_t triggerType, const SStreamNestedPendingCalcEvent* pEvent,
-                                             char** ppPayload, int32_t* pPayloadLen) {
+int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, const char* pTableName,
+                                             const char* triggerTableName, int64_t gid, int32_t triggerType,
+                                             const SStreamNestedPendingCalcEvent* pEvent, char** ppPayload,
+                                             int32_t* pPayloadLen) {
   if (pTask == NULL || pTask->streamName == NULL || pEvent == NULL || ppPayload == NULL || pPayloadLen == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1625,7 +1630,8 @@ int32_t streamBuildNestedTriggerWindowNotice(const SStreamTriggerTask* pTask, co
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
-  code = streamBuildNestedNotifyContent(pTableName, gid, triggerType, &pEvent->calcParam, triggerId, &pContent);
+  code = streamBuildNestedNotifyContent(pTableName, triggerTableName, gid, triggerType, &pEvent->calcParam, triggerId,
+                                        &pContent);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -1669,8 +1675,8 @@ _exit:
 }
 
 int32_t stTriggerNoticeBatchStageWindow(SStreamTriggerNoticeBatch* pBatch, const SStreamTriggerTask* pTask,
-                                        const char* pTableName, int64_t gid, int32_t triggerType,
-                                        const SStreamNestedPendingCalcEvent* pEvent) {
+                                        const char* pTableName, const char* triggerTableName, int64_t gid,
+                                        int32_t triggerType, const SStreamNestedPendingCalcEvent* pEvent) {
   if (pBatch == NULL || pTask == NULL || pEvent == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1699,7 +1705,8 @@ int32_t stTriggerNoticeBatchStageWindow(SStreamTriggerNoticeBatch* pBatch, const
   int32_t code = TSDB_CODE_SUCCESS;
   char*   pPayload = NULL;
   int32_t payloadLen = 0;
-  code = streamBuildNestedTriggerWindowNotice(pTask, pTableName, gid, triggerType, pEvent, &pPayload, &payloadLen);
+  code = streamBuildNestedTriggerWindowNotice(pTask, pTableName, triggerTableName, gid, triggerType, pEvent, &pPayload,
+                                              &payloadLen);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1887,9 +1894,10 @@ _exit:
 #define STREAM_EVENT_NOTIFY_RETRY_MS 50  // 50 ms
 
 int32_t streamSendNestedResultNotifyContent(SStreamTask* pTask, const char* pStreamName, const char* pTableName,
-                                            int32_t triggerType, int64_t gid, const SArray* pNotifyAddrUrls,
-                                            int32_t addOptions, const SSTriggerCalcParam* pParams,
-                                            const char* const* pTriggerIds, int32_t nParam) {
+                                            const char* triggerTableName, int32_t triggerType, int64_t gid,
+                                            const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                            const SSTriggerCalcParam* pParams, const char* const* pTriggerIds,
+                                            int32_t nParam) {
   if (pTask == NULL || pStreamName == NULL || pNotifyAddrUrls == NULL ||
       (nParam > 0 && (pParams == NULL || pTriggerIds == NULL))) {
     return TSDB_CODE_INVALID_PARA;
@@ -1947,7 +1955,8 @@ int32_t streamSendNestedResultNotifyContent(SStreamTask* pTask, const char* pStr
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
     }
-    code = streamBuildNestedNotifyContent(pTableName, gid, triggerType, &pParams[i], pTriggerIds[i], &pContent);
+    code = streamBuildNestedNotifyContent(pTableName, triggerTableName, gid, triggerType, &pParams[i], pTriggerIds[i],
+                                          &pContent);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendString(&sb, pContent);
     cJSON_free(pContent);
@@ -2025,7 +2034,8 @@ _end:
 }
 
 static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, const SSTriggerCalcParam* pParam,
-                                         SStringBuilder* pBuilder, const char* tableName, int8_t precision) {
+                                         SStringBuilder* pBuilder, const char* tableName, const char* triggerTableName,
+                                         int8_t precision) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   cJSON*  obj = NULL;
@@ -2106,6 +2116,9 @@ static int32_t streamAppendNotifyContent(int32_t triggerType, int64_t groupId, c
   if (tableName != NULL) {
     JSON_CHECK_ADD_ITEM(obj, "tableName", cJSON_CreateStringReference(tableName));
   }
+
+  JSON_CHECK_ADD_ITEM(obj, "triggerTableName",
+                      cJSON_CreateStringReference(triggerTableName != NULL ? triggerTableName : ""));
 
   char gidBuf[32];
   snprintf(gidBuf, sizeof(gidBuf), "%" PRId64, groupId);
@@ -2191,7 +2204,8 @@ static int32_t streamBuildNotifyMsgFromItems(const char* streamName, int32_t tri
     if (ppItems[i]->param.notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
     }
-    code = streamAppendNotifyContent(triggerType, groupId, &ppItems[i]->param, &sb, ppItems[i]->tableName, precision);
+    code = streamAppendNotifyContent(triggerType, groupId, &ppItems[i]->param, &sb, ppItems[i]->tableName,
+                                     ppItems[i]->triggerTableName, precision);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
   }
@@ -2212,8 +2226,8 @@ _end:
 }
 
 // Build JSON from an array of param pointers (zero-copy; params must outlive the call).
-static int32_t streamBuildNotifyMsgFromPtrs(const char* streamName, const char* tableName, int32_t triggerType,
-                                            int64_t groupId, int8_t precision,
+static int32_t streamBuildNotifyMsgFromPtrs(const char* streamName, const char* tableName, const char* triggerTableName,
+                                            int32_t triggerType, int64_t groupId, int8_t precision,
                                             const SSTriggerCalcParam* const* ppParams, int32_t nParam, char** ppMsg,
                                             size_t* pMsgLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -2245,7 +2259,7 @@ static int32_t streamBuildNotifyMsgFromPtrs(const char* streamName, const char* 
     if (ppParams[i]->notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
     }
-    code = streamAppendNotifyContent(triggerType, groupId, ppParams[i], &sb, tableName, precision);
+    code = streamAppendNotifyContent(triggerType, groupId, ppParams[i], &sb, tableName, triggerTableName, precision);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
   }
@@ -2268,9 +2282,10 @@ _end:
 // Build the JSON notification message from trigger params.
 // On success, *ppMsg is a heap-owned NUL-terminated string (caller must free).
 // If no params need notification, *ppMsg is NULL and *pMsgLen is 0.
-static int32_t streamBuildNotifyMsgInternal(const char* streamName, const char* tableName, int32_t triggerType,
-                                            int64_t groupId, int8_t precision, const SSTriggerCalcParam* pParams,
-                                            int32_t nParam, char** ppMsg, size_t* pMsgLen) {
+static int32_t streamBuildNotifyMsgInternal(const char* streamName, const char* tableName, const char* triggerTableName,
+                                            int32_t triggerType, int64_t groupId, int8_t precision,
+                                            const SSTriggerCalcParam* pParams, int32_t nParam, char** ppMsg,
+                                            size_t* pMsgLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SStringBuilder sb = {0};
@@ -2300,7 +2315,7 @@ static int32_t streamBuildNotifyMsgInternal(const char* streamName, const char* 
     if (pParams[i].notifyType == STRIGGER_EVENT_WINDOW_NONE) {
       continue;
     }
-    code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName, precision);
+    code = streamAppendNotifyContent(triggerType, groupId, &pParams[i], &sb, tableName, triggerTableName, precision);
     QUERY_CHECK_CODE(code, lino, _end);
     taosStringBuilderAppendChar(&sb, ',');
   }
@@ -2322,9 +2337,9 @@ _end:
 }
 
 static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamName, const char* tableName,
-                                         int8_t precision, int32_t triggerType, int64_t groupId, int32_t addOptions,
-                                         const SArray* pNotifyAddrUrls, const SSTriggerCalcParam* pParams,
-                                         int32_t nParam, bool* pAccepted);
+                                         const char* triggerTableName, int8_t precision, int32_t triggerType,
+                                         int64_t groupId, int32_t addOptions, const SArray* pNotifyAddrUrls,
+                                         const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAccepted);
 
 // Send a pre-built JSON message to all URLs synchronously.
 // When NOTIFY_ON_FAILURE_PAUSE is set in addOptions, retries on failure.
@@ -2425,8 +2440,8 @@ _end:
 
 // DROP mode reports queue acceptance without waiting for network delivery.
 int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* streamName, const char* tableName,
-                                          int32_t triggerType, int64_t groupId, int8_t precision,
-                                          const SArray* pNotifyAddrUrls, int32_t addOptions,
+                                          const char* triggerTableName, int32_t triggerType, int64_t groupId,
+                                          int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
                                           const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAttempted,
                                           bool* pAccepted) {
   int64_t t0 = taosGetTimestampNs();
@@ -2446,8 +2461,8 @@ int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* stream
     if (pos != NULL) {
       streamName = ++pos;
     }
-    code = streamBuildNotifyMsgInternal(streamName, tableName, triggerType, groupId, precision, pParams, nParam, &msg,
-                                        &msgLen);
+    code = streamBuildNotifyMsgInternal(streamName, tableName, triggerTableName, triggerType, groupId, precision,
+                                        pParams, nParam, &msg, &msgLen);
     QUERY_CHECK_CODE(code, lino, _end);
     if (msg != NULL) {
       code =
@@ -2455,8 +2470,8 @@ int32_t streamSendNotifyContentWithResult(SStreamTask* pTask, const char* stream
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
-    code = streamNotifyEnqueueParams(pTask->streamId, streamName, tableName, precision, triggerType, groupId,
-                                     addOptions, pNotifyAddrUrls, pParams, nParam, &accepted);
+    code = streamNotifyEnqueueParams(pTask->streamId, streamName, tableName, triggerTableName, precision, triggerType,
+                                     groupId, addOptions, pNotifyAddrUrls, pParams, nParam, &accepted);
     QUERY_CHECK_CODE(code, lino, _end);
     attempted = accepted;
   }
@@ -2516,6 +2531,7 @@ static void streamNotifyPendingItemDestroy(void* pObj) {
   }
   SStreamNotifyPendingItem* pItem = (SStreamNotifyPendingItem*)pObj;
   taosMemoryFreeClear(pItem->tableName);
+  taosMemoryFreeClear(pItem->triggerTableName);
   tDestroySSTriggerCalcParam(&pItem->param);
 }
 
@@ -2550,9 +2566,13 @@ static int32_t streamNotifyCopyCalcParam(const SSTriggerCalcParam* src, SSTrigge
   return TSDB_CODE_SUCCESS;
 }
 
-static size_t streamNotifyEstimateParamBytes(const SSTriggerCalcParam* pParam) {
+static size_t streamNotifyEstimateParamBytes(const SStreamNotifyPendingItem* pItem) {
+  const SSTriggerCalcParam* pParam = &pItem->param;
   // Estimate serialized JSON size (not in-memory struct footprint) for batching.
-  size_t bytes = 384;
+  size_t bytes = 384;  // Includes the field name and empty string when triggerTableName is NULL.
+  if (pItem->triggerTableName != NULL) {
+    bytes += 6 * strlen(pItem->triggerTableName);  // JSON escaping can use six bytes per input byte.
+  }
   if (pParam->extraNotifyContent != NULL) {
     bytes += strlen(pParam->extraNotifyContent);
   }
@@ -2777,7 +2797,7 @@ static bool streamNotifyParamPoolTryReclaim(SStreamNotifyWorkerPool* pWorkerPool
       if (pHead != NULL) {
         streamNotifyLogEvictedParam(pSkipQueue != NULL ? pSkipQueue->streamId : 0, pQueue->streamId, pHead,
                                     "param pool full, reclaim node from");
-        size_t itemBytes = streamNotifyEstimateParamBytes(&pHead->param);
+        size_t itemBytes = streamNotifyEstimateParamBytes(pHead);
         streamNotifyPoolPopHeadEx(pWorkerPool, &pQueue->paramList, streamNotifyPendingItemDestroy);
         streamNotifyQueueAdjustPendingBytes(pQueue, itemBytes);
         reclaimed = true;
@@ -2795,7 +2815,7 @@ static bool streamNotifyParamPoolTryReclaim(SStreamNotifyWorkerPool* pWorkerPool
 
 // Overwrite the oldest pending param in-place (no extra pool node).
 static int32_t streamNotifyListReplaceHeadParam(SStreamNotifyWorkerPool* pWorkerPool, SStreamNotifyQueue* pQueue,
-                                                SObjList* pList, const SStreamNotifyPendingItem* pNewItem) {
+                                                SObjList* pList, SStreamNotifyPendingItem* pNewItem) {
   if (pWorkerPool == NULL || pQueue == NULL || pList == NULL || pNewItem == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -2812,30 +2832,15 @@ static int32_t streamNotifyListReplaceHeadParam(SStreamNotifyWorkerPool* pWorker
 
   streamNotifyLogEvictedParam(pQueue->streamId, pQueue->streamId, pHead,
                               "param pool full, replace oldest pending notify with");
-  size_t oldBytes = streamNotifyEstimateParamBytes(&pHead->param);
-  tDestroySSTriggerCalcParam(&pHead->param);
-  memset(&pHead->param, 0, sizeof(pHead->param));
-
-  pHead->groupId = pNewItem->groupId;
-  pHead->nextUrl = pNewItem->nextUrl;
-  pHead->sendFailures = pNewItem->sendFailures;
-  taosMemoryFreeClear(pHead->tableName);
-  if (pNewItem->tableName != NULL) {
-    pHead->tableName = taosStrdup(pNewItem->tableName);
-    if (pHead->tableName == NULL) {
-      taosThreadMutexUnlock(&pWorkerPool->poolLock);
-      return terrno;
-    }
-  }
-  int32_t code = streamNotifyCopyCalcParam(&pNewItem->param, &pHead->param);
+  size_t oldBytes = streamNotifyEstimateParamBytes(pHead);
+  streamNotifyPendingItemDestroy(pHead);
+  // Move all owned pointers to the queue; the caller must no longer release them.
+  *pHead = *pNewItem;
+  memset(pNewItem, 0, sizeof(*pNewItem));
   taosThreadMutexUnlock(&pWorkerPool->poolLock);
-  if (code != TSDB_CODE_SUCCESS) {
-    streamNotifyPoolPopHeadEx(pWorkerPool, pList, streamNotifyPendingItemDestroy);
-    return code;
-  }
 
   streamNotifyQueueAdjustPendingBytes(pQueue, oldBytes);
-  pQueue->pendingBytes += streamNotifyEstimateParamBytes(&pHead->param);
+  pQueue->pendingBytes += streamNotifyEstimateParamBytes(pHead);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2844,7 +2849,8 @@ static int32_t streamNotifyListAppendParam(SObjList* pList, const void* pData) {
 }
 
 static int32_t streamNotifyListPushParam(SStreamNotifyWorkerPool* pPool, SStreamNotifyQueue* pQueue, int64_t groupId,
-                                         const char* tableName, const SSTriggerCalcParam* src) {
+                                         const char* tableName, const char* triggerTableName,
+                                         const SSTriggerCalcParam* src) {
   SStreamNotifyPendingItem item = {0};
   item.groupId = groupId;
   int32_t code = streamNotifyCopyCalcParam(src, &item.param);
@@ -2854,14 +2860,22 @@ static int32_t streamNotifyListPushParam(SStreamNotifyWorkerPool* pPool, SStream
   if (tableName != NULL) {
     item.tableName = taosStrdup(tableName);
     if (item.tableName == NULL) {
-      tDestroySSTriggerCalcParam(&item.param);
+      streamNotifyPendingItemDestroy(&item);
+      return terrno;
+    }
+  }
+
+  if (triggerTableName != NULL && triggerTableName[0] != '\0') {
+    item.triggerTableName = taosStrdup(triggerTableName);
+    if (item.triggerTableName == NULL) {
+      streamNotifyPendingItemDestroy(&item);
       return terrno;
     }
   }
 
   code = streamNotifyListAppendParam(&pQueue->paramList, &item);
   if (code == TSDB_CODE_SUCCESS) {
-    pQueue->pendingBytes += streamNotifyEstimateParamBytes(&item.param);
+    pQueue->pendingBytes += streamNotifyEstimateParamBytes(&item);
     return code;
   }
 
@@ -2870,26 +2884,23 @@ static int32_t streamNotifyListPushParam(SStreamNotifyWorkerPool* pPool, SStream
   bool reclaimed = streamNotifyParamPoolTryReclaim(pPool, pQueue);
   (void)taosThreadMutexLock(&pQueue->lock);
   if (pQueue->pendingDestroy) {
-    taosMemoryFreeClear(item.tableName);
-    tDestroySSTriggerCalcParam(&item.param);
+    streamNotifyPendingItemDestroy(&item);
     return TSDB_CODE_SUCCESS;
   }
   if (reclaimed) {
     code = streamNotifyListAppendParam(&pQueue->paramList, &item);
     if (code == TSDB_CODE_SUCCESS) {
-      pQueue->pendingBytes += streamNotifyEstimateParamBytes(&item.param);
+      pQueue->pendingBytes += streamNotifyEstimateParamBytes(&item);
       return code;
     }
   }
 
   if (streamNotifyListReplaceHeadParam(pPool, pQueue, &pQueue->paramList, &item) == TSDB_CODE_SUCCESS) {
-    taosMemoryFreeClear(item.tableName);
-    tDestroySSTriggerCalcParam(&item.param);
+    streamNotifyPendingItemDestroy(&item);
     return TSDB_CODE_SUCCESS;
   }
 
-  taosMemoryFreeClear(item.tableName);
-  tDestroySSTriggerCalcParam(&item.param);
+  streamNotifyPendingItemDestroy(&item);
   stWarn("[notify] streamId:%" PRIx64 " param pool full, drop new notify groupId:%" PRId64 " notifyType:%d",
          pQueue->streamId, groupId, src->notifyType);
   return TSDB_CODE_SUCCESS;
@@ -3162,9 +3173,9 @@ void streamNotifyQueueUnregister(int64_t streamId) {
 }
 
 static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamName, const char* tableName,
-                                         int8_t precision, int32_t triggerType, int64_t groupId, int32_t addOptions,
-                                         const SArray* pNotifyAddrUrls, const SSTriggerCalcParam* pParams,
-                                         int32_t nParam, bool* pAccepted) {
+                                         const char* triggerTableName, int8_t precision, int32_t triggerType,
+                                         int64_t groupId, int32_t addOptions, const SArray* pNotifyAddrUrls,
+                                         const SSTriggerCalcParam* pParams, int32_t nParam, bool* pAccepted) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   bool    shouldNotify = false;
@@ -3202,7 +3213,7 @@ static int32_t streamNotifyEnqueueParams(int64_t streamId, const char* streamNam
       continue;
     }
 
-    code = streamNotifyListPushParam(pPool, pQueue, groupId, tableName, &pParams[i]);
+    code = streamNotifyListPushParam(pPool, pQueue, groupId, tableName, triggerTableName, &pParams[i]);
     if (code != TSDB_CODE_SUCCESS) {
       lino = __LINE__;
       goto _end;
@@ -3238,11 +3249,29 @@ _end:
   return code;
 }
 
-int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName, int32_t triggerType,
-                                int64_t groupId, int8_t precision, const SArray* pNotifyAddrUrls, int32_t addOptions,
-                                const SSTriggerCalcParam* pParams, int32_t nParam) {
-  return streamSendNotifyContentWithResult(pTask, streamName, tableName, triggerType, groupId, precision,
-                                           pNotifyAddrUrls, addOptions, pParams, nParam, NULL, NULL);
+int32_t streamGetNotifyTriggerTableName(bool partByTbname, const SArray* pValues, char* pName, int32_t nameSize) {
+  if (pName == NULL || nameSize <= 0) return TSDB_CODE_INVALID_PARA;
+  pName[0] = '\0';
+  if (!partByTbname || pValues == NULL) return TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < taosArrayGetSize(pValues); ++i) {
+    const SStreamGroupValue* pValue = taosArrayGet(pValues, i);
+    if (!pValue->isTbname || pValue->isNull || pValue->data.type != TSDB_DATA_TYPE_VARCHAR ||
+        pValue->data.pData == NULL || pValue->data.nData <= 0)
+      continue;
+    if (pValue->data.nData >= nameSize) return TSDB_CODE_INVALID_PARA;
+    memcpy(pName, pValue->data.pData, pValue->data.nData);
+    pName[pValue->data.nData] = '\0';
+    break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamSendNotifyContent(SStreamTask* pTask, const char* streamName, const char* tableName,
+                                const char* triggerTableName, int32_t triggerType, int64_t groupId, int8_t precision,
+                                const SArray* pNotifyAddrUrls, int32_t addOptions, const SSTriggerCalcParam* pParams,
+                                int32_t nParam) {
+  return streamSendNotifyContentWithResult(pTask, streamName, tableName, triggerTableName, triggerType, groupId,
+                                           precision, pNotifyAddrUrls, addOptions, pParams, nParam, NULL, NULL);
 }
 
 // Low-level: send a buffer to one URL on the thread-local persistent connection.
@@ -3524,7 +3553,7 @@ static int32_t streamWorkerDrainOneBatch(SStreamNotifyWorkerPool* pWorkerPool, S
   while (idx != TOBJPOOL_INVALID_IDX) {
     SObjPoolNode*             pNode = TOBJPOOL_GET_NODE(pPool, idx);
     SStreamNotifyPendingItem* pItem = (SStreamNotifyPendingItem*)TOBJPOOL_NODE_GET_OBJ(pNode);
-    size_t itemBytes = streamNotifyEstimateParamBytes(&pItem->param);
+    size_t                    itemBytes = streamNotifyEstimateParamBytes(pItem);
     if (batchBytes > 0 && batchBytes + itemBytes >= batchMaxBytes) {
       break;
     }
@@ -3559,7 +3588,7 @@ static int32_t streamWorkerDrainOneBatch(SStreamNotifyWorkerPool* pWorkerPool, S
     if (nSent == 0) {
       SStreamNotifyPendingItem* pHead = taosObjListGetHead(&pQueue->paramList);
       if (pHead != NULL) {
-        size_t itemBytes = streamNotifyEstimateParamBytes(&pHead->param);
+        size_t itemBytes = streamNotifyEstimateParamBytes(pHead);
         streamNotifyPoolPopHeadEx(pWorkerPool, &pQueue->paramList, streamNotifyPendingItemDestroy);
         streamNotifyQueueAdjustPendingBytes(pQueue, itemBytes);
         stError("[notify_worker] streamId:%" PRIx64 " drop notify item after merge failure", pQueue->streamId);
@@ -3579,7 +3608,7 @@ static int32_t streamWorkerDrainOneBatch(SStreamNotifyWorkerPool* pWorkerPool, S
       if (pHead == NULL) {
         break;
       }
-      size_t itemBytes = streamNotifyEstimateParamBytes(&pHead->param);
+      size_t itemBytes = streamNotifyEstimateParamBytes(pHead);
       streamNotifyPoolPopHeadEx(pWorkerPool, &pQueue->paramList, streamNotifyPendingItemDestroy);
       streamNotifyQueueAdjustPendingBytes(pQueue, itemBytes);
     }

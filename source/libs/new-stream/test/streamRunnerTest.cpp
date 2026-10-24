@@ -83,6 +83,7 @@ struct RunnerCallState {
   struct NotificationIdentity {
     int64_t     gid = 0;
     std::string tbname;
+    std::string triggerTableName;
     TSKEY       wstart = 0;
     TSKEY       wend = 0;
   };
@@ -590,17 +591,17 @@ int32_t mockStreamCalcTagExpr(SNode *, SScalarParam *pDst, const SStreamRuntimeF
   return colDataSetVal(pDst->columnData, 0, reinterpret_cast<const char *>(&value), false);
 }
 
-int32_t mockStreamSendNotifyContent(SStreamTask *, const char *, const char *, int32_t, int64_t,
+int32_t mockStreamSendNotifyContent(SStreamTask *, const char *, const char *, const char *, int32_t, int64_t, int8_t,
                                     const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *, int32_t) {
   ++gCalls.notifyCalls;
   gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
   return gCalls.notifyCode;
 }
 
-int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const char *tbname, int32_t, int64_t groupId,
-                                              int8_t, const SArray *pNotifyAddrUrls, int32_t,
-                                              const SSTriggerCalcParam *pParams, int32_t nParam, bool *pAttempted,
-                                              bool *pAccepted) {
+int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const char *tbname,
+                                              const char *triggerTableName, int32_t, int64_t groupId, int8_t,
+                                              const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *pParams,
+                                              int32_t nParam, bool *pAttempted, bool *pAccepted) {
   ++gCalls.notifyCalls;
   gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
   if (pParams == nullptr || nParam <= 0) {
@@ -612,6 +613,7 @@ int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const
     RunnerCallState::NotificationIdentity identity;
     identity.gid = groupId;
     identity.tbname = tbname == nullptr ? "" : tbname;
+    identity.triggerTableName = triggerTableName == nullptr ? "" : triggerTableName;
     identity.wstart = pParams[0].wstart;
     identity.wend = pParams[0].wend;
     gCalls.notificationIdentities.push_back(identity);
@@ -3244,6 +3246,7 @@ TEST_F(StreamRunnerTest, InstallsParamsColumnsCreateAndRollupForSettlement) {
 
 TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
   ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  request_.stbPartByTbname = true;
   const int64_t         gids[] = {101, 202, 303};
   const int8_t          createTables[] = {0, 1, 1};
   const int32_t         rollupCounts[] = {11, 22, 33};
@@ -3258,6 +3261,14 @@ TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
     groupValue.data.type = TSDB_DATA_TYPE_BIGINT;
     groupValue.data.val = gids[i] + 1000;
     ASSERT_NE(taosArrayPush(pGroup->pGroupColVals, &groupValue), nullptr);
+    SStreamGroupValue nameValue = {};
+    const std::string sourceName = "source_" + std::to_string(gids[i]);
+    nameValue.isTbname = true;
+    nameValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+    nameValue.data.pData = reinterpret_cast<uint8_t *>(taosStrdup(sourceName.c_str()));
+    ASSERT_NE(nameValue.data.pData, nullptr);
+    nameValue.data.nData = static_cast<int32_t>(sourceName.size());
+    ASSERT_NE(taosArrayPush(pGroup->pGroupColVals, &nameValue), nullptr);
     groupCols.push_back(pGroup->pGroupColVals);
   }
 
@@ -3292,6 +3303,7 @@ TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
   for (size_t i = 0; i < 3; ++i) {
     EXPECT_EQ(gCalls.notificationIdentities[i].gid, gids[i]);
     EXPECT_EQ(gCalls.notificationIdentities[i].tbname, "group_" + std::to_string(gids[i]));
+    EXPECT_EQ(gCalls.notificationIdentities[i].triggerTableName, "source_" + std::to_string(gids[i]));
     EXPECT_EQ(gCalls.notificationIdentities[i].wstart, gids[i]);
     EXPECT_EQ(gCalls.notificationIdentities[i].wend, gids[i] + 1);
   }
@@ -6067,10 +6079,29 @@ TEST_F(StreamRunnerTest, NestedGroupNoticesDoNotRequireLeafIdentity) {
   for (int32_t notifyType : notifyTypes) {
     OwnedTriggerCalcRequest request;
     ASSERT_TRUE(makeNestedRunnerGroupNoticeRequest(&request.value, notifyType));
+    request.value.stbPartByTbname = false;  // Direct child sources keep this execution flag clear.
+    request.value.groupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(request.value.groupColVals, nullptr);
+    SStreamGroupValue nameValue = {};
+    nameValue.isTbname = notifyType == STRIGGER_EVENT_IDLE;
+    nameValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+    nameValue.data.pData = reinterpret_cast<uint8_t *>(taosStrdup("source_subtable"));
+    ASSERT_NE(nameValue.data.pData, nullptr);
+    nameValue.data.nData = static_cast<int32_t>(strlen("source_subtable"));
+    ASSERT_NE(taosArrayPush(request.value.groupColVals, &nameValue), nullptr);
     EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request.value, 1000));
   }
 
   ASSERT_EQ(2U, gRunnerNotifyPayloads.size());
+  for (size_t i = 0; i < 2; ++i) {
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_Parse(gRunnerNotifyPayloads[i].c_str()), cJSON_Delete);
+    ASSERT_NE(root, nullptr);
+    cJSON *stream = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root.get(), "streams"), 0);
+    cJSON *event = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(stream, "events"), 0);
+    cJSON *name = cJSON_GetObjectItemCaseSensitive(event, "triggerTableName");
+    ASSERT_TRUE(cJSON_IsString(name));
+    EXPECT_STREQ(name->valuestring, i == 0 ? "source_subtable" : "");
+  }
   EXPECT_EQ(kGroupTriggerId, runnerNotifyTriggerId(gRunnerNotifyPayloads[0]));
   EXPECT_EQ(kGroupTriggerId, runnerNotifyTriggerId(gRunnerNotifyPayloads[1]));
 }

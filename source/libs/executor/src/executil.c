@@ -1110,7 +1110,7 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   SArray*      groupData = NULL;
   SArray*      pUidTagList = NULL;
   SArray*      gInfo = NULL;
-  int32_t      tbNameIndex = 0;
+  int32_t      tbNameIndex = -1;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
@@ -1141,13 +1141,6 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   code = qGetColumnsFromNodeList(group, true, &pColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(pColList); ++i) {
-    SColumnInfo* tmp = (SColumnInfo*)taosArrayGet(pColList, i);
-    if (tmp != NULL && tmp->colId == -1) {
-      tbNameIndex = i;
-    }
   }
 
   // For triggers sourced from a virtual super table, vchild tags may be col-refs
@@ -1221,6 +1214,11 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
       goto end;
     }
 
+    // Input columns are deduplicated; the marker belongs to the evaluated result slot.
+    if (fmIsCanonicalTbnameFunction(pNode) ||
+        (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME)) {
+      tbNameIndex = taosArrayGetSize(groupData);
+    }
     void* tmp = taosArrayPush(groupData, &output.columnData);
     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
