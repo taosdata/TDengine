@@ -19006,6 +19006,7 @@ int32_t tSerializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->enableBatchMeta));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->rawData));
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->minPollRows));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->startTs));
 
   tEndEncode(&encoder);
 
@@ -19062,6 +19063,12 @@ int32_t tDeserializeSMqPollReq(void *buf, int32_t bufLen, SMqPollReq *pReq) {
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->rawData));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->minPollRows));
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->startTs));
+  } else {
+    pReq->startTs = 0;
   }
 
   tEndDecode(&decoder);
