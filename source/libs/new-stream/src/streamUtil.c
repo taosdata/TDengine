@@ -3476,7 +3476,7 @@ static int32_t streamWorkerFlushGroupBatch(SStreamNotifyQueue* pQueue, SStreamNo
   }
 
   stDebug("[notify_worker] streamId:%" PRIx64 " groupId:%" PRId64
-          " batch ready, items:%d bytes:%zu nextUrl:%d urls:%" PRId64 " sendFailures:%d",
+          " batch ready, items:%d bytes:%zu nextUrl:%d urls:%zu sendFailures:%d",
           pQueue->streamId, groupId, nMerged, msgLen, ppItems[0]->nextUrl, taosArrayGetSize(pQueue->pUrls),
           ppItems[0]->sendFailures);
   bool sendOk = streamWorkerSendToQueueUrls(pQueue, msg, msgLen, pMergedItems, nMerged);
