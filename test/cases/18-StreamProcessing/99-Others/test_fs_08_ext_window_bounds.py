@@ -35,6 +35,8 @@ Cases:
 import sys
 import time
 
+import pytest
+
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 sys.path.insert(0, "cases/09-DataQuerying/19-FederatedQuery")
@@ -276,13 +278,62 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
     # FS-BND-003  PERIOD + casted localtime bounds.
     #
     #   ``ts >= cast(_tprev_localtime / d as timestamp)
-    #    AND ts <= cast(_tlocaltime / d as timestamp)``
+    #    AND ts <  cast(_tlocaltime / d as timestamp)``
     #   _t*_localtime are ns; d=1e3 maps them to the MySQL/PG microsecond
-    #   ts column (d=1 for InfluxDB nanoseconds).  Rows written near "now"
-    #   must be aggregated exactly once across the closed period windows.
+    #   ts column (d=1 for InfluxDB nanoseconds).  Adjacent period windows
+    #   share the instant ``_tlocaltime(N) == _tprev_localtime(N+1)``, so the
+    #   bounds must be half-open (same convention as FS-BND-001).  With a
+    #   closed upper bound a row whose ts lands exactly on that instant is
+    #   fetched by both windows and counted twice.
     # ------------------------------------------------------------------
     _BND003_BATCHES = 5
     _BND003_BATCH_ROWS = 3
+
+    # InfluxDB 3 only makes a write queryable after its next WAL flush.  A
+    # write-to-visible delay longer than the 1s period window means every batch
+    # is flushed after the window that should have aggregated it has already
+    # run, so the sink can stay empty on an environment limitation alone.  This
+    # threshold gates an explicit pytest.skip; a faster probe means the empty
+    # sink is a real regression and the assertion must fire.
+    _BND003_INFLUX_MAX_VISIBLE_DELAY_S = 1.0
+
+    def _influx_visible_delay(self, bucket: str, timeout_s: float = 10.0):
+        """Seconds between an InfluxDB write and its first visible read.
+
+        Probes the InfluxDB instance directly (never through the TDengine
+        federated path) with a throwaway measurement, so a stream/reader
+        regression cannot be mistaken for WAL-flush latency.  Returns None
+        when the probe point never became queryable within ``timeout_s``.
+
+        The probe writes into the per-run bucket created by
+        ``_with_std_sources`` for this case, which that helper drops right
+        after ``body_fn`` returns, so the ``visprobe`` measurement leaves no
+        residue behind.
+        """
+        ts_ns = int(time.time() * 1_000_000_000)
+        tag = f"probe{ts_ns}"
+        line = f'visprobe tag="{tag}",val=1i {ts_ns}'
+
+        start = time.time()
+        try:
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), bucket, [line])
+        except Exception as e:
+            tdLog.info(f"[visprobe] InfluxDB probe write failed: {e}")
+            return None
+
+        deadline = start + timeout_s
+        while time.time() < deadline:
+            try:
+                res = ExtSrcEnv.influx_query_sql_cfg(
+                    self._influx_cfg(), bucket,
+                    f"select count(*) as total from visprobe where tag = '{tag}'")
+            except Exception as e:
+                tdLog.info(f"[visprobe] InfluxDB probe query failed: {e}")
+                res = None
+            if res and isinstance(res[0], dict) and res[0].get("total"):
+                return time.time() - start
+            time.sleep(0.2)
+        return None
 
     @staticmethod
     def _bnd003_sink_sum(sink_db: str, sink: str):
@@ -323,12 +374,22 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         trigger is warm, every row written must be counted exactly once:
         SUM(cnt) over the new windows equals the number of rows written.
 
+        Adjacent period windows share the instant ``_tlocaltime(N) ==
+        _tprev_localtime(N+1)``, so the lower bound is inclusive and the upper
+        bound is exclusive (``ts >= prev AND ts < cur``), the same half-open
+        convention as FS-BND-001.  The last measured batch is pinned so its
+        newest row sits exactly on a whole second: that row must still be
+        counted once, which a closed upper bound would violate.
+
         InfluxDB 3 only makes a write queryable after its next WAL flush
         (``--wal-flush-interval``, default 1s), which can land after the
         period window closed and its calc already ran.  Such a batch is
         legitimately missed by the localtime snapshot, so for InfluxDB only
         "counted at most once" is asserted; the warm-up window still proves
-        the bounds are correctly scaled.
+        the bounds are correctly scaled.  If no window aggregates at all, the
+        InfluxDB write-to-visible delay is probed directly: only a delay
+        beyond the 1s window triggers an explicit skip, an empty sink on a
+        healthy source fails the test.
 
         Catalog:
             - Streams:Federated:ExtWindowBounds
@@ -345,9 +406,14 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         prefix = "bnd003"
         n_batches = self._BND003_BATCHES
         batch_rows = self._BND003_BATCH_ROWS
+        # Set only when the InfluxDB leg hits an environment limitation; the
+        # remaining sources still run so their assertions keep their value.
+        type(self)._bnd003_skip_reason = None
 
-        def write_batch(suffix, db_or_bucket, src_name, tag):
-            now_ms = int(time.time() * 1000)
+        def write_batch(suffix, db_or_bucket, src_name, tag, base_ms=None):
+            # base_ms lets the caller pin the batch on the window grid; the
+            # rows stay `batch_rows` consecutive milliseconds ending at it.
+            now_ms = base_ms if base_ms is not None else int(time.time() * 1000)
             batch = [(now_ms - (batch_rows - 1 - k), k + 1, float(k + 1),
                       f"{tag}{k}", 0) for k in range(batch_rows)]
             self._insert_rows(suffix, db_or_bucket, batch, src_name)
@@ -376,16 +442,19 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 f"  COUNT(*) AS cnt, AVG(val) AS avg_val "
                 f"  FROM {src_name}.{mid}.src_t "
                 f"  WHERE {ts_col} >= cast(_tprev_localtime/{div} as timestamp) "
-                f"  AND {ts_col} <= cast(_tlocaltime/{div} as timestamp)"
+                f"  AND {ts_col} < cast(_tlocaltime/{div} as timestamp)"
                 f") WHERE cnt > 0"
             )
             tdStream.checkStreamStatus(stream)
 
             # Phase 1 - warm-up.  Ext PERIOD triggers may defer calc dispatch
-            # for many seconds on a cold start (especially InfluxDB), silently
-            # skipping windows that closed in the meantime.  Keep writing until
-            # the first window is aggregated; these rows are not measured.
-            deadline = time.time() + 120
+            # for many seconds on a cold start (especially InfluxDB, and on a
+            # loaded CI host where the federated-query environment is still
+            # settling), silently skipping windows that closed in the meantime.
+            # Keep writing until the first window is aggregated; these rows are
+            # not measured.
+            warm_timeout_s = 240 if suffix == "i" else 120
+            deadline = time.time() + warm_timeout_s
             warm = 0
             while time.time() < deadline:
                 write_batch(suffix, db_or_bucket, src_name, f"w{warm}_")
@@ -393,17 +462,48 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 time.sleep(1.0)
                 if self._bnd003_sink_sum(sink_db, sink)[1] > 0:
                     break
-            assert self._bnd003_sink_sum(sink_db, sink)[1] > 0, \
-                f"sink {sink} got no window within 120s of warm-up"
+            if self._bnd003_sink_sum(sink_db, sink)[1] <= 0:
+                msg = (f"sink {sink} got no window within {warm_timeout_s}s of "
+                       f"warm-up ({warm} batch(es) written)")
+                if suffix != "i":
+                    raise AssertionError(msg)
+                # Never treat an empty sink as a pass.  Measure InfluxDB's
+                # write-to-visible delay directly first: only a delay beyond
+                # the 1s period window explains the empty sink, and that
+                # environment limitation is reported as an explicit skip.
+                # A fast probe means the reader/bound path is broken.
+                delay = self._influx_visible_delay(db_or_bucket)
+                tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
+                tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
+                if delay is None or delay > self._BND003_INFLUX_MAX_VISIBLE_DELAY_S:
+                    observed = ("never visible within 10s" if delay is None
+                                else f"{delay:.2f}s")
+                    reason = (
+                        f"{msg}; direct InfluxDB write-to-visible probe: {observed} "
+                        f"(WAL flush slower than the 1s period window), so no window "
+                        f"can aggregate and the InfluxDB bound scaling is unverified")
+                    type(self)._bnd003_skip_reason = reason
+                    tdLog.info(f"[{src_name}] {reason}")
+                    return
+                raise AssertionError(
+                    f"{msg}; direct InfluxDB probe became visible in {delay:.2f}s "
+                    f"(<= {self._BND003_INFLUX_MAX_VISIBLE_DELAY_S:.1f}s), so the empty "
+                    f"sink is not explained by WAL-flush latency")
 
             # Let every warm-up window close so none of them overlaps the
             # measured rows (empty windows are dropped by cnt > 0).
             base_rows, base_sum = self._bnd003_wait_stable(
                 sink_db, sink, stable_s=3.0, timeout_s=30)
 
-            # Phase 2 - measure: a fixed number of batches, ~1s apart.
+            # Phase 2 - measure: a fixed number of batches, ~1s apart.  The
+            # last one is pinned to the next whole second so its newest row
+            # lands exactly on a period boundary: that row is counted by the
+            # window opening at the boundary, never by both sides of it.
             for b in range(n_batches):
-                write_batch(suffix, db_or_bucket, src_name, f"m{b}_")
+                base_ms = None
+                if b == n_batches - 1:
+                    base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
+                write_batch(suffix, db_or_bucket, src_name, f"m{b}_", base_ms)
                 time.sleep(1.0)
             expected = n_batches * batch_rows
 
@@ -433,3 +533,9 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
 
         self._with_std_sources(prefix, body)
+
+        # Report the InfluxDB environment limitation explicitly instead of
+        # silently passing (the other sources already asserted their bounds).
+        skip_reason = type(self)._bnd003_skip_reason
+        if skip_reason:
+            pytest.skip(skip_reason)

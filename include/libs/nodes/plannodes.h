@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#include "libs/qcom/extTypeMap.h"  // EExtTimestampTzClass
 #include "query.h"
 #include "querynodes.h"
 #include "tname.h"
@@ -902,12 +903,8 @@ typedef struct SExtColTypeMapping {
                               // connector for name-based Arrow column lookup on SELECT *.
 } SExtColTypeMapping;
 
-typedef enum {
-  EXT_TIMESTAMP_TZ_CLASS_UNKNOWN = 0,
-  EXT_TIMESTAMP_TZ_CLASS_AWARE   = 1,
-  EXT_TIMESTAMP_TZ_CLASS_NAIVE   = 2,
-} EExtTimestampTzClass;
-
+// EExtTimestampTzClass lives with its classifier in the query-common type map;
+// qcom is a lower layer than nodes, so it must own the enum.
 typedef struct SExtTimestampTypeHint {
   char   colName[TSDB_COL_NAME_LEN];  // remote column name as it appears in pRemotePlan
   char   extTypeName[64];             // original external type name for diagnostics
