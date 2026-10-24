@@ -1,42 +1,43 @@
 ---
 sidebar_label: Neuron
 title: 与 Neuron 集成
-description: 使用 Neuron 和 eKuiper 的 InfluxDB v1 sink 将工业设备数据写入 TDengine，支持批量发送、HTTPS 和高可用部署
+description: 通过 Explorer 一键接入，或手工配置 eKuiper 的 InfluxDB v1 sink，将 Neuron 采集的工业设备数据写入 TDengine，支持批量发送、HTTPS 和高可用部署
 toc_max_heading_level: 5
 ---
 
+import NeuronPrerequisites from './resource/_neuron-prerequisites.mdx'
+import NeuronMapping from './resource/_neuron-mapping.mdx'
+import NeuronOneClick from './resource/_neuron-one-click.mdx'
+
 [Neuron](https://github.com/emqx/neuron) 是 EMQ 开发的工业物联网连接平台，支持 Modbus、OPC UA、BACnet 等多种工业协议。[eKuiper](https://github.com/lf-edge/ekuiper) 是开源的轻量级边缘流处理引擎，使用 SQL 处理数据，并通过输出动作（sink）转发。[NeuronEX](https://docs.emqx.com/zh/neuronex/latest/) 是 EMQ 的工业边缘数据采集与处理软件，集成 Neuron 的协议采集和 eKuiper 的流处理能力，提供统一的 Web 界面配置设备采集、数据处理及转发。
 
-本文介绍如何通过 NeuronEX 的 InfluxDB v1 sink 将 Modbus 电表数据写入 TDengine。该方式可接入 NeuronEX 支持的 70 多种工业协议，具体以版本及授权为准。
+本文介绍两种将 Neuron 采集数据写入 TDengine 的方式：
 
-![NeuronEX 与 TDengine 集成架构](../../assets/iot-neuron-architecture.webp)
+- **一键接入**：在 TDengine Explorer 的边缘网关页面填写 Neuron 地址和凭据，Explorer 自动完成数据流、处理规则和采集订阅的配置，适合绝大多数场景。
+- **手工接入**：在 NeuronEX 页面手工配置数据流、处理规则和 InfluxDB v1 写入动作，适合需要自定义标签、业务属性或数据转换的场景。
 
-Neuron 将 Modbus 数据转为 JSON 采集报告，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。需要双向 TLS 认证（mTLS）或 taosAdapter 故障切换时，按后文部署 nginx。
+两种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的 70 多种工业协议，具体以版本及授权为准。
 
-## 前置条件
+<figure style={{width: 'fit-content', margin: '0 auto'}}>
 
-- 已部署 TDengine 3.4.3.3 及以上版本并启动，参见 [下载与安装](../../04-quick-start/01-download-and-install/02-package.md)。准备具有建表和写入权限的专用账号。
-- 已安装 NeuronEX 4.0.0 及以上版本，参见 [NeuronEX 安装文档](https://docs.emqx.com/zh/neuronex/latest/installation/introduction.html)。确认所用版本及许可支持 Modbus TCP、数据处理和 InfluxDB v1 sink，并覆盖本例的 12 个采集点。需要断链缓存与恢复补发时，确认内置 eKuiper 已包含[缓存与转发](#缓存与转发store-and-forward)一节所述的错误重试修复。独立部署 Neuron 与 eKuiper 时，需另配数据通道。
-- NeuronEX 能够访问 taosAdapter 的 HTTP 端口，默认为 `6041`。
-- 已准备四台 Modbus TCP 电表的 IP、端口、站号、寄存器地址及字节序，并同步采集端时钟。
+![Neuron 与 TDengine 集成架构](../../assets/iot-neuron-architecture.webp)<br/>
+*Neuron 与 TDengine 集成架构*
 
-## 数据映射
+</figure>
 
-在 NeuronEX 中，先添加电表设备并配置连接信息，再创建采集组、设置采集周期，最后添加电流、电压和相位等点位，为各点位指定寄存器地址和数据类型。采集数据与 TDengine 的对应关系如下：
+如下图所示，实线表示数据流向，虚线框表示可选的 nginx 节点。Neuron 将设备数据转为 JSON 采集报告，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。需要双向 TLS 认证（mTLS）或 taosAdapter 故障切换时，按后文部署 nginx。
 
-| Neuron 数据 | TDengine 对象 | 配置方式 |
-| --- | --- | --- |
-| 设备名 `node_name` | 子表名及 `device` TAG | 规则输出 `device`；sink 将其同时映射到 `tbname` 和 `device` 标签 |
-| 采集组名 `group_name` | 用于筛选进入规则的报告 | SQL 筛选 `electrical_readings` 采集组；超级表名由 sink 的 `measurement` 独立指定 |
-| 点位 `values.current`、`values.voltage`、`values.phase` | 测量列 `current`、`voltage`、`phase` | SQL 提取点位，sink 的 `fields` 指定写入列 |
-| 报告时间戳 `timestamp` | 时间列 `_ts` | SQL 输出 `ets`，sink 设置 `tsFieldName=ets`、`precision=ms` |
-| 位置及业务分组 | TAG `location`、`group_id` | SQL 根据设备名设置属性，sink 的 `tags` 指定标签 |
+<NeuronPrerequisites />
 
-本例中，每台电表的一次完整采集报告写入其同名子表的一行，电流、电压和相位分别对应三个测量列。
+<NeuronMapping />
 
-Neuron Tag 是采集点位，对应测量列；TDengine TAG 是子表属性。`group_id` 是业务分组编号，与采集组名分开配置。`group_name` 也可映射为 TAG，但同一子表的组名应固定。
+<NeuronOneClick />
 
-## 示例数据模型
+## 手工接入
+
+本节以四台 Modbus TCP 智能电表为例，演示在 NeuronEX 页面手工完成接入的完整过程，供需要自定义标签、业务属性或数据转换的用户参考。**电表只是示例，你的设备不是电表也能照做**：只需把第 3 步换成你自己设备的采集配置（选择对应的协议插件、创建采集组、添加点位），其余步骤（创建数据库、数据流、处理规则、写入动作）与设备类型无关，操作完全相同。
+
+### 示例数据模型
 
 示例在同一工厂的两个车间各部署两台电表，每秒采集电流、电压和相位。四台设备共用 `meters` 超级表，各写一个子表，采集组均命名为 `electrical_readings`。
 
@@ -60,9 +61,25 @@ TDengine 将 `Factory01.Workshop01` 保存为完整的 `location` 标签值；�
 
 实际字段类型由 Influx 行协议编码决定，与标准 meters 建模示例不完全相同；标签值仅含 ASCII 字符时，自动生成的类型仍为 `NCHAR`。
 
-## 配置步骤
+### 示例中的数据对应关系
 
-### 1. 创建数据库
+在 NeuronEX 中，先添加电表设备并配置连接信息，再创建采集组、设置采集周期，最后添加电流、电压和相位等点位，为各点位指定寄存器地址和数据类型。采集数据与 TDengine 的对应关系如下：
+
+| Neuron 数据 | TDengine 对象 | 配置方式 |
+| --- | --- | --- |
+| 设备名 `node_name` | 子表名及 `device` TAG | 规则输出 `device`；sink 将其同时映射到 `tbname` 和 `device` 标签 |
+| 采集组名 `group_name` | 用于筛选进入规则的报告 | SQL 筛选 `electrical_readings` 采集组；超级表名由 sink 的 `measurement` 独立指定 |
+| 点位 `values.current`、`values.voltage`、`values.phase` | 测量列 `current`、`voltage`、`phase` | SQL 提取点位，sink 的 `fields` 指定写入列 |
+| 报告时间戳 `timestamp` | 时间列 `_ts` | SQL 输出 `ets`，sink 设置 `tsFieldName=ets`、`precision=ms` |
+| 位置及业务分组 | TAG `location`、`group_id` | SQL 根据设备名设置属性，sink 的 `tags` 指定标签 |
+
+本例中，每台电表的一次完整采集报告写入其同名子表的一行，电流、电压和相位分别对应三个测量列。
+
+Neuron Tag 是采集点位，对应测量列；TDengine TAG 是子表属性。`group_id` 是业务分组编号，与采集组名分开配置。`group_name` 也可映射为 TAG，但同一子表的组名应固定。
+
+### 配置步骤
+
+#### 1. 创建数据库
 
 在 TDengine SQL 客户端执行以下语句，无需手工创建超级表或子表：
 
@@ -70,7 +87,7 @@ TDengine 将 `Factory01.Workshop01` 保存为完整的 `location` 标签值；�
 CREATE DATABASE IF NOT EXISTS neuron_meters_demo PRECISION 'ms';
 ```
 
-### 2. 检查直连接口
+#### 2. 检查直连接口
 
 在 NeuronEX 所在主机或容器内执行以下命令，将 `adapter-host` 替换为实际 taosAdapter 主机名或 IP：
 
@@ -78,9 +95,9 @@ CREATE DATABASE IF NOT EXISTS neuron_meters_demo PRECISION 'ms';
 curl -i http://adapter-host:6041/influxdb/v1/ping
 ```
 
-返回 `204 No Content` 表示接口可访问。InfluxDB v1 客户端启动时会调用该接口；若返回 `404`，检查路径及 TDengine 版本（3.4.3.3 及以上）。NeuronEX 可直接连接 taosAdapter，无需部署 nginx。如需加密传输或 taosAdapter 故障切换，参照[加密传输与高可用](#加密传输与高可用可选)一节配置 nginx。
+返回 `204 No Content` 表示接口可访问。InfluxDB v1 客户端启动时会调用该接口；若返回 `404`，检查路径及 TDengine 版本（3.4.3.6 及以上）。NeuronEX 可直接连接 taosAdapter，无需部署 nginx。如需加密传输或 taosAdapter 故障切换，参照[加密传输与高可用](#加密传输与高可用可选)一节配置 nginx。
 
-### 3. 配置 Modbus 采集
+#### 3. 配置 Modbus 采集
 
 1. 进入「数据采集 → 南向设备」，按示例名称添加四台「Modbus TCP」设备，填写连接参数。
 
@@ -107,7 +124,7 @@ curl -i http://adapter-host:6041/influxdb/v1/ping
 3. 保存并启动设备，确认均为运行中、已连接。在「数据采集 → 数据监控」逐一选择设备及其采集组，检查三个点位数值正确并持续更新。
 4. 进入「数据采集 → 北向应用」，为内置 `DataProcessing` 应用订阅四台设备的 `electrical_readings` 组，将报告送入 eKuiper。仅创建设备和规则不会自动建立此订阅。
 
-### 4. 创建数据流
+#### 4. 创建数据流
 
 数据流定义采集报告的字段结构，后续规则从中读取数据。
 
@@ -138,7 +155,7 @@ curl -i http://adapter-host:6041/influxdb/v1/ping
 
 带结构定义可保留电压的整数类型，避免无结构 JSON 数值按浮点数处理。流中的 `BIGINT` 是 eKuiper 整数类型，与 Modbus 寄存器位宽无关。开启「共享数据源」后，多条规则可复用同一数据源。
 
-### 5. 创建数据处理规则
+#### 5. 创建数据处理规则
 
 1. 进入「数据处理 → 规则 → 新建规则」，规则 ID 填写 `meters_to_tdengine`。
 2. 在 SQL 编辑区域输入以下语句。
@@ -167,7 +184,7 @@ curl -i http://adapter-host:6041/influxdb/v1/ping
 
 若采集报告包含位置和业务组编号等元数据，可在数据流中声明这些字段，再由 SQL 直接取值作为 TAG，减少按设备名逐一配置映射。本例通过 `CASE` 表达式设置这些属性。
 
-### 6. 配置 InfluxDB v1 动作
+#### 6. 配置 InfluxDB v1 动作
 
 以下 JSON 为 InfluxDB v1 动作的完整配置示例，与后续页面配置步骤对应。使用时替换地址、用户名和密码。
 
@@ -262,6 +279,8 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
 
 ## 验证结果
 
+无论通过哪种方式接入，都以查询结果确认入库——规则运行状态和 ping 响应不能代替入库检查。以下 SQL 使用手工接入示例的库名和表名；一键接入的用户把库名换成目标数据库、超级表名换成映射的超级表即可。
+
 1. 在 TDengine SQL 客户端检查自动生成的结构和设备标签。
 
    ```sql
@@ -288,11 +307,9 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
    FROM neuron_meters_demo.meters PARTITION BY TBNAME;
    ```
 
-以查询结果确认入库，规则运行状态和 ping 响应不能代替入库检查。
-
 ## 运行监控
 
-进入「数据处理 → 规则」，找到 `meters_to_tdengine`，点击「更多 → 数据统计」，查看各阶段的统计卡片。
+规则运行指标在 Neuron 侧查看：进入 NeuronEX 的「数据处理 → 规则」，找到对应规则（手工接入示例为 `meters_to_tdengine`；一键接入创建的规则也在此列出），点击「更多 → 数据统计」，查看各阶段的统计卡片。重点关注以下指标：
 
 | 指标 | 正常状态或处理方式 |
 | --- | --- |
@@ -305,7 +322,7 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
 
 在 IDMP「管理后台 → 连接」中配置 TDengine TSDB 连接，通过连接条目的「更多 → 简单导入」，选择 `neuron_meters_demo.meters`。
 
-将 `location` 标签设为路径，路径层级填 `0`，表达式填 `${location}`；`device`、`group_id` 作为静态属性导入。`location` 按点号展开为工厂与车间层级，子表名作为叶子电表元素。
+将 `device` 标签设为路径，路径开始层级填 `0`，表达式填 `${device}`；`location` 标签设为路径，路径开始层级填 `1`，表达式填 `${location}`；`group_id` 作为静态属性导入。`location` 按点号展开为工厂与车间层级，`device`（即子表名）作为叶子电表元素。
 
 导入后，在「元素浏览器」中可查看以下层级，选择电表可查看 `current`、`voltage`、`phase` 测量属性：
 
@@ -323,12 +340,12 @@ Factory01
 
 ## 缓存与转发（Store and Forward）
 
-本例由 eKuiper 的 InfluxDB v1 sink 提供缓存与转发。下游暂时不可用时，在容量允许且错误可重试的前提下缓存数据；连接恢复后，保留原有的子表名和报告时间戳重新发送。
+本方案由 eKuiper 的 InfluxDB v1 sink 提供缓存与转发。下游暂时不可用时，在容量允许且错误可重试的前提下缓存数据；连接恢复后，保留原有的子表名和报告时间戳重新发送。一键接入创建的规则已启用缓存（按 1000 行或 100 ms 合批），无需额外配置。
 
 使用此功能须满足以下要求：
 
 - eKuiper 须包含 Influx v1 错误重试修复 [PR #4201](https://github.com/lf-edge/ekuiper/pull/4201)，否则可能无法重发。部署前，向 EMQX 提供所用 NeuronEX 及内置 eKuiper 版本，确认已包含该修复。
-- 在「数据处理 → 规则」中编辑对应规则的「InfluxDB v1」动作，展开「Sink 配置」，将「启用缓存」（`enableCache`）设为 `True`，并配置缓存容量和重发间隔。参数表及截图见[配置 InfluxDB v1 动作](#6-配置-influxdb-v1-动作)。部署时持久挂载 eKuiper 数据目录。
+- 手工接入时，在「数据处理 → 规则」中编辑对应规则的「InfluxDB v1」动作，展开「Sink 配置」，将「启用缓存」（`enableCache`）设为 `True`，并配置缓存容量和重发间隔。参数表及截图见[配置 InfluxDB v1 动作](#6-配置-influxdb-v1-动作)。部署时持久挂载 eKuiper 数据目录。
 - 监控磁盘空间、缓存长度和异常。持续积压时，调整采集周期、批量发送参数或采集组分配。
 
 含该修复的构建已通过断链恢复验证，测试数据全部回补。账号、权限或模式错误也可能持续重试并阻塞后续数据，须人工修正；数据转换或构造 Influx 数据点时发生的错误，不一定触发重试。
@@ -343,7 +360,7 @@ Factory01
 
 ## 加密传输与高可用（可选）
 
-需要 mTLS 或 taosAdapter 故障切换时，部署 nginx，并将 sink 地址改为 nginx 地址。基础 HTTP 直连接入无需此配置。
+需要 mTLS 或 taosAdapter 故障切换时，部署 nginx，并将 sink 地址改为 nginx 地址。基础 HTTP 直连接入无需此配置。一键接入的用户把向导中的「TDengine 地址」填为 nginx 地址即可。
 
 ### 配置 mTLS 和多 taosAdapter 转发
 
@@ -421,7 +438,7 @@ Factory01
 | 部署 | Ubuntu 24.04，Linux x86_64，各组件同机原生进程 |
 | Neuron | 开源 2.15.0，含 Modbus 事务序号回卷修复的自建版本 |
 | eKuiper | `2.4.2+pr4201-perfcore` 测试构建，含 Influx 错误分类修复 |
-| TDengine | 企业版 3.4.3.3；ms、`VGROUPS 16`、`WAL_LEVEL 1`、`WAL_FSYNC_PERIOD 3000` |
+| TDengine | 企业版 3.4.3.6；ms、`VGROUPS 16`、`WAL_LEVEL 1`、`WAL_FSYNC_PERIOD 3000` |
 | 采集 | 16 个驱动 × 4 组 × 128 台逻辑电表 × 3 个测量值，共 24,576 配置点位；周期 100ms |
 | 北向 | 8 个应用分别订阅不同的采集组，每应用 8 组，各自使用独立的数据源、规则和输出动作 |
 | 批量发送与安全 | 批量发送间隔 100ms、`batchSize=10000`，每请求平均约 1024 行；缓存开启、`bufferLength=20000`、`disableBufferFullDiscard=true`、nginx mTLS、CA 校验 |
@@ -452,6 +469,10 @@ Neuron 与 eKuiper 平均各使用约 6.6 个逻辑核；Neuron 驻留内存约 
 
 | 现象 | 检查与处理 |
 | --- | --- |
+| 一键接入提示「没有找到含可读点位的采集组」 | 先在 Neuron 完成设备采集配置，确认设备运行中、已连接，且「数据监控」中有点位值 |
+| 一键接入创建失败，提示子表重名或冲突 | 子表名与库中现有表冲突，为接入设置「子表名前缀」区分；同时确认同名测量列类型兼容 |
+| 修改 TDengine 密码后数据停止写入 | 在接入详情页点击「刷新配置」，用当前登录凭据更新规则 |
+| 详情页状态为「配置已保留，待验收」 | 确认 Neuron 正在采集、规则在 eKuiper 中运行，然后点击「检查数据」重新验收 |
 | 采集数值异常 | 检查站号、寄存器地址、字节序及浮点地址是否重叠 |
 | 规则启动后自动停止 | 检查许可是否包含数据处理功能；仅测试使用的规则可能运行 60 分钟后自动停止 |
 | HTTPS 连接失败 | 检查 CA、服务端 SAN、客户端证书及容器内证书路径 |
@@ -462,4 +483,5 @@ Neuron 与 eKuiper 平均各使用约 6.6 个逻辑核；Neuron 驻留内存约 
 
 - [eKuiper InfluxDB v1 sink](https://ekuiper.org/docs/zh/latest/guide/sinks/plugin/influx.html)
 - [eKuiper sink 缓存与发送机制](https://ekuiper.org/docs/zh/latest/guide/sinks/overview.html)
+- [Neuron 开源版文档](https://docs.emqx.com/zh/neuron/latest/)
 - [NeuronEX 配置说明](https://docs.emqx.com/zh/neuronex/latest/configuration/introduction.html)
