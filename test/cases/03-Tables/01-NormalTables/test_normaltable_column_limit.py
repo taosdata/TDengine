@@ -15,7 +15,6 @@
 
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
 import random
-from datetime import datetime as datatime
 
 
 class TestNormalTableColumnNumLimit:
@@ -33,6 +32,7 @@ class TestNormalTableColumnNumLimit:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: TS-5953
 
         History:
@@ -71,14 +71,13 @@ class TestNormalTableColumnNumLimit:
 
         tdLog.info(f"=============== step4")
 
-        random.seed(datatime.now())
         dropCount = random.randint(1, 30)
         tdLog.info(f"dropCount: {dropCount}")
-        while dropCount > 0:
-            dropColumn = random.randint(1, totalColumnsCount - 1)
+        # Sample without replacement so deleted columns cannot be selected again.
+        dropColumns = random.sample(range(1, totalColumnsCount), dropCount)
+        for dropColumn in dropColumns:
             tdSql.execute(f"alter table {tb} drop column a{dropColumn}")
             totalColumnsCount -= 1
-            dropCount -= 1
 
         tdSql.query(f"desc {tb}")
         tdSql.checkRows(totalColumnsCount)
