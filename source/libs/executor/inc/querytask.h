@@ -67,6 +67,8 @@ typedef struct {
   int32_t               minPollRows;
   int64_t               timeout;
   int8_t                enableReplay;
+  int64_t               startTs;          // msg.consume.start.ts in vnode tsdb precision, 0 = disabled
+  int64_t               preparedStartTs;  // startTs used when the snapshot reader was last prepared
 
   int64_t               snapshotVer;
   SSchemaWrapper*       schema;

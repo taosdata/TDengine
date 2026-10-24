@@ -51,6 +51,14 @@ add_test(
         NAME tmqRawDataTest
         COMMAND tmqTest --gtest_filter=testCase.validate_raw_data_block_versions_Test:testCase.invalid_raw_data_response_returns_error_Test:testCase.rejected_poll_response_retains_offset_Test
 )
+add_test(
+        NAME tmqStartTimestampTest
+        COMMAND tmqTest --gtest_filter=tmqStartTimestamp.*
+)
+add_test(
+        NAME tmqPollResponseTest
+        COMMAND tmqTest --gtest_filter=testCase.metadata_only_response_updates_begin_offset_Test
+)
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)
 DEP_ext_gtest(smlTest)

@@ -3444,6 +3444,58 @@ static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_
   }
 }
 
+// Trim the leading `n` rows of a variable-length column and reclaim the payload they occupy.
+// colDataTrimFirstNRows() only shifts the offset array, so the bytes of the dropped rows stay in
+// pData and are still handed to blockEncode(). Rows are stored back-to-back, so every kept row
+// can be moved towards the beginning of pData and rebased; a row is only ever moved to a position
+// that is not beyond its own source, so no row that is still to be moved can be overwritten.
+// Returns false when the column is not the expected contiguous layout, which leaves the column
+// untouched so the caller can fall back to the cheap offset-only trim.
+static bool colDataTrimFirstNRowsCompact(SColumnInfoData* pColInfoData, size_t n, size_t total) {
+  if (pColInfoData->pData == NULL || pColInfoData->varmeta.offset == NULL || pColInfoData->reassigned) {
+    return false;
+  }
+
+  // validate the entire column before mutating it, so malformed data is never half compacted
+  int32_t keptLen = 0;
+  for (size_t i = n; i < total; ++i) {
+    int32_t offset = pColInfoData->varmeta.offset[i];
+    if (offset < 0) {  // NULL value, the -1 marker is preserved below
+      continue;
+    }
+    if (offset >= pColInfoData->varmeta.length) {
+      return false;
+    }
+    int32_t rowLen = calcStrBytesByType(pColInfoData->info.type, pColInfoData->pData + offset);
+    if (rowLen <= 0 || rowLen > pColInfoData->varmeta.length - offset) {
+      return false;
+    }
+    keptLen += rowLen;
+    if (keptLen > pColInfoData->varmeta.length) {
+      return false;
+    }
+  }
+
+  int32_t len = 0;
+  for (size_t i = n; i < total; ++i) {
+    int32_t offset = pColInfoData->varmeta.offset[i];
+    if (offset < 0) {
+      pColInfoData->varmeta.offset[i - n] = offset;
+      continue;
+    }
+
+    int32_t rowLen = calcStrBytesByType(pColInfoData->info.type, pColInfoData->pData + offset);
+    if (offset != len) {
+      (void)memmove(pColInfoData->pData + len, pColInfoData->pData + offset, rowLen);
+    }
+    pColInfoData->varmeta.offset[i - n] = len;
+    len += rowLen;
+  }
+
+  pColInfoData->varmeta.length = len;
+  return true;
+}
+
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
   if (n == 0) {
     return TSDB_CODE_SUCCESS;
@@ -3464,6 +3516,33 @@ int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n) {
 
     pBlock->info.rows -= n;
   }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockDataTrimFirstRowsCompact(SSDataBlock* pBlock, size_t n) {
+  if (n == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pBlock->info.rows <= n) {
+    blockDataEmpty(pBlock);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (pColInfoData == NULL) {
+      return terrno;
+    }
+
+    if (!IS_VAR_DATA_TYPE(pColInfoData->info.type) ||
+        !colDataTrimFirstNRowsCompact(pColInfoData, n, pBlock->info.rows)) {
+      colDataTrimFirstNRows(pColInfoData, n, pBlock->info.rows);
+    }
+  }
+
+  pBlock->info.rows -= n;
   return TSDB_CODE_SUCCESS;
 }
 
