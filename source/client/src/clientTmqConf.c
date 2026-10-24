@@ -23,6 +23,26 @@
 // ============================================================
 // conf helper: parse bool config ("true" / "false")
 // ============================================================
+// parse an int64 only when the whole string is consumed ("2022-01-01 ..." must not parse as 2022)
+static bool parseInt64Strict(const char* value, int64_t* dest) {
+  if (value == NULL || dest == NULL || value[0] == '\0') {
+    return false;
+  }
+  int32_t i = 0;
+  if (value[i] == '-' || value[i] == '+') {
+    i++;
+  }
+  if (value[i] == '\0') {
+    return false;
+  }
+  for (; value[i] != '\0'; i++) {
+    if (value[i] < '0' || value[i] > '9') {
+      return false;
+    }
+  }
+  return taosStr2int64(value, dest) == 0;
+}
+
 static tmq_conf_res_t parseBoolConf(const char* key, const char* value, int8_t* dest) {
   if (strcasecmp(value, "true") == 0) {
     *dest = true;
@@ -84,6 +104,7 @@ tmq_conf_t* tmq_conf_new() {
   conf->sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT;
   conf->maxPollWaitTime = DEFAULT_MAX_POLL_WAIT_TIME;
   conf->minPollRows = DEFAULT_MIN_POLL_ROWS;
+  conf->startTs = 0;  // 0 = disabled: consume all data regardless of timestamp
 
   return conf;
 }
@@ -219,6 +240,18 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     int64_t tmp;
     int32_t code = taosStr2int64(value, &tmp);
     conf->enableBatchMeta = (0 == code && tmp != 0) ? true : false;
+    return TMQ_CONF_OK;
+  }
+  if (strcasecmp(key, "msg.consume.start.ts") == 0) {
+    // Only a UNIX timestamp in milliseconds is accepted. 0 means "disabled", so a negative
+    // value is rejected instead of silently consuming everything; datetime strings and any
+    // other suffix are rejected as well rather than being truncated into a different instant.
+    int64_t tmp = 0;
+    if (!parseInt64Strict(value, &tmp) || tmp < 0) {
+      tqErrorC("invalid value for %s:%s, only a non-negative UNIX timestamp in milliseconds is supported", key, value);
+      return TMQ_CONF_INVALID;
+    }
+    conf->startTs = tmp;
     return TMQ_CONF_OK;
   }
 
