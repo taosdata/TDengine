@@ -169,6 +169,10 @@ def _is_federated_query_pytest_invocation():
         # resources and every case failed in the first sqlcmd with
         # SQLAllocHandle(HENV).
         "test_fs_",
+        # Virtual-table stream suites live under 18-StreamProcessing/20-UseCase
+        # and drive the same external sources (SQL Server included), so they
+        # need the same staging instead of relying on FQ_FORCE_LOCAL_LIBTAOS.
+        "test_virtual_stream_",
     )
     return any(any(hint in arg for hint in hints) for arg in sys.argv[1:])
 

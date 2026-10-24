@@ -1611,46 +1611,12 @@ static int8_t fedScanGetCondPrecision(EExtSourceType srcType, const SExtTableMet
   return extTimestampTypePrecision(srcType, pMeta->pCols[tsIdx].extTypeName, pMeta->tsPrecision);
 }
 
-static bool fedScanTypeStartsWith(const char* typeName, const char* prefix) {
-  if (typeName == NULL || prefix == NULL) {
-    return false;
-  }
-  return strncasecmp(typeName, prefix, strlen(prefix)) == 0;
-}
-
 static EExtTimestampTzClass fedScanClassifyTimestampType(
     EExtSourceType srcType, const char* typeName) {
-  if (srcType == EXT_SOURCE_MYSQL) {
-    if (fedScanTypeStartsWith(typeName, "timestamp")) {
-      return EXT_TIMESTAMP_TZ_CLASS_AWARE;
-    }
-    if (fedScanTypeStartsWith(typeName, "datetime") ||
-        fedScanTypeStartsWith(typeName, "date")) {
-      return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
-    }
-  } else if (srcType == EXT_SOURCE_POSTGRESQL) {
-    if (fedScanTypeStartsWith(typeName, "timestamptz") ||
-        taosStrCaseStr(typeName, "with time zone") != NULL) {
-      return EXT_TIMESTAMP_TZ_CLASS_AWARE;
-    }
-    if (fedScanTypeStartsWith(typeName, "timestamp") ||
-        fedScanTypeStartsWith(typeName, "date")) {
-      return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
-    }
-  } else if (srcType == EXT_SOURCE_SQLSERVER) {
-    // datetimeoffset carries an offset (absolute instant); datetime2 /
-    // datetime / smalldatetime / date store the client's wall clock.  The
-    // longer prefix must be tested first.
-    if (fedScanTypeStartsWith(typeName, "datetimeoffset")) {
-      return EXT_TIMESTAMP_TZ_CLASS_AWARE;
-    }
-    if (fedScanTypeStartsWith(typeName, "datetime") ||
-        fedScanTypeStartsWith(typeName, "smalldatetime") ||
-        fedScanTypeStartsWith(typeName, "date")) {
-      return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
-    }
-  }
-  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  // Same classification the planner writes into the plan's timestamp hints and
+  // the external stream readers derive from the remote type name; keeping one
+  // implementation stops the runtime renderer from drifting from them.
+  return (EExtTimestampTzClass)extTimestampTypeTzClass(srcType, typeName);
 }
 
 static const char* fedScanNormalizeMySqlTimezone(const char* timezone) {
@@ -2628,7 +2594,7 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     // 1.4 Issue query  -  pass pre-computed SQL so the Connector doesn't
     // regenerate it (which would lose the REMOTE_VALUE_LIST resolution).
     SExtConnectorError extErr = {0};
-    code = extConnectorExecQuery(pInfo->pConnHandle, pFedNode, remoteSql,
+    code = extConnectorExecQuery(pInfo->pConnHandle, pFedNode, NULL, remoteSql,
                                  &pInfo->pQueryHandle, &extErr);
     code = fedScanNormalizeInfluxAuthCode(pFedNode->sourceType, cfg.options, code);
     if (code) {

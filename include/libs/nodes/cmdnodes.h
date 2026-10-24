@@ -326,7 +326,9 @@ typedef struct SColumnOptions {
   bool      hasRef;
   int8_t    refType;                              // 0=internal, 1=external (DS section 6.2.8)
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN]; // non-empty = external source 4-part ref
-  char      refSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema segment (5-part ref); empty otherwise
+  char      refSchema[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema: from the path (5-part field, or the
+                                                     // middle segment of a 4-part SQL Server path) or the source
+                                                     // default filled by normalizeExternalRefNamespace()
   char      refDb[TSDB_DB_NAME_LEN];
   char      refTable[TSDB_TABLE_NAME_LEN];
   char      refColumn[TSDB_COL_NAME_LEN];

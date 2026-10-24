@@ -6200,6 +6200,34 @@ _exit:
   return code;
 }
 
+static void msmResolveExtOrigTblReaderNamespace(const SExtSourceObj *pSource,
+                                               const SStreamExtOrigTblReaderReq *pReq,
+                                               const char **ppDatabase, const char **ppSchema) {
+  const char *database = pReq->identity.dbName;
+  const char *schema = pReq->identity.schemaName;
+
+  // A four-part SQL Server column reference stores its schema in dbName.
+  // Preserve the wire identity used for registry matching and resolve only the connector namespace.
+  // Mirrors the SQL Server branch of normalizeExternalRefNamespace() in parTranslater.c: the reader
+  // must resolve the same database/schema the DDL path persisted, so keep the two in sync.
+  //
+  // Only the shape written by the pre-normalization ALTER path reaches this branch: dbName holds a
+  // schema and schemaName is empty. The other pre-normalization shape (CREATE persisted the path
+  // schema in dbName and the source default schema in schemaName) is intentionally NOT
+  // reinterpreted: it is indistinguishable from an explicit
+  // source.otherdb.<source default schema>.table.column reference, so guessing would corrupt
+  // valid five-part references. Such bindings are re-normalised when the column is re-bound with
+  // ALTER ... ALTER COLUMN ... SET.
+  if (pSource->type == EXT_SOURCE_SQLSERVER && schema[0] == '\0' && database[0] != '\0') {
+    schema = database;
+    database = "";
+  }
+  *ppDatabase = database[0] ? database : pSource->defaultDatabase;
+  *ppSchema = schema[0] ? schema : pSource->defaultSchema;
+  mstDebug("resolved external reader namespace, registry:%" PRId64 ", source:%s, type:%d, database:%s, schema:%s",
+           pReq->registryEntryId, pSource->sourceName, pSource->type, *ppDatabase, *ppSchema);
+}
+
 static int32_t msmFetchExtOrigTblReaderMeta(const SExtSourceObj *pSource, const SStreamExtOrigTblReaderReq *pReq,
                                             SExtTableMeta **ppMeta) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -6223,10 +6251,11 @@ static int32_t msmFetchExtOrigTblReaderMeta(const SExtSourceObj *pSource, const 
   tstrncpy(cfg.user, pSource->user, sizeof(cfg.user));
   decryptExtSourcePassword(pSource->encryptedPassword, plainPassword);
   tstrncpy(cfg.password, plainPassword, sizeof(cfg.password));
-  tstrncpy(cfg.default_database, pReq->identity.dbName[0] ? pReq->identity.dbName : pSource->defaultDatabase,
-           sizeof(cfg.default_database));
-  tstrncpy(cfg.default_schema, pReq->identity.schemaName[0] ? pReq->identity.schemaName : pSource->defaultSchema,
-           sizeof(cfg.default_schema));
+  const char *database = NULL;
+  const char *schema = NULL;
+  msmResolveExtOrigTblReaderNamespace(pSource, pReq, &database, &schema);
+  tstrncpy(cfg.default_database, database, sizeof(cfg.default_database));
+  tstrncpy(cfg.default_schema, schema, sizeof(cfg.default_schema));
   tstrncpy(cfg.options, pSource->options, sizeof(cfg.options));
   cfg.meta_version = pSource->metaVersion;
 
@@ -6348,17 +6377,14 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
 }
 
 /*
- * Column-name comparison for external column references. MySQL and SQL Server fold identifiers
- * case-insensitively; every other external source is case-sensitive. This mirrors the parser-side
- * contract externalColumnNamesEqual() (parTranslater.c) so that a reference accepted by DDL
- * resolves to the same external column when the reader bindings are built: a PostgreSQL table
+ * Column-name comparison for external column references. Delegates to qcom's extColumnNameEqual(),
+ * the single source of truth the parser and the stream readers also use, so a reference accepted by
+ * DDL resolves to the same external column when the reader bindings are built: a PostgreSQL table
  * holding both "Value" and value would otherwise map the lowercase reference onto "Value" and
  * silently produce a mapping with a different TDengine type.
  */
 static bool msmExtColumnNameEqual(int8_t sourceType, const char *schemaName, const char *bindingName) {
-  return (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType)
-             ? strcasecmp(schemaName, bindingName) == 0
-             : strcmp(schemaName, bindingName) == 0;
+  return extColumnNameEqual((EExtSourceType)sourceType, schemaName, bindingName);
 }
 
 int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
@@ -6376,16 +6402,22 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
   }
   pSpec = taosMemoryCalloc(1, sizeof(*pSpec));
   if (pSpec == NULL) return terrno;
-  pSpec->sourceType = pReq->sourceType;
+  // The source object is authoritative for the provider type: the same value selects the
+  // connector namespace, the type mapper and the identifier case-folding rule below, while
+  // pReq->sourceType is only the identity echoed back to the trigger.  Keep one source of
+  // truth so a stale identity cannot make the checks disagree with the deployed spec.
+  const int8_t sourceType = pSource->type;
+  pSpec->sourceType = sourceType;
   tstrncpy(pSpec->sourceName, pSource->sourceName, sizeof(pSpec->sourceName));
   tstrncpy(pSpec->host, pSource->host, sizeof(pSpec->host));
   pSpec->port = (uint16_t)pSource->port;
   tstrncpy(pSpec->user, pSource->user, sizeof(pSpec->user));
   memcpy(pSpec->encryptedPassword, pSource->encryptedPassword, sizeof(pSpec->encryptedPassword));
-  tstrncpy(pSpec->extDb, pReq->identity.dbName[0] ? pReq->identity.dbName : pSource->defaultDatabase,
-           sizeof(pSpec->extDb));
-  tstrncpy(pSpec->extSchema, pReq->identity.schemaName[0] ? pReq->identity.schemaName : pSource->defaultSchema,
-           sizeof(pSpec->extSchema));
+  const char *database = NULL;
+  const char *schema = NULL;
+  msmResolveExtOrigTblReaderNamespace(pSource, pReq, &database, &schema);
+  tstrncpy(pSpec->extDb, database, sizeof(pSpec->extDb));
+  tstrncpy(pSpec->extSchema, schema, sizeof(pSpec->extSchema));
   tstrncpy(pSpec->extTable, pReq->identity.tableName, sizeof(pSpec->extTable));
   tstrncpy(pSpec->options, pSource->options, sizeof(pSpec->options));
   pSpec->connCfgVersion = (uint64_t)pSource->metaVersion;
@@ -6414,7 +6446,7 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
   for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
     if (pMeta->pCols[i].isPrimaryKey || pMeta->pCols[i].isRemotePrimaryKey) {
       SDataType mappedType = {0};
-      code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pMeta->pCols[i].extTypeName,
+      code = extTypeNameToTDengineType((EExtSourceType)sourceType, pMeta->pCols[i].extTypeName,
                                       pMeta->pCols[i].extCharsetName, &mappedType);
       if (code != TSDB_CODE_SUCCESS) goto _error;
       if (mappedType.type == TSDB_DATA_TYPE_TIMESTAMP) {
@@ -6434,6 +6466,22 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
     code = TSDB_CODE_EXT_NO_TS_PRIMARY_KEY;
     goto _error;
   }
+  // The reader advances a microsecond watermark over the external timestamp, so
+  // the column must not carry fractional seconds finer than a microsecond: the
+  // connector truncates them, and a row that only differs below one microsecond
+  // from the current watermark can neither be distinguished from the consumed
+  // row (endless re-poll) nor be skipped safely.  SQL Server datetime2(7) /
+  // datetimeoffset(7), including the default precision 7, are the only declared
+  // types with this property; virtual tables may still reference them, but a
+  // stream reader rejects the binding instead of silently losing rows.
+  if (extTimestampTypeHasSubMicroFraction((EExtSourceType)sourceType, pMeta->pCols[tsIndex].extTypeName)) {
+    mstWarn("external reader timestamp column has sub-microsecond precision, registry:%" PRId64
+            ", table:%s, column:%s, type:%s",
+            pReq->registryEntryId, pReq->identity.tableName, pMeta->pCols[tsIndex].colName,
+            pMeta->pCols[tsIndex].extTypeName);
+    code = TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED;
+    goto _error;
+  }
   tstrncpy(pSpec->tsColumn, pMeta->pCols[tsIndex].colName, sizeof(pSpec->tsColumn));
   for (int32_t kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
        kind <= STREAM_EXT_ORIGTBL_READER_BINDING_CALC; ++kind) {
@@ -6447,17 +6495,17 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
       goto _error;
     }
     tstrncpy(pColumn, pMeta->pCols[tsIndex].colName, TSDB_COL_NAME_LEN);
-	    code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pMeta->pCols[tsIndex].extTypeName,
-	                                     pMeta->pCols[tsIndex].extCharsetName, &pMapping->tdType);
-	    if (code != TSDB_CODE_SUCCESS) goto _error;
-	    if (pMapping->tdType.type != TSDB_DATA_TYPE_TIMESTAMP) {
-	      mstWarn("external reader primary key is not timestamp, registry:%" PRId64 ", table:%s, column:%s, type:%s",
-	              pReq->registryEntryId, pReq->identity.tableName, pMeta->pCols[tsIndex].colName,
-	              pMeta->pCols[tsIndex].extTypeName);
-	      code = TSDB_CODE_EXT_NO_TS_PRIMARY_KEY;
-	      goto _error;
-	    }
-	    tstrncpy(pMapping->extTypeName, pMeta->pCols[tsIndex].extTypeName, sizeof(pMapping->extTypeName));
+    code = extTypeNameToTDengineType((EExtSourceType)sourceType, pMeta->pCols[tsIndex].extTypeName,
+                                     pMeta->pCols[tsIndex].extCharsetName, &pMapping->tdType);
+    if (code != TSDB_CODE_SUCCESS) goto _error;
+    if (pMapping->tdType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      mstWarn("external reader primary key is not timestamp, registry:%" PRId64 ", table:%s, column:%s, type:%s",
+              pReq->registryEntryId, pReq->identity.tableName, pMeta->pCols[tsIndex].colName,
+              pMeta->pCols[tsIndex].extTypeName);
+      code = TSDB_CODE_EXT_NO_TS_PRIMARY_KEY;
+      goto _error;
+    }
+    tstrncpy(pMapping->extTypeName, pMeta->pCols[tsIndex].extTypeName, sizeof(pMapping->extTypeName));
     tstrncpy(pMapping->colName, pMeta->pCols[tsIndex].colName, sizeof(pMapping->colName));
     pMapping->tsPrecision = pMeta->tsPrecision;
     if (kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER) {
@@ -6473,7 +6521,7 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
     const SExtColumnDef *pCol = NULL;
     int32_t              matchedColIdx = -1;
     for (int32_t j = 0; j < pMeta->numOfCols; ++j) {
-      if (msmExtColumnNameEqual(pReq->sourceType, pMeta->pCols[j].colName, pBinding->externalColumn)) {
+      if (msmExtColumnNameEqual(sourceType, pMeta->pCols[j].colName, pBinding->externalColumn)) {
         pCol = pMeta->pCols + j;
         matchedColIdx = j;
         break;
@@ -6496,7 +6544,7 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
                                           ? pSpec->pColMappings : pSpec->pCalcMappings;
       int32_t mapIndex = 0;
       while (mapIndex < *pMapCount &&
-             !msmExtColumnNameEqual(pReq->sourceType, pMappings[mapIndex].colName, pCol->colName)) {
+             !msmExtColumnNameEqual(sourceType, pMappings[mapIndex].colName, pCol->colName)) {
         ++mapIndex;
       }
       bool newMapping = mapIndex == *pMapCount;
@@ -6507,7 +6555,7 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
         goto _error;
       }
       SExtColTypeMapping *pMapping = &pMappings[mapIndex];
-      result.code = extTypeNameToTDengineType((EExtSourceType)pReq->sourceType, pCol->extTypeName,
+      result.code = extTypeNameToTDengineType((EExtSourceType)sourceType, pCol->extTypeName,
                                                pCol->extCharsetName, &pMapping->tdType);
       if (result.code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pMapping->tdType.type)) {
         // Providers decode DECIMAL mappings through extractDecimalTypeInfoFromBytes(), which expects

@@ -10201,7 +10201,10 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
             }
             stTriggerTaskCaptureExtReaderCleanupAddrs(pRefs, pRsp->cont.pExtOrigTblReaders);
             stTriggerTaskResetExtReaderBindings(pTask, pRefs);
-            code = TSDB_CODE_INVALID_MSG;
+            // Keep the reader's own rejection code (for example an external
+            // timestamp that the microsecond cursor cannot track) so the stream
+            // reports the real cause instead of a generic protocol error.
+            code = (pExtRsp != NULL && pExtRsp->code != TSDB_CODE_SUCCESS) ? pExtRsp->code : TSDB_CODE_INVALID_MSG;
             lino = __LINE__;
             goto _end;
           }
@@ -10441,12 +10444,12 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         code = pIdentityRsp->code;
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      // Range check covers the external source types stream processing supports today.
-      // EXT_SOURCE_SQLSERVER (=4) is deliberately outside the range: SQL Server external
-      // tables must not be referenced from streams in this release, so an identity
-      // response from a SQL Server source is rejected fail-closed here.
-      QUERY_CHECK_CONDITION(pIdentityRsp->sourceType >= EXT_SOURCE_MYSQL && pIdentityRsp->sourceType <= EXT_SOURCE_TDENGINE,
-                            code, lino, _end, TSDB_CODE_INVALID_MSG);
+      if (pIdentityRsp->sourceType < EXT_SOURCE_MYSQL || pIdentityRsp->sourceType > EXT_SOURCE_SQLSERVER) {
+        ST_TASK_ELOG("unsupported external source identity, reqId:%" PRId64 ", source:%s, type:%d", pRsp->reqId,
+                     pIdentityRsp->req.sourceName, pIdentityRsp->sourceType);
+        code = TSDB_CODE_INVALID_MSG;
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
       SSTriggerRealtimeContext *pContext = pTask->pRealtimeContext;
       QUERY_CHECK_NULL(pContext, code, lino, _end, TSDB_CODE_STREAM_INTERNAL_ERROR);
