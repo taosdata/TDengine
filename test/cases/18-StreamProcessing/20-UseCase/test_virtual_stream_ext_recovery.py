@@ -132,7 +132,9 @@ class TestVirtualStreamExtRecovery:
             "ts DATETIME(3) NOT NULL PRIMARY KEY, value_a INT, value_b INT",
         )
         # Seed below the test window so the reader's history cutoff stays under the real rows.
-        seed_text = cls._local_timestamp(cls.BASE_MS - 2000)
+        # A naive MySQL DATETIME column is decoded with the connector client time zone, which this
+        # case pins to UTC, so every literal written to MySQL must be a UTC rendering.
+        seed_text = cls._timestamp(cls.BASE_MS - 2000)
         ExtSrcEnv.mysql_exec(
             cls.MYSQL_DB,
             [f"INSERT INTO {cls.REMOTE_TABLE} VALUES ('{seed_text}', 0, 0)"],
@@ -169,7 +171,10 @@ class TestVirtualStreamExtRecovery:
     def _insert_remote_rows(cls, start_index, values_a, compact=False):
         rows = []
         for offset, value_a in enumerate(values_a):
-            ts_text = cls._local_timestamp(
+            # MySQL DATETIME(3) is naive: the connector reads the literal in the client time zone
+            # (UTC here), so write UTC text. The client renders TIMESTAMP values back in the local
+            # time zone, which is what _local_timestamp() produces for the assertions below.
+            ts_text = cls._timestamp(
                 cls.BASE_MS + (start_index + offset) * cls.STEP_MS
             )
             rows.append(f"('{ts_text}', {value_a}, {value_a + 100})")
@@ -265,12 +270,15 @@ class TestVirtualStreamExtRecovery:
 
     @classmethod
     def _timestamp(cls, value_ms):
+        # UTC rendering: the form to write into a naive remote column while the client zone is UTC.
         return datetime.datetime.fromtimestamp(
             value_ms / 1000, datetime.timezone.utc
         ).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
     @classmethod
     def _local_timestamp(cls, value_ms):
+        # Local rendering: the form the client returns for a TIMESTAMP column, so use it for the
+        # expected sink rows. Do not use it for remote literals.
         return datetime.datetime.fromtimestamp(value_ms / 1000.0).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )[:-3]

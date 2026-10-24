@@ -25333,7 +25333,25 @@ TEST(StreamTriggerExternalIdentityTest, IgnoreOutdatedIdentityResponse) {
   EXPECT_EQ(stTriggerTaskExecute(&task, &response.header), TSDB_CODE_SUCCESS);
 }
 
-TEST(StreamTriggerExternalIdentityTest, ResolveIdentityThenRequestNextReference) {
+TEST(StreamTriggerExternalIdentityTest, RejectUnknownSourceType) {
+  for (int8_t sourceType : {static_cast<int8_t>(-1), static_cast<int8_t>(EXT_SOURCE_SQLSERVER + 1)}) {
+    SStreamTriggerTask task = {};
+    SStreamMgmtRsp response = {};
+    SStreamExtSourceIdentityRsp identity = {};
+    atomic_store_64(&task.waitingMgmtReqId, 2048);
+    response.header.msgType = STREAM_MSG_EXT_SOURCE_IDENTITY_INFO;
+    response.reqId = 2048;
+    response.cont.pExtSourceIdentity = &identity;
+    identity.sourceType = sourceType;
+
+    EXPECT_EQ(stTriggerTaskExecute(&task, &response.header), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(task.task.pMgmtReq, nullptr);
+  }
+}
+
+class StreamTriggerExternalSourceIdentityTest : public testing::TestWithParam<int8_t> {};
+
+TEST_P(StreamTriggerExternalSourceIdentityTest, ResolveIdentityThenRequestNextReference) {
   SStreamTriggerTask           task = {};
   SSTriggerRealtimeContext     context = {};
   SStreamMgmtRsp               response = {};
@@ -25363,7 +25381,7 @@ TEST(StreamTriggerExternalIdentityTest, ResolveIdentityThenRequestNextReference)
   response.header.msgType = STREAM_MSG_EXT_SOURCE_IDENTITY_INFO;
   response.reqId = 2048;
   response.cont.pExtSourceIdentity = &identity;
-  identity.sourceType = EXT_SOURCE_MYSQL;
+  identity.sourceType = GetParam();
   identity.sourceConfigVersion = 99;
   tstrncpy(identity.req.sourceName, first.sourceName, sizeof(identity.req.sourceName));
   tstrncpy(identity.req.dbName, first.dbName, sizeof(identity.req.dbName));
@@ -25373,7 +25391,7 @@ TEST(StreamTriggerExternalIdentityTest, ResolveIdentityThenRequestNextReference)
 
   auto* resolved = static_cast<SSTriggerExtOrigTableRef*>(taosArrayGet(task.pExtOrigTableRefs, 0));
   ASSERT_NE(resolved, nullptr);
-  EXPECT_EQ(resolved->sourceType, EXT_SOURCE_MYSQL);
+  EXPECT_EQ(resolved->sourceType, GetParam());
   EXPECT_EQ(resolved->sourceConfigVersion, 99);
   ASSERT_NE(task.task.pMgmtReq, nullptr);
   EXPECT_EQ(task.task.pMgmtReq->type, STREAM_MGMT_REQ_TRIGGER_EXT_SOURCE_IDENTITY);
@@ -25386,6 +25404,10 @@ TEST(StreamTriggerExternalIdentityTest, ResolveIdentityThenRequestNextReference)
   taosArrayDestroy(task.pExtOrigTableRefs);
   tSimpleHashCleanup(context.patchContext.pPatchItems);
 }
+
+INSTANTIATE_TEST_SUITE_P(SupportedSources, StreamTriggerExternalSourceIdentityTest,
+                        testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL, EXT_SOURCE_INFLUXDB,
+                                        EXT_SOURCE_TDENGINE, EXT_SOURCE_SQLSERVER));
 
 TEST(StreamTriggerExternalRegistryTest, BuildsDeterministicCanonicalRegistryAndBindings) {
   SStreamExtSourceIdentityReq first = {};

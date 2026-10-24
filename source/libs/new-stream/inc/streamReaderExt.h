@@ -86,6 +86,21 @@ typedef struct SStreamExtReaderInfo {
   /* Deploy-time spec snapshot (copy; owned by this struct). */
   SStreamExtTriggerSpec spec;
 
+  /* Client timezone (IANA name) of the stream owning this reader.  The reader
+   * executes its own SQL without a physi node, so it hands the name to the
+   * connector explicitly; timezone-naive source timestamps are then converted
+   * with the stream's timezone instead of the server global one.  Empty when
+   * the scan plan carries none (connector falls back to server global TZ). */
+  char timezone[TD_TIMEZONE_LEN];
+
+  /* EExtTimestampTzClass of the reader's source timestamp column, taken from
+   * SFederatedScanPhysiNode.pTimestampTypeHints.  The connector decodes
+   * timezone-aware columns (MySQL TIMESTAMP, PG timestamptz) with the server
+   * timezone and timezone-naive ones with the client timezone, so the remote
+   * fetch/metadata bounds must be rendered with the matching timezone.
+   * SQL Server datetimeoffset bounds use UTC, independently of either timezone. */
+  int8_t tsTzClass;
+
   /* Back-pointer to the owning task for log context (not owned; lifetime >= pInfo). */
   const SStreamTask *pTask;
 
@@ -137,6 +152,7 @@ typedef struct SStreamExtReaderInfo {
  *   streamReaderExtClose  - close extConnector, cleanup hashes, zero the struct
  * --------------------------------------------------------------------------- */
 int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                            const char *timezone, int8_t tsTzClass,
                             SStreamExtReaderInfo **ppReaderInfo);
 void    streamReaderExtClose(SStreamExtReaderInfo *pReaderInfo);
 int32_t streamReaderExtGetCalcInfo(const SStreamReaderTask *pTask, int32_t execId,
@@ -197,6 +213,23 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
 int32_t streamReaderExtCalcFetchRange(SStreamExtReaderInfo *pReaderInfo,
                                       const SStreamRuntimeFuncInfo *pRt,
                                       int64_t *pSkey, int64_t *pEkey);
+
+/* ---------------------------------------------------------------------------
+ * Render the remote SQL literal for one time bound of this reader.
+ *
+ *   pInfo     : reader state; its tsTzClass and spec.sourceType select the
+ *               spelling (timezone-naive wall clock in the stream timezone,
+ *               UTC wall clock, UTC wall clock + "+00:00", or FROM_UNIXTIME()
+ *               for a timezone-aware MySQL column - see extSqlBoundForm).
+ *   bound     : epoch in `precision` units
+ *   precision : TSDB_TIME_PRECISION_* of `bound`
+ *   buf/bufLen: output buffer; EXT_SQL_TS_LITERAL_LEN is always enough
+ *
+ * Returns the number of bytes written (snprintf semantics), or a negative
+ * TSDB error code.
+ * --------------------------------------------------------------------------- */
+int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_t bound,
+                                       int8_t precision, char *buf, int32_t bufLen);
 
 #ifdef __cplusplus
 }
