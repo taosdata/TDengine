@@ -30,6 +30,7 @@
 #include "tsimplehash.h"
 #include "tcommon.h"
 #include "tmsg.h"
+#include "extTypeMap.h"  // extColumnNameEqual
 
 void stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchReq* pReq, int32_t actualNodeId) {
   *pState = (SStreamReaderFetchState){.enabled = true,
@@ -1789,8 +1790,12 @@ end:
  * including streamReaderExt.h (which redefines SStreamTriggerReaderInfo in
  * this translation unit, causing a redefinition error).  The functions are
  * implemented in streamReaderExt.c via void* to avoid the type clash. */
-extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange, void **ppInfo);
+extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                               const char *timezone, int8_t tsTzClass, void **ppInfo);
 extern void    stExtReaderClose(void *pInfo);
+/* Spec-based timestamp timezone class, shared with streamReaderExt.c so the
+ * deploy-time and runtime classification cannot drift. */
+extern int8_t  streamReaderExtSpecTsTzClass(const void *pSpec);
 
 static bool stExtFedScanMatchesSource(const SFederatedScanPhysiNode *pFedScan, const char *sourceName) {
   if (pFedScan == NULL) {
@@ -2023,6 +2028,155 @@ static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamE
   code = stExtOverrideNamespaceFromPlanNode(pTask, pExtSpec, (SNode *)pSubplan);
   nodesDestroyNode((SNode *)pSubplan);
   return code;
+}
+
+/* ---------------------------------------------------------------------------
+ * stExtResolveTsTzClass -- timezone class of the reader's source ts column.
+ *
+ * The connector decodes timezone-naive source timestamps (MySQL DATETIME, PG
+ * timestamp without time zone, SQL Server datetime2) with the client timezone
+ * and timezone-aware ones (MySQL TIMESTAMP, PG timestamptz) with the server
+ * timezone.  The remote fetch/metadata bounds must be rendered with the same
+ * timezone as the decode, so the reader needs the class of the ts column.
+ * The hint is matched with extColumnNameEqual() -- the same fold the parser and
+ * mnode use -- so a column referenced in a different case still finds its hint
+ * instead of silently falling back to the spec lookup.
+ * Returns EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the plan carries no hint.
+ * --------------------------------------------------------------------------- */
+static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
+                                    const char *tsColumn) {
+  if (pFedScan == NULL || pFedScan->pTimestampTypeHints == NULL || tsColumn == NULL ||
+      tsColumn[0] == '\0') {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  EExtSourceType srcType = (EExtSourceType)pFedScan->sourceType;
+  for (int32_t i = 0; i < pFedScan->numTimestampTypeHints; ++i) {
+    const char *hintName = pFedScan->pTimestampTypeHints[i].colName;
+    if (extColumnNameEqual(srcType, hintName, tsColumn)) {
+      stDebug("ext: resolved timestamp class sourceType:%d column:%s class:%d",
+              (int)pFedScan->sourceType, tsColumn,
+              (int)pFedScan->pTimestampTypeHints[i].tzClass);
+      return pFedScan->pTimestampTypeHints[i].tzClass;
+    }
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+/* Find the (single) table scan of a serialized stream subplan.  A stream whose
+ * trigger table is a virtual table is planned as a plain table scan even when
+ * the underlying data comes from an external source, so its deploy plan has no
+ * federated-scan node to read the timezone from. */
+static const STableScanPhysiNode *stExtFindTableScanInPlan(SNode *pNode) {
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    return stExtFindTableScanInPlan((SNode *)((SSubplan *)pNode)->pNode);
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      return (const STableScanPhysiNode *)pNode;
+    default:
+      break;
+  }
+
+  SPhysiNode *pPhysi = (SPhysiNode *)pNode;
+  SNode      *pChild = NULL;
+  FOREACH(pChild, pPhysi->pChildren) {
+    const STableScanPhysiNode *pScan = stExtFindTableScanInPlan(pChild);
+    if (pScan != NULL) {
+      return pScan;
+    }
+  }
+  return NULL;
+}
+
+/* Timezone class of the reader's ts column from the deploy spec's column
+ * mappings.  A virtual-table stream deploys its original-table reader from a
+ * plain table scan, which carries no timestamp type hints; the remote type of
+ * the bound timestamp column (e.g. "datetimeoffset(6)") is still available in
+ * the mapping built by mnode from the external table metadata.  The matching
+ * rules live in streamReaderExt.c because the reader also needs them at open
+ * time (streamReaderExtSpecTsTzClass). */
+static int8_t stExtResolveSpecTsTzClass(const SStreamExtTriggerSpec *pSpec) {
+  return streamReaderExtSpecTsTzClass(pSpec);
+}
+
+/* ---------------------------------------------------------------------------
+ * stExtResolveReaderTimezone -- resolve the reader's client timezone and the
+ * timezone class of its source timestamp column from the deploy-time plan.
+ *
+ * The external reader executes its own SQL at runtime and therefore has no
+ * physi node to read the timezone from; taking it from the deploy-time plan
+ * keeps timezone-naive source timestamps (MySQL DATETIME, PG timestamp
+ * without time zone, SQL Server datetime2) interpreted in the stream's
+ * timezone rather than the server global one.  Federated scans carry both the
+ * timezone (SFederatedScanPhysiNode.timezone) and the timestamp type hints; a
+ * virtual-table stream is deployed from a plain table scan, whose
+ * STableScanPhysiNode.timezoneName still holds the creating session's
+ * timezone, and whose timestamp class is recovered from the deploy spec's
+ * remote type mapping.
+ *
+ * Leaves ``timezone`` empty when nothing carries it (connector falls back to
+ * the server global TZ) and reports the ts-column timezone class through
+ * ``pTsTzClass``.
+ * --------------------------------------------------------------------------- */
+static void stExtResolveReaderTimezone(SNode *pPlan, const SStreamExtTriggerSpec *pSpec,
+                                       char *timezone, int32_t len, int8_t *pTsTzClass) {
+  if (pTsTzClass != NULL) {
+    *pTsTzClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+  if (timezone == NULL || len <= 0) {
+    return;
+  }
+  timezone[0] = '\0';
+
+  const char *sourceName = pSpec != NULL ? pSpec->sourceName : NULL;
+  const char *tsColumn = pSpec != NULL ? pSpec->tsColumn : NULL;
+  const SFederatedScanPhysiNode *pFedScan =
+      pPlan != NULL ? stExtFindFedScanInPlan(pPlan, sourceName, false) : NULL;
+  if (pFedScan != NULL && pFedScan->timezone[0] != '\0') {
+    tstrncpy(timezone, pFedScan->timezone, (size_t)len);
+  } else {
+    const STableScanPhysiNode *pTableScan = stExtFindTableScanInPlan(pPlan);
+    if (pTableScan != NULL && pTableScan->timezoneName[0] != '\0') {
+      tstrncpy(timezone, pTableScan->timezoneName, (size_t)len);
+    }
+  }
+
+  if (pTsTzClass == NULL) {
+    return;
+  }
+  *pTsTzClass = stExtResolveTsTzClass(pFedScan, tsColumn);
+  if (*pTsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+    *pTsTzClass = stExtResolveSpecTsTzClass(pSpec);
+  }
+}
+
+/* String-plan wrapper: parse once, then delegate to the node-based core. */
+static void stExtResolvePlanTimezone(const char *planStr, const SStreamExtTriggerSpec *pSpec,
+                                     char *timezone, int32_t len, int8_t *pTsTzClass) {
+  if (planStr == NULL) {
+    stExtResolveReaderTimezone(NULL, pSpec, timezone, len, pTsTzClass);
+    return;
+  }
+
+  SNode  *pPlan = NULL;
+  int32_t code = nodesStringToNode(planStr, &pPlan);
+  if (code != TSDB_CODE_SUCCESS || pPlan == NULL) {
+    nodesDestroyNode(pPlan);
+    stExtResolveReaderTimezone(NULL, pSpec, timezone, len, pTsTzClass);
+    return;
+  }
+
+  stExtResolveReaderTimezone(pPlan, pSpec, timezone, len, pTsTzClass);
+  nodesDestroyNode(pPlan);
 }
 
 /* ---------------------------------------------------------------------------
@@ -2324,6 +2478,8 @@ static int32_t stExtDeployCalcReaders(SStreamReaderTask *pTask,
   int32_t replicas = pMsg->msg.calc.execReplica;
   SNode  *pTimeRange = NULL;
   SNode  *pReplicaTimeRange = NULL;
+  char    timezone[TD_TIMEZONE_LEN] = {0};
+  int8_t  tsTzClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
 
   if (replicas <= 0) {
     ST_TASK_ELOG("ext: invalid calc reader replica count:%d", replicas);
@@ -2335,11 +2491,19 @@ static int32_t stExtDeployCalcReaders(SStreamReaderTask *pTask,
                                             pMsg->pExtSpec->sourceName, &pTimeRange),
                   &lino, end);
 
+  /* The calc reader has no physi node at execution time: carry the planner's
+   * client timezone (SFederatedScanPhysiNode.timezone, or the table scan's
+   * timezoneName for a virtual-table trigger) so timezone-naive source
+   * timestamps are converted with the stream's timezone. */
+  stExtResolveReaderTimezone(pCalcPlan, pMsg->pExtSpec, timezone, sizeof(timezone), &tsTzClass);
+  ST_TASK_DLOG("ext: calc reader timezone:%s tsTzClass:%d",
+               timezone[0] != '\0' ? timezone : "(none)", (int)tsTzClass);
+
   for (int32_t execId = 0; execId < replicas; ++execId) {
     void *pExtInfo = NULL;
     TAOS_CHECK_GOTO(nodesCloneNode(pTimeRange, &pReplicaTimeRange), &lino, end);
     code = stExtReaderOpen(pMsg->pExtSpec, &pTask->task,
-                           pReplicaTimeRange, &pExtInfo);
+                           pReplicaTimeRange, timezone, tsTzClass, &pExtInfo);
     pReplicaTimeRange = NULL;
     TAOS_CHECK_GOTO(code, &lino, end);
     if (taosArrayPush(pTask->info, &pExtInfo) == NULL) {
@@ -2386,7 +2550,14 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
       TAOS_CHECK_GOTO(stExtBuildCalcColumns(pTask, pMsg), &lino, end);
 
       void *pExtInfo = NULL;
-      TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, NULL, &pExtInfo), &lino, end);
+      char   timezone[TD_TIMEZONE_LEN] = {0};
+      int8_t tsTzClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+      stExtResolvePlanTimezone((const char *)pMsg->msg.trigger.triggerScanPlan, pMsg->pExtSpec,
+                               timezone, sizeof(timezone), &tsTzClass);
+      ST_TASK_DLOG("ext trigger reader timezone:%s tsTzClass:%d",
+                   timezone[0] != '\0' ? timezone : "(none)", (int)tsTzClass);
+      TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, NULL, timezone,
+                                      tsTzClass, &pExtInfo), &lino, end);
       pTask->info = pExtInfo;
       ST_TASK_DLOG("ext trigger reader opened: pInfo=%p flags=%" PRId64,
                    pTask->info, pTask->task.flags);

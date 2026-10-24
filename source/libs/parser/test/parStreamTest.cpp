@@ -8723,6 +8723,21 @@ void registerExtMysqlEvents() {
                                        TSDB_TIME_PRECISION_MILLI);
 }
 
+// Helper: register a mock SQL Server ext source with one table whose time axis
+// carries the given remote type (e.g. "datetime2(7)").  The remote type name is
+// what createStreamReqBuildTriggerAst inspects to reject a time key the reader's
+// microsecond watermark cannot track.
+void registerExtSqlServerTimeAxis(const char* sourceName, const char* tableName,
+                                  const char* tsExtType) {
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, tsExtType});
+  cols.push_back({"v", TSDB_DATA_TYPE_INT, false, true, false, "int"});
+  g_mockCatalogService->createExtSource(sourceName, EXT_SOURCE_SQLSERVER,
+                                        "127.0.0.1", 1433, "sa", "ssdb", "dbo");
+  g_mockCatalogService->createExtTable(sourceName, "", "", tableName, cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+}
+
 // RAII guard for tsFederatedQueryEnable so each test cleans up after itself.
 class FederatedFlagGuard {
  public:
@@ -8969,6 +8984,46 @@ TEST_F(ParserStreamTest, TestFederatedStreamExtPartitionByRejected) {
       "as select _twstart ts, count(*) cnt from ext_pg.metrics "
       "where ts >= _twstart and ts < _twend",
       TSDB_CODE_STREAM_EXT_PARTITION_NOT_SUPPORTED);
+#endif
+}
+
+// SQL Server time axes finer than one microsecond cannot be tracked by the
+// reader's microsecond watermark (the connector truncates the seventh digit),
+// so CREATE STREAM must reject them while datetime2(6) keeps working.  This
+// covers the parser-side check in createStreamReqBuildTriggerAst(); the
+// virtual-table counterpart is rejected by mnode when the reader is deployed.
+TEST_F(ParserStreamTest, ExtTriggerRejectsSubMicrosecondSqlServerTimeAxis) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  GlobalTimezoneStringGuard timezoneGuard("UTC");
+  registerExtSqlServerTimeAxis("ext_ss_7", "fine_t", "datetime2(7)");
+  registerExtSqlServerTimeAxis("ext_ss_default", "default_t", "datetime2");
+  registerExtSqlServerTimeAxis("ext_ss_6", "ok_t", "datetime2(6)");
+
+  // Explicit 7 digits and the omitted modifier (SQL Server default 7) both
+  // declare a fraction the microsecond cursor cannot represent.
+  runAsyncOnly(
+      "create stream stream_streamdb.s_ext_ss_7 interval(10m) sliding(10m) "
+      "from ext_ss_7.fine_t into stream_outdb.stream_out "
+      "as select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend",
+      TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED);
+  runAsyncOnly(
+      "create stream stream_streamdb.s_ext_ss_default interval(10m) sliding(10m) "
+      "from ext_ss_default.default_t into stream_outdb.stream_out "
+      "as select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend",
+      TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED);
+
+  // datetime2(6) is exactly representable in the microsecond transport.
+  runAsyncOnly(
+      "create stream stream_streamdb.s_ext_ss_6 interval(10m) sliding(10m) "
+      "from ext_ss_6.ok_t into stream_outdb.stream_out "
+      "as select _twstart ts, count(*) cnt from stream_querydb.stream_t2 "
+      "where ts >= _twstart and ts < _twend");
 #endif
 }
 

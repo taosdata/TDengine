@@ -128,7 +128,9 @@ typedef struct SColumnRefNode {
   // [FG-9] Extended for federated query 4-segment path: source.db.table.col
   // Non-empty refSourceName indicates an external (4-segment path) reference.
   char      refSourceName[TSDB_EXT_SOURCE_NAME_LEN];    // 4-segment first token (external source name)
-  char      refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema segment (5-segment path); empty otherwise
+  char      refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema: from the path (5-segment field, or the
+                                                        // middle segment of a 4-segment SQL Server path) or the
+                                                        // source default filled by normalizeExternalRefNamespace()
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
   SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
   // Own (extension) column declaration of a virtual child table: set when the col_ref

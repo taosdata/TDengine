@@ -1188,6 +1188,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_PARTITION_NOT_SUPPORTED, "PARTITION BY is
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO,    "External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_HISTORY_NOT_SUPPORTED,   "FILL_HISTORY/FILL_HISTORY_FIRST is not supported for external (federated) trigger tables")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TAG_INVALID,             "Influxdb tag value is too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED, "External timestamp primary key is finer than the microsecond stream cursor")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_ROLLUP_ILLEGAL_PATH,     "Stream rollup tag path is illegal")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_ROLLUP,          "Invalid ROLLUP BY clause")
 
