@@ -107,6 +107,7 @@ struct tmq_conf_t {
   void*          commitCbUserParam;
   int8_t         enableBatchMeta;
   char*          token;
+  int64_t        startTs;  // msg.consume.start.ts: only consume records with primary ts >= this (ms), 0 = disabled
 };
 
 struct tmq_t {
@@ -133,6 +134,7 @@ struct tmq_t {
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
   int8_t         enableBatchMeta;
+  int64_t        startTs;  // msg.consume.start.ts: only consume records with primary ts >= this (ms), 0 = disabled
 
   // status
   SRWLatch lock;

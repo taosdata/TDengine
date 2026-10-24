@@ -1,0 +1,7 @@
+## 前置条件
+
+- 已部署 Neuron 和 eKuiper：可以是 NeuronEX 4.0.0 及以上版本（已集成两者，参见 [NeuronEX 安装文档](https://docs.emqx.com/zh/neuronex/latest/installation/introduction.html)），也可以是开源组合的 Neuron 2.15.0 及以上版本与 eKuiper（须包含 InfluxDB v1 sink）。
+- 已在 Neuron（或 NeuronEX）中完成设备采集配置：设备已添加、采集组已创建、点位已配置，设备处于运行中、已连接状态，且在「数据监控」中能看到点位值持续更新。设备使用的协议没有限制——Modbus、OPC UA、Siemens S7 等 Neuron 支持的协议均可。
+- Neuron 所在主机能够访问 taosAdapter 的 HTTP 端口，默认为 `6041`。
+- 需要断链缓存与恢复补发时，需确认 eKuiper 已包含[缓存与转发](../03-Neuron.md#缓存与转发store-and-forward)一节所述的错误重试修复。
+- 已部署 TDengine TSDB 3.4.3.6 及以上版本，并已创建用于写入的数据库。

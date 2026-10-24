@@ -39,6 +39,10 @@ The data sources currently supported by TDengine are as follows:
 | TDengine Query | 2.4+, 3.0+ | Query from older version of TDengine and write into new cluster. |
 | TDengine Data Subscription | 3.0+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
 
+## Edge Gateway Onboarding
+
+In addition to the ingestion tasks above, the **Data In** page in taosExplorer provides an **Edge Gateways** tab for writing data already collected by an edge gateway (currently Neuron and NeuronEX) into TDengine with one click, without creating an ingestion task. See [Edge Gateway Onboarding](../05-edge-gateway/index.md).
+
 ## Data Extraction, Filtering, and Transformation
 
 Since there can be multiple data sources, each data source may have different physical units, naming conventions, and time zones. To address this issue, TDengine has built-in ETL capabilities that can parse and extract the required data from the data packets of data sources, and perform filtering and transformation to ensure the quality of the data written and provide a unified namespace. The specific functions are as follows:

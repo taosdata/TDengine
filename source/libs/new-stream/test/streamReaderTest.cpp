@@ -31,11 +31,13 @@
 
 #include "dataSink.h"
 #include "nodes.h"
+#include "osTimezone.h"
 #include "stream.h"
 #include "streamInt.h"
 #include "streamReader.h"
 #include "streamReaderExt.h"
 #include "extConnector.h"
+#include "extTypeMap.h"
 #include "streamRunner.h"
 #include "stub.h"
 #include "tmsg.h"
@@ -45,16 +47,19 @@
 using reader_fetch_benchmark::ReaderFetchLayout;
 
 extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
-                                   void **ppInfo);
+                                   const char *timezone, int8_t tsTzClass, void **ppInfo);
 extern "C" void stExtReaderClose(void *pInfo);
 
 namespace {
 
 std::string gInfluxPrecisionSql;
+std::string gCapturedConnTimezone;
 
-int32_t captureInfluxPrecisionQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *sql,
+int32_t captureInfluxPrecisionQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *,
+                                    const char *timezoneName, const char *sql,
                                     SExtQueryHandle **query, SExtConnectorError *) {
   gInfluxPrecisionSql = sql;
+  gCapturedConnTimezone = (timezoneName != nullptr) ? timezoneName : "";
   *query = nullptr;
   return TSDB_CODE_SUCCESS;
 }
@@ -66,6 +71,23 @@ int32_t finishInfluxPrecisionQuery(SExtQueryHandle *, const SExtColTypeMapping *
 }
 
 void closeInfluxPrecisionQuery(SExtQueryHandle *) {}
+
+/* Restores the process-wide timezone whatever the assertion outcome: every test
+ * in this binary shares the taosd global timezone, so a mid-test ASSERT failure
+ * would otherwise leave the following cases running in the wrong timezone. */
+class GlobalTimezoneGuard {
+ public:
+  explicit GlobalTimezoneGuard(const char *timezone) : code_(taosSetGlobalTimezone(timezone)) {}
+  ~GlobalTimezoneGuard() {
+    if (code_ == TSDB_CODE_SUCCESS) {
+      (void)taosSetGlobalTimezone("UTC");
+    }
+  }
+  int32_t code() const { return code_; }
+
+ private:
+  int32_t code_;
+};
 
 TEST(StreamReaderTest, InfluxCalcBoundsUseReaderPrecisionAndSaturate) {
   Stub stub;
@@ -97,8 +119,145 @@ TEST(StreamReaderTest, InfluxCalcBoundsUseReaderPrecisionAndSaturate) {
   }
 }
 
-bool gInfluxTimestampBatchPending = false;
+/* Remote SQL bounds must be rendered with the same timezone the connector
+ * uses to decode the source column: the stream client timezone for
+ * timezone-naive columns (MySQL DATETIME, PG timestamp without time zone,
+ * SQL Server datetime2), and an absolute UTC instant for timezone-aware ones
+ * (MySQL TIMESTAMP, PG timestamptz).  Before this, bounds were always rendered
+ * in the server timezone, so a stream whose timezone differs from the server
+ * shifted every fetch and metadata range. */
+TEST(StreamReaderTest, RelationalFetchBoundsFollowSourceColumnTimezone) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
 
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_MYSQL;
+  reader.spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(reader.spec.extDb, "testdb", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+
+  // 2026-10-21 04:00:00Z == 2026-10-21 12:00:00 in Asia/Shanghai.
+  const int64_t skey = 1792555200000000LL;
+  const int64_t ekey = skey + 1000000LL;
+  SSDataBlock *block = nullptr;
+
+  // Timezone-naive column: bounds follow the stream timezone, matching the
+  // timezone the connector is told to use for decoding.
+  tstrncpy(reader.timezone, "Asia/Shanghai", sizeof(reader.timezone));
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, ekey, &block), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCapturedConnTimezone, "Asia/Shanghai");
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+
+  // Timezone-aware column: MySQL interprets an offset-less literal in its own
+  // session timezone, which the reader cannot observe, and an explicit
+  // "+00:00" suffix is only understood from MySQL 8.0.19 on (5.7 treats it as
+  // trailing garbage).  The bound is therefore an absolute instant rendered as
+  // FROM_UNIXTIME(<epoch>), which every supported MySQL evaluates in its
+  // session timezone, and it must not follow the stream timezone: the SQL is
+  // identical for two different stream timezones.
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, ekey, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find(">= FROM_UNIXTIME(1792555200.000000)"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_NE(gInfluxPrecisionSql.find("<= FROM_UNIXTIME(1792555201.000000)"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_EQ(gInfluxPrecisionSql.find("+00:00"), std::string::npos) << gInfluxPrecisionSql;
+  const std::string awareShanghai = gInfluxPrecisionSql;
+  tstrncpy(reader.timezone, "UTC", sizeof(reader.timezone));
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, ekey, &block), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gInfluxPrecisionSql, awareShanghai);
+}
+
+TEST(StreamReaderTest, SqlServerAwareBoundsUseUtcAndNaiveBoundsUseClientTimezone) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_SQLSERVER;
+  reader.spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(reader.spec.extDb, "testdb", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extSchema, "dbo", sizeof(reader.spec.extSchema));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  const int64_t skey = 1792555200000000LL;
+  SSDataBlock *block = nullptr;
+  for (const char *timezone : {"Asia/Shanghai", "America/New_York"}) {
+    tstrncpy(reader.timezone, timezone, sizeof(reader.timezone));
+    reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+    ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:00.000000'"), std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:01.000000'"), std::string::npos);
+    // SQL Server reads an offset-less datetimeoffset literal as +00:00, so the
+    // literal keeps the suffix-free form the end-to-end case validates.
+    EXPECT_EQ(gInfluxPrecisionSql.find("+00:00"), std::string::npos) << gInfluxPrecisionSql;
+    EXPECT_EQ(gCapturedConnTimezone, timezone);
+  }
+  tstrncpy(reader.timezone, "Asia/Shanghai", sizeof(reader.timezone));
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos);
+}
+
+/* Regression for a non-UTC taosd.  The reader used to render every remote SQL
+ * bound with the server global timezone, so on an Asia/Shanghai server the
+ * bounds above were emitted as 12:00:00 for the 04:00:00Z instant.  SQL Server
+ * reads an offset-less literal as +00:00, which shifted the whole fetch range
+ * by eight hours: rows just past the metadata watermark were filtered out and
+ * the window fetch returned nothing.  A tz-aware time axis must therefore stay
+ * on UTC whatever the server or stream timezone is, while a tz-naive one keeps
+ * following the stream timezone. */
+TEST(StreamReaderTest, SqlServerAwareBoundsIgnoreNonUtcServerTimezone) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_SQLSERVER;
+  reader.spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(reader.spec.extDb, "testdb", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extSchema, "dbo", sizeof(reader.spec.extSchema));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  // 2026-10-21 04:00:00Z == 2026-10-21 12:00:00 in Asia/Shanghai.
+  const int64_t skey = 1792555200000000LL;
+  SSDataBlock *block = nullptr;
+
+  GlobalTimezoneGuard tzGuard("Asia/Shanghai");
+  ASSERT_EQ(tzGuard.code(), TSDB_CODE_SUCCESS);
+
+  // tz-aware (datetimeoffset): bounds must stay in UTC even though the server
+  // timezone now differs from the stream timezone.
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  tstrncpy(reader.timezone, "Asia/Shanghai", sizeof(reader.timezone));
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_EQ(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+
+  // tz-naive (datetime2): the stream timezone decides, not the server one.
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  tstrncpy(reader.timezone, "UTC", sizeof(reader.timezone));
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_EQ(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+}
+
+bool gInfluxTimestampBatchPending = false;
 int32_t fetchInfluxTimestampBatch(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
                                  SSDataBlock **block, SExtConnectorError *) {
   *block = nullptr;
@@ -282,7 +441,8 @@ int32_t cloneExternalReaderPlan(const char *, SNode **ppNode) {
   return nodesCloneNode(gExternalReaderPlan, ppNode);
 }
 
-int32_t stopExternalReaderOpen(void *, const SStreamTask *, SNode *range, void **) {
+int32_t stopExternalReaderOpen(void *, const SStreamTask *, SNode *range, const char *, int8_t,
+                               void **) {
   ++gExternalReaderOpenCalls;
   nodesDestroyNode(range);
   return TSDB_CODE_OPS_NOT_SUPPORT;
@@ -358,19 +518,22 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
 
 struct ExternalCalcReaderStub {
   SNode *range;
+  std::string timezone;
+  int8_t tsTzClass;
 };
 
 int32_t gExternalReaderCloseCalls = 0;
 int32_t gExternalReaderFailAt = 0;
 
-int32_t openExternalCalcReaderStub(void *, const SStreamTask *, SNode *range, void **info) {
+int32_t openExternalCalcReaderStub(void *, const SStreamTask *, SNode *range, const char *timezone, int8_t tsTzClass,
+                                   void **info) {
   ++gExternalReaderOpenCalls;
   *info = nullptr;
   if (gExternalReaderOpenCalls == gExternalReaderFailAt) {
     nodesDestroyNode(range);
     return TSDB_CODE_EXT_RESOURCE_EXHAUSTED;
   }
-  *info = new ExternalCalcReaderStub{range};
+  *info = new ExternalCalcReaderStub{range, timezone, tsTzClass};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -424,6 +587,28 @@ class ExternalCalcReaderDeployTest : public ::testing::Test {
   Stub stub;
 };
 
+TEST_F(ExternalCalcReaderDeployTest, PreservesCaseSensitiveTimestampColumnIdentity) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  scan->sourceType = EXT_SOURCE_POSTGRESQL;
+  tstrncpy(scan->timezone, "Asia/Shanghai", sizeof(scan->timezone));
+  tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+  scan->pTimestampTypeHints = static_cast<SExtTimestampTypeHint *>(
+      taosMemoryCalloc(2, sizeof(SExtTimestampTypeHint)));
+  ASSERT_NE(scan->pTimestampTypeHints, nullptr);
+  scan->numTimestampTypeHints = 2;
+  tstrncpy(scan->pTimestampTypeHints[0].colName, "Ts", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[0].tzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  tstrncpy(scan->pTimestampTypeHints[1].colName, "ts", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[1].tzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t i = 0; i < message.msg.calc.execReplica; ++i) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, i));
+    EXPECT_EQ(reader->timezone, "Asia/Shanghai");
+    EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+  }
+}
+
 TEST_F(ExternalCalcReaderDeployTest, CreatesIndependentReplicasAndClosesAll) {
   ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
   ASSERT_EQ(gExternalReaderOpenCalls, 3);
@@ -476,6 +661,122 @@ TEST_F(ExternalCalcReaderDeployTest, FirstOpenFailureLeavesNoInstances) {
   EXPECT_EQ(gExternalReaderOpenCalls, 1);
   EXPECT_EQ(gExternalReaderCloseCalls, 0);
   EXPECT_EQ(task.info, nullptr);
+}
+
+/* A stream whose trigger table is a virtual table backed by an external source
+ * is deployed as an original-table reader from a plain table scan: its plan has
+ * no federated-scan node, so the federated-scan lookup finds neither the client
+ * timezone nor the ts-column timezone class.  The reader then fell back to the
+ * server global timezone and EXT_TIMESTAMP_TZ_CLASS_UNKNOWN, which rendered
+ * SQL Server datetimeoffset bounds as an offset-less wall clock in the server
+ * timezone instead of UTC and dropped rows just past the watermark.  The plan's
+ * STableScanPhysiNode.timezoneName and the remote type in the deploy spec carry
+ * exactly the same information. */
+void buildVirtualTableScanPlan(SNode **ppNode, const char *timezone) {
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, ppNode), TSDB_CODE_SUCCESS);
+  auto *scan = reinterpret_cast<STableScanPhysiNode *>(*ppNode);
+  tstrncpy(scan->timezoneName, timezone, sizeof(scan->timezoneName));
+}
+
+class ExternalTriggerReaderDeployTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    buildVirtualTableScanPlan(&gExternalReaderPlan, "Asia/Shanghai");
+    ASSERT_NE(gExternalReaderPlan, nullptr);
+
+    spec.sourceType = EXT_SOURCE_SQLSERVER;
+    spec.precision = TSDB_TIME_PRECISION_MICRO;
+    tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+    tstrncpy(spec.extDb, "metrics", sizeof(spec.extDb));
+    tstrncpy(spec.extSchema, "dbo", sizeof(spec.extSchema));
+    tstrncpy(spec.extTable, "dto_t", sizeof(spec.extTable));
+    tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+
+    char tsCol[TSDB_COL_NAME_LEN] = {0};
+    tstrncpy(tsCol, "ts", sizeof(tsCol));
+    spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+    ASSERT_NE(spec.triggerColumns, nullptr);
+    ASSERT_NE(taosArrayPush(spec.triggerColumns, tsCol), nullptr);
+    spec.pColMappings = static_cast<SExtColTypeMapping *>(
+        taosMemoryCalloc(1, sizeof(SExtColTypeMapping)));
+    ASSERT_NE(spec.pColMappings, nullptr);
+    spec.numColMappings = 1;
+    tstrncpy(spec.pColMappings[0].colName, "ts", sizeof(spec.pColMappings[0].colName));
+
+    message.triggerReader = 1;
+    message.pExtSpec = &spec;
+    message.msg.trigger.triggerScanPlan = const_cast<char *>("virtual-table-scan-plan");
+
+    gExternalReaderOpenCalls = 0;
+    gExternalReaderCloseCalls = 0;
+    gExternalReaderFailAt = 0;
+    stub.set(nodesStringToNode, cloneExternalReaderPlan);
+    stub.set(stExtReaderOpen, openExternalCalcReaderStub);
+    stub.set(stExtReaderClose, closeExternalCalcReaderStub);
+  }
+
+  void TearDown() override {
+    if (task.info != nullptr) {
+      SStreamReaderTask *readerTask = &task;
+      task.task.undeployCb = finishExternalReaderUndeploy;
+      EXPECT_EQ(stReaderTaskUndeploy(&readerTask, true), TSDB_CODE_SUCCESS);
+    }
+    streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+    taosArrayDestroy(spec.triggerColumns);
+    taosMemoryFree(spec.pColMappings);
+    nodesDestroyNode(gExternalReaderPlan);
+    gExternalReaderPlan = nullptr;
+  }
+
+  void setRemoteType(const char *extTypeName) {
+    tstrncpy(spec.pColMappings[0].extTypeName, extTypeName, sizeof(spec.pColMappings[0].extTypeName));
+  }
+
+  SStreamReaderTask task = {};
+  SStreamExtTriggerSpec spec = {};
+  SStreamReaderDeployMsg message = {};
+  Stub stub;
+};
+
+TEST_F(ExternalTriggerReaderDeployTest, TakesTimezoneFromVirtualTableScanPlan) {
+  setRemoteType("datetime2(6)");
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *reader = static_cast<ExternalCalcReaderStub *>(task.info);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->timezone, "Asia/Shanghai");
+  EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+}
+
+TEST_F(ExternalTriggerReaderDeployTest, ClassifiesDatetimeoffsetFromRemoteTypeMapping) {
+  setRemoteType("datetimeoffset(6)");
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *reader = static_cast<ExternalCalcReaderStub *>(task.info);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->timezone, "Asia/Shanghai");
+  EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_AWARE);
+}
+
+TEST_F(ExternalTriggerReaderDeployTest, ClassifiesZeroScaleDatetimeoffsetFromRemoteTypeMapping) {
+  setRemoteType("datetimeoffset(0)");
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *reader = static_cast<ExternalCalcReaderStub *>(task.info);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_AWARE);
+}
+
+TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
+  // MySQL and SQL Server resolve unquoted identifiers case-insensitively, so a
+  // reference written in a different case still binds to the stored column;
+  // PostgreSQL and InfluxDB compare names literally.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, "Ts", "ts"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_SQLSERVER, "Ts", "ts"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "Ts", "ts"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "Ts", "ts"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "ts", "ts"));
+  // The helper stays total for optional metadata: a NULL name never matches a
+  // real one, and two NULLs compare equal.
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_MYSQL, "ts", nullptr));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, nullptr, nullptr));
 }
 
 SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {

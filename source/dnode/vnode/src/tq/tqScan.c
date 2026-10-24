@@ -22,6 +22,7 @@
 #include "tmsg.h"
 #include "tpriv.h"
 #include "tq.h"
+#include "ttime.h"
 #include "vnd.h"
 
 static int32_t tqRetrieveCols(STqReader *pReader, SSDataBlock *pRes, SHashObj* pCol2SlotId);
@@ -1745,6 +1746,73 @@ static void tqFreeTableSchemaCache(const void* key, size_t keyLen, void* value, 
   }
 }
 
+// ---------------------------------------------------------------------------
+// msg.consume.start.ts support: only effective for table/database subscriptions
+// (query subscriptions are not affected -- they should filter ts in WHERE).
+// TSDB data records are filtered by the primary timestamp (ts) of the data;
+// rawdata (msg.consume.rawdata) and meta messages are never filtered.
+// ---------------------------------------------------------------------------
+
+// Convert the client-supplied threshold (milliseconds) to the vnode's tsdb
+// precision. A non-positive threshold means the feature is disabled: the client
+// rejects negative values, and a negative value arriving on the wire is ignored.
+static int64_t tqStartTsInVnodePrec(const SMqPollReq* pRequest, int8_t precision) {
+  if (pRequest->startTs <= 0) {
+    return 0;
+  }
+  int64_t scale = convertTimePrecision(1, TSDB_TIME_PRECISION_MILLI, precision);
+  if (scale > 1 && pRequest->startTs > INT64_MAX / scale) {
+    tqWarn("start timestamp:%" PRId64 " overflows precision:%d, clamp to INT64_MAX", pRequest->startTs, precision);
+    return INT64_MAX;
+  }
+  return convertTimePrecision(pRequest->startTs, TSDB_TIME_PRECISION_MILLI, precision);
+}
+
+// Trim the leading rows whose primary timestamp is earlier than tsThreshold.
+// TSDB data blocks are time-ordered, so all filtered rows are at the front.
+// Returns the remaining number of rows (0 means the whole block was filtered
+// or discarded after a trim failure).
+static int32_t tqFilterDataBlockByTs(SSDataBlock* pBlock, int64_t tsThreshold, int32_t vgId) {
+  if (pBlock == NULL || pBlock->info.rows <= 0 || tsThreshold == 0) {
+    return (pBlock == NULL) ? 0 : pBlock->info.rows;
+  }
+
+  SColumnInfoData* pTsCol = NULL;
+  int32_t          numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; i++) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (pCol != NULL && pCol->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pTsCol = pCol;
+      break;
+    }
+  }
+  if (pTsCol == NULL) {
+    tqWarn("vgId:%d, block without primary ts column, msg.consume.start.ts is not applied to %" PRId64 " rows",
+           vgId, pBlock->info.rows);
+    return pBlock->info.rows;
+  }
+
+  int64_t* tsData = (int64_t*)colDataGetData(pTsCol, 0);
+  if (tsData == NULL) {
+    tqWarn("vgId:%d, empty primary ts column data, msg.consume.start.ts is not applied to %" PRId64 " rows",
+           vgId, pBlock->info.rows);
+    return pBlock->info.rows;
+  }
+
+  int32_t n = 0;
+  while (n < pBlock->info.rows && tsData[n] < tsThreshold) {
+    n++;
+  }
+  // compact the trimmed rows away: leaving their bytes in the block would still ship them to the
+  // consumer, which is exactly what this filter is supposed to avoid for variable-length columns
+  if (n > 0 && blockDataTrimFirstRowsCompact(pBlock, n) != TSDB_CODE_SUCCESS) {
+    tqError("vgId:%d, failed to trim first %d rows by msg.consume.start.ts, discard the block", vgId, n);
+    blockDataEmpty(pBlock);
+    return 0;
+  }
+  return pBlock->info.rows;
+}
+
 static int32_t tqAddRawDataToRsp(const void* rawData, SMqDataRsp* pRsp, int8_t precision) {
   int32_t    code = TDB_CODE_SUCCESS;
   int32_t    lino = 0;
@@ -1950,7 +2018,9 @@ static int32_t tqScanData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, STqOff
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
   TSDB_CHECK_CODE(code, lino, END);
 
-  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout, pRequest->enableReplay);
+  // column (query) subscriptions are not affected by msg.consume.start.ts: filter ts in WHERE instead,
+  // so the parameters can still be set after the reader is prepared
+  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout, pRequest->enableReplay, 0);
   do {
     SSDataBlock* pDataBlock = NULL;
     code = tqGetDataBlock(task, pHandle, vgId, &pDataBlock);
@@ -1978,6 +2048,7 @@ END:
   if (code != 0) {
     tqError("%s failed at %d, tmq task executed error msg:%s", __FUNCTION__, lino, tstrerror(code));
   }
+
   return code;
 }
 
@@ -1987,10 +2058,15 @@ static int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp,
   char* tbName = NULL;
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
+  // msg.consume.start.ts must be set before prepare: qStreamPrepareScan reads
+  // tmqInfo.startTs to raise the snapshot scan lower bound (executor.c), and
+  // using a stale threshold here would skip rows the new request should deliver.
+  // The threshold is constant for the whole poll, so convert it once.
+  const int64_t startTs = tqStartTsInVnodePrec(pRequest, pTq->pVnode->config.tsdbCfg.precision);
+  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout, false, startTs);
+
   code = qStreamPrepareScan(task, pOffset, pHandle->execHandle.subType);
   TSDB_CHECK_CODE(code, lino, END);
-
-  qStreamSetParams(task, pRequest->sourceExcluded, pRequest->minPollRows, pRequest->timeout, false);
 
   int32_t rowCnt = 0;
   int64_t st = taosGetTimestampMs();
@@ -2003,6 +2079,16 @@ static int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp,
     tqDebug("tmqsnap task execute end, get %p", pDataBlock);
 
     if (pDataBlock != NULL && pDataBlock->info.rows > 0) {
+      if (startTs != 0 && tqFilterDataBlockByTs(pDataBlock, startTs, TD_VID(pTq->pVnode)) == 0) {
+        if (taosGetTimestampMs() - st > pRequest->timeout) {
+          code = qStreamExtractOffset(task, &pRsp->rspOffset);
+          tqDebug("vgId:%d, filtered snapshot reached poll timeout:%" PRId64 ", offset uid:%" PRIu64 ", ts:%" PRId64,
+                  TD_VID(pTq->pVnode), pRequest->timeout, pRsp->rspOffset.uid, pRsp->rspOffset.ts);
+          break;
+        }
+        continue;
+      }
+
       if (pRsp->withTbName) {
         tbName = taosStrdup(qExtractTbnameFromTask(task));
         TSDB_CHECK_NULL(tbName, code, lino, END, terrno);
@@ -2036,6 +2122,16 @@ static int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp,
       TSDB_CHECK_CODE(code, lino, END);
 
       if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+        // An empty scan (e.g. the whole table is below msg.consume.start.ts and
+        // the storage lower bound filters it out) switches to the next table and
+        // returns NULL. Check the poll time budget here too, otherwise a single
+        // poll would iterate every remaining table without returning progress.
+        if (taosGetTimestampMs() - st > pRequest->timeout) {
+          code = qStreamExtractOffset(task, &pRsp->rspOffset);
+          tqDebug("vgId:%d, empty snapshot scan reached poll timeout:%" PRId64 ", offset uid:%" PRIu64 ", ts:%" PRId64,
+                  TD_VID(pTq->pVnode), pRequest->timeout, pRsp->rspOffset.uid, pRsp->rspOffset.ts);
+          break;
+        }
         continue;
       }
 
@@ -2098,6 +2194,7 @@ static int32_t tqRetrieveTaosxBlock(STqReader* pReader, SMqDataRsp* pRsp, SArray
       return code;
     }
   } else if (rawList != NULL) {
+    // rawdata: keep the raw payload for the response, skip block decoding
     if (taosArrayPush(schemas, &pReader->pSchemaWrapper) == NULL) {
       return terrno;
     }
@@ -2150,6 +2247,56 @@ end:
   return ret;
 }
 
+// Returns true when every row of the submit is earlier than tsThreshold, so expanding it into
+// data blocks would only produce rows that tqFilterDataBlockByTs() trims away again. The WAL
+// payload has already been decoded into SRow/SColData by tqReaderSetSubmitMsg(), so this check
+// only walks the timestamps instead of building (and then discarding) a whole SSDataBlock.
+static bool tqSubmitAllRowsBefore(const SSubmitTbData* pSubmitTbData, int64_t tsThreshold) {
+  if (pSubmitTbData == NULL) {
+    return false;
+  }
+
+  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
+    int32_t numOfCols = taosArrayGetSize(pSubmitTbData->aCol);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColData* pCol = taosArrayGet(pSubmitTbData->aCol, i);
+      if (pCol == NULL || pCol->cid != PRIMARYKEY_TIMESTAMP_COL_ID) {
+        continue;
+      }
+
+      if (pCol->nVal <= 0) {
+        return false;
+      }
+
+      for (int32_t r = 0; r < pCol->nVal; ++r) {
+        SColVal colVal = {0};
+        if (tColDataGetValue(pCol, r, &colVal) != TSDB_CODE_SUCCESS || !COL_VAL_IS_VALUE(&colVal) ||
+            colVal.value.val >= tsThreshold) {
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
+  int32_t numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
+  if (numOfRows <= 0) {
+    return false;
+  }
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    SRow* pRow = taosArrayGetP(pSubmitTbData->aRowP, i);
+    if (pRow == NULL || pRow->ts >= tsThreshold) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int32_t* totalRows,
                              const SMqPollReq* pRequest, SArray* rawList, int64_t version){
   int32_t code = 0;
@@ -2164,6 +2311,24 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
   TSDB_CHECK_NULL(pSubmitTbData, code, lino, END, terrno);
 
   if (tqFilterForStbSub(pTq, pHandle, pSubmitTbData, version)) {
+    goto END;
+  }
+
+  // msg.consume.excluded: skip submits written by the excluded source BEFORE
+  // decoding. Otherwise tqRetrieveTaosxBlock pushes their embedded create-table
+  // metadata into the response, and a metadata-only data response (blockNum == 0
+  // but createTableNum > 0) would be delivered to the consumer, leaking meta
+  // that the exclusion contract promises to hide.
+  bool excluded = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
+  TSDB_CHECK_CONDITION(!excluded, code, lino, END, TSDB_CODE_SUCCESS);
+
+  // msg.consume.start.ts on the WAL path: a submit that has no create-table metadata to report
+  // and whose rows are all earlier than the threshold carries nothing for the consumer, so skip
+  // expanding it into blocks. Submits that do create a table must still go through
+  // tqRetrieveTaosxBlock(), which moves the create request into the response.
+  int64_t startTs = tqStartTsInVnodePrec(pRequest, pTq->pVnode->config.tsdbCfg.precision);
+  if (pRequest->rawData == 0 && startTs != 0 && pSubmitTbData->pCreateTbReq == NULL &&
+      tqSubmitAllRowsBefore(pSubmitTbData, startTs)) {
     goto END;
   }
 
@@ -2184,35 +2349,55 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
     lino = __LINE__;
     goto END;
   }
-  bool tmp = (pSubmitTbData->flags & pRequest->sourceExcluded) != 0;
-  TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
 
   if (pHandle->fetchMeta == ONLY_META){
     goto END;
   }
 
   int32_t blockNum = taosArrayGetSize(pBlocks) == 0 ? 1 : taosArrayGetSize(pBlocks);
+  int32_t blockCnt = (int32_t)taosArrayGetSize(pBlocks);
+
+  // msg.consume.start.ts: filter decoded TSDB data blocks by the primary ts.
+  // Rawdata WAL delivery stays unfiltered, including the auto-create decoding fallback.
+  if (pRequest->rawData == 0 && blockCnt > 0) {
+    int32_t kept = 0;
+    for (int32_t i = 0; i < blockCnt; i++) {
+      SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
+      if (pBlock == NULL) {
+        continue;
+      }
+      if (tqFilterDataBlockByTs(pBlock, startTs, TD_VID(pTq->pVnode)) > 0) {
+        kept++;
+      }
+    }
+    if (kept == 0) {
+      goto END;  // whole submit is filtered out by msg.consume.start.ts
+    }
+    blockNum = kept;
+  }
+
   if (pRsp->withTbName) {
     int64_t uid = pExec->pTqReader->lastBlkUid;
     code = tqAddTbNameToRsp(pTq, uid, pRsp, blockNum);
     TSDB_CHECK_CODE(code, lino, END);
   }
 
-  TSDB_CHECK_CONDITION(!tmp, code, lino, END, TSDB_CODE_SUCCESS);
-  for (int32_t i = 0; i < blockNum; i++) {
-    if (taosArrayGetSize(pBlocks) == 0){
-      void* rawData = taosArrayGetP(rawList, pReader->nextBlk);
-      if (rawData == NULL) {
-        continue;
-      }
-      if (tqAddRawDataToRsp(rawData, pRsp, pTq->pVnode->config.tsdbCfg.precision) != 0){
-        tqError("vgId:%d, failed to add block to rsp msg", pTq->pVnode->config.vgId);
-        continue;
-      }
-      *totalRows += *(uint32_t *)rawData + INT_BYTES; // bytes actually
-    } else {
+  if (blockCnt == 0) {
+    // rawdata: ship the raw payload unchanged, msg.consume.start.ts does not apply
+    void* rawData = taosArrayGetP(rawList, pReader->nextBlk);
+    if (rawData == NULL) {
+      goto END;
+    }
+    if (tqAddRawDataToRsp(rawData, pRsp, pTq->pVnode->config.tsdbCfg.precision) != 0){
+      tqError("vgId:%d, failed to add block to rsp msg", pTq->pVnode->config.vgId);
+      goto END;
+    }
+    *totalRows += *(uint32_t *)rawData + INT_BYTES; // bytes actually
+    pRsp->blockNum++;
+  } else {
+    for (int32_t i = 0; i < blockCnt; i++) {
       SSDataBlock* pBlock = taosArrayGet(pBlocks, i);
-      if (pBlock == NULL) {
+      if (pBlock == NULL || pBlock->info.rows == 0) {
         continue;
       }
 
@@ -2222,9 +2407,8 @@ static void tqProcessSubData(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, int
         continue;
       }
       *totalRows += pBlock->info.rows;
+      pRsp->blockNum++;
     }
-
-    pRsp->blockNum++;
   }
   tqTrace("vgId:%d, process sub data success, response blocknum:%d, rows:%d", pTq->pVnode->config.vgId, pRsp->blockNum, *totalRows);
 END:
@@ -2401,7 +2585,10 @@ static int32_t tqExtractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHa
           tqOffsetResetToMeta(pOffsetVal, 0);
         } else {
           SValue val = {0};
+          // The snapshot lower bound itself is applied by the executor (tmqInfo.startTs);
+          // the offset starts at 0 and the scan trims rows before the threshold.
           tqOffsetResetToData(pOffsetVal, 0, 0, val);
+          tqDebug("vgId:%d, initialize snapshot offset, start timestamp:%" PRId64, vgId, pRequest->startTs);
         }
       } else {
         walRefFirstVer(pTq->pVnode->pWal, pHandle->pRef);
@@ -2571,6 +2758,11 @@ END:
   return code;
 }
 
+// Upper bound for create-table metadata accumulated in one poll response. A filtered
+// auto-create-table INSERT contributes no rows, so minPollRows bounds only the request count;
+// a few very wide tables could still make the response arbitrarily large.
+#define TQ_PENDING_CREATE_TABLE_BYTES_LIMIT (4 * 1024 * 1024)
+
 #define SEND_BATCH_META_RSP \
 tqOffsetResetToLog(&btMetaRsp.rspOffset, fetchVer);\
 code = tqSendBatchMetaPollRsp(pHandle, pMsg, pRequest, &btMetaRsp, vgId);\
@@ -2601,7 +2793,7 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
 
     tqDebug("taosx poll: consumer:0x%" PRIx64 " subkey:%s vgId:%d, send data blockNum:%d, offset type:%d,uid:%" PRId64",ts:%" PRId64,
             pRequest->consumerId, pHandle->subKey, vgId, taosxRsp.blockNum, taosxRsp.rspOffset.type, taosxRsp.rspOffset.uid, taosxRsp.rspOffset.ts);
-    if (taosxRsp.blockNum > 0) {
+    if (taosxRsp.blockNum > 0 || taosxRsp.rspOffset.type == TMQ_OFFSET__SNAPSHOT_DATA) {
       code = tqSendDataRsp(pHandle, pMsg, pRequest, &taosxRsp, TMQ_MSG_TYPE__POLL_DATA_RSP, vgId);
       goto END;
     } else {
@@ -2616,6 +2808,10 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
     uint64_t st = taosGetTimestampMs();
     int      totalRows = 0;
     int32_t  totalMetaRows = 0;
+    // Running byte total of the pending create-table metadata; createTableLen holds one length
+    // per request and pendingMetaCount tracks how many of them are already summed.
+    int64_t  pendingMetaBytes = 0;
+    int32_t  pendingMetaCount = 0;
     while (1) {
       int32_t savedEpoch = atomic_load_32(&pHandle->epoch);
       if (savedEpoch > pRequest->epoch) {
@@ -2713,7 +2909,10 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
 
       // process meta
       if (pHead->msgType != TDMT_VND_SUBMIT) {
-        if (totalRows > 0) {
+        // A filtered auto-create-table INSERT leaves createTableNum > 0 with no
+        // data rows. Deliver that pending metadata before advancing to DDL, or
+        // the consumer would receive the DDL without ever learning the table.
+        if (totalRows > 0 || taosxRsp.createTableNum > 0) {
           SEND_DATA_RSP
         }
 
@@ -2793,7 +2992,29 @@ static int32_t tqExtractDataAndRspForDbStbSubscribe(STQ* pTq, STqHandle* pHandle
         continue;
       }
 
-      if ((pRequest->rawData == 0 && totalRows >= pRequest->minPollRows) ||
+      // A filtered auto-create-table INSERT contributes create-table metadata without any
+      // surviving row, so totalRows alone no longer bounds the response: a backlog of such
+      // INSERTs would accumulate until EOF or the poll timeout (fetch.max.wait.ms can be up to
+      // 60s) and keep growing the response buffer and final message. Bound the pending metadata
+      // by the same batch size as data rows, and by bytes so a few wide tables cannot fill a
+      // response either.
+      if (taosxRsp.createTableNum > pendingMetaCount) {
+        for (int32_t i = pendingMetaCount; i < taosxRsp.createTableNum; ++i) {
+          int32_t *pLen = taosArrayGet(taosxRsp.createTableLen, i);
+          if (pLen != NULL) {
+            pendingMetaBytes += *pLen;
+          }
+        }
+        pendingMetaCount = taosxRsp.createTableNum;
+      }
+
+      bool metaLimit = taosxRsp.createTableNum >= pRequest->minPollRows ||
+                       pendingMetaBytes >= TQ_PENDING_CREATE_TABLE_BYTES_LIMIT;
+      if (metaLimit) {
+        tqDebug("vgId:%d, flush pending create metadata, count:%d, bytes:%" PRId64 ", rawData:%d", vgId,
+                taosxRsp.createTableNum, pendingMetaBytes, pRequest->rawData);
+      }
+      if (metaLimit || (pRequest->rawData == 0 && totalRows >= pRequest->minPollRows) ||
           (taosGetTimestampMs() - st > pRequest->timeout) ||
           (pRequest->rawData != 0 && (taosArrayGetSize(taosxRsp.blockData) > pRequest->minPollRows ||
                                       terrno == TSDB_CODE_TMQ_RAW_DATA_SPLIT))) {

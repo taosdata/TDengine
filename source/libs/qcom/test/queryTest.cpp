@@ -490,4 +490,28 @@ TEST(TableMetaTest, acceptsVirtualChildWithoutColumnReferences) {
   taosMemoryFree(meta);
 }
 
+TEST(ExtTimestampTypePrecisionTest, rejectsSubMicrosecondFraction) {
+  // SQL Server datetime2/datetimeoffset accept 7 fractional digits and default
+  // to 7 when the modifier is omitted.  The connector transports microseconds,
+  // so a stream reader cannot walk such a column with a microsecond cursor.
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2(7)"));
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetimeoffset(7)"));
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2"));
+  EXPECT_TRUE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetimeoffset"));
+
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetimeoffset(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime2(0)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "datetime"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "smalldatetime"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, "date"));
+
+  // Other providers never declare more than 6 fractional digits, and the
+  // InfluxDB reader keeps its native nanosecond resolution.
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_MYSQL, "datetime(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_POSTGRESQL, "timestamp(6)"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_INFLUXDB, "timestamp"));
+  EXPECT_FALSE(extTimestampTypeHasSubMicroFraction(EXT_SOURCE_SQLSERVER, nullptr));
+}
+
 #pragma GCC diagnostic pop

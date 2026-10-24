@@ -7483,6 +7483,7 @@ typedef struct {
   int8_t       rawData;
   int32_t      minPollRows;
   int8_t       enableBatchMeta;
+  int64_t      startTs;  // msg.consume.start.ts: only consume data with primary ts >= this (ms), 0 = disabled
   SHashObj*    uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 

@@ -1457,6 +1457,122 @@ end:
   return code;
 }
 
+// Replay auto-create metadata independently of data blocks: timestamp filtering
+// can remove every block for one table while retaining blocks for other tables.
+// Tables that *do* have a block in this response are left to the block replay
+// path below (which carries the same create request), exactly as before. Only
+// tables whose blocks were fully filtered out are created here.
+//
+// The table names that carry a block are collected once per response. Scanning
+// pDataRsp->blockTbName from every create request would be O(tables x blocks),
+// which is quadratic for the common auto-create shape of one block per table --
+// a default min.poll.rows batch can carry thousands of them.
+static int32_t buildBlockNameSet(const SMqDataRsp* pDataRsp, SHashObj** ppBlockNames) {
+  *ppBlockNames = NULL;
+  if (pDataRsp == NULL || pDataRsp->blockTbName == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t numBlocks = taosArrayGetSize(pDataRsp->blockTbName);
+  if (numBlocks <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SHashObj* pBlockNames =
+      taosHashInit(numBlocks, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (pBlockNames == NULL) {
+    return terrno == 0 ? TSDB_CODE_OUT_OF_MEMORY : terrno;
+  }
+
+  for (int32_t i = 0; i < numBlocks; ++i) {
+    const char* tbName = (const char*)taosArrayGetP(pDataRsp->blockTbName, i);
+    if (tbName == NULL || tbName[0] == '\0') {
+      continue;
+    }
+    // A table with several blocks shows up once per block; duplicates are harmless.
+    // The key only borrows the response-owned string (no free callback is set).
+    int32_t code = taosHashPut(pBlockNames, tbName, strlen(tbName), NULL, 0);
+    if (code == TSDB_CODE_DUP_KEY) {
+      // taosHashPut() leaves terrno on the duplicate-key path; do not leak that into the
+      // error reporting of the block replay that follows.
+      terrno = 0;
+      continue;
+    }
+    if (code != 0) {
+      taosHashCleanup(pBlockNames);
+      return code;
+    }
+  }
+
+  *ppBlockNames = pBlockNames;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createTablesFromMetaRsp(SHashObj* pCreateTbHash, const SMqDataRsp* pDataRsp, TAOS* taos) {
+  if (pCreateTbHash == NULL || taos == NULL) {
+    uError("invalid parameter in %s", __func__);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t nReqs = taosHashGetSize(pCreateTbHash);
+  if (nReqs == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  SVCreateTbBatchReq batch = {0};
+  void*  pMsg = NULL;
+  SEncoder encoder = {0};
+  SHashObj* pBlockNames = NULL;
+  RAW_LOG_START
+
+  batch.pArray = taosArrayInit(nReqs, sizeof(SVCreateTbReq));
+  RAW_NULL_CHECK(batch.pArray);
+  batch.source = TD_REQ_FROM_TAOX;
+
+  RAW_RETURN_CHECK(buildBlockNameSet(pDataRsp, &pBlockNames));
+
+  void* pIter = taosHashIterate(pCreateTbHash, NULL);
+  while (pIter) {
+    SVCreateTbReq* pReq = (SVCreateTbReq*)pIter;
+    // Pre-creating a table that also has a block would turn the following submit
+    // into an "already exists" replay; those tables are created by the block path.
+    if (pBlockNames == NULL || taosHashGet(pBlockNames, pReq->name, strlen(pReq->name)) == NULL) {
+      if (taosArrayPush(batch.pArray, pReq) == NULL) {
+        // release the iterator before leaving the loop
+        lino = __LINE__;
+        code = terrno;
+        taosHashCancelIterate(pCreateTbHash, pIter);
+        goto end;
+      }
+    }
+    pIter = taosHashIterate(pCreateTbHash, pIter);
+  }
+
+  if (taosArrayGetSize(batch.pArray) == 0) {
+    goto end;
+  }
+
+  uint32_t len = 0;
+  tEncodeSize(tEncodeSVCreateTbBatchReq, &batch, len, code);
+  RAW_RETURN_CHECK(code);
+  pMsg = taosMemoryMalloc(sizeof(SMsgHead) + len);
+  RAW_NULL_CHECK(pMsg);
+  tEncoderInit(&encoder, POINTER_SHIFT(pMsg, sizeof(SMsgHead)), len);
+  code = tEncodeSVCreateTbBatchReq(&encoder, &batch);
+  tEncoderClear(&encoder);
+  RAW_RETURN_CHECK(code);
+
+  code = taosCreateTable(taos, pMsg, sizeof(SMsgHead) + len);
+
+end:
+  taosHashCleanup(pBlockNames);
+  taosArrayDestroy(batch.pArray);
+  taosMemoryFree(pMsg);
+  RAW_LOG_END
+  return code;
+}
+
 typedef enum {
   WRITE_RAW_INIT_START = 0,
   WRITE_RAW_INIT_OK,
@@ -1803,6 +1919,19 @@ static int32_t tmqWriteRawCommon(TAOS* taos, void* data, uint32_t dataLen,
   SHashObj* pNameHash = NULL;
   SHashObj* pMetaHash = NULL;
   RAW_RETURN_CHECK(getRawCache(&pVgHash, &pNameHash, &pMetaHash, taos));
+
+  // Create tables whose blocks were entirely filtered out of an otherwise nonempty
+  // response. Tables with a block here are created by the block replay path below.
+  if (withMeta && rspObj.dataRsp.createTableNum > 0) {
+    uDebug(LOG_ID_TAG " replay create metadata, tables:%d, blocks:%d",
+           LOG_ID_VALUE, rspObj.dataRsp.createTableNum,
+           rspObj.dataRsp.blockNum);
+    RAW_RETURN_CHECK(createTablesFromMetaRsp(pCreateTbHash, &rspObj.dataRsp, taos));
+    if (rspObj.dataRsp.blockNum == 0) {
+      goto end;
+    }
+  }
+
   int retry = 0;
   while (1) {
     RAW_RETURN_CHECK(smlInitHandle(&pQuery));

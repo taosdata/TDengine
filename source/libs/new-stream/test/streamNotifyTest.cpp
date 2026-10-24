@@ -640,7 +640,7 @@ class StreamNotifyBlockedWorkerTest : public StreamNotifyTest {
     StreamNotifyTest::TearDown();
   }
 
-  int32_t Enqueue(int64_t streamId) {
+  int32_t Enqueue(int64_t streamId, const char* triggerTableName = "queued_source") {
     const char*                           url = "ws://unused/block-worker";
     std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(1, sizeof(char*)));
     if (urls == nullptr) {
@@ -658,8 +658,8 @@ class StreamNotifyBlockedWorkerTest : public StreamNotifyTest {
 
     SSTriggerCalcParam param = {};
     param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
-    return streamSendNotifyContent(&task, "1.notify_blocked_worker_test", "result_table", STREAM_TRIGGER_SESSION, 42,
-                                   TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
+    return streamSendNotifyContent(&task, "1.notify_blocked_worker_test", "result_table", triggerTableName,
+                                   STREAM_TRIGGER_SESSION, 42, TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
   }
 
   bool WaitForBlockedWorker() {
@@ -692,6 +692,7 @@ struct NotifyRetryState {
   std::atomic<int64_t>    nowMs{100000};
   SCURL                   connections[2] = {};
   std::vector<int64_t>    delivered[2];
+  std::vector<std::string> deliveredNames[2];
   int32_t                 failures[2] = {};
   int32_t                 failingUrl = 1;
   int32_t                 failuresRemaining = 2;
@@ -738,10 +739,14 @@ int32_t NotifyRetrySendMessage(SCURL* connection, const void* buffer, size_t len
   cJSON*                              stream = cJSON_GetArrayItem(streams, 0);
   cJSON*                              events = cJSON_GetObjectItemCaseSensitive(stream, "events");
   std::vector<int64_t>                starts;
+  std::vector<std::string>            names;
   for (int32_t i = 0; i < cJSON_GetArraySize(events); ++i) {
     cJSON* start = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(events, i), "windowStart");
     if (!cJSON_IsNumber(start)) return TSDB_CODE_FAILED;
     starts.push_back(static_cast<int64_t>(start->valuedouble));
+    cJSON* name = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(events, i), "triggerTableName");
+    if (!cJSON_IsString(name)) return TSDB_CODE_FAILED;
+    names.emplace_back(name->valuestring);
   }
 
   std::unique_lock<std::mutex> lock(state.mutex);
@@ -764,6 +769,7 @@ int32_t NotifyRetrySendMessage(SCURL* connection, const void* buffer, size_t len
     return TSDB_CODE_FAILED;
   }
   state.delivered[target].insert(state.delivered[target].end(), starts.begin(), starts.end());
+  state.deliveredNames[target].insert(state.deliveredNames[target].end(), names.begin(), names.end());
   state.changed.notify_all();
   return TSDB_CODE_SUCCESS;
 }
@@ -799,7 +805,7 @@ class StreamNotifyRetryTest : public StreamNotifyTest {
     StreamNotifyTest::TearDown();
   }
 
-  int32_t Enqueue(int64_t start, int64_t groupId = 42) {
+  int32_t Enqueue(int64_t start, int64_t groupId = 42, const char* triggerTableName = nullptr) {
     std::unique_ptr<SArray, ArrayDeleter> urls(taosArrayInit(2, sizeof(char*)));
     if (urls == nullptr) return terrno;
     const char* addresses[] = {"ws://unused/first", "ws://unused/second"};
@@ -813,8 +819,9 @@ class StreamNotifyRetryTest : public StreamNotifyTest {
     param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
     param.wstart = start;
     param.wend = start + 1000;
-    return streamSendNotifyContent(&task, "1.notify_retry_test", "result_table", STREAM_TRIGGER_SESSION, groupId,
-                                   TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1);
+    return streamSendNotifyContent(&task, "1.notify_retry_test", "result_table", triggerTableName,
+                                   STREAM_TRIGGER_SESSION, groupId, TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param,
+                                   1);
   }
 
   bool WaitForFailure() {
@@ -850,6 +857,22 @@ TEST_F(StreamNotifyRetryTest, PartialDeliverySurvivesRequeueAndNewEvents) {
   ASSERT_EQ(Enqueue(3000), TSDB_CODE_SUCCESS);
   ASSERT_EQ(Enqueue(5000, 84), TSDB_CODE_SUCCESS);
   EXPECT_TRUE(FinishAndCheck({1000, 3000, 5000}, {1000, 3000, 5000}));
+}
+
+TEST_F(StreamNotifyRetryTest, TriggerNamesAreOwnedPerEventAcrossRetries) {
+  char first[] = "sensor_\"a\\b";
+  char second[] = "sensor_second";
+  ASSERT_EQ(Enqueue(1000, 42, first), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForFailure());
+  ASSERT_EQ(Enqueue(3000, 42, second), TSDB_CODE_SUCCESS);
+  first[0] = 'X';
+  second[0] = 'X';
+  ASSERT_EQ(Enqueue(5000, 84), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(FinishAndCheck({1000, 3000, 5000}, {1000, 3000, 5000}));
+  std::lock_guard<std::mutex>    lock(state_.mutex);
+  const std::vector<std::string> expected = {"sensor_\"a\\b", "sensor_second", ""};
+  EXPECT_EQ(state_.deliveredNames[0], expected);
+  EXPECT_EQ(state_.deliveredNames[1], expected);
 }
 
 TEST_F(StreamNotifyRetryTest, RetryLimitSurvivesWorkerRequeue) {
@@ -1070,7 +1093,7 @@ TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_single_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_single_frame_test", "result_table", NULL, STREAM_TRIGGER_COUNT, 42,
                                     TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
@@ -1096,6 +1119,9 @@ TEST_F(StreamNotifyTest, SmallNotificationUsesOneFinalTextFrame) {
   cJSON* receivedPayload = cJSON_GetObjectItemCaseSensitive(event, "payload");
   ASSERT_TRUE(cJSON_IsString(receivedPayload));
   EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
+  cJSON* triggerTableName = cJSON_GetObjectItemCaseSensitive(event, "triggerTableName");
+  ASSERT_TRUE(cJSON_IsString(triggerTableName));
+  EXPECT_STREQ(triggerTableName->valuestring, "");
 }
 
 TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
@@ -1127,7 +1153,7 @@ TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_short_write_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_short_write_test", "result_table", NULL, STREAM_TRIGGER_COUNT, 42,
                                     TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
 
@@ -1199,7 +1225,7 @@ TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_frame_test", "result_table", NULL, STREAM_TRIGGER_COUNT, 42,
                                     TSDB_TIME_PRECISION_MILLI, urls.get(), NOTIFY_ON_FAILURE_PAUSE, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
@@ -1272,7 +1298,7 @@ TEST_F(StreamNotifyAsyncTest, LargeNotificationIsFragmentedWithoutChangingMessag
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>(extraContent.c_str());
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_async_frame_test", "result_table", STREAM_TRIGGER_COUNT, 42,
+  ASSERT_EQ(streamSendNotifyContent(&task, "1.notify_async_frame_test", "result_table", NULL, STREAM_TRIGGER_COUNT, 42,
                                     TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
             TSDB_CODE_SUCCESS);
   server.Wait();
@@ -1325,10 +1351,10 @@ TEST_F(StreamNotifyAsyncTest, DropResultReportsQueueAcceptanceBeforeNetworkDeliv
 
   bool attempted = false;
   bool accepted = false;
-  EXPECT_EQ(
-      streamSendNotifyContentWithResult(&task, "1.notify_queue_acceptance_test", "result_table", STREAM_TRIGGER_SESSION,
-                                        42, TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1, &attempted, &accepted),
-      TSDB_CODE_SUCCESS);
+  EXPECT_EQ(streamSendNotifyContentWithResult(&task, "1.notify_queue_acceptance_test", "result_table", NULL,
+                                              STREAM_TRIGGER_SESSION, 42, TSDB_TIME_PRECISION_MILLI, urls.get(), 0,
+                                              &param, 1, &attempted, &accepted),
+            TSDB_CODE_SUCCESS);
   EXPECT_TRUE(attempted);
   EXPECT_TRUE(accepted);
 }
@@ -1356,8 +1382,8 @@ TEST_F(StreamNotifyAsyncTest, DestroyingQueueWithZeroStreamIdDoesNotCrash) {
   param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   param.extraNotifyContent = const_cast<char*>("{\"payload\":\"zero-stream-id\"}");
 
-  ASSERT_EQ(streamSendNotifyContent(&task, "0.notify_zero_stream_id_test", "result_table", STREAM_TRIGGER_COUNT, 42,
-                                    TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
+  ASSERT_EQ(streamSendNotifyContent(&task, "0.notify_zero_stream_id_test", "result_table", NULL, STREAM_TRIGGER_COUNT,
+                                    42, TSDB_TIME_PRECISION_MILLI, urls.get(), 0, &param, 1),
             TSDB_CODE_SUCCESS);
 }
 
@@ -1398,6 +1424,63 @@ TEST_F(StreamNotifyBlockedWorkerTest, ReclaimingParamReleasesQueueMapIterator) {
   DestroyPool();
 }
 
+TEST_F(StreamNotifyBlockedWorkerTest, ReplacingOldestItemTransfersItsTriggerName) {
+  const int64_t blockedStreamId = 0x3000;
+  const int64_t pendingStreamId = 0x3001;
+  ASSERT_EQ(Enqueue(blockedStreamId), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(WaitForBlockedWorker());
+  SStreamNotifyWorkerPool* pool = &gStreamMgmt.notifyWorkerPool;
+  const int64_t            capacity = pool->paramPool.capacity;
+  EXPECT_EQ(capacity, (std::max)(int64_t{4}, int64_t{1024} / pool->paramPool.nodeSize));
+  for (int64_t i = 1; i < capacity; ++i) {
+    ASSERT_EQ(Enqueue(pendingStreamId, "old_source"), TSDB_CODE_SUCCESS);
+  }
+  char name[] = "replacement_source";
+  ASSERT_EQ(Enqueue(pendingStreamId, name), TSDB_CODE_SUCCESS);
+  name[0] = 'X';
+  auto** queue =
+      static_cast<SStreamNotifyQueue**>(taosHashGet(pool->queueMap, &pendingStreamId, sizeof(pendingStreamId)));
+  ASSERT_NE(queue, nullptr);
+  EXPECT_EQ((*queue)->paramList.neles, capacity - 1);
+  EXPECT_EQ(pool->paramPool.capacity, capacity);
+  auto* head = static_cast<SStreamNotifyPendingItem*>(taosObjListGetHead(&(*queue)->paramList));
+  ASSERT_NE(head, nullptr);
+  ASSERT_NE(head->triggerTableName, nullptr);
+  EXPECT_STREQ(head->triggerTableName, "replacement_source");
+  streamNotifyQueueUnregister(pendingStreamId);
+  streamNotifyQueueUnregister(blockedStreamId);
+  DestroyPool();
+}
+
+TEST(StreamNotifyNameTest, CopiesCountedNameAndClearsIneligibleOrMissingNames) {
+  std::unique_ptr<SArray, ArrayDeleter> values(taosArrayInit(1, sizeof(SStreamGroupValue)));
+  ASSERT_NE(values, nullptr);
+  char              source[] = {'v', 't', '_', '1'};  // Group values need not have a trailing NUL.
+  SStreamGroupValue value = {};
+  value.isTbname = true;
+  value.data.type = TSDB_DATA_TYPE_VARCHAR;
+  value.data.pData = reinterpret_cast<uint8_t*>(source);
+  value.data.nData = sizeof(source);
+  ASSERT_NE(taosArrayPush(values.get(), &value), nullptr);
+  char name[TSDB_TABLE_NAME_LEN] = "stale";
+  EXPECT_EQ(streamGetNotifyTriggerTableName(true, values.get(), name, sizeof(name)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(name, "vt_1");
+  char exact[5] = {};
+  EXPECT_EQ(streamGetNotifyTriggerTableName(true, values.get(), exact, sizeof(exact)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(exact, "vt_1");
+  char shortName[4] = "old";
+  EXPECT_EQ(streamGetNotifyTriggerTableName(true, values.get(), shortName, sizeof(shortName)), TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(shortName, "");
+  EXPECT_EQ(streamGetNotifyTriggerTableName(false, values.get(), name, sizeof(name)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(name, "");
+  EXPECT_EQ(streamGetNotifyTriggerTableName(true, nullptr, name, sizeof(name)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(name, "");
+  auto* stored = static_cast<SStreamGroupValue*>(taosArrayGet(values.get(), 0));
+  stored->isNull = true;
+  EXPECT_EQ(streamGetNotifyTriggerTableName(true, values.get(), name, sizeof(name)), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(name, "");
+}
+
 TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
   Stub stub;
   stub.set(tcurlConnect, MockTcurlConnect);
@@ -1415,6 +1498,7 @@ TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
   task.taskId = 0x5678;
 
   const int64_t gids[] = {202, 101, 303};
+  const char*   triggerNames[] = {nullptr, "", "virtual_\"a\\b"};
   for (int32_t i = 0; i < 3; ++i) {
     SCOPED_TRACE(i);
     SWindowLineage lineage = {};
@@ -1443,8 +1527,8 @@ TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
     const char* triggerIds[] = {triggerId};
     gTcurlSendState = {};
 
-    ASSERT_EQ(streamSendNestedResultNotifyContent(&task, "1.grouped_notify", tableName.c_str(), STREAM_TRIGGER_COUNT,
-                                                  gids[i], urls.get(), 0, &param, triggerIds, 1),
+    ASSERT_EQ(streamSendNestedResultNotifyContent(&task, "1.grouped_notify", tableName.c_str(), triggerNames[i],
+                                                  STREAM_TRIGGER_COUNT, gids[i], urls.get(), 0, &param, triggerIds, 1),
               TSDB_CODE_SUCCESS);
 
     std::unique_ptr<cJSON, JsonDeleter> root(
@@ -1457,12 +1541,15 @@ TEST_F(StreamNotifyTest, GroupedNotificationsKeepGidTbnameWindowAndLineage) {
     ASSERT_TRUE(cJSON_IsObject(event));
     cJSON* groupId = cJSON_GetObjectItemCaseSensitive(event, "groupId");
     cJSON* receivedTableName = cJSON_GetObjectItemCaseSensitive(event, "tableName");
+    cJSON* triggerTableName = cJSON_GetObjectItemCaseSensitive(event, "triggerTableName");
     cJSON* windowStart = cJSON_GetObjectItemCaseSensitive(event, "windowStart");
     cJSON* windowEnd = cJSON_GetObjectItemCaseSensitive(event, "windowEnd");
     cJSON* receivedTriggerId = cJSON_GetObjectItemCaseSensitive(event, "triggerId");
     cJSON* receivedLineageMarker = cJSON_GetObjectItemCaseSensitive(event, "lineageMarker");
     ASSERT_TRUE(cJSON_IsString(groupId));
     ASSERT_TRUE(cJSON_IsString(receivedTableName));
+    ASSERT_TRUE(cJSON_IsString(triggerTableName));
+    EXPECT_STREQ(triggerTableName->valuestring, triggerNames[i] != nullptr ? triggerNames[i] : "");
     ASSERT_TRUE(cJSON_IsNumber(windowStart));
     ASSERT_TRUE(cJSON_IsNumber(windowEnd));
     ASSERT_TRUE(cJSON_IsString(receivedTriggerId));

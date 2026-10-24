@@ -52,6 +52,49 @@ TEST(testCase, driverInit_Test) {
   //  taos_init();
 }
 
+TEST(tmqStartTimestamp, acceptsUnixTimestamps) {
+  tmq_conf_t* conf = tmq_conf_new();
+  ASSERT_NE(conf, nullptr);
+
+  EXPECT_EQ(tmq_conf_set(conf, "msg.consume.start.ts", "0"), TMQ_CONF_OK);
+  EXPECT_EQ(conf->startTs, 0);  // 0 disables the filter
+  EXPECT_EQ(tmq_conf_set(conf, "msg.consume.start.ts", "1704096000000"), TMQ_CONF_OK);
+  EXPECT_EQ(conf->startTs, INT64_C(1704096000000));
+  // a later successful update replaces the previous value
+  EXPECT_EQ(tmq_conf_set(conf, "msg.consume.start.ts", "1704096000001"), TMQ_CONF_OK);
+  EXPECT_EQ(conf->startTs, INT64_C(1704096000001));
+  tmq_conf_destroy(conf);
+}
+
+TEST(tmqStartTimestamp, rejectsNonUnixTimestamps) {
+  tmq_conf_t* conf = tmq_conf_new();
+  ASSERT_NE(conf, nullptr);
+
+  // only a non-negative UNIX timestamp in milliseconds is supported; datetime strings are not
+  const char* invalidValues[] = {
+      "2024-01-01 08:00:00.000",
+      "2024-01-01T08:00:00.123Z",
+      "2024-01-01 08:00:00.000+00:00",
+      "2024-01-01",
+      "1704096000000garbage",
+      "1704096000000 ",
+      "1.5e12",
+      "99999999999999999999",
+      "not-a-timestamp",
+      "",
+      "-1",
+      "-1000",
+      "+",
+  };
+  for (const char* value : invalidValues) {
+    SCOPED_TRACE(value);
+    EXPECT_EQ(tmq_conf_set(conf, "msg.consume.start.ts", "1704096000000"), TMQ_CONF_OK);
+    EXPECT_EQ(tmq_conf_set(conf, "msg.consume.start.ts", value), TMQ_CONF_INVALID);
+    EXPECT_EQ(conf->startTs, INT64_C(1704096000000));  // a rejected value keeps the previous one
+  }
+  tmq_conf_destroy(conf);
+}
+
 TEST(testCase, supplemental_heartbeat_claim_Test) {
   tmq_t tmq = {0};
   tmq.consumerId = 0x1234;
@@ -150,6 +193,36 @@ TEST(testCase, rejected_poll_response_retains_offset_Test) {
   ASSERT_EQ(vg.offsetInfo.walVerBegin, 8);
   ASSERT_EQ(vg.offsetInfo.walVerEnd, 20);
   ASSERT_EQ(atomic_load_32(&vg.vgStatus), TMQ_VG_STATUS__IDLE);
+}
+
+// A poll response that only carries create-table metadata is still a delivered result, so it must
+// advance the consumer position exactly like a data response; a completely empty response must
+// advance only the end offset and keep the begin offset for the next poll.
+TEST(testCase, metadata_only_response_updates_begin_offset_Test) {
+  STqOffsetVal reqOffset = {};
+  STqOffsetVal rspOffset = {};
+  tqOffsetResetToLog(&reqOffset, 11);
+  tqOffsetResetToLog(&rspOffset, 12);
+
+  SMqClientVg metaOnly = {};
+  tqOffsetResetToLog(&metaOnly.offsetInfo.beginOffset, 10);
+  tqOffsetResetToLog(&metaOnly.offsetInfo.endOffset, 11);
+  atomic_store_32(&metaOnly.vgStatus, TMQ_VG_STATUS__WAIT);
+  tmqUpdateVgInfo(&metaOnly, &reqOffset, &rspOffset, 9, 21, 0x1234, true, true);
+
+  ASSERT_EQ(metaOnly.offsetInfo.beginOffset.version, 11);
+  ASSERT_EQ(metaOnly.offsetInfo.endOffset.version, 12);
+  ASSERT_EQ(atomic_load_32(&metaOnly.vgStatus), TMQ_VG_STATUS__IDLE);
+
+  SMqClientVg empty = {};
+  tqOffsetResetToLog(&empty.offsetInfo.beginOffset, 10);
+  tqOffsetResetToLog(&empty.offsetInfo.endOffset, 11);
+  atomic_store_32(&empty.vgStatus, TMQ_VG_STATUS__WAIT);
+  tmqUpdateVgInfo(&empty, &reqOffset, &rspOffset, 9, 21, 0x1234, false, true);
+
+  ASSERT_EQ(empty.offsetInfo.beginOffset.version, 10);
+  ASSERT_EQ(empty.offsetInfo.endOffset.version, 12);
+  ASSERT_EQ(atomic_load_32(&empty.vgStatus), TMQ_VG_STATUS__IDLE);
 }
 
 TEST(testCase, create_topic_ctb_Test) {

@@ -2927,9 +2927,9 @@ static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, 
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
   // stored case; PostgreSQL compares quoted/identifier names literally.
-  return (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType)
-             ? 0 == strcasecmp(schemaName, queryName)
-             : 0 == strcmp(schemaName, queryName);
+  // Delegates to qcom so mnode's binding step and the stream readers apply the
+  // identical fold.
+  return extColumnNameEqual((EExtSourceType)sourceType, schemaName, queryName);
 }
 
 static bool externalTableColumnNameEqual(const SRealTableNode* pTable, const char* schemaName,
@@ -28508,6 +28508,22 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
               &pCxt->msgBuf, TSDB_CODE_STREAM_EXT_TS_COLUMN_MISSING,
               "EXTERNAL trigger table '%s' has no primary timestamp column",
               pExtTrig->table.tableName));
+        }
+        // The reader walks the remote timestamp with a microsecond watermark, so
+        // a time key declared finer than a microsecond (SQL Server datetime2(7) /
+        // datetimeoffset(7), including the default precision) cannot be tracked:
+        // the connector truncates the fraction and the reader would either
+        // re-poll the consumed row forever or skip a row written into the same
+        // microsecond.  Reject it instead of silently losing rows.
+        if (pExtTrig->pExtMeta != NULL && pExtTrig->tsPrimaryColIdx < pExtTrig->pExtMeta->numOfCols &&
+            extTimestampTypeHasSubMicroFraction((EExtSourceType)pExtTrig->sourceType,
+                                                pExtTrig->pExtMeta->pCols[pExtTrig->tsPrimaryColIdx].extTypeName)) {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED,
+              "EXTERNAL trigger table '%s': timestamp column '%s' has type '%s' with sub-microsecond precision, "
+              "which the stream reader cannot track; declare a precision of 6 or less",
+              pExtTrig->table.tableName, pExtTrig->pExtMeta->pCols[pExtTrig->tsPrimaryColIdx].colName,
+              pExtTrig->pExtMeta->pCols[pExtTrig->tsPrimaryColIdx].extTypeName));
         }
         if (LIST_LENGTH(pTriggerPartition) != 0 &&
             pExtTrig->sourceType != EXT_SOURCE_INFLUXDB) {

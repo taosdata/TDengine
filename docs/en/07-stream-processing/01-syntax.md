@@ -671,6 +671,7 @@ An example structure of a notification message is shown below:
       "events": [
         {
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "triggerTableName": "",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887097,
           "triggerId": "window-id-67890",
@@ -680,6 +681,7 @@ An example structure of a notification message is shown below:
         },
         {
           "tableName": "t_a667a16127d3b5a18988e32f3e76cd30",
+          "triggerTableName": "",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887197,
           "triggerId": "window-id-67890",
@@ -699,6 +701,7 @@ An example structure of a notification message is shown below:
       "events": [
         {
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "triggerTableName": "",
           "eventType": "WINDOW_OPEN",
           "eventTime": 1733284887231,
           "triggerId": "window-id-13579",
@@ -716,6 +719,7 @@ An example structure of a notification message is shown below:
         },
         {
           "tableName": "t_96f62b752f36e9b16dc969fe45363748",
+          "triggerTableName": "",
           "eventType": "WINDOW_CLOSE",
           "eventTime": 1733284887231,
           "triggerId": "window-id-24680",
@@ -762,6 +766,7 @@ The following sections describe each field in the notification message.
 These fields are shared by all event objects:
 
 - tableName: String. The name of the target child table associated with the event. When there is no output, this field does not exist.
+- triggerTableName: String, always present. For `PARTITION BY tbname`, this is the pure trigger child-table name without a database qualifier, for both physical and virtual child tables. Virtual tables use the virtual child-table name. The value is `""` for tag-only partitions, no `PARTITION BY`, or an unavailable name. This field is independent of the output `tableName`.
 - eventType: String. The type of event. Supported values are ON_TIME, WINDOW_OPEN, WINDOW_CLOSE, IDLE, and RESUME.
 - eventTime: Long integer. The time the event was generated, in milliseconds since 00:00, Jan 1 1970 UTC.
 - triggerId: String. A unique identifier for the trigger event. Ensures that open and close events (if both exist) share the same ID, allowing external systems to correlate them. If taosd crashes and restarts, some events may be resent, but the same event will always retain the same triggerId.

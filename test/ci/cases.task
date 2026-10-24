@@ -1071,6 +1071,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_tablelist.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_discontinuous_data.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_offset.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_primary_key.py
@@ -1271,6 +1272,7 @@
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_stream_notify_state.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_notify.py
 ,,n,.,pytest cases/18-StreamProcessing/05-Notify/test_notify_rules.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py
 ## 06-ResultSaved
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/06-ResultSaved/test_result_saved_comprehensive.py
 ## 07-SubQuery
@@ -1318,6 +1320,7 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_interval cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_sliding cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_session cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_state_window cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_event_window
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_mixed_external
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_same_source_two_external_tables cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_var_width_column cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_quoted_pg_identifier
+100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_sqlserver.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_public.py
 ,,n,.,pytest cases/18-StreamProcessing/20-UseCase/test_idmp_pv.py

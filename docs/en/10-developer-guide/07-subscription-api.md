@@ -67,8 +67,21 @@ There are many parameters for creating consumers, which flexibly support various
 |    `fetch.max.wait.ms`    | integer | The maximum time it takes for the server to return data once (supported from version 3.3.6.0) | Default is 1000, range [1, INT32_MAX]                        |
 |      `min.poll.rows`      | integer | The minimum number of data returned by the server once (supported from version 3.3.6.0) | Default is 4096, range [1, INT32_MAX]                        |
 |   `msg.consume.rawdata`   | integer | When consuming data, the data type pulled is binary and cannot be parsed. It is an internal parameter and is only used for taosx data migration (supported from version 3.3.6.0) | The default value of 0 indicates that it is not effective, and non-zero indicates that it is effective |
+| `msg.consume.start.ts` | non-negative integer | Subscription sync start time: only consume data records whose primary timestamp is no earlier than this value (supported from version 3.4.3.6) | Default is `0`, which disables the filter. See the `msg.consume.start.ts` section below for the filter semantics |
 | `enable.wal.marker` | boolean | Whether committing a WAL-log offset also sends a WAL marker to mnode | Default is `false` in `tmq_conf_new`. This advanced, internal-facing option is generally used by migration tools |
 | `msg.enable.batchmeta` | integer | Whether the server may combine multiple metadata records into a batch metadata response | Non-zero enables it; default is `false` in `tmq_conf_new`. The Java WebSocket property is `enable_batch_meta`, commonly enabled in `ONLY META` tests |
+
+#### msg.consume.start.ts
+
+- Description: subscription sync start time. Only data records whose primary timestamp `ts` is no earlier than this value are consumed.
+- Type: integer (a non-negative UNIX timestamp in milliseconds, for example `1700000000000`).
+- Remarks: default is `0`, which disables the filter. Supported from version `3.4.3.6`. Effective only for table topics and database topics; for query topics, filter `ts` in the WHERE clause instead.
+  - The value must be a non-negative integer UNIX timestamp in milliseconds. A negative value, a fractional value, any trailing character and a datetime string such as `2024-01-01 08:00:00.000` are rejected: `tmq_conf_set` returns an error and the consumer cannot be created. Set `0` to disable the filter.
+  - Metadata is not affected by this parameter.
+  - The parameter only raises the lower bound of the consume position; it never rewinds a committed offset. If the committed offset of the same group is already later than this value after a restart, consumption resumes from the committed offset and the range between the value and the committed offset is not replayed.
+  - The filter runs on the vnode. When the vnode serving the poll is older than `3.4.3.6`, for example during a rolling upgrade, the parameter is ignored without returning an error and the consumer receives unfiltered data, so make sure the vnodes are upgraded.
+  - The filter only drops records from the response. The vnode still has to read and parse the historical WAL entries, so catching up a large backlog still costs the WAL read and parse work.
+  - Consuming raw WAL data (`msg.consume.rawdata`) is not filtered, but the snapshot scan (`experimental.snapshot.enable`) still trims the decoded blocks by this value. Do not combine the two when a single, uniform filter semantic is required.
 
 Below are the connection parameters for connectors in various languages:
 <Tabs defaultValue="java" groupId="lang">

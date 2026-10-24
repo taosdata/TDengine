@@ -675,6 +675,11 @@ struct SSTriggerRealtimeContext {
   uint64_t                   nextNestedInputGeneration;
   ESTriggerWalMode           walMode;
   ESTriggerContextStatus     status;
+  // A name lookup suspends this context until its group-value response is cached.
+  bool                       notifyGroupColValuePending;
+  int64_t                    notifyGroupColValueGid;
+  // 0, STRIGGER_PULL_WAL_META_NEW or STRIGGER_PULL_WAL_META_DATA_NEW.
+  int8_t notifyIdleContinuation;
 
   SSHashObj                  *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
   SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS section 6.1.3)
@@ -776,6 +781,9 @@ typedef struct SSTriggerHistoryContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
+  // A name lookup suspends this context until its group-value response is cached.
+  bool                       notifyGroupColValuePending;
+  int64_t                    notifyGroupColValueGid;
 
   int64_t              gid;
   STimeWindow          scanRange;
@@ -993,6 +1001,7 @@ typedef struct SStreamTriggerTask {
   bool    isVirtualTable;
   bool    isSuperTable;
   bool    stbPartByTbname;
+  bool               partitionByTbname;  // Actual partition expression, including direct child sources.
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
   int8_t  precision;

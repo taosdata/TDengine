@@ -33,6 +33,21 @@ extern "C" {
 #include "ttypes.h"  // SDataType
 
 /**
+ * Timezone class of an external timestamp type.
+ *
+ * Declared here rather than in libs/nodes/plannodes.h because the type mapper
+ * owns the classification: the planner stores it in
+ * SFederatedScanPhysiNode.pTimestampTypeHints and the executor/stream readers
+ * derive it from the same remote type name.  Keeping the enum next to the
+ * classifier also keeps qcom (a lower layer) free of node-layer headers.
+ */
+typedef enum EExtTimestampTzClass {
+  EXT_TIMESTAMP_TZ_CLASS_UNKNOWN = 0,
+  EXT_TIMESTAMP_TZ_CLASS_AWARE   = 1,
+  EXT_TIMESTAMP_TZ_CLASS_NAIVE   = 2,
+} EExtTimestampTzClass;
+
+/**
  * Map an external data source type name to the corresponding TDengine type.
  *
  * @param srcType       The external source type (EXT_SOURCE_MYSQL,
@@ -73,6 +88,56 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
  */
 int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName,
                                   int8_t fallbackPrecision);
+
+/**
+ * Compare two external column names the way the source resolves identifiers.
+ *
+ * MySQL and SQL Server fold unquoted identifiers case-insensitively, so a
+ * reference written in a different case still binds to the stored column;
+ * PostgreSQL and InfluxDB compare identifiers literally.  This is the single
+ * source of truth for that rule: the parser accepts an external column
+ * reference with it, mnode binds the reader column mappings with it, and the
+ * stream reader looks up the planner's timestamp-class hint with it.  Keeping
+ * one implementation stops the three from drifting apart, which would make a
+ * reference that DDL accepted unresolvable at reader deploy time.
+ */
+bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs);
+
+/**
+ * Whether a declared external timestamp type carries fractional seconds that
+ * the ext connectors cannot transport: they convert every timestamp to a
+ * microsecond epoch and drop the remainder.
+ *
+ * SQL Server DATETIME2/DATETIMEOFFSET accept 0..7 fractional digits, and the
+ * omitted modifier defaults to 7, so such a column can hold values that differ
+ * only below one microsecond.  Virtual table predicates still work (they are
+ * approximated to microseconds), but a stream reader must walk the column with
+ * an advancing microsecond watermark: two rows whose truncated values are
+ * equal cannot be told apart, so the reader either re-reads the watermark row
+ * forever or skips a new row written into the same microsecond.  Callers that
+ * need a monotonic timestamp cursor must reject such a column.
+ */
+bool extTimestampTypeHasSubMicroFraction(EExtSourceType srcType, const char *extTypeName);
+
+/**
+ * Timezone class of an external timestamp type, as EExtTimestampTzClass
+ * (EXT_TIMESTAMP_TZ_CLASS_AWARE / _NAIVE / _UNKNOWN).
+ *
+ * The connectors decode timezone-aware source columns (MySQL TIMESTAMP,
+ * PostgreSQL timestamptz, SQL Server datetimeoffset) as absolute instants and
+ * timezone-naive ones (MySQL DATETIME, PostgreSQL timestamp without time zone,
+ * SQL Server datetime2/datetime/smalldatetime/date) as a wall clock in the
+ * client timezone.  Consumers that render remote SQL bounds or convert the
+ * textual value must use the same interpretation.
+ *
+ * This is the single source of truth for that classification: the planner
+ * writes it into SFederatedScanPhysiNode.pTimestampTypeHints, the executor
+ * derives it at runtime, and stream readers that only carry the remote type
+ * name (e.g. the virtual-table original-table reader) recover it from the
+ * column mapping.  EXT_TIMESTAMP_TZ_CLASS_UNKNOWN is returned for a NULL/empty
+ * type name or a non-temporal type.
+ */
+int8_t extTimestampTypeTzClass(EExtSourceType srcType, const char *extTypeName);
 
 #ifdef __cplusplus
 }

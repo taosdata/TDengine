@@ -357,8 +357,8 @@ int32_t captureReaderConnection(const SExtSourceCfg *config, SExtConnectorHandle
 
 void returnReaderConnection(SExtConnectorHandle *) { ++returnedConnections; }
 
-int32_t captureReaderQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *sql,
-                           SExtQueryHandle **, SExtConnectorError *) {
+int32_t captureReaderQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *,
+                           const char *sql, SExtQueryHandle **, SExtConnectorError *) {
   fetchedSql.emplace_back(sql);
   return TSDB_CODE_EXT_REMOTE_INTERNAL;
 }
@@ -431,6 +431,185 @@ TEST(StreamReaderExtConnectionTest, DatabaseScopedProvidersKeepTheirConnectionDa
   // extQuoteIdent always quotes identifiers: PostgreSQL/InfluxDB use double quotes.
   EXPECT_NE(fetchedSql[0].find("FROM \"public\".\"metrics\" "), std::string::npos);
   EXPECT_NE(fetchedSql[1].find("FROM \"metrics\" "), std::string::npos);
+}
+
+// ---------------------------------------------------------------------------
+// Remote time-bound literals.
+//
+// A timezone-aware column stores an absolute instant, but the literal that
+// bounds it has to be understood by the remote session.  MySQL reads an
+// offset-less datetime literal in its session timezone and only accepts an
+// explicit "+00:00" suffix from 8.0.19 on, while 5.7 (still supported) treats
+// the suffix as trailing garbage.  The reader therefore renders MySQL
+// timezone-aware bounds as FROM_UNIXTIME(<epoch>) - an expression both
+// versions evaluate per the remote session timezone - and keeps
+// "<wall clock>+00:00" for PostgreSQL and a bare UTC wall clock for SQL
+// Server.  These cases pin the emitted META/DATA bound SQL per source dialect.
+// ---------------------------------------------------------------------------
+SStreamExtReaderInfo makeBoundReader(EExtSourceType sourceType, EExtTimestampTzClass tzClass,
+                                     const char *timezone, int8_t precision) {
+  SStreamExtReaderInfo reader = {};
+  reader.spec.sourceType = sourceType;
+  reader.spec.precision = precision;
+  reader.tsTzClass = static_cast<int8_t>(tzClass);
+  tstrncpy(reader.timezone, timezone, sizeof(reader.timezone));
+  return reader;
+}
+
+std::string captureFetchSql(SStreamExtReaderInfo *reader, int64_t skey, int64_t ekey) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  stub.set(extConnectorExecQuery, captureReaderQuery);
+  fetchedSql.clear();
+  SSDataBlock *block = nullptr;
+  EXPECT_EQ(streamReaderExtFetchData(reader, skey, ekey, &block),
+            TSDB_CODE_EXT_REMOTE_INTERNAL);
+  EXPECT_EQ(block, nullptr);
+  EXPECT_EQ(fetchedSql.size(), 1u);
+  return fetchedSql.empty() ? std::string() : fetchedSql[0];
+}
+
+// 2026-01-01 00:00:00.000000 UTC expressed in microseconds.
+constexpr int64_t kBoundEpochUs = 1767225600000000LL;
+
+TEST(StreamReaderExtTimeBoundTest, MysqlAwareFetchBoundUsesUnixEpoch) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  std::string sql = captureFetchSql(&reader, kBoundEpochUs, kBoundEpochUs);
+  EXPECT_NE(sql.find(">= FROM_UNIXTIME(1767225600.000000)"), std::string::npos) << sql;
+  EXPECT_NE(sql.find("<= FROM_UNIXTIME(1767225600.000000)"), std::string::npos) << sql;
+  // MySQL 5.7 does not understand an offset suffix on a datetime literal.
+  EXPECT_EQ(sql.find("+00:00"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, MysqlAwareFetchBoundIsSessionTimezoneIndependent) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo withStreamTz = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                      "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);
+  withStreamTz.pTask = &task;
+  withStreamTz.borrowConn = true;
+  SStreamExtReaderInfo withoutStreamTz = makeBoundReader(EXT_SOURCE_MYSQL,
+                                                         EXT_TIMESTAMP_TZ_CLASS_AWARE, "",
+                                                         TSDB_TIME_PRECISION_MICRO);
+  withoutStreamTz.pTask = &task;
+  withoutStreamTz.borrowConn = true;
+
+  // FROM_UNIXTIME() names one instant, so neither the stream timezone nor the
+  // server global timezone may leak into the literal.
+  EXPECT_EQ(captureFetchSql(&withStreamTz, kBoundEpochUs, kBoundEpochUs),
+            captureFetchSql(&withoutStreamTz, kBoundEpochUs, kBoundEpochUs));
+}
+
+TEST(StreamReaderExtTimeBoundTest, MysqlNaiveFetchBoundKeepsStreamTimezone) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_NAIVE,
+                                                "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // A DATETIME column holds a wall clock, which the connector decodes with the
+  // stream timezone, so the bound must spell that wall clock.
+  std::string sql = captureFetchSql(&reader, kBoundEpochUs, kBoundEpochUs);
+  EXPECT_NE(sql.find("'2026-01-01 08:00:00.000000'"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, PostgresAwareFetchBoundSpellsUtcOffset) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_POSTGRESQL,
+                                                EXT_TIMESTAMP_TZ_CLASS_AWARE, "Asia/Shanghai",
+                                                TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // PostgreSQL accepts an offset on a datetime literal in every supported
+  // version, so the bound stays an explicit instant.
+  std::string sql = captureFetchSql(&reader, kBoundEpochUs, kBoundEpochUs);
+  EXPECT_NE(sql.find("'2026-01-01 00:00:00.000000+00:00'"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, SqlServerAwareFetchBoundStaysBareUtcWallClock) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_SQLSERVER,
+                                                EXT_TIMESTAMP_TZ_CLASS_AWARE, "Asia/Shanghai",
+                                                TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // T-SQL reads an offset-less datetimeoffset literal as +00:00 already.
+  std::string sql = captureFetchSql(&reader, kBoundEpochUs, kBoundEpochUs);
+  EXPECT_NE(sql.find("'2026-01-01 00:00:00.000000'"), std::string::npos) << sql;
+  EXPECT_EQ(sql.find("+00:00"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, MysqlAwareBoundKeepsFractionAtEveryPrecision) {
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);
+  char buf[64] = {0};
+
+  EXPECT_GT(streamReaderExtRenderTimeBound(&reader, 1767225600123456LL, TSDB_TIME_PRECISION_MICRO,
+                                           buf, sizeof(buf)),
+            0);
+  EXPECT_STREQ(buf, "FROM_UNIXTIME(1767225600.123456)");
+
+  EXPECT_GT(streamReaderExtRenderTimeBound(&reader, 1767225600123LL, TSDB_TIME_PRECISION_MILLI,
+                                           buf, sizeof(buf)),
+            0);
+  EXPECT_STREQ(buf, "FROM_UNIXTIME(1767225600.123000)");
+
+  EXPECT_GT(streamReaderExtRenderTimeBound(&reader, 1767225600123456000LL,
+                                           TSDB_TIME_PRECISION_NANO, buf, sizeof(buf)),
+            0);
+  EXPECT_STREQ(buf, "FROM_UNIXTIME(1767225600.123456)");
+}
+
+// 2038-01-19 04:00:00 UTC, one hour past the MySQL TIMESTAMP ceiling.
+constexpr int64_t kPastMysqlCeilingUs = 2147486400LL * 1000000LL;
+
+TEST(StreamReaderExtTimeBoundTest, MysqlAwareUpperBoundClampsIntoTheTimestampDomain) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // MySQL 5.7 and 8.0 both return NULL from FROM_UNIXTIME() once the seconds
+  // argument passes INT_MAX32, so an unclamped upper bound would render
+  // "ts <= NULL" and drop every row of the window even though rows up to the
+  // 2038 ceiling are perfectly legal TIMESTAMP values.
+  std::string sql = captureFetchSql(&reader, kBoundEpochUs, kPastMysqlCeilingUs);
+  EXPECT_NE(sql.find("<= FROM_UNIXTIME(2147483647.999999)"), std::string::npos) << sql;
+  // An in-range lower bound is never clamped.
+  EXPECT_NE(sql.find(">= FROM_UNIXTIME(1767225600.000000)"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, MysqlAwareLowerBoundPastTheDomainStaysRaw) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // "ts >= NULL" already yields the empty result such a bound asks for;
+  // clamping it to the ceiling would wrongly re-admit the newest rows.
+  std::string sql = captureFetchSql(&reader, kPastMysqlCeilingUs, kPastMysqlCeilingUs);
+  EXPECT_NE(sql.find(">= FROM_UNIXTIME(2147486400.000000)"), std::string::npos) << sql;
+  EXPECT_NE(sql.find("<= FROM_UNIXTIME(2147483647.999999)"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, MysqlAwareUpperBoundClampFollowsPrecision) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                "Asia/Shanghai", TSDB_TIME_PRECISION_MILLI);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  std::string sql = captureFetchSql(&reader, 1767225600000LL, 2147486400000LL);
+  EXPECT_NE(sql.find("<= FROM_UNIXTIME(2147483647.999000)"), std::string::npos) << sql;
 }
 
 }  // namespace

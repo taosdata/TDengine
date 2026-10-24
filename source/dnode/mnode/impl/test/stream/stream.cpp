@@ -9582,6 +9582,28 @@ TEST_F(MndStreamExtReaderSchemaTest, RejectsAmbiguousTimestampPrimaryKey) {
   EXPECT_EQ(nullptr, spec_);
 }
 
+TEST_F(MndStreamExtReaderSchemaTest, RejectsSubMicrosecondTimestampPrimaryKey) {
+  // SQL Server datetime2(7) keeps a seventh fractional digit that the connector
+  // truncates, so a row written into the already consumed microsecond can never
+  // be observed: the reader must reject the binding instead of losing rows.
+  source_.type = EXT_SOURCE_SQLSERVER;
+  req_.sourceType = EXT_SOURCE_SQLSERVER;
+  tstrncpy(columns_[1].extTypeName, "datetime2(7)", sizeof(columns_[1].extTypeName));
+  EXPECT_EQ(TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED, build());
+  EXPECT_EQ(nullptr, spec_);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, AcceptsMicrosecondTimestampPrimaryKey) {
+  // datetime2(6) is exactly representable in the microsecond transport, so the
+  // same schema is accepted for SQL Server.
+  source_.type = EXT_SOURCE_SQLSERVER;
+  req_.sourceType = EXT_SOURCE_SQLSERVER;
+  tstrncpy(columns_[1].extTypeName, "datetime2(6)", sizeof(columns_[1].extTypeName));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("ts", spec_->tsColumn);
+}
+
 TEST_F(MndStreamExtReaderSchemaTest, RejectsDecimalScaleMismatchOnRedeploy) {
   // The virtual column keeps its declared DECIMAL(10,2) while the remote column changed to
   // DECIMAL(10,3): same type enum, but re-interpreting the integer payload under the virtual
@@ -9637,6 +9659,81 @@ TEST_F(MndStreamExtReaderSchemaTest, SharedBindingsReusePhysicalColumnSlotsPerKi
     EXPECT_EQ(index, result->binding.virtualUid);
     EXPECT_EQ(1, result->binding.resultColumnSlot);
   }
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, ResolvesLegacySqlServerFourPartNamespace) {
+  // A 4-part SQL Server reference (source.schema.table.column) reaches the reader with the schema
+  // in dbName and an empty schemaName. The reader must connect to the source's default database
+  // and use the middle segment as the schema, while leaving the wire identity untouched so the
+  // registry entries still match (mirrors the parser normalization done before persisting).
+  source_.type = EXT_SOURCE_SQLSERVER;
+  req_.sourceType = EXT_SOURCE_SQLSERVER;
+  tstrncpy(source_.defaultDatabase, "sales_db", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "dbo", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.dbName, "archive", sizeof(req_.identity.dbName));
+  req_.identity.schemaName[0] = '\0';
+  tstrncpy(req_.identity.tableName, "orders", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "datetime2(6)", sizeof(columns_[1].extTypeName));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("sales_db", spec_->extDb);
+  EXPECT_STREQ("archive", spec_->extSchema);
+  EXPECT_STREQ("orders", spec_->extTable);
+  // Registry identity must stay exactly as it arrived on the wire.
+  EXPECT_STREQ("archive", req_.identity.dbName);
+  EXPECT_STREQ("", req_.identity.schemaName);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, KeepsExplicitSqlServerDatabaseAndSchema) {
+  // A 5-part reference (source.database.schema.table.column) keeps both segments as given.
+  source_.type = EXT_SOURCE_SQLSERVER;
+  req_.sourceType = EXT_SOURCE_SQLSERVER;
+  tstrncpy(source_.defaultDatabase, "sales_db", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "dbo", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.dbName, "archive", sizeof(req_.identity.dbName));
+  tstrncpy(req_.identity.schemaName, "reporting", sizeof(req_.identity.schemaName));
+  tstrncpy(req_.identity.tableName, "orders", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "datetime2(6)", sizeof(columns_[1].extTypeName));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("archive", spec_->extDb);
+  EXPECT_STREQ("reporting", spec_->extSchema);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, KeepsFivePartNamespaceWhenSchemaMatchesSourceDefault) {
+  // A five-part reference may legitimately point at another database of the source while naming
+  // the source's default schema. That identity is byte-identical to the shape the pre-
+  // normalization CREATE path wrote for a four-part reference (path schema in dbName, default
+  // schema in schemaName), so the reader must keep it verbatim instead of guessing the legacy
+  // layout -- otherwise `src.otherdb.dbo.t.c` would read otherdb as a schema.
+  source_.type = EXT_SOURCE_SQLSERVER;
+  req_.sourceType = EXT_SOURCE_SQLSERVER;
+  tstrncpy(source_.defaultDatabase, "sales_db", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "dbo", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.dbName, "archive", sizeof(req_.identity.dbName));
+  tstrncpy(req_.identity.schemaName, "dbo", sizeof(req_.identity.schemaName));
+  tstrncpy(req_.identity.tableName, "orders", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "datetime2(6)", sizeof(columns_[1].extTypeName));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("archive", spec_->extDb);
+  EXPECT_STREQ("dbo", spec_->extSchema);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, KeepsDatabaseScopedNamespaceWithoutSchema) {
+  // Non-SQL Server sources keep the database segment and must never gain a schema.
+  tstrncpy(source_.defaultDatabase, "metrics", sizeof(source_.defaultDatabase));
+  tstrncpy(req_.identity.dbName, "warehouse", sizeof(req_.identity.dbName));
+  req_.identity.schemaName[0] = '\0';
+  tstrncpy(req_.identity.tableName, "cpu", sizeof(req_.identity.tableName));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("warehouse", spec_->extDb);
+  EXPECT_STREQ("", spec_->extSchema);
 }
 
 TEST(MndStreamExtReaderDeployTest, BuildsSpecAndConfirmsCompatibleBindingsFromSchema) {

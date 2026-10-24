@@ -38,6 +38,7 @@
 #include <stdarg.h>
 #include "executor.h"
 #include "extConnector.h"
+#include "extTypeMap.h"   // extTimestampTypeTzClass
 #include "osString.h"     // taosUcs4ToMbs / TdUcs4 (extColCellToStr NCHAR conversion)
 #include "plannodes.h"    // SExtColTypeMapping full definition
 #include "querynodes.h"   // SColumnNode / SExprNode
@@ -261,11 +262,110 @@ static bool extSrcIsRelational(int8_t sourceType) {
  * Output format: 'YYYY-MM-DD HH:MM:SS.uuuuuu'  (including surrounding quotes)
  * buf must be at least 32 bytes.
  * Returns the number of characters written (excluding NUL terminator).
+ *
+ * tzName is the client timezone of the owning stream.  The connector decodes
+ * timezone-naive source columns (MySQL DATETIME, PG timestamp without time
+ * zone, SQL Server datetime2) with that timezone, so the WHERE literals must
+ * be rendered with it as well; otherwise the fetch/metadata ranges shift by
+ * the offset between the stream and the server global timezone.  An empty or
+ * invalid name keeps the previous behaviour (server global timezone).
  * ============================================================ */
-static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, char *buf, int32_t bufLen) {
+static timezone_t extResolveSqlTimezone(const char *tzName) {
+  if (tzName == NULL || tzName[0] == '\0') {
+    return NULL;
+  }
+
+  timezone_t tz = NULL;
+  int32_t    code = taosValidateTimezone(tzName, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    stWarn("ext: invalid timezone name:%s, using server global timezone", tzName);
+    if (tz != NULL) {
+      tzfree(tz);
+    }
+    return NULL;
+  }
+  return tz;
+}
+
+/* Timezone name used to render remote SQL timestamp bounds.
+ *
+ * The connector decodes timezone-naive source columns (MySQL DATETIME, PG
+ * timestamp without time zone, SQL Server datetime2) with the stream client
+ * timezone and timezone-aware ones (MySQL TIMESTAMP, PG timestamptz) into an
+ * absolute instant, independently of both the stream and the taosd timezone.
+ * Timezone-aware bounds are therefore always rendered from a UTC basis; see
+ * extSqlBoundForm() for how each dialect spells such a bound. */
+static const char *extSqlBoundTimezone(const SStreamExtReaderInfo *pInfo) {
+  if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return "UTC";
+  }
+  return pInfo->timezone;
+}
+
+/* How a timestamp bound literal is spelled for the remote dialect. */
+typedef enum {
+  /* Timezone-naive column (MySQL DATETIME, PG timestamp, SQL Server datetime2):
+   * the source wall clock is decoded with the stream timezone, so the bound is
+   * rendered in that same timezone. */
+  EXT_SQL_BOUND_LOCAL = 0,
+  /* Timezone-aware column: the bound is UTC wall clock plus an explicit
+   * "+00:00" suffix, because neither MySQL nor PG can be assumed to run its
+   * session in UTC and an offset-less literal would be read in the session
+   * timezone. */
+  EXT_SQL_BOUND_UTC_SUFFIX,
+  /* Timezone-aware column whose dialect reads an offset-less literal as UTC. */
+  EXT_SQL_BOUND_UTC_WALL,
+  /* Timezone-aware MySQL column: FROM_UNIXTIME(<epoch>), which is
+   * session-timezone independent without needing offset-literal support. */
+  EXT_SQL_BOUND_UNIX_EPOCH,
+} EExtSqlBoundForm;
+
+/* Pick the bound spelling for this reader.
+ *
+ * A timezone-aware column holds an absolute instant, but the remote side still
+ * has to know which instant a bare wall clock means:
+ *   - MySQL interprets an offset-less literal in the *session* timezone, and
+ *     the reader cannot observe that session.  An explicit "+00:00" suffix
+ *     fixes that but is only understood from MySQL 8.0.19 on; MySQL 5.7 (still
+ *     supported, FS section 12) treats the suffix as trailing garbage and keeps
+ *     comparing in the session timezone, which shifts every bound by the
+ *     session offset.  FROM_UNIXTIME() has no such version dependency and
+ *     always yields the session-timezone image of the requested instant, so it
+ *     compares correctly against a TIMESTAMP column in any session timezone
+ *     (>= 5.6.4 keeps the fractional seconds).
+ *   - PostgreSQL accepts an offset on a datetime literal in every supported
+ *     version, so the bound spells "+00:00".
+ *   - SQL Server needs no suffix: it reads an offset-less datetimeoffset
+ *     literal as +00:00 (DS 5.3.7), which the SQL Server end-to-end case pins
+ *     down.
+ */
+static EExtSqlBoundForm extSqlBoundForm(const SStreamExtReaderInfo *pInfo) {
+  if (pInfo->tsTzClass != EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return EXT_SQL_BOUND_LOCAL;
+  }
+
+  switch ((EExtSourceType)pInfo->spec.sourceType) {
+    case EXT_SOURCE_MYSQL:
+      return EXT_SQL_BOUND_UNIX_EPOCH;
+    case EXT_SOURCE_SQLSERVER:
+      return EXT_SQL_BOUND_UTC_WALL;
+    default:
+      return EXT_SQL_BOUND_UTC_SUFFIX;
+  }
+}
+
+/* Longest timestamp literal a remote bound can render:
+ * 'YYYY-MM-DD HH:MM:SS.uuuuuu+00:00' (34 bytes incl. quotes) + NUL, or
+ * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL. */
+#define EXT_SQL_TS_LITERAL_LEN 40
+
+static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *tzName,
+                                  EExtSqlBoundForm form, char *buf, int32_t bufLen) {
+  const char *suffix = (form == EXT_SQL_BOUND_UTC_SUFFIX) ? "+00:00'" : "'";
   /* Clamp INT64_MIN / negative to epoch origin. */
-  if (epoch == INT64_MIN || epoch < 0) {
-    return snprintf(buf, bufLen, "'1970-01-01 00:00:00.000000'");
+  bool clamped = (epoch == INT64_MIN || epoch < 0);
+  if (clamped) {
+    epoch = 0;
   }
   /* Normalize to microseconds for sub-second formatting. */
   int64_t epoch_us;
@@ -277,15 +377,75 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, char *buf, i
     /* MICRO  -  already in micros */
     epoch_us = epoch;
   }
+  if (form == EXT_SQL_BOUND_UNIX_EPOCH) {
+    /* Absolute instant as a numeric epoch: the remote evaluates it in its own
+     * session timezone, so the bound stays correct without an offset literal. */
+    return snprintf(buf, bufLen, "FROM_UNIXTIME(%" PRId64 ".%06d)",
+                    (int64_t)(epoch_us / 1000000LL), (int32_t)(epoch_us % 1000000LL));
+  }
+  if (clamped) {
+    return snprintf(buf, bufLen, "'1970-01-01 00:00:00.000000%s", suffix);
+  }
   time_t     sec     = (time_t)(epoch_us / 1000000LL);
   int        us      = (int)(epoch_us % 1000000LL);
   struct tm  tm_info = {0};
-  /* Use TDengine's taosLocalTime to honour the taosd system timezone. */
-  taosLocalTime(&sec, &tm_info, NULL, 0, NULL);
+  /* Render the bound in the same timezone the connector uses to decode the
+   * source column; NULL falls back to the server global timezone. */
+  timezone_t tz = extResolveSqlTimezone(tzName);
+  taosLocalTime(&sec, &tm_info, NULL, 0, tz);
+  if (tz != NULL) {
+    tzfree(tz);
+  }
   return snprintf(buf, bufLen,
-                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d'",
+                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
                   tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
-                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us);
+                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us, suffix);
+}
+
+/* Render the remote SQL literal for one time bound of this reader.
+ *
+ * The spelling depends on both the timestamp class and the source dialect (see
+ * extSqlBoundForm); keeping that decision in one entry point lets the reader
+ * and the unit tests exercise the same code path. */
+int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_t bound,
+                                       int8_t precision, char *buf, int32_t bufLen) {
+  if (pInfo == NULL || buf == NULL || bufLen <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return epochToDatetimeStr(bound, precision, extSqlBoundTimezone(pInfo),
+                            extSqlBoundForm(pInfo), buf, bufLen);
+}
+
+/* Last instant a MySQL TIMESTAMP column can hold: 2038-01-19 03:14:07.999999
+ * UTC, which is also the largest argument FROM_UNIXTIME() accepts. */
+#define EXT_MYSQL_TS_MAX_EPOCH_US 2147483647999999LL
+
+/* Keep an inclusive upper bound inside the MySQL TIMESTAMP domain.
+ *
+ * A timezone-aware MySQL column is a TIMESTAMP, and FROM_UNIXTIME() returns
+ * NULL once its seconds argument exceeds TIMESTAMP_MAX_VALUE (INT_MAX32), so
+ * both 5.7 and 8.0 reject anything past 2038-01-19 03:14:07.  A finite upper
+ * bound beyond that ceiling cannot exclude any TIMESTAMP row, but rendering
+ * its raw epoch would turn the predicate into "ts <= NULL", which matches
+ * nothing and empties the whole fetch window.
+ *
+ * Only upper bounds are clamped.  A lower bound past the ceiling must keep its
+ * raw epoch: "ts >= NULL" already produces the empty result that bound calls
+ * for, whereas clamping it to the ceiling would wrongly re-admit the newest
+ * rows. */
+static int64_t extClampMysqlUpperBound(const SStreamExtReaderInfo *pInfo, int64_t bound,
+                                       int8_t precision) {
+  if (extSqlBoundForm(pInfo) != EXT_SQL_BOUND_UNIX_EPOCH) {
+    return bound;
+  }
+  /* Compare in the caller's precision so no conversion can overflow. */
+  int64_t ceiling = EXT_MYSQL_TS_MAX_EPOCH_US;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    ceiling = EXT_MYSQL_TS_MAX_EPOCH_US * 1000LL;
+  } else if (precision == TSDB_TIME_PRECISION_MILLI) {
+    ceiling = EXT_MYSQL_TS_MAX_EPOCH_US / 1000LL;
+  }
+  return (bound > ceiling) ? ceiling : bound;
 }
 
 /* ============================================================
@@ -546,6 +706,7 @@ static int32_t buildInfluxTagWhereClause(const SStreamExtTriggerSpec *pSpec, con
  * Returns TSDB_CODE_SUCCESS; *ppOut is NULL when no rows were returned.
  * ============================================================ */
 static int32_t extQueryExecFetchOne(SExtConnectorHandle  *pConn,
+                                    const char           *timezone,
                                     const char           *sql,
                                     SExtColTypeMapping   *pMappings,
                                     int32_t               nMappings,
@@ -556,7 +717,7 @@ static int32_t extQueryExecFetchOne(SExtConnectorHandle  *pConn,
 
   stDebug("ext: extQueryExecFetchOne sql=\"%.120s\" nMappings=%d", sql, nMappings);
 
-  code = extConnectorExecQuery(pConn, NULL, sql, &pQHdl, &connErr);
+  code = extConnectorExecQuery(pConn, NULL, timezone, sql, &pQHdl, &connErr);
   if (code != TSDB_CODE_SUCCESS) {
     stError("ext: extQueryExecFetchOne exec failed code:%d msg:%s",
             code, connErr.remoteMessage);
@@ -589,6 +750,7 @@ typedef int32_t (*FExtBlockCallback)(SSDataBlock *pBlock, void *pCtx);
  * Ownership: each pBlock passed to cb belongs to cb; cb must destroy it.
  * ============================================================ */
 static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
+                                   const char           *timezone,
                                    const char           *sql,
                                    SExtColTypeMapping   *pMappings,
                                    int32_t               nMappings,
@@ -600,7 +762,7 @@ static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
 
   stDebug("ext: extQueryExecForEach sql=\"%.120s\" nMappings=%d", sql, nMappings);
 
-  code = extConnectorExecQuery(pConn, NULL, sql, &pQHdl, &connErr);
+  code = extConnectorExecQuery(pConn, NULL, timezone, sql, &pQHdl, &connErr);
   if (code != TSDB_CODE_SUCCESS) {
     stError("ext: extQueryExecForEach exec failed code:%d msg:%s",
             code, connErr.remoteMessage);
@@ -635,6 +797,7 @@ static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
  * RecordBatches; using FetchOne would silently drop trailing batches.
  * ============================================================ */
 static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
+                                    const char           *timezone,
                                     const char           *sql,
                                     SExtColTypeMapping   *pMappings,
                                     int32_t               nMappings,
@@ -645,7 +808,7 @@ static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
 
   stDebug("ext: extQueryExecFetchAll sql=\"%.120s\" nMappings=%d", sql, nMappings);
 
-  code = extConnectorExecQuery(pConn, NULL, sql, &pQHdl, &connErr);
+  code = extConnectorExecQuery(pConn, NULL, timezone, sql, &pQHdl, &connErr);
   if (code != TSDB_CODE_SUCCESS) {
     stError("ext: extQueryExecFetchAll exec failed code:%d msg:%s",
             code, connErr.remoteMessage);
@@ -1019,10 +1182,45 @@ static int32_t extOpenReaderConnector(const SStreamTask *pTask, const SStreamExt
   return TSDB_CODE_SUCCESS;
 }
 
+/* Timezone class of the reader's source timestamp column, resolved from the
+ * remote type mnode recorded in the deploy spec.
+ *
+ * mnode always fills the mapping slot of the remote timestamp column, so the
+ * remote type name (e.g. "datetimeoffset(6)") is available even when the deploy
+ * plan carries no federated scan (virtual-table trigger) or when its timestamp
+ * hints do not include the bound column.  Returns
+ * EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the timestamp column is not mapped.
+ *
+ * Exported with a void* signature because streamReader.c cannot include this
+ * header (it redefines SStreamTriggerReaderInfo in its own translation unit);
+ * the deploy-time resolver calls this instead of keeping a second copy of the
+ * matching rules. */
+int8_t streamReaderExtSpecTsTzClass(const void *pSpecVoid) {
+  const SStreamExtTriggerSpec *pSpec = (const SStreamExtTriggerSpec *)pSpecVoid;
+  if (pSpec == NULL || pSpec->tsColumn[0] == '\0' || pSpec->pColMappings == NULL ||
+      pSpec->numColMappings <= 0) {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  EExtSourceType srcType = (EExtSourceType)pSpec->sourceType;
+  for (int32_t i = 0; i < pSpec->numColMappings; ++i) {
+    const SExtColTypeMapping *pMapping = &pSpec->pColMappings[i];
+    if (!extColumnNameEqual(srcType, pMapping->colName, pSpec->tsColumn)) {
+      continue;
+    }
+    int8_t tzClass = extTimestampTypeTzClass(srcType, pMapping->extTypeName);
+    stDebug("ext: resolved timestamp class from spec sourceType:%d column:%s type:%s class:%d",
+            (int)pSpec->sourceType, pSpec->tsColumn, pMapping->extTypeName, (int)tzClass);
+    return tzClass;
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
 /* ============================================================
  * Lifecycle: open
  * ============================================================ */
 int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                            const char *timezone, int8_t tsTzClass,
                             SStreamExtReaderInfo **ppReaderInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1050,6 +1248,28 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcT
   pInfo->pTask = pTask;
   pInfo->pCalcTimeRange = pCalcTimeRange;
   pCalcTimeRange = NULL;
+  if (timezone != NULL && timezone[0] != '\0') {
+    tstrncpy(pInfo->timezone, timezone, sizeof(pInfo->timezone));
+  }
+  pInfo->tsTzClass = tsTzClass;
+  if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+    /* The deploy-time resolver reads the plan's timestamp hints; fall back to
+     * the remote type recorded in the spec so a virtual-table reader without a
+     * federated scan still classifies a timezone-aware column. */
+    pInfo->tsTzClass = streamReaderExtSpecTsTzClass(pExtSpec);
+  }
+  if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN &&
+      (EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_SQLSERVER) {
+    /* An unclassified SQL Server timestamp would render datetimeoffset bounds
+     * as a client wall clock, which SQL Server reads as UTC; keep the shift
+     * diagnosable instead of silently dropping rows. */
+    stWarn("ext: cannot classify the SQL Server timestamp column, source:%s column:%s; "
+           "datetimeoffset bounds will be rendered in the stream timezone",
+           pExtSpec->sourceName, pExtSpec->tsColumn);
+  }
+  stDebug("ext: reader timezone=%s tsTzClass=%d",
+          pInfo->timezone[0] != '\0' ? pInfo->timezone : "(server global)",
+          (int)pInfo->tsTzClass);
   code = taosThreadMutexInit(&pInfo->connLock, NULL);
   if (code != TSDB_CODE_SUCCESS) goto _err;
   pInfo->connLockInited = true;
@@ -1153,9 +1373,11 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
 /* Called by stReaderTaskDeploy in streamReader.c for ext-source reader tasks.
  * Delegates to streamReaderExtOpen and returns the opaque info pointer
  * via *ppInfo (void*). */
-int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange, void **ppInfo) {
+int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                        const char *timezone, int8_t tsTzClass, void **ppInfo) {
   SStreamExtReaderInfo *pReaderInfo = NULL;
-  int32_t code = streamReaderExtOpen(pSpec, pTask, pCalcTimeRange, &pReaderInfo);
+  int32_t code =
+      streamReaderExtOpen(pSpec, pTask, pCalcTimeRange, timezone, tsTzClass, &pReaderInfo);
   *ppInfo = (void *)pReaderInfo;
   return code;
 }
@@ -1854,7 +2076,7 @@ static int32_t extDiscoverInfluxTagCols(SStreamExtReaderInfo *pInfo, SArray **pp
     return terrno;
   }
 
-  code = extQueryExecForEach(pInfo->pConn, schemaSQL, &nameMapping, 1, influxSchemaBlockCb, pTagCols);
+  code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, schemaSQL, &nameMapping, 1, influxSchemaBlockCb, pTagCols);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition schema query failed code:%d", code);
     taosArrayDestroy(pTagCols);
@@ -2041,7 +2263,7 @@ static int32_t extEnumerateInfluxDistinctGroups(SStreamExtReaderInfo *pInfo, SAr
     .partExprNodes = pPlan->partExprNodes,
   };
 
-  code = extQueryExecForEach(pInfo->pConn, distSQL, pMappings, nTags, influxDistinctBlockCb, &dCtx);
+  code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, distSQL, pMappings, nTags, influxDistinctBlockCb, &dCtx);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition distinct query failed code:%d", code);
     return code;
@@ -2385,7 +2607,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   tstrncpy(tsMapping.colName, tsCol, sizeof(tsMapping.colName));
 
   SSDataBlock *pBlock = NULL;
-  code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
+  code = extQueryExecFetchAll(pInfo->pConn, pInfo->timezone, sqlBuf,
                               &tsMapping, 1, &pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: handleLastTsPullRelational query failed code:%d", code);
@@ -2559,9 +2781,10 @@ static void extInitRelationalMetaMappings(const char *tsCol, SExtColTypeMapping 
 static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilterBuf,
                                          const char *tsCol, uint64_t uid, int64_t maxTs,
                                          int8_t boundPrecision,
+                                         const SStreamExtReaderInfo *pInfo,
                                          char *sqlBuf, int32_t sqlBufLen) {
-  char dtBuf[32] = {0};
-  epochToDatetimeStr(maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
+  char dtBuf[EXT_SQL_TS_LITERAL_LEN] = {0};
+  streamReaderExtRenderTimeBound(pInfo, maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
 
   /* Emit the uid as its signed 64-bit representation: group uids are
    * MurmurHash3 values with the full uint64 range, and roughly half of them
@@ -2678,7 +2901,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
 
     code = extBuildRelationalMetaSql(tblRef, prefilterBuf, tsColQ, uid,
                                      extLookupUidMaxTs(pUidMaxTs, uid),
-                                     pInfo->spec.precision,
+                                     pInfo->spec.precision, pInfo,
                                      sqlBuf, sizeof(sqlBuf));
     if (code != TSDB_CODE_SUCCESS) {
       break;
@@ -2686,7 +2909,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
 
     ST_TASK_DLOG("ext: meta relational uid=%" PRIu64 " sql=\"%.120s\"", uid, sqlBuf);
 
-    code = extQueryExecFetchAll(pInfo->pConn, sqlBuf, metaMappings, 4, &pBlock);
+    code = extQueryExecFetchAll(pInfo->pConn, pInfo->timezone, sqlBuf, metaMappings, 4, &pBlock);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("ext: meta relational query uid=%" PRIu64 " code:%d", uid, code);
       break;
@@ -2952,7 +3175,7 @@ static int32_t extRunInfluxMetaBatch(SStreamExtReaderInfo *pInfo, SArray *pAllUi
     .pAgg = pAgg,
   };
 
-  int32_t code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
+  int32_t code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, sqlBuf, pMappings, nCols,
                                      influxAccumBlockCb, &aCtx);
   if (code == TSDB_CODE_SUCCESS) {
     code = extFlushInfluxMetaAgg(pInfo, pAllUids, batchStart, consumed, pAgg, pRsp,
@@ -3217,7 +3440,7 @@ static int32_t extRunInfluxLastTsBatch(SStreamExtReaderInfo *pInfo, SArray *pAll
       .nTags = nTags,
       .pAgg = pAgg,
     };
-    code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
+    code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, sqlBuf, pMappings, nCols,
                                influxAccumBlockCb, &aCtx);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("ext: influx lastTs batch %d query failed code:%d", batchIdx, code);
@@ -3367,11 +3590,13 @@ static int32_t extBuildRelationalFetchSql(const char *colList, const char *tblRe
                                           const char *prefilterBuf, const char *tsCol,
                                           uint64_t uid, int64_t skey, int64_t ekey,
                                           int8_t boundPrecision,
+                                          const SStreamExtReaderInfo *pInfo,
                                           char *sqlBuf, int32_t sqlBufLen) {
-  char skeyDt[32] = {0};
-  char ekeyDt[32] = {0};
-  epochToDatetimeStr(skey, boundPrecision, skeyDt, sizeof(skeyDt));
-  epochToDatetimeStr(ekey, boundPrecision, ekeyDt, sizeof(ekeyDt));
+  char skeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
+  char ekeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
+  streamReaderExtRenderTimeBound(pInfo, skey, boundPrecision, skeyDt, sizeof(skeyDt));
+  streamReaderExtRenderTimeBound(pInfo, extClampMysqlUpperBound(pInfo, ekey, boundPrecision),
+                                 boundPrecision, ekeyDt, sizeof(ekeyDt));
 
   // The virtual-table merger and the external timestamp sorter both walk a slice as ascending
   // [skey, ekey] ranges and stop at the first row beyond the window, so an unordered result set
@@ -3465,7 +3690,7 @@ static int32_t fetchDataForUid(SStreamExtReaderInfo *pInfo,
            ? extBuildInfluxFetchSql(pInfo, colList, tblRef, prefilterBuf, tsColQ,
                                     uid, skey, ekey, sqlBuf, sizeof(sqlBuf))
            : extBuildRelationalFetchSql(colList, tblRef, prefilterBuf, tsColQ,
-                                        uid, skey, ekey, boundPrecision,
+                                        uid, skey, ekey, boundPrecision, pInfo,
                                         sqlBuf, sizeof(sqlBuf));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3473,7 +3698,7 @@ static int32_t fetchDataForUid(SStreamExtReaderInfo *pInfo,
 
   ST_TASK_DLOG("ext: fetchDataForUid uid=%" PRIu64 " sql=\"%.180s\"", uid, sqlBuf);
   extSelectFetchMappings(pMappings, nMappings, &pEffMappings, &nEffMappings);
-  code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
+  code = extQueryExecFetchAll(pInfo->pConn, pInfo->timezone, sqlBuf,
                               (SExtColTypeMapping *)pEffMappings,
                               nEffMappings,
                               ppBlock);
@@ -3942,7 +4167,7 @@ static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
     if (anyUid) {
       ST_TASK_DLOG("ext: influx data batch [%d..%d) sql=\"%.180s\"",
                    batchStart, batchStart + consumed, sqlBuf);
-      code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMapAll, nColsAll,
+      code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, sqlBuf, pMapAll, nColsAll,
                                  influxDataDemuxBlockCb, &ctx);
       if (code == TSDB_CODE_SUCCESS) code = ctx.code;
       if (code != TSDB_CODE_SUCCESS) {
@@ -4796,14 +5021,17 @@ _exit:
 static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
                                     const char *tsCol, const char *op,
                                     int64_t ts, int8_t boundPrecision,
-                                    bool isInflux) {
+                                    const SStreamExtReaderInfo *pInfo, bool isInflux) {
   if (isInflux) {
     return extSqlCat(sql, sqlLen, pOff, " AND %s %s to_timestamp_nanos(%" PRId64 ")",
                      tsCol, op, extInfluxBoundToNanos(ts, boundPrecision, strcmp(op, "<=") == 0));
   }
 
-  char dt[32] = {0};
-  epochToDatetimeStr(ts, boundPrecision, dt, sizeof(dt));
+  char dt[EXT_SQL_TS_LITERAL_LEN] = {0};
+  /* Only the inclusive upper bound is clamped into the remote domain; see
+   * extClampMysqlUpperBound(). */
+  int64_t bound = (strcmp(op, "<=") == 0) ? extClampMysqlUpperBound(pInfo, ts, boundPrecision) : ts;
+  streamReaderExtRenderTimeBound(pInfo, bound, boundPrecision, dt, sizeof(dt));
   return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt);
 }
 
@@ -5106,11 +5334,11 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                skey, ekey, boundPrecision, isInflux, aliasSelectItems);
   if (ok && skey != INT64_MIN) {
     ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, ">=", skey,
-                                 boundPrecision, isInflux);
+                                 boundPrecision, pReaderInfo, isInflux);
   }
   if (ok && ekey != INT64_MAX) {
     ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, "<=", ekey,
-                                 boundPrecision, isInflux);
+                                 boundPrecision, pReaderInfo, isInflux);
   }
   // External sources do not guarantee row order, and the trigger consumes calc rows with an
   // ascending time cursor: order the fetch by the timestamp column like the relational uid
@@ -5134,11 +5362,11 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
     SExtConnectorHandle *pConn = NULL;
     code = extOpenReaderConnector(pTask, &pReaderInfo->spec, &pConn);
     if (code != TSDB_CODE_SUCCESS) goto _exit;
-    code = extQueryExecFetchAll(pConn, sql, (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+    code = extQueryExecFetchAll(pConn, pReaderInfo->timezone, sql, (SExtColTypeMapping *)pMappings, nMappings, ppOut);
     extConnectorClose(pConn);
   } else {
     (void)taosThreadMutexLock(&pReaderInfo->connLock);
-    code = extQueryExecFetchAll(pReaderInfo->pConn, sql,
+    code = extQueryExecFetchAll(pReaderInfo->pConn, pReaderInfo->timezone, sql,
                                 (SExtColTypeMapping *)pMappings, nMappings, ppOut);
     (void)taosThreadMutexUnlock(&pReaderInfo->connLock);
   }
