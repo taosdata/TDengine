@@ -617,9 +617,9 @@ Notes:
 - If a file is corrupted, the command automatically salvages the readable parts and prints a warning. If no complete data can be salvaged, the command fails with a non-zero exit code. If any input file fails, the process exits with a non-zero exit code.
 - Archive files are deduplicated: only the first batch is kept for each failure reason in each file, so an archive file does not contain every invalid row. Refer to the task monitoring metrics for the total number of invalid rows.
 
-### Migrate Tasks When Upgrading from v3.3.6.x or v3.3.8.x to v3.4.x
+### Migrate Tasks When Upgrading from a Version Before v3.4 to v3.4.x
 
-taosX v3.3.6.x and v3.3.8.x store tasks in SQLite, while v3.4.x stores them in mnode. The upgrade does not migrate existing tasks automatically. Without exporting them before the upgrade, the tasks will not appear in taosExplorer afterward. Follow these steps in order:
+Versions of taosX before v3.4 store tasks in SQLite, while v3.4.x stores them in mnode. The upgrade does not migrate existing tasks automatically. Without exporting them before the upgrade, the tasks will not appear in taosExplorer afterward. Follow these steps in order:
 
 1. **Export before upgrading:** In taosExplorer, open **Data In** > **Data In Task**, select all tasks to migrate, and click **Export Task**. Save the exported JSON file and keep it available for the import.
 
