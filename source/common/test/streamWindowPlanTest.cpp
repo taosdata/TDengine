@@ -2030,7 +2030,9 @@ size_t frameOffset(const std::vector<uint8_t>& bytes, uint32_t expectedMagic) {
   for (size_t i = sizeof(int32_t); i + sizeof(uint32_t) <= bytes.size(); ++i) {
     uint32_t magic = 0;
     memcpy(&magic, bytes.data() + i, sizeof(magic));
-    if (magic == expectedMagic) return i;
+    if (magic == expectedMagic) {
+      return i;
+    }
   }
   return bytes.size();
 }
@@ -3937,6 +3939,8 @@ TEST_F(StreamReaderFetchBuildTest, ThinContinuationHasNoContext) {
   source.streamGen = 12;
   source.sessionId = 2;
   source.curIdx = 3;
+  source.withExternalWindow = true;
+  source.externalWindowNeedsPrevRow = true;
   request.header.vgId = 8;
   request.readerGroupMode = true;
   ASSERT_EQ(tBuildStreamReaderFetchReq(&request, &wire, &wireLen), TSDB_CODE_SUCCESS);
@@ -3949,6 +3953,8 @@ TEST_F(StreamReaderFetchBuildTest, ThinContinuationHasNoContext) {
   EXPECT_EQ(rt->streamGen, 12);
   EXPECT_EQ(rt->sessionId, 2);
   EXPECT_EQ(rt->curIdx, 3);
+  EXPECT_TRUE(rt->withExternalWindow);
+  EXPECT_TRUE(rt->externalWindowNeedsPrevRow);
   EXPECT_EQ(rt->pGroupCalcInfos, nullptr);
   EXPECT_EQ(rt->pGroupReadInfos, nullptr);
   EXPECT_EQ(rt->curGrpRead, nullptr);
@@ -6055,6 +6061,96 @@ TEST(StreamRunnerEogBatchModeTest, RejectsMalformedKnownFramesAndSkipsUnknownFra
   EXPECT_FALSE(decoded.request.runnerEogBatch);
 }
 
+TEST(StreamExternalWindowPrevFrameTest, AbsentCapabilityPreservesFollowingFetchFields) {
+  SStreamRuntimeFuncInfo runtime = {};
+  SResFetchReq           source = {};
+  source.pStRtFuncInfo = &runtime;
+  source.reset = true;
+  source.dynTbname = true;
+  source.forceFetchCompleted = true;
+  auto bytes = serializeFetchRequest(source, false, false);
+  EXPECT_EQ(bytes.size(), frameOffset(bytes, STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC));
+
+  FetchRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded.request));
+  ASSERT_NE(nullptr, decoded.request.pStRtFuncInfo);
+  EXPECT_FALSE(decoded.request.pStRtFuncInfo->externalWindowNeedsPrevRow);
+  EXPECT_TRUE(decoded.request.reset);
+  EXPECT_TRUE(decoded.request.dynTbname);
+  EXPECT_TRUE(decoded.request.forceFetchCompleted);
+
+  runtime.externalWindowNeedsPrevRow = true;
+  auto staleBase = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(staleBase, STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC);
+  ASSERT_LT(offset, staleBase.size());
+  staleBase.erase(staleBase.begin() + offset, staleBase.end());
+  rewriteFetchRequestLengths(&staleBase);
+  FetchRequestGuard reused;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(staleBase.data(), staleBase.size(), &reused.request));
+  ASSERT_NE(nullptr, reused.request.pStRtFuncInfo);
+  EXPECT_FALSE(reused.request.pStRtFuncInfo->externalWindowNeedsPrevRow);
+  EXPECT_TRUE(reused.request.reset);
+  EXPECT_TRUE(reused.request.dynTbname);
+  EXPECT_TRUE(reused.request.forceFetchCompleted);
+}
+
+TEST(StreamExternalWindowPrevFrameTest, RoundTripsCapability) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.externalWindowNeedsPrevRow = true;
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  auto bytes = serializeFetchRequest(source, false, false);
+  EXPECT_LT(frameOffset(bytes, STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC), bytes.size());
+
+  FetchRequestGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded.request));
+  ASSERT_NE(nullptr, decoded.request.pStRtFuncInfo);
+  EXPECT_TRUE(decoded.request.pStRtFuncInfo->externalWindowNeedsPrevRow);
+}
+
+TEST(StreamExternalWindowPrevFrameTest, RejectsMalformedFrames) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.externalWindowNeedsPrevRow = true;
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  source.readerFetchId = 37;
+  const auto original = serializeFetchRequest(source, false, false);
+  const size_t offset = frameOffset(original, STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC);
+  ASSERT_LT(offset, original.size());
+  const size_t payloadOffset =
+      offset + sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(uint32_t);
+  ASSERT_LT(payloadOffset, original.size());
+  EXPECT_GT(frameOffset(original, STREAM_READER_FETCH_ID_FRAME_MAGIC), payloadOffset);
+
+  auto duplicate = original;
+  duplicate.insert(duplicate.end(), original.begin() + offset, original.end());
+  rewriteFetchRequestLengths(&duplicate);
+  expectFetchDecodeFailure(duplicate);
+
+  auto badVersion = original;
+  writeU16(&badVersion, offset + sizeof(uint32_t), STREAM_EXTERNAL_WINDOW_PREV_FRAME_VERSION + 1);
+  expectFetchDecodeFailure(badVersion);
+
+  auto badFlags = original;
+  writeU16(&badFlags, offset + sizeof(uint32_t) + sizeof(uint16_t), 1);
+  expectFetchDecodeFailure(badFlags);
+
+  auto disabled = original;
+  disabled[payloadOffset] = 0;
+  expectFetchDecodeFailure(disabled);
+
+  auto truncated = original;
+  truncated.erase(truncated.begin() + payloadOffset);
+  rewriteFetchRequestLengths(&truncated);
+  expectFetchDecodeFailure(truncated);
+
+  auto extraPayload = original;
+  extraPayload.insert(extraPayload.begin() + payloadOffset + 1, 1);
+  writeU32(&extraPayload, offset + sizeof(uint32_t) + 2 * sizeof(uint16_t), 2);
+  rewriteFetchRequestLengths(&extraPayload);
+  expectFetchDecodeFailure(extraPayload);
+}
+
 TEST(StreamAncestorContextTest, FetchRejectsFrameWithoutRuntimeInfo) {
   SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime();
   SResFetchReq           source = {};
@@ -6868,6 +6964,18 @@ TEST(StreamRuntimeCodecTest, CanonicalOrderIsLocalOnly) {
   EXPECT_EQ(nullptr, decoded.pGroupCalcOrder);
   tDestroyStRtFuncInfo(&decoded);
   tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamRuntimeCodecTest, ExternalWindowPrevFlagIsFetchOnly) {
+  SStreamRuntimeFuncInfo source = {};
+  const std::vector<uint8_t> withoutCapability = encodeRuntimeFuncInfo(&source);
+  source.externalWindowNeedsPrevRow = true;
+  const std::vector<uint8_t> withCapability = encodeRuntimeFuncInfo(&source);
+  EXPECT_EQ(withoutCapability, withCapability);
+
+  RuntimeFuncInfoGuard decoded;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, decodeRuntimeFuncInfo(withCapability, &decoded.runtime));
+  EXPECT_FALSE(decoded.runtime.externalWindowNeedsPrevRow);
 }
 
 static int64_t packLineage(int32_t winOutIdx, int32_t rowStartIdx) {

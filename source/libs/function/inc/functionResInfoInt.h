@@ -418,7 +418,7 @@ typedef struct SValueChangesInfo {
 } SValueChangesInfo;
 
 typedef struct SBitChangesInfo {
-  int64_t  count;       // output slot (BIGINT), must be first
+  int64_t  count;       // finalized change-count output slot (BIGINT), must be first
   int64_t  numOfElems;  // rows seen (including NULL), distinguishes empty input
   uint64_t mask;
   int8_t   flag;
@@ -428,6 +428,32 @@ typedef struct SBitChangesInfo {
   TSKEY    prevTs;
   bool     hasPrevTs;
 } SBitChangesInfo;
+
+typedef struct SBitDurationInfo {
+  // functionFinalize reads the first field as the BIGINT output. TOTAL derives it from
+  // firstTs/totalLastTs; other modes copy duration here before finalization.
+  int64_t  result;      // finalized duration output slot, must remain first
+  int64_t  duration;    // NONZERO/ZERO accumulated duration in native timestamp ticks
+  int64_t  numOfRows;  // rows seen, including NULL rows; distinguishes empty input
+  uint64_t mask;
+  int8_t   mode;
+  int8_t   inputType;          // resolved TSDB_DATA_TYPE_* value
+  bool     inputTypeResolved;  // inputType was established by a non-NULL typed column
+  bool     hasPrev;     // valid value state exists
+  bool     hasPrevTs;   // prevTs is set for duplicate/order checks
+  bool     seedPending;      // segmentStartTs still comes from the interpolation seed
+  bool     startSeedApplied; // external-window predecessor was accounted for
+  bool     hasFirstTs;  // firstTs is set; seeding can set only hasPrev
+  // ASC PK iterator state is reusable only by the next block in the same group.
+  bool     hasPendingPkTs;
+  bool     prevNonZero;
+  TSKEY    prevTs;
+  TSKEY    pendingPkTs;
+  uint64_t pendingPkGroupId;  // owner group; a different group discards pendingPkTs
+  TSKEY    firstTs;
+  TSKEY    totalLastTs;    // TOTAL mode: timestamp of the last valid row
+  TSKEY    segmentStartTs; // NONZERO/ZERO: pending segment start, or one tick past a settled end
+} SBitDurationInfo;
 
 // Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
 // unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.

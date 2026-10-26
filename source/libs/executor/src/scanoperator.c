@@ -1389,6 +1389,13 @@ static int8_t tableScanInterpMode(const SOperatorInfo* pOperator) {
                            : pScanNode->interpMode;
 }
 
+static bool tableScanUsesPhasedProtocol(const STableScanPhysiNode* pScanNode, const SReadHandle* pReadHandle) {
+  const SStreamRuntimeInfo* pRuntime = pReadHandle == NULL ? NULL : pReadHandle->streamRtInfo;
+  return interpModeUsesPhasedProtocol(pScanNode->interpMode) ||
+         (pRuntime != NULL && pRuntime->funcInfo.withExternalWindow &&
+          pRuntime->funcInfo.externalWindowNeedsPrevRow);
+}
+
 // A grouped MAIN_FIRST multi-group scan drains every phase of one outer
 // group before moving to the next. The table scan and the table merge scan
 // share that contract, so they share one predicate. A NULL phys node maps
@@ -7496,7 +7503,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   cleanupQueryTableDataCond(&pInfo->base.cond);
-  bool phased = interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  bool phased = tableScanUsesPhasedProtocol(pTableScanNode, &pInfo->base.readHandle);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
                                 &pInfo->base.readHandle, phased);
   if (code) {
@@ -7556,8 +7563,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
                              &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  bool phased =
-      interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  bool phased = tableScanUsesPhasedProtocol(pTableScanNode, readHandle);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
                                 readHandle, phased);
   QUERY_CHECK_CODE(code, lino, _error);

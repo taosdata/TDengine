@@ -266,6 +266,46 @@ class TestTwWeighted:
         )
         tdSql.checkRows(3)
 
+    def _locf_across_all_null_block(self):
+        """An all-NULL block must not clear the previous LOCF observation."""
+        block_db = f"{DB}_blocks"
+        tdSql.execute(f"drop database if exists {block_db}")
+        tdSql.execute(
+            f"create database {block_db} precision 'ms' vgroups 1 "
+            "minrows 10 maxrows 200"
+        )
+        tdSql.execute(f"use {block_db}")
+        tdSql.execute("create table t_locf_null_block (ts timestamp, v int)")
+        base_ts = 1704067200000
+        first_block = "".join(
+            f"({base_ts + offset},{5 if offset == 0 else 'NULL'})"
+            for offset in range(200)
+        )
+        null_block = "".join(
+            f"({base_ts + offset},NULL)" for offset in range(200, 400)
+        )
+        tdSql.execute(
+            f"insert into t_locf_null_block values {first_block}{null_block}"
+        )
+        tdSql.execute(
+            "insert into t_locf_null_block values "
+            f"({base_ts + 450},10)({base_ts + 500},10)"
+        )
+        tdSql.execute(f"flush database {block_db}")
+
+        tdSql.query(
+            "select twavg_locf(v), twsum_locf(v,1a) "
+            "from t_locf_null_block interval(200a) order by _wstart"
+        )
+        tdSql.checkRows(3)
+        actual_avg = float(tdSql.getData(2, 0))
+        actual_sum = float(tdSql.getData(2, 1))
+        if abs(actual_avg - 7.5) > 1e-4 or abs(actual_sum - 750.0) > 1e-4:
+            tdLog.exit(
+                "all-NULL block cleared LOCF history: "
+                f"avg={actual_avg}, sum={actual_sum}"
+            )
+
     def test_fun_ts_tw_weighted(self):
         """Fun: twavg_linear/twavg_locf/twsum_linear/twsum_locf/twvar_linear/twvar_locf
 
@@ -276,6 +316,7 @@ class TestTwWeighted:
         5. Type-support matrix and error cases (incl. DECIMAL64/DECIMAL128 input)
         6. Child/super/normal tables, partition/group by
         7. INTERVAL windows with fill(none/null/prev/linear)
+        8. LOCF history across an all-NULL storage block
 
         Since: v3.4.3.0
 
@@ -295,5 +336,5 @@ class TestTwWeighted:
         self._types_and_errors()
         self._table_variety()
         self._interval_fill()
+        self._locf_across_all_null_block()
         tdLog.success(f"{__file__} successfully executed")
-

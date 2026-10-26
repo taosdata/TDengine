@@ -3948,14 +3948,21 @@ int32_t vnodeCalculateNodeGroupReadRanges(STimeRangeNode* node, SStreamRuntimeFu
       current.valid = current.window.skey < current.window.ekey;
       if (current.valid) --current.window.ekey;
     }
-    if (pRanges != NULL && taosArrayPush(pRanges, &current) == NULL) {
-      code = terrno;
-      goto _exit;
-    }
     if (current.valid) {
+      // combined remains the effective MAIN range. Per-group reader ranges widen
+      // only for predecessor lookup and therefore intentionally keep a different skey.
       combined.skey = TMIN(combined.skey, current.window.skey);
       combined.ekey = TMAX(combined.ekey, current.window.ekey);
       combinedValid = true;
+      if (pRanges != NULL && pRuntime->withExternalWindow && pRuntime->externalWindowNeedsPrevRow) {
+        current.window.skey = INT64_MIN;
+      }
+    }
+    // Preserve one entry per curGrpRead index. qInstallReaderTableRanges uses
+    // valid=false entries as empty bindings and requires positional parity.
+    if (pRanges != NULL && taosArrayPush(pRanges, &current) == NULL) {
+      code = terrno;
+      goto _exit;
     }
   }
   if (combinedValid) *pRange = combined;
@@ -6137,6 +6144,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
       } else {
         ST_TASK_DLOG("vgId:%d %s no interp time range node", TD_VID(pVnode), __func__);
       }
+
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);
