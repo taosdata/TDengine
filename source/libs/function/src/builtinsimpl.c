@@ -222,6 +222,19 @@ void funcInputUpdate(SqlFunctionCtx* pCtx) {
   }
 }
 
+void funcInputRowIterCleanup(SFuncInputRowIter* pIter) {
+  if (pIter == NULL) {
+    return;
+  }
+  /* Releases cached PK state and clears the owner identity with the entire iterator. */
+  if (pIter->pPrevRowBlock != NULL) {
+    blockDataDestroy(pIter->pPrevRowBlock);
+  }
+  taosMemoryFreeClear(pIter->pPrevData);
+  taosMemoryFreeClear(pIter->pPrevPk);
+  *pIter = (SFuncInputRowIter){0};
+}
+
 // Copy one cell out of a column for cross-block "previous row" bookkeeping.  Var-length
 // cells must be copied by their actual value length: the declared width both under-reads
 // short values (heap over-read past the cell) and truncates wide values while keeping the
@@ -259,30 +272,38 @@ int32_t funcInputGetNextRowDescPk(SFuncInputRowIter* pIter, SFuncInputRow* pRow,
   }
   if (pIter->hasPrev) {
     if (pIter->prevBlockTsEnd == pIter->tsList[pIter->inputEndIndex]) {
+      SSDataBlock* pNewBlock = NULL;
+      char* pNewData = NULL;
+      char* pNewPk = NULL;
+      int32_t code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1,
+                                           &pNewBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        blockDataDestroy(pNewBlock);
+        return code;
+      }
+
+      code = dupInputRowCell(&pNewData, pIter->pDataCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
+        blockDataDestroy(pNewBlock);
+        return code;
+      }
+
+      code = dupInputRowCell(&pNewPk, pIter->pPkCol, pIter->inputEndIndex);
+      if (TSDB_CODE_SUCCESS != code) {
+        taosMemoryFree(pNewData);
+        blockDataDestroy(pNewBlock);
+        return code;
+      }
+
       blockDataDestroy(pIter->pPrevRowBlock);
-      int32_t code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
-      if (code) {
-        return code;
-      }
-
+      taosMemoryFree(pIter->pPrevData);
+      taosMemoryFree(pIter->pPrevPk);
+      pIter->pPrevRowBlock = pNewBlock;
+      pIter->pPrevData = pNewData;
+      pIter->pPrevPk = pNewPk;
       pIter->prevIsDataNull = colDataIsNull_s(pIter->pDataCol, pIter->inputEndIndex);
-
-      code = dupInputRowCell(&pIter->pPrevData, pIter->pDataCol, pIter->inputEndIndex);
-      if (TSDB_CODE_SUCCESS != code) {
-        return code;
-      }
-
-      code = dupInputRowCell(&pIter->pPrevPk, pIter->pPkCol, pIter->inputEndIndex);
-      if (TSDB_CODE_SUCCESS != code) {
-        taosMemoryFree(pIter->pPrevData);
-        pIter->pPrevData = NULL;
-        return code;
-      }
-
-      code = blockDataExtractBlock(pIter->pSrcBlock, pIter->inputEndIndex, 1, &pIter->pPrevRowBlock);
-      pIter->hasPrev = true;
       *res = false;
-      return code;
+      return TSDB_CODE_SUCCESS;
     } else {
       int32_t idx = pIter->rowIndex;
       while (pIter->tsList[idx] == pIter->prevBlockTsEnd) {
@@ -8856,6 +8877,304 @@ int32_t bitChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SBitChangesInfo*     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pResInfo->numOfRes = (pInfo->numOfElems == 0) ? 0 : 1;
+  return functionFinalize(pCtx, pBlock);
+}
+
+bool getBitDurationFuncEnv(struct SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SBitDurationInfo);
+  return true;
+}
+
+int32_t bitDurationFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (pCtx == NULL || pResultInfo == NULL ||
+      pCtx->resDataInfo.interBufSize < (int32_t)sizeof(SBitDurationInfo)) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pResultInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int64_t flag = BIT_DURATION_FLAG_NONZERO;
+  if (pCtx->numOfParams > 2 && pCtx->param[2].type == FUNC_PARAM_TYPE_VALUE) {
+    flag = pCtx->param[2].param.i;
+    if (flag != BIT_DURATION_FLAG_NONZERO && flag != BIT_DURATION_FLAG_ZERO &&
+        flag != BIT_DURATION_FLAG_TOTAL) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
+
+  uint64_t mask = 1;
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE) {
+    mask = (uint64_t)pCtx->param[1].param.i;
+    if (mask == 0) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
+
+  // Validate parameters before functionSetup marks the result entry initialized.
+  int32_t code = functionSetup(pCtx, pResultInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SBitDurationInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  memset(pInfo, 0, sizeof(*pInfo));
+  pInfo->mask = mask;
+  pInfo->mode = (int8_t)flag;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool bitDurationMatches(const SBitDurationInfo* pInfo, bool nonZero) {
+  return (nonZero && pInfo->mode == BIT_DURATION_FLAG_NONZERO) ||
+         (!nonZero && pInfo->mode == BIT_DURATION_FLAG_ZERO);
+}
+
+static int32_t bitDurationAdd(SBitDurationInfo* pInfo, uint64_t duration, bool nonZero) {
+  if (pInfo->mode == BIT_DURATION_FLAG_TOTAL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (duration == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (bitDurationMatches(pInfo, nonZero)) {
+    if (duration > (uint64_t)INT64_MAX) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    if (pInfo->duration > INT64_MAX - (int64_t)duration) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    pInfo->duration += (int64_t)duration;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t bitDurationProcessRow(SBitDurationInfo* pInfo, SColumnInfoData* pCol,
+                                     SInputColumnInfoData* pInput, const SFuncInputRow* pRow) {
+  bool dataIsNull = pRow->isDataNull || (pCol != NULL && pCol->info.type == TSDB_DATA_TYPE_NULL);
+  if (pInfo->seedPending && !dataIsNull && pRow->ts < pInfo->segmentStartTs) {
+    // A boundary seed defines the first relevant point. Shared source blocks may
+    // still expose earlier rows; they are history outside this result window.
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pInput->pPTS != NULL && pInput->pPTS->hasNull &&
+      colDataIsNull_f(pInput->pPTS, pRow->rowIndex)) {
+    return TSDB_CODE_FUNC_INVALID_TIMELINE;
+  }
+  if (pInfo->hasPrevTs && pInfo->prevTs == pRow->ts) {
+    return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+  }
+  if (pInfo->hasPrevTs && pRow->ts < pInfo->prevTs) {
+    return TSDB_CODE_FUNC_INVALID_TIMELINE;
+  }
+  pInfo->prevTs = pRow->ts;
+  pInfo->hasPrevTs = true;
+  pInfo->numOfRows++;
+  if (dataIsNull) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!pInfo->inputTypeResolved || pCol == NULL || IS_INVALID_TYPE(pInfo->inputType) ||
+      pCol->info.type == TSDB_DATA_TYPE_NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  uint64_t value = 0;
+  GET_TYPED_DATA(value, uint64_t, pInfo->inputType, pRow->pData,
+                 typeGetTypeModFromColInfo(&pCol->info));
+  int32_t valueBytes = tDataTypes[pInfo->inputType].bytes;
+  if (valueBytes > 0 && valueBytes < sizeof(value)) {
+    value &= UINT64_MAX >> ((sizeof(value) - valueBytes) * CHAR_BIT);
+  }
+  bool nonZero = (value & pInfo->mask) != 0;
+  pInfo->seedPending = false;
+  if (!pInfo->hasFirstTs) {
+    pInfo->firstTs = pRow->ts;
+    pInfo->hasFirstTs = true;
+  }
+  if (!pInfo->hasPrev) {
+    pInfo->totalLastTs = pRow->ts;
+    pInfo->segmentStartTs = pRow->ts;
+    pInfo->prevNonZero = nonZero;
+    pInfo->hasPrev = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint64_t duration = pRow->ts >= pInfo->segmentStartTs
+                          ? (uint64_t)pRow->ts - (uint64_t)pInfo->segmentStartTs
+                          : 0;
+  int32_t  code = bitDurationAdd(pInfo, duration, pInfo->prevNonZero);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pInfo->totalLastTs = pRow->ts;
+  pInfo->segmentStartTs = pRow->ts;
+  pInfo->prevNonZero = nonZero;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitDurationFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitDurationInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SBitDurationInfo state = *pInfo;
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pCtx->rowIter.pOwnerResultInfo != pResInfo) {
+    funcInputRowIterCleanup(&pCtx->rowIter);
+    pCtx->rowIter.pOwnerResultInfo = pResInfo;
+  }
+
+  // Degraded-timeline row order permits row-order-preserving subqueries; it does not
+  // make duration calculation independent of the input scan direction.
+  if (pCtx->order != TSDB_ORDER_ASC) {
+    code = TSDB_CODE_FUNC_INVALID_TIMELINE;
+    goto _bit_duration_error;
+  }
+
+  if (pInput->numOfRows > 0) {
+    if (pInput->pData == NULL || pInput->pData[0] == NULL) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _bit_duration_error;
+    }
+    pCol = pInput->pData[0];
+  }
+
+  bool syntheticNullInput = pCol != NULL && pCol->info.type == TSDB_DATA_TYPE_NULL;
+  if (pCol != NULL && !syntheticNullInput && !state.inputTypeResolved) {
+    if (IS_INVALID_TYPE(pCol->info.type) ||
+        !(IS_INTEGER_TYPE(pCol->info.type) || pCol->info.type == TSDB_DATA_TYPE_BOOL)) {
+      code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+      goto _bit_duration_error;
+    }
+    state.inputType = pCol->info.type;
+    state.inputTypeResolved = true;
+  } else if (pCol != NULL && !syntheticNullInput && state.inputType != pCol->info.type) {
+    code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    goto _bit_duration_error;
+  }
+
+  if (state.mode != BIT_DURATION_FLAG_TOTAL && pCtx->start.key != INT64_MIN && !state.startSeedApplied) {
+    // The interpolation seed is a normalized boolean protocol: producers apply
+    // the function mask and must store exactly 0.0 or 1.0 here.
+    if (pCtx->start.val != 0.0 && pCtx->start.val != 1.0) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _bit_duration_error;
+    }
+    bool seedNonZero = pCtx->start.val != 0;
+    if (!state.hasPrev) {
+      state.segmentStartTs = pCtx->start.key;
+      state.prevNonZero = seedNonZero;
+      state.hasPrev = true;
+      state.seedPending = true;
+    } else if (state.hasFirstTs) {
+      if (pCtx->start.key > state.firstTs) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _bit_duration_error;
+      }
+      uint64_t duration = (uint64_t)state.firstTs - (uint64_t)pCtx->start.key;
+      code = bitDurationAdd(&state, duration, seedNonZero);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _bit_duration_error;
+      }
+    }
+    state.startSeedApplied = true;
+  }
+
+  if (syntheticNullInput) {
+    state.numOfRows += pInput->numOfRows;
+    goto _bit_duration_boundary;
+  }
+
+  if (pInput->numOfRows == 0) {
+    // Boundary-only calls may finalize an empty external window before any input
+    // column establishes inputType. No typed value is read on this path.
+    goto _bit_duration_boundary;
+  }
+
+  funcInputUpdate(pCtx);
+  if (pCtx->hasPrimaryKey) {
+    bool restorePending = state.hasPendingPkTs && pCtx->rowIter.hasGroupId &&
+                          pCtx->rowIter.groupId == state.pendingPkGroupId;
+    pCtx->rowIter.hasPrev = restorePending;
+    if (restorePending) {
+      pCtx->rowIter.prevBlockTsEnd = state.pendingPkTs;
+    }
+  }
+  SFuncInputRow row = {0};
+  bool result = false;
+  while (1) {
+    code = funcInputGetNextRow(pCtx, &row, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _bit_duration_error;
+    }
+    if (!result) {
+      break;
+    }
+    code = bitDurationProcessRow(&state, pCol, pInput, &row);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _bit_duration_error;
+    }
+  }
+  if (pCtx->hasPrimaryKey) {
+    state.hasPendingPkTs = pCtx->rowIter.hasPrev;
+    state.pendingPkTs = pCtx->rowIter.prevBlockTsEnd;
+    state.pendingPkGroupId = pCtx->rowIter.groupId;
+  }
+
+_bit_duration_boundary:
+  if (state.hasPrev && state.mode != BIT_DURATION_FLAG_TOTAL && pCtx->end.key != INT64_MIN) {
+    if (pCtx->end.key >= state.segmentStartTs) {
+      // end.key is inclusive. State changes at the next sample, so row-to-row spans use subtraction;
+      // the final span includes the last tick and therefore adds one.
+      uint64_t duration = (uint64_t)pCtx->end.key - (uint64_t)state.segmentStartTs + 1;
+      code = bitDurationAdd(&state, duration, state.prevNonZero);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _bit_duration_error;
+      }
+      if (pCtx->end.key < INT64_MAX) {
+        state.segmentStartTs = pCtx->end.key + 1;
+      }
+    }
+  }
+
+  *pInfo = state;
+  SET_VAL(pResInfo, state.numOfRows, 1);
+  return TSDB_CODE_SUCCESS;
+
+_bit_duration_error:
+  // Intentionally leave *pInfo at its last committed state, so a failed block contributes
+  // no state increments. Cleaning the transient iterator rolls back this failed block;
+  // the executor terminates the result on error.
+  funcInputRowIterCleanup(&pCtx->rowIter);
+  pCtx->rowIter.pOwnerResultInfo = pResInfo;
+  return code;
+}
+
+int32_t bitDurationFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SBitDurationInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pInfo->mode == BIT_DURATION_FLAG_TOTAL) {
+    // TOTAL is the span between the first and last valid samples, not window-boundary coverage.
+    pInfo->result = 0;
+    if (pInfo->hasFirstTs && pInfo->hasPrev && pInfo->totalLastTs >= pInfo->firstTs) {
+      uint64_t duration = (uint64_t)pInfo->totalLastTs - (uint64_t)pInfo->firstTs;
+      if (duration > (uint64_t)INT64_MAX) {
+        code = TSDB_CODE_OUT_OF_RANGE;
+      } else {
+        pInfo->result = (int64_t)duration;
+      }
+    }
+  } else {
+    pInfo->result = pInfo->duration;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    pResInfo->numOfRes = 0;
+    return code;
+  }
+  // Input rows produce a zero duration even when every value is NULL. A seeded
+  // boundary-only non-TOTAL window can also produce a result without input rows.
+  pResInfo->numOfRes = pInfo->numOfRows != 0 || pInfo->hasPrev ? 1 : 0;
   return functionFinalize(pCtx, pBlock);
 }
 

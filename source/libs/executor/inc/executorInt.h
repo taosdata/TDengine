@@ -305,6 +305,7 @@ typedef struct SExchangeInfo {
   int32_t             twoPassRetryMs;   // vtable two-pass: backoff between empty-rsp retries (0 = none yet)
   int32_t             twoPassRetries;   // vtable two-pass: empty-rsp retry rounds so far (capped, then error)
   int32_t             notifySrcOpType;
+  int32_t             readerSrcOpType;
   uint64_t            notifyGroupId;
   int8_t              notifyPhase;
   uint64_t            notifyScanGroupId;
@@ -734,6 +735,8 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  // SArray initialized with numOfExprs pre-sized zeroed entries, indexed by output expression.
+  SArray*            pBitDurationInterpCaches;
   bool               cleanGroupResInfo;
   bool               indefRowsMode;
   SIndefRowsRuntime  indefRows;
@@ -1165,6 +1168,7 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
                                           uint64_t notifyScanGroupId,
                                           TSKEY notifyTs);
 int32_t storeExchangeNotifyInfo(struct SOperatorInfo* pOperator);
+int32_t getExchangeReaderSourceOpType(const struct SOperatorInfo* pOperator);
 int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
                          const char* name);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
@@ -1216,6 +1220,13 @@ int32_t interpMainFirstBuildNotifyParam(
     uint64_t notifyGroupId, int8_t notifyPhase,
     uint64_t notifyScanGroupId, TSKEY notifyTs,
     SOperatorParam** ppParam);
+// pOperator and pBlock must be non-NULL. notifyTs identifies the phase
+// boundary; pBlock supplies groupId/baseGId. Unsupported modes and operators
+// without downstreams are successful no-ops.
+int32_t interpMainFirstSetDownstreamNotifyParam(
+    struct SOperatorInfo* pOperator, int8_t interpMode,
+    int8_t notifyPhase, TSKEY notifyTs,
+    const SSDataBlock* pBlock);
 void interpPrepareNotifyParamForDispatch(SOperatorParam* pParam);
 
 // Per-call value snapshot assembled from one group and current phase state.
