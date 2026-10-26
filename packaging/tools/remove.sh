@@ -484,6 +484,15 @@ function remove_install_dir() {
       rm -rf "${dir:?}"
     fi
   done
+  # Remove a misplaced plugin tree created by older extension installers.
+  # The supported install location is ${installDir}/plugins.
+  if [ -d "${install_main_dir:?}/taosx/plugins" ]; then
+    rm -rf "${install_main_dir:?}/taosx/plugins"
+    rmdir "${install_main_dir:?}/taosx" 2>/dev/null || :
+  fi
+  rm -f "${install_main_dir:?}/.extension-files" \
+        "${install_main_dir:?}/.package-role.extension" \
+        "${install_main_dir:?}/.package-info"
   if [ -f "${install_main_dir:?}/README.md" ]; then
     rm -f "${install_main_dir:?}/README.md"
   fi
@@ -517,6 +526,9 @@ function remove_extension_files() {
       echo "Invalid path in extension manifest: $path" >&2
       exit 1
     }
+    case "$path" in
+      cfg|cfg/*) continue ;;
+    esac
     rm -f -- "${install_main_dir}/${path}"
   done < "$manifest"
   clean_fq_runtime_links
