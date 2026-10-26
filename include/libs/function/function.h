@@ -247,15 +247,23 @@ typedef struct SFuncInputRowIter {
 
   TSKEY        prevBlockTsEnd;
   bool         prevIsDataNull;
-  char        *pPrevData;
-  char        *pPrevPk;
-  SSDataBlock *pPrevRowBlock;  // pre one row block
+  char        *pPrevData;      // owned by the iterator; released by funcInputRowIterCleanup
+  char        *pPrevPk;        // owned by the iterator; released by funcInputRowIterCleanup
+  SSDataBlock *pPrevRowBlock;  // owned previous-row block
 
   uint64_t groupId;
   bool     hasGroupId;
 
+  // Runtime-only owner identity; never persisted with aggregate result state.
+  SResultRowEntryInfo *pOwnerResultInfo;
   bool finalRow;
 } SFuncInputRowIter;
+
+// Completely resets the iterator, including cached PK state and pOwnerResultInfo.
+// Call when the iterator is reset, abandoned after an error, or its owning context is destroyed.
+// Callers that need PK continuation across blocks must persist that state before cleanup.
+// This does not reset the owning SqlFunctionCtx::bInputFinished flag.
+void funcInputRowIterCleanup(SFuncInputRowIter *pIter);
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {

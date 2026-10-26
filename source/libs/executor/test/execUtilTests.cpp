@@ -27,6 +27,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <new>
 #include <set>
 #include <string>
@@ -78,6 +79,24 @@ SDmNotifyHandle dmNotifyHdl = {};
 #include "trpc.h"
 #include "windowfunc.h"
 
+namespace {
+
+struct BitDurationInterpCacheGuard {
+  SBitDurationInterpCache value = {};
+
+  BitDurationInterpCacheGuard() = default;
+  BitDurationInterpCacheGuard(const BitDurationInterpCacheGuard&) = delete;
+  BitDurationInterpCacheGuard& operator=(const BitDurationInterpCacheGuard&) = delete;
+  BitDurationInterpCacheGuard(BitDurationInterpCacheGuard&&) = delete;
+  BitDurationInterpCacheGuard& operator=(BitDurationInterpCacheGuard&&) = delete;
+
+  ~BitDurationInterpCacheGuard() { destroyBitDurationInterpCache(&value); }
+};
+
+using ScopedDataBlock = std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)>;
+
+}  // namespace
+
 TEST(execUtilTest, LongJumpReleasesTaskOwnerForRunnerAndReader) {
   for (bool reader : {false, true}) {
     SStreamRuntimeInfo runtime = {};
@@ -104,6 +123,801 @@ TEST(execUtilTest, LongJumpReleasesTaskOwnerForRunnerAndReader) {
     EXPECT_EQ(TSDB_CODE_INVALID_PARA, code);
     EXPECT_EQ(0, task.owner);
   }
+}
+
+TEST(BitDurationInterpCacheTest, SavesNewestValueFromDescendingPrevBlock) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 2), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData* valueCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(valueCol, nullptr);
+  int32_t values[] = {1, 0};
+  for (int32_t row = 0; row < 2; ++row) {
+    ASSERT_EQ(colDataSetVal(valueCol, row,
+                            reinterpret_cast<const char*>(&values[row]),
+                            false),
+              TSDB_CODE_SUCCESS);
+  }
+  block->info.rows = 2;
+  block->info.scanPhase = SCAN_PHASE_PREV;
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+
+  TSKEY timestamps[] = {900, 800};
+  BitDurationInterpCacheGuard cache;
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol,
+                                           timestamps, 2, block.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, timestamps, 2,
+                                    block.get());
+
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(cache.value.savedScanPhase, SCAN_PHASE_PREV);
+  EXPECT_EQ(cache.value.savedTs, 900);
+  ASSERT_NE(cache.value.pSavedData, nullptr);
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(cache.value.pSavedData), 1);
+  ASSERT_NE(cache.value.pPrevRows, nullptr);
+  EXPECT_EQ(cache.value.pPrevRows[0], 0);
+  EXPECT_EQ(cache.value.pPrevRows[1], 1);
+
+  bool nonZero = true;
+  bool mappingMismatch = false;
+  EXPECT_TRUE(getBitDurationInterpState(&cache.value, &ctx, valueCol, 0, block.get(),
+                                        &nonZero, &mappingMismatch));
+  EXPECT_TRUE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+
+  block->info.rows = 0;
+  EXPECT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, nullptr, 0,
+                                          block.get()),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(cache.value.hasSavedValue);
+  nonZero = false;
+  EXPECT_TRUE(getBitDurationInterpState(&cache.value, &ctx, nullptr, -1, nullptr,
+                                        &nonZero, &mappingMismatch));
+  EXPECT_TRUE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+}
+
+TEST(BitDurationInterpCacheTest, PrevPhaseReplacesMainHistory) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+
+  SColumnInfoData* valueCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(valueCol, nullptr);
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  BitDurationInterpCacheGuard cache;
+
+  int32_t value = 0;
+  ASSERT_EQ(colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false),
+            TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+  block->info.scanPhase = SCAN_PHASE_MAIN;
+  TSKEY timestamp = 300;
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(cache.value.savedTs, 300);
+
+  value = 1;
+  ASSERT_EQ(colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false),
+            TSDB_CODE_SUCCESS);
+  block->info.scanPhase = SCAN_PHASE_PREV;
+  timestamp = 100;
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(cache.value.savedScanPhase, SCAN_PHASE_PREV);
+  EXPECT_EQ(cache.value.savedTs, 100);
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(cache.value.pSavedData), 1);
+}
+
+TEST(BitDurationInterpCacheTest, RejectsInvalidPreparationInputs) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+
+  SColumnInfoData* valueCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(valueCol, nullptr);
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam params[2] = {};
+  params[0].type = FUNC_PARAM_TYPE_COLUMN;
+  params[0].pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = params;
+  ctx.numOfParams = 1;
+  TSKEY timestamp = 100;
+  BitDurationInterpCacheGuard cache;
+
+  EXPECT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, nullptr, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(nullptr, cache.value.pSavedData);
+  EXPECT_EQ(nullptr, cache.value.pPrevRows);
+  EXPECT_EQ(nullptr, cache.value.pPreparedBlock);
+  EXPECT_FALSE(cache.value.hasInputMetadata);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+  EXPECT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 0,
+                                          block.get()),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(nullptr, cache.value.pSavedData);
+  EXPECT_EQ(nullptr, cache.value.pPrevRows);
+  EXPECT_EQ(nullptr, cache.value.pPreparedBlock);
+  EXPECT_FALSE(cache.value.hasInputMetadata);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+
+  SColumnInfoData floatCol =
+      createColumnInfoData(TSDB_DATA_TYPE_FLOAT, sizeof(float), 1);
+  EXPECT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, &floatCol, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(nullptr, cache.value.pSavedData);
+  EXPECT_EQ(nullptr, cache.value.pPrevRows);
+  EXPECT_FALSE(cache.value.hasInputMetadata);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+  SColumnInfoData wrongSlotCol =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  EXPECT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, &wrongSlotCol, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(nullptr, cache.value.pSavedData);
+  EXPECT_EQ(nullptr, cache.value.pPrevRows);
+  EXPECT_FALSE(cache.value.hasInputMetadata);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+
+  colDataSetNULL(valueCol, 0);
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  EXPECT_TRUE(cache.value.hasPrevTs);
+  EXPECT_EQ(cache.value.prevTs, timestamp);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+
+  params[1].type = FUNC_PARAM_TYPE_VALUE;
+  params[1].param.i = 0;
+  ctx.numOfParams = 2;
+  EXPECT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1,
+                                          block.get()),
+            TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  EXPECT_EQ(nullptr, cache.value.pPreparedBlock);
+  EXPECT_EQ(0, cache.value.preparedRows);
+  bool nonZero = true;
+  bool mappingMismatch = false;
+  EXPECT_FALSE(getBitDurationInterpState(&cache.value, &ctx, valueCol, 0, block.get(),
+                                         &nonZero, &mappingMismatch));
+  EXPECT_TRUE(mappingMismatch);
+  EXPECT_TRUE(nonZero);
+}
+
+TEST(BitDurationInterpCacheTest, MetadataChangeInvalidatesSavedValueAndRefreshesType) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  SColumnInfoData* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(nullptr, valueCol);
+  int32_t value = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false));
+  block->info.rows = 1;
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  TSKEY timestamp = 100;
+  BitDurationInterpCacheGuard cache;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+
+  block->info.rows = 0;
+  valueCol->info.type = TSDB_DATA_TYPE_BIGINT;
+  valueCol->info.bytes = sizeof(int64_t);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, nullptr, 0, block.get()));
+  EXPECT_TRUE(cache.value.hasInputMetadata);
+  EXPECT_EQ(TSDB_DATA_TYPE_BIGINT, cache.value.inputType);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+  EXPECT_EQ(0, cache.value.savedValueBytes);
+}
+
+TEST(BitDurationInterpCacheTest, ReallocationInvalidatesSavedValue) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+  auto* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(nullptr, valueCol);
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  TSKEY timestamp = 100;
+
+  BitDurationInterpCacheGuard cache;
+  cache.value.pSavedData = static_cast<char*>(taosMemoryMalloc(sizeof(int16_t)));
+  ASSERT_NE(nullptr, cache.value.pSavedData);
+  cache.value.savedDataCapacity = sizeof(int16_t);
+  cache.value.savedValueBytes = sizeof(int16_t);
+  cache.value.inputSlotId = 1;
+  cache.value.inputType = TSDB_DATA_TYPE_INT;
+  cache.value.hasInputMetadata = true;
+  cache.value.hasSavedValue = true;
+  cache.value.savedTs = 50;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  EXPECT_EQ(sizeof(int32_t), cache.value.savedDataCapacity);
+  EXPECT_FALSE(cache.value.hasSavedValue);
+  EXPECT_EQ(0, cache.value.savedValueBytes);
+  EXPECT_EQ(0, cache.value.savedTs);
+}
+
+TEST(BitDurationInterpCacheTest, SufficientCapacityPreservesSavedValue) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+  auto* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(nullptr, valueCol);
+  int32_t value = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false));
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  TSKEY timestamp = 100;
+  BitDurationInterpCacheGuard cache;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  char* savedData = cache.value.pSavedData;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  EXPECT_EQ(savedData, cache.value.pSavedData);
+  EXPECT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(sizeof(int32_t), cache.value.savedValueBytes);
+  EXPECT_EQ(timestamp, cache.value.savedTs);
+}
+
+TEST(BitDurationInterpCacheTest, SecondSaveRepairsNarrowSavedValueMetadata) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+  auto* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(nullptr, valueCol);
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  BitDurationInterpCacheGuard cache;
+
+  int32_t value = 1;
+  TSKEY timestamp = 100;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  ASSERT_EQ(sizeof(int32_t), cache.value.savedValueBytes);
+  ASSERT_EQ(timestamp, cache.value.savedTs);
+  ASSERT_EQ(value, *reinterpret_cast<int32_t*>(cache.value.pSavedData));
+
+  value = 2;
+  timestamp = 200;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  cache.value.savedValueBytes = sizeof(int16_t);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  EXPECT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(sizeof(int32_t), cache.value.savedValueBytes);
+  EXPECT_EQ(timestamp, cache.value.savedTs);
+  EXPECT_EQ(value, *reinterpret_cast<int32_t*>(cache.value.pSavedData));
+}
+
+TEST(BitDurationInterpCacheTest, SignedInputMaskUsesSourceWidth) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_TINYINT, sizeof(int8_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+  auto* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(nullptr, valueCol);
+  int8_t value = -1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false));
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam params[2] = {};
+  params[0].type = FUNC_PARAM_TYPE_COLUMN;
+  params[0].pCol = &inputColumn;
+  params[1].type = FUNC_PARAM_TYPE_VALUE;
+  params[1].param.i = UINT64_C(0x100);
+  SqlFunctionCtx ctx = {};
+  ctx.param = params;
+  ctx.numOfParams = 2;
+  TSKEY timestamp = 100;
+  BitDurationInterpCacheGuard cache;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+
+  bool nonZero = true;
+  bool mappingMismatch = false;
+  ASSERT_TRUE(getBitDurationInterpState(&cache.value, &ctx, valueCol, 0, block.get(),
+                                        &nonZero, &mappingMismatch));
+  EXPECT_FALSE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+
+  params[1].param.i = 2;
+  ASSERT_TRUE(getBitDurationInterpState(&cache.value, &ctx, valueCol, 0, block.get(),
+                                        &nonZero, &mappingMismatch));
+  EXPECT_TRUE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+}
+
+TEST(BitDurationInterpCacheTest, SaveDoesNotAdvanceTimestampAcrossMetadataMismatch) {
+  SBitDurationInterpCache cache = {};
+  // This block is intentionally not prepared; failed mappings must not commit
+  // timestamp progress that affects the next block's primary-key deduplication.
+  SSDataBlock block = {};
+  block.info.rows = 1;
+  SColumnInfoData invalidColumn = createColumnInfoData(TSDB_DATA_TYPE_FLOAT, sizeof(float), 1);
+  TSKEY timestamp = 200;
+
+  saveBitDurationInterpCacheHistory(&cache, &invalidColumn, &timestamp, 1, &block);
+  EXPECT_FALSE(cache.hasPrevTs);
+  EXPECT_EQ(0, cache.prevTs);
+}
+
+TEST(BitDurationInterpCacheTest, ReportsInvalidSavedValueMetadataAsMappingMismatch) {
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+
+  BitDurationInterpCacheGuard cache;
+  cache.value.inputSlotId = 1;
+  cache.value.inputType = TSDB_DATA_TYPE_INT;
+  cache.value.hasSavedValue = true;
+  cache.value.savedValueBytes = sizeof(int32_t);
+  cache.value.savedDataCapacity = sizeof(int32_t);
+
+  bool nonZero = true;
+  bool mappingMismatch = false;
+  EXPECT_FALSE(getBitDurationInterpState(&cache.value, &ctx, nullptr, -1, nullptr,
+                                         &nonZero, &mappingMismatch));
+  EXPECT_TRUE(mappingMismatch);
+  EXPECT_TRUE(nonZero);
+
+  cache.value.pSavedData = static_cast<char*>(taosMemoryMalloc(sizeof(int32_t)));
+  ASSERT_NE(nullptr, cache.value.pSavedData);
+  cache.value.savedDataCapacity = sizeof(int16_t);
+  cache.value.savedValueBytes = sizeof(int32_t);
+  mappingMismatch = false;
+  EXPECT_FALSE(getBitDurationInterpState(&cache.value, &ctx, nullptr, -1, nullptr,
+                                         &nonZero, &mappingMismatch));
+  EXPECT_TRUE(mappingMismatch);
+  EXPECT_TRUE(nonZero);
+
+  cache.value.savedDataCapacity = sizeof(int32_t);
+  cache.value.savedValueBytes = sizeof(int16_t);
+  mappingMismatch = false;
+  EXPECT_FALSE(getBitDurationInterpState(&cache.value, &ctx, nullptr, -1, nullptr,
+                                         &nonZero, &mappingMismatch));
+  EXPECT_TRUE(mappingMismatch);
+  EXPECT_TRUE(nonZero);
+
+}
+
+TEST(BitDurationInterpCacheTest, RejectsOutOfRangePreparedRow) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 1), TSDB_CODE_SUCCESS);
+  block->info.rows = 1;
+  auto* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(nullptr, valueCol);
+  int32_t value = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&value), false));
+
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  TSKEY timestamp = 100;
+  BitDurationInterpCacheGuard cache;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, &timestamp, 1, block.get()));
+  cache.value.pPrevRows[0] = 1;
+
+  bool nonZero = false;
+  bool mappingMismatch = false;
+  EXPECT_FALSE(getBitDurationInterpState(&cache.value, &ctx, valueCol, 0, block.get(),
+                                         &nonZero, &mappingMismatch));
+  EXPECT_TRUE(mappingMismatch);
+
+  cache.value.preparedLatestRow = 1;
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, &timestamp, 1, block.get());
+  EXPECT_FALSE(cache.value.hasSavedValue);
+}
+
+TEST(BitDurationInterpCacheTest, DestroyIsIdempotent) {
+  destroyBitDurationInterpCache(nullptr);
+  SBitDurationInterpCache cache = {};
+  cache.pPrevRows = static_cast<int32_t*>(taosMemoryMalloc(sizeof(int32_t)));
+  cache.pSavedData = static_cast<char*>(taosMemoryMalloc(sizeof(int32_t)));
+  ASSERT_NE(nullptr, cache.pPrevRows);
+  ASSERT_NE(nullptr, cache.pSavedData);
+  destroyBitDurationInterpCache(&cache);
+  destroyBitDurationInterpCache(&cache);
+  EXPECT_EQ(nullptr, cache.pPrevRows);
+  EXPECT_EQ(nullptr, cache.pSavedData);
+}
+
+TEST(BitDurationInterpCacheTest, ResetRetainsAllocationsUntilDestroy) {
+  SBitDurationInterpCache cache = {};
+  cache.pPrevRows = static_cast<int32_t*>(taosMemoryMalloc(sizeof(int32_t)));
+  cache.pSavedData = static_cast<char*>(taosMemoryMalloc(sizeof(int32_t)));
+  ASSERT_NE(nullptr, cache.pPrevRows);
+  ASSERT_NE(nullptr, cache.pSavedData);
+  cache.capacity = 1;
+  cache.savedDataCapacity = sizeof(int32_t);
+  cache.hasSavedValue = true;
+
+  resetBitDurationInterpCache(&cache);
+  EXPECT_NE(nullptr, cache.pPrevRows);
+  EXPECT_NE(nullptr, cache.pSavedData);
+  EXPECT_EQ(1, cache.capacity);
+  EXPECT_EQ(sizeof(int32_t), cache.savedDataCapacity);
+  EXPECT_FALSE(cache.hasSavedValue);
+
+  destroyBitDurationInterpCache(&cache);
+  EXPECT_EQ(nullptr, cache.pPrevRows);
+  EXPECT_EQ(nullptr, cache.pSavedData);
+}
+
+TEST(BitDurationInterpCacheTest, DeduplicatesPrimaryKeyAcrossBlocks) {
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  ctx.hasPrimaryKey = true;
+  BitDurationInterpCacheGuard cache;
+
+  SSDataBlock* rawFirstBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawFirstBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock firstBlock(rawFirstBlock, blockDataDestroy);
+  SColumnInfoData valueInfo =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(firstBlock.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(firstBlock.get(), 1), TSDB_CODE_SUCCESS);
+  SColumnInfoData* firstCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(firstBlock->pDataBlock, 0));
+  ASSERT_NE(firstCol, nullptr);
+  int32_t firstValue = 1;
+  ASSERT_EQ(colDataSetVal(firstCol, 0,
+                          reinterpret_cast<const char*>(&firstValue), false),
+            TSDB_CODE_SUCCESS);
+  firstBlock->info.rows = 1;
+  TSKEY firstTs[] = {900};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, firstCol, firstTs, 1,
+                                           firstBlock.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, firstCol, firstTs, 1, firstBlock.get());
+  ASSERT_TRUE(cache.value.hasPrevTs);
+  EXPECT_EQ(cache.value.prevTs, 900);
+
+  SSDataBlock* rawSecondBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawSecondBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock secondBlock(rawSecondBlock, blockDataDestroy);
+  SColumnInfoData secondValueInfo =
+      createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(secondBlock.get(), &secondValueInfo),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(secondBlock.get(), 2), TSDB_CODE_SUCCESS);
+  SColumnInfoData* secondCol = static_cast<SColumnInfoData*>(
+      taosArrayGet(secondBlock->pDataBlock, 0));
+  ASSERT_NE(secondCol, nullptr);
+  int32_t secondValues[] = {0, 2};
+  for (int32_t row = 0; row < 2; ++row) {
+    ASSERT_EQ(colDataSetVal(secondCol, row,
+                            reinterpret_cast<const char*>(&secondValues[row]),
+                            false),
+              TSDB_CODE_SUCCESS);
+  }
+  secondBlock->info.rows = 2;
+  TSKEY secondTs[] = {900, 1000};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, secondCol, secondTs, 2,
+                                           secondBlock.get()),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(cache.value.pPrevRows, nullptr);
+  EXPECT_EQ(cache.value.pPrevRows[0], -1);
+  EXPECT_EQ(cache.value.pPrevRows[1], 1);
+
+  bool nonZero = false;
+  bool mappingMismatch = false;
+  EXPECT_TRUE(getBitDurationInterpState(&cache.value, &ctx, secondCol, 0, secondBlock.get(),
+                                        &nonZero, &mappingMismatch));
+  EXPECT_TRUE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+  EXPECT_TRUE(getBitDurationInterpState(&cache.value, &ctx, secondCol, 1, secondBlock.get(),
+                                        &nonZero, &mappingMismatch));
+  EXPECT_FALSE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+  EXPECT_FALSE(getBitDurationInterpState(&cache.value, &ctx, secondCol, 0, firstBlock.get(),
+                                         &nonZero, &mappingMismatch));
+  EXPECT_TRUE(mappingMismatch);
+}
+
+TEST(BitDurationInterpCacheTest, PrevPhaseSelectsLowestPrimaryKeyRow) {
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  ctx.hasPrimaryKey = true;
+  BitDurationInterpCacheGuard cache;
+
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 2), TSDB_CODE_SUCCESS);
+  SColumnInfoData* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(valueCol, nullptr);
+  int32_t values[] = {0, 1};
+  for (int32_t row = 0; row < 2; ++row) {
+    ASSERT_EQ(colDataSetVal(valueCol, row, reinterpret_cast<const char*>(&values[row]), false), TSDB_CODE_SUCCESS);
+  }
+  block->info.rows = 2;
+  block->info.scanPhase = SCAN_PHASE_PREV;
+  TSKEY timestamps[] = {1000, 1000};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, timestamps, 2, block.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, timestamps, 2, block.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+
+  bool nonZero = false;
+  bool mappingMismatch = false;
+  EXPECT_TRUE(getBitDurationInterpState(&cache.value, &ctx, nullptr, -1, nullptr, &nonZero, &mappingMismatch));
+  EXPECT_TRUE(nonZero);
+  EXPECT_FALSE(mappingMismatch);
+}
+
+TEST(BitDurationInterpCacheTest, PrevPhaseSkipsNullPrimaryKeyRepresentative) {
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  ctx.hasPrimaryKey = true;
+  BitDurationInterpCacheGuard cache;
+
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 3), TSDB_CODE_SUCCESS);
+  SColumnInfoData* valueCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_NE(valueCol, nullptr);
+  int32_t values[] = {1, 0, 0};
+  ASSERT_EQ(colDataSetVal(valueCol, 0, reinterpret_cast<const char*>(&values[0]), false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(valueCol, 1, nullptr, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(valueCol, 2, reinterpret_cast<const char*>(&values[2]), false), TSDB_CODE_SUCCESS);
+  block->info.rows = 3;
+  block->info.scanPhase = SCAN_PHASE_PREV;
+  TSKEY timestamps[] = {1000, 1000, 900};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, valueCol, timestamps, 3, block.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, valueCol, timestamps, 3, block.get());
+
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(cache.value.savedTs, 900);
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(cache.value.pSavedData), 0);
+}
+
+TEST(BitDurationInterpCacheTest, PrevPhaseNullContinuationFallsBackToOlderGroup) {
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  ctx.hasPrimaryKey = true;
+  BitDurationInterpCacheGuard cache;
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+
+  SSDataBlock* rawFirstBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawFirstBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock firstBlock(rawFirstBlock, blockDataDestroy);
+  ASSERT_EQ(blockDataAppendColInfo(firstBlock.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(firstBlock.get(), 1), TSDB_CODE_SUCCESS);
+  SColumnInfoData* firstCol = static_cast<SColumnInfoData*>(taosArrayGet(firstBlock->pDataBlock, 0));
+  int32_t firstValue = 1;
+  ASSERT_EQ(colDataSetVal(firstCol, 0, reinterpret_cast<const char*>(&firstValue), false), TSDB_CODE_SUCCESS);
+  firstBlock->info.rows = 1;
+  firstBlock->info.scanPhase = SCAN_PHASE_PREV;
+  TSKEY firstTs[] = {1000};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, firstCol, firstTs, 1, firstBlock.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, firstCol, firstTs, 1, firstBlock.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_FALSE(cache.value.savedPkGroupComplete);
+
+  SSDataBlock* rawSecondBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawSecondBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock secondBlock(rawSecondBlock, blockDataDestroy);
+  ASSERT_EQ(blockDataAppendColInfo(secondBlock.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(secondBlock.get(), 2), TSDB_CODE_SUCCESS);
+  SColumnInfoData* secondCol = static_cast<SColumnInfoData*>(taosArrayGet(secondBlock->pDataBlock, 0));
+  int32_t olderValue = 0;
+  ASSERT_EQ(colDataSetVal(secondCol, 0, nullptr, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataSetVal(secondCol, 1, reinterpret_cast<const char*>(&olderValue), false), TSDB_CODE_SUCCESS);
+  secondBlock->info.rows = 2;
+  secondBlock->info.scanPhase = SCAN_PHASE_PREV;
+  TSKEY secondTs[] = {1000, 900};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, secondCol, secondTs, 2, secondBlock.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, secondCol, secondTs, 2, secondBlock.get());
+
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(cache.value.savedTs, 900);
+  EXPECT_EQ(*reinterpret_cast<int32_t*>(cache.value.pSavedData), 0);
+}
+
+TEST(BitDurationInterpCacheTest, PrevPhaseOlderNullBlockCompletesSavedGroup) {
+  SColumn inputColumn = {};
+  inputColumn.slotId = 1;
+  SFunctParam param = {};
+  param.type = FUNC_PARAM_TYPE_COLUMN;
+  param.pCol = &inputColumn;
+  SqlFunctionCtx ctx = {};
+  ctx.param = &param;
+  ctx.numOfParams = 1;
+  ctx.hasPrimaryKey = true;
+  BitDurationInterpCacheGuard cache;
+  SColumnInfoData valueInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+
+  SSDataBlock* rawFirstBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawFirstBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock firstBlock(rawFirstBlock, blockDataDestroy);
+  ASSERT_EQ(blockDataAppendColInfo(firstBlock.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(firstBlock.get(), 1), TSDB_CODE_SUCCESS);
+  SColumnInfoData* firstCol = static_cast<SColumnInfoData*>(taosArrayGet(firstBlock->pDataBlock, 0));
+  int32_t value = 1;
+  ASSERT_EQ(colDataSetVal(firstCol, 0, reinterpret_cast<const char*>(&value), false), TSDB_CODE_SUCCESS);
+  firstBlock->info.rows = 1;
+  firstBlock->info.scanPhase = SCAN_PHASE_PREV;
+  TSKEY firstTs[] = {1000};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, firstCol, firstTs, 1, firstBlock.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, firstCol, firstTs, 1, firstBlock.get());
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_FALSE(cache.value.savedPkGroupComplete);
+
+  SSDataBlock* rawSecondBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawSecondBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock secondBlock(rawSecondBlock, blockDataDestroy);
+  ASSERT_EQ(blockDataAppendColInfo(secondBlock.get(), &valueInfo), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(secondBlock.get(), 1), TSDB_CODE_SUCCESS);
+  SColumnInfoData* secondCol = static_cast<SColumnInfoData*>(taosArrayGet(secondBlock->pDataBlock, 0));
+  ASSERT_EQ(colDataSetVal(secondCol, 0, nullptr, true), TSDB_CODE_SUCCESS);
+  secondBlock->info.rows = 1;
+  secondBlock->info.scanPhase = SCAN_PHASE_PREV;
+  TSKEY secondTs[] = {900};
+  ASSERT_EQ(prepareBitDurationInterpCache(&cache.value, &ctx, secondCol, secondTs, 1, secondBlock.get()),
+            TSDB_CODE_SUCCESS);
+  saveBitDurationInterpCacheHistory(&cache.value, secondCol, secondTs, 1, secondBlock.get());
+
+  ASSERT_TRUE(cache.value.hasSavedValue);
+  EXPECT_EQ(cache.value.savedTs, 1000);
+  EXPECT_TRUE(cache.value.savedPkGroupComplete);
 }
 
 #if defined(__linux__) && defined(__GNUC__)
@@ -4245,6 +5059,46 @@ TEST_F(DimensionScanPreparationTest, ConditionResetMatchesFreshInitializationAnd
     }
   }
   EXPECT_EQ(TSDB_CODE_INVALID_PARA, resetQueryTableDataCond(nullptr, &scanNode, &handle, true));
+}
+
+TEST_F(DimensionScanPreparationTest, ExternalWindowPrevWideningPreservesMainRange) {
+  SReadHandle handle = {};
+  handle.winRange = {100, 200};
+  handle.winRangeValid = true;
+  handle.extWinRange = {120, 180};
+  handle.extWinRangeValid = true;
+  handle.streamRtInfo = &taskRuntime;
+  taskRuntime.funcInfo.withExternalWindow = true;
+  taskRuntime.funcInfo.externalWindowNeedsPrevRow = true;
+  scanNode.interpMode = INTERP_MODE_MAIN_FIRST;
+  scanNode.interpFillMode = FILL_MODE_NONE;
+
+  SQueryTableDataCond cond = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, initQueryTableDataCond(&cond, &scanNode, &handle, true));
+  EXPECT_EQ(120, cond.twindows.skey);
+  EXPECT_EQ(180, cond.twindows.ekey);
+  EXPECT_EQ(INT64_MIN, cond.extTwindows[0].skey);
+  EXPECT_EQ(119, cond.extTwindows[0].ekey);
+  cleanupQueryTableDataCond(&cond);
+}
+
+TEST_F(DimensionScanPreparationTest, LegacyExternalWindowPrevWideningSynthesizesRangeFromMain) {
+  SReadHandle handle = {};
+  handle.winRange = {100, 200};
+  handle.winRangeValid = true;
+  handle.streamRtInfo = &taskRuntime;
+  taskRuntime.funcInfo.withExternalWindow = true;
+  taskRuntime.funcInfo.externalWindowNeedsPrevRow = true;
+  scanNode.interpMode = INTERP_MODE_LEGACY;
+
+  SQueryTableDataCond cond = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, initQueryTableDataCond(&cond, &scanNode, &handle, true));
+  EXPECT_TRUE(cond.mainFirst);
+  EXPECT_EQ(100, cond.twindows.skey);
+  EXPECT_EQ(200, cond.twindows.ekey);
+  EXPECT_EQ(INT64_MIN, cond.extTwindows[0].skey);
+  EXPECT_EQ(99, cond.extTwindows[0].ekey);
+  cleanupQueryTableDataCond(&cond);
 }
 
 TEST_F(DimensionScanPreparationTest, PropagatesRealBinderTypeErrorAndUidContainerOom) {
@@ -10027,6 +10881,7 @@ class StreamExchangeFetchRequestTest : public testing::Test {
     runtime_.triggerType = STREAM_TRIGGER_COUNT;
     runtime_.isWindowTrigger = true;
     runtime_.withExternalWindow = true;
+    runtime_.externalWindowNeedsPrevRow = true;
     runtime_.precision = TSDB_TIME_PRECISION_MICRO;
     appendStreamGroupCalc(&runtime_, 101);
     ASSERT_NE(runtime_.pGroupCalcInfos, nullptr);
@@ -10108,6 +10963,7 @@ TEST_F(StreamExchangeFetchRequestTest, GroupedContinuationKeepsEnvelopeWithoutRe
     EXPECT_EQ(info->triggerType, STREAM_TRIGGER_COUNT);
     EXPECT_TRUE(info->isWindowTrigger);
     EXPECT_TRUE(info->withExternalWindow);
+    EXPECT_TRUE(info->externalWindowNeedsPrevRow);
     EXPECT_EQ(info->precision, TSDB_TIME_PRECISION_MICRO);
     EXPECT_EQ(info->pGroupCalcInfos != nullptr, reset);
     EXPECT_EQ(info->pContextPolicy != nullptr, reset);
@@ -17715,6 +18571,19 @@ TEST(execUtilTest, interpMainFirstNotifyKeepsExistingLeafTargets) {
     EXPECT_EQ(interpMainFirstResolveNotifyTarget(&target), &target);
   }
   EXPECT_EQ(interpMainFirstResolveNotifyTarget(nullptr), nullptr);
+}
+
+TEST(execUtilTest, exchangeReaderSourceTypeSurvivesConsumedGetParam) {
+  SExchangeInfo info = {};
+  info.readerSrcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+  SOperatorInfo exchange = {};
+  exchange.operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
+  exchange.info = &info;
+  exchange.pOperatorGetParam = nullptr;
+
+  EXPECT_EQ(getExchangeReaderSourceOpType(&exchange), QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN);
+  info.readerSrcOpType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  EXPECT_EQ(getExchangeReaderSourceOpType(&exchange), QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
 }
 
 TEST(execUtilTest, interpMainFirstNotifyBuildsMergeExchangeTree) {

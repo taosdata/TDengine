@@ -3850,6 +3850,39 @@ TWVAR_LOCF(expr)
 - Boundary handling and timeline requirements match `TWAVG_LINEAR`/`TWAVG_LOCF`.
 - DECIMAL input is computed as DOUBLE and the return type is still DOUBLE.
 
+### BIT_DURATION
+
+```sql
+BIT_DURATION(expr [, mask [, flag]])
+```
+
+**Function Classification**: Aggregate function.
+
+**Version**: v3.4.3.0.
+
+**Function Description**: Calculates the duration of the masked binary state for an integer measurement. `mask` defaults to `1` and ranges from `1` to `INT64_MAX`; `flag` defaults to `0`.
+
+- `flag=0`: Accumulates the duration for which the masked state is non-zero.
+- `flag=1`: Accumulates the duration for which the masked state is zero.
+- `flag=2`: Returns the total duration from the first valid record to the last valid record.
+
+**Return Data Type**: BIGINT.
+
+**Applicable Data Types**: TINYINT, SMALLINT, INT, BIGINT, corresponding unsigned types, and BOOL.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- The result uses the database timestamp precision as its unit.
+- Interval windows carry the preceding valid state to the window start using LOCF. If a non-window plan does not provide an out-of-range predecessor, calculation starts at the first valid row visible to the aggregate.
+- In interval windows with a right-side boundary record, the final state is carried to the window end using LOCF. Boundary masks are evaluated on the original integer value without floating-point conversion. Windows, groups, and supertable subtables do not share state.
+- NULL rows are skipped without changing the previous valid state. An empty table produces no result row; a non-window aggregate with input rows that are all NULL returns 0. A window with a valid predecessor follows the boundary state-carrying rules above.
+- With `flag=2`, `mask` is accepted for signature consistency but does not affect the first-to-last timestamp difference; fewer than two valid records return 0.
+- Supports `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, `COUNT_WINDOW`, and stream calculations.
+- `mask` and `flag` must be constants; `mask` cannot be 0, and `flag` must be 0, 1, or 2. Floating-point, string, binary, JSON, and timestamp inputs are not supported.
+- Input must be in ascending timestamp order; descending or otherwise invalid timelines are rejected.
+
 ### VALUE_CHANGES
 
 ```sql

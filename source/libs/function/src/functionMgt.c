@@ -444,6 +444,23 @@ bool fmIsTwLocfFunc(int32_t funcId) {
          FUNCTION_TYPE_TWVAR_LOCF == type;
 }
 
+bool fmIsBitDurationFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_BIT_DURATION == funcMgtBuiltins[funcId].type;
+}
+
+bool fmBitDurationNeedsPrevRow(const SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || !fmIsBitDurationFunc(pCtx->functionId)) {
+    return false;
+  }
+  if (pCtx->param == NULL || pCtx->numOfParams <= 2 || pCtx->param[2].type != FUNC_PARAM_TYPE_VALUE) {
+    return true;
+  }
+  return pCtx->param[2].param.i != BIT_DURATION_FLAG_TOTAL;
+}
+
 bool fmIsBlockDistFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;

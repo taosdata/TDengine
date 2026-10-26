@@ -476,17 +476,6 @@ static void destroyIndefinitOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static void cleanupProcessByRowIter(SqlFunctionCtx* pCtx) {
-  SFuncInputRowIter* pIter = &pCtx->rowIter;
-
-  if (pIter->pPrevRowBlock != NULL) {
-    blockDataDestroy(pIter->pPrevRowBlock);
-  }
-  taosMemoryFreeClear(pIter->pPrevData);
-  taosMemoryFreeClear(pIter->pPrevPk);
-  memset(pIter, 0, sizeof(*pIter));
-}
-
 static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                pOutput = pCtx->pOutput;
@@ -495,7 +484,7 @@ static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
     pCtx->fpSet.cleanup(pCtx);
   }
 
-  cleanupProcessByRowIter(pCtx);
+  funcInputRowIterCleanup(&pCtx->rowIter);
   pResInfo->initialized = false;
   pResInfo->numOfRes = 0;
   pCtx->bInputFinished = false;
