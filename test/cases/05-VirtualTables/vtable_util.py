@@ -1229,11 +1229,14 @@ class _InfluxAdapter:
         ExtSrcEnv.ensure_qnode()
         for src, db in zip(self.SOURCE_NAMES, self.DB_NAMES):
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {src}")
+            # Flight SQL metadata RPCs also use the connection deadline.
+            # Allow for concurrent CI load when checking query results.
             tdSql.execute(
                 f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='influxdb' "
                 f"HOST='{self.host}' PORT={self.port} "
                 f"USER='u' PASSWORD='' DATABASE={db} "
-                f"OPTIONS('api_token'='{self.token}','protocol'='flight_sql')")
+                f"OPTIONS('api_token'='{self.token}','protocol'='flight_sql',"
+                f"'connect_timeout_ms'='30000')")
 
     def _row_count(self, database, measurement):
         """Return the row count for a measurement, or 0 on any error."""
