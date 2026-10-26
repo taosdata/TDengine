@@ -1365,6 +1365,8 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
       pCtx[i].fpSet.cleanup(&pCtx[i]);
     }
 
+    funcInputRowIterCleanup(&pCtx[i].rowIter);
+
     if (pCtx[i].pDistinctBuf != NULL) {
       destroyDiskbasedBuf(pCtx[i].pDistinctBuf);
       pCtx[i].pDistinctBuf = NULL;

@@ -1734,17 +1734,22 @@ int32_t interpMainFirstBuildNotifyParam(
 
 // The get-param follows the normal pull path because applying an early-stop
 // changes which block the downstream scan returns next.
-static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
-                                       TSKEY notifyTs,
-                                       const SSDataBlock* pBlock) {
+int32_t interpMainFirstSetDownstreamNotifyParam(
+    SOperatorInfo* pOperator, int8_t interpMode, int8_t notifyPhase,
+    TSKEY notifyTs, const SSDataBlock* pBlock) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  STimeSliceOperatorInfo* pInfo = pOperator->info;
-  if (!interpModeCanEarlyStop(pInfo->interpMode)) {
+  // MAIN is intentional for the normal Timeslice path; calloc-initialized
+  // blocks also use MAIN by protocol. Reject only values outside EScanPhase.
+  if (pOperator == NULL || pBlock == NULL || notifyPhase < SCAN_PHASE_MAIN ||
+      notifyPhase >= SCAN_PHASE_COUNT) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (!interpModeCanEarlyStop(interpMode)) {
     return TSDB_CODE_SUCCESS;
   }
-  bool multiGroup = pInfo->interpMode == INTERP_MODE_MULTI_GROUP;
-  if (multiGroup && pInfo->curPhase == SCAN_PHASE_MAIN) {
+  bool multiGroup = interpMode == INTERP_MODE_MULTI_GROUP;
+  if (multiGroup && notifyPhase == SCAN_PHASE_MAIN) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1783,9 +1788,11 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
         pTarget->operatorType ==
             QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
       exchangeSrcOpType = pTarget->operatorType;
+    } else if (pTarget->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+      exchangeSrcOpType = getExchangeReaderSourceOpType(pTarget);
     } else {
       exchangeSrcOpType =
-          interpModeUsesPhasedProtocol(pInfo->interpMode)
+          interpModeUsesPhasedProtocol(interpMode)
               ? QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN
               : QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
     }
@@ -1793,27 +1800,27 @@ static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
     SOperatorParam* pRoot = pOperator->pDownstreamGetParams[i];
     if (pRoot == NULL) {
       code = buildInterpNotifyParam(
-          pDownstream, i, notifyOuterEpoch, pInfo->curPhase,
+          pDownstream, i, notifyOuterEpoch, notifyPhase,
           notifyScanGroupId, exchangeSrcOpType, notifyTs,
           &pRoot);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       code = setInterpNotifyParamValue(
-          pRoot, notifyOuterEpoch, pInfo->curPhase, notifyScanGroupId,
+          pRoot, notifyOuterEpoch, notifyPhase, notifyScanGroupId,
           exchangeSrcOpType, notifyTs);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
     pOperator->pDownstreamGetParams[i] = pRoot;
 
-    if (interpModeUsesPhasedProtocol(pInfo->interpMode) &&
+    if (interpModeUsesPhasedProtocol(interpMode) &&
         (qDebugFlag & DEBUG_DEBUG)) {
       int32_t hops = interpMainFirstNotifyTargetHops(
           pDownstream, pTarget);
       qDebug("%s TimeSlice MAIN_FIRST early-stop phase=%d target=%s "
              "hops=%d notifyTs=%" PRId64 " scanGroupId=%" PRIu64
              " outerEpoch=%" PRIu64,
-             GET_TASKID(pOperator->pTaskInfo), pInfo->curPhase,
+             GET_TASKID(pOperator->pTaskInfo), notifyPhase,
              interpNotifyTargetOpName(pTarget->operatorType),
              hops, notifyTs, notifyScanGroupId, notifyOuterEpoch);
     }
@@ -1824,6 +1831,14 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t setDownstreamOpGetParam(SOperatorInfo* pOperator,
+                                       TSKEY notifyTs,
+                                       const SSDataBlock* pBlock) {
+  STimeSliceOperatorInfo* pInfo = pOperator->info;
+  return interpMainFirstSetDownstreamNotifyParam(
+      pOperator, pInfo->interpMode, pInfo->curPhase, notifyTs, pBlock);
 }
 
 static SSDataBlock* getNextInterpBlock(SOperatorInfo* pOperator,

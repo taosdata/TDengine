@@ -424,6 +424,35 @@ TEST(VnodeStreamGroupReadTest, PreservesReadBindings) {
     EXPECT_EQ(ends[i], range->window.ekey);
   }
   taosArrayDestroy(ranges);
+  ranges = nullptr;
+
+  runtime.withExternalWindow = true;
+  runtime.externalWindowNeedsPrevRow = false;
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+  ASSERT_EQ(3, taosArrayGetSize(ranges));
+  for (int i = 0; i < 3; ++i) {
+    const auto *range = static_cast<const SReaderReadRange *>(taosArrayGet(ranges, i));
+    EXPECT_EQ(starts[i], range->window.skey);
+  }
+  taosArrayDestroy(ranges);
+  ranges = nullptr;
+
+  runtime.externalWindowNeedsPrevRow = true;
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, nullptr));
+  EXPECT_EQ(10, combined.skey);
+  EXPECT_EQ(109, combined.ekey);
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+  EXPECT_TRUE(valid);
+  EXPECT_EQ(10, combined.skey);
+  EXPECT_EQ(109, combined.ekey);
+  ASSERT_EQ(3, taosArrayGetSize(ranges));
+  for (int i = 0; i < 3; ++i) {
+    const auto *range = static_cast<const SReaderReadRange *>(taosArrayGet(ranges, i));
+    EXPECT_TRUE(range->valid);
+    EXPECT_EQ(INT64_MIN, range->window.skey);
+    EXPECT_EQ(ends[i], range->window.ekey);
+  }
+  taosArrayDestroy(ranges);
   nodesDestroyNode(node.pStart);
   nodesDestroyNode(node.pEnd);
   tDestroyStRtFuncInfo(&temporary);
@@ -467,6 +496,22 @@ TEST(VnodeStreamGroupReadTest, EmptyAndEndpointRanges) {
       EXPECT_EQ(19, combined.ekey);
       taosArrayDestroy(ranges);
       ranges = nullptr;
+      if (calculated) {
+        runtime.withExternalWindow = true;
+        runtime.externalWindowNeedsPrevRow = true;
+        ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+        ASSERT_EQ(2, taosArrayGetSize(ranges));
+        const auto &emptyPrevRange = *static_cast<const SReaderReadRange *>(taosArrayGet(ranges, 0));
+        const auto &prevRange = *static_cast<const SReaderReadRange *>(taosArrayGet(ranges, 1));
+        EXPECT_FALSE(emptyPrevRange.valid);
+        EXPECT_EQ(0, emptyPrevRange.readInfoIndex);
+        EXPECT_NE(INT64_MIN, emptyPrevRange.window.skey);
+        EXPECT_TRUE(prevRange.valid);
+        EXPECT_EQ(INT64_MIN, prevRange.window.skey);
+        EXPECT_EQ(1, prevRange.readInfoIndex);
+        taosArrayDestroy(ranges);
+        ranges = nullptr;
+      }
       setNodeGroupReadRange(&runtime, 1, 101, INT64_MIN, INT64_MIN);
       EXPECT_EQ(TSDB_CODE_INVALID_PARA,
                 vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));

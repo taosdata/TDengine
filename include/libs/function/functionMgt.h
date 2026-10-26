@@ -65,6 +65,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TWVAR_LOCF,
   FUNCTION_TYPE_VALUE_CHANGES,
   FUNCTION_TYPE_BIT_CHANGES,
+  FUNCTION_TYPE_BIT_DURATION,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -408,6 +409,10 @@ bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsTwLocfFunc(int32_t funcId);
+// Identifies bit_duration for interval/external-window boundary state mapping.
+bool fmIsBitDurationFunc(int32_t funcId);
+// Returns whether bit_duration needs a predecessor row for its selected mode.
+bool fmBitDurationNeedsPrevRow(const SqlFunctionCtx* pCtx);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);

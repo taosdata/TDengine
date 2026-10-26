@@ -51,6 +51,33 @@ void    streamTagLookupDestroy(SStreamTagLookupPlan* pPlan);
 
 struct SOperatorInfo;
 
+typedef struct SBitDurationInterpCache {
+  int32_t*           pPrevRows;       // latest selected non-NULL row in this block, or -1
+  char*              pSavedData;      // last valid input value saved from an earlier block
+  // Borrowed only while the prepared block is being processed. Callers must
+  // prepare every new block before reading or saving its mapping.
+  const SSDataBlock* pPreparedBlock;
+
+  int32_t  capacity;           // allocated row capacity of pPrevRows
+  int32_t  preparedRows;       // valid leading mappings for the current block
+  int32_t  preparedLatestRow;  // newest valid input row in the prepared block
+  int32_t  savedDataCapacity;  // allocated bytes in pSavedData
+  int32_t  savedValueBytes;    // bytes occupied by the valid saved value
+  int32_t  inputSlotId;        // input column slot
+  int8_t   inputType;          // prepared integer/BOOL input column type
+  int8_t   savedScanPhase;     // phase that supplied pSavedData
+  STypeMod inputTypeMod;       // validated type modifier for that input column
+
+  bool hasInputMetadata;  // slot/type metadata was validated, including for an empty block
+  bool hasSavedValue;     // pSavedData is valid for the recorded slot/type metadata
+  bool hasPrevTs;         // prevTs is valid for cross-block primary-key deduplication
+  bool hasPrimaryKey;
+  bool savedPkGroupComplete;
+
+  TSKEY savedTs;  // timestamp of the value stored in pSavedData
+  TSKEY prevTs;   // final physical timestamp of the last block saved as history
+} SBitDurationInterpCache;
+
 typedef struct STaskSubJobCtx {
   bool               isExchange;
   bool               isStream;
@@ -358,6 +385,29 @@ int32_t qExchangeReaderGroupOutputMode(const struct SOperatorInfo* pOperator);
 
 int32_t          findDataBlockColIndexBySlotId(const SSDataBlock* pBlock, int32_t slotId);
 SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slotId, int32_t* pIndex);
+SColumnInfoData* getBitDurationInputColumn(const SqlFunctionCtx* pCtx, const SSDataBlock* pBlock);
+/**
+ * tsCols must be monotonic in scan order, with equal primary timestamps contiguous.
+ * Every attempt invalidates the prior prepared-row mapping before validation. A zero
+ * mask, invalid block shape, or incompatible integer/BOOL column is an internal error.
+ */
+int32_t          prepareBitDurationInterpCache(SBitDurationInterpCache* pCache, const SqlFunctionCtx* pCtx,
+                                               SColumnInfoData* pCol, const TSKEY* tsCols, int32_t rows,
+                                               const SSDataBlock* pBlock);
+/**
+ * prevRowIndex is the row immediately before the current interpolation row.
+ * A false result with pMappingMismatch=false means no predecessor is available.
+ * A true pMappingMismatch reports stale or inconsistent prepared metadata and callers
+ * must treat it as an executor error.
+ */
+bool             getBitDurationInterpState(const SBitDurationInterpCache* pCache, const SqlFunctionCtx* pCtx,
+                                           SColumnInfoData* pCol, int32_t prevRowIndex, const SSDataBlock* pBlock,
+                                           bool* pNonZero, bool* pMappingMismatch);
+void             saveBitDurationInterpCacheHistory(SBitDurationInterpCache* pCache, const SColumnInfoData* pCol,
+                                                   const TSKEY* tsCols, int32_t rows, const SSDataBlock* pBlock);
+void             resetBitDurationInterpCache(SBitDurationInterpCache* pCache);
+/** taosArrayDestroyEx callback. Clears an SBitDurationInterpCache and its owned buffers. */
+void             destroyBitDurationInterpCache(void* param);
 
 #if defined(BUILD_TEST)
 void    execUtilTestResetHandleRemoteRowResState(void);
