@@ -41,6 +41,14 @@ if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
     # references nodesRemotePlanToSQL from libnodes.a after libnodes.a may
     # already have been scanned. Force extraction for catalog consumers.
     target_link_options(catalog INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
+    # catalog objects call extconnector after the last libextconnector.a is scanned.
+    target_link_options(catalog INTERFACE
+      "LINKER:--undefined=extLoadDialectDefaults"
+      "LINKER:--undefined=extConnectorOpen"
+      "LINKER:--undefined=extConnectorClose"
+      "LINKER:--undefined=extConnectorGetTableSchema"
+      "LINKER:--undefined=extConnectorFreeTableSchema"
+      "LINKER:--undefined=extConnectorCloneTableSchema")
 endif()
 
 if(BUILD_TEST AND NOT TD_WINDOWS)
