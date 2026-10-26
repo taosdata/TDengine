@@ -18432,6 +18432,12 @@ static int32_t tEncodeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq
     TAOS_CHECK_EXIT(tEncodeU8(&encoder, 1));
     tEndEncodeStreamTailFrame(&encoder);
   }
+  if (pReq->pStRtFuncInfo != NULL && pReq->pStRtFuncInfo->externalWindowNeedsPrevRow) {
+    TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC,
+                                                STREAM_EXTERNAL_WINDOW_PREV_FRAME_VERSION, 0));
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, true));
+    tEndEncodeStreamTailFrame(&encoder);
+  }
 
   if (pReq->readerFetchId != 0) {
     TAOS_CHECK_EXIT(tStartEncodeStreamTailFrame(&encoder, STREAM_READER_FETCH_ID_FRAME_MAGIC,
@@ -18561,9 +18567,16 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
   bool readerGroupModeSeen = false;
   bool readerDimensionBatchSeen = false;
   bool runnerEogBatchSeen = false;
+  bool externalWindowPrevSeen = false;
   pReq->readerGroupMode = false;
   pReq->readerDimensionBatch = false;
   pReq->runnerEogBatch = false;
+  if (pReq->pStRtFuncInfo != NULL) {
+    // Only SResFetchReq makes its strict capability frame authoritative and
+    // force-overrides the base-runtime copy. Generic tDeserializeStRtFuncInfo()
+    // callers preserve the value encoded in the base runtime object.
+    pReq->pStRtFuncInfo->externalWindowNeedsPrevRow = false;
+  }
   bool followerReadSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
@@ -18733,6 +18746,30 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
       TAOS_CHECK_EXIT(code);
       continue;
     }
+    if (frame.magic == STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC) {
+      if (externalWindowPrevSeen || pReq->pStRtFuncInfo == NULL ||
+          frame.version != STREAM_EXTERNAL_WINDOW_PREV_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      externalWindowPrevSeen = true;
+      bool needsPrevRow = false;
+      code = tDecodeBool(&frame.payloadDecoder, &needsPrevRow);
+      if (code == TSDB_CODE_SUCCESS && needsPrevRow) {
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+        if (code == TSDB_CODE_SUCCESS) {
+          pReq->pStRtFuncInfo->externalWindowNeedsPrevRow = true;
+        }
+      } else {
+        if (code == TSDB_CODE_SUCCESS) {
+          code = TSDB_CODE_INVALID_MSG;
+        }
+        tFinishDecodeStreamTailFrame(&frame, false);
+      }
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
     TAOS_CHECK_EXIT(tFinishDecodeStreamTailFrame(&frame, false));
   }
   if (pReq->reuseReader && !pReq->reset) {
@@ -18869,6 +18906,7 @@ int32_t tBuildStreamReaderFetchReq(SResFetchReq *pReq, void **ppBuf, int32_t *pL
     view.runtime.sessionId = pSource->sessionId;
     view.runtime.streamGen = pSource->streamGen;
     view.runtime.withExternalWindow = pSource->withExternalWindow;
+    view.runtime.externalWindowNeedsPrevRow = pSource->externalWindowNeedsPrevRow;
     view.runtime.triggerType = pSource->triggerType;
     view.runtime.isWindowTrigger = pSource->isWindowTrigger;
     view.runtime.precision = pSource->precision;

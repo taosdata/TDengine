@@ -74,6 +74,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
 #define STREAM_READER_DIMENSION_BATCH_FRAME_VERSION 1
 #define STREAM_RUNNER_EOG_BATCH_FRAME_VERSION  1
+#define STREAM_EXTERNAL_WINDOW_PREV_FRAME_VERSION 1
 #define STREAM_RUNNER_FETCH_BATCH_VERSION      1
 #define STREAM_RUNNER_EOG_BATCH_MAX            64
 #define STREAM_READER_FETCH_BATCH_VERSION      1
@@ -88,6 +89,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
 #define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
+#define STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC UINT32_C(0x4e574550)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
@@ -1883,6 +1885,8 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t sessionId;
   uint64_t streamGen;
   bool    withExternalWindow;
+  // Valid only with withExternalWindow; sent in the SResFetchReq capability frame.
+  bool    externalWindowNeedsPrevRow;
   bool    isWindowTrigger;
   int8_t  precision;
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1
