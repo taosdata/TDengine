@@ -18103,12 +18103,9 @@ TEST(execUtilTest, interpMainFirstLeadHolePreservesCalendarSequence) {
   EXPECT_EQ(hole.ekey,
             makeInterpTestTimestamp(ny, 2024, 3, 10));
   EXPECT_EQ(nextTs, makeInterpTestTimestamp(ny, 2024, 3, 11));
-#ifdef WINDOWS
-  // Windows timezone objects use a fixed UTC offset without DST transitions.
-  EXPECT_EQ(nextTs - hole.ekey, 24LL * 3600 * 1000);
-#else
+  // The zone honours its daylight-saving rules on every platform: the
+  // 2024-03-10 spring-forward day is 23 hours long on Windows as well.
   EXPECT_EQ(nextTs - hole.ekey, 23LL * 3600 * 1000);
-#endif
 
   tzfree(utc);
   tzfree(ny);

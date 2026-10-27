@@ -1128,20 +1128,68 @@ class _InfluxAdapter:
     @property
     def version(self): return ExtSrcEnv.INFLUX_VERSIONS[0]
 
+    # InfluxDB 3 occasionally dies between vtable suites.  Startup is
+    # probe-driven, mirroring ensure_ext_env.sh's quick-restart path: stop a
+    # stale listener and wait for its port to close, start, then keep probing
+    # /health (start_influx_instance fails fast if the process itself exits).
+    # One clean probe-and-start retry covers a start that crashed on launch.
+    START_ATTEMPTS = 2
+    START_PROBE_DEADLINE_S = 90
+
+    def _health_ready(self):
+        try:
+            import requests
+            r = requests.get(f"http://{self.host}:{self.port}/health",
+                             timeout=2)
+            return r.status_code in (200, 401)
+        except Exception:
+            return False
+
     def ensure_running(self):
-        if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
+        if self._health_ready():
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
             raise RuntimeError(
                 f"FQ_SKIP_ENV_RESET=1 but InfluxDB {self.version} not "
                 f"reachable at {self.host}:{self.port}")
-        tdLog.info(f"Starting InfluxDB {self.version} via "
-                   f"ExtSrcEnv.start_influx_instance ...")
-        ExtSrcEnv.start_influx_instance(self.version)
-        if not ExtSrcEnv._tcp_probe(self.host, self.port, timeout=10):
-            raise RuntimeError(
-                f"InfluxDB {self.version} not reachable at "
-                f"{self.host}:{self.port}")
+        last_error = None
+        for attempt in range(1, self.START_ATTEMPTS + 1):
+            # A listener that is up but not healthy is a stale or
+            # half-started instance; stop it and wait for the port to be
+            # released before starting again (_wait_port_free in the shell).
+            if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=2):
+                tdLog.info(
+                    f"InfluxDB {self.version} is listening but not healthy; "
+                    f"stopping it before start attempt {attempt}")
+                try:
+                    ExtSrcEnv.stop_influx_instance(self.version)
+                except Exception as exc:
+                    tdLog.error(
+                        f"failed to stop unhealthy InfluxDB {self.version}: "
+                        f"{exc}")
+            tdLog.info(f"Starting InfluxDB {self.version} via "
+                       f"ExtSrcEnv.start_influx_instance "
+                       f"(attempt {attempt}) ...")
+            try:
+                ExtSrcEnv.start_influx_instance(
+                    self.version, wait_s=self.START_PROBE_DEADLINE_S)
+            except RuntimeError as exc:
+                last_error = exc
+            else:
+                # Confirm with the same probe the shell script uses rather
+                # than trusting a listening port: /health answers only when
+                # the engine can serve queries.
+                if self._health_ready():
+                    return
+                last_error = RuntimeError(
+                    f"InfluxDB {self.version} health probe failed at "
+                    f"{self.host}:{self.port}")
+            tdLog.error(f"InfluxDB {self.version} start attempt {attempt} "
+                        f"failed: {last_error}")
+        raise RuntimeError(
+            f"InfluxDB {self.version} not reachable at {self.host}:{self.port} "
+            f"after {self.START_ATTEMPTS} probe-and-start attempts: "
+            f"{last_error}")
 
     def _register_series(self, db_idx, table):
         """Register a SERIES alias for (db_idx, org_tb table) and return it."""
@@ -1231,12 +1279,19 @@ class _InfluxAdapter:
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {src}")
             # Flight SQL metadata RPCs also use the connection deadline.
             # Allow for concurrent CI load when checking query results.
+            # Bound the data-fetch deadline as well: an InfluxDB 3 instance
+            # that stops answering would otherwise keep the CLI query blocked
+            # forever (the global federatedQueryQueryTimeoutMs default is
+            # ~11 days).  A timeout surfaces TSDB_CODE_EXT_QUERY_TIMEOUT
+            # instead, which the ext-source result comparison turns into a
+            # backend restart plus one replay.
             tdSql.execute(
                 f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='influxdb' "
                 f"HOST='{self.host}' PORT={self.port} "
                 f"USER='u' PASSWORD='' DATABASE={db} "
                 f"OPTIONS('api_token'='{self.token}','protocol'='flight_sql',"
-                f"'connect_timeout_ms'='30000')")
+                f"'connect_timeout_ms'='30000',"
+                f"'read_timeout_ms'='60000')")
 
     def _row_count(self, database, measurement):
         """Return the row count for a measurement, or 0 on any error."""
@@ -1810,13 +1865,70 @@ class VtableQueryUtil:
         with open(result_file, "w", encoding="utf-8", newline="") as output_file:
             output_file.writelines(normalized_lines)
 
+    # An external engine can exit while a long query file is running (InfluxDB 3
+    # has been observed to die under this workload on Windows).  Every query
+    # after that point returns an empty result and the CLI records
+    # TSDB_CODE_EXT_CONNECT_FAILED, so the comparison reports a line-count
+    # mismatch that says nothing about the SQL being validated.  An engine that
+    # stops answering instead produces TSDB_CODE_EXT_QUERY_TIMEOUT on the
+    # bounded InfluxDB source.  Match either signature, restart the engines
+    # once and replay the file.
+    _EXT_CONN_FAILURE_MARKERS = (
+        "External source connection failed",
+        "0x80006400",
+        "0x80006403",
+    )
+
+    @classmethod
+    def _result_reports_ext_conn_failure(cls, result_file):
+        """Count result lines recording a failed external-source connection."""
+        try:
+            with open(result_file, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+        except OSError:
+            return 0
+        return sum(
+            1 for line in lines
+            if any(marker in line for marker in cls._EXT_CONN_FAILURE_MARKERS))
+
+    @classmethod
+    def _restart_ext_backends(cls):
+        """Restart any external engine whose process stopped during the run."""
+        for adapter_cls in (_PgAdapter, _MysqlAdapter, _InfluxAdapter,
+                            _SqlserverAdapter):
+            name = getattr(adapter_cls, "BACKEND", adapter_cls.__name__)
+            try:
+                adapter_cls().ensure_running()
+            except Exception as exc:  # keep trying the remaining engines
+                tdLog.error(f"failed to restart {name} external backend: {exc}")
+
     @classmethod
     def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0):
         """Compare an external-source case against answers shared with millisecond fixtures."""
         result_file = tdCom.generate_query_result(input_file, test_case)
         cls._normalize_window_duration_to_milliseconds(
             result_file, cls._db_duration_divisor())
-        if not tdCom.compare_result_files(expected_file, result_file, float_tolerance=float_tolerance):
+        matched = tdCom.compare_result_files(
+            expected_file, result_file, float_tolerance=float_tolerance)
+        if not matched:
+            conn_failures = cls._result_reports_ext_conn_failure(result_file)
+            if conn_failures:
+                tdLog.info(
+                    f"External backend connection failed during the query file "
+                    f"({conn_failures} queries returned "
+                    f"TSDB_CODE_EXT_CONNECT_FAILED); restarting the engines "
+                    f"and replaying the case once.")
+                cls._restart_ext_backends()
+                result_file = tdCom.generate_query_result(input_file, test_case)
+                cls._normalize_window_duration_to_milliseconds(
+                    result_file, cls._db_duration_divisor())
+                matched = tdCom.compare_result_files(
+                    expected_file, result_file, float_tolerance=float_tolerance)
+                if matched:
+                    tdLog.info(
+                        "Test passed after the external backends recovered.")
+
+        if not matched:
             tdLog.exit(
                 f"sqlfile:{input_file}, expect_file:{expected_file} != result_file:{result_file}"
             )
