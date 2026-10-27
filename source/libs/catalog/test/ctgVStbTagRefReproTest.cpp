@@ -72,19 +72,7 @@ SVSubTablesRsp makeVgRsp(int32_t vgId, uint64_t uid, SRefColInfo* tagRefs, int32
   rsp.vgId = vgId;
   rsp.pTables = taosArrayInit(1, sizeof(SVCTableRefCols*));
 
-  int32_t totalRefs = numTagRefs;
-  SVCTableRefCols* pTb =
-      (SVCTableRefCols*)taosMemoryCalloc(1, sizeof(SVCTableRefCols) + totalRefs * sizeof(SRefColInfo));
-  pTb->uid = uid;
-  pTb->numOfColRefs = 0;
-  pTb->refCols = NULL;
-  pTb->numOfTagRefs = numTagRefs;
-  if (numTagRefs > 0) {
-    pTb->tagRefCols = (SRefColInfo*)(pTb + 1);
-    memcpy(pTb->tagRefCols, tagRefs, numTagRefs * sizeof(SRefColInfo));
-  } else {
-    pTb->tagRefCols = NULL;
-  }
+  SVCTableRefCols* pTb = tBuildSVCTableRefCols(uid, 0, NULL, 0, tagRefs, numTagRefs);
 
   taosArrayPush(rsp.pTables, &pTb);
   return rsp;
@@ -155,4 +143,78 @@ TEST(ctgVStbTagRefMerge, refChildFirst_refCodeResolves) {
 
   EXPECT_EQ(numOfTagRefs, 2);
   EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+}
+
+namespace {
+
+// One vgroup response whose single child carries the given col refs.
+SVSubTablesRsp makeColRefVgRsp(int32_t vgId, uint64_t uid, SRefColInfo* colRefs, int32_t numColRefs) {
+  SVSubTablesRsp rsp = {0};
+  rsp.vgId = vgId;
+  rsp.pTables = taosArrayInit(1, sizeof(SVCTableRefCols*));
+
+  SVCTableRefCols* pTb = tBuildSVCTableRefCols(uid, 1, colRefs, numColRefs, NULL, 0);
+
+  taosArrayPush(rsp.pTables, &pTb);
+  return rsp;
+}
+
+// Two children share the vstb column colId=2: only one of them carries a
+// saved external-column filter on its ref. The merged per-STB entry must end
+// up with hasFilterCond=true no matter which child is processed first.
+void runFilterCondMerge(bool filteredChildFirst, bool* pMergedFlag) {
+  SRefColInfo plainRef = makeRef(2, "d0", "src_0", "val");
+  SRefColInfo filteredRef = makeRef(2, "d0", "src_0", "val");
+  filteredRef.hasFilterCond = true;
+
+  SVSubTablesRsp plainRsp = makeColRefVgRsp(1, 2001, &plainRef, 1);
+  SVSubTablesRsp filteredRsp = makeColRefVgRsp(2, 2002, &filteredRef, 1);
+
+  SArray* pSubTablesList = taosArrayInit(2, sizeof(SVSubTablesRsp));
+  if (filteredChildFirst) {
+    taosArrayPush(pSubTablesList, &filteredRsp);
+    taosArrayPush(pSubTablesList, &plainRsp);
+  } else {
+    taosArrayPush(pSubTablesList, &plainRsp);
+    taosArrayPush(pSubTablesList, &filteredRsp);
+  }
+
+  SArray*      pLayerRefs = NULL;
+  SHashObj*    pRefDbs = NULL;
+  SHashObj*    pRefExtSources = NULL;
+  int32_t      numOfColRefs = 0;
+  SRefColInfo* pColRefCols = NULL;
+  int32_t      numOfTagRefs = 0;
+  SRefColInfo* pTagRefCols = NULL;
+
+  int32_t code = ctgdTestBuildVStbFirstLayerRefs(pSubTablesList, &pLayerRefs, &pRefDbs, &pRefExtSources,
+                                                  &numOfColRefs, &pColRefCols, &numOfTagRefs, &pTagRefCols);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(numOfColRefs, 1) << "same colId must merge into one entry";
+  if (numOfColRefs == 1) {
+    *pMergedFlag = pColRefCols[0].hasFilterCond;
+  }
+
+  taosArrayDestroy(pLayerRefs);
+  taosHashCleanup(pRefDbs);
+  taosHashCleanup(pRefExtSources);
+  taosMemoryFree(pColRefCols);
+  taosMemoryFree(pTagRefCols);
+  taosArrayDestroyEx(pSubTablesList, tDestroySVSubTablesRsp);
+}
+
+}  // namespace
+
+// hasFilterCond must survive the colId-keyed merge in either arrival order;
+// dropping it would wrongly allow the VStableAgg rewrite on filtered refs.
+TEST(ctgVStbTagRefMerge, colRefMergeKeepsHasFilterCond_filteredFirst) {
+  bool merged = false;
+  runFilterCondMerge(/*filteredChildFirst=*/true, &merged);
+  EXPECT_TRUE(merged);
+}
+
+TEST(ctgVStbTagRefMerge, colRefMergeKeepsHasFilterCond_plainFirst) {
+  bool merged = false;
+  runFilterCondMerge(/*filteredChildFirst=*/false, &merged);
+  EXPECT_TRUE(merged);
 }

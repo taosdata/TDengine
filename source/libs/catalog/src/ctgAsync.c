@@ -569,6 +569,7 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
                                           SRefColInfo** ppTagRefCols) {
   int32_t   code = TSDB_CODE_SUCCESS;
   SHashObj* pDedup = NULL;
+  SHashObj* pMergedContent = NULL;
 
   if (NULL == pSubTablesList || taosArrayGetSize(pSubTablesList) <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -578,6 +579,11 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
   if (NULL == pDedup) {
     CTG_ERR_RET(terrno);
   }
+
+  // Merge results depend only on the ref pattern, so one representative per
+  // shared content block is enough. NULL (hash failure) just disables the
+  // skip; merging the same pattern twice is idempotent.
+  pMergedContent = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
 
   int32_t rspNum = taosArrayGetSize(pSubTablesList);
   for (int32_t i = 0; i < rspNum; ++i) {
@@ -594,22 +600,39 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
       }
 
       SVCTableRefCols* pTb = *ppTb;
+
+      // Children with identical ref patterns share one content block; merging
+      // one representative per block has the same effect as merging them all.
+      if (NULL != pMergedContent && NULL != pTb->pContent) {
+        if (NULL != taosHashGet(pMergedContent, &pTb->pContent, sizeof(pTb->pContent))) {
+          continue;
+        }
+        taosHashPut(pMergedContent, &pTb->pContent, sizeof(pTb->pContent), &pTb->pContent, sizeof(pTb->pContent));
+      }
+
+      SRefColInfo refInfo;
       for (int32_t k = 0; k < pTb->numOfColRefs; ++k) {
-        SRefColInfo* pRef = &pTb->refCols[k];
-        CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pRef->colId, pRef->refDbName, pRef->refTableName, pRef->refColName,
-                                        pRef->refSourceName, pRef->refSchemaName, pDedup, ppRefDbs, ppRefExtSources,
-                                        false));
+        SRefColEntry* pEntry = vctColRefAt(pTb, k);
+        CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pEntry->colId, vctRefStr(pTb, pEntry->dbOff),
+                                        vctRefStr(pTb, pEntry->tbOff), vctRefStr(pTb, pEntry->colOff),
+                                        vctRefStr(pTb, pEntry->srcOff), vctRefStr(pTb, pEntry->schemaOff), pDedup,
+                                        ppRefDbs, ppRefExtSources, false));
         if (pNumOfColRefs && ppColRefCols) {
-          CTG_ERR_JRET(ctgAppendUniqueRefColInfo(pNumOfColRefs, ppColRefCols, pRef));
+          // expand and merge through the colId-keyed array: the append helper
+          // also OR-merges hasFilterCond on a colId hit, which must happen
+          // even when the column already has a representative entry
+          vctRefColToInfo(pTb, pEntry, &refInfo);
+          CTG_ERR_JRET(ctgAppendUniqueRefColInfo(pNumOfColRefs, ppColRefCols, &refInfo));
         }
       }
 
       // Tag-ref also supports chained references: add to layer ref tracking for multi-hop resolution
       for (int32_t k = 0; k < pTb->numOfTagRefs; ++k) {
-        SRefColInfo* pRef = &pTb->tagRefCols[k];
-        CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pRef->colId, pRef->refDbName, pRef->refTableName,
-                                        pRef->refColName, pRef->refSourceName, pRef->refSchemaName, pDedup, ppRefDbs,
-                                        ppRefExtSources, true));
+        SRefColEntry* pEntry = vctTagRefAt(pTb, k);
+        CTG_ERR_JRET(ctgAddVStbLayerRef(ppLayerRefs, pEntry->colId, vctRefStr(pTb, pEntry->dbOff),
+                                        vctRefStr(pTb, pEntry->tbOff), vctRefStr(pTb, pEntry->colOff),
+                                        vctRefStr(pTb, pEntry->srcOff), vctRefStr(pTb, pEntry->schemaOff), pDedup,
+                                        ppRefDbs, ppRefExtSources, true));
       }
 
       // Extract and merge tag ref info across all children, keyed by colId.
@@ -621,18 +644,19 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
       // which child happens to be processed first.
       if (pTb->numOfTagRefs > 0 && pNumOfTagRefs && ppTagRefCols) {
         for (int32_t k = 0; k < pTb->numOfTagRefs; ++k) {
-          SRefColInfo* pNew = &pTb->tagRefCols[k];
+          SRefColEntry* pEntry = vctTagRefAt(pTb, k);
 
           int32_t existIdx = -1;
           for (int32_t m = 0; m < *pNumOfTagRefs; ++m) {
-            if ((*ppTagRefCols)[m].colId == pNew->colId) {
+            if ((*ppTagRefCols)[m].colId == pEntry->colId) {
               existIdx = m;
               break;
             }
           }
 
           if (existIdx < 0) {
-            CTG_ERR_JRET(ctgAppendUniqueRefColInfo(pNumOfTagRefs, ppTagRefCols, pNew));
+            vctRefColToInfo(pTb, pEntry, &refInfo);
+            CTG_ERR_JRET(ctgAppendUniqueRefColInfo(pNumOfTagRefs, ppTagRefCols, &refInfo));
             continue;
           }
 
@@ -654,11 +678,13 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
           }
 
           if (isDuplicate) {
-            bool newIsDifferent = strcmp(pExisting->refDbName, pNew->refDbName) != 0 ||
-                                  strcmp(pExisting->refTableName, pNew->refTableName) != 0 ||
-                                  strcmp(pExisting->refColName, pNew->refColName) != 0;
+            bool newIsDifferent = strcmp(pExisting->refDbName, vctRefStr(pTb, pEntry->dbOff)) != 0 ||
+                                  strcmp(pExisting->refTableName, vctRefStr(pTb, pEntry->tbOff)) != 0 ||
+                                  strcmp(pExisting->refColName, vctRefStr(pTb, pEntry->colOff)) != 0;
             if (newIsDifferent) {
-              memcpy(pExisting, pNew, sizeof(SRefColInfo));
+              SRefColInfo newInfo;
+              vctRefColToInfo(pTb, pEntry, &newInfo);
+              memcpy(pExisting, &newInfo, sizeof(SRefColInfo));
             }
           }
         }
@@ -669,6 +695,7 @@ static int32_t ctgBuildVStbFirstLayerRefs(SArray* pSubTablesList, SArray** ppLay
 _return:
 
   taosHashCleanup(pDedup);
+  taosHashCleanup(pMergedContent);
   CTG_RET(code);
 }
 
