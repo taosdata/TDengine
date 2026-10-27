@@ -256,6 +256,79 @@ def install_go_toolchain(source_dir, environment):
     environment["GODEBUG"] = "http2client=0"
 
 
+def federated_query_base_dir():
+    override = os.environ.get("FQ_BASE_DIR")
+    if override:
+        return Path(override)
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        return Path(local_app_data) / "taostest" / "fq"
+    return Path.home() / "AppData" / "Local" / "taostest" / "fq"
+
+
+def ensure_libpq_runtime(environment):
+    """Stage the PostgreSQL client runtime used by the federated-query provider.
+
+    On Windows the provider only needs libpq's headers at build time and its
+    DLLs at run time, so BUILD_WITH_LIBPQ links against a prebuilt EnterpriseDB
+    runtime (EXT_LIBPQ_ROOT) instead of building libpq with Meson (which would
+    require OpenSSL + meson + ninja on the build host).  Reuse the runtime the
+    federated-query tests provision under <FQ_BASE_DIR>/pg/<ver>; when it is
+    absent, download and extract the same pinned ZIP here so the build is
+    self-contained.
+    """
+    root = environment.get("EXT_LIBPQ_ROOT")
+    if root and (Path(root) / "include" / "libpq-fe.h").exists():
+        print(f"[windows-ci] EXT_LIBPQ_ROOT={root}", flush=True)
+        return
+
+    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "16").split(",") if item.strip()]
+    version = versions[0] if versions else "16"
+    target = federated_query_base_dir() / "pg" / version
+    if (target / "include" / "libpq-fe.h").exists():
+        environment["EXT_LIBPQ_ROOT"] = str(target)
+        print(f"[windows-ci] EXT_LIBPQ_ROOT={target} (existing federated-query runtime)", flush=True)
+        return
+
+    # Keep the package table in sync with ensure_ext_env.ps1: both stage the
+    # identical EnterpriseDB ZIP so the build and the tests share one runtime.
+    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1"}
+    tag = version.replace(".", "")
+    url = environment.get(f"FQ_PG_TARBALL_{tag}")
+    if not url:
+        mirror = (environment.get("FQ_PG_MIRROR") or "https://get.enterprisedb.com/postgresql").rstrip("/")
+        package = packages.get(version)
+        if package is None:
+            fail(f"unsupported FQ_PG_VERSIONS entry for the build runtime: {version}")
+        url = f"{mirror}/postgresql-{package}-windows-x64-binaries.zip"
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    archive = target.parent / f"postgresql-{version}-binaries.zip"
+    print(f"[windows-ci] downloading PostgreSQL client runtime: {url}", flush=True)
+    urllib.request.urlretrieve(url, archive)
+    print(f"[windows-ci] extracting PostgreSQL client runtime into {target}", flush=True)
+    extract_root = target.parent / f"postgresql-{version}-extract"
+    shutil.rmtree(extract_root, ignore_errors=True)
+    with zipfile.ZipFile(archive) as bundle:
+        bundle.extractall(extract_root)
+    entries = [entry for entry in extract_root.iterdir() if entry.is_dir()]
+    if not entries:
+        fail("PostgreSQL ZIP had no top-level directory")
+    target.mkdir(parents=True, exist_ok=True)
+    for child in entries[0].iterdir():
+        destination = target / child.name
+        if child.is_dir():
+            shutil.copytree(child, destination, dirs_exist_ok=True)
+        else:
+            shutil.copy2(child, destination)
+    archive.unlink(missing_ok=True)
+    shutil.rmtree(extract_root, ignore_errors=True)
+    if not (target / "include" / "libpq-fe.h").exists():
+        fail(f"libpq-fe.h not found in the extracted runtime: {target}")
+    environment["EXT_LIBPQ_ROOT"] = str(target)
+    print(f"[windows-ci] EXT_LIBPQ_ROOT={target}", flush=True)
+
+
 def build(source_dir, debug_dir):
     require_env("TD_ENTERPRISE_EDITION_SIGNATURE_SALT")
     sync_source(source_dir)
@@ -267,13 +340,19 @@ def build(source_dir, debug_dir):
     for command in ("cl", "cmake", "jom", "go", "gcc"):
         require_command(command, environment)
     install_go_toolchain(source_dir, environment)
+    ensure_libpq_runtime(environment)
 
     # Avoid Release inlining/LTO when unit tests patch function entries with cppstub.
+    # MariaDB/PostgreSQL/ODBC providers are on: the Windows test matrix covers all
+    # four federated-query backends.  BUILD_WITH_ARROW enables the InfluxDB
+    # provider plugin; on Windows it is built with the HTTP transport only (no
+    # Arrow/gRPC runtime is linked or built), so this adds no Arrow dependency.
     configure = [
         "cmake", "..", "-G", "NMake Makefiles JOM", "-DCMAKE_MAKE_PROGRAM=jom",
         f"-DCMAKE_BUILD_TYPE={WINDOWS_CMAKE_BUILD_TYPE}",
         "-DBUILD_ENTERPRISE=ON", "-DBUILD_TEST=ON", "-DBUILD_TOOLS=ON", "-DBUILD_ADAPTER=ON", "-DBUILD_KEEPER=ON",
-        "-DBUILD_RUST=ON", "-DBUILD_WITH_MARIADB=OFF", "-DBUILD_WITH_ARROW=OFF", "-DBUILD_ROCKSDB=ON",
+        "-DBUILD_RUST=ON", "-DBUILD_WITH_MARIADB=ON", "-DBUILD_WITH_LIBPQ=ON", "-DBUILD_WITH_ODBC=ON",
+        "-DINSTALL_FQ_RUNTIME_LIBS=ON", "-DBUILD_WITH_ARROW=ON", "-DBUILD_ROCKSDB=ON",
         "-DBUILD_CONTRIB=ON", "-DBUILD_ASSERT_NOT_CORE=ON", "-DCPUTYPE=x64", "-DOSTYPE=Windows",
     ]
     environment["VSLANG"] = "1033"
@@ -426,7 +505,83 @@ def run_ctest(source_dir, debug_dir, ctest_dir):
     return (1 if parallel_result or serial_result else 0), failures
 
 
-def run_pytest(source_dir, debug_dir, log_dir):
+def ensure_fq_pytest_dependencies(environment):
+    """Install the federated-query suites' third-party client libraries.
+
+    The FQ cases talk to MySQL/PostgreSQL/InfluxDB directly (pymysql,
+    psycopg2) and steer the engines over HTTP (requests); a runner that has
+    only the base pytest environment fails every FQ file at setup_class with
+    ModuleNotFoundError.  pip is a no-op for packages that are present.
+    """
+    mirror = os.environ.get("FQ_PYPI_MIRROR", "https://nexus.tdengine.net/repository/pypi-group/simple")
+    command = [
+        sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q",
+        "--index-url", mirror, "pymysql", "psycopg2-binary", "requests", "pytz",
+    ]
+    if run(command, env=environment).returncode:
+        print("[windows-ci] warning: installing the federated-query pytest dependencies failed; "
+              "the FQ cases will report the missing module", flush=True)
+
+
+def provision_federated_query_env(source_dir, environment):
+    """Install/start MySQL, PostgreSQL, InfluxDB and SQL Server before pytest.
+
+    Provisioning downloads several engine packages and must not run inside a
+    pytest test (the plugin timeout would kill the first FQ case mid-download).
+    The setup script is idempotent, so the FQ suites simply reuse the engines.
+    Its Write-Host output can vanish under the runner service, hence the
+    setup.log tail printed afterwards.
+    """
+    script = source_dir / "source" / "taos-community" / "test" / "cases" / "09-DataQuerying" / "19-FederatedQuery" / "ensure_ext_env.ps1"
+    if not script.exists():
+        print("[windows-ci] federated-query setup script not found; skipping provisioning", flush=True)
+        return
+    print(f"[windows-ci] provisioning federated-query external engines: {script.name}", flush=True)
+    base = environment.get("FQ_BASE_DIR") or str(Path(environment.get("LOCALAPPDATA", "")) / "taostest" / "fq")
+    setup_log = Path(base) / "setup.log"
+    offset = setup_log.stat().st_size if setup_log.exists() else 0
+    command = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-NoProfile", "-File", str(script)]
+    proc = subprocess.Popen(command, env=environment)
+    deadline = time.monotonic() + 7200
+    while proc.poll() is None:
+        if time.monotonic() > deadline:
+            proc.kill()
+            print("[windows-ci] federated-query provisioning timed out after 7200s", flush=True)
+            break
+        try:
+            with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
+                log_file.seek(offset)
+                chunk = log_file.read()
+                offset = log_file.tell()
+        except OSError:
+            chunk = ""
+        if chunk:
+            print(chunk.rstrip(), flush=True)
+        time.sleep(5)
+    returncode = proc.wait()
+    # Flush whatever the script wrote between the last poll and its exit; the
+    # interesting lines (a failing rule, a thrown error) are usually the last.
+    try:
+        with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
+            log_file.seek(offset)
+            chunk = log_file.read()
+    except OSError:
+        chunk = ""
+    if chunk:
+        print(chunk.rstrip(), flush=True)
+    if returncode != 0:
+        print(f"[windows-ci] warning: federated-query provisioning exited {returncode}; the FQ cases will report the failure", flush=True)
+
+
+def _select_cases(test_dir, task_file, log_dir, predicate, name):
+    source = (test_dir / task_file).read_text(encoding="utf-8", errors="replace")
+    lines = [line for line in source.splitlines() if predicate(line)]
+    filtered = log_dir / f"win_cases_{name}.task"
+    filtered.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return filtered, len(lines)
+
+
+def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter=""):
     bin_dir = debug_dir / "build" / "bin"
     system_dir = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
     for name in ("taos.dll", "pthreadVC3.dll", "taosnative.dll"):
@@ -440,8 +595,29 @@ def run_pytest(source_dir, debug_dir, log_dir):
     log_dir.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
     environment["PATH"] = f"{bin_dir}{os.pathsep}{environment['PATH']}"
+    ensure_fq_pytest_dependencies(environment)
+    provision_federated_query_env(source_dir, environment)
     test_dir = source_dir / "source" / "taos-community" / "test"
-    return run([sys.executable, "ci/run_win_cases.py", "ci/win_cases.task", str(log_dir)], cwd=test_dir, env=environment).returncode
+    task_file = Path("ci/win_cases.task")
+    if only_fq:
+        # Federated-query iteration mode: keep only the external-source
+        # suites (plain external tables plus external-source virtual tables)
+        # so a round reports the FQ result instead of waiting for the whole
+        # Windows case list.
+        task_file, count = _select_cases(
+            test_dir, task_file, log_dir,
+            lambda line: "cases/09-DataQuerying/19-FederatedQuery/" in line
+            or ("cases/05-VirtualTables/" in line and "/03-ExtSource/" in line),
+            "fq")
+        print(f"[windows-ci] federated-query only: {count} case(s)", flush=True)
+    if case_filter:
+        # Diagnostics: run only the case(s) whose task line contains the
+        # filter string (e.g. one failing suite).
+        task_file, count = _select_cases(
+            test_dir, task_file, log_dir,
+            lambda line: case_filter in line, "filter")
+        print(f"[windows-ci] case filter {case_filter!r}: {count} case(s)", flush=True)
+    return run([sys.executable, "ci/run_win_cases.py", str(task_file), str(log_dir)], cwd=test_dir, env=environment).returncode
 
 
 def parse_result_records(result_file):
@@ -563,6 +739,10 @@ def main():
     parser.add_argument("--artifact-dir", type=Path, default=Path(os.environ.get("CI_PROJECT_DIR", REPOSITORY_ROOT)) / "ci-artifacts" / "windows")
     parser.add_argument("--skip-build", action="store_true", default=os.environ.get("WIN_SKIP_BUILD", "").lower() in {"1", "true", "yes"})
     parser.add_argument("--skip-pytest", action="store_true", default=os.environ.get("WIN_SKIP_PYTEST", "").lower() in {"1", "true", "yes"})
+    parser.add_argument("--skip-ctest", action="store_true", default=os.environ.get("WIN_SKIP_CTEST", "").lower() in {"1", "true", "yes"})
+    parser.add_argument("--only-fq", action="store_true", default=os.environ.get("WIN_ONLY_FQ", "").lower() in {"1", "true", "yes"})
+    parser.add_argument("--case-filter", default=os.environ.get("WIN_CASE_FILTER", ""),
+                        help="run only task lines containing this substring (diagnostics)")
     arguments = parser.parse_args()
     print_host_identity()
     result = 1
@@ -575,12 +755,18 @@ def main():
             print("[windows-ci] build is skipped; reusing existing Windows build output")
         else:
             build(arguments.source_dir, arguments.debug_dir)
-        ctest_result, ctest_failures = run_ctest(arguments.source_dir, arguments.debug_dir, arguments.ctest_dir)
+        if arguments.skip_ctest:
+            print("[windows-ci] ctest is skipped for this validation run")
+            ctest_result = 0
+        else:
+            ctest_result, ctest_failures = run_ctest(arguments.source_dir, arguments.debug_dir, arguments.ctest_dir)
         if arguments.skip_pytest:
             print("[windows-ci] pytest is skipped for this ctest-only validation run")
             pytest_result = 0
         else:
-            pytest_result = run_pytest(arguments.source_dir, arguments.debug_dir, arguments.log_dir)
+            pytest_result = run_pytest(arguments.source_dir, arguments.debug_dir, arguments.log_dir,
+                                      only_fq=arguments.only_fq,
+                                      case_filter=arguments.case_filter)
             pytest_failures = print_pytest_failure_logs(arguments.log_dir)
         result = 1 if ctest_result or pytest_result else 0
         print(f"[windows-ci] result: ctest={ctest_result}, pytest={pytest_result}")

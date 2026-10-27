@@ -438,6 +438,31 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
    * reports failure via its return value, not errno.  Do not remove this reset.
    */
   errno = TSDB_CODE_SUCCESS;
+  // Resolve the zone's own daylight-saving rules first: the fixed offset below
+  // is only correct outside a DST period.
+  if (tz != NULL) {
+    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+    char                zoneName[TD_TIMEZONE_LEN] = {0};
+    taosThreadMutexLock(&tz_obj->mutex);
+    tstrncpy(zoneName, tz_obj->zoneName, sizeof(zoneName));
+    taosThreadMutexUnlock(&tz_obj->mutex);
+    /* The Win32 conversion only accepts a normal calendar range; sentinel or
+     * out-of-range values (for example the parse-failure timestamps produced
+     * by TO_TIMESTAMP) keep the legacy fixed-offset arithmetic below. */
+    int32_t year = timep->tm_year + 1900;
+    bool    saneTime = (year >= 1601 && year <= 30826 &&
+                        timep->tm_mon >= 0 && timep->tm_mon <= 11 &&
+                        timep->tm_mday >= 1 && timep->tm_mday <= 31 &&
+                        timep->tm_hour >= 0 && timep->tm_hour <= 23 &&
+                        timep->tm_min >= 0 && timep->tm_min <= 59 &&
+                        timep->tm_sec >= 0 && timep->tm_sec <= 60);
+    time_t zoned = 0;
+    if (saneTime && zoneName[0] != '\0' &&
+        taosWindowsZoneToEpoch(zoneName, year, timep->tm_mon + 1, timep->tm_mday,
+                               timep->tm_hour, timep->tm_min, timep->tm_sec, &zoned)) {
+      return zoned;
+    }
+  }
   // Get timezone offset (correctly use the passed tz parameter)
   int64_t tzw = 0;
   if (tz != NULL) {
@@ -450,9 +475,23 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
     tzw = getWindowsTimezoneOffset();
   }
 
-  // Calculate timestamp using user_mktime64
-  time_t result = user_mktime64(timep->tm_year + 1900, timep->tm_mon + 1, timep->tm_mday,
-                                 timep->tm_hour, timep->tm_min, timep->tm_sec, tzw);
+  /* Signed days-from-civil conversion.  user_mktime64() takes an unsigned
+   * year and underflows for tm_year < 0 (year <= 1900), which turns sentinel
+   * dates such as the TO_TIMESTAMP() parse-failure value into garbage; the
+   * signed form matches the epoch other platforms produce. */
+  int64_t year = timep->tm_year + 1900;
+  int64_t mon  = (int64_t)timep->tm_mon + 1;
+  int64_t adjY = year - (mon <= 2 ? 1 : 0);
+  int64_t era  = (adjY >= 0 ? adjY : adjY - 399) / 400;
+  int64_t yoe  = adjY - era * 400;
+  int64_t doy  = (153 * (mon + (mon > 2 ? -3 : 9)) + 2) / 5 + (int64_t)timep->tm_mday - 1;
+  int64_t doe  = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+  int64_t days = era * 146097 + doe - 719468;
+
+  time_t result = (time_t)(days * 86400 +
+                           (int64_t)timep->tm_hour * 3600 +
+                           (int64_t)timep->tm_min * 60 +
+                           (int64_t)timep->tm_sec + tzw);
 
   // Set global timezone variable
   timezone = tzw;
@@ -492,6 +531,15 @@ time_t taosMktime(struct tm *timep, timezone_t tz) {
   return r;
 #endif
 }
+
+#ifdef WINDOWS
+/* POSIX mktime_z for Windows: taosMktime already resolves the fixed-offset
+ * WindowsTimezoneObj, so the zoned conversion is identical.  The providers
+ * (MySQL / PostgreSQL binary temporal values) call mktime_z directly. */
+time_t mktime_z(timezone_t tz, struct tm *timep) {
+  return taosMktime(timep, tz);
+}
+#endif
 
 struct tm *taosGmTimeR(const time_t *timep, struct tm *result) {
   if (timep == NULL || result == NULL) {
