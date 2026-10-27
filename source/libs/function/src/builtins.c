@@ -825,6 +825,9 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
   const char* msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
   const char* msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
   const char* msg9 = "HISTOGRAM function out of memory";
+  char msg10[96] = {0};
+  TAOS_UNUSED(snprintf(msg10, sizeof(msg10), "HISTOGRAM user_input requires 2 to %d boundary values",
+                       HISTOGRAM_MAX_BINS_NUM + 1));
 
   cJSON*  binDesc = cJSON_Parse(binDescStr);
   int32_t numOfBins;
@@ -949,6 +952,11 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
       return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
+    if (numOfBins < 2 || numOfBins > HISTOGRAM_MAX_BINS_NUM + 1) {
+      (void)snprintf(errMsg, msgLen, "%s", msg10);
+      cJSON_Delete(binDesc);
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
+    }
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (intervals == NULL) {
       (void)snprintf(errMsg, msgLen, "%s", msg9);
@@ -964,13 +972,13 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     }
     int i = 0;
     while (bin) {
-      intervals[i] = bin->valuedouble;
       if (!cJSON_IsNumber(bin)) {
         (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
         return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
+      intervals[i] = bin->valuedouble;
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
@@ -1278,6 +1286,67 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Function check parameter failed : %s",
                              pFunc->functionName);
   }
+}
+
+int32_t validateBuiltinFuncParams(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return validateParam(pFunc, pErrBuf, len);
+}
+
+int32_t validateBuiltinFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum || numOfParams < 0 ||
+      (numOfParams > 0 && pTypes == NULL)) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  const SFunctionParaInfo* pParameters = &funcMgtBuiltins[funcId].parameters;
+  if (numOfParams < pParameters->minParamNum) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+  if (pParameters->maxParamNum >= 0 && numOfParams > pParameters->maxParamNum) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+  if (pParameters->paramInfoPattern == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    if (pTypes[i] < TSDB_DATA_TYPE_NULL || pTypes[i] >= TSDB_DATA_TYPE_MAX) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+  }
+
+  // Every pattern is declared in strictly increasing startParam order.
+  int32_t validatedParams = pParameters->maxParamNum < 0
+                                ? numOfParams
+                                : TMIN(numOfParams, pParameters->maxParamNum);
+  for (int32_t patternIndex = 0; patternIndex < pParameters->paramInfoPattern; ++patternIndex) {
+    const SParamInfo* pPattern = pParameters->inputParaInfo[patternIndex];
+    bool              matches = true;
+    int32_t           paramInfoIndex = 0;
+    for (int32_t paramIndex = 1; paramIndex <= validatedParams; ++paramIndex) {
+      while (paramInfoIndex + 1 < MAX_FUNC_INPUT_PARA_NUM &&
+             !pPattern[paramInfoIndex].isLastParam &&
+             paramIndex >= pPattern[paramInfoIndex + 1].startParam) {
+        ++paramInfoIndex;
+      }
+      if (paramInfoIndex >= MAX_FUNC_INPUT_PARA_NUM ||
+          paramIndex < pPattern[paramInfoIndex].startParam ||
+          (pPattern[paramInfoIndex].endParam != -1 &&
+           paramIndex > pPattern[paramInfoIndex].endParam)) {
+        matches = false;
+        break;
+      }
+
+      SDataType type = {.type = pTypes[paramIndex - 1]};
+      if (!paramSupportDataType(&type, pPattern[paramInfoIndex].validDataType)) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
 }
 
 // There is only one parameter of numeric type, and the return type is parameter type
@@ -2160,7 +2229,7 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     int32_t factor = 1;
     if (IS_NULL_TYPE(paraType)) {
       resultType = TSDB_DATA_TYPE_VARCHAR;
-      resultBytes = 0;
+      resultBytes = VARSTR_HEADER_SIZE;
       sepBytes = 0;
       break;
     }
@@ -4567,7 +4636,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = 1000}},
+                                           .range = {.iMinVal = 1, .iMaxVal = SAMPLE_QUERY_LIMIT}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getMavgFuncEnv,
@@ -4600,7 +4669,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = 1000}},
+                                           .range = {.iMinVal = 1, .iMaxVal = SAMPLE_QUERY_LIMIT}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateSampleTail,
     .getEnvFunc   = getSampleFuncEnv,
@@ -5228,7 +5297,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_BLOB_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_BLOB_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_JSON_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -7923,6 +7992,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = gconcatFunctionSetup,
     .processFunc  = gconcatFunction,
     .finalizeFunc = gconcatFinalize,
+    .cleanupFunc  = gconcatFunctionCleanup,
     /*
     .combineFunc  = gconcatCombine, // stream
     .pStateFunc = "group_concat",   // tsma
@@ -8276,7 +8346,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_SCALAR_FUNC,
     .fqPushCap = 0x0,  // FQ_CAP_NONE
     .parameters = {.minParamNum = 2,
-                   .maxParamNum = 3,
+                   .maxParamNum = 4,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
@@ -8292,13 +8362,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .inputParaInfo[0][2] = {.isLastParam = true,
+                   .inputParaInfo[0][2] = {.isLastParam = false,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][3] = {.isLastParam = true,
+                                           .startParam = 4,
+                                           .endParam = 4,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 2,
+                                           .fixedStrValue = {"raw", "legacy"}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutAesDe,
     .getEnvFunc = NULL,

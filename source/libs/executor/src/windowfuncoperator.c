@@ -1650,7 +1650,7 @@ static void winFuncCleanupSelectedAggs(SOperatorInfo *pOperator, SResultRow *pRo
     pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
     if (pCtx->needCleanup && pCtx->fpSet.cleanup != NULL) {
       pCtx->fpSet.cleanup(pCtx);
-      pCtx->needCleanup = false;
+      pCtx->needCleanup = pCtx->pendingCleanup > 0;
     }
     if (restoreResultInfo) {
       pCtx->resultInfo = pSaved;

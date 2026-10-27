@@ -289,7 +289,7 @@ typedef struct SDecimalAvgRes {
 
 // structs above are used in stream
 
-#define HISTOGRAM_MAX_BINS_NUM 1000
+#define HISTOGRAM_MAX_BINS_NUM 1000  // N bins accept at most N + 1 user boundaries
 #define MAVG_MAX_POINTS_NUM    1000
 #define TAIL_MAX_POINTS_NUM    100
 #define TAIL_MAX_OFFSET        100
@@ -516,7 +516,7 @@ typedef struct SSampleInfo {
   int64_t  totalPoints;
   int32_t  numSampled;
   uint8_t  colType;
-  uint16_t colBytes;
+  int32_t  colBytes;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;

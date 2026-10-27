@@ -1686,6 +1686,14 @@ static int64_t blockDataVarRecordLen(int8_t colType, const char* pRec,
         avail < (int64_t)sizeof(STag)) {
       return -1;
     }
+    if (avail >= (int64_t)sizeof(STag) && tTagIsJson(pRec)) {
+      const STag *pTag = (const STag *)pRec;
+      if (pTag->len < (int32_t)sizeof(STag) || pTag->len > avail ||
+          !tTagValidate(pTag, (int32_t)avail)) {
+        return -1;
+      }
+      return pTag->len;
+    }
   } else if (avail < (int64_t)VARSTR_HEADER_SIZE) {
     return -1;
   }
@@ -3629,7 +3637,19 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
     tlen += taosEncodeFixedBool(buf, pColData->hasNull);
 
     if (IS_VAR_DATA_TYPE(pColData->info.type)) {
-      tlen += taosEncodeBinary(buf, pColData->varmeta.offset, sizeof(int32_t) * rows);
+      if (pColData->reassigned) {
+        int32_t encodedOffset = 0;
+        for (int32_t row = 0; row < rows; ++row) {
+          int32_t offset = pColData->varmeta.offset[row];
+          int32_t nextOffset = offset < 0 || pColData->pData == NULL ? -1 : encodedOffset;
+          tlen += taosEncodeBinary(buf, &nextOffset, sizeof(nextOffset));
+          if (nextOffset >= 0) {
+            encodedOffset += calcStrBytesByType(pColData->info.type, pColData->pData + offset);
+          }
+        }
+      } else {
+        tlen += taosEncodeBinary(buf, pColData->varmeta.offset, sizeof(int32_t) * rows);
+      }
     } else {
       tlen += taosEncodeBinary(buf, pColData->nullbitmap, BitmapLen(rows));
     }
@@ -3637,9 +3657,13 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
     int32_t len = colDataGetLength(pColData, rows);
     tlen += taosEncodeFixedI32(buf, len);
 
-    if (pColData->reassigned && IS_VAR_DATA_TYPE(pColData->info.type)) {
+    if (pColData->reassigned && IS_VAR_DATA_TYPE(pColData->info.type) && pColData->pData != NULL) {
       for (int32_t row = 0; row < rows; ++row) {
-        char*   pData = pColData->pData + pColData->varmeta.offset[row];
+        int32_t offset = pColData->varmeta.offset[row];
+        if (offset < 0) {
+          continue;
+        }
+        char*   pData = pColData->pData + offset;
         int32_t colSize = calcStrBytesByType(pColData->info.type, pData);
         // if (pColData->info.type == TSDB_DATA_TYPE_JSON) {
         //   colSize = getJsonValueLen(pData);
@@ -3717,6 +3741,267 @@ _error:
     colDataDestroy(pColInfoData);
   }
   return NULL;
+}
+
+static bool blockDecodeRead(const uint8_t** ppCursor, const uint8_t* pEnd, void* pValue, int64_t bytes) {
+  if (bytes < 0 || bytes > pEnd - *ppCursor) {
+    return false;
+  }
+  if (bytes > 0 && pValue != NULL) {
+    (void)memcpy(pValue, *ppCursor, bytes);
+  }
+  *ppCursor += bytes;
+  return true;
+}
+
+static bool blockDecodeU64(const uint8_t** ppCursor, const uint8_t* pEnd, uint64_t* pValue) {
+  if (pEnd - *ppCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  *ppCursor = taosDecodeFixedU64(*ppCursor, pValue);
+  return true;
+}
+
+static bool blockDecodeI64(const uint8_t** ppCursor, const uint8_t* pEnd, int64_t* pValue) {
+  if (pEnd - *ppCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  *ppCursor = taosDecodeFixedI64(*ppCursor, pValue);
+  return true;
+}
+
+static bool blockDecodeI32(const uint8_t** ppCursor, const uint8_t* pEnd, int32_t* pValue) {
+  if (pEnd - *ppCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  *ppCursor = taosDecodeFixedI32(*ppCursor, pValue);
+  return true;
+}
+
+static bool blockDecodeI16(const uint8_t** ppCursor, const uint8_t* pEnd, int16_t* pValue) {
+  if (pEnd - *ppCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  *ppCursor = taosDecodeFixedI16(*ppCursor, pValue);
+  return true;
+}
+
+static bool blockDecodeI8(const uint8_t** ppCursor, const uint8_t* pEnd, int8_t* pValue) {
+  if (pEnd - *ppCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  *ppCursor = taosDecodeFixedI8(*ppCursor, pValue);
+  return true;
+}
+
+static bool blockDecodeBool(const uint8_t** ppCursor, const uint8_t* pEnd, bool* pValue) {
+  if (pEnd - *ppCursor < (int64_t)sizeof(int8_t)) {
+    return false;
+  }
+  *ppCursor = taosDecodeFixedBool(*ppCursor, pValue);
+  return true;
+}
+
+static int32_t blockCompareOffsets(const void* pLeft, const void* pRight) {
+  int32_t left = *(const int32_t*)pLeft;
+  int32_t right = *(const int32_t*)pRight;
+  return (left > right) - (left < right);
+}
+
+static int32_t blockValidateVarOffsets(SColumnInfoData* pData, int32_t rows, const uint8_t* pPayload,
+                                        int32_t dataLen) {
+  int32_t recordEnd = dataLen;
+  int32_t row = rows - 1;
+  for (; row >= 0; --row) {
+    int32_t offset = pData->varmeta.offset[row];
+    if (offset == -1) {
+      continue;
+    }
+    if (offset < 0 || offset >= dataLen) {
+      return TSDB_CODE_MSG_DECODE_ERROR;
+    }
+    if (offset > recordEnd) {
+      break;
+    }
+    if (offset == recordEnd) {
+      pData->reassigned = true;
+      continue;
+    }
+    int64_t recordLen = blockDataVarRecordLen(pData->info.type, (const char*)pPayload + offset,
+                                              recordEnd - offset);
+    if (recordLen <= 0 || offset + recordLen > recordEnd) {
+      return TSDB_CODE_MSG_DECODE_ERROR;
+    }
+    recordEnd = offset;
+  }
+  if (row < 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t* sortedOffsets = taosMemoryMalloc((int64_t)rows * sizeof(int32_t));
+  if (sortedOffsets == NULL && rows > 0) {
+    return terrno;
+  }
+
+  int32_t count = 0;
+  for (int32_t row = 0; row < rows; ++row) {
+    int32_t offset = pData->varmeta.offset[row];
+    if (offset == -1) {
+      continue;
+    }
+    if (offset < 0 || offset >= dataLen) {
+      taosMemoryFree(sortedOffsets);
+      return TSDB_CODE_MSG_DECODE_ERROR;
+    }
+    sortedOffsets[count++] = offset;
+  }
+
+  if (count > 1) {
+    taosSort(sortedOffsets, count, sizeof(int32_t), blockCompareOffsets);
+  }
+  for (int32_t index = 0; index < count; ++index) {
+    int32_t offset = sortedOffsets[index];
+    if (index > 0 && offset == sortedOffsets[index - 1]) {
+      pData->reassigned = true;
+      continue;
+    }
+    int32_t next = index + 1;
+    while (next < count && sortedOffsets[next] == offset) {
+      ++next;
+    }
+    int32_t recordEnd = next < count ? sortedOffsets[next] : dataLen;
+    int64_t recordLen = blockDataVarRecordLen(pData->info.type, (const char*)pPayload + offset,
+                                              recordEnd - offset);
+    if (recordLen <= 0 || offset + recordLen > recordEnd) {
+      taosMemoryFree(sortedOffsets);
+      return TSDB_CODE_MSG_DECODE_ERROR;
+    }
+  }
+
+  taosMemoryFree(sortedOffsets);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tDecodeDataBlockBounded(const void* buf, int32_t bufLen, SSDataBlock* pBlock, int32_t* pConsumed) {
+  enum { BLOCK_BITMAP_PAD_BITS = CHAR_BIT - 1 };
+
+  if (buf == NULL || bufLen < 0 || pBlock == NULL || pConsumed == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pConsumed = 0;
+  if (pBlock->pDataBlock != NULL || pBlock->pBlockAgg != NULL || pBlock->pBlockAggBuf != NULL ||
+      (IS_VAR_DATA_TYPE(pBlock->info.pks[0].type) && pBlock->info.pks[0].pData != NULL) ||
+      (IS_VAR_DATA_TYPE(pBlock->info.pks[1].type) && pBlock->info.pks[1].pData != NULL)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  const uint8_t* pStart = buf;
+  const uint8_t* pCursor = pStart;
+  const uint8_t* pEnd = pStart + bufLen;
+  SDataBlockInfo decodedInfo = {0};
+  int16_t        numOfCols = 0;
+  int32_t        sz = 0;
+  int64_t        tbUid = 0;
+  if (!blockDecodeI64(&pCursor, pEnd, &tbUid) ||
+      !blockDecodeI16(&pCursor, pEnd, &numOfCols) ||
+      !blockDecodeI16(&pCursor, pEnd, &decodedInfo.hasVarCol) ||
+      !blockDecodeI64(&pCursor, pEnd, &decodedInfo.rows) ||
+      !blockDecodeI32(&pCursor, pEnd, &sz) || decodedInfo.rows < 0 ||
+      decodedInfo.rows > INT32_MAX - BLOCK_BITMAP_PAD_BITS || sz < 0 || sz > TSDB_MAX_COLUMNS ||
+      numOfCols != sz) {
+    return TSDB_CODE_MSG_DECODE_ERROR;
+  }
+  decodedInfo.id.uid = (uint64_t)tbUid;
+  pBlock->info = decodedInfo;
+
+  pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));
+  if (pBlock->pDataBlock == NULL) {
+    return terrno;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData data = {0};
+    if (!blockDecodeI16(&pCursor, pEnd, &data.info.colId) ||
+        !blockDecodeI8(&pCursor, pEnd, &data.info.type) ||
+        !blockDecodeI32(&pCursor, pEnd, &data.info.bytes) ||
+        !blockDecodeBool(&pCursor, pEnd, &data.hasNull) ||
+        data.info.type < TSDB_DATA_TYPE_NULL || data.info.type >= TSDB_DATA_TYPE_MAX || data.info.bytes < 0) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      goto _error;
+    }
+
+    bool    isVarType = IS_VAR_DATA_TYPE(data.info.type);
+    int64_t metaBytes = isVarType ? pBlock->info.rows * (int64_t)sizeof(int32_t)
+                                  : ((pBlock->info.rows + BLOCK_BITMAP_PAD_BITS) >> 3);
+    void**  ppMeta = isVarType ? (void**)&data.varmeta.offset : (void**)&data.nullbitmap;
+    if (metaBytes < 0 || metaBytes > pEnd - pCursor) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      goto _column_error;
+    }
+    if (metaBytes > 0) {
+      *ppMeta = taosMemoryMalloc(metaBytes);
+      if (*ppMeta == NULL) {
+        code = terrno;
+        goto _column_error;
+      }
+    }
+    if (!blockDecodeRead(&pCursor, pEnd, *ppMeta, metaBytes)) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      goto _column_error;
+    }
+
+    int32_t dataLen = 0;
+    if (!blockDecodeI32(&pCursor, pEnd, &dataLen) || dataLen < 0 || dataLen > pEnd - pCursor) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      goto _column_error;
+    }
+    if (!isVarType) {
+      int64_t expected = data.info.type == TSDB_DATA_TYPE_NULL ? 0 : pBlock->info.rows * (int64_t)data.info.bytes;
+      if ((data.info.type == TSDB_DATA_TYPE_NULL
+               ? data.info.bytes != CHAR_BYTES && data.info.bytes != tDataTypes[data.info.type].bytes
+               : data.info.bytes != tDataTypes[data.info.type].bytes) ||
+          dataLen != expected) {
+        code = TSDB_CODE_MSG_DECODE_ERROR;
+        goto _column_error;
+      }
+    } else {
+      code = blockValidateVarOffsets(&data, (int32_t)pBlock->info.rows, pCursor, dataLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _column_error;
+      }
+      data.varmeta.length = dataLen;
+      data.varmeta.allocLen = dataLen;
+    }
+    if (dataLen > 0) {
+      data.pData = taosMemoryMalloc(dataLen);
+      if (data.pData == NULL) {
+        code = terrno;
+        goto _column_error;
+      }
+    }
+    if (!blockDecodeRead(&pCursor, pEnd, data.pData, dataLen)) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      goto _column_error;
+    }
+    if (taosArrayPush(pBlock->pDataBlock, &data) == NULL) {
+      code = terrno;
+      goto _column_error;
+    }
+    continue;
+
+_column_error:
+    colDataDestroy(&data);
+    goto _error;
+  }
+
+  pBlock->info.capacity = pBlock->info.rows;
+  *pConsumed = (int32_t)(pCursor - pStart);
+  return TSDB_CODE_SUCCESS;
+
+_error:
+  blockDataFreeRes(pBlock);
+  return code;
 }
 
 static int32_t formatTimestamp(char* buf, size_t cap, int64_t val, int precision) {
