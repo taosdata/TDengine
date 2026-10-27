@@ -67,6 +67,12 @@ if(BUILD_AS_LIB)
   add_definitions(-DTD_AS_LIB)
 endif()
 
+# build.sh and the coverage container pass -DWEBSOCKET=true. The option
+# that actually selects the driver is BUILD_WEBSOCKET.
+if(WEBSOCKET AND NOT BUILD_WEBSOCKET)
+  set(BUILD_WEBSOCKET ON CACHE BOOL "Enable websocket" FORCE)
+endif()
+
 if(BUILD_WEBSOCKET)
   set(TD_WEBSOCKET TRUE)
   message(STATUS "Enable websocket")

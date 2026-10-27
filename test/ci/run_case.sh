@@ -122,8 +122,12 @@ ln -s ${_DEBUG_BASE}/build/lib/libtaos.so /usr/lib/libtaos.so.1 2>/dev/null
 ln -sf ${_DEBUG_BASE}/build/bin/taos /usr/bin/taos 2>/dev/null || true
 ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so 2>/dev/null
 ln -s ${_DEBUG_BASE}/build/lib/libtaosnative.so /usr/lib/libtaosnative.so.1 2>/dev/null
-ln -s ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so 2>/dev/null
-ln -s ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so.1 2>/dev/null
+if [ -e "${_DEBUG_BASE}/build/lib/libtaosws.so" ]; then
+  ln -sfn ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so
+  ln -sfn ${_DEBUG_BASE}/build/lib/libtaosws.so /usr/lib/libtaosws.so.1
+else
+  echo "WARN: ${_DEBUG_BASE}/build/lib/libtaosws.so is missing; WebSocket mode cannot load the driver"
+fi
 ln -s ${_SOURCE_BASE}/include/client/taos.h /usr/include/taos.h 2>/dev/null
 ln -s ${_SOURCE_BASE}/include/common/taosdef.h /usr/include/taosdef.h 2>/dev/null
 ln -s ${_SOURCE_BASE}/include/util/taoserror.h /usr/include/taoserror.h 2>/dev/null

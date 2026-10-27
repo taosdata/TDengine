@@ -270,19 +270,8 @@ while getopts "w:d:c:t:o:s:eh" opt; do
     esac
 done
 
-if [ -z "$WORKDIR" ]; then
-    usage
-    exit 1
-fi
-if [ -z "$exec_dir" ]; then
-    usage
-    exit 1
-fi
-if [ -z "$cmd" ]; then
-    usage
-    exit 1
-fi
-if [ -z "$thread_no" ]; then
+if [ -z "$WORKDIR" ] || [ -z "$exec_dir" ] || [ -z "$cmd" ] || [ -z "$thread_no" ]; then
+    echo "coverage container missing arguments: workdir=[$WORKDIR] exec_dir=[$exec_dir] thread=[$thread_no] san=[$buildSan] cmd=[$cmd]"
     usage
     exit 1
 fi
@@ -292,11 +281,8 @@ export COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY:-5}"
 #select whether the compilation environment  includes sanitizer
 if [ "${buildSan}" == "y" ]; then
     DEBUGPATH="debugSan"
-elif [[ "${buildSan}" == "n" ]] || [[ "${case_build_san}" == "" ]]; then
-    DEBUGPATH="debugNoSan"
 else
-    usage
-    exit 1
+    DEBUGPATH="debugNoSan"
 fi
 
 if [ $ent -ne 0 ]; then

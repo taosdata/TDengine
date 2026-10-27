@@ -342,9 +342,12 @@ function run_thread() {
         runcase_script=$(get_remote_ssh_command "$index")
     fi
     local count=0
-    local script="${workdirs[index]}/TDengine/test/ci/cov/run_coverage_container_internal.sh"
-    if [ $ent -ne 0 ]; then
-        local script="${workdirs[index]}/TDinternal/community/test/ci/cov/run_coverage_container_internal.sh -e"
+    # Pass arguments to the container script directly. Embedding them in
+    # `bash -c "$cmd"` drops -w/-d/-c/-t when the command string is reparsed,
+    # and the script then exits 1 from usage() before the case starts.
+    local coverage_script="${workdirs[index]}/TDengine/test/ci/cov/run_coverage_container_internal.sh"
+    if [ "$ent" -ne 0 ]; then
+        coverage_script="${workdirs[index]}/TDinternal/community/test/ci/cov/run_coverage_container_internal.sh"
     fi
 
     # 为每个线程创建独立的 GCOV 输出目录
@@ -357,9 +360,6 @@ function run_thread() {
     fi
     bash -c "$cmd"
 
-    local cmd="${runcase_script} ${script}"
-
-    # script="echo"
     while true; do
         local line
         line=$(flock -x "$lock_file" -c "head -n1 $task_file;sed -i \"1d\" $task_file")
@@ -445,10 +445,16 @@ function run_thread() {
             mkdir -p "$log_dir"/"$case_path"
         fi
 
-        # 修改执行命令，添加 GCOV 环境变量
-        local gcov_env_vars="GCOV_PREFIX=${gcov_output_dir} GCOV_PREFIX_STRIP=0"
-        cmd="${runcase_script}  env ${gcov_env_vars} ${script} -w ${workdirs[index]} -c \"${case_cmd}\" -t ${thread_no} -d ${exec_dir}  -s ${case_build_san} ${timeout_param}"
-        # echo "$thread_no $count $cmd"
+        local -a coverage_args=()
+        if [ "$ent" -ne 0 ]; then
+            coverage_args+=(-e)
+        fi
+        coverage_args+=(-w "${workdirs[index]}" -d "${exec_dir}" -c "${case_cmd}" -t "${thread_no}" -s "${case_build_san}")
+        if [ -n "${timeout_param:-}" ]; then
+            # shellcheck disable=SC2206
+            local -a timeout_args=(${timeout_param})
+            coverage_args+=("${timeout_args[@]}")
+        fi
         local ret=0
         local redo_count=1
         local case_log_file=$log_dir/${case_file}.txt
@@ -467,13 +473,17 @@ function run_thread() {
             current_time=$(date "+%Y-%m-%d %H:%M:%S")
             echo -e "$case_index \e[33m START >>>>> \e[0m ${case_info} \e[33m[$current_time]\e[0m"
             echo "$current_time" >>"$case_log_file"
+            echo "coverage argv: ${coverage_script} ${coverage_args[*]}" >>"$case_log_file"
             local real_start_time
             real_start_time=$(date +%s)
-            # echo "cmd:${cmd}"
             if ! is_local_host "${hosts[index]}"; then
-                $cmd >>"$case_log_file" 2>&1
+                local remote_cmd
+                remote_cmd=$(get_remote_ssh_command "$index")
+                local quoted_args
+                quoted_args=$(printf '%q ' "${coverage_args[@]}")
+                ${remote_cmd} "GCOV_PREFIX=$(printf '%q' "${gcov_output_dir}") GCOV_PREFIX_STRIP=0 $(printf '%q' "${coverage_script}") ${quoted_args}" >>"$case_log_file" 2>&1
             else
-                bash -c "$cmd" >>"$case_log_file" 2>&1
+                GCOV_PREFIX="${gcov_output_dir}" GCOV_PREFIX_STRIP=0 bash "${coverage_script}" "${coverage_args[@]}" >>"$case_log_file" 2>&1
             fi
             ret=$?
             local real_end_time
