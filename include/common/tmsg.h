@@ -114,6 +114,25 @@ static inline bool tmsgIsValid(tmsg_t type) {
 
 #define TMSG_INFO(type) (tmsgIsValid(type) ? tMsgInfo[TMSG_INDEX(type)] : "unKnown")
 
+/*
+ * Stream trigger responses carry the send handle (SRpcMsg.info.ahandle, the
+ * SMsgSendInfo plus its SSTriggerAHandle) that the trigger task allocated when
+ * it issued the request.  The handle is owned by whoever finally deals with
+ * the message: normally the snode trigger worker releases it while processing
+ * the response, but any code path that drops the message instead (failed
+ * dispatch, queue allocation failure, queue teardown) must release it too.
+ *
+ * KEEP IN SYNC with smGetMsgHandles() in dnode/mgmt/mgmt_snode/src/smHandle.c:
+ * every stream trigger response registered there with smPutMsgToTriggerQueue()
+ * owns such a handle and must be listed here as well.  A response type that is
+ * routed to the snode trigger worker but missing from this list leaks its
+ * handle whenever the response is dropped instead of processed.
+ */
+static inline bool tmsgIsStreamTriggerRsp(tmsg_t type) {
+  return type == TDMT_STREAM_TRIGGER_CALC_RSP || type == TDMT_STREAM_TRIGGER_PULL_RSP ||
+         type == TDMT_STREAM_TRIGGER_DROP_RSP || type == TDMT_STREAM_TRIGGER_PULL_EXT_RSP;
+}
+
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT) ||

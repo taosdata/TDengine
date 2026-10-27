@@ -288,6 +288,13 @@ SArray *smGetMsgHandles() {
    * handleExtFetchReq, which invokes the ETR task's extConnector. */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
+  /*
+   * The trigger responses below carry the send handle allocated by the trigger
+   * task (msg.info.ahandle), so they must be released on every path that drops
+   * them.  Every type registered here with smPutMsgToTriggerQueue() must also
+   * be listed in tmsgIsStreamTriggerRsp() (include/common/tmsg.h), which drives
+   * the release in dmProcessRpcMsg() and smFreeRpcQitem().
+   */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   /* Route EXT PULL responses back to the trigger task queue so that
    * stTriggerTaskProcessRsp can dispatch TDMT_STREAM_TRIGGER_PULL_EXT_RSP
