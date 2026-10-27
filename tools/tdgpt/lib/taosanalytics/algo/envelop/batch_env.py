@@ -71,8 +71,18 @@ def derivative_check(time, values, max_rate=np.inf):
     dt = np.diff(time)
     dv = np.diff(values)
 
-    rate = np.zeros_like(values)
-    rate[1:] = dv / dt
+    # A step whose timestamps do not advance (a window with end == start, or a
+    # repeated timestamp in the data) has no rate. Dividing by that zero would
+    # turn the step into inf/nan, which the filter below then keeps or drops by
+    # accident, so it is recorded as "no change" instead.
+    #
+    # The rate is accumulated as float on purpose: with integer input,
+    # `np.zeros_like(values)` would truncate every fractional rate to 0 and make
+    # the threshold compare against the wrong numbers.
+    rate = np.zeros(len(values), dtype=float)
+    rate[1:] = np.divide(
+        dv, dt, out=np.zeros_like(dv, dtype=float), where=dt != 0
+    )
 
     mask = np.abs(rate) <= max_rate
 
@@ -86,11 +96,50 @@ def derivative_check(time, values, max_rate=np.inf):
 # Progress Normalization
 ############################################
 def normalize_progress(time, values, target_len=1000, method="linear"):
+    time = np.asarray(time)
+    values = np.asarray(values)
+
+    # The samples are paired by position, so a decreasing step cannot be repaired
+    # here: dropping it would silently shorten the batch, and reordering it would
+    # return a curve of a different batch. Only repeated timestamps (step == 0)
+    # are handled below, by collapsing them; anything out of order is reported.
+    steps = np.diff(time)
+    if np.any(steps < 0):
+        bad = int(np.argmax(steps < 0))
+        AppLogger.error(
+            "batch normalization needs ascending timestamps: time[%d]=%s follows "
+            "time[%d]=%s",
+            bad + 1,
+            time[bad + 1],
+            bad,
+            time[bad],
+        )
+        raise ValueError("batch data must be ordered by ascending timestamps")
+
     time_range = time.max() - time.min()
     if time_range > 0:
         t_norm = (time - time.min()) / time_range
     else:
         t_norm = np.zeros_like(time, dtype=float)
+
+    # interp1d needs a strictly increasing x. A batch can repeat a timestamp (or
+    # hold a single one), which makes it divide by a zero-width interval and turns
+    # the whole batch into inf/nan; keep the first point of each repeated group.
+    # Only equal steps are collapsed -- a decreasing one was rejected above.
+    #
+    # The level of such a batch is measured on the values as received: after the
+    # deduplication only the first value of every repeated group is left, which
+    # would report that one sample instead of the batch.
+    flat_level = float(np.mean(values))
+
+    keep = np.concatenate(([True], steps > 0))
+    t_norm = t_norm[keep]
+    values = values[keep]
+
+    if t_norm.size < 2:
+        # No progress to normalize: report the batch as a flat curve rather than
+        # handing an undefined series to the interpolation below.
+        return np.linspace(0, 1, target_len), np.full(target_len, flat_level)
 
     if method == "cubic" and len(values) >= 4:
         kind = "cubic"
