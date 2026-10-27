@@ -19,9 +19,33 @@
 #include "smInt.h"
 #include "stream.h"
 
-static void smFreeRpcQitem(void *pItem) {
+void smFreeRpcQitem(void *pItem) {
   SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  if (pMsg == NULL) {
+    return;
+  }
+
+  /*
+   * Trigger responses carry the send handle (SMsgSendInfo + SSTriggerAHandle)
+   * of the trigger task that issued the request.  When the queue is torn down
+   * with such a response still pending, the worker never sees it and nobody
+   * else releases the handle, so drop it here together with the message body.
+   *
+   * A non-NULL info.ahandle means the item still owns its handle, therefore the
+   * handle is cleared right after the release: whoever releases a handle must
+   * leave the message without ownership so that a second free path cannot
+   * release it again.
+   */
+  if (pMsg->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pMsg->msgType)) {
+    dDebug("msg:%p, type:%s ahandle %p freed with queue, trace:0x%" PRIx64 ":0x%" PRIx64, pMsg,
+           TMSG_INFO(pMsg->msgType), pMsg->info.ahandle, TRACE_GET_ROOTID(&pMsg->info.traceId),
+           TRACE_GET_MSGID(&pMsg->info.traceId));
+    destroyAhandle(pMsg->info.ahandle);
+    pMsg->info.ahandle = NULL;
+  }
+
   rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }
 
 static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
@@ -200,8 +224,15 @@ _exit:
   if (taskAddr != NULL) {
     streamReleaseTask(taskAddr);
   }
-  if (ahandle != NULL) {
-    destroyAhandle(ahandle);
+  /*
+   * Release on the ownership marker itself instead of the branch-local copy, so a message
+   * that took another path through this function cannot keep its handle.  A non-NULL
+   * info.ahandle means the item still owns it, which is the contract the queue free hook
+   * (smFreeRpcQitem) relies on to release a dropped response exactly once.
+   */
+  if (pMsg->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pMsg->msgType)) {
+    destroyAhandle(pMsg->info.ahandle);
+    pMsg->info.ahandle = NULL;
   }
   dTrace("msg:%p, is freed, code:%d", pMsg, code);
   rpcFreeCont(pMsg->pCont);
@@ -273,9 +304,11 @@ _exit:
     streamReleaseTask(taskAddr);
   }
   if (code) {
-    destroyAhandle(ahandle);
-    //rpcFreeCont(pMsg->pCont);
-    //taosFreeQitem(pMsg);
+    /*
+     * Ownership of ahandle stays with the caller: dmProcessNodeMsg() releases
+     * it when the message cannot be handed over to a worker, so releasing it
+     * here would double free the same handle.
+     */
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 

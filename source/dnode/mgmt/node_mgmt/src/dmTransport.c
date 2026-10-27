@@ -21,7 +21,6 @@
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
-#define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg) || TDMT_STREAM_TRIGGER_DROP_RSP == (_msg))
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -362,9 +361,18 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
-    } else if (NULL == pMsg && IS_STREAM_TRIGGER_RSP_MSG(pRpc->msgType)) {
+    } else if (pRpc->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pRpc->msgType)) {
+      /*
+       * The response never reached the snode trigger worker (queue item
+       * allocation, dispatch or enqueue failed), so nothing else will release
+       * the send handle allocated by the trigger task.  A successful dispatch
+       * transfers ownership to the worker, which releases it exactly once.
+       */
+      dDebug("msg:%p, type:%s ahandle %p freed since dispatch failed, code:%s, trace:0x%" PRIx64 ":0x%" PRIx64,
+             pMsg, TMSG_INFO(pRpc->msgType), pRpc->info.ahandle, tstrerror(code), TRACE_GET_ROOTID(trace),
+             TRACE_GET_MSGID(trace));
       destroyAhandle(pRpc->info.ahandle);
-      dDebug("msg:%s ahandle freed", TMSG_INFO(pRpc->msgType));
+      pRpc->info.ahandle = NULL;
     }
 
     if (pMsg != NULL) {

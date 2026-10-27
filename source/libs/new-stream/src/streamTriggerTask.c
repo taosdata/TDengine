@@ -16547,6 +16547,70 @@ static void stRealtimeContextDestroy(void *ptr) {
   }
 
   // P3 (d1): cleanup EXT reader progress.
+  if (pContext->pReaderExtProgress != NULL) {
+    // A pending external pull keeps its send handle until the response arrives, and the handle is
+    // deliberately NOT released here: the response may still be delivered, and releasing it at
+    // teardown would hand a freed handle to smProcessStreamTriggerQueue.  Log it instead.  With a
+    // single pull in flight the logged trace id matches the send log ("ext: marked PULL_EXT
+    // in-flight before send") and the release logs (smFreeRpcQitem/dmProcessRpcMsg); with
+    // overlapping pulls neither the trace id nor the pull type is attributable, so both are omitted
+    // and only readerTaskId plus the pending counter remain to search the send logs with.
+    int32_t                iter = 0;
+    SSTriggerExtProgress **ppProgress =
+        (SSTriggerExtProgress **)tSimpleHashIterate(pContext->pReaderExtProgress, NULL, &iter);
+    while (ppProgress != NULL) {
+      SSTriggerExtProgress *pProgress = *ppProgress;
+      if (pProgress != NULL && (pProgress->pendingPulls > 0 || pProgress->pullReq != NULL)) {
+        /*
+         * pTaskAddr points into arrays owned by the task for a live entry, so it may only be
+         * dereferenced while the context still has its task: a detached nested-recovery shadow
+         * context outlives the task and its task-owned arrays.  Retired entries carry their own
+         * address copy (see stRealtimeContextRebindExtProgress), so they stay readable.
+         */
+        int64_t readerTaskId = 0;
+        if (pProgress->retired) {
+          readerTaskId = pProgress->retiredTaskAddr.taskId;
+        } else if (pTask != NULL && pProgress->pTaskAddr != NULL) {
+          readerTaskId = pProgress->pTaskAddr->taskId;
+        }
+        char detail[192] = {0};
+        /* A trace is available only if no other pull was pending when it was sent. */
+        if (pProgress->pendingPulls == 1 && TRACE_GET_MSGID(&pProgress->inFlightPullTraceId) != 0) {
+          tsnprintf(detail, sizeof(detail),
+                    "with 1 in-flight ext pull, reader task:%" PRIx64 ", type:%d, retired:%d, "
+                    "trace:0x%" PRIx64 ":0x%" PRIx64,
+                    readerTaskId, (int32_t)pProgress->pullType, (int32_t)pProgress->retired,
+                    TRACE_GET_ROOTID(&pProgress->inFlightPullTraceId),
+                    TRACE_GET_MSGID(&pProgress->inFlightPullTraceId));
+        } else if (pProgress->pendingPulls > 1) {
+          tsnprintf(detail, sizeof(detail),
+                    "with %d in-flight ext pulls, reader task:%" PRIx64
+                    ", retired:%d (pull type and trace id unavailable)",
+                    pProgress->pendingPulls, readerTaskId, (int32_t)pProgress->retired);
+        } else if (pProgress->pendingPulls == 1) {
+          tsnprintf(detail, sizeof(detail),
+                    "with 1 in-flight ext pull, reader task:%" PRIx64
+                    ", retired:%d (pull type and trace id unavailable)",
+                    readerTaskId, (int32_t)pProgress->retired);
+        } else {
+          /* pullReq is only a marker: the counter can already be zero while it is still set. */
+          tsnprintf(detail, sizeof(detail),
+                    "with the in-flight pull marker still set but a zero pending counter, reader task:%" PRIx64
+                    ", retired:%d",
+                    readerTaskId, (int32_t)pProgress->retired);
+        }
+        if (pTask != NULL) {
+          ST_TASK_WLOG("destroy realtime context %s", detail);
+        } else {
+          /* A detached nested-recovery shadow context has no task
+           * (see stTriggerTaskDetachNestedRecoveryTask), so the TASK-prefixed macro would
+           * dereference a NULL task here. */
+          stWarn("destroy realtime context %s", detail);
+        }
+      }
+      ppProgress = (SSTriggerExtProgress **)tSimpleHashIterate(pContext->pReaderExtProgress, ppProgress, &iter);
+    }
+  }
   while (pContext->pRetiredExtProgress != NULL) {
     SSTriggerExtProgress *pProgress = pContext->pRetiredExtProgress;
     pContext->pRetiredExtProgress = pProgress->pNextRetired;
@@ -20253,6 +20317,14 @@ static int32_t stRealtimeContextSendExtPullReq(SSTriggerRealtimeContext *pContex
 
   pProgress->pullReq  = (void *)1;
   pProgress->pullType = pullType;
+  if (pProgress->pendingPulls == 0) {
+    pProgress->inFlightPullTraceId = msg.info.traceId;
+  } else {
+    // One trace id cannot identify the request that remains after overlapping pulls complete.
+    pProgress->inFlightPullTraceId = (STraceId){0};
+    ST_TASK_DLOG("ext: invalidate in-flight pull trace after overlap, reader task:%" PRIx64 ", pending:%d",
+                 pProgress->pTaskAddr->taskId, pProgress->pendingPulls);
+  }
   ++pProgress->pendingPulls;
   if (pullType == STRIGGER_PULL_CALC_DATA_EXT) {
     ++pProgress->pendingCalcPulls;
@@ -31337,7 +31409,7 @@ static int32_t stHistoryGroupMergeSavedWindows(SSTriggerHistoryGroup *pGroup, in
   bool    notifyClose = pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE);
   int32_t nInitWins = taosArrayGetSize(pContext->pInitWindows);
 
-  // trigger all window open/close events
+  // trigger all window  open/close events
   for (int32_t i = 0; i < TARRAY_SIZE(pContext->pSavedWindows); i++) {
     pWin = TARRAY_GET_ELEM(pContext->pSavedWindows, i);
     // window open event may have been triggered previously
