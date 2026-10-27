@@ -57,6 +57,7 @@ from typing import Dict, List, Tuple
 import datetime as _datetime
 import os
 import re
+import tempfile
 import time
 import pytest
 
@@ -84,6 +85,25 @@ _ORIG_DATETIME_EPOCH = None
 _TZ_PINNED = False
 
 
+def _refresh_process_tz():
+    """Make a TZ change visible to libc (and the client's own conversions).
+
+    POSIX exposes time.tzset(); the Windows CRT keeps the zone cached until
+    _tzset() is called, and the client formats result timestamps through libc
+    localtime(), so without the refresh a pinned TZ never reaches the output
+    even though the TZ environment variable itself was updated.
+    """
+    if hasattr(time, 'tzset'):
+        time.tzset()
+        return
+    try:
+        import ctypes
+
+        ctypes.CDLL('ucrtbase')._tzset()
+    except OSError:
+        pass
+
+
 def _pin_process_timezone_utc():
     global _ORIG_TZ, _ORIG_DATETIME_EPOCH, _TZ_PINNED
     if _TZ_PINNED:
@@ -92,7 +112,7 @@ def _pin_process_timezone_utc():
     _ORIG_TZ = os.environ.get('TZ')
     _ORIG_DATETIME_EPOCH = _taos_field._datetime_epoch
     os.environ['TZ'] = 'UTC'
-    time.tzset()
+    _refresh_process_tz()
     _taos_field._datetime_epoch = _datetime.datetime.fromtimestamp(0)
     _TZ_PINNED = True
 
@@ -106,7 +126,7 @@ def _restore_process_timezone():
         os.environ['TZ'] = _ORIG_TZ
     else:
         os.environ.pop('TZ', None)
-    time.tzset()
+    _refresh_process_tz()
     _taos_field._datetime_epoch = _ORIG_DATETIME_EPOCH
     _TZ_PINNED = False
 
@@ -1662,7 +1682,8 @@ class TestFq14ResultParity(ParityTestBase):
         actual = "\n".join(result_blocks) + "\n"
         baseline_file = self._PUSHDOWN_BASELINE_FILE
         tmp_file = os.path.join(
-            "/tmp", f"{os.path.basename(baseline_file)}.{os.getpid()}.tmp"
+            tempfile.gettempdir(),
+            f"{os.path.basename(baseline_file)}.{os.getpid()}.tmp",
         )
         with open(tmp_file, "w") as f:
             f.write(actual)

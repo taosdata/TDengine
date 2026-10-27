@@ -380,11 +380,21 @@ void taosCloseLog() {
   taosMemoryFreeClear(tsLogOutput);
 }
 
+/* Offset of the log file's mutual-exclusion token.  Windows byte-range locks
+ * are mandatory: locking the whole file (taosLockFile) would make the live log
+ * unreadable for tail/log collectors/other processes, so the token sits beyond
+ * any real data and readers never touch it. */
+#define LOG_FILE_LOCK_OFFSET ((int64_t)0x7FFFFFFFFFFFFFF0LL)
+
 static bool taosLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return false;
 
   if (tsLogObj.fileNum > 1) {
+#ifdef WINDOWS
+    int32_t ret = taosLockFileAt(pFile, LOG_FILE_LOCK_OFFSET, 1);
+#else
     int32_t ret = taosLockFile(pFile);
+#endif
     if (ret == 0) {
       return true;
     }
@@ -397,7 +407,11 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return;
 
   if (tsLogObj.fileNum > 1) {
+#ifdef WINDOWS
+    int32_t code = taosUnLockFileAt(pFile, LOG_FILE_LOCK_OFFSET, 1);
+#else
     int32_t code = taosUnLockFile(pFile);
+#endif
     if (code != 0) {
       TAOS_UNUSED(printf("failed to unlock log file:%p, reason:%s\n", pFile, tstrerror(code)));
     }

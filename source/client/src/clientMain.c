@@ -286,14 +286,16 @@ int32_t tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool expl
  * established. ALTER LOCAL prepares the validated session state before changing
  * the client-level setting, then commits it after the change succeeds. */
 int32_t tscInitSessionTimezone(STscObj *pObj) {
-#if defined(WINDOWS) || defined(TD_ASTRA)
+#if defined(TD_ASTRA)
   (void)pObj;
   return TSDB_CODE_SUCCESS;
 #else
+#ifndef WINDOWS
   if (pTimezoneMap == NULL) {
     /* tzInit() not yet called; skip silently */
     return TSDB_CODE_SUCCESS;
   }
+#endif
 
   /* Extract the IANA name from tsTimezoneStr.
    * The string has the form "Name (Abbrev, +HHMM)". */
