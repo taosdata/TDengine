@@ -2986,7 +2986,6 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
   mstLogSStmStatus("stream deployed", streamId, pStatus);
 
 _exit:
-
   mstDestroySStmStatus(&info);
 
   if (code) {

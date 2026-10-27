@@ -23,6 +23,11 @@
 extern "C" {
 #endif
 
+// Cipher block lengths in bytes. These must stay synchronized with the
+// bundled implementations; crypt.c enforces the AES value at compile time.
+#define TAOS_AES_BLOCK_LEN 16
+#define TAOS_SM4_BLOCK_LEN 16
+
 typedef struct SCryptOpts {
   int32_t len;
   char*   source;
@@ -68,11 +73,22 @@ int32_t taosDecryptSpillBlock(SSpillCryptCtx* pCtx, const char* pEncrypted,
                               int32_t encryptedLen, char** ppPlain,
                               int32_t* pPlainLen);
 
+// Encryption/decryption return the output length; a negative value indicates
+// invalid input, invalid padding, or a cipher failure. key/keylen must describe
+// at least one readable byte. Encryption requires pBuf to provide the padded
+// size returned by the corresponding *_encrypt_len helper. Decryption requires
+// a positive, block-aligned ciphertext length and accepts only valid PKCS#7
+// padding produced by a compatible encryptor. Keys longer than
+// ENCRYPT_KEY_LEN are truncated. The *_encrypt_len helpers return zero for a
+// negative length or an input whose padded size would overflow int32_t; zero-
+// length plaintext is valid PKCS#7 input and produces one complete block.
 int32_t  taosSm4Encrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len);
 int32_t  taosSm4Decrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len);
 uint32_t tsm4_encrypt_len(int32_t len);
 int32_t  taosAesEncrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len, const uint8_t* iv);
 int32_t  taosAesDecrypt(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len, const uint8_t* iv);
+int32_t  taosAesDecryptLegacyVarDataIv(uint8_t* key, int32_t keylen, uint8_t* pBuf, int32_t len,
+                                    const uint8_t* ivVarData);
 uint32_t taes_encrypt_len(int32_t len);
 
 #ifdef __cplusplus

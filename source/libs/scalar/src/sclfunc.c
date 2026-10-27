@@ -42,6 +42,8 @@ typedef void (*_trim_space_fn)(char *, char *, int32_t, int32_t, void *);
 typedef int32_t (*_trim_fn)(char *, char *, char *, int32_t, int32_t, void *);
 typedef int32_t (*_len_fn)(char *, int32_t, void *);
 
+enum { SCALAR_HISTOGRAM_MAX_BINS_NUM = 1000 };
+
 /** Math functions **/
 static double tlog(double v) { return log(v); }
 
@@ -2791,7 +2793,10 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
   if (orgType == TSDB_DATA_TYPE_NCHAR && toType != orgType) {
     toLength = toLength * TSDB_NCHAR_SIZE;
   }
-  outputLen = toLength == 0 ? orgLength : TMIN(TSDB_MAX_FIELD_LEN, orgLength * toLength);
+  const int32_t maxPayload = TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE;
+  outputLen = toLength == 0
+                  ? TMIN(orgLength, maxPayload)
+                  : (int32_t)TMIN((int64_t)maxPayload, (int64_t)orgLength * toLength);
 
   if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL || GET_PARAM_TYPE(&pInput[1]) == TSDB_DATA_TYPE_NULL ||
       GET_PARAM_TYPE(&pInput[2]) == TSDB_DATA_TYPE_NULL ||
@@ -2835,7 +2840,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
       // overrun it.
       if (orgLen > outputLen) {
         qError("replace result needs %d bytes, buffer width is %d", orgLen, outputLen);
-        SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+        SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
       }
       (void)memcpy(output, orgStr, orgLen);
       totalLen = orgLen;
@@ -2877,7 +2882,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
           if (needFreeFrom) {
             taosMemoryFree(fromStr);
           }
-          SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
         }
         (void)memcpy(output, orgStr + pos, orgLen - pos);
         output += orgLen - pos;
@@ -2895,7 +2900,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
           if (needFreeFrom) {
             taosMemoryFree(fromStr);
           }
-          SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
         }
         (void)memcpy(output, toStr, toLen);
         output += toLen;
@@ -2912,7 +2917,7 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
           if (needFreeFrom) {
             taosMemoryFree(fromStr);
           }
-          SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+          SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
         }
         (void)memcpy(output, orgStr + pos, charLen);
         output += charLen;
@@ -2925,9 +2930,6 @@ int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pO
     }
     if (needFreeFrom) {
       taosMemoryFree(fromStr);
-    }
-    if (totalLen > TSDB_MAX_FIELD_LEN) {
-      SCL_ERR_JRET(TSDB_CODE_FUNC_INVALID_RES_LENGTH);
     }
     varDataSetLen(outputBuf, totalLen);
     SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
@@ -3044,6 +3046,9 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
                  typeGetTypeModFromColInfo(&pInput[1].columnData->info));
   GET_TYPED_DATA(finalLen, int32_t, GET_PARAM_TYPE(&pInput[2]), colDataGetData(pInput[2].columnData, 0),
                  typeGetTypeModFromColInfo(&pInput[2].columnData->info));
+  if (initialLen < 0 || finalLen < 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
 
   pInputData[0] = pInput[0].columnData;
   pInputData[1] = pInput[3].columnData;
@@ -3065,7 +3070,7 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     maskLen = maskLen * TSDB_NCHAR_SIZE;
   }
 
-  int32_t outLen = TMAX(orgLength, 1);
+  int32_t outLen = TMAX(orgLength, maskLen);
   char   *outputBuf = taosMemoryCalloc(outLen + VARSTR_HEADER_SIZE, 1);
   if (NULL == outputBuf) {
     SCL_ERR_RET(terrno);
@@ -3086,12 +3091,13 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
     // Convert byte length to character count (maskLen > 1 only for NCHAR where each char = 4 bytes)
     int32_t orgLenChars = (maskLen > 1) ? (orgLen / maskLen) : orgLen;
     char   *fromStr = varDataVal(colDataGetData(pInputData[1], colIdx2));
-    int32_t fromLen = maskLen;
+    int32_t fromLen = varDataLen(colDataGetData(pInputData[1], colIdx2));
     bool    needFreeFrom = false;
 
     if (fromLen == 0 || orgLen == 0) {
-      (void)memcpy(output, fromStr, fromLen);
-      varDataSetLen(outputBuf, fromLen);
+      int32_t resultLen = TMIN(fromLen, maskLen);
+      (void)memcpy(output, fromStr, resultLen);
+      varDataSetLen(outputBuf, resultLen);
       SCL_ERR_JRET(colDataSetVal(pOutputData, i, outputBuf, false));
       continue;
     }
@@ -3101,6 +3107,12 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
                                               varDataLen(colDataGetData(pInputData[1], colIdx2)), &fromLen,
                                               GET_PARAM_TYPE(&pInput[0]), pInput->charsetCxt));
       needFreeFrom = true;
+    }
+    if (fromLen < maskLen) {
+      if (needFreeFrom) {
+        taosMemoryFree(fromStr);
+      }
+      SCL_ERR_JRET(TSDB_CODE_FUNC_FUNTION_PARA_VALUE);
     }
 
     // The output buffer is sized by the declared column width; a virtual table column may
@@ -3114,14 +3126,16 @@ int32_t maskPartialFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam
       SCL_ERR_JRET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
     }
 
-    for (int initialIdx = 0; initialIdx < initialLen && initialIdx < orgLenChars; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
+    int32_t prefixEnd = TMIN(initialLen, orgLenChars);
+    int32_t suffixStart = TMAX(prefixEnd, orgLenChars - TMIN(finalLen, orgLenChars));
+    for (int32_t charIndex = 0; charIndex < prefixEnd; ++charIndex) {
+      (void)memcpy(output + charIndex * maskLen, fromStr, maskLen);
     }
-    for (int initialIdx = initialLen; initialIdx < orgLenChars - finalLen && initialIdx < orgLenChars; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, orgStr + initialIdx * maskLen, maskLen);
+    for (int32_t charIndex = prefixEnd; charIndex < suffixStart; ++charIndex) {
+      (void)memcpy(output + charIndex * maskLen, orgStr + charIndex * maskLen, maskLen);
     }
-    for (int initialIdx = orgLenChars - finalLen; initialIdx < orgLenChars; ++initialIdx) {
-      (void)memcpy(output + initialIdx * maskLen, fromStr, maskLen);
+    for (int32_t charIndex = suffixStart; charIndex < orgLenChars; ++charIndex) {
+      (void)memcpy(output + charIndex * maskLen, fromStr, maskLen);
     }
 
     if (needFreeFrom) {
@@ -3205,13 +3219,30 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   char            *iv = NULL;
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
+      (inputNum > 2 && !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[2])))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
   if (inputNum > 2) {
-    iv = colDataGetData(pInput[2].columnData, 0);
+    char *ivVar = colDataGetData(pInput[2].columnData, 0);
+    if (ivVar == NULL || varDataLen(ivVar) != TAOS_AES_BLOCK_LEN) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    iv = varDataVal(ivVar);
   }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = taes_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("aes function alloc memory failed");
@@ -3219,8 +3250,13 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(taes_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
+  uint32_t initialOutputLen = taes_encrypt_len(bufLen);
+  if (initialOutputLen == 0) {
+    taosMemoryFree(pKeyPaddingBuf);
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+  char   *pOutputBuf = taosMemoryMalloc(initialOutputLen + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("aes function alloc memory failed");
     return terrno;
@@ -3238,7 +3274,13 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     // the in-place encryption pads up to taes_encrypt_len of the actual length.
     if (bufLen < varDataLen(input)) {
       bufLen = varDataLen(input);
-      char *tmp = taosMemoryRealloc(pOutputBuf, taes_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
+      uint32_t outputLen = taes_encrypt_len(bufLen);
+      if (outputLen == 0) {
+        taosMemoryFree(pOutputBuf);
+        taosMemoryFree(pKeyPaddingBuf);
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
+      char *tmp = taosMemoryRealloc(pOutputBuf, outputLen + VARSTR_HEADER_SIZE);
       if (!tmp) {
         // realloc failure leaves the original pOutputBuf intact; free both before bailing.
         taosMemoryFree(pOutputBuf);
@@ -3251,6 +3293,11 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosAesEncrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -3269,20 +3316,58 @@ int32_t aesFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
 }
 
 int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (inputNum < 2 || inputNum > 4) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
   SColumnInfoData *pOutputData = pOutput[0].columnData;
   SColumnInfoData *pInputData[1];
   char            *iv = NULL;
+  char            *ivVar = NULL;
+  bool             legacyIv = false;
+
+  if (inputNum == 4) {
+    if (GET_PARAM_TYPE(&pInput[3]) != TSDB_DATA_TYPE_VARCHAR || pInput[3].numOfRows != 1) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    char *mode = colDataGetData(pInput[3].columnData, 0);
+    if (mode == NULL) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    if (varDataLen(mode) == 6 && strncasecmp(varDataVal(mode), "legacy", 6) == 0) {
+      legacyIv = true;
+    } else if (varDataLen(mode) != 3 || strncasecmp(varDataVal(mode), "raw", 3) != 0) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1])) ||
+      (inputNum > 2 && !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[2])))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
   if (inputNum > 2) {
-    iv = colDataGetData(pInput[2].columnData, 0);
+    ivVar = colDataGetData(pInput[2].columnData, 0);
+    if (ivVar == NULL || varDataLen(ivVar) != TAOS_AES_BLOCK_LEN) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    iv = varDataVal(ivVar);
   }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = taes_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("aes function alloc memory failed");
@@ -3290,7 +3375,7 @@ int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
   char   *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("aes function alloc memory failed");
@@ -3304,6 +3389,11 @@ int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    if (varDataLen(input) <= 0 || varDataLen(input) % TAOS_AES_BLOCK_LEN != 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
       // realloc failure leaves the original pOutputBuf intact; free both before bailing.
@@ -3319,7 +3409,14 @@ int32_t aesDeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
-    int32_t len = taosAesDecrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+    int32_t len = legacyIv
+                      ? taosAesDecryptLegacyVarDataIv(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), ivVar)
+                      : taosAesDecrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input), iv);
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -3344,10 +3441,22 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   SColumnInfoData *pInputData[1];
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = tsm4_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("sm4 function alloc memory failed");
@@ -3355,8 +3464,13 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
-  char   *pOutputBuf = taosMemoryMalloc(tsm4_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
+  uint32_t initialOutputLen = tsm4_encrypt_len(bufLen);
+  if (initialOutputLen == 0) {
+    taosMemoryFree(pKeyPaddingBuf);
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+  char   *pOutputBuf = taosMemoryMalloc(initialOutputLen + VARSTR_HEADER_SIZE);
   if (!pOutputBuf) {
     qError("sm4 function alloc memory failed");
     return terrno;
@@ -3374,7 +3488,13 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     // the in-place encryption pads up to tsm4_encrypt_len of the actual length.
     if (bufLen < varDataLen(input)) {
       bufLen = varDataLen(input);
-      char *tmp = taosMemoryRealloc(pOutputBuf, tsm4_encrypt_len(bufLen) + VARSTR_HEADER_SIZE);
+      uint32_t outputLen = tsm4_encrypt_len(bufLen);
+      if (outputLen == 0) {
+        taosMemoryFree(pOutputBuf);
+        taosMemoryFree(pKeyPaddingBuf);
+        return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+      }
+      char *tmp = taosMemoryRealloc(pOutputBuf, outputLen + VARSTR_HEADER_SIZE);
       if (!tmp) {
         // realloc failure leaves the original pOutputBuf intact; free both before bailing.
         taosMemoryFree(pOutputBuf);
@@ -3387,6 +3507,11 @@ int32_t sm4Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosSm4Encrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -3411,10 +3536,22 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   SColumnInfoData *pInputData[1];
 
   pInputData[0] = pInput[0].columnData;
+  if (GET_PARAM_TYPE(&pInput[0]) == TSDB_DATA_TYPE_NULL) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[0])) ||
+      !IS_VAR_DATA_TYPE(GET_PARAM_TYPE(&pInput[1]))) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   char   *keyVar = colDataGetData(pInput[1].columnData, 0);
   int32_t keylen = varDataLen(keyVar);
   int32_t keypaddedlen = tsm4_encrypt_len(keylen);
+  if (keypaddedlen == 0) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
   char   *pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
   if (!pKeyPaddingBuf) {
     qError("sm4 function alloc memory failed");
@@ -3422,7 +3559,7 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
   }
   (void)memcpy(pKeyPaddingBuf, varDataVal(keyVar), keylen);
 
-  int32_t bufLen = pInputData[0]->info.bytes;
+  int32_t bufLen = TMAX(pInputData[0]->info.bytes, VARSTR_HEADER_SIZE);
   char   *pOutputBuf = taosMemoryMalloc(bufLen);
   if (!pOutputBuf) {
     qError("sm4 function alloc memory failed");
@@ -3436,6 +3573,11 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     }
 
     char *input = colDataGetData(pInput[0].columnData, i);
+    if (varDataLen(input) <= 0 || varDataLen(input) % TAOS_SM4_BLOCK_LEN != 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
     if (bufLen < varDataLen(input) + VARSTR_HEADER_SIZE) {
       bufLen = varDataLen(input) + VARSTR_HEADER_SIZE;
       // realloc failure leaves the original pOutputBuf intact; free both before bailing.
@@ -3452,6 +3594,11 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
     char *output = pOutputBuf;
     (void)memcpy(varDataVal(output), varDataVal(input), varDataLen(input));
     int32_t len = taosSm4Decrypt(pKeyPaddingBuf, keylen, varDataVal(output), varDataLen(input));
+    if (len < 0) {
+      taosMemoryFree(pOutputBuf);
+      taosMemoryFree(pKeyPaddingBuf);
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
 
     varDataSetLen(output, len);
     int32_t code = colDataSetVal(pOutputData, i, output, false);
@@ -4462,15 +4609,14 @@ static int32_t extractTimezoneParamString(SScalarParam *pInput, int32_t idx, cha
   }
 
   int32_t tzLen = varDataLen(pInput[idx].columnData->pData);
-  if (tzLen <= 0) {
-    sclError("%s failed at line %d, empty timezone parameter, idx:%d",
-             __func__, __LINE__, idx);
-    SCL_ERR_RET(TSDB_CODE_INTERNAL_ERROR);
+  if (tzLen <= 0 || tzLen >= bufLen) {
+    sclError("%s failed at line %d, invalid timezone parameter length: %d, idx: %d",
+             __func__, __LINE__, tzLen, idx);
+    SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  int32_t cpLen = TMIN(tzLen, bufLen - 1);
-  (void)memcpy(tzBuf, varDataVal(pInput[idx].columnData->pData), cpLen);
-  tzBuf[cpLen] = '\0';
+  (void)memcpy(tzBuf, varDataVal(pInput[idx].columnData->pData), tzLen);
+  tzBuf[tzLen] = '\0';
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7173,6 +7319,10 @@ static int32_t getHistogramBinDesc(SHistoFuncBin **bins, int32_t *binNum, char *
       SCL_ERR_RET(TSDB_CODE_FAILED);
     }
     numOfBins = cJSON_GetArraySize(binDesc);
+    if (numOfBins < 2 || numOfBins > SCALAR_HISTOGRAM_MAX_BINS_NUM + 1) {
+      cJSON_Delete(binDesc);
+      SCL_ERR_RET(TSDB_CODE_FAILED);
+    }
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (NULL == intervals) {
       cJSON_Delete(binDesc);

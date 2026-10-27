@@ -58,6 +58,7 @@ typedef struct SAggOperatorInfo {
 } SAggOperatorInfo;
 
 static void destroyAggOperatorInfo(void* param);
+static void cleanupAggregateRowState(void* param);
 static int32_t setExecutionContext(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId);
 
 static int32_t createDataBlockForEmptyInput(SOperatorInfo* pOperator, SSDataBlock** ppBlock);
@@ -240,6 +241,7 @@ int32_t createAggregateOperatorInfo(SOperatorInfo** pDownstreams, int32_t numDow
   }
   pOperator->fpSet = createOperatorFpSet(optrDummyOpenFn, getAggregateResultNext, NULL, destroyAggOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
+  setOperatorRowStateCleanupFn(pOperator, cleanupAggregateRowState);
   setOperatorResetStateFn(pOperator, resetAggregateOperatorState);
 
   pOperator->pPhyNode = pAggNode;
@@ -272,6 +274,15 @@ _error:
   return code;
 }
 
+static void cleanupAggregateRowState(void* param) {
+  SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
+  if (pInfo == NULL || pInfo->pOperator == NULL) {
+    return;
+  }
+  cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
+                    pInfo->cleanGroupResInfo);
+}
+
 void destroyAggOperatorInfo(void* param) {
   if (param == NULL) {
     return;
@@ -281,8 +292,7 @@ void destroyAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pMergedRes);
 
   if (pInfo->pOperator) {
-    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
-                      pInfo->cleanGroupResInfo);
+    cleanupAggregateRowState(pInfo);
     pInfo->pOperator = NULL;
   }
   cleanupAggSup(&pInfo->aggSup);

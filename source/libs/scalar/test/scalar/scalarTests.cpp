@@ -2366,6 +2366,49 @@ int32_t makeCalculate(void *json, void *key, int32_t rightType, void *rightData,
   SCL_RET(TSDB_CODE_SUCCESS);
 }
 
+TEST(columnTest, json_bounded_lookup) {
+  char json[] = "{\"a\":4,\"b\":null,\"c\":\"hello\"}";
+  SArray *tags = taosArrayInit(1, sizeof(STagVal));
+  ASSERT_NE(tags, nullptr);
+  STag *tag = nullptr;
+  ASSERT_EQ(parseJsontoTagData(json, tags, &tag, nullptr, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(tag, nullptr);
+
+  bool found = false;
+  STagVal value = {};
+  value.pKey = const_cast<char *>("a");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_TRUE(found);
+  EXPECT_EQ(value.type, TSDB_DATA_TYPE_DOUBLE);
+
+  value.pKey = const_cast<char *>("b");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_TRUE(found);
+  EXPECT_EQ(value.type, TSDB_DATA_TYPE_NULL);
+
+  value.pKey = const_cast<char *>("c");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_TRUE(found);
+  EXPECT_EQ(value.type, TSDB_DATA_TYPE_NCHAR);
+
+  value.pKey = const_cast<char *>("missing");
+  EXPECT_TRUE(tTagGetJsonBounded(tag, tag->len, &value, &found));
+  EXPECT_FALSE(found);
+  EXPECT_FALSE(tTagGetJsonBounded(tag, tag->len - 1, &value, &found));
+
+  STag *malformed = static_cast<STag *>(taosMemoryMalloc(tag->len));
+  ASSERT_NE(malformed, nullptr);
+  memcpy(malformed, tag, tag->len);
+  malformed->idx[1] = malformed->idx[2];
+  value.pKey = const_cast<char *>("b");
+  EXPECT_FALSE(tTagGetJsonBounded(malformed, malformed->len, &value, &found));
+  EXPECT_FALSE(found);
+
+  taosMemoryFree(malformed);
+  taosArrayDestroy(tags);
+  taosMemoryFree(tag);
+}
+
 TEST(columnTest, json_column_arith_op) {
   scltInitLogFile();
   char *rightvTmp =
@@ -7057,6 +7100,31 @@ TEST(CorrelationScalarTest, FilterUsesTemporaryResultAndPropagatesErrors) {
   filterFreeInfo(pFilter);
   nodesDestroyNode(pCondition);
   taosArrayDestroyEx(pBlocks, scltFreeDataBlock);
+}
+
+TEST(ScalarValidationTest, AcceptsReservedFixedWidthAndRejectsUndersizedWidth) {
+  SScalarParam param = {};
+  SDataType reserved = {TSDB_DATA_TYPE_INT, 0, 0, static_cast<int32_t>(sizeof(int64_t))};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, sclCreateColumnInfoData(&reserved, 1, &param));
+  ASSERT_NE(nullptr, param.columnData);
+  EXPECT_EQ(sizeof(int64_t), param.columnData->info.bytes);
+  sclFreeParam(&param);
+
+  SDataType undersized = {TSDB_DATA_TYPE_INT, 0, 0, static_cast<int32_t>(sizeof(int16_t))};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&undersized, 1, &param));
+  EXPECT_EQ(nullptr, param.columnData);
+
+  SDataType undersizedNull = {TSDB_DATA_TYPE_NULL, 0, 0, 0};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT,
+            sclCreateColumnInfoData(&undersizedNull, 1, &param));
+  EXPECT_EQ(nullptr, param.columnData);
+
+  SDataType undersizedVarchar = {TSDB_DATA_TYPE_VARCHAR, 0, 0, VARSTR_HEADER_SIZE - 1};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&undersizedVarchar, 1, &param));
+  SDataType undersizedBlob = {TSDB_DATA_TYPE_BLOB, 0, 0, BLOBSTR_HEADER_SIZE - 1};
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&undersizedBlob, 1, &param));
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&reserved, -1, &param));
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&reserved, 1, nullptr));
 }
 
 int main(int argc, char **argv) {

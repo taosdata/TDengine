@@ -86,6 +86,7 @@ typedef struct SFuncExecFuncs {
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results
 
 #define TOP_BOTTOM_QUERY_LIMIT    100
+#define SAMPLE_QUERY_LIMIT        1000  // maximum point count accepted by sample() and mavg()
 #define FUNCTIONS_NAME_MAX_LENGTH 32
 
 #define FUNCTION_RESULT_INFO_VERSION 1
@@ -303,6 +304,7 @@ typedef struct SqlFunctionCtx {
   bool                 hasWindowOrGroup;  // denote that the function is used with time window or group
   bool                 hasWindow;         // denote that the function is used with time window
   bool                 needCleanup;       // denote that the function need to be cleaned up
+  int32_t              pendingCleanup;
   int32_t              inputType; // save the fuction input type funcs like finalize
   bool                 skipDynDataCheck;
 } SqlFunctionCtx;

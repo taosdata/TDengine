@@ -32,6 +32,7 @@ class TestFuncGconcat:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -81,6 +82,7 @@ class TestFuncGconcat:
         Since: v3.4.1
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -94,6 +96,7 @@ class TestFuncGconcat:
         self._separator_variants()
         self._group_by()
         self._edge_cases()
+        self._length_limit()
         tdStream.dropAllStreamsAndDbs()
 
     def _separator_merge_aligned(self):
@@ -426,3 +429,21 @@ class TestFuncGconcat:
         tdSql.checkData(0, 0, 'v0,v1,v2,v3,v4,v5')
 
         tdLog.info("test_edge_cases passed")
+
+    def _length_limit(self):
+        self._prepare_db("db_gc_length")
+        tdSql.execute("create table t_limit (ts timestamp, v varchar(40000))")
+        first_value = "a" * 30000
+        second_value = "b" * 30000
+        tdSql.execute(
+            f"insert into t_limit values "
+            f"(1700000000000, '{first_value}') "
+            f"(1700000000001, '{second_value}')"
+        )
+        tdSql.query("select char_length(group_concat(v, ',')) from t_limit")
+        tdSql.checkData(0, 0, 60001)
+        third_value = "c" * 6000
+        tdSql.execute(
+            f"insert into t_limit values (1700000000002, '{third_value}')"
+        )
+        tdSql.error("select group_concat(v, ',') from t_limit")
