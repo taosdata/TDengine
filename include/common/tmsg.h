@@ -1344,14 +1344,65 @@ typedef struct {
   bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
+// Compact ref entry stored inside a SVctRefContent block. Names live in the
+// trailing string arena of the same allocation; each offset is relative to
+// the content block start and 0 means the empty string (offset 0 is the
+// content header, never a valid string position).
+
+// flags bits of SRefColEntry
+#define VCT_REF_FLAG_HAS_FILTER_COND 0x1  // saved external-column filter exists for this col ref
+
+typedef struct {
+  int16_t  colId;
+  uint16_t flags;  // VCT_REF_FLAG_*
+  uint32_t dbOff;
+  uint32_t tbOff;
+  uint32_t colOff;
+  uint32_t srcOff;
+  uint32_t schemaOff;
+} SRefColEntry;
+
+// The ref payload of one virtual child table, kept as one allocation:
+//   [SVctRefContent][SRefColEntry x (numOfColRefs + numOfTagRefs)][string arena]
+// Col-ref entries come first, tag-ref entries follow. Children that share
+// the same ref pattern share one SVctRefContent, so a response with N
+// children referencing the same source columns costs O(N) small records
+// plus one content block. Only the in-memory form is compact; the
+// SVSubTablesRsp wire format is unchanged.
+typedef struct SVctRefContent {
+  int32_t numOfColRefs;
+  int32_t numOfTagRefs;
+  int32_t bufLen;  // total size in bytes of this allocation
+} SVctRefContent;
+
+// Per-child record: identity plus a shared content pointer.
 typedef struct SVCTableRefCols {
-  uint64_t     uid;
-  int32_t      numOfSrcTbls;
-  int32_t      numOfColRefs;
-  SRefColInfo* refCols;
-  int32_t      numOfTagRefs;
-  SRefColInfo* tagRefCols;
+  SVctRefContent* pContent;  // first field: keeps the pointer 8-aligned in the pack(1) region
+  uint64_t        uid;
+  int32_t         numOfSrcTbls;
+  int32_t         numOfColRefs;
+  int32_t         numOfTagRefs;
 } SVCTableRefCols;
+
+static FORCE_INLINE SRefColEntry* vctContentColAt(const SVctRefContent* pContent, int32_t idx) {
+  return (SRefColEntry*)((char*)pContent + sizeof(SVctRefContent)) + idx;
+}
+
+static FORCE_INLINE SRefColEntry* vctContentTagAt(const SVctRefContent* pContent, int32_t idx) {
+  return vctContentColAt(pContent, pContent->numOfColRefs + idx);
+}
+
+static FORCE_INLINE SRefColEntry* vctColRefAt(const SVCTableRefCols* pTb, int32_t idx) {
+  return vctContentColAt(pTb->pContent, idx);
+}
+
+static FORCE_INLINE SRefColEntry* vctTagRefAt(const SVCTableRefCols* pTb, int32_t idx) {
+  return vctContentColAt(pTb->pContent, pTb->numOfColRefs + idx);
+}
+
+static FORCE_INLINE const char* vctRefStr(const SVCTableRefCols* pTb, uint32_t off) {
+  return 0 == off ? "" : (const char*)pTb->pContent + off;
+}
 
 typedef struct SVCTableMergeInfo {
   uint64_t uid;
@@ -2846,6 +2897,21 @@ typedef struct {
 int32_t tSerializeSVSubTablesRsp(void* buf, int32_t bufLen, SVSubTablesRsp* pRsp);
 int32_t tDeserializeSVSubTablesRsp(void* buf, int32_t bufLen, SVSubTablesRsp* pRsp);
 void    tDestroySVSubTablesRsp(void* rsp);
+
+// Variable-length ref-content helpers. A SVctRefContent block is laid out as
+// [header][entries][string arena]; arenaBytes must cover every name appended
+// via tVctRefContentPutStr (sum of strlen+1 per non-empty name).
+SVctRefContent* tVctRefContentAlloc(int32_t numOfColRefs, int32_t numOfTagRefs, uint64_t arenaBytes);
+uint32_t        tVctRefContentPutStr(SVctRefContent* pContent, uint32_t* pArenaPos, const char* str);
+// Dedup pCand against previously kept contents keyed by full content bytes:
+// returns the owning block (pCand itself when new) and frees pCand when an
+// identical block already exists.
+SVctRefContent* vctRefContentDedup(SHashObj* pContentHash, SVctRefContent* pCand);
+SVCTableRefCols* tVctRefRecordNew(uint64_t uid, int32_t numOfSrcTbls, int32_t numOfColRefs,
+                                  int32_t numOfTagRefs, SVctRefContent* pContent);
+SVCTableRefCols* tBuildSVCTableRefCols(uint64_t uid, int32_t numOfSrcTbls, const SRefColInfo* pColRefs,
+                                       int32_t numOfColRefs, const SRefColInfo* pTagRefs, int32_t numOfTagRefs);
+void            vctRefColToInfo(const SVCTableRefCols* pTb, const SRefColEntry* pEntry, SRefColInfo* pInfo);
 
 typedef struct {
   SMsgHead header;
