@@ -955,6 +955,7 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
   int32_t                    refColsNum = 0;
   char                       tbFName[TSDB_TABLE_FNAME_LEN];
   SSHashObj*                 pSrcTbls = NULL;
+  SSHashObj*                 pContentDedup = NULL;
 
   SArray *pList = taosArrayInit(10, sizeof(uint64_t));
   QUERY_CHECK_NULL(pList, code, line, _return, terrno);
@@ -966,6 +967,8 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
   QUERY_CHECK_NULL(*ppRes, code, line, _return, terrno);
   pSrcTbls = tSimpleHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
   QUERY_CHECK_NULL(pSrcTbls, code, line, _return, terrno);
+  pContentDedup = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  QUERY_CHECK_NULL(pContentDedup, code, line, _return, terrno);
 
   for (int32_t i = 0; i < num; ++i) {
     uint64_t* id = taosArrayGet(pList, i);
@@ -994,63 +997,113 @@ int32_t vnodeReadVSubtables(SReadHandle* pHandle, int64_t suid, SArray** ppRes) 
       continue;
     }
 
-    pTb = taosMemoryCalloc(1, (refColsNum + tagRefColsNum) * sizeof(SRefColInfo) + sizeof(*pTb));
-    QUERY_CHECK_NULL(pTb, code, line, _return, terrno);
-
-    pTb->uid = mr.me.uid;
-    pTb->numOfColRefs = refColsNum;
-    pTb->refCols = (SRefColInfo*)(pTb + 1);
-    pTb->numOfTagRefs = tagRefColsNum;
-    pTb->tagRefCols = pTb->refCols + refColsNum;
-
-    refColsNum = 0;
+    // Size the compact block (entries + string arena) and count source tables.
+    uint64_t arenaBytes = 0;
     tSimpleHashClear(pSrcTbls);
     for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
       if (!mr.me.colRef.pColRef[j].hasRef) {
         continue;
       }
 
-      pTb->refCols[refColsNum].colId = mr.me.colRef.pColRef[j].id;
-      pTb->refCols[refColsNum].hasFilterCond = mr.me.colRef.pColRef[j].filterCondLen > 0;
-      tstrncpy(pTb->refCols[refColsNum].refColName, mr.me.colRef.pColRef[j].refColName, TSDB_COL_NAME_LEN);
-      tstrncpy(pTb->refCols[refColsNum].refTableName, mr.me.colRef.pColRef[j].refTableName, TSDB_TABLE_NAME_LEN);
-      tstrncpy(pTb->refCols[refColsNum].refDbName, mr.me.colRef.pColRef[j].refDbName, TSDB_DB_NAME_LEN);
-      tstrncpy(pTb->refCols[refColsNum].refSourceName, mr.me.colRef.pColRef[j].refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
-      tstrncpy(pTb->refCols[refColsNum].refSchemaName, mr.me.colRef.pColRef[j].refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      arenaBytes += strlen(mr.me.colRef.pColRef[j].refDbName) + 1;
+      arenaBytes += strlen(mr.me.colRef.pColRef[j].refTableName) + 1;
+      arenaBytes += strlen(mr.me.colRef.pColRef[j].refColName) + 1;
+      if (mr.me.colRef.pColRef[j].refSourceName[0] != '\0') {
+        arenaBytes += strlen(mr.me.colRef.pColRef[j].refSourceName) + 1;
+      }
+      if (mr.me.colRef.pColRef[j].refSchemaName[0] != '\0') {
+        arenaBytes += strlen(mr.me.colRef.pColRef[j].refSchemaName) + 1;
+      }
 
-      snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->refCols[refColsNum].refDbName, pTb->refCols[refColsNum].refTableName);
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", mr.me.colRef.pColRef[j].refDbName, mr.me.colRef.pColRef[j].refTableName);
 
       if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
         QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
       }
-
-      refColsNum++;
     }
-
-    // Fill tag refs
-    tagRefColsNum = 0;
     for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
       if (!mr.me.colRef.pTagRef[j].hasRef) {
         continue;
       }
 
-      pTb->tagRefCols[tagRefColsNum].colId = mr.me.colRef.pTagRef[j].id;
-      tstrncpy(pTb->tagRefCols[tagRefColsNum].refColName, mr.me.colRef.pTagRef[j].refColName, TSDB_COL_NAME_LEN);
-      tstrncpy(pTb->tagRefCols[tagRefColsNum].refTableName, mr.me.colRef.pTagRef[j].refTableName, TSDB_TABLE_NAME_LEN);
-      tstrncpy(pTb->tagRefCols[tagRefColsNum].refDbName, mr.me.colRef.pTagRef[j].refDbName, TSDB_DB_NAME_LEN);
-      tstrncpy(pTb->tagRefCols[tagRefColsNum].refSourceName, mr.me.colRef.pTagRef[j].refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
-      tstrncpy(pTb->tagRefCols[tagRefColsNum].refSchemaName, mr.me.colRef.pTagRef[j].refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      arenaBytes += strlen(mr.me.colRef.pTagRef[j].refDbName) + 1;
+      arenaBytes += strlen(mr.me.colRef.pTagRef[j].refTableName) + 1;
+      arenaBytes += strlen(mr.me.colRef.pTagRef[j].refColName) + 1;
+      if (mr.me.colRef.pTagRef[j].refSourceName[0] != '\0') {
+        arenaBytes += strlen(mr.me.colRef.pTagRef[j].refSourceName) + 1;
+      }
+      if (mr.me.colRef.pTagRef[j].refSchemaName[0] != '\0') {
+        arenaBytes += strlen(mr.me.colRef.pTagRef[j].refSchemaName) + 1;
+      }
 
-      snprintf(tbFName, sizeof(tbFName), "%s.%s", pTb->tagRefCols[tagRefColsNum].refDbName, pTb->tagRefCols[tagRefColsNum].refTableName);
+      snprintf(tbFName, sizeof(tbFName), "%s.%s", mr.me.colRef.pTagRef[j].refDbName, mr.me.colRef.pTagRef[j].refTableName);
 
       if (NULL == tSimpleHashGet(pSrcTbls, tbFName, strlen(tbFName))) {
         QUERY_CHECK_CODE(tSimpleHashPut(pSrcTbls, tbFName, strlen(tbFName), &code, sizeof(code)), line, _return);
       }
-
-      tagRefColsNum++;
     }
 
-    pTb->numOfSrcTbls = tSimpleHashGetSize(pSrcTbls);
+    SVctRefContent* pContent = tVctRefContentAlloc(refColsNum, tagRefColsNum, arenaBytes);
+    QUERY_CHECK_NULL(pContent, code, line, _return, terrno);
+
+    uint32_t arenaPos = 0;
+    int32_t  colIdx = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nCols; j++) {
+      if (!mr.me.colRef.pColRef[j].hasRef) {
+        continue;
+      }
+
+      SRefColEntry* pEntry = vctContentColAt(pContent, colIdx);
+      pEntry->colId = mr.me.colRef.pColRef[j].id;
+      if (mr.me.colRef.pColRef[j].filterCondLen > 0) {
+        pEntry->flags |= VCT_REF_FLAG_HAS_FILTER_COND;
+      }
+      pEntry->dbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refDbName);
+      pEntry->tbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refTableName);
+      pEntry->colOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refColName);
+      pEntry->srcOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refSourceName);
+      pEntry->schemaOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pColRef[j].refSchemaName);
+      colIdx++;
+    }
+
+    // Fill tag refs
+    int32_t tagIdx = 0;
+    for (int32_t j = 0; j < mr.me.colRef.nTagRefs; j++) {
+      if (!mr.me.colRef.pTagRef[j].hasRef) {
+        continue;
+      }
+
+      SRefColEntry* pEntry = vctContentTagAt(pContent, tagIdx);
+      pEntry->colId = mr.me.colRef.pTagRef[j].id;
+      pEntry->dbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refDbName);
+      pEntry->tbOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refTableName);
+      pEntry->colOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refColName);
+      pEntry->srcOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refSourceName);
+      pEntry->schemaOff = tVctRefContentPutStr(pContent, &arenaPos, mr.me.colRef.pTagRef[j].refSchemaName);
+      tagIdx++;
+    }
+
+    // Children over few source tables share one content block per unique
+    // ref pattern instead of carrying a private copy each.
+    SVctRefContent** ppKept = (SVctRefContent**)tSimpleHashGet(pContentDedup, pContent, (uint32_t)pContent->bufLen);
+    if (NULL != ppKept) {
+      taosMemoryFree(pContent);
+      pContent = *ppKept;
+    } else {
+      code = tSimpleHashPut(pContentDedup, pContent, (uint32_t)pContent->bufLen, &pContent, sizeof(pContent));
+      if (code) {
+        // the block is owned by no one else yet; release it on the way out
+        taosMemoryFree(pContent);
+        QUERY_CHECK_CODE(code, line, _return);
+      }
+    }
+
+    pTb = tVctRefRecordNew(mr.me.uid, tSimpleHashGetSize(pSrcTbls), refColsNum, tagRefColsNum, pContent);
+    if (NULL == pTb) {
+      code = terrno;
+      goto _return;
+    }
+
     QUERY_CHECK_NULL(taosArrayPush(*ppRes, &pTb), code, line, _return, terrno);
     pTb = NULL;
 
@@ -1067,6 +1120,7 @@ _return:
   taosArrayDestroy(pList);
   taosMemoryFree(pTb);
   tSimpleHashCleanup(pSrcTbls);
+  tSimpleHashCleanup(pContentDedup);
 
   if (code) {
     qError("%s failed since %s", __func__, tstrerror(code));
