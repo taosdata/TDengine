@@ -217,12 +217,14 @@ static void checkWindowsTimezoneDisplay() {
                                            sizeof(normalized), NULL),
             TSDB_CODE_SUCCESS);
 
-  const char *suffix = strstr(tsTimezoneStr, " (UTC, ");
+  // The display string carries the zone's own abbreviation
+  // ("China Standard Time (CST, +0800)"); only the offset suffix is fixed.
+  const char *suffix = strrchr(tsTimezoneStr, ',');
   ASSERT_NE(suffix, nullptr);
   char sign = '\0';
   int hours = 0;
   int minutes = 0;
-  ASSERT_EQ(sscanf(suffix, " (UTC, %c%2d%2d)", &sign, &hours, &minutes), 3);
+  ASSERT_EQ(sscanf(suffix, ", %c%2d%2d)", &sign, &hours, &minutes), 3);
   ASSERT_TRUE(sign == '+' || sign == '-');
   ASSERT_LT(hours, 24);
   ASSERT_LT(minutes, 60);

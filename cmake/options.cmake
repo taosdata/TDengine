@@ -184,19 +184,18 @@ if(TD_ENTERPRISE)
     option(BUILD_WITH_ODBC    "If build with unixODBC (ext source: SQL Server)" ON)
     option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
     if(TD_WINDOWS)
-        set(BUILD_WITH_ODBC OFF CACHE BOOL
-            "SQL Server FQ is not supported on Windows yet" FORCE)
-        set(BUILD_WITH_MARIADB OFF CACHE BOOL
-            "If build with MariaDB Connector/C (ext source: MySQL)" FORCE)
-        set(BUILD_WITH_LIBPQ OFF CACHE BOOL
-            "If build with libpq (ext source: PostgreSQL)" FORCE)
-        set(BUILD_WITH_ARROW OFF CACHE BOOL
-            "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" FORCE)
-        set(INSTALL_FQ_RUNTIME_LIBS OFF CACHE BOOL
-            "Install optional federated-query runtime libraries" FORCE)
+        # Arrow Flight SQL has no Windows build here (gRPC/Arrow Flight is not
+        # built), so BUILD_WITH_ARROW on Windows only controls the InfluxDB
+        # provider, which is built with its HTTP transport (curl) instead.
+        # MySQL / PostgreSQL / SQL Server (ODBC) providers are fully supported.
+        # INSTALL_FQ_RUNTIME_LIBS stays user-controlled: on Windows the FQ
+        # package carries the provider DLLs and the Microsoft ODBC Driver 18
+        # MSI (EXT_MSODBC_MSI) instead of the Linux .so set; without the MSI
+        # the installer falls back to a driver already registered on the
+        # machine.
         message(STATUS
-            "[options] TD_WINDOWS=ON: federated query providers are disabled on Windows; "
-            "taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
+            "[options] TD_WINDOWS=ON: InfluxDB provider uses the HTTP transport "
+            "(Arrow Flight SQL unavailable); taosdump still uses ext_arrow_static when TD_TAOS_TOOLS=ON")
     endif()
     if(TD_DARWIN)
         # SQL Server support targets Linux servers: the Microsoft driver is a

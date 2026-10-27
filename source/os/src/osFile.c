@@ -626,6 +626,46 @@ int32_t taosLockFile(TdFilePtr pFile) {
   return 0;
 }
 
+/* Lock a single byte far beyond the end of the file.  Windows byte-range locks
+ * are mandatory, so locking the whole file (as taosLockFile does) makes the
+ * live log unreadable for everybody else; the log writer only needs a mutual
+ * exclusion token, and a token outside the data range keeps the file readable. */
+int32_t taosLockFileAt(TdFilePtr pFile, int64_t offset, int64_t length) {
+  if (pFile == NULL || pFile->hFile == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  OVERLAPPED    overlapped = {0};
+  ULARGE_INTEGER pos;
+  pos.QuadPart = (ULONGLONG)offset;
+  overlapped.Offset = pos.LowPart;
+  overlapped.OffsetHigh = pos.HighPart;
+
+  if (!LockFileEx(pFile->hFile, LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0,
+                  (DWORD)length, 0, &overlapped)) {
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
+  return 0;
+}
+
+int32_t taosUnLockFileAt(TdFilePtr pFile, int64_t offset, int64_t length) {
+  if (pFile == NULL || pFile->hFile == NULL) {
+    return 0;
+  }
+
+  OVERLAPPED    overlapped = {0};
+  ULARGE_INTEGER pos;
+  pos.QuadPart = (ULONGLONG)offset;
+  overlapped.Offset = pos.LowPart;
+  overlapped.OffsetHigh = pos.HighPart;
+
+  if (!UnlockFileEx(pFile->hFile, 0, (DWORD)length, 0, &overlapped)) {
+    return TAOS_SYSTEM_WINAPI_ERROR(GetLastError());
+  }
+  return 0;
+}
+
 int32_t taosUnLockFile(TdFilePtr pFile) {
   if (pFile == NULL || pFile->hFile == NULL) {
     return 0;
