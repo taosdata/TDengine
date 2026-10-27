@@ -46,6 +46,27 @@ extern "C" {
 // Use tsMaxSQLLength * 3 for buffer size to accommodate CREATE TABLE statement
 // Note: This is evaluated at runtime, so it will use the configured tsMaxSQLLength value
 #define SHOW_CREATE_TB_RESULT_FIELD2_LEN ((int32_t)(tsMaxSQLLength * 3))
+// The "Create Table" column is BLOB (4-byte length header) so that DDL text longer than
+// 65535 bytes is not truncated. Track the assembler buffer instead of a flat
+// TSDB_MAX_BLOB_LEN: the DDL actually written is capped at
+// min(SHOW_CREATE_TB_RESULT_FIELD2_LEN, TSDB_MAX_BLOB_LEN) (see command.c
+// setShowCreateDdlIntoResultBuf), so a flat TSDB_MAX_BLOB_LEN (16MB) would
+// over-declare the result column by ~4MB at the default tsMaxSQLLength (4MiB,
+// i.e. a 12MB assembler buffer) and under-declare when tsMaxSQLLength * 3
+// grows past TSDB_MAX_BLOB_LEN.
+#define SHOW_CREATE_TB_RESULT_FIELD2_BYTES \
+  ((SHOW_CREATE_TB_RESULT_FIELD2_LEN < TSDB_MAX_BLOB_LEN) ? SHOW_CREATE_TB_RESULT_FIELD2_LEN : TSDB_MAX_BLOB_LEN)
+// Max payload the BLOB result form can carry: the assembler buffer capped by
+// the BLOB type limit, minus the 4-byte length header. Single source for both
+// the declared column width (FIELD2_BYTES above) and the clamp in command.c
+// setShowCreateDdlIntoResultBuf -- keep the two derived from this one
+// definition so they cannot drift apart.
+#define SHOW_CREATE_TB_BLOB_RESULT_MAX_PAYLOAD (SHOW_CREATE_TB_RESULT_FIELD2_BYTES - BLOBSTR_HEADER_SIZE)
+// Max payload of a 2-byte varstr length header: the largest DDL the VARCHAR result
+// form (the non-FULL statement) can carry; command.c clamps the non-FULL result at
+// it. Not TB-specific: the SHOW CREATE VIEW assembler's clamp reuses this as the
+// plain varstr limit.
+#define SHOW_CREATE_VARSTR_RESULT_MAX_LEN 65535
 
 #define SHOW_CREATE_VIEW_RESULT_COLS       2
 #define SHOW_CREATE_VIEW_RESULT_FIELD1_LEN (TSDB_VIEW_FNAME_LEN + 4 + VARSTR_HEADER_SIZE)
@@ -930,6 +951,18 @@ typedef struct SShowCreateTableStmt {
   char      tableName[TSDB_TABLE_NAME_LEN];
   void*     pDbCfg;     // SDbCfgInfo
   void*     pTableCfg;  // STableCfg
+  // The optional FULL suffix of the statement ("SHOW CREATE TABLE t FULL"):
+  // when present, the "Create Table" column is typed BLOB (4-byte length header)
+  // and the DDL is returned complete (up to the assembler cap). Without FULL the
+  // result keeps the historical VARCHAR form: DDLs over 65535 bytes are clamped
+  // to 65535, byte-identical with pre-BLOB releases, so consumers built against
+  // the old result shape (e.g. connectors reading 2-byte varstr headers) are
+  // unaffected unless they opt in. One deliberate exception: pre-BLOB releases
+  // failed with TSDB_CODE_OUT_OF_BUFFER when a virtual table's column-reference
+  // filter pushed the assembled DDL past 65535; that corner now also clamps
+  // (with a qWarn pointing at the FULL suffix), turning a statement error into
+  // a usable truncated result.
+  bool fullResult;
 } SShowCreateTableStmt;
 
 typedef struct SShowCreateViewStmt {
@@ -947,6 +980,12 @@ typedef struct SShowCreateRsmaStmt {
   void*     pRsmaMeta;  // SRsmaInfoRsp;
   void*     pTableCfg;  // STableCfg
   bool      hasPrivilege;
+  // See SShowCreateTableStmt::fullResult: BLOB only under the FULL suffix. The
+  // grammar factory sets it on FULL statements in both editions, but on community
+  // builds the translator returns PAR_ENTERPRISE_ONLY before SHOW CREATE RSMA ever
+  // executes, so the statement never renders there; treat the field as set by the
+  // grammar only.
+  bool fullResult;
 } SShowCreateRsmaStmt;
 
 typedef struct SShowCreateStreamStmt {

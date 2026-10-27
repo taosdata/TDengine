@@ -13316,6 +13316,7 @@ static int32_t jsonToShowCreateDatabaseStmt(const SJson* pJson, void* pObj) {
 
 static const char* jkShowCreateTableStmtDbName = "DbName";
 static const char* jkShowCreateTableStmtTableName = "TableName";
+static const char* jkShowCreateTableStmtFullResult = "FullResult";
 
 static int32_t showCreateTableStmtToJson(const void* pObj, SJson* pJson) {
   const SShowCreateTableStmt* pNode = (const SShowCreateTableStmt*)pObj;
@@ -13323,6 +13324,9 @@ static int32_t showCreateTableStmtToJson(const void* pObj, SJson* pJson) {
   int32_t code = tjsonAddStringToObject(pJson, jkShowCreateTableStmtDbName, pNode->dbName);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkShowCreateTableStmtTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkShowCreateTableStmtFullResult, pNode->fullResult);
   }
 
   return code;
@@ -13334,6 +13338,9 @@ static int32_t jsonToShowCreateTableStmt(const SJson* pJson, void* pObj) {
   int32_t code = tjsonGetStringValue1(pJson, jkShowCreateTableStmtDbName, pNode->dbName, sizeof(pNode->dbName));
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkShowCreateTableStmtTableName, pNode->tableName, sizeof(pNode->tableName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkShowCreateTableStmtFullResult, &pNode->fullResult);
   }
 
   return code;
