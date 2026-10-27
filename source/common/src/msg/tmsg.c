@@ -8257,6 +8257,153 @@ _exit:
   return code;
 }
 
+SVctRefContent *tVctRefContentAlloc(int32_t numOfColRefs, int32_t numOfTagRefs, uint64_t arenaBytes) {
+  if (numOfColRefs < 0 || numOfTagRefs < 0 || arenaBytes > UINT32_MAX) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int64_t bufLen = (int64_t)sizeof(SVctRefContent) +
+                   (int64_t)(numOfColRefs + numOfTagRefs) * (int64_t)sizeof(SRefColEntry) + (int64_t)arenaBytes;
+  if (bufLen > INT32_MAX) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  SVctRefContent *pContent = taosMemoryCalloc(1, (size_t)bufLen);
+  if (NULL == pContent) {
+    return NULL;
+  }
+
+  pContent->numOfColRefs = numOfColRefs;
+  pContent->numOfTagRefs = numOfTagRefs;
+  pContent->bufLen = (int32_t)bufLen;
+  return pContent;
+}
+
+uint32_t tVctRefContentPutStr(SVctRefContent *pContent, uint32_t *pArenaPos, const char *str) {
+  if (NULL == str || '\0' == str[0]) {
+    return 0;
+  }
+
+  size_t   len = strlen(str) + 1;
+  uint32_t arenaStart = (uint32_t)sizeof(SVctRefContent) +
+                        (uint32_t)(pContent->numOfColRefs + pContent->numOfTagRefs) * (uint32_t)sizeof(SRefColEntry);
+  uint32_t dst = arenaStart + *pArenaPos;
+  if ((size_t)dst + len > (size_t)pContent->bufLen) {
+    return 0;  // defensive only: the arena is pre-sized by construction
+  }
+
+  memcpy((char *)pContent + dst, str, len);
+  *pArenaPos += (uint32_t)len;
+  return dst;
+}
+
+SVctRefContent *vctRefContentDedup(SHashObj *pContentHash, SVctRefContent *pCand) {
+  if (NULL == pContentHash || NULL == pCand) {
+    return pCand;
+  }
+
+  SVctRefContent **ppKept = (SVctRefContent **)taosHashGet(pContentHash, pCand, (size_t)pCand->bufLen);
+  if (NULL != ppKept) {
+    SVctRefContent *pKept = *ppKept;
+    taosMemoryFree(pCand);
+    return pKept;
+  }
+  if (0 != taosHashPut(pContentHash, pCand, (size_t)pCand->bufLen, &pCand, sizeof(pCand))) {
+    return pCand;  // hash failure: keep the candidate unshared
+  }
+  return pCand;
+}
+
+void vctRefColToInfo(const SVCTableRefCols *pTb, const SRefColEntry *pEntry, SRefColInfo *pInfo) {
+  memset(pInfo, 0, sizeof(*pInfo));
+  pInfo->colId = pEntry->colId;
+  tstrncpy(pInfo->refDbName, vctRefStr(pTb, pEntry->dbOff), TSDB_DB_NAME_LEN);
+  tstrncpy(pInfo->refTableName, vctRefStr(pTb, pEntry->tbOff), TSDB_TABLE_NAME_LEN);
+  tstrncpy(pInfo->refColName, vctRefStr(pTb, pEntry->colOff), TSDB_COL_NAME_LEN);
+  tstrncpy(pInfo->refSourceName, vctRefStr(pTb, pEntry->srcOff), TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(pInfo->refSchemaName, vctRefStr(pTb, pEntry->schemaOff), TSDB_EXT_SOURCE_SCHEMA_LEN);
+  pInfo->hasFilterCond = (pEntry->flags & VCT_REF_FLAG_HAS_FILTER_COND) != 0;
+}
+
+static uint32_t vctRefColArenaBytes(const SRefColInfo *pRef) {
+  uint32_t bytes = 0;
+  if (pRef->refDbName[0] != '\0') {
+    bytes += (uint32_t)strlen(pRef->refDbName) + 1;
+  }
+  if (pRef->refTableName[0] != '\0') {
+    bytes += (uint32_t)strlen(pRef->refTableName) + 1;
+  }
+  if (pRef->refColName[0] != '\0') {
+    bytes += (uint32_t)strlen(pRef->refColName) + 1;
+  }
+  if (pRef->refSourceName[0] != '\0') {
+    bytes += (uint32_t)strlen(pRef->refSourceName) + 1;
+  }
+  if (pRef->refSchemaName[0] != '\0') {
+    bytes += (uint32_t)strlen(pRef->refSchemaName) + 1;
+  }
+  return bytes;
+}
+
+static void vctFillRefEntry(SVctRefContent *pContent, uint32_t *pArenaPos, SRefColEntry *pEntry,
+                            const SRefColInfo *pRef) {
+  pEntry->colId = pRef->colId;
+  pEntry->flags = pRef->hasFilterCond ? VCT_REF_FLAG_HAS_FILTER_COND : 0;
+  pEntry->dbOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refDbName);
+  pEntry->tbOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refTableName);
+  pEntry->colOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refColName);
+  pEntry->srcOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refSourceName);
+  pEntry->schemaOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refSchemaName);
+}
+
+SVCTableRefCols *tVctRefRecordNew(uint64_t uid, int32_t numOfSrcTbls, int32_t numOfColRefs,
+                                        int32_t numOfTagRefs, SVctRefContent *pContent) {
+  SVCTableRefCols *pTb = taosMemoryCalloc(1, sizeof(SVCTableRefCols));
+  if (NULL == pTb) {
+    return NULL;
+  }
+
+  pTb->pContent = pContent;
+  pTb->uid = uid;
+  pTb->numOfSrcTbls = numOfSrcTbls;
+  pTb->numOfColRefs = numOfColRefs;
+  pTb->numOfTagRefs = numOfTagRefs;
+  return pTb;
+}
+
+SVCTableRefCols *tBuildSVCTableRefCols(uint64_t uid, int32_t numOfSrcTbls, const SRefColInfo *pColRefs,
+                                       int32_t numOfColRefs, const SRefColInfo *pTagRefs, int32_t numOfTagRefs) {
+  uint64_t arenaBytes = 0;
+  for (int32_t i = 0; i < numOfColRefs; ++i) {
+    arenaBytes += vctRefColArenaBytes(&pColRefs[i]);
+  }
+  for (int32_t i = 0; i < numOfTagRefs; ++i) {
+    arenaBytes += vctRefColArenaBytes(&pTagRefs[i]);
+  }
+
+  SVctRefContent *pContent = tVctRefContentAlloc(numOfColRefs, numOfTagRefs, arenaBytes);
+  if (NULL == pContent) {
+    return NULL;
+  }
+
+  uint32_t arenaPos = 0;
+  for (int32_t i = 0; i < numOfColRefs; ++i) {
+    vctFillRefEntry(pContent, &arenaPos, vctContentColAt(pContent, i), &pColRefs[i]);
+  }
+  for (int32_t i = 0; i < numOfTagRefs; ++i) {
+    vctFillRefEntry(pContent, &arenaPos, vctContentTagAt(pContent, i), &pTagRefs[i]);
+  }
+
+  SVCTableRefCols *pTb = tVctRefRecordNew(uid, numOfSrcTbls, numOfColRefs, numOfTagRefs, pContent);
+  if (NULL == pTb) {
+    taosMemoryFree(pContent);
+    return NULL;
+  }
+  return pTb;
+}
+
 int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
   int32_t code = 0;
   int32_t lino;
@@ -8269,11 +8416,11 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfSrcTbls));
     TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfColRefs));
     for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-      SRefColInfo *pCol = pTb->refCols + n;
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
+      SRefColEntry *pEntry = vctColRefAt(pTb, n);
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->dbOff)));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->tbOff)));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->colOff)));
     }
   }
 
@@ -8291,11 +8438,11 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfTagRefs));
       for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
-        SRefColInfo *pCol = pTb->tagRefCols + n;
-        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
-        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refDbName));
-        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refTableName));
-        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refColName));
+        SRefColEntry *pEntry = vctTagRefAt(pTb, n);
+        TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->dbOff)));
+        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->tbOff)));
+        TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->colOff)));
       }
     }
   }
@@ -8305,38 +8452,35 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
   int32_t numRefSrcEntries = 0;
   for (int32_t i = 0; i < numOfTables; ++i) {
     SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
-    for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-      if (pTb->refCols[n].refSourceName[0] != '\0') numRefSrcEntries++;
-    }
-    for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
-      if (pTb->tagRefCols[n].refSourceName[0] != '\0') numRefSrcEntries++;
+    for (int32_t n = 0; n < pTb->numOfColRefs + pTb->numOfTagRefs; ++n) {
+      if (0 != vctColRefAt(pTb, n)->srcOff) numRefSrcEntries++;
     }
   }
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numRefSrcEntries));
   for (int32_t i = 0; i < numOfTables; ++i) {
     SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
     for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-      SRefColInfo *pCol = pTb->refCols + n;
-      if (pCol->refSourceName[0] == '\0') continue;
+      SRefColEntry *pEntry = vctColRefAt(pTb, n);
+      if (0 == pEntry->srcOff) continue;
       TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 0));
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSourceName));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->srcOff)));
     }
     for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
-      SRefColInfo *pCol = pTb->tagRefCols + n;
-      if (pCol->refSourceName[0] == '\0') continue;
+      SRefColEntry *pEntry = vctTagRefAt(pTb, n);
+      if (0 == pEntry->srcOff) continue;
       TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 1));
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSourceName));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->srcOff)));
     }
   }
   // Saved-filter presence follows the existing table/column order; no condition payload is needed here.
   for (int32_t i = 0; i < numOfTables; ++i) {
     SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
     for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-      TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pTb->refCols[n].hasFilterCond));
+      TAOS_CHECK_EXIT(tEncodeBool(pEncoder, (vctColRefAt(pTb, n)->flags & VCT_REF_FLAG_HAS_FILTER_COND) != 0));
     }
   }
   // Ref schema-name section appended for backward compatibility (SQL Server
@@ -8344,31 +8488,28 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
   int32_t numRefSchemaEntries = 0;
   for (int32_t i = 0; i < numOfTables; ++i) {
     SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
-    for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-      if (pTb->refCols[n].refSchemaName[0] != '\0') numRefSchemaEntries++;
-    }
-    for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
-      if (pTb->tagRefCols[n].refSchemaName[0] != '\0') numRefSchemaEntries++;
+    for (int32_t n = 0; n < pTb->numOfColRefs + pTb->numOfTagRefs; ++n) {
+      if (0 != vctColRefAt(pTb, n)->schemaOff) numRefSchemaEntries++;
     }
   }
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numRefSchemaEntries));
   for (int32_t i = 0; i < numOfTables; ++i) {
     SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
     for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-      SRefColInfo *pCol = pTb->refCols + n;
-      if (pCol->refSchemaName[0] == '\0') continue;
+      SRefColEntry *pEntry = vctColRefAt(pTb, n);
+      if (0 == pEntry->schemaOff) continue;
       TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 0));
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSchemaName));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->schemaOff)));
     }
     for (int32_t n = 0; n < pTb->numOfTagRefs; ++n) {
-      SRefColInfo *pCol = pTb->tagRefCols + n;
-      if (pCol->refSchemaName[0] == '\0') continue;
+      SRefColEntry *pEntry = vctTagRefAt(pTb, n);
+      if (0 == pEntry->schemaOff) continue;
       TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
       TAOS_CHECK_EXIT(tEncodeI8(pEncoder, 1));
-      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pCol->colId));
-      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pCol->refSchemaName));
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->schemaOff)));
     }
   }
 _exit:
@@ -8398,149 +8539,294 @@ _exit:
   return tlen;
 }
 
+typedef struct SVctTblSizing {
+  uint64_t uid;
+  uint64_t arenaBytes;
+  int32_t  numOfColRefs;
+  int32_t  numOfTagRefs;
+} SVctTblSizing;
+
+// Consume one wire-format ref (colId + 3 strings), accounting the arena bytes.
+static int32_t vctDecodeRefSizing(SDecoder *pDecoder, uint64_t *pArenaBytes) {
+  int16_t  colId = 0;
+  char    *str = NULL;
+  uint32_t len = 0;
+
+  TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &colId));
+  for (int32_t n = 0; n < 3; ++n) {
+    TAOS_CHECK_RETURN(tDecodeCStrAndLen(pDecoder, &str, &len));
+    *pArenaBytes += (uint64_t)len + 1;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Decode one wire-format ref into a compact entry, appending its strings.
+static int32_t vctDecodeRefEntry(SDecoder *pDecoder, SVctRefContent *pContent, uint32_t *pArenaPos,
+                                 SRefColEntry *pEntry) {
+  char *str = NULL;
+
+  TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &pEntry->colId));
+  TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &str));
+  pEntry->dbOff = tVctRefContentPutStr(pContent, pArenaPos, str);
+  TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &str));
+  pEntry->tbOff = tVctRefContentPutStr(pContent, pArenaPos, str);
+  TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &str));
+  pEntry->colOff = tVctRefContentPutStr(pContent, pArenaPos, str);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp) {
-  int32_t         code = 0;
-  int32_t         lino;
-  SVCTableRefCols tb = {0};
+  int32_t        code = 0;
+  int32_t        lino;
+  int32_t        numOfTables = 0;
+  int32_t        savedPos = 0;
+  SVctTblSizing *pSizing = NULL;
+  uint32_t      *pArenaPos = NULL;
+  SHashObj      *pUidIdx = NULL;
+
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->vgId));
-  int32_t numOfTables = 0;
+  savedPos = pDecoder->pos;
+
+  // Pass 1: size every table block (entry count + string arena) without
+  // allocating any per-ref memory, and index the table uids for the appended
+  // tag-ref / ref-source-name sections.
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfTables));
+  if (numOfTables > 0) {
+    pSizing = taosMemoryCalloc(numOfTables, sizeof(SVctTblSizing));
+    pArenaPos = taosMemoryCalloc(numOfTables, sizeof(uint32_t));
+    pUidIdx = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    if (NULL == pSizing || NULL == pArenaPos || NULL == pUidIdx) {
+      code = terrno;
+      goto _exit;
+    }
+
+    for (int32_t i = 0; i < numOfTables; ++i) {
+      int32_t numOfSrcTbls = 0;
+      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pSizing[i].uid));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfSrcTbls));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pSizing[i].numOfColRefs));
+      if (pSizing[i].numOfColRefs < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      for (int32_t n = 0; n < pSizing[i].numOfColRefs; ++n) {
+        TAOS_CHECK_EXIT(vctDecodeRefSizing(pDecoder, &pSizing[i].arenaBytes));
+      }
+      if (NULL == taosHashGet(pUidIdx, &pSizing[i].uid, sizeof(uint64_t))) {
+        TAOS_CHECK_EXIT(taosHashPut(pUidIdx, &pSizing[i].uid, sizeof(uint64_t), &i, sizeof(i)));
+      }
+    }
+
+    // Tag ref section: only present in newer versions
+    if (!tDecodeIsEnd(pDecoder)) {
+      int32_t numTagRefEntries = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numTagRefEntries));
+      for (int32_t e = 0; e < numTagRefEntries; ++e) {
+        uint64_t uid = 0;
+        int32_t  numOfTagRefs = 0;
+        int32_t *pIdx = NULL;
+        uint64_t dummyArena = 0;
+        TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfTagRefs));
+        if (numOfTagRefs < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _exit;
+        }
+        pIdx = (int32_t *)taosHashGet(pUidIdx, &uid, sizeof(uid));
+        if (NULL != pIdx && numOfTagRefs > 0) {
+          pSizing[*pIdx].numOfTagRefs = numOfTagRefs;
+          for (int32_t n = 0; n < numOfTagRefs; ++n) {
+            TAOS_CHECK_EXIT(vctDecodeRefSizing(pDecoder, &pSizing[*pIdx].arenaBytes));
+          }
+        } else {
+          // Skip tag ref data if table not found or no tagRefs
+          for (int32_t n = 0; n < numOfTagRefs; ++n) {
+            TAOS_CHECK_EXIT(vctDecodeRefSizing(pDecoder, &dummyArena));
+          }
+        }
+      }
+    }
+
+    // Ref source-name section: only present in newer versions
+    if (!tDecodeIsEnd(pDecoder)) {
+      int32_t numRefSrcEntries = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numRefSrcEntries));
+      for (int32_t e = 0; e < numRefSrcEntries; ++e) {
+        uint64_t uid = 0;
+        int8_t   isTag = 0;
+        int16_t  colId = 0;
+        char    *srcName = NULL;
+        uint32_t len = 0;
+        int32_t *pIdx = NULL;
+        TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &srcName, &len));
+        pIdx = (int32_t *)taosHashGet(pUidIdx, &uid, sizeof(uid));
+        if (NULL != pIdx) {
+          pSizing[*pIdx].arenaBytes += (uint64_t)len + 1;
+        }
+      }
+    }
+
+    // Saved-filter presence section: fixed-size, consume only (pass 2 reads the values).
+    if (!tDecodeIsEnd(pDecoder)) {
+      for (int32_t i = 0; i < numOfTables; ++i) {
+        for (int32_t n = 0; n < pSizing[i].numOfColRefs; ++n) {
+          bool dummy = false;
+          TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &dummy));
+        }
+      }
+    }
+
+    // Ref schema-name section: only present in newer versions
+    if (!tDecodeIsEnd(pDecoder)) {
+      int32_t numRefSchemaEntries = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numRefSchemaEntries));
+      for (int32_t e = 0; e < numRefSchemaEntries; ++e) {
+        uint64_t uid = 0;
+        int8_t   isTag = 0;
+        int16_t  colId = 0;
+        char    *schemaName = NULL;
+        uint32_t len = 0;
+        int32_t *pIdx = NULL;
+        TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &schemaName, &len));
+        pIdx = (int32_t *)taosHashGet(pUidIdx, &uid, sizeof(uid));
+        if (NULL != pIdx) {
+          pSizing[*pIdx].arenaBytes += (uint64_t)len + 1;
+        }
+      }
+    }
+  }
+
+  // Pass 2: allocate each block exactly once, then fill entries and strings.
+  pDecoder->pos = savedPos;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfTables));
   if (numOfTables > 0) {
     pRsp->pTables = taosArrayInit(numOfTables, POINTER_BYTES);
     if (NULL == pRsp->pTables) {
       code = terrno;
-      return code;
+      goto _exit;
     }
 
     for (int32_t i = 0; i < numOfTables; ++i) {
-      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &tb.uid));
-      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfSrcTbls));
-      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &tb.numOfColRefs));
-      if (tb.numOfColRefs > 0) {
-        SVCTableRefCols *pTb = taosMemoryCalloc(1, sizeof(*pTb) + tb.numOfColRefs * sizeof(SRefColInfo));
-        if (NULL == pTb) {
-          code = terrno;
-          return code;
-        }
-        if (NULL == taosArrayPush(pRsp->pTables, &pTb)) {
-          code = terrno;
-          taosMemoryFree(pTb);
-          return code;
-        }
+      uint64_t uid = 0;
+      int32_t  numOfSrcTbls = 0;
+      int32_t  numOfColRefs = 0;
+      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfSrcTbls));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfColRefs));
+      // Pass 1 already validated and recorded this table; never let a second
+      // read disagree with the sizing the allocation was based on.
+      if (numOfColRefs != pSizing[i].numOfColRefs) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      SVctRefContent *pContent = tVctRefContentAlloc(numOfColRefs, pSizing[i].numOfTagRefs, pSizing[i].arenaBytes);
+      if (NULL == pContent) {
+        code = terrno;
+        goto _exit;
+      }
+      SVCTableRefCols *pTb = tVctRefRecordNew(uid, numOfSrcTbls, numOfColRefs, pSizing[i].numOfTagRefs, pContent);
+      if (NULL == pTb) {
+        code = terrno;
+        taosMemoryFree(pContent);
+        goto _exit;
+      }
+      if (NULL == taosArrayPush(pRsp->pTables, &pTb)) {
+        code = terrno;
+        taosMemoryFree(pContent);
+        taosMemoryFree(pTb);
+        goto _exit;
+      }
+      for (int32_t n = 0; n < numOfColRefs; ++n) {
+        TAOS_CHECK_EXIT(vctDecodeRefEntry(pDecoder, pContent, &pArenaPos[i], vctContentColAt(pContent, n)));
+      }
+    }
 
-        pTb->uid = tb.uid;
-        pTb->numOfSrcTbls = tb.numOfSrcTbls;
-        pTb->numOfColRefs = tb.numOfColRefs;
-        pTb->numOfTagRefs = 0;
-        pTb->refCols = (SRefColInfo *)(pTb + 1);
-        pTb->tagRefCols = NULL;
-        for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-          TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTb->refCols[n].colId));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refDbName));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refTableName));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->refCols[n].refColName));
+    // Tag ref section: only present in newer versions
+    if (!tDecodeIsEnd(pDecoder)) {
+      int32_t numTagRefEntries = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numTagRefEntries));
+      for (int32_t e = 0; e < numTagRefEntries; ++e) {
+        uint64_t uid = 0;
+        int32_t  numOfTagRefs = 0;
+        int32_t *pIdx = NULL;
+        uint64_t dummyArena = 0;
+        TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+        TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfTagRefs));
+        if (numOfTagRefs < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _exit;
+        }
+        pIdx = (int32_t *)taosHashGet(pUidIdx, &uid, sizeof(uid));
+        if (NULL != pIdx) {
+          // Fill exactly the entry count validated and sized in pass 1; a wire
+          // value disagreeing with it would index past the entry array.
+          if (numOfTagRefs != pSizing[*pIdx].numOfTagRefs) {
+            code = TSDB_CODE_INVALID_MSG;
+            goto _exit;
+          }
+          SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, *pIdx);
+          for (int32_t n = 0; n < pSizing[*pIdx].numOfTagRefs; ++n) {
+            TAOS_CHECK_EXIT(
+                vctDecodeRefEntry(pDecoder, pTb->pContent, &pArenaPos[*pIdx], vctContentTagAt(pTb->pContent, n)));
+          }
+        } else {
+          // Skip tag ref data if table not found or no tagRefs
+          for (int32_t n = 0; n < numOfTagRefs; ++n) {
+            TAOS_CHECK_EXIT(vctDecodeRefSizing(pDecoder, &dummyArena));
+          }
         }
       }
     }
-  }
 
-  // Tag ref section: only present in newer versions
-  if (!tDecodeIsEnd(pDecoder)) {
-    int32_t numTagRefEntries = 0;
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numTagRefEntries));
-    for (int32_t i = 0; i < numTagRefEntries; ++i) {
-      uint64_t uid = 0;
-      int32_t  numOfTagRefs = 0;
-      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
-      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numOfTagRefs));
-
-      // Find the matching table entry by uid
-      SVCTableRefCols *pOld = NULL;
-      int32_t          idx = -1;
-      int32_t          numInArray = taosArrayGetSize(pRsp->pTables);
-      for (int32_t j = 0; j < numInArray; ++j) {
-        SVCTableRefCols *pCandidate = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, j);
-        if (pCandidate && pCandidate->uid == uid) {
-          pOld = pCandidate;
-          idx = j;
-          break;
-        }
-      }
-
-      if (pOld != NULL && numOfTagRefs > 0) {
-        int32_t totalRefs = pOld->numOfColRefs + numOfTagRefs;
-        SVCTableRefCols *pTb = taosMemoryCalloc(1, sizeof(*pTb) + totalRefs * sizeof(SRefColInfo));
-        if (NULL == pTb) {
-          code = terrno;
-          return code;
-        }
-        pTb->uid = pOld->uid;
-        pTb->numOfSrcTbls = pOld->numOfSrcTbls;
-        pTb->numOfColRefs = pOld->numOfColRefs;
-        pTb->numOfTagRefs = numOfTagRefs;
-        pTb->refCols = (SRefColInfo *)(pTb + 1);
-        pTb->tagRefCols = pTb->refCols + pTb->numOfColRefs;
-        memcpy(pTb->refCols, pOld->refCols, pOld->numOfColRefs * sizeof(SRefColInfo));
-        taosMemoryFree(pOld);
-        taosArraySet(pRsp->pTables, idx, &pTb);
-
-        for (int32_t n = 0; n < numOfTagRefs; ++n) {
-          TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pTb->tagRefCols[n].colId));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->tagRefCols[n].refDbName));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->tagRefCols[n].refTableName));
-          TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, pTb->tagRefCols[n].refColName));
-        }
-      } else {
-        // Skip tag ref data if table not found or no tagRefs
-        for (int32_t n = 0; n < numOfTagRefs; ++n) {
-          int16_t dummy16;
-          char   *dummyStr = NULL;
-          TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &dummy16));
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &dummyStr));
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &dummyStr));
-          TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &dummyStr));
-        }
-      }
-    }
-  }
-
-  // Ref source-name section: only present in newer versions
-  if (!tDecodeIsEnd(pDecoder)) {
-    int32_t numRefSrcEntries = 0;
-    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numRefSrcEntries));
-    for (int32_t i = 0; i < numRefSrcEntries; ++i) {
-      uint64_t uid = 0;
-      int8_t   isTag = 0;
-      int16_t  colId = 0;
-      char     srcName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
-      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
-      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
-      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
-      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, srcName));
-
-      int32_t numInArray = taosArrayGetSize(pRsp->pTables);
-      for (int32_t j = 0; j < numInArray; ++j) {
-        SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, j);
-        if (NULL == pTb || pTb->uid != uid) {
+    // Ref source-name section: only present in newer versions
+    if (!tDecodeIsEnd(pDecoder)) {
+      int32_t numRefSrcEntries = 0;
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numRefSrcEntries));
+      for (int32_t e = 0; e < numRefSrcEntries; ++e) {
+        uint64_t uid = 0;
+        int8_t   isTag = 0;
+        int16_t  colId = 0;
+        char    *srcName = NULL;
+        uint32_t len = 0;
+        int32_t *pIdx = NULL;
+        TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
+        TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
+        TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &srcName, &len));
+        pIdx = (int32_t *)taosHashGet(pUidIdx, &uid, sizeof(uid));
+        if (NULL == pIdx) {
           continue;
         }
-        SRefColInfo *pCols = isTag ? pTb->tagRefCols : pTb->refCols;
-        int32_t      nCols = isTag ? pTb->numOfTagRefs : pTb->numOfColRefs;
-        for (int32_t n = 0; n < nCols; ++n) {
-          if (pCols[n].colId == colId) {
-            tstrncpy(pCols[n].refSourceName, srcName, TSDB_EXT_SOURCE_NAME_LEN);
+        SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, *pIdx);
+        SVctRefContent *pContent = pTb->pContent;
+        int32_t nRefs = isTag ? pTb->numOfTagRefs : pTb->numOfColRefs;
+        for (int32_t n = 0; n < nRefs; ++n) {
+          SRefColEntry *pEntry = isTag ? vctContentTagAt(pContent, n) : vctContentColAt(pContent, n);
+          if (pEntry->colId == colId) {
+            pEntry->srcOff = tVctRefContentPutStr(pContent, &pArenaPos[*pIdx], srcName);
             break;
           }
         }
-        break;
       }
     }
   }
+
+  // Saved-filter presence section: one bool per col ref, in table/column order.
   if (!tDecodeIsEnd(pDecoder)) {
     for (int32_t i = 0; i < taosArrayGetSize(pRsp->pTables); ++i) {
       SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
       for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
-        TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pTb->refCols[n].hasFilterCond));
+        bool hasFilterCond = false;
+        TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &hasFilterCond));
+        if (hasFilterCond) {
+          vctColRefAt(pTb, n)->flags |= VCT_REF_FLAG_HAS_FILTER_COND;
+        }
       }
     }
   }
@@ -8549,35 +8835,64 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
   if (!tDecodeIsEnd(pDecoder)) {
     int32_t numRefSchemaEntries = 0;
     TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &numRefSchemaEntries));
-    for (int32_t i = 0; i < numRefSchemaEntries; ++i) {
+    for (int32_t e = 0; e < numRefSchemaEntries; ++e) {
       uint64_t uid = 0;
       int8_t   isTag = 0;
       int16_t  colId = 0;
-      char     schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
+      char    *schemaName = NULL;
+      uint32_t len = 0;
+      int32_t *pIdx = NULL;
       TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &uid));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &isTag));
       TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
-      TAOS_CHECK_EXIT(tDecodeCStrTo(pDecoder, schemaName));
-
-      int32_t numInArray = taosArrayGetSize(pRsp->pTables);
-      for (int32_t j = 0; j < numInArray; ++j) {
-        SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, j);
-        if (NULL == pTb || pTb->uid != uid) {
-          continue;
+      TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &schemaName, &len));
+      pIdx = (NULL == pUidIdx) ? NULL : (int32_t *)taosHashGet(pUidIdx, &uid, sizeof(uid));
+      if (NULL == pIdx) {
+        continue;
+      }
+      SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, *pIdx);
+      SVctRefContent *pContent = pTb->pContent;
+      int32_t nRefs = isTag ? pTb->numOfTagRefs : pTb->numOfColRefs;
+      for (int32_t n = 0; n < nRefs; ++n) {
+        SRefColEntry *pEntry = isTag ? vctContentTagAt(pContent, n) : vctContentColAt(pContent, n);
+        if (pEntry->colId == colId) {
+          pEntry->schemaOff = tVctRefContentPutStr(pContent, &pArenaPos[*pIdx], schemaName);
+          break;
         }
-        SRefColInfo *pCols = isTag ? pTb->tagRefCols : pTb->refCols;
-        int32_t      nCols = isTag ? pTb->numOfTagRefs : pTb->numOfColRefs;
-        for (int32_t n = 0; n < nCols; ++n) {
-          if (pCols[n].colId == colId) {
-            tstrncpy(pCols[n].refSchemaName, schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
-            break;
-          }
-        }
-        break;
       }
     }
   }
+
+  if (numOfTables > 0) {
+    // Pass 3: share one content block across tables with identical ref
+    // patterns (whole content bytes as the dedup key). With many virtual
+    // children over few source tables the response collapses to one content
+    // block per unique pattern plus one small record per child. Runs last, on
+    // the fully-decoded content.
+    SHashObj *pContentHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (NULL == pContentHash) {
+      code = terrno;
+      goto _exit;
+    }
+    int32_t numInArray = taosArrayGetSize(pRsp->pTables);
+    for (int32_t i = 0; i < numInArray; ++i) {
+      SVCTableRefCols *pTb = (SVCTableRefCols *)taosArrayGetP(pRsp->pTables, i);
+      if (NULL == pTb || NULL == pTb->pContent) {
+        continue;
+      }
+      pTb->pContent = vctRefContentDedup(pContentHash, pTb->pContent);
+    }
+    taosHashCleanup(pContentHash);
+  }
 _exit:
+  if (TSDB_CODE_SUCCESS != code) {
+    // Records pushed so far (with their content blocks) belong to no one
+    // else; release them here so callers can just propagate the error.
+    tDestroySVSubTablesRsp(pRsp);
+  }
+  taosMemoryFree(pSizing);
+  taosMemoryFree(pArenaPos);
+  taosHashCleanup(pUidIdx);
 
   return code;
 }
@@ -8598,23 +8913,38 @@ _exit:
   return code;
 }
 
-void tFreeSVCTableRefCols(void *pParam) {
-  SVCTableRefCols *pCols = *(SVCTableRefCols **)pParam;
-  if (NULL == pCols) {
-    return;
-  }
-
-  taosMemoryFree(pCols);
-}
-
 void tDestroySVSubTablesRsp(void *rsp) {
   if (NULL == rsp) {
     return;
   }
 
   SVSubTablesRsp *pRsp = (SVSubTablesRsp *)rsp;
+  if (NULL == pRsp->pTables) {
+    return;
+  }
 
-  taosArrayDestroyEx(pRsp->pTables, tFreeSVCTableRefCols);
+  // Records are freed per table; content blocks are shared between tables
+  // with the same ref pattern, so each unique content must be freed exactly
+  // once. On hash failure contents leak rather than risk a double free.
+  SHashObj *pFreed = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+  int32_t  num = taosArrayGetSize(pRsp->pTables);
+  for (int32_t i = 0; i < num; ++i) {
+    SVCTableRefCols *pTb = *(SVCTableRefCols **)taosArrayGet(pRsp->pTables, i);
+    if (NULL == pTb) {
+      continue;
+    }
+    if (NULL != pTb->pContent && NULL != pFreed &&
+        NULL == taosHashGet(pFreed, &pTb->pContent, sizeof(pTb->pContent))) {
+      if (0 == taosHashPut(pFreed, &pTb->pContent, sizeof(pTb->pContent), &pTb->pContent, sizeof(pTb->pContent))) {
+        taosMemoryFree(pTb->pContent);
+      }
+    }
+    taosMemoryFree(pTb);
+  }
+  taosHashCleanup(pFreed);
+
+  taosArrayDestroy(pRsp->pTables);
+  pRsp->pTables = NULL;
 }
 
 int32_t tSerializeSVStbRefDbsReq(void *buf, int32_t bufLen, SVStbRefDbsReq *pReq) {
