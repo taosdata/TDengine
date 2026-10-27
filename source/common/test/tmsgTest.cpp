@@ -35,6 +35,7 @@
 #include "streamMsg.h"
 #include "tcommon.h"
 #include "systable.h"
+#include "tconfig.h"
 #include "tdatablock.h"
 #include "tjson.h"
 #include "tmsg.h"
@@ -5816,6 +5817,170 @@ TEST(td_msg_test, create_xnode_agent_req_releases_partial_decode_on_error) {
   EXPECT_EQ(tDeserializeSMCreateXnodeAgentReq(frame.data(), size, &decoded), TSDB_CODE_MND_XNODE_INVALID_MSG);
   EXPECT_EQ(decoded.sql, nullptr);
   EXPECT_EQ(decoded.name.ptr, nullptr);
+}
+
+// Mirrors tSerializeSBatchReq's layout but lets the caller declare an msgLen that disagrees with
+// the embedded binary, which is what a hostile TDMT_SND_BATCH_META frame does.
+static std::vector<uint8_t> buildBatchReqFrame(int32_t num, int32_t declaredMsgLen, const std::string &payload) {
+  auto encodeBody = [&](uint8_t *buf, int32_t bufLen) -> int32_t {
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, static_cast<uint32_t>(bufLen));
+    EXPECT_EQ(tStartEncode(&encoder), 0);
+    EXPECT_EQ(tEncodeI32(&encoder, num), 0);
+    for (int32_t i = 0; i < num; ++i) {
+      EXPECT_EQ(tEncodeI32(&encoder, i), 0);
+      EXPECT_EQ(tEncodeI32(&encoder, TDMT_MND_GET_STREAM_PROGRESS), 0);
+      EXPECT_EQ(tEncodeI32(&encoder, declaredMsgLen), 0);
+      EXPECT_EQ(tEncodeBinary(&encoder, reinterpret_cast<const uint8_t *>(payload.data()),
+                              static_cast<uint32_t>(payload.size())),
+                0);
+    }
+    tEndEncode(&encoder);
+    const int32_t len = static_cast<int32_t>(encoder.pos);
+    tEncoderClear(&encoder);
+    return len;
+  };
+
+  const int32_t bodyLen = encodeBody(nullptr, 0);
+  // tDeserializeSBatchReq skips sizeof(SMsgHead) and writes the header back, so the frame needs
+  // room for it and must be writable.
+  std::vector<uint8_t> frame(sizeof(SMsgHead) + bodyLen, 0);
+  encodeBody(frame.data() + sizeof(SMsgHead), bodyLen);
+  return frame;
+}
+
+TEST(td_msg_test, batch_req_with_zero_messages_yields_no_message_array) {
+  // A well-formed frame declaring num <= 0 decodes successfully with pMsgs == NULL. Callers must
+  // therefore check the array before indexing it - smDispatchStreamTriggerRsp used to read
+  // TARRAY_DATA(pMsgs) unconditionally and segfaulted the whole taosd process.
+  std::vector<uint8_t> frame = buildBatchReqFrame(0, 0, "");
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded), 0);
+  EXPECT_EQ(decoded.pMsgs, nullptr);
+  EXPECT_EQ(taosArrayGetSize(decoded.pMsgs), 0u);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_rejects_msg_len_larger_than_embedded_binary) {
+  // msgLen is an independent wire integer, while msg is sized by the embedded binary. Consumers
+  // decode msg bounded by msgLen, so a larger msgLen reads past the heap allocation.
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame =
+      buildBatchReqFrame(1, static_cast<int32_t>(payload.size()) + 4096, payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded),
+            TSDB_CODE_INVALID_MSG);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_rejects_negative_msg_len) {
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame = buildBatchReqFrame(1, -1, payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded),
+            TSDB_CODE_INVALID_MSG);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_accepts_msg_len_matching_embedded_binary) {
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame = buildBatchReqFrame(1, static_cast<int32_t>(payload.size()), payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  ASSERT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded), 0);
+  ASSERT_EQ(taosArrayGetSize(decoded.pMsgs), 1u);
+  SBatchMsg *pMsg = static_cast<SBatchMsg *>(taosArrayGet(decoded.pMsgs, 0));
+  ASSERT_NE(pMsg, nullptr);
+  EXPECT_EQ(pMsg->msgIdx, 0);
+  EXPECT_EQ(pMsg->msgType, TDMT_MND_GET_STREAM_PROGRESS);
+  EXPECT_EQ(pMsg->msgLen, static_cast<int32_t>(payload.size()));
+  ASSERT_NE(pMsg->msg, nullptr);
+  EXPECT_EQ(memcmp(pMsg->msg, payload.data(), payload.size()), 0);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, cfg_dnode_req_round_trips_alter_type) {
+  // The dnode re-runs cfgCheckRangeForDynUpdate with this alterType, so it has to survive the
+  // round trip: CFG_ALTER_DNODE is what forbids changing a global item on a single dnode.
+  SDCfgDnodeReq req = {0};
+  tstrncpy(req.config, "supportVnodes", sizeof(req.config));
+  tstrncpy(req.value, "0", sizeof(req.value));
+  req.version = 7;
+  req.alterType = CFG_ALTER_DNODE;
+
+  const int32_t size = tSerializeSDCfgDnodeReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(tSerializeSDCfgDnodeReq(frame.data(), size, &req), size);
+
+  SDCfgDnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSDCfgDnodeReq(frame.data(), size, &decoded), 0);
+  EXPECT_STREQ(decoded.config, "supportVnodes");
+  EXPECT_STREQ(decoded.value, "0");
+  EXPECT_EQ(decoded.version, 7);
+  EXPECT_EQ(decoded.alterType, CFG_ALTER_DNODE);
+}
+
+TEST(td_msg_test, cfg_dnode_req_defaults_alter_type_for_pre_upgrade_frame) {
+  // A pre-upgrade mnode omits the alterType tail field. The decoder must default to the
+  // permissive CFG_ALTER_ALL_DNODES so a rolling upgrade does not start refusing global alters.
+  const char *config = "clsRefreshInterval";
+  const char *value = "20";
+
+  auto encodeLegacy = [&](uint8_t *buf, int32_t bufLen) -> int32_t {
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, static_cast<uint32_t>(bufLen));
+    EXPECT_EQ(tStartEncode(&encoder), 0);
+    EXPECT_EQ(tEncodeI32(&encoder, 3), 0);
+    EXPECT_EQ(tEncodeCStr(&encoder, config), 0);
+    EXPECT_EQ(tEncodeCStr(&encoder, value), 0);
+    tEndEncode(&encoder);
+    const int32_t len = static_cast<int32_t>(encoder.pos);
+    tEncoderClear(&encoder);
+    return len;
+  };
+
+  const int32_t size = encodeLegacy(nullptr, 0);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(encodeLegacy(frame.data(), size), size);
+
+  SDCfgDnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSDCfgDnodeReq(frame.data(), size, &decoded), 0);
+  EXPECT_STREQ(decoded.config, config);
+  EXPECT_STREQ(decoded.value, value);
+  EXPECT_EQ(decoded.version, 3);
+  EXPECT_EQ(decoded.alterType, CFG_ALTER_ALL_DNODES);
+}
+
+TEST(td_msg_test, msg_type_validity_bounds_segment_and_sequence) {
+  // TMSG_INDEX(type) is tMsgDict[(type & 0xff00) >> 8] + (type & 0xff). The segment code comes
+  // straight off the wire (0..255) while tMsgDict has one entry per defined segment, so dnode
+  // dispatch must reject anything tmsgIsValid() rejects before indexing its handler tables.
+  const int32_t numOfSegments = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
+  ASSERT_GT(numOfSegments, 0);
+  ASSERT_LT(numOfSegments, 256);
+
+  // First segment code past the last defined one, and a far-out segment code.
+  EXPECT_FALSE(tmsgIsValid(static_cast<tmsg_t>(numOfSegments << 8)));
+  EXPECT_FALSE(tmsgIsValid(static_cast<tmsg_t>(0xFF01)));
+
+  // Defined request and response types stay valid.
+  EXPECT_TRUE(tmsgIsValid(TDMT_DND_CONFIG_DNODE));
+  EXPECT_TRUE(tmsgIsValid(TDMT_DND_CREATE_SNODE));
+  EXPECT_TRUE(tmsgIsValid(TDMT_MND_STREAM_HEARTBEAT_RSP));
+
+  // A sequence byte past the end of a defined segment is rejected too.
+  const tmsg_t pastDndSegment = static_cast<tmsg_t>(TDMT_DND_MSG_MAX);
+  ASSERT_EQ(TMSG_SEG_CODE(pastDndSegment), TMSG_SEG_CODE(TDMT_DND_CONFIG_DNODE));
+  EXPECT_FALSE(tmsgIsValid(pastDndSegment));
 }
 
 // ============================================================================
