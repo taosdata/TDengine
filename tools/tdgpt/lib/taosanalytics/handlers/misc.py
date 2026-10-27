@@ -15,6 +15,8 @@
 
 """misc handlers: encapsulates miscellaneous tool business logic"""
 
+import math
+
 import numpy as np
 from scipy.stats import pearsonr
 
@@ -27,6 +29,152 @@ from lib.util import (
     do_initial_check,
     get_more_data_list,
 )
+
+# Accepted size of one batch-envelope request. The pipeline resamples every
+# batch to `normalize.target_len` samples (1000 by default) and runs an O(n)
+# Hampel filter over it, so both ends are bounded: below the minimum there is not
+# enough signal to build a baseline from, above it the extra points only cost
+# time without changing the produced envelope.
+_MIN_BATCH_INPUT_POINTS = 10
+_MAX_BATCH_INPUT_POINTS = 40000
+
+# Range of a signed 64-bit timestamp. `ts` stays an integer (it is a unix
+# timestamp, and float64 stops being exact above 2**53), so an entry outside this
+# range would make `np.array(ts)` fall back to `object` dtype.
+_INT64_MIN = -(2**63)
+_INT64_MAX = 2**63 - 1
+
+
+def _check_timestamp(index, value):
+    """Return why one `ts` entry cannot be used as a timestamp, or None.
+
+    Timestamps are never converted to float: they are unix timestamps, and
+    float64 stops representing integers exactly above 2**53, which would silently
+    move window boundaries. They are only checked, because `np.array(ts)` widens
+    the whole column to `object` dtype as soon as one entry is not a number --
+    and every comparison or subtraction downstream (`time >= start`,
+    `np.diff(time)`) then fails with a TypeError.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return (
+            f"'ts' entry at index {index} must be a number, "
+            f"got {type(value).__name__}: {value!r}."
+        )
+
+    if isinstance(value, int):
+        if not (_INT64_MIN <= value <= _INT64_MAX):
+            return (
+                f"'ts' entry at index {index} does not fit a 64-bit timestamp: "
+                f"{value!r}."
+            )
+        return None
+
+    if not math.isfinite(value):
+        return f"'ts' entry at index {index} must be finite, got {value!r}."
+
+    return None
+
+
+def _prepare_batch_input(ts, data):
+    """Validate `ts` and `data` and return `data` as floats, or the reason why not.
+
+    `ts` and `data` are paired by position: split_by_windows builds its mask from
+    `ts` and applies the same mask to `data`, so a length difference either raises
+    IndexError deep inside NumPy or, worse, pairs values with the wrong timestamp.
+
+    Every entry of `data` is then fed to median/diff/interpolation arithmetic, so
+    the values are converted here instead of leaving it to `np.array(data)`:
+
+      * a non-number would fail inside NumPy with a message the client cannot act
+        on -- and `bool` is rejected explicitly, since it is an int subclass and
+        would silently be treated as 0/1;
+      * an int too wide for float (e.g. ``2 ** 1024``) cannot be represented, and
+        ``np.array`` would widen the whole column to ``object`` dtype, which
+        breaks ``np.abs``/``np.median`` further down with a TypeError;
+      * NaN and Inf pass every arithmetic step without raising and would reach the
+        response as a golden envelope full of NaN.
+
+    Timestamps are checked with `_check_timestamp` instead of converted, for the
+    reason stated there, and they must be in ascending order: the batches are cut
+    from `ts` as received, so an unsorted series would produce a curve that has
+    nothing to do with the data.
+
+    Args:
+        ts: Timestamps of the payload, as received (not converted).
+        data: Measured values of the payload, as received.
+
+    Returns:
+        tuple: (error_message, values). The message is None when the input is
+        usable, in which case values holds `data` converted to float.
+    """
+    if not isinstance(ts, (list, tuple)) or not isinstance(data, (list, tuple)):
+        return (
+            "'ts' and 'data' must be arrays of values, got "
+            f"{type(ts).__name__} and {type(data).__name__}.",
+            None,
+        )
+
+    if len(ts) != len(data):
+        return (
+            "'ts' and 'data' must have the same length, "
+            f"got {len(ts)} and {len(data)}.",
+            None,
+        )
+
+    if not data:
+        return "'ts' and 'data' must not be empty.", None
+
+    if not (_MIN_BATCH_INPUT_POINTS <= len(data) <= _MAX_BATCH_INPUT_POINTS):
+        return (
+            f"'data' length must be in [{_MIN_BATCH_INPUT_POINTS}, "
+            f"{_MAX_BATCH_INPUT_POINTS}], got {len(data)}.",
+            None,
+        )
+
+    values = []
+    for index, value in enumerate(data):
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return (
+                f"'data' entry at index {index} must be a number, "
+                f"got {type(value).__name__}: {value!r}.",
+                None,
+            )
+
+        try:
+            number = float(value)
+        except OverflowError:
+            return (
+                f"'data' entry at index {index} is too large to be measured: "
+                f"{value!r}.",
+                None,
+            )
+
+        if not math.isfinite(number):
+            return (
+                f"'data' entry at index {index} must be finite, got {value!r}.",
+                None,
+            )
+
+        values.append(number)
+
+    for index, value in enumerate(ts):
+        msg = _check_timestamp(index, value)
+        if msg:
+            return msg, None
+
+        # The samples are paired by position, so an out-of-order timestamp cannot
+        # be repaired downstream: `split_by_windows` keeps the received order and
+        # `normalize_progress` would have to drop points to interpolate at all,
+        # returning a curve of a different batch. Rejected here, where the client
+        # can still act on it.
+        if index and value < ts[index - 1]:
+            return (
+                f"'ts' must be sorted in ascending order: entry at index {index} "
+                f"({value!r}) is earlier than the previous one ({ts[index - 1]!r}).",
+                None,
+            )
+
+    return None, values
 
 
 def handle_build_batch_env(request):
@@ -50,6 +198,11 @@ def handle_build_batch_env(request):
         AppLogger.error(msg)
         return {"msg": msg, "rows": -1}
 
+    msg, values = _prepare_batch_input(ts, data)
+    if msg:
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
+
     MAX_WINDOWS = 1000
     if not isinstance(windows, list) or len(windows) > MAX_WINDOWS:
         msg = f"'window' must be a list with at most {MAX_WINDOWS} entries, "
@@ -58,17 +211,12 @@ def handle_build_batch_env(request):
         AppLogger.error(msg)
         return {"msg": msg, "rows": -1}
 
-    if not (10 <= len(data) <= 40000):
-        msg = f"data length must be in [10, 40000], got {len(data)}"
-        AppLogger.error(msg)
-        return {"msg": msg, "rows": -1}
-
     conf = update_config(payload_obj.get("config", None))
 
     try:
         # median, lower bounding, upper bounding, processed_batches
         center, lower, upper, processed_batches = gen_batch_envelop(
-            np.array(ts), np.array(data), windows, conf
+            np.array(ts), np.array(values), windows, conf
         )
 
         res = {
