@@ -34,6 +34,7 @@
 #include "cmdnodes.h"
 #include "dataSink.h"
 #include "dataSinkMgt.h"
+#include "dynqueryctrl.h"
 #include "operator.h"
 #include "querytask.h"
 #include "snode.h"
@@ -48,6 +49,7 @@ extern "C" {
 #include "tcurl.h"
 
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg *pMsg, SStreamTask *pTask, SStreamTaskStats *pStats);
+int32_t processOrgTbVg(SVtbScanDynCtrlInfo *pVtbScan, SExecTaskInfo *pTaskInfo, int32_t rversion);
 int32_t sndTestBuildStreamFetchRsp(SSDataBlock *pBlock, const SStreamRunnerFetchFrame *pFrame, void **data,
                                    size_t *size, int8_t precision, bool finished);
 int32_t exchangeTestSerializeStreamFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, int32_t msgType,
@@ -5087,6 +5089,167 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
   taosArrayDestroy(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo);
   pExec->runtimeInfo.vtableDeployInfo.addedVgInfo = nullptr;
+}
+
+class StreamRunnerRedeployCleanupTest : public StreamRunnerTest, public ::testing::WithParamInterface<bool> {};
+
+TEST_P(StreamRunnerRedeployCleanupTest, UndeployBeforeManagementRequestReleasesVgroupIds) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.vtableDeployGot = &task_.vtableDeployGot;
+  SExecTaskInfo executor = {};
+  executor.pStreamRuntimeInfo = &pExec->runtimeInfo;
+  SVtbScanDynCtrlInfo scan = {};
+  scan.uid = 123;
+  scan.existOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  scan.curOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(scan.existOrgTbVg, nullptr);
+  ASSERT_NE(scan.curOrgTbVg, nullptr);
+  int32_t vgId = 42;
+  ASSERT_EQ(taosHashPut(scan.curOrgTbVg, &vgId, sizeof(vgId), nullptr, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(processOrgTbVg(&scan, &executor, 2), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
+  taosHashCleanup(scan.existOrgTbVg);
+  taosHashCleanup(scan.curOrgTbVg);
+  ASSERT_NE(pExec->runtimeInfo.vtableDeployInfo.addVgIds, nullptr);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+
+  if (GetParam()) {
+    SListNode *pNode = tdListPopHead(task_.execMgr.pFreeExecs);
+    tdListAppendNode(task_.execMgr.pRunningExecs, pNode);
+  }
+  // Shutdown can precede the heartbeat that transfers addVgIds into pMgmtReq.
+  // LSan must find no orphaned array after the real execution destructor runs.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+}
+
+TEST_P(StreamRunnerRedeployCleanupTest, UndeployBeforeResponseConsumptionReleasesVgroupInfo) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  if (GetParam()) {
+    SListNode *pNode = tdListPopHead(task_.execMgr.pFreeExecs);
+    tdListAppendNode(task_.execMgr.pRunningExecs, pNode);
+  }
+  SArray *pResponses = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pResponses, nullptr);
+  SStreamOReaderDeployRsp response = {};
+  response.execId = pExec->runtimeInfo.execId;
+  response.vgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(response.vgList, nullptr);
+  SStreamTaskAddr addr = {};
+  addr.nodeId = 42;
+  ASSERT_NE(taosArrayPush(response.vgList, &addr), nullptr);
+  ASSERT_NE(taosArrayPush(pResponses, &response), nullptr);
+  ASSERT_EQ(stRunnerSetMgmtRsp(&task_, pResponses, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+  auto *pResponse = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pResponses, 0));
+  EXPECT_EQ(pResponse->vgList, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, response.vgList);
+  taosArrayDestroy(pResponses);
+
+  // The execution now owns the response, even if no scan consumes it before shutdown.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(FreeAndRunning, StreamRunnerRedeployCleanupTest, ::testing::Bool());
+
+TEST_F(StreamRunnerTest, UndeployReleasesPendingReaderRequestAndPreservesHeartbeatCopy) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  auto &deploy = pExec->runtimeInfo.vtableDeployInfo;
+  deploy.uid = 123;
+  deploy.addVgIds = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(deploy.addVgIds, nullptr);
+  int32_t vgId = 42;
+  ASSERT_NE(taosArrayPush(deploy.addVgIds, &vgId), nullptr);
+
+  ASSERT_EQ(stRunnerBuildTaskMgmtReq(&task_), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.task.pMgmtReq, nullptr);
+  EXPECT_EQ(deploy.addVgIds, nullptr);
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  ASSERT_EQ(stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats), TSDB_CODE_SUCCESS);
+  auto *pStatus = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  ASSERT_NE(pStatus, nullptr);
+  ASSERT_NE(pStatus->pMgmtReq, nullptr);
+  EXPECT_NE(pStatus->pMgmtReq, task_.task.pMgmtReq);
+
+  // DROP can undeploy the runner before its management response is handled.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+
+  // The heartbeat owns a separate copy; runner teardown must not invalidate it.
+  EXPECT_EQ(pStatus->pMgmtReq->type, STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER);
+  auto *pReq = static_cast<SStreamOReaderDeployReq *>(taosArrayGet(pStatus->pMgmtReq->cont.pReqs, 0));
+  ASSERT_NE(pReq, nullptr);
+  EXPECT_EQ(pReq->uid, 123);
+  EXPECT_EQ(*static_cast<int32_t *>(taosArrayGet(pReq->vgIds, 0)), vgId);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+
+TEST_F(StreamRunnerTest, HeartbeatPeriodLogCanCompleteDeferredUndeploy) {
+  ScopedRunnerDebugLogCapture capture;
+  gCalls.monotonicUs = STREAM_STATS_PERIOD_US + 1;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.vtableDeployInfo.addVgIds = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pExec->runtimeInfo.vtableDeployInfo.addVgIds, nullptr);
+  int32_t vgId = 42;
+  ASSERT_NE(taosArrayPush(pExec->runtimeInfo.vtableDeployInfo.addVgIds, &vgId), nullptr);
+  ASSERT_EQ(stRunnerBuildTaskMgmtReq(&task_), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.task.pMgmtReq, nullptr);
+
+  stub_.set(qAsyncKillTask, mockQAsyncKillTask);
+  stub_.set(streamDestroyExecTask, mockStreamDestroyExecTask);
+  stub_.set(dsDestroyDataSinker, mockDsDestroyDataSinker);
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.task.undeployCb = captureRunnerUndeploy;
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  int32_t heartbeatCode = TSDB_CODE_FAILED;
+  gBlockRunnerPeriodLog.store(true);
+  std::thread heartbeatThread(
+      [&] { heartbeatCode = stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerPeriodLogEntered.load() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+
+  const bool entered = gRunnerPeriodLogEntered.load();
+  if (entered) {
+    SStreamRunnerTask *pRunner = &task_;
+    EXPECT_EQ(stRunnerTaskUndeploy(&pRunner, false), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gRunnerUndeployCalls.load(), 0);
+    EXPECT_TRUE(taosHasRWWFlag(&task_.task.entryLock));
+  }
+  // Releasing the logger's last entry reference completes undeploy on this thread.
+  gBlockRunnerPeriodLog.store(false);
+  heartbeatThread.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(heartbeatCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+  EXPECT_EQ(taosArrayGetSize(heartbeat.pStreamReq), 0);
+  auto *pStatus = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  EXPECT_NE(pStatus, nullptr);
+  if (pStatus != nullptr) EXPECT_EQ(pStatus->pMgmtReq, nullptr);
+  if (gRunnerUndeployCalls.load() == 0) {
+    UndeployRunnerForCleanup();
+  } else {
+    task_.execMgr.pRunningExecs = nullptr;
+    task_.execMgr.pFreeExecs = nullptr;
+    task_.execMgr.lockInited = false;
+    task_.execMgr.stateLockInited = false;
+    task_.notification.pNotifyAddrUrls = nullptr;
+  }
+  taosWUnLockLatch(&task_.task.entryLock);
+  tCleanupStreamHbMsg(&heartbeat, true);
 }
 
 TEST_F(StreamRunnerTest, MgmtRspRejectedWithoutDeployRecordsKeepsTaskAlive) {

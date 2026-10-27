@@ -2965,6 +2965,7 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
     TAOS_CHECK_EXIT(msmInitStmStatus(pCtx, &info, pStream, false));
 
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &info, sizeof(info)));
+    memset(&info, 0, sizeof(info));  // streamMap owns the initialized status.
 
     pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   }
@@ -2985,6 +2986,8 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* pCtx, SStreamObj* pStream, SStmS
   mstLogSStmStatus("stream deployed", streamId, pStatus);
 
 _exit:
+
+  mstDestroySStmStatus(&info);
 
   if (code) {
     if (NULL != pStatus) {
@@ -3220,11 +3223,13 @@ static int32_t msmLaunchStreamDeployAction(SStmGrpCtx* pCtx, SStmStreamAction* p
 
   TAOS_CHECK_EXIT(code);
 
-  if (pStatus && pStream->pCreate->streamId != streamId) {
+  if (pStream->pCreate->streamId != streamId) {
     mstsWarn("stream %s already dropped by user, ignore deploy it", pAction->streamName);
-    atomic_store_8(&pStatus->stopped, 2);
-    mstsInfo("set stream %s stopped by user since streamId mismatch", streamName);
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_NOT_EXIST);
+    if (pStatus) {
+      atomic_store_8(&pStatus->stopped, 2);
+      mstsInfo("set stream %s stopped by user since streamId mismatch", streamName);
+    }
+    goto _exit;
   }
 
   int8_t userStopped = atomic_load_8(&pStream->userStopped);
@@ -4757,10 +4762,10 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t lino = 0;
   int64_t streamId = pTask->streamId;
   SStreamObj* pStream = NULL;
+  SStmStatus  status = {0};
 
   SStmStatus* pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
   if (NULL == pStatus) {
-    SStmStatus status = {0};
     TAOS_CHECK_EXIT(mndAcquireStreamById(pCtx->pMnode, streamId, &pStream));
     TSDB_CHECK_NULL(pStream, code, lino, _exit, TSDB_CODE_MND_STREAM_NOT_EXIST);
     if (STREAM_IS_VIRTUAL_TABLE(pStream->pCreate->triggerTblType, pStream->pCreate->flags) ||
@@ -4776,6 +4781,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
     pStream = NULL;
 
     TAOS_CHECK_EXIT(taosHashPut(mStreamMgmt.streamMap, &streamId, sizeof(streamId), &status, sizeof(status)));
+    memset(&status, 0, sizeof(status));  // streamMap owns the initialized status.
     pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
     TSDB_CHECK_NULL(pStatus, code, lino, _exit, terrno);
     msttDebug("stream added to streamMap cause of new task status:%s", gStreamStatusStr[pTask->status]);
@@ -4873,6 +4879,8 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
 _exit:
 
   if (pStream != NULL) mndReleaseStream(pCtx->pMnode, pStream);
+
+  mstDestroySStmStatus(&status);
 
   if (code) {
     msttError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
