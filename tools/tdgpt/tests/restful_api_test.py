@@ -1158,6 +1158,174 @@ class RestfulTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["rows"], 1000)
 
+    @staticmethod
+    def _batch_request(data, ts):
+        return {
+            "data": data,
+            "ts": ts,
+            "window": [(100, 200)],
+            "prec": "ms",
+            "protocol": 1.0,
+        }
+
+    def test_batch_process_rejects_mismatched_ts_and_data(self):
+        """`ts` masks `data`, so a length difference must not reach NumPy."""
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1, 2, 3], [100, 200])
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("same length", response.json["msg"])
+
+    def test_batch_process_rejects_non_numeric_data_entry(self):
+        data = [1.0] * 10
+        data[1] = "2"
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request(data, list(range(10))),
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("str", response.json["msg"])
+
+    def test_batch_process_rejects_bool_data_entry(self):
+        """bool is an int subclass and would silently become 0/1."""
+        data = [1.0] * 10
+        data[1] = True
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request(data, list(range(10))),
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("bool", response.json["msg"])
+
+    def test_batch_process_rejects_too_few_points(self):
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 3, list(range(3)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("[10, 40000]", response.json["msg"])
+
+    def test_batch_process_rejects_int_too_wide_for_float(self):
+        """Must be refused here: np.array would widen the column to object dtype."""
+        data = [1.0] * 10
+        data[1] = 2**1024
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request(data, list(range(10)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("too large", response.json["msg"])
+
+    def test_batch_process_accepts_int_beyond_int64(self):
+        """2**63 exceeds int64 but is a fine float, so it must not be refused."""
+        data = [1.0] * 10
+        data[1] = 2**63
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request(data, list(range(100, 110))),
+        )
+
+        self.assertGreater(response.json["rows"], 0)
+        self.assertNotIn("msg", response.json)
+
+    def test_batch_process_rejects_nan(self):
+        data = [1.0] * 10
+        data[1] = float("nan")
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request(data, list(range(10)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("finite", response.json["msg"])
+
+    def test_batch_process_rejects_infinity(self):
+        data = [1.0] * 10
+        data[1] = float("inf")
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request(data, list(range(10)))
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("index 1", response.json["msg"])
+        self.assertIn("finite", response.json["msg"])
+
+    def test_batch_process_rejects_non_numeric_timestamp(self):
+        """One bad `ts` entry widens the column to object dtype downstream."""
+        ts = list(range(10))
+        ts[1] = "200"
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("'ts' entry at index 1", response.json["msg"])
+
+    def test_batch_process_rejects_bool_timestamp(self):
+        ts = list(range(10))
+        ts[1] = True
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("'ts' entry at index 1", response.json["msg"])
+        self.assertIn("bool", response.json["msg"])
+
+    def test_batch_process_rejects_timestamp_beyond_int64(self):
+        """Timestamps stay integers, so they must fit the 64-bit column."""
+        ts = list(range(10))
+        ts[1] = 2**63
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("64-bit timestamp", response.json["msg"])
+
+    def test_batch_process_rejects_nan_timestamp(self):
+        ts = list(range(10))
+        ts[1] = float("nan")
+        response = self.client.post(
+            "/tool/batch", json=self._batch_request([1.0] * 10, ts)
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("'ts' entry at index 1", response.json["msg"])
+        self.assertIn("finite", response.json["msg"])
+
+    def test_batch_process_rejects_unsorted_timestamps(self):
+        """`[0, 3, 1, 2]` must be refused, not silently shortened to `[0, 3]`."""
+        response = self.client.post(
+            "/tool/batch",
+            json=self._batch_request([1.0] * 10, [100, 300, 200, 400] + list(range(500, 506))),
+        )
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("ascending order", response.json["msg"])
+        self.assertIn("index 2", response.json["msg"])
+
+    def test_batch_process_rejects_empty_input(self):
+        response = self.client.post("/tool/batch", json=self._batch_request([], []))
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("must not be empty", response.json["msg"])
+
+    def test_batch_process_rejects_missing_data(self):
+        req = self._batch_request([1, 2, 3], [100, 200, 300])
+        del req["data"]
+
+        response = self.client.post("/tool/batch", json=req)
+
+        self.assertEqual(response.json["rows"], -1)
+        self.assertIn("required", response.json["msg"])
+
     @patch("lib.app.do_deploy_dynamic_model")
     def test_deploy_model(self, mock_deploy):
         mock_deploy.return_value = (
