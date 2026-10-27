@@ -43,7 +43,9 @@ extern STaosError errors[];
 #define TAOS_FAILED(err)                    ((err) < 0)
 
 const char* tstrerror(int32_t err);
-const char* terrstr();
+// terrstr() takes no argument (it renders the global terrno); the (void) prototype
+// makes argument-passing misuses a compile error instead of a silent no-op
+const char* terrstr(void);
 
 #define  ERR_MSG_LEN                        256
 

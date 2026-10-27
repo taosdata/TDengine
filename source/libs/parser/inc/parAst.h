@@ -444,6 +444,8 @@ SNode* createShowSTablesStmt(SAstCreateContext* pCxt, SShowTablesOption option, 
 SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowAliveStmt(SAstCreateContext* pCxt, SNode* pDbName, ENodeType type);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createShowCreateTableStmtFull(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createShowCreateVTableStmtFull(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowCreateVTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowCreateViewStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable);
@@ -623,6 +625,7 @@ SNode* createCreateRsmaStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* 
                             SNodeList* pFuncs, SNodeList* pIntervals);
 SNode* createDropRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRealTable);
 SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
+SNode* createShowCreateRsmaStmtFull(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowCreateStreamStmt(SAstCreateContext* pCxt, SNode* pStream);
 SNode* createAlterRsmaStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode* pRsma, int8_t alterType, void* pAlterInfo);
 SNode* createKillRsmaTasksStmt(SAstCreateContext* pCxt, SNodeList* pTaskIds, STokenPair* pLevel);
