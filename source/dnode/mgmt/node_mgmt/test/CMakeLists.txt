@@ -27,3 +27,21 @@ target_link_options(streamHeartbeatTest PRIVATE
   -Wl,--wrap=streamHbHandleRspErr
 )
 add_test(NAME streamHeartbeatTest COMMAND streamHeartbeatTest)
+
+add_executable(dmTransportSecurityTest dmTransportSecurityTest.cpp)
+DEP_ext_gtest(dmTransportSecurityTest)
+target_include_directories(dmTransportSecurityTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+target_link_libraries(dmTransportSecurityTest PRIVATE dnode)
+target_link_options(dmTransportSecurityTest PRIVATE
+  -Wl,--wrap=rpcOpen
+  -Wl,--wrap=rpcFreeCont
+  -Wl,--wrap=dmMarkWrapper
+  -Wl,--wrap=dmReleaseWrapper
+  -Wl,--wrap=rpcSetIpWhite
+  -Wl,--wrap=rpcSetTimeIpWhite
+  -Wl,--wrap=taosAnalyUpdate
+  -Wl,--wrap=tDeserializeSUpdateIpWhiteDual
+  -Wl,--wrap=tDeserializeSRetrieveDateTimeWhiteListRsp
+  -Wl,--wrap=tDeserializeRetrieveAnalyticAlgoRsp
+)
+add_test(NAME dmTransportSecurityTest COMMAND dmTransportSecurityTest)

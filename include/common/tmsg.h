@@ -4742,6 +4742,11 @@ typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];
   char    value[TSDB_DNODE_VALUE_LEN];
   int32_t version;
+  // CfgAlterType of the originating ALTER statement, so the receiving dnode can re-run the
+  // same dyn-scope/category validation the mnode did instead of trusting the sender.
+  // Optional on the wire: a pre-upgrade mnode omits it and the decoder defaults to
+  // CFG_ALTER_ALL_DNODES, which is the permissive value for CFG_CATEGORY_GLOBAL items.
+  int8_t alterType;
 } SDCfgDnodeReq;
 
 int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
