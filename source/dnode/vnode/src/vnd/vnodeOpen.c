@@ -117,6 +117,17 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
   char       dir[TSDB_FILENAME_LEN] = {0};
   int32_t    ret = 0;
 
+  // [TD-SEC-2026-034] the loops below use replica/learnerReplica as bounds on the fixed-size
+  // syncCfg.nodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA]. Callers in mgmt_vnode already reject
+  // out-of-range counters, this is the last line of defense against overflowing nodeInfo.
+  if (pReq->replica < 1 || pReq->replica > TSDB_MAX_REPLICA || pReq->learnerReplica < 0 ||
+      pReq->learnerReplica > TSDB_MAX_LEARNER_REPLICA) {
+    vError("vgId:%d, failed to alter replica since invalid replica:%d learnerReplica:%d", pReq->vgId, pReq->replica,
+           pReq->learnerReplica);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
   vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
