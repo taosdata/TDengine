@@ -204,11 +204,23 @@ TEST_F(StreamHeartbeatTest, ClientHeartbeatStillUsesManagementQueue) {
   EXPECT_EQ(queued, 1);
   EXPECT_EQ(bodyFrees, 1);
 }
-TEST_F(StreamHeartbeatTest, OtherServerResponseKeepsSharedRouting) {
+TEST_F(StreamHeartbeatTest, OtherServerResponseIsDroppedToo) {
+  // The server listener used to drop only TDMT_MND_STREAM_HEARTBEAT_RSP, so any other response
+  // type was routed like a request and a peer could forge mnode replies. dmProcessServerRpcMsg
+  // now rejects every response type; responses belong to the client transport.
   registerCallbacks();
   HeartbeatMessage response;
   response.msg.msgType = TDMT_MND_STATUS_RSP;
   registrations[3].cfp(&node, &response.msg, nullptr);
+  EXPECT_EQ(queued, 0);
+  EXPECT_EQ(bodyFrees, 1);
+}
+
+TEST_F(StreamHeartbeatTest, ClientStatusResponseKeepsSharedRouting) {
+  registerCallbacks();
+  HeartbeatMessage response;
+  response.msg.msgType = TDMT_MND_STATUS_RSP;
+  registrations[0].cfp(&node, &response.msg, nullptr);
   EXPECT_EQ(queued, 1);
   EXPECT_EQ(bodyFrees, 1);
 }

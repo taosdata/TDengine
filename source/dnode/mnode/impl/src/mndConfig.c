@@ -802,7 +802,13 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     goto _err_out;
   }
 
+  // Scope of this ALTER, derived from the target dnode id. Forwarded to the dnode in dcfgReq so
+  // it can re-run cfgCheckRangeForDynUpdate itself rather than trusting the sender, which the
+  // dnode cannot authenticate.
+  CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
+
   SDCfgDnodeReq dcfgReq = {0};
+  dcfgReq.alterType = alterType;
   if (strcasecmp(cfgReq.config, "resetlog") == 0) {
     tstrncpy(dcfgReq.config, "resetlog", 9);
     goto _send_req;
@@ -836,7 +842,6 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
       updateWhiteList = 1;
     }
 
-    CfgAlterType alterType = (cfgReq.dnodeId == 0 || cfgReq.dnodeId == -1) ? CFG_ALTER_ALL_DNODES : CFG_ALTER_DNODE;
     code = cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config,
                                      dcfgReq.value, true, alterType);
     if (code == TSDB_CODE_PAR_INVALID_TIMEZONE) {
