@@ -29,6 +29,7 @@
 #include "tobjpool.h"
 #include "tringbuf.h"
 #include "tsimplehash.h"
+#include "ttrace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -588,6 +589,8 @@ typedef struct SSTriggerExtProgress {
   int32_t          pendingCalcPulls;     // in-flight CALC_DATA_EXT counter for this EXT reader.
   int8_t           watermarkState;       // ESTriggerReaderWatermarkState.
   void            *pullReq;              // in-flight pull request handle, or NULL
+  STraceId         inFlightPullTraceId;  // Trace id of the sole pull, or zero after pulls overlap.
+                                         // Used only for teardown logging; not persisted or in heartbeat.
   ESTriggerPullType pullType;            // last in-flight pull type; used when
                                          // reader returns NO_DATA without payload.
   struct SStreamTriggerTask *pOwnerTask; // back ref for async PULL callback
