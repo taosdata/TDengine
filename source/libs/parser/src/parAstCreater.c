@@ -5546,6 +5546,21 @@ _err:
   return NULL;
 }
 
+
+// FULL-suffix twin of the SHOW CREATE family: identical except fullResult, which
+// selects the BLOB result column downstream (see SShowCreateTableStmt::fullResult).
+SNode* createShowCreateTableStmtFull(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
+  SNode* pNode = createShowCreateTableStmt(pCxt, type, pRealTable);
+  if (pNode) ((SShowCreateTableStmt*)pNode)->fullResult = true;
+  return pNode;
+}
+
+SNode* createShowCreateVTableStmtFull(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
+  SNode* pNode = createShowCreateVTableStmt(pCxt, type, pRealTable);
+  if (pNode) ((SShowCreateTableStmt*)pNode)->fullResult = true;
+  return pNode;
+}
+
 SNode* createShowCreateVTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
   CHECK_PARSER_STATUS(pCxt);
   SShowCreateTableStmt* pStmt = NULL;
@@ -9614,6 +9629,13 @@ SNode* createShowCreateRsmaStmt(SAstCreateContext* pCxt, ENodeType type, SNode* 
 _err:
   nodesDestroyNode(pRealTable);
   return NULL;
+}
+
+
+SNode* createShowCreateRsmaStmtFull(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable) {
+  SNode* pNode = createShowCreateRsmaStmt(pCxt, type, pRealTable);
+  if (pNode) ((SShowCreateRsmaStmt*)pNode)->fullResult = true;
+  return pNode;
 }
 
 SNode* createShowCreateStreamStmt(SAstCreateContext* pCxt, SNode* pStream) {

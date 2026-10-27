@@ -3762,7 +3762,7 @@ static void *instanceOpenRpcClient(const char *label) {
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
+    tscError("failed to convert taos version from str to int, errcode:%s", tstrerror(code));
     terrno = code;
     return NULL;
   }

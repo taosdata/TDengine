@@ -150,7 +150,7 @@ Displays the creation statement for the database specified by `db_name`.
 ## SHOW CREATE RSMA
 
 ```sql
-SHOW CREATE RSMA [db_name.]rsma_name;
+SHOW CREATE RSMA [db_name.]rsma_name [FULL];
 ```
 
 Displays the creation statement for the specified RSMA.
@@ -158,7 +158,7 @@ Displays the creation statement for the specified RSMA.
 ## SHOW CREATE STABLE
 
 ```sql
-SHOW CREATE STABLE [db_name.]stb_name;
+SHOW CREATE STABLE [db_name.]stb_name [FULL];
 ```
 
 Displays the creation statement for the supertable specified by `stb_name`.
@@ -178,10 +178,15 @@ Displays the creation statement for the stream specified by `stream_name`.
 ## SHOW CREATE TABLE
 
 ```sql
-SHOW CREATE TABLE [db_name.]tb_name;
+SHOW CREATE TABLE [db_name.]tb_name [FULL];
 ```
 
 Displays the creation statement for the table specified by `tb_name`. Normal tables, supertables, and subtables are supported.
+
+**Notes**
+
+- The result form is decided purely by the statement: without `FULL`, the DDL text column stays VARCHAR and DDLs longer than 64 KB are clamped to 64 KB, exactly as in earlier releases -- consumers built against that shape keep working unchanged. With `FULL`, the column is BLOB and the complete DDL is returned (up to the result layout limit, about 3x `maxSQLLength`). One deliberate exception: earlier releases failed with an out-of-buffer error when a virtual table's column-reference filters pushed the assembled DDL past 64 KB; that corner now clamps like the rest.
+- A BLOB payload is not NUL-terminated: consumers must read it by its reported length (`taos_fetch_lengths` in the C API, or the protocol length field). The same FULL suffix and rules apply to `SHOW CREATE STABLE`, `SHOW CREATE VTABLE`, and `SHOW CREATE RSMA`.
 
 ## SHOW CREATE VIEW
 
@@ -194,7 +199,7 @@ Displays the creation statement for the specified view.
 ## SHOW CREATE VTABLE
 
 ```sql
-SHOW CREATE VTABLE [db_name.]vtable_name;
+SHOW CREATE VTABLE [db_name.]vtable_name [FULL];
 ```
 
 Displays the creation statement for a virtual table. For virtual subtables that use tag references, the result preserves the corresponding tag reference definitions.

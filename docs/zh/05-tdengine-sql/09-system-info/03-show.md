@@ -150,7 +150,7 @@ SHOW CREATE DATABASE db_name;
 ## SHOW CREATE RSMA
 
 ```sql
-SHOW CREATE RSMA [db_name.]rsma_name;
+SHOW CREATE RSMA [db_name.]rsma_name [FULL];
 ```
 
 显示指定 RSMA 的创建语句。
@@ -158,7 +158,7 @@ SHOW CREATE RSMA [db_name.]rsma_name;
 ## SHOW CREATE STABLE
 
 ```sql
-SHOW CREATE STABLE [db_name.]stb_name;
+SHOW CREATE STABLE [db_name.]stb_name [FULL];
 ```
 
 显示 `stb_name` 指定超级表的创建语句。
@@ -178,10 +178,15 @@ SHOW CREATE STREAM [db_name.]stream_name;
 ## SHOW CREATE TABLE
 
 ```sql
-SHOW CREATE TABLE [db_name.]tb_name;
+SHOW CREATE TABLE [db_name.]tb_name [FULL];
 ```
 
 显示 `tb_name` 指定表的创建语句。支持普通表、超级表和子表。
+
+**说明**
+
+- 结果形态完全由语句决定：不带 `FULL` 时，DDL 文本列保持 VARCHAR 类型，超过 64 KB 的 DDL 被截断到 64 KB，与旧版本行为完全一致，按旧形态编写的消费方无需任何改动；带 `FULL` 时，该列为 BLOB 类型，返回完整 DDL（上限约为 3 倍 `maxSQLLength` 的结果布局上限）。一处有意的例外：旧版本中，列引用过滤把拼接 DDL 推过 64 KB 的 `SHOW CREATE VTABLE` 会以缓冲区不足报错，现在与其他情形一样截断。
+- BLOB 负载不以 NUL 结尾：消费方必须按返回的长度读取（C API 用 `taos_fetch_lengths`，或按协议长度字段）。`SHOW CREATE STABLE`、`SHOW CREATE VTABLE`、`SHOW CREATE RSMA` 同样适用 `FULL` 后缀与上述规则。
 
 ## SHOW CREATE VIEW
 
@@ -194,7 +199,7 @@ SHOW CREATE VIEW [db_name.]view_name;
 ## SHOW CREATE VTABLE
 
 ```sql
-SHOW CREATE VTABLE [db_name.]vtable_name;
+SHOW CREATE VTABLE [db_name.]vtable_name [FULL];
 ```
 
 显示虚拟表的创建语句。对使用 tag-ref 的虚拟子表，结果会保留对应的标签引用定义。
