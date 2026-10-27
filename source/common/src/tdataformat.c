@@ -2765,6 +2765,157 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
 
 bool tTagIsJson(const void *pTag) { return (((const STag *)pTag)->flags & TD_TAG_JSON); }
 
+static bool tTagReadU32vBounded(const uint8_t *pData, const uint8_t *pEnd, uint32_t *pValue,
+                                int32_t *pBytes) {
+  uint32_t value = 0;
+  for (int32_t i = 0; i < 5 && pData + i < pEnd; ++i) {
+    uint8_t byte = pData[i];
+    if (i == 4 && (byte & 0xf0) != 0) {
+      return false;
+    }
+    value |= (uint32_t)(byte & 0x7f) << (7 * i);
+    if ((byte & 0x80) == 0) {
+      *pValue = value;
+      *pBytes = i + 1;
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t tTagIndexOffset(const STag *pTag, int32_t index) {
+  if ((pTag->flags & TD_TAG_LARGE) == 0) {
+    return pTag->idx[index];
+  }
+  int16_t offset = 0;
+  (void)memcpy(&offset, pTag->idx + index * (int32_t)sizeof(offset), sizeof(offset));
+  return offset;
+}
+
+static bool tTagReadJsonEntry(const STag *pTag, int32_t index, const uint8_t *pValues,
+                              const uint8_t *pEnd, STagVal *pTagVal) {
+  int32_t offset = tTagIndexOffset(pTag, index);
+  int32_t nextOffset = index + 1 < pTag->nTag ? tTagIndexOffset(pTag, index + 1) : (int32_t)(pEnd - pValues);
+  if (offset < 0 || nextOffset <= offset || nextOffset > pEnd - pValues) {
+    return false;
+  }
+
+  const uint8_t *pValue = pValues + offset;
+  const uint8_t *pEntryEnd = pValues + nextOffset;
+  uint32_t keyLen = 0;
+  int32_t prefixBytes = 0;
+  if (!tTagReadU32vBounded(pValue, pEntryEnd, &keyLen, &prefixBytes) || keyLen == 0 ||
+      (uint64_t)keyLen > (uint64_t)(pEntryEnd - pValue - prefixBytes)) {
+    return false;
+  }
+  pValue += prefixBytes;
+  if (pValue[keyLen - 1] != '\0') {
+    return false;
+  }
+  const char *pKey = (const char *)pValue;
+  pValue += keyLen;
+  if (pValue >= pEntryEnd) {
+    return false;
+  }
+
+  int8_t type = *(const int8_t *)pValue++;
+  if (type < TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+    return false;
+  }
+
+  STagVal value = {.pKey = (char *)pKey, .type = type};
+  if (IS_VAR_DATA_TYPE(type)) {
+    uint32_t dataLen = 0;
+    if (!tTagReadU32vBounded(pValue, pEntryEnd, &dataLen, &prefixBytes) ||
+        (uint64_t)dataLen > (uint64_t)(pEntryEnd - pValue - prefixBytes)) {
+      return false;
+    }
+    value.nData = dataLen;
+    value.pData = (uint8_t *)pValue + prefixBytes;
+  } else {
+    int32_t valueLen = tDataTypes[type].bytes;
+    if (valueLen <= 0 || valueLen > (int32_t)sizeof(value.i64) || valueLen > pEntryEnd - pValue) {
+      return false;
+    }
+    (void)memcpy(&value.i64, pValue, valueLen);
+  }
+  if (pTagVal != NULL) {
+    *pTagVal = value;
+  }
+  return true;
+}
+
+bool tTagValidate(const STag *pTag, int32_t availableLen) {
+  if (pTag == NULL || availableLen < (int32_t)sizeof(STag) || (pTag->flags & TD_TAG_JSON) == 0 ||
+      pTag->len < (int32_t)sizeof(STag) || pTag->len > availableLen || pTag->nTag < 0) {
+    return false;
+  }
+
+  int32_t indexBytes = (pTag->flags & TD_TAG_LARGE) ? (int32_t)sizeof(int16_t) : (int32_t)sizeof(int8_t);
+  int64_t indexEnd = (int64_t)offsetof(STag, idx) + (int64_t)pTag->nTag * indexBytes;
+  if (indexEnd > pTag->len) {
+    return false;
+  }
+  if (pTag->nTag == 0) {
+    return pTag->len == (int32_t)sizeof(STag);
+  }
+
+  const uint8_t *pValues = (const uint8_t *)pTag + indexEnd;
+  const uint8_t *pEnd = (const uint8_t *)pTag + pTag->len;
+  int32_t        previousOffset = -1;
+  for (int32_t i = 0; i < pTag->nTag; ++i) {
+    int32_t offset = tTagIndexOffset(pTag, i);
+    if (offset <= previousOffset || !tTagReadJsonEntry(pTag, i, pValues, pEnd, NULL)) {
+      return false;
+    }
+    previousOffset = offset;
+  }
+  return true;
+}
+
+bool tTagGetJsonBounded(const STag *pTag, int32_t availableLen, STagVal *pTagVal, bool *pFound) {
+  if (pFound == NULL || pTagVal == NULL || pTagVal->pKey == NULL) {
+    return false;
+  }
+  *pFound = false;
+  if (pTag == NULL || availableLen < (int32_t)sizeof(STag) || (pTag->flags & TD_TAG_JSON) == 0 ||
+      pTag->len < (int32_t)sizeof(STag) || pTag->len > availableLen || pTag->nTag < 0) {
+    return false;
+  }
+
+  int32_t indexBytes = (pTag->flags & TD_TAG_LARGE) ? (int32_t)sizeof(int16_t) : (int32_t)sizeof(int8_t);
+  int64_t indexEnd = (int64_t)offsetof(STag, idx) + (int64_t)pTag->nTag * indexBytes;
+  if (indexEnd > pTag->len) {
+    return false;
+  }
+  if (pTag->nTag == 0) {
+    return pTag->len == (int32_t)sizeof(STag);
+  }
+
+  const uint8_t *pValues = (const uint8_t *)pTag + indexEnd;
+  const uint8_t *pEnd = (const uint8_t *)pTag + pTag->len;
+  int32_t first = 0;
+  int32_t last = pTag->nTag - 1;
+  while (first <= last) {
+    int32_t middle = first + (last - first) / 2;
+    STagVal value = {0};
+    if (!tTagReadJsonEntry(pTag, middle, pValues, pEnd, &value)) {
+      return false;
+    }
+    int32_t compare = strcmp(pTagVal->pKey, value.pKey);
+    if (compare < 0) {
+      last = middle - 1;
+    } else if (compare > 0) {
+      first = middle + 1;
+    } else {
+      *pTagVal = value;
+      *pFound = true;
+      return true;
+    }
+  }
+  return true;
+}
+
 bool tTagIsJsonNull(void *data) {
   STag  *pTag = (STag *)data;
   int8_t isJson = tTagIsJson(pTag);

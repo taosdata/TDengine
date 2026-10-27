@@ -318,6 +318,12 @@ typedef struct SQueryTableDataCond {
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
+// Decodes one complete data-block prefix from buf. pBlock must not already own
+// column or aggregate buffers. On success pConsumed is the number of bytes
+// consumed; on failure it is reset to zero, pBlock info/resources are cleared,
+// and allocations are released. Malformed frames return MSG_DECODE_ERROR;
+// allocation failures preserve terrno.
+int32_t tDecodeDataBlockBounded(const void* buf, int32_t bufLen, SSDataBlock* pBlock, int32_t* pConsumed);
 
 void colDataDestroy(SColumnInfoData* pColData);
 

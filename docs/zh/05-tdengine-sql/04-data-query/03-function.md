@@ -1995,7 +1995,7 @@ Query OK, 1 row(s) in set (0.000514s)
 #### AES_DECRYPT
 
 ```sql
-AES_DECRYPT(str, key_str[, init_vector])
+AES_DECRYPT(str, key_str[, init_vector[, iv_mode]])
 ```
 
 **函数分类**：标量函数。
@@ -2008,7 +2008,8 @@ AES_DECRYPT(str, key_str[, init_vector])
 
 - `str`: VARCHAR.
 - `key_str`: 字符串密钥
-- `init_vector`: 初始化向量
+- `init_vector`：16 字节的初始化向量，省略时使用 ECB 模式。
+- `iv_mode`：可选的 VARCHAR 常量，取值为 `'raw'`（默认）或 `'legacy'`，不区分大小写。指定该参数时必须提供 `init_vector`。
 
 **嵌套子查询支持**：适用于内层查询和外层查询。
 
@@ -2017,6 +2018,32 @@ AES_DECRYPT(str, key_str[, init_vector])
 **使用说明**
 
 - 支持在 INSERT 和 SELECT 语句中使用
+
+**旧版 CBC 密文的读取与迁移**
+
+标量 IV 修正前，SELECT 表达式中的 `AES_ENCRYPT` 使用两字节字符串长度头和 `init_vector` 的前 14 字节作为 IV，`INSERT INTO ... SELECT ...` 也受此影响。读取通过该路径保存的密文时，应向 `AES_DECRYPT` 传入原密钥、原 16 字节 IV 和 `'legacy'`：
+
+```sql
+SELECT AES_DECRYPT(
+  FROM_BASE64('0vM8V2C54mB2YM8inkTVhaTDob2wkxRfXkptoX7n6FwOM6NY0jQclzGL1FLq4FYm'),
+  '0123456789abcdef', '0123456789abcdef', 'legacy');
+```
+
+该示例返回 `0123456789abcdef0123456789abcdef`。兼容模式使用解密主机的字符串长度头表示方式重现旧 IV；示例密文生成于小端主机。
+
+`'legacy'` 仅用于受影响的旧标量路径密文。ECB 密文、通过 `INSERT ... VALUES` 生成的密文和修正后生成的密文，使用正常的两参数或三参数调用；CBC 也可显式指定 `'raw'`。密文不包含格式标记，应根据数据来源选择模式。不能依靠填充校验区分格式，选错模式可能静默改变明文的第一个分组。
+
+升级读取已保存标量 CBC 密文的应用前，应识别这些数据，并将其读取调用改为 `'legacy'`。若要转换为当前格式，先创建包含时间戳列和足够宽 VARCHAR 密文列的目标表，再解密并重新加密：
+
+```sql
+INSERT INTO migrated_data
+SELECT ts, AES_ENCRYPT(
+  AES_DECRYPT(cipher, '0123456789abcdef', '0123456789abcdef', 'legacy'),
+  '0123456789abcdef', '0123456789abcdef')
+FROM legacy_data;
+```
+
+迁移后使用默认模式读取。若同一数据集混存两种格式，应保存格式标记。解密使用原密钥和 IV，重新加密使用目标密钥和 IV。
 
 **示例**
 见 `aes_encrypt`。
