@@ -700,3 +700,123 @@ TEST_F(CfgTest, configSyncSameContent) {
   cfgCleanup(pGlobalConfig);
   cfgCleanup(pSdbConfig);
 }
+// dmProcessConfigReq re-runs cfgCheckRangeForDynUpdate on the dnode before committing a value
+// from TDMT_DND_CONFIG_DNODE, because it cannot authenticate the sender and must not assume the
+// mnode already validated the request. These cases pin the semantics that gate relies on.
+TEST_F(CfgTest, dynUpdateRefusesNonDynamicAndClientOnlyItems) {
+  SConfig *pConfig = NULL;
+  ASSERT_EQ(cfgInit(&pConfig), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pConfig, nullptr);
+
+  // Stand-ins for the real items a forged request targets: supportVnodes/audit are
+  // CFG_DYN_ENT_SERVER, which is CFG_DYN_NONE in a community build, and fqdn/serverPort are
+  // CFG_DYN_CLIENT.
+  ASSERT_EQ(cfgAddInt32(pConfig, "non_dynamic_item", 16, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_LOCAL,
+                        CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgAddInt32(pConfig, "client_only_item", 6030, 1, 65056, CFG_SCOPE_BOTH, CFG_DYN_CLIENT,
+                        CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgAddInt32(pConfig, "server_dynamic_item", 16, 0, 1024, CFG_SCOPE_SERVER, CFG_DYN_SERVER,
+                        CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+
+  // A non-dynamic item is refused whichever scope the ALTER claims.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "non_dynamic_item", "0", true, CFG_ALTER_DNODE), TSDB_CODE_INVALID_CFG);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "non_dynamic_item", "0", true, CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_INVALID_CFG);
+
+  // A client-only item is refused on the server side.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "client_only_item", "7030", true, CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_INVALID_CFG);
+
+  // A server-dynamic local item is accepted, so the gate does not over-reject.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "server_dynamic_item", "8", true, CFG_ALTER_DNODE), TSDB_CODE_SUCCESS);
+
+  // An unknown name is reported as not found, which is what lets the dnode keep handling
+  // "resetlog" through its own branch.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "no_such_item", "1", true, CFG_ALTER_DNODE), TSDB_CODE_CFG_NOT_FOUND);
+
+  cfgCleanup(pConfig);
+}
+
+TEST_F(CfgTest, dynUpdateRefusesGlobalItemOnSingleDnode) {
+  SConfig *pConfig = NULL;
+  ASSERT_EQ(cfgInit(&pConfig), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pConfig, nullptr);
+
+  ASSERT_EQ(cfgAddBool(pConfig, "global_dynamic_item", 0, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL,
+                       CFG_PRIV_SECURITY),
+            TSDB_CODE_SUCCESS);
+
+  // Changing a global item on a single dnode leaves the cluster inconsistent, so it is refused
+  // for CFG_ALTER_DNODE and allowed only for a cluster-wide ALTER. The dnode learns which one it
+  // is from SDCfgDnodeReq::alterType.
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "global_dynamic_item", "1", true, CFG_ALTER_DNODE),
+            TSDB_CODE_INVALID_CFG);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(pConfig, "global_dynamic_item", "1", true, CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_SUCCESS);
+
+  cfgCleanup(pConfig);
+}
+
+// ssAccessString embeds the object-storage accessKeyId and secretAccessKey. cfgDumpItemValue is
+// the display path (dumpConfToDataBlock -> SHOW VARIABLES, ins_dnode_variables), so it must never
+// render the raw credential regardless of caller privilege.
+TEST_F(CfgTest, dumpItemValueMasksSecretItems) {
+  SConfig *pConfig = NULL;
+  ASSERT_EQ(cfgInit(&pConfig), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pConfig, nullptr);
+
+  const char *secret = "s3:endpoint=127.0.0.1:9000;accessKeyId=AKID;secretAccessKey=SECRET";
+  ASSERT_EQ(cfgAddString(pConfig, "ssAccessString", secret, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL,
+                         CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(cfgAddString(pConfig, "ordinary_string", "visible", CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL,
+                         CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+
+  char    buf[TSDB_CONFIG_PATH_LEN] = {0};
+  int32_t len = 0;
+
+  SConfigItem *pItem = cfgGetItem(pConfig, "ssAccessString");
+  ASSERT_NE(pItem, nullptr);
+  ASSERT_EQ(cfgDumpItemValue(pItem, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "******");
+  EXPECT_EQ(strstr(buf, "secretAccessKey"), nullptr);
+  EXPECT_EQ(strstr(buf, "AKID"), nullptr);
+  // The item itself is untouched, so persistence still writes the real value.
+  EXPECT_STREQ(pItem->str, secret);
+
+  // Non-secret items are still dumped verbatim.
+  memset(buf, 0, sizeof(buf));
+  pItem = cfgGetItem(pConfig, "ordinary_string");
+  ASSERT_NE(pItem, nullptr);
+  ASSERT_EQ(cfgDumpItemValue(pItem, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "visible");
+
+  cfgCleanup(pConfig);
+}
+
+TEST_F(CfgTest, dumpItemValueKeepsEmptySecretEmpty) {
+  SConfig *pConfig = NULL;
+  ASSERT_EQ(cfgInit(&pConfig), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pConfig, nullptr);
+
+  // An unconfigured secret must read as empty rather than as a mask, so operators can still tell
+  // whether shared storage is configured at all.
+  ASSERT_EQ(cfgAddString(pConfig, "ssAccessString", "", CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL,
+                         CFG_PRIV_SYSTEM),
+            TSDB_CODE_SUCCESS);
+
+  char    buf[TSDB_CONFIG_PATH_LEN] = {0};
+  int32_t len = 0;
+
+  SConfigItem *pItem = cfgGetItem(pConfig, "ssAccessString");
+  ASSERT_NE(pItem, nullptr);
+  ASSERT_EQ(cfgDumpItemValue(pItem, buf, sizeof(buf), &len), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(buf, "");
+  EXPECT_EQ(len, 0);
+
+  cfgCleanup(pConfig);
+}
