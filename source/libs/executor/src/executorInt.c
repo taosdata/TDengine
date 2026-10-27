@@ -447,7 +447,11 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
+        QUERY_CHECK_NULL(pBlock->pDataBlock, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(slotId >= 0 && slotId < (int32_t)taosArrayGetSize(pBlock->pDataBlock),
+                              code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
+        QUERY_CHECK_NULL(pInput->pData[j], code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
         pInput->startRowIndex = 0;
@@ -463,7 +467,6 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         if (hasPk && (j == pkParamIdx)) {
           pInput->pPrimaryKey = pInput->pData[j];
         }
-        QUERY_CHECK_CONDITION((pInput->pData[j] != NULL), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.

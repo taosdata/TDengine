@@ -94,6 +94,13 @@ typedef struct SBuiltinFuncDefinition {
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
 extern const int32_t                funcMgtBuiltinsNum;
+// Validates planned parameter nodes, including value constraints. The function
+// manager must be initialized; diagnostics are written to pErrBuf on failure.
+int32_t validateBuiltinFuncParams(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
+// Validates borrowed runtime type IDs and arity against the built-in patterns.
+// Type IDs must be in [TSDB_DATA_TYPE_NULL, TSDB_DATA_TYPE_MAX); returns a
+// function parameter count/type error when no declared pattern matches.
+int32_t validateBuiltinFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams);
 
 #ifdef __cplusplus
 }

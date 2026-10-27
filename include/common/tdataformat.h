@@ -207,6 +207,11 @@ void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
 bool    tTagIsJsonNull(void *tagVal);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
+bool    tTagGetJsonBounded(const STag *pTag, int32_t availableLen, STagVal *pTagVal, bool *pFound);
+// pTag must point to at least sizeof(STag) readable bytes. availableLen is the
+// maximum number of readable bytes starting at pTag, including the header. An
+// empty JSON tag is valid only with nTag == 0 and len == sizeof(STag).
+bool    tTagValidate(const STag *pTag, int32_t availableLen);
 char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
