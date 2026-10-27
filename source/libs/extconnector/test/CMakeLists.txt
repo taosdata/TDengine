@@ -34,3 +34,26 @@ add_test(
   NAME extConnectorBoundaryTest
   COMMAND extConnectorBoundaryTest
 )
+
+if(TD_ENTERPRISE AND BUILD_WITH_ODBC)
+  # The SQL Server provider sources are compiled into extconnector only for
+  # enterprise builds with ODBC support (HAVE_ODBC); macOS builds leave them
+  # out, so the classifier symbol would not exist there.
+  ADD_EXECUTABLE(extConnectorSqlServerErrorTest extConnectorSqlServerErrorTest.cpp)
+  DEP_ext_gtest(extConnectorSqlServerErrorTest)
+
+  TARGET_INCLUDE_DIRECTORIES(
+    extConnectorSqlServerErrorTest
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  )
+
+  TARGET_LINK_LIBRARIES(
+    extConnectorSqlServerErrorTest
+    PUBLIC extconnector os util common qcom nodes crypt
+  )
+
+  add_test(
+    NAME extConnectorSqlServerErrorTest
+    COMMAND extConnectorSqlServerErrorTest
+  )
+endif()

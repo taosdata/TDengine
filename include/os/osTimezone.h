@@ -33,6 +33,9 @@ typedef void *timezone_t;
 // Add Windows version function declarations
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
+/* POSIX mktime_z equivalent: interpret the broken-down time in the given
+ * fixed-offset timezone object and return the UTC epoch. */
+time_t     mktime_z(timezone_t, struct tm *);
 
 #else
 typedef struct state *timezone_t;

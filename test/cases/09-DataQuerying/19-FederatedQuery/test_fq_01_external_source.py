@@ -121,6 +121,20 @@ class _ConnectRootStep:
     """Restore tdSql connection to root / taosdata."""
     pass
 
+class _SettleStep:
+    """Timing barrier: let the pending client-catalog push land.
+
+    An external-source DDL makes mnode push the source list on the next client
+    heartbeat (statusInterval, 1 s in the test config).  Receiving that push
+    replaces the client's whole external-source cache, which also drops cached
+    external-table schemas.  A case that asserts "cached until REFRESH" must
+    therefore issue its first SELECT *after* the push caused by its own CREATE
+    has landed; otherwise the push can fall between two steps and make the
+    second query re-read the remote schema.  The wait records no step block,
+    so baselines are unchanged on every platform."""
+    def __init__(self, seconds: float = 2.0):
+        self.seconds = seconds
+
 # ── Step helper functions ──────────────────────────────────────────────────
 
 def _q_count_step(negative: bool = False, count: int = 5) -> _QCountStep:
@@ -1108,11 +1122,11 @@ _CASES = [
             "drop external source if exists fq01_src052m",
             f"create external source fq01_src052m type='mysql' host='{_M_HOST}' port={_M_PORT} user='{_M_USER}' password='{_M_PASS}' database='{_M_DB}' options('read_timeout_ms'='2000', 'ssl_mode'='preferred')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052m'",
-            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052m'",
+            "select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052m'",
             _q_count_step(),
             f"alter external source fq01_src052m set host='{_M_HOST}', port={_M_PORT}, user='{_M_USER}', password='{_M_PASS}', database='{_M_DB}', options('read_timeout_ms'='', 'connect_timeout_ms'='350', 'ssl_mode'='required')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052m'",
-            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052m'",
+            "select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052m'",
             "describe external source fq01_src052m",
             _q_count_step(),
             _clear_source_step(),
@@ -1314,10 +1328,10 @@ _CASES = [
             "drop external source if exists fq01_src028i",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src028i'",
             f"create external source fq01_src028i type='influxdb' host='{_I_HOST}' port={_I_PORT} user='admin' database='{_I_DB}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql')",
-            "select source_name, `type`, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src028i'",
+            "select source_name, `type`, `host`, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src028i'",
             _q_count_step(),
             f"alter external source fq01_src028i set options('api_token'='{_I_TOKEN}', 'protocol'='http')",
-            "select source_name, `type`, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src028i'",
+            "select source_name, `type`, `host`, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src028i'",
             _q_count_step(),
             _clear_source_step(),
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src028i'",
@@ -1531,11 +1545,11 @@ _CASES = [
             "drop external source if exists fq01_src052i",
             f"create external source fq01_src052i type='influxdb' host='{_I_HOST}' port={_I_PORT} user='admin' database='{_I_DB}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql', 'read_timeout_ms'='2000')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052i'",
-            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052i'",
+            "select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052i'",
             _q_count_step(),
             f"alter external source fq01_src052i set host='{_I_HOST}', port={_I_PORT}, user='admin', database='{_I_DB}', options('read_timeout_ms'='', 'connect_timeout_ms'='350', 'protocol'='http')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052i'",
-            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052i'",
+            "select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052i'",
             "describe external source fq01_src052i",
             _q_count_step(),
             _clear_source_step(),
@@ -1970,11 +1984,11 @@ _CASES = [
             "drop external source if exists fq01_src052p",
             f"create external source fq01_src052p type='postgresql' host='{_P_HOST}' port={_P_PORT} user='{_P_USER}' password='{_P_PASS}' database='{_P_DB}' schema='{_P_SCHEMA}' options('read_timeout_ms'='2000', 'sslmode'='prefer')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052p'",
-            "select source_name, host, port, user, database, `schema`, options from information_schema.ins_ext_sources where source_name='fq01_src052p'",
+            "select source_name, host, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052p'",
             _q_count_step(),
             f"alter external source fq01_src052p set host='{_P_HOST}', port={_P_PORT}, user='{_P_USER}', password='{_P_PASS}', database='{_P_DB}', schema='{_P_SCHEMA}', options('read_timeout_ms'='', 'connect_timeout_ms'='350', 'sslmode'='require')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052p'",
-            "select source_name, host, port, user, database, `schema`, options from information_schema.ins_ext_sources where source_name='fq01_src052p'",
+            "select source_name, host, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052p'",
             "describe external source fq01_src052p",
             _q_count_step(),
             _clear_source_step(),
@@ -2939,11 +2953,11 @@ _CASES = [
             "drop external source if exists fq01_src052s",
             f"create external source fq01_src052s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}' options('read_timeout_ms'='2000', 'trust_server_certificate'='true')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'",
-            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+            "select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052s'",
             _q_count_step(),
             f"alter external source fq01_src052s set host='{_S_HOST}', port={_S_PORT}, user='{_S_USER}', password='{_S_PASS}', database='{_S_DB}', options('read_timeout_ms'='', 'connect_timeout_ms'='350', 'trust_server_certificate'='true')",
             "select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'",
-            "select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052s'",
+            "select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052s'",
             "describe external source fq01_src052s",
             _q_count_step(),
             _clear_source_step(),
@@ -3059,6 +3073,9 @@ _CASES = [
     ["082s", [_sqlserver], ["fq01_src082s"], "REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6, SQL Server)", [
             "drop external source if exists fq01_src082s",
             f"create external source fq01_src082s type='sqlserver' host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' database='{_S_DB}' schema='{_S_SCHEMA}'",
+            # Let the CREATE-triggered heartbeat push replace the client cache
+            # before the cache population this case asserts on (see _SettleStep).
+            _SettleStep(),
             "select * from fq01_src082s.src_t where val=5",
             _sqlserver_exec_step(_S_DB, [
                 f"ALTER TABLE dbo.{_FW_TABLE} ADD extra_note NVARCHAR(32) NULL",
@@ -3596,6 +3613,11 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             self._fw_exec_step(step(src_type), src_type, source_names, blocks, label, step_tag)
             return
 
+        # ── timing barrier (records nothing) ──────────────────────────────────
+        if isinstance(step, _SettleStep):
+            time.sleep(step.seconds)
+            return
+
         if isinstance(step, str):
             sql = self._fw_runtime_sql(step, src_type)
             stripped = sql.strip()
@@ -3885,7 +3907,14 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
                 tdLog.info(f"Running {label}: {desc}")
                 self._fw_append_case_boundary(blocks, label, desc, is_start=True)
                 _t0 = time.monotonic()
-                for step_no, step in enumerate(steps, start=1):
+                step_no = 0
+                for step in steps:
+                    # _SettleStep is a pure timing barrier: it emits no block and
+                    # does not consume a STEP number, so baselines stay valid.
+                    if isinstance(step, _SettleStep):
+                        self._fw_exec_step(step, src_type, source_names, blocks, label, "")
+                        continue
+                    step_no += 1
                     step_tag = f"STEP-{step_no:03d}"
                     self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
                 elapsed = time.monotonic() - _t0
