@@ -834,6 +834,98 @@ TEST_F(BoundedBlockDecoderTest, AcceptsProductionReassignedVariableOffsets) {
   EXPECT_EQ(memcmp(varDataVal(value), "six", 3), 0);
 }
 
+TEST_F(BoundedBlockDecoderTest, DecodesReassignedUdfVariableOffsets) {
+  colDataSetNULL(column(2), 1);
+  ASSERT_EQ(colDataReassignVal(column(2), 2, 0, nullptr), TSDB_CODE_SUCCESS);
+
+  std::vector<char> payload(tEncodeDataBlock(nullptr, source));
+  void*             cursor = payload.data();
+  ASSERT_EQ(tEncodeDataBlock(&cursor, source), payload.size());
+
+  size_t offsetPosition = sizeof(int64_t) * 2 + sizeof(int16_t) * 2 + sizeof(int32_t);
+  for (int32_t width : {static_cast<int32_t>(sizeof(TSKEY)), static_cast<int32_t>(sizeof(int32_t))}) {
+    offsetPosition += sizeof(int16_t) + sizeof(int8_t) * 2 + sizeof(int32_t);
+    offsetPosition += BitmapLen(kRows) + sizeof(int32_t) + kRows * width;
+  }
+  offsetPosition += sizeof(int16_t) + sizeof(int8_t) * 2 + sizeof(int32_t);
+  int32_t reusedOffset = column(2)->varmeta.offset[2];
+  memcpy(payload.data() + offsetPosition + 2 * sizeof(int32_t), &reusedOffset, sizeof(reusedOffset));
+
+  blockDataFreeRes(decoded);
+  int32_t consumed = 0;
+  ASSERT_EQ(tDecodeDataBlockBounded(payload.data(), payload.size(), decoded, &consumed), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(consumed, payload.size());
+
+  auto* variable = static_cast<SColumnInfoData*>(taosArrayGet(decoded->pDataBlock, 2));
+  ASSERT_TRUE(variable->reassigned);
+  const char* value = colDataGetData(variable, 2);
+  ASSERT_EQ(varDataLen(value), 3);
+  EXPECT_EQ(memcmp(varDataVal(value), "one", 3), 0);
+  EXPECT_TRUE(colDataIsNull_s(variable, 1));
+}
+
+TEST_F(BoundedBlockDecoderTest, DecodesUdfNullPlaceholderWithOneByteWidth) {
+  source->info.rows = 1;
+  SColumnInfoData* placeholder = column(1);
+  colDataSetNULL(placeholder, 0);
+  placeholder->info.type = TSDB_DATA_TYPE_NULL;
+  placeholder->info.bytes = CHAR_BYTES;
+
+  std::vector<char> payload(tEncodeDataBlock(nullptr, source));
+  void*             cursor = payload.data();
+  ASSERT_EQ(tEncodeDataBlock(&cursor, source), payload.size());
+
+  blockDataFreeRes(decoded);
+  int32_t consumed = 0;
+  ASSERT_EQ(tDecodeDataBlockBounded(payload.data(), payload.size(), decoded, &consumed), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(consumed, payload.size());
+  auto* decodedPlaceholder = static_cast<SColumnInfoData*>(taosArrayGet(decoded->pDataBlock, 1));
+  ASSERT_EQ(decodedPlaceholder->info.type, TSDB_DATA_TYPE_NULL);
+  ASSERT_EQ(decodedPlaceholder->info.bytes, CHAR_BYTES);
+  EXPECT_TRUE(colDataIsNull_s(decodedPlaceholder, 0));
+}
+
+TEST_F(BoundedBlockDecoderTest, EncodesReassignedUdfVariableOffsetsWithMixedWidths) {
+  char value[VARSTR_HEADER_SIZE + 6] = {0};
+  varDataSetLen(value, 6);
+  memcpy(varDataVal(value), "longer", 6);
+  ASSERT_EQ(colDataSetVal(column(2), 2, value, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 0, 2, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 2, nullptr), TSDB_CODE_SUCCESS);
+
+  std::vector<char> payload(tEncodeDataBlock(nullptr, source));
+  void*             cursor = payload.data();
+  ASSERT_EQ(tEncodeDataBlock(&cursor, source), payload.size());
+
+  blockDataFreeRes(decoded);
+  int32_t consumed = 0;
+  ASSERT_EQ(tDecodeDataBlockBounded(payload.data(), payload.size(), decoded, &consumed), TSDB_CODE_SUCCESS);
+  auto* variable = static_cast<SColumnInfoData*>(taosArrayGet(decoded->pDataBlock, 2));
+  for (int32_t row = 0; row < kRows; ++row) {
+    const char* decodedValue = colDataGetData(variable, row);
+    ASSERT_EQ(varDataLen(decodedValue), 6);
+    EXPECT_EQ(memcmp(varDataVal(decodedValue), "longer", 6), 0);
+  }
+}
+
+TEST_F(BoundedBlockDecoderTest, EncodesUnfilledReassignedUdfColumnAsNull) {
+  colDataDestroy(column(2));
+  ASSERT_EQ(colInfoDataEnsureCapacity(column(2), kRows, false), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colDataReassignVal(column(2), 1, 0, nullptr), TSDB_CODE_SUCCESS);
+
+  std::vector<char> payload(tEncodeDataBlock(nullptr, source));
+  void*             cursor = payload.data();
+  ASSERT_EQ(tEncodeDataBlock(&cursor, source), payload.size());
+
+  blockDataFreeRes(decoded);
+  int32_t consumed = 0;
+  ASSERT_EQ(tDecodeDataBlockBounded(payload.data(), payload.size(), decoded, &consumed), TSDB_CODE_SUCCESS);
+  auto* variable = static_cast<SColumnInfoData*>(taosArrayGet(decoded->pDataBlock, 2));
+  for (int32_t row = 0; row < kRows; ++row) {
+    EXPECT_TRUE(colDataIsNull_s(variable, row));
+  }
+}
+
 TEST_F(BoundedBlockDecoderTest, AcceptsVirtualColumnValueWiderThanDeclaredWidth) {
   char value[VARSTR_HEADER_SIZE + 10] = {0};
   varDataSetLen(value, 10);

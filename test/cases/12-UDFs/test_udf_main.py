@@ -358,6 +358,10 @@ class TestUdfpyMain:
         self.verify_same_value(sql)
         sql = f'select count(col8), af_count_float(col8) from {self.stbname}'
         self.verify_same_value(sql)
+        tdSql.execute('create table t_empty (ts timestamp, v int)')
+        tdSql.query('select count(*), af_count_int(v) from t_empty')
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, 0)
         # child
         sql = f'select count(col8), af_count_float(col8) from {self.tbname}0'
         self.verify_same_value(sql)
@@ -491,5 +495,4 @@ class TestUdfpyMain:
         self.query_aggr_udfpy()
 
         # show performance
-
 
