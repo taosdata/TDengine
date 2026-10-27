@@ -279,22 +279,23 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats) {
   int32_t code = 0, lino = 0;
 
+  // Period logging may release the last task reference and complete undeploy.
+  TAOS_CHECK_GOTO(stmPushTaskStatus(pMsg, pTask, pStats), &lino, _end);
+  SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
+  pStatus->pMgmtReq = NULL;
+
   taosWLockLatch(&pTask->mgmtReqLock);
   SStreamMgmtReq* pMgmtReq = pTask->pMgmtReq;
   if (pMgmtReq) {
-    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask, pStats));
-    SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
-    pStatus->pMgmtReq = NULL;
     TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pMgmtReq, &pStatus->pMgmtReq));
     TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
-  } else {
-    TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, pTask, pStats));
   }
 
 _exit:
 
   taosWUnLockLatch(&pTask->mgmtReqLock);
 
+_end:
   if (code) {
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }

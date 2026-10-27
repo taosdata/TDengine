@@ -424,6 +424,11 @@ static void stRunnerDestroyGroupedContinuation(SStreamRunnerTaskExecution* pExec
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
   stRunnerCleanupCalcRequestRuntime(pRuntime);
   tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+  // The execution owns requests not yet collected by heartbeat and unconsumed responses.
+  taosArrayDestroy(pRuntime->vtableDeployInfo.addVgIds);
+  pRuntime->vtableDeployInfo.addVgIds = NULL;
+  taosArrayDestroy(pRuntime->vtableDeployInfo.addedVgInfo);
+  pRuntime->vtableDeployInfo.addedVgInfo = NULL;
 }
 
 static void stRunnerDestroyTaskExecution(void* pExec) {
@@ -665,6 +670,13 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosArrayDestroy(pTask->output.colCids);
   taosArrayDestroy(pTask->output.tagCids);
   streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_UNDEPLOYED);
+
+  // Undeploy can precede the management response in the same heartbeat.
+  taosWLockLatch(&pTask->task.mgmtReqLock);
+  SStreamMgmtReq* pMgmtReq = atomic_exchange_ptr(&pTask->task.pMgmtReq, NULL);
+  tFreeSStreamMgmtReq(pMgmtReq);
+  taosMemoryFree(pMgmtReq);
+  taosWUnLockLatch(&pTask->task.mgmtReqLock);
 
   cb(ppTask);
   
