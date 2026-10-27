@@ -106,6 +106,10 @@ int32_t dmInitDnode(SDnode *pDnode) {
     goto _OVER;
   }
 
+  // streamInit starts timers before dmOpenNode; early requests must reach the startup status check.
+  SMsgCb msgCb = dmGetMsgcb(pDnode);
+  tmsgSetDefault(&msgCb);
+
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
   code = 0;
