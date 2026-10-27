@@ -25253,6 +25253,11 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
                 .wduration = p->range.ekey - p->range.skey,
                 .wrownum = (p == pHead) ? p->wrownum : (pHead->wrownum - p->wrownum),
             };
+            if (pTask->triggerType == STREAM_TRIGGER_STATE &&
+                !isTrueForSatisfied(&pTask->stateTrueForInfo, param.wstart, param.wend, param.wrownum)) {
+              TRINGBUF_MOVE_NEXT(&pGroup->winBuf, p);
+              continue;
+            }
             if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_CLOSE) {
               code = stHistoryGroupAddCalcParam(pGroup, &param, false);
               QUERY_CHECK_CODE(code, lino, _end);
