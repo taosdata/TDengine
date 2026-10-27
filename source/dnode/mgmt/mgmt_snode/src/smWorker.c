@@ -108,7 +108,7 @@ static int32_t smProcessStreamProgressRequest(SRpcMsg *pMsg) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   int32_t msgNum = taosArrayGetSize(batchReq.pMsgs);
-  QUERY_CHECK_CONDITION(msgNum < MAX_META_MSG_IN_BATCH, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(msgNum > 0 && msgNum < MAX_META_MSG_IN_BATCH, code, lino, _end, TSDB_CODE_INVALID_PARA);
   batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
   QUERY_CHECK_NULL(batchRsp.pRsps, code, lino, _end, terrno);
 
@@ -227,7 +227,15 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
       dError("msg:%p, failed to deserialize batch meta request", pMsg);
       TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
     }
-    SBatchMsg         *pReq = TARRAY_DATA(batchReq.pMsgs);
+    // tDeserializeSBatchReq returns success with pMsgs == NULL when the wire-declared message
+    // count is <= 0, so indexing the array unconditionally would dereference NULL here - on
+    // the dispatch path, which tAddTaskIntoDispatchWorkerPool runs synchronously under
+    // poolLock for every TDMT_SND_BATCH_META frame.
+    if (taosArrayGetSize(batchReq.pMsgs) <= 0) {
+      dError("msg:%p, batch meta request carries no message", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    SBatchMsg         *pReq = taosArrayGet(batchReq.pMsgs, 0);
     SStreamProgressReq req = {0};
     code = tDeserializeStreamProgressReq(pReq->msg, pReq->msgLen, &req);
     if (code != TSDB_CODE_SUCCESS) {
