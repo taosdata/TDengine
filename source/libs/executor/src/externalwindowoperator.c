@@ -5298,6 +5298,36 @@ _exit:
   return code;
 }
 
+static int32_t extWinFilterNonAggOutput(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  SColumnInfoData*         pFilterRes = NULL;
+  int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
+
+  if (pBlock->info.rows == 0 || pOperator->exprSupp.pFilterInfo == NULL) {
+    return code;
+  }
+
+  int32_t        rowsBeforeFilter = pBlock->info.rows;
+  SArray*        pIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+  SColMatchInfo* pMatchInfo = pExtW->fillMatchInfo.pList != NULL ? &pExtW->fillMatchInfo : NULL;
+  TAOS_CHECK_EXIT(doFilter(pBlock, pOperator->exprSupp.pFilterInfo, pMatchInfo, &pFilterRes));
+  if (pBlock->info.rows < rowsBeforeFilter) {
+    if (pFilterRes != NULL) {
+      TAOS_CHECK_EXIT(extWinRebuildWinIdxByFilter(pTaskInfo, pIdx, rowsBeforeFilter, pFilterRes));
+    } else {
+      taosArrayClear(pIdx);
+    }
+  }
+
+_exit:
+  colDataDestroy(pFilterRes);
+  taosMemoryFree(pFilterRes);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 
 static int32_t extWinNonAggOutputSingleGrpRes(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SSDataBlock** ppRes) {
   SExtWinCalcGrpCtx*  pCCtx = pExtW->pTGrpCtx->pCCtx;
@@ -5357,10 +5387,14 @@ static int32_t extWinNonAggOutputSingleGrpRes(SOperatorInfo* pOperator, SExterna
       extWinIncCurWinOutIdx(pOperator);
     }
 
-    if (pExtW->mode == EEXT_MODE_INDEFR_FUNC && pRes->info.rows == 0) {
-      extWinDestroyBlkNode(pExtW, pExtW->pLastBlkNode);
-      pExtW->pLastBlkNode = NULL;
+    TAOS_CHECK_EXIT(extWinFilterNonAggOutput(pOperator, pRes));
+    if (pRes->info.rows == 0 && (pExtW->mode == EEXT_MODE_INDEFR_FUNC || pOperator->exprSupp.pFilterInfo != NULL)) {
+      extWinRecycleOutputBlkNode(pExtW, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx,
+                                 &pExtW->pLastBlkNode);
       pRes = NULL;
+      if (pOperator->status == OP_NOT_OPENED) {
+        break;
+      }
       continue;
     }
     break;
@@ -5623,9 +5657,11 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
       }
     }
   } else {
-    for (; pExtW->outWinIdx < numOfWin; pExtW->outWinIdx++, extWinIncCurWinOutIdx(pOperator)) {
+    for (; pExtW->outWinIdx < numOfWin;) {
       SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->outWinIdx);
       if (listNEles(pList) <= 0) {
+        pExtW->outWinIdx++;
+        extWinIncCurWinOutIdx(pOperator);
         continue;
       }
 
@@ -5639,6 +5675,15 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
         extWinIncCurWinOutIdx(pOperator);
       }
 
+      TAOS_CHECK_EXIT(extWinFilterNonAggOutput(pOperator, pRes));
+      if (pRes->info.rows == 0 && pOperator->exprSupp.pFilterInfo != NULL) {
+        extWinRecycleOutputBlkNode(pExtW, &pStream->pStreamBlkWinIdx, &pExtW->pLastBlkNode);
+        pRes = NULL;
+        if (pOperator->status == OP_NOT_OPENED) {
+          break;
+        }
+        continue;
+      }
       break;
     }
   }
@@ -8163,6 +8208,12 @@ static int32_t extWinBroadcastStreamingNext(SOperatorInfo* pOperator, SExternalW
           extWinBroadcastAdvanceStreamingWindow(pCCtx);
         }
 
+        TAOS_CHECK_EXIT(extWinFilterNonAggOutput(pOperator, pBlock));
+        if (pBlock->info.rows == 0 && pOperator->exprSupp.pFilterInfo != NULL) {
+          extWinRecycleOutputBlkNode(pExtW, &pStream->pStreamBlkWinIdx, &pExtW->pLastBlkNode);
+          continue;
+        }
+
         pExtW->groupOutputComplete = pCCtx->broadcast.replayWinIdx >= winCount;
         pBlock->info.version = pOperator->pTaskInfo->version;
         pBlock->info.dataLoad = 1;
@@ -8559,7 +8610,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
       }
       if (NULL == *ppRes) {
-        if (multiGroupCalc && !pExtW->groupScanDone) {
+        if (pOperator->status == OP_NOT_OPENED || (multiGroupCalc && !pExtW->groupScanDone)) {
           continue;
         }
         setOperatorCompleted(pOperator);
@@ -9033,6 +9084,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     QUERY_CHECK_CODE(code, lino, _error);
 
     code = initExprSupp(&pExtW->scalarSupp, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
+    QUERY_CHECK_CODE(code, lino, _error);
+
+    code = filterInitFromNode(pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
     QUERY_CHECK_CODE(code, lino, _error);
 
     pExtW->pOutputBlocks = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, POINTER_BYTES);

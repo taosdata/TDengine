@@ -8852,6 +8852,29 @@ TEST_F(ExternalWindowOperatorTest, WindowBoundScalarSingletonPublishesStableHead
   EXPECT_EQ(owner.input()->getNextCalls, 3);
 }
 
+TEST_F(ExternalWindowOperatorTest, FilteredScalarPrefixContinuesReadingInput) {
+  for (bool multiGroup : {false, true}) {
+    SCOPED_TRACE(multiGroup);
+    const std::vector<uint64_t> inputGroups =
+        multiGroup ? std::vector<uint64_t>{101, 101, 101} : std::vector<uint64_t>{};
+    const std::vector<uint64_t> groups = multiGroup ? std::vector<uint64_t>{101} : std::vector<uint64_t>{};
+    ExternalWindowFactoryOwner  owner;
+    ASSERT_EQ(owner.init({4096, 1, 1}, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, nullptr, true, false, 1, false, true,
+                         false, inputGroups, false, groups, false, false, FILL_MODE_NONE, {}, OPTR_EXEC_MODEL_STREAM,
+                         false, {-4096, -1, 7}),
+              TSDB_CODE_SUCCESS);
+    if (multiGroup) {
+      owner.qualifyForMultiGroupJoin();
+    }
+    owner.pTaskInfo->pRoot->resultInfo.threshold = 4096;
+
+    std::vector<int32_t> values;
+    ASSERT_EQ(drainExternalWindow(&owner, &values), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(values, (std::vector<int32_t>{7}));
+    EXPECT_GE(owner.input()->getNextCalls, 4);
+  }
+}
+
 TEST_F(ExternalWindowOperatorTest, DirectHashJoinEogPublishesShortTailBeforeNextGroupRead) {
   std::vector<int32_t>                      headValues(4096, 11);
   std::vector<ExternalWindowInputBlockSpec> blocks = {
@@ -9708,10 +9731,6 @@ TEST_F(ExternalWindowOperatorTest, LegacyFilteredGroupsAfterPublishedGroupStillS
   for (ENodeType nodeType : {QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_EXTERNAL, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL}) {
     SCOPED_TRACE(nodeType);
     for (bool scalar : {false, true}) {
-      // Hash scalar mode does not initialize the output filter used by this fixture.
-      if (scalar && nodeType == QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL) {
-        continue;
-      }
       SCOPED_TRACE(scalar);
       for (int32_t threshold : {1, 3072}) {
         SCOPED_TRACE(threshold);
@@ -13843,6 +13862,32 @@ TEST(execUtilTest, externalWindowMergeAlignedFilterRebuildsWindowIndex) {
   auto   *pWinIdx = reinterpret_cast<int32_t *>(&encoded);
   EXPECT_EQ(*pWinIdx, 1);
   EXPECT_EQ(*(pWinIdx + 1), 0);
+}
+
+TEST(execUtilTest, externalWindowHashNonAggregateFilterRebuildsWindowIndex) {
+  for (bool scalar : {true, false}) {
+    SCOPED_TRACE(scalar);
+    ExternalWindowFactoryOwner owner;
+    ASSERT_EQ(owner.init({2}, QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL, scalar ? nullptr : "csum", scalar, !scalar, 2,
+                         true, true),
+              TSDB_CODE_SUCCESS);
+    bool         finished = false;
+    SSDataBlock *pBlock = nullptr;
+    ASSERT_EQ(streamExecuteTask(owner.pTaskInfo, &pBlock, &finished), TSDB_CODE_SUCCESS);
+    ASSERT_NE(pBlock, nullptr);
+    ASSERT_EQ(pBlock->info.rows, 1);
+    auto *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+    ASSERT_NE(pCol, nullptr);
+    EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(pCol, 0)), 1);
+
+    SArray *pIdx = owner.pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+    ASSERT_NE(pIdx, nullptr);
+    ASSERT_EQ(taosArrayGetSize(pIdx), 1);
+    int64_t encoded = *static_cast<int64_t *>(taosArrayGet(pIdx, 0));
+    auto   *pWinIdx = reinterpret_cast<int32_t *>(&encoded);
+    EXPECT_EQ(*pWinIdx, 1);
+    EXPECT_EQ(*(pWinIdx + 1), 0);
+  }
 }
 
 TEST(execUtilTest, externalWindowMergeAlignedResetDropsPrefetchedGroup) {
