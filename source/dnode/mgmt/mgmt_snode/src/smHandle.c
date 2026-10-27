@@ -152,6 +152,22 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  // The snodeId check above is the only authorization this handler has, and the id is a small
+  // sequential integer. Constrain the attacker-reachable part - the leader/replica epsets - to
+  // endpoints already known to be cluster dnodes, before they are written to snode.json or used
+  // by streamSyncAllCheckpoints to push every local checkpoint file to replica.epSet.
+  code = dmCheckEpSetInCluster(pInput->pData, createReq.leaders[0].nodeId, &createReq.leaders[0].epSet);
+  if (code == 0) {
+    code = dmCheckEpSetInCluster(pInput->pData, createReq.leaders[1].nodeId, &createReq.leaders[1].epSet);
+  }
+  if (code == 0) {
+    code = dmCheckEpSetInCluster(pInput->pData, createReq.replica.nodeId, &createReq.replica.epSet);
+  }
+  if (code != 0) {
+    dError("failed to create snode %d since its epsets are not cluster endpoints", createReq.snodeId);
+    goto _exit;
+  }
+
   bool deployed = true;
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {

@@ -545,6 +545,63 @@ bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
   return updated;
 }
 
+// Verify that every endpoint of pEpSet names a dnode this node knows to be part of the cluster,
+// and that nodeId - when given - resolves to one of them.
+//
+// Node management requests (TDMT_DND_CREATE_SNODE / ALTER_SNODE / ...) carry attacker-reachable
+// epsets that the receiving dnode persists and then uses as replication targets, and the dnode
+// has no way to authenticate the sender. Constraining the epsets to endpoints already recorded
+// in the local dnode table means a forged request cannot point stream checkpoint replication at
+// a host outside the cluster.
+//
+// Returns TSDB_CODE_SUCCESS when the epset is empty or when the local dnode table is still
+// empty (the cluster has not formed yet and there is nothing to check against).
+int32_t dmCheckEpSetInCluster(SDnodeData *pData, int32_t nodeId, const SEpSet *pEpSet) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pEpSet == NULL || pEpSet->numOfEps <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pEpSet->numOfEps > TSDB_MAX_REPLICA) {
+    dError("invalid epset with %d eps for node:%d", pEpSet->numOfEps, nodeId);
+    return TSDB_CODE_INVALID_OPTION;
+  }
+
+  (void)taosThreadRwlockRdlock(&pData->lock);
+
+  int32_t size = (int32_t)taosArrayGetSize(pData->dnodeEps);
+  if (size <= 0) {
+    goto _exit;
+  }
+
+  if (nodeId > 0 && taosHashGet(pData->dnodeHash, &nodeId, sizeof(int32_t)) == NULL) {
+    dError("node:%d is not a known cluster dnode", nodeId);
+    code = TSDB_CODE_INVALID_OPTION;
+    goto _exit;
+  }
+
+  for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    const SEp *pEp = &pEpSet->eps[i];
+    bool       found = false;
+    for (int32_t j = 0; j < size; ++j) {
+      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
+      if (pDnodeEp != NULL && strcmp(pDnodeEp->ep.fqdn, pEp->fqdn) == 0 && pDnodeEp->ep.port == pEp->port) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      dError("node:%d, ep:%s:%u is not a known cluster dnode endpoint", nodeId, pEp->fqdn, pEp->port);
+      code = TSDB_CODE_INVALID_OPTION;
+      goto _exit;
+    }
+  }
+
+_exit:
+  (void)taosThreadRwlockUnlock(&pData->lock);
+  return code;
+}
+
 static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
   int32_t code = 0;
 

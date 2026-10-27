@@ -6549,6 +6549,7 @@ int32_t tSerializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq) 
   TAOS_CHECK_EXIT(tEncodeI32(&encoder, pReq->version));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->config));
   TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pReq->value));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->alterType));
   tEndEncode(&encoder);
 
 _exit:
@@ -6571,6 +6572,12 @@ int32_t tDeserializeSDCfgDnodeReq(void *buf, int32_t bufLen, SDCfgDnodeReq *pReq
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->version));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->config));
   TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->value));
+  // Optional tail field: a pre-upgrade mnode does not send it. Default to the permissive
+  // CFG_ALTER_ALL_DNODES so a rolling upgrade cannot start refusing legitimate global alters.
+  pReq->alterType = CFG_ALTER_ALL_DNODES;
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->alterType));
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -16224,11 +16231,21 @@ int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq) {
   }
   for (int32_t i = 0; i < num; ++i) {
     SBatchMsg msg = {0};
+    uint64_t  msgLen = 0;
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &msg.msgIdx));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &msg.msgType));
     TAOS_CHECK_EXIT(tDecodeI32(&decoder, &msg.msgLen));
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, &msg.msg, NULL));
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, &msg.msg, &msgLen));
+    // msgLen is an independent wire integer while msg is sized by the embedded binary.
+    // Consumers decode msg bounded by msgLen (see smGetSingleStreamProgress and
+    // smDispatchStreamTriggerRsp), so a larger msgLen would read past the allocation.
+    // tSerializeSBatchReq always writes the binary with exactly msgLen bytes.
+    if (msg.msgLen < 0 || (uint64_t)msg.msgLen != msgLen) {
+      taosMemoryFreeClear(msg.msg);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
     if (NULL == taosArrayPush(pReq->pMsgs, &msg)) {
+      taosMemoryFreeClear(msg.msg);
       TAOS_CHECK_EXIT(terrno);
     }
   }

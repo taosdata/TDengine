@@ -1100,8 +1100,40 @@ const char *cfgDtypeStr(ECfgDataType type) {
   }
 }
 
+// Configuration items whose value is a credential rather than a setting. Their value must never
+// be rendered into a variables listing: ssAccessString carries the object-storage accessKeyId
+// and secretAccessKey (see docs/en/08-operation/12-multi.md), which would otherwise be returned
+// verbatim by SHOW VARIABLES and by information_schema.ins_dnode_variables.
+static const char *cfgSecretItemNames[] = {
+    "ssAccessString",
+};
+
+#define CFG_SECRET_MASK "******"
+
+static bool cfgIsSecretItem(const char *name) {
+  if (name == NULL) return false;
+  for (size_t i = 0; i < sizeof(cfgSecretItemNames) / sizeof(cfgSecretItemNames[0]); ++i) {
+    if (strcasecmp(name, cfgSecretItemNames[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
   int32_t len = 0;
+
+  // dumpConfToDataBlock is this function's only caller, i.e. the display path. Persistence goes
+  // through localConfigSerialize/globalConfigSerialize, so masking here cannot corrupt
+  // local.json/global.json.
+  if (cfgIsSecretItem(pItem->name)) {
+    len = snprintf(buf, bufSize, "%s", (pItem->str != NULL && pItem->str[0] != 0) ? CFG_SECRET_MASK : "");
+    if (len < 0) return terrno;
+    if (len > bufSize) len = bufSize;
+    *pLen = len;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL:
       len = snprintf(buf, bufSize, "%u", pItem->bval);
