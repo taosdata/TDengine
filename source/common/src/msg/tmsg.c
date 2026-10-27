@@ -12415,6 +12415,8 @@ static int32_t tableMetaScanFrame(const void *buf, int32_t bufLen) {
   return cursor.p == cursor.end ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
 }
 
+// On failure, pRsp may contain allocated members. The caller must free them
+// with tFreeSTableMetaRsp; the decoder does not own these allocations.
 static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->tbName));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->stbName));
@@ -12687,7 +12689,11 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
 
   for (int32_t i = 0; i < numOfMeta; ++i) {
     STableMetaRsp tableMetaRsp = {0};
-    TAOS_CHECK_EXIT(tDecodeSTableMetaRsp(&decoder, &tableMetaRsp));
+    code = tDecodeSTableMetaRsp(&decoder, &tableMetaRsp);
+    if (code != 0) {
+      tFreeSTableMetaRsp(&tableMetaRsp);
+      goto _exit;
+    }
     if (taosArrayPush(pRsp->pMetaRsp, &tableMetaRsp) == NULL) {
       tFreeSTableMetaRsp(&tableMetaRsp);
       TAOS_CHECK_EXIT(terrno);
