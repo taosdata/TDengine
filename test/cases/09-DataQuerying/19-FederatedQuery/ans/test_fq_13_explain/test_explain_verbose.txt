@@ -7878,10 +7878,10 @@ RESULT
          Remote SQL: SELECT "region" FROM "sensor"
 ---
 ### EXP-ds_crypto-02_mysql POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_mysql.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_mysql.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
-      Output: columns=1 width=132
+-> Projection (columns=1 width=148 input_order=unknown)
+      Output: columns=1 width=148
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
@@ -7890,10 +7890,10 @@ RESULT
          Remote SQL: SELECT `region` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-ds_crypto-02_pg POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_pg.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_pg.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
-      Output: columns=1 width=65521
+-> Projection (columns=1 width=65524 input_order=unknown)
+      Output: columns=1 width=65524
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
@@ -7902,10 +7902,10 @@ RESULT
          Remote SQL: SELECT "region" FROM "public"."sensor"
 ---
 ### EXP-ds_crypto-02_influx POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_influx.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_influx.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
-      Output: columns=1 width=65521
+-> Projection (columns=1 width=65524 input_order=unknown)
+      Output: columns=1 width=65524
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
@@ -7950,10 +7950,10 @@ RESULT
          Remote SQL: SELECT "region" FROM "sensor"
 ---
 ### EXP-ds_crypto-04_mysql POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_mysql.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_mysql.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
-      Output: columns=1 width=132
+-> Projection (columns=1 width=148 input_order=unknown)
+      Output: columns=1 width=148
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
@@ -7962,10 +7962,10 @@ RESULT
          Remote SQL: SELECT `region` FROM `fq_explain_m`.`sensor`
 ---
 ### EXP-ds_crypto-04_pg POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_pg.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_pg.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
-      Output: columns=1 width=65521
+-> Projection (columns=1 width=65524 input_order=unknown)
+      Output: columns=1 width=65524
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
@@ -7974,10 +7974,10 @@ RESULT
          Remote SQL: SELECT "region" FROM "public"."sensor"
 ---
 ### EXP-ds_crypto-04_influx POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_influx.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_influx.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
-      Output: columns=1 width=65521
+-> Projection (columns=1 width=65524 input_order=unknown)
+      Output: columns=1 width=65524
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
@@ -34556,10 +34556,10 @@ RESULT
          Remote SQL: SELECT [region] FROM [fq_exp_ssdb].[dbo].[sensor]
 ---
 ### EXP-ds_crypto-02_sqlserver POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_sqlserver.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_sqlserver.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
-      Output: columns=1 width=132
+-> Projection (columns=1 width=148 input_order=unknown)
+      Output: columns=1 width=148
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (width=130)
@@ -34580,10 +34580,10 @@ RESULT
          Remote SQL: SELECT [region] FROM [fq_exp_ssdb].[dbo].[sensor]
 ---
 ### EXP-ds_crypto-04_sqlserver POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_sqlserver.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_sqlserver.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
-      Output: columns=1 width=132
+-> Projection (columns=1 width=148 input_order=unknown)
+      Output: columns=1 width=148
       Output: Ignore Group Id: true
       Merge ResBlocks: True
    -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (width=130)

@@ -3301,6 +3301,13 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     }
 #endif
 
+    char errBuf[256] = {0};
+    code = fmValidateFuncNode(pFuncNode, errBuf, sizeof(errBuf));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d, %s", __func__, __LINE__, errBuf);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+
     int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
 
     pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
@@ -3395,6 +3402,7 @@ SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
     SExprInfo* pExp = &pExprs[i];
     int32_t    code = createExprFromOneNode(pExp, nodesListGetNode(pNodeList, i), i + UD_TAG_COLUMN_INDEX);
     if (code != TSDB_CODE_SUCCESS) {
+      destroyExprInfo(pExprs, *numOfExprs);
       taosMemoryFreeClear(pExprs);
       terrno = code;
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -3644,6 +3652,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->pStore = pStore;
     pCtx->hasWindowOrGroup = false;
     pCtx->needCleanup = false;
+    pCtx->pendingCleanup = 0;
     pCtx->skipDynDataCheck = false;
   }
 

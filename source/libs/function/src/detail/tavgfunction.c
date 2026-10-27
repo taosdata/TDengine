@@ -614,8 +614,7 @@ _over:
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t avgTransferInfo(SqlFunctionCtx* pCtx, void* pInput, void* pOutput) {
-  int32_t inputDT = pCtx->pExpr->pExpr->_function.pFunctNode->srcFuncInputType.type;
+static int32_t avgTransferInfo(SqlFunctionCtx* pCtx, void* pInput, void* pOutput, int32_t inputDT) {
   int32_t type = AVG_RES_GET_TYPE(pInput, inputDT);
   pCtx->inputType = type;
   if (IS_NULL_TYPE(type)) {
@@ -657,14 +656,34 @@ int32_t avgFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   void* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
   int32_t start = pInput->startRowIndex;
+  int32_t mergedType = TSDB_DATA_TYPE_NULL;
 
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     if(colDataIsNull_s(pCol, i)) continue;
-    char*    data = colDataGetData(pCol, i);
+    char* data = colDataGetData(pCol, i);
+    if (data == NULL) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+    int32_t stateBytes = varDataLen(data);
+    if (stateBytes != sizeof(SAvgRes) && stateBytes != sizeof(SDecimalAvgRes)) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
     void* pInputInfo = varDataVal(data);
-    int32_t code = avgTransferInfo(pCtx, pInputInfo, pInfo);
+    int32_t stateType = stateBytes == sizeof(SDecimalAvgRes) ? ((SDecimalAvgRes*)pInputInfo)->type
+                                                        : ((SAvgRes*)pInputInfo)->type;
+    int64_t stateCount = stateBytes == sizeof(SDecimalAvgRes) ? ((SDecimalAvgRes*)pInputInfo)->count
+                                                           : ((SAvgRes*)pInputInfo)->count;
+    if (stateType == TSDB_DATA_TYPE_NULL && stateCount == 0) {
+      continue;
+    }
+    if (stateType <= TSDB_DATA_TYPE_NULL || stateType >= TSDB_DATA_TYPE_MAX || !IS_NUMERIC_TYPE(stateType) ||
+        AVG_RES_GET_SIZE(stateType) != stateBytes ||
+        (mergedType != TSDB_DATA_TYPE_NULL && stateType != mergedType)) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+    mergedType = stateType;
+    int32_t code = avgTransferInfo(pCtx, pInputInfo, pInfo, stateType);
     if (code != 0) return code;
   }
 
