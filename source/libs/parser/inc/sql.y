@@ -1499,9 +1499,16 @@ cmd ::= SHOW CLUSTER MACHINES.                                                  
 cmd ::= SHOW MOUNTS.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_MOUNTS_STMT); }
 cmd ::= SHOW CREATE DATABASE db_name(A).                                          { pCxt->pRootNode = createShowCreateDatabaseStmt(pCxt, &A); }
 cmd ::= SHOW CREATE TABLE full_table_name(A).                                     { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
+// FULL suffix: BLOB result column with the complete DDL (see cmdnodes.h
+// SShowCreateTableStmt::fullResult); without it the historical VARCHAR form
+// (65535 clamp) is kept for old-consumer compatibility.
+cmd ::= SHOW CREATE TABLE full_table_name(A) FULL.                                  { pCxt->pRootNode = createShowCreateTableStmtFull(pCxt, QUERY_NODE_SHOW_CREATE_TABLE_STMT, A); }
 cmd ::= SHOW CREATE VTABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateVTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_VTABLE_STMT, A); }
+cmd ::= SHOW CREATE VTABLE full_table_name(A) FULL.                                 { pCxt->pRootNode = createShowCreateVTableStmtFull(pCxt, QUERY_NODE_SHOW_CREATE_VTABLE_STMT, A); }
 cmd ::= SHOW CREATE STABLE full_table_name(A).                                    { pCxt->pRootNode = createShowCreateTableStmt(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT,
 A); }
+cmd ::= SHOW CREATE STABLE full_table_name(A) FULL.                                 { pCxt->pRootNode = createShowCreateTableStmtFull(pCxt, QUERY_NODE_SHOW_CREATE_STABLE_STMT,
+                                                                                   A); }
 cmd ::= SHOW ENCRYPTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPTIONS_STMT); }
 cmd ::= SHOW ENCRYPT_ALGORITHMS.                                                  { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_ALGORITHMS_STMT); }
 cmd ::= SHOW ENCRYPT_STATUS.                                                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_ENCRYPT_STATUS_STMT); }
@@ -1596,6 +1603,7 @@ cmd ::= CREATE RSMA not_exists_opt(B) rsma_name(C)
   INTERVAL NK_LP signed_duration_list(F) NK_RP.                                   { pCxt->pRootNode = createCreateRsmaStmt(pCxt, B, &C, D, E, F); }
 cmd ::= DROP RSMA exists_opt(B) full_rsma_name(C).                                { pCxt->pRootNode = createDropRsmaStmt(pCxt, B, C); }
 cmd ::= SHOW CREATE RSMA full_table_name(A).                                      { pCxt->pRootNode = createShowCreateRsmaStmt(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
+cmd ::= SHOW CREATE RSMA full_table_name(A) FULL.                                   { pCxt->pRootNode = createShowCreateRsmaStmtFull(pCxt, QUERY_NODE_SHOW_CREATE_RSMA_STMT, A); }
 cmd ::= SHOW CREATE STREAM full_stream_name(A).                                   { pCxt->pRootNode = createShowCreateStreamStmt(pCxt, A); }
 cmd ::= ALTER RSMA exists_opt(B) full_rsma_name(C) rsma_func_list(D).             { pCxt->pRootNode = createAlterRsmaStmt(pCxt, B, C, TSDB_ALTER_RSMA_FUNCTION, D); }
 cmd ::= SHOW db_name_cond_opt(B) RSMAS.                                           { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_RSMAS_STMT, B, NULL, OP_TYPE_LIKE); }

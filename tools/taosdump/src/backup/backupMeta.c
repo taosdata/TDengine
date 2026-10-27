@@ -28,10 +28,214 @@
 // ----------------------------------- FUNCTION --------------------------------------
 //
 
-// Threshold for detecting truncated SHOW CREATE TABLE results.
-// TDengine returns DDL as VARCHAR(65517); if result length is near this limit,
-// it's likely truncated. Use 64000 as a safe detection threshold.
-#define DDL_TRUNCATION_THRESHOLD 64000
+// Length signature of a truncated SHOW CREATE TABLE result.
+// Old clients return the DDL as VARCHAR whose 2-byte length header caps at 65535,
+// so a truncated result is exactly 65535 bytes. New clients return the DDL as
+// BLOB, whose only cap is the assembler buffer (detected structurally inside
+// showCreateDdlTruncated); any other length -- including exactly 65535 -- is
+// complete.
+#define DDL_TRUNCATED_LEN 65535
+
+// Smallest possible value of the BLOB-form assembler cap across all legal
+// configs: min(tsMaxSQLLength * 3, TSDB_MAX_BLOB_LEN) - BLOBSTR_HEADER_SIZE
+// with tsMaxSQLLength at its enforced minimum of 1MiB (the "maxSQLLength"
+// config range in tglobal.c), i.e. 3MiB - 4. A clamped DDL is EXACTLY the cap
+// (in-assembly snprintf truncation lands at the same scale), so any shorter
+// DDL is provably complete and must not be judged by structure -- see
+// showCreateDdlTruncated.
+#define DDL_BLOB_CAP_MIN (3 * 1024 * 1024 - 4)
+
+// Issue a "SHOW CREATE ... FULL" statement; if the parser rejects the suffix
+// with a syntax error, retry the plain form (whose result is the clamped
+// VARCHAR form, handled downstream exactly as before). SHOW CREATE is parsed
+// inside this process's own client lib, so the rejecting parser can only be
+// an old libtaos loaded in-place of the one this build expects -- a purely
+// defensive path (an old *server* fails earlier at the RPC signature check
+// and never reaches SQL parsing).
+// Process-level capability latch: once one statement comes back with a syntax
+// error AND the plain-form retry gets past parsing (success or a non-syntax
+// error), every later call skips the doomed FULL round-trip (backups iterate
+// per table, so without the latch every table pays one wasted query and one
+// warn line). The retry confirmation matters: a syntax error can also come
+// from the statement itself (e.g. a name breaking out of its backticks), and
+// latching on that would degrade the rest of the run for nothing.
+static bool g_fullSuffixUnsupported = false;
+
+// Strip a trailing " FULL" (plus any trailing ';'/' ') from the statement in
+// place; returns whether the suffix was found and removed.
+static bool stripFullSuffix(char* sql) {
+    size_t n = strlen(sql);
+    while (n > 0 && (sql[n - 1] == ';' || sql[n - 1] == ' ')) sql[--n] = '\0';
+    if (n >= 5 && 0 == strncasecmp(sql + n - 5, " FULL", 5)) {
+        sql[n - 5] = '\0';
+        return true;
+    }
+    return false;
+}
+
+static TAOS_RES* queryShowCreateFullWithFallback(TAOS* conn, char* sql) {
+    // Latched: the client parser already rejected the suffix once -- send the
+    // plain form directly (the callers always format the statement with FULL,
+    // so the suffix must be stripped here too, not only on the first rejection).
+    if (g_fullSuffixUnsupported) {
+        (void)stripFullSuffix(sql);
+        return taos_query(conn, sql);
+    }
+    TAOS_RES* res = taos_query(conn, sql);
+    // Only a NON-NULL result carrying the syntax error means the client
+    // parser rejects the FULL suffix. A NULL return is a client/connection-
+    // layer failure -- pass it through untouched (no latch, no retry), so a
+    // transient NULL cannot silently degrade the rest of the run to the
+    // clamped VARCHAR form.
+    if (res == NULL || TSDB_CODE_PAR_SYNTAX_ERROR != taos_errno(res)) {
+        return res;
+    }
+    taos_free_result(res);
+    if (stripFullSuffix(sql)) {
+        TAOS_RES* plain = taos_query(conn, sql);
+        // Latch only when the plain form gets PAST parsing (success or any
+        // non-syntax error): that proves the client parser rejected the FULL
+        // suffix itself. If the plain form also fails with a syntax error, the
+        // statement is malformed for another reason -- do not degrade the rest
+        // of the run for it.
+        if (plain != NULL && TSDB_CODE_PAR_SYNTAX_ERROR != taos_errno(plain)) {
+            g_fullSuffixUnsupported = true;
+            logWarn("the client parser rejects the FULL suffix; the rest of this run uses the plain SHOW CREATE: "
+                    "DDLs over 65535 bytes clamp and their backups go through the lossy DESCRIBE rebuild (drops "
+                    "BASE ON / SERIES / SMA / COMMENT)");
+        }
+        return plain;
+    }
+    // syntax error on a statement without the suffix: nothing to strip. The
+    // error result above was already freed; report failure as a NULL return.
+    return NULL;
+}
+
+// Structural completeness check: are the parentheses of a SHOW CREATE DDL
+// balanced outside backtick-quoted identifiers, single-quoted string literals
+// ('' is an escaped quote inside a literal) and double-quoted tag-value
+// strings? VARCHAR/NCHAR tag values are rendered by dataConverToStr wrapped
+// in double quotes with the payload copied verbatim, and those payloads can
+// carry parentheses -- they must not count. A DDL clamped mid-way by the
+// assembler almost always loses the tail that closes its parenthesized clause
+// lists, while a complete DDL -- including one with a COMMENT literal full of
+// parens -- always balances.
+// Caveat: the double-quoted tag values are copied VERBATIM (no escaping), so
+// a payload containing '"' desynchronizes this scanner and can leave a
+// COMPLETE DDL "unbalanced". Callers must therefore gate the verdict on
+// DDL_BLOB_CAP_MIN (see showCreateDdlTruncated): below that floor truncation
+// is impossible, so the scanner's misjudgment there is unreachable.
+static bool ddlParensBalanced(const char *ddl, int32_t ddlLen) {
+    if (ddl == NULL || ddlLen <= 0) return false;
+    int      depth = 0;
+    bool     inIdent = false;
+    bool     inStr = false;
+    bool     inDquote = false;
+    for (int32_t i = 0; i < ddlLen; ++i) {
+        char c = ddl[i];
+        if (inIdent) {
+            if (c == '`') inIdent = false;
+        } else if (inStr) {
+            if (c == '\'') {
+                if (i + 1 < ddlLen && ddl[i + 1] == '\'') {
+                    ++i;  // escaped quote, still inside the literal
+                } else {
+                    inStr = false;
+                }
+            }
+        } else if (inDquote) {
+            if (c == '"') inDquote = false;
+        } else if (c == '`') {
+            inIdent = true;
+        } else if (c == '\'') {
+            inStr = true;
+        } else if (c == '"') {
+            inDquote = true;
+        } else if (c == '(') {
+            ++depth;
+        } else if (c == ')') {
+            if (depth == 0) return false;  // unbalanced before the end: clipped text
+            --depth;
+        }
+    }
+    return depth == 0 && !inIdent && !inStr && !inDquote;
+}
+
+// Whether a SHOW CREATE TABLE result of the given length is truncated. Two
+// signatures mean "truncated": (1) the new BLOB path clamped at the assembler
+// cap, and (2) the old VARCHAR path, whose 2-byte length header caps at
+// DDL_TRUNCATED_LEN. Either way the DESCRIBE fallback is preferred over backing
+// up a clipped DDL, even though the rebuild is lossy (drops BASE ON / SERIES /
+// SMA / COMMENT): backup integrity wins.
+//
+// BLOB clamp detection: the assembler cap is min(tsMaxSQLLength * 3,
+// TSDB_MAX_BLOB_LEN) - 4 (command.c setShowCreateDdlIntoResultBuf). The public
+// field metadata CANNOT recover that number: taos_fetch_fields() hands back
+// userFields whose bytes run through calcTypeBytesFromSchemaBytes(), which maps
+// any BLOB to a flat TSDB_MAX_BLOB_LEN and discards the declared column width
+// (and SHOW CREATE assembles inside this process's own client lib, but
+// tsMaxSQLLength is not exported for taosdump to read). So instead of an
+// exact-length equality -- which held only while fields[1].bytes still carried
+// the declared width -- a BLOB result is declared clamped when it is at least
+// DDL_BLOB_CAP_MIN long (a truncated DDL is exactly the cap, and the cap is
+// never smaller) AND fails the structural check above.
+// The length floor is load-bearing, not an optimization: VARCHAR/NCHAR tag
+// values render as '"' + verbatim payload + '"' with NO escaping
+// (dataConverToStr), so a payload containing '"' desynchronizes the paren
+// scanner's quote state and can leave a COMPLETE DDL "unbalanced". Without
+// the floor such a table (typically a small DDL) would be misrouted to the
+// lossy DESCRIBE rebuild; below the floor truncation is impossible, so the
+// structural check must not run there. Residual false positives would need a
+// >= DDL_BLOB_CAP_MIN DDL with a quote-desynced tag value -- accepted risk,
+// and it stays observable via the warn line below.
+static bool showCreateDdlTruncated(TAOS_RES *res, const char *ddl, int32_t ddlLen) {
+    TAOS_FIELD *fields = taos_fetch_fields(res);
+    int32_t     numFields = taos_num_fields(res);
+
+    if (numFields >= 2 && fields != NULL && fields[1].type == TSDB_DATA_TYPE_BLOB) {
+        if (ddlLen >= DDL_BLOB_CAP_MIN && !ddlParensBalanced(ddl, ddlLen)) {
+            int32_t tailOff = ddlLen - 40;
+            if (tailOff < 0) tailOff = 0;
+            // %.*s bounded by the actual payload: a BLOB payload is not
+            // NUL-terminated, so a fixed %.40s could read past ddlLen when the
+            // DDL is shorter than 40 bytes
+            int32_t tailLen = ddlLen - tailOff;
+            logWarn("SHOW CREATE DDL of %d bytes has unbalanced parentheses; clamped by the assembler cap. "
+                    "Tail: [%.*s]",
+                    ddlLen, tailLen, ddl ? ddl + tailOff : "");
+            return true;
+        }
+        return false;
+    }
+    if (ddlLen != DDL_TRUNCATED_LEN) {
+        return false;
+    }
+    // Remaining path: the exact-65535 VARCHAR-era signature. An unusable schema --
+    // fewer than 2 fields, or a NULL fields array against a positive field count
+    // (a contradictory API state) -- cannot prove the BLOB form, so keep the
+    // historical conservative reading instead of indexing fields[1] out of
+    // bounds. The DESCRIBE fallback this triggers is lossy (drops BASE ON /
+    // SERIES / SMA / COMMENT), so do not degrade silently.
+    if (numFields < 2 || fields == NULL) {
+        logWarn("SHOW CREATE TABLE result schema unusable (%d field(s), fields=%p), cannot verify BLOB "
+                "form; treating exact-%d DDL as truncated", numFields, (void *)fields, DDL_TRUNCATED_LEN);
+        return true;
+    }
+    return fields[1].type != TSDB_DATA_TYPE_BLOB;
+}
+
+// Bounded substring search inside a SHOW CREATE result payload. A long DDL is
+// returned as BLOB (4-byte length header), whose payload is NOT guaranteed to be
+// NUL-terminated, so strstr would read past the payload boundary. Returns a
+// pointer to the first occurrence of pat within ddl[0, ddlLen), or NULL.
+static char *ddlFindBounded(char *ddl, int32_t ddlLen, const char *pat) {
+    size_t patLen = strlen(pat);
+    if (ddlLen <= 0 || (size_t)ddlLen < patLen) return NULL;
+    for (int32_t i = 0; (size_t)i + patLen <= (size_t)ddlLen; i++) {
+        if (memcmp(ddl + i, pat, patLen) == 0) return ddl + i;
+    }
+    return NULL;
+}
 
 // Check if a data type needs a length suffix in CREATE SQL (e.g. BINARY(20))
 static bool typeNeedsLength(int8_t type) {
@@ -77,7 +281,8 @@ static const char *tdTypeToStr(int8_t type) {
 }
 
 // Build CREATE TABLE/STABLE SQL from DESCRIBE result.
-// Used as fallback when SHOW CREATE TABLE is truncated (>= 64000 bytes).
+// Used as fallback when SHOW CREATE TABLE is truncated (old clients cap the VARCHAR
+// length header at exactly 65535; see DDL_TRUNCATED_LEN).
 // Returns dynamically allocated SQL string; caller must free with taosMemoryFree().
 // Returns NULL on failure.
 static char *buildCreateSqlFromDescribe(TAOS *conn, const char *dbName, const char *tbName) {
@@ -252,7 +457,7 @@ static char *buildCreateSqlFromDescribe(TAOS *conn, const char *dbName, const ch
     taosMemoryFree(descs);
 
     logWarn("Used DESCRIBE fallback to build CREATE %s SQL for `%s`.`%s` "
-        "(SHOW CREATE TABLE result was truncated at 65535 bytes)",
+        "(SHOW CREATE TABLE result carried a truncation signature)",
         isStable ? "STABLE" : "TABLE", dbName, tbName);
 
     return csql;
@@ -283,13 +488,13 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     obtainFileName(BACK_FILE_STBSQL, dbName, NULL, NULL, 0, 0, BINARY_TAOS, sqlFile, sizeof(sqlFile));
 
     char sql[512] = {0};
-    snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`;", dbName, stbName);
+    snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s` FULL;", dbName, stbName);
 
     int connCode = TSDB_CODE_FAILED;
     TAOS *conn = getConnection(&connCode);
     if (!conn) return connCode;
 
-    TAOS_RES *res = taos_query(conn, sql);
+    TAOS_RES *res = queryShowCreateFullWithFallback(conn, sql);
     int code = taos_errno(res);
     char *fallbackDdl = NULL;
     if (code == TSDB_CODE_OUT_OF_BUFFER) {
@@ -313,18 +518,44 @@ int backCreateStbSql(const char *dbName, const char *stbName) {
     char *ddl = fallbackDdl;
     if (!fallbackDdl) {
         TAOS_ROW row = taos_fetch_row(res);
+        if (taos_num_fields(res) < 2) {
+            // row[]/lengths[] are sized by the field count: never index [1] on a
+            // malformed result schema
+            logError("SHOW CREATE TABLE `%s`.`%s`: unexpected result schema (%d fields)", dbName, stbName,
+                     taos_num_fields(res));
+            taos_free_result(res);
+            releaseConnection(conn);
+            return TSDB_CODE_BCK_NO_FIELDS;
+        }
         if (!row || !row[1]) {
             taos_free_result(res);
             releaseConnection(conn);
             return TSDB_CODE_BCK_NO_FIELDS;
         }
         int32_t *lengths = taos_fetch_lengths(res);
+        if (lengths == NULL) {
+            logError("taos_fetch_lengths failed for `%s`.`%s`", dbName, stbName);
+            taos_free_result(res);
+            releaseConnection(conn);
+            return TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
+        }
         ddlLen = lengths[1];
+        if (ddlLen < 0) {
+            // anomalous result state; a negative length would poison the truncation
+            // check and the write below
+            logError("SHOW CREATE TABLE `%s`.`%s`: anomalous DDL length %d", dbName, stbName, ddlLen);
+            taos_free_result(res);
+            releaseConnection(conn);
+            return TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
+        }
         ddl = (char *)row[1];
 
-        if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
+        // Check if DDL result is truncated: the VARCHAR form returned by old
+        // clients caps at 65535; the BLOB form (new clients) only caps at the
+        // assembler buffer -- see showCreateDdlTruncated
+        if (showCreateDdlTruncated(res, ddl, ddlLen)) {
             logWarn("SHOW CREATE TABLE result for `%s`.`%s` is %d bytes "
-                "(likely truncated at 65535), using DESCRIBE fallback",
+                "(truncation signature detected), using DESCRIBE fallback",
                 dbName, stbName, ddlLen);
             taos_free_result(res);
             res = NULL;
@@ -705,8 +936,8 @@ int backNormalTablesSql(const char *dbName) {
             break;
         }
 
-        snprintf(sql, sizeof(sql), "show create table `%s`.`%s`;", dbName, ntbNames[i]);
-        TAOS_RES *res = taos_query(conn, sql);
+        snprintf(sql, sizeof(sql), "show create table `%s`.`%s` FULL;", dbName, ntbNames[i]);
+        TAOS_RES *res = queryShowCreateFullWithFallback(conn, sql);
         code = taos_errno(res);
         char *fallbackDdl = NULL;
         char *ddl = NULL;
@@ -728,15 +959,40 @@ int backNormalTablesSql(const char *dbName) {
         }
 
         TAOS_ROW row = res ? taos_fetch_row(res) : NULL;
+        if (res && taos_num_fields(res) < 2) {
+            // row[]/lens[] are sized by the field count: never index [1] on a
+            // malformed result schema
+            logError("SHOW CREATE TABLE `%s`.`%s`: unexpected result schema (%d fields)", dbName, ntbNames[i],
+                     taos_num_fields(res));
+            code = TSDB_CODE_BCK_NO_FIELDS;
+            taos_free_result(res);
+            break;
+        }
         if (row && row[1]) {
             int32_t *lens = taos_fetch_lengths(res);
+            if (lens == NULL) {
+                logError("taos_fetch_lengths failed for `%s`.`%s`", dbName, ntbNames[i]);
+                code = TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
+                taos_free_result(res);
+                break;
+            }
             ddlLen = lens[1];
+            if (ddlLen < 0) {
+                // anomalous result state; a negative length would poison the
+                // truncation check and the file write below
+                logError("SHOW CREATE TABLE `%s`.`%s`: anomalous DDL length %d", dbName, ntbNames[i], ddlLen);
+                code = TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
+                taos_free_result(res);
+                break;
+            }
             ddl = (char *)row[1];
 
-            // Check if DDL result is truncated
-            if (ddlLen >= DDL_TRUNCATION_THRESHOLD) {
+            // Check if DDL result is truncated: the VARCHAR form returned by
+            // old clients caps at 65535; the BLOB form (new clients) only caps
+            // at the assembler buffer -- see showCreateDdlTruncated
+            if (showCreateDdlTruncated(res, ddl, ddlLen)) {
                 logWarn("SHOW CREATE TABLE result for `%s`.`%s` is %d bytes "
-                    "(likely truncated), using DESCRIBE fallback",
+                    "(truncation signature detected), using DESCRIBE fallback",
                     dbName, ntbNames[i], ddlLen);
                 taos_free_result(res);
                 res = NULL;
@@ -778,17 +1034,72 @@ int backNormalTablesSql(const char *dbName) {
 //
 bool isVirtualSuperTable(const char *dbName, const char *stbName) {
     char sql[512];
-    snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s`", dbName, stbName);
+    snprintf(sql, sizeof(sql), "SHOW CREATE TABLE `%s`.`%s` FULL", dbName, stbName);
     int connCode = TSDB_CODE_FAILED;
     TAOS *conn = getConnection(&connCode);
     if (!conn) return false;
-    TAOS_RES *res = taos_query(conn, sql);
+    TAOS_RES *res = queryShowCreateFullWithFallback(conn, sql);
     bool isVirtual = false;
     int code = taos_errno(res);
     if (code == TSDB_CODE_SUCCESS) {
         TAOS_ROW row = taos_fetch_row(res);
-        if (row && row[1]) {
-            isVirtual = (strstr((char *)row[1], "VIRTUAL 1") != NULL);
+        if (taos_num_fields(res) < 2) {
+            // row[]/lengths[] are sized by the field count: never index [1] on a
+            // malformed result schema. Treat as non-virtual, matching the other
+            // anomaly branches below (only which backup path handles the table
+            // is affected); leave a clue so the misjudgment stays diagnosable.
+            logWarn("SHOW CREATE TABLE `%s`.`%s`: unexpected result schema (%d fields), "
+                    "treating as non-virtual", dbName, stbName, taos_num_fields(res));
+        } else if (row && row[1]) {
+            // row data is not NUL-terminated; search within the actual length. The
+            // bound is clamped to non-negative and kept in size_t end to end: a
+            // negative length cast to size_t would explode the loop bound and read
+            // past the row buffer.
+            // Single pass over the length state: each branch both logs and picks
+            // the scan bound, so NULL is never re-tested (and lengths[1] is never
+            // reached while lengths is NULL).
+            int32_t *lengths = taos_fetch_lengths(res);
+            size_t  len;
+            if (lengths == NULL) {
+                // taos_fetch_lengths API failure — the client result state is broken:
+                // give up on VIRTUAL detection (no scan with a guessed bound).
+                logWarn("SHOW CREATE TABLE `%s`.`%s`: taos_fetch_lengths failed, "
+                        "treating as non-virtual", dbName, stbName);
+                len = 0;
+            } else if (lengths[1] > 0) {
+                len = (size_t)lengths[1];
+            } else {
+                // length unusable: the DDL text usually still sits NUL-terminated in
+                // its buffer, so scan up to a bounded width instead of judging
+                // non-virtual outright -- a misjudge here silently picks the wrong
+                // backup path. NOTE the bound: taos_fetch_fields() maps any BLOB to
+                // a flat TSDB_MAX_BLOB_LEN regardless of the declared column width,
+                // and a BLOB payload is not NUL-terminated, so a 16MB strnlen bound
+                // could run past the actual row buffer. For BLOB columns there is no
+                // trustworthy bound -> give up on the scan (conservative
+                // non-virtual) rather than read out of bounds. VARCHAR-era results
+                // keep the bounded scan; their payload carries a NUL terminator.
+                TAOS_FIELD *f = taos_fetch_fields(res);
+                if (f != NULL && f[1].type == TSDB_DATA_TYPE_BLOB) {
+                    logWarn("SHOW CREATE TABLE `%s`.`%s`: DDL length unusable and result is BLOB "
+                            "(no NUL terminator, no trustworthy bound); treating as non-virtual",
+                            dbName, stbName);
+                    len = 0;
+                } else {
+                    logWarn("SHOW CREATE TABLE `%s`.`%s`: DDL present but length unusable, "
+                            "scanning with a schema-bounded fallback", dbName, stbName);
+                    int32_t scanCap = (f != NULL) ? f[1].bytes : 0;
+                    len = (scanCap > 0) ? strnlen((const char *)row[1], (size_t)scanCap) : 0;
+                }
+            }
+            const char *ddl = (const char *)row[1];
+            const char *pat = "VIRTUAL 1";
+            size_t patLen = strlen(pat);
+            for (size_t i = 0; i + patLen <= len && !isVirtual; i++) {
+                if (memcmp(ddl + i, pat, patLen) == 0) {
+                    isVirtual = true;
+                }
+            }
         }
     } else {
         logError("SHOW CREATE TABLE failed(0x%08X %s): %s", code, taos_errstr(res), sql);
@@ -848,8 +1159,8 @@ int backVirtualTablesSql(const char *dbName) {
             break;
         }
 
-        snprintf(sql, sizeof(sql), "SHOW CREATE VTABLE `%s`.`%s`;", dbName, vtbNames[i]);
-        TAOS_RES *res = taos_query(conn, sql);
+        snprintf(sql, sizeof(sql), "SHOW CREATE VTABLE `%s`.`%s` FULL;", dbName, vtbNames[i]);
+        TAOS_RES *res = queryShowCreateFullWithFallback(conn, sql);
         code = taos_errno(res);
         if (!res || code != TSDB_CODE_SUCCESS) {
             logError("show create vtable failed(0x%08X %s): %s", code, taos_errstr(res), sql);
@@ -858,17 +1169,41 @@ int backVirtualTablesSql(const char *dbName) {
         }
 
         TAOS_ROW row = taos_fetch_row(res);
+        if (taos_num_fields(res) < 2) {
+            // row[]/lens[] are sized by the field count: never index [1] on a
+            // malformed result schema
+            logError("SHOW CREATE VTABLE `%s`.`%s`: unexpected result schema (%d fields)", dbName, vtbNames[i],
+                     taos_num_fields(res));
+            code = TSDB_CODE_BCK_NO_FIELDS;
+            taos_free_result(res);
+            break;
+        }
         if (row && row[1]) {
             int32_t *lens = taos_fetch_lengths(res);
-            char    *ddl  = (char *)row[1];
+            if (lens == NULL) {
+                logError("taos_fetch_lengths failed for `%s`.`%s`", dbName, vtbNames[i]);
+                code = TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
+                taos_free_result(res);
+                break;
+            }
+            int32_t  ddlLen = lens[1];
+            char    *ddl    = (char *)row[1];
+            if (ddlLen < 0) {
+                logError("SHOW CREATE VTABLE `%s`.`%s`: anomalous DDL length %d", dbName, vtbNames[i], ddlLen);
+                code = TSDB_CODE_BCK_FETCH_FIELDS_FAILED;
+                taos_free_result(res);
+                break;
+            }
             // Virtual CHILD table DDL ends with: ... USING `vstb` (`tag1`) TAGS (val1, val2)
             // Store only the skeleton (without " TAGS (...)") in vtb.sql.
             // Tag values are stored separately in vtags/ binary files (columnar storage).
             // Virtual NORMAL tables have no USING/TAGS clause — write the full DDL as-is.
-            char *tagsPos = strstr(ddl, " TAGS (");
-            if (!tagsPos) tagsPos = strstr(ddl, " TAGS(");
+            // The payload is not NUL-terminated (a long DDL is returned as BLOB), so
+            // the TAGS search must stay within ddlLen.
+            char *tagsPos = ddlFindBounded(ddl, ddlLen, " TAGS (");
+            if (!tagsPos) tagsPos = ddlFindBounded(ddl, ddlLen, " TAGS(");
             // child table: write up to " TAGS ("; virtual normal: write full DDL
-            int64_t ddlWriteLen = tagsPos ? (int64_t)(tagsPos - ddl) : (int64_t)lens[1];
+            int64_t ddlWriteLen = tagsPos ? (int64_t)(tagsPos - ddl) : (int64_t)ddlLen;
             if (taosWriteFile(fp, ddl, ddlWriteLen) != ddlWriteLen ||
                 taosWriteFile(fp, "\n", 1) != 1) {
                 logError("write vtb sql to file failed: %s", vtbSqlFile);
