@@ -81,7 +81,11 @@ if(TD_ENTERPRISE)
     # Headers only: libodbc is loaded at runtime, same load-time independence
     # as the MariaDB / libpq providers.
     DEP_ext_odbc(extconnector)
-    message(STATUS "ExtConnector: SQL Server provider enabled with runtime unixODBC loading")
+    if(TD_WINDOWS)
+      message(STATUS "ExtConnector: SQL Server provider enabled with runtime odbc32 loading")
+    else()
+      message(STATUS "ExtConnector: SQL Server provider enabled with runtime unixODBC loading")
+    endif()
   else()
     message(STATUS "ExtConnector: BUILD_WITH_ODBC=OFF — SQL Server provider disabled")
   endif()
@@ -89,9 +93,16 @@ if(TD_ENTERPRISE)
   target_link_libraries(extconnector PRIVATE crypt)
 endif()
 
-if(TD_ENTERPRISE AND NOT TD_WINDOWS)
-  set(_td_runtime_lib_dir "${CMAKE_BINARY_DIR}/build/lib")
-  set(_stage_runtime_libs_script "${TD_SOURCE_DIR}/cmake/stage_runtime_libs.sh")
+if(TD_ENTERPRISE)
+  if(TD_WINDOWS)
+    # Windows: runtime libraries live next to the executables (DLL search
+    # order starts at the application directory), matching the packaging
+    # layout used by the installer.
+    set(_td_runtime_lib_dir "${CMAKE_BINARY_DIR}/build/bin")
+  else()
+    set(_td_runtime_lib_dir "${CMAKE_BINARY_DIR}/build/lib")
+    set(_stage_runtime_libs_script "${TD_SOURCE_DIR}/cmake/stage_runtime_libs.sh")
+  endif()
 endif()
 
 if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
@@ -192,7 +203,75 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
   endif()
 endif()
 
-if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
+if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
+  # Provider client libraries are loaded at runtime, so the dependency package
+  # must ship their DLLs next to taosd.  The list is resolved at build time
+  # because MariaDB Connector/C is produced by an ExternalProject.
+  set(_fq_dll_dirs "")
+  if(BUILD_WITH_MARIADB AND TARGET ext_mariadb)
+    if(NOT TD_EXTERNALS_USE_ONLY)
+      add_dependencies(extconnector ext_mariadb)
+    endif()
+    list(APPEND _fq_dll_dirs
+      "${ext_mariadb_install}/bin"
+      "${ext_mariadb_install}/lib/mariadb")
+  endif()
+  if(BUILD_WITH_LIBPQ)
+    if(DEFINED EXT_LIBPQ_DLL_DIR AND NOT "${EXT_LIBPQ_DLL_DIR}" STREQUAL "")
+      list(APPEND _fq_dll_dirs "${EXT_LIBPQ_DLL_DIR}")
+    endif()
+    if(TARGET ext_libpq)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_libpq)
+      endif()
+      list(APPEND _fq_dll_dirs "${ext_libpq_install}/bin" "${ext_libpq_install}/lib")
+    endif()
+  endif()
+  if(_fq_dll_dirs)
+    string(JOIN ";" _fq_dll_dirs_str ${_fq_dll_dirs})
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}"
+        "-DOUT_DIR=${_td_runtime_lib_dir}"
+        "-DSEARCH_DIRS=${_fq_dll_dirs_str}"
+        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread"
+        -P "${TD_SOURCE_DIR}/cmake/stage_fq_runtime_windows.cmake"
+      COMMENT "Staging federated-query provider runtime DLLs -> build/bin/"
+      VERBATIM
+    )
+  endif()
+endif()
+
+if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS AND BUILD_WITH_ODBC)
+  # Windows federated-query dependency package: the ODBC driver manager resolves
+  # drivers through its registry registration, so the package carries the
+  # official Microsoft ODBC Driver 18 installer (MSI) next to the other staged
+  # provider runtimes, mirroring the Linux libmsodbcsql*.so staging below.
+  # EXT_MSODBC_MSI may be produced by the ext_msodbc ExternalProject at build
+  # time, so it does not necessarily exist yet while the configure step runs.
+  # Depend on that target instead of testing EXISTS here; the copy then runs
+  # after the MSI has been downloaded.
+  if(DEFINED EXT_MSODBC_MSI AND NOT "${EXT_MSODBC_MSI}" STREQUAL "")
+    if(TARGET ext_msodbc)
+      add_dependencies(extconnector ext_msodbc)
+    endif()
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_td_runtime_lib_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${EXT_MSODBC_MSI}" "${_td_runtime_lib_dir}/msodbcsql18.msi"
+      COMMENT "Staging federated-query SQL Server driver (MSI) -> build/bin/"
+      VERBATIM
+    )
+  else()
+    message(STATUS
+      "ExtConnector: INSTALL_FQ_RUNTIME_LIBS=ON but EXT_MSODBC_MSI is unset — "
+      "the Windows federated-query package will not carry the SQL Server ODBC driver")
+  endif()
+endif()
+
+if(TD_ENTERPRISE AND BUILD_WITH_ARROW)
+  # On Windows the Arrow Flight SQL transport is not built (no gRPC / Arrow
+  # Flight there), so the plugin is built with only the HTTP transport.  The
+  # provider registration and dispatch layer are identical on every platform.
   add_library(taos_ext_influx_arrow SHARED
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxDispatch.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxHttp.cpp
@@ -200,6 +279,12 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
   )
 
   target_compile_features(taos_ext_influx_arrow PRIVATE cxx_std_17)
+  if(TD_WINDOWS)
+    # The HTTP transport uses C++20 designated initializers, which MSVC only
+    # accepts with /std:c++20 (GCC/Clang accept them as an extension in C++17).
+    set_property(TARGET taos_ext_influx_arrow PROPERTY CXX_STANDARD 20)
+    set_property(TARGET taos_ext_influx_arrow PROPERTY CXX_STANDARD_REQUIRED ON)
+  endif()
   target_include_directories(
     taos_ext_influx_arrow
     PUBLIC  "${TD_SOURCE_DIR}/include/libs/extconnector"
@@ -207,13 +292,21 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
   )
   target_compile_definitions(
     taos_ext_influx_arrow
-    PRIVATE HAVE_ARROW HAVE_ARROW_PARQUET HAVE_ARROW_FLIGHT_SQL
+    PRIVATE HAVE_ARROW
   )
+  if(NOT TD_WINDOWS)
+    target_compile_definitions(
+      taos_ext_influx_arrow
+      PRIVATE HAVE_ARROW_PARQUET HAVE_ARROW_FLIGHT_SQL
+    )
+  endif()
   target_link_libraries(
     taos_ext_influx_arrow
     PRIVATE extconnector os util common qcom nodes crypt
   )
-  DEP_ext_arrow(taos_ext_influx_arrow)
+  if(NOT TD_WINDOWS)
+    DEP_ext_arrow(taos_ext_influx_arrow)
+  endif()
   DEP_ext_curl(taos_ext_influx_arrow)
   DEP_ext_cjson(taos_ext_influx_arrow)
 
@@ -226,11 +319,13 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
   )
   if(TD_DARWIN)
     set_target_properties(taos_ext_influx_arrow PROPERTIES BUILD_RPATH "@loader_path" INSTALL_RPATH "@loader_path")
-  else()
+  elseif(NOT TD_WINDOWS)
     set_target_properties(taos_ext_influx_arrow PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN")
   endif()
 
-  if(EXT_ARROW_SYSTEM_LIBDIR)
+  if(TD_WINDOWS)
+    # No Arrow runtime is staged on Windows (HTTP transport only).
+  elseif(EXT_ARROW_SYSTEM_LIBDIR)
     set(_arrow_libdir "${EXT_ARROW_SYSTEM_LIBDIR}")
     if(TD_DARWIN)
       if(EXISTS "${_arrow_libdir}/libarrow.${EXT_ARROW_SO_SUFFIX}")
@@ -253,6 +348,7 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
     set(_arrow_so_suffix "so.1900")
   endif()
 
+  if(NOT TD_WINDOWS)
   foreach(_arrow_lib libarrow libarrow_flight libarrow_flight_sql libparquet)
     set(_arrow_stage_name "${_arrow_lib}.${_arrow_so_suffix}")
     if(TD_DARWIN)
@@ -281,7 +377,16 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
       )
     endif()
   endforeach()
-  if(TD_DARWIN)
+  endif()
+  if(TD_WINDOWS)
+    # Windows: stage curl/cjson runtime next to the plugin (build/bin). The
+    # Arrow runtime is not part of the Windows build.
+    add_custom_command(TARGET taos_ext_influx_arrow POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/build/bin"
+      COMMENT "Staging Influx HTTP runtime -> build/bin/"
+      VERBATIM
+    )
+  elseif(TD_DARWIN)
     add_custom_command(TARGET taos_ext_influx_arrow POST_BUILD
       COMMAND /bin/bash "${_stage_runtime_libs_script}"
         copy-ldd
@@ -310,38 +415,6 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW AND NOT TD_WINDOWS)
     )
   endif()
   message(STATUS "ExtConnector: building optional libtaos_ext_influx_arrow runtime plugin")
-endif()
-
-if(TD_ENTERPRISE AND TD_WINDOWS)
-  set(_win_bin_dir "${CMAKE_BINARY_DIR}/build/bin")
-
-  if(BUILD_WITH_MARIADB)
-    set(_mariadb_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_mariadb/${TD_CONFIG_NAME}/lib/mariadb/libmariadb.dll")
-    add_custom_command(TARGET extconnector POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_win_bin_dir}"
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_mariadb_dll}" "${_win_bin_dir}/libmariadb.dll"
-      COMMENT "Staging libmariadb.dll -> build/bin/"
-      VERBATIM
-    )
-  endif()
-
-  if(BUILD_WITH_LIBPQ)
-    set(_libpq_dll "${TD_EXTERNALS_BASE_DIR}/install/ext_libpq/${TD_CONFIG_NAME}/bin/libpq.dll")
-    add_custom_command(TARGET extconnector POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_libpq_dll}" "${_win_bin_dir}/libpq.dll"
-      COMMENT "Staging libpq.dll -> build/bin/"
-      VERBATIM
-    )
-  endif()
-
-  if(BUILD_WITH_ARROW)
-    set(_arrow_bin "${TD_EXTERNALS_BASE_DIR}/install/ext_arrow/${TD_CONFIG_NAME}/bin")
-    add_custom_command(TARGET extconnector POST_BUILD
-      COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_arrow_bin}/arrow.dll" "${_win_bin_dir}/arrow.dll"
-      COMMENT "Staging arrow.dll -> build/bin/"
-      VERBATIM
-    )
-  endif()
 endif()
 
 if(BUILD_TEST AND TD_ENTERPRISE)

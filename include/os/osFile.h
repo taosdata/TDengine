@@ -116,6 +116,15 @@ bool taosCheckAccessFile(const char *pathname, int mode);
 int32_t taosLockFile(TdFilePtr pFile);
 int32_t taosUnLockFile(TdFilePtr pFile);
 
+#ifdef WINDOWS
+/* Byte-range lock at an explicit offset.  Used for the log file's mutual
+ * exclusion token, which is parked far beyond the file's data so that other
+ * processes can still read (tail) the live log on Windows, where byte-range
+ * locks are mandatory rather than advisory. */
+int32_t taosLockFileAt(TdFilePtr pFile, int64_t offset, int64_t length);
+int32_t taosUnLockFileAt(TdFilePtr pFile, int64_t offset, int64_t length);
+#endif
+
 int32_t taosUmaskFile(int32_t maskVal);
 
 #ifndef WINDOWS

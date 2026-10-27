@@ -275,10 +275,16 @@ static bool isUtcZeroOffsetName(const char *name) {
  * Falls back to the system timezone string if tz is NULL or the name
  * lookup fails.
  */
-static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISOOffset) {
+static int32_t addTimezoneNameParamEx(SNodeList* pList, timezone_t tz,
+                                      bool useISOOffset,
+                                      const char* sessionTzName) {
   char    buf[TD_TIMEZONE_LEN] = {0};
   char    origTzName[TD_TIMEZONE_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
+
+#ifndef WINDOWS
+  (void)sessionTzName;  /* only consumed by the Windows fallback below */
+#endif
 
   /*
    * Preferred path: use connection/session timezone name map so downstream
@@ -351,6 +357,22 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
       }
     }
   }
+
+#ifdef WINDOWS
+  /*
+   * Windows never populates pTimezoneNameMap (tzInit() skips it there), so the
+   * preferred branch above is dead and the display fallback below would inject
+   * a fixed offset ("+0800") instead of the session zone name.  The function
+   * node carries the session zone name verbatim (SFuncNode.tzName, copied from
+   * the parse context), and the plan context carries the same string, so prefer
+   * it when it names a zone rather than a bare offset.  Bare offsets keep the
+   * legacy fallback because taosValidateTimezone() expects POSIX/IANA spelling.
+   */
+  if (buf[0] == '\0' && sessionTzName != NULL && sessionTzName[0] != '\0' &&
+      sessionTzName[0] != '+' && sessionTzName[0] != '-') {
+    tstrncpy(buf, sessionTzName, sizeof(buf));
+  }
+#endif
 
   if (buf[0] == '\0') {
     /*
@@ -447,6 +469,10 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
     return code;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISOOffset) {
+  return addTimezoneNameParamEx(pList, tz, useISOOffset, NULL);
 }
 
 static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf, int32_t len) {
@@ -2730,9 +2756,12 @@ static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
       return code;
     }
   } else {
-    /* inject connection timezone as POSIX form for taosValidateTimezone() */
-    int32_t code = addTimezoneNameParam(pFunc->pParameterList,
-                                        pFunc->tz, false);
+    /* inject connection timezone as POSIX form for taosValidateTimezone();
+     * pass the session zone name (SFuncNode.tzName) so Windows, which has no
+     * client-side timezone name map, injects the same name the plan context
+     * carries instead of a display-derived fixed offset. */
+    int32_t code = addTimezoneNameParamEx(pFunc->pParameterList,
+                                          pFunc->tz, false, pFunc->tzName);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

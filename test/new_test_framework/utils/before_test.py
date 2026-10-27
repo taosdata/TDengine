@@ -18,6 +18,7 @@ import sys
 import os
 import platform
 import copy
+import time
 from new_test_framework import taostest
 
 import taos
@@ -180,7 +181,28 @@ class BeforeTest:
                 )
             except Exception:
                 _port = 6030
-            conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
+            if sys.platform == "win32":
+                # A freshly (re)deployed taosd may accept TCP connections before
+                # its mnode leader is reachable (Windows starts much slower).
+                # Retry the transient errors instead of failing the whole test
+                # class on a startup race; other platforms keep the original
+                # single-attempt behaviour.
+                _transient = ("Sync leader is unreachable", "0x090c",
+                              "Dnode is starting up", "cluster not ready",
+                              "not ready", "0x0130")
+                _deadline = time.time() + 60
+                while True:
+                    try:
+                        conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
+                        break
+                    except Exception as _conn_err:
+                        if time.time() > _deadline or not any(
+                                t in str(_conn_err) for t in _transient):
+                            raise
+                        tdLog.notice(f"taos connect retry after transient error: {_conn_err}")
+                        time.sleep(2)
+            else:
+                conn = taos.connect(host=request.session.host, port=_port, config=cfg_opt)
         # Apply pending client-side config via ALTER LOCAL.
         # This overrides any earlier C-library initialization (e.g. from the startup probe)
         # that may have loaded default values before the psim cfg was written.

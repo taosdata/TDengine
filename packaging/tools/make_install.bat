@@ -47,6 +47,8 @@ set binary_dir=%binary_dir:/=\\%
 set osType=%4
 set verNumber=%5
 set Enterprise=%6
+set install_fq_runtime_libs=%TD_INSTALL_FQ_RUNTIME_LIBS%
+set build_with_odbc=%TD_BUILD_WITH_ODBC%
 set target_dir=C:\\TDengine
 
 if not exist %target_dir% (
@@ -137,6 +139,23 @@ if /I "%Enterprise%"=="TRUE" (
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosmqtt.exe %target_dir% > nul
+
+rem // ── Federated-query dependency package ──────────────────────────────────
+rem //   When INSTALL_FQ_RUNTIME_LIBS is ON the build stages the provider
+rem //   client DLLs and the SQL Server ODBC driver MSI in build\bin.  Copy
+rem //   them into the installation tree so the installer carries them.
+if /I "%install_fq_runtime_libs%"=="ON" (
+    if exist "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" (
+        call "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" "%binary_dir%\\build\\bin" "%target_dir%" "%build_with_odbc%"
+        if errorlevel 1 (
+            echo Failed to stage the federated-query runtime dependencies
+            exit /b 1
+        )
+    ) else (
+        echo Missing federated-query staging script: %source_dir%\\packaging\\tools\\stage_fq_runtime.bat
+        exit /b 1
+    )
+)
 rem // ── Archive PDB files for crash-dump symbolication ──────────────────────
 rem //   PDBs are NOT shipped to end-users.  They must be stored internally,
 rem //   keyed by version number, so that field crash dumps can be analysed.

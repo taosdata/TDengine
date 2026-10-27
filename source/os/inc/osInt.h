@@ -41,9 +41,21 @@ typedef struct WindowsTimezoneObj {
   // External callers that need east-positive (tm_gmtoff) should use taosGetTZOffsetSeconds().
   int64_t offset_seconds;
   char    name[TD_TIMEZONE_LEN];
+  // Zone id as requested by the caller (IANA or Windows spelling).  Kept so
+  // that wall-clock conversions can apply the zone's DST rules instead of the
+  // single standard-time offset captured above; the offset alone is wrong for
+  // every instant inside a daylight-saving period.
+  char    zoneName[TD_TIMEZONE_LEN];
   int32_t refCount;            // Reference count
   TdThreadMutex mutex;         // Protect concurrent access
 } WindowsTimezoneObj;
+
+/* Convert a wall-clock time in the named zone to a UTC epoch, applying the
+ * zone's daylight-saving rules (Windows dynamic time zone data).  Returns
+ * false when the zone cannot be resolved, so callers can fall back to the
+ * fixed-offset conversion. */
+bool taosWindowsZoneToEpoch(const char *zoneName, int32_t year, int32_t mon, int32_t day,
+                            int32_t hour, int32_t min, int32_t sec, time_t *pEpoch);
 #endif
 
 #ifdef __cplusplus
