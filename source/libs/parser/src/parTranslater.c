@@ -34686,7 +34686,7 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowCreateTableResultSchema(bool useBlob, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -34697,14 +34697,17 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "Table", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  // BLOB (4-byte length header) when the statement carries the FULL suffix;
+  // the historical VARCHAR/BINARY result type otherwise. Decided purely by
+  // the statement syntax, never by the DDL length.
+  (*pSchema)[1].type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create Table", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowCreateRsmaResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowCreateRsmaResultSchema(bool useBlob, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -34715,14 +34718,14 @@ static int32_t extractShowCreateRsmaResultSchema(int32_t* numOfCols, SSchema** p
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "RSMA", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  (*pSchema)[1].type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create RSMA", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowCreateVTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowCreateVTableResultSchema(bool useBlob, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -34733,8 +34736,8 @@ static int32_t extractShowCreateVTableResultSchema(int32_t* numOfCols, SSchema**
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "Virtual Table", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  (*pSchema)[1].type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create Virtual Table", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
@@ -34905,13 +34908,15 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      return extractShowCreateTableResultSchema(numOfCols, pSchema);
+      return extractShowCreateTableResultSchema(((const SShowCreateTableStmt*)pRoot)->fullResult, numOfCols,
+                                                 pSchema);
     case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
-      return extractShowCreateVTableResultSchema(numOfCols, pSchema);
+      return extractShowCreateVTableResultSchema(((const SShowCreateTableStmt*)pRoot)->fullResult, numOfCols,
+                                                 pSchema);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return extractShowCreateViewResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      return extractShowCreateRsmaResultSchema(numOfCols, pSchema);
+      return extractShowCreateRsmaResultSchema(((const SShowCreateRsmaStmt*)pRoot)->fullResult, numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
       return extractShowCreateStreamResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
