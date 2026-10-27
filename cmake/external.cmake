@@ -2658,10 +2658,46 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             message(STATUS
                 "[ext_msodbc] No Microsoft ODBC Driver found (set EXT_MSODBC_SO_SRCPATH to the "
                 "driver .so or its directory); the driver is staged only with INSTALL_FQ_RUNTIME_LIBS=ON")
-        elseif("z${LOCAL_URL}" STREQUAL "z" OR "z${_msodbc_artifact}" STREQUAL "z")
+        elseif("z${_msodbc_artifact}" STREQUAL "z")
             message(STATUS
-                "[ext_msodbc] Microsoft ODBC Driver artifact unavailable for this platform/mirror "
-                "(LOCAL_URL=${LOCAL_URL}); the packaged driver will be missing")
+                "[ext_msodbc] Microsoft ODBC Driver artifact unavailable for this platform; "
+                "the packaged driver will be missing")
+        elseif("z${LOCAL_URL}" STREQUAL "z")
+            # Coverage CI passes INSTALL_FQ_RUNTIME_LIBS=ON and does not set
+            # LOCAL_URL. The mirror tarball hash does not match the public
+            # .deb, so download that .deb and unpack it.
+            set(_msodbc_deb_hash "")
+            if(_msodbc_deb_arch STREQUAL "amd64")
+                set(_msodbc_deb_hash "f506cb3de8b34cd94e9014d247b39e9dfd7effad79edad3ab67096dc3c1b6b0e")
+            endif()
+            if("z${_msodbc_deb_hash}" STREQUAL "z")
+                message(STATUS
+                    "[ext_msodbc] No public .deb hash for ${_msodbc_deb_arch}; "
+                    "the packaged driver will be missing")
+            else()
+                INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
+                set(_url "https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/msodbcsql18_18.7.1.1-1_${_msodbc_deb_arch}.deb")
+                ExternalProject_Add(ext_msodbc
+                    URL ${_url}
+                    URL_HASH SHA256=${_msodbc_deb_hash}
+                    DOWNLOAD_NO_EXTRACT TRUE
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND} -E make_directory "${_ins}/lib" "${_ins}/share"
+                        COMMAND dpkg-deb -x <DOWNLOADED_FILE> "${_base}/src/msodbc-deb"
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                            "${_base}/src/msodbc-deb/opt/microsoft/msodbcsql18/lib64"
+                            "${_ins}/lib"
+                        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                            "${_base}/src/msodbc-deb/opt/microsoft/msodbcsql18/share"
+                            "${_ins}/share"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+                add_dependencies(build_externals ext_msodbc)
+            endif()
         else()
             INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
             get_from_local_if_exists(

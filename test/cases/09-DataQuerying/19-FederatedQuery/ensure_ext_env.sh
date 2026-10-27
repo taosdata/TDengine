@@ -2561,7 +2561,11 @@ _sqlserver_log_failure() {
             < <(tail -n 30 "${base}/sqlservr.log")
     fi
     local _missing
-    _missing="$(ldd "$(sqlserver_bin "${ver}")" 2>/dev/null | grep "not found" || true)"
+    # ldd without the extracted OpenLDAP 2.5 directory always reports
+    # libldap-2.5.so.0 / liblber-2.5.so.0 as missing. The engine is started
+    # with that directory on LD_LIBRARY_PATH; diagnose the same way.
+    _missing="$(LD_LIBRARY_PATH="$(sqlserver_deps_dir "${ver}")${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}" \
+        ldd "$(sqlserver_bin "${ver}")" 2>/dev/null | grep "not found" || true)"
     [[ -n "${_missing}" ]] && while IFS= read -r _line; do err "  [ldd] ${_line}"; done <<< "${_missing}"
 }
 

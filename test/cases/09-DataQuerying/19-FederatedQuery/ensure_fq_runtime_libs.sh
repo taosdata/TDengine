@@ -23,7 +23,15 @@ BUILD_DIR="${BUILD_DIR:-${TD_BUILD_DIR:-${REPO_ROOT}/debug}}"
 TAOS_BIN_PATH="${TAOS_BIN_PATH:-${BUILD_DIR}/build/bin}"
 STAGED_DIR="${BUILD_DIR}/build/lib"
 CACHE_DIR="${FQ_RUNTIME_CACHE_DIR:-${FQ_TARBALL_CACHE_DIR:-/tmp/fq-runtime-libs}}"
-STAGE_SCRIPT="${REPO_ROOT}/source/taos-community/cmake/stage_runtime_libs.sh"
+# tsdb keeps this helper under source/taos-community; the community checkout
+# keeps it at the repository root.
+if [ -f "${REPO_ROOT}/source/taos-community/cmake/stage_runtime_libs.sh" ]; then
+    STAGE_SCRIPT="${REPO_ROOT}/source/taos-community/cmake/stage_runtime_libs.sh"
+elif [ -f "${REPO_ROOT}/cmake/stage_runtime_libs.sh" ]; then
+    STAGE_SCRIPT="${REPO_ROOT}/cmake/stage_runtime_libs.sh"
+else
+    STAGE_SCRIPT=""
+fi
 OS="$(uname -s)"
 FQ_BASE_DIR="${FQ_BASE_DIR:-$([ "${OS}" = "Darwin" ] && printf '%s\n' "${HOME}/taostest/fq" || printf '%s\n' "/opt/taostest/fq")}"
 RUNTIME_DIR="${BUILD_DIR}/build/lib"
@@ -56,8 +64,19 @@ copy_glob() {
     local src_dir="$1"
     shift
     [ -d "${src_dir}" ] || return 1
-    bash "${STAGE_SCRIPT}" copy-glob "${src_dir}" "${RUNTIME_DIR}" "$@"
-    bash "${STAGE_SCRIPT}" copy-ldd-glob "${src_dir}" "${RUNTIME_DIR}" "$@"
+    if [ -n "${STAGE_SCRIPT}" ] && [ -f "${STAGE_SCRIPT}" ]; then
+        bash "${STAGE_SCRIPT}" copy-glob "${src_dir}" "${RUNTIME_DIR}" "$@"
+        bash "${STAGE_SCRIPT}" copy-ldd-glob "${src_dir}" "${RUNTIME_DIR}" "$@"
+        return 0
+    fi
+    local pattern src
+    shopt -s nullglob
+    for pattern in "$@"; do
+        for src in "${src_dir}"/${pattern}; do
+            [ -e "${src}" ] || continue
+            cp -Lf "${src}" "${RUNTIME_DIR}/"
+        done
+    done
 }
 
 copy_tree_libs() {
@@ -250,6 +269,19 @@ ensure_odbc() {
     copy_glob /usr/lib/aarch64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
     copy_glob /usr/local/lib 'libodbc.so*' 'libodbcinst.so*' 'libodbc*.dylib*' || true
 
+    # tdengine-ci:0.3 does not ship unixODBC. Coverage builds with
+    # BUILD_CONTRIB=false, so the driver manager is often absent from build/lib.
+    if [ "${OS}" != "Darwin" ] && ! has_any libodbc.so.2 libodbc.so; then
+        if [ "$(id -u)" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
+            echo "[fq-runtime] installing unixodbc into ${RUNTIME_DIR}" >&2
+            DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends unixodbc >/dev/null
+            copy_glob /usr/lib/x86_64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
+            copy_glob /usr/lib/aarch64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
+            copy_glob /lib/x86_64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
+        fi
+    fi
+
     if [ "${OS}" = "Darwin" ]; then
         has_any libodbc.2.dylib libodbc.dylib
     else
@@ -275,8 +307,100 @@ ensure_msodbc() {
     copy_glob /opt/microsoft/msodbcsql18/lib 'libmsodbcsql*.so*' || true
     copy_glob /opt/microsoft/msodbcsql/lib64 'libmsodbcsql*.so*' || true
 
+    if ! has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.so*' &&
+       ! has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.dylib*'; then
+        fetch_msodbc_driver || true
+    fi
+
     has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.so*' ||
         has_glob "${RUNTIME_DIR}" 'libmsodbcsql*.dylib*'
+}
+
+# Download Microsoft ODBC Driver 18 when the build tree and the image do not
+# already have it. Coverage configures INSTALL_FQ_RUNTIME_LIBS but does not set
+# LOCAL_URL, so the cmake external is skipped and build/lib stays empty.
+# The mirror tarball is preferred; the Ubuntu 22.04 .deb is the public copy.
+fetch_msodbc_driver() {
+    local arch="" url="" archive="" src="" libdir="" resdir=""
+    case "$(uname -m)" in
+        x86_64|amd64)  arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        *) echo "[fq-runtime] msodbcsql18 has no package for $(uname -m)" >&2; return 1 ;;
+    esac
+
+    local tar_name="msodbcsql18-18.7.1.1-${arch}.tar.gz"
+    local deb_name="msodbcsql18_18.7.1.1-1_${arch}.deb"
+    local mirror="${FQ_SQLSERVER_MIRROR_URL:-${FQ_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}}"
+    local -a candidates=()
+    local dir
+    for dir in "${CACHE_DIR}" /usr/local/src "${FQ_TARBALL_CACHE_DIR:-}" /data0/compat-packages; do
+        [ -n "${dir}" ] || continue
+        candidates+=("${dir}/${tar_name}" "${dir}/${deb_name}")
+    done
+    for archive in "${candidates[@]}"; do
+        [ -s "${archive}" ] && break
+        archive=""
+    done
+
+    mkdir -p "${CACHE_DIR}"
+    _msodbc_try_download() {
+        local dest="$1" from="$2"
+        [ -s "${dest}" ] && return 0
+        curl -fL --retry 3 --retry-delay 5 --connect-timeout 20 --max-time 180 \
+            -o "${dest}.partial" "${from}" \
+            && mv -f "${dest}.partial" "${dest}"
+    }
+    if [ -z "${archive}" ]; then
+        archive="${CACHE_DIR}/${tar_name}"
+        url="${FQ_MSODBC_RESOURCES_URL:-${mirror}/${tar_name}}"
+        _msodbc_try_download "${archive}" "${url}" || archive=""
+    fi
+    if [ -z "${archive}" ] || [ ! -s "${archive}" ]; then
+        archive="${CACHE_DIR}/${deb_name}"
+        url="https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/${deb_name}"
+        _msodbc_try_download "${archive}" "${url}" || return 1
+    fi
+    if [ -d /usr/local/src ] && [ -w /usr/local/src ]; then
+        cp -f "${archive}" "/usr/local/src/$(basename "${archive}")" 2>/dev/null || true
+    fi
+    [ -s "${archive}" ] || return 1
+
+    local out_dir="${CACHE_DIR}/msodbc-extract"
+    rm -rf "${out_dir}"
+    mkdir -p "${out_dir}"
+    case "${archive}" in
+        *.deb)
+            if command -v dpkg-deb >/dev/null 2>&1; then
+                dpkg-deb -x "${archive}" "${out_dir}"
+            else
+                ( cd "${out_dir}" && ar x "${archive}" && tar -xf data.tar.* )
+            fi
+            ;;
+        *)
+            if ! tar -xzf "${archive}" -C "${out_dir}"; then
+                rm -rf "${out_dir}"
+                mkdir -p "${out_dir}"
+                archive="${CACHE_DIR}/${deb_name}"
+                url="https://packages.microsoft.com/ubuntu/22.04/prod/pool/main/m/msodbcsql18/${deb_name}"
+                _msodbc_try_download "${archive}" "${url}" || return 1
+                dpkg-deb -x "${archive}" "${out_dir}"
+            fi
+            ;;
+    esac
+
+    libdir="$(find "${out_dir}" -type f -name 'libmsodbcsql-18*.so*' -printf '%h\n' 2>/dev/null | head -1 || true)"
+    [ -n "${libdir}" ] || return 1
+    mkdir -p "${RUNTIME_DIR}"
+    cp -a "${libdir}"/libmsodbcsql*.so* "${RUNTIME_DIR}/"
+    echo "[fq-runtime] staged Microsoft ODBC Driver 18 from ${archive}" >&2
+
+    resdir="$(find "${out_dir}" -type d -path '*/share/resources' 2>/dev/null | head -1 || true)"
+    if [ -n "${resdir}" ] && [ -f "${resdir}/en_US/msodbcsqlr18.rll" ]; then
+        local dst="${BUILD_DIR}/build/share/resources"
+        mkdir -p "${dst}"
+        cp -a "${resdir}/." "${dst}/"
+        echo "[fq-runtime] staged Microsoft ODBC driver resources from ${archive}" >&2
+    fi
 }
 
 # The Microsoft driver loads its localisation resource relative to its own
@@ -368,7 +492,9 @@ if ! ensure_msodbc_resources; then
     echo "[fq-runtime]          SQL Server connections will fail with SQLAllocHandle(HENV)." >&2
 fi
 
-bash "${STAGE_SCRIPT}" fix-darwin-rpaths "${RUNTIME_DIR}" || true
+if [ -n "${STAGE_SCRIPT}" ] && [ -f "${STAGE_SCRIPT}" ]; then
+    bash "${STAGE_SCRIPT}" fix-darwin-rpaths "${RUNTIME_DIR}" || true
+fi
 
 cat <<EOF
 [fq-runtime] staged runtime libs in ${RUNTIME_DIR}

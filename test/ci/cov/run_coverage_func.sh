@@ -27,6 +27,25 @@ function usage() {
     echo -e "\t -h help"
 }
 
+# cases.task keeps the command in the last column, and that command may itself
+# contain commas (FQ_REQUIRED_SERVICES=mysql,pg). tsdb splits with a limit of
+# 4 so the command stays intact; cut -f5 would keep only the text before the
+# first comma.
+#
+# A CASE_TIMEOUT=<seconds> prefix is the per-case timeout, not a program name.
+# tsdb's run_case_in_slot strips it and applies it with timeout(1). Leaving it
+# in -c makes run_case.sh try to execute a binary named CASE_TIMEOUT=1800.
+prepare_coverage_case_cmd() {
+    local cmd="$1"
+    local timeout=""
+    if [[ "${cmd}" =~ ^CASE_TIMEOUT=([0-9]+)[[:space:]]+ ]]; then
+        timeout="${BASH_REMATCH[1]}"
+        cmd="${cmd#CASE_TIMEOUT=${timeout} }"
+    fi
+    printf '%s\n' "${timeout}"
+    printf '%s\n' "${cmd}"
+}
+
 ent=0
 while getopts "m:t:b:l:o:w:eh" opt; do
     case $opt in
@@ -392,15 +411,25 @@ function run_thread() {
         local exec_dir
         exec_dir=$(echo "$line" | cut -d, -f4)
         local case_cmd
-        case_cmd=$(echo "$line" | cut -d, -f5)
+        case_cmd=$(echo "$line" | cut -d, -f5-)
+        local case_level_timeout=""
+        local _parsed_timeout=""
+        local _parsed_cmd=""
+        mapfile -t _parsed_case_cmd < <(prepare_coverage_case_cmd "${case_cmd}")
+        _parsed_timeout="${_parsed_case_cmd[0]:-}"
+        _parsed_cmd="${_parsed_case_cmd[1]:-}"
+        if [ -n "${_parsed_cmd}" ]; then
+            case_cmd="${_parsed_cmd}"
+            case_level_timeout="${_parsed_timeout}"
+        fi
         local case_file=""
         # get the docs-examples test case from cases.task file
         if echo "$case_cmd" | grep -q "\.sh"; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.sh" | awk '{print $NF}')
         fi
 
-        # get python cases from cases.task file with asan
-        if echo "$case_cmd" | grep -q "^./ci/pytest.sh"; then
+        # pytest.sh may be prefixed by "env FQ_REQUIRED_SERVICES=...".
+        if echo "$case_cmd" | grep -q "pytest.sh"; then
             case_file=$(echo "$case_cmd" | grep -o ".*\.py" | awk '{print $NF}')
         fi
 
@@ -450,7 +479,9 @@ function run_thread() {
             coverage_args+=(-e)
         fi
         coverage_args+=(-w "${workdirs[index]}" -d "${exec_dir}" -c "${case_cmd}" -t "${thread_no}" -s "${case_build_san}")
-        if [ -n "${timeout_param:-}" ]; then
+        if [ -n "${case_level_timeout}" ]; then
+            coverage_args+=(-o "${case_level_timeout}")
+        elif [ -n "${timeout_param:-}" ]; then
             # shellcheck disable=SC2206
             local -a timeout_args=(${timeout_param})
             coverage_args+=("${timeout_args[@]}")
@@ -463,7 +494,7 @@ function run_thread() {
         case_index=$(flock -x "$lock_file" -c "sh -c \"echo \$(( \$( cat $index_file ) + 1 )) | tee $index_file\"")
         case_index=$(printf "%5d" "$case_index")
         local case_info
-        case_info=$(echo "$line" | cut -d, -f 3,4,5)
+        case_info=$(echo "$line" | cut -d, -f3-)
         while [ ${redo_count} -le "$case_redo_time" ]; do
             if [ -f "$case_log_file" ]; then
                 cp "$case_log_file" "$log_dir"/"$case_file".${redo_count}.redotxt
