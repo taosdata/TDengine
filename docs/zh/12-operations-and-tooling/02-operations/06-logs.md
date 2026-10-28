@@ -37,7 +37,7 @@ toc_max_heading_level: 4
 | taosKeeper | `/var/log/taos` | `taoskeeper_<实例 ID>_<日期>.log` | `taoskeeper.toml` 中的 `log.path`，见 [taosKeeper 参考手册](../03-components/05-taoskeeper.md) |
 | taosExplorer | `/var/log/taos` | `taosexplorer_<实例 ID>_<日期>.log` | `explorer.toml` 中的 `log.path`，见 [taosExplorer 参考手册](../03-components/04-explorer.md) |
 | taosX | `/var/log/taos` | `taosx_<实例 ID>_<日期>.log` | `taosx.toml` 中的 `log.path`，见 [taosX 参考手册](../03-components/06-taosx.md) |
-| taosX-Agent | `/var/log/taos` | `taosx_agent_<实例 ID>_<日期>.log` | `agent.toml` 中的 `log.path`，见 [taosX-Agent 配置参考](../03-components/07-taosx-agent/configuration.md) |
+| taosX-Agent | `/var/log/taos` | `taosx_agent_<实例 ID>_<日期>.log` | `agent.toml` 中的 `log.path`，见 [taosX-Agent 配置参考](../03-components/07-taosx-agent/01-configuration.md) |
 | TDgpt（taosanode） | `/var/log/taos/taosanode` | `error.log`、`access.log`、`taosanode.app.log` | TDgpt 配置文件，见 [TDgpt 安装部署](../../09-ai-and-advanced-analytics/01-tdgpt/03-management.md) |
 | 授权中心（CLS） | `/var/log/taoscls` | `taoscls.log` | CLS 配置文件 `[log]` 段的 `file`，见 [部署与激活](../03-components/09-license-center/01-deploy-and-activate.md) |
 
