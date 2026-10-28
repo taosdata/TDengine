@@ -77,6 +77,10 @@ typedef struct SIFParam {
   void     *charsetCxt;  // borrowed client charset (restored on vnode); not freed
 
   SIdxFltStatus status;
+  // true when result/condValue/pFilter were copied from a ctx->pRes entry: the
+  // hash entry keeps the sole ownership and sifFreeRes destroys them, so a
+  // shared param must never be freed by its consumer
+  bool          shared;
   uint8_t       colValType;
   col_id_t      colId;
   int64_t       suid;  // add later
@@ -123,8 +127,13 @@ static sif_func_t sifNullFunc = NULL;
 
 static FORCE_INLINE void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
+  // function contract: a shared param only borrows result/condValue/pFilter
+  // from a ctx->pRes entry, which stays the sole owner and is destroyed by
+  // sifFreeRes -- freeing borrowed members here would double-destroy them
+  if (param->shared) return;
 
   taosArrayDestroy(param->result);
+  param->result = NULL;
   taosMemoryFree(param->condValue);
   param->condValue = NULL;
   taosHashCleanup(param->pFilter);
@@ -320,6 +329,12 @@ static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCt
   if (nodeType(node) != QUERY_NODE_OPERATOR) {
     return TSDB_CODE_INVALID_PARA;
   }
+  // defensive shape check: the json key operator must be COLUMN -> VALUE;
+  // any other shape (e.g. a nested json path) would read the wrong node memory
+  if (nd->pLeft == NULL || nd->pRight == NULL || nodeType(nd->pLeft) != QUERY_NODE_COLUMN ||
+      nodeType(nd->pRight) != QUERY_NODE_VALUE) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   SColumnNode *l = (SColumnNode *)nd->pLeft;
   SValueNode  *r = (SValueNode *)nd->pRight;
 
@@ -327,6 +342,14 @@ static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCt
   param->colValType = l->node.resType.type;
   memcpy(param->dbName, l->dbName, sizeof(l->dbName));
   if (r->literal == NULL) return TSDB_CODE_QRY_INVALID_INPUT;
+  // colName is a fixed-size buffer later read as a NUL-terminated string, so the
+  // json key must fit with room for the terminator; an over-long key is rejected
+  // and the caller falls back to the non-index filter path
+  if (strlen(r->literal) >= sizeof(param->colName)) {
+    indexWarn("json key exceeds colName capacity, keyLen:%d, maxLen:%d, fall back to non-index filter",
+              (int32_t)strlen(r->literal), (int32_t)sizeof(param->colName));
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   memcpy(param->colName, r->literal, strlen(r->literal));
   param->colValType = r->typeData;
   param->status = SFLT_COARSE_INDEX;
@@ -390,7 +413,7 @@ static int32_t sifInitParamValByCol(SNode *r, SNode *l, SIFParam *param, SIFCtx 
 
   param->colId = -1;
   param->colValType = (uint8_t)(vn->node.resType.type);
-  if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
+  if (vn->literal != NULL && strlen(vn->literal) < sizeof(param->colName)) {
     memcpy(param->colName, vn->literal, strlen(vn->literal));
   } else {
     param->status = SFLT_NOT_INDEX;
@@ -414,7 +437,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       // The value node's charsetCxt is serialized as "CharsetName" and restored
       // on the vnode; it is NULL when client==server or on an old plan.
       param->charsetCxt = vn->charsetCxt;
-      if (vn->literal != NULL && strlen(vn->literal) <= sizeof(param->colName)) {
+      if (vn->literal != NULL && strlen(vn->literal) < sizeof(param->colName)) {
         memcpy(param->colName, vn->literal, strlen(vn->literal));
       } else {
         param->status = SFLT_NOT_INDEX;
@@ -447,6 +470,10 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
         SIF_ERR_RET(TSDB_CODE_APP_ERROR);
       }
       *param = *res;
+      // the ctx->pRes entry keeps the sole ownership of result/condValue/pFilter;
+      // this copy only borrows them, otherwise the cleanup below and sifFreeRes
+      // would both destroy them
+      param->shared = true;
       break;
     }
     default:
