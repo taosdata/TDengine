@@ -120,6 +120,9 @@ The following parameters control client-side federated query behavior. Except fo
 
 |Parameter Name|Supported Version|Dynamic Modification|Description|
 |----------------------|----------|--------------------|-------------|
+| workloadRecord | | Not supported; restart the client process | Enable Native client workload recording. Integer: `0` disables recording (default), `1` enables it, and `2`–`255` are reserved values that leave recording disabled. See [Workload Recording and Replay](../02-operations/13-analysis-and-debug/06-workload-record-and-replay.md) for usage. |
+| workloadRecordDir | | Not supported; restart the client process | Directory for `.wlr` recording segments and session manifests. Defaults to `logDir/workload`, under the client's current `logDir`. The client needs write access to this directory. |
+| workloadRecordBufferSize | | Not supported; restart the client process | Recording queue buffer size in MB. Integer, range 16–4096, default 256. |
 | crashReporting   |                   |Supported, effective immediately  | Whether to upload crash to telemetry, 0: do not upload, 1: upload; default value: 1 |
 | enableCoreFile   |                   |Supported, effective immediately  | Whether to generate a core file when crashing, 0: do not generate, 1: generate; default value: 1 |
 | assert           |                   |Not supported                     | Assertion control switch, default value: 0 |
