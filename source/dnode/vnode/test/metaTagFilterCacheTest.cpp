@@ -570,6 +570,179 @@ TEST_F(MetaTagFilterCacheTest, FailedNewKeyInsertInvalidatesCompleteMapping) {
   expectHit(1, {800001});
 }
 
+// Single-JSON-tag SET TAG persists the client-supplied blob verbatim and re-reads it with
+// tTagGet on every later query, so a forged STag header (self-declared len/nTag disagreeing
+// with the bytes actually transmitted) must be rejected before it can reach the meta store.
+// Regression for the metaUpdateTableJsonTagValue write-path guard (TS-7114608840, engine
+// common/block finding 225 write side).
+TEST_F(MetaTagFilterCacheTest, JsonTagSetTagRejectsForgedBlobHeader) {
+  constexpr tb_uid_t kJsonSuid = 700002;
+  constexpr col_id_t kJsonTagId = 101;
+
+  SSchema rows[2] = {};
+  rows[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  rows[0].colId = 1;
+  rows[0].bytes = sizeof(int64_t);
+  tstrncpy(rows[0].name, "ts", sizeof(rows[0].name));
+  rows[1].type = TSDB_DATA_TYPE_INT;
+  rows[1].colId = 2;
+  rows[1].bytes = sizeof(int32_t);
+  tstrncpy(rows[1].name, "v", sizeof(rows[1].name));
+
+  SSchema jtag = {};
+  jtag.type = TSDB_DATA_TYPE_JSON;
+  jtag.colId = kJsonTagId;
+  jtag.bytes = TSDB_MAX_TAGS_LEN + VARSTR_HEADER_SIZE;
+  tstrncpy(jtag.name, "j", sizeof(jtag.name));
+
+  SVCreateStbReq stReq = {};
+  stReq.name = const_cast<char*>("json_st");
+  stReq.suid = kJsonSuid;
+  stReq.colCmpred = 1;
+  stReq.schemaRow.nCols = 2;
+  stReq.schemaRow.pSchema = rows;
+  stReq.schemaTag.nCols = 1;
+  stReq.schemaTag.pSchema = &jtag;
+  SColCmpr cmp[2] = {};
+  for (int i = 0; i < 2; ++i) {
+    cmp[i].id = rows[i].colId;
+    cmp[i].alg = createDefaultColCmprByType(rows[i].type);
+  }
+  stReq.colCmpr.nCols = 2;
+  stReq.colCmpr.pColCmpr = cmp;
+  ASSERT_EQ(0, metaCreateSuperTable(vnode_.pMeta, ++version_, &stReq));
+
+  // child table of json_st with a valid (empty) JSON tag blob
+  constexpr uint64_t uid = 800101;
+  const std::string  name = "json_c" + std::to_string(uid);
+  STag               emptyTag = {};
+  emptyTag.flags = TD_TAG_JSON;
+  emptyTag.len = sizeof(STag);
+  emptyTag.nTag = 0;
+  SMetaEntry child = {};
+  child.version = ++version_;
+  child.type = TSDB_CHILD_TABLE;
+  child.uid = uid;
+  child.name = const_cast<char*>(name.c_str());
+  child.ctbEntry.suid = kJsonSuid;
+  child.ctbEntry.pTags = reinterpret_cast<uint8_t*>(&emptyTag);
+  ASSERT_EQ(0, metaHandleEntry2(vnode_.pMeta, &child));
+
+  // a valid single-entry JSON tag blob, and a heap copy we can forge
+  SArray* values = taosArrayInit(1, sizeof(STagVal));
+  ASSERT_NE(nullptr, values);
+  STagVal tv = {};
+  tv.pKey = const_cast<char*>("k");
+  tv.type = TSDB_DATA_TYPE_JSON;
+  const char* json = "{\"k\":1}";
+  tv.pData = reinterpret_cast<uint8_t*>(const_cast<char*>(json));
+  tv.nData = strlen(json);
+  ASSERT_NE(nullptr, taosArrayPush(values, &tv));
+  STag* goodTag = nullptr;
+  ASSERT_EQ(0, tTagNew(values, 0, 1, &goodTag));
+  taosArrayDestroy(values);
+  const uint32_t goodLen = goodTag->len;
+  ASSERT_GT(goodLen, sizeof(STag));
+  ASSERT_EQ(0, tTagValidate(goodTag, goodLen));  // sanity: the generated blob is well-formed
+
+  auto setJsonTag = [&](STag* blob, uint32_t blobLen) -> int32_t {
+    SArray* tags = taosArrayInit(1, sizeof(SUpdatedTagVal));
+    if (tags == nullptr) {
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SUpdatedTagVal upd = {};
+    upd.tagName = const_cast<char*>("j");
+    upd.colId = kJsonTagId;
+    upd.tagType = TSDB_DATA_TYPE_JSON;
+    upd.pTagVal = reinterpret_cast<uint8_t*>(blob);
+    upd.nTagVal = blobLen;
+    if (taosArrayPush(tags, &upd) == nullptr) {
+      taosArrayDestroy(tags);
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SUpdateTableTagVal table = {};
+    table.tbName = const_cast<char*>(name.c_str());
+    table.tags = tags;
+    SArray* tables = taosArrayInit(1, sizeof(SUpdateTableTagVal));
+    if (tables == nullptr) {
+      taosArrayDestroy(tags);
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    if (taosArrayPush(tables, &table) == nullptr) {
+      taosArrayDestroy(tags);
+      taosArrayDestroy(tables);
+      return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SVAlterTbReq req = {};
+    req.action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+    req.tables = tables;
+    int32_t code = metaAlterTable(vnode_.pMeta, ++version_, &req, nullptr);
+    taosArrayDestroy(tags);
+    taosArrayDestroy(tables);
+    return code;
+  };
+
+  // a well-formed blob passes
+  EXPECT_EQ(0, setJsonTag(goodTag, goodLen));
+
+  // forged: header claims len=INT16_MAX while only goodLen bytes were transmitted
+  std::vector<uint8_t> forgedLenBuf(reinterpret_cast<uint8_t*>(goodTag), reinterpret_cast<uint8_t*>(goodTag) + goodLen);
+  STag*                forgedLen = reinterpret_cast<STag*>(forgedLenBuf.data());
+  forgedLen->len = INT16_MAX;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setJsonTag(forgedLen, goodLen));
+
+  // forged: nTag=100 makes the idx[] array run past the transmitted bytes
+  std::vector<uint8_t> forgedNtBuf(reinterpret_cast<uint8_t*>(goodTag), reinterpret_cast<uint8_t*>(goodTag) + goodLen);
+  STag*                forgedNt = reinterpret_cast<STag*>(forgedNtBuf.data());
+  forgedNt->nTag = 100;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setJsonTag(forgedNt, goodLen));
+
+  // forged: an unknown flag bit is rejected
+  std::vector<uint8_t> forgedFlBuf(reinterpret_cast<uint8_t*>(goodTag), reinterpret_cast<uint8_t*>(goodTag) + goodLen);
+  STag*                forgedFl = reinterpret_cast<STag*>(forgedFlBuf.data());
+  forgedFl->flags |= static_cast<int8_t>(0x01);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setJsonTag(forgedFl, goodLen));
+
+  tTagFree(goodTag);
+}
+
+// SET TAG on a fixed-width tag must reject a value whose length differs from the type's width: the length comes from
+// the request and is otherwise used to copy into / compare against an 8-byte value.
+TEST_F(MetaTagFilterCacheTest, SetTagRejectsWrongFixedWidthValue) {
+  constexpr uint64_t uid = 900001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const std::string name = "p" + std::to_string(uid);
+
+  auto setTag = [&](uint32_t nVal) -> int32_t {
+    std::vector<uint8_t> value(64, 0x7f);
+    SUpdatedTagVal       upd = {};
+    upd.tagName = const_cast<char*>("pile_code");
+    upd.colId = kTagId;
+    upd.tagType = TSDB_DATA_TYPE_INT;
+    upd.pTagVal = value.data();
+    upd.nTagVal = nVal;
+    SArray* tags = taosArrayInit(1, sizeof(SUpdatedTagVal));
+    SArray* tables = taosArrayInit(1, sizeof(SUpdateTableTagVal));
+    if (tags == nullptr || tables == nullptr) return TSDB_CODE_OUT_OF_MEMORY;
+    taosArrayPush(tags, &upd);
+    SUpdateTableTagVal table = {};
+    table.tbName = const_cast<char*>(name.c_str());
+    table.tags = tags;
+    taosArrayPush(tables, &table);
+    SVAlterTbReq req = {};
+    req.action = TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL;
+    req.tables = tables;
+    int32_t code = metaAlterTable(vnode_.pMeta, ++version_, &req, nullptr);
+    taosArrayDestroy(tags);
+    taosArrayDestroy(tables);
+    return code;
+  };
+
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setTag(16));
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, setTag(2));
+  EXPECT_EQ(0, setTag(sizeof(int32_t)));
+}
+
 }  // namespace
 
 extern "C" int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME);

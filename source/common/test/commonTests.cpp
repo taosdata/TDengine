@@ -2737,6 +2737,17 @@ TEST(testCase, formatTimestampTz_negative_fraction) {
 #endif
 
 #pragma GCC diagnostic pop
+
+TEST(timeTest, invalidPrecisionRejected) {
+  struct STm tm = {0};
+  int64_t    ts = 0;
+  for (int32_t prec : {TSDB_TIME_PRECISION_HOURS, TSDB_TIME_PRECISION_MINUTES, 6, 255, -1}) {
+    EXPECT_EQ(taosTs2Tm(1700000000000LL, prec, &tm, NULL), TSDB_CODE_INVALID_PARA) << prec;
+    EXPECT_EQ(taosTm2Ts(&tm, &ts, prec, NULL), TSDB_CODE_INVALID_PARA) << prec;
+  }
+  EXPECT_EQ(taosTs2Tm(1700000000000LL, TSDB_TIME_PRECISION_MILLI, &tm, NULL), TSDB_CODE_SUCCESS);
+}
+
 // ---------------------------------------------------------------------------
 // BLOB byte-bound check used by the row-append loops.
 //
