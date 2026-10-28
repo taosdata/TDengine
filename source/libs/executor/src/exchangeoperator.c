@@ -1415,8 +1415,11 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     }
   }
 
-  for (int32_t i = 0; i < numOfSources; ++i) {
-    SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
+  SListCell* pSrcEndPointCell =
+      NULL != ((SNodeList*)pExNode->pSrcEndPoints) ? ((SNodeList*)pExNode->pSrcEndPoints)->pHead : NULL;
+  for (int32_t i = 0; i < numOfSources;
+       ++i, pSrcEndPointCell = (NULL != pSrcEndPointCell ? pSrcEndPointCell->pNext : NULL)) {
+    SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)(NULL != pSrcEndPointCell ? pSrcEndPointCell->pNode : NULL);
     if (!pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;

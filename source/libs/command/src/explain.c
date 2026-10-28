@@ -1734,8 +1734,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       if (pResNode->pExecInfo) {
         // sort key
         EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
-        for (int32_t i = 0; i < LIST_LENGTH(pSortNode->pSortKeys); ++i) {
-          SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pSortNode->pSortKeys, i);
+        SNode* pSortKeyNode = NULL;
+        FOREACH(pSortKeyNode, pSortNode->pSortKeys) {
+          SOrderByExprNode *ptn = (SOrderByExprNode *)pSortKeyNode;
           EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
         }
 
@@ -2174,8 +2175,11 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
               EXPLAIN_ROW_APPEND(EXPLAIN_COMMA_FORMAT);
             }
           }
-          for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
+          SListCell* pMergeKeyCell =
+              NULL != pMergeNode->pMergeKeys ? pMergeNode->pMergeKeys->pHead : NULL;
+          for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys);
+               ++i, pMergeKeyCell = (NULL != pMergeKeyCell ? pMergeKeyCell->pNext : NULL)) {
+            SOrderByExprNode *ptn = (SOrderByExprNode *)(NULL != pMergeKeyCell ? pMergeKeyCell->pNode : NULL);
             EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, nodesGetNameFromColumnNode(ptn->pExpr));
             EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
             EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, EXPLAIN_ORDER_STRING(ptn->order));
@@ -2346,8 +2350,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         // sort key
         EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
         if (pResNode->pExecInfo) {
-          for (int32_t i = 0; i < LIST_LENGTH(pSortNode->pSortKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pSortNode->pSortKeys, i);
+          SNode* pSortKeyNode2 = NULL;
+          FOREACH(pSortKeyNode2, pSortNode->pSortKeys) {
+            SOrderByExprNode *ptn = (SOrderByExprNode *)pSortKeyNode2;
             EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
           }
         }
@@ -3464,8 +3469,10 @@ static int32_t qExplainAppendStaticQueryPlan(SQueryPlan* pPlan, const SNodeList*
   QRY_ERR_JRET(qExplainAppendGroupResRows(pCtx, planCtx.rootGroupId, &level, false));
 
   if (NULL != pPlan->pChildren) {
-    for (int32_t i = LIST_LENGTH(pPlan->pChildren) - 1; i >= 0; --i) {
-      SQueryPlan* pChild = (SQueryPlan*)nodesListGetNode(pPlan->pChildren, i);
+    SListCell* pChildrenCell = NULL != pPlan->pChildren ? pPlan->pChildren->pTail : NULL;
+    for (int32_t i = LIST_LENGTH(pPlan->pChildren) - 1; i >= 0;
+         --i, pChildrenCell = (NULL != pChildrenCell ? pChildrenCell->pPrev : NULL)) {
+      SQueryPlan* pChild = (SQueryPlan*)(NULL != pChildrenCell ? pChildrenCell->pNode : NULL);
       QUERY_CHECK_NULL(pChild, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
 
       tbuf = pCtx->tbuf;
