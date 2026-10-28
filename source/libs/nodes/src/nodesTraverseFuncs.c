@@ -762,21 +762,32 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     return;
   }
 
+  bool windowRewritten = false;
   switch (clause) {
     case SQL_CLAUSE_FROM:
       nodesRewriteExpr(&(pSelect->pFromTable), rewriter, pContext);
       nodesRewriteExpr(&(pSelect->pWhere), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pTimeRange), rewriter, pContext);
     case SQL_CLAUSE_WHERE:
       nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
     case SQL_CLAUSE_EXT_WINDOW:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
+      windowRewritten = true;
     case SQL_CLAUSE_WINDOW:
       nodesRewriteExprs(pSelect->pWindowList, rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pFill), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pRange), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pRangeAround), rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pEvery), rewriter, pContext);
       if (NULL != pSelect->pWindow) {
-        if (QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+        if (QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+          SExternalWindowNode* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+          nodesRewriteExpr(&pExternal->pSubquery, rewriter, pContext);
+          nodesRewriteExpr(&pExternal->pTimeRange, rewriter, pContext);
+        } else if (!windowRewritten && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
           nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
-        } else if (QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
+        } else if (!windowRewritten && QUERY_NODE_COUNT_WINDOW == nodeType(pSelect->pWindow)) {
           nodesRewriteExprs(((SCountWindowNode*)pSelect->pWindow)->pColList, rewriter, pContext);
         }
       }

@@ -16310,6 +16310,136 @@ TEST_F(InterpKeeperBoundaryTest, RejectsChangedColumnCountBeforeCopy) {
   EXPECT_EQ(memcmp(key()->pData, snapshot.data(), snapshot.size()), 0);
 }
 
+class UnmaterializedSortColumnTest : public ::testing::Test {
+ protected:
+  static const int32_t kRows = 128;
+  SSDataBlock* block = nullptr;
+  SArray* orders = nullptr;
+  SSortHandle* handle = nullptr;
+
+  void SetUp() override {
+    ASSERT_EQ(createDataBlock(&block), TSDB_CODE_SUCCESS);
+    SColumnInfoData key = createColumnInfoData(TSDB_DATA_TYPE_INT, 4, 1);
+    SColumnInfoData empty = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16, 2);
+    SColumnInfoData value = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 16, 3);
+    ASSERT_EQ(blockDataAppendColInfo(block, &key), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataAppendColInfo(block, &empty), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataAppendColInfo(block, &value), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(block, kRows + 8), TSDB_CODE_SUCCESS);
+    for (int32_t row = 0; row < kRows; ++row) {
+      int32_t number = kRows - row;
+      char text[VARSTR_HEADER_SIZE + 1] = {};
+      varDataSetLen(text, 1);
+      *varDataVal(text) = 'a' + number % 26;
+      ASSERT_EQ(colDataSetVal(column(0), row,
+                             reinterpret_cast<char*>(&number), false),
+                TSDB_CODE_SUCCESS);
+      colDataSetNULL(column(1), row);
+      ASSERT_EQ(colDataSetVal(column(2), row, text, number % 3 == 0),
+                TSDB_CODE_SUCCESS);
+    }
+    block->info.rows = kRows;
+    ASSERT_EQ(column(1)->pData, nullptr);
+    orders = taosArrayInit(1, sizeof(SBlockOrderInfo));
+    ASSERT_NE(orders, nullptr);
+    SBlockOrderInfo order = {};
+    order.order = TSDB_ORDER_ASC;
+    order.slotId = 0;
+    ASSERT_NE(taosArrayPush(orders, &order), nullptr);
+  }
+
+  void TearDown() override {
+    tsortDestroySortHandle(handle);
+    taosArrayDestroy(orders);
+    blockDataDestroy(block);
+  }
+
+  SColumnInfoData* column(int32_t slot) {
+    return static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, slot));
+  }
+};
+
+TEST_F(UnmaterializedSortColumnTest, KeepsNullOffsetsForPageSplitting) {
+  // An unmaterialized slot can also have no input offset allocation.
+  for (bool missingOffsets : {false, true}) {
+    if (missingOffsets) {
+      taosMemoryFreeClear(column(1)->varmeta.offset);
+    }
+    ASSERT_EQ(blockDataSort(block, orders), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(column(1)->pData, nullptr);
+    EXPECT_EQ(column(1)->varmeta.length, 0);
+    ASSERT_NE(column(1)->varmeta.offset, nullptr);
+    for (int32_t row = 0; row < kRows; ++row) {
+      EXPECT_EQ(column(1)->varmeta.offset[row], -1);
+      EXPECT_EQ(*reinterpret_cast<int32_t*>(colDataGetData(column(0), row)),
+                row + 1);
+      EXPECT_EQ(colDataIsNull_var(column(2), row), (row + 1) % 3 == 0);
+      if ((row + 1) % 3 != 0) {
+        const char* text = colDataGetData(column(2), row);
+        EXPECT_EQ(varDataLen(text), 1);
+        EXPECT_EQ(*varDataVal(text), 'a' + (row + 1) % 26);
+      }
+    }
+    int32_t stop = -1;
+    ASSERT_EQ(blockDataSplitRows(block, true, 0, &stop, 256),
+              TSDB_CODE_SUCCESS);
+    EXPECT_GE(stop, 0);
+    EXPECT_LT(stop, kRows - 1);
+  }
+}
+
+TEST_F(UnmaterializedSortColumnTest, PreservesNullsAcrossExternalSort) {
+  InterpMergeTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  // Supplying the schema keeps the requested two-page sort buffer size.
+  ASSERT_EQ(tsortCreateSortHandle(orders, SORT_SINGLESOURCE_SORT, 256, 2,
+                                  block, "unmaterialized-sort", 0, 0, 0,
+                                  &handle), TSDB_CODE_SUCCESS);
+  tsortSetFetchRawDataFp(handle, [](void* param, SSDataBlock** result) -> int32_t {
+    auto** input = static_cast<SSDataBlock**>(param);
+    *result = *input;
+    *input = nullptr;
+    return TSDB_CODE_SUCCESS;
+  }, nullptr, nullptr);
+  SSDataBlock* input = block;
+  auto* source = static_cast<SSortSource*>(
+      taosMemoryCalloc(1, sizeof(SSortSource)));
+  ASSERT_NE(source, nullptr);
+  source->param = &input;
+  source->onlyRef = true;
+  int32_t code = tsortAddSource(handle, source);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(source);
+  }
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsortOpen(handle), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsortGetSortExecInfo(handle).sortMethod,
+            SORT_SPILLED_MERGE_SORT_T);
+  for (int32_t number = 1; number <= kRows; ++number) {
+    STupleHandle* tuple = nullptr;
+    ASSERT_EQ(tsortNextTuple(handle, &tuple), TSDB_CODE_SUCCESS);
+    ASSERT_NE(tuple, nullptr);
+    void* value = nullptr;
+    tsortGetValue(tuple, 0, &value);
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*static_cast<int32_t*>(value), number);
+    EXPECT_TRUE(tsortIsNullVal(tuple, 1));
+    EXPECT_EQ(tsortIsNullVal(tuple, 2), number % 3 == 0);
+    if (number % 3 != 0) {
+      tsortGetValue(tuple, 2, &value);
+      ASSERT_NE(value, nullptr);
+      EXPECT_EQ(varDataLen(value), 1);
+      EXPECT_EQ(*varDataVal(value), 'a' + number % 26);
+    }
+  }
+  STupleHandle* tuple = nullptr;
+  ASSERT_EQ(tsortNextTuple(handle, &tuple), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tuple, nullptr);
+  SSortExecInfo info = tsortGetSortExecInfo(handle);
+  EXPECT_GT(info.writeBytes, 0);
+  EXPECT_GT(info.readBytes, 0);
+}
+
 TEST(SortTupleBoundaryTest, RejectsOverflowedSchemaLengthBeforeAllocatingTuple) {
   SSDataBlock *block = nullptr;
   ASSERT_EQ(createDataBlock(&block), TSDB_CODE_SUCCESS);

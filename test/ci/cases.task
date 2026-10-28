@@ -632,6 +632,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_empty_subquery_constants.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_stages.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_time_range.py

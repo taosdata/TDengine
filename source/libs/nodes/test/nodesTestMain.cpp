@@ -16,6 +16,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <memory>
 
 #include "nodesUtil.h"
 #include "querynodes.h"
@@ -63,6 +64,82 @@ TEST(NodesTest, traverseTest) {
   EXPECT_EQ(nodeType(pRoot), QUERY_NODE_VALUE);
   EXPECT_EQ(string(((SValueNode*)pRoot)->literal), "18");
   nodesDestroyNode(pRoot);
+}
+
+struct SelectRewriteVisits {
+  int32_t remote = 0;
+  int32_t window = 0;
+};
+
+static EDealRes remapSelectSubquery(SNode** ppNode, void* pContext) {
+  auto* pVisits = (SelectRewriteVisits*)pContext;
+  if (QUERY_NODE_REMOTE_VALUE == nodeType(*ppNode)) {
+    ++pVisits->remote;
+    // Visiting twice incorrectly remaps the already compacted index again.
+    --((SRemoteValueNode*)*ppNode)->subQIdx;
+  } else if (QUERY_NODE_INTERVAL_WINDOW == nodeType(*ppNode) ||
+             QUERY_NODE_COUNT_WINDOW == nodeType(*ppNode)) {
+    ++pVisits->window;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+TEST(NodesTest, rewriteSelectWindowSubqueryOnce) {
+  for (ENodeType type : {QUERY_NODE_INTERVAL_WINDOW, QUERY_NODE_COUNT_WINDOW}) {
+    for (ESqlClause clause : {SQL_CLAUSE_FROM, SQL_CLAUSE_WINDOW}) {
+      SCOPED_TRACE(type);
+      SCOPED_TRACE(clause);
+      SNode* pRoot = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pRoot));
+      unique_ptr<SNode, decltype(&nodesDestroyNode)> root(pRoot, nodesDestroyNode);
+      auto* pSelect = (SSelectStmt*)pRoot;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(type, &pSelect->pWindow));
+      SNode* pRemote = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, &pRemote));
+      ((SRemoteValueNode*)pRemote)->subQIdx = 2;
+      if (QUERY_NODE_INTERVAL_WINDOW == type) {
+        ((SIntervalWindowNode*)pSelect->pWindow)->pFill = pRemote;
+      } else {
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesListMakeAppend(&((SCountWindowNode*)pSelect->pWindow)->pColList, pRemote));
+      }
+      SelectRewriteVisits visits;
+      nodesRewriteSelectStmt(pSelect, clause, remapSelectSubquery, &visits);
+      EXPECT_EQ(1, visits.remote);
+      EXPECT_EQ(1, ((SRemoteValueNode*)pRemote)->subQIdx);
+      EXPECT_EQ(SQL_CLAUSE_FROM == clause ? 1 : 0, visits.window);
+    }
+  }
+}
+
+TEST(NodesTest, rewriteSelectRangeFillAndExternalSubqueries) {
+  SNode* pRoot = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_SELECT_STMT, &pRoot));
+  unique_ptr<SNode, decltype(&nodesDestroyNode)> root(pRoot, nodesDestroyNode);
+  auto* pSelect = (SSelectStmt*)pRoot;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EXTERNAL_WINDOW, &pSelect->pWindow));
+  auto* pExternal = (SExternalWindowNode*)pSelect->pWindow;
+  SNode** fields[] = {&pSelect->pFill, &pSelect->pRange, &pSelect->pRangeAround,
+                     &pSelect->pEvery, &pSelect->pTimeRange,
+                     &pExternal->pSubquery, &pExternal->pTimeRange};
+  for (SNode** ppField : fields) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, ppField));
+    ((SRemoteValueNode*)*ppField)->subQIdx = 2;
+  }
+  SelectRewriteVisits visits;
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, remapSelectSubquery, &visits);
+  EXPECT_EQ(7, visits.remote);
+  for (SNode** ppField : fields) {
+    EXPECT_EQ(1, ((SRemoteValueNode*)*ppField)->subQIdx);
+  }
+
+  SSelectStmt empty = {};
+  visits = {};
+  nodesRewriteSelectStmt(nullptr, SQL_CLAUSE_FROM, remapSelectSubquery, &visits);
+  nodesRewriteSelectStmt(&empty, SQL_CLAUSE_FROM, remapSelectSubquery, &visits);
+  nodesRewriteSelectStmt(&empty, SQL_CLAUSE_WINDOW, remapSelectSubquery, &visits);
+  EXPECT_EQ(0, visits.remote);
+  EXPECT_EQ(0, visits.window);
 }
 
 int32_t compareValueNode(SNode* pNode1, SNode* pNode2) {

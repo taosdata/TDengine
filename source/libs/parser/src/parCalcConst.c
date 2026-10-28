@@ -31,12 +31,20 @@ typedef struct SCalcConstContext {
   SNodeReplaceContext replaceCxt;
   SMsgBuf             msgBuf;
   int32_t             code;
+  SNodeList*          pSubQueries;
+  int32_t*            pSubqueryMap;
   // Preserve timestamp projections while folding nested temporal JOIN inputs;
   // the planner selects the effective keys and prunes unused candidates.
   bool                keepTemporalCandidates;
+  bool                tagScan;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
+static bool isEmptyResultQuery(SNode* pStmt);
+static bool emptySubquery(SCalcConstContext* pCxt, SNode* pNode);
+static EDealRes rewriteEmptySubquery(SNode** ppNode, void* pContext);
+static EDealRes replaceSubqueryValue(SCalcConstContext* pCxt, SNode** ppNode,
+                                    bool isNull, int64_t value);
 
 static int32_t calcConstSubquery(SCalcConstContext* pCxt, STempTableNode* pTempTable) {
   return calcConstQuery(pCxt, pTempTable->pSubquery, true);
@@ -224,8 +232,38 @@ static int32_t calcConstFromTable(SCalcConstContext* pCxt, SNode* pTable) {
   return rewriteConditionForFromTable(pCxt, pTable);
 }
 
+static bool conditionCannotBeTrue(SNode* pCond) {
+  if (QUERY_NODE_VALUE == nodeType(pCond)) {
+    SValueNode* pValue = (SValueNode*)pCond;
+    if (!pValue->translate ||
+        (pValue->flag & (VALUE_FLAG_VAL_UNSET | VALUE_FLAG_DEFERRED_QUERY_TIME))) {
+      return false;
+    }
+    return pValue->isNull ||
+           (TSDB_DATA_TYPE_BOOL == pValue->node.resType.type && !pValue->datum.b);
+  }
+  if (QUERY_NODE_LOGIC_CONDITION != nodeType(pCond)) {
+    return false;
+  }
+  SLogicConditionNode* pLogic = (SLogicConditionNode*)pCond;
+  if (LOGIC_COND_TYPE_NOT == pLogic->condType) {
+    return false;
+  }
+  bool isAnd = LOGIC_COND_TYPE_AND == pLogic->condType;
+  SNode* pParam = NULL;
+  FOREACH(pParam, pLogic->pParameterList) {
+    if (conditionCannotBeTrue(pParam) == isAnd) {
+      return isAnd;
+    }
+  }
+  return !isAnd;
+}
+
 static void rewriteConstCondition(SNode** pCond, bool* pAlwaysFalse) {
   if (QUERY_NODE_VALUE != nodeType(*pCond)) {
+    // A filter rejects both FALSE and NULL; keep their distinction in the AST.
+    *pAlwaysFalse = *pAlwaysFalse ||
+                    (nodesExprHasCorrelation(*pCond) && conditionCannotBeTrue(*pCond));
     return;
   }
   SValueNode* pValue = (SValueNode*)*pCond;
@@ -237,6 +275,43 @@ static void rewriteConstCondition(SNode** pCond, bool* pAlwaysFalse) {
   }
 }
 
+static int32_t calcConstCorrelatedCondition(SCalcConstContext* pCxt, SNode** pCond) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(*pCond)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)*pCond;
+    bool hasConstantResult = false;
+    bool constantResult = false;
+    SNode* pParam = NULL;
+    FOREACH(pParam, pLogic->pParameterList) {
+      int32_t code = calcConstCorrelatedCondition(pCxt, &cell->pNode);
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      pParam = cell->pNode;
+      if (QUERY_NODE_VALUE != nodeType(pParam) ||
+          !((SValueNode*)pParam)->translate ||
+          (((SValueNode*)pParam)->flag &
+           (VALUE_FLAG_VAL_UNSET | VALUE_FLAG_DEFERRED_QUERY_TIME)) ||
+          ((SValueNode*)pParam)->isNull ||
+          TSDB_DATA_TYPE_BOOL != ((SValueNode*)pParam)->node.resType.type) {
+        continue;
+      }
+      bool value = ((SValueNode*)pParam)->datum.b;
+      if ((LOGIC_COND_TYPE_AND == pLogic->condType && !value) ||
+          (LOGIC_COND_TYPE_OR == pLogic->condType && value)) {
+        hasConstantResult = true;
+        constantResult = value;
+      }
+    }
+    if (hasConstantResult) {
+      replaceSubqueryValue(pCxt, pCond, false, constantResult);
+      return pCxt->code;
+    }
+  }
+  // The scalar engine deliberately skips expressions with unbound parameters.
+  // Fold independent conditions without evaluating those parameters.
+  return calcConstNode(pCond);
+}
+
 static int32_t calcConstStmtCondition(SCalcConstContext* pCxt, SNode** pCond, bool* pAlwaysFalse) {
   if (NULL == *pCond) {
     return TSDB_CODE_SUCCESS;
@@ -244,7 +319,8 @@ static int32_t calcConstStmtCondition(SCalcConstContext* pCxt, SNode** pCond, bo
 
   int32_t code = rewriteCondition(pCxt, pCond);
   if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstNode(pCond);
+    code = nodesExprHasCorrelation(*pCond) ? calcConstCorrelatedCondition(pCxt, pCond)
+                                         : calcConstNode(pCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     rewriteConstCondition(pCond, pAlwaysFalse);
@@ -460,14 +536,41 @@ static int32_t calcConstSelectWithoutFrom(SCalcConstContext* pCxt, SSelectStmt* 
   return code;
 }
 
+static EDealRes findCountLikeFunction(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    int32_t funcId = pFunc->hasOriginalFunc ? pFunc->originalFuncId
+                                          : pFunc->funcId;
+    if (fmIsCountLikeFunc(funcId)) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool countMayReturnEmptyInputRow(SSelectStmt* pSelect) {
+  if (NULL != pSelect->pGroupByList || NULL != pSelect->pPartitionByList ||
+      NULL != pSelect->pWindow || pSelect->implicitPartitionHaving) {
+    return false;
+  }
+  bool hasCount = pSelect->hasCountFunc;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, findCountLikeFunction,
+                      &hasCount);
+  return hasCount;
+}
+
 static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   int32_t code = calcConstFromTable(pCxt, pSelect->pFromTable);
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      ((STempTableNode*)pSelect->pFromTable)->pSubquery != NULL &&
-      QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
-      ((SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery)->isEmptyResult) {
-    pSelect->isEmptyResult = true;
-    return code;
+  bool emptyInput = pSelect->isEmptyResult;
+  bool emptyFromSubquery = false;
+  if (TSDB_CODE_SUCCESS == code &&
+      QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
+    // Semantic analysis may have propagated an empty-input flag from COUNT.
+    // Recheck the child's final output after folding it.
+    emptyFromSubquery = isEmptyResultQuery(
+        ((STempTableNode*)pSelect->pFromTable)->pSubquery);
+    emptyInput = pSelect->timeRange.skey > pSelect->timeRange.ekey;
   }
   if (pSelect->mixSysTableAndActualTable) {
     return code;
@@ -476,7 +579,7 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
     code = calcConstProjections(pCxt, pSelect, subquery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstStmtCondition(pCxt, &pSelect->pWhere, &pSelect->isEmptyResult);
+    code = calcConstStmtCondition(pCxt, &pSelect->pWhere, &emptyInput);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSelect->pPartitionByList);
@@ -488,6 +591,12 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
     code = calcConstGroupBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    bool countReturnsRow = countMayReturnEmptyInputRow(pSelect);
+    bool topLevel = !pSelect->isSubquery && E_SUB_QUERY_NOT_SET == pSelect->subQType;
+    // COUNT over an empty derived table still returns a row. Preserve the
+    // top-level empty-result shortcut for the query's own empty conditions.
+    pSelect->isEmptyResult = (emptyFromSubquery && !countReturnsRow) ||
+                            (emptyInput && (topLevel || !countReturnsRow));
     code = calcConstStmtCondition(pCxt, &pSelect->pHaving, &pSelect->isEmptyResult);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -503,17 +612,35 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
 }
 
 
+static bool isZeroLimit(SLimitNode* pLimit) {
+  return NULL != pLimit && NULL != pLimit->limit &&
+         QUERY_NODE_VALUE == nodeType(pLimit->limit) &&
+         pLimit->limit->translate && !pLimit->limit->isNull &&
+         0 == pLimit->limit->datum.i;
+}
+
 static bool isEmptyResultQuery(SNode* pStmt) {
+  if (NULL == pStmt) {
+    return false;
+  }
   bool isEmptyResult = false;
   switch (nodeType(pStmt)) {
-    case QUERY_NODE_SELECT_STMT:
-      isEmptyResult = ((SSelectStmt*)pStmt)->isEmptyResult;
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+      isEmptyResult = pSelect->isEmptyResult || isZeroLimit(pSelect->pLimit) ||
+                      isZeroLimit(pSelect->pSlimit);
       break;
+    }
     case QUERY_NODE_EXPLAIN_STMT:
-      isEmptyResult = isEmptyResultQuery(((SExplainStmt*)pStmt)->pQuery);
+      // Newly folded empty inputs still need an EXPLAIN plan. Preexisting
+      // empty-result decisions are preserved separately in calculateConstant.
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      if (isZeroLimit((SLimitNode*)pSetOp->pLimit)) {
+        isEmptyResult = true;
+        break;
+      }
       int32_t childCount = setOperatorChildCount(pSetOp);
       if (childCount > 0) {
         isEmptyResult = true;
@@ -543,14 +670,6 @@ static int32_t calcSubQueries(SCalcConstContext* pCxt, SNodeList* pSubQueries) {
     if (code) {
       break;
     }
-/*
-    if (isEmptyResultQuery(pNode) && nodesIsScalarSubQuery(pNode)) {
-      // TODO
-      parserError("%" PRIx64 " scalar subquery got empty result", pCxt->pParseCxt->requestId);
-      code = TSDB_CODE_PAR_INVALID_SCALAR_SUBQ_RES_ROWS;
-      break;
-    }
-*/
   }
 
   return code;
@@ -558,15 +677,39 @@ static int32_t calcSubQueries(SCalcConstContext* pCxt, SNodeList* pSubQueries) {
 
 static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  
+  // The shared list is ordered with dependencies before their users.
+  code = calcSubQueries(pCxt, pSelect->pSubQueries);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  bool tagScan = pCxt->tagScan;
+  pCxt->tagScan = pSelect->tagScan;
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteEmptySubquery, pCxt);
+  pCxt->tagScan = tagScan;
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return pCxt->code;
+  }
+
   if (NULL == pSelect->pFromTable) {
     code = calcConstSelectWithoutFrom(pCxt, pSelect, subquery);
   } else {
     code = calcConstSelectFrom(pCxt, pSelect, subquery);
   }
 
-  if (TSDB_CODE_SUCCESS == code && pSelect->pSubQueries && pSelect->pSubQueries->length > 0) {
-    code = calcSubQueries(pCxt, pSelect->pSubQueries);
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pWindow &&
+      QUERY_NODE_EXTERNAL_WINDOW == nodeType(pSelect->pWindow)) {
+    SNode* pBoundaries = ((SExternalWindowNode*)pSelect->pWindow)->pSubquery;
+    if (NULL != pBoundaries && QUERY_NODE_REMOTE_TABLE == nodeType(pBoundaries) &&
+        emptySubquery(pCxt, pBoundaries)) {
+      // Empty boundaries create no windows, including for COUNT aggregates.
+      pSelect->isEmptyResult = true;
+    }
+    code = pCxt->code;
+  }
+
+  if (TSDB_CODE_SUCCESS == code &&
+      (isZeroLimit(pSelect->pLimit) || isZeroLimit(pSelect->pSlimit))) {
+    pSelect->isEmptyResult = true;
   }
 
   return code;
@@ -727,17 +870,22 @@ static int32_t calcConstSetOpProjections(SCalcConstContext* pCxt, SSetOperator* 
 }
 
 static int32_t calcConstSetOperator(SCalcConstContext* pCxt, SSetOperator* pSetOp, bool subquery) {
-  int32_t code = calcConstSetOpProjections(pCxt, pSetOp, subquery);
+  int32_t code = calcSubQueries(pCxt, pSetOp->pSubQueries);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+  nodesRewriteExprs(pSetOp->pProjectionList, rewriteEmptySubquery, pCxt);
+  nodesRewriteExprs(pSetOp->pOrderByList, rewriteEmptySubquery, pCxt);
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return pCxt->code;
+  }
+  code = calcConstSetOpProjections(pCxt, pSetOp, subquery);
   for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < setOperatorChildCount(pSetOp); ++i) {
     code = calcConstQuery(pCxt, setOperatorChildAt(pSetOp, i), false);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSetOp->pOrderByList);
   }
-  if (TSDB_CODE_SUCCESS == code && pSetOp->pSubQueries && pSetOp->pSubQueries->length > 0) {
-    code = calcSubQueries(pCxt, pSetOp->pSubQueries);
-  }
-  
   return code;
 }
 
@@ -774,10 +922,34 @@ static void replaceSetOpWithChild(SNode** ppStmt, SSetOperator* pSetOp, SNode* p
   }
 
   // Outer column references must retain the set operator's output namespace.
+  tstrncpy(((SExprNode*)pKeep)->userAlias, pSetOp->node.userAlias,
+            TSDB_COL_NAME_LEN);
   if (QUERY_NODE_SELECT_STMT == nodeType(pKeep)) {
-    tstrncpy(((SSelectStmt*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+    SSelectStmt* pSelect = (SSelectStmt*)pKeep;
+    tstrncpy(pSelect->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+    if (E_SUB_QUERY_NOT_SET != pSetOp->subQType) {
+      pSelect->subQType = pSetOp->subQType;
+      pSelect->quantify = pSetOp->quantify;
+    }
+    if (NULL != pSetOp->pSubQueries) {
+      TSWAP(pSelect->pSubQueries, pSetOp->pSubQueries);
+    }
+    if (NULL != pSetOp->pOrigSubquerySql) {
+      TSWAP(pSelect->pOrigSubquerySql, pSetOp->pOrigSubquerySql);
+    }
   } else if (QUERY_NODE_SET_OPERATOR == nodeType(pKeep)) {
-    tstrncpy(((SSetOperator*)pKeep)->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+    SSetOperator* pSet = (SSetOperator*)pKeep;
+    tstrncpy(pSet->stmtName, pSetOp->stmtName, TSDB_TABLE_NAME_LEN);
+    if (E_SUB_QUERY_NOT_SET != pSetOp->subQType) {
+      pSet->subQType = pSetOp->subQType;
+      pSet->quantify = pSetOp->quantify;
+    }
+    if (NULL != pSetOp->pSubQueries) {
+      TSWAP(pSet->pSubQueries, pSetOp->pSubQueries);
+    }
+    if (NULL != pSetOp->pOrigSubquerySql) {
+      TSWAP(pSet->pOrigSubquerySql, pSetOp->pOrigSubquerySql);
+    }
   }
 
   if (pSetOp->pOperands != NULL) {
@@ -934,16 +1106,324 @@ static void resetProjectNullType(SNode* pStmt) {
   }
 }
 
-static int32_t rewriteScalarSubQResValue(SParseContext* pParseCxt, SQuery* pQuery) {
-  // TODO
-  return TSDB_CODE_SUCCESS;
+static SNodeList** querySubqueries(SNode* pStmt) {
+  if (NULL == pStmt) {
+    return NULL;
+  }
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      return &((SSelectStmt*)pStmt)->pSubQueries;
+    case QUERY_NODE_SET_OPERATOR:
+      return &((SSetOperator*)pStmt)->pSubQueries;
+    case QUERY_NODE_EXPLAIN_STMT:
+      return querySubqueries(((SExplainStmt*)pStmt)->pQuery);
+    case QUERY_NODE_INSERT_STMT:
+      return querySubqueries(((SInsertStmt*)pStmt)->pQuery);
+    default:
+      return NULL;
+  }
+}
+
+static int32_t* subqueryIndex(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      return &((SRemoteValueNode*)pNode)->subQIdx;
+    case QUERY_NODE_REMOTE_VALUE_LIST:
+      return &((SRemoteValueListNode*)pNode)->subQIdx;
+    case QUERY_NODE_REMOTE_ROW:
+      return &((SRemoteRowNode*)pNode)->subQIdx;
+    case QUERY_NODE_REMOTE_TABLE:
+      return &((SRemoteTableNode*)pNode)->subQIdx;
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return &((SCorrelatedSubqueryNode*)pNode)->templateId;
+    default:
+      return NULL;
+  }
+}
+
+static bool emptySubquery(SCalcConstContext* pCxt, SNode* pNode) {
+  int32_t* pIndex = subqueryIndex(pNode);
+  if (NULL == pIndex) {
+    return false;
+  }
+  if (*pIndex < 0 || *pIndex >= LIST_LENGTH(pCxt->pSubQueries)) {
+    pCxt->code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    return false;
+  }
+  return isEmptyResultQuery(nodesListGetNode(pCxt->pSubQueries, *pIndex));
+}
+
+static EDealRes replaceSubqueryValue(SCalcConstContext* pCxt, SNode** ppNode,
+                                    bool isNull, int64_t value) {
+  SValueNode* pValue = NULL;
+  if (isNull) {
+    pCxt->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValue);
+  } else if (TSDB_DATA_TYPE_BOOL == ((SExprNode*)*ppNode)->resType.type) {
+    pCxt->code = nodesMakeValueNodeFromBool(value != 0, &pValue);
+  } else {
+    pCxt->code = nodesMakeValueNodeFromInt64(value, (SNode**)&pValue);
+  }
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  SExprNode* pOld = (SExprNode*)*ppNode;
+  pValue->node = *pOld;
+  pValue->node.type = QUERY_NODE_VALUE;
+  pValue->translate = true;
+  pValue->isNull = isNull;
+  // Associations belong to the replacement expression, not the remote node.
+  pOld->pAssociation = NULL;
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pValue;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static EDealRes findRowCountFunction(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    int32_t funcId = pFunc->hasOriginalFunc ? pFunc->originalFuncId
+                                          : pFunc->funcId;
+    if (fmIsAggFunc(funcId) || fmIsIndefiniteRowsFunc(funcId) ||
+        fmIsMultiRowsFunc(funcId)) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes replaceEmptySubqueryPredicate(SCalcConstContext* pCxt,
+                                             SNode** ppNode, bool value) {
+  SOperatorNode* pOp = (SOperatorNode*)*ppNode;
+  // String-to-geometry comparison validates each input value before checking
+  // the empty set. Keep that evaluation, since valid WKT cannot be inferred
+  // from the input type alone.
+  if (QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pOp->pRight) &&
+      TSDB_DATA_TYPE_VARCHAR == ((SExprNode*)pOp->pLeft)->resType.type &&
+      TSDB_DATA_TYPE_GEOMETRY == ((SExprNode*)pOp->pRight)->resType.type) {
+    return DEAL_RES_CONTINUE;
+  }
+  // Preserve validation normally performed before evaluating the predicate.
+  pCxt->code = scalarConvertOpValueNodeTs(pOp);
+  if (TSDB_CODE_SUCCESS == pCxt->code &&
+      QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pOp->pRight) &&
+      vectorGetConvertType(((SExprNode*)pOp->pLeft)->resType.type,
+                           ((SExprNode*)pOp->pRight)->resType.type) < 0) {
+    pCxt->code = TSDB_CODE_SCALAR_CONVERT_ERROR;
+  }
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  bool keepInput = pCxt->tagScan;
+  if (!keepInput) {
+    nodesWalkExpr(pOp->pLeft, findRowCountFunction, &keepInput);
+  }
+  if (!keepInput) {
+    return replaceSubqueryValue(pCxt, ppNode, false, value);
+  }
+
+  // Retain aggregates and SELECT TAGS data columns that determine row counts.
+  // IS NULL always returns a non-NULL boolean, so a second null check yields
+  // the empty-set result even when the original input is NULL.
+  SOperatorNode* pIsNull = NULL;
+  pCxt->code = nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pIsNull);
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  pIsNull->node.resType = pOp->node.resType;
+  pIsNull->opType = OP_TYPE_IS_NULL;
+  pIsNull->pLeft = pOp->pLeft;
+  pOp->pLeft = (SNode*)pIsNull;
+  nodesDestroyNode(pOp->pRight);
+  pOp->pRight = NULL;
+  pOp->opType = value ? OP_TYPE_IS_NOT_NULL : OP_TYPE_IS_NULL;
+  pOp->flag = 0;
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes rewriteEmptySubquery(SNode** ppNode, void* pContext) {
+  SCalcConstContext* pCxt = pContext;
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  switch (nodeType(*ppNode)) {
+    case QUERY_NODE_REMOTE_VALUE:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      if (emptySubquery(pCxt, *ppNode)) {
+        return replaceSubqueryValue(pCxt, ppNode, true, 0);
+      }
+      break;
+    case QUERY_NODE_REMOTE_ZERO_ROWS:
+      if (emptySubquery(pCxt, *ppNode)) {
+        return replaceSubqueryValue(pCxt, ppNode, false, 0);
+      }
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)*ppNode;
+      if (NULL != pOp->pRight &&
+          QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pOp->pRight) &&
+          emptySubquery(pCxt, pOp->pRight)) {
+        // Quantified equality's negative flag does not invert the empty case.
+        return replaceEmptySubqueryPredicate(pCxt, ppNode,
+                                              OP_TYPE_NOT_IN == pOp->opType);
+      }
+      if (NULL != pOp->pRight &&
+          QUERY_NODE_REMOTE_ROW == nodeType(pOp->pRight) &&
+          emptySubquery(pCxt, pOp->pRight)) {
+        bool min = ((SRemoteRowNode*)pOp->pRight)->isMinVal;
+        bool any = ((OP_TYPE_GREATER_EQUAL == pOp->opType ||
+                     OP_TYPE_GREATER_THAN == pOp->opType) && min) ||
+                    ((OP_TYPE_LOWER_EQUAL == pOp->opType ||
+                      OP_TYPE_LOWER_THAN == pOp->opType) && !min);
+        return replaceEmptySubqueryPredicate(pCxt, ppNode, !any);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS == pCxt->code ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+static void rewriteQueryExpressions(SNode* pStmt, FNodeRewriter rewriter,
+                                    SCalcConstContext* pCxt);
+
+static void rewriteTableExpressions(SNode* pTable, FNodeRewriter rewriter,
+                                    SCalcConstContext* pCxt) {
+  if (NULL == pTable || TSDB_CODE_SUCCESS != pCxt->code) {
+    return;
+  }
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pTable)) {
+    rewriteQueryExpressions(((STempTableNode*)pTable)->pSubquery, rewriter,
+                             pCxt);
+  } else if (QUERY_NODE_JOIN_TABLE == nodeType(pTable)) {
+    SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
+    nodesRewriteExpr(&pJoin->pWindowOffset, rewriter, pCxt);
+    nodesRewriteExpr(&pJoin->pJLimit, rewriter, pCxt);
+    rewriteTableExpressions(pJoin->pLeft, rewriter, pCxt);
+    rewriteTableExpressions(pJoin->pRight, rewriter, pCxt);
+  }
+}
+
+static void rewriteQueryExpressions(SNode* pStmt, FNodeRewriter rewriter,
+                                    SCalcConstContext* pCxt) {
+  if (NULL == pStmt || TSDB_CODE_SUCCESS != pCxt->code) {
+    return;
+  }
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+      nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriter, pCxt);
+      rewriteTableExpressions(pSelect->pFromTable, rewriter, pCxt);
+      break;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSet = (SSetOperator*)pStmt;
+      nodesRewriteExprs(pSet->pProjectionList, rewriter, pCxt);
+      nodesRewriteExprs(pSet->pOrderByList, rewriter, pCxt);
+      for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i) {
+        rewriteQueryExpressions(setOperatorChildAt(pSet, i), rewriter, pCxt);
+      }
+      break;
+    }
+    case QUERY_NODE_EXPLAIN_STMT:
+      rewriteQueryExpressions(((SExplainStmt*)pStmt)->pQuery, rewriter, pCxt);
+      break;
+    case QUERY_NODE_INSERT_STMT:
+      rewriteQueryExpressions(((SInsertStmt*)pStmt)->pQuery, rewriter, pCxt);
+      break;
+    default:
+      break;
+  }
+}
+
+static EDealRes markLiveSubquery(SNode** ppNode, void* pContext) {
+  SCalcConstContext* pCxt = pContext;
+  int32_t* pIndex = subqueryIndex(*ppNode);
+  if (NULL == pIndex) {
+    return DEAL_RES_CONTINUE;
+  }
+  if (*pIndex < 0 || *pIndex >= LIST_LENGTH(pCxt->pSubQueries)) {
+    pCxt->code = TSDB_CODE_PAR_INTERNAL_ERROR;
+    return DEAL_RES_ERROR;
+  }
+  if (pCxt->pSubqueryMap[*pIndex] < 0) {
+    pCxt->pSubqueryMap[*pIndex] = 0;
+    rewriteQueryExpressions(nodesListGetNode(pCxt->pSubQueries, *pIndex),
+                             markLiveSubquery, pCxt);
+  }
+  return TSDB_CODE_SUCCESS == pCxt->code ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+}
+
+static EDealRes remapSubquery(SNode** ppNode, void* pContext) {
+  SCalcConstContext* pCxt = pContext;
+  int32_t* pIndex = subqueryIndex(*ppNode);
+  if (NULL != pIndex) {
+    if (*pIndex < 0 || *pIndex >= LIST_LENGTH(pCxt->pSubQueries) ||
+        pCxt->pSubqueryMap[*pIndex] < 0) {
+      pCxt->code = TSDB_CODE_PAR_INTERNAL_ERROR;
+      return DEAL_RES_ERROR;
+    }
+    *pIndex = pCxt->pSubqueryMap[*pIndex];
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t pruneUnusedSubqueries(SCalcConstContext* pCxt, SNode* pRoot) {
+  int32_t count = LIST_LENGTH(pCxt->pSubQueries);
+  if (0 == count) {
+    return TSDB_CODE_SUCCESS;
+  }
+  pCxt->pSubqueryMap = taosMemoryMalloc(count * sizeof(int32_t));
+  if (NULL == pCxt->pSubqueryMap) {
+    return terrno;
+  }
+  memset(pCxt->pSubqueryMap, -1, count * sizeof(int32_t));
+  rewriteQueryExpressions(pRoot, markLiveSubquery, pCxt);
+  int32_t retained = 0;
+  for (int32_t i = 0; i < count; ++i) {
+    if (pCxt->pSubqueryMap[i] >= 0) {
+      pCxt->pSubqueryMap[i] = retained++;
+    }
+  }
+  rewriteQueryExpressions(pRoot, remapSubquery, pCxt);
+  int32_t index = 0;
+  SNode* pSubquery = NULL;
+  FOREACH(pSubquery, pCxt->pSubQueries) {
+    if (pCxt->pSubqueryMap[index++] >= 0) {
+      rewriteQueryExpressions(pSubquery, remapSubquery, pCxt);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->code) {
+    index = 0;
+    WHERE_EACH(pSubquery, pCxt->pSubQueries) {
+      if (pCxt->pSubqueryMap[index++] < 0) {
+        ERASE_NODE(pCxt->pSubQueries);
+        continue;
+      }
+      WHERE_NEXT;
+    }
+  }
+  taosMemoryFreeClear(pCxt->pSubqueryMap);
+  return pCxt->code;
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
+  SSelectStmt* pExplainedSelect = NULL;
+  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pQuery->pRoot)) {
+    SNode* pStmt = ((SExplainStmt*)pQuery->pRoot)->pQuery;
+    if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+      pExplainedSelect = (SSelectStmt*)pStmt;
+    }
+  }
+  bool wasEmptyExplain = NULL != pExplainedSelect && pExplainedSelect->isEmptyResult;
+  SNodeList** ppSubQueries = querySubqueries(pQuery->pRoot);
   SCalcConstContext cxt = {.pParseCxt = pParseCxt,
                            .msgBuf.buf = pParseCxt->pMsg,
                            .msgBuf.len = pParseCxt->msgLen,
-                           .code = TSDB_CODE_SUCCESS};
+                           .code = TSDB_CODE_SUCCESS,
+                           .pSubQueries = ppSubQueries ? *ppSubQueries : NULL};
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -954,11 +1434,16 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
     code = pruneEmptyUnionAllBranches(&pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = pruneUnusedSubqueries(&cxt, pQuery->pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     resetProjectNullType(pQuery->pRoot);
-    if (isEmptyResultQuery(pQuery->pRoot)) {
+    // Keep semantic-analysis shortcuts such as contradictory ASOF ranges,
+    // unless folding corrected an empty-input flag (for example, COUNT).
+    if (isEmptyResultQuery(pQuery->pRoot) ||
+        (wasEmptyExplain && pExplainedSelect->isEmptyResult)) {
       pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
     }
-    code = rewriteScalarSubQResValue(pParseCxt, pQuery);
   }
   
   return code;

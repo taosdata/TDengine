@@ -221,6 +221,72 @@ TEST_F(PlanSubqeuryTest, basic) {
   run("SELECT * FROM (SELECT AVG(c1) a FROM st1 INTERVAL(10s)) WHERE a > 1");
 }
 
+TEST_F(PlanSubqeuryTest, emptyExpressionSubqueriesHaveNoChildPlan) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), "
+              "c1 NOT IN (SELECT c1 FROM t1 LIMIT 0), "
+              "EXISTS (SELECT c1 FROM t1 WHERE 1 = 0), "
+              "c1 < ALL (SELECT c1 FROM t1 WHERE 1 = 0) FROM t1",
+              [](const SQueryPlan* pPlan) {
+                EXPECT_EQ(0, LIST_LENGTH(pPlan->pChildren));
+                EXPECT_EQ(0, LIST_LENGTH(pPlan->pCorrelationTemplates));
+                EXPECT_EQ(1, countPhysiNodesInPlan(pPlan, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN));
+              });
+  runFullPlan("SELECT (SELECT c1 FROM t1 WHERE c1 IN "
+              "(SELECT c1 FROM t1 WHERE 1 = 0)) FROM t1",
+              [](const SQueryPlan* pPlan) {
+                EXPECT_EQ(0, LIST_LENGTH(pPlan->pChildren));
+                EXPECT_EQ(1, countPhysiNodesInPlan(pPlan, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN));
+              });
+}
+
+TEST_F(PlanSubqeuryTest, emptySubqueriesKeepOnlyLiveChildPlans) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), "
+              "(SELECT MAX(c1) FROM t1) FROM t1",
+              [](const SQueryPlan* pPlan) {
+                ASSERT_EQ(1, LIST_LENGTH(pPlan->pChildren));
+                const auto* pChild = (const SQueryPlan*)nodesListGetNode(pPlan->pChildren, 0);
+                EXPECT_EQ(0, LIST_LENGTH(pChild->pChildren));
+                EXPECT_EQ(0, LIST_LENGTH(pPlan->pCorrelationTemplates));
+              });
+  runFullPlan("SELECT (SELECT c1 FROM t1 WHERE "
+              "c1 > (SELECT c1 FROM t1 WHERE 1 = 0) OR c1 > 0 LIMIT 1), "
+              "(SELECT MAX(c1) FROM t1) FROM t1",
+              [](const SQueryPlan* pPlan) {
+                ASSERT_EQ(2, LIST_LENGTH(pPlan->pChildren));
+                SNode* pChild = nullptr;
+                FOREACH(pChild, pPlan->pChildren) {
+                  EXPECT_EQ(0, LIST_LENGTH(((const SQueryPlan*)pChild)->pChildren));
+                }
+              });
+}
+
+TEST_F(PlanSubqeuryTest, emptySubqueriesPreserveCorrelatedTemplate) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), "
+              "(SELECT h.c1 FROM st1s1 h WHERE h.c1 = r.c1 LIMIT 1), "
+              "(SELECT MAX(c1) FROM t1) FROM t1 r",
+              [](const SQueryPlan* pPlan) {
+                ASSERT_EQ(1, LIST_LENGTH(pPlan->pChildren));
+                ASSERT_EQ(1, LIST_LENGTH(pPlan->pCorrelationTemplates));
+                const auto* pTemplate =
+                    (const SCorrelationTemplateNode*)nodesListGetNode(pPlan->pCorrelationTemplates, 0);
+                EXPECT_EQ(0, pTemplate->templateId);
+                const auto* pProject =
+                    (const SProjectPhysiNode*)findPhysiNodeInPlan(pPlan, QUERY_NODE_PHYSICAL_PLAN_PROJECT);
+                ASSERT_NE(nullptr, pProject);
+                const SCorrelatedSubqueryNode* pCall = nullptr;
+                nodesWalkExprs(pProject->pProjections, findCorrelatedCall, &pCall);
+                ASSERT_NE(nullptr, pCall);
+                EXPECT_EQ(pTemplate->templateId, pCall->templateId);
+                SNode* pDecoded = nullptr;
+                ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(pTemplate->pPlan, pTemplate->planLen, &pDecoded));
+                std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded, nodesDestroyNode);
+                EXPECT_EQ(0, LIST_LENGTH(((const SQueryPlan*)decoded.get())->pChildren));
+              });
+}
+
 TEST_F(PlanSubqeuryTest, correlatedScalarTemplate) {
   useDb("root", "test");
   runFullPlan("SELECT (SELECT h.c1 FROM st1s1 h WHERE h.c1 = r.c1 LIMIT 1) FROM t1 r",

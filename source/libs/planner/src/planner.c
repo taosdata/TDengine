@@ -310,10 +310,6 @@ static void planParamizeQueryOuterRefs(SNode* pQuery, SPlanParamizeContext* pCxt
   }
   SSelectStmt* pSelect = (SSelectStmt*)pQuery;
   nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM, planReplaceOuterRefWithParam, pCxt);
-  nodesRewriteExpr(&pSelect->pRange, planReplaceOuterRefWithParam, pCxt);
-  nodesRewriteExpr(&pSelect->pRangeAround, planReplaceOuterRefWithParam, pCxt);
-  nodesRewriteExpr(&pSelect->pEvery, planReplaceOuterRefWithParam, pCxt);
-  nodesRewriteExpr(&pSelect->pFill, planReplaceOuterRefWithParam, pCxt);
   planParamizeTableOuterRefs(pSelect->pFromTable, pCxt);
 }
 

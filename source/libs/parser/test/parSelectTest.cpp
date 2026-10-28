@@ -425,6 +425,390 @@ TEST_F(ParserSelectDdlTest, nonCorrelatedAggregateKeepsRemoteValue) {
   run("SELECT (SELECT SUM(1) FROM st1s1 h) FROM t1 r");
 }
 
+TEST_F(ParserSelectDdlTest, constantChecksRequireExplicitStage) {
+  useDb("root", "test");
+  bool translated = false;
+  bool folded = false;
+  setCheckDdlFunc([&](const SQuery*, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE == stage) {
+      translated = true;
+    } else if (PARSER_STAGE_CALC_CONST == stage) {
+      folded = true;
+    }
+  });
+
+  run("CREATE DATABASE constant_check_stage");
+  EXPECT_TRUE(translated);
+  EXPECT_FALSE(folded);
+
+  translated = false;
+  run("SELECT c1 FROM t1");
+  EXPECT_TRUE(translated);
+  EXPECT_FALSE(folded);
+
+  translated = false;
+  run("SELECT c1 FROM t1", TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  EXPECT_TRUE(translated);
+  EXPECT_TRUE(folded);
+}
+
+TEST_F(ParserSelectDdlTest, emptyScalarSubqueryKeepsTypeAndAlias) {
+  useDb("root", "test");
+  bool checked = false;
+  int8_t expectedType = TSDB_DATA_TYPE_BIGINT;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(1, LIST_LENGTH(pSelect->pProjectionList));
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+    const auto* pValue = (const SValueNode*)pProjection;
+    EXPECT_TRUE(pValue->isNull);
+    EXPECT_TRUE(pValue->translate);
+    EXPECT_EQ(expectedType, pValue->node.resType.type);
+    EXPECT_GT(pValue->node.resType.bytes, 0);
+    EXPECT_STREQ("empty_value", pValue->node.userAlias);
+    EXPECT_FALSE(pSelect->isEmptyResult);
+    EXPECT_EQ(QUERY_EXEC_MODE_SCHEDULE, pQuery->execMode);
+  });
+  run("SELECT (SELECT CAST(c1 AS BIGINT) FROM t1 WHERE 1 = 0) empty_value FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+  checked = false;
+  expectedType = TSDB_DATA_TYPE_NCHAR;
+  run("SELECT (SELECT CAST(c1 AS NCHAR(8)) FROM t1 LIMIT 0) empty_value FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueryPredicatesBecomeBooleanValues) {
+  useDb("root", "test");
+  bool checked = false;
+  const bool expected[] = {false, true, false, true, false, true, false, false, true, true, false, true};
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(12, LIST_LENGTH(pSelect->pProjectionList));
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    for (int32_t i = 0; i < 12; ++i) {
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+      ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection)) << i;
+      const auto* pValue = (const SValueNode*)pProjection;
+      EXPECT_EQ(TSDB_DATA_TYPE_BOOL, pValue->node.resType.type) << i;
+      EXPECT_FALSE(pValue->isNull) << i;
+      EXPECT_EQ(expected[i], pValue->datum.b) << i;
+    }
+  });
+  run("SELECT c1 IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 NOT IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "EXISTS (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NOT EXISTS (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL NOT IN (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 = ANY (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 != ANY (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 = ALL (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "c1 != ALL (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL < SOME (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "NULL > ALL (SELECT c1 FROM t1 WHERE 1 = 0) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyCountInputKeepsAggregateOutput) {
+  useDb("root", "test");
+  bool checked = false;
+  bool expectedEmpty = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expectedEmpty ? 0 : 1, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+    if (expectedEmpty) {
+      ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+      EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+    } else {
+      ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pProjection));
+      EXPECT_EQ(0, ((const SRemoteValueNode*)pProjection)->subQIdx);
+    }
+    EXPECT_FALSE(pSelect->isEmptyResult);
+  });
+  for (const std::string sql : {
+           "SELECT (SELECT COUNT(*) FROM t1 WHERE 1 = 0) FROM t1",
+           "SELECT (SELECT c FROM (SELECT COUNT(*) c FROM t1 WHERE 1 = 0)) FROM t1"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+  expectedEmpty = true;
+  for (const std::string sql : {
+           "SELECT (SELECT COUNT(*) FROM t1 HAVING 1 = 0) FROM t1",
+           "SELECT (SELECT COUNT(*) FROM t1 LIMIT 0) FROM t1"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueryConditionsPropagate) {
+  useDb("root", "test");
+  bool checked = false;
+  bool expectedEmpty = true;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expectedEmpty, pSelect->isEmptyResult);
+    EXPECT_EQ(expectedEmpty ? QUERY_EXEC_MODE_EMPTY_RESULT : QUERY_EXEC_MODE_SCHEDULE, pQuery->execMode);
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    if (!expectedEmpty) EXPECT_EQ(nullptr, pSelect->pWhere);
+  });
+  for (const std::string sql : {
+           "SELECT c1 FROM t1 WHERE EXISTS (SELECT c1 FROM t1 WHERE 1 = 0)",
+           "SELECT COUNT(*) FROM t1 HAVING EXISTS (SELECT c1 FROM t1 WHERE 1 = 0)",
+           "SELECT c1 FROM t1 WHERE c1 > (SELECT c1 FROM t1 WHERE 1 = 0)"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+  checked = false;
+  expectedEmpty = false;
+  run("SELECT c1 FROM t1 WHERE NOT EXISTS (SELECT c1 FROM t1 WHERE 1 = 0)",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyAndLiveSubqueriesRemapRemoteIndex) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(1, LIST_LENGTH(pSelect->pSubQueries));
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pProjectionList));
+    const SNode* pEmpty = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pEmpty));
+    EXPECT_TRUE(((const SValueNode*)pEmpty)->isNull);
+    const SNode* pLive = nodesListGetNode(pSelect->pProjectionList, 1);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pLive));
+    EXPECT_EQ(0, ((const SRemoteValueNode*)pLive)->subQIdx);
+    const auto* pInner = (const SSelectStmt*)nodesListGetNode(pSelect->pSubQueries, 0);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)pInner));
+    EXPECT_FALSE(pInner->isEmptyResult);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), (SELECT MAX(c1) FROM t1) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, nestedEmptySubqueryPropagatesToParent) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+    EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+    EXPECT_FALSE(pSelect->isEmptyResult);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE c1 IN "
+      "(SELECT c1 FROM t1 WHERE 1 = 0)) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, nestedEmptyDependencyKeepsLiveSubqueries) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+    for (int32_t i = 0; i < 2; ++i) {
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+      ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pProjection));
+      EXPECT_EQ(i, ((const SRemoteValueNode*)pProjection)->subQIdx);
+    }
+    const auto* pInner = (const SSelectStmt*)nodesListGetNode(pSelect->pSubQueries, 0);
+    EXPECT_FALSE(pInner->isEmptyResult);
+    int32_t remoteRefs = 0;
+    nodesWalkExpr(pInner->pWhere, [](SNode* pNode, void* pContext) {
+      if (QUERY_NODE_REMOTE_VALUE == nodeType(pNode)) ++*(int32_t*)pContext;
+      return DEAL_RES_CONTINUE;
+    }, &remoteRefs);
+    EXPECT_EQ(0, remoteRefs);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE "
+      "c1 > (SELECT c1 FROM t1 WHERE 1 = 0) OR c1 > 0 LIMIT 1), "
+      "(SELECT MAX(c1) FROM t1) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueriesRemapCorrelatedTemplate) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+    const SNode* pCall = nodesListGetNode(pSelect->pProjectionList, 1);
+    ASSERT_EQ(QUERY_NODE_CORRELATED_SUBQUERY, nodeType(pCall));
+    const auto* pCorrelated = (const SCorrelatedSubqueryNode*)pCall;
+    EXPECT_EQ(0, pCorrelated->templateId);
+    EXPECT_EQ(1, LIST_LENGTH(pCorrelated->pParamBindings));
+    const SNode* pLive = nodesListGetNode(pSelect->pProjectionList, 2);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pLive));
+    EXPECT_EQ(1, ((const SRemoteValueNode*)pLive)->subQIdx);
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), "
+      "(SELECT h.c1 FROM st1s1 h WHERE h.c1 = r.c1 LIMIT 1), "
+      "(SELECT MAX(c1) FROM t1) FROM t1 r",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyUnionBranchKeepsLiveScalarSubquery) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pQuery->pRoot));
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(1, LIST_LENGTH(pSelect->pSubQueries));
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pProjectionList));
+    const SNode* pEmpty = nodesListGetNode(pSelect->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pEmpty));
+    EXPECT_TRUE(((const SValueNode*)pEmpty)->isNull);
+    const SNode* pLive = nodesListGetNode(pSelect->pProjectionList, 1);
+    ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pLive));
+    EXPECT_EQ(0, ((const SRemoteValueNode*)pLive)->subQIdx);
+    EXPECT_FALSE(pSelect->isEmptyResult);
+  });
+  for (const std::string sql : {
+           "SELECT (SELECT MIN(c1) FROM t1), c1 FROM t1 WHERE 1 = 0 UNION ALL "
+           "SELECT (SELECT c1 FROM t1 WHERE 1 = 0), (SELECT MAX(c1) FROM t1) FROM t1",
+           "SELECT (SELECT c1 FROM t1 WHERE 1 = 0), (SELECT MAX(c1) FROM t1) FROM t1 "
+           "UNION ALL SELECT c1, (SELECT MIN(c1) FROM t1) FROM t1 WHERE 1 = 0"}) {
+    checked = false;
+    run(sql, TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+    ASSERT_TRUE(checked);
+  }
+}
+
+TEST_F(ParserSelectDdlTest, emptyUnionBranchKeepsInSubqueryType) {
+  useDb("root", "test");
+  bool checked = false;
+  std::string originalSql[2];
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE == stage) {
+      const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+      ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+      for (int32_t i = 0; i < 2; ++i) {
+        const SNode* pSubquery = nodesListGetNode(pSelect->pSubQueries, i);
+        ASSERT_EQ(QUERY_NODE_SET_OPERATOR, nodeType(pSubquery));
+        const auto* pSet = (const SSetOperator*)pSubquery;
+        ASSERT_NE(nullptr, pSet->pOrigSubquerySql);
+        originalSql[i] = pSet->pOrigSubquerySql;
+      }
+      return;
+    }
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pSubQueries));
+    ASSERT_EQ(2, LIST_LENGTH(pSelect->pProjectionList));
+    for (int32_t i = 0; i < 2; ++i) {
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, i);
+      ASSERT_EQ(QUERY_NODE_OPERATOR, nodeType(pProjection));
+      const auto* pOp = (const SOperatorNode*)pProjection;
+      EXPECT_EQ(i == 0 ? OP_TYPE_IN : OP_TYPE_NOT_IN, pOp->opType);
+      ASSERT_EQ(QUERY_NODE_REMOTE_VALUE_LIST, nodeType(pOp->pRight));
+      EXPECT_EQ(i, ((const SRemoteValueListNode*)pOp->pRight)->subQIdx);
+      const SNode* pSubquery = nodesListGetNode(pSelect->pSubQueries, i);
+      ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType(pSubquery));
+      const auto* pInner = (const SSelectStmt*)pSubquery;
+      EXPECT_EQ(E_SUB_QUERY_COLUMN, pInner->subQType);
+      EXPECT_FALSE(pInner->isEmptyResult);
+      ASSERT_NE(nullptr, pInner->pOrigSubquerySql);
+      EXPECT_EQ(originalSql[i], pInner->pOrigSubquerySql);
+    }
+  });
+  run("SELECT c1 IN (SELECT c1 FROM t1 WHERE 1 = 0 UNION ALL SELECT c1 FROM t1), "
+      "c1 NOT IN (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1 WHERE 1 = 0) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptySubqueriesRemapFlattenedUnionOperands) {
+  useDb("root", "test");
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    ASSERT_EQ(QUERY_NODE_SET_OPERATOR, nodeType(pQuery->pRoot));
+    const auto* pSet = (const SSetOperator*)pQuery->pRoot;
+    ASSERT_EQ(3, setOperatorChildCount(pSet));
+    ASSERT_EQ(2, LIST_LENGTH(pSet->pSubQueries));
+    for (int32_t i = 0; i < 3; ++i) {
+      const auto* pOperand = (const SSelectStmt*)setOperatorChildAt(pSet, i);
+      const SNode* pProjection = nodesListGetNode(pOperand->pProjectionList, 0);
+      if (0 == i) {
+        ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+        EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+      } else {
+        ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(pProjection));
+        EXPECT_EQ(i - 1, ((const SRemoteValueNode*)pProjection)->subQIdx);
+      }
+    }
+  });
+  run("SELECT (SELECT c1 FROM t1 WHERE 1 = 0), c1 FROM t1 UNION ALL "
+      "SELECT (SELECT MAX(c1) FROM t1), c1 FROM t1 UNION ALL "
+      "SELECT (SELECT MIN(c1) FROM t1), c1 FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
+TEST_F(ParserSelectDdlTest, emptyExternalWindowSubqueryPropagates) {
+  useDb("root", "test");
+  bool checked = false;
+  bool expectedEmpty = true;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_CALC_CONST != stage) return;
+    checked = true;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    EXPECT_EQ(expectedEmpty, pSelect->isEmptyResult);
+    EXPECT_EQ(expectedEmpty ? QUERY_EXEC_MODE_EMPTY_RESULT : QUERY_EXEC_MODE_SCHEDULE, pQuery->execMode);
+    if (!expectedEmpty) {
+      EXPECT_EQ(0, LIST_LENGTH(pSelect->pSubQueries));
+      const SNode* pProjection = nodesListGetNode(pSelect->pProjectionList, 0);
+      ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pProjection));
+      EXPECT_TRUE(((const SValueNode*)pProjection)->isNull);
+    }
+  });
+  run("SELECT SUM(c1) FROM t1 EXTERNAL_WINDOW"
+      "((SELECT ts, ts + 1000 AS endtime FROM t1 WHERE 1 = 0) w)",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+  checked = false;
+  expectedEmpty = false;
+  run("SELECT (SELECT SUM(c1) FROM t1 EXTERNAL_WINDOW"
+      "((SELECT ts, ts + 1000 AS endtime FROM t1 WHERE 1 = 0) w)) FROM t1",
+      TSDB_CODE_SUCCESS, PARSER_STAGE_CALC_CONST);
+  ASSERT_TRUE(checked);
+}
+
 TEST_F(ParserSelectDdlTest, externalColumnFilterValidation) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";

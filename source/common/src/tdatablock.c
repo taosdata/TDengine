@@ -2130,6 +2130,11 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
       continue;
     }
     if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
+      if (pSrc->pData == NULL) {
+        // Unmaterialized slots still need per-row NULL metadata for spilling.
+        memset(pDst->varmeta.offset, -1, pDataBlock->info.rows * sizeof(int32_t));
+        continue;
+      }
       if (pSrc->varmeta.length != 0) {
         memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
       }
@@ -2138,7 +2143,7 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
         pDst->varmeta.offset[j] = pSrc->varmeta.offset[index[j]];
       }
-    } else {
+    } else if (pSrc->pData != NULL) {
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
         if (colDataIsNull_f(pSrc, index[j])) {
           colDataSetNull_f_s(pDst, j);
@@ -2172,8 +2177,16 @@ static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoD
     pCols[i].info = pColInfoData->info;
     if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
       pCols[i].varmeta.offset = taosMemoryCalloc(rows, sizeof(int32_t));
+      if (pCols[i].varmeta.offset == NULL) {
+        code = terrno;
+        goto _error;
+      }
+      // Keep the payload unmaterialized without dropping its NULL offsets.
+      if (pColInfoData->pData == NULL) {
+        continue;
+      }
       pCols[i].pData = taosMemoryCalloc(1, pColInfoData->varmeta.length);
-      if (pCols[i].varmeta.offset == NULL || pCols[i].pData == NULL) {
+      if (pCols[i].pData == NULL) {
         code = terrno;
         taosMemoryFree(pCols[i].varmeta.offset);
         taosMemoryFree(pCols[i].pData);
@@ -2182,7 +2195,7 @@ static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoD
 
       pCols[i].varmeta.length = pColInfoData->varmeta.length;
       pCols[i].varmeta.allocLen = pCols[i].varmeta.length;
-    } else {
+    } else if (pColInfoData->pData != NULL) {
       pCols[i].nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
       pCols[i].pData = taosMemoryCalloc(rows, pCols[i].info.bytes);
       if (pCols[i].nullbitmap == NULL || pCols[i].pData == NULL) {
