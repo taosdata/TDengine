@@ -66,6 +66,8 @@ typedef struct SVirtualTableScanInfo {
 
 typedef struct SVirtualScanMergeOperatorInfo {
   SOptrBasicInfo        binfo;
+  SLimitInfo            limitInfo;
+  bool                  limitReached;
   EMergeType            type;
   SVirtualTableScanInfo virtualScanInfo;
   bool                  ignoreGroupId;
@@ -1236,10 +1238,14 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   int32_t       scanOpIndex = 0;
   SLoadNextCtx* pCtx = NULL;
 
+  // A local LIMIT can leave a lookahead tuple owned by the previous sort handle.
+  pInfo->pSavedTuple = NULL;
   cleanUpVirtualScanInfo(pVirtualScanInfo);
 
   VTS_ERR_JRET(buildRefSlotGroupsFromParam(pVirtualScanInfo, pParam->pRefColGroups));
   VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
+  ((SOrderByExprNode*)nodesListGetNode(pMergeKeys, 0))->order =
+      pInfo->binfo.outputTsOrder == ORDER_DESC ? ORDER_DESC : ORDER_ASC;
   pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   NODES_DESTORY_LIST(pMergeKeys);
@@ -1576,6 +1582,11 @@ int32_t openVirtualTableScanOperatorImpl(SOperatorInfo* pOperator) {
   if (pOperator->numOfDownstream == 0) {
     return code;
   }
+
+  SVirtualScanMergeOperatorInfo* pInfo = pOperator->info;
+  const SPhysiNode* pNode = pOperator->pPhyNode;
+  initLimitInfo(pNode->pLimit, pNode->pSlimit, &pInfo->limitInfo);
+  pInfo->limitReached = false;
 
   if (pOperator->pOperatorGetParam) {
     // The param is referenced by sort source contexts and may still be used by
@@ -1992,6 +2003,14 @@ int32_t doVirtualTableMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   SSDataBlock*                   pDataBlock = pInfo->binfo.pRes;
   int32_t                        capacity = pOperator->resultInfo.capacity;
 
+  if (pInfo->limitInfo.limit.limit >= 0) {
+    int64_t remaining = pInfo->limitInfo.limit.limit -
+                        pInfo->limitInfo.numOfOutputRows;
+    if (remaining > 0 && remaining < capacity) {
+      capacity = (int32_t)remaining;
+    }
+  }
+
   qDebug("start to merge final sorted rows, %s", GET_TASKID(pTaskInfo));
   blockDataCleanup(pDataBlock);
   // Default to "no output": virtualTableGetNext loops on *pResBlock and can re-enter with a
@@ -2374,6 +2393,11 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
 
   VTS_ERR_JRET(pOperator->fpSet._openFn(pOperator));
 
+  if (pInfo->limitReached) {
+    *pResBlock = NULL;
+    return code;
+  }
+
   VTS_ERR_JRET(buildSavedTagRefBlocks(pOperator));
 
   // Dynamic VSTB keeps the original table-scan path unchanged; when metadata is projected,
@@ -2454,7 +2478,14 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       filterInfoSetTableCtx(pOperator->exprSupp.pFilterInfo, (void*)filterTbName);
     }
     VTS_ERR_JRET(doFilter(*pResBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL));
+    // Count complete virtual rows after filtering, rather than source tuples.
+    pInfo->limitReached = applyLimitOffset(&pInfo->limitInfo, *pResBlock,
+                                          pTaskInfo);
     if ((*pResBlock)->info.rows > 0) {
+      break;
+    }
+    if (pInfo->limitReached) {
+      *pResBlock = NULL;
       break;
     }
   }
@@ -2716,6 +2747,8 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
 
   if (!pVirtualScanPhyNode->scan.node.dynamicOp) {
     VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
+    ((SOrderByExprNode*)nodesListGetNode(pMergeKeys, 0))->order =
+        pInfo->binfo.outputTsOrder == ORDER_DESC ? ORDER_DESC : ORDER_ASC;
     pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
     TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   } else {
