@@ -1717,6 +1717,8 @@
 # 02-Taosc
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_count_always_return_value.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_taosc_hot_refresh_config.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_workload_record.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_workload_replay.py
 
 # 81-Tools
 

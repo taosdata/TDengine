@@ -168,6 +168,12 @@ typedef struct STscStmt {
   int32_t           errCode;
 
   SStmtStatInfo     stat;
+  // Workload recorder: logical statement identity, minted once by the public
+  // taos_stmt_init/taos_stmt2_init wrappers after calloc and referenced by every
+  // later event on this handle. The handle is freed by stmtClose rather than recycled,
+  // so the ID is never reused or reset in place. STMT1 and STMT2 share
+  // wlrNextStmtId(). Zero means recording is off or capture is not running.
+  uint64_t wlrStmtId;
 } STscStmt;
 
 extern char *gStmtStatusStr[];

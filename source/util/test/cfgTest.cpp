@@ -160,6 +160,53 @@ TEST_F(CfgTest, 02_Basic) {
   EXPECT_STREQ(pItem->name, "test_dir");
   EXPECT_STREQ(pItem->str, TD_TMP_DIR_PATH);
 
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_string", "value", CFG_STYPE_DEFAULT, true), TSDB_CODE_INVALID_CFG);
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_dir", TD_TMP_DIR_PATH, CFG_STYPE_DEFAULT, false),
+            TSDB_CODE_INVALID_CFG);
+  ASSERT_EQ(cfgAddDir(pConfig, "test_resolved_dir", TD_TMP_DIR_PATH, 0, CFG_DYN_NONE, 0, 0),
+            TSDB_CODE_SUCCESS);
+
+  const char *literalDir = "${CFG_TEST_UNEXPANDED}/literal*.dir";
+  ASSERT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", literalDir, CFG_STYPE_ENV_CMD, true),
+            TSDB_CODE_SUCCESS);
+  pItem = cfgGetItem(pConfig, "test_resolved_dir");
+  ASSERT_NE(pItem, nullptr);
+  EXPECT_STREQ(pItem->str, literalDir);
+  EXPECT_EQ(pItem->stype, CFG_STYPE_ENV_CMD);
+  pItem->restartBaselineStr = taosStrdup("old-value");
+  ASSERT_NE(pItem->restartBaselineStr, nullptr);
+  pItem->restartBaselineValid = 1;
+  pItem->restartRequired = 1;
+  ASSERT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", TD_TMP_DIR_PATH, CFG_STYPE_DEFAULT, false),
+            TSDB_CODE_SUCCESS);
+  pItem = cfgGetItem(pConfig, "test_resolved_dir");
+  ASSERT_NE(pItem, nullptr);
+  EXPECT_EQ(pItem->restartBaselineStr, nullptr);
+  EXPECT_EQ(pItem->restartBaselineValid, 0);
+  EXPECT_EQ(pItem->restartRequired, 0);
+  std::string maxDir(PATH_MAX - 1, 'x');
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", maxDir.c_str(), CFG_STYPE_DEFAULT, true),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", "", CFG_STYPE_DEFAULT, false),
+            TSDB_CODE_SUCCESS);
+  std::string tooLongDir(PATH_MAX, 'x');
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", tooLongDir.c_str(), CFG_STYPE_DEFAULT, false),
+            TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "missing_dir", "value", CFG_STYPE_DEFAULT, false),
+            TSDB_CODE_CFG_NOT_FOUND);
+  ASSERT_EQ(cfgAddDir(pConfig, "test_dynamic_dir", TD_TMP_DIR_PATH, 0, CFG_DYN_CLIENT, 0, 0),
+            TSDB_CODE_SUCCESS);
+  pItem = cfgGetItem(pConfig, "test_dynamic_dir");
+  ASSERT_NE(pItem, nullptr);
+  ASSERT_NE(pItem->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_dynamic_dir", TD_TMP_DIR_PATH, CFG_STYPE_DEFAULT, true),
+            TSDB_CODE_INVALID_CFG);
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", TD_TMP_DIR_PATH,
+                              CFG_STYPE_ALTER_CLIENT_CMD, false),
+            TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(cfgSetDirResolved(pConfig, "test_resolved_dir", nullptr, CFG_STYPE_DEFAULT, false),
+            TSDB_CODE_INVALID_PARA);
+
   code = cfgGetAndSetItem(pConfig, &pItem, "err_cfg", "err_val", CFG_STYPE_DEFAULT, true);
   ASSERT_EQ(code, TSDB_CODE_CFG_NOT_FOUND);
 
