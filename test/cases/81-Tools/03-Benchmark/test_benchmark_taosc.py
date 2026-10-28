@@ -372,7 +372,7 @@ class TestTaoscAutoCreateTableJson:
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
 
         if int(sleepTimes) != 8:
-            tdLog.exit("expected sleep times 4, actual %d" % int(sleepTimes))
+            tdLog.exit("expected sleep times 8, actual %d" % int(sleepTimes))
 
         if major_ver == "3":
             tdSql.query(
