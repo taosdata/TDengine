@@ -406,6 +406,13 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
+      // Validate the raw-supplied length before allocating (security finding item 267):
+      // it must be non-negative and must not exceed the bytes still available in the raw,
+      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
+      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
@@ -421,6 +428,10 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
+      if (action.contLen < 0 || action.contLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
@@ -470,6 +481,13 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
+      // Validate the raw-supplied length before allocating (security finding item 267):
+      // it must be non-negative and must not exceed the bytes still available in the raw,
+      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
+      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
@@ -483,6 +501,10 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
+      if (action.contLen < 0 || action.contLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
@@ -592,7 +614,15 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTrans->stopFunc, _OVER)
   if (mndTransIsStreamStopCallback(pTrans->stopFunc)) pTrans->stopCbState = TRANS_STOP_CB_PENDING;
   SDB_GET_INT32(pRaw, dataPos, &pTrans->paramLen, _OVER)
-  if (pTrans->paramLen != 0) {
+  // Fail-closed: an illegal paramLen (negative, or larger than the bytes still available in the
+  // raw) must abort the whole trans decode, NOT be silently skipped. Otherwise the object is left
+  // in an inconsistent (param == NULL, paramLen == illegal) state that the trans commit/delete
+  // callbacks later dereference (e.g. mndTransTestStartFunc formats param with %s) -> null deref.
+  if (pTrans->paramLen < 0 || pTrans->paramLen > pRaw->dataLen - dataPos) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+    goto _OVER;
+  }
+  if (pTrans->paramLen > 0) {
     pTrans->param = taosMemoryMalloc(pTrans->paramLen);
     if (pTrans->param == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER);
@@ -635,6 +665,12 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   if (sver >= TRANS_VER_USER_DATA) {
     SDB_GET_INT32(pRaw, dataPos, &pTrans->userDataLen, _OVER)
+    // Same fail-closed rule as paramLen: reject the whole trans on a malformed length instead of
+    // leaving an inconsistent (userData == NULL, userDataLen == illegal) object for callbacks.
+    if (pTrans->userDataLen < 0 || pTrans->userDataLen > pRaw->dataLen - dataPos) {
+      terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+      goto _OVER;
+    }
     if (pTrans->userDataLen > 0) {
       pTrans->userData = taosMemoryMalloc(pTrans->userDataLen);
       if (pTrans->userData == NULL) goto _OVER;
