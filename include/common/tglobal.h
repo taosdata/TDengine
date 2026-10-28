@@ -370,6 +370,13 @@ extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
 extern char tsUdfdLdLibPath[512];
 
+// workload record and replay (WLR). client scope, startup-only: see
+// docs: client workload recording and replay, DS 6.1. Changing any of these requires
+// restarting the target client process.
+extern int32_t tsWorkloadRecord;             // 0=off, 1=on; reserved values disable recording with a warning
+extern char    tsWorkloadRecordDir[PATH_MAX]; // defaults to ${logDir}/workload
+extern int32_t tsWorkloadRecordBufferSize;  // MB, 16..4096
+
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlAutoChildTableNameDelimiter[];

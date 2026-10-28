@@ -275,6 +275,13 @@ typedef struct STscObj {
   char  extSource[TSDB_EXT_SOURCE_NAME_LEN];  // active external source name; empty = none
   char  extNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty = none
   char  extNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg); empty = none
+
+  // Workload recorder: stable per-connection identity for the recording file.
+  // The recorded events must not reference a heap address or the server-assigned
+  // connId, because replay creates brand-new connections and needs to map them
+  // back by a value that is unique within the session (DS 6.5). Zero when
+  // recording is off.
+  uint64_t wlrConnId;
 } STscObj;
 
 // Remaining DDL object budget in the current txn, clamped at 0. Returns 0 both when no txn
@@ -367,6 +374,24 @@ typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
   int32_t              type;  // request type
   uint64_t             requestId;
+  // Workload recorder: logical result identity, minted when the result is handed
+  // to the user and referenced by later fetch/free events. Not the address and not
+  // requestId, since replay assigns its own (DS 6.11). Zero when not recording.
+  uint64_t             wlrResultId;
+  // Call ID of the async API that created this request, so the completion callback
+  // can name it as the parent of anything the user issues from inside the callback
+  // (DS 6.8). Zero for synchronous requests.
+  uint64_t             wlrAsyncCallId;
+  // The rest of the originating call's token, carried so the REQUEST_DONE event can
+  // be emitted at completion (DS 6.8). The token itself was a stack object in the
+  // public async wrapper and is long gone by then, and the active-call table cannot
+  // stand in: it is erased at API_RETURN and never held beginMonoNs. Only meaningful
+  // when wlrAsyncCallId != 0.
+  int64_t              wlrAsyncBeginMonoNs;
+  uint16_t             wlrAsyncApiType;
+  uint64_t             wlrStmtExecCallId;
+  int64_t              wlrStmtExecBeginMonoNs;
+  uint16_t             wlrStmtExecApiType;
   SQuery*              pQuery;
   STscObj*             pTscObj;
   char*                pDb;     // current database string
@@ -438,10 +463,10 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
 void taosAsyncExecLiteral(TAOS_STMT2 *stmt);
 
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                        int8_t source);
+                        int8_t source, bool fromAsyncWrapper);
 void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                                 int64_t reqid);
-void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
+                                 int64_t reqid, bool fromAsyncWrapper);
+int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param);
 int32_t clientParseSql(void* param, const char* dbName, const char* sql, bool parseOnly, const char* effectiveUser,
                        SParseSqlRes* pRes);
 void    syncQueryFn(void* param, void* res, int32_t code);
@@ -637,6 +662,14 @@ void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
 void writeRawCleanup(void);
+
+/*
+ * taos_fetch_row without the recorder hook. Internal callers on driver completion
+ * threads must use this: TLS depth is 0 there, so the outermost-only rule cannot
+ * suppress a nested public call and it would be recorded as if the user made it
+ * (DS 6.6, TS RE014).
+ */
+TAOS_ROW taos_fetch_row_impl(TAOS_RES *res);
 
 #ifdef __cplusplus
 }

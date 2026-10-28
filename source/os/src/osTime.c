@@ -686,6 +686,39 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
 // Uses time() for performance; see taosTime().
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
 
+int32_t taosGetMonotonicClockId(char *clockId, size_t capacity) {
+  if (clockId == NULL || capacity == 0) return -1;
+  clockId[0] = 0;
+#if defined(__linux__)
+  char bootId[38] = {0};
+  FILE *bootFile = fopen("/proc/sys/kernel/random/boot_id", "r");
+  if (bootFile == NULL) return -1;
+  bool haveBootId = fgets(bootId, sizeof(bootId), bootFile) != NULL;
+  (void)fclose(bootFile);
+  if (!haveBootId || strlen(bootId) != 37 || bootId[36] != '\n') return -1;
+  bootId[36] = 0;
+  for (size_t index = 0; index < 36; ++index) {
+    bool separator = index == 8 || index == 13 || index == 18 || index == 23;
+    if (separator ? bootId[index] != '-' : !isxdigit((unsigned char)bootId[index])) return -1;
+  }
+
+  char namespaceId[32] = {0};
+  ssize_t namespaceLength = readlink("/proc/self/ns/time", namespaceId, sizeof(namespaceId) - 1);
+  if (namespaceLength < 0) {
+    if (errno != ENOENT) return -1;
+    strcpy(namespaceId, "initial");
+  } else {
+    namespaceId[namespaceLength] = 0;
+    if (namespaceLength >= (ssize_t)sizeof(namespaceId) - 1 ||
+        strncmp(namespaceId, "time:[", 6) != 0 || namespaceId[namespaceLength - 1] != ']') return -1;
+  }
+  int32_t length = snprintf(clockId, capacity, "linux:%s:%s", bootId, namespaceId);
+  if (length > 0 && (size_t)length < capacity) return 0;
+  clockId[0] = 0;
+#endif
+  return -1;
+}
+
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
   int32_t code = 0;
 #ifdef WINDOWS

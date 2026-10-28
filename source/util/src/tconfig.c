@@ -549,7 +549,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
+    if (lock) (void)taosThreadMutexUnlock(&pCfg->lock);
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
@@ -565,6 +565,42 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     (void)taosThreadMutexUnlock(&pCfg->lock);
   }
 
+  TAOS_RETURN(code);
+}
+
+int32_t cfgSetDirResolved(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pCfg == NULL || name == NULL || value == NULL) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  if (stype == CFG_STYPE_ALTER_CLIENT_CMD || stype == CFG_STYPE_ALTER_SERVER_CMD) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  if (lock) (void)taosThreadMutexLock(&pCfg->lock);
+
+  SConfigItem *pItem = cfgGetItem(pCfg, name);
+  if (pItem == NULL) {
+    code = TSDB_CODE_CFG_NOT_FOUND;
+  } else if (pItem->dtype != CFG_DTYPE_DIR) {
+    uError("config item %s is not a directory", name);
+    code = TSDB_CODE_INVALID_CFG;
+  } else if (pItem->dynScope != CFG_DYN_NONE) {
+    uError("config directory %s is dynamic and cannot publish a resolved startup value", name);
+    code = TSDB_CODE_INVALID_CFG;
+  } else if (strlen(value) >= PATH_MAX) {
+    uError("resolved config directory %s exceeds %d bytes", name, PATH_MAX - 1);
+    code = TSDB_CODE_INVALID_CFG_VALUE;
+  } else {
+    /* Resolved startup directories use PATH_MAX-sized storage throughout their
+     * consumers. They deliberately bypass cfgSetItemVal/cfgCheckAndSetDir because
+     * startup already supplied the final value, and discard stale restart state. */
+    taosMemoryFreeClear(pItem->restartBaselineStr);
+    pItem->restartBaselineValid = 0;
+    code = cfgSetString(pItem, value, stype);
+    if (code == TSDB_CODE_SUCCESS) pItem->restartRequired = 0;
+  }
+
+  if (lock) (void)taosThreadMutexUnlock(&pCfg->lock);
   TAOS_RETURN(code);
 }
 
