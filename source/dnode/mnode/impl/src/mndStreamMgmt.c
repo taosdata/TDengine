@@ -2428,8 +2428,10 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
 
     taskIdx = 0;
 
-    for (int32_t i = lowestLevelIdx; i >= 0; --i) {
-      plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+    SListCell* pSubplanCell = nodesListGetCell(pDag->pSubplans, lowestLevelIdx);
+    for (int32_t i = lowestLevelIdx; i >= 0;
+         --i, pSubplanCell = (NULL != pSubplanCell ? pSubplanCell->pPrev : NULL)) {
+      plans = (SNodeListNode *)(NULL != pSubplanCell ? pSubplanCell->pNode : NULL);
       if (NULL == plans) {
         mstsError("empty level plan, level:%d", i);
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
@@ -2452,8 +2454,10 @@ static int32_t msmBuildRunnerTasksImpl(SStmGrpCtx* pCtx, int32_t dagIdx, SStmSta
         TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       }
 
-      for (int32_t n = 0; n < taskNum; ++n) {
-        SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+      SListCell* pNodeCell = NULL != plans->pNodeList ? plans->pNodeList->pHead : NULL;
+      for (int32_t n = 0; n < taskNum;
+           ++n, pNodeCell = (NULL != pNodeCell ? pNodeCell->pNext : NULL)) {
+        SSubplan *plan = (SSubplan *)(NULL != pNodeCell ? pNodeCell->pNode : NULL);
         // Security hardening (see "item 194"): list elements are taken as SSubplan
         // with no type check. Reject wrong-typed nodes before walking them.
         if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)plan)) {
@@ -2614,15 +2618,19 @@ int32_t msmReBuildRunnerTasks(SStmGrpCtx* pCtx, SQueryPlan* pDag, SStmStatus* pI
 
     taskIdx = 0;
     
-    for (int32_t i = lowestLevelIdx; i >= 0; --i) {
-      plans = (SNodeListNode *)nodesListGetNode(pDag->pSubplans, i);
+    SListCell* pSubplanCell = nodesListGetCell(pDag->pSubplans, lowestLevelIdx);
+    for (int32_t i = lowestLevelIdx; i >= 0;
+         --i, pSubplanCell = (NULL != pSubplanCell ? pSubplanCell->pPrev : NULL)) {
+      plans = (SNodeListNode *)(NULL != pSubplanCell ? pSubplanCell->pNode : NULL);
       taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
       totalTaskNum += taskNum;
 
       pRunner->flags &= STREAM_FLAG_REDEPLOY_RUNNER;
       
-      for (int32_t n = 0; n < taskNum; ++n) {
-        SSubplan *plan = (SSubplan *)nodesListGetNode(plans->pNodeList, n);
+      SListCell* pNodeCell = NULL != plans->pNodeList ? plans->pNodeList->pHead : NULL;
+      for (int32_t n = 0; n < taskNum;
+           ++n, pNodeCell = (NULL != pNodeCell ? pNodeCell->pNext : NULL)) {
+        SSubplan *plan = (SSubplan *)(NULL != pNodeCell ? pNodeCell->pNode : NULL);
         // Security hardening (see "item 194"): list elements are taken as SSubplan
         // with no type check. Reject wrong-typed nodes before walking them.
         if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)plan)) {

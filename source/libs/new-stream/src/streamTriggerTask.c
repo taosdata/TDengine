@@ -2034,14 +2034,16 @@ static int32_t stBuildStateCols(SStreamTriggerTask *pTask, SSDataBlock *pDataBlo
     QUERY_CHECK_NULL(pSlotIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
   }
 
-  for (int32_t i = 0; i < stateKeyCount; ++i) {
+  SListCell* pExprCell = NULL != pExprs ? pExprs->pHead : NULL;
+  for (int32_t i = 0; i < stateKeyCount;
+       ++i, pExprCell = (NULL != pExprCell ? pExprCell->pNext : NULL)) {
     int16_t slotId = *(int16_t *)taosArrayGet(pSlotIds, i);
     if (slotId >= 0) {
       SColumnInfoData *pCol = taosArrayGet(pDataBlock->pDataBlock, slotId);
       QUERY_CHECK_NULL(pCol, code, lino, _end, terrno);
       QUERY_CHECK_NULL(taosArrayPush(*ppStateCols, &pCol), code, lino, _end, terrno);
     } else {
-      SNode *pExpr = nodesListGetNode(pExprs, i);
+      SNode *pExpr = (NULL != pExprCell ? pExprCell->pNode : NULL);
       SColumnInfoData *pExprCol = taosMemoryCalloc(1, sizeof(SColumnInfoData));
       QUERY_CHECK_NULL(pExprCol, code, lino, _end, terrno);
       if (*ppExprStateCols == NULL) {
@@ -2111,9 +2113,11 @@ static int32_t stIsStateValuesEqualZeroths(
   int32_t n = taosArrayGetSize((SArray *)pStateVals);
   QUERY_CHECK_CONDITION(n == LIST_LENGTH(pZeroths), code, lino, _end,
                         TSDB_CODE_INTERNAL_ERROR);
-  for (int32_t i = 0; i < n; ++i) {
+  SListCell* pZerothCell = NULL != ((SNodeList *)pZeroths) ? ((SNodeList *)pZeroths)->pHead : NULL;
+  for (int32_t i = 0; i < n;
+       ++i, pZerothCell = (NULL != pZerothCell ? pZerothCell->pNext : NULL)) {
     SValue *pVal = taosArrayGet((SArray *)pStateVals, i);
-    SValueNode *pZeroth = (SValueNode *)nodesListGetNode((SNodeList *)pZeroths, i);
+    SValueNode *pZeroth = (SValueNode *)(NULL != pZerothCell ? pZerothCell->pNode : NULL);
     QUERY_CHECK_NULL(pVal, code, lino, _end, TSDB_CODE_INVALID_PARA);
     QUERY_CHECK_NULL(pZeroth, code, lino, _end, TSDB_CODE_INVALID_PARA);
     if (pZeroth->isNull) {
@@ -8948,15 +8952,19 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   for (int32_t i = 0; i < nTotalCols; i++) {
     col_id_t       id = *(col_id_t *)TARRAY_GET_ELEM(pVirColIds, i);
     SSlotDescNode *pn = NULL;
-    for (int32_t j = 0; j < nTrigCols; j++) {
+    SListCell* pTrigSlotCell = NULL != pTrigSlots ? pTrigSlots->pHead : NULL;
+    for (int32_t j = 0; j < nTrigCols;
+         j++, pTrigSlotCell = (NULL != pTrigSlotCell ? pTrigSlotCell->pNext : NULL)) {
       if (id == *(col_id_t *)TARRAY_GET_ELEM(pTrigColids, j)) {
-        pn = (SSlotDescNode *)nodesListGetNode(pTrigSlots, j);
+        pn = (SSlotDescNode *)(NULL != pTrigSlotCell ? pTrigSlotCell->pNode : NULL);
         break;
       }
     }
-    for (int32_t j = 0; j < nCalcCols; j++) {
+    SListCell* pCalcSlotCell = NULL != pCalcSlots ? pCalcSlots->pHead : NULL;
+    for (int32_t j = 0; j < nCalcCols;
+         j++, pCalcSlotCell = (NULL != pCalcSlotCell ? pCalcSlotCell->pNext : NULL)) {
       if (id == *(col_id_t *)TARRAY_GET_ELEM(pCalcColids, j)) {
-        pn = (SSlotDescNode *)nodesListGetNode(pCalcSlots, j);
+        pn = (SSlotDescNode *)(NULL != pCalcSlotCell ? pCalcSlotCell->pNode : NULL);
         break;
       }
     }
@@ -15968,8 +15976,10 @@ static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan 
         code = TSDB_CODE_INVALID_PARA;
         break;
       }
-      for (int32_t exprIndex = 0; exprIndex < LIST_LENGTH(pExprs); ++exprIndex) {
-        SNode *pExpr = nodesListGetNode(pExprs, exprIndex);
+      SListCell* pExprCell = NULL != pExprs ? pExprs->pHead : NULL;
+      for (int32_t exprIndex = 0; exprIndex < LIST_LENGTH(pExprs);
+           ++exprIndex, pExprCell = (NULL != pExprCell ? pExprCell->pNext : NULL)) {
+        SNode *pExpr = (NULL != pExprCell ? pExprCell->pNode : NULL);
         if (nodeType(pExpr) == QUERY_NODE_COLUMN) continue;
         SNode *pClone = NULL;
         code = nodesCloneNode(pExpr, &pClone);
@@ -16074,10 +16084,12 @@ static int32_t stAppendEventStateCols(SStreamTriggerTask *pTask, SSDataBlock *pD
       }
       int32_t baseIdx = taosArrayGetSize(pDataBlock->pDataBlock) - exprKeyCount;
       int32_t exprIdx = 0;
-      for (int32_t k = 0; k < stateKeyCount; ++k) {
+      SListCell* pStateExprCell = NULL != pTask->pStateExprs ? pTask->pStateExprs->pHead : NULL;
+      for (int32_t k = 0; k < stateKeyCount;
+           ++k, pStateExprCell = (NULL != pStateExprCell ? pStateExprCell->pNext : NULL)) {
         int16_t slotId = *(int16_t *)taosArrayGet(pTask->pStateSlotIds, k);
         if (slotId == -1) {
-          SNode           *pExpr = nodesListGetNode(pTask->pStateExprs, k);
+          SNode           *pExpr = (NULL != pStateExprCell ? pStateExprCell->pNode : NULL);
           SColumnInfoData *pStateCol = taosArrayGet(pDataBlock->pDataBlock, baseIdx + exprIdx);
           QUERY_CHECK_NULL(pStateCol, code, lino, _end, terrno);
           code = stTriggerCalcExpr(pTask, pDataBlock, pExpr, pStateCol);

@@ -3090,8 +3090,11 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
       pBlock->info.id.blockId = pStbJoin->pOutputDataBlockDesc->dataBlockId;
       if (!pBlock->pDataBlock) return TSDB_CODE_SUCCESS;
 
-      for (int i = (int)pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length; i++) {
-        SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pStbJoin->pOutputDataBlockDesc->pSlots, i);
+      SListCell* pSlotCell =
+          nodesListGetCell(pStbJoin->pOutputDataBlockDesc->pSlots, (int)pBlock->pDataBlock->size);
+      for (int i = (int)pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length;
+           i++, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
         if (pSlot == NULL) {
           qError("seqStableJoinComposeRes: pSlot is NULL, i:%d", i);
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -7875,8 +7878,10 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
     }
 
     if (pInfo->outputWendSlotId == -1 && pInfo->outputWstartSlotId == -1 && pInfo->outputWdurationSlotId == -1) {
-      for (int32_t i = 0; i < LIST_LENGTH(pInfo->pTargets); ++i) {
-        STargetNode* pNode = (STargetNode*)nodesListGetNode(pInfo->pTargets, i);
+      SListCell* pTargetCell = NULL != pInfo->pTargets ? pInfo->pTargets->pHead : NULL;
+      for (int32_t i = 0; i < LIST_LENGTH(pInfo->pTargets);
+           ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL)) {
+        STargetNode* pNode = (STargetNode*)(NULL != pTargetCell ? pTargetCell->pNode : NULL);
         if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == pBlock->info.id.blockId) {
           if (((SColumnNode*)pNode->pExpr)->slotId == pDynInfo->vtbWindow.wstartSlotId) {
             pInfo->outputWstartSlotId = i;

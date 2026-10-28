@@ -339,8 +339,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanCols, i);
+  SNode* pScanColNode = NULL;
+  FOREACH(pScanColNode, pScanNode->pScanCols) {
+    STargetNode* pNode = (STargetNode*)pScanColNode;
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
     SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
@@ -351,8 +352,9 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
   }
 
   // this the tags and pseudo function columns, we only keep the tag columns
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pScanNode->pScanPseudoCols, i);
+  SNode* pScanPseudoColNode = NULL;
+  FOREACH(pScanPseudoColNode, pScanNode->pScanPseudoCols) {
+    STargetNode* pNode = (STargetNode*)pScanPseudoColNode;
 
     int32_t type = nodeType(pNode->pExpr);
     if (type == QUERY_NODE_COLUMN) {
