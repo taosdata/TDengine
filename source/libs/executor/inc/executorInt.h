@@ -486,6 +486,7 @@ typedef struct STableScanInfo {
   // for virtual super table scan
   SSDataBlock*    pOrgBlock;
   SSDataBlock*    pVstbOutputBlock;
+  SHashObj*       pVtableReaderLimits;  // source uid -> SLimitInfo for interleaved readers
   bool            ignoreTag;
   bool            virtualStableScan;
   uint8_t         vtablePrecision;
