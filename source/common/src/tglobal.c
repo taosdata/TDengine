@@ -2987,6 +2987,33 @@ _exit:
   TAOS_RETURN(code);
 }
 
+// Shapes produced by globalConfigSerialize: BOOL as json bool, INT32 as number, INT64/FLOAT/DOUBLE and all string
+// types as json strings.
+static bool cfgJsonMatchDtype(ECfgDataType dtype, const cJSON *pJson) {
+  switch (dtype) {
+    case CFG_DTYPE_NONE:
+      return true;
+    case CFG_DTYPE_BOOL:
+      return cJSON_IsBool(pJson);
+    case CFG_DTYPE_INT32:
+      return cJSON_IsNumber(pJson);
+    // INT64/FLOAT/DOUBLE are serialized as decimal strings (see globalConfigSerialize), because a cJSON number is a
+    // double and cannot hold every int64 exactly. cfgDeserialize reads them back via cJSON_GetStringValue, so a json
+    // number here would yield a NULL string and crash in atoll/taosStr2Float.
+    case CFG_DTYPE_INT64:
+    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+      return cJSON_IsString(pJson) && pJson->valuestring != NULL;
+    default:
+      return false;
+  }
+}
+
 int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -3041,6 +3068,11 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _exit;
         }
+        if (dir == NULL || !cJSON_IsString(filed)) {
+          uError("invalid disk config entry in config file");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _exit;
+        }
 
         int64_t actDiskID = 0;
         int64_t expDiskID = taosStr2Int64(cJSON_GetStringValue(filed), NULL, 10);
@@ -3055,6 +3087,13 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
           goto _exit;
         }
       }
+      continue;
+    }
+    // The file may be corrupt or have been produced from untrusted input; skip entries whose JSON shape does not
+    // match the local dtype instead of dereferencing a missing string value.
+    if (!cfgJsonMatchDtype(pItem->dtype, pJson)) {
+      uWarn("config item:%s in config file has unexpected json type:%d for dtype:%d, ignored", pItem->name,
+            pJson->type, pItem->dtype);
       continue;
     }
     switch (pItem->dtype) {

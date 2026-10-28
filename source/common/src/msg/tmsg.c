@@ -20888,7 +20888,9 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeCStrAlloc(pCoder, &pReq->ctb.stbName));
     TAOS_CHECK_EXIT(tDecodeU8(pCoder, &pReq->ctb.tagNum));
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->ctb.suid));
-    TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(pCoder, (void **)&pReq->ctb.pTag, NULL));
+    uint32_t tagLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(pCoder, (void **)&pReq->ctb.pTag, &tagLen));
+    TAOS_CHECK_EXIT(tTagValidate(pReq->ctb.pTag, tagLen));
     int32_t len = 0;
     TAOS_CHECK_EXIT(tDecodeI32(pCoder, &len));
     pReq->ctb.tagName = taosArrayInit(len, TSDB_COL_NAME_LEN);
@@ -21050,7 +21052,9 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
         // use the Alloc variant (taosMemoryMalloc) like ctb.pTag does, so tdDestroySVCreateTbReq's
         // taosMemoryFreeClear(ntb.pTags) is valid. tDecodeTag/tDecodeBinary returns a pointer into
         // the decode buffer (tDecoderMalloc) which must NOT be freed.
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(pCoder, (void **)&pReq->ntb.pTags, NULL));
+        uint32_t tagLen = 0;
+        TAOS_CHECK_EXIT(tDecodeBinaryAlloc32(pCoder, (void **)&pReq->ntb.pTags, &tagLen));
+        TAOS_CHECK_EXIT(tTagValidate(pReq->ntb.pTags, tagLen));
       }
     }
   }
