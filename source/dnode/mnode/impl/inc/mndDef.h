@@ -138,7 +138,8 @@ typedef enum {
   MND_OPER_BACKUP,  // cluster-level CREATE/KILL BACKUP
   MND_OPER_FLUSH_MNODE,
   MND_OPER_RESTART_XNODE,
-  MND_OPER_MAX  // the max operation type
+  MND_OPER_ASSIGN_LEADER,  // cluster-level ASSIGN LEADER FORCE (2-replica arbitrator DR)
+  MND_OPER_MAX             // the max operation type
 } EOperType;
 
 typedef enum {
