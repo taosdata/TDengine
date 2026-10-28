@@ -1366,8 +1366,14 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(firstDayOfWeek);
-  pDst->timezone = pSrc->timezone;
-  COPY_CHAR_ARRAY_FIELD(timezoneName);
+  if (pSrc->ownsTimezone) {
+    // The source owns its handle, so the clone must not share it: re-decode its own.
+    CLONE_TIMEZONE_FIELD();
+  } else {
+    pDst->timezone = pSrc->timezone;  // borrowed from the plan context or the timezone cache
+    pDst->ownsTimezone = false;
+    COPY_CHAR_ARRAY_FIELD(timezoneName);
+  }
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_LIST_FIELD(pFillNullExprs);

@@ -587,6 +587,7 @@ typedef struct SFillLogicNode {
   int8_t      firstDayOfWeek;
   void*       timezone;
   char        timezoneName[TD_TIMEZONE_LEN];
+  bool        ownsTimezone;  // true when timezone was allocated for this node (needs tzfree)
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
