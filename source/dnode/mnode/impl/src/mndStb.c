@@ -1075,6 +1075,26 @@ static int32_t mndCheckFieldWidth(int32_t type, int32_t bytes, bool isColumn) {
   return TSDB_CODE_SUCCESS;
 }
 
+// [FIX][item-167] Validate that a DECIMAL/DECIMAL64 column's typeMod encodes a legal
+// (precision, scale). precision must be within [TSDB_DECIMAL_MIN_PRECISION, maxPrecisionForType]
+// and scale must satisfy TSDB_DECIMAL_MIN_SCALE <= scale <= precision. Returns true when the
+// typeMod is consistent with colType, false otherwise.
+static bool mndIsValidDecimalTypeMod(int8_t colType, STypeMod typeMod) {
+  if (!IS_DECIMAL_TYPE(colType)) {
+    return false;
+  }
+  uint8_t prec = 0, scale = 0;
+  decimalFromTypeMod(typeMod, &prec, &scale);
+  uint8_t maxPrec = (colType == TSDB_DATA_TYPE_DECIMAL64) ? TSDB_DECIMAL64_MAX_PRECISION : TSDB_DECIMAL_MAX_PRECISION;
+  if (prec < TSDB_DECIMAL_MIN_PRECISION || prec > maxPrec) {
+    return false;
+  }
+  if (scale < TSDB_DECIMAL_MIN_SCALE || scale > prec) {
+    return false;
+  }
+  return true;
+}
+
 int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   int32_t code = 0;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
@@ -1117,6 +1137,21 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     if (pField1->type >= TSDB_DATA_TYPE_MAX) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
+    }
+    bool hasTypeMod = ((pField1->flags & COL_HAS_TYPE_MOD) != 0);
+    // [FIX][item-167] A DECIMAL/DECIMAL64 column MUST carry COL_HAS_TYPE_MOD together with a
+    // valid typeMod (precision/scale). Otherwise mndBuildStbFromReq leaves pExtSchemas == NULL
+    // while the column stays decimal, and mndRetrieveStbCol dereferences NULL on every
+    // information_schema.ins_columns retrieve, crashing the mnode.
+    // NOTE: We intentionally do NOT reject COL_HAS_TYPE_MOD on non-decimal columns here. That is a
+    // stricter invariant (recommended by the original finding) but is not required to fix the
+    // NULL-deref crash, and rejecting it breaks existing test cases. Non-decimal columns never
+    // read pExtSchemas in mndRetrieveStbCol, so leaving the flag on them is harmless.
+    if (IS_DECIMAL_TYPE(pField1->type)) {
+      if (!hasTypeMod || !mndIsValidDecimalTypeMod(pField1->type, pField1->typeMod)) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
     }
     if (pField1->bytes <= 0) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -3470,6 +3505,22 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     }
   }
+
+  // [FIX][item-167] For every newly added DECIMAL/DECIMAL64 column, a valid typeMod must be
+  // present in pReq->pTypeMods at the same index. Without it, mndAddSuperTableColumn would leave
+  // pNew->pExtSchemas NULL for that column (or read it out of bounds), and mndRetrieveStbCol would
+  // then dereference NULL on information_schema.ins_columns, crashing the mnode.
+  int32_t nTypeMods = (pReq->pTypeMods != NULL) ? (int32_t)taosArrayGetSize(pReq->pTypeMods) : 0;
+  for (int32_t i = 0; i < ncols; ++i) {
+    SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
+    if (IS_DECIMAL_TYPE(pSchema->type)) {
+      if (i >= nTypeMods || !mndIsValidDecimalTypeMod(pSchema->type, *(STypeMod *)taosArrayGet(pReq->pTypeMods, i))) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
+    }
+  }
+
   // 1. old schema already has extschemas
   // 2. new schema has extschemas
   if (pReq->pTypeMods || pOld->pExtSchemas) {
@@ -7104,11 +7155,16 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
               snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
                        "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
         } else if (IS_DECIMAL_TYPE(colType)) {
-          STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
-          uint8_t prec = 0, scale = 0;
-          decimalFromTypeMod(typeMod, &prec, &scale);
-          colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
-                                 sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
+          // [FIX][item-167] pExtSchemas can be NULL for a decimal column when an inconsistent
+          // schema was persisted by an older/buggy build. Do not dereference it; render the type
+          // name without precision so the retrieve succeeds instead of crashing the mnode.
+          if (pStb->pExtSchemas != NULL) {
+            STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
+            uint8_t prec = 0, scale = 0;
+            decimalFromTypeMod(typeMod, &prec, &scale);
+            colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
+                                   sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
+          }
         }
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);
