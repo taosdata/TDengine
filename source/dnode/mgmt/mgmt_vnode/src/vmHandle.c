@@ -2225,7 +2225,13 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT_ELECTION, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT_ELECTION is intentionally NOT registered here.
+  // Sync election-timeout messages are produced only by this node's own local
+  // timer (syncNodeEqElectTimer -> syncBuildTimeout -> vnodeSyncEqMsg) and must
+  // never arrive over the network. Registering it as a network-dispatched type
+  // allowed an unauthenticated peer to force a re-election (see finding 265).
+  // The local enqueue path does not use this dispatch table, so removing the
+  // registration does not affect legitimate timer processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
@@ -2238,7 +2244,14 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_PREP_SNAPSHOT, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_FORCE_FOLLOWER, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT is intentionally NOT registered here. Ping/role
+  // timer messages are produced only by this node's own local timer
+  // (syncNodeEqPingTimer -> syncBuildTimeout -> vnodeSyncEqMsg) and must never
+  // arrive over the network. Registering it as a network-dispatched type allowed
+  // an unauthenticated peer to trigger syncNodeTimerRoutine at an attacker-chosen
+  // rate (see finding 265). The local enqueue path does not use this dispatch
+  // table, so removing the registration does not affect legitimate timer
+  // processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
