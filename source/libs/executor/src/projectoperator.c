@@ -1880,6 +1880,7 @@ static int32_t projectAssignColumn(SColumnInfoData* pDst, const SColumnInfoData*
                                    const SDataBlockInfo* pBlockInfo) {
   uint8_t precision = pDst->info.precision;
   uint8_t scale = pDst->info.scale;
+  int32_t plannedBytes = pDst->info.bytes;
   if (IS_DECIMAL_TYPE(pDst->info.type) && precision != 0 &&
       (pSrc->info.precision != 0 || pSrc->info.scale != 0) &&
       (precision != pSrc->info.precision || scale != pSrc->info.scale)) {
@@ -1891,6 +1892,13 @@ static int32_t projectAssignColumn(SColumnInfoData* pDst, const SColumnInfoData*
     // colDataAssign copies source metadata; Project's declared decimal type owns the output schema.
     pDst->info.precision = precision;
     pDst->info.scale = scale;
+  }
+  if (code == TSDB_CODE_SUCCESS && IS_VAR_DATA_TYPE(pDst->info.type)) {
+    // colDataAssign also adopts the source column width.  For a varlen output column the
+    // plan may declare the result wider than the input block carries (e.g. a set-op
+    // operand widened to the union's maximum width), and the emitted block must keep the
+    // planned width: the data sink validates every block against the plan's schema.
+    pDst->info.bytes = plannedBytes;
   }
   return code;
 }
