@@ -27,7 +27,8 @@ Typical use cases:
 | Compressed data transfer | Supports enabling communication data compression between Agent and taosX to reduce bandwidth consumption |
 | In-memory cache | Supports configuring the number of in-memory cache batches to improve data transfer efficiency |
 | Auto-reconnect | Supports keeping the Agent running and automatically reconnecting when the taosX service is unavailable |
-| Store and Forward | Persists collected data to local disk during network outages and automatically resends it when the network recovers, ensuring zero data loss. See [Store and Forward](./store-and-forward.md) |
+| High availability | Connects to multiple taosX instances at the same time. When one taosX instance stops, the task moves to another taosX instance and collection continues. See [High Availability](./03-high-availability.md) |
+| Store and Forward | Persists collected data to local disk during network outages and automatically resends it when the network recovers, ensuring zero data loss. See [Store and Forward](./02-store-and-forward.md) |
 | Multi-instance deployment | Multiple Agent instances can be deployed on the same machine, distinguished by instanceId |
 
 ## Getting taosX-Agent
@@ -48,7 +49,7 @@ taosX-Agent must maintain network connectivity with both the taosX service and t
 
 | Direction | Description |
 | --- | --- |
-| Agent → taosX | Agent must be able to access the taosX gRPC service port (default 6055) |
+| Agent → taosX | Agent must be able to access the taosX gRPC service port (default 6055). When connecting to multiple taosX instances, it must be able to reach every one of them |
 | Agent → Data source | Agent must be able to access the data source (e.g., OPC UA Server, PI Data Archive) |
 
 :::tip
@@ -71,7 +72,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ### Dependencies
 
-- **taosX**: taosX-Agent must connect to a running taosX instance.
+- **taosX**: taosX-Agent must connect to at least one running taosX instance. Connecting to multiple taosX instances provides high availability. See [High Availability](./03-high-availability.md).
 - **taosExplorer**: You need to create an Agent and obtain a Token through the Explorer interface.
 
 ## Installation
@@ -98,7 +99,7 @@ After installation, taosX-Agent files are located at:
 
 ![Create Agent](../../../assets/taosx-agent-01.webp)
 
-5. Follow the wizard instructions. The system will generate an **endpoint** and **token**. Copy and save them to the `agent.toml` configuration file.
+5. Follow the wizard instructions. The system will generate an **endpoint** and **token**. Copy and save them to the `agent.toml` configuration file. When multiple xnodes are registered in the cluster, the generated endpoint contains the address of every xnode, separated by commas.
 
 ![Generate endpoint and token](../../../assets/taosx-agent-02.webp)
 
@@ -111,14 +112,14 @@ Save the endpoint and token before clicking "Next". If lost, they cannot be reco
 Edit the configuration file and fill in the information obtained from Explorer:
 
 ```toml
-# taosX gRPC service address (required)
+# taosX gRPC service address (required). Separate multiple addresses with commas
 endpoint = "http://<taosX_host>:6055"
 
 # Token generated when creating the Agent in Explorer (required)
 token = "<your_token>"
 ```
 
-For a full list of configuration options, see [Configuration Reference](./configuration.md).
+For a full list of configuration options, see [Configuration Reference](./01-configuration.md).
 
 ### Step 3: Start the Service
 
