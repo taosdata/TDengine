@@ -1288,7 +1288,9 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
 
   pCond->notLoadData = false;
 
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+  SListCell* pSchemaCell = !isSchema && NULL != schemas ? ((SNodeList*)schemas)->pHead : NULL;
+  for (int32_t i = 0; i < pCond->numOfCols;
+       ++i, pSchemaCell = (NULL != pSchemaCell ? pSchemaCell->pNext : NULL)) {
     SColumnInfo* pColInfo = &pCond->colList[i];
     if (isSchema) {
       SSchema* pSchema = taosArrayGet((SArray*)schemas, i);
@@ -1299,7 +1301,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
 
       if (pSlotList == NULL ) pCond->pSlotList[i] = i;
     } else {
-      STargetNode* pNode = (STargetNode*)nodesListGetNode((SNodeList*)schemas, i);
+      STargetNode* pNode = (STargetNode*)(NULL != pSchemaCell ? pSchemaCell->pNode : NULL);
       STREAM_CHECK_NULL_GOTO(pNode, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
       SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;

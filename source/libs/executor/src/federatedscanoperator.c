@@ -1135,8 +1135,10 @@ static const SNode* fedScanFindReserveExprBySlot(const SFederatedScanPhysiNode* 
   }
 
   int32_t reserveIdx = 0;
-  for (int32_t i = 0; i < LIST_LENGTH(pDesc->pSlots); ++i) {
-    SSlotDescNode* pCur = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+  SListCell* pSlotCell = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+  for (int32_t i = 0; i < LIST_LENGTH(pDesc->pSlots);
+       ++i, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+    SSlotDescNode* pCur = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (NULL == pCur || !pCur->reserve) {
       continue;
     }
@@ -1182,8 +1184,10 @@ static int32_t fedScanGetOutputOrdinalByDescIdx(const SDataBlockDescNode* pDesc,
   }
 
   int32_t ordinal = 0;
-  for (int32_t i = 0; i <= descSlotIdx; ++i) {
-    SSlotDescNode* pCur = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+  SListCell* pSlotCell = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+  for (int32_t i = 0; i <= descSlotIdx;
+       ++i, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+    SSlotDescNode* pCur = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (NULL == pCur || !pCur->output || pCur->reserve) {
       continue;
     }
@@ -1374,8 +1378,10 @@ static int32_t fedScanFillMirroredReserveSlot(const SFederatedScanPhysiNode* pFe
   }
 
   int32_t srcIdx = -1;
-  for (int32_t i = 0; i < LIST_LENGTH(pDesc->pSlots); ++i) {
-    SSlotDescNode* pOutputSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+  SListCell* pSlotCell = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+  for (int32_t i = 0; i < LIST_LENGTH(pDesc->pSlots);
+       ++i, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+    SSlotDescNode* pOutputSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (NULL == pOutputSlot || pOutputSlot->reserve || !pOutputSlot->output) {
       continue;
     }

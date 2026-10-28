@@ -78,8 +78,9 @@ static int32_t createDataBlockForTargets(SRSchema *pRSchema, SNodeList *pTargets
   }
   TAOS_CHECK_EXIT(createDataBlock(&pBlock));
   if (pExtSchema) ++pExtSchema;
-  for (int32_t i = 0; i < numOfCols; ++i) {  // the first timestamp column is not included in targets
-    STargetNode *pTargetNode = (STargetNode *)nodesListGetNode(pTargets, i);
+  SNode* pTargetNode2 = NULL;
+  FOREACH(pTargetNode2, pTargets) {  // the first timestamp column is not included in targets
+    STargetNode *pTargetNode = (STargetNode *)pTargetNode2;
     if (!pTargetNode) {
       TAOS_CHECK_EXIT(TSDB_CODE_APP_ERROR);
     }
