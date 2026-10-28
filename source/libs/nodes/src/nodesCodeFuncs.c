@@ -1802,8 +1802,7 @@ static int32_t jsonToLogicFillNode(const SJson* pJson, void* pObj) {
       code = tjsonGetStringValue(pJson, jkFillLogicPlanTimezoneName, pNode->timezoneName);
     }
     if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
-      bool ownsTimezone = false;
-      code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName, &pNode->timezone, &ownsTimezone);
+      code = nodesDecodeTimezoneNameInPlace(pNode->timezoneName, &pNode->timezone, &pNode->ownsTimezone);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
