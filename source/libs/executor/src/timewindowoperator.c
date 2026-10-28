@@ -4877,8 +4877,9 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
       || pInfo->pendingKeys == NULL || pInfo->pendingColTouched == NULL) {
     goto _error;
   }
-  for (int32_t i = 0; i < keyNum; ++i) {
-    SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pStateNode->pStateKeys, i);
+  SNode* pStateKeyNode = NULL;
+  FOREACH(pStateKeyNode, pStateNode->pStateKeys) {
+    SColumnNode* pColNode = (SColumnNode*)pStateKeyNode;
     SColumn      stateCol = extractColumnFromColumnNode(pColNode);
     SStateKeys   stateKey = {.type = stateCol.type, .bytes = stateCol.bytes, .isNull = true, .pData = taosMemoryCalloc(1, stateCol.bytes)};
     SStateKeys   pendKey  = {.type = stateCol.type, .bytes = stateCol.bytes, .isNull = true, .pData = taosMemoryCalloc(1, stateCol.bytes)};

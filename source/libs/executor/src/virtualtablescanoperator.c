@@ -174,9 +174,12 @@ static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, con
 
   int32_t numOutputSlots = LIST_LENGTH(pScan->node.pOutputDataBlockDesc->pSlots);
   if (pScan->pColTypeMappings != NULL) {
-    for (int32_t i = 0; i < pScan->numColTypeMappings && i < numOutputSlots; ++i) {
+    SListCell* pSlotCell =
+        NULL != pScan->node.pOutputDataBlockDesc->pSlots ? pScan->node.pOutputDataBlockDesc->pSlots->pHead : NULL;
+    for (int32_t i = 0; i < pScan->numColTypeMappings && i < numOutputSlots;
+         ++i, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
       const SExtColTypeMapping* pMapping = &pScan->pColTypeMappings[i];
-      SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, i);
+      SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
       if (pMapping->tdType.type == pCol->node.resType.type &&
           federatedOutputNameMatchesTarget(pMapping->colName, pCol) && pSlot != NULL && pSlot->output &&
           !pSlot->reserve) {
@@ -188,6 +191,8 @@ static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, con
   if (pScan->pScanCols != NULL) {
     int32_t outputIdx = 0;
     SNode*  pNode = NULL;
+    SNodeList* pSlots = pScan->node.pOutputDataBlockDesc->pSlots;
+    SListCell* pOutputCell = NULL != pSlots ? pSlots->pHead : NULL;
     FOREACH(pNode, pScan->pScanCols) {
       if (outputIdx >= numOutputSlots) {
         break;
@@ -195,7 +200,11 @@ static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, con
 
       const SColumnNode* pOutputCol = getFederatedOutputColumn(pNode);
       SSlotDescNode* pSlot =
-          (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx++);
+          NULL != pOutputCell ? (SSlotDescNode*)pOutputCell->pNode : NULL;
+      ++outputIdx;
+      if (NULL != pOutputCell) {
+        pOutputCell = pOutputCell->pNext;
+      }
       if (pSlot != NULL && pSlot->output && !pSlot->reserve &&
           federatedOutputColumnMatchesTarget(pOutputCol, pCol)) {
         return pSlot->slotId;
@@ -292,16 +301,20 @@ static int32_t buildFedOutputSlotIdsFromScanCols(const SFederatedScanPhysiNode* 
   pSlotIds = taosMemoryCalloc(numSlots, sizeof(int32_t));
   QUERY_CHECK_NULL(pSlotIds, code, lino, _return, terrno);
 
-  for (int32_t i = 0; i < numSlots; ++i) {
+  SListCell* pSlotCell = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+  SListCell* pScanColCell = NULL != pScan->pScanCols ? pScan->pScanCols->pHead : NULL;
+  for (int32_t i = 0; i < numSlots;
+       ++i, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL),
+       pScanColCell = (NULL != pScanColCell ? pScanColCell->pNext : NULL)) {
     pSlotIds[i] = -1;
-    SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+    SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (pSlot == NULL) {
       continue;
     }
 
     const SColumnNode* pOutputCol =
         pScan->pScanCols != NULL && i < LIST_LENGTH(pScan->pScanCols)
-            ? getFederatedOutputColumn(nodesListGetNode(pScan->pScanCols, i))
+            ? getFederatedOutputColumn((NULL != pScanColCell ? pScanColCell->pNode : NULL))
             : NULL;
     if (TSDB_DATA_TYPE_TIMESTAMP == pSlot->dataType.type ||
         (pOutputCol != NULL && (pOutputCol->isPrimTs || pOutputCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID))) {
@@ -1764,7 +1777,9 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
       continue;
     }
 
-    for (int32_t i = 0; i < colNum; i++) {
+    SListCell* pSlotCell = NULL != pFedDesc && NULL != pFedDesc->pSlots ? pFedDesc->pSlots->pHead : NULL;
+    for (int32_t i = 0; i < colNum;
+         i++, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
       if (i == tsIndex) {
         continue;
       }
@@ -1777,7 +1792,7 @@ static int32_t doGetVStableMergedBlockData(SVirtualScanMergeOperatorInfo* pInfo,
       if (isFederated && pFedDesc != NULL && pFedDesc->pSlots != NULL && LIST_LENGTH(pFedDesc->pSlots) > 0) {
         const SSlotDescNode* pFedSlot =
             i < LIST_LENGTH(pFedDesc->pSlots)
-                ? (const SSlotDescNode*)nodesListGetNode(pFedDesc->pSlots, i)
+                ? (const SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL)
                 : NULL;
         if (pFedSlot == NULL) {
           qError("failed to find federated slot descriptor, blockId:%d, column:%d", blockId, i);

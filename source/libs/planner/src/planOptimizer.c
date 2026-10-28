@@ -399,8 +399,10 @@ static bool scanPathOptIsLastOnlyFunc(const SFunctionNode* pFunc) {
   }
 
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  for (int32_t i = 1; i < numOfParams; ++i) {
-    SNode* pExtra = nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+  for (int32_t i = 1; i < numOfParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SNode* pExtra = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
     if (NULL == pExtra || QUERY_NODE_COLUMN != nodeType(pExtra)) {
       return false;
     }
@@ -4886,8 +4888,9 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
     goto _return1;
   }
 
-  for (int32_t i = 0; i < LIST_LENGTH(pVScan->node.pChildren); ++i) {
-    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pVScan->node.pChildren, i);
+  SNode* pChildrenNode = NULL;
+  FOREACH(pChildrenNode, pVScan->node.pChildren) {
+    SLogicNode* pChild = (SLogicNode*)pChildrenNode;
     if (NULL == pChild) {
       PLAN_ERR_JRET(
           generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,
@@ -20947,6 +20950,7 @@ static int32_t fqSyncMergedPartitionKeyAliases(SNodeList* pGroupKeys, int32_t gr
   int32_t appendedCount = groupKeyCount - groupKeyStartIdx;
   int32_t aliasIdx = 0;
   SNode*  pWinFuncNode = NULL;
+  SListCell* pGroupKeyCell = nodesListGetCell(pGroupKeys, groupKeyStartIdx);
   FOREACH(pWinFuncNode, pWinFuncs) {
     if (aliasIdx >= appendedCount) {
       break;
@@ -20960,7 +20964,10 @@ static int32_t fqSyncMergedPartitionKeyAliases(SNodeList* pGroupKeys, int32_t gr
       continue;
     }
 
-    SNode* pKey = nodesListGetNode(pGroupKeys, groupKeyStartIdx + aliasIdx);
+    SNode* pKey = NULL != pGroupKeyCell ? pGroupKeyCell->pNode : NULL;
+    if (NULL != pGroupKeyCell) {
+      pGroupKeyCell = pGroupKeyCell->pNext;
+    }
     SExprNode* pAliasCarrier = fqGetAliasCarrierFromGroupKey(pKey);
     if (NULL == pAliasCarrier) {
       planDebug("FQ-buildIntervalAgg: alias sync skip idx=%d keyType=%d (no expr carrier)",
@@ -25013,8 +25020,8 @@ static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // Destroy non-representative branch subtrees.
   // Their FedScans' remote plans were transferred to the UNION ALL container,
   // so set pRemoteLogicPlan=NULL before destroy to avoid double-free.
-  for (int32_t bi = 0; bi < LIST_LENGTH(pSetOp->node.pChildren); bi++) {
-    SNode* pB = nodesListGetNode(pSetOp->node.pChildren, bi);
+  SNode* pB = NULL;
+  FOREACH(pB, pSetOp->node.pChildren) {
     SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pB);
     if (pScan == pRepScan) continue;  // rep scan is being reused, not destroyed
     if (pScan != NULL) {
@@ -25192,8 +25199,8 @@ static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
 
   // Destroy non-representative branch subtrees
-  for (int32_t bi = 0; bi < LIST_LENGTH(pDedup->node.pChildren); bi++) {
-    SNode* pB = nodesListGetNode(pDedup->node.pChildren, bi);
+  SNode* pB = NULL;
+  FOREACH(pB, pDedup->node.pChildren) {
     SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pB);
     if (pScan == pRepScan) continue;
     if (pScan != NULL) pScan->pRemoteLogicPlan = NULL;
@@ -25450,9 +25457,13 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
     return TSDB_CODE_SUCCESS;
   }
 
-  for (int32_t i = 0; i < LIST_LENGTH(pSort->node.pTargets); ++i) {
-    SNode* pSortTarget = nodesListGetNode(pSort->node.pTargets, i);
-    SNode* pChildTarget = nodesListGetNode(pDirectChild->pTargets, i);
+  SListCell* pTargetCell = NULL != pSort->node.pTargets ? pSort->node.pTargets->pHead : NULL;
+  SListCell* pTargetCell2 = NULL != pDirectChild->pTargets ? pDirectChild->pTargets->pHead : NULL;
+  for (int32_t i = 0; i < LIST_LENGTH(pSort->node.pTargets);
+       ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL),
+       pTargetCell2 = (NULL != pTargetCell2 ? pTargetCell2->pNext : NULL)) {
+    SNode* pSortTarget = (NULL != pTargetCell ? pTargetCell->pNode : NULL);
+    SNode* pChildTarget = (NULL != pTargetCell2 ? pTargetCell2->pNode : NULL);
     if (!nodesEqualNode(pSortTarget, pChildTarget)) {
       return TSDB_CODE_SUCCESS;
     }

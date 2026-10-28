@@ -2305,8 +2305,10 @@ int32_t buildPartitionListFromOrderList(SNodeList* pOrderList, int32_t nodesNum,
   }
 
   int32_t code = 0;
-  for (int32_t i = 0; i < nodesNum; ++i) {
-    pNode = nodesListGetNode(pOrderList, i);
+  SListCell* pOrderCell = NULL != pOrderList ? pOrderList->pHead : NULL;
+  for (int32_t i = 0; i < nodesNum;
+       ++i, pOrderCell = (NULL != pOrderCell ? pOrderCell->pNext : NULL)) {
+    pNode = (NULL != pOrderCell ? pOrderCell->pNode : NULL);
     pOrder = (SOrderByExprNode*)pNode;
     SNode* pClonedNode = NULL;
     code = nodesCloneNode(pOrder->pExpr, &pClonedNode);
@@ -2757,7 +2759,7 @@ static int32_t createColumnsByTempTable(STranslateContext* pCxt, const STableNod
     PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
     freeCol = false;
 
-    SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
+    SListCell* pCell = pList->pTail;
     QUERY_CHECK_NULL(pCell, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
     PAR_ERR_JRET(setColumnInfoByExpr(pTempTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode, true));
@@ -6311,9 +6313,12 @@ static int32_t validateStreamNestedLayerNamespace(SStreamNestedWindowContext* pN
   SNode*  pNode = NULL;
   FOREACH(pNode, pNested->pPlanAst->pLayers) {
     const SStreamWindowLayerNode* pLayer = (const SStreamWindowLayerNode*)pNode;
-    for (int32_t prior = 0; prior < index; ++prior) {
+    SListCell* pLayerCell =
+        NULL != pNested->pPlanAst->pLayers ? pNested->pPlanAst->pLayers->pHead : NULL;
+    for (int32_t prior = 0; prior < index;
+         ++prior, pLayerCell = (NULL != pLayerCell ? pLayerCell->pNext : NULL)) {
       const SStreamWindowLayerNode* pPrior =
-          (const SStreamWindowLayerNode*)nodesListGetNode(pNested->pPlanAst->pLayers, prior);
+          (const SStreamWindowLayerNode*)(NULL != pLayerCell ? pLayerCell->pNode : NULL);
       if (pLayer->name[0] != '\0' && streamAsciiEqualIgnoreCase(pLayer->name, pPrior->name)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
@@ -8276,8 +8281,10 @@ static int32_t validateSqlWindowList(STranslateContext* pCxt, SSelectStmt* pSele
   int32_t index = 0;
   FOREACH(pNode, pSelect->pWindowList) {
     SNamedWindowNode* pNamed = (SNamedWindowNode*)pNode;
-    for (int32_t i = 0; i < index; ++i) {
-      SNamedWindowNode* pPrev = (SNamedWindowNode*)nodesListGetNode(pSelect->pWindowList, i);
+    SListCell* pWindowCell = NULL != pSelect->pWindowList ? pSelect->pWindowList->pHead : NULL;
+    for (int32_t i = 0; i < index;
+         ++i, pWindowCell = (NULL != pWindowCell ? pWindowCell->pNext : NULL)) {
+      SNamedWindowNode* pPrev = (SNamedWindowNode*)(NULL != pWindowCell ? pWindowCell->pNode : NULL);
       if (0 == strcasecmp(pPrev->windowName, pNamed->windowName)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_DUP_NAME);
       }
@@ -11809,8 +11816,10 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH; ++depth) {
     int32_t listLen = LIST_LENGTH(pVTable->refTables);
     bool    addedNew = false;
-    for (int32_t idx = 0; idx < listLen; ++idx) {
-      SNode* pRefNode = nodesListGetNode(pVTable->refTables, idx);
+    SListCell* pRefTableCell = NULL != pVTable->refTables ? pVTable->refTables->pHead : NULL;
+    for (int32_t idx = 0; idx < listLen;
+         ++idx, pRefTableCell = (NULL != pRefTableCell ? pRefTableCell->pNext : NULL)) {
+      SNode* pRefNode = (NULL != pRefTableCell ? pRefTableCell->pNode : NULL);
       // external source refs are leaf nodes without an internal tag-ref chain to follow
       if (!pRefNode || nodeType(pRefNode) != QUERY_NODE_REAL_TABLE) continue;
       SRealTableNode* pCurRef = (SRealTableNode*)pRefNode;
@@ -16921,9 +16930,13 @@ static bool orderByStartsWithPartitionList(SNodeList* pOrderByList, SNodeList* p
     return false;
   }
 
-  for (int32_t i = 0; i < pPartitionByList->length; ++i) {
-    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, i);
-    SNode* pPartitionExpr = nodesListGetNode(pPartitionByList, i);
+  SListCell* pOrderByCell = NULL != pOrderByList ? pOrderByList->pHead : NULL;
+  SListCell* pPartitionByCell = NULL != pPartitionByList ? pPartitionByList->pHead : NULL;
+  for (int32_t i = 0; i < pPartitionByList->length;
+       ++i, pOrderByCell = (NULL != pOrderByCell ? pOrderByCell->pNext : NULL),
+       pPartitionByCell = (NULL != pPartitionByCell ? pPartitionByCell->pNext : NULL)) {
+    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)(NULL != pOrderByCell ? pOrderByCell->pNode : NULL);
+    SNode* pPartitionExpr = (NULL != pPartitionByCell ? pPartitionByCell->pNode : NULL);
     if (NULL == pOrderExpr || NULL == pOrderExpr->pExpr || NULL == pPartitionExpr ||
         !nodesEqualNode(pOrderExpr->pExpr, pPartitionExpr)) {
       return false;
@@ -17155,8 +17168,8 @@ _return:
 }
 
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNodeList* pNodeList) {
-  for (int32_t i = 0; i < pNodeList->length; ++i) {
-    SNode*  pNode = nodesListGetNode(pNodeList, i);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pNodeList) {
     int32_t type = ((SExprNode*)pNode)->resType.type;
     if (!IS_MATHABLE_TYPE(type)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
@@ -18511,8 +18524,10 @@ static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
     return;
   } else if (pSelect->pOrderByList->length > 1) {
-    for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
-      SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i);
+    SListCell* pOrderByCell = nodesListGetCell(pSelect->pOrderByList, 1);
+    for (int32_t i = 1; i < pSelect->pOrderByList->length;
+         ++i, pOrderByCell = (NULL != pOrderByCell ? pOrderByCell->pNext : NULL)) {
+      SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)(NULL != pOrderByCell ? pOrderByCell->pNode : NULL);
       pOrder = pOrderByExpr->pExpr;
       if (isPrimaryKeyImpl(pOrder)) {
         pSelect->timeLineResMode = TIME_LINE_MULTI;
@@ -18840,8 +18855,10 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
           if (TSDB_CODE_SUCCESS != code) goto _end;
         }
         // start from index 1, because the first parameter is select function which needn't to output.
-        for (int i = 1; i < pFunc->pParameterList->length; ++i) {
-          SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
+        SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+        for (int i = 1; i < pFunc->pParameterList->length;
+             ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+          SNode* pExpr = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
 
           if (clause != SQL_CLAUSE_SELECT && isStarColumn(pExpr)) {
             code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
@@ -19756,8 +19773,10 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
       return code;
     } else if (pSetOperator->pOrderByList->length > 1) {
-      for (int32_t i = 1; i < pSetOperator->pOrderByList->length; ++i) {
-        pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, i))->pExpr;
+      SListCell* pOrderByCell = nodesListGetCell(pSetOperator->pOrderByList, 1);
+      for (int32_t i = 1; i < pSetOperator->pOrderByList->length;
+           ++i, pOrderByCell = (NULL != pOrderByCell ? pOrderByCell->pNext : NULL)) {
+        pOrder = ((SOrderByExprNode*)(NULL != pOrderByCell ? pOrderByCell->pNode : NULL))->pExpr;
         if (isPrimaryKeyImpl(pOrder)) {
           pSetOperator->timeLineResMode = TIME_LINE_MULTI;
           pSetOperator->timeLineFromOrderBy = true;
@@ -27831,6 +27850,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     }
   }
 
+  SListCell* pColCell = pColExists ? pStmt->pCols->pHead : NULL;
   FOREACH(pNode, pCalcProjection) {
     SExprNode*      pExpr = (SExprNode*)pNode;
     SColumnDefNode* pColDef = NULL;
@@ -27847,7 +27867,10 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     }
 
     if (pColExists) {
-      pColDef = (SColumnDefNode*)nodesListGetNode(pStmt->pCols, index);
+      pColDef = NULL != pColCell ? (SColumnDefNode*)pColCell->pNode : NULL;
+      if (NULL != pColCell) {
+        pColCell = pColCell->pNext;
+      }
     } else {
       PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef));
       if (nodeType(pExpr) == QUERY_NODE_FUNCTION) {
@@ -36578,13 +36601,17 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       PAR_ERR_JRET(terrno);
     }
     req.nOwnTagDefs = nOwnTags;
-    for (int32_t i = 0; i < nOwnTags; i++) {
-      // defensive: nodesListGetNode returns NULL when pOwnTagVals has fewer entries than pOwnTagDefs
+    SListCell* pOwnTagDefCell = NULL != pOwnTagDefs ? pOwnTagDefs->pHead : NULL;
+    SListCell* pOwnTagValCell = NULL != pOwnTagVals ? pOwnTagVals->pHead : NULL;
+    for (int32_t i = 0; i < nOwnTags;
+         i++, pOwnTagDefCell = (NULL != pOwnTagDefCell ? pOwnTagDefCell->pNext : NULL),
+         pOwnTagValCell = (NULL != pOwnTagValCell ? pOwnTagValCell->pNext : NULL)) {
+      // Tag values must cover every tag definition.
       if (i >= LIST_LENGTH(pOwnTagVals)) {
         PAR_ERR_JRET(TSDB_CODE_PAR_TAGS_NOT_MATCHED);
       }
-      SColumnDefNode*   pTagDef = (SColumnDefNode*)nodesListGetNode(pOwnTagDefs, i);
-      SValueNode*       pVal = (SValueNode*)nodesListGetNode(pOwnTagVals, i);
+      SColumnDefNode*   pTagDef = (SColumnDefNode*)(NULL != pOwnTagDefCell ? pOwnTagDefCell->pNode : NULL);
+      SValueNode*       pVal = (SValueNode*)(NULL != pOwnTagValCell ? pOwnTagValCell->pNode : NULL);
       SVChildOwnTagDef* pDef = &req.pOwnTagDefs[i];
       pDef->schema.type = pTagDef->dataType.type;
       pDef->schema.bytes = calcTypeBytes(pTagDef->dataType);
