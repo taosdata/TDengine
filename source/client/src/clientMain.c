@@ -585,6 +585,11 @@ void taos_cleanup(void) {
 #ifdef TAOSD_INTEGRATED
   shellStopDaemon();
 #endif
+  // The embedded daemon (TAOSD_INTEGRATED) shares the nodes library, and so this cache, with
+  // the client: its plans can borrow cached handles until the daemon thread has been stopped
+  // and joined, so the cache is released only after that. Local requests and connections were
+  // drained above.
+  nodesCleanupTimezoneCache();
   tscInfo("all local resources released");
   taosCleanupCfg();
 #ifndef TAOSD_INTEGRATED

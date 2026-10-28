@@ -28,6 +28,7 @@
 #include "tanalytics.h"
 #include "stream.h"
 #include "extConnector.h"
+#include "nodes.h"
 #include "tglobal.h"
 // clang-format on
 
@@ -247,6 +248,12 @@ void dmCleanup() {
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
+#ifndef TAOSD_INTEGRATED
+  // Standalone taosd: the nodes were closed by dmRun and dmCleanupDnode stopped the scheduler,
+  // so no plan can still borrow a cached timezone handle. When the daemon is embedded in the
+  // client library, the client side owns the cache and releases it after this thread is joined.
+  nodesCleanupTimezoneCache();
+#endif
   extConnectorModuleDestroy();
   monCleanup();
   auditCleanup();
