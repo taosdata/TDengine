@@ -3540,6 +3540,8 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
     return code;
   }
 
+  // A column-format submit may flag at most TD_MAX_PK_COLS columns (besides the timestamp) as primary keys.
+  int32_t numKeyCols = 0;
   for (int32_t i = 1; i < numCols; ++i) {
     if (aColData[i].nVal != aColData[0].nVal) {
       code = TSDB_CODE_INVALID_MSG;
@@ -3547,6 +3549,14 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
              " column cid:%d type:%d nVal:%d is not equal to primary key timestamp nVal:%d",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid,
              aColData[i].cid, aColData[i].type, aColData[i].nVal, aColData[0].nVal);
+      return code;
+    }
+
+    if ((aColData[i].cflag & COL_IS_KEY) && (++numKeyCols > TD_MAX_PK_COLS)) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " more than %d primary key columns",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid,
+             TD_MAX_PK_COLS);
       return code;
     }
   }
@@ -3606,6 +3616,14 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
       vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] sver:%d pTbData->sver:%d",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, pRow->sver,
              pTbData->sver);
+      return code;
+    }
+
+    if (!tRowPrimaryKeyValid(pRow)) {
+      code = TSDB_CODE_INVALID_MSG;
+      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] invalid primary key, numOfPKs:%d",
+             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i,
+             pRow->numOfPKs);
       return code;
     }
 
