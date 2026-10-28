@@ -55,7 +55,7 @@ toc_max_heading_level: 3
 
 - 下载名称：`TDengine TSDB Federated Query Plugin`。
 - 下载渠道：自 `v3.4.3.0` 起可从下载中心获取。
-- 当前支持平台：Linux x64、Linux ARM64；其他平台暂不支持。
+- 当前支持平台：Linux x64、Linux ARM64、Windows x64。下面的目录结构是 Linux 插件包。
 
 插件包解压后通常包含如下结构：
 
@@ -78,6 +78,7 @@ toc_max_heading_level: 3
 - `libmariadb.so`、`libpq.so`、Arrow/Parquet 相关库用于外部连接器运行时依赖。
 - SQL Server 所需的 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server 随联邦查询依赖包分发，不需要在系统中单独安装或执行驱动注册；缺失时 `TYPE = 'sqlserver'` 的外部源创建与查询均返回外部源类型不支持的错误。
 - 安装后应确保动态链接库路径可被 `taosd` 与 `taosc` 进程加载。
+- Windows x64 上，MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 使用 HTTP，不依赖 Arrow Flight SQL。SQL Server 使用 ODBC。Windows 插件包的安装步骤尚未在本文给出。
 - 附录：当前内部下载地址（内网）为 `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`。
 - 该地址为内网临时地址，`v3.4.3.0` 发布后以下载中心提供的正式链接为准。
 - 详细安装与启动步骤将在后续补充。
@@ -984,7 +985,7 @@ FederatedScan on mysql_prod.power.sensor_data
 
 1. 确认 `taosd` 与 `taosc` 均已启用 `federatedQueryEnable`。
 2. 确认联邦查询依赖库或插件包版本与 TDengine 版本匹配。
-3. 确认目标机器架构受支持（当前为 Linux x64、Linux ARM64）。
+3. 确认目标机器架构受支持（Linux x64、Linux ARM64、Windows x64）。
 4. 执行 `SHOW EXTERNAL SOURCES`、`DESCRIBE EXTERNAL SOURCE ...` 与最小查询样例验证运行时依赖是否可用。
 
 ## 使用场景
