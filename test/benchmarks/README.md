@@ -49,3 +49,30 @@ acceptance criteria. The column mode defaults to a 15% regression tolerance.
 Record the hardware, build configuration, workload parameters and measured
 latencies when reporting results; these thresholds are for controlled manual
 acceptance, not shared functional CI.
+
+## Repeated cols selector benchmark
+
+`cols_select_dedup_performance.py` is a standalone benchmark shared by the
+pre-optimization and optimized builds. It creates `cols_dedup_perf.samples`
+with one million deterministic rows by default; `prepare` drops that database.
+Run `prepare` once, then run `measure` against each build with the same data
+directory, server configuration, Python connector and SQL. Both the server and
+client must load the selected build's `libtaos.so` and `libtaosnative.so`.
+
+```bash
+export PYTHONPATH="$PWD/source/taos-connector-python"
+export LD_LIBRARY_PATH=/path/to/selected/install/lib
+python3 source/taos-community/test/benchmarks/cols_select_dedup_performance.py \
+  prepare --config /path/to/taos-config --port 6130
+python3 source/taos-community/test/benchmarks/cols_select_dedup_performance.py \
+  measure --config /path/to/taos-config --port 6130 \
+  --output /path/to/results.json
+```
+
+Run `prepare` only for the first build. Stop the server before switching
+binaries, then point the next server at the same data directory. Each measure
+run checks the row count and results, records `EXPLAIN VERBOSE`, warms all five
+SQLs three times, and records 15 rounds in alternating case order. The five
+cases repeat the identical `cols(max(c0), c1 as v)` expression 1 through 5
+times. Override `--rows`, `--rounds`, `--warmups` or `--batch-size` if needed;
+use the same `--rows` value for preparation and measurement.

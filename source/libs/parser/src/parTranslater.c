@@ -14332,6 +14332,7 @@ static int32_t translateClausePosition(STranslateContext* pCxt, SNodeList* pProj
 static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, SNodeList** nodeList,
                                    SNodeList** selectFuncList);
 static int32_t rewriteHavingColsNode(STranslateContext* pCxt, SNode** pNode, SNodeList** selectFuncList);
+static int32_t reuseSelectFuncsInExprs(SNodeList* pExprs, SNodeList* pSelectFuncs);
 
 static int32_t prepareColumnExpansion(STranslateContext* pCxt, ESqlClause clause, SSelectStmt* pSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -14390,7 +14391,24 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translateExprList(pCxt, pSelect->pOrderByList);
   }
 
+  if (TSDB_CODE_SUCCESS == code && LIST_LENGTH(pSelect->pOrderByList) > 0 &&
+      LIST_LENGTH(pSelect->pProjectionBindList) > 0) {
+    SNodeList* pRewritten = NULL;
+    code = nodesCloneList(pSelect->pOrderByList, &pRewritten);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = reuseSelectFuncsInExprs(pRewritten, pSelect->pProjectionBindList);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      nodesDestroyList(pSelect->pOrderByList);
+      pSelect->pOrderByList = pRewritten;
+    } else {
+      nodesDestroyList(pRewritten);
+      return code;
+    }
+  }
+
   if (!pSelect->pGroupByList && !pSelect->pWindow && !hasAggFuncInList(pSelect->pProjectionList) &&
+      LIST_LENGTH(pSelect->pProjectionBindList) == 0 &&
       hasAggFuncInList(pSelect->pOrderByList)) {
     return TSDB_CODE_PAR_ORDERBY_INVALID_EXPR;
   }
@@ -18615,16 +18633,136 @@ static EDealRes pushDownBindSelectFunc(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static bool equalSelectFuncIgnoringBind(SNode* pNode, SNode* pSelectFunc) {
+  if (!nodesIsExprNode(pNode)) {
+    return false;
+  }
+  int32_t bindExprID = ((SExprNode*)pNode)->bindExprID;
+  // Non-SELECT_VALUE selection functions compare bindExprID in nodesEqualNode.
+  // Ignore the binding when matching a new, unbound cols selector.
+  ((SExprNode*)pNode)->bindExprID = 0;
+  bool equal = nodesEqualNode(pNode, pSelectFunc);
+  ((SExprNode*)pNode)->bindExprID = bindExprID;
+  return equal;
+}
+
 static int32_t getSelectFuncIndex(SNodeList* FuncNodeList, SNode* pSelectFunc) {
   SNode*  pNode = NULL;
   int32_t selectFuncIndex = 0;
   FOREACH(pNode, FuncNodeList) {
     ++selectFuncIndex;
-    if (nodesEqualNode(pNode, pSelectFunc)) {
+    if (equalSelectFuncIgnoringBind(pNode, pSelectFunc)) {
       return selectFuncIndex;
     }
   }
   return 0;
+}
+
+typedef struct SReuseSelectFuncEntry {
+  SNode*  pNode;
+  int32_t next;
+} SReuseSelectFuncEntry;
+
+typedef struct SReuseSelectFuncCxt {
+  SNodeList*             pSelectFuncs;
+  SHashObj*              pByName;
+  SReuseSelectFuncEntry* pEntries;
+  int32_t                code;
+} SReuseSelectFuncCxt;
+
+static int32_t buildReuseSelectFuncIndex(SNodeList* pSelectFuncs, SReuseSelectFuncCxt* pCxt) {
+  int32_t count = LIST_LENGTH(pSelectFuncs);
+  pCxt->pEntries = taosMemoryCalloc(count + 1, sizeof(SReuseSelectFuncEntry));
+  if (NULL == pCxt->pEntries) {
+    return terrno;
+  }
+  pCxt->pByName = taosHashInit(count, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pCxt->pByName) {
+    return terrno;
+  }
+
+  SNode* pNode = NULL;
+  int32_t index = count;
+  FOREACH_R(pNode, pSelectFuncs) {
+    if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+      const char* name = ((SFunctionNode*)pNode)->functionName;
+      size_t nameLen = strlen(name);
+      int32_t* pHead = taosHashGet(pCxt->pByName, name, nameLen);
+      pCxt->pEntries[index].pNode = pNode;
+      pCxt->pEntries[index].next = NULL == pHead ? 0 : *pHead;
+      int32_t code = taosHashPut(pCxt->pByName, name, nameLen, &index, sizeof(index));
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+    }
+    --index;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t findReusableSelectFunc(SReuseSelectFuncCxt* pCxt, SFunctionNode* pFunc) {
+  if (NULL == pCxt->pByName) {
+    return getSelectFuncIndex(pCxt->pSelectFuncs, (SNode*)pFunc);
+  }
+  int32_t* pHead = taosHashGet(pCxt->pByName, pFunc->functionName, strlen(pFunc->functionName));
+  for (int32_t index = NULL == pHead ? 0 : *pHead; index != 0; index = pCxt->pEntries[index].next) {
+    if (equalSelectFuncIgnoringBind(pCxt->pEntries[index].pNode, (SNode*)pFunc)) {
+      return index;
+    }
+  }
+  return 0;
+}
+
+static EDealRes reuseMatchingSelectFunc(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION != nodeType(*pNode)) {
+    return DEAL_RES_CONTINUE;
+  }
+  SReuseSelectFuncCxt* pCxt = pContext;
+  SFunctionNode* pFunc = (SFunctionNode*)*pNode;
+  if (pFunc->node.bindExprID != 0) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (LIST_LENGTH(pFunc->pParameterList) != 1 || !fmIsSelectFunc(fmGetFuncId(pFunc->functionName))) {
+    return DEAL_RES_CONTINUE;
+  }
+  int32_t index = findReusableSelectFunc(pCxt, pFunc);
+  if (index > 0) {
+    SNode* pReplacement = NULL;
+    pCxt->code = nodesCloneNode(nodesListGetNode(pFunc->pParameterList, 0), &pReplacement);
+    if (TSDB_CODE_SUCCESS != pCxt->code) {
+      return DEAL_RES_ERROR;
+    }
+    // The cloned parameter carries its input alias; the output keeps the standalone function's alias.
+    SExprNode* pExpr = (SExprNode*)pReplacement;
+    pExpr->asAlias = pFunc->node.asAlias;
+    tstrncpy(pExpr->aliasName, pFunc->node.aliasName[0] ? pFunc->node.aliasName : pFunc->node.userAlias,
+             TSDB_COL_NAME_LEN);
+    tstrncpy(pExpr->userAlias, pFunc->node.userAlias, TSDB_COL_NAME_LEN);
+    SBindTupleFuncCxt bindCxt = {pReplacement, index};
+    nodesRewriteExpr(&pReplacement, pushDownBindSelectFunc, &bindCxt);
+    nodesDestroyNode(*pNode);
+    *pNode = pReplacement;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t reuseSelectFuncsInExprs(SNodeList* pExprs, SNodeList* pSelectFuncs) {
+  if (0 == LIST_LENGTH(pSelectFuncs)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SReuseSelectFuncCxt reuseCxt = {0};
+  reuseCxt.pSelectFuncs = pSelectFuncs;
+  // A short linear search costs less than allocating the index for small projections.
+  if (LIST_LENGTH(pSelectFuncs) >= 8) {
+    reuseCxt.code = buildReuseSelectFuncIndex(pSelectFuncs, &reuseCxt);
+  }
+  if (TSDB_CODE_SUCCESS == reuseCxt.code) {
+    nodesRewriteExprs(pExprs, reuseMatchingSelectFunc, &reuseCxt);
+  }
+  taosHashCleanup(reuseCxt.pByName);
+  taosMemoryFree(reuseCxt.pEntries);
+  return reuseCxt.code;
 }
 
 static EDealRes checkHasColsFunc(SNode** pNode, void* pContext) {
@@ -18656,14 +18794,11 @@ static int32_t checkMultColsFuncParam(SNodeList* pParameterList) {
   SNode*  pNode = NULL;
   FOREACH(pNode, pParameterList) {
     if (index == 0) {  // the first parameter is select function
-      if (QUERY_NODE_FUNCTION != nodeType(pNode) || isColsFuncByName((SFunctionNode*)pNode)) {
+      if (QUERY_NODE_FUNCTION != nodeType(pNode) ||
+          !fmIsSelectFunc(fmGetFuncId(((SFunctionNode*)pNode)->functionName))) {
         return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
       }
       SFunctionNode* pFunc = (SFunctionNode*)pNode;
-      // pFunc->funcId is zero at here, so need to check at * step
-      // if(!fmIsSelectFunc(pFunc->funcId)) {
-      //   return TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
-      // }
       SNode* pTmpNode = NULL;
       FOREACH(pTmpNode, pFunc->pParameterList) {
         bool hasColsFunc = false;
@@ -18686,6 +18821,7 @@ static int32_t checkMultColsFuncParam(SNodeList* pParameterList) {
 
 static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNewNode = NULL;
   if (QUERY_NODE_FUNCTION != nodeType(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
@@ -18698,7 +18834,8 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     }
     SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
     SNode* pExpr = nodesListGetNode(pFunc->pParameterList, 1);
-    if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION || isColsFuncByName((SFunctionNode*)pSelectFunc)) {
+    if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION ||
+        !fmIsSelectFunc(fmGetFuncId(((SFunctionNode*)pSelectFunc)->functionName))) {
       pCxt->status = TSDB_CODE_PAR_INVALID_COLS_SELECTFUNC;
       parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
       return DEAL_RES_ERROR;
@@ -18731,15 +18868,14 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     if (selectFuncIndex == 0) {
       ++selectFuncCount;
       selectFuncIndex = selectFuncCount;
-      SNode* pNewNode = NULL;
       code = nodesCloneNode(pSelectFunc, &pNewNode);
       if (code) goto _end;
       ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
       code = nodesListMakeStrictAppend(pCxt->selectFuncList, pNewNode);
+      pNewNode = NULL;
       if (code) goto _end;
     }
 
-    SNode* pNewNode = NULL;
     code = nodesCloneNode(pExpr, &pNewNode);
     if (code) goto _end;
     if (nodesIsExprNode(pNewNode)) {
@@ -18748,14 +18884,17 @@ static EDealRes rewriteSingleColsFunc(SNode** pNode, void* pContext) {
     } else {
       pCxt->status = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
       parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
+      NODES_DESTORY_NODE(pNewNode);
       return DEAL_RES_ERROR;
     }
     nodesDestroyNode(*pNode);
     *pNode = pNewNode;
+    pNewNode = NULL;
   }
   return DEAL_RES_CONTINUE;
 _end:
   pCxt->status = code;
+  nodesDestroyNode(pNewNode);
   return DEAL_RES_ERROR;
 }
 
@@ -18799,6 +18938,8 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
   SNodeList* pNewNodeList = NULL;
   SNode*     pNewNode = NULL;
   if (needRewrite) {
+    int32_t originalSelectFuncCount = LIST_LENGTH(*selectFuncList);
+    bool    createdSelectFuncList = (*selectFuncList == NULL);
     code = nodesMakeList(&pNewNodeList);
     if (NULL == pNewNodeList) {
       return code;
@@ -18824,7 +18965,8 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
         }
 
         SNode* pSelectFunc = nodesListGetNode(pFunc->pParameterList, 0);
-        if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION) {
+        if (nodeType(pSelectFunc) != QUERY_NODE_FUNCTION ||
+            !fmIsSelectFunc(fmGetFuncId(((SFunctionNode*)pSelectFunc)->functionName))) {
           code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
           parserError("%s Invalid cols function, the first parameter must be a select function", __func__);
           goto _end;
@@ -18837,6 +18979,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
           if (TSDB_CODE_SUCCESS != code) goto _end;
           ((SExprNode*)pNewNode)->bindExprID = selectFuncIndex;
           code = nodesListMakeStrictAppend(selectFuncList, pNewNode);
+          pNewNode = NULL;
           if (TSDB_CODE_SUCCESS != code) goto _end;
         }
         // start from index 1, because the first parameter is select function which needn't to output.
@@ -18861,6 +19004,7 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
           }
           if (TSDB_CODE_SUCCESS != code) goto _end;
           code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
+          pNewNode = NULL;
           if (TSDB_CODE_SUCCESS != code) goto _end;
         }
         continue;
@@ -18869,16 +19013,41 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
       code = nodesCloneNode(pTmpNode, &pNewNode);
       if (TSDB_CODE_SUCCESS != code) goto _end;
       code = nodesListMakeStrictAppend(&pNewNodeList, pNewNode);
+      pNewNode = NULL;
+      if (TSDB_CODE_SUCCESS != code) goto _end;
+    }
+    if (clause == SQL_CLAUSE_SELECT) {
+      code = reuseSelectFuncsInExprs(pNewNodeList, *selectFuncList);
       if (TSDB_CODE_SUCCESS != code) goto _end;
     }
     nodesDestroyList(*nodeList);
     *nodeList = pNewNodeList;
     return TSDB_CODE_SUCCESS;
-  }
 _end:
-  if (TSDB_CODE_SUCCESS != code) {
+    while (LIST_LENGTH(*selectFuncList) > originalSelectFuncCount) {
+      nodesListErase(*selectFuncList, (*selectFuncList)->pTail);
+    }
+    if (createdSelectFuncList) {
+      nodesDestroyList(*selectFuncList);
+      *selectFuncList = NULL;
+    }
     nodesDestroyNode(pNewNode);
     nodesDestroyList(pNewNodeList);
+    return code;
+  }
+  if (clause == SQL_CLAUSE_SELECT && LIST_LENGTH(*selectFuncList) > 0) {
+    code = nodesCloneList(*nodeList, &pNewNodeList);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pNewNodeList);
+      return code;
+    }
+    code = reuseSelectFuncsInExprs(pNewNodeList, *selectFuncList);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pNewNodeList);
+      return code;
+    }
+    nodesDestroyList(*nodeList);
+    *nodeList = pNewNodeList;
   }
   return code;
 }
