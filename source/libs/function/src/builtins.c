@@ -1165,15 +1165,17 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     const SParamInfo* paramPattern = funcMgtBuiltins[pFunc->funcId].parameters.inputParaInfo[i];
 
     while (1) {
+      SListCell* pParamCell = nodesListGetCell(paramList, paramPattern[paramIdx].startParam - 1);
       // one table can have at most 4096 columns, int32_t is enough.
       for (int32_t j = paramPattern[paramIdx].startParam;
-           j <= (paramPattern[paramIdx].endParam == -1 ? INT32_MAX - 1 : paramPattern[paramIdx].endParam); j++) {
+           j <= (paramPattern[paramIdx].endParam == -1 ? INT32_MAX - 1 : paramPattern[paramIdx].endParam);
+           j++, pParamCell = (NULL != pParamCell ? pParamCell->pNext : NULL)) {
         if (j > LIST_LENGTH(paramList)) {
           code = TSDB_CODE_SUCCESS;
           isMatch = true;
           break;
         }
-        SNode* pNode = nodesListGetNode(paramList, j - 1);
+        SNode* pNode = NULL != pParamCell ? pParamCell->pNode : NULL;
         if (NULL == pNode) {
           code = TSDB_CODE_FUNC_FUNTION_PARA_NUM;
           isMatch = false;
@@ -1971,8 +1973,10 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   // check all input parameters
   int32_t num = numOfParams - 1;
   if (numOfParams > 1) {
-    for (int32_t i = 0; i < num; ++i) {
-      valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+    SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+    for (int32_t i = 0; i < num;
+         ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+      valType = getSDataTypeFromNode((NULL != pParameterCell ? pParameterCell->pNode : NULL))->type;
       if (!IS_MATHABLE_TYPE(valType)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST only support mathable column");
       }
@@ -2025,8 +2029,10 @@ static int32_t translateImputation(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   // check all input parameters
   int32_t num = numOfParams - 1;
   if (numOfParams > 1) {
-    for (int32_t i = 0; i < num; ++i) {
-      valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+    SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+    for (int32_t i = 0; i < num;
+         ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+      valType = getSDataTypeFromNode((NULL != pParameterCell ? pParameterCell->pNode : NULL))->type;
       if (!IS_MATHABLE_TYPE(valType)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, "IMPUTATION only support mathable column");
       }
@@ -2214,16 +2220,18 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   int32_t sepBytes = 0;
 
   /* For concat/concat_ws function, if params have NCHAR type, promote the final result to NCHAR */
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
     uint8_t paraType = getSDataTypeFromNode(pPara)->type;
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
       resultType = paraType;
     }
   }
 
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < numOfParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SNode*  pPara = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
     uint8_t paraType = getSDataTypeFromNode(pPara)->type;
     int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
     int32_t factor = 1;
@@ -2262,13 +2270,12 @@ static int32_t translateConcatWs(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 static int32_t translateGroupConcat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   int32_t resultBytes = TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE;
   uint8_t resultType = TSDB_DATA_TYPE_BINARY;
 
   /* if params have NCHAR type, promote the final result to NCHAR */
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
     uint8_t paraType = getSDataTypeFromNode(pPara)->type;
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
       resultType = paraType;
@@ -2966,8 +2973,10 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   int8_t  binType;
   char*   binDesc;
-  for (int32_t i = 1; i < numOfParams; ++i) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+  for (int32_t i = 1; i < numOfParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SValueNode* pValue = (SValueNode*)(NULL != pParameterCell ? pParameterCell->pNode : NULL);
     if (i == 1) {
       binType = validateHistogramBinType(varDataVal(pValue->datum.p));
       if (binType == UNKNOWN_BIN) {
@@ -3012,8 +3021,9 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
   int32_t   nullLitCount = 0;
   uint8_t   tsPrecision = 0;
   bool      hasTimestampArg = false;
-  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
-    SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
+  SNode* pParameterNode = NULL;
+  FOREACH(pParameterNode, pFunc->pParameterList) {
+    SDataType* para = getSDataTypeFromNode(pParameterNode);
 
     if (IS_NULL_TYPE(para->type)) {
       if (ignoreNull) {

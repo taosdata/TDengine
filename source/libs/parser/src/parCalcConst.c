@@ -881,12 +881,14 @@ static int32_t pruneEmptyUnionAllBranches(SNode** ppStmt) {
   // zero-child set operator.
   if (!hasNonEmptyOperand) return TSDB_CODE_SUCCESS;
 
-  for (int32_t i = 0; i < setOperatorChildCount(pSetOp);) {
-    if (isEmptyResultQuery(setOperatorChildAt(pSetOp, i))) {
-      if (pSetOp->pOperands == NULL) break;
-      nodesListErase(pSetOp->pOperands, nodesListGetCell(pSetOp->pOperands, i));
-    } else {
-      ++i;
+  if (NULL != pSetOp->pOperands) {
+    SNode* pOperand = NULL;
+    WHERE_EACH(pOperand, pSetOp->pOperands) {
+      if (isEmptyResultQuery(pOperand)) {
+        ERASE_NODE(pSetOp->pOperands);
+      } else {
+        WHERE_NEXT;
+      }
     }
   }
   if (setOperatorChildCount(pSetOp) == 1 && pSetOp->pOperands != NULL) {

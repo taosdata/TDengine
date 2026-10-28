@@ -556,6 +556,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
   }
 
   size_t len = (pValNode != NULL) ? LIST_LENGTH(pValNode->pNodeList) : 0;
+  SListCell* pValueCell = len > 0 ? pValNode->pNodeList->pHead : NULL;
   for (int32_t i = 0; i < numOfFillExpr; ++i) {
     SExprInfo* pExprInfo = &pExpr[i];
     pFillCol[i].pExpr = pExprInfo;
@@ -564,12 +565,13 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
     // todo refactor
     if (len > 0) {
       // if the user specified value is less than the column, alway use the last one as the fill value
-      int32_t index = (i >= len) ? (len - 1) : i;
-
-      SValueNode* pv = (SValueNode*)nodesListGetNode(pValNode->pNodeList, index);
+      SValueNode* pv = NULL != pValueCell ? (SValueNode*)pValueCell->pNode : NULL;
       QUERY_CHECK_NULL(pv, code, lino, _end, terrno);
       code = nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
       QUERY_CHECK_CODE(code, lino, _end);
+      if (NULL != pValueCell->pNext) {
+        pValueCell = pValueCell->pNext;
+      }
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _end;

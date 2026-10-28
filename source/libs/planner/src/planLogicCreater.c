@@ -5914,8 +5914,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // Add external scan nodes (one per external source) as children of VirtualTableScan
   {
     int32_t refCount = LIST_LENGTH(pVirtualTable->refTables);
-    for (int32_t i = 2; i < refCount; i++) {
-      SNode* pRefNode = nodesListGetNode(pVirtualTable->refTables, i);
+    SListCell* pRefTableCell = nodesListGetCell(pVirtualTable->refTables, 2);
+    for (int32_t i = 2; i < refCount;
+         i++, pRefTableCell = (NULL != pRefTableCell ? pRefTableCell->pNext : NULL)) {
+      SNode* pRefNode = (NULL != pRefTableCell ? pRefTableCell->pNode : NULL);
       if (NULL == pRefNode || nodeType(pRefNode) != QUERY_NODE_EXTERNAL_TABLE) continue;
 
       SExtTableNode*  pExtTableNode = (SExtTableNode*)pRefNode;

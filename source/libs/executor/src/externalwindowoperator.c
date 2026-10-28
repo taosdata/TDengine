@@ -4031,13 +4031,15 @@ static int32_t extWinApplyValueFill(SExternalWindowOperator* pExtW, SSDataBlock*
 
   SNodeListNode* pValueList = (SNodeListNode*)pExtW->pFillValues;
   int32_t matchNum = taosArrayGetSize(pExtW->fillMatchInfo.pList);
-  for (int32_t i = 0; i < matchNum; ++i) {
+  SListCell* pNodeCell = NULL != pValueList->pNodeList ? pValueList->pNodeList->pHead : NULL;
+  for (int32_t i = 0; i < matchNum;
+       ++i, pNodeCell = (NULL != pNodeCell ? pNodeCell->pNext : NULL)) {
     SColMatchItem* pItem = taosArrayGet(pExtW->fillMatchInfo.pList, i);
     if (pItem == NULL || !pItem->needOutput || pItem->dstSlotId < 0) {
       continue;
     }
 
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pValueList->pNodeList, i);
+    SValueNode* pValue = (SValueNode*)(NULL != pNodeCell ? pNodeCell->pNode : NULL);
     if (pValue == NULL) {
       continue;
     }
