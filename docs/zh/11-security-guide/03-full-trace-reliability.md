@@ -307,7 +307,7 @@ taosX 使用持久化队列暂存**已经从数据源读取、但尚未成功写
 
 ### 3.5 taosX-Agent 本地缓冲 + 断线重连
 
-taosX-Agent 部署在边缘侧（靠近数据源），内置消息缓存队列，与中心 taosX 网络中断时在本地暂存数据、恢复后自动续传。配置与行为详见 [存储转发（Store and Forward）](../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md)。
+taosX-Agent 部署在边缘侧（靠近数据源），内置消息缓存队列，与中心 taosX 网络中断时在本地暂存数据、恢复后自动续传。配置与行为详见 [存储转发（Store and Forward）](../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md)。
 
 ```toml
 # /etc/taos/agent.toml

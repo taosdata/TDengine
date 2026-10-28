@@ -62,7 +62,7 @@ DRAIN XNODE <id>;
 
 ### 故障转移前提
 
-请将 taosX-Agent 配置为可连接全部相关 taosX 的 endpoint（即各 Xnode 登记的 gRPC 地址）。若 Agent 只指向单一 taosX，该实例不可用时任务可能无处可迁移。Agent 配置见 [taosX-Agent 配置参考](../../../12-operations-and-tooling/03-components/07-taosx-agent/configuration.md)。
+请将 taosX-Agent 配置为可连接全部相关 taosX 的 endpoint（即各 Xnode 登记的 gRPC 地址）。若 Agent 只指向单一 taosX，该实例不可用时任务可能无处可迁移。Agent 配置见 [taosX-Agent 配置参考](../../../12-operations-and-tooling/03-components/07-taosx-agent/01-configuration.md)。
 
 ## 故障转移期间的订阅、检查点与状态
 
@@ -137,4 +137,4 @@ DRAIN XNODE <id>;
 - [历史数据回填](./04-backfill-guide.md)
 - [数据接入（Xnode）](../../../05-tdengine-sql/08-cluster-management/02-xnode.md)
 - [taosX 参考手册](../../../12-operations-and-tooling/03-components/06-taosx.md)
-- [taosX-Agent 配置参考](../../../12-operations-and-tooling/03-components/07-taosx-agent/configuration.md)
+- [taosX-Agent 配置参考](../../../12-operations-and-tooling/03-components/07-taosx-agent/01-configuration.md)
