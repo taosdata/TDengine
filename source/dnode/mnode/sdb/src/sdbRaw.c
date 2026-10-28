@@ -201,7 +201,15 @@ int32_t sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_
     TAOS_RETURN(code);
   }
 
-  if (dataPos + valLen > pRaw->dataLen) {
+  // Overflow-safe bounds check (see security finding item 267).
+  // dataPos / valLen / pRaw->dataLen are all int32, so the original expression
+  // `dataPos + valLen > pRaw->dataLen` is evaluated in int32 arithmetic: an attacker-chosen
+  // valLen near INT32_MAX (e.g. 0x7FFFFFF0) makes the sum wrap negative and slip past the
+  // guard, after which memcpy() reads gigabytes from a tiny raw and crashes the mnode.
+  // We therefore reject negative operands and compare the length against the *remaining*
+  // raw bytes without any intermediate addition that can overflow.
+  if (dataPos < 0 || valLen < 0 || dataPos > pRaw->dataLen ||
+      valLen > pRaw->dataLen - dataPos) {
     code = TSDB_CODE_SDB_INVALID_DATA_LEN;
     TAOS_RETURN(code);
   }
@@ -378,7 +386,15 @@ int32_t sdbGetRawBinary(SSdbRaw *pRaw, int32_t dataPos, char *pVal, int32_t valL
     TAOS_RETURN(code);
   }
 
-  if (dataPos + valLen > pRaw->dataLen) {
+  // Overflow-safe bounds check (see security finding item 267).
+  // dataPos / valLen / pRaw->dataLen are all int32, so the original expression
+  // `dataPos + valLen > pRaw->dataLen` is evaluated in int32 arithmetic: an attacker-chosen
+  // valLen near INT32_MAX (e.g. 0x7FFFFFF0) makes the sum wrap negative and slip past the
+  // guard, after which memcpy() reads gigabytes from a tiny raw and crashes the mnode.
+  // We therefore reject negative operands and compare the length against the *remaining*
+  // raw bytes without any intermediate addition that can overflow.
+  if (dataPos < 0 || valLen < 0 || dataPos > pRaw->dataLen ||
+      valLen > pRaw->dataLen - dataPos) {
     code = TSDB_CODE_SDB_INVALID_DATA_LEN;
     TAOS_RETURN(code);
   }
