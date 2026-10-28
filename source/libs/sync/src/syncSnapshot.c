@@ -1139,6 +1139,22 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   int32_t                code = 0;
 
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125 / CWE-130): the WHOLE fixed header of
+  // SyncSnapshotSend (i.e. everything up to and including the trailing dataLen field - equivalently
+  // sizeof(SyncSnapshotSend), which equals offsetof(SyncSnapshotSend, data) for the flexible array)
+  // MUST be present in the received RPC body before ANY field is dereferenced. The transport only
+  // guarantees pRpcMsg->contLen >= sizeof(SMsgHead) (8 bytes) up-stream (vmPutMsgToQueue), so a
+  // truncated frame would otherwise make the pMsg->srcId / pMsg->term / pMsg->dataLen reads below
+  // out-of-bounds heap reads on the calloc'd frame buffer. This is the FIRST guard and must precede
+  // the dataLen-vs-available check that follows. (Matches the pattern already used for AppendEntries
+  // in syncAppendEntries.c.)
+  if ((int64_t)pRpcMsg->contLen < (int64_t)sizeof(SyncSnapshotSend)) {
+    sRError(pReceiver,
+            "reject snapshot msg with truncated fixed header, contLen:%u, require at least:%zu (TD-SEC-2026-042)",
+            pRpcMsg->contLen, sizeof(SyncSnapshotSend));
+    TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
+  }
+
   // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125): the snapshot block length
   // (pMsg->dataLen) is fully attacker-controlled and is carried inside the RPC body. The only
   // trustworthy bound is the RPC layer's contLen, NOT pMsg->bytes (also taken from the wire).
@@ -1147,6 +1163,8 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   // the outer payload (pMsg->dataLen) used by syncSnapReceiverExchgSnapInfo's first alloc/copy. The
   // inner embedded SSyncTLV.len (also attacker-controlled) is validated separately inside
   // syncSnapReceiverExchgSnapInfo / syncSnapSenderExchgSnapInfo, NOT by this check alone.
+  // NOTE: because the header guard above guarantees contLen >= sizeof(SyncSnapshotSend), snapDataAvail
+  // is guaranteed to be >= 0 here, so the comparison below can never be reached with an OOB dataLen read.
   int64_t snapDataAvail = (int64_t)pRpcMsg->contLen - (int64_t)offsetof(SyncSnapshotSend, data);
   if ((int64_t)pMsg->dataLen > snapDataAvail) {
     sRError(pReceiver,
@@ -1463,6 +1481,21 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   SyncSnapshotRsp **ppMsg = (SyncSnapshotRsp **)&pRpcMsg->pCont;
   SyncSnapshotRsp  *pMsg = ppMsg[0];
   int32_t           code = 0;
+
+  // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125 / CWE-130): the WHOLE fixed header of
+  // SyncSnapshotRsp (everything up to the flexible data[]) MUST be present in the received RPC body
+  // before ANY field is dereferenced. The transport only guarantees pRpcMsg->contLen >=
+  // sizeof(SMsgHead) (8 bytes) up-stream, so a truncated frame would otherwise make the pMsg->srcId /
+  // pMsg->term / pMsg->ack / pMsg->code reads below (and the data[] TLV check further down) out-of-
+  // bounds heap reads on the calloc'd frame buffer. This is the FIRST guard and must precede the
+  // payload TLV check at the prep-reply branch. (Analagous to the SyncSnapshotSend guard in
+  // syncNodeOnSnapshot, and to the AppendEntries guard in syncAppendEntries.c.)
+  if ((int64_t)pRpcMsg->contLen < (int64_t)sizeof(SyncSnapshotRsp)) {
+    sError("vgId:%d, reject snapshot rsp with truncated fixed header, contLen:%u, require at least:%zu "
+           "(TD-SEC-2026-042)",
+           pSyncNode->vgId, pRpcMsg->contLen, sizeof(SyncSnapshotRsp));
+    TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
+  }
 
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &pMsg->srcId)) {
