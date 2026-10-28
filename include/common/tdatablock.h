@@ -362,9 +362,21 @@ int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
 int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock);
 int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols);
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
+/**
+ * @warning UNSAFE, not recommended for new code: pData is NOT validated and the length fields inside it are trusted,
+ * so a malformed or corrupted buffer causes out-of-bounds reads/writes. Prefer blockDecodeBounded /
+ * blockDecodeInternalBounded, which run blockValidateEncoding first. Data from the network, disk or another node must
+ * never be passed here.
+ */
 int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
 int32_t blockIsSingleNullColumnEncoded(const char* pData, size_t dataLen, bool* pIsNull);
+/**
+ * @warning UNSAFE, not recommended for new code: pData is NOT validated and the length fields inside it are trusted,
+ * so a malformed or corrupted buffer causes out-of-bounds reads/writes. Prefer blockDecodeBounded /
+ * blockDecodeInternalBounded, which run blockValidateEncoding first. Data from the network, disk or another node must
+ * never be passed here.
+ */
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 // Decodes one normal block from pData[0, dataLen). On success, pEndPos, when non-NULL, points to the byte after the
 // encoded block; callers retain ownership of pBlock and must release it with blockDataDestroy.

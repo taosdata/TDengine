@@ -809,6 +809,15 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
     }
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
+    // The destination is sized by its own width while the copy below uses the source width (e.g. a CHAR_BYTES-wide
+    // NULL-type source into a 0-byte destination), so refuse a wider source. A source without data is not copied, so
+    // an all-NULL column of a different width stays acceptable.
+    if (pSource->pData != NULL && pSource->info.bytes > pColumnInfoData->info.bytes) {
+      uError("merge column bytes mismatch, dst:%d src:%d type:%d", pColumnInfoData->info.bytes, pSource->info.bytes,
+             pSource->info.type);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
     if (finalNumOfRows > (*capacity)) {
       // all data may be null, when the pColumnInfoData->info.type == 0, bytes == 0;
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows * pColumnInfoData->info.bytes);
@@ -873,6 +882,15 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
       memcpy(pColumnInfoData->pData, pSource->pData, newLen);
     }
   } else {
+    // The destination buffer was allocated with its own width; a wider source would overrun it.
+    // type equality was already enforced above, so this also covers the NULL/NULL pair where
+    // a CHAR_BYTES-wide source must not be copied into a 0-byte destination buffer. A source without data is not
+    // copied, so an all-NULL column of a different width stays acceptable.
+    if (pSource->pData != NULL && pSource->info.bytes > pColumnInfoData->info.bytes) {
+      uError("assign column bytes mismatch, dst:%d src:%d type:%d", pColumnInfoData->info.bytes, pSource->info.bytes,
+             pSource->info.type);
+      return TSDB_CODE_INVALID_PARA;
+    }
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
     if (pSource->pData != NULL) {
       memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
@@ -1689,7 +1707,7 @@ static int64_t blockDataVarRecordLen(int8_t colType, const char* pRec,
     if (avail >= (int64_t)sizeof(STag) && tTagIsJson(pRec)) {
       const STag *pTag = (const STag *)pRec;
       if (pTag->len < (int32_t)sizeof(STag) || pTag->len > avail ||
-          !tTagValidate(pTag, (int32_t)avail)) {
+          !tTagValidateJson(pTag, (int32_t)avail)) {
         return -1;
       }
       return pTag->len;
@@ -4803,7 +4821,9 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   return blockEncodeImpl(pBlock, data, dataBuflen, numOfCols, false);
 }
 
-int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEndPos, bool internal) {
+// Does not validate its input: untrusted data is checked by blockValidateEncoding in the *Bounded wrappers before it
+// gets here. Add new format checks there, not here, so that there is a single validator to maintain.
+static int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEndPos, bool internal) {
   const char* pStart = pData;
 
   int32_t version = *(int32_t*)pStart;
