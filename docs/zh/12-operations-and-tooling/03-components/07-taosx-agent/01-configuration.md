@@ -1,5 +1,5 @@
 ---
-title: 配置参考
+title: taosX-Agent 配置参考
 sidebar_label: 配置参考
 toc_max_heading_level: 4
 ---
@@ -10,7 +10,7 @@ taosX-Agent 的配置文件默认路径为 `/etc/taos/agent.toml`（Linux）或 
 
 | 参数 | 必填 | 默认值 | 说明 |
 | --- | --- | --- | --- |
-| `endpoint` | 是 | — | taosX 的 gRPC 服务地址，如 `http://localhost:6055` |
+| `endpoint` | 是 | — | taosX 的 gRPC 服务地址，如 `http://localhost:6055`。可填写多个地址，以英文逗号分隔，详见 [高可用](./03-high-availability.md) |
 | `token` | 是 | — | 在 taosExplorer 中创建 Agent 时生成的 Token |
 | `instanceId` | 否 | — | Agent 实例 ID。同一台机器部署多个 Agent 实例时，必须保证各实例 ID 唯一 |
 | `compression` | 否 | `false` | 是否开启 Agent 与 taosX 之间的通信数据压缩 |
@@ -47,7 +47,7 @@ taosX-Agent 的配置文件默认路径为 `/etc/taos/agent.toml`（Linux）或 
 ## 完整配置示例
 
 ```toml
-# taosX 的 gRPC 服务地址（必填）
+# taosX 的 gRPC 服务地址（必填），多个地址以英文逗号分隔
 endpoint = "http://192.168.1.100:6055"
 
 # 在 taosExplorer 中创建 Agent 时生成的 Token（必填）
