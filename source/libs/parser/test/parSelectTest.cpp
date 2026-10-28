@@ -19,6 +19,7 @@
 #include "parAst.h"
 #include "parTestUtil.h"
 #include "mockCatalogService.h"
+#include "stub.h"
 #include "tglobal.h"
 
 using namespace std;
@@ -46,6 +47,50 @@ class QueryPolicyGuard {
 
  private:
   int32_t previous_;
+};
+
+enum class ColsAppendFailure {
+  None,
+  BoundFunction,
+  ExpandedColumn,
+};
+
+ColsAppendFailure g_colsAppendFailure = ColsAppendFailure::None;
+
+int32_t appendColsForTest(SNodeList** pList, SNode* pNode) {
+  bool failBoundFunction = NULL != pNode && ColsAppendFailure::BoundFunction == g_colsAppendFailure &&
+                           QUERY_NODE_FUNCTION == nodeType(pNode) && ((SExprNode*)pNode)->bindExprID > 0;
+  bool failExpandedColumn = NULL != pNode && ColsAppendFailure::ExpandedColumn == g_colsAppendFailure &&
+                            QUERY_NODE_COLUMN == nodeType(pNode) && ((SExprNode*)pNode)->relatedTo > 0;
+  if (failBoundFunction || failExpandedColumn) {
+    g_colsAppendFailure = ColsAppendFailure::None;
+    nodesDestroyNode(pNode);  // Strict append consumes its node even on failure.
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (NULL == *pList) {
+    int32_t code = nodesMakeList(pList);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyNode(pNode);
+      return code;
+    }
+  }
+  return nodesListStrictAppend(*pList, pNode);
+}
+
+class ColsAppendFailureGuard {
+ public:
+  explicit ColsAppendFailureGuard(ColsAppendFailure failure) {
+    g_colsAppendFailure = failure;
+    stub_.set(nodesListMakeStrictAppend, appendColsForTest);
+  }
+
+  ~ColsAppendFailureGuard() {
+    stub_.reset(nodesListMakeStrictAppend);
+    g_colsAppendFailure = ColsAppendFailure::None;
+  }
+
+ private:
+  Stub stub_;
 };
 
 struct OuterRefSummary {
@@ -94,6 +139,32 @@ void registerExternalTimelineTable(const std::string& sourceName) {
 }
 
 }  // namespace
+
+TEST_F(ParserSelectTest, colsBoundAppendFailureReleasesNode) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  {
+    ColsAppendFailureGuard guard(ColsAppendFailure::BoundFunction);
+    runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1", TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(ColsAppendFailure::None, g_colsAppendFailure);
+  }
+  runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1");
+}
+
+TEST_F(ParserSelectTest, colsExpandedColumnAppendFailureRollsBackSelectFunction) {
+#ifdef WINDOWS
+  GTEST_SKIP() << "cppstub patching of nodesListMakeStrictAppend is unreliable in Windows release builds";
+#endif
+  useDb("root", "test");
+  {
+    ColsAppendFailureGuard guard(ColsAppendFailure::ExpandedColumn);
+    runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1", TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(ColsAppendFailure::None, g_colsAppendFailure);
+  }
+  runClonedAst("SELECT cols(first(c1), c2, c3) FROM t1");
+}
 
 TEST_F(ParserSelectDdlTest, correlatedScalarBindsOuterColumn) {
   useDb("root", "test");
