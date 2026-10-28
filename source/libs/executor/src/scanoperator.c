@@ -635,6 +635,29 @@ static bool skipSetTagColumnData(SOperatorInfo* pOperator) {
          ((STableScanInfo*)pOperator->info)->ignoreTag;
 }
 
+static int32_t saveVtableReaderLimit(SOperatorInfo* pOperator) {
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != pOperator->operatorType ||
+      !pOperator->dynamicTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableScanInfo* pInfo = pOperator->info;
+  if (!pInfo->virtualStableScan || NULL == pInfo->pVtableReaderLimits) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableKeyInfo* pTable = tableListGetInfo(pInfo->base.pTableListInfo, 0);
+  if (NULL == pTable) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  SLimitInfo* pSaved = taosHashGet(pInfo->pVtableReaderLimits, &pTable->uid,
+                                  sizeof(pTable->uid));
+  if (NULL != pSaved) {
+    *pSaved = pInfo->base.limitInfo;
+    return TSDB_CODE_SUCCESS;
+  }
+  return taosHashPut(pInfo->pVtableReaderLimits, &pTable->uid, sizeof(pTable->uid),
+                     &pInfo->base.limitInfo, sizeof(pInfo->base.limitInfo));
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -854,6 +877,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   if (limitReached) {  // set operator flag is done
     setOperatorCompleted(pOperator);
   }
+  code = saveVtableReaderLimit(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -2356,6 +2381,37 @@ _return:
   return code;
 }
 
+static int32_t restoreVtableReaderLimit(SOperatorInfo* pOperator, uint64_t uid,
+                                          bool newParam) {
+  STableScanInfo* pInfo = pOperator->info;
+  const STableScanPhysiNode* pScan = pOperator->pPhyNode;
+  SLimitInfo* pSaved = NULL;
+  if (!newParam && NULL != pInfo->pVtableReaderLimits) {
+    pSaved = taosHashGet(pInfo->pVtableReaderLimits, &uid, sizeof(uid));
+  }
+  if (NULL != pSaved) {
+    pInfo->base.limitInfo = *pSaved;
+    return TSDB_CODE_SUCCESS;
+  }
+  initLimitInfo(pScan->scan.node.pLimit, pScan->scan.node.pSlimit,
+                &pInfo->base.limitInfo);
+  // A finer source precision can collapse several rows into one virtual
+  // timestamp. A raw-row cap cannot bound the required virtual-row prefix.
+  if (pInfo->srcPrecision > pInfo->vtablePrecision ||
+      pInfo->srcPrecision > TSDB_TIME_PRECISION_NANO) {
+    pInfo->base.limitInfo.limit.limit = -1;
+  }
+  if (pInfo->base.limitInfo.limit.limit >= 0 &&
+      NULL == pInfo->pVtableReaderLimits) {
+    pInfo->pVtableReaderLimits = taosHashInit(
+        16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    if (NULL == pInfo->pVtableReaderLimits) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -2623,6 +2679,11 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       }
     }
   }
+
+  code = restoreVtableReaderLimit(pOperator, pUid, isNewScanParam(pParam));
+  QUERY_CHECK_CODE(code, lino, _return);
+  pInfo->base.cond.blockRowLimit = pInfo->base.limitInfo.limit.limit >= 0 ?
+      pInfo->base.orgCond.blockRowLimit : 0;
 
   void** reader = taosHashGet(pInfo->readerCache, &pUid, sizeof(uint64_t));
   if (reader) {
@@ -3412,7 +3473,10 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
   // boundary immediately before scanning.
   pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
 
-  if (pInfo->newReader) {
+  if (pInfo->base.limitInfo.limit.limit >= 0 &&
+      pInfo->base.limitInfo.numOfOutputRows >= pInfo->base.limitInfo.limit.limit) {
+    setOperatorCompleted(pOperator);
+  } else if (pInfo->newReader) {
     code = startNextGroupScan(pOperator, &result);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
@@ -4070,6 +4134,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   blockDataDestroy(pTableScanInfo->pVstbOutputBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
   taosHashCleanup(pTableScanInfo->pIntervalLimitStates);
+  taosHashCleanup(pTableScanInfo->pVtableReaderLimits);
   if (pTableScanInfo->virtualStableScan && pTableScanInfo->readerCache) {
     cleanReaderForVTable(pTableScanInfo);
     taosHashCleanup(pTableScanInfo->readerCache);
