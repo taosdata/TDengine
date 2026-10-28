@@ -1228,8 +1228,10 @@ static int32_t stWindowChainStateIsZeroth(const SWindowChainLayerState *pLayer, 
     goto _exit;
   }
   bool hasZeroth = false;
-  for (int32_t i = 0; i < count; ++i) {
-    const SValueNode *pZeroth = (const SValueNode *)nodesListGetNode(pZeroths, i);
+  SListCell* pZerothCell = NULL != pZeroths ? pZeroths->pHead : NULL;
+  for (int32_t i = 0; i < count;
+       ++i, pZerothCell = (NULL != pZerothCell ? pZerothCell->pNext : NULL)) {
+    const SValueNode *pZeroth = (const SValueNode *)(NULL != pZerothCell ? pZerothCell->pNode : NULL);
     if (pZeroth == NULL) {
       code = TSDB_CODE_INVALID_PARA;
       goto _exit;

@@ -4009,8 +4009,9 @@ int32_t extractColumnInfo(SNodeList* pNodeList, SArray** pArrayRes) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
     QUERY_CHECK_NULL(pNode, code, lino, _end, terrno);
 
     if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {

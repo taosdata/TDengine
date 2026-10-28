@@ -4920,9 +4920,9 @@ _end:
 }
 
 static void getTsSlotId(SNodeList* pNodeList, int32_t* pTsSlotId) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
     if (pNode && nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       *pTsSlotId = pNode->slotId;
     }
@@ -4930,9 +4930,9 @@ static void getTsSlotId(SNodeList* pNodeList, int32_t* pTsSlotId) {
 }
 
 static int32_t buildCol2SlotId(SNodeList* pNodeList, SHashObj* pCol2SlotId) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
     if (pNode == NULL) {
       return TSDB_CODE_INVALID_PARA;
     }

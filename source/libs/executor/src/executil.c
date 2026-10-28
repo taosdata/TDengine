@@ -430,8 +430,9 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     return pList;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SOrderByExprNode* pSortKey = (SOrderByExprNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    SOrderByExprNode* pSortKey = (SOrderByExprNode*)pListNode;
     if (!pSortKey) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       taosArrayDestroy(pList);
@@ -1462,17 +1463,15 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     char* pStart = (char*)keyBuf + baseIdLen + sizeof(int8_t) * LIST_LENGTH(group);
     // groupData skips QUERY_NODE_VALUE nodes while keyLen above sums the whole list, so
     // the per-column expression must be located with a cursor that skips them too.
-    int32_t groupCursor = 0;
+    SListCell* pGroupCell = NULL != group ? group->pHead : NULL;
     for (int j = 0; j < taosArrayGetSize(groupData); j++) {
-      while (groupCursor < LIST_LENGTH(group)) {
-        SNode* gn = nodesListGetNode(group, groupCursor);
-        if (nodeType(gn) != QUERY_NODE_VALUE) break;
-        groupCursor++;
+      while (NULL != pGroupCell && nodeType(pGroupCell->pNode) == QUERY_NODE_VALUE) {
+        pGroupCell = pGroupCell->pNext;
       }
-      SExprNode* pGroupExprAligned = (groupCursor < LIST_LENGTH(group))
-                                         ? (SExprNode*)nodesListGetNode(group, groupCursor)
-                                         : NULL;
-      groupCursor++;
+      SExprNode* pGroupExprAligned = NULL != pGroupCell ? (SExprNode*)pGroupCell->pNode : NULL;
+      if (NULL != pGroupCell) {
+        pGroupCell = pGroupCell->pNext;
+      }
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
 
       if (groupIdMap != NULL && gInfo != NULL) {
@@ -3057,8 +3056,9 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    SColumnNode* pColNode = (SColumnNode*)pListNode;
     if (!pColNode) {
       taosArrayDestroy(pList);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
@@ -3307,8 +3307,11 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = numOfParam;
 
-    for (int32_t j = 0; j < numOfParam && TSDB_CODE_SUCCESS == code; ++j) {
-      SNode* p1 = nodesListGetNode(pFuncNode->pParameterList, j);
+    SListCell* pParameterCell =
+        NULL != pFuncNode->pParameterList ? pFuncNode->pParameterList->pHead : NULL;
+    for (int32_t j = 0; j < numOfParam && TSDB_CODE_SUCCESS == code;
+         ++j, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+      SNode* p1 = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
       QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
       if (p1->type == QUERY_NODE_COLUMN) {
         SColumnNode* pcn = (SColumnNode*)p1;
@@ -3391,9 +3394,12 @@ SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
+  SListCell* pNodeCell = NULL != pNodeList ? pNodeList->pHead : NULL;
+  for (int32_t i = 0; i < (*numOfExprs);
+       ++i, pNodeCell = (NULL != pNodeCell ? pNodeCell->pNext : NULL)) {
     SExprInfo* pExp = &pExprs[i];
-    int32_t    code = createExprFromOneNode(pExp, nodesListGetNode(pNodeList, i), i + UD_TAG_COLUMN_INDEX);
+    int32_t code =
+        createExprFromOneNode(pExp, NULL != pNodeCell ? pNodeCell->pNode : NULL, i + UD_TAG_COLUMN_INDEX);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFreeClear(pExprs);
       terrno = code;

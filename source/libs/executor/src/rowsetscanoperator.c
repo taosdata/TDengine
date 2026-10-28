@@ -55,8 +55,10 @@ static int32_t fillRowsetExtendedColumns(const SRowsetSourcePhysiNode* pPhyNode,
   SDataBlockDescNode* pDesc = pPhyNode->node.pOutputDataBlockDesc;
   int32_t             numOfSlots = LIST_LENGTH(pDesc->pSlots);
 
-  for (int32_t dstIndex = pPhyNode->colCount; dstIndex < numOfSlots; ++dstIndex) {
-    SSlotDescNode* pDstSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, dstIndex);
+  SListCell* pSlotCell = nodesListGetCell(pDesc->pSlots, pPhyNode->colCount);
+  for (int32_t dstIndex = pPhyNode->colCount; dstIndex < numOfSlots;
+       ++dstIndex, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+    SSlotDescNode* pDstSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     SColumnInfoData* pDstCol = taosArrayGet(pBlock->pDataBlock, dstIndex);
     if (NULL == pDstSlot || NULL == pDstCol) {
       qError("rowset source invalid extended slot:%d slot:%p col:%p", dstIndex, pDstSlot, pDstCol);
@@ -69,8 +71,10 @@ static int32_t fillRowsetExtendedColumns(const SRowsetSourcePhysiNode* pPhyNode,
     }
 
     bool copied = false;
-    for (int32_t srcIndex = 0; srcIndex < pPhyNode->colCount; ++srcIndex) {
-      SSlotDescNode* pSrcSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, srcIndex);
+    SListCell* pSlotCell2 = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+    for (int32_t srcIndex = 0; srcIndex < pPhyNode->colCount;
+         ++srcIndex, pSlotCell2 = (NULL != pSlotCell2 ? pSlotCell2->pNext : NULL)) {
+      SSlotDescNode* pSrcSlot = (SSlotDescNode*)(NULL != pSlotCell2 ? pSlotCell2->pNode : NULL);
       SColumnInfoData* pSrcCol = taosArrayGet(pBlock->pDataBlock, srcIndex);
       if (NULL == pSrcSlot || NULL == pSrcCol) {
         qError("rowset source invalid source slot:%d slot:%p col:%p", srcIndex, pSrcSlot, pSrcCol);

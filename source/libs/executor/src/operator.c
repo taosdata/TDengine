@@ -698,8 +698,10 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
     return code;
   }
 
-  for (int32_t i = 0; i < size; ++i) {
-    SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
+  SListCell* pChildrenCell = NULL != pPhyNode->pChildren ? pPhyNode->pChildren->pHead : NULL;
+  for (int32_t i = 0; i < size;
+       ++i, pChildrenCell = (NULL != pChildrenCell ? pChildrenCell->pNext : NULL)) {
+    SPhysiNode* pChildNode = (SPhysiNode*)(NULL != pChildrenCell ? pChildrenCell->pNode : NULL);
     pChildNode->pParent = pPhyNode;
     // For external window parent, pre-initialize runtime from subquery before building children
     if (QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW == type && i == 0) {
@@ -1338,13 +1340,13 @@ _error:
 
 int32_t copyColumnsValue(SNodeList* pNodeList, int64_t targetBlkId, SSDataBlock* pDst, SSDataBlock* pSrc, int32_t totalRows) {
   bool    isNull = (NULL == pSrc || pSrc->info.rows <= 0);
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
   int64_t numOfRows = isNull ? 0 : pSrc->info.rows;
   int32_t code = 0;
   int32_t lino = 0;
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
     if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == targetBlkId) {
       SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, pNode->slotId);
       QUERY_CHECK_NULL(pDstCol, code, lino, _return, terrno)
