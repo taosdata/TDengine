@@ -113,6 +113,16 @@ TARGET_LINK_LIBRARIES(
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
 
+ADD_EXECUTABLE(wlrRecorderTest wlrRecorderTest.cpp)
+target_compile_definitions(wlrRecorderTest PRIVATE WLR_TEST_HOOKS)
+DEP_ext_gtest(wlrRecorderTest)
+add_test(NAME wlrRecorderTest COMMAND wlrRecorderTest)
+set_tests_properties(wlrRecorderTest PROPERTIES TIMEOUT 900)
+TARGET_LINK_LIBRARIES(
+        wlrRecorderTest PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
+
 ADD_EXECUTABLE(stmtTest stmtTest.cpp)
 DEP_ext_gtest(stmtTest)
 TARGET_LINK_LIBRARIES(
@@ -241,6 +251,13 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${TD_SOURCE_DIR}/include/client/"
         PUBLIC "${TD_SOURCE_DIR}/include/libs/geometry"
         PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+)
+
+TARGET_INCLUDE_DIRECTORIES(
+        wlrRecorderTest
+        PUBLIC "${TD_SOURCE_DIR}/include/client/"
+        PRIVATE "${TD_SOURCE_DIR}/source/client/inc"
+        PRIVATE "${TD_SOURCE_DIR}/source/libs/wlr/inc"
 )
 
 TARGET_INCLUDE_DIRECTORIES(

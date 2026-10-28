@@ -279,10 +279,10 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime) {
   OS_PARAM_CHECK(path);
 #ifdef WINDOWS
-  struct _stati64 fileStat;
+  struct _stati64 fileStat = {0};
   int32_t         code = _stati64(path, &fileStat);
 #else
-  struct stat fileStat;
+  struct stat fileStat = {0};
   int32_t     code = stat(path, &fileStat);
 #endif
   if (-1 == code) {
@@ -303,6 +303,33 @@ int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *a
   }
 
   return 0;
+}
+
+static int32_t taosFinishFileMode(int32_t code, int32_t fileMode, int32_t *mode) {
+  if (code == -1) {
+    terrno = TAOS_SYSTEM_ERROR(ERRNO);
+    return terrno;
+  }
+  *mode = fileMode;
+  return 0;
+}
+
+int32_t taosGetFileMode(const char *path, int32_t *mode) {
+  OS_PARAM_CHECK(path);
+  OS_PARAM_CHECK(mode);
+#ifdef WINDOWS
+  struct _stati64 fileStat = {0};
+  int32_t         code = _stati64(path, &fileStat);
+#else
+  struct stat fileStat = {0};
+  int32_t     code = stat(path, &fileStat);
+#endif
+#ifdef WINDOWS
+  return taosFinishFileMode(code,
+                            (int32_t)(fileStat.st_mode & (_S_IREAD | _S_IWRITE | _S_IEXEC)), mode);
+#else
+  return taosFinishFileMode(code, (int32_t)(fileStat.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO)), mode);
+#endif
 }
 
 int32_t taosGetFileDiskID(const char *path, int64_t *diskid) {
@@ -372,8 +399,23 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
   return 0;
 }
 
+static bool taosFileRejectsStreamOptions(int32_t tdFileOptions, bool streamRequested) {
+  return streamRequested && (tdFileOptions & (TD_FILE_PRIVATE | TD_FILE_EXCL)) != 0;
+}
+
+static bool taosFileRejectsPrivateWithoutCreate(int32_t tdFileOptions) {
+  return (tdFileOptions & TD_FILE_PRIVATE) != 0 && (tdFileOptions & TD_FILE_CREATE) == 0;
+}
+
 FILE *taosOpenFileForStream(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  /* fopen-style streams cannot request an owner-only creation mode. Keep this
+   * as an invalid option combination, matching TD_FILE_PRIVATE|TD_FILE_STREAM
+   * validation in taosOpenFile. */
+  if (taosFileRejectsStreamOptions(tdFileOptions, true)) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
@@ -387,10 +429,6 @@ FILE *taosOpenFileForStream(const char *path, int32_t tdFileOptions) {
   } else {
     mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
   }
-  if (tdFileOptions & TD_FILE_EXCL) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
-  }
   FILE *f = fopen(path, mode);
   if (NULL == f) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
@@ -402,6 +440,10 @@ FILE *taosOpenFileForStream(const char *path, int32_t tdFileOptions) {
 HANDLE taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   if (path == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
+    return INVALID_HANDLE_VALUE;
+  }
+  if (tdFileOptions & TD_FILE_PRIVATE) {
+    terrno = TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
     return INVALID_HANDLE_VALUE;
   }
   DWORD openMode = 0;
@@ -816,6 +858,10 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
     terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
+  if ((tdFileOptions & TD_FILE_PRIVATE) != 0 && (tdFileOptions & TD_FILE_CREATE) == 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
   int access = O_BINARY;
   access |= (tdFileOptions & TD_FILE_CREATE) ? O_CREAT : 0;
   if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ)) {
@@ -840,7 +886,7 @@ int taosOpenFileNotStream(const char *path, int32_t tdFileOptions) {
   // A caller whose file holds no secret - the log files are the only
   // ones - opts in to TD_FILE_SHARE_READ.
   int mode = (S_IRUSR | S_IWUSR);
-  if (tdFileOptions & TD_FILE_SHARE_READ) {
+  if ((tdFileOptions & TD_FILE_SHARE_READ) && !(tdFileOptions & TD_FILE_PRIVATE)) {
     mode = (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
   }
 
@@ -1729,6 +1775,14 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
+  if (taosFileRejectsStreamOptions(tdFileOptions, (tdFileOptions & TD_FILE_STREAM) != 0)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  if (taosFileRejectsPrivateWithoutCreate(tdFileOptions)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
   STUB_RAND_IO_ERR(NULL)
   FILE *fp = NULL;
 #ifdef WINDOWS
@@ -2562,6 +2616,14 @@ TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }
+  if (taosFileRejectsStreamOptions(tdFileOptions, (tdFileOptions & TD_FILE_STREAM) != 0)) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  if (tdFileOptions & TD_FILE_PRIVATE) {
+    terrno = TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
+    return NULL;
+  }
   WCHAR wpath[MAX_PATH] = {0};
   if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
@@ -2573,10 +2635,6 @@ TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions) {
   HANDLE hFile = NULL;
 
   if (tdFileOptions & TD_FILE_STREAM) {
-    if (tdFileOptions & TD_FILE_EXCL) {
-      terrno = TSDB_CODE_INVALID_PARA;
-      return NULL;
-    }
     char *mode = NULL;
     if (tdFileOptions & TD_FILE_APPEND) {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
@@ -2700,6 +2758,20 @@ int32_t taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *
   if (mtime != NULL) *mtime = fileStat.st_mtime;
   if (atime != NULL) *atime = fileStat.st_atime;
   return 0;
+}
+
+int32_t taosGetFileModeW(const char *path, int32_t *mode) {
+  OS_PARAM_CHECK(path);
+  OS_PARAM_CHECK(mode);
+  WCHAR wpath[MAX_PATH] = {0};
+  if (taosPathToWide(path, wpath, MAX_PATH) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+  struct _stati64 fileStat = {0};
+  int32_t code = _wstati64(wpath, &fileStat);
+  return taosFinishFileMode(code,
+                            (int32_t)(fileStat.st_mode & (_S_IREAD | _S_IWRITE | _S_IEXEC)), mode);
 }
 
 bool taosCheckAccessFileW(const char *pathname, int32_t tdFileAccessOptions) {

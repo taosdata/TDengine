@@ -376,6 +376,13 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
 
+// workload record and replay (WLR), DS 6.1. All three are CFG_SCOPE_CLIENT and
+// CFG_DYN_NONE: recording is decided once at process startup, so there is no
+// ALTER LOCAL path and no heartbeat delivery.
+int32_t tsWorkloadRecord = 0;
+char    tsWorkloadRecordDir[PATH_MAX] = {0};  // resolved from tsLogDir at init
+int32_t tsWorkloadRecordBufferSize = 256;
+
 // checkpoint backup
 char    tsSnodeAddress[TSDB_FQDN_LEN] = {0};
 int32_t tsRsyncPort = 873;
@@ -895,6 +902,19 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "bypassFlag", tsBypassFlag, 0, INT32_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
                                 CFG_CATEGORY_LOCAL, CFG_PRIV_DEBUG));
+  // workload record and replay (WLR), DS 6.1. CFG_DYN_NONE is what makes these
+  // startup-only: it is the mechanism that denies ALTER LOCAL / ALTER ALL DNODES,
+  // so recording cannot be toggled on a running client.
+  // The full 0..255 range is accepted rather than 0..1 so that a reserved value
+  // reaches the recorder, which reports WLR_E_CONFIG and stays off; rejecting it
+  // here would fail client startup instead (see 6.1).
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "workloadRecord", tsWorkloadRecord, 0, 255, CFG_SCOPE_CLIENT, CFG_DYN_NONE,
+                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "workloadRecordDir", tsWorkloadRecordDir, CFG_SCOPE_CLIENT, CFG_DYN_NONE,
+                              CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "workloadRecordBufferSize", tsWorkloadRecordBufferSize, 16, 4096,
+                                CFG_SCOPE_CLIENT, CFG_DYN_NONE, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_BOTH_LAZY,
@@ -1846,6 +1866,65 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaCacheMaxSize");
   tsMetaCacheMaxSize = pItem->i32;
+
+  // workload record and replay (WLR), DS 6.1.
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "workloadRecord");
+  tsWorkloadRecord = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "workloadRecordBufferSize");
+  tsWorkloadRecordBufferSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "workloadRecordDir");
+  if (pItem->str == NULL) {
+    uWarn("workloadRecordDir is unavailable; recording will stay disabled");
+    tsWorkloadRecordDir[0] = '\0';
+    tsWorkloadRecord = 0;
+  } else if (taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX - 1) != TSDB_CODE_SUCCESS) {
+    uWarn("workloadRecordDir exceeds %d bytes; recording will stay disabled", PATH_MAX - 1);
+    tsWorkloadRecordDir[0] = '\0';
+    tsWorkloadRecord = 0;
+  } else if (strlen(pItem->str) == 0) {
+    // Default is ${logDir}/workload. The cfg layer does not expand ${logDir},
+    // and tsLogDir is only final once logging has been configured, so the
+    // default is composed here rather than at cfgAddDir time.
+    size_t  logDirLen = strlen(tsLogDir);
+    bool needSep = logDirLen > 0 && tsLogDir[logDirLen - 1] != '/' && tsLogDir[logDirLen - 1] != '\\';
+    if (logDirLen == 0) {
+      uWarn("workloadRecordDir default is unavailable because logDir is empty; recording will stay disabled");
+      tsWorkloadRecordDir[0] = '\0';
+      tsWorkloadRecord = 0;
+    } else {
+      int32_t pathLen = snprintf(tsWorkloadRecordDir, sizeof(tsWorkloadRecordDir), "%s%sworkload", tsLogDir,
+                                 needSep ? TD_DIRSEP : "");
+      if (pathLen < 0 || pathLen >= (int32_t)sizeof(tsWorkloadRecordDir)) {
+        uWarn("workloadRecordDir default exceeds %d bytes; recording will stay disabled",
+              (int32_t)sizeof(tsWorkloadRecordDir) - 1);
+        tsWorkloadRecordDir[0] = '\0';
+        tsWorkloadRecord = 0;
+      }
+    }
+    // Publish the resolved default for SHOW LOCAL VARIABLES without applying DIR
+    // expansion a second time; tsLogDir may legally contain shell metacharacters.
+    if (tsWorkloadRecordDir[0] != '\0') {
+      /* taosSetClientCfg is called without pCfg->lock held; the resolved setter
+       * therefore owns locking just like other startup publication paths. */
+      int32_t cfgCode =
+          cfgSetDirResolved(pCfg, "workloadRecordDir", tsWorkloadRecordDir, CFG_STYPE_DEFAULT, true);
+      if (cfgCode != TSDB_CODE_SUCCESS) {
+        uWarn("failed to publish resolved workloadRecordDir, code:%s; recording configuration remains usable",
+              tstrerror(cfgCode));
+      }
+    }
+  } else {
+    // pItem->str is already the cfg layer's resolved DIR value. Re-expanding or
+    // writing it back would run word expansion twice and could change literal path
+    // characters; simply publish that resolved value to the runtime global.
+    tstrncpy(tsWorkloadRecordDir, pItem->str, sizeof(tsWorkloadRecordDir));
+  }
+  // The directory is deliberately NOT created here: taosSetClientCfg runs for
+  // every client regardless of mode, and mode 0 must not touch the filesystem
+  // (DS 6.1, TS CFG001/CFG002). Creation happens in the recorder's own init,
+  // where a failure can be reported as WLR_E_INIT_DIR and left fail-open.
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "randErrorChance");
   tsRandErrChance = pItem->i32;

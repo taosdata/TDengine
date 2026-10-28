@@ -35,6 +35,20 @@
 #include "tlog.h"
 #include "ttime.h"
 
+#ifdef __linux__
+TEST(osTimeTests, monotonicClockIdUsesCurrentNamespace) {
+  char namespaceId[32] = {0};
+  ssize_t length = readlink("/proc/self/ns/time", namespaceId, sizeof(namespaceId) - 1);
+  if (length < 0 && errno == ENOENT) GTEST_SKIP();
+  ASSERT_GT(length, 0);
+  namespaceId[length] = 0;
+
+  char clockId[80] = {0};
+  ASSERT_EQ(taosGetMonotonicClockId(clockId, sizeof(clockId)), 0);
+  EXPECT_NE(strstr(clockId, namespaceId), nullptr);
+}
+#endif
+
 // Compare every realtime entry point with an independent system clock.
 TEST(osTimeTests, realtimeReturnsUnixTime) {
   auto systemTimeNs = []() -> int64_t {
