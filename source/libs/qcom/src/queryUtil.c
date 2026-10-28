@@ -217,7 +217,11 @@ int32_t taosStmt2AsyncBind(__async_exec_fn_t bindFn, void* bindParam) {
   pSchedMsg->thandle = bindParam;
   // pSchedMsg->msg = code;
 
-  return taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  rc = taosWriteQitem(taskQueue.pTaskQueue, pSchedMsg);
+  if (rc != TSDB_CODE_SUCCESS) {
+    taosFreeQitem(pSchedMsg);
+  }
+  return rc;
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {

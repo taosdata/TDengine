@@ -2436,6 +2436,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (code) {
         terrno = code;
         STMT2_ELOG("set tags failed, code:%s", tstrerror(code));
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
     }
@@ -2446,6 +2450,10 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (bind->num <= 0 || bind->num > INT16_MAX) {
         STMT2_ELOG("bind num:%d must > 0 and < INT16_MAX", bind->num);
         code = terrno = TSDB_CODE_TSC_STMT_BIND_NUMBER_ERROR;
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
 
@@ -2453,8 +2461,15 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
       if (TSDB_CODE_SUCCESS != code) {
         terrno = code;
         STMT2_ELOG("bind batch failed, code:%s", tstrerror(code));
+        if (pCreateTbReq) {
+          tdDestroySVCreateTbReq(pCreateTbReq);
+          taosMemoryFreeClear(pCreateTbReq);
+        }
         return terrno;
       }
+    } else if (pCreateTbReq) {
+      tdDestroySVCreateTbReq(pCreateTbReq);
+      taosMemoryFree(pCreateTbReq);
     }
   }
 
@@ -2471,6 +2486,9 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   STscStmt2 *pStmt = (STscStmt2 *)stmt;
 
   ThreadArgs *args = (ThreadArgs *)taosMemoryMalloc(sizeof(ThreadArgs));
+  if (args == NULL) {
+    return terrno;
+  }
   args->stmt = stmt;
   args->bindv = bindv;
   args->col_idx = col_idx;
@@ -2480,6 +2498,7 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 0) {
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+    taosMemoryFree(args);
     tscError("async bind param is still working, please try again later");
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
     return terrno;
@@ -2491,9 +2510,10 @@ int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t c
   if (code_s != TSDB_CODE_SUCCESS) {
     terrno = code_s;
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
-    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+    taosMemoryFree(args);
     tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   }
 

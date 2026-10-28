@@ -2508,6 +2508,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
                               STableDataCxt** ppTableDataCxt) {
   bool          bFirstTable = false;
   bool          setCtbName = false;
+  bool          ctbColsTransferred = false;
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
@@ -2517,7 +2518,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
-    return code;
+    goto _return;
   }
 
   if (code == TSDB_CODE_SUCCESS && bFirstTable) {
@@ -2528,7 +2529,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       char ctbFName[TSDB_TABLE_FNAME_LEN];
       code = tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _return;
       }
       code = insGetTableDataCxt(pStmt->pTableBlockHashObj, ctbFName, strlen(ctbFName), pStbRowsCxt->pCtbMeta,
                                 &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, true, true);
@@ -2541,6 +2542,8 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   if (code == TSDB_CODE_SUCCESS) {
     if (pCxt->pComCxt->stmtBindVersion == 2) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
+      // The helper takes ownership before reserving any column storage, including on failure.
+      ctbColsTransferred = true;
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
@@ -2570,6 +2573,10 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     *pGotRow = true;
   }
 
+_return:
+  if (!ctbColsTransferred && ctbCols.pColIndex != NULL) {
+    qDestroyBoundColInfo(&ctbCols);
+  }
   clearStbRowsDataContext(pStbRowsCxt);
 
   return code;
