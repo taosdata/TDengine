@@ -371,7 +371,7 @@ taosX-Agent is deployed on the remote edge and maintains a long connection to ta
 - The ingestion buffer (local persistent queue) ensures that data is not lost during reconnection;
 - After reconnection succeeds, it continues uploading from the acknowledged position.
 
-For Store and Forward configuration details, see [Store and Forward](../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md).
+For Store and Forward configuration details, see [Store and Forward](../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md).
 
 ---
 

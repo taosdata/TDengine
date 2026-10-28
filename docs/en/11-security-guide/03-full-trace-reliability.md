@@ -307,7 +307,7 @@ The recovery sequence after a task restart is usually:
 
 ### 3.5 taosX-Agent Local Buffering + Disconnection Reconnection
 
-taosX-Agent is deployed on the edge side, close to the data source. It has a built-in message cache queue. When the network connection to central taosX is interrupted, it temporarily stores data locally and automatically resumes transfer after recovery. For configuration and behavior, see [Store and Forward](../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md).
+taosX-Agent is deployed on the edge side, close to the data source. It has a built-in message cache queue. When the network connection to central taosX is interrupted, it temporarily stores data locally and automatically resumes transfer after recovery. For configuration and behavior, see [Store and Forward](../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md).
 
 ```toml
 # /etc/taos/agent.toml

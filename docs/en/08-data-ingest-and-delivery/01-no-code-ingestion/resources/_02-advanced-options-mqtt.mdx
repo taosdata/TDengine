@@ -10,7 +10,7 @@ The **Advanced Options** section is collapsed by default. Click `>` to expand it
 
 **Write Concurrency** specifies how many tasks can write to TDengine concurrently.
 
-When **Cache Realtime Data** is enabled, consumed data is first written to a local file and a background task forwards it downstream. This provides traffic shaping when downstream processing cannot keep up. Cache files are removed after the backlog is consumed. This option is disabled by default. For details, see [Store and Forward](../../../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md).
+When **Cache Realtime Data** is enabled, consumed data is first written to a local file and a background task forwards it downstream. This provides traffic shaping when downstream processing cannot keep up. Cache files are removed after the backlog is consumed. This option is disabled by default. For details, see [Store and Forward](../../../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md).
 
 **Cache Storage Directory** overrides the directory used for cache files. It applies only when **Cache Realtime Data** is enabled and otherwise defaults to the data directory configured at taosX startup.
 
