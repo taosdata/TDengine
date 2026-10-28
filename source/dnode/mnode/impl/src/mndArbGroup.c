@@ -20,6 +20,7 @@
 #include "audit.h"
 #include "mndDb.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -678,6 +679,21 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
   int64_t    tss = taosGetTimestampMs();
 
   SAssignLeaderReq req = {0};
+
+  // Authorization gate (security finding 270): TDMT_MND_ARB_ASSIGN_LEADER is routed from the
+  // shared 6030 listener by msgType alone and this handler used to run for any sender without
+  // even resolving the asserted user name. ASSIGN LEADER FORCE is a cluster-wide action - it
+  // tells an arbitrary online member of every 2-replica vgroup to declare itself ASSIGNED_LEADER
+  // with force=true, which skips the member-token check on the vnode and lets that replica commit
+  // without quorum. Bind it to a real, enabled, cluster-admin identity before emitting anything,
+  // exactly like the sibling cluster-admin handlers do. Rejected callers get an error and cause
+  // no TDMT_SYNC_SET_ASSIGNED_LEADER to be sent.
+  code = mndCheckOperPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_ASSIGN_LEADER);
+  if (code != 0) {
+    mError("arbgroup:0, assign leader rejected for user:%s since %s", RPC_MSG_USER(pReq), tstrerror(code));
+    goto _exit;
+  }
+
   if (tDeserializeSAssignLeaderReq(pReq->pCont, pReq->contLen, &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
