@@ -55,7 +55,7 @@ In addition to client and server configuration, you can install the Federated Qu
 
 - Download name: `TDengine TSDB Federated Query Plugin`.
 - Download channel: Available from the download center starting with `v3.4.3.0`.
-- Currently supported platforms: Linux x64, Linux ARM64; other platforms are not supported at this time.
+- Currently supported platforms: Linux x64, Linux ARM64, and Windows x64. The directory layout below is the Linux plugin package.
 
 The plugin package typically has the following structure after extraction:
 
@@ -78,6 +78,7 @@ The plugin package typically has the following structure after extraction:
 - `libmariadb.so`, `libpq.so`, and Arrow/Parquet related libraries are runtime dependencies for external connectors.
 - SQL Server requires unixODBC and Microsoft ODBC Driver 18 for SQL Server, which are shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. If they are missing, creating or querying an external source with `TYPE = 'sqlserver'` returns an external source type unsupported error.
 - After installation, ensure the dynamic library path can be loaded by `taosd` and `taosc` processes.
+- On Windows x64, the MySQL and PostgreSQL client libraries `libmariadb.dll` and `libpq.dll` are placed in the same directory as `taosd`. InfluxDB uses HTTP and does not depend on Arrow Flight SQL. SQL Server uses ODBC. Installation steps for the Windows plugin package are not yet described in this document.
 - Appendix: The current internal download URL (intranet) is `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`.
 - This URL is a temporary intranet address; after `v3.4.3.0` is released, use the official link provided by the download center.
 - Detailed installation and startup steps will be added later.
@@ -984,7 +985,7 @@ Verify the following in order:
 
 1. Confirm that `federatedQueryEnable` is enabled on both `taosd` and `taosc`.
 2. Confirm that the federated query runtime library or plugin package version matches the TDengine version.
-3. Confirm that the target machine architecture is supported (currently Linux x64 and Linux ARM64).
+3. Confirm that the target machine architecture is supported (Linux x64, Linux ARM64, and Windows x64).
 4. Run `SHOW EXTERNAL SOURCES`, `DESCRIBE EXTERNAL SOURCE ...`, and a minimal query example to verify runtime dependencies are available.
 
 ## Use Cases
