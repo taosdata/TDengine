@@ -247,13 +247,32 @@ static int32_t mndProcessConfigReq(SRpcMsg *pReq) {
   int32_t    code = TSDB_CODE_SUCCESS;
   SArray    *array = NULL;
   bool       needFree = false;
+  SConfigObj *vObj = NULL;
   code = tDeserializeSConfigReq(pReq->pCont, pReq->contLen, &configReq);
   if (code != 0) {
     mError("failed to deserialize config req, since %s", terrstr());
     goto _OVER;
   }
 
-  SConfigObj *vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
+  // [Security-Fix item264] TDMT_MND_CONFIG is an internal dnode->mnode synchronisation endpoint
+  // that returns the full cluster-wide (CFG_CATEGORY_GLOBAL) configuration stored in SDB,
+  // including secret-bearing items such as ssAccessString (S3 access key/secret) and TLS
+  // key/certificate paths. The handler previously performed no authentication at all, so any
+  // network peer able to reach the mnode leader's RPC port (6030) could retrieve the whole
+  // configuration set. We now require the request to originate from an authenticated cluster
+  // member (a resolvable user carried on the connection). The dnode issues this request over
+  // its internal RPC connection authenticated as the default user, so legitimate dnode config
+  // synchronisation is unaffected; unauthenticated peers are rejected. This control is fully
+  // effective whenever SASL/authentication is enabled on the server.
+  SUserObj *pConfigUser = NULL;
+  if ((code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pConfigUser)) != 0) {
+    mError("failed to acquire user for config req, since %s", tstrerror(code));
+    goto _OVER;
+  }
+  mndReleaseUser(pMnode, pConfigUser);
+  pConfigUser = NULL;
+
+  vObj = sdbAcquire(pMnode->pSdb, SDB_CFG, "tsmmConfigVersion");
   if (vObj == NULL) {
     mInfo("failed to acquire mnd config version, since %s", terrstr());
     goto _OVER;
@@ -301,7 +320,9 @@ _OVER:
   if (code != 0) {
     mError("failed to process config req, since %s", tstrerror(code));
   }
-  sdbRelease(pMnode->pSdb, vObj);
+  if (vObj != NULL) {
+    sdbRelease(pMnode->pSdb, vObj);
+  }
   cfgArrayCleanUp(array);
   tFreeSConfigReq(&configReq);
   return code;
@@ -1372,6 +1393,21 @@ static SArray *initVariablesFromItems(SArray *pItems, const char* likePattern, u
         snprintf(info.value, sizeof(info.value), "%s", pItem->str);
         break;
     }
+
+      // [Security-Fix item264] Mask secret-bearing configuration values in the client-visible
+      // SHOW VARIABLES output. Items classified as CFG_PRIV_SECURITY / CFG_PRIV_AUDIT (e.g.
+      // ssAccessString carrying S3 access key/secret, TLS key/certificate paths) must never be
+      // disclosed in cleartext. In the enterprise build items the user is not privileged to see
+      // are already skipped entirely by mndShowVarPrivAllowed above; for the community build,
+      // where per-user privilege masking is not applied, we mask the value so secrets are not
+      // exposed. The internal dnode->mnode config synchronisation path (initConfigArrayFromSdb)
+      // is intentionally NOT masked, because the dnode legitimately needs the real values.
+#ifndef TD_ENTERPRISE
+    if (pItem->privType == CFG_PRIV_SECURITY || pItem->privType == CFG_PRIV_AUDIT) {
+      memset(info.value, 0, sizeof(info.value));
+      tstrncpy(info.value, "******", sizeof(info.value));
+    }
+#endif
 
     // init info scope
     switch (pItem->scope) {
