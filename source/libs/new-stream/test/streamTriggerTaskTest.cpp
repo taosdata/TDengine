@@ -4370,15 +4370,16 @@ class RealtimePipelineHarness {
 
   bool dispatchSerializedRealtimeStart() { return dispatchSerializedRealtimeStartCode() == TSDB_CODE_SUCCESS; }
 
-  bool feedRows(const std::vector<TSKEY>& timestamps, const std::vector<int32_t>& values, TSKEY metaStart = 0) {
+  bool feedRows(const std::vector<TSKEY>& timestamps, const std::vector<int32_t>& values, TSKEY metaStart = 0,
+                int64_t version = 2) {
     int32_t lastTsIndex = findPull(STRIGGER_PULL_LAST_TS);
     if (lastTsIndex >= 0 && processLastTs(lastTsIndex) != TSDB_CODE_SUCCESS) return false;
     int32_t dataIndex = findPull(STRIGGER_PULL_WAL_META_DATA_NEW);
     if (dataIndex < 0) dataIndex = findPull(STRIGGER_PULL_WAL_DATA_NEW);
     if (dataIndex < 0) dataIndex = findPull(STRIGGER_PULL_WAL_META_NEW);
     if (dataIndex < 0) return false;
-    return processWal(dataIndex, timestamps, values, timestamps.empty() ? 0 : timestamps.back(), {}, 2, metaStart) ==
-           TSDB_CODE_SUCCESS;
+    return processWal(dataIndex, timestamps, values, timestamps.empty() ? 0 : timestamps.back(), {}, version,
+                      metaStart) == TSDB_CODE_SUCCESS;
   }
 
   bool respondCalcRows(const std::vector<TSKEY>& timestamps, const std::vector<int32_t>& values, int64_t version = 2) {
@@ -5100,12 +5101,22 @@ class RealtimePipelineHarness {
     return processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_SUCCESS, payload, len);
   }
 
-  int32_t processMetadataNoData(int32_t index, int32_t len) {
-    const int64_t values[] = {2, 2000, 0};
+  int32_t processMetadataNoData(int32_t index, int32_t len, int64_t version = 2) {
+    const int64_t values[] = {version, version * 1000, 0};
     void*         payload = rpcMallocCont(len > 0 ? len : 1);
     if (payload == nullptr) return terrno;
     if (len > 0) memcpy(payload, values, len);
     return processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_STREAM_NO_DATA, payload, len);
+  }
+
+  bool respondWalDataNoData(int64_t version) {
+    int32_t index = findPull(STRIGGER_PULL_WAL_DATA_NEW);
+    if (index < 0) return false;
+    void* payload = rpcMallocCont(sizeof(version));
+    if (payload == nullptr) return false;
+    memcpy(payload, &version, sizeof(version));
+    return processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_STREAM_NO_DATA, payload, sizeof(version)) ==
+           TSDB_CODE_SUCCESS;
   }
 
  private:
@@ -23752,6 +23763,60 @@ static void expectOverlapDelayedParams(const SSTriggerCalcRequest* pRequest) {
   }
   EXPECT_EQ(1, firstLeafCount);
   EXPECT_EQ(1, secondLeafCount);
+}
+
+TEST_F(StreamNestedRealtimeTest, CountContinuesAfterWalDataWasReclaimed) {
+  RealtimePipelineHarness harness;
+  harness.setDeployWatermark(10);  // Exercise separate META and DATA requests.
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityCount));
+  harness.task()->windowCount = 1;
+  harness.task()->windowSliding = 1;
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedRows({100, 1000}, {1, 1}));
+  ASSERT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+  ASSERT_TRUE(harness.respondWalDataNoData(2));
+  EXPECT_EQ(0, harness.calcSendCount());
+  EXPECT_EQ(0, harness.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+
+  // The next retained batch produces a real count window and evicts the old
+  // version's metadata; no Reader failure or redeployment is needed.
+  ASSERT_TRUE(harness.feedRows({1100, 2000}, {1, 1}, 1100, 3));
+  ASSERT_TRUE(harness.feedRows({1100}, {1}, 1100, 3));
+  ASSERT_EQ(1, harness.calcSendCount());
+  ASSERT_NE(nullptr, harness.calcAttempt(0));
+  const auto* calc = &harness.calcAttempt(0)->decoded;
+  ASSERT_EQ(1, taosArrayGetSize(calc->params));
+  const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(calc->params, 0));
+  EXPECT_EQ(1100, param->wstart);
+  EXPECT_EQ(1100, param->wend);
+  EXPECT_EQ(1, param->wrownum);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+  harness.cleanupCalcAttemptTransport(0);
+  const int32_t nextMeta = harness.prepareMetadataResponse(true);
+  ASSERT_GE(nextMeta, 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.processMetadataNoData(nextMeta, 2 * sizeof(int64_t), 3));
+  // Finish the watermark tail read before checking the consumed boundary.
+  ASSERT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_DATA_NEW));
+  ASSERT_TRUE(harness.respondWalDataNoData(3));
+  const int32_t vg = RealtimePipelineHarness::kVgId;
+  const auto*   progress =
+      static_cast<SSTriggerWalProgress*>(tSimpleHashGet(harness.context()->pReaderWalProgress, &vg, sizeof(vg)));
+  ASSERT_NE(nullptr, progress);
+  EXPECT_EQ(3, progress->lastScanVer);
+  EXPECT_EQ(progress->lastScanVer, progress->doneVer);
+  auto* group = harness.group();
+  ASSERT_NE(nullptr, group);
+  int32_t iter = 0;
+  void*   entry = nullptr;
+  while ((entry = tSimpleHashIterate(group->pWalMetas, entry, &iter)) != nullptr) {
+    SObjListIter metas = {};
+    taosObjListInitIter(static_cast<SObjList*>(entry), &metas, TOBJLIST_ITER_FORWARD);
+    SSTriggerMetaData* meta = nullptr;
+    while ((meta = static_cast<SSTriggerMetaData*>(taosObjListIterNext(&metas))) != nullptr) {
+      EXPECT_GT(meta->ver, 2);
+    }
+  }
 }
 
 TEST_F(StreamNestedRealtimeTest, CountAdapterConsumesOrderedInputWithoutOverridingDisorderAdmission) {
