@@ -13094,6 +13094,12 @@ class NestedHistoryHarness {
     return code == TSDB_CODE_SUCCESS ? dispatchControl(kRealtimeSession) : code;
   }
 
+  void setVirtualTableBindings(const std::vector<std::pair<int64_t, int64_t>>& sourceA,
+                               const std::vector<std::pair<int64_t, int64_t>>& sourceB) {
+    virtualBindingsA_ = sourceA;
+    virtualBindingsB_ = sourceB;
+  }
+
   int32_t respondAllVirtualTableInfo() {
     int32_t code = TSDB_CODE_SUCCESS;
     while (CapturedPullAttempt* pAttempt = findPull(STRIGGER_PULL_VTABLE_INFO, kRealtimeSession)) {
@@ -13228,13 +13234,13 @@ class NestedHistoryHarness {
     return respondAllVirtualLastTs();
   }
 
-  int32_t respondAllVirtualFirstTs() {
+  int32_t respondAllVirtualFirstTs(bool empty = false) {
     int32_t code = TSDB_CODE_SUCCESS;
     while (CapturedPullAttempt* pAttempt = findPull(STRIGGER_PULL_FIRST_TS, kHistorySession)) {
       const int64_t        readerTaskId = pAttempt->request.value().base.readerTaskId;
       std::vector<STsInfo> rows;
-      if (readerTaskId == kOriginalReaderTaskA) rows.push_back({kPhysicalUidA, kScanStart});
-      if (readerTaskId == kOriginalReaderTaskB) rows.push_back({kPhysicalUidB, kScanStart + 1});
+      if (!empty && readerTaskId == kOriginalReaderTaskA) rows.push_back({kPhysicalUidA, kScanStart});
+      if (!empty && readerTaskId == kOriginalReaderTaskB) rows.push_back({kPhysicalUidB, kScanStart + 1});
       code = respondTsRows(*pAttempt, rows);
       if (code != TSDB_CODE_SUCCESS) return code;
     }
@@ -14231,26 +14237,29 @@ class NestedHistoryHarness {
     SStreamMsgVTableInfo response = {};
     response.infos = taosArrayInit(1, sizeof(VTableInfo));
     if (response.infos == nullptr) return terrno;
-    auto* pInfo = static_cast<VTableInfo*>(taosArrayReserve(response.infos, 1));
-    if (pInfo == nullptr) {
-      tDestroySStreamMsgVTableInfo(&response);
-      return terrno;
-    }
-    pInfo->gId = kGid;
-    pInfo->uid = sourceA ? kVirtualUidA : kVirtualUidB;
-    pInfo->cols.version = 1;
-    int32_t code = tInitDefaultSColRefWrapperByCols(&pInfo->cols, 2);
-    if (code != TSDB_CODE_SUCCESS) {
-      tDestroySStreamMsgVTableInfo(&response);
-      return code;
-    }
-    for (int32_t col = 0; col < 2; ++col) {
-      SColRef*   pRef = &pInfo->cols.pColRef[col];
-      const bool physicalA = crossRefSourceA_ ? (sourceA ? col == 0 : true) : sourceA;
-      pRef->hasRef = true;
-      tstrncpy(pRef->refDbName, physicalA ? "db_a" : "db_b", sizeof(pRef->refDbName));
-      tstrncpy(pRef->refTableName, physicalA ? "physical_a" : "physical_b", sizeof(pRef->refTableName));
-      tstrncpy(pRef->refColName, col == 0 ? "ts" : "v", sizeof(pRef->refColName));
+    const auto& bindings = sourceA ? virtualBindingsA_ : virtualBindingsB_;
+    for (const auto& binding : bindings) {
+      auto* pInfo = static_cast<VTableInfo*>(taosArrayReserve(response.infos, 1));
+      if (pInfo == nullptr) {
+        tDestroySStreamMsgVTableInfo(&response);
+        return terrno;
+      }
+      pInfo->gId = binding.second;
+      pInfo->uid = binding.first;
+      pInfo->cols.version = 1;
+      int32_t code = tInitDefaultSColRefWrapperByCols(&pInfo->cols, 2);
+      if (code != TSDB_CODE_SUCCESS) {
+        tDestroySStreamMsgVTableInfo(&response);
+        return code;
+      }
+      for (int32_t col = 0; col < 2; ++col) {
+        SColRef*   pRef = &pInfo->cols.pColRef[col];
+        const bool physicalA = crossRefSourceA_ ? (sourceA ? col == 0 : true) : sourceA;
+        pRef->hasRef = true;
+        tstrncpy(pRef->refDbName, physicalA ? "db_a" : "db_b", sizeof(pRef->refDbName));
+        tstrncpy(pRef->refTableName, physicalA ? "physical_a" : "physical_b", sizeof(pRef->refTableName));
+        tstrncpy(pRef->refColName, col == 0 ? "ts" : "v", sizeof(pRef->refColName));
+      }
     }
     int32_t         len = tSerializeSStreamMsgVTableInfo(nullptr, 0, &response);
     OwnedRpcPayload payload = OwnedRpcPayload::allocate(len);
@@ -14526,6 +14535,8 @@ class NestedHistoryHarness {
   bool                                 deployed_ = false;
   bool                                 dataSinkOwned_ = false;
   bool                                 crossRefSourceA_ = false;
+  std::vector<std::pair<int64_t, int64_t>> virtualBindingsA_ = {{2001, 42}};
+  std::vector<std::pair<int64_t, int64_t>> virtualBindingsB_ = {{2257, 42}};
   ESTriggerPullType                    failPullSendType_ = STRIGGER_PULL_FIRST_TS;
   bool                                 failPullSendArmed_ = false;
   int32_t                              nextPullSendCode_ = TSDB_CODE_SUCCESS;
@@ -14587,6 +14598,405 @@ class ScopedHistoryGroupIterationProbe {
  private:
   Stub stub_;
 };
+
+TEST(StreamHistoryVirtualInitTest, MatchingScalesWithTables) {
+  for (int32_t count : {16, 32}) {
+    SCOPED_TRACE(count);
+    NestedHistoryHarness harness;
+    ASSERT_TRUE(harness.deployVirtual());
+    std::vector<std::pair<int64_t, int64_t>> sourceA;
+    std::vector<std::pair<int64_t, int64_t>> sourceB;
+    for (int32_t i = 0; i < count; ++i) {
+      (i % 2 == 0 ? sourceA : sourceB).push_back({20000 + i, 10000 + i});
+    }
+    harness.setVirtualTableBindings(sourceA, sourceB);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startVirtualDiscovery());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualTableInfo());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondVirtualMgmtReaders());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllOriginalTableInfo());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllSetTable());
+    ScopedHistoryGroupIterationProbe probe(harness.task()->pVirtTableInfos);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualLastTs());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+    EXPECT_LE(probe.calls(), 4 * (count + 1));
+    RecordProperty("table_iterations_" + std::to_string(count), static_cast<int>(probe.calls()));
+    ASSERT_EQ(count, tSimpleHashGetSize(harness.historyContext()->pGroups));
+    for (int32_t i = 0; i < count; ++i) {
+      const auto* group = harness.historyGroup(10000 + i);
+      ASSERT_NE(nullptr, group);
+      ASSERT_EQ(1, taosArrayGetSize(group->pVirtTableInfos));
+      const auto* info = static_cast<const SSTriggerVirtTableInfo*>(taosArrayGetP(group->pVirtTableInfos, 0));
+      EXPECT_EQ(20000 + i, info->tbUid);
+    }
+  }
+}
+
+TEST(StreamHistoryVirtualInitTest, SharedBindingsKeepIndependentCopiesAndOriginalTables) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(NestedHistoryHarness::kScanStart + 100, true));
+  harness.setVirtualTableBindings({{2001, 42}, {2001, 43}, {2001, 42}}, {{2257, 42}});
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(2, tSimpleHashGetSize(harness.historyContext()->pGroups));
+  const auto* first = harness.historyGroup(42);
+  const auto* second = harness.historyGroup(43);
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, second);
+  ASSERT_EQ(2, taosArrayGetSize(first->pVirtTableInfos));
+  ASSERT_EQ(1, taosArrayGetSize(second->pVirtTableInfos));
+  EXPECT_EQ(2, tSimpleHashGetSize(first->pTableMetas));
+  EXPECT_EQ(2, tSimpleHashGetSize(second->pTableMetas));
+  const int64_t uid = 2001;
+  const auto*   original =
+      static_cast<const SSTriggerVirtTableInfo*>(tSimpleHashGet(harness.task()->pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, original);
+  const auto* copy = static_cast<const SSTriggerVirtTableInfo*>(taosArrayGetP(second->pVirtTableInfos, 0));
+  ASSERT_NE(nullptr, copy);
+  EXPECT_EQ(uid, copy->tbUid);
+  EXPECT_NE(original, copy);
+  EXPECT_NE(original->tbGids, copy->tbGids);
+  EXPECT_NE(original->pTrigColRefs, copy->pTrigColRefs);
+  EXPECT_NE(original->pCalcColRefs, copy->pCalcColRefs);
+  for (int32_t i = 0; i < taosArrayGetSize(first->pVirtTableInfos); ++i) {
+    const auto* other = static_cast<const SSTriggerVirtTableInfo*>(taosArrayGetP(first->pVirtTableInfos, i));
+    if (other->tbUid == uid) {
+      EXPECT_NE(other, copy);
+      EXPECT_NE(other->tbGids, copy->tbGids);
+      EXPECT_NE(other->pTrigColRefs, copy->pTrigColRefs);
+    }
+  }
+}
+
+static void expectHistoryExecutionUnprepared(NestedHistoryHarness& harness) {
+  const auto* context = harness.historyContext();
+  ASSERT_NE(nullptr, context);
+  EXPECT_EQ(STRIGGER_CONTEXT_WAIT_RECALC_REQ, context->status);
+  EXPECT_EQ(nullptr, context->pReaderTsdbProgress);
+  EXPECT_EQ(nullptr, context->pGroups);
+  EXPECT_EQ(nullptr, context->pSorter);
+  EXPECT_EQ(nullptr, context->pMerger);
+  EXPECT_EQ(nullptr, context->calcParamPool.pData);
+  EXPECT_EQ(nullptr, context->pCalcDataCache);
+  EXPECT_EQ(nullptr, context->pCalcDataCacheIters);
+}
+
+TEST(StreamHistoryLazyInitTest, NoFillHistoryStaysLightweightUntilRecalculation) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(1000, false, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  expectHistoryExecutionUnprepared(harness);
+  {
+    ScopedHistoryGroupIterationProbe probe(harness.task()->pVirtTableInfos);
+    for (int32_t i = 0; i < 3; ++i) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+      expectHistoryExecutionUnprepared(harness);
+    }
+    EXPECT_EQ(0, probe.calls());
+  }
+  stTriggerTaskUpdateHistoryDebugGauges(harness.task(), harness.historyContext());
+  EXPECT_EQ(0, harness.task()->historyDebugGauges.historyGroupCount);
+  EXPECT_EQ(0, harness.task()->historyDebugGauges.calcParamPoolCapacity);
+  SSTriggerRealtimeGroup group = {};
+  group.gid = 42;
+  group.newThreshold = 1000;
+  STimeWindow range = {1000, 1000};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  EXPECT_NE(nullptr, harness.historyContext()->pGroups);
+  EXPECT_NE(nullptr, harness.historyContext()->pMerger);
+  EXPECT_NE(nullptr, harness.findPull(STRIGGER_PULL_FIRST_TS, NestedHistoryHarness::kHistorySession));
+}
+
+TEST(StreamHistoryVirtualInitTest, RecalculationOnlyPreparesRequestedGroupAndReusesIndex) {
+  for (bool fillHistory : {false, true}) {
+    SCOPED_TRACE(fillHistory);
+    NestedHistoryHarness harness;
+    ASSERT_TRUE(harness.deployVirtual(1000, false, fillHistory));
+    harness.setVirtualTableBindings({{2001, 42}, {2002, 43}, {2003, 44}}, {{2257, 42}});
+    harness.task()->ignoreNoDataTrigger = true;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+    if (fillHistory) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+      ASSERT_EQ(3, tSimpleHashGetSize(harness.historyContext()->pGroups));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs(true));
+      expectHistoryExecutionUnprepared(harness);
+    }
+    for (int64_t gid : {INT64_C(42), INT64_C(43)}) {
+      SCOPED_TRACE(gid);
+      SSTriggerRealtimeGroup group = {};
+      group.gid = gid;
+      group.newThreshold = 1000;
+      STimeWindow range = {1000, 1000};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+      {
+        ScopedHistoryGroupIterationProbe probe(harness.task()->pVirtTableInfos);
+        ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+        EXPECT_EQ(fillHistory || gid == 43 ? 0 : 5, probe.calls());
+      }
+      ASSERT_EQ(1, tSimpleHashGetSize(harness.historyContext()->pGroups));
+      ASSERT_NE(nullptr, harness.historyGroup(gid));
+      EXPECT_EQ(gid == 42 ? 2 : 1, taosArrayGetSize(harness.historyGroup(gid)->pVirtTableInfos));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs());
+      while (auto* pull = harness.findPull(STRIGGER_PULL_TSDB_META, NestedHistoryHarness::kHistorySession)) {
+        ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondVirtualMetaForReader(pull->request.value().base.readerTaskId, {}));
+      }
+      expectHistoryExecutionUnprepared(harness);
+    }
+  }
+}
+
+TEST(StreamHistoryVirtualInitTest, MetadataInvalidationRebuildsIndexWithoutChangingActiveCopies) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(999, false, false));
+  harness.setVirtualTableBindings({{2001, 42}, {2002, 43}}, {{2257, 42}});
+  harness.task()->ignoreNoDataTrigger = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  SSTriggerRealtimeGroup group = {};
+  group.gid = 42;
+  group.newThreshold = 998;
+  STimeWindow range = {998, 998};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  ASSERT_NE(nullptr, harness.task()->pVirtTableGidIndex);
+  ASSERT_EQ(2, taosArrayGetSize(harness.historyGroup(42)->pVirtTableInfos));
+
+  stTriggerTaskInvalidateInternalGroupIndex(harness.task());
+  EXPECT_EQ(nullptr, harness.task()->pVirtTableGidIndex);
+  const int64_t uid = 2001;
+  auto*         original =
+      static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(harness.task()->pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, original);
+  const int64_t newGid = 43;
+  taosArrayClear(original->tbGids);
+  ASSERT_NE(nullptr, taosArrayPush(original->tbGids, &newGid));
+  original->tbVer = 7;
+  for (int32_t i = 0; i < taosArrayGetSize(harness.historyGroup(42)->pVirtTableInfos); ++i) {
+    auto* copy = static_cast<SSTriggerVirtTableInfo*>(taosArrayGetP(harness.historyGroup(42)->pVirtTableInfos, i));
+    EXPECT_EQ(42, *static_cast<int64_t*>(taosArrayGet(copy->tbGids, 0)));
+    EXPECT_NE(7, copy->tbVer);
+  }
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs());
+  expectHistoryExecutionUnprepared(harness);
+
+  group.gid = newGid;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+  {
+    ScopedHistoryGroupIterationProbe probe(harness.task()->pVirtTableInfos);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+    EXPECT_EQ(4, probe.calls());
+  }
+  ASSERT_EQ(1, tSimpleHashGetSize(harness.historyContext()->pGroups));
+  ASSERT_NE(nullptr, harness.historyGroup(newGid));
+  ASSERT_EQ(2, taosArrayGetSize(harness.historyGroup(newGid)->pVirtTableInfos));
+  bool found = false;
+  for (int32_t i = 0; i < taosArrayGetSize(harness.historyGroup(newGid)->pVirtTableInfos); ++i) {
+    auto* copy = static_cast<SSTriggerVirtTableInfo*>(taosArrayGetP(harness.historyGroup(newGid)->pVirtTableInfos, i));
+    if (copy->tbUid == uid) {
+      found = true;
+      EXPECT_EQ(7, copy->tbVer);
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST(StreamHistoryVirtualInitTest, PartialIndexFailureKeepsRequestQueuedAndCanRebuild) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(999, false, false));
+  harness.setVirtualTableBindings({{2001, 42}, {2002, 43}}, {{2257, 42}});
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  SSTriggerRealtimeGroup group = {};
+  group.gid = 42;
+  group.newThreshold = 998;
+  STimeWindow range = {998, 998};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+  SListNode* queued = TD_DLIST_HEAD(harness.task()->pRecalcRequests);
+  ASSERT_NE(nullptr, queued);
+  Stub stub;
+  gNestedHistoryPointerArrayStub = &stub;
+  gNestedHistoryFailPointerArrayPush = 2;
+  stub.set(taosArrayAddBatch, failNestedHistoryPointerArrayPush);
+  const int32_t code = harness.dispatchSerializedHistoryStart();
+  stub.reset(taosArrayAddBatch);
+  gNestedHistoryPointerArrayStub = nullptr;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, code);
+  EXPECT_EQ(0, gNestedHistoryFailPointerArrayPush);
+  EXPECT_EQ(nullptr, harness.task()->pVirtTableGidIndex);
+  EXPECT_EQ(queued, TD_DLIST_HEAD(harness.task()->pRecalcRequests));
+  expectHistoryExecutionUnprepared(harness);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  ASSERT_EQ(1, tSimpleHashGetSize(harness.historyContext()->pGroups));
+  ASSERT_NE(nullptr, harness.historyGroup(42));
+  EXPECT_EQ(2, taosArrayGetSize(harness.historyGroup(42)->pVirtTableInfos));
+}
+
+TEST(StreamHistoryVirtualInitTest, WarmIndexCloneFailureKeepsQueuedRequest) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(1000));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs(true));
+  expectHistoryExecutionUnprepared(harness);
+  auto* index = harness.task()->pVirtTableGidIndex;
+  ASSERT_NE(nullptr, index);
+  SSTriggerRealtimeGroup group = {};
+  group.gid = 42;
+  group.newThreshold = 1000;
+  STimeWindow range = {1000, 1000};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+  SListNode* queued = TD_DLIST_HEAD(harness.task()->pRecalcRequests);
+  ASSERT_NE(nullptr, queued);
+  Stub stub;
+  gNestedHistoryPointerArrayStub = &stub;
+  gNestedHistoryFailPointerArrayPush = 1;
+  stub.set(taosArrayAddBatch, failNestedHistoryPointerArrayPush);
+  const int32_t code = harness.dispatchSerializedHistoryStart();
+  stub.reset(taosArrayAddBatch);
+  gNestedHistoryPointerArrayStub = nullptr;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, code);
+  EXPECT_EQ(0, gNestedHistoryFailPointerArrayPush);
+  EXPECT_EQ(index, harness.task()->pVirtTableGidIndex);
+  EXPECT_EQ(queued, TD_DLIST_HEAD(harness.task()->pRecalcRequests));
+  expectHistoryExecutionUnprepared(harness);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  ASSERT_EQ(1, tSimpleHashGetSize(harness.historyContext()->pGroups));
+  ASSERT_NE(nullptr, harness.historyGroup(42));
+  EXPECT_EQ(2, taosArrayGetSize(harness.historyGroup(42)->pVirtTableInfos));
+}
+
+TEST(StreamHistoryLazyInitTest, FillHistoryPreparesOnlyOnHistoryTurn) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  expectHistoryExecutionUnprepared(harness);
+  ASSERT_EQ(1, listNEles(harness.task()->pRecalcRequests));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  EXPECT_NE(nullptr, harness.historyContext()->pReaderTsdbProgress);
+  EXPECT_NE(nullptr, harness.historyContext()->pSorter);
+  EXPECT_NE(nullptr, harness.historyContext()->pMerger);
+  EXPECT_NE(nullptr, harness.historyContext()->calcParamPool.pData);
+  EXPECT_EQ(0, listNEles(harness.task()->pRecalcRequests));
+}
+
+TEST(StreamHistoryLazyInitTest, MetadataWaitPreservesRequestAndUsesCompletedBinding) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  auto*      task = harness.task();
+  SListNode* queued = TD_DLIST_HEAD(task->pRecalcRequests);
+  ASSERT_NE(nullptr, queued);
+  task->virTableInfoReady = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  expectHistoryExecutionUnprepared(harness);
+  EXPECT_EQ(queued, TD_DLIST_HEAD(task->pRecalcRequests));
+  task->virTableInfoReady = true;
+  SSTriggerVTablePatchItem patch = {};
+  patch.vtbUid = 2001;
+  auto* patches = task->pRealtimeContext->patchContext.pPatchItems;
+  ASSERT_NE(nullptr, patches);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(patches, &patch.vtbUid, sizeof(patch.vtbUid), &patch, sizeof(patch)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  expectHistoryExecutionUnprepared(harness);
+  EXPECT_EQ(queued, TD_DLIST_HEAD(task->pRecalcRequests));
+  EXPECT_EQ(nullptr, harness.findPull(STRIGGER_PULL_FIRST_TS, NestedHistoryHarness::kHistorySession));
+  auto* original =
+      static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task->pVirtTableInfos, &patch.vtbUid, sizeof(patch.vtbUid)));
+  ASSERT_NE(nullptr, original);
+  original->tbVer = 2;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashRemove(patches, &patch.vtbUid, sizeof(patch.vtbUid)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  const auto* group = harness.historyGroup();
+  ASSERT_NE(nullptr, group);
+  bool found = false;
+  for (int32_t i = 0; i < taosArrayGetSize(group->pVirtTableInfos); ++i) {
+    const auto* copy = static_cast<const SSTriggerVirtTableInfo*>(taosArrayGetP(group->pVirtTableInfos, i));
+    if (copy->tbUid == original->tbUid) {
+      found = true;
+      EXPECT_EQ(2, copy->tbVer);
+      original->tbVer = 3;
+      EXPECT_EQ(2, copy->tbVer);
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST(StreamHistoryLazyInitTest, PreparationFailureKeepsQueuedRequestAndClearsPartialResources) {
+  for (int32_t failure : {1, 7, 8, 0}) {
+    SCOPED_TRACE(failure);
+    NestedHistoryHarness harness;
+    ASSERT_TRUE(harness.deployVirtual());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+    SListNode* queued = TD_DLIST_HEAD(harness.task()->pRecalcRequests);
+    ASSERT_NE(nullptr, queued);
+    Stub stub;
+    gNestedHistoryPointerArrayStub = &stub;
+    gNestedHistoryFailPointerArrayInit = failure;
+    gNestedHistoryFailPointerArrayPush = failure == 0 ? 1 : 0;
+    if (failure == 0) {
+      stub.set(taosArrayAddBatch, failNestedHistoryPointerArrayPush);
+    } else {
+      stub.set(taosArrayInit, failNestedHistoryPointerArrayInit);
+    }
+    const int32_t code = harness.startHistoryRequest();
+    stub.reset(taosArrayInit);
+    stub.reset(taosArrayAddBatch);
+    gNestedHistoryPointerArrayStub = nullptr;
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, code);
+    EXPECT_EQ(queued, TD_DLIST_HEAD(harness.task()->pRecalcRequests));
+    expectHistoryExecutionUnprepared(harness);
+    EXPECT_EQ(nullptr, harness.findPull(STRIGGER_PULL_FIRST_TS, NestedHistoryHarness::kHistorySession));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+    EXPECT_NE(nullptr, harness.historyContext()->pMerger);
+  }
+}
+
+TEST(StreamHistoryLazyInitTest, EmptyDiscoveredGroupsRemainEmpty) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  taosArrayClearEx(harness.task()->pVirTableInfoRsp, tDestroyVTableInfo);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  EXPECT_EQ(0, tSimpleHashGetSize(harness.historyContext()->pGroups));
+}
+
+TEST(StreamHistoryLazyInitTest, FinishedRoundReleasesResourcesAndNextRequestUsesNewBinding) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(1000));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs(true));
+  expectHistoryExecutionUnprepared(harness);
+  EXPECT_EQ(1, atomic_load_8(&harness.task()->historyFinished));
+  const int64_t uid = 2001;
+  auto*         original =
+      static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(harness.task()->pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, original);
+  original->tbVer = 7;
+  SSTriggerRealtimeGroup group = {};
+  group.gid = 42;
+  group.newThreshold = 1000;
+  STimeWindow range = {1000, 1000};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(harness.task(), &group, &range, false, true, true, 0));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  const auto* history = harness.historyGroup();
+  ASSERT_NE(nullptr, history);
+  bool found = false;
+  for (int32_t i = 0; i < taosArrayGetSize(history->pVirtTableInfos); ++i) {
+    const auto* copy = static_cast<const SSTriggerVirtTableInfo*>(taosArrayGetP(history->pVirtTableInfos, i));
+    if (copy->tbUid == uid) {
+      found = true;
+      EXPECT_EQ(7, copy->tbVer);
+    }
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST(StreamHistoryLazyInitTest, IdleContextCanBeUndeployed) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(1000, false, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  expectHistoryExecutionUnprepared(harness);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, harness.undeploy());
+}
 
 TEST(StreamCalcRequestCountTest, RepeatedGroupedCountDoesNotIterateGroups) {
   SSTriggerCalcRequest request = {};
@@ -18792,8 +19202,9 @@ TEST_F(StreamNestedHistoryPeerTest, LaterStepMayIntroduceNormalSource) {
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
     const auto readersBefore = snapshotVirtualReaders(harness);
     const auto endpointsBefore = snapshotVirtualReaderEndpoints(harness);
-    const auto mappingsBefore = snapshotVirtualMappings(harness);
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+    const auto mappingsBefore = snapshotVirtualMappings(harness);
+    ASSERT_FALSE(mappingsBefore.empty());
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs());
     ScopedNestedHistoryPeerRegistrationProbe registrationProbe;
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondVirtualMetaForReader(NestedHistoryHarness::kPartitionReaderTaskA, {}));
@@ -18855,8 +19266,9 @@ TEST_F(StreamNestedHistoryPeerTest, LaterStepMayIntroduceNormalSource) {
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
     const auto readersBefore = snapshotVirtualReaders(harness);
     const auto endpointsBefore = snapshotVirtualReaderEndpoints(harness);
-    const auto mappingsBefore = snapshotVirtualMappings(harness);
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+    const auto mappingsBefore = snapshotVirtualMappings(harness);
+    ASSERT_FALSE(mappingsBefore.empty());
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs());
     SSTriggerHistoryGroup* pGroup = harness.historyGroup();
     ASSERT_NE(nullptr, pGroup);
@@ -32060,6 +32472,7 @@ TEST_F(StreamTriggerRecalcOwnershipTest, FatalBeforeFirstStepFailsAcceptedJob) {
   history.pTask = &task_;
   history.sessionId = kHistorySessionId;
   history.status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
+  history.executionInitialized = true;
   history.pReaderTsdbProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
   ASSERT_NE(history.pReaderTsdbProgress, nullptr);
   SStreamTaskAddr       reader = {.taskId = 0x702, .nodeId = 7};
@@ -32305,6 +32718,8 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
     task_.pUserRecalcRequests = taosArrayInit(0, sizeof(SStreamRecalcReq));
     task_.pHistoryCutoffTime = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     task_.runnerList = taosArrayInit_s(sizeof(SStreamRunnerTarget), 1);
+    task_.pExtOrigTableRefs = taosArrayInit(0, sizeof(SSTriggerExtOrigTableRef));
+    ASSERT_NE(nullptr, task_.pExtOrigTableRefs);
     task_.readerList = taosArrayInit_s(sizeof(SStreamTaskAddr), 1);
     task_.pGroupRunning = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     task_.pSessionRunning = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -32362,10 +32777,15 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
     context_.pTask = &task_;
     context_.sessionId = kHistorySessionId;
     context_.status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
+    context_.executionInitialized = true;  // This fixture constructs its execution resources below.
     tdListInit(&context_.retryPullReqs, POINTER_BYTES);
     context_.pReaderTsdbProgress = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
     context_.pGroups = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     context_.pTrigDataBlocks = taosArrayInit(0, POINTER_BYTES);
+    tSimpleHashSetFreeFp(context_.pReaderTsdbProgress, [](void* value) {
+      auto* progress = static_cast<SSTriggerTsdbProgress*>(value);
+      taosArrayDestroyP(progress->pMetadatas, reinterpret_cast<FDelete>(blockDataDestroy));
+    });
     ASSERT_NE(context_.pReaderTsdbProgress, nullptr);
     ASSERT_NE(context_.pGroups, nullptr);
     ASSERT_NE(context_.pTrigDataBlocks, nullptr);
@@ -32438,7 +32858,7 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
         task_.pCalcNodes = nullptr;
       }
     }
-    if (historyGroupInitialized_) {
+    if (historyGroupInitialized_ && context_.calcParamPool.pData != nullptr) {
       if (historyGroup_.inMaxDelayHeap) heapRemove(context_.pMaxDelayHeap, &historyGroup_.heapNode);
       taosObjListClearEx(&historyGroup_.pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
       taosObjListClearEx(&historyGroup_.pPendingCalcParams, tDestroySSTriggerCalcParam);
@@ -32465,11 +32885,6 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
       pending =
           static_cast<SSTriggerGroupPendingRecalc*>(tSimpleHashIterate(task_.pGroupPendingRecalcs, pending, &iter));
     }
-    auto* reader = static_cast<SStreamTaskAddr*>(taosArrayGet(task_.readerList, 0));
-    auto* progress = static_cast<SSTriggerTsdbProgress*>(
-        tSimpleHashGet(context_.pReaderTsdbProgress, &reader->nodeId, sizeof(reader->nodeId)));
-    taosArrayDestroyP(progress->pMetadatas, reinterpret_cast<FDelete>(blockDataDestroy));
-    progress->pMetadatas = nullptr;
     tSimpleHashCleanup(context_.pReaderTsdbProgress);
     taosArrayDestroyP(context_.pTrigDataBlocks, reinterpret_cast<FDelete>(blockDataDestroy));
     tSimpleHashCleanup(context_.pGroups);
@@ -32484,6 +32899,7 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
     tSimpleHashCleanup(task_.pSessionRunning);
     tSimpleHashCleanup(task_.pGroupRunning);
     taosArrayDestroy(task_.pReaderProgressSnapshots);
+    taosArrayDestroy(task_.pExtOrigTableRefs);
     taosArrayDestroy(task_.readerList);
     taosArrayDestroy(task_.runnerList);
     tSimpleHashCleanup(task_.pHistoryCutoffTime);
@@ -32900,17 +33316,21 @@ class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
 
   int32_t ProcessManualReaderResponse(SSTriggerRecalcRequest* request, uint64_t stepId, uint64_t token,
                                       int32_t responseCode) {
-    progress_->pullReq.base.type = STRIGGER_PULL_TSDB_META;
-    progress_->pullReq.base.progressStepId = stepId;
-    progress_->pullReq.base.progressRequestToken = token;
-    progress_->pullReq.base.manualAttempt = {request->attempt.chainId, request->attempt.executionOrdinal};
-    SSTriggerAHandle ahandle = {.streamId = task_.task.streamId,
-                                .taskId = task_.task.taskId,
-                                .sessionId = kHistorySessionId,
-                                .param = &progress_->pullReq.base,
-                                .progressStepId = stepId,
-                                .progressRequestToken = token,
-                                .manualAttempt = progress_->pullReq.base.manualAttempt};
+    SSTriggerPullRequest pullRequest = {};
+    pullRequest.streamId = task_.task.streamId;
+    pullRequest.sessionId = kHistorySessionId;
+    pullRequest.type = STRIGGER_PULL_TSDB_META;
+    pullRequest.progressStepId = stepId;
+    pullRequest.progressRequestToken = token;
+    pullRequest.manualAttempt = {request->attempt.chainId, request->attempt.executionOrdinal};
+    SSTriggerAHandle ahandle = {};
+    ahandle.streamId = task_.task.streamId;
+    ahandle.taskId = task_.task.taskId;
+    ahandle.sessionId = kHistorySessionId;
+    ahandle.param = &pullRequest;
+    ahandle.progressStepId = stepId;
+    ahandle.progressRequestToken = token;
+    ahandle.manualAttempt = pullRequest.manualAttempt;
     SMsgSendInfo     sendInfo = {};
     sendInfo.param = &ahandle;
     SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_PULL_RSP, .code = responseCode};
@@ -33144,7 +33564,169 @@ class StreamTriggerTaskManualRetryTest : public StreamTriggerRecalcBarrierTest {
   }
 };
 
+TEST(StreamHistoryLazyInitTest, DrainedManualFailureReleasesBindingsBeforeNextRequest) {
+  for (uint32_t finalOrdinal : {0U, 3U}) {
+    SCOPED_TRACE(finalOrdinal);
+    NestedHistoryHarness harness;
+    ASSERT_TRUE(harness.deployVirtual(1000, false, false));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+    auto*         task = harness.task();
+    const int64_t gid = 42;
+    SArray*       gids = taosArrayInit(1, sizeof(gid));
+    ASSERT_NE(nullptr, gids);
+    ASSERT_NE(nullptr, taosArrayPush(gids, &gid));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stRecalcTrackerRegisterJob(task->pRecalcTracker, 77, {1000, 1001}, gids));
+    taosArrayDestroy(gids);
+    SSTriggerRealtimeGroup group = {};
+    group.gid = gid;
+    group.newThreshold = 1000;
+    STimeWindow range = {1000, 1000};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(task, &group, &range, false, true, true, 77));
+    ASSERT_NE(nullptr, TD_DLIST_HEAD(task->pRecalcRequests));
+    auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(TD_DLIST_HEAD(task->pRecalcRequests)->data);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stRecalcAttemptCreate(1, &request->pPreparedAttempt));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              stRecalcTrackerActivateAttempt(task->pRecalcTracker, &request->pPreparedAttempt, gid, {1000, 1001},
+                                             {1000, 1001}, request->pContributors, &request->attempt));
+    request->frozen = true;
+    request->pRetryWaitNode =
+        static_cast<SListNode*>(taosMemoryCalloc(1, sizeof(SListNode) + sizeof(ManualWaitInfoView)));
+    ASSERT_NE(nullptr, request->pRetryWaitNode);
+    for (uint32_t ordinal = 0; ordinal < finalOrdinal; ++ordinal) {
+      SStreamRecalcAttemptOutcome outcome = {};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, stRecalcTrackerRecordAttemptFailure(task->pRecalcTracker, request->attempt,
+                                                                       TSDB_CODE_RPC_TIMEOUT, &outcome));
+      ASSERT_EQ(STREAM_RECALC_ATTEMPT_RETRY, outcome.decision);
+      ASSERT_EQ(TSDB_CODE_SUCCESS,
+                stRecalcTrackerStartRetry(task->pRecalcTracker, request->attempt.chainId, &request->attempt));
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+    ASSERT_NE(nullptr, harness.historyGroup());
+    int32_t responses = 0;
+    while (auto* pull = harness.findPull(STRIGGER_PULL_FIRST_TS, NestedHistoryHarness::kHistorySession)) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPullError(*pull, TSDB_CODE_RPC_TIMEOUT));
+      ++responses;
+    }
+    EXPECT_EQ(4, responses);
+    expectHistoryExecutionUnprepared(harness);
+    EXPECT_FALSE(harness.historyContext()->executionInitialized);
+    EXPECT_EQ(finalOrdinal == 0 ? 1 : 0, TD_DLIST_NELES(&task->backoffRecalcRequests));
+    const int64_t uid = 2001;
+    auto* original = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task->pVirtTableInfos, &uid, sizeof(uid)));
+    ASSERT_NE(nullptr, original);
+    original->tbVer = 7;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(task, &group, &range, false, true, true, 0));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+    const auto* history = harness.historyGroup();
+    ASSERT_NE(nullptr, history);
+    bool found = false;
+    for (int32_t i = 0; i < taosArrayGetSize(history->pVirtTableInfos); ++i) {
+      const auto* copy = static_cast<const SSTriggerVirtTableInfo*>(taosArrayGetP(history->pVirtTableInfos, i));
+      if (copy->tbUid == uid) {
+        found = true;
+        EXPECT_EQ(7, copy->tbVer);
+      }
+    }
+    EXPECT_TRUE(found);
+  }
+}
+
 class StreamTriggerTaskManualRetryIntegrationTest : public StreamTriggerTaskManualRetryTest {};
+
+TEST(StreamHistoryVirtualInitTest, RetryPreparesBeforeActivationAndHonorsEarlierQueuedGroup) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deployVirtual(999, false, false));
+  harness.setVirtualTableBindings({{2001, 42}, {2002, 43}}, {{2257, 42}});
+  auto* task = harness.task();
+  task->ignoreNoDataTrigger = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.driveVirtualDiscovery());
+  const int64_t gid = 42;
+  SArray*       gids = taosArrayInit(1, sizeof(gid));
+  ASSERT_NE(nullptr, gids);
+  ASSERT_NE(nullptr, taosArrayPush(gids, &gid));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRecalcTrackerRegisterJob(task->pRecalcTracker, 78, {998, 999}, gids));
+  taosArrayDestroy(gids);
+  SSTriggerRealtimeGroup group = {};
+  group.gid = gid;
+  group.newThreshold = 998;
+  STimeWindow range = {998, 998};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(task, &group, &range, false, true, true, 78));
+  ASSERT_NE(nullptr, TD_DLIST_HEAD(task->pRecalcRequests));
+  auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(TD_DLIST_HEAD(task->pRecalcRequests)->data);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRecalcAttemptCreate(1, &request->pPreparedAttempt));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stRecalcTrackerActivateAttempt(task->pRecalcTracker, &request->pPreparedAttempt, gid, {998, 999},
+                                           {998, 999}, request->pContributors, &request->attempt));
+  request->frozen = true;
+  request->pRetryWaitNode =
+      static_cast<SListNode*>(taosMemoryCalloc(1, sizeof(SListNode) + sizeof(ManualWaitInfoView)));
+  ASSERT_NE(nullptr, request->pRetryWaitNode);
+  SListNode* retryWaitNode = request->pRetryWaitNode;
+  SSHashObj* frozenVersions = request->pTsdbVersions;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  while (auto* pull = harness.findPull(STRIGGER_PULL_FIRST_TS, NestedHistoryHarness::kHistorySession)) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPullError(*pull, TSDB_CODE_RPC_TIMEOUT));
+  }
+  expectHistoryExecutionUnprepared(harness);
+  ASSERT_EQ(request, TD_DLIST_HEAD(&task->backoffRecalcRequests));
+  group.gid = 43;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAddRecalcRequest(task, &group, &range, false, true, true, 0));
+  SListNode* earlier = TD_DLIST_HEAD(task->pRecalcRequests);
+  ASSERT_NE(nullptr, earlier);
+  stTriggerTaskInvalidateInternalGroupIndex(task);
+
+  for (bool failIndex : {true, false}) {
+    SCOPED_TRACE(failIndex);
+    Stub stub;
+    gManualAcquiredTask = &task->task;
+    stub.set(streamAcquireTask, acquireManualTriggerTask);
+    stub.set(streamReleaseTask, releaseManualTriggerTask);
+    stub.set(streamTmrStart, captureManualWaitTimer);
+    PutToQueueFp oldPut = gStreamMgmt.msgCb.putToQueueFp;
+    gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+    reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+    const int8_t stopped = atomic_load_8(&gStreamMgmt.tmrStopped);
+    atomic_store_8(&gStreamMgmt.tmrStopped, 0);
+    gRealtimePipelineWaitTimerCallback(nullptr, nullptr);
+    atomic_store_8(&gStreamMgmt.tmrStopped, stopped);
+    gStreamMgmt.msgCb.putToQueueFp = oldPut;
+    gManualAcquiredTask = nullptr;
+    ASSERT_NE(nullptr, gManualQueuedCtrl.pCont);
+    if (failIndex) {
+      gNestedHistoryPointerArrayStub = &stub;
+      gNestedHistoryFailPointerArrayPush = 2;
+      stub.set(taosArrayAddBatch, failNestedHistoryPointerArrayPush);
+    }
+    int64_t       errorTaskId = 0;
+    const int32_t code = stTriggerTaskProcessRsp(&task->task, &gManualQueuedCtrl, &errorTaskId);
+    rpcFreeCont(gManualQueuedCtrl.pCont);
+    gManualQueuedCtrl = {};
+    stub.reset(taosArrayAddBatch);
+    gNestedHistoryPointerArrayStub = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    if (failIndex) {
+      EXPECT_EQ(0, gNestedHistoryFailPointerArrayPush);
+      EXPECT_EQ(0U, request->attempt.executionOrdinal);
+      EXPECT_EQ(request, TD_DLIST_HEAD(&task->backoffRecalcRequests));
+      EXPECT_EQ(earlier, TD_DLIST_HEAD(task->pRecalcRequests));
+      EXPECT_EQ(nullptr, task->pVirtTableGidIndex);
+      expectHistoryExecutionUnprepared(harness);
+    }
+  }
+  EXPECT_EQ(1U, request->attempt.executionOrdinal);
+  EXPECT_EQ(frozenVersions, request->pTsdbVersions);
+  ASSERT_EQ(1, tSimpleHashGetSize(harness.historyContext()->pGroups));
+  ASSERT_NE(nullptr, harness.historyGroup(43));
+  EXPECT_EQ(nullptr, harness.historyGroup(42));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondAllVirtualFirstTs());
+  expectHistoryExecutionUnprepared(harness);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  ASSERT_EQ(1, tSimpleHashGetSize(harness.historyContext()->pGroups));
+  ASSERT_NE(nullptr, harness.historyGroup(42));
+  EXPECT_EQ(nullptr, harness.historyGroup(43));
+  EXPECT_EQ(request, harness.historyContext()->pManualRecalcRequest);
+  EXPECT_EQ(frozenVersions, request->pTsdbVersions);
+}
 
 TEST_F(StreamTriggerTaskManualRetryIntegrationTest, ReaderTimeoutDrainsAndRetriesFrozenRequestToSuccess) {
   constexpr int64_t       firstRecalcId = 301;
@@ -33781,6 +34363,90 @@ TEST_F(StreamTriggerTaskManualRetryTest, PreparedRetryNodeSurvivesAllocationFail
   EXPECT_EQ(request->attempt.executionOrdinal, 0U);
 }
 
+TEST_F(StreamTriggerTaskManualRetryTest, MetadataWaitDoesNotAllocateOrAdvanceRetry) {
+  ASSERT_EQ(QueueManualRecalc(204), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->pPreparedAttempt, nullptr);
+  EXPECT_NE(request->pRetryWaitNode, nullptr);
+
+  SListNode*     retryWaitNode = request->pRetryWaitNode;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->pRetryWaitNode, nullptr);
+
+  gManualAcquiredTask = &task_.task;
+  stub_.set(streamAcquireTask, acquireManualTriggerTask);
+  stub_.set(streamReleaseTask, releaseManualTriggerTask);
+  PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+
+  ASSERT_NE(gManualQueuedCtrl.pCont, nullptr);
+  task_.isVirtualTable = true;
+  task_.virTableInfoReady = false;
+  stub_.set(taosMemCalloc, failManualRetryAllocation);
+  ASSERT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+  stub_.reset(taosMemCalloc);
+  task_.isVirtualTable = false;
+
+  EXPECT_EQ(0, gManualRetryAllocCalls);
+  const auto* retryWaitInfo = reinterpret_cast<const ManualWaitInfoView*>(retryWaitNode->data);
+  EXPECT_EQ(retryWaitInfo->manualRecalcChainId, request->attempt.chainId);
+  EXPECT_GT(retryWaitInfo->resumeTime, 0);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->pRetryWaitNode, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->attempt.executionOrdinal, 0U);
+}
+
+TEST_F(StreamTriggerTaskManualRetryTest, ExecutionPreparationFailureDoesNotAdvanceRetry) {
+  ASSERT_EQ(QueueManualRecalc(204), TSDB_CODE_SUCCESS);
+  SSTriggerRecalcRequest* request = FetchReadyRecalc();
+  ASSERT_NE(request, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->pPreparedAttempt, nullptr);
+  EXPECT_NE(request->pRetryWaitNode, nullptr);
+
+  SListNode*     retryWaitNode = request->pRetryWaitNode;
+  const uint64_t stepId = AttachManualRequest(request, 1, 0);
+  ASSERT_EQ(ProcessManualReaderResponse(request, stepId, 1, TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->pRetryWaitNode, nullptr);
+
+  gManualAcquiredTask = &task_.task;
+  stub_.set(streamAcquireTask, acquireManualTriggerTask);
+  stub_.set(streamReleaseTask, releaseManualTriggerTask);
+  PutToQueueFp previousPutToQueue = gStreamMgmt.msgCb.putToQueueFp;
+  gStreamMgmt.msgCb.putToQueueFp = captureManualTriggerStart;
+  reinterpret_cast<ManualWaitInfoView*>(retryWaitNode->data)->resumeTime = 0;
+  gManualWaitCallback(nullptr, nullptr);
+  gStreamMgmt.msgCb.putToQueueFp = previousPutToQueue;
+  gManualAcquiredTask = nullptr;
+
+  ASSERT_NE(gManualQueuedCtrl.pCont, nullptr);
+  gNestedHistoryPointerArrayStub = &stub_;
+  gNestedHistoryFailPointerArrayInit = 1;
+  stub_.set(taosArrayInit, failNestedHistoryPointerArrayInit);
+  ASSERT_EQ(ProcessQueuedManualCtrl(), TSDB_CODE_SUCCESS);
+  stub_.reset(taosArrayInit);
+  gNestedHistoryPointerArrayStub = nullptr;
+
+  EXPECT_EQ(0, gNestedHistoryFailPointerArrayInit);
+  const auto* retryWaitInfo = reinterpret_cast<const ManualWaitInfoView*>(retryWaitNode->data);
+  EXPECT_EQ(retryWaitInfo->manualRecalcChainId, request->attempt.chainId);
+  EXPECT_GT(retryWaitInfo->resumeTime, 0);
+  EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
+  EXPECT_EQ(request->pRetryWaitNode, nullptr);
+  EXPECT_TRUE(request->frozen);
+  EXPECT_EQ(request->attempt.executionOrdinal, 0U);
+}
+
 TEST_F(StreamTriggerTaskManualRetryTest, ReaderErrorBypassesRpcRetryQueueAndTaskError) {
   ASSERT_EQ(QueueManualRecalc(205), TSDB_CODE_SUCCESS);
   SSTriggerRecalcRequest* request = FetchReadyRecalc();
@@ -33839,6 +34505,15 @@ TEST_F(StreamTriggerTaskManualRetryTest, LocalFailureAfterCalcAcquireReturnsPool
   context_.pMinGroup = &historyGroup_;
   historyGroupInitialized_ = true;
   historyHeapInitialized_ = true;
+  SSTriggerHistoryGroup* ownedGroup = &historyGroup_;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(context_.pGroups, &historyGroup_.gid, sizeof(historyGroup_.gid),
+                                              &ownedGroup, sizeof(ownedGroup)));
+  tSimpleHashSetFreeFp(context_.pGroups, [](void* value) {
+    auto* group = *static_cast<SSTriggerHistoryGroup**>(value);
+    taosObjListClearEx(&group->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
+    taosObjListClearEx(&group->pPendingCalcParams, tDestroySSTriggerCalcParam);
+    group->inMaxDelayHeap = false;
+  });
 
   gManualCalcPoolTask = &task_;
   stub_.set(taosArrayAddBatch, failManualCalcParamPush);
@@ -33873,7 +34548,7 @@ TEST_F(StreamTriggerTaskManualRetryTest, LocalFailureAfterCalcAcquireReturnsPool
   task_.pCalcNodes = nullptr;
 }
 
-TEST_F(StreamTriggerTaskManualRetryTest, OrdinaryHistoryAppendFailureKeepsOwnedFieldsForRetry) {
+TEST_F(StreamTriggerTaskManualRetryTest, DrainedAppendFailureReleasesOwnedFieldsBeforeRetry) {
   stub_.reset(stTriggerTaskReleaseRequest);
   task_.pCalcNodes = taosArrayInit_s(sizeof(SSTriggerCalcNode), 1);
   ASSERT_NE(task_.pCalcNodes, nullptr);
@@ -33917,11 +34592,15 @@ TEST_F(StreamTriggerTaskManualRetryTest, OrdinaryHistoryAppendFailureKeepsOwnedF
   context_.pMinGroup = &historyGroup_;
   historyGroupInitialized_ = true;
   historyHeapInitialized_ = true;
-
-  const auto* pPending = static_cast<const SSTriggerCalcParam*>(taosObjListGetHead(&historyGroup_.pPendingCalcParams));
-  ASSERT_NE(nullptr, pPending);
-  char* pExtraNotifyContent = pPending->extraNotifyContent;
-  char* pResultNotifyContent = pPending->resultNotifyContent;
+  SSTriggerHistoryGroup* ownedGroup = &historyGroup_;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(context_.pGroups, &historyGroup_.gid, sizeof(historyGroup_.gid),
+                                              &ownedGroup, sizeof(ownedGroup)));
+  tSimpleHashSetFreeFp(context_.pGroups, [](void* value) {
+    auto* group = *static_cast<SSTriggerHistoryGroup**>(value);
+    taosObjListClearEx(&group->pPendingParWinCalcParams, tDestroySSTriggerCalcParam);
+    taosObjListClearEx(&group->pPendingCalcParams, tDestroySSTriggerCalcParam);
+    group->inMaxDelayHeap = false;
+  });
 
   gManualCalcPoolTask = &task_;
   stub_.set(taosArrayAddBatch, failManualCalcParamPush);
@@ -33933,11 +34612,9 @@ TEST_F(StreamTriggerTaskManualRetryTest, OrdinaryHistoryAppendFailureKeepsOwnedF
   EXPECT_EQ(context_.pCalcReq, nullptr);
   EXPECT_EQ(TD_DLIST_NELES(&calcNode->idleSlots), 2);
   EXPECT_EQ(TD_DLIST_HEAD(&task_.backoffRecalcRequests), request);
-  ASSERT_EQ(historyGroup_.pPendingCalcParams.neles, 1);
-  pPending = static_cast<const SSTriggerCalcParam*>(taosObjListGetHead(&historyGroup_.pPendingCalcParams));
-  ASSERT_NE(nullptr, pPending);
-  EXPECT_EQ(pExtraNotifyContent, pPending->extraNotifyContent);
-  EXPECT_EQ(pResultNotifyContent, pPending->resultNotifyContent);
+  EXPECT_EQ(nullptr, context_.pGroups);
+  EXPECT_EQ(nullptr, context_.calcParamPool.pData);
+  EXPECT_EQ(0, historyGroup_.pPendingCalcParams.neles);
 
   if (context_.pCalcReq != nullptr) {
     ASSERT_EQ(stTriggerTaskReleaseRequest(&task_, &context_.pCalcReq, false), TSDB_CODE_SUCCESS);
@@ -34211,7 +34888,9 @@ TEST_F(StreamTriggerRecalcBarrierTest, MaximumHistoryCutoffUsesSaturatedRange) {
 
 TEST_F(StreamTriggerRecalcBarrierTest, FirstTsConfirmedPrefixCountsAsComplete) {
   ASSERT_EQ(QueueFillHistory(100, 199), TSDB_CODE_SUCCESS);
+  context_.isHistory = true;  // This fixture already prepared the fill-history execution scope.
   task_.isVirtualTable = true;
+  task_.virTableInfoReady = true;
   historyGroup_.gid = 11;
   historyGroup_.pTableMetas = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   ASSERT_NE(historyGroup_.pTableMetas, nullptr);
