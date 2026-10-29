@@ -6272,6 +6272,123 @@ TEST(td_msg_test, askep_rsp_accept_epset_inuse_boundary) {
   }
 }
 
+// ---- vnode mgmt request bounds (Devon scan items 34/54/272) ----
+
+static void fillVnodeReplicas(SReplica *replicas, int32_t n) {
+  for (int32_t i = 0; i < n; ++i) {
+    replicas[i].id = i + 1;
+    replicas[i].port = 6030;
+    snprintf(replicas[i].fqdn, sizeof(replicas[i].fqdn), "host%d", i + 1);
+  }
+}
+
+static int32_t decodeCreateVnode(int8_t replica, int8_t selfIndex, int8_t learnerReplica, int8_t learnerSelfIndex) {
+  SCreateVnodeReq req = {0};
+  req.vgId = 2;
+  req.replica = replica;
+  req.selfIndex = selfIndex;
+  req.learnerReplica = learnerReplica;
+  req.learnerSelfIndex = learnerSelfIndex;
+  fillVnodeReplicas(req.replicas, TSDB_MAX_REPLICA);
+  fillVnodeReplicas(req.learnerReplicas, TSDB_MAX_LEARNER_REPLICA);
+
+  std::vector<char> buf(64 * 1024);
+  int32_t           len = tSerializeSCreateVnodeReq(buf.data(), (int32_t)buf.size(), &req);
+  EXPECT_GT(len, 0);
+  if (len <= 0) return len;
+
+  SCreateVnodeReq out = {0};
+  int32_t         code = tDeserializeSCreateVnodeReq(buf.data(), len, &out);
+  tFreeSCreateVnodeReq(&out);
+  return code;
+}
+
+TEST(td_msg_test, create_vnode_req_bounds) {
+  EXPECT_EQ(decodeCreateVnode(3, 0, 0, -1), 0);
+  EXPECT_EQ(decodeCreateVnode(TSDB_MAX_REPLICA, TSDB_MAX_REPLICA - 1, TSDB_MAX_LEARNER_REPLICA,
+                              TSDB_MAX_LEARNER_REPLICA - 1),
+            0);
+  EXPECT_EQ(decodeCreateVnode(3, -1, 1, 0), 0);
+
+  // replica / learnerReplica out of range
+  EXPECT_NE(decodeCreateVnode(127, 0, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(-1, 0, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(TSDB_MAX_REPLICA + 1, 0, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, 127, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, -1, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, TSDB_MAX_LEARNER_REPLICA + 1, -1), 0);
+
+  // selfIndex / learnerSelfIndex out of range
+  EXPECT_NE(decodeCreateVnode(3, 127, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, -128, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, TSDB_MAX_REPLICA, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, 1, 127), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, 1, TSDB_MAX_LEARNER_REPLICA), 0);
+}
+
+static int32_t decodeAlterVnodeReplica(int8_t replica, int8_t selfIndex, int8_t learnerReplica,
+                                       int8_t learnerSelfIndex) {
+  SAlterVnodeReplicaReq req = {0};
+  req.vgId = 2;
+  req.replica = replica;
+  req.selfIndex = selfIndex;
+  req.learnerReplica = learnerReplica;
+  req.learnerSelfIndex = learnerSelfIndex;
+  fillVnodeReplicas(req.replicas, TSDB_MAX_REPLICA);
+  fillVnodeReplicas(req.learnerReplicas, TSDB_MAX_LEARNER_REPLICA);
+
+  std::vector<char> buf(64 * 1024);
+  int32_t           len = tSerializeSAlterVnodeReplicaReq(buf.data(), (int32_t)buf.size(), &req);
+  EXPECT_GT(len, 0);
+  if (len <= 0) return len;
+
+  SAlterVnodeReplicaReq out = {0};
+  return tDeserializeSAlterVnodeReplicaReq(buf.data(), len, &out);
+}
+
+TEST(td_msg_test, alter_vnode_replica_req_bounds) {
+  EXPECT_EQ(decodeAlterVnodeReplica(3, 0, 0, -1), 0);
+  EXPECT_EQ(decodeAlterVnodeReplica(TSDB_MAX_REPLICA, TSDB_MAX_REPLICA - 1, TSDB_MAX_LEARNER_REPLICA,
+                                    TSDB_MAX_LEARNER_REPLICA - 1),
+            0);
+
+  EXPECT_NE(decodeAlterVnodeReplica(127, 0, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(-1, 0, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, 127, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, -128, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, 0, 127, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, 0, 1, 127), 0);
+}
+
+TEST(td_msg_test, set_keep_version_req_short_buffer) {
+  SVndSetKeepVersionReq req = {0};
+  req.keepVersion = 123;
+  char    buf[64] = {0};
+  int32_t len = tSerializeSVndSetKeepVersionReq(buf, sizeof(buf), &req);
+  ASSERT_GT(len, 0);
+
+  SVndSetKeepVersionReq out = {0};
+  EXPECT_EQ(tDeserializeSVndSetKeepVersionReq(buf, len, &out), 0);
+  EXPECT_EQ(out.keepVersion, 123);
+
+  // a truncated body must be rejected by the decoder rather than read past the buffer
+  for (int32_t n = 0; n < len; ++n) {
+    SVndSetKeepVersionReq tmp = {0};
+    EXPECT_NE(tDeserializeSVndSetKeepVersionReq(buf, n, &tmp), 0) << "len:" << n;
+  }
+}
+
+TEST(td_msg_test, replica_cfg_in_range) {
+  EXPECT_TRUE(tsdbReplicaCfgInRange(0, -1, TSDB_MAX_REPLICA));
+  EXPECT_TRUE(tsdbReplicaCfgInRange(TSDB_MAX_REPLICA, TSDB_MAX_REPLICA - 1, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(TSDB_MAX_REPLICA + 1, 0, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(-1, 0, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(3, -2, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(3, TSDB_MAX_REPLICA, TSDB_MAX_REPLICA));
+  EXPECT_TRUE(tsdbReplicaCfgInRange(TSDB_MAX_LEARNER_REPLICA, TSDB_MAX_LEARNER_REPLICA - 1, TSDB_MAX_LEARNER_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(1, TSDB_MAX_LEARNER_REPLICA, TSDB_MAX_LEARNER_REPLICA));
+}
+
 namespace {
 
 SRefColInfo makeSubTableRef(int16_t colId, const char* db, const char* tb, const char* col, const char* src) {
