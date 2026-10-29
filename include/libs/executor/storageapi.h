@@ -394,7 +394,21 @@ typedef struct SStoreMeta {
   // chain across one or more vtables. This API walks that chain (single or multi-hop,
   // possibly cross-vnode) and rebuilds STUidTagInfo.pTagVal as a fresh STag carrying
   // the resolved literal tag values. No-op when suid is not a virtual stable.
-  int32_t (*resolveVTableTagChain)(void* pVnode, int64_t suid, SArray* pUidTagList);
+  // pTagCids lists the TAG column IDs the caller is going to read (SArray of col_id_t).
+  // NULL means "resolve every TAG of the stable"; an empty array means the caller reads
+  // no TAG, so no ref chain has to be walked. Narrowing the set keeps callers from
+  // blocking on cross-vnode ref resolution for TAGs that do not take part in the
+  // current evaluation.
+  // Resolution and rebuild failures are returned; filtering callers must not evaluate
+  // partially resolved tags after an error. txnId carries the reader's batch metadata
+  // transaction so children created in the same transaction stay visible.
+  int32_t (*resolveVTableTagChain)(void* pVnode, int64_t suid, SArray* pUidTagList, const SArray* pTagCids,
+                                   int64_t txnId);
+  // true when suid is a virtual super table. Its children TAG values can come from ref
+  // chains resolved outside this vg, and a source TAG update only invalidates the caches
+  // of the source stable, so tag conditions on such a stable must not be served from the
+  // tag filter caches.
+  bool (*isVirtualSuperTable)(void* pVnode, tb_uid_t suid, int64_t txnId);
   const void* (*extractTagVal)(const void* tag, int16_t type, STagVal* tagVal);  // todo remove it
 
   int32_t (*getTableUidByName)(void* pVnode, char* tbName, uint64_t* uid, int64_t txnId);

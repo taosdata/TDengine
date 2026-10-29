@@ -1772,8 +1772,14 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   static int32_t readEntry(SMetaReader *reader, tb_uid_t uid) {
     auto *self = active_;
     memset(&reader->me, 0, sizeof(reader->me));
+    // Simulates a child that disappears (or whose ref source is dropped) before the
+    // resolve batch runs: the seed skips it, so uid2Result ends up without an entry.
+    if (uid == self->metaMissingUid_) {
+      return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    }
     if (uid == kStableUid) {
       reader->me.type = TSDB_SUPER_TABLE;
+      TABLE_SET_VIRTUAL(reader->me.flags);
       reader->me.stbEntry.schemaTag.nCols = 1;
       reader->me.stbEntry.schemaTag.pSchema = &self->schema_;
     } else {
@@ -1807,6 +1813,11 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
     } else {
       EXPECT_EQ(TDMT_VND_VTABLE_REF_RESOLVE, info->msgType);
       ++self->resolveRequests_;
+      if (self->rpcError_ != TSDB_CODE_SUCCESS) {
+        EXPECT_EQ(self->rpcError_, info->fp(info->param, &response, self->rpcError_));
+        destroySendMsgInfo(info);
+        return TSDB_CODE_SUCCESS;
+      }
       SVTableRefResolveReq request = {};
       EXPECT_EQ(0, tDeserializeSVTableRefResolveReq(
                        static_cast<char *>(info->msgInfo.pData) + sizeof(SMsgHead),
@@ -1818,12 +1829,13 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
       SVTableRefResolveRsp reply = {};
       reply.items = taosArrayInit(1, sizeof(SVTableRefResolveRspItem));
       SVTableRefResolveRspItem item = {};
+      item.code = self->itemError_;
       int32_t value = 42;
       item.terminated = true;
       item.nextRef.kind = STREAM_VREF_KIND_TAG;
       item.tagType = TSDB_DATA_TYPE_INT;
-      item.tagLen = sizeof(value);
-      item.tagData = reinterpret_cast<char *>(&value);
+      item.tagLen = self->nullTag_ ? 0 : sizeof(value);
+      item.tagData = self->nullTag_ ? nullptr : reinterpret_cast<char *>(&value);
       taosArrayPush(reply.items, &item);
       response.len = tSerializeSVTableRefResolveRsp(nullptr, 0, &reply);
       response.pData = taosMemoryMalloc(response.len);
@@ -1878,6 +1890,13 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    if (uidTags_ != nullptr) {
+      for (size_t i = 0; i < taosArrayGetSize(uidTags_); ++i) {
+        auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, i));
+        taosMemoryFree(entry->pTagVal);
+      }
+      taosArrayDestroy(uidTags_);
+    }
     tSimpleHashCleanup(results_);
     streamVTableInfoCacheDestroy(&shared_);
     taosArrayDestroy(uids_);
@@ -1895,6 +1914,7 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   // remote column or fails the resolve), so cols always yield one work item per
   // uid and are covered by the multi-item path instead.
   bool isRemote(tb_uid_t uid) const {
+    if (uid == extraRemoteUid_) return true;
     constexpr tb_uid_t kFirstUid = 1;  // uid = kFirstUid + k * CHUNK
     return (uid - kFirstUid) / STREAM_VTB_RESOLVE_UID_CHUNK >= emptyChunks_ &&
            (uid - kFirstUid) % STREAM_VTB_RESOLVE_UID_CHUNK == 0;
@@ -1905,7 +1925,7 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
       ASSERT_NE(nullptr, taosArrayPush(uids_, &uid));
     }
     ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveVTableRefChain(
-        &vnode_, shared ? &shared_ : nullptr, nullptr, -1, uids_, cols_, tags_, &results_));
+        &vnode_, shared ? &shared_ : nullptr, nullptr, -1, uids_, cols_, tags_, &results_, 0));
     ASSERT_NE(nullptr, results_);
     EXPECT_EQ(count, tSimpleHashGetSize(results_));
     EXPECT_EQ(1, routeRequests_);
@@ -1925,6 +1945,16 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
     }
   }
 
+  void prepareTagChain() {
+    uidTags_ = taosArrayInit(1, sizeof(STUidTagInfo));
+    ASSERT_NE(nullptr, uidTags_);
+    // Referenced TAGs have no local literal value. Keep that state distinct
+    // from a successfully resolved NULL, which still has a result-map entry.
+    STUidTagInfo entry = {};
+    entry.uid = 1;
+    ASSERT_NE(nullptr, taosArrayPush(uidTags_, &entry));
+  }
+
   Stub stub_;
   SVnode vnode_ = {};
   SSchema schema_ = {};
@@ -1938,6 +1968,12 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   int32_t emptyChunks_ = 0;
   int32_t routeRequests_ = 0;
   int32_t resolveRequests_ = 0;
+  SArray *uidTags_ = nullptr;
+  int32_t rpcError_ = TSDB_CODE_SUCCESS;
+  int32_t itemError_ = TSDB_CODE_SUCCESS;
+  bool nullTag_ = false;
+  tb_uid_t extraRemoteUid_ = 0;
+  tb_uid_t metaMissingUid_ = 0;
 };
 
 VnodeSparseRefResolveTest *VnodeSparseRefResolveTest::active_ = nullptr;
@@ -1958,5 +1994,95 @@ TEST_F(VnodeSparseRefResolveTest, EmptyChunkThenSparseChunksCreatePrivateCache) 
 
 TEST_F(VnodeSparseRefResolveTest, SingleReferenceStillResolves) {
   resolve(1, false);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainSkipsNormalTable) {
+  prepareTagChain();
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, 0, uidTags_, tags_, 0));
+  EXPECT_EQ(0, resolveRequests_);
+  EXPECT_EQ(0, routeRequests_);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainPropagatesRpcFailure) {
+  prepareTagChain();
+  rpcError_ = TSDB_CODE_TIMEOUT_ERROR;
+  EXPECT_EQ(TSDB_CODE_TIMEOUT_ERROR,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  EXPECT_EQ(nullptr, entry->pTagVal);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRejectsMissingResultAfterItemFailure) {
+  prepareTagChain();
+  itemError_ = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  EXPECT_EQ(nullptr, entry->pTagVal);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainAcceptsResolvedNull) {
+  prepareTagChain();
+  nullTag_ = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  STagVal value = {};
+  value.cid = kTagCid;
+  // A resolved NULL must not fabricate a value: the child keeps either no STag
+  // at all or one that still has no entry for this cid. tTagGet(nullptr) is
+  // false, so one assertion covers both shapes.
+  EXPECT_FALSE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsResolvedValue) {
+  prepareTagChain();
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  ASSERT_NE(nullptr, entry->pTagVal);
+  STagVal value = {};
+  value.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+  EXPECT_EQ(TSDB_DATA_TYPE_INT, value.type);
+  // STagVal has no i32 member and tTagGet only fills the low tagLen bytes of
+  // the i64 slot, so read the value back with the schema width like the
+  // production merge path does instead of touching value.i64 directly.
+  int32_t rebuilt = 0;
+  memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
+  EXPECT_EQ(42, rebuilt);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainKeepsRebuildingAfterEarlierUidFails) {
+  // uid 1 has no resolve result (its ref source is gone), uid 2 resolves fine. The
+  // error must reach the caller, but uid 2 must still get its rebuilt STag: leaving
+  // it with the unresolved placeholder makes a grouping caller fold unrelated
+  // children into one NULL group.
+  prepareTagChain();  // uid = 1
+  STUidTagInfo second = {};
+  second.uid = 2;
+  ASSERT_NE(nullptr, taosArrayPush(uidTags_, &second));
+  extraRemoteUid_ = 2;
+  metaMissingUid_ = 1;
+
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+
+  auto *failed = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  EXPECT_EQ(nullptr, failed->pTagVal);
+
+  auto *resolved = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 1));
+  ASSERT_NE(nullptr, resolved->pTagVal);
+  STagVal value = {};
+  value.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(resolved->pTagVal), &value));
+  int32_t rebuilt = 0;
+  memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
+  EXPECT_EQ(42, rebuilt);
 }
 }  // namespace

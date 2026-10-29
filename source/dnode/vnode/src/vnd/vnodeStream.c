@@ -5592,7 +5592,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   SArray *uidList = fullScan ? NULL : req->virTableInfoReq.uids;
   STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
-                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result));
+                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result, 0));
 
   // Acquire meta reader lock only after the cross-vnode RPC round-trip is done.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
@@ -5784,7 +5784,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     // TDMT_MND_GET_DB_INFO to mnode for the same db.
     code = streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
                                        req->virTablePseudoColReq.ver,
-                                       singleUid, emptyCols, tagOnly, &uid2Result);
+                                       singleUid, emptyCols, tagOnly, &uid2Result, 0);
     taosArrayDestroy(tagOnly); tagOnly = NULL;
     STREAM_CHECK_RET_GOTO(code);
 
