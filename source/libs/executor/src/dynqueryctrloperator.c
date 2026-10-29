@@ -38,9 +38,16 @@
 
 #define DYN_COL_REF_NAME_LEN (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 4)
 
+// Upper bound for the vtable redeploy chain (heartbeat -> mnode deploy ->
+// response -> addedVgInfo). Beyond this deadline the calc fails with an
+// explicit timeout error instead of retrying need-redeploy forever
+// (defect 7138880370: unbounded redeploy retry loop).
+#define STREAM_VTABLE_REDEPLOY_TIMEOUT_MS 60000
+
 typedef struct SDynResolvedColRef {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
   char    tbName[TSDB_TABLE_NAME_LEN];
   char    colName[TSDB_COL_NAME_LEN];
   char    fullColRef[DYN_COL_REF_NAME_LEN];
@@ -126,7 +133,8 @@ static int32_t parseColRefNameView(const char* colRef, SColRefNameView* pView);
 static bool    dynIsExternalColRefName(const char* colRef);
 static int32_t getVgIdFromColref(SOperatorInfo* pOperator, const char* colRef, int32_t* vgId);
 static int32_t dynReplaceCondJson(char** ppDst, int32_t* pDstLen, const char* pSrc, int32_t srcLen);
-int32_t extractExtColRefName(const char* colref, char** refSource, char** refDb, char** refTb, char** refCol);
+int32_t extractExtColRefName(const char* colref, char** refSource, char** refDb, char** refSchema, char** refTb,
+                             char** refCol);
 
 int64_t gSessionId = 0;
 
@@ -1023,6 +1031,7 @@ static int32_t buildFederatedScanOperatorParam(SOperatorParam** ppRes, int32_t d
 
   tstrncpy(pFsParam->sourceName, pForeignInfo->sourceName, sizeof(pFsParam->sourceName));
   tstrncpy(pFsParam->dbName, pForeignInfo->dbName, sizeof(pFsParam->dbName));
+  tstrncpy(pFsParam->schemaName, pForeignInfo->schemaName, sizeof(pFsParam->schemaName));
   tstrncpy(pFsParam->tableName, pForeignInfo->tableName, sizeof(pFsParam->tableName));
   pFsParam->colMap = taosArrayDup(pForeignInfo->colMap, NULL);
   QUERY_CHECK_NULL(pFsParam->colMap, code, lino, _return, terrno);
@@ -1132,6 +1141,7 @@ static int32_t appendForeignTableInfo(SArray* pTables, const SForeignSourceInfo*
   SForeignTableInfo info = {0};
 
   tstrncpy(info.dbName, pSource->dbName, sizeof(info.dbName));
+  tstrncpy(info.schemaName, pSource->schemaName, sizeof(info.schemaName));
   tstrncpy(info.tableName, pSource->tableName, sizeof(info.tableName));
   info.colMap = timestampOnly ? taosArrayInit(1, sizeof(SColIdNameKV))
                               : cloneRequiredForeignColMap(pSource->colMap, pRequiredColIds);
@@ -3080,8 +3090,11 @@ static int32_t seqStableJoinComposeRes(SStbJoinDynCtrlInfo* pStbJoin, SSDataBloc
       pBlock->info.id.blockId = pStbJoin->pOutputDataBlockDesc->dataBlockId;
       if (!pBlock->pDataBlock) return TSDB_CODE_SUCCESS;
 
-      for (int i = (int)pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length; i++) {
-        SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pStbJoin->pOutputDataBlockDesc->pSlots, i);
+      SListCell* pSlotCell =
+          nodesListGetCell(pStbJoin->pOutputDataBlockDesc->pSlots, (int)pBlock->pDataBlock->size);
+      for (int i = (int)pBlock->pDataBlock->size; i < pStbJoin->pOutputDataBlockDesc->pSlots->length;
+           i++, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+        SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
         if (pSlot == NULL) {
           qError("seqStableJoinComposeRes: pSlot is NULL, i:%d", i);
           return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -4221,6 +4234,7 @@ static int32_t dynPutResolvedColRef(SVtbScanDynCtrlInfo* pVtbScan, const char* r
   SColRefNameView     refView = {0};
   char*               refSourceName = NULL;
   char*               refDbName = NULL;
+  char*               refSchemaName = NULL;
   char*               refTbName = NULL;
   char*               refColName = NULL;
 
@@ -4228,11 +4242,14 @@ static int32_t dynPutResolvedColRef(SVtbScanDynCtrlInfo* pVtbScan, const char* r
   QUERY_CHECK_NULL(pResolved, code, line, _return, terrno);
 
   if (dynIsExternalColRefName(fullColRef)) {
-    code = extractExtColRefName(fullColRef, &refSourceName, &refDbName, &refTbName, &refColName);
+    code = extractExtColRefName(fullColRef, &refSourceName, &refDbName, &refSchemaName, &refTbName, &refColName);
     QUERY_CHECK_CODE(code, line, _return);
 
     tstrncpy(pResolved->sourceName, refSourceName, sizeof(pResolved->sourceName));
     tstrncpy(pResolved->dbName, refDbName, sizeof(pResolved->dbName));
+    if (NULL != refSchemaName) {
+      tstrncpy(pResolved->schemaName, refSchemaName, sizeof(pResolved->schemaName));
+    }
     tstrncpy(pResolved->tbName, refTbName, sizeof(pResolved->tbName));
     tstrncpy(pResolved->colName, refColName, sizeof(pResolved->colName));
     pResolved->extRefType = 1;
@@ -4262,12 +4279,14 @@ static int32_t dynPutResolvedColRef(SVtbScanDynCtrlInfo* pVtbScan, const char* r
 
   taosMemoryFree(refSourceName);
   taosMemoryFree(refDbName);
+  taosMemoryFree(refSchemaName);
   taosMemoryFree(refTbName);
   taosMemoryFree(refColName);
   return code;
 _return:
   taosMemoryFree(refSourceName);
   taosMemoryFree(refDbName);
+  taosMemoryFree(refSchemaName);
   taosMemoryFree(refTbName);
   taosMemoryFree(refColName);
   taosMemoryFree(pResolved);
@@ -4385,6 +4404,13 @@ _return:
  *
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code
  */
+int32_t dynCopySysScanName(char* pDst, size_t dstLen, const char* pSrc) {
+  if (pDst == NULL || pSrc == NULL || dstLen == 0 || varDataLen(pSrc) >= dstLen) return TSDB_CODE_INVALID_MSG;
+  memcpy(pDst, varDataVal(pSrc), varDataLen(pSrc));
+  pDst[varDataLen(pSrc)] = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pReqByVg, SHashObj* pHitMap,
                                          SHashObj* pNextRefMap) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -4425,13 +4451,18 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
       char      currentRef[sizeof(((SDynRefKey*)0)->colRef)] = {0};
       SDynRefEdge edge = {0};
       uint8_t   hit = 1;
-      char*     pDb = colDataGetData(pDbNameCol, i);
-      char*     pTb = colDataGetData(pTableNameCol, i);
-      char*     pCol = colDataGetData(pColNameCol, i);
-
-      memcpy(dbName, varDataVal(pDb), varDataLen(pDb));
-      memcpy(tbName, varDataVal(pTb), varDataLen(pTb));
-      memcpy(colName, varDataVal(pCol), varDataLen(pCol));
+      QUERY_CHECK_CONDITION(!colDataIsNull_s(pDbNameCol, i) && !colDataIsNull_s(pTableNameCol, i) &&
+                                !colDataIsNull_s(pColNameCol, i),
+                            code, line, _return, TSDB_CODE_INVALID_MSG);
+      char* pDb = colDataGetData(pDbNameCol, i);
+      char* pTb = colDataGetData(pTableNameCol, i);
+      char* pCol = colDataGetData(pColNameCol, i);
+      code = dynCopySysScanName(dbName, sizeof(dbName), pDb);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = dynCopySysScanName(tbName, sizeof(tbName), pTb);
+      QUERY_CHECK_CODE(code, line, _return);
+      code = dynCopySysScanName(colName, sizeof(colName), pCol);
+      QUERY_CHECK_CODE(code, line, _return);
 
       len = tsnprintf(currentRef, sizeof(currentRef), "%s.%s.%s", dbName, tbName, colName);
       if (len < 0 || len >= sizeof(currentRef)) {
@@ -5335,11 +5366,12 @@ _return:
   return code;
 }
 
-int32_t extractExtColRefName(const char *colref, char **refSource, char **refDb, char** refTb, char** refCol) {
+int32_t extractExtColRefName(const char *colref, char **refSource, char **refDb, char **refSchema, char** refTb, char** refCol) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     line = 0;
 
   *refSource = NULL;
+  *refSchema = NULL;
 
   const char *dot1 = strchr(colref, '.');
   QUERY_CHECK_NULL(dot1, code, line, _return, terrno)
@@ -5348,8 +5380,33 @@ int32_t extractExtColRefName(const char *colref, char **refSource, char **refDb,
   QUERY_CHECK_NULL(dot2, code, line, _return, terrno)
 
   const char *dot3 = strchr(dot2 + 1, '.');
+  const char *dot4 = (dot3 != NULL) ? strchr(dot3 + 1, '.') : NULL;
 
-  if (dot3) {
+  if (dot4) {
+    // 5-part: source.db.schema.table.col
+    size_t src_len = dot1 - colref;
+    size_t db_len = dot2 - dot1 - 1;
+    size_t schema_len = dot3 - dot2 - 1;
+    size_t tb_len = dot4 - dot3 - 1;
+    size_t col_len = strlen(dot4 + 1);
+
+    *refSource = taosMemoryMalloc(src_len + 1);
+    *refDb = taosMemoryMalloc(db_len + 1);
+    *refSchema = taosMemoryMalloc(schema_len + 1);
+    *refTb = taosMemoryMalloc(tb_len + 1);
+    *refCol = taosMemoryMalloc(col_len + 1);
+    QUERY_CHECK_NULL(*refSource, code, line, _return, terrno)
+    QUERY_CHECK_NULL(*refDb, code, line, _return, terrno)
+    QUERY_CHECK_NULL(*refSchema, code, line, _return, terrno)
+    QUERY_CHECK_NULL(*refTb, code, line, _return, terrno)
+    QUERY_CHECK_NULL(*refCol, code, line, _return, terrno)
+
+    tstrncpy(*refSource, colref, src_len + 1);
+    tstrncpy(*refDb, dot1 + 1, db_len + 1);
+    tstrncpy(*refSchema, dot2 + 1, schema_len + 1);
+    tstrncpy(*refTb, dot3 + 1, tb_len + 1);
+    tstrncpy(*refCol, dot4 + 1, col_len + 1);
+  } else if (dot3) {
     // 4-part: source.db.table.col
     size_t src_len = dot1 - colref;
     size_t db_len = dot2 - dot1 - 1;
@@ -5397,6 +5454,10 @@ _return:
   if (*refDb) {
     taosMemoryFree(*refDb);
     *refDb = NULL;
+  }
+  if (*refSchema) {
+    taosMemoryFree(*refSchema);
+    *refSchema = NULL;
   }
   if (*refTb) {
     taosMemoryFree(*refTb);
@@ -5511,6 +5572,9 @@ static int32_t dynCollectResolvedOrgTbVgFromArray(SOperatorInfo* pOperator, SArr
     int32_t      vgId = 0;
 
     QUERY_CHECK_NULL(pColRef, code, line, _return, terrno)
+    if (!colNeedScan(pOperator, pColRef->colId)) {
+      continue;
+    }
     if (pColRef->colrefName == NULL) {
       continue;
     }
@@ -5560,6 +5624,9 @@ static int32_t dynCollectResolvedOrgTbVgFromChildTables(SOperatorInfo* pOperator
       int32_t      vgId = 0;
 
       QUERY_CHECK_NULL(pColRef, code, line, _return, terrno)
+      if (!colNeedScan(pOperator, pColRef->colId)) {
+        continue;
+      }
       if (pColRef->colrefName == NULL) {
         continue;
       }
@@ -5630,6 +5697,7 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
     }
     atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.uid, (int64_t)deployUid);
     (void)atomic_val_compare_exchange_8(pTaskInfo->pStreamRuntimeInfo->vtableDeployGot, 0, 1);
+    atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.redeployStartMs, taosGetMonoTimestampMs());
     taosHashClear(pVtbScan->curOrgTbVg);
     pVtbScan->needRedeploy = true;
     pVtbScan->rversion = rversion;
@@ -5726,7 +5794,7 @@ _return:
 }
 
 static int32_t buildForeignSourceKey(const SColRefInfo* pColRef, const char* sourceName,
-                                     const char* dbName, const char* tableName,
+                                     const char* dbName, const char* schemaName, const char* tableName,
                                      uint8_t** ppKey, int32_t* pKeyLen) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  line = 0;
@@ -5746,11 +5814,14 @@ static int32_t buildForeignSourceKey(const SColRefInfo* pColRef, const char* sou
   *ppKey = NULL;
   *pKeyLen = 0;
 
+  const char* schema = (NULL != schemaName) ? schemaName : "";
   uint32_t sourceNameLen = (uint32_t)strlen(sourceName);
   uint32_t dbNameLen = (uint32_t)strlen(dbName);
+  uint32_t schemaNameLen = (uint32_t)strlen(schema);
   uint32_t tableNameLen = (uint32_t)strlen(tableName);
   size_t keySize = sizeof(pColRef->uid) + sizeof(sourceNameLen) + sourceNameLen +
-                   sizeof(dbNameLen) + dbNameLen + sizeof(tableNameLen) + tableNameLen +
+                   sizeof(dbNameLen) + dbNameLen + sizeof(schemaNameLen) + schemaNameLen +
+                   sizeof(tableNameLen) + tableNameLen +
                    sizeof(pColRef->filterCondLen) + (size_t)pColRef->filterCondLen +
                    sizeof(pColRef->tagCondLen) + (size_t)pColRef->tagCondLen;
   QUERY_CHECK_CONDITION(keySize <= INT32_MAX, code, line, _return, TSDB_CODE_INVALID_PARA);
@@ -5769,6 +5840,12 @@ static int32_t buildForeignSourceKey(const SColRefInfo* pColRef, const char* sou
   offset += sizeof(dbNameLen);
   TAOS_MEMCPY(pKey + offset, dbName, dbNameLen);
   offset += dbNameLen;
+  TAOS_MEMCPY(pKey + offset, &schemaNameLen, sizeof(schemaNameLen));
+  offset += sizeof(schemaNameLen);
+  if (schemaNameLen > 0) {
+    TAOS_MEMCPY(pKey + offset, schema, schemaNameLen);
+    offset += schemaNameLen;
+  }
   TAOS_MEMCPY(pKey + offset, &tableNameLen, sizeof(tableNameLen));
   offset += sizeof(tableNameLen);
   TAOS_MEMCPY(pKey + offset, tableName, tableNameLen);
@@ -5823,17 +5900,27 @@ static const SFederatedScanPhysiNode* dynFindForeignScan(const SPhysiNode* pNode
 static void dynDestroyExtTableMeta(void* pValue) { extConnectorFreeTableSchema(*(SExtTableMeta**)pValue); }
 
 static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFederatedScanPhysiNode* pScan,
-                                      const char* dbName, const char* tableName, SExtTableMeta** ppMeta) {
+                                      const char* dbName, const char* schemaName, const char* tableName,
+                                      SExtTableMeta** ppMeta) {
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              lino = 0;
   SExtConnectorHandle* pHandle = NULL;
   SExtTableMeta*       pMeta = NULL;
   SExtTableNode        table = *(const SExtTableNode*)pScan->pExtTable;
   SExtSourceCfg        cfg = {0};
-  char key[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN] = {0};
+  const char*          schema = (NULL != schemaName) ? schemaName : "";
+  // A SQL Server 4-part runtime ref (source.schema.table.column) carries the
+  // schema in the middle segment; its database falls back to the source's
+  // default database, matching the parser-side external table resolution.
+  if ('\0' == dbName[0] && EXT_SOURCE_SQLSERVER == (EExtSourceType)pScan->sourceType) {
+    dbName = pScan->srcDatabase;
+  }
+  char key[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_TABLE_NAME_LEN] = {0};
   strntolower(key, table.sourceName, strlen(table.sourceName));
   strntolower(key + TSDB_EXT_SOURCE_NAME_LEN, dbName, strlen(dbName));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN, tableName, strlen(tableName));
+  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN, schema, strlen(schema));
+  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN, tableName,
+              strlen(tableName));
 
   if (NULL == pVtbScan->extTableMetaCache) {
     pVtbScan->extTableMetaCache =
@@ -5861,6 +5948,9 @@ static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFede
   tstrncpy(table.table.dbName, dbName, sizeof(table.table.dbName));
   if (EXT_SOURCE_POSTGRESQL == cfg.source_type) {
     tstrncpy(table.schemaName, pScan->srcSchema, sizeof(table.schemaName));
+  } else if (EXT_SOURCE_SQLSERVER == cfg.source_type) {
+    // SQL Server: the reference's schema wins over the source's default schema.
+    tstrncpy(table.schemaName, ('\0' != schema[0]) ? schema : pScan->srcSchema, sizeof(table.schemaName));
   }
   code = extConnectorOpen(&cfg, &pHandle);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -5883,7 +5973,8 @@ _return:
 }
 
 static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefInfo* pRef, const char* sourceName,
-                                        const char* dbName, const char* tableName, const char* colName) {
+                                        const char* dbName, const char* schemaName, const char* tableName,
+                                        const char* colName) {
   int32_t                        code = TSDB_CODE_SUCCESS;
   int32_t                        lino = 0;
   int32_t                        tsIdx = -1;
@@ -5894,11 +5985,20 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
   const SFederatedScanPhysiNode* pScan = dynFindForeignScan((const SPhysiNode*)pOperator->pPhyNode, sourceName);
   QUERY_CHECK_NULL(pScan, code, lino, _return, TSDB_CODE_EXT_SOURCE_NOT_FOUND);
   EExtSourceType sourceType = (EExtSourceType)pScan->sourceType;
-  if (EXT_SOURCE_MYSQL != sourceType && EXT_SOURCE_POSTGRESQL != sourceType) {
+  if (EXT_SOURCE_MYSQL != sourceType && EXT_SOURCE_POSTGRESQL != sourceType && EXT_SOURCE_SQLSERVER != sourceType) {
     QUERY_CHECK_CONDITION(0 == pRef->filterCondLen, code, lino, _return, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED);
     return code;
   }
-  code = dynGetForeignTableMeta(&pInfo->vtbScan, pScan, dbName, tableName, &pMeta);
+  // SQL Server resolves a 4-part runtime ref (source.schema.table.column) with
+  // the schema in the middle segment (DS 5.3.4); the database then falls back
+  // to the source's configured database.
+  const char* useDb = dbName;
+  const char* useSchema = (NULL != schemaName) ? schemaName : "";
+  if (EXT_SOURCE_SQLSERVER == sourceType && '\0' == useSchema[0] && '\0' != dbName[0]) {
+    useSchema = dbName;
+    useDb = "";
+  }
+  code = dynGetForeignTableMeta(&pInfo->vtbScan, pScan, useDb, useSchema, tableName, &pMeta);
   QUERY_CHECK_CODE(code, lino, _return);
   if (pRef->filterCondLen > 0) {
     timezone = tzalloc('\0' != pScan->timezone[0] ? pScan->timezone : NULL);
@@ -5942,15 +6042,16 @@ _return:
     tzfree(timezone);
   }
   if (TSDB_CODE_SUCCESS != code) {
-    qError("QID:0x%" PRIx64 " external binding invalid, source:%s, table:%s.%s, column:%s, code:%s, reason:%s",
-           pOperator->pTaskInfo->id.queryId, sourceName, dbName, tableName, colName, tstrerror(code), reason);
+    qError("QID:0x%" PRIx64 " external binding invalid, source:%s, table:%s.%s.%s, column:%s, code:%s, reason:%s",
+           pOperator->pTaskInfo->id.queryId, sourceName, useDb, useSchema, tableName, colName, tstrerror(code),
+           reason);
   }
   return code;
 }
 
 static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInfo* pKV,
-                                      const char* refSourceName, const char* refDbName, const char* refTbName,
-                                      const char* refColName) {
+                                      const char* refSourceName, const char* refDbName, const char* refSchemaName,
+                                      const char* refTbName, const char* refColName) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            line = 0;
   uint8_t*           foreignKey = NULL;
@@ -5958,18 +6059,34 @@ static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInf
   SForeignSourceInfo fsInfo = {0};
   SVtbScanDynCtrlInfo* pVtbScan = &((SDynQueryCtrlOperatorInfo*)pOperator->info)->vtbScan;
 
+  // SQL Server resolves a 4-part runtime ref (source.schema.table.column) with
+  // the schema in the middle segment (DS 5.3.4); the database then falls back
+  // to the source's configured database.
+  const char* useDb = refDbName;
+  const char* useSchema = (NULL != refSchemaName) ? refSchemaName : "";
+  {
+    const SFederatedScanPhysiNode* pScan =
+        dynFindForeignScan((const SPhysiNode*)pOperator->pPhyNode, refSourceName);
+    if (NULL != pScan && EXT_SOURCE_SQLSERVER == (EExtSourceType)pScan->sourceType &&
+        '\0' == useSchema[0] && '\0' != refDbName[0]) {
+      useSchema = refDbName;
+      useDb = pScan->srcDatabase;
+    }
+  }
+
   if (NULL == pOperator->pTaskInfo->pStreamRuntimeInfo) {
-    code = dynValidateForeignColRef(pOperator, pKV, refSourceName, refDbName, refTbName, refColName);
+    code = dynValidateForeignColRef(pOperator, pKV, refSourceName, useDb, useSchema, refTbName, refColName);
     QUERY_CHECK_CODE(code, line, _return);
   }
 
-  code = buildForeignSourceKey(pKV, refSourceName, refDbName, refTbName, &foreignKey, &keyLen);
+  code = buildForeignSourceKey(pKV, refSourceName, useDb, useSchema, refTbName, &foreignKey, &keyLen);
   QUERY_CHECK_CODE(code, line, _return);
 
   void* pVal = taosHashGet(pVtbScan->foreignSourceMap, foreignKey, keyLen);
   if (pVal == NULL) {
     tstrncpy(fsInfo.sourceName, refSourceName, sizeof(fsInfo.sourceName));
-    tstrncpy(fsInfo.dbName, refDbName, sizeof(fsInfo.dbName));
+    tstrncpy(fsInfo.dbName, useDb, sizeof(fsInfo.dbName));
+    tstrncpy(fsInfo.schemaName, useSchema, sizeof(fsInfo.schemaName));
     tstrncpy(fsInfo.tableName, refTbName, sizeof(fsInfo.tableName));
     fsInfo.virtualChildUid = pKV->uid;
     fsInfo.scanParamId = MurmurHash3_64((const char *)foreignKey, (uint32_t)keyLen);
@@ -6037,14 +6154,17 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       if (pKV->extRefType == 1) {
         char* refSourceName = NULL;
         char* refDbName = NULL;
+        char* refSchemaName = NULL;
         char* refTbName = NULL;
         char* refColName = NULL;
-        code = extractExtColRefName(pKV->colrefName, &refSourceName, &refDbName, &refTbName, &refColName);
+        code = extractExtColRefName(pKV->colrefName, &refSourceName, &refDbName, &refSchemaName, &refTbName,
+                                    &refColName);
         QUERY_CHECK_CODE(code, line, _return);
 
-        code = addForeignSourceColRef(pOperator, pKV, refSourceName, refDbName, refTbName, refColName);
+        code = addForeignSourceColRef(pOperator, pKV, refSourceName, refDbName, refSchemaName, refTbName, refColName);
         taosMemoryFree(refSourceName);
         taosMemoryFree(refDbName);
+        taosMemoryFree(refSchemaName);
         taosMemoryFree(refTbName);
         taosMemoryFree(refColName);
         QUERY_CHECK_CODE(code, line, _return);
@@ -6058,8 +6178,8 @@ int32_t virtualTableScanProcessColRefInfo(SOperatorInfo* pOperator, SArray* pCol
       }
 
       if (pResolved->extRefType == 1) {
-        code = addForeignSourceColRef(pOperator, pKV, pResolved->sourceName, pResolved->dbName, pResolved->tbName,
-                                      pResolved->colName);
+        code = addForeignSourceColRef(pOperator, pKV, pResolved->sourceName, pResolved->dbName,
+                                      pResolved->schemaName, pResolved->tbName, pResolved->colName);
         QUERY_CHECK_CODE(code, line, _return);
         continue;
       }
@@ -6682,7 +6802,17 @@ int32_t virtualTableScanCheckNeedRedeploy(SOperatorInfo* pOperator) {
       QUERY_CHECK_CODE(code, line, _return);
     }
     pVtbScan->needRedeploy = false;
+    atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.redeployStartMs, 0);
   } else {
+    // Redeploy response has not arrived yet. Keep returning NEED_REDEPLOY so the
+    // trigger retries the calc while the deploy chain (heartbeat -> mnode ->
+    // deploy response) has time to complete. If the chain never completes, fail
+    // with an explicit timeout error instead of retrying forever.
+    int64_t redeployStartMs = atomic_load_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.redeployStartMs);
+    if (redeployStartMs != 0 && taosGetMonoTimestampMs() - redeployStartMs > STREAM_VTABLE_REDEPLOY_TIMEOUT_MS) {
+      code = TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT;
+      QUERY_CHECK_CODE(code, line, _return);
+    }
     code = TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
     QUERY_CHECK_CODE(code, line, _return);
   }
@@ -7748,8 +7878,10 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
     }
 
     if (pInfo->outputWendSlotId == -1 && pInfo->outputWstartSlotId == -1 && pInfo->outputWdurationSlotId == -1) {
-      for (int32_t i = 0; i < LIST_LENGTH(pInfo->pTargets); ++i) {
-        STargetNode* pNode = (STargetNode*)nodesListGetNode(pInfo->pTargets, i);
+      SListCell* pTargetCell = NULL != pInfo->pTargets ? pInfo->pTargets->pHead : NULL;
+      for (int32_t i = 0; i < LIST_LENGTH(pInfo->pTargets);
+           ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL)) {
+        STargetNode* pNode = (STargetNode*)(NULL != pTargetCell ? pTargetCell->pNode : NULL);
         if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == pBlock->info.id.blockId) {
           if (((SColumnNode*)pNode->pExpr)->slotId == pDynInfo->vtbWindow.wstartSlotId) {
             pInfo->outputWstartSlotId = i;

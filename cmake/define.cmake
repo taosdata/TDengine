@@ -117,7 +117,6 @@ ELSE()
 ENDIF()
 
 SET(TAOS_LIB taos)
-SET(TAOS_LIB_STATIC taos_static)
 SET(TAOS_NATIVE_LIB taosnative)
 SET(TAOS_NATIVE_LIB_STATIC taosnative_static)
 
@@ -484,12 +483,20 @@ if(TD_DARWIN)
             INSTALL_RPATH "@loader_path;@loader_path/../driver;/usr/local/lib"
         )
 
-        add_custom_command(TARGET ${target_name} POST_BUILD
-            COMMAND /bin/sh -c
-                "bin=\"$1\"; if otool -L \"$bin\" 2>/dev/null | grep -q '@loader_path/libtaos.dylib'; then install_name_tool -change '@loader_path/libtaos.dylib' '@rpath/libtaos.dylib' \"$bin\"; fi"
-                _
-                "$<TARGET_FILE:${target_name}>"
-            VERBATIM
-        )
+        # CLI tools now link the native driver directly as well as the dispatcher.
+        # Both libraries live in ../driver after installation, not beside the tool.
+        # The recorded name is either @loader_path/<lib>.dylib or the absolute
+        # build-tree path, depending on whether stage_runtime_libs.sh
+        # fix-darwin-rpaths rewrote build/lib before this tool linked.
+        foreach(client_lib IN ITEMS libtaos libtaosnative)
+            add_custom_command(TARGET ${target_name} POST_BUILD
+                COMMAND /bin/sh -c
+                    "bin=\"$1\"; lib=\"$2\"; deps=\"$(otool -L \"$bin\")\" || exit 1; printf '%s' \"$deps\" | awk 'NR > 1 { sub(/^[[:space:]]+/, \"\"); sub(/[[:space:]]+[(]compatibility version.*$/, \"\"); print }' | while IFS= read -r dep; do case \"$dep\" in @rpath/*) ;; \"$lib.dylib\"|*/\"$lib.dylib\") install_name_tool -change \"$dep\" \"@rpath/$lib.dylib\" \"$bin\" || exit 1 ;; esac; done"
+                    _
+                    "$<TARGET_FILE:${target_name}>"
+                    "${client_lib}"
+                VERBATIM
+            )
+        endforeach()
     endfunction()
 endif()

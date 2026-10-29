@@ -22,7 +22,7 @@ actually listens on.
 
 import pytest
 
-from taosanalytics.tsfmservice import startup_args
+from lib.tsfm.service import startup_args
 
 
 class TestParseModelServerArgs:

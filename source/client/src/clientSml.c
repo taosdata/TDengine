@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include "clientSml.h"
+#include "clientWlr.h"
 #include "osRand.h"
 #include "thash.h"
 
@@ -1911,8 +1912,103 @@ TAOS_RES *taos_schemaless_insert_inner(TAOS *taos, char *lines[], char *rawLine,
   }
 
 END:
+  if (request == NULL && code != TSDB_CODE_SUCCESS) terrno = code;
   smlDestroyInfo(info);
   return (TAOS_RES *)request;
+}
+
+/*
+ * Shared body for the five line-based schemaless entry points.
+ *
+ * The public symbols call this directly rather than chaining through each other:
+ * chaining would record every variant under whichever type the innermost one
+ * hardcodes, and the depth guard would suppress the rest. Replay needs to reissue
+ * the symbol the application actually called (FS 4.1, DS 6.7.1), so the API type
+ * is a parameter.
+ */
+static uint64_t smlResolveWlrConnId(TAOS *taos) {
+  if (taos == NULL) return 0;
+  if (wlrRecorderState() != WLR_STATE_RUNNING) return 0;
+
+  int64_t  refId = *(int64_t *)taos;
+  STscObj *pObj = acquireTscObj(refId);
+  if (pObj == NULL) return 0;
+
+  uint64_t connId = pObj->wlrConnId;
+  releaseTscObj(refId);
+  return connId;
+}
+
+static void smlWlrReturn(SWorkloadCallToken *token, TAOS_RES *res, int32_t code, uint64_t connId) {
+  SWorkloadReturnArgs ret = {0};
+  ret.code = code;
+  ret.logicalConnId = connId;
+  if (res != NULL && TD_RES_QUERY(res)) {
+    SRequestObj *request = (SRequestObj *)res;
+    if (token->recorded) {
+      if (request->wlrResultId == 0) request->wlrResultId = wlrNextResultId();
+      ret.logicalResultId = request->wlrResultId;
+    }
+    ret.affectedRows = taos_affected_rows(res);
+  }
+  wlrApiReturn(token, &ret);
+}
+
+static TAOS_RES *smlInsertLines(TAOS *taos, char *lines[], int numLines, int protocol, int precision, int32_t ttl,
+                                int64_t reqid, char *tbnameKey, uint16_t wlrApiType) {
+  if (taos == NULL || lines == NULL || numLines < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  if (protocol == TSDB_SML_JSON_PROTOCOL && lines[0] == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return NULL;
+  }
+  for (int32_t i = 0; i < numLines; i++) {
+    if (lines[i] == NULL) {
+      terrno = TSDB_CODE_INVALID_PARA;
+      return NULL;
+    }
+  }
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrConnId = smlResolveWlrConnId(taos);
+  if (wlrConnId == 0) {
+    return taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid,
+                                        tbnameKey);
+  }
+  /* Line-based variant: the payload is an array of strings with no contiguous
+   * source buffer, so it is encoded as count + per-entry lengths + bytes
+   * (wlrEncodeSmlLines, DS 6.10). Protocol/precision/ttl and row count are
+   * recorded alongside it; an over-large payload degrades to metadata-only.
+   *
+   * Calls with no resolvable connection are skipped above because the schema requires
+   * CONN_ID on the matching RETURN event. */
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = wlrApiType;
+  wlrArgs.logicalConnId = wlrConnId;
+  /* FS 4.5 lists reqid among the schemaless fields. It matters for replay because a
+   * caller-supplied reqid is how an application correlates its own logs with server
+   * traces; regenerating one would break that correspondence. */
+  wlrArgs.reqid = reqid;
+  wlrArgs.smlProtocol = protocol;
+  wlrArgs.smlPrecision = precision;
+  wlrArgs.smlTtl = ttl;
+  wlrArgs.smlTbnameKey = tbnameKey;
+  if (protocol == TSDB_SML_JSON_PROTOCOL) {
+    wlrArgs.smlLines = (const char *const *)lines;
+    wlrArgs.smlCount = 1;
+  } else {
+    wlrArgs.smlLines = (const char *const *)lines;
+    wlrArgs.smlCount = numLines;
+  }
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
+  TAOS_RES *res =
+      taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid, tbnameKey);
+
+  int32_t wlrCode = res != NULL ? taos_errno(res) : terrno;
+  smlWlrReturn(&wlrTok, res, wlrCode, wlrConnId);
+  return res;
 }
 
 /**
@@ -1936,37 +2032,30 @@ END:
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid_tbname_key(TAOS *taos, char *lines[], int numLines, int protocol,
                                                            int precision, int32_t ttl, int64_t reqid, char *tbnameKey) {
-  if (taos == NULL || lines == NULL || numLines < 0) {
-    terrno = TSDB_CODE_INVALID_PARA;
-    return NULL;
-  }
-  for (int i = 0; i < numLines; i++) {
-    if (lines[i] == NULL) {
-      terrno = TSDB_CODE_INVALID_PARA;
-      return NULL;
-    }
-  }
-  return taos_schemaless_insert_inner(taos, lines, NULL, NULL, numLines, protocol, precision, ttl, reqid, tbnameKey);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, ttl, reqid, tbnameKey,
+                        WLR_API_SML_INSERT_TTL_WITH_REQID_TBNAME_KEY);
 }
 
 TAOS_RES *taos_schemaless_insert_ttl_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                                 int32_t ttl, int64_t reqid) {
-  return taos_schemaless_insert_ttl_with_reqid_tbname_key(taos, lines, numLines, protocol, precision, ttl, reqid, NULL);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, ttl, reqid, NULL,
+                        WLR_API_SML_INSERT_TTL_WITH_REQID);
 }
 
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0, NULL,
+                        WLR_API_SML_INSERT);
 }
 
 TAOS_RES *taos_schemaless_insert_ttl(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                      int32_t ttl) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, ttl, 0);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, ttl, 0, NULL, WLR_API_SML_INSERT_TTL);
 }
 
 TAOS_RES *taos_schemaless_insert_with_reqid(TAOS *taos, char *lines[], int numLines, int protocol, int precision,
                                             int64_t reqid) {
-  return taos_schemaless_insert_ttl_with_reqid(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL,
-                                               reqid);
+  return smlInsertLines(taos, lines, numLines, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid, NULL,
+                        WLR_API_SML_INSERT_WITH_REQID);
 }
 
 static int32_t getRawLineLen(char *lines, int len, int protocol) {
@@ -1983,9 +2072,10 @@ static int32_t getRawLineLen(char *lines, int len, int protocol) {
   return numLines;
 }
 
-TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
-                                                               int protocol, int precision, int32_t ttl, int64_t reqid,
-                                                               char *tbnameKey) {
+/* Shared body for the five raw schemaless entry points; see smlInsertLines for why
+ * the API type is a parameter rather than a constant. */
+static TAOS_RES *smlInsertRaw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol, int precision,
+                              int32_t ttl, int64_t reqid, char *tbnameKey, uint16_t wlrApiType) {
   if (taos == NULL || lines == NULL || len < 0) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
@@ -1994,28 +2084,60 @@ TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char 
   if (totalRows != NULL) {
     *totalRows = numLines;
   }
-  return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, numLines, protocol, precision, ttl, reqid,
-                                      tbnameKey);
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrConnId = smlResolveWlrConnId(taos);
+  if (wlrConnId == 0) {
+    return taos_schemaless_insert_inner(taos, NULL, lines, lines + len, numLines, protocol, precision, ttl,
+                                        reqid, tbnameKey);
+  }
+  /* Raw variant: the payload IS contiguous, so it is recorded verbatim -- replay
+   * must resubmit the identical bytes, not a reconstruction (DS 6.10). */
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = wlrApiType;
+  wlrArgs.logicalConnId = wlrConnId;
+  wlrArgs.reqid = reqid;
+  wlrArgs.smlProtocol = protocol;
+  wlrArgs.smlPrecision = precision;
+  wlrArgs.smlTtl = ttl;
+  wlrArgs.smlTbnameKey = tbnameKey;
+  wlrArgs.smlRaw = lines;
+  wlrArgs.smlRawLen = len;
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
+  TAOS_RES *res = taos_schemaless_insert_inner(taos, NULL, lines, lines + len, numLines, protocol, precision,
+                                               ttl, reqid, tbnameKey);
+
+  int32_t wlrCode = res != NULL ? taos_errno(res) : terrno;
+  smlWlrReturn(&wlrTok, res, wlrCode, wlrConnId);
+  return res;
+}
+
+TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(TAOS *taos, char *lines, int len, int32_t *totalRows,
+                                                               int protocol, int precision, int32_t ttl, int64_t reqid,
+                                                               char *tbnameKey) {
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, ttl, reqid, tbnameKey,
+                      WLR_API_SML_INSERT_RAW_TTL_WITH_REQID_TBNAME_KEY);
 }
 
 TAOS_RES *taos_schemaless_insert_raw_ttl_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                     int precision, int32_t ttl, int64_t reqid) {
-  return taos_schemaless_insert_raw_ttl_with_reqid_tbname_key(taos, lines, len, totalRows, protocol, precision, ttl,
-                                                              reqid, NULL);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, ttl, reqid, NULL,
+                      WLR_API_SML_INSERT_RAW_TTL_WITH_REQID);
 }
 
 TAOS_RES *taos_schemaless_insert_raw_with_reqid(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                                 int precision, int64_t reqid) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision,
-                                                   TSDB_DEFAULT_TABLE_TTL, reqid);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, reqid, NULL,
+                      WLR_API_SML_INSERT_RAW_WITH_REQID);
 }
+
 TAOS_RES *taos_schemaless_insert_raw_ttl(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                          int precision, int32_t ttl) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision, ttl, 0);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, ttl, 0, NULL, WLR_API_SML_INSERT_RAW_TTL);
 }
 
 TAOS_RES *taos_schemaless_insert_raw(TAOS *taos, char *lines, int len, int32_t *totalRows, int protocol,
                                      int precision) {
-  return taos_schemaless_insert_raw_ttl_with_reqid(taos, lines, len, totalRows, protocol, precision,
-                                                   TSDB_DEFAULT_TABLE_TTL, 0);
+  return smlInsertRaw(taos, lines, len, totalRows, protocol, precision, TSDB_DEFAULT_TABLE_TTL, 0, NULL,
+                      WLR_API_SML_INSERT_RAW);
 }

@@ -57,8 +57,14 @@ static int32_t handleTriggerCalcReq(SSnode* pSnode, void* pWorkerCb, SRpcMsg* pR
   void* taskAddr = NULL;
   int32_t code = 0, lino = 0;
   int64_t requestStartMonoUs = streamTaskGetMonotonicUs();
+  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen <= (int32_t)sizeof(SMsgHead)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDeserializeSTriggerCalcRequestWithContextFrames(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
   TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+  if (pTask->task.type != STREAM_RUNNER_TASK) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   req.brandNew = true;
   req.execId = -1;
@@ -90,26 +96,40 @@ _exit:
 }
 
 static int32_t handleSyncDeleteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
+  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen < (int32_t)sizeof(SMsgHead) + LONG_BYTES) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead));
   streamDeleteCheckPoint(streamId);
   return 0;
 }
 
 static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
-  int32_t ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
-  int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + 2 * INT_BYTES);
-  SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .info = pRpcMsg->info};
-
-  stDebug("[checkpoint] handleSyncWriteCheckPointReq streamId:%" PRIx64 ",ver:%d", streamId, ver);
+  int32_t ver = 0;
+  int64_t streamId = 0;
+  int32_t code = 0;
   void*   data = NULL;
   int64_t dataLen = 0;
-  int32_t code = streamReadCheckPoint(streamId, &data, &dataLen);
+  bool    validRequest = false;
+  SRpcMsg rsp = {.code = 0, .msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP, .info = pRpcMsg->info};
+
+  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen < (int32_t)sizeof(SMsgHead) + 2 * INT_BYTES + LONG_BYTES) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+  ver = *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + INT_BYTES);
+  streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead) + 2 * INT_BYTES);
+  validRequest = true;
+
+  stDebug("[checkpoint] handleSyncWriteCheckPointReq streamId:%" PRIx64 ",ver:%d", streamId, ver);
+  code = streamReadCheckPoint(streamId, &data, &dataLen);
   if (code != 0 || (errorIsFileNotExist(terrno) && ver == -1)) {
     goto end;
   }
   if (errorIsFileNotExist(terrno) || ver > *(int32_t*)POINTER_SHIFT(data, INT_BYTES)) {
-    int32_t ret = streamWriteCheckPoint(streamId, POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead));
-    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint local updated, ver:%d, dataLen:%" PRId64 ", ret:%d", streamId, ver, dataLen, ret);
+    code = streamWriteCheckPoint(streamId, POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead));
+    if (code != 0) goto end;
+    stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint local updated, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
   }
   if (errorIsFileNotExist(terrno) || ver >= *(int32_t*)POINTER_SHIFT(data, INT_BYTES)) {
     stDebug("[checkpoint] streamId:%" PRIx64 ", checkpoint no need send back, ver:%d, dataLen:%" PRId64, streamId, ver, dataLen);
@@ -118,38 +138,54 @@ static int32_t handleSyncWriteCheckPointReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   }
   
 end:
-  if (data == NULL) {
+  rsp.code = code;
+  if (code != 0) {
+    taosMemoryFreeClear(data);
+  }
+  if (data == NULL && validRequest) {
+    // Keep the stream ID on peer I/O errors so the requester can retry this sync.
     rsp.contLen = 2 * INT_BYTES + LONG_BYTES;
     rsp.pCont = rpcMallocCont(rsp.contLen);
     if (rsp.pCont == NULL) {
-      rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+      rsp.contLen = 0;
+      if (rsp.code == TSDB_CODE_SUCCESS) rsp.code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
+      *(int32_t*)rsp.pCont = 0;
       *(int32_t*)(POINTER_SHIFT(rsp.pCont, INT_BYTES)) = -1;  // no checkpoint
       *(int64_t*)(POINTER_SHIFT(rsp.pCont, 2 * INT_BYTES)) = streamId;
     }
-  } else {
+  } else if (data != NULL) {
     rsp.pCont = rpcMallocCont(dataLen);
     if (rsp.pCont == NULL) {
       rsp.code = TSDB_CODE_OUT_OF_MEMORY;
     } else {
       memcpy(rsp.pCont, data, dataLen);
       rsp.contLen = dataLen;
-      taosMemoryFreeClear(data); 
     } 
   }
+  taosMemoryFreeClear(data);
   
   if (rpcSendResponse(&rsp) != 0) {
     sndError("failed to send write checkpoint response, msg:%p", &rsp);
   }
 
-  return 0;
+  return rsp.code;
 }
 
 static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   if (pRpcMsg->code != 0) {
     stError("[checkpoint] handleSyncWriteCheckPointRsp, code:%d, msgType:%d", pRpcMsg->code, pRpcMsg->msgType);
+    // Only the complete sentinel identifies a peer error's stream; generic RPC errors may have no body.
+    if (pRpcMsg->pCont != NULL && pRpcMsg->contLen == 2 * INT_BYTES + LONG_BYTES &&
+        *(int32_t*)pRpcMsg->pCont == 0 && *(int32_t*)POINTER_SHIFT(pRpcMsg->pCont, INT_BYTES) == -1) {
+      int64_t streamId = *(int64_t*)POINTER_SHIFT(pRpcMsg->pCont, 2 * INT_BYTES);
+      return streamCheckpointSyncComplete(streamId, pRpcMsg->code);
+    }
     return pRpcMsg->code;
   } 
+  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen < 2 * INT_BYTES + LONG_BYTES) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   void* data = pRpcMsg->pCont;
   int32_t dataLen = pRpcMsg->contLen;
   
@@ -158,10 +194,11 @@ static int32_t handleSyncWriteCheckPointRsp(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   stDebug("[checkpoint] handleSyncWriteCheckPointRsp, ver:%d, streamId:%"PRIx64",dataLen:%d", 
     ver, streamId, dataLen);
 
+  int32_t code = TSDB_CODE_SUCCESS;
   if (ver != -1){
-    (void)streamWriteCheckPoint(streamId, data, dataLen);
+    code = streamWriteCheckPoint(streamId, data, dataLen);
   }
-  return streamCheckpointSetReady(streamId);
+  return streamCheckpointSyncComplete(streamId, code);
 }
 
 static int32_t handleBackupSnodeReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
@@ -270,11 +307,10 @@ _exit:
 
 static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetchFrame* pFrame, void** data,
                                    size_t* size, int8_t precision, bool finished) {
+  if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
+  *data = NULL;
+  *size = 0;
   if (pFrame != NULL && pFrame->type != STREAM_RUNNER_FETCH_LEGACY) {
-    if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
-    *data = NULL;
-    *size = 0;
-
     int64_t rows = pBlock == NULL ? 0 : pBlock->info.rows;
     int32_t code = tValidateSStreamRunnerFetchFrame(pFrame, rows);
     if (code != TSDB_CODE_SUCCESS || finished ||
@@ -341,7 +377,11 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
   void*   buf =  NULL;
 
   int32_t blockSize = pBlock == NULL ? 0 : blockGetInternalEncodeSize(pBlock);
-  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + blockSize;
+  int64_t payloadSize = (int64_t)INT_BYTES * 2 + blockSize;
+  if (blockSize < 0 || payloadSize > INT32_MAX - (int64_t)sizeof(SRetrieveTableRsp)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  size_t dataEncodeBufSize = sizeof(SRetrieveTableRsp) + (size_t)payloadSize;
   buf = rpcMallocCont(dataEncodeBufSize);
   if (!buf) {
     code = terrno;
@@ -349,10 +389,13 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
   }
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  memset(pRetrieve, 0, sizeof(*pRetrieve));
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->completed = finished ? 1 : 0;
+  pRetrieve->payloadLen = htonl((int32_t)payloadSize);
+  pRetrieve->compLen = pRetrieve->payloadLen;
   *((int32_t*)(pRetrieve->data)) = blockSize;
   *((int32_t*)(pRetrieve->data + INT_BYTES)) = blockSize;
   if (pBlock == NULL || pBlock->info.rows == 0) {
@@ -367,8 +410,8 @@ static int32_t buildStreamFetchRsp(SSDataBlock* pBlock, const SStreamRunnerFetch
     pRetrieve->numOfCols = htonl(numOfCols);
 
     int32_t actualLen = blockEncodeInternal(pBlock, pRetrieve->data + INT_BYTES * 2, blockSize, numOfCols);
-    if (actualLen < 0) {
-      code = terrno;
+    if (actualLen != blockSize) {
+      code = actualLen < 0 ? terrno : TSDB_CODE_INVALID_MSG;
       goto end;
     }
   }
@@ -450,6 +493,9 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
       TMSG_INFO(pRpcMsg->msgType), pRpcMsg->contLen, TRACE_GET_ROOTID(&pRpcMsg->info.traceId), TRACE_GET_MSGID(&pRpcMsg->info.traceId));
   
   TAOS_CHECK_EXIT(tDeserializeSResFetchReqWithContextFrames(pRpcMsg->pCont,pRpcMsg->contLen, &req));
+  if (req.pStRtFuncInfo == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   calcReq.streamId = req.queryId;
   calcReq.runnerTaskId = req.taskId;
@@ -473,6 +519,9 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.pOutBlock = NULL;
 
   TAOS_CHECK_EXIT(streamAcquireTask(calcReq.streamId, calcReq.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+  if (pTask->task.type != STREAM_RUNNER_TASK) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   pTask->msgCb = pSnode->msgCb;
   //pTask->pMsgCb = &pSnode->msgCb;
@@ -520,6 +569,9 @@ static int32_t handleStreamFetchFromCache(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   int64_t streamId = 0;
   size_t size = 0;
   TAOS_CHECK_EXIT(tDeserializeSResFetchReq(pRpcMsg->pCont, pRpcMsg->contLen, &req));
+  if (req.pStRtFuncInfo == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   streamId = req.queryId;
   readInfo.taskInfo.streamId = req.queryId;
@@ -584,8 +636,14 @@ static int32_t handleStreamDropTableReq(SSnode* pSnode, SRpcMsg* pRpcMsg) {
   SStreamRunnerTask* pTask = NULL;
   void* taskAddr = NULL;
   int32_t code = 0, lino = 0;
+  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen <= (int32_t)sizeof(SMsgHead)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDeserializeSTriggerDropTableRequest(POINTER_SHIFT(pRpcMsg->pCont, sizeof(SMsgHead)), pRpcMsg->contLen - sizeof(SMsgHead), &req));
   TAOS_CHECK_EXIT(streamAcquireTask(req.streamId, req.runnerTaskId, (SStreamTask**)&pTask, &taskAddr));
+  if (pTask->task.type != STREAM_RUNNER_TASK) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   
   pTask->msgCb = pSnode->msgCb;
   TAOS_CHECK_EXIT(stRunnerTaskDropTable(pTask, &req));
@@ -623,7 +681,7 @@ static int32_t handleExtReaderPullReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   int32_t                    pullType     = 0;
 
   /* Minimum sanity check: must have at least SMsgHead bytes. */
-  if (pRpcMsg->contLen <= (int32_t)sizeof(SMsgHead)) {
+  if (pRpcMsg->pCont == NULL || pRpcMsg->contLen <= (int32_t)sizeof(SMsgHead)) {
     sndError("ext: PULL_EXT msg too short contLen=%d", pRpcMsg->contLen);
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
@@ -653,7 +711,7 @@ static int32_t handleExtReaderPullReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   /* Only an EXT (federated) reader task stores an SStreamExtReaderInfo in info;
    * reject a mis-routed PULL_EXT for a normal reader rather than type-confusing
    * pTask->info. */
-  if (!STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
+  if (pTask->task.type != STREAM_READER_TASK || !STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
     sndError("ext: handleExtReaderPullReq got PULL_EXT for a non-ext reader task "
              "streamId=%" PRId64 " taskId=%" PRId64 " flags=%" PRId64 " - routing error",
              streamId, readerTaskId, (int64_t)pTask->task.flags);
@@ -776,8 +834,10 @@ _exit:
  * streamReaderExtFetchData (reuses extConnector SQL from P2) ->
  * build SRetrieveTableRsp  ->  send TDMT_STREAM_FETCH_EXT_RSP.
  *
- * Time window: if pStRtFuncInfo is present the curWindow [skey,ekey] is used
- * to bound the external query; otherwise the full table is scanned.
+ * Time window: derived like the vnode reader's processCalaTimeRange.  When the
+ * calc scan carries a time range with time-returning expressions it is
+ * evaluated against the request's window parameters; otherwise the runner's
+ * merged curWindow is used, or the full table is scanned when unbounded.
  */
 static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   int32_t            code     = TSDB_CODE_SUCCESS;
@@ -806,12 +866,12 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, readerTaskId,
                                     (SStreamTask **)&pTask, &taskAddr));
 
-  /* Guard against routing errors: only an EXT (federated) reader task has its
-   * info set to an SStreamExtReaderInfo. If a normal reader's task is reached
+  /* Guard against routing errors: only an EXT calc reader task has its
+   * info set to an array of SStreamExtReaderInfo pointers. If a normal task is reached
    * here (e.g. a FETCH_EXT mis-sent because a source address left isExt
    * uninitialized), pTask->info is a different type  -  fail loudly instead of
    * type-confusing it into an SStreamExtReaderInfo and crashing. */
-  if (!STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
+  if (pTask->task.type != STREAM_READER_TASK || !STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
     sndError("ext: handleExtFetchReq got FETCH_EXT for a non-ext reader task "
              "streamId=%" PRId64 " taskId=%" PRId64 " flags=%" PRId64
              " - routing error, refusing to treat info as ext reader",
@@ -819,27 +879,32 @@ static int32_t handleExtFetchReq(SSnode *pSnode, SRpcMsg *pRpcMsg) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
-  SStreamExtReaderInfo *pInfo =
-    (SStreamExtReaderInfo *)pTask->info;
+  SStreamExtReaderInfo *pInfo = NULL;
+  TAOS_CHECK_EXIT(streamReaderExtGetCalcInfo(pTask, req.execId, &pInfo));
 
-  if (pInfo == NULL) {
-    sndError("ext: handleExtFetchReq reader task streamId=%" PRId64
-             " taskId=%" PRId64 " has NULL info - not yet initialised",
-             streamId, readerTaskId);
-    TAOS_CHECK_EXIT(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO);
-  }
-
-  /* Derive time window from the runtime function info if provided.
-   * A zero/zero window means the runner did not set a time bound
-   * (e.g. full-table aggregate over ext source); treat as unbounded. */
+  /* Derive the fetch time range the same way the vnode reader does for table
+   * scans (vnodeStream.c processCalaTimeRange).  When the calc statement
+   * carries time-returning expressions (STimeRangeNode.needCalc, e.g.
+   * _twstart/_twend or casted localtime placeholders) the bounds must be
+   * evaluated with the current window parameters instead of trusting the raw
+   * merged [wstart, wend] range.  Readers deployed without a scan time range
+   * keep the legacy curWindow behavior (or a full scan). */
   int64_t skey = INT64_MIN;
   int64_t ekey = INT64_MAX;
-  if (req.pStRtFuncInfo != NULL &&
-      (req.pStRtFuncInfo->curWindow.skey != 0 || req.pStRtFuncInfo->curWindow.ekey != 0)) {
-    skey = req.pStRtFuncInfo->curWindow.skey;
-    ekey = req.pStRtFuncInfo->curWindow.ekey;
-    sndDebug("ext: handleExtFetchReq using time window [%" PRId64 ", %" PRId64 "]",
-             skey, ekey);
+  if (req.pStRtFuncInfo != NULL) {
+    TAOS_CHECK_EXIT(streamReaderExtCalcFetchRange(pInfo, req.pStRtFuncInfo, &skey, &ekey));
+    if (pInfo->pCalcTimeRange == NULL) {
+      /* No scan time range to evaluate: a zero/zero window means the runner
+       * did not set a time bound (e.g. full-table aggregate over ext source);
+       * treat it as unbounded, otherwise keep the merged window the runner
+       * published.  With a scan time range the evaluated bounds above are
+       * authoritative (including unbounded and empty ranges). */
+      if (req.pStRtFuncInfo->curWindow.skey != 0 || req.pStRtFuncInfo->curWindow.ekey != 0) {
+        skey = req.pStRtFuncInfo->curWindow.skey;
+        ekey = req.pStRtFuncInfo->curWindow.ekey;
+      }
+    }
+    sndDebug("ext: handleExtFetchReq using time window [%" PRId64 ", %" PRId64 "]", skey, ekey);
   } else {
     sndDebug("ext: handleExtFetchReq no time window bound (full scan)");
   }

@@ -191,6 +191,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,count,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -225,6 +226,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,avg,sum,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -261,6 +263,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,max,min,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -295,6 +298,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,spread,stddev,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -326,6 +330,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,hyperloglog,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -354,6 +359,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,multi_func,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -387,6 +393,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: first,last,selection,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -421,6 +428,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: bottom,selection,top,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -455,6 +463,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: last_row,selection,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -483,6 +492,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: sample,selection,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -513,6 +523,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: lower,string,upper,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -545,6 +556,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: concat,string,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -579,6 +591,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: string,substr,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -607,6 +620,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: string,trim,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -639,6 +653,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: length,string,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -672,6 +687,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: replace,string,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -699,6 +715,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: ascii,position,string,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -739,6 +756,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: math,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -780,6 +798,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: cast,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -813,6 +832,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: arithmetic,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -846,6 +866,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: filter,virtual,where,integration,functional
+
         Jira: None
 
         History:
@@ -876,6 +897,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: filter,like,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -904,6 +926,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: filter,in,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -931,6 +954,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: between,filter,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -961,6 +985,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: filter,null,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -991,6 +1016,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: combined,filter,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1022,6 +1048,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: limit,offset,order,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1069,6 +1096,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: distinct,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1096,6 +1124,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: case_when,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1132,6 +1161,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: scalar,subquery,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1160,6 +1190,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: subquery,table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1188,6 +1219,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: nested,subquery,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1221,6 +1253,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: string,subquery,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1254,6 +1287,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,subquery,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1289,6 +1323,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: subquery,virtual,window,integration,functional
+
         Jira: None
 
         History:
@@ -1320,6 +1355,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: join,subquery,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1352,6 +1388,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: subquery,union,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1385,6 +1422,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: join,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1400,32 +1438,37 @@ class TestVtableQueryComprehensive:
         tdSql.checkRows(3)
 
     def test_join_vtable_with_vtable(self):
-        """JOIN: two vtables joined on timestamp (expect error - not supported)
+        """JOIN: two vtables joined on timestamp
 
         Description:
-            Test JOIN between two virtual tables (negative case).
+            Test JOIN between two virtual tables.
         
-        Validates that joining two virtual tables returns an error as this
-        is not currently supported.
+        Validates that joining two virtual tables returns the matching rows.
 
         Catalog:
             - VirtualTable
 
         Since: v3.3.6.0
 
-        Labels: join,negative,virtual,integration,functional
+        Labels: join,virtual,integration,functional
+
         Jira: None
 
         History:
             - 2026-2-12 Created
         """
         db = self.DB
-        tdLog.info("=== join: vtable with vtable (expect error) ===")
-        # vtable-vtable JOIN is not currently supported
-        tdSql.error(
+        tdLog.info("=== join: vtable with vtable ===")
+        tdSql.query(
             f"SELECT a.bin_col, b.city "
             f"FROM {db}.vtb_lt a, {db}.vtb_dim b "
             f"WHERE a.ts = b.ts ORDER BY a.ts;")
+        tdSql.checkRows(3)
+        for row, values in enumerate((("Shanghai", "Shanghai"),
+                                      ("short", "Palo Alto"),
+                                      ("PaloAlto", "Beijing"))):
+            tdSql.checkData(row, 0, values[0])
+            tdSql.checkData(row, 1, values[1])
 
     # ========================= UNION ========================================
 
@@ -1443,6 +1486,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: union,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1469,6 +1513,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: union,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1498,6 +1543,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: group_by,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1533,6 +1579,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: partition_by,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1566,6 +1613,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: interval,virtual,window,integration,functional
+
         Jira: None
 
         History:
@@ -1598,6 +1646,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: fill,interval,virtual,window,integration,functional
+
         Jira: None
 
         History:
@@ -1628,6 +1677,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: session,virtual,window,integration,functional
+
         Jira: None
 
         History:
@@ -1663,6 +1713,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: super_table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1688,6 +1739,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,super_table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1719,6 +1771,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: interval,super_table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1746,6 +1799,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: subquery,super_table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1780,6 +1834,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: child_table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1813,6 +1868,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: aggregate,child_table,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1849,6 +1905,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: child_table,string,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1884,6 +1941,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: select_star,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1912,6 +1970,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: consistency,virtual,integration,functional
+
         Jira: None
 
         History:
@@ -1947,6 +2006,7 @@ class TestVtableQueryComprehensive:
         Since: v3.3.6.0
 
         Labels: consistency,count,virtual,integration,functional
+
         Jira: None
 
         History:

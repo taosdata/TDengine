@@ -19,20 +19,30 @@ from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
 class TestVtableCreate:
     def setup_class(cls):
-        tdLog.info(f"prepare org tables.")
+        tdLog.info("prepare database.")
 
         tdSql.execute("drop database if exists test_vtable_max_column;")
         tdSql.execute("create database test_vtable_max_column;")
         tdSql.execute("use test_vtable_max_column;")
         tdSql.execute("alter local 'maxSQLLength' '4194304'")
+        cls.org_table_count = 0
+
+    @classmethod
+    def prepare_org_tables(cls, table_count):
+        if table_count <= cls.org_table_count:
+            return
+
+        tdLog.info(f"prepare {table_count} org tables.")
+        tdSql.execute("use test_vtable_max_column;")
 
         sql = "insert into "
-        for i in range(5000):
+        for i in range(cls.org_table_count, table_count):
             tdSql.execute(f"create table d_{i}(ts timestamp, double_col double)")
             sql += f" d_{i} values(1696000000000, {i})"
             sql += f" (1696000001000, {i+1})"
         # execute
         tdSql.execute(sql)
+        cls.org_table_count = table_count
 
     def test_virtual_super_child_table_max_column(self):
         """Virtual super/child table max column
@@ -50,6 +60,7 @@ class TestVtableCreate:
             - 2025-12-3 Jing Sima Created
 
         """
+        self.prepare_org_tables(100)
         tdLog.info(f"test create virtual super tables.")
 
         tdSql.execute("use test_vtable_max_column;")
@@ -130,6 +141,7 @@ class TestVtableCreate:
             - 2025-12-3 Jing Sima Created
 
         """
+        self.prepare_org_tables(100)
         tdLog.info(f"test create virtual normal tables.")
 
         tdSql.execute("use test_vtable_max_column;")
@@ -169,6 +181,7 @@ class TestVtableCreate:
             - 2025-12-3 Jing Sima Created
 
         """
+        self.prepare_org_tables(100)
         tdLog.info(f"test create virtual tables exceed max column num.")
 
         tdSql.execute("use test_vtable_max_column;")
@@ -368,6 +381,7 @@ class TestVtableCreate:
             - 2026-10-12 Codex Split child and normal table scenarios
 
         """
+        self.prepare_org_tables(5000)
         self.do_virtual_child_table_max_column_exceed_ref_mapping()
 
     def test_virtual_normal_table_max_column_exceed_ref_mapping(self):
@@ -389,6 +403,7 @@ class TestVtableCreate:
             - 2026-10-12 Codex Created
 
         """
+        self.prepare_org_tables(5000)
         self.do_virtual_normal_table_max_column_exceed_ref_mapping()
 
     def test_virtual_table_error_case(self):

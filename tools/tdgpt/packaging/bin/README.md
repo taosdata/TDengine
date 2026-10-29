@@ -6,10 +6,6 @@
 
 - `WinSW.exe`
   供 `packaging/win_release.py` 作为本地 WinSW 缓存使用。
-- `uv.exe`
-  未传入 `--python-runtime-dir` 时，供 `packaging/build_offline_assets.py`
-  安装或下载 Python runtime。
-
 ## WinSW 行为
 
 打包时按以下顺序处理：
@@ -23,14 +19,6 @@
 下载来源：
 
 - [WinSW.NET461.exe](https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW.NET461.exe)
-
-## `uv` 行为
-
-构建离线资源时按以下顺序查找：
-
-1. `build_offline_assets.py` 首先检查 `packaging/bin/uv.exe`。
-2. 如果传入 `--uv-exe`，则优先使用参数指定的路径。
-3. 如果两处都没有可用文件，则回退到 `where uv` 查找宿主机上的 `uv`。
 
 ## 说明
 

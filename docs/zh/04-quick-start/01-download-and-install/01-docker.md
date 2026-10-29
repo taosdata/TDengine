@@ -45,6 +45,8 @@ docker pull tdengine/tsdb-ee:{{VERSION}}
 
 ```shell
 docker run -d \
+  --hostname tdengine \
+  -e TAOS_FQDN=tdengine \
   -v ~/data/taos/dnode/data:/var/lib/taos \
   -v ~/data/taos/dnode/log:/var/log/taos \
   -p 6030:6030 -p 6041:6041 -p 6043:6043 -p 6060:6060 \
@@ -57,6 +59,8 @@ docker run -d \
 
 关于 TDengine 各服务的端口占用情况，请参考运维指南中的 [网络端口要求](../../12-operations-and-tooling/02-operations/01-planning.md#网络端口要求) 章节。
 
+此示例适用于全新数据目录。`--hostname` 设置容器主机名，`TAOS_FQDN` 显式设置 TDengine 节点身份；`--name` 仅设置容器名称。删除容器后复用原数据目录时，必须保持原节点 FQDN，不能直接改用示例中的 `tdengine`。重建要求请参阅 [Docker 部署](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md#preserve-node-identity)。
+
 ### 查看容器状态
 
 执行下面的命令查看容器运行状态：
@@ -65,7 +69,14 @@ docker run -d \
 docker ps -f name=tdengine-tsdb
 ```
 
-查看命令输出中的 `STATUS` 字段。如果该字段显示 `Up ... (healthy)`，说明容器已经启动并正常运行。
+`STATUS` 显示 `Up ...` 表示容器正在运行，不代表所有服务已经就绪；只有配置了 Docker 健康检查时才会显示 `healthy`。对于 v3.4.1.0 及以上版本，继续执行以下命令检查启动状态和服务状态：
+
+```shell
+docker exec tdengine-tsdb taos-check startup
+docker exec tdengine-tsdb taos-check service
+```
+
+检查命令退出码为 `0` 表示对应检查通过。若使用了自定义 root 密码，请按 [Docker 部署](../../12-operations-and-tooling/02-operations/03-deployment/02-docker.md#custom-passwords-upgrades-and-health-checks) 的说明提供当前密码。
 
 ### 进入容器
 

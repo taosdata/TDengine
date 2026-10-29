@@ -109,6 +109,19 @@ static void setAllSourcesCompleted(SOperatorInfo* pOperator);
 static void clearSourceResponse(SSourceDataInfo* pDataInfo);
 static void destroyExchangeMultiGroupResult(void* pParam);
 
+int32_t getExchangeReaderSourceOpType(const SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || pOperator->info == NULL) {
+    return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  }
+
+  const SExchangeInfo* pExchangeInfo = pOperator->info;
+  if (pExchangeInfo->readerSrcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      pExchangeInfo->readerSrcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    return pExchangeInfo->readerSrcOpType;
+  }
+  return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+}
+
 static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code);
 
 // Vtable data-source fetch types. EX_SRC_TYPE_VSTB_SYS_SCAN is deliberately
@@ -1402,8 +1415,11 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     }
   }
 
-  for (int32_t i = 0; i < numOfSources; ++i) {
-    SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
+  SListCell* pSrcEndPointCell =
+      NULL != ((SNodeList*)pExNode->pSrcEndPoints) ? ((SNodeList*)pExNode->pSrcEndPoints)->pHead : NULL;
+  for (int32_t i = 0; i < numOfSources;
+       ++i, pSrcEndPointCell = (NULL != pSrcEndPointCell ? pSrcEndPointCell->pNext : NULL)) {
+    SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)(NULL != pSrcEndPointCell ? pSrcEndPointCell->pNode : NULL);
     if (!pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
@@ -1463,6 +1479,7 @@ int32_t resetExchangeOperState(SOperatorInfo* pOper) {
     SSourceDataInfo* pDataInfo = taosArrayGet(pInfo->pSourceDataInfo, i);
     taosWLockLatch(&pDataInfo->lock);
     taosMemoryFreeClear(pDataInfo->decompBuf);
+    pDataInfo->decompBufSize = 0;
     clearSourceResponse(pDataInfo);
 
     pDataInfo->totalRows = 0;
@@ -2368,6 +2385,7 @@ static int32_t serializeStreamFetchReq(void* buf, int32_t bufLen, SResFetchReq* 
     continuation.sessionId = pInfo->sessionId;
     continuation.streamGen = pInfo->streamGen;
     continuation.withExternalWindow = pInfo->withExternalWindow;
+    continuation.externalWindowNeedsPrevRow = pInfo->externalWindowNeedsPrevRow;
     continuation.triggerType = pInfo->triggerType;
     continuation.isWindowTrigger = pInfo->isWindowTrigger;
     continuation.precision = pInfo->precision;
@@ -2521,12 +2539,14 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
                GET_TASKID(pTaskInfo), req.execId, req.pStRtFuncInfo->curIdx, req.pStRtFuncInfo->curWindow.skey,
                req.pStRtFuncInfo->curWindow.ekey);
       } else if (fetchMsgType == TDMT_STREAM_FETCH_EXT) {
-        /* P4-E3: EXT fetch - runner requests data from an ETR (external-table
-         * reader) task.  Only set a merged time range when the runner has an
-         * external window operator (%%trows); otherwise leave curWindow as
-         * {0,0} so the ext reader does a full table scan  -  the calc SQL has
-         * no time range filter or uses _twstart/_twend which are evaluated
-         * on the runner side after fetching. */
+        /* P4-E3: EXT fetch  -  runner requests data from an ETR (external-table
+         * reader) task.  The window parameters travel in pStRtFuncInfo; when
+         * the calc scan has a time range the ETR evaluates it itself
+         * (streamReaderExtCalcFetchRange, mirroring vnode processCalaTimeRange)
+         * and ignores curWindow.  curWindow below is only the fallback for ETRs
+         * without a scan time range: a merged range when the runner has an
+         * external window operator (%%trows), otherwise {0,0} so the ext
+         * reader does a full table scan and the runner filters after fetching. */
         if (req.pStRtFuncInfo->withExternalWindow &&
             req.pStRtFuncInfo->triggerType != STREAM_TRIGGER_PERIOD) {
           SArray *pVals = req.pStRtFuncInfo->pStreamPesudoFuncVals;
@@ -2540,7 +2560,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
         }
         if (req.pStRtFuncInfo->triggerType == STREAM_TRIGGER_PERIOD) {
           req.pStRtFuncInfo->curWindow = (STimeWindow){0};
-          qDebug("%s stream fetch ext skips dynamic period bounds", GET_TASKID(pTaskInfo));
+          qDebug("%s stream fetch ext publishes no period fallback bounds", GET_TASKID(pTaskInfo));
         }
         needStreamRtInfo = true;
         needStreamGrpInfo = false;
@@ -2841,23 +2861,31 @@ void updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows,
   pInfo->totalElapsed += (taosGetTimestampUs() - startTs);
 }
 
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan) {
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, size_t dataLen, SArray* pColList,
+                                     char** pNextStart, bool isVstbScan) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SSDataBlock* pBlock = NULL;
   if (isVstbScan) {
     blockDataCleanup(pRes);
-    code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
+    code = blockDecodeInternalBounded(pRes, pData, dataLen, (const char**)pNextStart);
     QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(*pNextStart == pData + dataLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
   } else if (pColList == NULL) {  // data from other sources
     blockDataCleanup(pRes);
-    code = blockDecodeInternal(pRes, pData, (const char**)pNextStart);
+    code = blockDecodeInternalBounded(pRes, pData, dataLen, (const char**)pNextStart);
     QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(*pNextStart == pData + dataLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
   } else {  // extract data according to pColList
     char* pStart = pData;
-
-    int32_t numOfCols = htonl(*(int32_t*)pStart);
+    if (dataLen < sizeof(int32_t)) return TSDB_CODE_INVALID_MSG;
+    int32_t numOfCols = 0;
+    memcpy(&numOfCols, pStart, sizeof(numOfCols));
+    numOfCols = ntohl(numOfCols);
     pStart += sizeof(int32_t);
+    if (numOfCols <= 0 || (size_t)numOfCols > (dataLen - sizeof(int32_t)) / sizeof(SSysTableSchema)) {
+      return TSDB_CODE_INVALID_MSG;
+    }
 
     // todo refactor:extract method
     SSysTableSchema* pSchema = (SSysTableSchema*)pStart;
@@ -2866,6 +2894,10 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
 
       p->colId = htons(p->colId);
       p->bytes = htonl(p->bytes);
+      if (IS_INVALID_TYPE(p->type) || p->bytes <= 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _end;
+      }
       pStart += sizeof(SSysTableSchema);
     }
 
@@ -2879,8 +2911,12 @@ int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pCo
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    code = blockDecodeInternal(pBlock, pStart, NULL);
+    size_t blockLen = dataLen - (size_t)(pStart - pData);
+    const char* pDecodedEnd = NULL;
+    code = blockDecodeBounded(pBlock, pStart, blockLen, &pDecodedEnd);
     QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(pDecodedEnd == pStart + blockLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
+    *pNextStart = (char*)pDecodedEnd;
 
     code = blockDataEnsureCapacity(pRes, pBlock->info.rows);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -3283,23 +3319,6 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
   int32_t index = 0;
 
-  if (pRetrieveRsp->compressed) {  // decompress the data
-    if (pDataInfo->decompBuf == NULL) {
-      pDataInfo->decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-      QUERY_CHECK_NULL(pDataInfo->decompBuf, code, lino, _end, terrno);
-      pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
-    } else {
-      if (pDataInfo->decompBufSize < pRetrieveRsp->payloadLen) {
-        char* p = taosMemoryRealloc(pDataInfo->decompBuf, pRetrieveRsp->payloadLen);
-        QUERY_CHECK_NULL(p, code, lino, _end, terrno);
-        if (p != NULL) {
-          pDataInfo->decompBuf = p;
-          pDataInfo->decompBufSize = pRetrieveRsp->payloadLen;
-        }
-      }
-    }
-  }
-
   while (index++ < pRetrieveRsp->numOfBlocks) {
     pStart = pNextStart;
 
@@ -3327,16 +3346,24 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
     pStart += sizeof(int32_t);
     QUERY_CHECK_CONDITION((compLen > 0 && compLen <= rawLen && compLen <= pPayloadEnd - pStart), code, lino, _end,
                           TSDB_CODE_INVALID_MSG);
+    QUERY_CHECK_CONDITION(rawLen <= pRetrieveRsp->payloadLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
+    QUERY_CHECK_CONDITION((pRetrieveRsp->compressed || compLen == rawLen), code, lino, _end, TSDB_CODE_INVALID_MSG);
 
     pNextStart = pStart + compLen;
     if (pRetrieveRsp->compressed && (compLen < rawLen)) {
+      if (pDataInfo->decompBufSize < rawLen) {
+        char* p = taosMemoryRealloc(pDataInfo->decompBuf, (size_t)rawLen);
+        QUERY_CHECK_NULL(p, code, lino, _end, terrno);
+        pDataInfo->decompBuf = p;
+        pDataInfo->decompBufSize = rawLen;
+      }
       int32_t t = tsDecompressString(pStart, compLen, 1, pDataInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
       QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       pStart = pDataInfo->decompBuf;
     }
 
     bool isVstb = (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN);
-    code = extractDataBlockFromFetchRsp(pb, pStart, NULL, &pStart, isVstb);
+    code = extractDataBlockFromFetchRsp(pb, pStart, (size_t)rawLen, NULL, &pStart, isVstb);
     if (code != 0) {
       clearSourceResponse(pDataInfo);
       goto _end;
@@ -4116,6 +4143,27 @@ int32_t exchangeTestResetMultiGroupOwner(void* pParam) {
                                           pOwner->exchange.readerGroupRequested);
 }
 
+int32_t exchangeTestSetDecompBufferState(void* pParam, int32_t sourceIndex, int32_t size) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || size <= 0) return TSDB_CODE_INVALID_PARA;
+  SSourceDataInfo* pSource = taosArrayGet(pOwner->exchange.pSourceDataInfo, sourceIndex);
+  if (pSource == NULL || pSource->decompBuf != NULL) return TSDB_CODE_INVALID_PARA;
+  pSource->decompBuf = taosMemoryMalloc(size);
+  if (pSource->decompBuf == NULL) return terrno;
+  pSource->decompBufSize = size;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exchangeTestGetDecompBufferState(void* pParam, int32_t sourceIndex, bool* pAllocated, int32_t* pSize) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL || pAllocated == NULL || pSize == NULL) return TSDB_CODE_INVALID_PARA;
+  SSourceDataInfo* pSource = taosArrayGet(pOwner->exchange.pSourceDataInfo, sourceIndex);
+  if (pSource == NULL) return TSDB_CODE_INVALID_PARA;
+  *pAllocated = pSource->decompBuf != NULL;
+  *pSize = pSource->decompBufSize;
+  return TSDB_CODE_SUCCESS;
+}
+
 void exchangeTestDestroyMultiGroupOwner(void* pParam) {
   SExchangeMultiGroupTestOwner* pOwner = pParam;
   if (pOwner == NULL) return;
@@ -4513,6 +4561,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExchangeInfo*     pExchangeInfo = pOperator->info;
+  if (pBasicParam->srcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      pBasicParam->srcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    pExchangeInfo->readerSrcOpType = pBasicParam->srcOpType;
+  }
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
 
   if (NULL == pIdx) {

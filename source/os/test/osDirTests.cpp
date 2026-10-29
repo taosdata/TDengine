@@ -342,6 +342,15 @@ TEST(osDirTests, taosExpandDir) {
   ret = taosExpandDir("/x123", fullpath, 1024);
   EXPECT_EQ(ret, 0);
 
+  char exactFit[6] = {0};
+  ret = taosExpandDir("/x123", exactFit, sizeof(exactFit));
+  EXPECT_EQ(ret, 0);
+  EXPECT_STREQ(exactFit, "/x123");
+  char tooSmall[6] = "keep";
+  ret = taosExpandDir("/x123", tooSmall, sizeof(tooSmall) - 1);
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_STREQ(tooSmall, "keep");
+
   ret = taosExpandDir("", fullpath, 1024);
   EXPECT_EQ(ret, 0);
 
@@ -350,7 +359,7 @@ TEST(osDirTests, taosExpandDir) {
     dir2[i] = '1';
   }
   ret = taosExpandDir(dir2, fullpath, 1024);
-  EXPECT_EQ(ret, 0);
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
 
   taosRemoveDir(testDir);
 }
@@ -607,14 +616,29 @@ TEST(osDirTests, taosDirEntryIsDirWithNull) {
 
 TEST(osDirTests, taosExpandDirErrorCases) {
   int32_t ret = 0;
-  char fullpath[1024] = {0};
+  char fullpath[1024] = "unchanged";
+
+  terrno = 0;
+  EXPECT_EQ(taosExpandDir("/tmp", fullpath, 0), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(fullpath, "unchanged");
+  terrno = 0;
+  EXPECT_EQ(taosExpandDir("/tmp", fullpath, -1), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  EXPECT_STREQ(fullpath, "unchanged");
   
   // Test with very long directory name that might cause expansion issues
   char longDir[PATH_MAX * 2];
   memset(longDir, 'a', sizeof(longDir) - 1);
   longDir[sizeof(longDir) - 1] = '\0';
   
-  // This might trigger error paths in wordexp
   ret = taosExpandDir(longDir, fullpath, sizeof(fullpath));
-  // Result may vary, just ensure it doesn't crash
+#ifdef WINDOWS
+  EXPECT_NE(ret, 0);
+  EXPECT_NE(terrno, 0);
+#else
+  EXPECT_EQ(ret, TSDB_CODE_INVALID_CFG_VALUE);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_CFG_VALUE);
+#endif
+  EXPECT_STREQ(fullpath, "unchanged");
 }

@@ -31,7 +31,7 @@ TDengine 消费者的概念与 Kafka 类似，消费者通过订阅主题来接�
 - `auto.commit.interval.ms`：自动提交消费位点的时间间隔（默认 `5000`）。
 - `msg.with.table.name`：是否允许从消息中解析表名。
 - `enable.replay`：是否开启数据回放功能。
-- `session.timeout.ms`：消费者心跳丢失后的超时时间（默认 `12000`）。
+- `session.timeout.ms`：消费者心跳丢失后的超时时间（默认 `45000`，自 `v3.4.3.6` 起；此前默认 `12000`）。
 - `max.poll.interval.ms`：消费者拉取数据间隔的最长时间（默认 `300000`）。
 - `fetch.max.wait.ms`：服务端单次返回数据的最大耗时（默认 `1000`）。
 - `min.poll.rows`：服务端单次返回数据的最小条数（默认 `4096`）。

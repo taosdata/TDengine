@@ -177,6 +177,7 @@ function log() {
 # =============================  get input parameters =================================================
 
 # set parameters by default value
+imageBuild=0       # Preserve packaged address defaults when building an image
 interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
@@ -193,11 +194,19 @@ Options:
   -e [yes | no]             Interactive FQDN setting
   -d [install dir]          Custom installation directory
   -s                        Silent mode installation
+  --image-build             Image installation without host address rewrites or service/process operations
 EOF
 }
 
-while getopts "hv:e:d:sq:m:" arg; do
+while getopts "hv:e:d:sq:m:-:" arg; do
   case $arg in
+  -)
+    if [ "$OPTARG" != "image-build" ]; then
+      echo "Unknown option: --$OPTARG"
+      exit 1
+    fi
+    imageBuild=1
+    ;;
   e)
     interactiveFqdn=$(echo $OPTARG)
     silent_mode=1
@@ -234,6 +243,12 @@ while getopts "hv:e:d:sq:m:" arg; do
     ;;
   esac
 done
+
+# Image assembly must never prompt for or persist the build host identity.
+if [ "$imageBuild" -eq 1 ]; then
+  silent_mode=1
+  interactiveFqdn=no
+fi
 
 # Package archives carry their role so core and extension can use the same
 # entry point. An explicit -m argument always takes precedence.
@@ -473,8 +488,15 @@ function setup_env() {
 
 function install_extension_package() {
   local manifest="${script_dir}/.extension-files"
+  local extension_info="${script_dir}/.package-info"
+  local installed_info="${installDir}/.package-info"
+  local key extension_value installed_value
   if [ ! -f "$manifest" ]; then
     echo "Extension package manifest not found: $manifest"
+    exit 1
+  fi
+  if [ ! -f "$extension_info" ] || [ ! -f "$installed_info" ]; then
+    echo "Package metadata is required to validate extension compatibility." >&2
     exit 1
   fi
   if [ ! -d "$installDir" ] || [ ! -x "${installDir}/bin/taosd" ] ||
@@ -490,13 +512,59 @@ function install_extension_package() {
       exit 1
     fi
   fi
+
+  for key in version platform arch edition; do
+    extension_value=$(awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$extension_info")
+    installed_value=$(awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$installed_info")
+    if [ -z "$extension_value" ] || [ -z "$installed_value" ] || [ "$extension_value" != "$installed_value" ]; then
+      echo "Extension package ${key} does not match the installed core/full package (extension=${extension_value:-missing}, installed=${installed_value:-missing})." >&2
+      exit 1
+    fi
+  done
+  local installed_version package_version
+  package_version=$(awk -F= '$1 == "version" {print $2; exit}' "$extension_info")
+  installed_version=$("${installDir}/bin/taosd" -V 2>/dev/null | awk '/version:/ {print $3; exit}')
+  installed_version=${installed_version%.enterprise}
+  if [ "$installed_version" != "$package_version" ]; then
+    echo "Extension package version does not match installed taosd (extension=${package_version}, taosd=${installed_version:-unknown})." >&2
+    exit 1
+  fi
+  if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" != "$(awk -F= '$1 == "platform" {print $2; exit}' "$extension_info")" ]; then
+    echo "Extension package platform does not match this host." >&2
+    exit 1
+  fi
+  local host_arch
+  case "$(uname -m)" in
+    x86_64|amd64) host_arch=x64 ;;
+    aarch64|arm64) host_arch=arm64 ;;
+    *) host_arch=$(uname -m) ;;
+  esac
+  if [ "$host_arch" != "$(awk -F= '$1 == "arch" {print $2; exit}' "$extension_info")" ]; then
+    echo "Extension package architecture does not match this host (extension=$(awk -F= '$1 == "arch" {print $2; exit}' "$extension_info"), host=${host_arch})." >&2
+    exit 1
+  fi
+  if [ "$(awk -F= '$1 == "edition" {print $2; exit}' "$extension_info")" != "enterprise" ]; then
+    echo "Only enterprise extension packages are supported." >&2
+    exit 1
+  fi
+
+  # Validate the complete payload before changing the installed tree. Paths in
+  # the manifest are package-relative and must never escape the installation.
   while IFS= read -r path || [ -n "$path" ]; do
     [ -z "$path" ] && continue
     [[ "$path" == \#* ]] && continue
+    if [[ "$path" == /* || "/$path/" == *"/../"* ]]; then
+      echo "Invalid path in extension package manifest: ${path}" >&2
+      exit 1
+    fi
     if [ ! -f "${script_dir}/${path}" ]; then
       echo "Extension package file is missing: ${path}"
       exit 1
     fi
+  done < "$manifest"
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == \#* ]] && continue
     mkdir -p "${installDir}/$(dirname "$path")"
     cp -a "${script_dir}/${path}" "${installDir}/${path}"
   done < "$manifest"
@@ -510,7 +578,121 @@ function install_extension_package() {
   echo "TDengine extension package has been installed successfully."
 }
 
+# Preserve general-purpose system library links: legacy installs may have
+# overwritten their original targets. Remove only dedicated FQ exports. Resolve every link
+# before deleting any, so aliases and dangling versioned targets are handled.
+function cleanup_legacy_fq_runtime() {
+  local driver_dir="$1" conf_file="$2" cleanup_sudo="$3"
+  shift 3
+  local canonical_driver dir link target
+  local changed=0
+  local managed_links=()
+  local ownership
+  canonical_driver=$(readlink -m -- "$driver_dir")
+  for dir in "$@"; do
+    [ -d "$dir" ] || continue
+    for link in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
+                "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
+                "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so* \
+                "$dir"/libltdl.so* "$dir"/libgssapi_krb5.so* "$dir"/libkrb5.so* \
+                "$dir"/libk5crypto.so* "$dir"/libcom_err.so* "$dir"/libkrb5support.so* \
+                "$dir"/libkeyutils.so*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m -- "$link" 2>/dev/null) || continue
+      case "$target" in
+        "$canonical_driver/"*)
+          # Shared runtime SONAMEs may have replaced package-owned links.
+          # Remove them only when a package manager confirms the link path is
+          # unowned; ambiguous query failures preserve the link.
+          case "${link##*/}" in
+            libssl.so*|libcrypto.so*|libz.so*|libltdl.so*|libgssapi_krb5.so*|libkrb5.so*|\
+            libk5crypto.so*|libcom_err.so*|libkrb5support.so*|libkeyutils.so*)
+              ownership=unknown
+              if command -v dpkg-query >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(dpkg-query -S -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"no path found matching pattern"* ]]; then
+                  ownership=unowned
+                fi
+              elif command -v rpm >/dev/null 2>&1; then
+                local query_output query_status
+                query_output=$(rpm -qf -- "$link" 2>&1) && query_status=0 || query_status=$?
+                if [ "$query_status" -eq 0 ]; then
+                  ownership=owned
+                elif [[ "$query_output" == *"is not owned by any package"* ]]; then
+                  ownership=unowned
+                fi
+              fi
+              if [ "$ownership" = owned ] && command -v rpm >/dev/null 2>&1; then
+                local package rpm_target restored_target
+                package=$(rpm -qf --qf '%{NAME}\n' -- "$link" 2>/dev/null) || package=""
+                rpm_target=""
+                if [ -n "$package" ]; then
+                  rpm_target=$(rpm -q --dump "$package" 2>/dev/null | awk -v path="$link" '$1 == path && $5 ~ /^012/ { print $NF; found=1; exit } END { if (!found) exit 1 }') || rpm_target=""
+                fi
+                if [ -n "$rpm_target" ] && [ -e "$(dirname "$link")/$rpm_target" ]; then
+                  restored_target=$(readlink -m -- "$(dirname "$link")/$rpm_target" 2>/dev/null) || restored_target=""
+                  case "$restored_target" in
+                    "$canonical_driver/"*) restored_target="" ;;
+                  esac
+                  if [ -n "$restored_target" ]; then
+                    ${cleanup_sudo}ln -sfn -- "$rpm_target" "$link"
+                    changed=1
+                    echo "Restored package-owned symlink $link -> $rpm_target"
+                    continue
+                  fi
+                fi
+                echo "Warning: preserving $link; RPM target could not be safely restored" >&2
+                continue
+              fi
+              if [ "$ownership" != unowned ]; then
+                echo "Warning: preserving $link; package ownership is $ownership" >&2
+                continue
+              fi
+              ;;
+          esac
+          managed_links+=("$link")
+          ;;
+      esac
+    done
+  done
+  for link in "${managed_links[@]-}"; do
+    [ -n "$link" ] || continue
+    ${cleanup_sudo}rm -f -- "$link"
+    changed=1
+  done
+  # The old installer wrote exactly one driver path. Leave symlinks and any
+  # customized configuration untouched, even when the filename is the same.
+  if [ -n "$conf_file" ] && [ -f "$conf_file" ] && [ ! -L "$conf_file" ] &&
+     [ "$(cat -- "$conf_file")" = "$driver_dir" ]; then
+    ${cleanup_sudo}rm -f -- "$conf_file"
+    changed=1
+  elif [ -n "$conf_file" ] && { [ -e "$conf_file" ] || [ -L "$conf_file" ]; }; then
+    echo "Warning: customized loader configuration preserved: $conf_file; review FQ driver exports manually" >&2
+  fi
+  if [ "$changed" -eq 1 ] && { [ "$(id -u)" -eq 0 ] || [ -n "$cleanup_sudo" ]; } &&
+     command -v ldconfig >/dev/null 2>&1; then
+    ${cleanup_sudo}ldconfig || echo "Warning: failed to update library cache (ldconfig)" >&2
+  fi
+}
+
 function install_fq_runtime_links() {
+  if [ "$osType" != "Darwin" ]; then
+    local legacy_conf=""
+    if [ "$user_mode" -eq 0 ]; then
+      legacy_conf="/etc/ld.so.conf.d/tdengine-connector.conf"
+    fi
+    cleanup_legacy_fq_runtime "${installDir}/driver" "$legacy_conf" "" \
+      "$lib_link_dir" "$lib64_link_dir"
+  fi
+  # Keep Microsoft driver resources relative to the private driver directory.
+  if [ -d "${script_dir}/share/resources" ]; then
+    mkdir -p "${installDir}/share/resources"
+    cp -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
+  fi
   local runtime_dir="${1:-${installDir}/driver}"
   local link_name target_name
   [ -d "$runtime_dir" ] || return 0
@@ -546,12 +728,20 @@ function get_config_file() {
 }
 
 function install_services() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
   for service in "${services[@]}"; do
     install_service ${service}
   done
 }
 
 function kill_process() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
     # use pkill if available, otherwise fallback to pgrep + while-read
     if command -v pkill >/dev/null 2>&1; then
         pkill -x -9 "$1" 2>/dev/null || true
@@ -566,14 +756,42 @@ function install_main_path() {
   # - Real directories from old versions must be preserved (data loss risk)
   # - Symlinks are safely overwritten by ln -sf in install_log/install_config
   # - data_link_dir is not recreated during upgrade (install_data not called)
+  if [ -f "${install_main_dir}/.extension-files" ]; then
+    local extension_path
+    local extension_paths=()
+    while IFS= read -r extension_path || [ -n "$extension_path" ]; do
+      [ -z "$extension_path" ] && continue
+      if [[ "$extension_path" == /* || "$extension_path" == .. || "$extension_path" == ../* || \
+            "$extension_path" == */../* || "$extension_path" == */.. ]]; then
+        echo "Invalid path in installed extension manifest: ${extension_path}" >&2
+        exit 1
+      fi
+      extension_paths+=("$extension_path")
+    done < "${install_main_dir}/.extension-files"
+    # Validate the complete manifest before removing anything. Configuration
+    # files may live below cfg -> /etc/taos and must follow config policy.
+    for extension_path in "${extension_paths[@]}"; do
+      case "$extension_path" in
+        cfg|cfg/*) continue ;;
+      esac
+      rm -f -- "${install_main_dir}/${extension_path}"
+    done
+  fi
   rm -rf "${bin_dir}" || :
   rm -rf "${driver_dir}" || :
+  # A full/core package owns the installation tree. Remove optional payloads
+  # left by an earlier full or extension install before laying down this role.
+  rm -rf "${install_main_dir}/connector" \
+         "${install_main_dir}/plugins" \
+         "${install_main_dir}/taosx/plugins" || :
+  rmdir "${install_main_dir}/taosx" 2>/dev/null || :
   rm -rf "${install_main_dir}/examples" || :
   rm -rf "${install_main_dir}/include" || :
   rm -rf "${install_main_dir}/share" || :
   # Remove package-role metadata left by a previous extension install. The
   # full/core installer owns the tree and must not inherit extension mode.
   rm -f "${install_main_dir}/.extension-files" \
+        "${install_main_dir}/.package-info" \
         "${install_main_dir}/.package-role" \
         "${install_main_dir}/.package-role.extension" || :
 
@@ -588,6 +806,13 @@ function install_main_path() {
   #  mkdir -p "${install_main_dir}/init.d"
   if [ "$verMode" == "cluster" ]; then
     mkdir -p "${install_main_dir}/share"
+  fi
+  if [ -d "${script_dir}/share" ]; then
+    mkdir -p "${install_main_dir}/share"
+    cp -a "${script_dir}/share/." "${install_main_dir}/share/"
+  fi
+  if [ -f "${script_dir}/.package-info" ]; then
+    cp -f "${script_dir}/.package-info" "${install_main_dir}/.package-info"
   fi
 
   if [[ -e ${script_dir}/email ]]; then
@@ -1046,7 +1271,9 @@ function install_taosx_config() {
     mkdir -p "${dataDir}/${xname}"
   fi
   if [ -f "${file_name}" ]; then
-    sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/#*\s*(fqdn\s*=\s*).*/\1\"${serverFqdn}\"/" "${file_name}"
+    fi
 
     # replace data_dir
     sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/${xname}\"|" "${file_name}"
@@ -1079,7 +1306,9 @@ function install_explorer_config() {
   fi
   if [ -f "${file_name}" ]; then
     # replace fqdn
-    sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i "s/localhost/${serverFqdn}/g" "${file_name}"
+    fi
 
     # replace data_dir
     sed -i -r "0,/data_dir\s*=\s*/s|#*\s*(data_dir\s*=\s*).*|\1\"${dataDir}/explorer\"|" "${file_name}"
@@ -1101,7 +1330,9 @@ function install_adapter_config() {
 
   file_name="${script_dir}/cfg/${adapterName}.toml"
   if [ -f "${file_name}" ]; then
-    sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/localhost/${serverFqdn}/g" "${file_name}"
+    fi
 
     # replace log path
     sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
@@ -1123,7 +1354,9 @@ function install_keeper_config() {
 
   file_name="${script_dir}/cfg/${keeperName}.toml"
   if [ -f "${file_name}" ]; then
-    sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/127.0.0.1/${serverFqdn}/g" "${file_name}"
+    fi
     sed -i -r "s|#*\s*(path\s*=\s*).*|\1\"${logDir}\"|" "${file_name}"
 
     if [ -f "${configDir}/${keeperName}.toml" ]; then
@@ -1137,9 +1370,15 @@ function install_keeper_config() {
 function install_taosd_config() {
   file_name="${script_dir}/cfg/${configFile}"
   if [ -f ${file_name} ]; then
-    sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    if [ "$imageBuild" -eq 0 ]; then
+      sed -i -r "s/#*\s*(fqdn\s*).*/\1$serverFqdn/" ${script_dir}/cfg/${configFile}
+    fi
     echo "monitor 1" >>${script_dir}/cfg/${configFile}
-    echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
+    if [ "$imageBuild" -eq 0 ]; then
+      echo "monitorFQDN ${serverFqdn}" >>${script_dir}/cfg/${configFile}
+    else
+      echo "monitorFQDN localhost" >>${script_dir}/cfg/${configFile}
+    fi
 
     if grep -q "^dataDir " "${script_dir}/cfg/${configFile}"; then
       sed -i "s|^dataDir .*|dataDir ${dataDir}|" "${script_dir}/cfg/${configFile}"
@@ -1399,6 +1638,10 @@ function install_service_on_systemd() {
 }
 
 function install_service() {
+  # Image assembly installs artifacts without touching host services or processes.
+  if [ "$imageBuild" -eq 1 ]; then
+    return 0
+  fi
   if ((${service_mod} == 0)); then
     install_service_on_systemd $1
   elif ((${service_mod} == 1)); then
@@ -1491,6 +1734,13 @@ function rpm_erase() {
 }
 
 function finished_install_info(){
+    if [ "$imageBuild" -eq 1 ]; then
+      echo
+      log info_color "${productName} image installation completed."
+      echo "Services will be started by the container entrypoint."
+      return 0
+    fi
+
     local entries=()
     local explorer_config_file
     explorer_config_file=$(get_config_file "${explorerName}")
@@ -1618,15 +1868,17 @@ function updateProduct() {
 
   # Start to update
 
-  if echo $osinfo | grep -qwi "centos"; then
-    rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
-  elif echo $osinfo | grep -qwi "ubuntu"; then
-    dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
+  # Package-manager uninstall hooks may stop services as well.
+  if [ "$imageBuild" -eq 0 ]; then
+    if echo $osinfo | grep -qwi "centos"; then
+      rpm -q tdengine 2>&1 >/dev/null && rpm_erase tdengine || :
+    elif echo $osinfo | grep -qwi "ubuntu"; then
+      dpkg -l tdengine 2>&1 | grep ii >/dev/null && deb_erase tdengine || :
+    fi
   fi
 
-
   # Stop the service if running
-  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
+  if [ "$imageBuild" -eq 0 ] && ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
       ${sysctl_cmd} stop ${serverName} || :
     elif ((${service_mod} == 1)); then

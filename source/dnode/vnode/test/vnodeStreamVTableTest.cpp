@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "functionMgt.h"
+#include "query.h"
 #include "streamMsg.h"
 #include "streamReader.h"
 #include "stub.h"
@@ -292,6 +293,22 @@ TEST_F(VnodeStreamVTableMetadataTest, UidFallbackLoadsVersionAndAllColumnsAndRel
   EXPECT_EQ(nullptr, metaReader_.coder.mList);
 }
 
+// nodesNodeToString() reports the SERIES condition length including the trailing NUL and the
+// resolver keeps that length; a multi-layer virtual table without an own condition hits this
+// fallback. The filled col ref must follow the direct-reference contract (NUL-free length),
+// otherwise stStreamExtCanonicalizeJson rejects the registry identity and the stream cannot start.
+TEST_F(VnodeStreamVTableMetadataTest, ResolvedTagConditionDropsTrailingNulFromLength) {
+  item_.tagCondJson = const_cast<char *>("nul-terminated-series");
+  item_.tagCondLen = (int32_t)(strlen(item_.tagCondJson) + 1);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fill(3, cids_));
+  auto *info = static_cast<VTableInfo *>(taosArrayGet(infos_, 0));
+  ASSERT_EQ(1, info->cols.nCols);
+  EXPECT_STREQ("nul-terminated-series", info->cols.pColRef[0].tagCondJson);
+  EXPECT_EQ((int32_t)strlen("nul-terminated-series"), info->cols.pColRef[0].tagCondLen);
+  EXPECT_EQ(nullptr, metaReader_.coder.mList);
+}
+
 TEST(VnodeStreamVTableHelpers, RejectsExternalWhereBeforeConditionIsDiscarded) {
   SColRef ref = {};
   ref.hasRef = true;
@@ -407,6 +424,35 @@ TEST(VnodeStreamGroupReadTest, PreservesReadBindings) {
     EXPECT_EQ(ends[i], range->window.ekey);
   }
   taosArrayDestroy(ranges);
+  ranges = nullptr;
+
+  runtime.withExternalWindow = true;
+  runtime.externalWindowNeedsPrevRow = false;
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+  ASSERT_EQ(3, taosArrayGetSize(ranges));
+  for (int i = 0; i < 3; ++i) {
+    const auto *range = static_cast<const SReaderReadRange *>(taosArrayGet(ranges, i));
+    EXPECT_EQ(starts[i], range->window.skey);
+  }
+  taosArrayDestroy(ranges);
+  ranges = nullptr;
+
+  runtime.externalWindowNeedsPrevRow = true;
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, nullptr));
+  EXPECT_EQ(10, combined.skey);
+  EXPECT_EQ(109, combined.ekey);
+  ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+  EXPECT_TRUE(valid);
+  EXPECT_EQ(10, combined.skey);
+  EXPECT_EQ(109, combined.ekey);
+  ASSERT_EQ(3, taosArrayGetSize(ranges));
+  for (int i = 0; i < 3; ++i) {
+    const auto *range = static_cast<const SReaderReadRange *>(taosArrayGet(ranges, i));
+    EXPECT_TRUE(range->valid);
+    EXPECT_EQ(INT64_MIN, range->window.skey);
+    EXPECT_EQ(ends[i], range->window.ekey);
+  }
+  taosArrayDestroy(ranges);
   nodesDestroyNode(node.pStart);
   nodesDestroyNode(node.pEnd);
   tDestroyStRtFuncInfo(&temporary);
@@ -450,6 +496,22 @@ TEST(VnodeStreamGroupReadTest, EmptyAndEndpointRanges) {
       EXPECT_EQ(19, combined.ekey);
       taosArrayDestroy(ranges);
       ranges = nullptr;
+      if (calculated) {
+        runtime.withExternalWindow = true;
+        runtime.externalWindowNeedsPrevRow = true;
+        ASSERT_EQ(0, vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
+        ASSERT_EQ(2, taosArrayGetSize(ranges));
+        const auto &emptyPrevRange = *static_cast<const SReaderReadRange *>(taosArrayGet(ranges, 0));
+        const auto &prevRange = *static_cast<const SReaderReadRange *>(taosArrayGet(ranges, 1));
+        EXPECT_FALSE(emptyPrevRange.valid);
+        EXPECT_EQ(0, emptyPrevRange.readInfoIndex);
+        EXPECT_NE(INT64_MIN, emptyPrevRange.window.skey);
+        EXPECT_TRUE(prevRange.valid);
+        EXPECT_EQ(INT64_MIN, prevRange.window.skey);
+        EXPECT_EQ(1, prevRange.readInfoIndex);
+        taosArrayDestroy(ranges);
+        ranges = nullptr;
+      }
       setNodeGroupReadRange(&runtime, 1, 101, INT64_MIN, INT64_MIN);
       EXPECT_EQ(TSDB_CODE_INVALID_PARA,
                 vnodeCalculateNodeGroupReadRanges(&node, &runtime, &temporary, 7, &combined, &valid, &ranges));
@@ -1008,6 +1070,155 @@ TEST(VnodeStreamVTableHelpers, streamBatchTryCacheAndDedup_CacheHitsAndDedup) {
   freeCache(pCache);
 }
 
+TEST(VnodeStreamVTableHelpers, streamBatchTryCacheAndDedup_PrivateCacheDedupsAcrossUidChunks) {
+  // Regression for the tag-only resolve (pCache == NULL) that the resolver
+  // slices into uid batches: the call-private ref cache is the only structure
+  // that spans batches, so it must exist even without a shared reader cache.
+  // Without it the 2nd chunk re-resolves the remote ref the 1st chunk already
+  // resolved (N chunks -> N RPCs instead of 1).
+  SStreamVTableInfoCache view{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheInit(&view, nullptr, /*createRefCache=*/true));
+  ASSERT_NE(view.tblRefCache, nullptr);
+
+  // Run one uid chunk exactly like streamCallResolveBatched's phase 1 does.
+  auto runChunk = [&](int32_t chunkSize, int32_t *cacheHitsOut, int32_t *dedupN, SArray **outRsp) {
+    SArray *batch = taosArrayInit(chunkSize, sizeof(SResolveWorkItem));
+    ASSERT_NE(batch, nullptr);
+    for (int32_t i = 0; i < chunkSize; ++i) {
+      // Every child table of the chunk references the same remote tag.
+      SResolveWorkItem w = mkWorkItem("db1", "remoteTb", "remoteTag", /*kind=*/1);
+      w.originVtbUid = 1000 + i;
+      taosArrayPush(batch, &w);
+    }
+    *outRsp = taosArrayInit(chunkSize, sizeof(SVTableRefResolveRspItem));
+    ASSERT_NE(*outRsp, nullptr);
+    for (int32_t i = 0; i < chunkSize; ++i) {
+      SVTableRefResolveRspItem zero{};
+      taosArrayPush(*outRsp, &zero);
+    }
+    SHashObj *dedupMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
+                                      HASH_NO_LOCK);
+    ASSERT_NE(dedupMap, nullptr);
+    SArray *dedupItems = taosArrayInit(chunkSize, sizeof(SResolveWorkItem));
+    ASSERT_NE(dedupItems, nullptr);
+    std::vector<int32_t> orig(chunkSize, 0);
+
+    int32_t rc = streamBatchTryCacheAndDedup(&view, batch, *outRsp, dedupMap, dedupItems,
+                                            orig.data(), cacheHitsOut);
+    EXPECT_EQ(rc, 0);
+    *dedupN = (int32_t)taosArrayGetSize(dedupItems);
+
+    taosArrayDestroy(batch);
+    taosArrayDestroy(dedupItems);
+    taosHashCleanup(dedupMap);
+  };
+
+  int32_t cacheHits = 0, dedupN = 0;
+  SArray *outRsp1 = nullptr;
+  runChunk(STREAM_VTB_RESOLVE_UID_CHUNK, &cacheHits, &dedupN, &outRsp1);
+  EXPECT_EQ(cacheHits, 0);
+  EXPECT_EQ(dedupN, 1);  // one remote ref for the whole chunk
+
+  // Publish the resolved item, as streamBatchScatterAndPublish does.
+  SVTableRefResolveRspItem resolved{};
+  resolved.code = 9;
+  streamTblRefCacheInsert(&view, "db1", "remoteTb", "remoteTag", /*kind=*/1, &resolved);
+
+  // The next chunk is served entirely from the call-private cache: no dedup
+  // items, hence no remote resolve RPC for it.
+  SArray *outRsp2 = nullptr;
+  runChunk(STREAM_VTB_RESOLVE_UID_CHUNK, &cacheHits, &dedupN, &outRsp2);
+  EXPECT_EQ(cacheHits, STREAM_VTB_RESOLVE_UID_CHUNK);
+  EXPECT_EQ(dedupN, 0);
+  auto *first = (SVTableRefResolveRspItem *)taosArrayGet(outRsp2, 0);
+  ASSERT_NE(first, nullptr);
+  EXPECT_EQ(first->code, 9);
+
+  taosArrayDestroy(outRsp1);
+  taosArrayDestroy(outRsp2);
+  streamResolveCacheDestroy(&view);
+}
+
+TEST(VnodeStreamVTableHelpers, streamBatchTryCacheAndDedup_PrivateCacheDedupsAcrossHopsForSingleUid) {
+  // A single virtual table can reach the same remote column twice: `c1 -> T.x`
+  // directly and `c2 -> V1.y -> T.x`. Hop 0 resolves both refs (one RPC to the
+  // shared vnode); because T.x is published to the call-private cache, hop 1's
+  // T.x is served from it instead of being resolved a second time. Gating the
+  // ref cache on the uid count broke exactly this case.
+  SStreamVTableInfoCache view{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheInit(&view, nullptr, /*createRefCache=*/true));
+  ASSERT_NE(view.tblRefCache, nullptr);
+
+  // Run one hop exactly like streamCallResolveBatched's phase 1 does. first* reports
+  // the response written into slot 0 (only meaningful when the hop has items).
+  auto runHop = [&](const std::vector<SResolveWorkItem> &items, int32_t *cacheHitsOut, int32_t *dedupN,
+                    int32_t *firstCode, bool *firstTerminated) {
+    SArray *batch = taosArrayInit((int32_t)items.size(), sizeof(SResolveWorkItem));
+    ASSERT_NE(batch, nullptr);
+    for (const auto &w : items) taosArrayPush(batch, &w);
+    SArray *outRsp = taosArrayInit((int32_t)items.size(), sizeof(SVTableRefResolveRspItem));
+    ASSERT_NE(outRsp, nullptr);
+    for (size_t i = 0; i < items.size(); ++i) {
+      SVTableRefResolveRspItem zero{};
+      taosArrayPush(outRsp, &zero);
+    }
+    SHashObj *dedupMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
+                                      HASH_NO_LOCK);
+    ASSERT_NE(dedupMap, nullptr);
+    SArray *dedupItems = taosArrayInit((int32_t)items.size(), sizeof(SResolveWorkItem));
+    ASSERT_NE(dedupItems, nullptr);
+    std::vector<int32_t> orig(items.size(), 0);
+
+    int32_t rc = streamBatchTryCacheAndDedup(&view, batch, outRsp, dedupMap, dedupItems,
+                                            orig.data(), cacheHitsOut);
+    EXPECT_EQ(rc, 0);
+    *dedupN = (int32_t)taosArrayGetSize(dedupItems);
+
+    auto *slot0 = (SVTableRefResolveRspItem *)taosArrayGet(outRsp, 0);
+    *firstCode       = slot0->code;
+    *firstTerminated = slot0->terminated;
+
+    taosArrayDestroy(batch);
+    taosArrayDestroy(outRsp);
+    taosArrayDestroy(dedupItems);
+    taosHashCleanup(dedupMap);
+  };
+
+  // Hop 0: the direct tag/col `T.x` and the indirect `V1.y`.
+  std::vector<SResolveWorkItem> hop0 = {mkWorkItem("db1", "T", "x"),
+                                        mkWorkItem("db1", "V1", "y")};
+  int32_t cacheHits = 0, dedupN = 0, slotCode = 0;
+  bool    slotTerminated = false;
+  runHop(hop0, &cacheHits, &dedupN, &slotCode, &slotTerminated);
+  EXPECT_EQ(cacheHits, 0);
+  EXPECT_EQ(dedupN, 2);  // two distinct refs, one fan-out RPC to the shared vnode
+
+  // Publish hop 0 results, as streamBatchScatterAndPublish does: `T.x` resolved,
+  // and `V1.y` points at `T.x` for the next hop.
+  SVTableRefResolveRspItem tx{};
+  tx.code       = 3;
+  tx.terminated = true;
+  SVTableRefResolveRspItem vy{};
+  vy.nextRef.hasRef = true;
+  vy.nextRef.kind   = 0;
+  std::snprintf(vy.nextRef.refDbName, sizeof(vy.nextRef.refDbName), "%s", "db1");
+  std::snprintf(vy.nextRef.refTableName, sizeof(vy.nextRef.refTableName), "%s", "T");
+  std::snprintf(vy.nextRef.refColName, sizeof(vy.nextRef.refColName), "%s", "x");
+  streamTblRefCacheInsert(&view, "db1", "T", "x", /*kind*/0, &tx);
+  streamTblRefCacheInsert(&view, "db1", "V1", "y", /*kind*/0, &vy);
+
+  // Hop 1: `V1.y` resolved to `T.x`, which hop 0 already resolved.
+  std::vector<SResolveWorkItem> hop1 = {mkWorkItem("db1", "T", "x")};
+  runHop(hop1, &cacheHits, &dedupN, &slotCode, &slotTerminated);
+  EXPECT_EQ(cacheHits, 1);
+  EXPECT_EQ(dedupN, 0);  // no second resolve RPC for the converged ref
+  // The cached entry itself must come back, not just any hit.
+  EXPECT_EQ(slotCode, 3);
+  EXPECT_TRUE(slotTerminated);
+
+  streamResolveCacheDestroy(&view);
+}
+
 // A virtual table that maps no source column at all has nothing to be configured by the set table
 // request, so a vtable stream reader treats itself as ready (see vnodeProcessStreamVTableInfoReq).
 TEST(VnodeStreamVTableHelpers, streamVTableInfoHasColumnRefOnlyForMappedSources) {
@@ -1213,3 +1424,479 @@ TEST(VnodeStreamVTableHelpers, ColResolveItemEqualityIncludesSeriesCondition) {
   first.tagCondLen = 0;
   EXPECT_TRUE(streamColResolveItemEqual(&first, &second));
 }
+
+// ---------------------------------------------------------------------------
+// streamResolveBatchFull: dual budget (uids / work items)
+// ---------------------------------------------------------------------------
+
+TEST(VnodeStreamVTableHelpers, streamResolveBatchFull_UidBudgetClosesBatch) {
+  EXPECT_FALSE(streamResolveBatchFull(0, 0));
+  EXPECT_FALSE(streamResolveBatchFull(STREAM_VTB_RESOLVE_UID_CHUNK - 1, 0));
+  EXPECT_TRUE(streamResolveBatchFull(STREAM_VTB_RESOLVE_UID_CHUNK, 0));
+  EXPECT_TRUE(streamResolveBatchFull(STREAM_VTB_RESOLVE_UID_CHUNK + 1, 0));
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveBatchFull_WorkItemBudgetClosesBatch) {
+  // One virtual child table can contribute thousands of ref items, so the item
+  // budget must be able to close a batch long before the uid budget is reached.
+  EXPECT_FALSE(streamResolveBatchFull(1, STREAM_VTB_RESOLVE_MAX_ITEMS - 1));
+  EXPECT_TRUE(streamResolveBatchFull(1, STREAM_VTB_RESOLVE_MAX_ITEMS));
+  EXPECT_TRUE(streamResolveBatchFull(1, STREAM_VTB_RESOLVE_MAX_ITEMS + 1));
+}
+
+// ---------------------------------------------------------------------------
+// streamResolveCacheInit / streamResolveCacheDestroy (call-private cache view)
+// ---------------------------------------------------------------------------
+
+TEST(VnodeStreamVTableHelpers, streamResolveNeedsRefCache_SparseBatchMatrix) {
+  // Empty batches need no ref cache; a nonempty batch must retain its ref
+  // whenever more uids remain, even when every batch has only one reference.
+  EXPECT_FALSE(streamResolveNeedsRefCache(0, true));
+  EXPECT_TRUE(streamResolveNeedsRefCache(1, true));
+  EXPECT_FALSE(streamResolveNeedsRefCache(0, false));
+  EXPECT_FALSE(streamResolveNeedsRefCache(1, false));
+  EXPECT_TRUE(streamResolveNeedsRefCache(2, false));
+  EXPECT_TRUE(streamResolveNeedsRefCache(3, false));
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveNeedsPrivateCacheView_SharedCacheOrCachedRefs) {
+  // The view is only an adapter around routing + ref caching; either reason
+  // alone is enough.
+  EXPECT_FALSE(streamResolveNeedsPrivateCacheView(nullptr, false));
+  EXPECT_TRUE(streamResolveNeedsPrivateCacheView(nullptr, true));
+
+  // A shared reader cache always needs the view so routing can be borrowed.
+  SStreamVTableInfoCache readerCache{};
+  EXPECT_TRUE(streamResolveNeedsPrivateCacheView(&readerCache, false));
+  EXPECT_TRUE(streamResolveNeedsPrivateCacheView(&readerCache, true));
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveCacheInit_SingleUidSkipsRefCacheAndBorrowsRouting) {
+  SHashObj *routing = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false,
+                                   HASH_NO_LOCK);
+  ASSERT_NE(routing, nullptr);
+
+  SStreamVTableInfoCache readerCache{};
+  readerCache.dbVgInfo = routing;
+
+  // Pre-fill the destination with garbage: init must reset every field, not just
+  // set the two it fills in, so a future callee that reads lock/uid2Result sees
+  // defined data instead of stack garbage.
+  SStreamVTableInfoCache view{};
+  view.uid2Result  = (SSHashObj *)0x1;
+  view.tblRefCache = (SHashObj *)0x1;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheInit(&view, &readerCache, /*createRefCache=*/false));
+  EXPECT_EQ(view.tblRefCache, nullptr);  // single uid: no hash allocation
+  EXPECT_EQ(view.uid2Result, nullptr);
+  EXPECT_EQ(view.dbVgInfo, routing);     // borrowed, not copied
+
+  streamResolveCacheDestroy(&view);
+  EXPECT_EQ(view.tblRefCache, nullptr);
+  EXPECT_EQ(view.dbVgInfo, nullptr);           // cleared ...
+  EXPECT_EQ(readerCache.dbVgInfo, routing);    // ... but the owner keeps it
+  EXPECT_EQ(0, (int)taosHashGetSize(routing)); // and it is still usable, i.e. not freed
+
+  taosHashCleanup(routing);
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveCacheInit_MultiUidCreatesRefCache) {
+  SStreamVTableInfoCache readerCache{};
+  SStreamVTableInfoCache view{};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheInit(&view, &readerCache, /*createRefCache=*/true));
+  ASSERT_NE(view.tblRefCache, nullptr);
+  EXPECT_EQ(view.dbVgInfo, nullptr);  // no shared routing cache supplied
+  EXPECT_EQ(0, (int)taosHashGetSize(view.tblRefCache));
+
+  char                    tag[3] = {1, 2, 3};
+  SVTableRefResolveRspItem item{};
+  item.tagLen  = (int32_t)sizeof(tag);
+  item.tagData = tag;
+  streamTblRefCacheInsert(&view, "db", "t", "c", /*kind*/ 0, &item);
+  EXPECT_EQ(1, (int)taosHashGetSize(view.tblRefCache));
+
+  // Destroy releases the entry through streamTblRefCacheItemFree; a dropped free
+  // callback turns into a leak that ASAN/valgrind reports.
+  streamResolveCacheDestroy(&view);
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveCacheInit_NullSharedCreatesRefCacheWithoutRouting) {
+  // The tag-only resolve passes no shared cache at all: the view must still be
+  // created with a ref cache, otherwise multi-uid resolves lose cross-batch
+  // dedup, but it must not try to borrow routing from NULL.
+  SStreamVTableInfoCache view{};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheInit(&view, nullptr, /*createRefCache=*/true));
+  EXPECT_EQ(view.dbVgInfo, nullptr);
+  ASSERT_NE(view.tblRefCache, nullptr);
+
+  streamResolveCacheDestroy(&view);
+  EXPECT_EQ(view.tblRefCache, nullptr);
+  EXPECT_EQ(view.dbVgInfo, nullptr);
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveCacheEnableRefCache_IsIdempotentAndNullSafe) {
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheEnableRefCache(nullptr));
+
+  // A view created without the ref cache (single-ref resolve) can be upgraded
+  // later when a following batch brings a second ref.
+  SStreamVTableInfoCache view{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheInit(&view, nullptr, /*createRefCache=*/false));
+  EXPECT_EQ(view.tblRefCache, nullptr);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheEnableRefCache(&view));
+  ASSERT_NE(view.tblRefCache, nullptr);
+  SHashObj *allocated = view.tblRefCache;
+
+  // Second call must not replace the hash (entries would be lost).
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveCacheEnableRefCache(&view));
+  EXPECT_EQ(view.tblRefCache, allocated);
+
+  streamResolveCacheDestroy(&view);
+}
+
+TEST(VnodeStreamVTableHelpers, streamResolveCacheDestroy_NullSafe) {
+  streamResolveCacheDestroy(nullptr);
+  SStreamVTableInfoCache empty{};
+  streamResolveCacheDestroy(&empty);  // both tblRefCache and dbVgInfo are NULL
+  EXPECT_EQ(empty.tblRefCache, nullptr);
+  EXPECT_EQ(empty.dbVgInfo, nullptr);
+}
+
+TEST(VnodeStreamVTableHelpers, streamVTableInfoCacheInit_LeavesRefCacheToResolveViews) {
+  // The reader-lifetime cache keeps routing but not reference results: the
+  // resolver caches refs in a call-private view, so allocating a hash here
+  // would only produce a cache that nothing ever writes.
+  SStreamVTableInfoCache cache{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamVTableInfoCacheInit(&cache));
+  EXPECT_NE(nullptr, cache.dbVgInfo);
+  EXPECT_NE(nullptr, cache.uid2Result);
+  EXPECT_EQ(nullptr, cache.tblRefCache);
+
+  // A NULL ref cache must stay usable: lookup skips it and insert is a no-op.
+  EXPECT_EQ(nullptr, streamTblRefCacheLookup(&cache, "db", "t", "c", /*kind*/0));
+  SVTableRefResolveRspItem item{};
+  streamTblRefCacheInsert(&cache, "db", "t", "c", /*kind*/0, &item);
+  EXPECT_EQ(nullptr, cache.tblRefCache);
+
+  streamVTableInfoCacheDestroy(&cache);
+}
+
+TEST(VnodeStreamVTableHelpers, streamTblRefCacheItemFree_ReleasesBothPayloads) {
+  // The single free callback shared by the reader cache and the call-private
+  // resolver cache must clear both heap payloads; a miss shows up as a leak.
+  SVTableRefResolveRspItem item{};
+  item.tagData = static_cast<char *>(taosMemoryMalloc(8));
+  ASSERT_NE(item.tagData, nullptr);
+  item.nextRef.tagCondJson = taosStrdup("{\"k\":1}");
+  ASSERT_NE(item.nextRef.tagCondJson, nullptr);
+
+  streamTblRefCacheItemFree(&item);
+  EXPECT_EQ(item.tagData, nullptr);
+  EXPECT_EQ(item.nextRef.tagCondJson, nullptr);
+
+  streamTblRefCacheItemFree(nullptr);  // must be a no-op
+}
+
+// ---------------------------------------------------------------------------
+// streamDbRouteMemo: inline slots for the common case, overflow hash beyond
+// ---------------------------------------------------------------------------
+
+namespace {
+// Minimal SUseDbRsp holder; pVgroupInfos stays NULL and tFreeSUsedbRsp() is
+// NULL-safe, so the memo can take ownership without a real routing payload.
+SUseDbRsp *mkRouteRsp() { return static_cast<SUseDbRsp *>(taosMemoryCalloc(1, sizeof(SUseDbRsp))); }
+}  // namespace
+
+TEST(VnodeStreamVTableHelpers, streamDbRouteMemo_MemoizesEveryDbBeyondInlineCap) {
+  SStreamDbRouteMemo memo;
+  streamDbRouteMemoInit(&memo);
+
+  EXPECT_EQ(nullptr, streamDbRouteMemoGet(&memo, "1.db0"));
+
+  // Two dbs past the inline cap: without the overflow hash these would be
+  // re-fetched from mnode once per work item, which is the storm the memo
+  // exists to remove.
+  const int32_t total = STREAM_VTB_LOCAL_DB_ROUTE_MAX + 2;
+  std::vector<SUseDbRsp *> rsps;
+  char                     name[TSDB_DB_FNAME_LEN];
+  for (int32_t i = 0; i < total; ++i) {
+    std::snprintf(name, sizeof(name), "1.db%d", i);
+    SUseDbRsp *pRsp = mkRouteRsp();
+    ASSERT_NE(nullptr, pRsp);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, streamDbRouteMemoPut(&memo, name, pRsp));
+    rsps.push_back(pRsp);
+  }
+  ASSERT_EQ(static_cast<int>(STREAM_VTB_LOCAL_DB_ROUTE_MAX), memo.num);
+  ASSERT_NE(nullptr, memo.pOverflow);
+
+  for (int32_t i = 0; i < total; ++i) {
+    std::snprintf(name, sizeof(name), "1.db%d", i);
+    EXPECT_EQ(rsps[i], streamDbRouteMemoGet(&memo, name));
+  }
+  EXPECT_EQ(nullptr, streamDbRouteMemoGet(&memo, "1.missing"));
+
+  streamDbRouteMemoDestroy(&memo);  // releases every response it owns
+  EXPECT_EQ(nullptr, memo.pOverflow);
+  EXPECT_EQ(0, memo.num);
+}
+
+TEST(VnodeStreamVTableHelpers, streamDbRouteMemo_NullSafe) {
+  EXPECT_EQ(nullptr, streamDbRouteMemoGet(nullptr, "1.db"));
+  EXPECT_EQ(nullptr, streamDbRouteMemoGet(nullptr, nullptr));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, streamDbRouteMemoPut(nullptr, "1.db", nullptr));
+
+  SStreamDbRouteMemo memo;
+  streamDbRouteMemoInit(&memo);
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, streamDbRouteMemoPut(&memo, "1.db", nullptr));
+  EXPECT_EQ(nullptr, streamDbRouteMemoGet(&memo, nullptr));
+
+  streamDbRouteMemoDestroy(&memo);
+  streamDbRouteMemoDestroy(nullptr);
+}
+
+TEST(VnodeStreamVTableHelpers, streamDbRouteMemoPut_DuplicateKeepsCallerOwnership) {
+  // A duplicate put must not free the caller's response: the caller still routes
+  // with it and releases it afterwards. Freeing it here and reporting success
+  // made streamBatchRouteToVgs route on freed memory.
+  SStreamDbRouteMemo memo;
+  streamDbRouteMemoInit(&memo);
+
+  // Fill the inline slots so the next insert lands in the overflow hash, which
+  // is the only place that can answer DUP_KEY.
+  char name[TSDB_DB_FNAME_LEN];
+  for (int32_t i = 0; i < STREAM_VTB_LOCAL_DB_ROUTE_MAX; ++i) {
+    std::snprintf(name, sizeof(name), "1.db%d", i);
+    SUseDbRsp *pRsp = mkRouteRsp();
+    ASSERT_NE(nullptr, pRsp);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, streamDbRouteMemoPut(&memo, name, pRsp));
+  }
+
+  const char *dupDb  = "1.dup";
+  SUseDbRsp  *first  = mkRouteRsp();
+  SUseDbRsp  *second = mkRouteRsp();
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, second);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamDbRouteMemoPut(&memo, dupDb, first));
+
+  EXPECT_EQ(TSDB_CODE_DUP_KEY, streamDbRouteMemoPut(&memo, dupDb, second));
+  EXPECT_EQ(first, streamDbRouteMemoGet(&memo, dupDb));
+
+  // The rejected response is still owned by the caller and must be freed here.
+  tFreeSUsedbRsp(second);
+  taosMemoryFree(second);
+
+  streamDbRouteMemoDestroy(&memo);
+}
+
+// Exercise the production seed/batch/cache/RPC/scatter pipeline. Only metadata
+// storage and the transport boundary are stubbed; no cache is pre-populated.
+// The metadata stub fills only the SMetaEntry fields that today's seeding path
+// reads (type, ctbEntry.suid/pTags, colRef.*). If seeding starts reading another
+// field, this fixture will silently see zeros: extend readEntry() with it and
+// assert on it here rather than relying on the resolve to stay green.
+namespace {
+class VnodeSparseRefResolveTest : public ::testing::Test {
+ protected:
+  static VnodeSparseRefResolveTest *active_;
+  static constexpr col_id_t kTagCid = 2;
+  static constexpr tb_uid_t kStableUid = 100000;
+
+  static void initReader(SMetaReader *reader, SMeta *, int32_t, int64_t) {
+    memset(reader, 0, sizeof(*reader));
+  }
+  static void clearReader(SMetaReader *) {}
+  static void getMnodeEps(SEpSet *eps) { memset(eps, 0, sizeof(*eps)); }
+
+  static int32_t readEntry(SMetaReader *reader, tb_uid_t uid) {
+    auto *self = active_;
+    memset(&reader->me, 0, sizeof(reader->me));
+    if (uid == kStableUid) {
+      reader->me.type = TSDB_SUPER_TABLE;
+      reader->me.stbEntry.schemaTag.nCols = 1;
+      reader->me.stbEntry.schemaTag.pSchema = &self->schema_;
+    } else {
+      reader->me.type = TSDB_VIRTUAL_CHILD_TABLE;
+      reader->me.ctbEntry.suid = kStableUid;
+      reader->me.ctbEntry.pTags = reinterpret_cast<uint8_t *>(self->literal_);
+      if (self->isRemote(uid)) {
+        reader->me.colRef.nTagRefs = 1;
+        reader->me.colRef.pTagRef = &self->ref_;
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  static int32_t sendMessage(void *, SEpSet *, int64_t *, SMsgSendInfo *info) {
+    auto *self = active_;
+    SDataBuf response = {};
+    if (info->msgType == TDMT_MND_GET_DB_INFO) {
+      ++self->routeRequests_;
+      SUseDbRsp route = {};
+      route.vgNum = 1;
+      route.pVgroupInfos = taosArrayInit(1, sizeof(SVgroupInfo));
+      SVgroupInfo vg = {};
+      vg.vgId = 8;  // Remote to the triggering vnode (7).
+      vg.hashEnd = UINT32_MAX;
+      taosArrayPush(route.pVgroupInfos, &vg);
+      response.len = tSerializeSUseDbRsp(nullptr, 0, &route);
+      response.pData = taosMemoryMalloc(response.len);
+      EXPECT_GT(tSerializeSUseDbRsp(response.pData, response.len, &route), 0);
+      tFreeSUsedbRsp(&route);
+    } else {
+      EXPECT_EQ(TDMT_VND_VTABLE_REF_RESOLVE, info->msgType);
+      ++self->resolveRequests_;
+      SVTableRefResolveReq request = {};
+      EXPECT_EQ(0, tDeserializeSVTableRefResolveReq(
+                       static_cast<char *>(info->msgInfo.pData) + sizeof(SMsgHead),
+                       info->msgInfo.len - sizeof(SMsgHead), &request));
+      EXPECT_EQ(1, taosArrayGetSize(request.groups));
+      auto *group = static_cast<SVTableRefResolveGroupItem *>(taosArrayGet(request.groups, 0));
+      EXPECT_EQ(1, taosArrayGetSize(group->cols));
+      EXPECT_STREQ("remote", group->tableName);
+      SVTableRefResolveRsp reply = {};
+      reply.items = taosArrayInit(1, sizeof(SVTableRefResolveRspItem));
+      SVTableRefResolveRspItem item = {};
+      int32_t value = 42;
+      item.terminated = true;
+      item.nextRef.kind = STREAM_VREF_KIND_TAG;
+      item.tagType = TSDB_DATA_TYPE_INT;
+      item.tagLen = sizeof(value);
+      item.tagData = reinterpret_cast<char *>(&value);
+      taosArrayPush(reply.items, &item);
+      response.len = tSerializeSVTableRefResolveRsp(nullptr, 0, &reply);
+      response.pData = taosMemoryMalloc(response.len);
+      EXPECT_GT(tSerializeSVTableRefResolveRsp(response.pData, response.len, &reply), 0);
+      taosArrayDestroy(reply.items);  // The payload above is stack-owned.
+      tFreeSVTableRefResolveReq(&request);
+    }
+    EXPECT_EQ(TSDB_CODE_SUCCESS, info->fp(info->param, &response, TSDB_CODE_SUCCESS));
+    destroySendMsgInfo(info);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void SetUp() override {
+    active_ = this;
+    vnode_.config.vgId = 7;
+    tstrncpy(vnode_.config.dbname, "1.db", sizeof(vnode_.config.dbname));
+    vnode_.msgCb.clientRpc = this;
+    schema_.colId = kTagCid;
+    schema_.type = TSDB_DATA_TYPE_INT;
+    schema_.bytes = sizeof(int32_t);
+    tstrncpy(schema_.name, "tag", sizeof(schema_.name));
+    ref_.id = kTagCid;
+    ref_.hasRef = true;
+    tstrncpy(ref_.refDbName, "db", sizeof(ref_.refDbName));
+    tstrncpy(ref_.refTableName, "remote", sizeof(ref_.refTableName));
+    tstrncpy(ref_.refColName, "tag", sizeof(ref_.refColName));
+    SArray *values = taosArrayInit(1, sizeof(STagVal));
+    ASSERT_NE(nullptr, values);
+    STagVal value = {};
+    value.cid = kTagCid;
+    value.type = TSDB_DATA_TYPE_INT;
+    value.i64 = 7;
+    taosArrayPush(values, &value);
+    int32_t code = tTagNew(values, 1, false, &literal_);
+    taosArrayDestroy(values);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    uids_ = taosArrayInit(1, sizeof(int64_t));
+    cols_ = taosArrayInit(0, sizeof(col_id_t));
+    tags_ = taosArrayInit(1, sizeof(col_id_t));
+    ASSERT_NE(nullptr, uids_);
+    ASSERT_NE(nullptr, cols_);
+    ASSERT_NE(nullptr, tags_);
+    col_id_t cid = kTagCid;
+    ASSERT_NE(nullptr, taosArrayPush(tags_, &cid));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, streamVTableInfoCacheInit(&shared_));
+    stub_.set(metaReaderDoInit, initReader);
+    stub_.set(metaReaderGetTableEntryByUid, readEntry);
+    stub_.set(metaReaderReleaseLock, clearReader);
+    stub_.set(metaReaderClear, clearReader);
+    stub_.set(streamGetMnodeEpset, getMnodeEps);
+    stub_.set(asyncSendMsgToServer, sendMessage);
+  }
+
+  void TearDown() override {
+    tSimpleHashCleanup(results_);
+    streamVTableInfoCacheDestroy(&shared_);
+    taosArrayDestroy(uids_);
+    taosArrayDestroy(cols_);
+    taosArrayDestroy(tags_);
+    taosMemoryFree(literal_);
+    active_ = nullptr;
+  }
+
+  // uid layout of the sparse fixture: uid == kFirstUid + k * CHUNK is the only
+  // child in chunk k that references the remote tag; every other child owns a
+  // constant tag and contributes no work item. Each 1000-uid batch therefore
+  // holds exactly one identical remote ref, the shape a ref cache must span.
+  // Column refs cannot produce this shape (a vtable column either references a
+  // remote column or fails the resolve), so cols always yield one work item per
+  // uid and are covered by the multi-item path instead.
+  bool isRemote(tb_uid_t uid) const {
+    constexpr tb_uid_t kFirstUid = 1;  // uid = kFirstUid + k * CHUNK
+    return (uid - kFirstUid) / STREAM_VTB_RESOLVE_UID_CHUNK >= emptyChunks_ &&
+           (uid - kFirstUid) % STREAM_VTB_RESOLVE_UID_CHUNK == 0;
+  }
+
+  void resolve(int32_t count, bool shared) {
+    for (int64_t uid = 1; uid <= count; ++uid) {
+      ASSERT_NE(nullptr, taosArrayPush(uids_, &uid));
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveVTableRefChain(
+        &vnode_, shared ? &shared_ : nullptr, nullptr, -1, uids_, cols_, tags_, &results_));
+    ASSERT_NE(nullptr, results_);
+    EXPECT_EQ(count, tSimpleHashGetSize(results_));
+    EXPECT_EQ(1, routeRequests_);
+    EXPECT_EQ(1, resolveRequests_);
+    for (int64_t uid = 1; uid <= count; ++uid) {
+      auto **result = static_cast<SVTableResolveResult **>(tSimpleHashGet(results_, &uid, sizeof(uid)));
+      ASSERT_NE(nullptr, result);
+      col_id_t cid = kTagCid;
+      auto **tag = static_cast<STagValue **>(tSimpleHashGet((*result)->tagMap, &cid, sizeof(cid)));
+      ASSERT_NE(nullptr, tag);
+      ASSERT_NE(nullptr, (*tag)->pData);
+      ASSERT_EQ(sizeof(int32_t), (*tag)->nLen);
+      int32_t value = 0;
+      memcpy(&value, (*tag)->pData, sizeof(value));
+      EXPECT_EQ(isRemote(uid) ? 42 : 7, value);
+      EXPECT_EQ(0, tSimpleHashGetSize((*result)->colMap));
+    }
+  }
+
+  Stub stub_;
+  SVnode vnode_ = {};
+  SSchema schema_ = {};
+  SColRef ref_ = {};
+  STag *literal_ = nullptr;
+  SArray *uids_ = nullptr;
+  SArray *cols_ = nullptr;
+  SArray *tags_ = nullptr;
+  SSHashObj *results_ = nullptr;
+  SStreamVTableInfoCache shared_ = {};
+  int32_t emptyChunks_ = 0;
+  int32_t routeRequests_ = 0;
+  int32_t resolveRequests_ = 0;
+};
+
+VnodeSparseRefResolveTest *VnodeSparseRefResolveTest::active_ = nullptr;
+
+TEST_F(VnodeSparseRefResolveTest, SparseTagOnlyChunksReuseRemoteResult) {
+  resolve(2 * STREAM_VTB_RESOLVE_UID_CHUNK, false);
+}
+
+TEST_F(VnodeSparseRefResolveTest, EmptyChunkThenSparseChunksEnableBorrowedViewCache) {
+  emptyChunks_ = 1;
+  resolve(3 * STREAM_VTB_RESOLVE_UID_CHUNK, true);
+}
+
+TEST_F(VnodeSparseRefResolveTest, EmptyChunkThenSparseChunksCreatePrivateCache) {
+  emptyChunks_ = 1;
+  resolve(3 * STREAM_VTB_RESOLVE_UID_CHUNK, false);
+}
+
+TEST_F(VnodeSparseRefResolveTest, SingleReferenceStillResolves) {
+  resolve(1, false);
+}
+}  // namespace

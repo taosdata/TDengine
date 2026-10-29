@@ -1188,6 +1188,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_PARTITION_NOT_SUPPORTED, "PARTITION BY is
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO,    "External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_HISTORY_NOT_SUPPORTED,   "FILL_HISTORY/FILL_HISTORY_FIRST is not supported for external (federated) trigger tables")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TAG_INVALID,             "Influxdb tag value is too long")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED, "External timestamp primary key is finer than the microsecond stream cursor")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_ROLLUP_ILLEGAL_PATH,     "Stream rollup tag path is illegal")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_INVALID_ROLLUP,          "Invalid ROLLUP BY clause")
 
@@ -1327,6 +1328,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST,   "Stream vtable ref c
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTB_TAG_CHANGED,         "Stream vtable partition tag changed")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG, "Invalid stream time configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED,    "Failed to load stream timezone")
+TAOS_DEFINE_ERROR(TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT, "Stream vtable redeploy timeout")
 
 // Xnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_XNODE_ALREADY_EXIST,            "Xnode already exists")
@@ -1427,6 +1429,6 @@ const char* tstrerror(int32_t err) {
   return "";
 }
 
-const char* terrstr() { return tstrerror(terrno); }
+const char* terrstr(void) { return tstrerror(terrno); }
 
 int32_t  taosGetErrSize() { return sizeof(errors)/sizeof(errors[0]); }

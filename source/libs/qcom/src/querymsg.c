@@ -706,7 +706,18 @@ int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
 int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
-  QUERY_PARAM_CHECK(msg->pColRefs);
+  *pMeta = NULL;
+
+  if (msg->tableType != TSDB_VIRTUAL_CHILD_TABLE || msg->numOfColumns <= 0 ||
+      msg->numOfColumns > TSDB_MAX_COLUMNS || msg->numOfTags < 0 || msg->numOfTags > TSDB_MAX_TAGS ||
+      msg->pSchemas == NULL || msg->numOfColRefs < 0 || msg->numOfColRefs > msg->numOfColumns ||
+      msg->numOfTagRefs < 0 || msg->numOfTagRefs > INT16_MAX ||
+      (msg->numOfColRefs > 0 && msg->pColRefs == NULL) ||
+      (msg->numOfTagRefs > 0 && msg->pTagRefs == NULL) ||
+      msg->numOfSeries < 0 || (msg->numOfSeries > 0 && msg->pSeries == NULL) ||
+      !tIsValidSchema(msg->pSchemas, msg->numOfColumns, msg->numOfTags, true)) {
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -780,9 +791,11 @@ int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta) 
   pTableMeta->numOfOwnTags = numOfOwnTags;
 
   pTableMeta->colRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta));
-  memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
-  code = queryCloneColRefTagConds(msg->pColRefs, msg->numOfColRefs, pTableMeta->colRef);
-  QUERY_CHECK_CODE(code, lino, _return);
+  if (pColRefSize > 0) {
+    memcpy(pTableMeta->colRef, msg->pColRefs, pColRefSize);
+    code = queryCloneColRefTagConds(msg->pColRefs, msg->numOfColRefs, pTableMeta->colRef);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
 
   if (pTagRefSize > 0) {
     pTableMeta->tagRef = (SColRef *)((char *)pTableMeta + sizeof(SVCTableMeta) + pColRefSize);
@@ -918,10 +931,44 @@ static void queryPackVstbSchema(const STableMetaRsp *msg, SSchema *dstSchema, SS
   }
 }
 
+static int32_t queryValidateTableMetaRsp(const STableMetaRsp *msg) {
+  // Catalog updates for CREATE/ALTER/SUBMIT can bypass queryProcessTableMetaRsp.
+  // Validate both constructors' inputs before allocation or narrowing conversions.
+  if (msg->numOfColumns <= 0 || msg->numOfColumns > TSDB_MAX_COLUMNS || msg->numOfTags < 0 ||
+      msg->numOfTags > TSDB_MAX_TAGS || msg->pSchemas == NULL) {
+    qError("invalid table meta counts, columns:%d tags:%d schemas:%p", msg->numOfColumns, msg->numOfTags,
+           msg->pSchemas);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  if (msg->tableType != TSDB_SUPER_TABLE && msg->tableType != TSDB_CHILD_TABLE &&
+      msg->tableType != TSDB_NORMAL_TABLE && msg->tableType != TSDB_SYSTEM_TABLE &&
+      msg->tableType != TSDB_VIRTUAL_NORMAL_TABLE && msg->tableType != TSDB_VIRTUAL_CHILD_TABLE) {
+    qError("invalid table type:%d in table meta", msg->tableType);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  if (msg->numOfColRefs < 0 || msg->numOfColRefs > msg->numOfColumns || msg->numOfTagRefs < 0 ||
+      msg->numOfTagRefs > INT16_MAX || (!hasTagRef(msg->tableType) && msg->numOfTagRefs > msg->numOfTags) ||
+      (msg->numOfColRefs > 0 && msg->pColRefs == NULL) ||
+      (msg->numOfTagRefs > 0 && msg->pTagRefs == NULL)) {
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  bool isVirtual = msg->tableType == TSDB_VIRTUAL_NORMAL_TABLE || msg->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                   msg->virtualStb;
+  if (!IS_SYS_DBNAME(msg->dbFName) &&
+      !tIsValidSchema(msg->pSchemas, msg->numOfColumns, msg->numOfTags, isVirtual)) {
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
-  int32_t code = TSDB_CODE_SUCCESS;
+  *pMeta = NULL;
+  int32_t code = queryValidateTableMetaRsp(msg);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   int32_t lino = 0;
   // A virtual child response carries the merged column/tag view (vstb columns/tags
   // followed by the child's own ones with colId >= TSDB_VCHILD_OWN_COL_ID_BASE). The
@@ -1069,7 +1116,11 @@ _return:
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   QUERY_PARAM_CHECK(msg);
   QUERY_PARAM_CHECK(pMeta);
-  int32_t code = TSDB_CODE_SUCCESS;
+  *pMeta = NULL;
+  int32_t code = queryValidateTableMetaRsp(msg);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
   int32_t lino = 0;
   // See queryCreateTableMetaFromMsg: strip the vchild own columns/tags when building the
   // stb-side meta so the shared vstb cache entry keeps the pure vstb schema.

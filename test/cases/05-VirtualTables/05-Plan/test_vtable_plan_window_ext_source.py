@@ -31,6 +31,7 @@ _EXTERNAL_SOURCES = {
     "mysql": "vt_window_plan_mysql_src",
     "postgres": "vt_window_plan_pg_src",
     "influx": "vt_window_plan_influx_src",
+    "sqlserver": "vt_window_plan_ss_src",
 }
 
 
@@ -104,6 +105,24 @@ class TestVTablePlanWindowExtSource:
         else:
             raise AssertionError("InfluxDB remote_values is not visible")
 
+        ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_create_db(_EXTERNAL_DB)
+        # SQL Server values differ from the MySQL / PostgreSQL / InfluxDB rows
+        # so the Remote SQL text and the merged window results stay
+        # distinguishable between sources.
+        ExtSrcEnv.sqlserver_exec(
+            _EXTERNAL_DB,
+            [
+                "create table dbo.remote_values "
+                "(ts datetime2(6) not null primary key, state_col int, v int)",
+                "insert into dbo.remote_values values "
+                "('2024-01-01 00:00:00', 1, 10000), "
+                "('2024-01-01 00:00:01', 1, 20000), "
+                "('2024-01-01 00:00:02', 2, 30000), "
+                "('2024-01-01 00:00:03', 2, 40000)",
+            ],
+        )
+
     @classmethod
     def create_external_sources(cls):
         for source in _EXTERNAL_SOURCES.values():
@@ -132,6 +151,14 @@ class TestVTablePlanWindowExtSource:
             f"options('api_token'='{influx.token}','protocol'='flight_sql')"
         )
 
+        sqlserver = cls.adapters["sqlserver"]
+        tdSql.execute(
+            f"create external source {_EXTERNAL_SOURCES['sqlserver']} "
+            f"type='sqlserver' host='{sqlserver.host}' port={sqlserver.port} "
+            f"user='{sqlserver.user}' password='{sqlserver.password}' "
+            f"database={_EXTERNAL_DB} schema=dbo"
+        )
+
     @classmethod
     def create_virtual_tables(cls):
         mysql_prefix = (
@@ -145,6 +172,13 @@ class TestVTablePlanWindowExtSource:
         influx_prefix = (
             f"{_EXTERNAL_SOURCES['influx']}."
             f"{_EXTERNAL_DB}.remote_values"
+        )
+        # SQL Server: the middle segment of a three-part path is the schema
+        # (DS §5.3.4), so the database is qualified explicitly (five-part
+        # column path source.database.schema.table.column).
+        sqlserver_prefix = (
+            f"{_EXTERNAL_SOURCES['sqlserver']}."
+            f"{_EXTERNAL_DB}.dbo.remote_values"
         )
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -192,6 +226,16 @@ class TestVTablePlanWindowExtSource:
             f"remote_v bigint from {influx_prefix}.v)"
         )
         tdSql.execute(
+            "create vtable vt_window_sqlserver (ts timestamp, "
+            f"state_col int from {sqlserver_prefix}.state_col, "
+            f"remote_v int from {sqlserver_prefix}.v)"
+        )
+        tdSql.execute(
+            "create vtable vt_window_local_sqlserver (ts timestamp, "
+            "state_col int from local_values.state_col, "
+            f"remote_v int from {sqlserver_prefix}.v)"
+        )
+        tdSql.execute(
             "create vtable vt_window_external_mixed (ts timestamp, "
             f"state_col int from {mysql_prefix}.state_col, "
             "local_v int from local_values.v, "
@@ -213,6 +257,15 @@ class TestVTablePlanWindowExtSource:
             "local_v int from local_values.v, "
             f"mysql_v int from {mysql_prefix}.v)"
         )
+        tdSql.execute(
+            "create vtable vt_window_all_mixed_ss (ts timestamp, "
+            "state_col int from local_values.state_col, "
+            "local_v int from local_values.v, "
+            f"mysql_v int from {mysql_prefix}.v, "
+            f"postgres_v int from {postgres_prefix}.v, "
+            f"influx_v bigint from {influx_prefix}.v, "
+            f"sqlserver_v int from {sqlserver_prefix}.v)"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -222,6 +275,7 @@ class TestVTablePlanWindowExtSource:
         ExtSrcEnv.mysql_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.pg_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.influx_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
 
     @staticmethod
     def compare_plan_and_results():

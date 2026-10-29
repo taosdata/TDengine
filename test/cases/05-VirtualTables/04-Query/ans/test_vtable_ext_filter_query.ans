@@ -16,7 +16,7 @@ taos> select cast(ts as bigint) as ts_ms, a, c from vfilter_query.filter_normal 
 ================
  1704067203000 | 13 | 23 |
 
-taos> select cast(ts as bigint) as ts_ms, a, c from vfilter_query.chain where ts >= 1704067201000 and ts < 1704067206000 order by ts desc limit 2 offset 1;
+taos> select cast(ts as bigint) as ts_ms, a, c from vfilter_query.chain where ts >= '2024-01-01 00:00:01' and ts < '2024-01-01 00:00:06' order by ts desc limit 2 offset 1;
  ts_ms | a | c |
 ================
  1704067203000 | 13 | 23 |
@@ -50,7 +50,7 @@ taos> select cast(l.ts as bigint) as ts_ms, l.a, r.c from vfilter_query.filter_n
  1704067203000 | 13 | 23 |
  1704067205000 | 15 | NULL |
 
-taos> select scenario, cast(ts as bigint) as ts_ms, a, c from vfilter_query.filter_stable where scenario = 1 and a >= 11 and ts <= 1704067203000 order by ts;
+taos> select scenario, cast(ts as bigint) as ts_ms, a, c from vfilter_query.filter_stable where scenario = 1 and a >= 11 and ts <= '2024-01-01 00:00:03' order by ts;
  scenario | ts_ms | a | c |
 ================
  1 | 1704067201000 | 11 | NULL |

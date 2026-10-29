@@ -119,7 +119,7 @@ class TestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest, session.timeout.ms:12000'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         consumerId   = 4
@@ -191,7 +191,7 @@ class TestCase:
         topicList    = topicNameList[0]
         ifcheckdata  = 1
         ifManualCommit = 1
-        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest'
+        keyList      = 'group.id:cgrp1, enable.auto.commit:true, auto.commit.interval.ms:200, auto.offset.reset:earliest, session.timeout.ms:12000'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor 0")
@@ -203,7 +203,9 @@ class TestCase:
         tdLog.info("pkill consume processor")
         tdCom.killProcessor("tmq_sim")
 
-        time.sleep(10)
+        # wait until the killed consumer is evicted by mnode
+        # (session.timeout.ms=12000) before starting a new consumer
+        time.sleep(15)
 
         # reinit consume info, and start tmq_sim, then check consume result
         tmqCom.initConsumerTable()
@@ -242,6 +244,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

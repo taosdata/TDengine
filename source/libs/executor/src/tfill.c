@@ -556,6 +556,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
   }
 
   size_t len = (pValNode != NULL) ? LIST_LENGTH(pValNode->pNodeList) : 0;
+  SListCell* pValueCell = len > 0 ? pValNode->pNodeList->pHead : NULL;
   for (int32_t i = 0; i < numOfFillExpr; ++i) {
     SExprInfo* pExprInfo = &pExpr[i];
     pFillCol[i].pExpr = pExprInfo;
@@ -564,12 +565,13 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
     // todo refactor
     if (len > 0) {
       // if the user specified value is less than the column, alway use the last one as the fill value
-      int32_t index = (i >= len) ? (len - 1) : i;
-
-      SValueNode* pv = (SValueNode*)nodesListGetNode(pValNode->pNodeList, index);
+      SValueNode* pv = NULL != pValueCell ? (SValueNode*)pValueCell->pNode : NULL;
       QUERY_CHECK_NULL(pv, code, lino, _end, terrno);
       code = nodesValueNodeToVariant(pv, &pFillCol[i].fillVal);
       QUERY_CHECK_CODE(code, lino, _end);
+      if (NULL != pValueCell->pNext) {
+        pValueCell = pValueCell->pNext;
+      }
     }
     if (TSDB_CODE_SUCCESS != code) {
       goto _end;
@@ -632,9 +634,11 @@ static bool fillShouldPause(SFillInfo* pFillInfo, const SSDataBlock* pDstBlock) 
 static int32_t copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
                                      const char* src, bool isNull, TSKEY rowTs) {
   SGroupKeys* pKey = taosArrayGet(pRowVal->pRowVal, colIdx);
+  if (pKey == NULL) return TSDB_CODE_INVALID_MSG;
   if (isNull) {
     pKey->isNull = true;
   } else {
+    if (src == NULL) return TSDB_CODE_INVALID_MSG;
     if (IS_VAR_DATA_TYPE(pKey->type)) {
       int32_t bytes = calcStrBytesByType(pKey->type, (char*)src);
       // A negative length (truncated blob header) would bypass the bound and become
@@ -661,10 +665,18 @@ static int32_t copyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
     }
     pKey->isNull = false;
     int64_t* pValueTs = taosArrayGet(pRowVal->pValueTs, colIdx);
+    if (pValueTs == NULL) return TSDB_CODE_INVALID_MSG;
     *pValueTs = rowTs;
   }
   return TSDB_CODE_SUCCESS;
 }
+
+#if defined(BUILD_TEST)
+int32_t fillTestCopyCurrentValIntoBuf(const SRowVal* pRowVal, int32_t colIdx,
+                                      const char* src, bool isNull, TSKEY rowTs) {
+  return copyCurrentValIntoBuf(pRowVal, colIdx, src, isNull, rowTs);
+}
+#endif
 
 /**
   @brief Copy the current row of data from the source block into a buffer for

@@ -832,8 +832,9 @@ static int32_t qExplainIOAnalyze(const SExplainResNode *pResNode,
 
   for (int32_t i = 0; i < nodeNum; ++i) {
     const SExplainExecInfo *pExecInfo = taosArrayGet(pResNode->pExecInfo, i);
-    if (pExecInfo == NULL || pExecInfo->verboseInfo == NULL) {
-      qError("%s failed at line %d, execInfo or verboseInfo is NULL",
+    if (pExecInfo == NULL || pExecInfo->verboseInfo == NULL ||
+        pExecInfo->verboseLen < sizeof(STableScanAnalyzeInfo)) {
+      qError("%s failed at line %d, scan verboseInfo is missing or too short",
              __func__, __LINE__);
       return TSDB_CODE_INVALID_PARA;
     }
@@ -1113,7 +1114,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         if (pResNode->pExecInfo && taosArrayGetSize(pResNode->pExecInfo) > 0) {
           const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
           if (execInfo != NULL && execInfo->verboseInfo != NULL &&
-              execInfo->verboseLen >= offsetof(SFederatedScanExplainInfo, batchMode)) {
+              execInfo->verboseLen >= offsetof(SFederatedScanExplainInfo, batchMode) &&
+              memchr(((const SFederatedScanExplainInfo *)execInfo->verboseInfo)->remoteSql, '\0',
+                     sizeof(((const SFederatedScanExplainInfo *)execInfo->verboseInfo)->remoteSql)) != NULL) {
             qDebug("Explain FedScan: runtime exec chosen, source=%s table=%s execCount=%d vgId=%d",
                    extSrcName, extTblName, (int32_t)taosArrayGetSize(pResNode->pExecInfo), execInfo->vgId);
             const SFederatedScanExplainInfo *pFedInfo =
@@ -1272,6 +1275,10 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_MODE_FORMAT, qExplainGetScanMode(pTblScanNode));
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_SCAN_DATA_LOAD_FORMAT, qExplainGetScanDataLoad(pTblScanNode));
+      if (pTblScanNode->intervalLimit > 0) {
+        EXPLAIN_ROW_APPEND(" interval_limit=%" PRId64,
+                           pTblScanNode->intervalLimit);
+      }
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
@@ -1658,7 +1665,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         if (pResNode->pExecInfo) {
           const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
-          if (execInfo && execInfo->verboseInfo) {
+          if (execInfo && execInfo->verboseInfo && execInfo->verboseLen >= sizeof(SExchangeExplainInfo)) {
             const SExchangeExplainInfo *pExchInfo = (SExchangeExplainInfo *)execInfo->verboseInfo;
             EXPLAIN_ROW_NEW(level + 1, EXPLAIN_NETWORK_FORMAT);
             EXPLAIN_ROW_APPEND(EXPLAIN_EXCHANGE_MODE_FORMAT,
@@ -1727,8 +1734,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       if (pResNode->pExecInfo) {
         // sort key
         EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
-        for (int32_t i = 0; i < LIST_LENGTH(pSortNode->pSortKeys); ++i) {
-          SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pSortNode->pSortKeys, i);
+        SNode* pSortKeyNode = NULL;
+        FOREACH(pSortKeyNode, pSortNode->pSortKeys) {
+          SOrderByExprNode *ptn = (SOrderByExprNode *)pSortKeyNode;
           EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
         }
 
@@ -1740,6 +1748,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+        if (execInfo == NULL || execInfo->verboseInfo == NULL || execInfo->verboseLen < sizeof(SSortExecInfo)) {
+          return TSDB_CODE_INVALID_MSG;
+        }
         SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
         EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
         if (pExecInfo->sortBuffer > 1024 * 1024) {
@@ -2121,6 +2132,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
           int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
           SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          if (execInfo == NULL || execInfo->verboseInfo == NULL || execInfo->verboseLen < sizeof(SSortExecInfo)) {
+            return TSDB_CODE_INVALID_MSG;
+          }
           SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
           EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
           if (pExecInfo->sortBuffer > 1024 * 1024) {
@@ -2161,8 +2175,11 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
               EXPLAIN_ROW_APPEND(EXPLAIN_COMMA_FORMAT);
             }
           }
-          for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pMergeNode->pMergeKeys, i);
+          SListCell* pMergeKeyCell =
+              NULL != pMergeNode->pMergeKeys ? pMergeNode->pMergeKeys->pHead : NULL;
+          for (int32_t i = 0; i < LIST_LENGTH(pMergeNode->pMergeKeys);
+               ++i, pMergeKeyCell = (NULL != pMergeKeyCell ? pMergeKeyCell->pNext : NULL)) {
+            SOrderByExprNode *ptn = (SOrderByExprNode *)(NULL != pMergeKeyCell ? pMergeKeyCell->pNode : NULL);
             EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, nodesGetNameFromColumnNode(ptn->pExpr));
             EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
             EXPLAIN_ROW_APPEND(EXPLAIN_STRING_TYPE_FORMAT, EXPLAIN_ORDER_STRING(ptn->order));
@@ -2333,8 +2350,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         // sort key
         EXPLAIN_ROW_NEW(level + 1, "Sort Key: ");
         if (pResNode->pExecInfo) {
-          for (int32_t i = 0; i < LIST_LENGTH(pSortNode->pSortKeys); ++i) {
-            SOrderByExprNode *ptn = (SOrderByExprNode *)nodesListGetNode(pSortNode->pSortKeys, i);
+          SNode* pSortKeyNode2 = NULL;
+          FOREACH(pSortKeyNode2, pSortNode->pSortKeys) {
+            SOrderByExprNode *ptn = (SOrderByExprNode *)pSortKeyNode2;
             EXPLAIN_ROW_APPEND("%s ", nodesGetNameFromColumnNode(ptn->pExpr));
           }
         }
@@ -2347,6 +2365,9 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
 
         int32_t           nodeNum = taosArrayGetSize(pResNode->pExecInfo);
         SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+        if (execInfo == NULL || execInfo->verboseInfo == NULL || execInfo->verboseLen < sizeof(SSortExecInfo)) {
+          return TSDB_CODE_INVALID_MSG;
+        }
         SSortExecInfo    *pExecInfo = (SSortExecInfo *)execInfo->verboseInfo;
         EXPLAIN_ROW_APPEND("%s", pExecInfo->sortMethod == SORT_QSORT_T ? "quicksort" : "merge sort");
         if (pExecInfo->sortBuffer > 1024 * 1024) {
@@ -2466,8 +2487,6 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
                         pInterpNode->mergeDataBlock ? "True" : "False");
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
-        qDebug("QID:0x0 Interp EXPLAIN reports mergeDataBlock=%s, level=%d",
-               pInterpNode->mergeDataBlock ? "True" : "False", level);
         if (pInterpNode->pFillValues) {
           SNodeListNode *pValues = (SNodeListNode *)pInterpNode->pFillValues;
           EXPLAIN_ROW_NEW(level + 1, EXPLAIN_FILL_VALUE_FORMAT);
@@ -3450,8 +3469,10 @@ static int32_t qExplainAppendStaticQueryPlan(SQueryPlan* pPlan, const SNodeList*
   QRY_ERR_JRET(qExplainAppendGroupResRows(pCtx, planCtx.rootGroupId, &level, false));
 
   if (NULL != pPlan->pChildren) {
-    for (int32_t i = LIST_LENGTH(pPlan->pChildren) - 1; i >= 0; --i) {
-      SQueryPlan* pChild = (SQueryPlan*)nodesListGetNode(pPlan->pChildren, i);
+    SListCell* pChildrenCell = NULL != pPlan->pChildren ? pPlan->pChildren->pTail : NULL;
+    for (int32_t i = LIST_LENGTH(pPlan->pChildren) - 1; i >= 0;
+         --i, pChildrenCell = (NULL != pChildrenCell ? pChildrenCell->pPrev : NULL)) {
+      SQueryPlan* pChild = (SQueryPlan*)(NULL != pChildrenCell ? pChildrenCell->pNode : NULL);
       QUERY_CHECK_NULL(pChild, code, lino, _return, TSDB_CODE_QRY_INVALID_CORRELATION_NODE);
 
       tbuf = pCtx->tbuf;

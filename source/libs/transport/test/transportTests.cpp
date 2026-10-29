@@ -479,4 +479,74 @@ TEST_F(UserInfoSecurityTest, NormalPacket_Token_WithPayload) {
 TEST_F(UserInfoSecurityTest, WithUserInfoNotSet) {
   EXPECT_EQ(testUvConnMayGetUserInfo(kHead + 1024, 0, 0), 0);
 }
+
+/*
+ * Devon scan 7114722063 (engine-transport) regression tests.
+ *
+ * The entry points live in the test-only transCliSecHarness.c / thttpTelemSecHarness.c
+ * translation units (which include the implementation files) and drive the real logic.
+ */
+extern "C" int32_t testCliTryUpdateEpsetShort(int32_t bodyLen, int canonicalLen);
+extern "C" int32_t testCliReleaseRespGate(int64_t releaseQid, int64_t registeredQid);
+extern "C" int32_t testTelemetryReportUrlBound(int32_t urlLen);
+
+static int32_t devonCanonicalEpsetLen() {
+  SEpSet epset = {0};
+  epset.numOfEps = 1;
+  return tSerializeSEpSet(NULL, 0, &epset);
+}
+
+TEST(TransDevonSecTest, TdItem324ValidReqEpsetBoundsInUseByNumOfEps) {
+  SReqEpSet* p = (SReqEpSet*)taosMemoryCalloc(1, sizeof(SReqEpSet) + sizeof(SEp) * TSDB_MAX_REPLICA);
+  ASSERT_NE(p, nullptr);
+
+  // inUse indexing past (or before) the eps[] actually present must be rejected
+  p->numOfEps = 1;
+  p->inUse = 9;
+  EXPECT_EQ(transValidReqEpset(p), TSDB_CODE_INVALID_PARA);
+  p->inUse = -1;
+  EXPECT_EQ(transValidReqEpset(p), TSDB_CODE_INVALID_PARA);
+
+  // numOfEps beyond the fixed SEpSet source array must be rejected
+  p->numOfEps = TSDB_MAX_REPLICA + 1;
+  p->inUse = 0;
+  EXPECT_EQ(transValidReqEpset(p), TSDB_CODE_INVALID_PARA);
+  p->numOfEps = 0;
+  EXPECT_EQ(transValidReqEpset(p), TSDB_CODE_INVALID_PARA);
+
+  // well-formed sets pass
+  p->numOfEps = 3;
+  p->inUse = 2;
+  EXPECT_EQ(transValidReqEpset(p), TSDB_CODE_SUCCESS);
+  p->inUse = 0;
+  EXPECT_EQ(transValidReqEpset(p), TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(transValidReqEpset(NULL), TSDB_CODE_INVALID_PARA);
+  taosMemoryFree(p);
+}
+
+TEST(TransDevonSecTest, TdItem195ShortEpsetBodyRejected) {
+  int32_t canonical = devonCanonicalEpsetLen();
+  ASSERT_GT(canonical, 0);
+  // body shorter than the canonical serialized SEpSet must be rejected, not memcpy'd
+  EXPECT_EQ(testCliTryUpdateEpsetShort(canonical - 31, canonical), 1);
+  EXPECT_EQ(testCliTryUpdateEpsetShort(canonical - 1, canonical), 1);
+  // a full-size body still goes through
+  EXPECT_EQ(testCliTryUpdateEpsetShort(canonical, canonical), 2);
+}
+
+TEST(TransDevonSecTest, TdItem290TelemetryReportUrlBounded) {
+  // value longer than the 257-byte destination must be rejected without writing to it
+  EXPECT_EQ(testTelemetryReportUrlBound(300), 1);
+  EXPECT_EQ(testTelemetryReportUrlBound(1000), 1);
+  // a fitting value is copied normally
+  EXPECT_EQ(testTelemetryReportUrlBound(64), 1);
+}
+
+TEST(TransDevonSecTest, TdItem351ReleaseRespUnknownQidIgnored) {
+  // release frame for a qId not registered on this connection must not remove
+  // the registered entry
+  EXPECT_EQ(testCliReleaseRespGate(8, 7), 1);
+  EXPECT_EQ(testCliReleaseRespGate(-1, 7), 1);
+}
 #endif

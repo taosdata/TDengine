@@ -116,6 +116,9 @@ int32_t taosMkDir(const char *dirname);
 int32_t taosMulMkDir(const char *dirname);
 int32_t taosMulModeMkDir(const char *dirname, int mode, bool checkAccess);
 void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
+/* Expands dirname into outname. Invalid pointers or maxlen <= 0 return
+ * TSDB_CODE_INVALID_PARA. A path whose bytes plus terminating NUL exceed maxlen
+ * returns TSDB_CODE_INVALID_CFG_VALUE and leaves outname untouched. */
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen);
 bool    taosIsDir(const char *dirname);

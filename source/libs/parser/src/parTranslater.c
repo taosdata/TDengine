@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include "cJSON.h"
 #include "extConnector.h"
+#include "extDialect.h"
 #include "nodes.h"
 #include "parInt.h"
 #include "parUtil.h"
@@ -94,11 +95,12 @@
 #endif
 
 #ifndef TD_ENTERPRISE
-static int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
+int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
                                     const char* sourceName, const char* cacheMid0, const char* cacheMid1,
                                     const char* dbName, const char* schemaName, const char* tableName,
                                     bool forceRefresh, SExtTableMeta** ppExtMeta) {
   *ppExtMeta = NULL;
+  parserError("External table metadata is not supported in community builds");
   return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_OSS_NOT_SUPPORT, "External table");
 }
 #endif
@@ -1378,6 +1380,8 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
             tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
             tstrncpy((*pMeta)->colRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->colRef[j].refSourceName));
+            tstrncpy((*pMeta)->colRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->colRef[j].refSchemaName));
             break;
           }
         }
@@ -1401,6 +1405,8 @@ static int32_t getTargetMeta(STranslateContext* pCxt, const SName* pName, STable
             tstrncpy((*pMeta)->tagRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->tagRef[j].refColName));
             tstrncpy((*pMeta)->tagRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->tagRef[j].refSourceName));
+            tstrncpy((*pMeta)->tagRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->tagRef[j].refSchemaName));
             break;
           }
         }
@@ -1633,6 +1639,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
             tstrncpy((*pMeta)->colRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->colRef[j].refColName));
             tstrncpy((*pMeta)->colRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->colRef[j].refSourceName));
+            tstrncpy((*pMeta)->colRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->colRef[j].refSchemaName));
             break;
           }
         }
@@ -1656,6 +1664,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
             tstrncpy((*pMeta)->tagRef[j].refColName, pResolved->refColName, sizeof((*pMeta)->tagRef[j].refColName));
             tstrncpy((*pMeta)->tagRef[j].refSourceName, pResolved->refSourceName,
                      sizeof((*pMeta)->tagRef[j].refSourceName));
+            tstrncpy((*pMeta)->tagRef[j].refSchemaName, pResolved->refSchemaName,
+                     sizeof((*pMeta)->tagRef[j].refSchemaName));
             break;
           }
         }
@@ -2295,8 +2305,10 @@ int32_t buildPartitionListFromOrderList(SNodeList* pOrderList, int32_t nodesNum,
   }
 
   int32_t code = 0;
-  for (int32_t i = 0; i < nodesNum; ++i) {
-    pNode = nodesListGetNode(pOrderList, i);
+  SListCell* pOrderCell = NULL != pOrderList ? pOrderList->pHead : NULL;
+  for (int32_t i = 0; i < nodesNum;
+       ++i, pOrderCell = (NULL != pOrderCell ? pOrderCell->pNext : NULL)) {
+    pNode = (NULL != pOrderCell ? pOrderCell->pNode : NULL);
     pOrder = (SOrderByExprNode*)pNode;
     SNode* pClonedNode = NULL;
     code = nodesCloneNode(pOrder->pExpr, &pClonedNode);
@@ -2747,7 +2759,7 @@ static int32_t createColumnsByTempTable(STranslateContext* pCxt, const STableNod
     PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
     freeCol = false;
 
-    SListCell* pCell = nodesListGetCell(pList, LIST_LENGTH(pList) - 1);
+    SListCell* pCell = pList->pTail;
     QUERY_CHECK_NULL(pCell, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
     PAR_ERR_JRET(setColumnInfoByExpr(pTempTable, (SExprNode*)pNode, (SColumnNode**)&pCell->pNode, true));
@@ -2914,8 +2926,12 @@ static int32_t findAndSetTextTableColumn(STextTableNode* pTextTable, SColumnNode
 static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode** pColRef, bool* pFound);
 
 static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, const char* queryName) {
-  return EXT_SOURCE_MYSQL == sourceType ? 0 == strcasecmp(schemaName, queryName)
-                                        : 0 == strcmp(schemaName, queryName);
+  // MySQL and SQL Server expose case-insensitive catalogs by default, so name
+  // variants fold onto the stored column and the resolved column echoes the
+  // stored case; PostgreSQL compares quoted/identifier names literally.
+  // Delegates to qcom so mnode's binding step and the stream readers apply the
+  // identical fold.
+  return extColumnNameEqual((EExtSourceType)sourceType, schemaName, queryName);
 }
 
 static bool externalTableColumnNameEqual(const SRealTableNode* pTable, const char* schemaName,
@@ -6297,9 +6313,12 @@ static int32_t validateStreamNestedLayerNamespace(SStreamNestedWindowContext* pN
   SNode*  pNode = NULL;
   FOREACH(pNode, pNested->pPlanAst->pLayers) {
     const SStreamWindowLayerNode* pLayer = (const SStreamWindowLayerNode*)pNode;
-    for (int32_t prior = 0; prior < index; ++prior) {
+    SListCell* pLayerCell =
+        NULL != pNested->pPlanAst->pLayers ? pNested->pPlanAst->pLayers->pHead : NULL;
+    for (int32_t prior = 0; prior < index;
+         ++prior, pLayerCell = (NULL != pLayerCell ? pLayerCell->pNext : NULL)) {
       const SStreamWindowLayerNode* pPrior =
-          (const SStreamWindowLayerNode*)nodesListGetNode(pNested->pPlanAst->pLayers, prior);
+          (const SStreamWindowLayerNode*)(NULL != pLayerCell ? pLayerCell->pNode : NULL);
       if (pLayer->name[0] != '\0' && streamAsciiEqualIgnoreCase(pLayer->name, pPrior->name)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
@@ -8262,8 +8281,10 @@ static int32_t validateSqlWindowList(STranslateContext* pCxt, SSelectStmt* pSele
   int32_t index = 0;
   FOREACH(pNode, pSelect->pWindowList) {
     SNamedWindowNode* pNamed = (SNamedWindowNode*)pNode;
-    for (int32_t i = 0; i < index; ++i) {
-      SNamedWindowNode* pPrev = (SNamedWindowNode*)nodesListGetNode(pSelect->pWindowList, i);
+    SListCell* pWindowCell = NULL != pSelect->pWindowList ? pSelect->pWindowList->pHead : NULL;
+    for (int32_t i = 0; i < index;
+         ++i, pWindowCell = (NULL != pWindowCell ? pWindowCell->pNext : NULL)) {
+      SNamedWindowNode* pPrev = (SNamedWindowNode*)(NULL != pWindowCell ? pWindowCell->pNode : NULL);
       if (0 == strcasecmp(pPrev->windowName, pNamed->windowName)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WINDOW_DUP_NAME);
       }
@@ -11298,7 +11319,16 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   tstrncpy(pExtNode->srcSchema, pExtInfo->schema_name, sizeof(pExtNode->srcSchema));
   tstrncpy(pExtNode->srcOptions, pExtInfo->options, sizeof(pExtNode->srcOptions));
   pExtNode->metaVersion = pExtInfo->meta_version;
-  pExtNode->capability = pExtInfo->capability;
+  // The node owns its capability hashes: freeExtSourceInfo() below destroys the
+  // ones inside pExtInfo, so a struct assignment would leave dangling pointers
+  // that extCapClone() crashes on when the plan is copied.
+  PAR_ERR_JRET(extCapClone(&pExtInfo->capability, &pExtNode->capability));
+  // The cached source info does not always carry the dialect profile yet (its
+  // async catalog update may still be pending).  Without it the planner judges
+  // every SQL Server predicate under the MySQL dialect and pushes constructs
+  // T-SQL cannot reproduce exactly.  Load the dialect defaults here, mirroring
+  // translateExternalTableImpl() for direct external references.
+  PAR_ERR_JRET(extLoadDialectDefaults(pExtNode->sourceType, &pExtNode->capability));
 
   // Compute tsPrimaryColIdx from pExtMeta: must be isPrimaryKey=true AND maps to TIMESTAMP.
   pExtNode->tsPrimaryColIdx = -1;
@@ -11443,18 +11473,44 @@ _return:
   return code;
 }
 
-static const SColRef* findResolvedLeafColRef(const SVStbRefDbsRsp* pRsp, col_id_t rootColId) {
-  if (NULL == pRsp || NULL == pRsp->pResolvedColRefs) {
-    return NULL;
-  }
+typedef struct SColRefIndex {
+  // Store array positions plus one so zero represents a missing column ID.
+  int32_t colRefIndex;
+  int32_t leafIndex;
+} SColRefIndex;
 
-  for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
-    if (pRsp->pResolvedColRefs[i].id == rootColId &&
-        pRsp->pResolvedColRefs[i].filterCondLen > 0) {
-      return &pRsp->pResolvedColRefs[i];
+static int32_t buildColRefIndex(const STableMeta* pMeta, const SVStbRefDbsRsp* pRsp,
+                                SColRefIndex** ppIndex, int32_t* pMaxColId) {
+  *pMaxColId = 0;
+  for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+    if (pMeta->colRef[i].hasRef && pMeta->colRef[i].id > *pMaxColId) {
+      *pMaxColId = pMeta->colRef[i].id;
     }
   }
-  return NULL;
+
+  *ppIndex = taosMemoryCalloc(*pMaxColId + 1, sizeof(SColRefIndex));
+  if (NULL == *ppIndex) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+    const SColRef* pRef = &pMeta->colRef[i];
+    if (pRef->hasRef && pRef->id > 0 && (*ppIndex)[pRef->id].colRefIndex == 0) {
+      (*ppIndex)[pRef->id].colRefIndex = i + 1;
+    }
+  }
+
+  if (NULL != pRsp->pResolvedColRefs) {
+    for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+      const SColRef* pRef = &pRsp->pResolvedColRefs[i];
+      if (pRef->id > 0 && pRef->id <= *pMaxColId && pRef->filterCondLen > 0 &&
+          (*ppIndex)[pRef->id].leafIndex == 0) {
+        (*ppIndex)[pRef->id].leafIndex = i + 1;
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t patchResolvedColRefConds(SColRef* pColRef, const SColRef* pResolved) {
@@ -11495,8 +11551,22 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
     return TSDB_CODE_SUCCESS;
   }
 
+  SColRefIndex* pIndex = NULL;
+  int32_t       maxColId = 0;
+  PAR_ERR_JRET(buildColRefIndex(pMeta, pRsp, &pIndex, &maxColId));
+
   for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
     SRefColInfo* pResolved = &pRsp->pColRefCols[i];
+    if (pResolved->colId <= 0 || pResolved->colId > maxColId || pIndex[pResolved->colId].colRefIndex == 0) {
+      continue;
+    }
+
+    int32_t colRefIndex = pIndex[pResolved->colId].colRefIndex - 1;
+    SColRef* pColRef = &pMeta->colRef[colRefIndex];
+    if (!pColRef->hasRef) {
+      continue;
+    }
+
     bool         isNullRef = '\0' == pResolved->refDbName[0] && '\0' == pResolved->refTableName[0] &&
                             '\0' == pResolved->refColName[0] && '\0' == pResolved->refSourceName[0];
 
@@ -11505,32 +11575,28 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
       continue;
     }
 
-    for (int32_t j = 0; j < pMeta->numOfColRefs; ++j) {
-      if (!pMeta->colRef[j].hasRef || pMeta->colRef[j].id != pResolved->colId) {
-        continue;
-      }
+    if (isNullRef) {
+      SColRef cleared = {.id = pColRef->id};
+      tstrncpy(cleared.colName, pColRef->colName, sizeof(cleared.colName));
+      tFreeSColRefArray(pColRef, 1);
+      *pColRef = cleared;
+      continue;
+    }
 
-      if (isNullRef) {
-        SColRef cleared = {.id = pMeta->colRef[j].id};
-        tstrncpy(cleared.colName, pMeta->colRef[j].colName, sizeof(cleared.colName));
-        tFreeSColRefArray(&pMeta->colRef[j], 1);
-        pMeta->colRef[j] = cleared;
-        break;
-      }
-
-      tstrncpy(pMeta->colRef[j].refDbName, pResolved->refDbName, sizeof(pMeta->colRef[j].refDbName));
-      tstrncpy(pMeta->colRef[j].refTableName, pResolved->refTableName, sizeof(pMeta->colRef[j].refTableName));
-      tstrncpy(pMeta->colRef[j].refColName, pResolved->refColName, sizeof(pMeta->colRef[j].refColName));
-      tstrncpy(pMeta->colRef[j].refSourceName, pResolved->refSourceName, sizeof(pMeta->colRef[j].refSourceName));
-      const SColRef* pResolvedLeaf = findResolvedLeafColRef(pRsp, pResolved->colId);
-      if (NULL != pResolvedLeaf) {
-        PAR_ERR_RET(patchResolvedColRefConds(&pMeta->colRef[j], pResolvedLeaf));
-      }
-      break;
+    tstrncpy(pColRef->refDbName, pResolved->refDbName, sizeof(pColRef->refDbName));
+    tstrncpy(pColRef->refTableName, pResolved->refTableName, sizeof(pColRef->refTableName));
+    tstrncpy(pColRef->refColName, pResolved->refColName, sizeof(pColRef->refColName));
+    tstrncpy(pColRef->refSourceName, pResolved->refSourceName, sizeof(pColRef->refSourceName));
+    tstrncpy(pColRef->refSchemaName, pResolved->refSchemaName, sizeof(pColRef->refSchemaName));
+    int32_t leafIndex = pIndex[pResolved->colId].leafIndex;
+    if (leafIndex > 0) {
+      PAR_ERR_JRET(patchResolvedColRefConds(pColRef, &pRsp->pResolvedColRefs[leafIndex - 1]));
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+_return:
+  taosMemoryFree(pIndex);
+  return code;
 }
 
 static int32_t buildColRefTableKey(const SColRef* pColRef, char* buf, int32_t bufLen) {
@@ -11561,7 +11627,10 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
     return TSDB_CODE_SUCCESS;
   }
   EExtSourceType sourceType = (EExtSourceType)pExtNode->sourceType;
-  bool           isRelationalSource = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType;
+  // SQL Server is relational in the same sense (remote primary key, mappable
+  // types), so a stale binding reports EXT_SCHEMA_CHANGED like MySQL/PG.
+  bool           isRelationalSource = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
+                            EXT_SOURCE_SQLSERVER == sourceType;
 
   int32_t schemaIdx = -1;
   for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; i++) {
@@ -11747,8 +11816,10 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   for (int32_t depth = 0; depth < TSDB_MAX_VTABLE_REF_DEPTH; ++depth) {
     int32_t listLen = LIST_LENGTH(pVTable->refTables);
     bool    addedNew = false;
-    for (int32_t idx = 0; idx < listLen; ++idx) {
-      SNode* pRefNode = nodesListGetNode(pVTable->refTables, idx);
+    SListCell* pRefTableCell = NULL != pVTable->refTables ? pVTable->refTables->pHead : NULL;
+    for (int32_t idx = 0; idx < listLen;
+         ++idx, pRefTableCell = (NULL != pRefTableCell ? pRefTableCell->pNext : NULL)) {
+      SNode* pRefNode = (NULL != pRefTableCell ? pRefTableCell->pNode : NULL);
       // external source refs are leaf nodes without an internal tag-ref chain to follow
       if (!pRefNode || nodeType(pRefNode) != QUERY_NODE_REAL_TABLE) continue;
       SRealTableNode* pCurRef = (SRealTableNode*)pRefNode;
@@ -16859,9 +16930,13 @@ static bool orderByStartsWithPartitionList(SNodeList* pOrderByList, SNodeList* p
     return false;
   }
 
-  for (int32_t i = 0; i < pPartitionByList->length; ++i) {
-    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)nodesListGetNode(pOrderByList, i);
-    SNode* pPartitionExpr = nodesListGetNode(pPartitionByList, i);
+  SListCell* pOrderByCell = NULL != pOrderByList ? pOrderByList->pHead : NULL;
+  SListCell* pPartitionByCell = NULL != pPartitionByList ? pPartitionByList->pHead : NULL;
+  for (int32_t i = 0; i < pPartitionByList->length;
+       ++i, pOrderByCell = (NULL != pOrderByCell ? pOrderByCell->pNext : NULL),
+       pPartitionByCell = (NULL != pPartitionByCell ? pPartitionByCell->pNext : NULL)) {
+    SOrderByExprNode* pOrderExpr = (SOrderByExprNode*)(NULL != pOrderByCell ? pOrderByCell->pNode : NULL);
+    SNode* pPartitionExpr = (NULL != pPartitionByCell ? pPartitionByCell->pNode : NULL);
     if (NULL == pOrderExpr || NULL == pOrderExpr->pExpr || NULL == pPartitionExpr ||
         !nodesEqualNode(pOrderExpr->pExpr, pPartitionExpr)) {
       return false;
@@ -17093,8 +17168,8 @@ _return:
 }
 
 static int32_t checkAnomalyExpr(STranslateContext* pCxt, SNodeList* pNodeList) {
-  for (int32_t i = 0; i < pNodeList->length; ++i) {
-    SNode*  pNode = nodesListGetNode(pNodeList, i);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pNodeList) {
     int32_t type = ((SExprNode*)pNode)->resType.type;
     if (!IS_MATHABLE_TYPE(type)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE,
@@ -18449,8 +18524,10 @@ static void resetResultTimeline(STranslateContext* pCxt, SSelectStmt* pSelect) {
     pSelect->timeLineResMode = TIME_LINE_GLOBAL;
     return;
   } else if (pSelect->pOrderByList->length > 1) {
-    for (int32_t i = 1; i < pSelect->pOrderByList->length; ++i) {
-      SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)nodesListGetNode(pSelect->pOrderByList, i);
+    SListCell* pOrderByCell = nodesListGetCell(pSelect->pOrderByList, 1);
+    for (int32_t i = 1; i < pSelect->pOrderByList->length;
+         ++i, pOrderByCell = (NULL != pOrderByCell ? pOrderByCell->pNext : NULL)) {
+      SOrderByExprNode* pOrderByExpr = (SOrderByExprNode*)(NULL != pOrderByCell ? pOrderByCell->pNode : NULL);
       pOrder = pOrderByExpr->pExpr;
       if (isPrimaryKeyImpl(pOrder)) {
         pSelect->timeLineResMode = TIME_LINE_MULTI;
@@ -18778,8 +18855,10 @@ static int32_t rewriteColsFunction(STranslateContext* pCxt, ESqlClause clause, S
           if (TSDB_CODE_SUCCESS != code) goto _end;
         }
         // start from index 1, because the first parameter is select function which needn't to output.
-        for (int i = 1; i < pFunc->pParameterList->length; ++i) {
-          SNode* pExpr = nodesListGetNode(pFunc->pParameterList, i);
+        SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+        for (int i = 1; i < pFunc->pParameterList->length;
+             ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+          SNode* pExpr = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
 
           if (clause != SQL_CLAUSE_SELECT && isStarColumn(pExpr)) {
             code = TSDB_CODE_PAR_INVALID_COLS_FUNCTION;
@@ -19694,8 +19773,10 @@ static int32_t translateSetOperOrderBy(STranslateContext* pCxt, SSetOperator* pS
       pSetOperator->timeLineResMode = TIME_LINE_GLOBAL;
       return code;
     } else if (pSetOperator->pOrderByList->length > 1) {
-      for (int32_t i = 1; i < pSetOperator->pOrderByList->length; ++i) {
-        pOrder = ((SOrderByExprNode*)nodesListGetNode(pSetOperator->pOrderByList, i))->pExpr;
+      SListCell* pOrderByCell = nodesListGetCell(pSetOperator->pOrderByList, 1);
+      for (int32_t i = 1; i < pSetOperator->pOrderByList->length;
+           ++i, pOrderByCell = (NULL != pOrderByCell ? pOrderByCell->pNext : NULL)) {
+        pOrder = ((SOrderByExprNode*)(NULL != pOrderByCell ? pOrderByCell->pNode : NULL))->pExpr;
         if (isPrimaryKeyImpl(pOrder)) {
           pSetOperator->timeLineResMode = TIME_LINE_MULTI;
           pSetOperator->timeLineFromOrderBy = true;
@@ -27769,6 +27850,7 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     }
   }
 
+  SListCell* pColCell = pColExists ? pStmt->pCols->pHead : NULL;
   FOREACH(pNode, pCalcProjection) {
     SExprNode*      pExpr = (SExprNode*)pNode;
     SColumnDefNode* pColDef = NULL;
@@ -27785,7 +27867,10 @@ static int32_t createStreamReqSetDefaultOutCols(STranslateContext* pCxt, SCreate
     }
 
     if (pColExists) {
-      pColDef = (SColumnDefNode*)nodesListGetNode(pStmt->pCols, index);
+      pColDef = NULL != pColCell ? (SColumnDefNode*)pColCell->pNode : NULL;
+      if (NULL != pColCell) {
+        pColCell = pColCell->pNext;
+      }
     } else {
       PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN_DEF, (SNode**)&pColDef));
       if (nodeType(pExpr) == QUERY_NODE_FUNCTION) {
@@ -28447,6 +28532,22 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
               "EXTERNAL trigger table '%s' has no primary timestamp column",
               pExtTrig->table.tableName));
         }
+        // The reader walks the remote timestamp with a microsecond watermark, so
+        // a time key declared finer than a microsecond (SQL Server datetime2(7) /
+        // datetimeoffset(7), including the default precision) cannot be tracked:
+        // the connector truncates the fraction and the reader would either
+        // re-poll the consumed row forever or skip a row written into the same
+        // microsecond.  Reject it instead of silently losing rows.
+        if (pExtTrig->pExtMeta != NULL && pExtTrig->tsPrimaryColIdx < pExtTrig->pExtMeta->numOfCols &&
+            extTimestampTypeHasSubMicroFraction((EExtSourceType)pExtTrig->sourceType,
+                                                pExtTrig->pExtMeta->pCols[pExtTrig->tsPrimaryColIdx].extTypeName)) {
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(
+              &pCxt->msgBuf, TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED,
+              "EXTERNAL trigger table '%s': timestamp column '%s' has type '%s' with sub-microsecond precision, "
+              "which the stream reader cannot track; declare a precision of 6 or less",
+              pExtTrig->table.tableName, pExtTrig->pExtMeta->pCols[pExtTrig->tsPrimaryColIdx].colName,
+              pExtTrig->pExtMeta->pCols[pExtTrig->tsPrimaryColIdx].extTypeName));
+        }
         if (LIST_LENGTH(pTriggerPartition) != 0 &&
             pExtTrig->sourceType != EXT_SOURCE_INFLUXDB) {
           /* Relational ext sources (MySQL/PostgreSQL) have no tag concept, so
@@ -28519,7 +28620,10 @@ _return:
   if (code) {
     parserError("%s failed, code:%d", __func__, code);
   }
-  taosMemoryFreeClear(pTriggerTableMeta);
+  // pTriggerTableMeta is a deep copy (tableMetaDup); free the nested series
+  // entries and tag conditions instead of only the top-level struct.
+  queryFreeTableMeta(pTriggerTableMeta);
+  pTriggerTableMeta = NULL;
   return code;
 }
 
@@ -29974,6 +30078,7 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
   SHashObj* pHash  = pCxt->streamInfo.extSourceNames;
   SArray*   pSpecs = NULL;
   void*     pIter  = NULL;
+  bool      hasExprSubquery = streamQueryHasExprSubqueryRef(pStmt->pQuery);
 
   if (pHash == NULL || taosHashGetSize(pHash) == 0) {
     parserDebug("buildExtSpecs: no ext sources referenced, skip");
@@ -30169,11 +30274,45 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
        * the stream executor at runtime. */
       if (pStmt->pQuery != NULL && nodeType(pStmt->pQuery) == QUERY_NODE_SELECT_STMT) {
         SSelectStmt *pCalcSelect = (SSelectStmt *)pStmt->pQuery;
-        if (pCalcSelect->pWhere != NULL &&
-            !whereHasStreamPlaceholders(pCalcSelect->pWhere)) {
+        /* A derived-table wrapper (SELECT ... FROM (subquery) WHERE ...)
+         * filters AGGREGATED rows; its WHERE must never be pushed to the
+         * remote source (remote schema has no aggregate output columns).
+         * Descend to the base-table select so only genuine base-table
+         * predicates become the remote prefilter. */
+        SSelectStmt *pBaseSelect = pCalcSelect;
+        while (pBaseSelect->pFromTable != NULL &&
+               nodeType(pBaseSelect->pFromTable) == QUERY_NODE_TEMP_TABLE) {
+          SNode *pSub = ((STempTableNode *)pBaseSelect->pFromTable)->pSubquery;
+          if (pSub == NULL || nodeType(pSub) != QUERY_NODE_SELECT_STMT) {
+            pBaseSelect = NULL;
+            break;
+          }
+          pBaseSelect = (SSelectStmt *)pSub;
+        }
+        SNode *pBaseWhere = NULL;
+        /* Only push the base WHERE as a remote prefilter when it filters a
+         * single external table of THIS (trigger) source.  If the base FROM
+         * is a JOIN (or anything but a plain ext table), its predicates may
+         * reference other join sides; renderExtWhereNode renders bare column
+         * names (table aliases are dropped), so pushing them would silently
+         * filter this source's rows by another table's condition and corrupt
+         * the calc result. */
+        if (hasExprSubquery) {
+          parserDebug("buildExtSpecs: skip source-level calc prefilter for expression subqueries, source=%s",
+                      sourceName);
+        }
+        if (!hasExprSubquery && pBaseSelect != NULL && pBaseSelect->pFromTable != NULL &&
+            nodeType(pBaseSelect->pFromTable) == QUERY_NODE_REAL_TABLE) {
+          const SRealTableNode *pBaseTbl = (const SRealTableNode *)pBaseSelect->pFromTable;
+          if (pBaseTbl->pExtTableNode != NULL &&
+              strcmp(((const SExtTableNode *)pBaseTbl->pExtTableNode)->sourceName, sourceName) == 0) {
+            pBaseWhere = pBaseSelect->pWhere;
+          }
+        }
+        if (pBaseWhere != NULL && !whereHasStreamPlaceholders(pBaseWhere)) {
           char    pfBuf[4096] = {0};
           int32_t pfOff = 0;
-          int32_t rc = renderExtWhereNode(pCalcSelect->pWhere,
+          int32_t rc = renderExtWhereNode(pBaseWhere,
                                           pSpec->sourceType, extPrec,
                                           pfBuf, sizeof(pfBuf), &pfOff);
           if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
@@ -34570,7 +34709,7 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowCreateTableResultSchema(bool useBlob, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -34581,14 +34720,17 @@ static int32_t extractShowCreateTableResultSchema(int32_t* numOfCols, SSchema** 
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "Table", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  // BLOB (4-byte length header) when the statement carries the FULL suffix;
+  // the historical VARCHAR/BINARY result type otherwise. Decided purely by
+  // the statement syntax, never by the DDL length.
+  (*pSchema)[1].type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create Table", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowCreateRsmaResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowCreateRsmaResultSchema(bool useBlob, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -34599,14 +34741,14 @@ static int32_t extractShowCreateRsmaResultSchema(int32_t* numOfCols, SSchema** p
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "RSMA", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  (*pSchema)[1].type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create RSMA", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowCreateVTableResultSchema(int32_t* numOfCols, SSchema** pSchema) {
+static int32_t extractShowCreateVTableResultSchema(bool useBlob, int32_t* numOfCols, SSchema** pSchema) {
   *numOfCols = 2;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
@@ -34617,8 +34759,8 @@ static int32_t extractShowCreateVTableResultSchema(int32_t* numOfCols, SSchema**
   (*pSchema)[0].bytes = SHOW_CREATE_TB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "Virtual Table", TSDB_COL_NAME_LEN);
 
-  (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+  (*pSchema)[1].type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_BINARY;
+  (*pSchema)[1].bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create Virtual Table", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
@@ -34789,13 +34931,15 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
       return extractShowCreateDatabaseResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      return extractShowCreateTableResultSchema(numOfCols, pSchema);
+      return extractShowCreateTableResultSchema(((const SShowCreateTableStmt*)pRoot)->fullResult, numOfCols,
+                                                 pSchema);
     case QUERY_NODE_SHOW_CREATE_VTABLE_STMT:
-      return extractShowCreateVTableResultSchema(numOfCols, pSchema);
+      return extractShowCreateVTableResultSchema(((const SShowCreateTableStmt*)pRoot)->fullResult, numOfCols,
+                                                 pSchema);
     case QUERY_NODE_SHOW_CREATE_VIEW_STMT:
       return extractShowCreateViewResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_RSMA_STMT:
-      return extractShowCreateRsmaResultSchema(numOfCols, pSchema);
+      return extractShowCreateRsmaResultSchema(((const SShowCreateRsmaStmt*)pRoot)->fullResult, numOfCols, pSchema);
     case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
       return extractShowCreateStreamResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
@@ -35820,6 +35964,8 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef);
+static int32_t disambiguateAlterExternalRef(STranslateContext* pCxt, SAlterTableStmt* pStmt);
+static int32_t expandAlterExternalRefNamespace(STranslateContext* pCxt, SAlterTableStmt* pStmt);
 static int32_t serializeFilterCond(SNode* pFilterCond, int32_t* pLen, char** ppJson);
 // Validate a CREATE-time tags list for normal / virtual-normal tables. Mirrors buildAddTagReq on the
 // ALTER path: tag count cap, decimal rejection, VARCHAR/VARBINARY/NCHAR length cap, total tag length
@@ -36119,27 +36265,70 @@ static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTag
   return -1;
 }
 
-static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef) {
-  if (pColRef == NULL || pColRef->refSourceName[0] == '\0') {
+// Expand a reference's namespace with the source's configured defaults.
+//
+// PostgreSQL stores the source's creation-time default schema per reference:
+// this saved value is what detects a later ALTER SOURCE ... SET schema.
+// MySQL and InfluxDB have no schema segment.
+//
+// SQL Server accepts relative column paths: a three-part path
+// (source.table.column) uses the source's default database and schema, and a
+// four-part path (source.schema.table.column) names the schema but uses the
+// default database.  Expand both to the explicit five-part namespace here so
+// the persisted reference is self-contained: the planner keys external scan
+// nodes by the resolved (database, schema), and a stable namespace keeps the
+// rendered DDL replayable.
+static int32_t normalizeExternalRefNamespace(STranslateContext* pCxt, const char* refSourceName,
+                                             char* refDbName, size_t dbCap, char* refSchemaName,
+                                             size_t schemaCap) {
+  if (refSourceName == NULL || refSourceName[0] == '\0') {
     return TSDB_CODE_SUCCESS;
   }
 
   // A schema segment captured from the reference path takes precedence; the
   // source's configured default is only a fallback (DS 5.3.10 item 7).
-  if (pColRef->refSchemaName[0] != '\0') {
+  if (refSchemaName[0] != '\0') {
     return TSDB_CODE_SUCCESS;
   }
 
   SExtSourceInfo* pInfo = NULL;
-  int32_t         code = getExternalSourceInfo(pCxt, pColRef->refSourceName, &pInfo);
+  int32_t         code = getExternalSourceInfo(pCxt, refSourceName, &pInfo);
   if (TSDB_CODE_SUCCESS != code || NULL == pInfo) {
     freeExtSourceInfo(pInfo);
     return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_EXT_SOURCE_NOT_FOUND;
   }
 
-  tstrncpy(pColRef->refSchemaName, pInfo->schema_name, sizeof(pColRef->refSchemaName));
+  EExtSourceType sourceType = (EExtSourceType)pInfo->type;
+  if (EXT_SOURCE_POSTGRESQL == sourceType) {
+    tstrncpy(refSchemaName, pInfo->schema_name, schemaCap);
+  } else if (EXT_SOURCE_SQLSERVER == sourceType && refSchemaName[0] == '\0') {
+    if (refDbName[0] != '\0') {
+      // Four-part path: the middle segment is the schema; the database comes
+      // from the source.
+      tstrncpy(refSchemaName, refDbName, schemaCap);
+      refDbName[0] = '\0';
+    } else {
+      tstrncpy(refSchemaName, pInfo->schema_name, schemaCap);
+    }
+  }
+
+  // Freeze the resolved database into the reference (DS 5.3.10): a relative
+  // path uses the source's default, and every stored reference then carries
+  // the complete namespace, so col_source and SHOW CREATE stay re-playable.
+  if (refDbName[0] == '\0') {
+    tstrncpy(refDbName, pInfo->database, dbCap);
+  }
   freeExtSourceInfo(pInfo);
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef) {
+  if (pColRef == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return normalizeExternalRefNamespace(pCxt, pColRef->refSourceName, pColRef->refDbName,
+                                       sizeof(pColRef->refDbName), pColRef->refSchemaName,
+                                       sizeof(pColRef->refSchemaName));
 }
 
 static int32_t buildVChildOwnTagValue(STranslateContext* pCxt, STableMeta* pStbMeta, SValueNode* pVal,
@@ -36417,13 +36606,17 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       PAR_ERR_JRET(terrno);
     }
     req.nOwnTagDefs = nOwnTags;
-    for (int32_t i = 0; i < nOwnTags; i++) {
-      // defensive: nodesListGetNode returns NULL when pOwnTagVals has fewer entries than pOwnTagDefs
+    SListCell* pOwnTagDefCell = NULL != pOwnTagDefs ? pOwnTagDefs->pHead : NULL;
+    SListCell* pOwnTagValCell = NULL != pOwnTagVals ? pOwnTagVals->pHead : NULL;
+    for (int32_t i = 0; i < nOwnTags;
+         i++, pOwnTagDefCell = (NULL != pOwnTagDefCell ? pOwnTagDefCell->pNext : NULL),
+         pOwnTagValCell = (NULL != pOwnTagValCell ? pOwnTagValCell->pNext : NULL)) {
+      // Tag values must cover every tag definition.
       if (i >= LIST_LENGTH(pOwnTagVals)) {
         PAR_ERR_JRET(TSDB_CODE_PAR_TAGS_NOT_MATCHED);
       }
-      SColumnDefNode*   pTagDef = (SColumnDefNode*)nodesListGetNode(pOwnTagDefs, i);
-      SValueNode*       pVal = (SValueNode*)nodesListGetNode(pOwnTagVals, i);
+      SColumnDefNode*   pTagDef = (SColumnDefNode*)(NULL != pOwnTagDefCell ? pOwnTagDefCell->pNode : NULL);
+      SValueNode*       pVal = (SValueNode*)(NULL != pOwnTagValCell ? pOwnTagValCell->pNode : NULL);
       SVChildOwnTagDef* pDef = &req.pOwnTagDefs[i];
       pDef->schema.type = pTagDef->dataType.type;
       pDef->schema.bytes = calcTypeBytes(pTagDef->dataType);
@@ -38489,12 +38682,15 @@ int32_t getExternalSourceInfo(STranslateContext* pCxt, const char* sourceName, S
 
 static int32_t rejectUnsupportedExternalFilter(STranslateContext* pCxt, const SNode* pFilterCond,
                                                EExtSourceType sourceType) {
-  if (NULL == pFilterCond || EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType) {
+  // Relational sources carry a remote primary key, which is what the filter
+  // binding validates against (DS 5.3.10 / phase-2 VTBLP-001..003).
+  if (NULL == pFilterCond || EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
+      EXT_SOURCE_SQLSERVER == sourceType) {
     return TSDB_CODE_SUCCESS;
   }
   return generateSyntaxErrMsgExt(
       &pCxt->msgBuf, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
-      "external column filters are supported only for direct MySQL or PostgreSQL references");
+      "external column filters are supported only for direct MySQL, PostgreSQL or SQL Server references");
 }
 
 static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceName, const char* refDb,
@@ -38582,11 +38778,14 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
                                           colName, pExtCol->extTypeName));
   }
 
-  // (7) External table must have a timestamp primary key column. MySQL and PostgreSQL
-  // bindings additionally require every non-timestamp primary-key column to be fixed
-  // by the stored external-column filter.
+  // (7) External table must have a timestamp primary key column. The relational
+  // sources (MySQL, PostgreSQL and SQL Server) additionally require every
+  // non-timestamp primary-key column to be fixed by the stored external-column
+  // filter; this call also converts the filter literals to the remote column
+  // types, which the rendering depends on.
   const SExtColumnDef* pTsPk = NULL;
-  if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType) {
+  if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
+      EXT_SOURCE_SQLSERVER == sourceType) {
     int32_t tsPrimaryKeyIndex = -1;
     PAR_ERR_JRET(nodesValidateExternalFilter(sourceType, pExtMeta, pFilterCond, pCxt->pParseCxt->timezone,
                                              pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len,
@@ -38773,6 +38972,10 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       }
     }
 
+    // Series aliases were expanded above; resolve any remaining three-segment
+    // external reference (source.table.column).
+    PAR_ERR_RET(disambiguateAlterExternalRef(pCxt, pStmt));
+
     if (expandedFromSeries || pStmt->refType != 1) {
       EExtSourceType sourceType = expandedFromSeries ? EXT_SOURCE_INFLUXDB : EXT_SOURCE_TDENGINE;
       PAR_ERR_RET(rejectUnsupportedExternalFilter(pCxt, pFilterCond, sourceType));
@@ -38797,6 +39000,14 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
       // local reference
       PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pStmt->colName, pStmt->refDbName,
                               pStmt->refTableName, pStmt->refColName, colType, pTableMeta->tableInfo.precision));
+    }
+
+    // Validation used the raw path segments (the async cache key); store the
+    // explicit five-part namespace so planning keys stay stable. Series
+    // aliases expand to an InfluxDB ref whose source info is not part of the
+    // ALTER pre-scan; they keep the historical (already resolved) namespace.
+    if (!expandedFromSeries) {
+      PAR_ERR_RET(expandAlterExternalRefNamespace(pCxt, pStmt));
     }
 
     pReq->type = pStmt->dataType.type;
@@ -39136,6 +39347,12 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
     }
   }
 
+  // Resolve three-segment external refs. A matched series alias keeps the
+  // existing expansion semantics.
+  if (NULL == pMatchedSeries) {
+    PAR_ERR_RET(disambiguateAlterExternalRef(pCxt, pStmt));
+  }
+
   bool isDirectExternalRef = pStmt->refType == 1 && pStmt->refSourceName[0] != '\0';
   if (!isDirectExternalRef) {
     EExtSourceType sourceType = NULL != pMatchedSeries ? EXT_SOURCE_INFLUXDB : EXT_SOURCE_TDENGINE;
@@ -39147,6 +39364,9 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
                                     pStmt->refSchemaName, pStmt->refTableName,
                                     pStmt->refColName, pStmt->colName, colType,
                                     pTableMeta->tableInfo.precision, pStmt->pFilterCond));
+    // Validation used the raw path segments (the async cache key); store the
+    // explicit five-part namespace so planning keys stay stable.
+    PAR_ERR_RET(expandAlterExternalRefNamespace(pCxt, pStmt));
     pReq->colName = taosStrdup(pStmt->colName);
     pReq->refSourceName = taosStrdup(pStmt->refSourceName);
     pReq->refDbName = taosStrdup(pStmt->refDbName);
@@ -39643,6 +39863,11 @@ static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->refSourceName);
   taosMemoryFree(pReq->refSchemaName);
   taosMemoryFree(pReq->filterCondJson);
+  taosMemoryFree(pReq->seriesAlias);
+  taosMemoryFree(pReq->seriesSourceName);
+  taosMemoryFree(pReq->seriesDbName);
+  taosMemoryFree(pReq->seriesMeasurementName);
+  taosMemoryFree(pReq->seriesTagCondJson);
 
   for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
@@ -40595,6 +40820,12 @@ int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* 
     pOpts->refType = 1;
     tstrncpy(pOpts->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     tstrncpy(pOpts->refDb, pInfo->database, TSDB_DB_NAME_LEN);
+    // SQL Server needs both components: filling the schema here keeps the
+    // resolved namespace distinguishable from a four-part path (where refDb
+    // carries the schema) in the later expansion step.
+    if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
+      tstrncpy(pOpts->refSchema, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    }
   } else if (isMissingExtSourceInfo(code, pInfo, pOpts->refDb)) {
     // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
@@ -40625,6 +40856,10 @@ int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pCol
     pColRef->refType = 1;
     tstrncpy(pColRef->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
     tstrncpy(pColRef->refDbName, pInfo->database, TSDB_DB_NAME_LEN);
+    // SQL Server needs both components (see disambiguateThreeSegColOptions).
+    if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
+      tstrncpy(pColRef->refSchemaName, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    }
   } else if (isMissingExtSourceInfo(code, pInfo, pColRef->refDbName)) {
     // Not an external source  -  keep as internal db.table.col reference
     code = TSDB_CODE_SUCCESS;
@@ -40633,13 +40868,64 @@ int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pCol
   return code;
 }
 
-static SSeriesDeclNode* findRefSeriesNode(char* refTableName, SNodeList* pSeriesList) {
+// Resolve a column reference carried by an ALTER statement before validation.
+// A three-segment path may name an external source in its first segment (the
+// same disambiguation CREATE VTABLE applies). The namespace is expanded to its
+// explicit form only after validation, because the async meta cache is keyed
+// by the raw path segments. Callers handle series aliases first; those never
+// reach here.
+static int32_t disambiguateAlterExternalRef(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (pStmt->refType != 1 && pStmt->refSourceName[0] == '\0' && pStmt->refDbName[0] != '\0' &&
+      pStmt->refTableName[0] != '\0' && !isCachedLocalRefTable(pCxt, pStmt->refDbName, pStmt->refTableName)) {
+    SExtSourceInfo* pInfo = NULL;
+    int32_t         code = getExternalSourceInfo(pCxt, pStmt->refDbName, &pInfo);
+    if (TSDB_CODE_SUCCESS == code && isMatchedExtSourceInfo(pInfo, pStmt->refDbName)) {
+      char sourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
+      tstrncpy(sourceName, pStmt->refDbName, sizeof(sourceName));
+      pStmt->refType = 1;
+      tstrncpy(pStmt->refSourceName, sourceName, sizeof(pStmt->refSourceName));
+      pStmt->refDbName[0] = '\0';
+    } else if (isMissingExtSourceInfo(code, pInfo, pStmt->refDbName)) {
+      // Not an external source - keep the internal db.table.col reference.
+      code = TSDB_CODE_SUCCESS;
+    }
+    freeExtSourceInfo(pInfo);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Persist the explicit five-part namespace of an external reference once the
+// reference has been validated (see normalizeExternalRefNamespace).
+static int32_t expandAlterExternalRefNamespace(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (pStmt->refType != 1 || pStmt->refSourceName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+  return normalizeExternalRefNamespace(pCxt, pStmt->refSourceName, pStmt->refDbName,
+                                       sizeof(pStmt->refDbName), pStmt->refSchemaName,
+                                       sizeof(pStmt->refSchemaName));
+}
+
+static SSeriesDeclNode* findRefSeriesNode(STranslateContext* pCxt, char* refTableName, const char* refDbName,
+                                        SNodeList* pSeriesList) {
   SNode* pSeriesNode = NULL;
+  SNode* pCaseInsensitiveMatch = NULL;
   FOREACH(pSeriesNode, pSeriesList) {
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
-    if (0 == strcasecmp(refTableName, pDecl->alias)) {
+    if (0 == strcmp(refTableName, pDecl->alias)) {
       return pDecl;
     }
+    if (pCaseInsensitiveMatch == NULL && 0 == strcasecmp(refTableName, pDecl->alias)) {
+      pCaseInsensitiveMatch = pSeriesNode;
+    }
+  }
+  // Case-insensitive matching is a convenience fallback: before rewriting a reference into an
+  // external one, make sure the name does not resolve to a real local table that merely differs
+  // from a SERIES alias in case (mirroring the three-segment disambiguation policy).
+  if (pCaseInsensitiveMatch != NULL && !isCachedLocalRefTable(pCxt, refDbName, refTableName)) {
+    return (SSeriesDeclNode*)pCaseInsensitiveMatch;
   }
   return NULL;
 }
@@ -40685,7 +40971,7 @@ static int32_t expandSeriesAliasInColOptions(STranslateContext* pCxt, SNodeList*
     // Check if refTable matches a series alias. We deliberately do NOT gate on refDb being empty:
     // for 2-seg refs like `FROM s1.cpu`, createColumnRefNodeByName auto-fills refDb with the current
     // USE'd database, so a non-empty refDb does not mean the user wrote a 3-seg ref.
-    SSeriesDeclNode* pSeries = findRefSeriesNode(pOpts->refTable, pSeriesList);
+    SSeriesDeclNode* pSeries = findRefSeriesNode(pCxt, pOpts->refTable, pOpts->refDb, pSeriesList);
     if (pSeries) {
       parserDebug("matched series alias in column options, col:%s alias:%s source:%s db:%s table:%s",
                   pCol->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,
@@ -40724,7 +41010,7 @@ static int32_t expandSeriesAliasInColRefs(STranslateContext* pCxt, SNodeList* pC
                 pRef->colName, pRef->refDbName, pRef->refTableName, pRef->refColName);
     // Check if refTableName matches a series alias. Like expandSeriesAliasInColOptions, we do not
     // gate on refDbName being empty  -  2-seg refs auto-fill the current USE'd db.
-    SSeriesDeclNode* pSeries = findRefSeriesNode(pRef->refTableName, pSeriesList);
+    SSeriesDeclNode* pSeries = findRefSeriesNode(pCxt, pRef->refTableName, pRef->refDbName, pSeriesList);
     if (pSeries) {
       parserDebug("matched series alias in column ref, col:%s alias:%s source:%s db:%s table:%s",
                   pRef->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,

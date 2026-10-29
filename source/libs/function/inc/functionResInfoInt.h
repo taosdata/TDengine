@@ -289,7 +289,7 @@ typedef struct SDecimalAvgRes {
 
 // structs above are used in stream
 
-#define HISTOGRAM_MAX_BINS_NUM 1000
+#define HISTOGRAM_MAX_BINS_NUM 1000  // N bins accept at most N + 1 user boundaries
 #define MAVG_MAX_POINTS_NUM    1000
 #define TAIL_MAX_POINTS_NUM    100
 #define TAIL_MAX_OFFSET        100
@@ -418,7 +418,7 @@ typedef struct SValueChangesInfo {
 } SValueChangesInfo;
 
 typedef struct SBitChangesInfo {
-  int64_t  count;       // output slot (BIGINT), must be first
+  int64_t  count;       // finalized change-count output slot (BIGINT), must be first
   int64_t  numOfElems;  // rows seen (including NULL), distinguishes empty input
   uint64_t mask;
   int8_t   flag;
@@ -428,6 +428,32 @@ typedef struct SBitChangesInfo {
   TSKEY    prevTs;
   bool     hasPrevTs;
 } SBitChangesInfo;
+
+typedef struct SBitDurationInfo {
+  // functionFinalize reads the first field as the BIGINT output. TOTAL derives it from
+  // firstTs/totalLastTs; other modes copy duration here before finalization.
+  int64_t  result;      // finalized duration output slot, must remain first
+  int64_t  duration;    // NONZERO/ZERO accumulated duration in native timestamp ticks
+  int64_t  numOfRows;  // rows seen, including NULL rows; distinguishes empty input
+  uint64_t mask;
+  int8_t   mode;
+  int8_t   inputType;          // resolved TSDB_DATA_TYPE_* value
+  bool     inputTypeResolved;  // inputType was established by a non-NULL typed column
+  bool     hasPrev;     // valid value state exists
+  bool     hasPrevTs;   // prevTs is set for duplicate/order checks
+  bool     seedPending;      // segmentStartTs still comes from the interpolation seed
+  bool     startSeedApplied; // external-window predecessor was accounted for
+  bool     hasFirstTs;  // firstTs is set; seeding can set only hasPrev
+  // ASC PK iterator state is reusable only by the next block in the same group.
+  bool     hasPendingPkTs;
+  bool     prevNonZero;
+  TSKEY    prevTs;
+  TSKEY    pendingPkTs;
+  uint64_t pendingPkGroupId;  // owner group; a different group discards pendingPkTs
+  TSKEY    firstTs;
+  TSKEY    totalLastTs;    // TOTAL mode: timestamp of the last valid row
+  TSKEY    segmentStartTs; // NONZERO/ZERO: pending segment start, or one tick past a settled end
+} SBitDurationInfo;
 
 // Time-weighted sum: raw time-integral (INT v dt) accumulated in native ticks. The output
 // unit divisor is derived from the params at finalize (see twsumResolveTimeUnit), not stored.
@@ -490,7 +516,7 @@ typedef struct SSampleInfo {
   int64_t  totalPoints;
   int32_t  numSampled;
   uint8_t  colType;
-  uint16_t colBytes;
+  int32_t  colBytes;
 
   STuplePos nullTuplePos;
   bool      nullTupleSaved;

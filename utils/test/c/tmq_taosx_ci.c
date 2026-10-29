@@ -24,6 +24,12 @@
 #include "taos.h"
 #include "tmsg.h"
 #include "types.h"
+// osMath.h is not self-contained: it uses int32_t/int64_t without including
+// <stdint.h>.  glibc's stdlib.h/string.h happen to provide those types, MSVC's
+// do not, so on Windows it must be included after types.h (-> os.h ->
+// <stdint.h>) or the build fails with C2143/C2081 inside osMath.h and every
+// header that depends on __compar_fn_t (talgo.h, tarray.h).
+#include "osMath.h"
 
 static int running = 1;
 TdFilePtr  g_fp = NULL;
@@ -38,10 +44,81 @@ typedef struct {
   char dir[256];
   bool btMeta;
   bool rawData;
+  bool tbnameFilter;
 } Config;
 
 Config g_conf = {0};
 tmq_t*      tmq = NULL;
+
+#define TBNAME_FILTER_MAX_NAMES 256
+
+static int nameCmp(const void* a, const void* b) {
+  return strcmp(*(char* const*)a, *(char* const*)b);
+}
+
+// Collect table names of create events (top-level tableName plus createList
+// entries) from one meta json item.
+static void collectCreateTableNames(cJSON* pItem, char** names, int32_t* pNum) {
+  if (!cJSON_IsObject(pItem)) {
+    return;
+  }
+  cJSON* pType = cJSON_GetObjectItemCaseSensitive(pItem, "type");
+  if (pType == NULL || !cJSON_IsString(pType) || strcmp(pType->valuestring, "create") != 0) {
+    return;
+  }
+  cJSON* pTbName = cJSON_GetObjectItemCaseSensitive(pItem, "tableName");
+  if (cJSON_IsString(pTbName) && *pNum < TBNAME_FILTER_MAX_NAMES) {
+    names[(*pNum)++] = pTbName->valuestring;
+  }
+  cJSON* pList = cJSON_GetObjectItemCaseSensitive(pItem, "createList");
+  if (cJSON_IsArray(pList)) {
+    cJSON* pEntry = NULL;
+    cJSON_ArrayForEach(pEntry, pList) {
+      cJSON* pName = cJSON_GetObjectItemCaseSensitive(pEntry, "tableName");
+      if (cJSON_IsString(pName) && *pNum < TBNAME_FILTER_MAX_NAMES) {
+        names[(*pNum)++] = pName->valuestring;
+      }
+    }
+  }
+}
+
+// Normalize the consumed meta json into one sorted table name per line, so the
+// expected-result file does not depend on whether the consumer walked the TSDB
+// snapshot path (one create event per table, createList empty) or the WAL path
+// (create events batched into createList).
+static void writeTbnameFilterMeta(const char* result) {
+  char*   names[TBNAME_FILTER_MAX_NAMES];
+  int32_t num = 0;
+
+  cJSON* pJson = cJSON_Parse(result);
+  if (pJson == NULL) {
+    return;
+  }
+  cJSON* pMetas = cJSON_GetObjectItemCaseSensitive(pJson, "metas");
+  if (cJSON_IsArray(pMetas)) {
+    cJSON* pItem = NULL;
+    cJSON_ArrayForEach(pItem, pMetas) {
+      collectCreateTableNames(pItem, names, &num);
+    }
+  } else {
+    collectCreateTableNames(pJson, names, &num);
+  }
+
+  // The collected names alias strings owned by pJson, so sort and write them
+  // out before deleting the json tree.
+  if (num > 0) {
+    taosSort(names, num, sizeof(char*), nameCmp);
+    for (int32_t i = 0; i < num; i++) {
+      if (i > 0 && strcmp(names[i], names[i - 1]) == 0) {
+        continue;
+      }
+      taosFprintfFile(g_fp, names[i]);
+      taosFprintfFile(g_fp, "\n");
+    }
+    taosFsyncFile(g_fp);
+  }
+  cJSON_Delete(pJson);
+}
 
 static void use_db(TAOS** ppConn) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -64,8 +141,10 @@ static void msg_process(TAOS_RES* msg) {
     if (result) {
       printf("meta result: %s\n", result);
       if (g_fp && strcmp(result, "") != 0) {
-        // RES_TYPE__TMQ_BATCH_META
-        if ((*(int8_t*)msg) == 5) {
+        if (g_conf.tbnameFilter) {
+          writeTbnameFilterMeta(result);
+        } else if ((*(int8_t*)msg) == 5) {
+          // RES_TYPE__TMQ_BATCH_META
           cJSON*  pJson = cJSON_Parse(result);
           cJSON*  pJsonArray = cJSON_GetObjectItem(pJson, "metas");
           int32_t num = cJSON_GetArraySize(pJsonArray);
@@ -440,7 +519,12 @@ void create_topic() {
   ASSERT(pConn != NULL);
 
   if (g_conf.subTable) {
-    if (g_conf.filterTable) {
+    if (g_conf.tbnameFilter) {
+      // Regression: ONLY META topic with tbname LIKE filter must only deliver
+      // child tables whose name starts with 'f1'.
+      pRes = taos_query(pConn, "create topic topic_stb only meta as stable st1 where tbname like 'f1%'");
+      ASSERT(taos_errno(pRes) == 0);
+    } else if (g_conf.filterTable) {
       char topic[128] = {0};
       sprintf(topic, "create topic topic_stb %s as stable st1 where t1 > 1000", g_conf.onlyMeta == 0 ? "with meta" : "only meta");
       pRes = taos_query(pConn, topic);
@@ -547,6 +631,20 @@ void initLogFile() {
 
   TdFilePtr pFile2 = taosOpenFile(f2, TD_FILE_TEXT | TD_FILE_TRUNC | TD_FILE_STREAM);
   ASSERT(NULL != pFile2);
+
+  if (g_conf.tbnameFilter) {
+    // Expected table names delivered by the ONLY META topic with tbname like
+    // 'f1%'. The source file is normalized to one sorted table name per line
+    // (see writeTbnameFilterMeta), so this list must be sorted as well.
+    // Non-f1 child tables must not appear here.
+    char* result[] = {"f1_ctb_0", "f1_ctb_1", "f1_ctb_2", "st1"};
+    for (int i = 0; i < sizeof(result) / sizeof(result[0]); i++) {
+      taosFprintfFile(pFile2, result[i]);
+      taosFprintfFile(pFile2, "\n");
+    }
+    taosCloseFile(&pFile2);
+    return;
+  }
 
   if (g_conf.snapShot) {
     if (g_conf.subTable) {
@@ -1153,6 +1251,33 @@ void testFilterTable(tmq_t* tmq, tmq_list_t* topics) {
   ASSERT(code == 0);
 }
 
+// Prepare the super table and child tables BEFORE the topic is consumed, so
+// that the meta snapshot stage delivers one create event per child table.
+// 3 tables start with 'f1' and 3 do not; the topic filter is tbname like 'f1%'.
+void buildTbnameFilterTable() {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", "db_src", 0);
+  ASSERT(pConn != NULL);
+
+  TAOS_RES* pRes = taos_query(pConn,
+                    "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
+                    "nchar(8), t4 bool)");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn,
+                    "create table f1_ctb_0 using st1 tags(1000, \"f1\", true) "
+                    "f1_ctb_1 using st1 tags(1001, \"f1\", true) "
+                    "f1_ctb_2 using st1 tags(1002, \"f1\", true) "
+                    "ctb_0 using st1 tags(2000, \"other\", true) "
+                    "ctb_1 using st1 tags(2001, \"other\", true) "
+                    "ctb_2 using st1 tags(2002, \"other\", true)");
+  ASSERT(taos_errno(pRes) == 0);
+  taos_free_result(pRes);
+
+  printf("tbname filter: create st1 with 3 f1_ child tables and 3 non-f1 child tables\n");
+  taos_close(pConn);
+}
+
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -1175,6 +1300,8 @@ int main(int argc, char* argv[]) {
       g_conf.btMeta = true;
     } else if (strcmp(argv[i], "-raw") == 0) {
       g_conf.rawData = true;
+    } else if (strcmp(argv[i], "-tb") == 0) {
+      g_conf.tbnameFilter = true;
     }
   }
 
@@ -1185,7 +1312,9 @@ int main(int argc, char* argv[]) {
 
   create_db();
   if (g_conf.subTable) {
-    if (g_conf.filterTable) {
+    if (g_conf.tbnameFilter) {
+      buildTbnameFilterTable();
+    } else if (g_conf.filterTable) {
       TAOS* pConn = taos_connect("localhost", "root", "taosdata", "db_src", 0);
       ASSERT(pConn != NULL);
 

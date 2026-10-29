@@ -114,6 +114,7 @@ typedef struct SStreamVtableDeployInfo {
   int32_t  rversion;
   SArray*  addVgIds;
   SArray*  addedVgInfo;  // deploy response,SArray<SStreamTaskAddr>
+  int64_t  redeployStartMs;  // redeploy request start time; 0 = none in flight
 } SStreamVtableDeployInfo;
 
 typedef void (*FStreamInputStats)(void* param, uint64_t rows, uint64_t blocks);
@@ -200,6 +201,7 @@ SSDataBlock* createDataBlockFromDescNode(void* pNode);
 void    printDataBlock(SSDataBlock* pBlock, const char* flag, const char* taskIdStr, int64_t qId);
 
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo);
+int32_t qGetTableListByApi(int64_t suid, void* pVnode, void* node, SArray** tableList, SStorageAPI* pStorageAPI);
 
 /**
  * set the task Id, usually used by message queue process
@@ -353,7 +355,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 void qStreamSetOpen(qTaskInfo_t tinfo);
 
-void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay);
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay,
+                      int64_t startTs);
 
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 

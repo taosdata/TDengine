@@ -2219,9 +2219,11 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
     # MariaDB Connector/C 3.3  (MySQL / MariaDB external source)
     # ──────────────────────────────────────────────────────────────────────────
     if(${BUILD_WITH_MARIADB})
+        # Windows has no pkg-config; always build MariaDB Connector/C from the
+        # pinned source so the runtime does not depend on a machine-local install.
         find_package(PkgConfig QUIET)
         set(_mariadb_found FALSE)
-        if(PkgConfig_FOUND)
+        if(PkgConfig_FOUND AND NOT TD_WINDOWS)
             pkg_check_modules(MARIADB_PC QUIET libmariadb)
             if(MARIADB_PC_FOUND)
                 set(_mariadb_found TRUE)
@@ -2307,7 +2309,42 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
     # libpq 16  (PostgreSQL external source, covers PG 14/15/16/17)
     # ──────────────────────────────────────────────────────────────────────────
     if(${BUILD_WITH_LIBPQ})
-        find_package(PostgreSQL QUIET)
+        # Windows: the provider only needs libpq's headers at compile time and
+        # its DLLs at run time.  When a prebuilt PostgreSQL binary package is
+        # provided (EXT_LIBPQ_ROOT — e.g. the EnterpriseDB zip the federated
+        # query tests install, which contains include/libpq-fe.h and
+        # bin/libpq.dll), use it instead of building libpq with Meson, so the
+        # Windows build host does not need OpenSSL + meson + ninja.
+        set(_ext_libpq_prebuilt "")
+        if(TD_WINDOWS)
+            if(DEFINED EXT_LIBPQ_ROOT AND EXISTS "${EXT_LIBPQ_ROOT}/include/libpq-fe.h")
+                set(_ext_libpq_prebuilt "${EXT_LIBPQ_ROOT}")
+            elseif(DEFINED ENV{EXT_LIBPQ_ROOT} AND EXISTS "$ENV{EXT_LIBPQ_ROOT}/include/libpq-fe.h")
+                set(_ext_libpq_prebuilt "$ENV{EXT_LIBPQ_ROOT}")
+            endif()
+        endif()
+        if(_ext_libpq_prebuilt)
+            message(STATUS "[ext_libpq] Using prebuilt PostgreSQL runtime at ${_ext_libpq_prebuilt}")
+            set(EXT_LIBPQ_DLL_DIR "${_ext_libpq_prebuilt}/bin" CACHE INTERNAL "" FORCE)
+            macro(DEP_ext_libpq tgt)
+                cmake_language(CALL DEP_ext_libpq_INC ${tgt})
+                cmake_language(CALL DEP_ext_libpq_LIB ${tgt})
+            endmacro()
+            macro(DEP_ext_libpq_INC tgt)
+                target_include_directories(${tgt} PRIVATE "${_ext_libpq_prebuilt}/include")
+                add_definitions(-D_ext_libpq)
+            endmacro()
+            macro(DEP_ext_libpq_LIB tgt)
+                # Runtime loading: no link-time dependency on libpq.
+                add_definitions(-D_ext_libpq)
+            endmacro()
+        else()
+        # Windows without EXT_LIBPQ_ROOT: build the pinned libpq via Meson
+        # (see below) instead of binding to whatever PostgreSQL happens to be
+        # installed.
+        if(NOT TD_WINDOWS)
+            find_package(PostgreSQL QUIET)
+        endif()
         if(PostgreSQL_FOUND)
             message(STATUS "[ext_libpq] Using system PostgreSQL ${PostgreSQL_VERSION_STRING} — skipping ExternalProject build")
             # Record real shared lib path for extconnector staging
@@ -2536,6 +2573,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             endif()
             add_dependencies(build_externals ext_libpq)
         endif()  # NOT PostgreSQL_FOUND
+        endif()  # _ext_libpq_prebuilt
     endif()  # BUILD_WITH_LIBPQ
 
     # ──────────────────────────────────────────────────────────────────────────
@@ -2547,7 +2585,11 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
     if(${BUILD_WITH_ODBC})
         find_package(ODBC QUIET)
         if(ODBC_FOUND)
-            message(STATUS "[ext_odbc] Using system unixODBC — skipping ExternalProject build")
+            if(TD_WINDOWS)
+                message(STATUS "[ext_odbc] Using the Windows SDK ODBC driver manager (odbc32) — skipping ExternalProject build")
+            else()
+                message(STATUS "[ext_odbc] Using system unixODBC — skipping ExternalProject build")
+            endif()
             # Record the driver-manager path for extconnector runtime staging.
             if(DEFINED ODBC_LIBRARIES AND ODBC_LIBRARIES)
                 set(EXT_ODBC_SO_SRCPATH "${ODBC_LIBRARIES}" CACHE INTERNAL "")
@@ -2624,7 +2666,23 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         set(_msodbc_artifact "")
         set(_msodbc_artifact_hash "")
         set(_msodbc_deb_arch "")
-        if(NOT ${TD_DARWIN} AND NOT ${TD_WINDOWS})
+        set(_msodbc_msi_url "")
+        if(TD_WINDOWS)
+            # Windows has no portable driver DLL: the ODBC driver manager
+            # resolves drivers through its registry registration, so the FQ
+            # dependency package ships the official MSI instead of a library.
+            # The direct (version-pinned) Microsoft URL is the fallback; a
+            # mirror can provide msodbcsql18-18.7.1.1-windows-<arch>.msi.
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-windows-arm64.msi")
+                set(_msodbc_msi_url
+                    "https://download.microsoft.com/download/92f6c111-1489-4538-8d7e-b35218b0675b/arm64/1033/msodbcsql.msi")
+            else()
+                set(_msodbc_artifact "msodbcsql18-18.7.1.1-windows-amd64.msi")
+                set(_msodbc_msi_url
+                    "https://download.microsoft.com/download/d624e1c6-293b-4d6f-91b8-6e515a5d6a77/amd64/1033/msodbcsql.msi")
+            endif()
+        elseif(NOT ${TD_DARWIN})
             if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
                 set(_msodbc_artifact "msodbcsql18-18.7.1.1-amd64.tar.gz")
                 set(_msodbc_artifact_hash "60a45737ed2a9d619e9966f95246d1fc5bed4bc8e91405ad3a2f040b1948d132")
@@ -2639,7 +2697,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         set(_msodbc_prebuilt "")
         if(DEFINED EXT_MSODBC_SO_SRCPATH AND NOT "${EXT_MSODBC_SO_SRCPATH}" STREQUAL "")
             set(_msodbc_prebuilt "${EXT_MSODBC_SO_SRCPATH}")
-        else()
+        elseif(NOT TD_WINDOWS)
             foreach(_msodbc_dir
                     "/opt/microsoft/msodbcsql18/lib64" "/opt/microsoft/msodbcsql18/lib"
                     "/opt/microsoft/msodbcsql/lib64"   "/opt/microsoft/msodbcsql/lib")
@@ -2651,7 +2709,46 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             endforeach()
         endif()
 
-        if(_msodbc_prebuilt)
+        if(TD_WINDOWS)
+            if(DEFINED EXT_MSODBC_MSI AND NOT "${EXT_MSODBC_MSI}" STREQUAL "")
+                message(STATUS "[ext_msodbc] Using prebuilt Microsoft ODBC Driver MSI: ${EXT_MSODBC_MSI}")
+            elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+                message(STATUS
+                    "[ext_msodbc] Windows: the ODBC Driver 18 is registered with the system driver "
+                    "manager (installed by the MSI); pass EXT_MSODBC_MSI (or enable "
+                    "INSTALL_FQ_RUNTIME_LIBS with LOCAL_URL) to put it in the FQ dependency package")
+            elseif("z${LOCAL_URL}" STREQUAL "z")
+                message(STATUS
+                    "[ext_msodbc] Windows FQ dependency package: LOCAL_URL is not configured, so the "
+                    "Microsoft ODBC Driver MSI is not packaged (pass EXT_MSODBC_MSI to override)")
+            else()
+                INIT_DIRS(ext_msodbc ${TD_EXTERNALS_BASE_DIR})
+                get_from_local_if_exists("${_msodbc_msi_url}" "${_msodbc_artifact}")
+                # The internal mirror does not necessarily carry the Windows
+                # MSI; keep Microsoft's official pinned download as a fallback
+                # so the dependency package can still be built.
+                set(_msodbc_urls "${_url}")
+                if(NOT "${_url}" STREQUAL "${_msodbc_msi_url}")
+                    list(APPEND _msodbc_urls "${_msodbc_msi_url}")
+                endif()
+                ExternalProject_Add(ext_msodbc
+                    URL ${_msodbc_urls}
+                    DOWNLOAD_NO_EXTRACT TRUE
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND} -E make_directory "${_ins}/lib"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "<DOWNLOADED_FILE>" "${_ins}/lib/msodbcsql18.msi"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+                add_dependencies(build_externals ext_msodbc)
+                set(EXT_MSODBC_MSI "${_ins}/lib/msodbcsql18.msi" CACHE INTERNAL "")
+                message(STATUS "[ext_msodbc] Microsoft ODBC Driver MSI staged for the FQ dependency package")
+            endif()
+        elseif(_msodbc_prebuilt)
             message(STATUS "[ext_msodbc] Using prebuilt Microsoft ODBC Driver: ${_msodbc_prebuilt}")
             set(EXT_MSODBC_SO_SRCPATH "${_msodbc_prebuilt}" CACHE INTERNAL "")
         elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
@@ -2738,7 +2835,25 @@ set(TD_ARROW_ARCHIVE_NAME "arrow-${TD_ARROW_GIT_TAG}.tar.gz")
 function(td_prepare_arrow_external arrow_build_profile)
     # Platform-specific cmake args for the Arrow sub-build
     set(ARROW_EXTRA_CMAKE_ARGS "")
+    set(_arrow_dependencies "")
     if(NOT ${TD_WINDOWS})
+        set(_arrow_dependencies ext_ssl)
+        # Arrow forwards CMAKE_PROJECT_INCLUDE to its bundled sub-builds.
+        # Pin both headers and archives there, including stale Thrift caches.
+        # Resolve TD_CONFIG_NAME at generation time for multi-config builds.
+        set(_arrow_openssl_config
+            "${CMAKE_CURRENT_BINARY_DIR}/ext_arrow_${arrow_build_profile}-openssl-${TD_CONFIG_NAME}.cmake")
+        file(GENERATE OUTPUT "${_arrow_openssl_config}" CONTENT
+"set(OPENSSL_ROOT_DIR \"${ext_ssl_install}\" CACHE PATH \"\" FORCE)
+set(OPENSSL_INCLUDE_DIR \"${ext_ssl_inc_dir}\" CACHE PATH \"\" FORCE)
+set(OPENSSL_SSL_LIBRARY \"${ext_ssl_lib_ssl}\" CACHE FILEPATH \"\" FORCE)
+set(OPENSSL_CRYPTO_LIBRARY \"${ext_ssl_lib_crypto}\" CACHE FILEPATH \"\" FORCE)
+set(OPENSSL_USE_STATIC_LIBS ON CACHE BOOL \"\" FORCE)
+")
+        list(APPEND ARROW_EXTRA_CMAKE_ARGS
+            "-DCMAKE_PROJECT_INCLUDE:FILEPATH=${_arrow_openssl_config}"
+            -DARROW_OPENSSL_USE_SHARED:BOOL=OFF
+        )
         set(_arrow_c_flags "-ffunction-sections -fdata-sections")
         if(${TD_DARWIN})
             set(_arrow_cxx_flags "-ffunction-sections -fdata-sections -include array")
@@ -2874,6 +2989,7 @@ function(td_prepare_arrow_external arrow_build_profile)
     endif()
 
     set(ARROW_EXTRA_CMAKE_ARGS "${ARROW_EXTRA_CMAKE_ARGS}" PARENT_SCOPE)
+    set(_arrow_dependencies "${_arrow_dependencies}" PARENT_SCOPE)
     set(_arrow_ts_args "${_arrow_ts_args}" PARENT_SCOPE)
     set(_arrow_configure_env "${_arrow_configure_env}" PARENT_SCOPE)
     set(_arrow_generator_args "${_arrow_generator_args}" PARENT_SCOPE)
@@ -2882,7 +2998,10 @@ endfunction()
 
 # Apache Arrow Flight SQL — used by the InfluxDB federated query path.
 # Guard: only included when BUILD_WITH_ARROW=ON (enterprise builds on Linux/macOS).
-if(${BUILD_WITH_ARROW})
+# On Windows Arrow Flight SQL is unavailable, and the InfluxDB provider is built
+# with its HTTP transport only (see extconnector/CMakeLists.txt), so the Arrow
+# external projects are skipped there.
+if(${BUILD_WITH_ARROW} AND NOT TD_WINDOWS)
     # Prefer system-installed Arrow (e.g. via apt libarrow-dev + libarrow-flight-sql-dev)
     # over building from source.  This avoids the long ExternalProject build when the
     # system already provides a compatible Arrow >= 16.
@@ -2998,6 +3117,7 @@ if(${BUILD_WITH_ARROW})
     ExternalProject_Add(ext_arrow
         URL            ${_url}
         URL_HASH       SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+        DEPENDS        ${_arrow_dependencies}
         ${_arrow_ts_args}
         PREFIX         "${_base}"
         STAMP_DIR      "${_base}/src/ext_arrow-url-stamp"
@@ -3086,6 +3206,7 @@ endif()
 ExternalProject_Add(ext_arrow_static
     URL ${_url}
     URL_HASH SHA256=4c898504958841cc86b6f8710ecb2919f96b5e10fa8989ac10ac4fca8362d86a
+    DEPENDS        ${_arrow_dependencies}
     ${_arrow_ts_args}
     PREFIX         "${_base}"
     SOURCE_SUBDIR  cpp

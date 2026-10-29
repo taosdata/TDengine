@@ -138,7 +138,8 @@ typedef enum {
   MND_OPER_BACKUP,  // cluster-level CREATE/KILL BACKUP
   MND_OPER_FLUSH_MNODE,
   MND_OPER_RESTART_XNODE,
-  MND_OPER_MAX  // the max operation type
+  MND_OPER_ASSIGN_LEADER,  // cluster-level ASSIGN LEADER FORCE (2-replica arbitrator DR)
+  MND_OPER_MAX             // the max operation type
 } EOperType;
 
 typedef enum {
@@ -321,6 +322,7 @@ typedef struct {
   // pShadowOps is accumulated by mndTxnAddShadowOp() and rebuilt via mndTxnRebuildShadowOpsFromSdb() from SStbObj.txnId
   // on restart
   SArray* pShadowOps;  // MNode-side list of STB shadow operations (array of SMndShadowOp); in-memory only
+  bool    shadowRebuildPending;  // restore must wait for an in-flight stream creation before rebuilding shadow ops
 } STxnObj;
 
 typedef struct {
@@ -1210,7 +1212,7 @@ int32_t tNewSMqConsumerObj(int64_t consumerId, char* cgroup, int8_t updateType, 
 void    tClearSMqConsumerObj(SMqConsumerObj* pConsumer);
 void    tDeleteSMqConsumerObj(SMqConsumerObj* pConsumer);
 int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer);
-void*   tDecodeSMqConsumerObj(const void* buf, SMqConsumerObj* pConsumer, int8_t sver);
+void*   tDecodeSMqConsumerObj(const void* buf, const void* bufEnd, SMqConsumerObj* pConsumer, int8_t sver);
 
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
@@ -1220,7 +1222,7 @@ typedef struct {
 
 void    freeSMqConsumerEp(void* data);
 int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
-void*   tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp, int8_t sver);
+void*   tDecodeSMqConsumerEp(const void* buf, const void* bufEnd, SMqConsumerEp* pEp, int8_t sver);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -1241,7 +1243,7 @@ int32_t tNewSubscribeObj(const char* key, SMqSubscribeObj** ppSub);
 int32_t tCloneSubscribeObj(SMqSubscribeObj* pSub, SMqSubscribeObj** ppSub);
 void    tDeleteSubscribeObj(SMqSubscribeObj* pSub);
 int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub);
-void*   tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub, int8_t sver);
+void*   tDecodeSubscribeObj(const void* buf, const void* bufEnd, SMqSubscribeObj* pSub, int8_t sver);
 
 typedef struct {
   int32_t           oldConsumerNum;

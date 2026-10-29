@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 
+#include "libs/qcom/extTypeMap.h"  // EExtTimestampTzClass
 #include "query.h"
 #include "querynodes.h"
 #include "tname.h"
@@ -142,6 +143,7 @@ typedef struct SScanLogicNode {
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
   bool               lastOnlyScan;
+  int64_t            intervalLimit;  // per-table window prefix; zero disables pruning
   int64_t            interval;
   int64_t            offset;
   int64_t            sliding;
@@ -512,6 +514,7 @@ typedef struct SWindowLogicNode {
   EWindowAlgorithm      windowAlgo;
   bool                  fastInterval;  // FAST_INTERVAL hint selected this node's dedicated execution path
   bool                  exInterval;    // EX_INTERVAL hint selected this node's dedicated execution path
+  bool                  intervalLimitHint;  // Capture the owning SELECT before project rewrites move hints.
   SNodeList*            pTsmaSubplans;
   // for interval window
   int64_t               interval;
@@ -584,6 +587,7 @@ typedef struct SFillLogicNode {
   int8_t      firstDayOfWeek;
   void*       timezone;
   char        timezoneName[TD_TIMEZONE_LEN];
+  bool        ownsTimezone;  // true when timezone was allocated for this node (needs tzfree)
   STimeWindow timeRange;
   SNode*      pTimeRange; // STimeRangeNode for create stream
   SNodeList*  pFillNullExprs;
@@ -854,6 +858,7 @@ typedef struct STableScanPhysiNode {
   double         ratio;
   int32_t        dataRequired;
   bool           lastOnlyScan;
+  int64_t        intervalLimit;  // per-table window prefix; zero disables pruning
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
   bool           groupSort;
@@ -899,12 +904,8 @@ typedef struct SExtColTypeMapping {
                               // connector for name-based Arrow column lookup on SELECT *.
 } SExtColTypeMapping;
 
-typedef enum {
-  EXT_TIMESTAMP_TZ_CLASS_UNKNOWN = 0,
-  EXT_TIMESTAMP_TZ_CLASS_AWARE   = 1,
-  EXT_TIMESTAMP_TZ_CLASS_NAIVE   = 2,
-} EExtTimestampTzClass;
-
+// EExtTimestampTzClass lives with its classifier in the query-common type map;
+// qcom is a lower layer than nodes, so it must own the enum.
 typedef struct SExtTimestampTypeHint {
   char   colName[TSDB_COL_NAME_LEN];  // remote column name as it appears in pRemotePlan
   char   extTypeName[64];             // original external type name for diagnostics
@@ -970,6 +971,13 @@ typedef struct SFederatedScanPhysiNode {
   // per-block TIMESTAMP precision conversion to the vtable's declared
   // precision; direct external-table queries leave this false.
   bool                underVTableScan;
+  // --- stream calc scan time range (STimeRangeNode) ---
+  // Set only for external scans under a stream calc clause whose SELECT has a
+  // time-returning time range (e.g. _twstart/_twend or casted localtime
+  // placeholders).  The external-table reader (ETR) evaluates it per fetch - the
+  // same way vnodeStream.c processCalaTimeRange does for table scans - to bound
+  // the remote query.  NULL otherwise.
+  SNode*              pTimeRange;
 } SFederatedScanPhysiNode;
 
 typedef struct SProjectPhysiNode {

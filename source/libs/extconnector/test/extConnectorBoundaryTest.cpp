@@ -18,22 +18,387 @@
 #include <gtest/gtest.h>
 
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <limits>
 #include <string>
+#include <thread>
 #include <vector>
 
 extern "C" {
 #include "extConnectorInt.h"
 #include "decimal.h"
+#include "osSleep.h"
+#include "osTime.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "ttypes.h"
 }
 
 namespace {
+
+int32_t poolConnectCalls = 0;
+int32_t poolDisconnectCalls = 0;
+
+int32_t connectPoolDatabase(const SExtSourceCfg* config, void** connection) {
+  ++poolConnectCalls;
+  *connection = new std::string(config->default_database);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t failConnectPoolDatabase(const SExtSourceCfg* config, void** connection) {
+  (void)connection;
+  ++poolConnectCalls;
+  // Unknown remote database: emulate the provider rejecting the connection.
+  (void)config;
+  return TSDB_CODE_EXT_CONNECT_FAILED;
+}
+
+void disconnectPoolDatabase(void* connection) {
+  ++poolDisconnectCalls;
+  delete static_cast<std::string*>(connection);
+}
+
+// Race regression: the creator of a pool must not remove it while a concurrent
+// borrower holds a healthy connection from it.  Removing it anyway would stop
+// the borrowed connection from being counted by extSourceLiveConnections()
+// (taosHashIterate skips deleted nodes) and allow replacement pools to exceed
+// the per-source cap.
+std::atomic<int32_t> raceConnectCalls{0};
+std::atomic<bool>    raceCreatorEnteredConnect{false};
+std::atomic<bool>    raceBorrowerConnectSucceeded{false};
+
+int32_t raceConnect(const SExtSourceCfg* config, void** connection) {
+  int32_t call = raceConnectCalls.fetch_add(1) + 1;
+  if (call == 1) {
+    // Pool creator: keep the first connect() pending until the concurrent
+    // borrower's connect() has succeeded, then fail.  The timeout guards
+    // against a stalled borrower thread.
+    raceCreatorEnteredConnect = true;
+    int64_t deadline = taosGetTimestampMs() + 10000;
+    while (!raceBorrowerConnectSucceeded.load() && taosGetTimestampMs() < deadline) {
+      taosMsleep(1);
+    }
+    return TSDB_CODE_EXT_CONNECT_FAILED;
+  }
+  *connection = new std::string(config->default_database);
+  if (call == 2) raceBorrowerConnectSucceeded = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+class ExternalDatabasePoolTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    SExtConnectorModuleCfg config = {};
+    config.max_pool_size_per_source = 2;
+    ASSERT_EQ(extConnectorModuleInit(&config), TSDB_CODE_SUCCESS);
+    for (auto sourceType : {EXT_SOURCE_MYSQL, EXT_SOURCE_INFLUXDB}) {
+      SExtProvider provider = {};
+      provider.type = sourceType;
+      provider.connect = connectPoolDatabase;
+      provider.disconnect = disconnectPoolDatabase;
+      gExtProviders[sourceType] = provider;
+    }
+    poolConnectCalls = 0;
+    poolDisconnectCalls = 0;
+  }
+
+  void TearDown() override { extConnectorModuleDestroy(); }
+
+  SExtSourceCfg config(EExtSourceType sourceType, const char* database) {
+    SExtSourceCfg result = {};
+    result.source_type = sourceType;
+    result.meta_version = 1;
+    tstrncpy(result.source_name, "shared_source", sizeof(result.source_name));
+    tstrncpy(result.default_database, database, sizeof(result.default_database));
+    return result;
+  }
+
+  void fetch(const SExtSourceCfg& config) {
+    SExtConnectorHandle* handle = nullptr;
+    ASSERT_EQ(extConnectorOpen(&config, &handle), TSDB_CODE_SUCCESS);
+    ASSERT_NE(handle, nullptr);
+    EXPECT_EQ(*static_cast<std::string*>(handle->pEntry->pConn), config.default_database);
+    extConnectorClose(handle);
+  }
+};
+
+TEST_F(ExternalDatabasePoolTest, MysqlStreamAndQueryContextsReuseConnections) {
+  for (int32_t iteration = 0; iteration < 3; ++iteration) {
+    fetch(config(EXT_SOURCE_MYSQL, ""));
+    fetch(config(EXT_SOURCE_MYSQL, "db_a"));
+  }
+  EXPECT_EQ(poolConnectCalls, 2);
+  EXPECT_EQ(poolDisconnectCalls, 0);
+}
+
+TEST_F(ExternalDatabasePoolTest, InfluxDatabasesReuseIndependentConnections) {
+  for (int32_t iteration = 0; iteration < 3; ++iteration) {
+    fetch(config(EXT_SOURCE_INFLUXDB, "db_a"));
+    fetch(config(EXT_SOURCE_INFLUXDB, "db_b"));
+  }
+  EXPECT_EQ(poolConnectCalls, 2);
+  EXPECT_EQ(poolDisconnectCalls, 0);
+}
+
+TEST_F(ExternalDatabasePoolTest, RemoveSourceRemovesEveryDatabaseAndPreservesBorrowedHandles) {
+  auto firstConfig = config(EXT_SOURCE_INFLUXDB, "db_a");
+  auto secondConfig = config(EXT_SOURCE_INFLUXDB, "db_b");
+  SExtConnectorHandle* borrowed = nullptr;
+  ASSERT_EQ(extConnectorOpen(&firstConfig, &borrowed), TSDB_CODE_SUCCESS);
+  fetch(secondConfig);
+  extConnectorPoolRemove("shared_source");
+  EXPECT_EQ(poolDisconnectCalls, 1);
+  EXPECT_EQ(*static_cast<std::string*>(borrowed->pEntry->pConn), "db_a");
+  extConnectorClose(borrowed);
+  EXPECT_EQ(poolDisconnectCalls, 2);
+  fetch(firstConfig);
+  fetch(secondConfig);
+  EXPECT_EQ(poolConnectCalls, 4);
+}
+
+TEST_F(ExternalDatabasePoolTest, SourceLimitIsSharedAcrossDatabases) {
+  auto firstConfig = config(EXT_SOURCE_INFLUXDB, "db_a");
+  auto secondConfig = config(EXT_SOURCE_INFLUXDB, "db_b");
+  SExtConnectorHandle* first = nullptr;
+  SExtConnectorHandle* second = nullptr;
+  ASSERT_EQ(extConnectorOpen(&firstConfig, &first), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(extConnectorOpen(&secondConfig, &second), TSDB_CODE_SUCCESS);
+  auto thirdConfig = config(EXT_SOURCE_INFLUXDB, "db_c");
+  SExtConnectorHandle* handle = nullptr;
+  EXPECT_EQ(extConnectorOpen(&thirdConfig, &handle), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  extConnectorClose(handle);
+  EXPECT_EQ(poolConnectCalls, 2);
+  extConnectorClose(first);
+  extConnectorClose(second);
+}
+
+TEST_F(ExternalDatabasePoolTest, IdleConnectionsCanBeReclaimedForAnotherDatabase) {
+  fetch(config(EXT_SOURCE_INFLUXDB, "db_a"));
+  fetch(config(EXT_SOURCE_INFLUXDB, "db_b"));
+  fetch(config(EXT_SOURCE_INFLUXDB, "db_c"));
+  EXPECT_EQ(poolConnectCalls, 3);
+  EXPECT_EQ(poolDisconnectCalls, 1);
+  fetch(config(EXT_SOURCE_INFLUXDB, "db_c"));
+  EXPECT_EQ(poolConnectCalls, 3);
+}
+
+TEST_F(ExternalDatabasePoolTest, RepeatedReclamationKeepsConnectionsInTheirDatabase) {
+  for (int32_t iteration = 0; iteration < 10; ++iteration) {
+    for (const char* database : {"db_a", "db_b", "db_c", "db_d"}) {
+      fetch(config(EXT_SOURCE_INFLUXDB, database));
+      EXPECT_LE(poolConnectCalls - poolDisconnectCalls, 2);
+    }
+  }
+  extConnectorPoolRemove("shared_source");
+  EXPECT_EQ(poolConnectCalls, poolDisconnectCalls);
+}
+
+TEST_F(ExternalDatabasePoolTest, RemovingSourceDoesNotRemoveOtherSources) {
+  auto otherConfig = config(EXT_SOURCE_MYSQL, "db_a");
+  tstrncpy(otherConfig.source_name, "other_source", sizeof(otherConfig.source_name));
+  fetch(config(EXT_SOURCE_MYSQL, "db_a"));
+  fetch(config(EXT_SOURCE_MYSQL, "db_b"));
+  fetch(otherConfig);
+  extConnectorPoolRemove("shared_source");
+  EXPECT_EQ(poolDisconnectCalls, 2);
+  fetch(otherConfig);
+  EXPECT_EQ(poolConnectCalls, 3);
+}
+
+TEST_F(ExternalDatabasePoolTest, FailedConnectsDoNotAccumulateEmptyPools) {
+  gExtProviders[EXT_SOURCE_MYSQL].connect = failConnectPoolDatabase;
+  for (const char* database : {"missing_a", "missing_b", "missing_c", "missing_d"}) {
+    auto cfg = config(EXT_SOURCE_MYSQL, database);
+    SExtConnectorHandle* handle = nullptr;
+    EXPECT_EQ(extConnectorOpen(&cfg, &handle), TSDB_CODE_EXT_CONNECT_FAILED);
+    EXPECT_EQ(handle, nullptr);
+  }
+  EXPECT_EQ(poolConnectCalls, 4);
+  EXPECT_EQ(extConnectorPoolCount(), 0);
+
+  // A healthy provider still connects afterwards and leaves exactly one pool.
+  gExtProviders[EXT_SOURCE_MYSQL].connect = connectPoolDatabase;
+  fetch(config(EXT_SOURCE_MYSQL, "db_a"));
+  EXPECT_EQ(extConnectorPoolCount(), 1);
+}
+
+TEST_F(ExternalDatabasePoolTest, FailedCreatorKeepsPoolBorrowedByAnotherThread) {
+  // Fixture caps the source at 2 connections (max_pool_size_per_source = 2).
+  gExtProviders[EXT_SOURCE_MYSQL].connect = raceConnect;
+  raceConnectCalls = 0;
+  raceCreatorEnteredConnect = false;
+  raceBorrowerConnectSucceeded = false;
+
+  auto creatorCfg = config(EXT_SOURCE_MYSQL, "db_a");
+  auto borrowerCfg = config(EXT_SOURCE_MYSQL, "db_a");
+
+  int32_t creatorCode = TSDB_CODE_SUCCESS;
+  SExtConnectorHandle* creatorHandle = nullptr;
+  std::thread creator([&] { creatorCode = extConnectorOpen(&creatorCfg, &creatorHandle); });
+
+  // Wait until the creator's connect() is pending, then start the borrower so
+  // the creator is deterministically the first connect() caller.  The borrower
+  // is started regardless: if the creator never entered connect(), the
+  // borrower simply wins the race and the assertions below fail — but both
+  // threads are always joined.
+  int64_t deadline = taosGetTimestampMs() + 10000;
+  while (!raceCreatorEnteredConnect.load() && taosGetTimestampMs() < deadline) {
+    taosMsleep(1);
+  }
+
+  int32_t borrowerCode = TSDB_CODE_SUCCESS;
+  SExtConnectorHandle* borrowerHandle = nullptr;
+  std::thread borrower([&] { borrowerCode = extConnectorOpen(&borrowerCfg, &borrowerHandle); });
+
+  creator.join();
+  borrower.join();
+
+  ASSERT_TRUE(raceCreatorEnteredConnect.load());
+
+  EXPECT_EQ(creatorCode, TSDB_CODE_EXT_CONNECT_FAILED);
+  EXPECT_EQ(creatorHandle, nullptr);
+  EXPECT_EQ(borrowerCode, TSDB_CODE_SUCCESS);
+  ASSERT_NE(borrowerHandle, nullptr);
+
+  // The pool must survive: it was created by the failed open() but is still
+  // borrowed by the concurrent one.
+  EXPECT_EQ(extConnectorPoolCount(), 1);
+
+  // The borrowed connection still counts against the per-source cap of 2:
+  // a third open() succeeds but a fourth is refused.
+  auto thirdCfg = config(EXT_SOURCE_MYSQL, "db_b");
+  SExtConnectorHandle* third = nullptr;
+  EXPECT_EQ(extConnectorOpen(&thirdCfg, &third), TSDB_CODE_SUCCESS);
+  ASSERT_NE(third, nullptr);
+  auto fourthCfg = config(EXT_SOURCE_MYSQL, "db_c");
+  SExtConnectorHandle* fourth = nullptr;
+  EXPECT_EQ(extConnectorOpen(&fourthCfg, &fourth), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(fourth, nullptr);
+
+  extConnectorClose(third);
+  extConnectorClose(borrowerHandle);
+}
+
+TEST(ExternalDatabasePoolReclaimTest, EmptyPoolsAreReclaimedAfterTtl) {
+  SExtConnectorModuleCfg moduleCfg = {};
+  moduleCfg.max_pool_size_per_source = 2;
+  moduleCfg.idle_conn_ttl_s = 1;
+  ASSERT_EQ(extConnectorModuleInit(&moduleCfg), TSDB_CODE_SUCCESS);
+  for (auto sourceType : {EXT_SOURCE_MYSQL, EXT_SOURCE_INFLUXDB}) {
+    SExtProvider provider = {};
+    provider.type = sourceType;
+    provider.connect = connectPoolDatabase;
+    provider.disconnect = disconnectPoolDatabase;
+    gExtProviders[sourceType] = provider;
+  }
+
+  SExtSourceCfg srcCfg = {};
+  srcCfg.source_type = EXT_SOURCE_INFLUXDB;
+  srcCfg.meta_version = 1;
+  tstrncpy(srcCfg.source_name, "shared_source", sizeof(srcCfg.source_name));
+  tstrncpy(srcCfg.default_database, "db_a", sizeof(srcCfg.default_database));
+
+  SExtConnectorHandle* handle = nullptr;
+  ASSERT_EQ(extConnectorOpen(&srcCfg, &handle), TSDB_CODE_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+  extConnectorClose(handle);
+  EXPECT_EQ(extConnectorPoolCount(), 1);
+
+  // The eviction thread disconnects the idle connection after the 1s TTL and
+  // reclaims the now-empty pool in the same pass (its scan interval is ~10s).
+  // Poll up to 20s instead of sleeping a fixed long interval.
+  int64_t deadline = taosGetTimestampMs() + 20000;
+  while (extConnectorPoolCount() > 0 && taosGetTimestampMs() < deadline) {
+    taosMsleep(200);
+  }
+  EXPECT_EQ(extConnectorPoolCount(), 0);
+
+  extConnectorModuleDestroy();
+}
+
+// Regression for the TTL-reclaim race: the reclaim pass re-verifies emptiness
+// under the write lock, so a pool borrowed between the candidate check and the
+// removal is kept.  The test overlaps the reclaim path with open()/close() and
+// asserts the pool state stays consistent and usable.
+TEST(ExternalDatabasePoolReclaimTest, ReclaimRacingWithBorrowsKeepsPoolConsistent) {
+  SExtConnectorModuleCfg moduleCfg = {};
+  moduleCfg.max_pool_size_per_source = 2;
+  moduleCfg.idle_conn_ttl_s = 1;
+  ASSERT_EQ(extConnectorModuleInit(&moduleCfg), TSDB_CODE_SUCCESS);
+  for (auto sourceType : {EXT_SOURCE_MYSQL, EXT_SOURCE_INFLUXDB}) {
+    SExtProvider provider = {};
+    provider.type = sourceType;
+    provider.connect = connectPoolDatabase;
+    provider.disconnect = disconnectPoolDatabase;
+    gExtProviders[sourceType] = provider;
+  }
+
+  SExtSourceCfg srcCfg = {};
+  srcCfg.source_type = EXT_SOURCE_INFLUXDB;
+  srcCfg.meta_version = 1;
+  tstrncpy(srcCfg.source_name, "shared_source", sizeof(srcCfg.source_name));
+  tstrncpy(srcCfg.default_database, "db_a", sizeof(srcCfg.default_database));
+
+  // A borrowed connection keeps the pool alive even when the reclaim pass is
+  // forced with a far-future timestamp.
+  SExtConnectorHandle* borrowed = nullptr;
+  ASSERT_EQ(extConnectorOpen(&srcCfg, &borrowed), TSDB_CODE_SUCCESS);
+  ASSERT_NE(borrowed, nullptr);
+  extConnectorReclaimExpiredEmptyPools(taosGetTimestampMs() + 3600000, 1000);
+  EXPECT_EQ(extConnectorPoolCount(), 1);
+  extConnectorClose(borrowed);
+
+  // Overlap the forced reclaim pass with a concurrent borrower loop to
+  // exercise the window between "verify empty" and "remove".
+  std::atomic<bool>    stop{false};
+  std::atomic<int32_t> openFailures{0};
+  std::thread borrower([&] {
+    while (!stop.load()) {
+      SExtConnectorHandle* handle = nullptr;
+      if (extConnectorOpen(&srcCfg, &handle) != TSDB_CODE_SUCCESS) {
+        ++openFailures;
+        continue;
+      }
+      extConnectorClose(handle);
+    }
+  });
+
+  int64_t deadline = taosGetTimestampMs() + 3000;
+  while (taosGetTimestampMs() < deadline) {
+    extConnectorReclaimExpiredEmptyPools(taosGetTimestampMs() + 3600000, 1000);
+    taosMsleep(10);
+  }
+  stop = true;
+  borrower.join();
+
+  EXPECT_EQ(openFailures.load(), 0);
+
+  // After the borrower stops, the pool holds one idle connection: reclaim does
+  // not drop it, and a fresh open() reuses the connection.
+  EXPECT_EQ(extConnectorPoolCount(), 1);
+  SExtConnectorHandle* handle = nullptr;
+  EXPECT_EQ(extConnectorOpen(&srcCfg, &handle), TSDB_CODE_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+  extConnectorClose(handle);
+  EXPECT_EQ(extConnectorPoolCount(), 1);
+
+  extConnectorModuleDestroy();
+}
+
+TEST_F(ExternalDatabasePoolTest, ConnectionConfigChangeStillInvalidatesMatchingPool) {
+  auto firstConfig = config(EXT_SOURCE_MYSQL, "db_a");
+  auto secondConfig = config(EXT_SOURCE_MYSQL, "db_b");
+  fetch(firstConfig);
+  fetch(secondConfig);
+  tstrncpy(firstConfig.host, "updated_host", sizeof(firstConfig.host));
+  fetch(firstConfig);
+  fetch(secondConfig);
+  EXPECT_EQ(poolConnectCalls, 3);
+  EXPECT_EQ(poolDisconnectCalls, 1);
+}
 
 class ColumnDataGuard {
  public:

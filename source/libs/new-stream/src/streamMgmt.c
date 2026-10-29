@@ -794,6 +794,10 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       break;
     }
     case STREAM_MSG_RUNNER_ORIGTBL_READER: {
+      if (pRsp->code != TSDB_CODE_SUCCESS) {
+        stsError("runner orig reader deploy failed, code:%s, stream task %" PRIx64,
+                 tstrerror(pRsp->code), pTask->taskId);
+      }
       SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
       if (pReq && pReq->reqId == pRsp->reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->pMgmtReq, pReq, NULL)) {
         taosWLockLatch(&pTask->mgmtReqLock);
@@ -802,7 +806,7 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
         taosMemoryFree(pReq);
       }
 
-      STM_CHK_SET_ERROR_EXIT(stRunnerSetMgmtRsp((SStreamRunnerTask*)pTask, pRsp->cont.execRspList));
+      STM_CHK_SET_ERROR_EXIT(stRunnerSetMgmtRsp((SStreamRunnerTask*)pTask, pRsp->cont.execRspList, pRsp->code));
       break;
     }
     default:

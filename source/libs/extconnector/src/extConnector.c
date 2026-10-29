@@ -83,10 +83,11 @@ int32_t extConnectorSupportsTimezoneConversion(SExtConnectorHandle *pHandle,
 }
 
 int32_t extConnectorExecQuery(SExtConnectorHandle *pHandle, const SFederatedScanPhysiNode *pNode,
-                              const char *pSQL,
+                              const char *timezoneName, const char *pSQL,
                               SExtQueryHandle **ppQHandle, SExtConnectorError *pOutErr) {
   (void)pHandle;
   (void)pNode;
+  (void)timezoneName;
   (void)pSQL;
   (void)ppQHandle;
   (void)pOutErr;

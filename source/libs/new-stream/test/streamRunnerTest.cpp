@@ -34,6 +34,7 @@
 #include "cmdnodes.h"
 #include "dataSink.h"
 #include "dataSinkMgt.h"
+#include "dynqueryctrl.h"
 #include "operator.h"
 #include "querytask.h"
 #include "snode.h"
@@ -48,6 +49,7 @@ extern "C" {
 #include "tcurl.h"
 
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg *pMsg, SStreamTask *pTask, SStreamTaskStats *pStats);
+int32_t processOrgTbVg(SVtbScanDynCtrlInfo *pVtbScan, SExecTaskInfo *pTaskInfo, int32_t rversion);
 int32_t sndTestBuildStreamFetchRsp(SSDataBlock *pBlock, const SStreamRunnerFetchFrame *pFrame, void **data,
                                    size_t *size, int8_t precision, bool finished);
 int32_t exchangeTestSerializeStreamFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq, int32_t msgType,
@@ -83,6 +85,7 @@ struct RunnerCallState {
   struct NotificationIdentity {
     int64_t     gid = 0;
     std::string tbname;
+    std::string triggerTableName;
     TSKEY       wstart = 0;
     TSKEY       wend = 0;
   };
@@ -590,17 +593,17 @@ int32_t mockStreamCalcTagExpr(SNode *, SScalarParam *pDst, const SStreamRuntimeF
   return colDataSetVal(pDst->columnData, 0, reinterpret_cast<const char *>(&value), false);
 }
 
-int32_t mockStreamSendNotifyContent(SStreamTask *, const char *, const char *, int32_t, int64_t,
+int32_t mockStreamSendNotifyContent(SStreamTask *, const char *, const char *, const char *, int32_t, int64_t, int8_t,
                                     const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *, int32_t) {
   ++gCalls.notifyCalls;
   gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
   return gCalls.notifyCode;
 }
 
-int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const char *tbname, int32_t, int64_t groupId,
-                                              int8_t, const SArray *pNotifyAddrUrls, int32_t,
-                                              const SSTriggerCalcParam *pParams, int32_t nParam, bool *pAttempted,
-                                              bool *pAccepted) {
+int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const char *tbname,
+                                              const char *triggerTableName, int32_t, int64_t groupId, int8_t,
+                                              const SArray *pNotifyAddrUrls, int32_t, const SSTriggerCalcParam *pParams,
+                                              int32_t nParam, bool *pAttempted, bool *pAccepted) {
   ++gCalls.notifyCalls;
   gCalls.notifyTargets = static_cast<int32_t>(taosArrayGetSize(pNotifyAddrUrls));
   if (pParams == nullptr || nParam <= 0) {
@@ -612,6 +615,7 @@ int32_t mockStreamSendNotifyContentWithResult(SStreamTask *, const char *, const
     RunnerCallState::NotificationIdentity identity;
     identity.gid = groupId;
     identity.tbname = tbname == nullptr ? "" : tbname;
+    identity.triggerTableName = triggerTableName == nullptr ? "" : triggerTableName;
     identity.wstart = pParams[0].wstart;
     identity.wend = pParams[0].wend;
     gCalls.notificationIdentities.push_back(identity);
@@ -3244,6 +3248,7 @@ TEST_F(StreamRunnerTest, InstallsParamsColumnsCreateAndRollupForSettlement) {
 
 TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
   ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {202, 101, 303}, 1, false));
+  request_.stbPartByTbname = true;
   const int64_t         gids[] = {101, 202, 303};
   const int8_t          createTables[] = {0, 1, 1};
   const int32_t         rollupCounts[] = {11, 22, 33};
@@ -3258,6 +3263,14 @@ TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
     groupValue.data.type = TSDB_DATA_TYPE_BIGINT;
     groupValue.data.val = gids[i] + 1000;
     ASSERT_NE(taosArrayPush(pGroup->pGroupColVals, &groupValue), nullptr);
+    SStreamGroupValue nameValue = {};
+    const std::string sourceName = "source_" + std::to_string(gids[i]);
+    nameValue.isTbname = true;
+    nameValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+    nameValue.data.pData = reinterpret_cast<uint8_t *>(taosStrdup(sourceName.c_str()));
+    ASSERT_NE(nameValue.data.pData, nullptr);
+    nameValue.data.nData = static_cast<int32_t>(sourceName.size());
+    ASSERT_NE(taosArrayPush(pGroup->pGroupColVals, &nameValue), nullptr);
     groupCols.push_back(pGroup->pGroupColVals);
   }
 
@@ -3292,6 +3305,7 @@ TEST_F(StreamRunnerTest, MultiGroupCreateTableTbnameAndRollupDoNotLeak) {
   for (size_t i = 0; i < 3; ++i) {
     EXPECT_EQ(gCalls.notificationIdentities[i].gid, gids[i]);
     EXPECT_EQ(gCalls.notificationIdentities[i].tbname, "group_" + std::to_string(gids[i]));
+    EXPECT_EQ(gCalls.notificationIdentities[i].triggerTableName, "source_" + std::to_string(gids[i]));
     EXPECT_EQ(gCalls.notificationIdentities[i].wstart, gids[i]);
     EXPECT_EQ(gCalls.notificationIdentities[i].wend, gids[i] + 1);
   }
@@ -3954,6 +3968,18 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof
   tDestroySStreamRunnerFetchFrame(&decodedDataFrame);
   rpcFreeCont(data);
 
+  data = nullptr;
+  size = 0;
+  ASSERT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 3, false), TSDB_CODE_SUCCESS);
+  ASSERT_NE(data, nullptr);
+  const auto *legacyDataRsp = static_cast<const SRetrieveTableRsp *>(data);
+  EXPECT_EQ(ntohl(legacyDataRsp->payloadLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(ntohl(legacyDataRsp->compLen), size - sizeof(SRetrieveTableRsp));
+  EXPECT_EQ(legacyDataRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
+  EXPECT_EQ(ntohl(legacyDataRsp->numOfBlocks), 1);
+  EXPECT_EQ(legacyDataRsp->compressed, 0);
+  rpcFreeCont(data);
+
   SStreamRunnerFetchFrame eogFrame = {};
   eogFrame.type = STREAM_RUNNER_FETCH_EOG;
   eogFrame.baseGId = 101;
@@ -3997,6 +4023,8 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseEncodesDataEogAndLegacyEof
   EXPECT_EQ(eofRsp->completed, 1);
   EXPECT_EQ(eofRsp->streamBlockType, STREAM_RUNNER_FETCH_LEGACY);
   EXPECT_EQ(legacyWithFrameSize, sizeof(SRetrieveTableRsp) + INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->payloadLen), INT_BYTES * 2);
+  EXPECT_EQ(ntohl(eofRsp->compLen), INT_BYTES * 2);
   rpcFreeCont(legacyWithFrame);
   rpcFreeCont(legacyWithoutFrame);
 }
@@ -4039,6 +4067,25 @@ TEST_F(StreamRunnerMultiGroupTest, StrictFetchResponseRejectsTotalLengthBeforeAl
   EXPECT_EQ(gStrictResponseAllocationCalls, 0);
   EXPECT_EQ(data, nullptr);
   EXPECT_EQ(size, 0);
+}
+
+TEST_F(StreamRunnerMultiGroupTest, LegacyFetchResponseRejectsInvalidLengthBeforeAllocation) {
+  SSDataBlock *dataBlock = NewMultiGroupDataBlock(1, 101);
+  ASSERT_NE(dataBlock, nullptr);
+  Stub sizeAndAllocationStub;
+  sizeAndAllocationStub.set(blockGetInternalEncodeSize, mockStrictResponseBlockSize);
+  sizeAndAllocationStub.set(rpcMallocCont, recordStrictResponseAllocation);
+
+  for (int32_t invalidSize : {-1, INT32_MAX}) {
+    gStrictResponseBlockSize = invalidSize;
+    gStrictResponseAllocationCalls = 0;
+    void *data = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+    size_t size = 123;
+    EXPECT_EQ(sndTestBuildStreamFetchRsp(dataBlock, nullptr, &data, &size, 0, false), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(gStrictResponseAllocationCalls, 0);
+    EXPECT_EQ(data, nullptr);
+    EXPECT_EQ(size, 0);
+  }
 }
 
 TEST_F(StreamRunnerTest, ContinuationResumesAtCanonicalCursor) {
@@ -5016,7 +5063,7 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   rsp.vgList = pVgList;
   ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
 
-  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
   auto *pStoredRsp = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0));
   ASSERT_NE(pStoredRsp, nullptr);
   EXPECT_EQ(pStoredRsp->vgList, nullptr);
@@ -5042,6 +5089,228 @@ TEST_F(StreamRunnerTest, ReaderManagementCanUpdateRetainedExecWithoutTakingConti
   EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
   taosArrayDestroy(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo);
   pExec->runtimeInfo.vtableDeployInfo.addedVgInfo = nullptr;
+}
+
+class StreamRunnerRedeployCleanupTest : public StreamRunnerTest, public ::testing::WithParamInterface<bool> {};
+
+TEST_P(StreamRunnerRedeployCleanupTest, UndeployBeforeManagementRequestReleasesVgroupIds) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.vtableDeployGot = &task_.vtableDeployGot;
+  SExecTaskInfo executor = {};
+  executor.pStreamRuntimeInfo = &pExec->runtimeInfo;
+  SVtbScanDynCtrlInfo scan = {};
+  scan.uid = 123;
+  scan.existOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  scan.curOrgTbVg = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(scan.existOrgTbVg, nullptr);
+  ASSERT_NE(scan.curOrgTbVg, nullptr);
+  int32_t vgId = 42;
+  ASSERT_EQ(taosHashPut(scan.curOrgTbVg, &vgId, sizeof(vgId), nullptr, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(processOrgTbVg(&scan, &executor, 2), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
+  taosHashCleanup(scan.existOrgTbVg);
+  taosHashCleanup(scan.curOrgTbVg);
+  ASSERT_NE(pExec->runtimeInfo.vtableDeployInfo.addVgIds, nullptr);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+
+  if (GetParam()) {
+    SListNode *pNode = tdListPopHead(task_.execMgr.pFreeExecs);
+    tdListAppendNode(task_.execMgr.pRunningExecs, pNode);
+  }
+  // Shutdown can precede the heartbeat that transfers addVgIds into pMgmtReq.
+  // LSan must find no orphaned array after the real execution destructor runs.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+}
+
+TEST_P(StreamRunnerRedeployCleanupTest, UndeployBeforeResponseConsumptionReleasesVgroupInfo) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  if (GetParam()) {
+    SListNode *pNode = tdListPopHead(task_.execMgr.pFreeExecs);
+    tdListAppendNode(task_.execMgr.pRunningExecs, pNode);
+  }
+  SArray *pResponses = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pResponses, nullptr);
+  SStreamOReaderDeployRsp response = {};
+  response.execId = pExec->runtimeInfo.execId;
+  response.vgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(response.vgList, nullptr);
+  SStreamTaskAddr addr = {};
+  addr.nodeId = 42;
+  ASSERT_NE(taosArrayPush(response.vgList, &addr), nullptr);
+  ASSERT_NE(taosArrayPush(pResponses, &response), nullptr);
+  ASSERT_EQ(stRunnerSetMgmtRsp(&task_, pResponses, TSDB_CODE_SUCCESS), TSDB_CODE_SUCCESS);
+  auto *pResponse = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pResponses, 0));
+  EXPECT_EQ(pResponse->vgList, nullptr);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, response.vgList);
+  taosArrayDestroy(pResponses);
+
+  // The execution now owns the response, even if no scan consumes it before shutdown.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+}
+
+INSTANTIATE_TEST_SUITE_P(FreeAndRunning, StreamRunnerRedeployCleanupTest, ::testing::Bool());
+
+TEST_F(StreamRunnerTest, UndeployReleasesPendingReaderRequestAndPreservesHeartbeatCopy) {
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  auto &deploy = pExec->runtimeInfo.vtableDeployInfo;
+  deploy.uid = 123;
+  deploy.addVgIds = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(deploy.addVgIds, nullptr);
+  int32_t vgId = 42;
+  ASSERT_NE(taosArrayPush(deploy.addVgIds, &vgId), nullptr);
+
+  ASSERT_EQ(stRunnerBuildTaskMgmtReq(&task_), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.task.pMgmtReq, nullptr);
+  EXPECT_EQ(deploy.addVgIds, nullptr);
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  ASSERT_EQ(stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats), TSDB_CODE_SUCCESS);
+  auto *pStatus = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  ASSERT_NE(pStatus, nullptr);
+  ASSERT_NE(pStatus->pMgmtReq, nullptr);
+  EXPECT_NE(pStatus->pMgmtReq, task_.task.pMgmtReq);
+
+  // DROP can undeploy the runner before its management response is handled.
+  UndeployRunnerForCleanup();
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+
+  // The heartbeat owns a separate copy; runner teardown must not invalidate it.
+  EXPECT_EQ(pStatus->pMgmtReq->type, STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER);
+  auto *pReq = static_cast<SStreamOReaderDeployReq *>(taosArrayGet(pStatus->pMgmtReq->cont.pReqs, 0));
+  ASSERT_NE(pReq, nullptr);
+  EXPECT_EQ(pReq->uid, 123);
+  EXPECT_EQ(*static_cast<int32_t *>(taosArrayGet(pReq->vgIds, 0)), vgId);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+
+TEST_F(StreamRunnerTest, HeartbeatPeriodLogCanCompleteDeferredUndeploy) {
+  ScopedRunnerDebugLogCapture capture;
+  gCalls.monotonicUs = STREAM_STATS_PERIOD_US + 1;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+  pExec->runtimeInfo.vtableDeployInfo.addVgIds = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(pExec->runtimeInfo.vtableDeployInfo.addVgIds, nullptr);
+  int32_t vgId = 42;
+  ASSERT_NE(taosArrayPush(pExec->runtimeInfo.vtableDeployInfo.addVgIds, &vgId), nullptr);
+  ASSERT_EQ(stRunnerBuildTaskMgmtReq(&task_), TSDB_CODE_SUCCESS);
+  ASSERT_NE(task_.task.pMgmtReq, nullptr);
+
+  stub_.set(qAsyncKillTask, mockQAsyncKillTask);
+  stub_.set(streamDestroyExecTask, mockStreamDestroyExecTask);
+  stub_.set(dsDestroyDataSinker, mockDsDestroyDataSinker);
+  taosArrayClear(task_.notification.pNotifyAddrUrls);
+  task_.task.undeployCb = captureRunnerUndeploy;
+
+  SStreamHbMsg heartbeat = {};
+  heartbeat.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(heartbeat.pStreamStatus, nullptr);
+  int32_t heartbeatCode = TSDB_CODE_FAILED;
+  gBlockRunnerPeriodLog.store(true);
+  std::thread heartbeatThread(
+      [&] { heartbeatCode = stmHbAddTaskStatus(task_.task.streamId, &heartbeat, &task_.task, task_.pStats); });
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(1);
+  while (!gRunnerPeriodLogEntered.load() && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+
+  const bool entered = gRunnerPeriodLogEntered.load();
+  if (entered) {
+    SStreamRunnerTask *pRunner = &task_;
+    EXPECT_EQ(stRunnerTaskUndeploy(&pRunner, false), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gRunnerUndeployCalls.load(), 0);
+    EXPECT_TRUE(taosHasRWWFlag(&task_.task.entryLock));
+  }
+  // Releasing the logger's last entry reference completes undeploy on this thread.
+  gBlockRunnerPeriodLog.store(false);
+  heartbeatThread.join();
+
+  EXPECT_TRUE(entered);
+  EXPECT_EQ(heartbeatCode, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gRunnerUndeployCalls.load(), 1);
+  EXPECT_EQ(task_.task.pMgmtReq, nullptr);
+  EXPECT_EQ(taosArrayGetSize(heartbeat.pStreamReq), 0);
+  auto *pStatus = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  EXPECT_NE(pStatus, nullptr);
+  if (pStatus != nullptr) EXPECT_EQ(pStatus->pMgmtReq, nullptr);
+  if (gRunnerUndeployCalls.load() == 0) {
+    UndeployRunnerForCleanup();
+  } else {
+    task_.execMgr.pRunningExecs = nullptr;
+    task_.execMgr.pFreeExecs = nullptr;
+    task_.execMgr.lockInited = false;
+    task_.execMgr.stateLockInited = false;
+    task_.notification.pNotifyAddrUrls = nullptr;
+  }
+  taosWUnLockLatch(&task_.task.entryLock);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspRejectedWithoutDeployRecordsKeepsTaskAlive) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // mnode rejected the deploy request before producing any deploy record
+  // (transient state, e.g. runner snapshot still recovering). Keep the
+  // pre-timeout behavior of not failing the task; the executor-side 60s
+  // timeout still guards the case where no response ever arrives.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspPartialFailureReturnsMnodeCodeWithoutSwapping) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pVgList = taosArrayInit(1, sizeof(SStreamTaskAddr));
+  ASSERT_NE(pVgList, nullptr);
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+  SStreamOReaderDeployRsp rsp = {};
+  rsp.execId = request_.execId;
+  rsp.vgList = pVgList;
+  ASSERT_NE(taosArrayPush(pRspList, &rsp), nullptr);
+
+  // mnode failed mid-deploy with a partially built deploy record: propagate
+  // the real mnode error and never swap in a half-baked vg list that would let
+  // the calc proceed on undeployed vgroups.
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_STREAM_INTERNAL_ERROR),
+            TSDB_CODE_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  EXPECT_NE(static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(pRspList, 0))->vgList, nullptr);
+  taosArrayDestroy(pVgList);
+  taosArrayDestroy(pRspList);
+}
+
+TEST_F(StreamRunnerTest, MgmtRspSuccessWithoutDeployRecordsReturnsRedeployTimeout) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101}, 1, false));
+  task_.topTask = false;
+  auto *pExec = Exec();
+  ASSERT_NE(pExec, nullptr);
+
+  SArray *pRspList = taosArrayInit(1, sizeof(SStreamOReaderDeployRsp));
+  ASSERT_NE(pRspList, nullptr);
+
+  // A success response without deploy records means the redeploy chain is
+  // broken: fail with the explicit timeout so the calc stops retrying
+  // need-redeploy forever (defect 7138880370).
+  EXPECT_EQ(stRunnerSetMgmtRsp(&task_, pRspList, TSDB_CODE_SUCCESS), TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT);
+  EXPECT_EQ(pExec->runtimeInfo.vtableDeployInfo.addedVgInfo, nullptr);
+  taosArrayDestroy(pRspList);
 }
 
 TEST_F(StreamRunnerTest, TaskDestroyStopsOperatorBeforeCleaningRetainedOwners) {
@@ -5973,10 +6242,29 @@ TEST_F(StreamRunnerTest, NestedGroupNoticesDoNotRequireLeafIdentity) {
   for (int32_t notifyType : notifyTypes) {
     OwnedTriggerCalcRequest request;
     ASSERT_TRUE(makeNestedRunnerGroupNoticeRequest(&request.value, notifyType));
+    request.value.stbPartByTbname = false;  // Direct child sources keep this execution flag clear.
+    request.value.groupColVals = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(request.value.groupColVals, nullptr);
+    SStreamGroupValue nameValue = {};
+    nameValue.isTbname = notifyType == STRIGGER_EVENT_IDLE;
+    nameValue.data.type = TSDB_DATA_TYPE_VARCHAR;
+    nameValue.data.pData = reinterpret_cast<uint8_t *>(taosStrdup("source_subtable"));
+    ASSERT_NE(nameValue.data.pData, nullptr);
+    nameValue.data.nData = static_cast<int32_t>(strlen("source_subtable"));
+    ASSERT_NE(taosArrayPush(request.value.groupColVals, &nameValue), nullptr);
     EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request.value, 1000));
   }
 
   ASSERT_EQ(2U, gRunnerNotifyPayloads.size());
+  for (size_t i = 0; i < 2; ++i) {
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> root(cJSON_Parse(gRunnerNotifyPayloads[i].c_str()), cJSON_Delete);
+    ASSERT_NE(root, nullptr);
+    cJSON *stream = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(root.get(), "streams"), 0);
+    cJSON *event = cJSON_GetArrayItem(cJSON_GetObjectItemCaseSensitive(stream, "events"), 0);
+    cJSON *name = cJSON_GetObjectItemCaseSensitive(event, "triggerTableName");
+    ASSERT_TRUE(cJSON_IsString(name));
+    EXPECT_STREQ(name->valuestring, i == 0 ? "source_subtable" : "");
+  }
   EXPECT_EQ(kGroupTriggerId, runnerNotifyTriggerId(gRunnerNotifyPayloads[0]));
   EXPECT_EQ(kGroupTriggerId, runnerNotifyTriggerId(gRunnerNotifyPayloads[1]));
 }

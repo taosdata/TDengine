@@ -74,6 +74,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
 #define STREAM_READER_DIMENSION_BATCH_FRAME_VERSION 1
 #define STREAM_RUNNER_EOG_BATCH_FRAME_VERSION  1
+#define STREAM_EXTERNAL_WINDOW_PREV_FRAME_VERSION 1
 #define STREAM_RUNNER_FETCH_BATCH_VERSION      1
 #define STREAM_RUNNER_EOG_BATCH_MAX            64
 #define STREAM_READER_FETCH_BATCH_VERSION      1
@@ -88,6 +89,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
 #define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
+#define STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC UINT32_C(0x4e574550)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
@@ -576,6 +578,27 @@ typedef enum EStreamTaskType {
 
 static const char* gStreamTaskTypeStr[] = {"Reader", "Trigger", "Runner"};
 
+// Bounds-checked accessors for the static stream enum string tables.
+// type/status may be supplied on the wire (e.g. a forged stream heartbeat) and,
+// if out of range, would index far past the end of the table and either crash the
+// mnode (reading an invalid pointer as a C string) or leak adjacent memory via
+// SHOW STREAM TASKS (CWE-129: Improper Array Index Validation). These helpers
+// always stay within the table and return a fixed fallback string instead.
+static inline const char* mndStreamTaskTypeStr(int32_t type) {
+  if (type < STREAM_READER_TASK || type > STREAM_RUNNER_TASK) {
+    return "UnknownTaskType";
+  }
+  return gStreamTaskTypeStr[type];
+}
+
+static inline const char* mndStreamStatusStr(int32_t status) {
+  int32_t n = (int32_t)(sizeof(gStreamStatusStr) / sizeof(gStreamStatusStr[0]));
+  if (status < STREAM_STATUS_UNDEPLOYED || status >= n) {
+    return "UnknownStatus";
+  }
+  return gStreamStatusStr[status];
+}
+
 /* External source trigger spec, carried for each EXT reader task in
  * SCMCreateStreamReq.extSpecs (SArray<SStreamExtTriggerSpec*>)  -  this is the
  * sole persisted home; SStreamObj itself does not keep a separate copy.
@@ -763,6 +786,11 @@ typedef struct SStreamExtOrigTblReaderBinding {
   int8_t  kind;  // EStreamExtOrigTblReaderBindingKind
   char    externalColumn[TSDB_COL_NAME_LEN];
   int8_t  expectedType;
+  // Declared precision/scale of the virtual column. Only checked for DECIMAL bindings: a remote
+  // DECIMAL whose precision/scale changed after the stream was created would otherwise be accepted
+  // (same type enum) and silently re-interpret the integer payload under the virtual column's scale.
+  int8_t  expectedPrecision;
+  int8_t  expectedScale;
   int32_t resultColumnSlot;
 } SStreamExtOrigTblReaderBinding;
 
@@ -1857,6 +1885,8 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t sessionId;
   uint64_t streamGen;
   bool    withExternalWindow;
+  // Valid only with withExternalWindow; sent in the SResFetchReq capability frame.
+  bool    externalWindowNeedsPrevRow;
   bool    isWindowTrigger;
   int8_t  precision;
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1

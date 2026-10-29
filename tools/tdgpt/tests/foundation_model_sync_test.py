@@ -41,8 +41,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taosanalytics.tsfm import executor, foundation_model, response_event
-from taosanalytics.tsfm.foundation_models_db import (
+from lib.tsfm.mgmt import executor, foundation_model, response_event
+from lib.tsfm.mgmt.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     init_dao,
@@ -73,7 +73,13 @@ def dao():
     # The resume trigger is a process-wide flag; every test starts fresh.
     foundation_model._PENDING_DELETES_RESUMED = False
 
-    yield handle
+    # Reconciliation asks the host's inventory what is installed. Stubbed here so
+    # no test depends on the machine it runs on or spawns the CLI; the tests that
+    # care about the answer patch it themselves.
+    with patch(
+        "lib.tsfm.mgmt.foundation_util.installed_resource_names", return_value=None
+    ):
+        yield handle
 
     Path(temp_db_path).unlink(missing_ok=True)
 
@@ -92,7 +98,7 @@ class TestRunningStateReconciliation:
     """The cached `running` flag is rebuilt from the pid files, never assumed."""
 
     def test_live_worker_marks_the_model_running(self, dao):
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=["moirai"]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["moirai"]):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 1
@@ -102,7 +108,7 @@ class TestRunningStateReconciliation:
         """The crash case: the column says running, no worker exists."""
         dao.update_model("moirai", running=True)
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 1
@@ -112,7 +118,7 @@ class TestRunningStateReconciliation:
         """An unreadable liveness is not evidence that the model is stopped."""
         dao.update_model("moirai", running=True)
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=None):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=None):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 0
@@ -120,7 +126,7 @@ class TestRunningStateReconciliation:
 
     def test_a_worker_without_a_row_is_ignored(self, dao):
         """A live worker the catalog does not know leaves every flag alone."""
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=["chronos"]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["chronos"]):
             corrected = foundation_model.reconcile_model_running_state()
 
         assert corrected == 0
@@ -143,7 +149,7 @@ class TestRunningStateReconciliation:
         """A model stuck in 'starting' with no live worker reverts to idle."""
         dao.update_model("moirai", model_state="starting")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "idle"
@@ -152,7 +158,7 @@ class TestRunningStateReconciliation:
         """A model stuck in 'stopping' whose worker is gone is treated as idle."""
         dao.update_model("moirai", running=True, model_state="stopping")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "idle"
@@ -161,7 +167,7 @@ class TestRunningStateReconciliation:
         """A model stuck in 'stopping' whose worker is still alive reverts to started."""
         dao.update_model("moirai", running=True, model_state="stopping")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=["moirai"]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["moirai"]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "started"
@@ -170,10 +176,116 @@ class TestRunningStateReconciliation:
         """A model in 'deleting' is left alone; the re-queue mechanism handles it."""
         dao.update_model("moirai", model_state="deleting")
 
-        with patch("taosanalytics.tsfm.foundation_util.live_worker_names", return_value=[]):
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
             foundation_model.reconcile_model_running_state()
 
         assert dao.get_model("moirai").model_state == "deleting"
+
+    def test_a_model_whose_files_are_gone_is_missing_not_idle(self, dao):
+        """`downloaded` is only a cache of the inventory; the files decide.
+
+        A directory removed from the CLI (or by hand) leaves the flag set, and a
+        stale `started` on top of it. Reconciliation must land on `missing`.
+        """
+        dao.update_model("moirai", model_state="started", downloaded=True, running=True)
+
+        with patch(
+            "lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]
+        ), patch(
+            "lib.tsfm.mgmt.foundation_util.installed_resource_names", return_value=[]
+        ):
+            foundation_model.reconcile_model_running_state()
+
+        model = dao.get_model("moirai")
+        assert model.model_state == "missing"
+        assert model.downloaded is False
+
+    def test_a_model_installed_out_of_band_is_idle(self, dao):
+        """The reverse direction: installed from the CLI, flag never written."""
+        dao.update_model("moirai", model_state="missing", downloaded=False, running=False)
+
+        with patch(
+            "lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]
+        ), patch(
+            "lib.tsfm.mgmt.foundation_util.installed_resource_names", return_value=["moirai"]
+        ):
+            foundation_model.reconcile_model_running_state()
+
+        model = dao.get_model("moirai")
+        assert model.model_state == "idle"
+        assert model.downloaded is True
+
+    def test_an_unreadable_inventory_changes_nothing(self, dao):
+        """An unknown answer is not evidence that the files were removed."""
+        dao.update_model("moirai", model_state="idle", downloaded=True)
+
+        with patch(
+            "lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]
+        ), patch(
+            "lib.tsfm.mgmt.foundation_util.installed_resource_names", return_value=None
+        ):
+            foundation_model.reconcile_model_running_state()
+
+        model = dao.get_model("moirai")
+        assert model.model_state == "idle"
+        assert model.downloaded is True
+
+    def test_started_with_a_dead_worker_reverts_to_idle(self, dao):
+        """The crash case for model_state: 'started' only permits 'stopping'.
+
+        Leaving it would refuse both the next start and every delete, so the
+        model is wedged until someone edits the database.
+        """
+        dao.update_model("moirai", downloaded=True, running=True, model_state="started")
+
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
+            foundation_model.reconcile_model_running_state()
+
+        model = dao.get_model("moirai")
+        assert model.model_state == "idle"
+        assert model.running is False
+
+    def test_started_without_installed_files_reverts_to_missing(self, dao):
+        """No worker and nothing installed: the download is what has to restart."""
+        dao.update_model("moirai", downloaded=False, running=True, model_state="started")
+
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
+            foundation_model.reconcile_model_running_state()
+
+        assert dao.get_model("moirai").model_state == "missing"
+
+    def test_started_with_a_live_worker_is_left_alone(self, dao):
+        dao.update_model("moirai", downloaded=True, running=True, model_state="started")
+
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["moirai"]):
+            foundation_model.reconcile_model_running_state()
+
+        assert dao.get_model("moirai").model_state == "started"
+
+    def test_idle_with_a_live_worker_becomes_started(self, dao):
+        """A worker started from the CLI is not reflected in the row either."""
+        dao.update_model("moirai", downloaded=True, running=False, model_state="idle")
+
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=["moirai"]):
+            foundation_model.reconcile_model_running_state()
+
+        model = dao.get_model("moirai")
+        assert model.model_state == "started"
+        assert model.running is True
+
+    def test_a_download_left_downloading_by_a_restart_reverts(self, dao):
+        """No download survives a restart, so a leftover 'downloading' is stale.
+
+        Without this the model could not be downloaded again: the state machine
+        only lets 'downloading' move to 'idle' or 'missing', and nothing else
+        corrects the row.
+        """
+        dao.update_model("moirai", downloaded=False, model_state="downloading")
+
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
+            foundation_model.reconcile_model_running_state()
+
+        assert dao.get_model("moirai").model_state == "missing"
 
 
 class TestStartupPolicy:
@@ -341,11 +453,11 @@ class TestDeleteDeferral:
     @staticmethod
     def _run(task_id="delete-moirai-9", returncode=75, stderr=""):
         with patch(
-            "taosanalytics.tsfm.foundation_util.get_taosanodectl_cmd", return_value=["taosanodectl"]
+            "lib.tsfm.mgmt.foundation_util.get_taosanodectl_cmd", return_value=["taosanodectl"]
         ), patch(
-            "taosanalytics.tsfm.foundation_util.resolve_resource_settings", return_value=("http://x", 30)
+            "lib.tsfm.mgmt.foundation_util.resolve_resource_settings", return_value=("http://x", 30)
         ), patch(
-            "taosanalytics.tsfm.foundation_model.subprocess.run"
+            "lib.tsfm.mgmt.foundation_model.subprocess.run"
         ) as run:
             run.return_value = Mock(returncode=returncode, stdout="", stderr=stderr)
             return foundation_model._run_model_delete_task(task_id, "moirai")
@@ -643,3 +755,131 @@ class TestWorkerOutcomeRecording:
 
         with pytest.raises(KeyboardInterrupt):
             self._drive(result={"status": "completed"}, complete=complete)
+
+
+class TestConditionalStateWrites:
+    """`model_state` is written with a compare-and-set, flags ride in the same write.
+
+    Several writers touch one row: the worker recording its operation's outcome and
+    a request reconciling a worker that died. Without the conditional write the
+    later one silently replaced the earlier answer, and the state could be moved
+    back to a lifecycle that was already over.
+    """
+
+    def test_a_write_that_lost_the_state_does_not_land(self, dao):
+        dao.update_model("moirai", model_state="idle")
+        # Another writer moved the row on between our read and our write.
+        dao.update_model("moirai", model_state="deleting")
+
+        assert (
+            dao.update_model_if_state_unchanged("moirai", "idle", model_state="starting")
+            is False
+        )
+        assert dao.get_model("moirai").model_state == "deleting"
+
+    def test_a_lost_write_re_reads_and_judges_again(self, dao):
+        """The loser must not overwrite: it re-reads and re-judges its operation."""
+        dao.update_model("moirai", model_state="downloading")
+        _create(dao, "download-moirai-retry", "download", "running")
+
+        moved = {"count": 0}
+        real = dao.update_model_if_state_unchanged
+
+        def lose_once(name, expected_state, **fields):
+            if moved["count"] == 0:
+                moved["count"] += 1
+                # Simulate the winner having recorded the same outcome already.
+                real(name, expected_state, model_state="idle")
+                return False
+            return real(name, expected_state, **fields)
+
+        with patch.object(dao, "update_model_if_state_unchanged", side_effect=lose_once):
+            error = foundation_model._advance_model_state(dao, "moirai", "download", "completed")
+
+        assert error is None
+        assert moved["count"] == 1
+        assert dao.get_model("moirai").model_state == "idle"
+
+    def test_a_completed_download_records_state_and_flag_together(self, dao):
+        dao.update_model("moirai", model_state="downloading", downloaded=False, running=False)
+        _create(dao, "download-moirai-together", "download", "running")
+
+        foundation_model._complete_async_operation(
+            "download-moirai-together", "moirai", "download", "completed"
+        )
+
+        model = dao.get_model("moirai")
+        assert model.model_state == "idle"
+        assert model.downloaded is True
+
+    def test_a_refused_completion_is_repaired_not_swallowed(self, dao):
+        """A refused transition is escalated and the state is re-derived.
+
+        The legacy flags are deliberately left alone: writing them would describe
+        an outcome the state machine just refused.
+        """
+        dao.update_model("moirai", model_state="started", downloaded=True, running=False)
+        _create(dao, "delete-moirai-refused", "delete", "running")
+
+        with patch("lib.tsfm.mgmt.foundation_util.live_worker_names", return_value=[]):
+            foundation_model._complete_async_operation(
+                "delete-moirai-refused", "moirai", "delete", "completed"
+            )
+
+        model = dao.get_model("moirai")
+        # `started -> missing` is refused, so the pid files decide instead.
+        assert model.model_state == "idle"
+        assert model.downloaded is True
+
+
+class TestCliInflightDownloads:
+    """The CLI task file is the record that survives a restart of this API.
+
+    A restart marks a running download `interrupted`, while the detached
+    `resource apply` child keeps writing the model directory -- so asking only
+    `async_operations` would let a delete through in the middle of an install.
+    """
+
+    @staticmethod
+    def _task(status, minutes_ago=0.0, name="moirai", kind="model"):
+        from datetime import timedelta
+
+        stamp = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
+        return {"kind": kind, "name": name, "status": status, "updated_at": stamp.isoformat()}
+
+    def test_a_fresh_task_file_witnesses_a_live_download(self, dao):
+        with patch(
+            "lib.tsfm.mgmt.foundation_model._read_resource_task_states",
+            return_value=[self._task("downloading")],
+        ):
+            assert foundation_model._cli_inflight_downloads() == ["moirai"]
+
+    def test_a_stale_task_file_is_not_evidence(self, dao):
+        with patch(
+            "lib.tsfm.mgmt.foundation_model._read_resource_task_states",
+            return_value=[self._task("importing", minutes_ago=60)],
+        ):
+            assert foundation_model._cli_inflight_downloads() == []
+
+    def test_a_finished_task_file_is_not_evidence(self, dao):
+        with patch(
+            "lib.tsfm.mgmt.foundation_model._read_resource_task_states",
+            return_value=[self._task("completed")],
+        ):
+            assert foundation_model._cli_inflight_downloads() == []
+
+    def test_a_download_only_the_task_file_knows_still_refuses_the_delete(self, dao):
+        """The row says `interrupted`; the child is still writing files."""
+        dao.update_model("moirai", model_state="downloading", downloaded=False)
+        _create(dao, "download-moirai-restarted", "download", "interrupted")
+
+        with patch(
+            "lib.tsfm.mgmt.foundation_model._read_resource_task_states",
+            return_value=[self._task("downloading", minutes_ago=1)],
+        ):
+            allowed, reason = foundation_model._validate_delete_state(
+                dao.get_model("moirai"), "moirai", "Delete", "127.0.0.1", []
+            )
+
+        assert allowed is False
+        assert "resource manager" in reason

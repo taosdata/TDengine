@@ -62,15 +62,102 @@ int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fullScan,
 
 // Drive multi-hop resolution of vtable column/tag refs on the triggering vnode.
 // Each batch is grouped by target vgId and dispatched via one RPC per vg group.
+// Resolution is seeded in bounded batches: a batch closes at
+// STREAM_VTB_RESOLVE_UID_CHUNK uids or STREAM_VTB_RESOLVE_MAX_ITEMS work items,
+// whichever comes first, and the per-batch results are merged, so the peak
+// memory is bounded by the batch size instead of the whole table list.
 // pCache (optional): caches db routing info (SUseDbRsp) across calls.
+// Its tblRefCache and uid2Result are untouched; ref caching is call-local, and
+// db -> routing lookups are memoized for the whole call (across batches).
+// The call-private ref cache retains multi-ref batches and nonempty batches
+// with unseeded uids, including sparse batches with only one remote ref.
+// A final single-ref batch does not allocate a new ref cache.
 // pReaderInfo (optional): when vtbUids is NULL/empty, all live uids are pulled
 //                          from qStreamGetTableArrayList(pReaderInfo).
+// virtColCids: NULL resolves EVERY column ref of each vtable ("full resolve");
+//              an empty array resolves no columns at all. The two sentinels are
+//              NOT symmetric with virtTagCids, so callers that only need tags
+//              must pass an empty array here, never NULL.
+// virtTagCids: NULL resolves no tags; only the listed cids are resolved.
 // Output ownership is transferred to caller (free via streamVTableResolveResultDestroy
 // + tSimpleHashCleanup in stream lib).
 int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCache,
                                     SStreamTriggerReaderInfo *pReaderInfo, int64_t ver,
                                     SArray *vtbUids, SArray *virtColCids, SArray *virtTagCids,
                                     SSHashObj **ppUid2Result);
+
+// Batch budget used by streamResolveVTableRefChain: true once the current batch
+// has consumed either budget (seeded uids or accumulated work items). The uid
+// budget alone is not enough because one virtual child table can carry an
+// arbitrary number of ref columns/tags.
+//
+// The budgets live here (not in the .c file) so the unit test pins exactly the
+// boundaries the resolver uses. A 12k-child table list used to materialize
+// ~600 MB of SResolveWorkItem entries (plus the matching response array) in a
+// single pass and produce equally huge fan-out RPC payloads; slicing bounds the
+// peak to SLICE * items-per-uid while keeping the merged result identical. 20k
+// work items is ~10 MB regardless of the table shape.
+#define STREAM_VTB_RESOLVE_UID_CHUNK   1000
+#define STREAM_VTB_RESOLVE_MAX_ITEMS   20000
+bool streamResolveBatchFull(int32_t seededUids, int32_t workItemCnt);
+
+// Build / release the call-private cache view used by
+// streamResolveVTableRefChain. dbVgInfo is borrowed from pShared (which may be
+// NULL when there is no reader cache) and is never freed here; tblRefCache is
+// created only when createRefCache is true. On success every field of pOut is
+// initialized, so callers can always pair it with streamResolveCacheDestroy().
+int32_t streamResolveCacheInit(SStreamVTableInfoCache *pOut, const SStreamVTableInfoCache *pShared,
+                               bool createRefCache);
+void    streamResolveCacheDestroy(SStreamVTableInfoCache *pCache);
+
+// Allocate the ref cache of a call-private view on demand (idempotent, NULL-safe).
+// The resolver uses it after empty batches when references first appear and
+// can be reused in this batch or by unseeded uids.
+// MUST only be passed a view created by streamResolveCacheInit(): enabling it on
+// a shared reader cache would make ref results call-mutable again.
+int32_t streamResolveCacheEnableRefCache(SStreamVTableInfoCache *pCache);
+
+// Whether a batch's reference results must be cached for this resolve call:
+// several refs inside the batch (or across hops), or a nonempty batch that
+// still has unseeded uids which may resolve the same ref later.
+bool streamResolveNeedsRefCache(int32_t workItemCnt, bool hasMoreUids);
+
+// Whether a resolve call needs the call-private cache *view* (not necessarily
+// the ref cache inside it: a view can exist without one). True when either a
+// shared reader cache exists (to borrow routing from) or this batch's refs must
+// be cached.
+bool streamResolveNeedsPrivateCacheView(const SStreamVTableInfoCache *pShared, bool needsRefCache);
+
+// Bound on the number of distinct source dbs the linear fast path of the route
+// memo remembers. One batch normally touches one or two dbs (all items share the
+// account, and a ref chain usually stays inside one db), so a small linear array
+// beats a hash allocation on this hot path. Beyond the bound a lazily created
+// hash takes over: without it, every work item of the 9th+ db would go back to
+// mnode for the same routing info, i.e. exactly the storm this memo removes.
+#define STREAM_VTB_LOCAL_DB_ROUTE_MAX 8
+
+typedef struct SStreamLocalDbRoute {
+  char       dbFName[TSDB_DB_FNAME_LEN];
+  SUseDbRsp *pRsp;
+} SStreamLocalDbRoute;
+
+// Per-resolve-call db -> routing memo, owned by streamResolveVTableRefChain and
+// passed to streamBatchRouteToVgs through streamCallResolveBatched. Owns the
+// SUseDbRsp entries it holds (both the inline slots and the overflow hash);
+// streamDbRouteMemoDestroy() releases them.
+typedef struct SStreamDbRouteMemo {
+  SStreamLocalDbRoute slots[STREAM_VTB_LOCAL_DB_ROUTE_MAX];
+  int32_t             num;
+  SHashObj           *pOverflow;  // dbFName -> SUseDbRsp*, created on the first overflow
+} SStreamDbRouteMemo;
+
+void       streamDbRouteMemoInit(SStreamDbRouteMemo *pMemo);
+SUseDbRsp *streamDbRouteMemoGet(SStreamDbRouteMemo *pMemo, const char *dbFName);
+// Takes ownership of pRsp on success (TSDB_CODE_SUCCESS only); on any failure,
+// including TSDB_CODE_DUP_KEY, the caller keeps ownership and must release pRsp
+// after use.
+int32_t    streamDbRouteMemoPut(SStreamDbRouteMemo *pMemo, const char *dbFName, SUseDbRsp *pRsp);
+void       streamDbRouteMemoDestroy(SStreamDbRouteMemo *pMemo);
 
 // Resolve virtual child table tag chains for a list of STUidTagInfo. If suid is not
 // a virtual super table this is a no-op. For each vchild uid that resolves, the

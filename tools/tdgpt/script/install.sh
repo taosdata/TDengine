@@ -177,11 +177,14 @@ function resolve_requirement_file() {
     echo "${script_dir}/${req_name}"
   elif [ -f "${script_dir}/../${req_name}" ]; then
     echo "${script_dir}/../${req_name}"
+  elif [ -f "${script_dir}/../lib/${req_name}" ]; then
+    echo "${script_dir}/../lib/${req_name}"
   else
     echo -e "${RED}Error: Requirements file not found: ${req_name}${NC}"
     echo -e "${RED}Searched in:${NC}"
     echo -e "${RED}  - ${script_dir}/${req_name}${NC}"
     echo -e "${RED}  - ${script_dir}/../${req_name}${NC}"
+    echo -e "${RED}  - ${script_dir}/../lib/${req_name}${NC}"
     return 1
   fi
 }
@@ -297,9 +300,10 @@ function kill_process() {
 }
 
 function kill_model_service() {
-  for script in stop-tdtsfm.sh stop-time-moe.sh; do
-    script_path="${installDir}/bin/${script}"
-    [ -f "${script_path}" ] && ${csudo}bash "${script_path}" || :
+  # Kill model server processes directly to avoid relying on potentially stale
+  # installed stop scripts from a previous version with a different CLI interface.
+  for pattern in tdtsfm_server timemoe_server moirai_server chronos_server timesfm_server moment_server; do
+    ${csudo}pkill -f "${pattern}" || :
   done
 }
 
@@ -332,15 +336,18 @@ function install_bin_and_lib() {
   [ -L "${bin_link_dir}/rmtaosanode" ] && ${csudo}rm -rf "${bin_link_dir}/rmtaosanode" || :
   ${csudo}ln -s "${install_main_dir}/bin/uninstall.sh" "${bin_link_dir}/rmtaosanode"
 
+  # Remove links left by earlier packages before installing the current commands.
+  local legacy_link
+  for legacy_link in start-tdtsfm stop-tdtsfm start-time-moe stop-time-moe start-model-from-remote; do
+    if [ -L "${bin_link_dir}/${legacy_link}" ]; then
+      ${csudo}rm -f "${bin_link_dir}/${legacy_link}"
+    fi
+  done
+
   # Create an array of link names and target scripts
   declare -A links=(
-    ["start-tdtsfm"]="${install_main_dir}/bin/start-tdtsfm.sh"
-    ["stop-tdtsfm"]="${install_main_dir}/bin/stop-tdtsfm.sh"
-    ["start-time-moe"]="${install_main_dir}/bin/start-time-moe.sh"
-    ["stop-time-moe"]="${install_main_dir}/bin/stop-time-moe.sh"
     ["start-model"]="${install_main_dir}/bin/start-model.sh"
     ["stop-model"]="${install_main_dir}/bin/stop-model.sh"
-    ["start-model-from-remote"]="${install_main_dir}/bin/start_model_from_remote.sh"
   )
 
   # Iterate over the array and create/remove links as needed
@@ -468,7 +475,7 @@ function install_img() {
 
 function install_resource() {
   ${csudo}mkdir -p ${resourceDir} && ${csudo}chmod 777 ${resourceDir}
-  if [ ${custom_dir_set} -eq 0 ];then 
+  if [ ${custom_dir_set} -eq 0 ];then
     ${csudo}ln -sf ${resourceDir} ${install_main_dir}/resource
   fi
   # Legacy SQL samples are optional in current release packages.
