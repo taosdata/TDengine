@@ -26,15 +26,15 @@ target_include_directories(
 )
 # link the whole dnode library: mgmt_vnode alone leaves dmNotifyHdl (referenced from vnode) and the
 # dnode-module symbols mgmt_dnode pulls in unresolved.
-# GNU ld scans each static archive once. vnode/mnode are pulled after mgmt_dnode and mgmt_mnode,
-# so mark the symbols they need as undefined before that scan.
-target_link_options(
+# GNU ld scans each static archive once, and vnode/mnode are pulled after the
+# dnode archives that define dmNotifyHdl, dmStop and mmReadFile. Rescan that cycle.
+target_link_libraries(
     vmReplicaCfgTest
     PRIVATE
-        "LINKER:--undefined=dmNotifyHdl"
-        "LINKER:--undefined=mmReadFile"
-        "LINKER:--undefined=mmWriteFile"
+        os
+        util
+        common
+        "$<LINK_GROUP:RESCAN,dnode,mgmt_dnode,dmodule,node_util,mgmt_mnode,mnode,vnode>"
 )
-target_link_libraries(vmReplicaCfgTest PRIVATE os util common dnode)
 
 add_test(NAME vmReplicaCfgTest COMMAND vmReplicaCfgTest)
