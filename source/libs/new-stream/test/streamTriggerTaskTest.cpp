@@ -26851,6 +26851,44 @@ TEST(StreamTriggerTaskRecalcTest, UnmarkedDeleteRangeDoesNotWaitForUnrelatedWind
   taosMemoryFree(ready);
 }
 
+TEST(StreamTriggerTaskRecalcTest, DeleteAfterEmptyPendingQueueUsesAdvancedProgress) {
+  for (int64_t gid : {0, 1}) {
+    SCOPED_TRACE(gid);
+    CountRecalcFixture fixture;
+    fixture.task_.triggerType = STREAM_TRIGGER_STATE;
+    fixture.group_.gid = gid;
+    fixture.group_.oldThreshold = 5999;
+    fixture.group_.newThreshold = 6000;
+    STimeWindow range = {4000, 4000};
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &range, false, false, false, 0),
+              TSDB_CODE_SUCCESS);
+    SSTriggerRecalcRequest* ready = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &ready), TSDB_CODE_SUCCESS);
+    ASSERT_NE(ready, nullptr);
+    stTriggerTaskDestroyRecalcRequest(&ready);
+
+    // Realtime calculation advances while there are no pending recalculations.
+    fixture.group_.oldThreshold = 12000;
+    fixture.group_.newThreshold = 12000;
+    ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), TSDB_CODE_SUCCESS);
+
+    // A subsequent delete must be ready without another input or readiness check.
+    range = {6000, 6000};
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &range, false, false, false, 0),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &ready), TSDB_CODE_SUCCESS);
+    EXPECT_NE(ready, nullptr);
+    if (ready != nullptr) {
+      EXPECT_EQ(ready->gid, gid);
+      EXPECT_EQ(ready->calcRange.skey, 6000);
+      EXPECT_EQ(ready->calcRange.ekey, 6000);
+    }
+    stTriggerTaskDestroyRecalcRequest(&ready);
+    // Also drain the request on the unfixed implementation before teardown.
+    EXPECT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), TSDB_CODE_SUCCESS);
+  }
+}
+
 int32_t compareRealtimeMaxDelayGroups(const HeapNode* lhs, const HeapNode* rhs);
 
 class StreamTriggerObservabilityTest : public ::testing::Test {
