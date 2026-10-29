@@ -36,6 +36,7 @@ class TestStreamAutoCreateOutputTable:
             - StreamProcessing:Others
 
         Labels: common,ci,integration,functional
+
         Jira: ID-6490870739
 
         History:
@@ -181,6 +182,70 @@ class TestStreamAutoCreateOutputTable:
             retry=60,
         )
         tdStream.checkStreamStatus("s")
+
+    def test_nodelay_virtual_groups_with_shared_sources(self):
+        """Create virtual-group output tables once and continue periodic calculation.
+
+        Two virtual children reference the same two physical source tables.
+        Keep NODELAY_CREATE_SUBTABLE enabled, verify both result children exist,
+        then write new source data and check both groups produce results.
+
+        Catalog:
+            - StreamProcessing:Others
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,regression
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7149665856
+
+        History:
+            - 2026-10-29 Added regression for overlapping nodelay responses.
+        """
+        tdStream.ensureSnode()
+        tdSql.executes(
+            [
+                "drop database if exists nodelay_shared;",
+                "create database nodelay_shared vgroups 1;",
+                "create table nodelay_shared.a (ts timestamp, value int);",
+                "create table nodelay_shared.b (ts timestamp, value int);",
+                "create stable nodelay_shared.vst (ts timestamp, x int, y int) "
+                "tags (device int) virtual 1;",
+                "create vtable nodelay_shared.v1 "
+                "(x from nodelay_shared.a.value, y from nodelay_shared.b.value) "
+                "using nodelay_shared.vst tags (1);",
+                "create vtable nodelay_shared.v2 "
+                "(x from nodelay_shared.b.value, y from nodelay_shared.a.value) "
+                "using nodelay_shared.vst tags (2);",
+                "insert into nodelay_shared.a values (now - 1m, 1) "
+                "nodelay_shared.b values (now - 1m, 2);",
+                "create stream nodelay_shared.shared_period period(1s) "
+                "from nodelay_shared.vst partition by tbname "
+                "stream_options(ignore_disorder|ignore_nodata_trigger) "
+                "into nodelay_shared.out nodelay_create_subtable "
+                "output_subtable(concat('out_', tbname)) "
+                "as select cast(_tlocaltime / 1000000 as timestamp) as ts, "
+                "last(x) + last(y) as total from %%tbname;",
+            ]
+        )
+        tdSql.checkResultsByFunc(
+            sql="select tags tbname from nodelay_shared.out order by tbname",
+            func=lambda: tdSql.getRows() == 2
+            and tdSql.compareData(0, 0, "out_v1")
+            and tdSql.compareData(1, 0, "out_v2"),
+            retry=60,
+        )
+        tdSql.execute(
+            "insert into nodelay_shared.a values (now, 10) "
+            "nodelay_shared.b values (now, 20)"
+        )
+        for table in ("out_v1", "out_v2"):
+            tdSql.checkResultsByFunc(
+                sql=f"select total from nodelay_shared.{table} order by ts desc limit 1",
+                func=lambda: tdSql.getRows() == 1 and tdSql.compareData(0, 0, 30),
+                retry=60,
+            )
+        tdStream.checkStreamStatus("shared_period")
 
     def prepareData(self):
         tdLog.info(f"prepare data")
