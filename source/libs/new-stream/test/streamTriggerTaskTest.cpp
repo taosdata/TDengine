@@ -31464,6 +31464,239 @@ TEST_F(StreamCalcRequestAdmissionCreateTableProducerTest, NodelayCreateRequestCo
   EXPECT_EQ(context_.status, STRIGGER_CONTEXT_IDLE);
 }
 
+class StreamTriggerNodelayResponseTest : public StreamCalcRequestAdmissionCreateTableProducerTest {
+ protected:
+  struct PendingResponse {
+    int64_t       gid = 0;
+    SMsgSendInfo* sendInfo = nullptr;
+  };
+
+  void SetUp() override {
+    StreamCalcRequestAdmissionCreateTableProducerTest::SetUp();
+    current_ = this;
+    stub_.reset(tmsgSendReq);
+    stub_.set(tmsgSendReq, CaptureRequest);
+    task_.task.type = STREAM_TRIGGER_TASK;
+    task_.addOptions = 0;
+    task_.lowLatencyCalc = true;
+    task_.triggerType = STREAM_TRIGGER_PERIOD;
+    auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
+    taosArrayDestroy(node->pSlots);
+    node->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), 3);
+    ASSERT_NE(node->pSlots, nullptr);
+    node->idleSlots = {};
+    for (int32_t i = 0; i < 3; ++i) {
+      auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, i));
+      TD_DLIST_APPEND(&node->idleSlots, slot);
+    }
+    taosInitRWLatch(&task_.readerProgressLock);
+    task_.pReaderProgressSnapshots = taosArrayInit(1, sizeof(SStreamReaderProgressSnapshot));
+    ASSERT_NE(task_.pReaderProgressSnapshots, nullptr);
+    progress_ = static_cast<SSTriggerWalProgress*>(
+        tSimpleHashGet(context_.pReaderWalProgress, &reader_.nodeId, sizeof(reader_.nodeId)));
+    ASSERT_NE(progress_, nullptr);
+    progress_->groupColValuePullInFlight = true;
+    progress_->groupColValuePullGid = kCreateTableGroupId;
+    progress_->pullType = STRIGGER_PULL_GROUP_COL_VALUE;
+  }
+
+  void TearDown() override {
+    for (const auto& response : pulls_) destroyAhandle(response.sendInfo);
+    for (const auto& response : creates_) destroyAhandle(response.sendInfo);
+    for (SArray* array : virtualArrays_) taosArrayDestroy(array);
+    tSimpleHashCleanup(task_.pOrigTableInfos);
+    tSimpleHashCleanup(task_.pVirtTableInfos);
+    tSimpleHashCleanup(task_.pHistoryCutoffTime);
+    taosArrayDestroy(task_.pReaderProgressSnapshots);
+    current_ = nullptr;
+    StreamCalcRequestAdmissionCreateTableProducerTest::TearDown();
+  }
+
+  static int32_t CaptureRequest(const SEpSet*, SRpcMsg* msg) {
+    auto*           sendInfo = static_cast<SMsgSendInfo*>(msg->info.ahandle);
+    auto*           handle = static_cast<SSTriggerAHandle*>(sendInfo->param);
+    PendingResponse response;
+    response.sendInfo = sendInfo;
+    if (msg->msgType == TDMT_STREAM_TRIGGER_PULL) {
+      response.gid = static_cast<SSTriggerGroupColValueRequest*>(handle->param)->gid;
+      current_->pulls_.push_back(response);
+    } else {
+      auto* request = static_cast<SSTriggerCalcRequest*>(handle->param);
+      EXPECT_EQ(msg->msgType, TDMT_STREAM_TRIGGER_CALC);
+      EXPECT_EQ(request->createTable, 1);
+      response.gid = request->gid;
+      current_->creates_.push_back(response);
+    }
+    rpcFreeCont(msg->pCont);
+    msg->pCont = nullptr;
+    msg->info.ahandle = nullptr;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t Dispatch(int32_t type, SMsgSendInfo* sendInfo, void* payload = nullptr, int32_t len = 0) {
+    SRpcMsg response = {};
+    response.msgType = type;
+    response.code = TSDB_CODE_SUCCESS;
+    response.info.ahandle = sendInfo;
+    response.pCont = payload;
+    response.contLen = len;
+    int64_t errorTaskId = 0;
+    return stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+  }
+
+  int32_t RespondInitialPull(void* payload = nullptr, int32_t len = 0) {
+    SSTriggerAHandle handle = {};
+    handle.param = &progress_->pullReq.base;
+    handle.pullOwner = progress_;
+    SMsgSendInfo sendInfo = {};
+    sendInfo.param = &handle;
+    return Dispatch(TDMT_STREAM_TRIGGER_PULL_RSP, &sendInfo, payload, len);
+  }
+
+  int32_t Respond(std::vector<PendingResponse>& responses, size_t index, int32_t type) {
+    if (index >= responses.size() || responses[index].sendInfo == nullptr) return TSDB_CODE_INVALID_PARA;
+    SMsgSendInfo* sendInfo = responses[index].sendInfo;
+    responses[index].sendInfo = nullptr;
+    int32_t code = Dispatch(type, sendInfo);
+    destroyAhandle(sendInfo);
+    return code;
+  }
+
+  int32_t RespondPull(size_t index) { return Respond(pulls_, index, TDMT_STREAM_TRIGGER_PULL_RSP); }
+  int32_t RespondCreate(size_t index) { return Respond(creates_, index, TDMT_STREAM_TRIGGER_CALC_RSP); }
+
+  void AppendGroup(int64_t gid) {
+    SSTriggerPendingCreateTableEntry entry = {};
+    entry.gid = gid;
+    entry.pProgress = progress_;
+    entry.attemptCount = 1;
+    ASSERT_NE(taosArrayPush(context_.pPendingCreateTableGids, &entry), nullptr);
+  }
+
+  void PrepareVirtualSources() {
+    task_.isVirtualTable = true;
+    task_.virTableInfoReady = true;
+    task_.pOrigTableInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pVirtTableInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pHistoryCutoffTime = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(task_.pOrigTableInfos, nullptr);
+    ASSERT_NE(task_.pVirtTableInfos, nullptr);
+    ASSERT_NE(task_.pHistoryCutoffTime, nullptr);
+    for (int64_t uid : {1001, 1002}) {
+      SSTriggerVirtTableInfo info = {};
+      info.vgId = reader_.nodeId;
+      info.tbGids = taosArrayInit(1, sizeof(int64_t));
+      ASSERT_NE(info.tbGids, nullptr);
+      virtualArrays_.push_back(info.tbGids);
+      int64_t gid = kCreateTableGroupId + uid - 1001;
+      ASSERT_NE(taosArrayPush(info.tbGids, &gid), nullptr);
+      ASSERT_EQ(tSimpleHashPut(task_.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), TSDB_CODE_SUCCESS);
+    }
+    for (int64_t uid : {2001, 2002}) {
+      SSTriggerOrigTableInfo info = {};
+      info.pVtbUids = taosArrayInit(2, sizeof(int64_t));
+      ASSERT_NE(info.pVtbUids, nullptr);
+      virtualArrays_.push_back(info.pVtbUids);
+      for (int64_t virtualUid : {1002, 1001}) ASSERT_NE(taosArrayPush(info.pVtbUids, &virtualUid), nullptr);
+      ASSERT_EQ(tSimpleHashPut(task_.pOrigTableInfos, &uid, sizeof(uid), &info, sizeof(info)), TSDB_CODE_SUCCESS);
+    }
+    taosArrayClear(context_.pPendingCreateTableGids);
+    progress_->groupColValuePullInFlight = false;
+    progress_->groupColValuePullGid = 0;
+    progress_->pullReq.base.type = STRIGGER_PULL_LAST_TS;
+    progress_->pullType = STRIGGER_PULL_LAST_TS;
+  }
+
+  static StreamTriggerNodelayResponseTest* current_;
+  SSTriggerWalProgress*                    progress_ = nullptr;
+  std::vector<PendingResponse>             pulls_;
+  std::vector<PendingResponse>             creates_;
+  std::vector<SArray*>                     virtualArrays_;
+};
+
+StreamTriggerNodelayResponseTest* StreamTriggerNodelayResponseTest::current_ = nullptr;
+
+TEST_F(StreamTriggerNodelayResponseTest, CalcResponseWaitsForCachedGroupPullBeforeAdvancing) {
+  AppendGroup(kCreateTableGroupId);
+  AppendGroup(kCreateTableGroupId + 1);
+  ASSERT_EQ(RespondInitialPull(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 1U);
+  ASSERT_EQ(pulls_.size(), 1U);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids), 2);
+  EXPECT_EQ(creates_.size(), 1U);
+  EXPECT_TRUE(progress_->groupColValuePullInFlight);
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(pulls_.size(), 2U);
+  EXPECT_EQ(pulls_[1].gid, kCreateTableGroupId + 1);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 3U);
+  EXPECT_TRUE(context_.boundDetermined);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondCreate(2), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, LastCachedGroupPullMustReturnBeforeInitializationFinishes) {
+  AppendGroup(kCreateTableGroupId);
+  ASSERT_EQ(RespondInitialPull(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(context_.boundDetermined);
+  EXPECT_EQ(context_.status, STRIGGER_CONTEXT_DETERMINE_BOUND);
+  EXPECT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(context_.boundDetermined);
+  EXPECT_EQ(context_.pPendingCreateTableGids, nullptr);
+  ASSERT_EQ(creates_.size(), 2U);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, SlotReleaseResumesCreateAfterGroupPullHasReturned) {
+  AppendGroup(kCreateTableGroupId + 1);
+  AppendGroup(kCreateTableGroupId + 2);
+  ASSERT_EQ(RespondInitialPull(), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(progress_->groupColValuePullInFlight);
+  EXPECT_FALSE(context_.boundDetermined);
+  ASSERT_EQ(creates_.size(), 2U);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(creates_.size(), 3U);
+  EXPECT_EQ(creates_[2].gid, kCreateTableGroupId + 2);
+  EXPECT_TRUE(context_.boundDetermined);
+  EXPECT_EQ(context_.pPendingCreateTableGids, nullptr);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondCreate(2), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(StreamTriggerNodelayResponseTest, PhysicalSourcesCreateEachVirtualGroupOnlyOnce) {
+  PrepareVirtualSources();
+  SStreamTsResponse response = {};
+  response.ver = 1;
+  response.tsInfo = taosArrayInit(2, sizeof(STsInfo));
+  ASSERT_NE(response.tsInfo, nullptr);
+  for (int64_t uid : {2001, 2002}) {
+    STsInfo info = {};
+    info.gId = uid;
+    info.ts = 1000;
+    ASSERT_NE(taosArrayPush(response.tsInfo, &info), nullptr);
+  }
+  int32_t len = tSerializeSStreamTsResponse(nullptr, 0, &response);
+  ASSERT_GT(len, 0);
+  std::vector<char> payload(len);
+  ASSERT_EQ(tSerializeSStreamTsResponse(payload.data(), len, &response), len);
+  taosArrayDestroy(response.tsInfo);
+  ASSERT_EQ(RespondInitialPull(payload.data(), len), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(taosArrayGetSize(context_.pPendingCreateTableGids), 2);
+  ASSERT_EQ(RespondPull(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondPull(1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(pulls_.size(), 2U);
+  ASSERT_EQ(creates_.size(), 2U);
+  EXPECT_NE(creates_[0].gid, creates_[1].gid);
+  EXPECT_TRUE(context_.boundDetermined);
+  EXPECT_EQ(context_.pPendingCreateTableGids, nullptr);
+  ASSERT_EQ(RespondCreate(0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(RespondCreate(1), TSDB_CODE_SUCCESS);
+}
+
 TEST(StreamTriggerReaderDataKeyTest, InternalIdentityIncludesPhysicalSource) {
   constexpr int64_t kSuid = 0x6101;
   constexpr int64_t kUid = 0x6201;
