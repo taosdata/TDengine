@@ -3047,6 +3047,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_failed_stream_creation_releases_output_name" class="md-nav__link">
+        A failed output-table build must not retain another session's table name. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_table_not_exist_retry_rpc" class="md-nav__link">
         Avoid USE DB amplification during table-not-exist retry 
       </a>
@@ -3311,6 +3322,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_concurrent_stream_name_is_reserved" class="md-nav__link">
+        Concurrent transactions cannot create the same stream with different outputs. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stability.TestBatchMetaTxnStability.test_large_transaction_memory_pressure" class="md-nav__link">
         Large transaction with many shadow entries. 
       </a>
@@ -3478,6 +3500,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_seq_edge.TestMndTxnSeqEdgeCases.test_mnd_txn_seq" class="md-nav__link">
         Run all mndTxnSeq edge case tests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_stream_output_creation_visibility" class="md-nav__link">
+        Stream creation completes its output table and marker before returning. 
       </a>
       
     </li>
@@ -4424,6 +4457,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_failed_stream_creation_releases_output_name" class="md-nav__link">
+        A failed output-table build must not retain another session's table name. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_table_not_exist_retry_rpc.TestTableNotExistRetryRpc.test_table_not_exist_retry_rpc" class="md-nav__link">
         Avoid USE DB amplification during table-not-exist retry 
       </a>
@@ -4688,6 +4732,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_concurrent_stream_name_is_reserved" class="md-nav__link">
+        Concurrent transactions cannot create the same stream with different outputs. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_stability.TestBatchMetaTxnStability.test_large_transaction_memory_pressure" class="md-nav__link">
         Large transaction with many shadow entries. 
       </a>
@@ -4855,6 +4910,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#21-MetaData.test_meta_batch_txn_seq_edge.TestMndTxnSeqEdgeCases.test_mnd_txn_seq" class="md-nav__link">
         Run all mndTxnSeq edge case tests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_stream_output_creation_visibility" class="md-nav__link">
+        Stream creation completes its output table and marker before returning. 
       </a>
       
     </li>
@@ -5921,6 +5987,99 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
   
   
+<h2 id="21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_stream_output_creation_visibility" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_stream_output_creation_visibility" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream creation completes its output table and marker before returning.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create partitioned and NODELAY streams across multiple vgroups in transactions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Immediately check both objects, then roll back and check their removal.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_stream.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_concurrent_stream_name_is_reserved" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_concurrent_stream_name_is_reserved" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Concurrent transactions cannot create the same stream with different outputs.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Allow a stream and a stable to share a name in different transactions.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Race two transactions creating the same stream and distinct output tables.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Commit the winner, roll back the loser, and verify the winner survives.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Repeat for partitioned and NODELAY outputs, reusing the released stream name.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_stream.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_failed_stream_creation_releases_output_name" class="doc doc-heading">
+
+<a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_failed_stream_creation_releases_output_name" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>A failed output-table build must not retain another session's table name.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Fail partitioned stream creation in a database that permits only one stable.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Create and alter the same output name from another connection.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Roll back the failed transaction and verify the replacement table survives.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/21-MetaData/test_meta_batch_txn_stream.py" target="_blank">
+                      cases/21-MetaData/test_meta_batch_txn_stream.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_meta_batch_txn_stream" class="doc doc-heading">
 
 <a href="#21-MetaData.test_meta_batch_txn_stream.TestBatchMetaTxnStream.test_meta_batch_txn_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -6236,6 +6395,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Check table count scan after taosd restart</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Check count(distinct ...) function succeeds on ins_tables</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Check count with table type filter on ins_tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. Check table_name =/IN filter results on ins_tables</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

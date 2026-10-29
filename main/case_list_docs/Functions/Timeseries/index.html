@@ -2537,6 +2537,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_batch" class="md-nav__link">
+        Verify bit-state duration aggregation across batch query shapes. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_stream" class="md-nav__link">
+        Verify bit_duration stream interval aggregation. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.04-Timeseries.test_fun_ts_with_window.TestFunTsWithWindow.test_fun_ts_csum_with_window" class="md-nav__link">
         Verify csum in ordinary window queries. 
       </a>
@@ -5053,6 +5075,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_batch" class="md-nav__link">
+        Verify bit-state duration aggregation across batch query shapes. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_stream" class="md-nav__link">
+        Verify bit_duration stream interval aggregation. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.04-Timeseries.test_fun_ts_with_window.TestFunTsWithWindow.test_fun_ts_csum_with_window" class="md-nav__link">
         Verify csum in ordinary window queries. 
       </a>
@@ -5250,6 +5294,70 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/04-Timeseries/test_fun_bit_changes.py" target="_blank">
                       cases/11-Functions/04-Timeseries/test_fun_bit_changes.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_batch" class="doc doc-heading">
+
+<a href="#11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_batch" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify bit-state duration aggregation across batch query shapes.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Cover mask, flag, zero-mask, and total timeline duration semantics.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Cover NULL skipping, range lookback, empty input, and type handling.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Cover integer scalar expressions, invalid parameters, groups, and intervals.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Cover external-window predecessor lookup, WHERE bounds, and empty windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Compare cross-block and same-block interval results, including overlapping windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/04-Timeseries/test_fun_bit_duration.py" target="_blank">
+                      cases/11-Functions/04-Timeseries/test_fun_bit_duration.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_stream" class="doc doc-heading">
+
+<a href="#11-Functions.04-Timeseries.test_fun_bit_duration.TestBitDuration.test_bit_duration_stream" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Verify bit_duration stream interval aggregation.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Cover interval duration output and window-local state.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Compare stream windows with the equivalent batch query.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify empty middle windows with independent triggers and split calculation blocks.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/04-Timeseries/test_fun_bit_duration.py" target="_blank">
+                      cases/11-Functions/04-Timeseries/test_fun_bit_duration.py
                     </a>
                   </div>
         </div>
@@ -6634,6 +6742,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Type-support matrix and error cases (incl. DECIMAL64/DECIMAL128 input)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Child/super/normal tables, partition/group by</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">7. INTERVAL windows with fill(none/null/prev/linear)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">8. LOCF history across an all-NULL storage block</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

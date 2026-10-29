@@ -3335,6 +3335,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sparse_sliding_groups" class="md-nav__link">
+        Sparse sliding input must not enumerate a year of empty windows. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_true_for_start_end.TestTrueFor.test_truefor_start_streak_cross_block" class="md-nav__link">
         Start-streak rows in separate batches must all contribute to window COUNT. 
       </a>
@@ -5374,6 +5385,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sliding_trigger_check_again" class="md-nav__link">
         Sliding trigger should continue checking after one calc batch 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sparse_sliding_groups" class="md-nav__link">
+        Sparse sliding input must not enumerate a year of empty windows. 
       </a>
       
     </li>
@@ -7784,6 +7806,36 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_sliding.py" target="_blank">
                       cases/18-StreamProcessing/03-TriggerMode/test_sliding.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sparse_sliding_groups" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.03-TriggerMode.test_sliding_trigger_check_again.TestSlidingTriggerCheckAgain.test_sparse_sliding_groups" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Sparse sliding input must not enumerate a year of empty windows.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Insert two distant batches into one group and ordinary data into another.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Check both groups finish promptly with only nonempty windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/03-TriggerMode/test_sliding_trigger_check_again.py" target="_blank">
+                      cases/18-StreamProcessing/03-TriggerMode/test_sliding_trigger_check_again.py
                     </a>
                   </div>
         </div>

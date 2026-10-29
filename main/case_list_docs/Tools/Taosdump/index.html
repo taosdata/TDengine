@@ -3833,6 +3833,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#81-Tools.04-Taosdump.test_taosdump_long_ddl.TestTaosdumpLongDdl.test_taosdump_long_ddl" class="md-nav__link">
+        taosdump dumps and restores DDL longer than 65535 bytes completely 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#81-Tools.04-Taosdump.test_taosdump_precision.TestTaosdumpPrecision.test_taosdump_precision" class="md-nav__link">
         taosdump precision 
       </a>
@@ -4008,6 +4019,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#81-Tools.04-Taosdump.test_taosdump_datatypes.TestTaosdumpDataTypes.test_taosdump_datatypes" class="md-nav__link">
         taosdump data types 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#81-Tools.04-Taosdump.test_taosdump_long_ddl.TestTaosdumpLongDdl.test_taosdump_long_ddl" class="md-nav__link">
+        taosdump dumps and restores DDL longer than 65535 bytes completely 
       </a>
       
     </li>
@@ -4234,6 +4256,42 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py" target="_blank">
                       cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="81-Tools.04-Taosdump.test_taosdump_long_ddl.TestTaosdumpLongDdl.test_taosdump_long_ddl" class="doc doc-heading">
+
+<a href="#81-Tools.04-Taosdump.test_taosdump_long_ddl.TestTaosdumpLongDdl.test_taosdump_long_ddl" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>taosdump dumps and restores DDL longer than 65535 bytes completely</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a normal table, a super table, a virtual super table, a virtual</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   normal table and a virtual child table whose DDLs exceed 65535 bytes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Dump the database with taosdump</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify the dumped CREATE statements are complete (not truncated, COMMENT</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   kept; the virtual child table is stored as skeleton without TAGS, its</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   values living in vtags/)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Drop the database and restore with taosdump</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Verify SHOW CREATE output is identical to the original and data is restored</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/81-Tools/04-Taosdump/test_taosdump_long_ddl.py" target="_blank">
+                      cases/81-Tools/04-Taosdump/test_taosdump_long_ddl.py
                     </a>
                   </div>
         </div>

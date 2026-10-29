@@ -4671,6 +4671,10 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify deterministic multi-vgroup aggregates against exact expected values</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Compare FAST_INTERVAL and EX_INTERVAL results with the normal executor path</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Cover NULL inputs, empty windows, repeated execution, and unsupported shapes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify tbname with multiple tags keeps child tables separate</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Cover grouped FAST indexes exceeding 100000 slots</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Verify tag-only partial and merge FAST with shared tags across vgroups and capacity fallback</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">7. Cover grouped merge batches, unequal source counts, empty filtered output, and EXPLAIN row counts</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

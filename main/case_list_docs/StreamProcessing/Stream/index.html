@@ -3670,8 +3670,30 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_unused_ref.TestStreamVtableUnusedRef.test_rebind_deployment_scope" class="md-nav__link">
+        Stream: redeploy only for required virtual-column sources 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_agg_optimize.TestStreamVtableAggOptimize.test_stream_vtable_agg_optimize" class="md-nav__link">
         Stream: virtual super table aggregation optimization correctness 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_rebind_redeploy.TestStreamVtableRebindRedeploy.test_stream_vtable_rebind_redeploy" class="md-nav__link">
+        Stream: vtable column rebind + stream drop/create interleaving 
       </a>
       
     </li>
@@ -5944,8 +5966,30 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_unused_ref.TestStreamVtableUnusedRef.test_rebind_deployment_scope" class="md-nav__link">
+        Stream: redeploy only for required virtual-column sources 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_agg_optimize.TestStreamVtableAggOptimize.test_stream_vtable_agg_optimize" class="md-nav__link">
         Stream: virtual super table aggregation optimization correctness 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_rebind_redeploy.TestStreamVtableRebindRedeploy.test_stream_vtable_rebind_redeploy" class="md-nav__link">
+        Stream: vtable column rebind + stream drop/create interleaving 
       </a>
       
     </li>
@@ -8558,6 +8602,43 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
   
   
+<h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_rebind_redeploy.TestStreamVtableRebindRedeploy.test_stream_vtable_rebind_redeploy" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_vtable_rebind_redeploy.TestStreamVtableRebindRedeploy.test_stream_vtable_rebind_redeploy" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream: vtable column rebind + stream drop/create interleaving</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Covers:</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  1. Period stream on a 3-child virtual super table with a coexisting</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     CALC_NOTIFY_ONLY stream on the same vst</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  2. Four rounds of runtime column rebind across source vgroups,</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     interleaved with DROP/CREATE of the Period stream</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  3. After each round the stream must stay Running and the latest</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     window must read the rebound source table&#39;s rows</div>
+                          <div style="margin-left: 4.0em; white-space: pre-wrap;">     (bug symptom: stream leaves Running -&gt; redeploy loop)</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  4. Recovery: drop every stream on the vst, wait, recreate -&gt; Running</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_rebind_redeploy.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_vtable_rebind_redeploy.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_tag_ref_refresh.TestStreamVtableTagRefRefresh.test_explicit_vtable_tag_ref_calculation" class="doc doc-heading">
 
 <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tag_ref_refresh.TestStreamVtableTagRefRefresh.test_explicit_vtable_tag_ref_calculation" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -8639,6 +8720,38 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py" target="_blank">
                       cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_unused_ref.TestStreamVtableUnusedRef.test_rebind_deployment_scope" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_vtable_unused_ref.TestStreamVtableUnusedRef.test_rebind_deployment_scope" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream: redeploy only for required virtual-column sources</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Rebind a column within an existing vgroup and then to a new vgroup.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Assert both results and Reader deployment for an unused column, a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">WHERE-only dependency, and COUNT(*) requiring the full timestamp union.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Cover normal, child and super virtual tables plus a two-hop reference.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_unused_ref.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_vtable_unused_ref.py
                     </a>
                   </div>
         </div>

@@ -387,6 +387,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_blob_count_sma" class="md-nav__link">
+        BLOB count uses block statistics without materializing payloads. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#01-DataTypes.test_column_tag_boundary.TestColumnTagBoundary.test_column_tag_boundary" class="md-nav__link">
         Column and tag boundary 
       </a>
@@ -4171,6 +4182,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_blob_count_sma" class="md-nav__link">
+        BLOB count uses block statistics without materializing payloads. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#01-DataTypes.test_column_tag_boundary.TestColumnTagBoundary.test_column_tag_boundary" class="md-nav__link">
         Column and tag boundary 
       </a>
@@ -4642,6 +4664,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">2. No row is lost or turned into NULL, every length() is exact</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. select * spanning several query result blocks returns all rows</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. first/last/last_row and order by ... desc read back whole values</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Columns before and after BLOB stay aligned across byte-limited blocks</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -4675,6 +4698,37 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">3. length/substr/substring/cast/crc32 return whole values</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">4. cast to every numeric, bool, string and timestamp type, in both directions</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">5. sample/tail/min/max/greatest/least/unique reject BLOB without killing taosd</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/01-DataTypes/test_datatype_blob.py" target="_blank">
+                      cases/01-DataTypes/test_datatype_blob.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_blob_count_sma" class="doc doc-heading">
+
+<a href="#01-DataTypes.test_datatype_blob.TestDatatypeBlob.test_blob_count_sma" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>BLOB count uses block statistics without materializing payloads.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Count mixed NULL, empty and nonempty values before and after flush</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify clean blocks use SMA and filtered queries retain exact counts</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify columns added after flush count historical rows as NULL</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

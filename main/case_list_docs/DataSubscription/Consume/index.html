@@ -2539,6 +2539,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_committed_offset" class="md-nav__link">
+        A committed offset later than msg.consume.start.ts must win. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_alter_schema.TestCase.test_tmq_alterschema" class="md-nav__link">
         Advanced: alter schema 
       </a>
@@ -2682,6 +2693,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_snapshot_multi_table" class="md-nav__link">
+        Apply msg.consume.start.ts per table while scanning a multi-table snapshot. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_params.TestCase.test_tmq_params_test" class="md-nav__link">
         Basic: consumer parameters 
       </a>
@@ -2772,6 +2794,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_topics_info.TestCase.test_ins_topics" class="md-nav__link">
         Basic: topics info query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata_batches" class="md-nav__link">
+        Batch filtered auto-create metadata instead of accumulating it. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_rawdata_create_table_metadata_batches" class="md-nav__link">
+        Bound rawdata auto-create metadata and preserve rows before start.ts in WAL. 
       </a>
       
     </li>
@@ -3375,6 +3419,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_precision" class="md-nav__link">
+        Convert msg.consume.start.ts to the database precision. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_stb_filter.TestCase.test_stbFilter" class="md-nav__link">
         Filter: column filter 
       </a>
@@ -3410,6 +3465,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_stb_where_filter.TestCase.test_stbFilterWhere" class="md-nav__link">
         Filter: where filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_varchar" class="md-nav__link">
+        Keep variable-length columns intact when a block is partially filtered. 
       </a>
       
     </li>
@@ -3529,6 +3595,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata" class="md-nav__link">
+        Preserve metadata when an auto-create INSERT is fully filtered. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_recovery" class="md-nav__link">
         Recover a token consumer after a legacy owner mismatch. 
       </a>
@@ -3542,6 +3619,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_check" class="md-nav__link">
         Reject cross-user TMQ endpoint requests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_invalid_start_ts" class="md-nav__link">
+        Reject values that are not a non-negative UNIX timestamp in milliseconds. 
       </a>
       
     </li>
@@ -3749,6 +3837,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_tmq_start_ts" class="md-nav__link">
+        TMQ msg.consume.start.ts: filter data by primary ts for table/database topics only 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_vtable_tag_ref.TestCase.test_tmq_vtable_tag_ref" class="md-nav__link">
         TMQ subscription with virtual table tag-ref metadata. 
       </a>
@@ -3762,6 +3861,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_base_on.TestCase.test_tmq_base_on" class="md-nav__link">
         TMQ subscription: VST inheritance (BASE ON) full-chain end-to-end 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_drop_topic_after_unsubscribe.TestCase.test_tmq_drop_topic_after_unsubscribe" class="md-nav__link">
+        Topic can be dropped right after the consumer unsubscribes 
       </a>
       
     </li>
@@ -5108,6 +5218,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_committed_offset" class="md-nav__link">
+        A committed offset later than msg.consume.start.ts must win. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_alter_schema.TestCase.test_tmq_alterschema" class="md-nav__link">
         Advanced: alter schema 
       </a>
@@ -5251,6 +5372,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_snapshot_multi_table" class="md-nav__link">
+        Apply msg.consume.start.ts per table while scanning a multi-table snapshot. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_params.TestCase.test_tmq_params_test" class="md-nav__link">
         Basic: consumer parameters 
       </a>
@@ -5341,6 +5473,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_topics_info.TestCase.test_ins_topics" class="md-nav__link">
         Basic: topics info query 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata_batches" class="md-nav__link">
+        Batch filtered auto-create metadata instead of accumulating it. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_rawdata_create_table_metadata_batches" class="md-nav__link">
+        Bound rawdata auto-create metadata and preserve rows before start.ts in WAL. 
       </a>
       
     </li>
@@ -5944,6 +6098,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_precision" class="md-nav__link">
+        Convert msg.consume.start.ts to the database precision. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_stb_filter.TestCase.test_stbFilter" class="md-nav__link">
         Filter: column filter 
       </a>
@@ -5979,6 +6144,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_stb_where_filter.TestCase.test_stbFilterWhere" class="md-nav__link">
         Filter: where filter 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_varchar" class="md-nav__link">
+        Keep variable-length columns intact when a block is partially filtered. 
       </a>
       
     </li>
@@ -6098,6 +6274,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata" class="md-nav__link">
+        Preserve metadata when an auto-create INSERT is fully filtered. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_recovery" class="md-nav__link">
         Recover a token consumer after a legacy owner mismatch. 
       </a>
@@ -6111,6 +6298,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_bugs.TestTmqBugs.test_consumer_owner_check" class="md-nav__link">
         Reject cross-user TMQ endpoint requests. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_invalid_start_ts" class="md-nav__link">
+        Reject values that are not a non-negative UNIX timestamp in milliseconds. 
       </a>
       
     </li>
@@ -6318,6 +6516,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_tmq_start_ts" class="md-nav__link">
+        TMQ msg.consume.start.ts: filter data by primary ts for table/database topics only 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_vtable_tag_ref.TestCase.test_tmq_vtable_tag_ref" class="md-nav__link">
         TMQ subscription with virtual table tag-ref metadata. 
       </a>
@@ -6331,6 +6540,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#17-DataSubscription.02-Consume.test_tmq_base_on.TestCase.test_tmq_base_on" class="md-nav__link">
         TMQ subscription: VST inheritance (BASE ON) full-chain end-to-end 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#17-DataSubscription.02-Consume.test_tmq_drop_topic_after_unsubscribe.TestCase.test_tmq_drop_topic_after_unsubscribe" class="md-nav__link">
+        Topic can be dropped right after the consumer unsubscribes 
       </a>
       
     </li>
@@ -8091,6 +8311,39 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
   
   
+<h2 id="17-DataSubscription.02-Consume.test_tmq_drop_topic_after_unsubscribe.TestCase.test_tmq_drop_topic_after_unsubscribe" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_drop_topic_after_unsubscribe.TestCase.test_tmq_drop_topic_after_unsubscribe" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Topic can be dropped right after the consumer unsubscribes</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Repeat subscribe -&gt; poll -&gt; unsubscribe -&gt; drop topic; the drop must succeed</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   well before the consumer session timeout</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Repeat the same sequence while another consumer of the same group keeps changing</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   its subscription, so a rebalance round is usually in flight when the target</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   consumer unsubscribes</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_drop_topic_after_unsubscribe.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_drop_topic_after_unsubscribe.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="17-DataSubscription.02-Consume.test_tmq_error.TestCase.test_tmq_error" class="doc doc-heading">
 
 <a href="#17-DataSubscription.02-Consume.test_tmq_error.TestCase.test_tmq_error" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -8913,6 +9166,289 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_snapshot_single_ctb_filter.py" target="_blank">
                       cases/17-DataSubscription/02-Consume/test_tmq_snapshot_single_ctb_filter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_rawdata_create_table_metadata_batches" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_rawdata_create_table_metadata_batches" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Bound rawdata auto-create metadata and preserve rows before start.ts in WAL.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Consume a database topic with metadata, raw data and a start timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Replay three auto-create INSERTs whose rows are all filtered out by start.ts.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify each INSERT delivers its own create-table metadata response.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify the replayed rows filtered out of the data stream are still written to WAL.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_varchar" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_varchar" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Keep variable-length columns intact when a block is partially filtered.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Insert rows with a varchar column (including NULL values) in a single statement so</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   one block spans the start timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Consume on the WAL and the snapshot path with msg.consume.start.ts set.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify only the records at or after the threshold arrive, with their strings intact.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_committed_offset" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_committed_offset" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>A committed offset later than msg.consume.start.ts must win.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Consume a whole topic whose msg.consume.start.ts equals the first record and commit.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Reopen the same group with a lower msg.consume.start.ts.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify nothing is re-delivered: the stored position takes precedence.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Preserve metadata when an auto-create INSERT is fully filtered.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Consume a database topic with metadata and a start timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify child-table metadata arrives without filtered data rows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata_batches" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_filtered_create_table_metadata_batches" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Batch filtered auto-create metadata instead of accumulating it.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Consume a database topic with metadata, a start timestamp and min.poll.rows=1.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Replay three auto-create INSERTs whose rows are all filtered out.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify every child-table metadata still arrives, in more than one response.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_invalid_start_ts" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_invalid_start_ts" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Reject values that are not a non-negative UNIX timestamp in milliseconds.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Verify a negative integer and a negative epoch in milliseconds fail.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify a fractional value and a value with trailing characters fail.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify datetime strings and an unparsable string fail.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_precision" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_precision" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Convert msg.consume.start.ts to the database precision.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Cover millisecond, microsecond and nanosecond databases.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Verify the inclusive lower bound on both the WAL and the snapshot path.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_snapshot_multi_table" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_start_ts_snapshot_multi_table" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Apply msg.consume.start.ts per table while scanning a multi-table snapshot.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a database topic over three child tables of one super table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Flush so the rows are served by the snapshot scan, then consume with</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   experimental.snapshot.enable and a start timestamp.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify every child table honors the threshold, and that a child table whose</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   rows are all earlier than the threshold delivers nothing at all.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_tmq_start_ts" class="doc doc-heading">
+
+<a href="#17-DataSubscription.02-Consume.test_tmq_start_ts.TestCase.test_tmq_start_ts" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>TMQ msg.consume.start.ts: filter data by primary ts for table/database topics only</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">- Table topic (AS STABLE) and database topic (AS DATABASE): only data records</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  whose primary timestamp ts is no earlier than msg.consume.start.ts are consumed.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">- Query topic (AS SELECT): the parameter has no effect; filter ts in WHERE instead.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">- The value must be a non-negative UNIX timestamp in milliseconds; datetime strings</div>
+                          <div style="margin-left: 1.6em; white-space: pre-wrap;">  are rejected.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py" target="_blank">
+                      cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
                     </a>
                   </div>
         </div>

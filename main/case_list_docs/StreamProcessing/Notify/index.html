@@ -2775,8 +2775,41 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_partition_name_expressions" class="md-nav__link">
+        Direct child sources and mixed partition expressions retain the table name. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.05-Notify.test_external_window_multigroup_notify.TestExternalWindowMultiGroupNotify.test_grouped_notifications_keep_group_window_and_table_identity" class="md-nav__link">
         External-window grouped notifications keep exact identities. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_event_history_notify.TestEventHistoryNotify.test_history_open_does_not_wait_for_close" class="md-nav__link">
+        History sends qualified EVENT opens without waiting for a closing row. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_idle_resume_names" class="md-nav__link">
+        IDLE and RESUME retain the trigger subtable name. 
       </a>
       
     </li>
@@ -2821,6 +2854,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.05-Notify.test_nested_window_notify.TestNestedWindowNotify.test_same_leaf_range_in_different_lineage_has_distinct_trigger_id" class="md-nav__link">
         Nested notifications distinguish equal leaf ranges by lineage. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_trigger_table_name" class="md-nav__link">
+        Notifications identify the trigger subtable independently of output tables. 
       </a>
       
     </li>
@@ -4085,8 +4129,41 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_partition_name_expressions" class="md-nav__link">
+        Direct child sources and mixed partition expressions retain the table name. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.05-Notify.test_external_window_multigroup_notify.TestExternalWindowMultiGroupNotify.test_grouped_notifications_keep_group_window_and_table_identity" class="md-nav__link">
         External-window grouped notifications keep exact identities. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_event_history_notify.TestEventHistoryNotify.test_history_open_does_not_wait_for_close" class="md-nav__link">
+        History sends qualified EVENT opens without waiting for a closing row. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_idle_resume_names" class="md-nav__link">
+        IDLE and RESUME retain the trigger subtable name. 
       </a>
       
     </li>
@@ -4131,6 +4208,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.05-Notify.test_nested_window_notify.TestNestedWindowNotify.test_same_leaf_range_in_different_lineage_has_distinct_trigger_id" class="md-nav__link">
         Nested notifications distinguish equal leaf ranges by lineage. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_trigger_table_name" class="md-nav__link">
+        Notifications identify the trigger subtable independently of output tables. 
       </a>
       
     </li>
@@ -4288,6 +4376,36 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 <h1 id="05-notify">05-Notify<a class="headerlink" href="#05-notify" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_event_history_notify.TestEventHistoryNotify.test_history_open_does_not_wait_for_close" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_event_history_notify.TestEventHistoryNotify.test_history_open_does_not_wait_for_close" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>History sends qualified EVENT opens without waiting for a closing row.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Cover physical and virtual sources, closed and unclosed history windows,</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">TRUE_FOR filtering, NOTIFY_HISTORY, calculation and realtime continuation.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/05-Notify/test_event_history_notify.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_event_history_notify.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   
@@ -4588,6 +4706,96 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/05-Notify/test_notify_rules.py" target="_blank">
                       cases/18-StreamProcessing/05-Notify/test_notify_rules.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_trigger_table_name" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_trigger_table_name" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Notifications identify the trigger subtable independently of output tables.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Check the first OPEN without a calculation, then CLOSE, preserving group</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">and trigger identities and requiring an explicit string for every event.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_idle_resume_names" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_idle_resume_names" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>IDLE and RESUME retain the trigger subtable name.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Wait for an idle group, resume it with a new row, and validate the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">independent group notifications for physical and virtual subtables.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_partition_name_expressions" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.05-Notify.test_notify_trigger_table_name.TestNotifyTriggerTableName.test_partition_name_expressions" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Direct child sources and mixed partition expressions retain the table name.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Check both direct OPEN and calculated CLOSE notifications when the source</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">is a child table or tbname follows expressions sharing the same tag input.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py" target="_blank">
+                      cases/18-StreamProcessing/05-Notify/test_notify_trigger_table_name.py
                     </a>
                   </div>
         </div>

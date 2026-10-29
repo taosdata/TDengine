@@ -2223,6 +2223,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.03-Selection.test_select_last_and_last_row.TestFuncLast.test_last_row_partition_batch" class="md-nav__link">
+        LAST_ROW partition aggregation batches across child tables 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.03-Selection.test_select_all.TestSelectFunction.test_pipeline_function_column_coexistence" class="md-nav__link">
         Pipeline functions coexist with ordinary-column row anchors. 
       </a>
@@ -4459,6 +4470,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.03-Selection.test_select_last_and_last_row.TestFuncLast.test_last_row_partition_batch" class="md-nav__link">
+        LAST_ROW partition aggregation batches across child tables 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.03-Selection.test_select_all.TestSelectFunction.test_pipeline_function_column_coexistence" class="md-nav__link">
         Pipeline functions coexist with ordinary-column row anchors. 
       </a>
@@ -5502,6 +5524,40 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Query last/last row with blob data from cache and verify the results</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/03-Selection/test_select_last_and_last_row.py" target="_blank">
+                      cases/11-Functions/03-Selection/test_select_last_and_last_row.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.03-Selection.test_select_last_and_last_row.TestFuncLast.test_last_row_partition_batch" class="doc doc-heading">
+
+<a href="#11-Functions.03-Selection.test_select_last_and_last_row.TestFuncLast.test_last_row_partition_batch" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>LAST_ROW partition aggregation batches across child tables</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Compare cached and uncached results with independent expected values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Cover composite keys, NULLs, empty tables, filters and output tails.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Check nonblocking plans and bounded aggregate output calls.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify LIMIT, SLIMIT, insert, drop and flush behavior.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Keep groups for ancestor aggregation and interval windows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">6. Cover unmerged ordinary WINDOW JOIN aggregation.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

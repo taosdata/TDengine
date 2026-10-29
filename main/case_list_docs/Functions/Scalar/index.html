@@ -1925,6 +1925,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_scalar_crypto.TestCrypto.test_aes_legacy_iv_migration" class="md-nav__link">
+        AES: Read and migrate ciphertext created with the legacy scalar IV. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_tz_config_unification.TestTimezoneConfigUnification.test_alter_local_timezone" class="md-nav__link">
         ALTER LOCAL timezone validation via unified config path. 
       </a>
@@ -2719,6 +2730,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_weekofyear" class="md-nav__link">
         Fun: weekofyear() 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_string_result_length_bounds" class="md-nav__link">
+        Reject scalar string results beyond the field limit. 
       </a>
       
     </li>
@@ -5075,6 +5097,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_scalar_crypto.TestCrypto.test_aes_legacy_iv_migration" class="md-nav__link">
+        AES: Read and migrate ciphertext created with the legacy scalar IV. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_tz_config_unification.TestTimezoneConfigUnification.test_alter_local_timezone" class="md-nav__link">
         ALTER LOCAL timezone validation via unified config path. 
       </a>
@@ -5878,6 +5911,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_string_result_length_bounds" class="md-nav__link">
+        Reject scalar string results beyond the field limit. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_salar_function" class="md-nav__link">
         Scalar: All 
       </a>
@@ -6533,6 +6577,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">15. BLOB in WHERE clause with CAST</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">16. Aggregate functions with LENGTH(BLOB)</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">17. GROUP BY with BLOB substr/cast (expect error)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">18. CAST DECIMAL constants and columns to BLOB/VARCHAR with NULL and boundary values</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
@@ -8539,6 +8584,37 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
   
   
+<h2 id="11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_string_result_length_bounds" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_string_result_length_bounds" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Reject scalar string results beyond the field limit.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Accept REPEAT and REPLACE results at the maximum payload boundary.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Reject results one byte beyond the maximum payload boundary.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Reject a row-driven REPEAT count that would overflow multiplication.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_scalar_all.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_scalar_all.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_replace" class="doc doc-heading">
 
 <a href="#11-Functions.01-Scalar.test_scalar_all.TestScalarFunction.test_fun_sca_replace" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -8881,6 +8957,40 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     <div class="doc doc-docstring doc-description">
                       <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">Test crypto functions, including sm4, aes encryption/decryption, base64 codec, hashing and masking.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/01-Scalar/test_scalar_crypto.py" target="_blank">
+                      cases/11-Functions/01-Scalar/test_scalar_crypto.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.01-Scalar.test_scalar_crypto.TestCrypto.test_aes_legacy_iv_migration" class="doc doc-heading">
+
+<a href="#11-Functions.01-Scalar.test_scalar_crypto.TestCrypto.test_aes_legacy_iv_migration" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>AES: Read and migrate ciphertext created with the legacy scalar IV.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Read fixed empty, short and multi-block ciphertext generated by</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   taosAesEncrypt at base commit 400a7705d918, passing the varstr IV</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   address as the base scalar implementation did on little-endian hosts.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Migrate stored legacy ciphertext with INSERT SELECT and read it using</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   the default raw IV mode; preserve NULL rows.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Reject invalid modes and IVs in scalar and INSERT VALUES calls.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

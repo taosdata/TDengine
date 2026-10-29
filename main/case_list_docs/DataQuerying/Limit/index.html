@@ -1382,6 +1382,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.06-Limit.test_interval_limit_scan.TestIntervalLimitScan.test_interval_limit_scan" class="md-nav__link">
+        Opt in to pruning complete ordered interval windows with a hint 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3917,6 +3928,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
 
       
+        
+  
+    <li class="md-nav__item">
+      <a href="#09-DataQuerying.06-Limit.test_interval_limit_scan.TestIntervalLimitScan.test_interval_limit_scan" class="md-nav__link">
+        Opt in to pruning complete ordered interval windows with a hint 
+      </a>
+      
+    </li>
+  
+
+      
     </ul>
   
 </nav>
@@ -3936,6 +3958,39 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 <h1 id="06-limit">06-Limit<a class="headerlink" href="#06-limit" title="Permanent link">&para;</a></h1>
 
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="09-DataQuerying.06-Limit.test_interval_limit_scan.TestIntervalLimitScan.test_interval_limit_scan" class="doc doc-heading">
+
+<a href="#09-DataQuerying.06-Limit.test_interval_limit_scan.TestIntervalLimitScan.test_interval_limit_scan" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Opt in to pruning complete ordered interval windows with a hint</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Compare LIMIT/OFFSET with full results for dense and sparse tables</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Keep complete boundary windows, filtered rows and tag-group merges</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Preserve HAVING, FILL, sliding and aggregate-sort fallbacks</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">4. Verify that file and mixed file/memory scans read fewer rows</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">5. Keep pruning disabled by default and scope hints to their SELECT</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/09-DataQuerying/06-Limit/test_interval_limit_scan.py" target="_blank">
+                      cases/09-DataQuerying/06-Limit/test_interval_limit_scan.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
   
 <div class="doc doc-object doc-function">
   

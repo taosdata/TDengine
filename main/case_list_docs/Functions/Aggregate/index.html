@@ -2877,6 +2877,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_histogram_user_bin_limit" class="md-nav__link">
+        Reject USER_INPUT histograms above the supported bin limit. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_still_correct_without_filter_node" class="md-nav__link">
         Removing the plan node did not change results 
       </a>
@@ -2890,6 +2901,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_is_stable" class="md-nav__link">
         Repeated execution returns identical rows 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_percentile_with_count_on_empty_table" class="md-nav__link">
+        Return NULL percentile alongside zero count for an empty table. 
       </a>
       
     </li>
@@ -5834,6 +5856,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_histogram_user_bin_limit" class="md-nav__link">
+        Reject USER_INPUT histograms above the supported bin limit. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_distinct_still_correct_without_filter_node" class="md-nav__link">
         Removing the plan node did not change results 
       </a>
@@ -5847,6 +5880,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct_partition.TestAggDistinctPartition.test_count_distinct_partition_is_stable" class="md-nav__link">
         Repeated execution returns identical rows 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_percentile_with_count_on_empty_table" class="md-nav__link">
+        Return NULL percentile alongside zero count for an empty table. 
       </a>
       
     </li>
@@ -8491,6 +8535,37 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
   
   
   
+<h2 id="11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_histogram_user_bin_limit" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_fun_agg_histogram.TestFunHistogram.test_histogram_user_bin_limit" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Reject USER_INPUT histograms above the supported bin limit.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. Create a minimal numeric input table.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. Submit 1002 user-provided boundaries.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">3. Verify validation rejects the oversized interval array.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_histogram.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_fun_agg_histogram.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
 <h2 id="11-Functions.02-Aggregate.test_fun_agg_hyperloglog.TestFunHyperloglog.test_fun_agg_hyperloglog" class="doc doc-heading">
 
 <a href="#11-Functions.02-Aggregate.test_fun_agg_hyperloglog.TestFunHyperloglog.test_fun_agg_hyperloglog" class="headerlink" title="Permanent link">&para;</a></h2>  
@@ -8614,6 +8689,35 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_leastsquares.py" target="_blank">
                       cases/11-Functions/02-Aggregate/test_fun_agg_leastsquares.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_percentile_with_count_on_empty_table" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_fun_agg_percentile.TestFunPercentile.test_percentile_with_count_on_empty_table" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Return NULL percentile alongside zero count for an empty table.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Check that an empty input placeholder completes percentile without a type error.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_fun_agg_percentile.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_fun_agg_percentile.py
                     </a>
                   </div>
         </div>
