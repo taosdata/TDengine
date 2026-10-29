@@ -305,6 +305,7 @@ typedef struct SExchangeInfo {
   int32_t             twoPassRetryMs;   // vtable two-pass: backoff between empty-rsp retries (0 = none yet)
   int32_t             twoPassRetries;   // vtable two-pass: empty-rsp retry rounds so far (capped, then error)
   int32_t             notifySrcOpType;
+  int32_t             readerSrcOpType;
   uint64_t            notifyGroupId;
   int8_t              notifyPhase;
   uint64_t            notifyScanGroupId;
@@ -317,8 +318,8 @@ typedef struct SExchangeInfo {
 // Separators and decimal forms of all fixed-width fields in the cache key.
 #define FED_SCAN_TABLE_KEY_SUFFIX_LEN 256
 #define FED_SCAN_TABLE_KEY_LEN \
-  (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + \
-   FED_SCAN_TABLE_KEY_SUFFIX_LEN)
+  (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + \
+   TSDB_TABLE_NAME_LEN + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
 
 // Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
 typedef struct SFedScanTableCtx {
@@ -463,6 +464,9 @@ typedef struct STableScanInfo {
   int32_t         scanTimes;
   SSDataBlock*    pResBlock;
   SHashObj*       pIgnoreTables;
+  SHashObj*       pIntervalLimitStates;  // uid -> ordered window prefix state
+  int64_t         intervalLimit;
+  int32_t         intervalTsSlot;
   SSDataBlock*    pGroupEndBlock;
   SArray*         pReaderGroups;  // owned, sorted unique uint64_t trigger gids
   int32_t         readerGroupIndex;
@@ -482,6 +486,7 @@ typedef struct STableScanInfo {
   // for virtual super table scan
   SSDataBlock*    pOrgBlock;
   SSDataBlock*    pVstbOutputBlock;
+  SHashObj*       pVtableReaderLimits;  // source uid -> SLimitInfo for interleaved readers
   bool            ignoreTag;
   bool            virtualStableScan;
   uint8_t         vtablePrecision;
@@ -490,6 +495,7 @@ typedef struct STableScanInfo {
   SHashObj*       readerCache;
   bool            newReader;
   SArray*         pBlockColMap;
+  SSHashObj*      pVstbSchemaSlots;
   // for virtual super table batch scan
   int32_t         lastBatchIdx;
   int32_t         currentBatchIdx;
@@ -730,6 +736,8 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
+  // SArray initialized with numOfExprs pre-sized zeroed entries, indexed by output expression.
+  SArray*            pBitDurationInterpCaches;
   bool               cleanGroupResInfo;
   bool               indefRowsMode;
   SIndefRowsRuntime  indefRows;
@@ -942,7 +950,8 @@ int32_t applyAggFunctionOnPartialTuples(SExecTaskInfo* taskInfo, SqlFunctionCtx*
 int32_t setFunctionResultOutput(struct SOperatorInfo* pOperator, SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage,
                              int32_t numOfExprs);
 int32_t      setRowTsColumnOutputInfo(SqlFunctionCtx* pCtx, int32_t numOfCols, SArray** pResList);                             
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart, bool isVstbScan);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, size_t dataLen, SArray* pColList,
+                                     char** pNextStart, bool isVstbScan);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int64_t numOfRows, int32_t dataLen, int64_t startTs,
                              struct SOperatorInfo* pOperator);
 
@@ -1160,6 +1169,7 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
                                           uint64_t notifyScanGroupId,
                                           TSKEY notifyTs);
 int32_t storeExchangeNotifyInfo(struct SOperatorInfo* pOperator);
+int32_t getExchangeReaderSourceOpType(const struct SOperatorInfo* pOperator);
 int32_t setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId,
                          const char* name);
 void    freeExchangeGetBasicOperatorParam(void* pParam);
@@ -1211,6 +1221,13 @@ int32_t interpMainFirstBuildNotifyParam(
     uint64_t notifyGroupId, int8_t notifyPhase,
     uint64_t notifyScanGroupId, TSKEY notifyTs,
     SOperatorParam** ppParam);
+// pOperator and pBlock must be non-NULL. notifyTs identifies the phase
+// boundary; pBlock supplies groupId/baseGId. Unsupported modes and operators
+// without downstreams are successful no-ops.
+int32_t interpMainFirstSetDownstreamNotifyParam(
+    struct SOperatorInfo* pOperator, int8_t interpMode,
+    int8_t notifyPhase, TSKEY notifyTs,
+    const SSDataBlock* pBlock);
 void interpPrepareNotifyParamForDispatch(SOperatorParam* pParam);
 
 // Per-call value snapshot assembled from one group and current phase state.
@@ -1260,6 +1277,9 @@ void    resetBasicOperatorState(SOptrBasicInfo* pBasicInfo);
 int32_t addNewResultRowBuf(SResultRow* pWindowRes, SDiskbasedBuf* pResultBuf, uint32_t size);
 
 #if defined(BUILD_TEST)
+int32_t interpTestKeepRows(SArray* pRows, const SSDataBlock* pBlock,
+                           int32_t rowIndex);
+int32_t interpTestCopyKeeperRow(SArray* pDst, const SArray* pSrc);
 typedef struct SInterpMainFirstOutputTestCtx
     SInterpMainFirstOutputTestCtx;
 int32_t interpTestCreateMainFirstOutput(

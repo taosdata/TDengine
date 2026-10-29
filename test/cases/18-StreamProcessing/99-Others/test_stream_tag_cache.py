@@ -32,7 +32,8 @@ class TestStreamTagCache:
             - check_all_types_alter:
                 test tag cache with all data types in alter table tag scenario
             - check_null_tag_value:
-                test tag cache with null tag values
+                test tag cache with null tag values and a NULL partition key,
+                including continued output for the existing non-NULL group
             - check_create_drop_ctable:
                 test tag cache with create and drop child table operations
             - check fallback_to_normal_cache:
@@ -47,19 +48,29 @@ class TestStreamTagCache:
         Catalog:
             - StreamProcessing:Others
 
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7147101407
+
         History:
             - 2025-11-13 Tony Zhang: created this test
+            - 2026-10-28 Validate NULL partition output and isolate each stage
 
         """
         tdSql.execute("alter dnode 1 'stableTagFilterCache' '1'")
         tdSql.execute("alter dnode 1 'tagFilterCache' '1'")
         tdSql.execute("alter dnode 1 'metaDebugFlag' '135'")
         tdStream.createSnode()
-        self.check_all_types_basic()
-        self.check_all_types_alter()
-        self.check_null_tag_value()
-        self.check_create_drop_ctable()
-        self.check_fallback_to_normal_cache()
+        for db_name, check in (
+            ("test_basic", self.check_all_types_basic),
+            ("test_alter", self.check_all_types_alter),
+            ("test_null", self.check_null_tag_value),
+            ("test_create_drop", self.check_create_drop_ctable),
+            ("test_fallback", self.check_fallback_to_normal_cache),
+        ):
+            tdLog.info(f"Check tag cache stage: {db_name}")
+            try:
+                check()
+            finally:
+                tdSql.execute(f"drop database if exists {db_name}")
 
     def test_null_dimension_tags(self):
         """NULL dimension TAGs must not abort unrelated stream lookups.
@@ -74,6 +85,7 @@ class TestStreamTagCache:
         Since: v3.4.2.9
 
         Labels: common,ci,stream,tagCache
+
         Feishu: None
 
         History:
@@ -281,7 +293,8 @@ class TestStreamTagCache:
         # start streams
         for s in streams:
             s.createStream()
-        tdStream.checkStreamStatus()
+        for s in streams:
+            tdStream.checkStreamStatus(f"st{s.id}")
 
         # insert data
         tdSql.execute("insert into ctb1 values('2025-12-12 12:00:00', 1)")
@@ -380,7 +393,8 @@ class TestStreamTagCache:
         # start streams
         for s in streams:
             s.createStream()
-        tdStream.checkStreamStatus()
+        for s in streams:
+            tdStream.checkStreamStatus(f"st{s.id}")
 
         # insert first banch of data
         tdSql.execute("insert into ctb0 values('2025-12-12 12:00:00', 0)")
@@ -470,7 +484,7 @@ class TestStreamTagCache:
             id = 9,
             stream=f"""create stream st9 interval(10s) sliding(10s)
                 from {tb_name} partition by t_fix into res9
-                output_subtable(concat("null9_", cast(t_fix as varchar)))
+                output_subtable(concat("null9_", coalesce(cast(t_fix as varchar), 'null')))
                 as select _twstart as ts, _twend as te, count(v) as v from
                 {tb_name} where ts >= _twstart and ts < _twend and
                 t_fix = %%1 and t1 = true""",
@@ -481,7 +495,7 @@ class TestStreamTagCache:
             id = 10,
             stream=f"""create stream st10 interval(10s) sliding(10s)
                 from {tb_name} partition by t_fix into res10
-                output_subtable(concat("null10_", cast(t_fix as varchar)))
+                output_subtable(concat("null10_", coalesce(cast(t_fix as varchar), 'null')))
                 as select _twstart as ts, _twend as te, count(v) as v from
                 {tb_name} where ts >= _twstart and ts < _twend and
                 t_fix = %%1 and t2 = 1""",
@@ -492,7 +506,7 @@ class TestStreamTagCache:
             id = 11,
             stream=f"""create stream st11 interval(10s) sliding(10s)
                 from {tb_name} partition by t_fix into res11
-                output_subtable(concat("null11_", cast(t_fix as varchar)))
+                output_subtable(concat("null11_", coalesce(cast(t_fix as varchar), 'null')))
                 as select _twstart as ts, _twend as te, count(v) as v from
                 {tb_name} where ts >= _twstart and ts < _twend and
                 t_fix = %%1 and t3 = 2.333""",
@@ -503,7 +517,7 @@ class TestStreamTagCache:
             id = 12,
             stream=f"""create stream st12 interval(10s) sliding(10s)
                 from {tb_name} partition by t_fix into res12
-                output_subtable(concat("null12_", cast(t_fix as varchar)))
+                output_subtable(concat("null12_", coalesce(cast(t_fix as varchar), 'null')))
                 as select _twstart as ts, _twend as te, count(v) as v from
                 {tb_name} where ts >= _twstart and ts < _twend and
                 t_fix = %%1 and t4 = 'BJ'""",
@@ -514,7 +528,7 @@ class TestStreamTagCache:
             id = 13,
             stream=f"""create stream st13 interval(10s) sliding(10s)
                 from {tb_name} partition by t_fix into res13
-                output_subtable(concat("null13_", cast(t_fix as varchar)))
+                output_subtable(concat("null13_", coalesce(cast(t_fix as varchar), 'null')))
                 as select _twstart as ts, _twend as te, count(v) as v from
                 {tb_name} where ts >= _twstart and ts < _twend and
                 t_fix = %%1 and t5 = '涛思数据'""",
@@ -524,7 +538,8 @@ class TestStreamTagCache:
         # start streams
         for s in streams:
             s.createStream()
-        tdStream.checkStreamStatus()
+        for s in streams:
+            tdStream.checkStreamStatus(f"st{s.id}")
 
         # insert first banch of data
         tdSql.execute("insert into ctb0 values('2025-12-12 12:00:00', 0)")
@@ -566,6 +581,7 @@ class TestStreamTagCache:
                 select cast('2025-12-12 12:00:10' as timestamp) as ts,
                 cast('2025-12-12 12:00:20' as timestamp) as te,
                 {expect_cnt} as v"""
+            s.checkResults()
 
         # alter tags back and insert third batch of data
         tdSql.execute("alter table ctb1 set tag t1 = true")
@@ -597,7 +613,22 @@ class TestStreamTagCache:
         tdSql.execute(f"create table ctb6 using {tb_name} tags (null, true, 1, 2.333, 'BJ', '涛思数据')", show=1)
         tdSql.execute("insert into ctb6 values('2025-12-12 12:00:35', 6)")
         tdSql.execute("insert into ctb6 values('2025-12-12 12:00:40', 6)")
-        # nothing to check, just make sure no error occurs
+        # Equality with a NULL partition value matches no rows, so count(v) is zero.
+        for s in streams:
+            tdSql.checkResultsByFunc(
+                f"select v, t_fix from res{s.id} where t_fix is null "
+                "and ts = '2025-12-12 12:00:30' and te = '2025-12-12 12:00:40'",
+                lambda: tdSql.queryResult == [(0, None)], retry=30,
+            )
+
+        # The existing non-NULL group must continue processing after the NULL group.
+        tdSql.execute("insert into ctb0 values('2025-12-12 12:00:40', 0)")
+        for s in streams:
+            tdSql.checkResultsByFunc(
+                f"select v, t_fix from res{s.id} where t_fix = 1 "
+                "and ts = '2025-12-12 12:00:30' and te = '2025-12-12 12:00:40'",
+                lambda: tdSql.queryResult == [(1, 1)], retry=30,
+            )
 
     def check_create_drop_ctable(self):
         db_name = "test_create_drop"
@@ -669,7 +700,8 @@ class TestStreamTagCache:
         # start streams
         for s in streams:
             s.createStream()
-        tdStream.checkStreamStatus()
+        for s in streams:
+            tdStream.checkStreamStatus(f"st{s.id}")
 
         # insert first banch of data
         tdSql.execute("insert into ctb0 values('2025-12-12 12:00:00', 0)")
@@ -706,6 +738,7 @@ class TestStreamTagCache:
                 select cast('2025-12-12 12:00:10' as timestamp) as ts,
                 cast('2025-12-12 12:00:20' as timestamp) as te,
                 {expect_cnt} as v"""
+            s.checkResults()
 
         # drop tables and insert third batch of data
         tdSql.execute("drop table ctb1")
@@ -748,7 +781,7 @@ class TestStreamTagCache:
             res_query="select ts, te, v from res_fallback order by ts"
         )
         stream.createStream()
-        tdStream.checkStreamStatus()
+        tdStream.checkStreamStatus("st_fallback")
 
         # Insert data to trigger the stream
         tdSql.execute("insert into ctb1 values('2025-12-12 12:00:10', 1)")

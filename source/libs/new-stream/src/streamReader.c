@@ -30,6 +30,7 @@
 #include "tsimplehash.h"
 #include "tcommon.h"
 #include "tmsg.h"
+#include "extTypeMap.h"  // extColumnNameEqual
 
 void stReaderCaptureFetchState(SStreamReaderFetchState* pState, const SResFetchReq* pReq, int32_t actualNodeId) {
   *pState = (SStreamReaderFetchState){.enabled = true,
@@ -219,8 +220,7 @@ bool stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_
         !stReaderAddArrayMemory(&total, pInfo->vtbCache->reqTagCids) ||
         !stReaderAddArrayMemory(&total, pInfo->vtbCache->uidSlice) ||
         !stReaderAddMemoryBytes(&total, tSimpleHashGetMemSize(pInfo->vtbCache->uid2Result)) ||
-        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->dbVgInfo)) ||
-        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->tblRefCache))) {
+        !stReaderAddMemoryBytes(&total, taosHashGetMemSize(pInfo->vtbCache->dbVgInfo))) {
       return false;
     }
   }
@@ -1288,7 +1288,9 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
 
   pCond->notLoadData = false;
 
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+  SListCell* pSchemaCell = !isSchema && NULL != schemas ? ((SNodeList*)schemas)->pHead : NULL;
+  for (int32_t i = 0; i < pCond->numOfCols;
+       ++i, pSchemaCell = (NULL != pSchemaCell ? pSchemaCell->pNext : NULL)) {
     SColumnInfo* pColInfo = &pCond->colList[i];
     if (isSchema) {
       SSchema* pSchema = taosArrayGet((SArray*)schemas, i);
@@ -1299,7 +1301,7 @@ int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order,
 
       if (pSlotList == NULL ) pCond->pSlotList[i] = i;
     } else {
-      STargetNode* pNode = (STargetNode*)nodesListGetNode((SNodeList*)schemas, i);
+      STargetNode* pNode = (STargetNode*)(NULL != pSchemaCell ? pSchemaCell->pNode : NULL);
       STREAM_CHECK_NULL_GOTO(pNode, TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN);
 
       SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
@@ -1377,7 +1379,7 @@ static void destroyBlock(void* data) {
   blockDataDestroy(*(SSDataBlock**)data);
 }
 
-static void tblRefCacheItemFree(void *param) {
+void streamTblRefCacheItemFree(void *param) {
   SVTableRefResolveRspItem *p = (SVTableRefResolveRspItem *)param;
   if (p) {
     taosMemoryFreeClear(p->tagData);
@@ -1395,17 +1397,20 @@ int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   pCache->reqTagCids  = NULL;
   pCache->uid2Result  = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   pCache->dbVgInfo    = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  pCache->tblRefCache = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  // Reference results are cached by the call-private resolve view
+  // (streamResolveCacheInit / streamResolveCacheEnableRefCache), so a
+  // reader-lifetime hash here would be allocated and never written. Both
+  // lookup and insert skip a NULL tblRefCache.
+  pCache->tblRefCache = NULL;
   pCache->uidSlice    = taosArrayInit(64, sizeof(int64_t));
   pCache->sliceCursor = 0;
   pCache->lastCheckMs = 0;
   pCache->valid       = false;
-  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice || !pCache->tblRefCache) {
+  if (!pCache->uid2Result || !pCache->dbVgInfo || !pCache->uidSlice) {
     streamVTableInfoCacheDestroy(pCache);
     return terrno;
   }
   tSimpleHashSetFreeFp(pCache->uid2Result, streamVTableResolveResultDestroy);
-  taosHashSetFreeFp(pCache->tblRefCache, tblRefCacheItemFree);
   return 0;
 }
 
@@ -1789,8 +1794,12 @@ end:
  * including streamReaderExt.h (which redefines SStreamTriggerReaderInfo in
  * this translation unit, causing a redefinition error).  The functions are
  * implemented in streamReaderExt.c via void* to avoid the type clash. */
-extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
+extern int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                               const char *timezone, int8_t tsTzClass, void **ppInfo);
 extern void    stExtReaderClose(void *pInfo);
+/* Spec-based timestamp timezone class, shared with streamReaderExt.c so the
+ * deploy-time and runtime classification cannot drift. */
+extern int8_t  streamReaderExtSpecTsTzClass(const void *pSpec);
 
 static bool stExtFedScanMatchesSource(const SFederatedScanPhysiNode *pFedScan, const char *sourceName) {
   if (pFedScan == NULL) {
@@ -1811,8 +1820,11 @@ static bool stExtFedScanMatchesSource(const SFederatedScanPhysiNode *pFedScan, c
 }
 
 static const SScanLogicNode *stExtFindLogicScanInPlan(const SNode *pNode, const char *sourceName) {
+  // Walk only logical plan nodes: the logical node enum block runs from
+  // QUERY_NODE_LOGIC_PLAN_SCAN through QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC. Do not rely on the
+  // gap between the logical and physical enum ranges staying empty when new node types land.
   if (pNode == NULL || nodeType(pNode) < QUERY_NODE_LOGIC_PLAN_SCAN ||
-      nodeType(pNode) >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN) {
+      nodeType(pNode) > QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC) {
     return NULL;
   }
 
@@ -1887,13 +1899,20 @@ static SNodeList *stExtFindCalcScanColsInPlan(SNode *pNode, const char *sourceNa
 
   if (ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
       ntype == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
-    if (ppFedScan != NULL) {
-      *ppFedScan = NULL;
+    // Local-table scans carry no source identity: when the caller looks for a specific
+    // external source, only the matching FEDERATED_SCAN (or its remote logical scan) can
+    // provide the calc columns. Accept a TABLE_SCAN only for the source-agnostic lookup,
+    // otherwise a mixed WAL/EXT plan could hand the external reader the local table's
+    // column list.
+    if (sourceName == NULL) {
+      if (ppFedScan != NULL) {
+        *ppFedScan = NULL;
+      }
+      if (pScanType != NULL) {
+        *pScanType = ntype;
+      }
+      return ((STableScanPhysiNode *)pNode)->scan.pScanCols;
     }
-    if (pScanType != NULL) {
-      *pScanType = ntype;
-    }
-    return ((STableScanPhysiNode *)pNode)->scan.pScanCols;
   }
 
   if (ntype == QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN) {
@@ -1965,6 +1984,36 @@ static void stExtOverrideNamespaceFromFedScan(SStreamReaderTask *pTask, SStreamE
   }
 }
 
+static int32_t stExtOverrideNamespaceFromPlanNode(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
+                                                  SNode *pPlanRoot) {
+  if (pPlanRoot == NULL) {
+    ST_TASK_ELOG("%s", "ext: cannot resolve reader namespace from NULL scan plan");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  SPhysiNode *pPlan = nodeType(pPlanRoot) == QUERY_NODE_PHYSICAL_SUBPLAN
+                         ? (SPhysiNode *)((SSubplan *)pPlanRoot)->pNode
+                         : (SPhysiNode *)pPlanRoot;
+  SFederatedScanPhysiNode *pFedScan =
+      stExtFindFedScanInPlan(pPlanRoot, pExtSpec == NULL ? NULL : pExtSpec->sourceName, true);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pFedScan != NULL) {
+    ST_TASK_DLOG("ext: resolved reader namespace from federated scan under node type=%d",
+                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
+    stExtOverrideNamespaceFromFedScan(pTask, pExtSpec, pFedScan);
+  } else if (pExtSpec != NULL && pExtSpec->extDb[0] != '\0' && pExtSpec->extTable[0] != '\0' &&
+             pExtSpec->tsColumn[0] != '\0') {
+    ST_TASK_DLOG("ext: using reader namespace from ext spec, source:%s db:%s schema:%s table:%s ts:%s planType:%d",
+                 pExtSpec->sourceName, pExtSpec->extDb, pExtSpec->extSchema, pExtSpec->extTable,
+                 pExtSpec->tsColumn, pPlan != NULL ? (int)nodeType(pPlan) : -1);
+  } else {
+    ST_TASK_ELOG("ext: cannot resolve reader namespace from scan node type=%d",
+                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
+    code = TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN;
+  }
+  return code;
+}
+
 static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamExtTriggerSpec *pExtSpec,
                                               const char *planStr) {
   if (planStr == NULL) {
@@ -1980,28 +2029,158 @@ static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamE
     return code != TSDB_CODE_SUCCESS ? code : TSDB_CODE_INVALID_PARA;
   }
 
-  SPhysiNode *pPlan = nodeType((SNode *)pSubplan) == QUERY_NODE_PHYSICAL_SUBPLAN
-                         ? (SPhysiNode *)pSubplan->pNode
-                         : (SPhysiNode *)pSubplan;
-  SFederatedScanPhysiNode *pFedScan =
-      stExtFindFedScanInPlan((SNode *)pPlan, pExtSpec == NULL ? NULL : pExtSpec->sourceName, true);
-  if (pFedScan != NULL) {
-    ST_TASK_DLOG("ext: resolved reader namespace from federated scan under node type=%d",
-                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
-    stExtOverrideNamespaceFromFedScan(pTask, pExtSpec, pFedScan);
-  } else if (pExtSpec != NULL && pExtSpec->extDb[0] != '\0' && pExtSpec->extTable[0] != '\0' &&
-             pExtSpec->tsColumn[0] != '\0') {
-    ST_TASK_DLOG("ext: using reader namespace from ext spec, source:%s db:%s schema:%s table:%s ts:%s planType:%d",
-                 pExtSpec->sourceName, pExtSpec->extDb, pExtSpec->extSchema, pExtSpec->extTable,
-                 pExtSpec->tsColumn, pPlan != NULL ? (int)nodeType(pPlan) : -1);
-  } else {
-    ST_TASK_ELOG("ext: cannot resolve reader namespace from scan node type=%d",
-                 pPlan != NULL ? (int)nodeType(pPlan) : -1);
-    code = TSDB_CODE_STREAM_NOT_TABLE_SCAN_PLAN;
-  }
-
+  code = stExtOverrideNamespaceFromPlanNode(pTask, pExtSpec, (SNode *)pSubplan);
   nodesDestroyNode((SNode *)pSubplan);
   return code;
+}
+
+/* ---------------------------------------------------------------------------
+ * stExtResolveTsTzClass -- timezone class of the reader's source ts column.
+ *
+ * The connector decodes timezone-naive source timestamps (MySQL DATETIME, PG
+ * timestamp without time zone, SQL Server datetime2) with the client timezone
+ * and timezone-aware ones (MySQL TIMESTAMP, PG timestamptz) with the server
+ * timezone.  The remote fetch/metadata bounds must be rendered with the same
+ * timezone as the decode, so the reader needs the class of the ts column.
+ * The hint is matched with extColumnNameEqual() -- the same fold the parser and
+ * mnode use -- so a column referenced in a different case still finds its hint
+ * instead of silently falling back to the spec lookup.
+ * Returns EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the plan carries no hint.
+ * --------------------------------------------------------------------------- */
+static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
+                                    const char *tsColumn) {
+  if (pFedScan == NULL || pFedScan->pTimestampTypeHints == NULL || tsColumn == NULL ||
+      tsColumn[0] == '\0') {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  EExtSourceType srcType = (EExtSourceType)pFedScan->sourceType;
+  for (int32_t i = 0; i < pFedScan->numTimestampTypeHints; ++i) {
+    const char *hintName = pFedScan->pTimestampTypeHints[i].colName;
+    if (extColumnNameEqual(srcType, hintName, tsColumn)) {
+      stDebug("ext: resolved timestamp class sourceType:%d column:%s class:%d",
+              (int)pFedScan->sourceType, tsColumn,
+              (int)pFedScan->pTimestampTypeHints[i].tzClass);
+      return pFedScan->pTimestampTypeHints[i].tzClass;
+    }
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+/* Find the (single) table scan of a serialized stream subplan.  A stream whose
+ * trigger table is a virtual table is planned as a plain table scan even when
+ * the underlying data comes from an external source, so its deploy plan has no
+ * federated-scan node to read the timezone from. */
+static const STableScanPhysiNode *stExtFindTableScanInPlan(SNode *pNode) {
+  if (pNode == NULL) {
+    return NULL;
+  }
+
+  if (nodeType(pNode) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    return stExtFindTableScanInPlan((SNode *)((SSubplan *)pNode)->pNode);
+  }
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      return (const STableScanPhysiNode *)pNode;
+    default:
+      break;
+  }
+
+  SPhysiNode *pPhysi = (SPhysiNode *)pNode;
+  SNode      *pChild = NULL;
+  FOREACH(pChild, pPhysi->pChildren) {
+    const STableScanPhysiNode *pScan = stExtFindTableScanInPlan(pChild);
+    if (pScan != NULL) {
+      return pScan;
+    }
+  }
+  return NULL;
+}
+
+/* Timezone class of the reader's ts column from the deploy spec's column
+ * mappings.  A virtual-table stream deploys its original-table reader from a
+ * plain table scan, which carries no timestamp type hints; the remote type of
+ * the bound timestamp column (e.g. "datetimeoffset(6)") is still available in
+ * the mapping built by mnode from the external table metadata.  The matching
+ * rules live in streamReaderExt.c because the reader also needs them at open
+ * time (streamReaderExtSpecTsTzClass). */
+static int8_t stExtResolveSpecTsTzClass(const SStreamExtTriggerSpec *pSpec) {
+  return streamReaderExtSpecTsTzClass(pSpec);
+}
+
+/* ---------------------------------------------------------------------------
+ * stExtResolveReaderTimezone -- resolve the reader's client timezone and the
+ * timezone class of its source timestamp column from the deploy-time plan.
+ *
+ * The external reader executes its own SQL at runtime and therefore has no
+ * physi node to read the timezone from; taking it from the deploy-time plan
+ * keeps timezone-naive source timestamps (MySQL DATETIME, PG timestamp
+ * without time zone, SQL Server datetime2) interpreted in the stream's
+ * timezone rather than the server global one.  Federated scans carry both the
+ * timezone (SFederatedScanPhysiNode.timezone) and the timestamp type hints; a
+ * virtual-table stream is deployed from a plain table scan, whose
+ * STableScanPhysiNode.timezoneName still holds the creating session's
+ * timezone, and whose timestamp class is recovered from the deploy spec's
+ * remote type mapping.
+ *
+ * Leaves ``timezone`` empty when nothing carries it (connector falls back to
+ * the server global TZ) and reports the ts-column timezone class through
+ * ``pTsTzClass``.
+ * --------------------------------------------------------------------------- */
+static void stExtResolveReaderTimezone(SNode *pPlan, const SStreamExtTriggerSpec *pSpec,
+                                       char *timezone, int32_t len, int8_t *pTsTzClass) {
+  if (pTsTzClass != NULL) {
+    *pTsTzClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+  if (timezone == NULL || len <= 0) {
+    return;
+  }
+  timezone[0] = '\0';
+
+  const char *sourceName = pSpec != NULL ? pSpec->sourceName : NULL;
+  const char *tsColumn = pSpec != NULL ? pSpec->tsColumn : NULL;
+  const SFederatedScanPhysiNode *pFedScan =
+      pPlan != NULL ? stExtFindFedScanInPlan(pPlan, sourceName, false) : NULL;
+  if (pFedScan != NULL && pFedScan->timezone[0] != '\0') {
+    tstrncpy(timezone, pFedScan->timezone, (size_t)len);
+  } else {
+    const STableScanPhysiNode *pTableScan = stExtFindTableScanInPlan(pPlan);
+    if (pTableScan != NULL && pTableScan->timezoneName[0] != '\0') {
+      tstrncpy(timezone, pTableScan->timezoneName, (size_t)len);
+    }
+  }
+
+  if (pTsTzClass == NULL) {
+    return;
+  }
+  *pTsTzClass = stExtResolveTsTzClass(pFedScan, tsColumn);
+  if (*pTsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+    *pTsTzClass = stExtResolveSpecTsTzClass(pSpec);
+  }
+}
+
+/* String-plan wrapper: parse once, then delegate to the node-based core. */
+static void stExtResolvePlanTimezone(const char *planStr, const SStreamExtTriggerSpec *pSpec,
+                                     char *timezone, int32_t len, int8_t *pTsTzClass) {
+  if (planStr == NULL) {
+    stExtResolveReaderTimezone(NULL, pSpec, timezone, len, pTsTzClass);
+    return;
+  }
+
+  SNode  *pPlan = NULL;
+  int32_t code = nodesStringToNode(planStr, &pPlan);
+  if (code != TSDB_CODE_SUCCESS || pPlan == NULL) {
+    nodesDestroyNode(pPlan);
+    stExtResolveReaderTimezone(NULL, pSpec, timezone, len, pTsTzClass);
+    return;
+  }
+
+  stExtResolveReaderTimezone(pPlan, pSpec, timezone, len, pTsTzClass);
+  nodesDestroyNode(pPlan);
 }
 
 /* ---------------------------------------------------------------------------
@@ -2151,10 +2330,10 @@ static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
  *   - trigger reader deploy: planStr = pMsg->msg.trigger.calcCacheScanPlan
  *   - calc reader deploy:    planStr = pMsg->msg.calc.calcScanPlan
  * --------------------------------------------------------------------------- */
-static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
-                                             SStreamExtTriggerSpec *pExtSpec,
-                                             const char *planStr,
-                                             bool updateSpecPrecision) {
+static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
+                                                 SStreamExtTriggerSpec *pExtSpec,
+                                                 SNode *pPlanRoot,
+                                                 bool updateSpecPrecision) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (pExtSpec != NULL && pExtSpec->calcColumns != NULL && pExtSpec->pCalcMappings != NULL &&
@@ -2163,25 +2342,17 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
     return code;
   }
 
-  if (planStr == NULL) {
+  if (pPlanRoot == NULL) {
     ST_TASK_DLOG("%s", "ext: calcScanPlan is NULL, calcColumns empty");
     return code;
   }
 
-  SSubplan *pCalcSubplan = NULL;
-  int32_t calcParseCode = nodesStringToNode(planStr, (SNode**)&pCalcSubplan);
-  if (calcParseCode != TSDB_CODE_SUCCESS || pCalcSubplan == NULL) {
-    ST_TASK_DLOG("ext: calcCacheScanPlan parse failed code=%d, calcColumns will be empty",
-                 calcParseCode);
-    return code;
-  }
-
-  // extract the physical scan node from the subplan
+  // extract the physical scan node from the (sub)plan root
   SPhysiNode *pCalcPlan = NULL;
-  if (nodeType((SNode*)pCalcSubplan) == QUERY_NODE_PHYSICAL_SUBPLAN) {
-    pCalcPlan = (pCalcSubplan->pNode != NULL) ? (SPhysiNode *)pCalcSubplan->pNode : NULL;
+  if (nodeType(pPlanRoot) == QUERY_NODE_PHYSICAL_SUBPLAN) {
+    pCalcPlan = (((SSubplan *)pPlanRoot)->pNode != NULL) ? (SPhysiNode *)((SSubplan *)pPlanRoot)->pNode : NULL;
   } else {
-    pCalcPlan = (SPhysiNode *)pCalcSubplan;
+    pCalcPlan = (SPhysiNode *)pPlanRoot;
   }
 
   ENodeType ntype = (pCalcPlan != NULL) ? nodeType(pCalcPlan) : (ENodeType)0;
@@ -2222,6 +2393,28 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
     ST_TASK_DLOG("ext: %scalcScanPlan has no scan cols, calcColumns empty", tag);
   }
 
+  return code;
+}
+
+/* String-plan wrapper: parse once, delegate to the node-based core. */
+static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
+                                             SStreamExtTriggerSpec *pExtSpec,
+                                             const char *planStr,
+                                             bool updateSpecPrecision) {
+  if (planStr == NULL) {
+    ST_TASK_DLOG("%s", "ext: calcScanPlan is NULL, calcColumns empty");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSubplan *pCalcSubplan = NULL;
+  int32_t calcParseCode = nodesStringToNode(planStr, (SNode**)&pCalcSubplan);
+  if (calcParseCode != TSDB_CODE_SUCCESS || pCalcSubplan == NULL) {
+    ST_TASK_DLOG("ext: calcCacheScanPlan parse failed code=%d, calcColumns will be empty",
+                 calcParseCode);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = stExtBuildCalcColumnsFromPlanNode(pTask, pExtSpec, (SNode *)pCalcSubplan, updateSpecPrecision);
   nodesDestroyNode((SNode*)pCalcSubplan);
   return code;
 }
@@ -2234,19 +2427,119 @@ static int32_t stExtBuildCalcColumns(SStreamReaderTask *pTask,
                                       false);
 }
 
+/* Extract the stream calc scan time range (STimeRangeNode) from an already
+ * parsed calc scan plan node.  An external calc reader's physical plan is rooted
+ * at (or contains) an SFederatedScanPhysiNode; its pTimeRange carries the SELECT
+ * time range when the calc statement uses time-returning expressions.
+ * *ppTimeRange is a cloned node owned by the caller, or NULL when the plan has
+ * no time range. */
+static int32_t stExtExtractCalcTimeRange(SStreamReaderTask *pTask, SNode *pPlanRoot,
+                                         const char *sourceName, SNode **ppTimeRange) {
+  *ppTimeRange = NULL;
+  if (pPlanRoot == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SFederatedScanPhysiNode *pFedScan = stExtFindFedScanInPlan(pPlanRoot, sourceName, false);
+  if (pFedScan != NULL && pFedScan->pTimeRange != NULL) {
+    code = nodesCloneNode(pFedScan->pTimeRange, ppTimeRange);
+    if (code != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("ext: failed to clone calc scan time range, code=%d", code);
+    }
+  }
+  ST_TASK_DLOG("ext: calc scan time range %s", (*ppTimeRange != NULL) ? "found" : "absent, full scan");
+  return code;
+}
+
 /* ---------------------------------------------------------------------------
  * stReaderTaskDeploy -- deploy a reader task (trigger, ext-trigger, or calc).
  * --------------------------------------------------------------------------- */
+static void stReaderTaskReleaseInfo(SStreamReaderTask *pTask) {
+  if (pTask == NULL || pTask->info == NULL) return;
+
+  bool isExternal = STREAM_IS_REF_EXT_SOURCE(pTask->task.flags);
+  ST_TASK_DLOG("release reader info:%p external:%d trigger:%d", pTask->info,
+               isExternal, pTask->triggerReader);
+  if (pTask->triggerReader == 1) {
+    if (isExternal) {
+      stExtReaderClose(pTask->info);
+    } else {
+      releaseStreamReaderInfo(pTask->info);
+    }
+  } else {
+    taosArrayDestroyP(pTask->info, isExternal ? stExtReaderClose
+                                             : releaseStreamReaderCalcInfo);
+  }
+  pTask->info = NULL;
+}
+
+static int32_t stExtDeployCalcReaders(SStreamReaderTask *pTask,
+                                    const SStreamReaderDeployMsg *pMsg,
+                                    SNode *pCalcPlan) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t replicas = pMsg->msg.calc.execReplica;
+  SNode  *pTimeRange = NULL;
+  SNode  *pReplicaTimeRange = NULL;
+  char    timezone[TD_TIMEZONE_LEN] = {0};
+  int8_t  tsTzClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+
+  if (replicas <= 0) {
+    ST_TASK_ELOG("ext: invalid calc reader replica count:%d", replicas);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  pTask->info = taosArrayInit(replicas, POINTER_BYTES);
+  STREAM_CHECK_NULL_GOTO(pTask->info, terrno);
+  TAOS_CHECK_GOTO(stExtExtractCalcTimeRange(pTask, pCalcPlan,
+                                            pMsg->pExtSpec->sourceName, &pTimeRange),
+                  &lino, end);
+
+  /* The calc reader has no physi node at execution time: carry the planner's
+   * client timezone (SFederatedScanPhysiNode.timezone, or the table scan's
+   * timezoneName for a virtual-table trigger) so timezone-naive source
+   * timestamps are converted with the stream's timezone. */
+  stExtResolveReaderTimezone(pCalcPlan, pMsg->pExtSpec, timezone, sizeof(timezone), &tsTzClass);
+  ST_TASK_DLOG("ext: calc reader timezone:%s tsTzClass:%d",
+               timezone[0] != '\0' ? timezone : "(none)", (int)tsTzClass);
+
+  for (int32_t execId = 0; execId < replicas; ++execId) {
+    void *pExtInfo = NULL;
+    TAOS_CHECK_GOTO(nodesCloneNode(pTimeRange, &pReplicaTimeRange), &lino, end);
+    code = stExtReaderOpen(pMsg->pExtSpec, &pTask->task,
+                           pReplicaTimeRange, timezone, tsTzClass, &pExtInfo);
+    pReplicaTimeRange = NULL;
+    TAOS_CHECK_GOTO(code, &lino, end);
+    if (taosArrayPush(pTask->info, &pExtInfo) == NULL) {
+      code = terrno;
+      stExtReaderClose(pExtInfo);
+      TAOS_CHECK_GOTO(code, &lino, end);
+    }
+    ST_TASK_DLOG("ext: calc reader opened execId:%d replicas:%d info:%p",
+                 execId, replicas, pExtInfo);
+  }
+
+end:
+  nodesDestroyNode(pReplicaTimeRange);
+  nodesDestroyNode(pTimeRange);
+  STREAM_PRINT_LOG_END(code, lino);
+  return code;
+}
+
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
   SNode*  pPlan = NULL;
+  SNode*  pCalcPlan = NULL;
   bool    pPlanMoved = false;
   STREAM_CHECK_NULL_GOTO(pTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
   TAOS_CHECK_GOTO(streamTaskStatsInit(&pTask->task, &pTask->pStats), &lino, end);
 
   pTask->triggerReader = pMsg->triggerReader;
+  if (pMsg->pExtSpec != NULL) {
+    pTask->task.flags |= STREAM_FLAG_REF_EXT_SOURCE;
+  }
   if (pMsg->triggerReader == 1) {
     if (pMsg->pExtSpec != NULL) {
       /* External-source trigger reader: initialize via streamReaderExtOpen
@@ -2261,9 +2554,15 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
       TAOS_CHECK_GOTO(stExtBuildCalcColumns(pTask, pMsg), &lino, end);
 
       void *pExtInfo = NULL;
-      TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, &pExtInfo), &lino, end);
+      char   timezone[TD_TIMEZONE_LEN] = {0};
+      int8_t tsTzClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+      stExtResolvePlanTimezone((const char *)pMsg->msg.trigger.triggerScanPlan, pMsg->pExtSpec,
+                               timezone, sizeof(timezone), &tsTzClass);
+      ST_TASK_DLOG("ext trigger reader timezone:%s tsTzClass:%d",
+                   timezone[0] != '\0' ? timezone : "(none)", (int)tsTzClass);
+      TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, NULL, timezone,
+                                      tsTzClass, &pExtInfo), &lino, end);
       pTask->info = pExtInfo;
-      pTask->task.flags |= STREAM_FLAG_REF_EXT_SOURCE;
       ST_TASK_DLOG("ext trigger reader opened: pInfo=%p flags=%" PRId64,
                    pTask->info, pTask->task.flags);
     } else {
@@ -2274,9 +2573,8 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
     }
   } else {
     if (pMsg->pExtSpec != NULL) {
-      /* External-source calc/runner reader: build calcColumns from the calc
-       * scan plan, then initialize via stExtReaderOpen so handleExtFetchReq
-       * can use pTask->info as SStreamExtReaderInfo. */
+      /* External-source calc readers keep one independent instance per execId
+       * in pTask->info, matching the ordinary calc reader array. */
       ST_TASK_DLOG("ext calc reader deploy: pExtSpec=%p calcScanPlan=%p",
                    pMsg->pExtSpec, pMsg->msg.calc.calcScanPlan);
 
@@ -2291,20 +2589,28 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
         tstrncpy(pMsg->pExtSpec->tsColumn, pMsg->msg.calc.tsColumn, sizeof(pMsg->pExtSpec->tsColumn));
       }
 
-      TAOS_CHECK_GOTO(stExtOverrideNamespaceFromPlan(pTask, pMsg->pExtSpec,
-                                                    (const char *)pMsg->msg.calc.calcScanPlan),
-                      &lino, end);
-      TAOS_CHECK_GOTO(stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                                                   (const char *)pMsg->msg.calc.calcScanPlan,
-                                                   true),
-                      &lino, end);
+      /* Parse the serialized calc scan plan once and share the parsed node
+       * across namespace override, calc-column build and time-range
+       * extraction (each previously re-parsed the same string). */
+      const char *calcScanPlan = (const char *)pMsg->msg.calc.calcScanPlan;
+      if (calcScanPlan == NULL) {
+        ST_TASK_ELOG("%s", "ext: calcScanPlan is NULL, cannot deploy ext calc reader");
+        code = TSDB_CODE_INVALID_PARA;
+        goto end;
+      }
+      TAOS_CHECK_GOTO(nodesStringToNode(calcScanPlan, &pCalcPlan), &lino, end);
+      if (pCalcPlan == NULL) {
+        code = TSDB_CODE_INVALID_PARA;
+        goto end;
+      }
 
-      void *pExtInfo = NULL;
-      TAOS_CHECK_GOTO(stExtReaderOpen((void *)pMsg->pExtSpec, &pTask->task, &pExtInfo), &lino, end);
-      pTask->info = pExtInfo;
-      pTask->task.flags |= STREAM_FLAG_REF_EXT_SOURCE;
-      ST_TASK_DLOG("ext calc reader opened: pInfo=%p flags=%" PRId64,
-                   pTask->info, pTask->task.flags);
+      TAOS_CHECK_GOTO(stExtOverrideNamespaceFromPlanNode(pTask, pMsg->pExtSpec, pCalcPlan),
+                      &lino, end);
+      TAOS_CHECK_GOTO(stExtBuildCalcColumnsFromPlanNode(pTask, pMsg->pExtSpec, pCalcPlan, true),
+                      &lino, end);
+      TAOS_CHECK_GOTO(stExtDeployCalcReaders(pTask, pMsg, pCalcPlan), &lino, end);
+      nodesDestroyNode(pCalcPlan);
+      pCalcPlan = NULL;
     } else {
       SNode* pPlan = NULL;
       ST_TASK_DLOGL("calcScanPlan:%s", (char*)(pMsg->msg.calc.calcScanPlan));
@@ -2344,12 +2650,8 @@ end:
     if (!pPlanMoved) {
       nodesDestroyNode(pPlan);
     }
-    if (pTask->triggerReader == 1) {
-      releaseStreamReaderInfo(pTask->info);
-    } else {
-      taosArrayDestroyP(pTask->info, releaseStreamReaderCalcInfo);
-    }
-    pTask->info = NULL;
+    nodesDestroyNode(pCalcPlan);
+    stReaderTaskReleaseInfo(pTask);
     pTask->task.status = STREAM_STATUS_FAILED;
   }
 
@@ -2362,25 +2664,7 @@ int32_t stReaderTaskUndeployImpl(SStreamReaderTask** ppTask, const SStreamUndepl
   STREAM_CHECK_NULL_GOTO(ppTask, TSDB_CODE_INVALID_PARA);
   STREAM_CHECK_NULL_GOTO(pMsg, TSDB_CODE_INVALID_PARA);
   SStreamReaderTask* pTask = *ppTask;
-  if ((*ppTask)->triggerReader == 1) {
-    if (STREAM_IS_REF_EXT_SOURCE((*ppTask)->task.flags)) {
-      /* Ext-source reader: release the SStreamTriggerReaderInfo (ext version)
-       * allocated by streamReaderExtOpen via streamReaderExtClose. */
-      ST_TASK_ILOG("release ext reader info:%p flags:%" PRId64, (*ppTask)->info, (*ppTask)->task.flags);
-      stExtReaderClose((*ppTask)->info);
-    } else {
-      ST_TASK_ILOG("release stream reader info:%p", (*ppTask)->info);
-      releaseStreamReaderInfo((*ppTask)->info);
-    }
-  } else {
-    if (STREAM_IS_REF_EXT_SOURCE((*ppTask)->task.flags)) {
-      ST_TASK_ILOG("release ext calc reader info:%p flags:%" PRId64, (*ppTask)->info, (*ppTask)->task.flags);
-      stExtReaderClose((*ppTask)->info);
-    } else {
-      taosArrayDestroyP((*ppTask)->info, releaseStreamReaderCalcInfo);
-    }
-  }
-  (*ppTask)->info = NULL;
+  stReaderTaskReleaseInfo(pTask);
   streamTaskStatsHandleLifecycle(&(*ppTask)->pStats, STREAM_TASK_STATS_UNDEPLOYED);
 
 end:
@@ -2430,6 +2714,9 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
   int32_t code = 0;
   int32_t lino = 0;
   void*   buf = NULL;
+  if (data == NULL || size == NULL) return TSDB_CODE_INVALID_PARA;
+  *data = NULL;
+  *size = 0;
 
   int32_t blockNum = 0;
   size_t  dataEncodeBufSize = sizeof(SRetrieveTableRsp);
@@ -2437,19 +2724,26 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     SSDataBlock* pBlock = taosArrayGetP(pResList, i);
     if (pBlock == NULL || pBlock->info.rows == 0) continue;
     int32_t blockSize = blockGetInternalEncodeSize(pBlock);
-    dataEncodeBufSize += (INT_BYTES * 2 + blockSize);
+    STREAM_CHECK_CONDITION_GOTO(blockSize < 0 ||
+                                    (int64_t)blockSize + INT_BYTES * 2 >
+                                        INT32_MAX - (int64_t)dataEncodeBufSize,
+                                TSDB_CODE_INVALID_MSG);
+    dataEncodeBufSize += INT_BYTES * 2 + (size_t)blockSize;
     blockNum++;
   }
   buf = rpcMallocCont(dataEncodeBufSize);
   STREAM_CHECK_NULL_GOTO(buf, terrno);
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+  memset(pRetrieve, 0, sizeof(*pRetrieve));
   pRetrieve->version = 0;
   pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->completed = hasNext ? 0 : 1;
   pRetrieve->numOfRows = 0;
   pRetrieve->numOfBlocks = htonl(blockNum);
+  pRetrieve->payloadLen = htonl((int32_t)(dataEncodeBufSize - sizeof(*pRetrieve)));
+  pRetrieve->compLen = pRetrieve->payloadLen;
 
   char* dataBuf = (char*)(pRetrieve->data);
   for(size_t i = 0; i < taosArrayGetSize(pResList); i++){
@@ -2461,8 +2755,8 @@ int32_t streamBuildFetchRsp(SArray* pResList, bool hasNext, void** data, size_t*
     pRetrieve->numOfRows += pBlock->info.rows;
     int32_t actualLen =
         blockEncodeInternal(pBlock, dataBuf + INT_BYTES * 2, blockSize, taosArrayGetSize(pBlock->pDataBlock));
-    STREAM_CHECK_CONDITION_GOTO(actualLen < 0, terrno);
-    dataBuf += (INT_BYTES * 2 + actualLen);
+    STREAM_CHECK_CONDITION_GOTO(actualLen != blockSize, actualLen < 0 ? terrno : TSDB_CODE_INVALID_MSG);
+    dataBuf += INT_BYTES * 2 + blockSize;
   }
   stDebug("stream fetch get result blockNum:%d, rows:%" PRId64, blockNum, pRetrieve->numOfRows);
 

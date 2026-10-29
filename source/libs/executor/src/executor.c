@@ -290,8 +290,8 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   int32_t subTaskNum = (int32_t)LIST_LENGTH(pSubplan->pSubQ);
   SArray* subEndPoints = taosArrayInit(subTaskNum, POINTER_BYTES);
   SDownstreamSourceNode* pSource = NULL;
-  for (int32_t i = 0; i < subTaskNum; ++i) {
-    SNode* pVal = nodesListGetNode(pSubplan->pSubQ, i);
+  SNode* pVal = NULL;
+  FOREACH(pVal, pSubplan->pSubQ) {
 
     TSDB_CHECK_CODE(nodesCloneNode(pVal, (SNode**)&pSource), lino, _error);
 
@@ -1726,12 +1726,14 @@ void qStreamSetOpen(qTaskInfo_t tinfo) {
   pOperator->status = OP_NOT_OPENED;
 }
 
-void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay) {
+void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay,
+                      int64_t startTs) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   pTaskInfo->tmqInfo.sourceExcluded = sourceExcluded;
   pTaskInfo->tmqInfo.minPollRows = minPollRows;
   pTaskInfo->tmqInfo.timeout = timeout;
   pTaskInfo->tmqInfo.enableReplay = enableReplay;
+  pTaskInfo->tmqInfo.startTs = startTs;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {
@@ -1753,8 +1755,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     SWalReader*      pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
     walReaderVerifyOffset(pWalReader, pOffset);
   }
-  // if pOffset equal to current offset, means continue consume
-  if (tOffsetEqual(pOffset, &pTaskInfo->tmqInfo.currentOffset)) {
+  // if pOffset equal to current offset, means continue consume. If the start
+  // threshold changed since the reader was prepared (e.g. another consumer in
+  // the same group resumes with a lower/disabled msg.consume.start.ts), fall
+  // through to re-prepare so the snapshot lower bound is recomputed instead of
+  // reusing the stale one.
+  if (tOffsetEqual(pOffset, &pTaskInfo->tmqInfo.currentOffset) &&
+      pTaskInfo->tmqInfo.startTs == pTaskInfo->tmqInfo.preparedStartTs) {
     return 0;
   }
 
@@ -1918,6 +1925,11 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       } else {
         pTaskInfo->tmqInfo.tableCond.twindows.skey = pOffset->ts + 1;
       }
+      // msg.consume.start.ts: skip rows before the threshold at the storage layer instead of
+      // decoding and discarding them per poll. Disabled (0) leaves the offset-derived skey intact.
+      if (pTaskInfo->tmqInfo.startTs != 0 && pTaskInfo->tmqInfo.tableCond.twindows.skey < pTaskInfo->tmqInfo.startTs) {
+        pTaskInfo->tmqInfo.tableCond.twindows.skey = pTaskInfo->tmqInfo.startTs;
+      }
 
       code = tableListAddTableInfo(pTableListInfo, mtInfo.uid, 0);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1976,6 +1988,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
 end:
   tOffsetCopy(&pTaskInfo->tmqInfo.currentOffset, pOffset);
+  pTaskInfo->tmqInfo.preparedStartTs = pTaskInfo->tmqInfo.startTs;
   return 0;
 }
 

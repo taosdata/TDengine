@@ -355,6 +355,7 @@ int32_t bseTableMgtClear(STableMgt *pMgt) {
   if (pMgt == NULL) return 0;
 
   destroySubTableMgt(pMgt->pCurrTableMgt);
+  pMgt->pCurrTableMgt = NULL;
 
   void *pIter = taosHashIterate(pMgt->pHashObj, NULL);
   while (pIter) {
@@ -377,12 +378,20 @@ void tableReaderFree(void *pReader) {
     tableReaderClose(p);
   }
 }
-void blockFree(void *pBlock) { taosMemoryFree(pBlock); }
+void blockFree(void *pBlock) {
+  SBlockWithMeta *p = pBlock;
+  if (p != NULL) {
+    taosMemoryFree(p->pBlock);
+    blockWithMetaCleanup(p);
+  }
+}
 
 int32_t tableReaderMgtInit(STableReaderMgt *pReader, SBse *pBse, int64_t timestamp) {
   int32_t code = 0;
   int32_t lino = 0;
 
+  pReader->pCachedReader = NULL;
+  pReader->readerEpoch = 0;
   (void)taosThreadRwlockInit(&pReader->mutex, NULL);
 
   code = blockCacheOpen(48, blockFree, &pReader->pBlockCache);
@@ -415,6 +424,7 @@ _error:
 // }
 
 void tableReaderMgtDestroy(STableReaderMgt *pReader) {
+  tableReaderClose(pReader->pCachedReader);
   tableCacheClose(pReader->pTableCache);
   blockCacheClose(pReader->pBlockCache);
   (void)taosThreadRwlockDestroy(&pReader->mutex);
@@ -424,20 +434,34 @@ int32_t tableReaderMgtSeek(STableReaderMgt *pReaderMgt, int64_t seq, uint8_t **p
   int32_t code = 0;
   int32_t lino = 0;
 
-  STableReader *pReader = NULL;
+  if (pReaderMgt == NULL || pReaderMgt->pBse == NULL) {
+    bseError("failed to seek cached reader since %s", tstrerror(TSDB_CODE_INVALID_PARA));
+    return TSDB_CODE_INVALID_PARA;
+  }
+  // A reader owns mutable file positions and buffers; do not share them
+  // between lookups without holding the manager's exclusive lock.
+  (void)taosThreadRwlockWrlock(&pReaderMgt->mutex);
+  int64_t epoch = atomic_load_64(&pReaderMgt->pBse->readerEpoch);
+  if (pReaderMgt->pCachedReader != NULL && pReaderMgt->readerEpoch != epoch) {
+    tableReaderClose(pReaderMgt->pCachedReader);
+    pReaderMgt->pCachedReader = NULL;
+  }
+  if (pReaderMgt->pCachedReader == NULL) {
+    code = tableReaderOpen(pReaderMgt->timestamp, &pReaderMgt->pCachedReader, pReaderMgt);
+    TSDB_CHECK_CODE(code, lino, _error);
+    pReaderMgt->readerEpoch = epoch;
+  }
 
-  code = tableReaderOpen(pReaderMgt->timestamp, &pReader, pReaderMgt);
-  TSDB_CHECK_CODE(code, lino, _error);
-
-  code = tableReaderGet(pReader, seq, pValue, len);
+  code = tableReaderGet(pReaderMgt->pCachedReader, seq, pValue, len);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
   if (code != 0) {
     bseError("failed to seek table pReaderMgt at line %d since %s", lino, tstrerror(code));
+    tableReaderClose(pReaderMgt->pCachedReader);
+    pReaderMgt->pCachedReader = NULL;
   }
-
-  tableReaderClose(pReader);
+  (void)taosThreadRwlockUnlock(&pReaderMgt->mutex);
   return code;
 }
 

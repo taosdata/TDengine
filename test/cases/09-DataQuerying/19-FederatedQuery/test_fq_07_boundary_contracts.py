@@ -93,6 +93,25 @@ _ORIG_DATETIME_EPOCH = None
 _TZ_PINNED = False
 
 
+def _refresh_process_tz():
+    """Make a TZ change visible to libc (and the client's own conversions).
+
+    POSIX exposes time.tzset(); the Windows CRT keeps the zone cached until
+    _tzset() is called, and the client formats result timestamps through libc
+    localtime(), so without the refresh a pinned TZ never reaches the output
+    even though the TZ environment variable itself was updated.
+    """
+    if hasattr(time, "tzset"):
+        time.tzset()
+        return
+    try:
+        import ctypes
+
+        ctypes.CDLL("ucrtbase")._tzset()
+    except OSError:
+        pass
+
+
 def _pin_process_timezone_utc():
     global _ORIG_TZ, _ORIG_DATETIME_EPOCH, _TZ_PINNED
     if _TZ_PINNED:
@@ -101,7 +120,7 @@ def _pin_process_timezone_utc():
     _ORIG_TZ = os.environ.get("TZ")
     _ORIG_DATETIME_EPOCH = _taos_field._datetime_epoch
     os.environ["TZ"] = "UTC"
-    time.tzset()
+    _refresh_process_tz()
     _taos_field._datetime_epoch = _datetime.datetime.fromtimestamp(0)
     _TZ_PINNED = True
 
@@ -115,7 +134,7 @@ def _restore_process_timezone():
         os.environ.pop("TZ", None)
     else:
         os.environ["TZ"] = _ORIG_TZ
-    time.tzset()
+    _refresh_process_tz()
     _taos_field._datetime_epoch = _ORIG_DATETIME_EPOCH
     _TZ_PINNED = False
 
@@ -1465,17 +1484,13 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             )
             self._assert_rows(direct_sql, ((1, 10), (2, 20)))
             self._assert_result_columns(direct_sql, ("id", "val"))
-            if spec.key == _SQLSERVER:
-                # Step 1 keeps every clause local: the remote SQL stays a plain
-                # scan and the predicate/order/limit are applied by TDengine.
-                self._assert_remote_sql(
-                    direct_sql, ("select", "boundary_t"),
-                    ("federated",), ("federated", " where ", " order by ", " limit "),
-                )
-            else:
-                self._assert_remote_sql(
-                    direct_sql, ("select", "where", "order by", "limit"), ("federated",)
-                )
+            # T-SQL renders LIMIT as OFFSET/FETCH (no "limit" keyword).
+            limit_fragment = ("offset", "fetch next") if spec.key == _SQLSERVER else ("limit",)
+            self._assert_remote_sql(
+                direct_sql,
+                ("select", "where", "order by", *limit_fragment),
+                ("federated",),
+            )
 
             partial_sql = (
                 f"select e.id as id, d.weight as weight from {spec.table} e "
@@ -1493,17 +1508,9 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             )
             self._assert_rows(remote_filter_join_sql, ((1, 100), (2, 200)))
             self._assert_result_columns(remote_filter_join_sql, ("id", "weight"))
-            if spec.key == _SQLSERVER:
-                # Step 1 keeps the predicate local for SQL Server, so the join's
-                # remote SQL stays a plain scan (fq_14 records REMOTE WHERE: NO
-                # with LOCAL FILTER: YES for the same shape).
-                self._assert_remote_sql(
-                    remote_filter_join_sql, ("select",), ("federated", "join")
-                )
-            else:
-                self._assert_remote_sql(
-                    remote_filter_join_sql, ("select", "where"), ("federated", "join")
-                )
+            self._assert_remote_sql(
+                remote_filter_join_sql, ("select", "where"), ("federated", "join")
+            )
 
             local_filter_join_sql = (
                 f"select e.id as id, d.weight as weight from {spec.table} e "

@@ -34,6 +34,10 @@ if(UNIX AND NOT APPLE)
     # catalog participates in static-library cycles through parser/planner/executor.
     # Ask CMake to rescan the link interface enough times for GNU ld.
     set_property(TARGET catalog PROPERTY LINK_INTERFACE_MULTIPLICITY 3)
+    # catalog.a calls extLoadDialectDefaults. GNU ld scans libextconnector.a
+    # before the last libcatalog.a in the cycle, so the defining object is
+    # discarded unless the symbol is required from the start of the link.
+    target_link_options(catalog INTERFACE "LINKER:--undefined=extLoadDialectDefaults")
 endif()
 
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
@@ -41,6 +45,15 @@ if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
     # references nodesRemotePlanToSQL from libnodes.a after libnodes.a may
     # already have been scanned. Force extraction for catalog consumers.
     target_link_options(catalog INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
+endif()
+
+if(UNIX AND NOT APPLE)
+    # catalog.c/ctgAsync.c/ctgCache.c reference extLoadDialectDefaults from
+    # libextconnector.a, which precedes libcatalog.a in the static-library
+    # cycle (extconnector -> nodes -> planner -> catalog). GNU ld may scan the
+    # last libcatalog.a occurrence after the last libextconnector.a occurrence,
+    # leaving the symbol unresolved. Force extraction for catalog consumers.
+    target_link_options(catalog INTERFACE "LINKER:--undefined=extLoadDialectDefaults")
 endif()
 
 if(BUILD_TEST AND NOT TD_WINDOWS)

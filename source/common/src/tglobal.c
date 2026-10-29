@@ -376,6 +376,13 @@ char tsSmlAutoChildTableNameDelimiter[TSDB_TABLE_NAME_LEN] = "";
 // bool    tsSmlDataFormat = false;
 // int32_t tsSmlBatchSize = 10000;
 
+// workload record and replay (WLR), DS 6.1. All three are CFG_SCOPE_CLIENT and
+// CFG_DYN_NONE: recording is decided once at process startup, so there is no
+// ALTER LOCAL path and no heartbeat delivery.
+int32_t tsWorkloadRecord = 0;
+char    tsWorkloadRecordDir[PATH_MAX] = {0};  // resolved from tsLogDir at init
+int32_t tsWorkloadRecordBufferSize = 256;
+
 // checkpoint backup
 char    tsSnodeAddress[TSDB_FQDN_LEN] = {0};
 int32_t tsRsyncPort = 873;
@@ -895,6 +902,19 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
                                 CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "bypassFlag", tsBypassFlag, 0, INT32_MAX, CFG_SCOPE_BOTH, CFG_DYN_BOTH,
                                 CFG_CATEGORY_LOCAL, CFG_PRIV_DEBUG));
+  // workload record and replay (WLR), DS 6.1. CFG_DYN_NONE is what makes these
+  // startup-only: it is the mechanism that denies ALTER LOCAL / ALTER ALL DNODES,
+  // so recording cannot be toggled on a running client.
+  // The full 0..255 range is accepted rather than 0..1 so that a reserved value
+  // reaches the recorder, which reports WLR_E_CONFIG and stays off; rejecting it
+  // here would fail client startup instead (see 6.1).
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "workloadRecord", tsWorkloadRecord, 0, 255, CFG_SCOPE_CLIENT, CFG_DYN_NONE,
+                                CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddDir(pCfg, "workloadRecordDir", tsWorkloadRecordDir, CFG_SCOPE_CLIENT, CFG_DYN_NONE,
+                              CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "workloadRecordBufferSize", tsWorkloadRecordBufferSize, 16, 4096,
+                                CFG_SCOPE_CLIENT, CFG_DYN_NONE, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 2, TSDB_MAX_RPC_THREADS);
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "numOfRpcThreads", tsNumOfRpcThreads, 1, 1024, CFG_SCOPE_BOTH, CFG_DYN_BOTH_LAZY,
@@ -1300,7 +1320,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "streamTriggerMaxPendingParams", tsStreamTriggerMaxPendingParams, 1, INT32_MAX,
                                CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssEnabled", tsSsEnabled, 0, 2, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
-  TAOS_CHECK_RETURN(cfgAddString(pCfg, "ssAccessString", tsSsAccessString, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  // [Security-Fix item264] ssAccessString carries S3 accessKeyId/secretAccessKey credentials for
+  // the cluster's shared storage. Reclassify it from CFG_PRIV_SYSTEM to CFG_PRIV_SECURITY so that
+  // it is treated as a secret: in the enterprise build it is hidden from users without the security
+  // show privilege, and in the community build its value is masked in SHOW VARIABLES output.
+  TAOS_CHECK_RETURN(cfgAddString(pCfg, "ssAccessString", tsSsAccessString, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssAutoMigrateIntervalSec", tsSsAutoMigrateIntervalSec, 600, 100000, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssPageCacheSize", tsSsPageCacheSize, 4, 1024 * 1024 * 1024, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER_LAZY,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "ssUploadDelaySec", tsSsUploadDelaySec, 1, 60 * 60 * 24 * 30, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -1846,6 +1870,65 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaCacheMaxSize");
   tsMetaCacheMaxSize = pItem->i32;
+
+  // workload record and replay (WLR), DS 6.1.
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "workloadRecord");
+  tsWorkloadRecord = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "workloadRecordBufferSize");
+  tsWorkloadRecordBufferSize = pItem->i32;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "workloadRecordDir");
+  if (pItem->str == NULL) {
+    uWarn("workloadRecordDir is unavailable; recording will stay disabled");
+    tsWorkloadRecordDir[0] = '\0';
+    tsWorkloadRecord = 0;
+  } else if (taosCheckCfgStrValueLen(pItem->name, pItem->str, PATH_MAX - 1) != TSDB_CODE_SUCCESS) {
+    uWarn("workloadRecordDir exceeds %d bytes; recording will stay disabled", PATH_MAX - 1);
+    tsWorkloadRecordDir[0] = '\0';
+    tsWorkloadRecord = 0;
+  } else if (strlen(pItem->str) == 0) {
+    // Default is ${logDir}/workload. The cfg layer does not expand ${logDir},
+    // and tsLogDir is only final once logging has been configured, so the
+    // default is composed here rather than at cfgAddDir time.
+    size_t  logDirLen = strlen(tsLogDir);
+    bool needSep = logDirLen > 0 && tsLogDir[logDirLen - 1] != '/' && tsLogDir[logDirLen - 1] != '\\';
+    if (logDirLen == 0) {
+      uWarn("workloadRecordDir default is unavailable because logDir is empty; recording will stay disabled");
+      tsWorkloadRecordDir[0] = '\0';
+      tsWorkloadRecord = 0;
+    } else {
+      int32_t pathLen = snprintf(tsWorkloadRecordDir, sizeof(tsWorkloadRecordDir), "%s%sworkload", tsLogDir,
+                                 needSep ? TD_DIRSEP : "");
+      if (pathLen < 0 || pathLen >= (int32_t)sizeof(tsWorkloadRecordDir)) {
+        uWarn("workloadRecordDir default exceeds %d bytes; recording will stay disabled",
+              (int32_t)sizeof(tsWorkloadRecordDir) - 1);
+        tsWorkloadRecordDir[0] = '\0';
+        tsWorkloadRecord = 0;
+      }
+    }
+    // Publish the resolved default for SHOW LOCAL VARIABLES without applying DIR
+    // expansion a second time; tsLogDir may legally contain shell metacharacters.
+    if (tsWorkloadRecordDir[0] != '\0') {
+      /* taosSetClientCfg is called without pCfg->lock held; the resolved setter
+       * therefore owns locking just like other startup publication paths. */
+      int32_t cfgCode =
+          cfgSetDirResolved(pCfg, "workloadRecordDir", tsWorkloadRecordDir, CFG_STYPE_DEFAULT, true);
+      if (cfgCode != TSDB_CODE_SUCCESS) {
+        uWarn("failed to publish resolved workloadRecordDir, code:%s; recording configuration remains usable",
+              tstrerror(cfgCode));
+      }
+    }
+  } else {
+    // pItem->str is already the cfg layer's resolved DIR value. Re-expanding or
+    // writing it back would run word expansion twice and could change literal path
+    // characters; simply publish that resolved value to the runtime global.
+    tstrncpy(tsWorkloadRecordDir, pItem->str, sizeof(tsWorkloadRecordDir));
+  }
+  // The directory is deliberately NOT created here: taosSetClientCfg runs for
+  // every client regardless of mode, and mode 0 must not touch the filesystem
+  // (DS 6.1, TS CFG001/CFG002). Creation happens in the recorder's own init,
+  // where a failure can be reported as WLR_E_INIT_DIR and left fail-open.
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "randErrorChance");
   tsRandErrChance = pItem->i32;
@@ -2908,6 +2991,33 @@ _exit:
   TAOS_RETURN(code);
 }
 
+// Shapes produced by globalConfigSerialize: BOOL as json bool, INT32 as number, INT64/FLOAT/DOUBLE and all string
+// types as json strings.
+static bool cfgJsonMatchDtype(ECfgDataType dtype, const cJSON *pJson) {
+  switch (dtype) {
+    case CFG_DTYPE_NONE:
+      return true;
+    case CFG_DTYPE_BOOL:
+      return cJSON_IsBool(pJson);
+    case CFG_DTYPE_INT32:
+      return cJSON_IsNumber(pJson);
+    // INT64/FLOAT/DOUBLE are serialized as decimal strings (see globalConfigSerialize), because a cJSON number is a
+    // double and cannot hold every int64 exactly. cfgDeserialize reads them back via cJSON_GetStringValue, so a json
+    // number here would yield a NULL string and crash in atoll/taosStr2Float.
+    case CFG_DTYPE_INT64:
+    case CFG_DTYPE_FLOAT:
+    case CFG_DTYPE_DOUBLE:
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+      return cJSON_IsString(pJson) && pJson->valuestring != NULL;
+    default:
+      return false;
+  }
+}
+
 int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -2962,6 +3072,11 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _exit;
         }
+        if (dir == NULL || !cJSON_IsString(filed)) {
+          uError("invalid disk config entry in config file");
+          code = TSDB_CODE_INVALID_CFG;
+          goto _exit;
+        }
 
         int64_t actDiskID = 0;
         int64_t expDiskID = taosStr2Int64(cJSON_GetStringValue(filed), NULL, 10);
@@ -2976,6 +3091,13 @@ int32_t cfgDeserialize(SArray *array, char *buf, bool isGlobal) {
           goto _exit;
         }
       }
+      continue;
+    }
+    // The file may be corrupt or have been produced from untrusted input; skip entries whose JSON shape does not
+    // match the local dtype instead of dereferencing a missing string value.
+    if (!cfgJsonMatchDtype(pItem->dtype, pJson)) {
+      uWarn("config item:%s in config file has unexpected json type:%d for dtype:%d, ignored", pItem->name,
+            pJson->type, pItem->dtype);
       continue;
     }
     switch (pItem->dtype) {

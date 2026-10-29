@@ -79,6 +79,29 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_CLOEXEC       0x0400
 #define TD_FILE_NOFOLLOW      0x0800  // Do not follow a symbolic link at the path (Linux/macOS only)
 #define TD_FILE_SHARE_READ    0x1000  // Let other users read the created file instead of owner-only (Linux/macOS only)
+/*
+ * Explicitly request owner-only permissions (0600). This is also the default for
+ * newly created files on the POSIX non-stream open(2) path, but the flag documents sensitive call sites and overrides
+ * TD_FILE_SHARE_READ if both flags are present. The effective mode remains subject to
+ * the process umask.
+ *
+ * Requires TD_FILE_CREATE and only affects newly created files on the non-stream open(2)
+ * path; an existing file's mode is untouched. The POSIX path follows an existing final-component symbolic link,
+ * so this flag does not make an existing target private. TD_FILE_PRIVATE cannot be
+ * combined with TD_FILE_STREAM and that combination fails rather than silently creating
+ * a potentially readable file. On Windows, where this mode cannot be guaranteed by
+ * CreateFile, non-stream opens with this flag also fail.
+ *
+ * Use for files whose contents are sensitive even though the surrounding
+ * directory may be readable -- e.g. workload recordings, which store SQL text and
+ * bind payloads verbatim.
+ *
+ * This flag is intentionally narrower than taosOpenPrivateFile. Use
+ * taosOpenPrivateFile when a caller requires cross-platform private-file guarantees;
+ * use TD_FILE_PRIVATE only when the taosOpenFile API shape is required and the
+ * POSIX-only/umask- and symlink-sensitive semantics are acceptable.
+ */
+#define TD_FILE_PRIVATE       0x2000
 
 // Create with TD_FILE_CREATE | TD_FILE_EXCL and TD_FILE_READ and/or TD_FILE_WRITE,
 // or open an existing file with flags == TD_FILE_READ; all other flags are rejected.
@@ -90,6 +113,15 @@ typedef struct TdFile *TdFilePtr;
 // current user. Opening existing files does not reset their DACL.
 // Only the final component is checked for links; callers are responsible for the parent path.
 TdFilePtr taosOpenPrivateFile(const char *path, int32_t flags);
+// Reserve 37 bytes for '-' and the UUID in a 255-byte component.
+enum { TD_TMP_FILE_PREFIX_MAX_LEN = 218 };
+
+// Create an owner-only, read/write file and remove it on close or earlier.
+// dir may be a symbolic link; resolve it once when opening the directory.
+// Directory handles anchor creation; no persistent subdirectory is retained.
+// Return NULL and set terrno on failure. prefix must be non-empty, contain
+// at most TD_TMP_FILE_PREFIX_MAX_LEN bytes, and exclude separators/colons.
+TdFilePtr taosOpenTempFile(const char *dir, const char *prefix);
 // Succeed only if path is a unix socket (not a link) owned by the effective UID; always succeeds on Windows.
 int32_t   taosCheckPrivateSocket(const char *path);
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions);
@@ -107,6 +139,15 @@ bool taosCheckAccessFile(const char *pathname, int mode);
 int32_t taosLockFile(TdFilePtr pFile);
 int32_t taosUnLockFile(TdFilePtr pFile);
 
+#ifdef WINDOWS
+/* Byte-range lock at an explicit offset.  Used for the log file's mutual
+ * exclusion token, which is parked far beyond the file's data so that other
+ * processes can still read (tail) the live log on Windows, where byte-range
+ * locks are mandatory rather than advisory. */
+int32_t taosLockFileAt(TdFilePtr pFile, int64_t offset, int64_t length);
+int32_t taosUnLockFileAt(TdFilePtr pFile, int64_t offset, int64_t length);
+#endif
+
 int32_t taosUmaskFile(int32_t maskVal);
 
 #ifndef WINDOWS
@@ -115,6 +156,11 @@ int32_t taosFchmodFile(TdFilePtr pFile, int32_t mode);
 #endif
 
 int32_t taosStatFile(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
+/* Returns permission bits only; file-type bits are removed on every platform.
+ * Check the return value directly; on failure, mode is not modified. This query follows
+ * the final symbolic link. Windows CRT modes expose only _S_I* bits
+ * and do not represent POSIX group/world permissions or Windows ACLs. */
+int32_t taosGetFileMode(const char *path, int32_t *mode);
 int32_t taosGetFileDiskID(const char *path, int64_t *diskid);
 bool    taosCheckFileDiskID(const char *path, int64_t *actDiskID, int64_t expDiskID);
 int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
@@ -183,6 +229,8 @@ TdFilePtr taosOpenFileW(const char *path, int32_t tdFileOptions);
 int32_t   taosRemoveFileW(const char *path);
 int32_t   taosRenameFileW(const char *oldName, const char *newName);
 int32_t   taosStatFileW(const char *path, int64_t *size, int64_t *mtime, int64_t *atime);
+/* Same permission-only and failure-output contract as taosGetFileMode. */
+int32_t   taosGetFileModeW(const char *path, int32_t *mode);
 bool      taosCheckAccessFileW(const char *pathname, int32_t mode);
 bool      taosCheckExistFileW(const char *pathname);
 #endif
@@ -207,6 +255,7 @@ bool      taosCheckExistFileW(const char *pathname);
 #define taosRemoveFile      taosRemoveFileW
 #define taosRenameFile      taosRenameFileW
 #define taosStatFile        taosStatFileW
+#define taosGetFileMode     taosGetFileModeW
 #define taosCheckAccessFile taosCheckAccessFileW
 #define taosCheckExistFile  taosCheckExistFileW
 #endif

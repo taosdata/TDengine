@@ -19,6 +19,7 @@ import platform
 import re
 import sys
 import subprocess
+import tempfile
 import datetime as _datetime
 import shutil
 import time as _time
@@ -346,22 +347,34 @@ _FQ_CERT_DIR = os.getenv(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs"),
 )
 
+
+def _cert_path(*parts) -> str:
+    """Certificate path with forward slashes.
+
+    The paths are embedded in SQL string literals, where a Windows backslash
+    is an escape character; forward slashes are accepted by the Windows file
+    APIs and by the external client libraries, so the literal stays valid on
+    every platform.
+    """
+    return os.path.join(_FQ_CERT_DIR, *parts).replace("\\", "/")
+
+
 # Shared
-FQ_CA_CERT        = os.path.join(_FQ_CERT_DIR, "ca.pem")
+FQ_CA_CERT        = _cert_path("ca.pem")
 
 # MySQL TLS files
-FQ_MYSQL_CA_CERT        = os.path.join(_FQ_CERT_DIR, "mysql", "ca.pem")
-FQ_MYSQL_SERVER_CERT    = os.path.join(_FQ_CERT_DIR, "mysql", "server.pem")
-FQ_MYSQL_SERVER_KEY     = os.path.join(_FQ_CERT_DIR, "mysql", "server-key.pem")
-FQ_MYSQL_CLIENT_CERT    = os.path.join(_FQ_CERT_DIR, "mysql", "client.pem")
-FQ_MYSQL_CLIENT_KEY     = os.path.join(_FQ_CERT_DIR, "mysql", "client-key.pem")
+FQ_MYSQL_CA_CERT        = _cert_path("mysql", "ca.pem")
+FQ_MYSQL_SERVER_CERT    = _cert_path("mysql", "server.pem")
+FQ_MYSQL_SERVER_KEY     = _cert_path("mysql", "server-key.pem")
+FQ_MYSQL_CLIENT_CERT    = _cert_path("mysql", "client.pem")
+FQ_MYSQL_CLIENT_KEY     = _cert_path("mysql", "client-key.pem")
 
 # PostgreSQL TLS files
-FQ_PG_CA_CERT           = os.path.join(_FQ_CERT_DIR, "pg", "ca.pem")
-FQ_PG_SERVER_CERT       = os.path.join(_FQ_CERT_DIR, "pg", "server.pem")
-FQ_PG_SERVER_KEY        = os.path.join(_FQ_CERT_DIR, "pg", "server.key")
-FQ_PG_CLIENT_CERT       = os.path.join(_FQ_CERT_DIR, "pg", "client.pem")
-FQ_PG_CLIENT_KEY        = os.path.join(_FQ_CERT_DIR, "pg", "client-key.pem")
+FQ_PG_CA_CERT           = _cert_path("pg", "ca.pem")
+FQ_PG_SERVER_CERT       = _cert_path("pg", "server.pem")
+FQ_PG_SERVER_KEY        = _cert_path("pg", "server.key")
+FQ_PG_CLIENT_CERT       = _cert_path("pg", "client.pem")
+FQ_PG_CLIENT_KEY        = _cert_path("pg", "client-key.pem")
 
 
 # =====================================================================
@@ -380,13 +393,96 @@ _SqlserverVerCfg = namedtuple("_SqlserverVerCfg",
 # External source direct-connection helpers
 # =====================================================================
 
+def _fq_base_dir() -> str:
+    """Root directory holding the provisioned external-source instances.
+
+    Linux/macOS default to /opt/taostest/fq (ensure_ext_env.sh), Windows to
+    %LOCALAPPDATA%\\taostest\\fq (ensure_ext_env.ps1).  FQ_BASE_DIR overrides
+    both, matching the two setup scripts.
+    """
+    override = os.getenv("FQ_BASE_DIR")
+    if override:
+        return override
+    if sys.platform == "win32":
+        base = os.getenv("LOCALAPPDATA") or os.path.join(os.path.expanduser("~"), "AppData", "Local")
+        return os.path.join(base, "taostest", "fq")
+    return "/opt/taostest/fq"
+
+
+def _influx_windows_processes(cfg, data_dir):
+    """Live InfluxDB server processes belonging to one test instance.
+
+    Windows has no /proc and no ``ps``: walk the process table with psutil and
+    require both the InfluxDB server executable and this instance's bind
+    address or data directory, so an engine from another version is never
+    signalled by mistake.
+    """
+    import psutil
+    procs = []
+    bind_arg = f"--http-bind {cfg.host}:{cfg.port}"
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            name = (proc.info.get("name") or "").lower()
+            if name not in ("influxdb3.exe", "influxd.exe", "influxdb3", "influxd"):
+                continue
+            args = " ".join(proc.info.get("cmdline") or [])
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+        if not args:
+            continue
+        if bind_arg in args or data_dir in args or f":{cfg.port}" in args:
+            procs.append(proc)
+    return procs
+
+
+def _stop_influx_windows(cfg, data_dir, wait_s=10):
+    """Terminate the InfluxDB instance and confirm its port is closed."""
+    import time
+
+    procs = _influx_windows_processes(cfg, data_dir)
+    for proc in procs:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+    deadline = time.time() + 5
+    while time.time() < deadline and any(p.is_running() for p in procs):
+        time.sleep(0.2)
+    for proc in procs:
+        try:
+            if proc.is_running():
+                proc.kill()
+        except Exception:
+            pass
+
+    # Probe the port through ExtSrcEnv's own TCP helper (the class is defined
+    # below this helper; it exists by the time a test calls this function).
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        if not ExtSrcEnv._tcp_probe(cfg.host, cfg.port, timeout=0.5):
+            return
+        time.sleep(0.1)
+    raise RuntimeError(
+        f"InfluxDB is still accepting connections at {cfg.host}:{cfg.port} "
+        f"after terminate/kill")
+
+
+def _read_log_tail(path, lines=20):
+    """Return the last lines of a log file, or '' when it cannot be read."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return "".join(fh.readlines()[-lines:])
+    except OSError:
+        return ""
+
+
 def _read_influx_token_file(ver: str) -> Optional[str]:
-    """Read InfluxDB admin token from the file written by ensure_ext_env.sh.
+    """Read InfluxDB admin token from the file written by ensure_ext_env.*.
 
     Returns the token string, or None if the file is missing/empty.
     """
     try:
-        tok_file = f"/opt/taostest/fq/influxdb/{ver}/admin_token.txt"
+        tok_file = os.path.join(_fq_base_dir(), "influxdb", ver, "admin_token.txt")
         with open(tok_file) as _tf:
             tok = _tf.read().strip()
         return tok if tok else None
@@ -562,6 +658,24 @@ class ExtSrcEnv:
         return "".join(lines)
 
     @classmethod
+    def _lifecycle_socket_timeout(cls):
+        """Return the client wait for one host-side lifecycle operation.
+
+        The lease owner enforces FQ_LIFECYCLE_TIMEOUT_S itself. Stay above it
+        so a slow stop or start is reported by the owner, with its container
+        diagnostics, instead of failing as a client-side socket timeout.
+        """
+        raw = os.getenv("FQ_LIFECYCLE_TIMEOUT_S", "150")
+        try:
+            budget = int(raw)
+        except ValueError:
+            raise RuntimeError(f"FQ_LIFECYCLE_TIMEOUT_S must be an integer: {raw!r}")
+        if budget <= 0:
+            raise RuntimeError(f"FQ_LIFECYCLE_TIMEOUT_S must be positive: {raw!r}")
+        # Above the remote lease's own margin so the owner still reports first.
+        return budget + 60
+
+    @classmethod
     def _external_service_action(cls, action, service, ver):
         """Delegate lifecycle operations to the owner of an exclusive lease.
 
@@ -576,7 +690,7 @@ class ExtSrcEnv:
             import json
             import socket
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-                conn.settimeout(120)
+                conn.settimeout(cls._lifecycle_socket_timeout())
                 conn.connect(endpoint)
                 conn.sendall(json.dumps([action, service, ver]).encode() + b"\n")
                 with conn.makefile("rb") as reply:
@@ -589,7 +703,8 @@ class ExtSrcEnv:
             raise RuntimeError(
                 f"External {service} {ver} needs {action}, but no "
                 "FQ_SERVICE_CONTROL is configured for this exclusive lease")
-        subprocess.run([hook, action, service, ver], check=True, timeout=120,
+        subprocess.run([hook, action, service, ver], check=True,
+                       timeout=cls._lifecycle_socket_timeout(),
                        env=_fq_subprocess_env())
         return True
 
@@ -652,11 +767,38 @@ class ExtSrcEnv:
                         "-NoProfile",
                         "-File", ps1,
                     ]
-                    ret = subprocess.call(cmd, env=env)
-                    if ret != 0:
+                    # Capture the setup script's output: when it fails before it
+                    # can print anything (for example a parse error), the tail
+                    # is the only clue available in the CI trace.  Redirect to
+                    # a file instead of a pipe: the backed engines inherit the
+                    # handles they are started with, and a long-lived mysqld
+                    # holding the write end of a pipe keeps communicate()
+                    # blocked even after the script itself has exited.
+                    env_log = os.path.join(
+                        tempfile.gettempdir(), f"fq-env-{os.getpid()}.log")
+                    with open(env_log, "w", encoding="utf-8", errors="replace") as out:
+                        proc = subprocess.run(cmd, env=env, stdout=out,
+                                              stderr=subprocess.STDOUT)
+                    try:
+                        with open(env_log, encoding="utf-8", errors="replace") as log_file:
+                            tail = "\n".join(log_file.read().splitlines()[-80:])
+                    except OSError:
+                        tail = ""
+                    if proc.returncode != 0:
+                        base = env.get("FQ_BASE_DIR") or os.path.join(
+                            os.environ.get("LOCALAPPDATA", ""), "taostest", "fq")
+                        setup_log = os.path.join(base, "setup.log")
+                        if os.path.exists(setup_log):
+                            try:
+                                with open(setup_log, "r", encoding="utf-8",
+                                          errors="replace") as log_file:
+                                    tail = "\n".join(log_file.read().splitlines()[-60:])
+                            except OSError:
+                                pass
                         raise RuntimeError(
-                            f"ensure_ext_env.ps1 failed (exit={ret}). "
-                            f"Check that MySQL/PG/InfluxDB test instances can start.")
+                            f"ensure_ext_env.ps1 failed (exit={proc.returncode}). "
+                            f"Check that MySQL/PG/InfluxDB/SQL Server test instances can start."
+                            f"\n---- ensure_ext_env.ps1 output (tail) ----\n{tail}")
             else:
                 sh = os.path.join(here, "ensure_ext_env.sh")
                 if os.path.exists(sh):
@@ -928,11 +1070,10 @@ class ExtSrcEnv:
         # recovery; hard reset would generate a new token, making _I_TOKEN
         # (cached at import time) stale and breaking all subsequent auth.
         env["FQ_INFLUX_QUICK_RESTART"] = "1"
-        sh = os.path.join(here, "ensure_ext_env.sh")
-        ret = subprocess.call(["bash", sh], env=env)
+        ret = subprocess.call(cls._ext_env_script_cmd(), env=env)
         if ret != 0:
             raise RuntimeError(
-                f"[FQ revive] ensure_ext_env.sh failed (exit={ret})")
+                f"[FQ revive] ensure_ext_env script failed (exit={ret})")
 
         # Re-verify only the services requested by this test.
         still_dead = []
@@ -1060,8 +1201,7 @@ class ExtSrcEnv:
     @classmethod
     def sqlserver_base_dir(cls, ver=None):
         """Install directory of the native SQL Server instance for a version."""
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
-        return os.path.join(fq_base, "sqlserver", str(ver or cls.SQLSERVER_VERSIONS[0]))
+        return os.path.join(_fq_base_dir(), "sqlserver", str(ver or cls.SQLSERVER_VERSIONS[0]))
 
     @classmethod
     def sqlserver_server_bin(cls, ver=None):
@@ -1071,7 +1211,20 @@ class ExtSrcEnv:
 
     @classmethod
     def sqlserver_sqlcmd_path(cls, ver=None):
-        """Path of the sqlcmd binary extracted next to the engine binaries."""
+        """Path of the sqlcmd binary used to prepare remote test data.
+
+        Linux/macOS: the ODBC sqlcmd extracted from the mssql-tools18 package
+        next to the engine.  Windows: the self-contained go-sqlcmd binary the
+        setup script stages under <FQ_BASE_DIR>\\sqlserver\\tools (no ODBC
+        runtime of its own), falling back to a sqlcmd already on PATH.
+        """
+        if sys.platform == "win32":
+            for cand in (os.path.join(_fq_base_dir(), "sqlserver", "tools", "sqlcmd.exe"),
+                         os.path.join(cls.sqlserver_base_dir(ver), "tools", "sqlcmd.exe"),
+                         shutil.which("sqlcmd")):
+                if cand and os.path.isfile(cand):
+                    return cand
+            return None
         base = cls.sqlserver_base_dir(ver)
         for rel in ("tools/opt/mssql-tools18/bin/sqlcmd",
                     "tools/opt/mssql-tools/bin/sqlcmd"):
@@ -1089,7 +1242,11 @@ class ExtSrcEnv:
         tree, and the framework's LD_LIBRARY_PATH points at it; in CI
         containers that is the only place the driver exists.  Shared by the
         direct sqlcmd environment and the ensure_ext_env.sh invocation.
+        Windows has no LD_LIBRARY_PATH staging: the driver is registered with
+        the system driver manager by its installer, so nothing is resolved here.
         """
+        if sys.platform == "win32":
+            return None
         for dirname in [d for d in os.environ.get("LD_LIBRARY_PATH", "").split(":") if d]:
             hits = sorted(glob.glob(os.path.join(dirname, "libmsodbcsql-18.*.so*")))
             if hits:
@@ -1165,7 +1322,7 @@ class ExtSrcEnv:
         driver_dir = cls._sqlserver_driver_dir()
         if driver_dir:
             driver = sorted(glob.glob(os.path.join(driver_dir, "libmsodbcsql-18.*.so*")))[0]
-            conf_dir = os.path.join(os.getenv("FQ_BASE_DIR", "/opt/taostest/fq"),
+            conf_dir = os.path.join(_fq_base_dir(),
                                     "sqlserver", "odbc")
             os.makedirs(conf_dir, exist_ok=True)
             with open(os.path.join(conf_dir, "odbcinst.ini"), "w", encoding="utf-8") as fh:
@@ -1190,7 +1347,7 @@ class ExtSrcEnv:
         hard reset (data wipe + restart).  Falls back to FQ_INFLUX_TOKEN env
         var or the 'test-token' default (used when InfluxDB runs without auth).
         """
-        token_file = f"/opt/taostest/fq/influxdb/{ver}/admin_token.txt"
+        token_file = os.path.join(_fq_base_dir(), "influxdb", ver, "admin_token.txt")
         try:
             with open(token_file) as _tf:
                 tok = _tf.read().strip()
@@ -1206,11 +1363,41 @@ class ExtSrcEnv:
     # wrap the body with try/finally to guarantee the instance is restarted.
 
     @classmethod
+    def _ext_env_script_cmd(cls):
+        """Command prefix that runs the platform external-env setup script."""
+        here = os.path.dirname(os.path.abspath(__file__))
+        if sys.platform == "win32":
+            return ["powershell.exe", "-ExecutionPolicy", "Bypass",
+                    "-NoProfile", "-File", os.path.join(here, "ensure_ext_env.ps1")]
+        return ["bash", os.path.join(here, "ensure_ext_env.sh")]
+
+    @classmethod
     def _kill_process_by_pidfile(cls, pidfile, wait_s=30):
         """SIGTERM a process identified by pidfile; SIGKILL if it lingers."""
         import os, signal, time
         with open(pidfile) as _pf:
             pid = int(_pf.read().strip())
+        if sys.platform == "win32":
+            # Windows has no POSIX signals: terminate (TerminateProcess) and
+            # poll with psutil, escalating to kill when it lingers.
+            import psutil
+            try:
+                proc = psutil.Process(pid)
+            except psutil.NoSuchProcess:
+                return
+            try:
+                proc.terminate()
+                proc.wait(timeout=wait_s)
+                return
+            except psutil.TimeoutExpired:
+                pass
+            except psutil.NoSuchProcess:
+                return
+            try:
+                proc.kill()
+            except psutil.NoSuchProcess:
+                pass
+            return
         try:
             os.kill(pid, signal.SIGTERM)
         except ProcessLookupError:
@@ -1234,6 +1421,13 @@ class ExtSrcEnv:
         with open(pidfile) as _pf:
             content = _pf.read().strip()
             pid = int(content.split('\n')[0] if pid_first_line else content)
+        if sys.platform == "win32":
+            import psutil
+            try:
+                psutil.Process(pid).kill()
+            except psutil.NoSuchProcess:
+                pass
+            return
         os.kill(pid, signal.SIGKILL)
 
     @classmethod
@@ -1242,7 +1436,7 @@ class ExtSrcEnv:
         if cls._external_service_action("kill", "mysql", ver):
             return
 
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
         cls._kill_process_sigkill(pidfile)
 
@@ -1253,7 +1447,7 @@ class ExtSrcEnv:
             return
 
         # postmaster.pid: first line is PID
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         pidfile = os.path.join(fq_base, "pg", ver, "data", "postmaster.pid")
         cls._kill_process_sigkill(pidfile, pid_first_line=True)
 
@@ -1263,7 +1457,7 @@ class ExtSrcEnv:
         if cls._external_service_action("kill", "influx", ver):
             return
 
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         pidfile = os.path.join(fq_base, "influxdb", ver, "run", "influxd.pid")
         cls._kill_process_sigkill(pidfile)
 
@@ -1277,7 +1471,7 @@ class ExtSrcEnv:
         if cls._external_service_action("stop", "mysql", ver):
             return
 
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
         cls._kill_process_by_pidfile(pidfile)
 
@@ -1291,7 +1485,7 @@ class ExtSrcEnv:
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
         env = _fq_subprocess_env()
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         mysql_base = os.path.join(fq_base, "mysql", ver)
         has_mysql_install = os.path.isfile(
             os.path.join(mysql_base, "bin", "mysqld"))
@@ -1301,19 +1495,44 @@ class ExtSrcEnv:
         )
         # Restart only MySQL (not PG/InfluxDB); quick restart is safe only
         # once both the install tree and data dir already exist.
-        env["FQ_SERVICES_TO_RESET"] = "mysql"
-        if has_mysql_install and has_mysql_data:
-            env["FQ_MYSQL_QUICK_RESTART"] = "1"
-        script_timeout = int(os.getenv("FQ_MYSQL_SCRIPT_TIMEOUT_S", "600"))
-        script_error = None
-        try:
-            subprocess.run(["bash", script],
-                           env=env, check=True, capture_output=False,
-                           timeout=script_timeout)
-        except subprocess.CalledProcessError as exc:
-            script_error = exc
-        # Wait for the port to become accepting connections
         cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
+        script_error = None
+        if sys.platform == "win32":
+            # Start in place with mysqld.exe.  The setup script is not used
+            # here because it resets the fq_* fixture databases, and the
+            # stop/restart scenarios must keep their data alive.
+            mysqld = os.path.join(mysql_base, "bin", "mysqld.exe")
+            my_ini = os.path.join(mysql_base, "my.ini")
+            log_dir = os.path.join(mysql_base, "log")
+            run_dir = os.path.join(mysql_base, "run")
+            os.makedirs(log_dir, exist_ok=True)
+            os.makedirs(run_dir, exist_ok=True)
+            child_env = os.environ.copy()
+            lib_private = os.path.join(mysql_base, "lib", "private")
+            if os.path.isdir(lib_private):
+                child_env["PATH"] = lib_private + os.pathsep + child_env.get("PATH", "")
+            with open(os.path.join(log_dir, "mysqld.log"), "ab") as log_fh:
+                proc = subprocess.Popen(
+                    [mysqld, f"--defaults-file={my_ini}", f"--port={cfg.port}"],
+                    cwd=os.path.join(mysql_base, "bin"), env=child_env,
+                    stdin=subprocess.DEVNULL, stdout=log_fh,
+                    stderr=subprocess.STDOUT,
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
+                                   | subprocess.DETACHED_PROCESS))
+            with open(os.path.join(run_dir, "mysqld.pid"), "w") as fh:
+                fh.write(str(proc.pid))
+        else:
+            env["FQ_SERVICES_TO_RESET"] = "mysql"
+            if has_mysql_install and has_mysql_data:
+                env["FQ_MYSQL_QUICK_RESTART"] = "1"
+            script_timeout = int(os.getenv("FQ_MYSQL_SCRIPT_TIMEOUT_S", "600"))
+            try:
+                subprocess.run(cls._ext_env_script_cmd(),
+                               env=env, check=True, capture_output=False,
+                               timeout=script_timeout)
+            except subprocess.CalledProcessError as exc:
+                script_error = exc
+        # Wait for the port to become accepting connections
         deadline = time.time() + wait_s
         import pymysql
         while time.time() < deadline:
@@ -1342,8 +1561,19 @@ class ExtSrcEnv:
             return
 
         import subprocess
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         datadir = os.path.join(fq_base, "pg", ver, "data")
+        if sys.platform == "win32":
+            # The Windows distribution ships pg_ctl.exe; the Unix owner check
+            # (pwd/runuser) does not apply because the instance runs as the
+            # current user.
+            pg_ctl_exe = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl.exe")
+            # DEVNULL instead of pipes: the postmaster inherits the handles,
+            # and a pipe would keep communicate() waiting for EOF.
+            subprocess.run([pg_ctl_exe, "stop", "-D", datadir, "-m", "fast"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=60)
+            return
         pg_ctl_bin = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl")
         import pwd as _pwd
         try:
@@ -1369,26 +1599,51 @@ class ExtSrcEnv:
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
         env = _fq_subprocess_env()
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         pg_base = os.path.join(fq_base, "pg", ver)
-        has_pg_data = (
-            os.path.isfile(os.path.join(pg_base, "data", "PG_VERSION"))
-            or os.path.isfile(os.path.join(pg_base, "data", "postgresql.conf"))
-        )
-        # Restart only PG (not MySQL/InfluxDB); preserve existing data so that
-        # test databases created before the stop/start cycle survive.
-        env["FQ_SERVICES_TO_RESET"] = "pg"
-        if has_pg_data:
-            env["FQ_PG_QUICK_RESTART"] = "1"
-        script_timeout = int(os.getenv("FQ_PG_SCRIPT_TIMEOUT_S", "600"))
-        script_error = None
-        try:
-            subprocess.run(["bash", script],
-                           env=env, check=True, capture_output=False,
-                           timeout=script_timeout)
-        except subprocess.CalledProcessError as exc:
-            script_error = exc
         cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+        script_error = None
+        if sys.platform == "win32":
+            # Start in place with pg_ctl.exe.  The setup script is not used
+            # here because it resets every non-system database, and the
+            # stop/restart scenarios must keep the fixture data alive.
+            pg_ctl_exe = os.path.join(pg_base, "bin", "pg_ctl.exe")
+            log_dir = os.path.join(pg_base, "log")
+            os.makedirs(log_dir, exist_ok=True)
+            # Redirect to files, never to pipes: pg_ctl leaves the postmaster
+            # running, the postmaster inherits the stdio handles, and a pipe
+            # would keep communicate() blocked waiting for EOF long after the
+            # server was ready (the same reason ensure_ext_env.ps1 redirects
+            # here and does not use -Wait).
+            with open(os.path.join(log_dir, "pg_ctl.out"), "wb") as out_fh, \
+                    open(os.path.join(log_dir, "pg_ctl.err"), "wb") as err_fh:
+                try:
+                    subprocess.run(
+                        [pg_ctl_exe, "start", "-D", os.path.join(pg_base, "data"),
+                         "-l", os.path.join(log_dir, "pg.log"),
+                         "-o", f"-p {cfg.port}"],
+                        stdout=out_fh, stderr=err_fh, timeout=90)
+                except subprocess.TimeoutExpired:
+                    tdLog.info(
+                        f"[FQ env] pg_ctl start did not return within 90s for "
+                        f"PostgreSQL {ver}; probing the port instead")
+        else:
+            has_pg_data = (
+                os.path.isfile(os.path.join(pg_base, "data", "PG_VERSION"))
+                or os.path.isfile(os.path.join(pg_base, "data", "postgresql.conf"))
+            )
+            # Restart only PG (not MySQL/InfluxDB); preserve existing data so that
+            # test databases created before the stop/start cycle survive.
+            env["FQ_SERVICES_TO_RESET"] = "pg"
+            if has_pg_data:
+                env["FQ_PG_QUICK_RESTART"] = "1"
+            script_timeout = int(os.getenv("FQ_PG_SCRIPT_TIMEOUT_S", "600"))
+            try:
+                subprocess.run(cls._ext_env_script_cmd(),
+                               env=env, check=True, capture_output=False,
+                               timeout=script_timeout)
+            except subprocess.CalledProcessError as exc:
+                script_error = exc
         deadline = time.time() + wait_s
         import psycopg2
         while time.time() < deadline:
@@ -1417,11 +1672,15 @@ class ExtSrcEnv:
             return
 
         import signal, time
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         data_dir = os.path.join(fq_base, "influxdb", ver, "data")
         cfg = next((c for c in cls.influx_version_configs() if c.version == ver), None)
         if cfg is None:
             raise RuntimeError(f"InfluxDB version {ver} is not configured")
+
+        if sys.platform == "win32":
+            _stop_influx_windows(cfg, data_dir)
+            return
 
         def matching_pids():
             """Return only the InfluxDB server PIDs for this test instance.
@@ -1526,9 +1785,41 @@ class ExtSrcEnv:
         return pids
 
     @classmethod
+    def _sqlserver_windows_service(cls):
+        """Windows service name of the local SQL Server instance."""
+        inst = os.getenv("FQ_SQLSERVER_INSTANCE", "FQSQL")
+        return "MSSQLSERVER" if inst.upper() == "MSSQLSERVER" else f"MSSQL${inst}"
+
+    @classmethod
+    def _sqlserver_service_is_local(cls):
+        host = (cls.SQLSERVER_HOST or "").strip().lower()
+        return sys.platform == "win32" and host in ("127.0.0.1", "localhost", "::1", ".")
+
+    @classmethod
+    def _sqlserver_service_pid(cls):
+        """PID of the local SQL Server service process, or None."""
+        import subprocess
+        try:
+            out = subprocess.run(
+                ["sc.exe", "queryex", cls._sqlserver_windows_service()],
+                capture_output=True, text=True, timeout=30).stdout
+        except Exception:
+            return None
+        m = re.search(r"PID\s*:\s*(\d+)", out)
+        pid = int(m.group(1)) if m else 0
+        return pid or None
+
+    @classmethod
     def kill_sqlserver_instance(cls, ver):
         """Hard-stop the engine process (kill -9 equivalent)."""
         if cls._external_service_action("kill", "sqlserver", ver):
+            return
+        if cls._sqlserver_service_is_local():
+            import subprocess
+            pid = cls._sqlserver_service_pid()
+            if pid:
+                subprocess.run(["taskkill", "/F", "/PID", str(pid)],
+                               capture_output=True)
             return
         import signal
         for pid in cls._sqlserver_pids(ver):
@@ -1542,20 +1833,25 @@ class ExtSrcEnv:
         """Graceful engine stop (service disruption scenarios)."""
         if cls._external_service_action("stop", "sqlserver", ver):
             return
+        import subprocess
         import signal
         import time
-        for pid in cls._sqlserver_pids(ver):
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
         cfg = next((c for c in cls.sqlserver_version_configs()
                     if c.version == ver), None)
+        if cls._sqlserver_service_is_local():
+            subprocess.run(["sc.exe", "stop", cls._sqlserver_windows_service()],
+                           capture_output=True, timeout=120)
+        else:
+            for pid in cls._sqlserver_pids(ver):
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
         if cfg is None:
             return
         deadline = time.time() + wait_s
         while time.time() < deadline:
-            if not cls._sqlserver_pids(ver) and not cls._tcp_probe(cfg.host, cfg.port):
+            if not cls._tcp_probe(cfg.host, cfg.port):
                 return
             time.sleep(1)
 
@@ -1564,6 +1860,25 @@ class ExtSrcEnv:
         """Start the engine process and wait until a probe query succeeds."""
         if cls._external_service_action("start", "sqlserver", ver):
             return True
+        if cls._sqlserver_service_is_local():
+            import subprocess
+            import time
+            cfg = next((c for c in cls.sqlserver_version_configs()
+                        if c.version == ver), None)
+            if cfg is None:
+                return False
+            subprocess.run(["sc.exe", "start", cls._sqlserver_windows_service()],
+                           capture_output=True, timeout=120)
+            deadline = time.time() + wait_s
+            while time.time() < deadline:
+                try:
+                    if cls._tcp_probe(cfg.host, cfg.port) and \
+                            cls.sqlserver_query_cfg(cfg, "master", "SELECT 1"):
+                        return True
+                except Exception:
+                    pass
+                time.sleep(2)
+            return False
         import subprocess
         import time
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -1611,34 +1926,82 @@ class ExtSrcEnv:
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                               "ensure_ext_env.sh")
         env = _fq_subprocess_env()
-        fq_base = os.getenv("FQ_BASE_DIR", "/opt/taostest/fq")
+        fq_base = _fq_base_dir()
         influx_bin_dir = os.path.join(fq_base, "influxdb", ver, "bin")
         has_influx_install = (
             os.path.isfile(os.path.join(influx_bin_dir, "influxdb3"))
             or os.path.isfile(os.path.join(influx_bin_dir, "influxd"))
         )
-        # Reset only InfluxDB (not MySQL/PG) to avoid disrupting other
-        # services and to prevent accidental signal delivery to taosd.
-        # InfluxDB 3.x still gets a full hard reset (kill → wipe → restart)
-        # because its append-only IOx catalog overflows without a data wipe.
-        env["FQ_SERVICES_TO_RESET"] = "influx"
-        if has_influx_install:
-            # Quick restart: skip the IOx data-dir wipe so InfluxDB is started
-            # in-place.  This avoids the double-restart that ensure_influx's
-            # hard-reset path causes when InfluxDB is already stopped:
-            # (start → wait → kill → wipe → restart) was sometimes leaving
-            # the second instance in a state where it crashed shortly after
-            # startup, causing cascade failures in subsequent tests.
-            env["FQ_INFLUX_QUICK_RESTART"] = "1"
-        script_timeout = int(os.getenv("FQ_INFLUX_SCRIPT_TIMEOUT_S", "600"))
-        script_error = None
-        try:
-            subprocess.run(["bash", script],
-                           env=env, check=True, capture_output=False,
-                           timeout=script_timeout)
-        except subprocess.CalledProcessError as exc:
-            script_error = exc
         cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
+        script_error = None
+        proc = None
+        log_path = None
+        if sys.platform == "win32":
+            # Restart in place.  The setup script is not used here because its
+            # Windows implementation drops every non-internal database, and the
+            # stop/restart scenarios must keep the fixture data alive.
+            influx_base = os.path.join(fq_base, "influxdb", ver)
+            influx_exe = None
+            for name in ("influxdb3.exe", "influxd.exe"):
+                candidate = os.path.join(influx_bin_dir, name)
+                if os.path.isfile(candidate):
+                    influx_exe = candidate
+                    break
+            if influx_exe is None:
+                raise RuntimeError(
+                    f"InfluxDB {ver} executable not found under {influx_bin_dir}")
+            data_dir = os.path.join(influx_base, "data")
+            run_dir = os.path.join(influx_base, "run")
+            log_dir = os.path.join(influx_base, "log")
+            os.makedirs(data_dir, exist_ok=True)
+            os.makedirs(run_dir, exist_ok=True)
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, "influxd.log")
+            # Mirror ensure_ext_env.sh's quick restart: kill any previous
+            # instance and wait until the port is actually released before
+            # launching the replacement.  A crashed instance may still hold
+            # the data dir even though its port probe already fails.
+            try:
+                cls.stop_influx_instance(ver)
+            except Exception as exc:
+                tdLog.error(f"[FQ env] failed to clear stale InfluxDB {ver}: {exc}")
+            with open(log_path, "ab") as log_fh:
+                # Detach so the engine outlives this pytest process, exactly
+                # like ensure_ext_env.ps1's background launcher.
+                # Auth stays enabled: the catalog token in admin_token.txt
+                # keeps working across restarts, and the credential scenarios
+                # rely on tokens being enforced.
+                proc = subprocess.Popen(
+                    [influx_exe, "serve", "--node-id", "fq-test-node",
+                     "--http-bind", f"{cfg.host}:{cfg.port}",
+                     "--object-store", "file", "--data-dir", data_dir],
+                    cwd=influx_bin_dir, stdin=subprocess.DEVNULL,
+                    stdout=log_fh, stderr=subprocess.STDOUT,
+                    creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
+                                   | subprocess.DETACHED_PROCESS))
+            with open(os.path.join(run_dir, "influxd.pid"), "w") as fh:
+                fh.write(str(proc.pid))
+        else:
+            # Reset only InfluxDB (not MySQL/PG) to avoid disrupting other
+            # services and to prevent accidental signal delivery to taosd.
+            # InfluxDB 3.x still gets a full hard reset (kill → wipe → restart)
+            # because its append-only IOx catalog overflows without a data wipe.
+            env["FQ_SERVICES_TO_RESET"] = "influx"
+            if has_influx_install:
+                # Quick restart: skip the IOx data-dir wipe so InfluxDB is started
+                # in-place.  This avoids the double-restart that ensure_influx's
+                # hard-reset path causes when InfluxDB is already stopped:
+                # (start → wait → kill → wipe → restart) was sometimes leaving
+                # the second instance in a state where it crashed shortly after
+                # startup, causing cascade failures in subsequent tests.
+                env["FQ_INFLUX_QUICK_RESTART"] = "1"
+            script_timeout = int(os.getenv("FQ_INFLUX_SCRIPT_TIMEOUT_S", "600"))
+            try:
+                subprocess.run(cls._ext_env_script_cmd(),
+                               env=env, check=True, capture_output=False,
+                               timeout=script_timeout)
+            except subprocess.CalledProcessError as exc:
+                script_error = exc
         deadline = time.time() + wait_s
         while time.time() < deadline:
             try:
@@ -1655,11 +2018,22 @@ class ExtSrcEnv:
                     return
             except Exception:
                 pass
+            # Probe the process itself instead of waiting out the whole
+            # window: if this start already exited, retry immediately and
+            # surface the server log (ensure_ext_env.sh probes the port and
+            # reports the same way).
+            if proc is not None and proc.poll() is not None:
+                tail = _read_log_tail(log_path, 20)
+                raise RuntimeError(
+                    f"InfluxDB {ver} exited during startup (code "
+                    f"{proc.returncode}); log tail from {log_path}:\n{tail}")
             time.sleep(0.5)
         if script_error is not None:
             raise script_error
+        tail = _read_log_tail(log_path, 20) if log_path else ""
         raise RuntimeError(
-            f"InfluxDB {ver} did not become ready within {wait_s}s")
+            f"InfluxDB {ver} did not become ready within {wait_s}s"
+            + (f"; log tail from {log_path}:\n{tail}" if tail else ""))
 
     # ---- Version combo helpers (used by FederatedQueryVersionedMixin) ----
 
@@ -1968,89 +2342,84 @@ class ExtSrcEnv:
     # ---- InfluxDB helpers ----
 
     @classmethod
+    def _influx_restart(cls, ver=None):
+        """Stop (if still listening) and restart InfluxDB after a crash."""
+        ver = ver or cls.INFLUX_VERSIONS[0]
+        try:
+            port = next((c.port for c in cls.influx_version_configs()
+                         if c.version == ver), cls.INFLUX_PORT)
+            if cls._tcp_probe(cls.INFLUX_HOST, port, timeout=1):
+                cls.stop_influx_instance(ver)
+        except Exception:
+            pass
+        try:
+            cls.start_influx_instance(ver)
+        except Exception:
+            pass
+
+    @classmethod
+    def _influx_request(cls, method, url, ver=None, attempts=2, **kwargs):
+        """InfluxDB HTTP request with crash recovery.
+
+        InfluxDB 3.x (IOx) can exit while handling a request (notably DELETE
+        database) and can stop answering after a long run.  Both surface as
+        ConnectionError/Timeout; restart the server once and retry instead of
+        failing the whole test class.
+        """
+        import requests
+        for attempt in range(attempts):
+            try:
+                return requests.request(method, url, **kwargs)
+            except (requests.exceptions.ConnectionError,
+                    requests.exceptions.Timeout):
+                if attempt + 1 >= attempts:
+                    raise
+                cls._influx_restart(ver)
+        raise RuntimeError("InfluxDB request failed")  # pragma: no cover
+
+    @classmethod
     def influx_create_db(cls, bucket):
         """Create InfluxDB v3 database (idempotent)."""
-        import requests
-        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v3/configure/database"
-        tok = cls._get_influx_token(cls.INFLUX_VERSIONS[0])
-        auth = {"Authorization": f"Bearer {tok}"} if tok and tok != "test-token" else {}
-        r = requests.get(url, headers=auth, params={"format": "json"}, timeout=5)
-        if r.status_code == 200:
-            if any(d.get("iox::database") == bucket for d in r.json()):
-                return  # already exists
-        elif r.status_code not in (404,):
-            r.raise_for_status()
-        r_create = requests.post(url, headers=auth, json={"db": bucket}, timeout=5)
-        if r_create.status_code not in (200, 201):
-            r_create.raise_for_status()
+        cls.influx_create_db_cfg(next(cls.influx_version_configs()), bucket)
 
     @classmethod
     def influx_drop_db(cls, bucket):
-        """Drop InfluxDB v3 database (idempotent)."""
-        import requests
-        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v3/configure/database"
-        tok = cls._get_influx_token(cls.INFLUX_VERSIONS[0])
-        auth = {"Authorization": f"Bearer {tok}"} if tok and tok != "test-token" else {}
-        r = requests.delete(url, headers=auth, params={"db": bucket}, timeout=5)
-        if r.status_code not in (200, 204, 404):
-            r.raise_for_status()
+        """Drop InfluxDB v3 database (idempotent).
+
+        InfluxDB 3.x (IOx) may exit while handling DELETE
+        /api/v3/configure/database.  The version-config variant detects that
+        crash and restarts the server, so route the default-version call
+        through it; otherwise the next operation fails with
+        ConnectionResetError (seen in the vtable external-source suites, where
+        the first failing call aborted the whole class setup).
+        """
+        cls.influx_drop_db_cfg(next(cls.influx_version_configs()), bucket)
 
     @classmethod
     def influx_write(cls, bucket, lines):
-        """Write line-protocol data to InfluxDB.
-
-        Uses /api/v2/write which InfluxDB 3.x retains for backward
-        compatibility. Uses bucket= parameter (v2 compat name) and no
-        auth header (running with --without-auth).
-
-        lines: list of line-protocol strings, or a single pre-joined string.
-        """
-        import requests
-        data = lines if isinstance(lines, str) else "\n".join(lines)
-        if not data.strip():
-            return  # nothing to write
-        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v2/write"
-        params = {"bucket": bucket, "precision": "ns"}
-        tok = cls._get_influx_token(cls.INFLUX_VERSIONS[0])
-        headers = {"Content-Type": "text/plain; charset=utf-8"}
-        if tok and tok != "test-token":
-            headers["Authorization"] = f"Bearer {tok}"
-        r = requests.post(url, params=params, headers=headers,
-                          data=data.encode('utf-8'))
-        r.raise_for_status()
+        """Write line-protocol data to InfluxDB (default version)."""
+        cls.influx_write_cfg(next(cls.influx_version_configs()), bucket, lines)
 
     @classmethod
     def influx_query_sql(cls, bucket, sql, fmt="json"):
-        """Run a SQL query against an InfluxDB v3 database, return parsed JSON.
-
-        InfluxDB 3.x dropped Flux support; use /api/v3/query_sql instead.
-        fmt: 'json' (default) | 'csv' | 'pretty'
-        """
-        import requests
-        url = f"http://{cls.INFLUX_HOST}:{cls.INFLUX_PORT}/api/v3/query_sql"
-        tok = cls._get_influx_token(cls.INFLUX_VERSIONS[0])
-        headers = {"Content-Type": "application/json",
-                   "Accept": "application/json"}
-        if tok and tok != "test-token":
-            headers["Authorization"] = f"Bearer {tok}"
-        payload = {"db": bucket, "q": sql, "format": fmt}
-        r = requests.post(url, json=payload, headers=headers, timeout=30)
-        r.raise_for_status()
-        return r.json()
+        """Run a SQL query against the default InfluxDB v3 instance."""
+        return cls.influx_query_sql_cfg(
+            next(cls.influx_version_configs()), bucket, sql, fmt)
 
     @classmethod
     def influx_create_db_cfg(cls, cfg, bucket):
         """Create InfluxDB v3 database on a specific version instance (idempotent)."""
-        import requests
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
         headers = {"Authorization": f"Bearer {cfg.token}"} if cfg.token else {}
-        r = requests.get(url, headers=headers, params={"format": "json"}, timeout=5)
+        r = cls._influx_request("GET", url, ver=cfg.version, headers=headers,
+                                params={"format": "json"}, timeout=5)
         if r.status_code == 200:
             if any(d.get("iox::database") == bucket for d in r.json()):
                 return
         elif r.status_code not in (404,):
             r.raise_for_status()
-        r_create = requests.post(url, headers=headers, json={"db": bucket}, timeout=5)
+        r_create = cls._influx_request("POST", url, ver=cfg.version, headers=headers,
+                                       json={"db": bucket}, timeout=5)
         if r_create.status_code not in (200, 201):
             r_create.raise_for_status()
 
@@ -2058,36 +2427,33 @@ class ExtSrcEnv:
     def influx_drop_db_cfg(cls, cfg, bucket):
         """Drop InfluxDB v3 database on a specific version instance (idempotent).
 
-        Note: InfluxDB 3.x (IOx) may exit shortly after responding to a
-        DELETE /api/v3/configure/database request.  This method detects such
-        crashes and automatically restarts InfluxDB so that subsequent tests
-        can continue without a cascade failure.
+        Note: InfluxDB 3.x (IOx) may exit while handling, or shortly after
+        answering, a DELETE /api/v3/configure/database request.  The request
+        helper restarts the server and retries on a connection failure; the
+        short settle-and-probe below catches the crash-after-response case so
+        subsequent tests do not fail with ConnectionResetError.
         """
         import requests, time
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
         headers = {"Authorization": f"Bearer {cfg.token}"} if cfg.token else {}
-        _crashed = False
         try:
-            r = requests.delete(url, headers=headers, params={"db": bucket}, timeout=5)
+            r = cls._influx_request("DELETE", url, ver=cfg.version,
+                                    headers=headers, params={"db": bucket},
+                                    timeout=5)
             if r.status_code not in (200, 204, 404):
                 r.raise_for_status()
-        except requests.exceptions.ConnectionError:
-            _crashed = True  # already not responding when DELETE was sent
-        if not _crashed:
-            # InfluxDB 3.x (IOx) sometimes crashes *after* responding to the
-            # DELETE.  Give it a brief moment to settle, then verify health.
-            time.sleep(0.5)
-            try:
-                requests.get(f"http://{cfg.host}:{cfg.port}/health", timeout=3)
-            except requests.exceptions.ConnectionError:
-                _crashed = True
-        if _crashed:
-            # Restart InfluxDB in-place (quick restart, no data wipe) so that
-            # the next operation against InfluxDB succeeds.
-            try:
-                cls.start_influx_instance(cfg.version)
-            except Exception:
-                pass
+        except requests.exceptions.RequestException:
+            # The helper already restarted the server; treat a drop that still
+            # cannot complete as "already gone".
+            return
+        # InfluxDB 3.x (IOx) sometimes crashes *after* responding to the
+        # DELETE.  Give it a brief moment to settle, then verify health.
+        time.sleep(0.5)
+        try:
+            cls._influx_request("GET", f"http://{cfg.host}:{cfg.port}/health",
+                                ver=cfg.version, timeout=3)
+        except requests.exceptions.RequestException:
+            pass  # helper restarted it
 
     @classmethod
     def influx_write_cfg(cls, cfg, bucket, lines, precision='ns'):
@@ -2097,7 +2463,6 @@ class ExtSrcEnv:
         precision: timestamp precision in line protocol ('ns', 'us', 'ms', 's').
                    Defaults to 'ns' to match standard InfluxDB line protocol.
         """
-        import requests
         data = lines if isinstance(lines, str) else "\n".join(lines)
         if not data.strip():
             return  # nothing to write
@@ -2106,21 +2471,25 @@ class ExtSrcEnv:
         headers = {"Content-Type": "text/plain; charset=utf-8"}
         if cfg.token:
             headers["Authorization"] = f"Bearer {cfg.token}"
-        r = requests.post(url, params=params, headers=headers,
-                          data=data.encode('utf-8'))
+        # A write without a timeout can hang forever when InfluxDB stops
+        # answering mid-run (the per-case 3600s watchdog would then kill the
+        # whole case), so always bound it and recover from a dead server.
+        r = cls._influx_request("POST", url, ver=cfg.version, params=params,
+                                headers=headers, data=data.encode('utf-8'),
+                                timeout=30)
         r.raise_for_status()
 
     @classmethod
     def influx_query_sql_cfg(cls, cfg, bucket, sql, fmt="json"):
         """Run a SQL query against a specific InfluxDB v3 instance, return parsed JSON."""
-        import requests
         url = f"http://{cfg.host}:{cfg.port}/api/v3/query_sql"
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json"}
         if cfg.token:
             headers["Authorization"] = f"Bearer {cfg.token}"
         payload = {"db": bucket, "q": sql, "format": fmt}
-        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        r = cls._influx_request("POST", url, ver=cfg.version, json=payload,
+                                headers=headers, timeout=30)
         r.raise_for_status()
         return r.json()
 
@@ -2159,9 +2528,51 @@ class ExtSrcEnv:
                 raise RuntimeError(f"SQL Server lease statement failed: {result.get('error')}")
             return result["output"]
         if sqlcmd is None:
+            setup = ("ensure_ext_env.ps1" if sys.platform == "win32"
+                     else "ensure_ext_env.sh")
             raise RuntimeError(
-                "[FQ] sqlcmd not found — run ensure_ext_env.sh to install the "
+                f"[FQ] sqlcmd not found — run {setup} to install the "
                 "SQL Server packages under FQ_BASE_DIR/sqlserver/<ver>")
+        # Windows: the driver is registered with the system ODBC driver manager
+        # by its installer, so sqlcmd talks to it directly — there is no
+        # ensure_ext_env.sh engine/ODBC staging on this platform.
+        if sys.platform == "win32":
+            # -h -1 / -W: no header and trimmed values.  go-sqlcmd wraps long
+            # column names (e.g. "(No column name)") across lines, which the
+            # sqlcmd-output parser would mistake for value rows.
+            base = [sqlcmd,
+                    "-S", f"{cfg.host},{cfg.port}",
+                    "-U", cfg.user, "-P", cfg.password, "-C",
+                    "-b", "-h", "-1", "-W", "-d", database]
+            if len(sql) <= 8000:
+                cmd = base + ["-Q", sql]
+                # go-sqlcmd emits UTF-8; the console code page (cp936 here) must
+                # not be used to decode it, or non-ASCII values break the helpers.
+                proc = subprocess.run(cmd, capture_output=True, text=True,
+                                      encoding="utf-8", errors="replace",
+                                      env=_fq_subprocess_env())
+            else:
+                # The INSERT batches built by the vtable helpers exceed the
+                # 32 KiB Windows command-line limit (WinError 206); run long
+                # scripts from a UTF-8 file instead of -Q (go-sqlcmd reads it
+                # as UTF-8 and has no -f option).
+                fd, script = tempfile.mkstemp(prefix="fq_ss_", suffix=".sql")
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8", newline="") as f:
+                        f.write(sql if sql.endswith("\n") else sql + "\n")
+                    proc = subprocess.run(base + ["-i", script], capture_output=True,
+                                          text=True, encoding="utf-8", errors="replace",
+                                          env=_fq_subprocess_env())
+                finally:
+                    try:
+                        os.unlink(script)
+                    except OSError:
+                        pass
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"[FQ] SQL Server statement failed (sqlcmd {sqlcmd}): "
+                    f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+            return proc.stdout
         # The driver's HENV failure (missing msodbcsqlr18.rll) must not depend
         # on whether this job happened to run the runtime staging script first.
         cls._ensure_sqlserver_driver_resources(cls._sqlserver_driver_dir())
@@ -2248,6 +2659,10 @@ class ExtSrcEnv:
             if "rows affected" in stripped.lower():
                 continue
             rows.append(stripped)
+        if sys.platform == "win32":
+            # The Windows helper runs go-sqlcmd with -h -1: there is no header
+            # line, so the first surviving line already is the first value.
+            return rows[0] if rows else None
         # sqlcmd prints a header line followed by the value rows; skip both the
         # dashed separator and the trailing "(N rows affected)" summary.
         if len(rows) >= 2:
@@ -2282,11 +2697,14 @@ class ExtSrcEnv:
         # SQL Server names the data file <db>.mdf but the log file <db>_log.ldf,
         # so remove every file the database owns before retrying.  The native
         # engine keeps its data in the default directory, same as the container
-        # image did.
-        for suffix in (".mdf", ".ldf", "_log.ldf", "_log.mdf"):
-            subprocess.run(
-                ["rm", "-f", f"/var/opt/mssql/data/{db}{suffix}"],
-                capture_output=True, env=_fq_subprocess_env())
+        # image did.  Windows has no locally managed engine/data directory
+        # (the instance is installed by the setup script, tests never touch its
+        # files), so the cleanup only applies where the engine is extracted.
+        if sys.platform != "win32":
+            for suffix in (".mdf", ".ldf", "_log.ldf", "_log.mdf"):
+                subprocess.run(
+                    ["rm", "-f", f"/var/opt/mssql/data/{db}{suffix}"],
+                    capture_output=True, env=_fq_subprocess_env())
         cls.sqlserver_exec_cfg(cfg, "master", [stmt])
 
     @classmethod
@@ -2598,9 +3016,10 @@ class FederatedQueryTestMixin:
             f"('{_ms_to_dt(ts)}', {val}, {score}, '{name}', {flag})"
             for ts, val, score, name, flag in _STD_ROWS
         )
+        enabled = ExtSrcEnv.required_services()
 
         # ----- MySQL -----
-        if not skip_mysql:
+        if not skip_mysql and "mysql" in enabled:
             self._cleanup_src(m_src)
             ExtSrcEnv.mysql_kill_sleeping_connections_cfg(self._mysql_cfg())
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
@@ -2622,7 +3041,7 @@ class FederatedQueryTestMixin:
                     pass
 
         # ----- PostgreSQL -----
-        if not skip_pg:
+        if not skip_pg and "pg" in enabled:
             self._cleanup_src(p_src)
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             try:
@@ -2643,7 +3062,7 @@ class FederatedQueryTestMixin:
                     pass
 
         # ----- InfluxDB -----
-        if not skip_influx:
+        if not skip_influx and "influx" in enabled:
             self._cleanup_src(i_src)
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
             try:
@@ -2663,7 +3082,7 @@ class FederatedQueryTestMixin:
                     pass
 
         # ----- SQL Server -----
-        if not skip_sqlserver:
+        if not skip_sqlserver and "sqlserver" in enabled:
             self._cleanup_src(s_src)
             ExtSrcEnv.sqlserver_create_db(s_db)
             try:
@@ -2717,9 +3136,10 @@ class FederatedQueryTestMixin:
         p_db  = f"{prefix}_pdb"
         i_db  = f"{prefix}_idb"
         s_db  = f"{prefix}_sdb"
+        enabled = ExtSrcEnv.required_services()
 
         # ----- MySQL -----
-        if not skip_mysql and mysql_setup:
+        if not skip_mysql and "mysql" in enabled and mysql_setup:
             self._cleanup_src(m_src)
             ExtSrcEnv.mysql_kill_sleeping_connections_cfg(self._mysql_cfg())
             ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), m_db)
@@ -2735,7 +3155,7 @@ class FederatedQueryTestMixin:
                     pass
 
         # ----- PostgreSQL -----
-        if not skip_pg and pg_setup:
+        if not skip_pg and "pg" in enabled and pg_setup:
             self._cleanup_src(p_src)
             ExtSrcEnv.pg_create_db_cfg(self._pg_cfg(), p_db)
             try:
@@ -2750,7 +3170,7 @@ class FederatedQueryTestMixin:
                     pass
 
         # ----- InfluxDB -----
-        if not skip_influx and influx_lines:
+        if not skip_influx and "influx" in enabled and influx_lines:
             self._cleanup_src(i_src)
             ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
             try:
@@ -2765,7 +3185,7 @@ class FederatedQueryTestMixin:
                     pass
 
         # ----- SQL Server -----
-        if not skip_sqlserver and sqlserver_setup:
+        if not skip_sqlserver and "sqlserver" in enabled and sqlserver_setup:
             self._cleanup_src(s_src)
             ExtSrcEnv.sqlserver_create_db(s_db)
             try:
@@ -2912,10 +3332,11 @@ class FederatedQueryTestMixin:
         Behavior is controlled by the ``FQ_EXPLAIN_STRICT`` environment variable
         (read on every call so it can be changed between tests without reloading):
 
-        * ``FQ_EXPLAIN_STRICT=1`` / ``true`` / ``yes`` — strict mode: any failure
-          raises ``AssertionError`` and fails the test immediately.
-        * Anything else (default) — non-strict mode: failures are logged as
-          warnings and the calling test continues.
+        * Default (unset) / ``1`` / ``true`` / ``yes`` — strict mode: any failure
+          raises ``AssertionError`` and fails the test immediately.  Phase-2
+          pushdown is implemented, so the assertions are enforced by default.
+        * ``FQ_EXPLAIN_STRICT=0`` / ``false`` / ``no`` — non-strict mode:
+          failures are silently skipped and the calling test continues.
 
         Args:
             sql:        Query string to EXPLAIN (without the leading ``explain``).
@@ -2923,14 +3344,14 @@ class FederatedQueryTestMixin:
                          also triggers an absent-local-operator check when a
                          mapping exists in ``_PUSHDOWN_LOCAL_OP_MAP``.
         """
-        strict = os.getenv("FQ_EXPLAIN_STRICT", "0").strip().lower() in (
+        strict = os.getenv("FQ_EXPLAIN_STRICT", "1").strip().lower() in (
             "1", "true", "yes"
         )
 
         def _fail(msg):
             if strict:
                 raise AssertionError(msg)
-            # Non-strict mode: silently skip (Phase 2 pushdown not yet implemented)
+            # Explicitly disabled (FQ_EXPLAIN_STRICT=0): skip without failing.
 
         ok = tdSql.query(f"explain verbose true {sql}", exit=False)
         if ok is False:
@@ -3941,7 +4362,7 @@ class ParityTestBase(FederatedQueryTestMixin):
                 f"  The baseline file must be checked into the repository."
             )
         if run_all:
-            tmp_file = os.path.join("/tmp", os.path.basename(baseline_file) + ".tmp")
+            tmp_file = os.path.join(tempfile.gettempdir(), os.path.basename(baseline_file) + ".tmp")
             tmp_content = "\n".join(serialized_blocks) + "\n"
             with open(tmp_file, "w") as f:
                 f.write(tmp_content)
@@ -4041,7 +4462,7 @@ class ParityTestBase(FederatedQueryTestMixin):
 
         # ── cleanup temp file ──
         if run_all:
-            tmp_file_path = os.path.join("/tmp", os.path.basename(baseline_file) + ".tmp")
+            tmp_file_path = os.path.join(tempfile.gettempdir(), os.path.basename(baseline_file) + ".tmp")
             if failed:
                 tdLog.info(f"Temp result file kept for debugging: {tmp_file_path}")
             elif os.path.isfile(tmp_file_path):

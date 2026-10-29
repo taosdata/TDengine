@@ -31,8 +31,8 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from taosanalytics.tsfm import foundation_model, foundation_util, response_event
-from taosanalytics.tsfm.foundation_models_db import (
+from lib.tsfm.mgmt import foundation_model, foundation_util, response_event
+from lib.tsfm.mgmt.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     init_dao,
@@ -778,6 +778,29 @@ class TestDestroyRuntime:
 
         assert code == 400
         assert "starting" in status["message"]
+
+    def test_blocked_while_a_download_is_in_flight(self, reset_models):
+        """The runtime is what an in-flight download installs into.
+
+        Refused now instead of being queued behind the lifecycle lock and
+        retried until the download ends: the caller gets the reason immediately.
+        """
+        reset_models.create_async_operation(AsyncOperation(
+            task_id="download-moirai-1",
+            operation="download",
+            model_name="moirai",
+            status="queued",
+        ))
+
+        with patch.object(
+            foundation_util, "live_worker_names", return_value=[]
+        ), patch.object(foundation_model, "_trigger_model_delete_background") as trigger:
+            status, code = foundation_model.delete_foundation_runtime(_request())
+
+        assert code == 400
+        assert "download" in status["message"].lower()
+        assert "moirai" in status["message"]
+        assert not trigger.called
 
     def test_queued_when_idle_under_the_shared_name(self, reset_models):
         """Deletion is driven by the same name the download uses."""

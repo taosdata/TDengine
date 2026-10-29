@@ -267,6 +267,15 @@ static void mndFreeShowObj(SShowObj *pShow) {
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
 
+  // [Security fix] Guard the index into freeIterFps against an out-of-range type. pShow->type is
+  // an int8_t produced by convertToRetrieveType(); a value outside [0, TSDB_MGMT_TABLE_MAX) (for
+  // example -1) would be an out-of-bounds read here. Such an object should no longer be created
+  // (see the guard in mndProcessRetrieveSysTableReq), but skip defensively on destruction too.
+  if (pShow->type < 0 || pShow->type >= TSDB_MGMT_TABLE_MAX) {
+    mError("show:0x%" PRIx64 ", skip free since invalid type:%d", pShow->id, pShow->type);
+    return;
+  }
+
   ShowFreeIterFp freeFp = pMgmt->freeIterFps[pShow->type];
   if (freeFp != NULL) {
     if (pShow->pIter != NULL) {
@@ -336,6 +345,23 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
         mError("failed to process show-retrieve req:%p since %s", pShow, tstrerror(code));
         TAOS_RETURN(code);
       }
+    }
+
+    // [Security fix] Harden against an out-of-range show type before any show object is created.
+    // convertToRetrieveType() returns -1 for any table name it does not map onto an EShowType
+    // (for example "ins_dnode_variables", which is served by dnodes rather than the mnode).
+    // Such a name still passes the infosMeta/perfsMeta existence check above (it is registered
+    // there), so without this guard the -1 would be stored in pShow->type (an int8_t) and later
+    // used as a negative array index into retrieveFps/freeIterFps. That is an out-of-bounds read
+    // (CWE-129): retrieveFps[-1] aliases the non-NULL showId counter (SShowMgmt.showId immediately
+    // precedes retrieveFps[]), so the NULL guard never fires and the mnode crashes via an indirect
+    // call through a small integer. Reject the request early, before creating the show object.
+    int32_t retrieveType = convertToRetrieveType(retrieveReq.tb, tListLen(retrieveReq.tb));
+    if (retrieveType < 0 || retrieveType >= TSDB_MGMT_TABLE_MAX) {
+      code = TSDB_CODE_MSG_NOT_PROCESSED;
+      mError("failed to process show-retrieve req since table:%s is not retrievable by mnode, type:%d",
+             retrieveReq.tb, retrieveType);
+      TAOS_RETURN(code);
     }
 
     pShow = mndCreateShowObj(pMnode, &retrieveReq);

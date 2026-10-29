@@ -252,6 +252,88 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
   return TSDB_CODE_SUCCESS;
 }
 
+// Describe only the current filtered, single-table input. The ordinary AVG/SUM/
+// COUNT implementations can then consume these statistics without new merge states.
+static int32_t bindConstTagInput(SqlFunctionCtx* pCtx, const SExprInfo* pExpr, SSDataBlock* pBlock) {
+  if (pBlock->pConstTagCols == NULL || pExpr->base.numOfParams != 1 ||
+      pExpr->base.pParam[0].type != FUNC_PARAM_TYPE_COLUMN) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t slotId = pExpr->base.pParam[0].pCol->slotId;
+  SConstTagColumn* pConst = blockDataGetConstTagColumn(pBlock, slotId);
+  if (pConst == NULL) return TSDB_CODE_SUCCESS;
+  if (pBlock->info.id.uid == 0 || pConst->uid != pBlock->info.id.uid) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+    return pCol->info.noData ? TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR : TSDB_CODE_SUCCESS;
+  }
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData* pCol = &pConst->column;
+  int64_t rows = pBlock->pBlockAgg != NULL && pBlock->info.smaSourceRows > 0
+                     ? pBlock->info.smaSourceRows : pBlock->info.rows;
+  if (pBlock->info.blankFill) rows = 0;
+  int32_t type = pCol->info.type;
+  bool isNull = colDataIsNull_s(pCol, 0);
+  bool useStats = rows <= INT32_MAX && (!isNull || rows <= INT16_MAX);
+  SColumnDataAgg* pAgg = &pInput->constColumnAgg;
+  *pAgg = (SColumnDataAgg){.colId = pCol->info.colId};
+
+  if (useStats && isNull) {
+    pAgg->numOfNull = rows;
+  } else if (useStats && rows > 0 && fmGetFuncTypeFromId(pCtx->functionId) != FUNCTION_TYPE_COUNT) {
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t value = 0;
+      GET_TYPED_DATA(value, int64_t, type, pCol->pData, 0);
+      useStats = value <= INT64_MAX / rows && value >= INT64_MIN / rows;
+      if (useStats) pAgg->sum = value * rows;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t value = 0;
+      GET_TYPED_DATA(value, uint64_t, type, pCol->pData, 0);
+      useStats = value <= UINT64_MAX / rows;
+      if (useStats) {
+        uint64_t sum = value * rows;
+        memcpy(&pAgg->sum, &sum, sizeof(sum));
+      }
+    } else if (IS_FLOAT_TYPE(type)) {
+      double value = 0;
+      GET_TYPED_DATA(value, double, type, pCol->pData, 0);
+      double sum = value * rows;
+      memcpy(&pAgg->sum, &sum, sizeof(sum));
+    } else {
+      useStats = false;
+    }
+  }
+
+  pInput->uid = pConst->uid;
+  pInput->pData[0] = pCol;
+  pInput->startRowIndex = 0;
+  pInput->numOfRows = rows;
+  pInput->totalRows = rows;
+  pInput->blankFill = pBlock->info.blankFill;
+  pInput->colDataSMAIsSet = useStats;
+  pInput->smaSourceRows = useStats ? rows : 0;
+  pInput->pColumnDataAgg[0] = useStats ? pAgg : NULL;
+  if (useStats || rows == 0) return TSDB_CODE_SUCCESS;
+
+  // A wide sum or NULL count may not fit SColumnDataAgg. Expand only this
+  // input and retain the original function's accumulation/overflow semantics.
+  char value[sizeof(uint64_t)] = {0};
+  if (!isNull) {
+    if (IS_VAR_DATA_TYPE(type) || pCol->info.bytes > sizeof(value)) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    memcpy(value, pCol->pData, pCol->info.bytes);
+  }
+  int32_t code = colInfoDataEnsureCapacity(pCol, rows, false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  colInfoDataCleanup(pCol, rows);
+  if (isNull) {
+    colDataSetNNULL(pCol, 0, rows);
+    return TSDB_CODE_SUCCESS;
+  }
+  return colDataSetNItems(pCol, 0, value, rows, 1, false);
+}
+
 static int32_t doSetInputDataBlockInfo(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
@@ -263,6 +345,8 @@ static int32_t doSetInputDataBlockInfo(SExprSupp* pExprSup, SSDataBlock* pBlock,
     QUERY_CHECK_CODE(code, lino, _end);
     pCtx[i].pSrcBlock = pBlock;
     pCtx[i].scanFlag = scanFlag;
+    code = bindConstTagInput(&pCtx[i], &pExprSup->pExprInfo[i], pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -363,7 +447,11 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
         int32_t slotId = pFuncParam->pCol->slotId;
+        QUERY_CHECK_NULL(pBlock->pDataBlock, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+        QUERY_CHECK_CONDITION(slotId >= 0 && slotId < (int32_t)taosArrayGetSize(pBlock->pDataBlock),
+                              code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         pInput->pData[j] = taosArrayGet(pBlock->pDataBlock, slotId);
+        QUERY_CHECK_NULL(pInput->pData[j], code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
         pInput->totalRows = pBlock->info.rows;
         pInput->numOfRows = pBlock->info.rows;
         pInput->startRowIndex = 0;
@@ -379,7 +467,6 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         if (hasPk && (j == pkParamIdx)) {
           pInput->pPrimaryKey = pInput->pData[j];
         }
-        QUERY_CHECK_CONDITION((pInput->pData[j] != NULL), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       } else if (pFuncParam->type == FUNC_PARAM_TYPE_VALUE) {
         // todo avoid case: top(k, 12), 12 is the value parameter.
         // sum(11), 11 is also the value parameter.
@@ -403,7 +490,8 @@ static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int
         }
       }
     }
-
+    code = bindConstTagInput(&pCtx[i], pOneExpr, pBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
@@ -1279,6 +1367,8 @@ void destroySqlFunctionCtx(SqlFunctionCtx* pCtx, SExprInfo* pExpr, int32_t numOf
     if(pCtx[i].fpSet.cleanup) {
       pCtx[i].fpSet.cleanup(&pCtx[i]);
     }
+
+    funcInputRowIterCleanup(&pCtx[i].rowIter);
 
     if (pCtx[i].pDistinctBuf != NULL) {
       destroyDiskbasedBuf(pCtx[i].pDistinctBuf);

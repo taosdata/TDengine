@@ -35,6 +35,15 @@ struct SExtColTypeMapping {
   char      colName[65];
 };
 
+/* Keep the local declaration in sync with the authoritative one in plannodes.h: the deployment
+ * messages encode/decode these mappings field by field, so a divergent layout would silently
+ * corrupt the wire format. The offset constraints pin the field order and the packed layout of
+ * the authoritative definition (extTypeName[64], SDataType (8 bytes), tsPrecision, colName[65]). */
+#define STREAM_MSG_STATIC_ASSERT(cond, name) typedef char name[(cond) ? 1 : -1]
+STREAM_MSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, tdType) == 64, extMappingTdTypeOffsetAssert);
+STREAM_MSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, tsPrecision) == 72, extMappingTsPrecOffsetAssert);
+STREAM_MSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, colName) == 73, extMappingColNameOffsetAssert);
+
 int32_t tValidateSStreamRunnerFetchFrame(const SStreamRunnerFetchFrame* pFrame, int64_t rows) {
   if (pFrame == NULL || pFrame->baseGId == 0) return TSDB_CODE_INVALID_MSG;
 
@@ -795,6 +804,8 @@ static int32_t tEncodeSStreamExtOrigTblReaderBinding(SEncoder* pEncoder,
   TAOS_CHECK_EXIT(tEncodeStreamExtOrigTblReaderString(pEncoder, pBinding->externalColumn,
                                                        sizeof(pBinding->externalColumn)));
   TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pBinding->expectedType));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pBinding->expectedPrecision));
+  TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pBinding->expectedScale));
   TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pBinding->resultColumnSlot));
 
 _exit:
@@ -813,6 +824,8 @@ static int32_t tDecodeSStreamExtOrigTblReaderBinding(SDecoder* pDecoder, SStream
   TAOS_CHECK_EXIT(tDecodeStreamExtOrigTblReaderString(pDecoder, pBinding->externalColumn,
                                                        sizeof(pBinding->externalColumn)));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pBinding->expectedType));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pBinding->expectedPrecision));
+  TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pBinding->expectedScale));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pBinding->resultColumnSlot));
   TAOS_CHECK_EXIT(tValidateSStreamExtOrigTblReaderBinding(pBinding));
 
@@ -929,7 +942,7 @@ int32_t tDecodeSStreamExtOrigTblReaderBindings(SDecoder* pDecoder, SArray** ppBi
   *ppBindings = NULL;
   int32_t count = 0;
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &count));
-  const uint32_t minBindingSize = 3 * sizeof(int64_t) + 2 * sizeof(int32_t) + 2 * sizeof(int8_t) + 2;
+  const uint32_t minBindingSize = 3 * sizeof(int64_t) + 2 * sizeof(int32_t) + 4 * sizeof(int8_t) + 2;
   TAOS_CHECK_RETURN(tValidateStreamExtOrigTblReaderWireCount(pDecoder, count, minBindingSize));
   if (count == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1080,6 +1093,11 @@ int32_t tDecodeSStreamExtOrigTblReaderRsp(SDecoder* pDecoder, SStreamExtOrigTblR
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->registryEntryId));
   TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pRsp->deploymentGeneration));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->protocolVersion));
+  if (pRsp->protocolVersion != STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION) {
+    uError("unsupported external original reader response protocol version:%d, expected:%d, registry:%" PRId64,
+           pRsp->protocolVersion, STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION, pRsp->registryEntryId);
+    return TSDB_CODE_INVALID_MSG;
+  }
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->capabilities));
   TAOS_CHECK_RETURN(tDecodeStreamExtOrigTblReaderString(pDecoder, pRsp->identity.sourceName,
                                                          sizeof(pRsp->identity.sourceName)));
@@ -1094,7 +1112,7 @@ int32_t tDecodeSStreamExtOrigTblReaderRsp(SDecoder* pDecoder, SStreamExtOrigTblR
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->acceptedCalcBindingCount));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pRsp->code));
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &count));
-  const uint32_t minResultSize = 3 * sizeof(int64_t) + 3 * sizeof(int32_t) + 3 * sizeof(int8_t) + 2;
+  const uint32_t minResultSize = 3 * sizeof(int64_t) + 3 * sizeof(int32_t) + 5 * sizeof(int8_t) + 2;
   TAOS_CHECK_RETURN(tValidateStreamExtOrigTblReaderWireCount(pDecoder, count, minResultSize));
   if (count == 0) {
     return TSDB_CODE_SUCCESS;
@@ -1132,8 +1150,8 @@ int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq) {
         TAOS_CHECK_EXIT(tEncodeI32(pEncoder, num));
         for (int32_t i = 0; i < num; ++i) {
           SStreamDbTableName* pName = taosArrayGet(pReq->cont.pReqs, i);
-          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->dbFName, strlen(pName->dbFName) + 1));
-          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->tbName, strlen(pName->tbName) + 1));
+          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->dbFName, strlen(pName->dbFName)));
+          TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->tbName, strlen(pName->tbName)));
         }
       } else {
         TAOS_CHECK_EXIT(tEncodeI32(pEncoder, 0));
@@ -1172,8 +1190,8 @@ int32_t tEncodeSStreamMgmtReq(SEncoder* pEncoder, const SStreamMgmtReq* pReq) {
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, internalNum));
       for (int32_t i = 0; i < internalNum; ++i) {
         SStreamDbTableName* pName = taosArrayGet(pReq->cont.pReqs, i);
-        TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->dbFName, strlen(pName->dbFName) + 1));
-        TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->tbName, strlen(pName->tbName) + 1));
+        TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->dbFName, strlen(pName->dbFName)));
+        TAOS_CHECK_EXIT(tEncodeCStrWithLen(pEncoder, pName->tbName, strlen(pName->tbName)));
       }
       TAOS_CHECK_EXIT(tEncodeI32(pEncoder, externalNum));
       for (int32_t i = 0; i < externalNum; ++i) {
@@ -1465,6 +1483,22 @@ int32_t tDecodeStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   // SKIP SESSIONID
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->taskIdx));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, (int32_t*)&pTask->status));
+  // Wire-supplied type/status are later used as indices into the static
+  // gStreamTaskTypeStr / gStreamStatusStr tables (logging macros and SHOW STREAM
+  // TASKS). Reject the message immediately if either is out of its enum range so
+  // that no downstream code ever indexes the tables with an attacker-controlled
+  // value (CWE-129). This is the single decode point for every stream task
+  // message (heartbeat, task start/undeploy/deploy, mgmt response).
+  if (pTask->type < STREAM_READER_TASK || pTask->type > STREAM_RUNNER_TASK) {
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
+  if (pTask->status < STREAM_STATUS_UNDEPLOYED || pTask->status > STREAM_STATUS_DROPPING) {
+    terrno = TSDB_CODE_MSG_DECODE_ERROR;
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+    goto _exit;
+  }
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->detailStatus));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pTask->errorCode));
   int32_t req = 0;
@@ -3726,7 +3760,12 @@ int32_t tDecodeSStreamMgmtRspCont(SDecoder* pDecoder, SStreamMsgType msgType, SS
     case STREAM_MSG_ORIGTBL_READER_INFO:
     case STREAM_MSG_MIXED_ORIGTBL_READER_INFO: {
       int32_t vgNum = 0;
-      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgNum));  
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &vgNum));
+      if (vgNum < 0 || vgNum > (pDecoder->size - pDecoder->pos) / (int32_t)sizeof(int32_t)) {
+        uError("invalid original reader vgId count:%d", vgNum);
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
       if (vgNum > 0) {
         pCont->vgIds = taosArrayInit_s(sizeof(int32_t), vgNum);
         TSDB_CHECK_NULL(pCont->vgIds, code, lino, _exit, terrno);
@@ -3738,6 +3777,12 @@ int32_t tDecodeSStreamMgmtRspCont(SDecoder* pDecoder, SStreamMsgType msgType, SS
 
       int32_t readerNum = 0;
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &readerNum));  
+      if (readerNum < 0 ||
+          readerNum > (pDecoder->size - pDecoder->pos) / (int32_t)sizeof(SStreamTaskAddr)) {
+        uError("invalid original reader count:%d", readerNum);
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
       if (readerNum > 0) {
         pCont->readerList = taosArrayInit_s(sizeof(SStreamTaskAddr), readerNum);
         TSDB_CHECK_NULL(pCont->readerList, code, lino, _exit, terrno);
@@ -10802,6 +10847,11 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
 
+  if (buf == NULL || pRsp == NULL || bufLen < (int32_t)sizeof(int32_t)) return TSDB_CODE_INVALID_MSG;
+  int32_t frameLen = 0;
+  memcpy(&frameLen, buf, sizeof(frameLen));
+  if (frameLen < 0 || frameLen > bufLen - (int32_t)sizeof(frameLen)) return TSDB_CODE_INVALID_MSG;
+
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
@@ -10838,7 +10888,9 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
     pRsp->pMetaBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
     if (pRsp->pMetaBlock == NULL) TAOS_CHECK_EXIT(terrno);
     const char* pEnd = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pRsp->pMetaBlock, (char*)decoder.data + decoder.pos, &pEnd));
+    TAOS_CHECK_EXIT(decoder.pos <= decoder.size ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(blockDecodeBounded(pRsp->pMetaBlock, (char*)decoder.data + decoder.pos,
+                                       decoder.size - decoder.pos, &pEnd));
     decoder.pos = (uint8_t*)pEnd - decoder.data;
   }
 
@@ -10850,7 +10902,9 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
     pRsp->pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
     if (pRsp->pDataBlock == NULL) TAOS_CHECK_EXIT(terrno);
     const char* pEnd = NULL;
-    TAOS_CHECK_EXIT(blockDecode(pRsp->pDataBlock, (char*)decoder.data + decoder.pos, &pEnd));
+    TAOS_CHECK_EXIT(decoder.pos <= decoder.size ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(blockDecodeBounded(pRsp->pDataBlock, (char*)decoder.data + decoder.pos,
+                                       decoder.size - decoder.pos, &pEnd));
     decoder.pos = (uint8_t*)pEnd - decoder.data;
 
     int32_t nIdx = 0;
@@ -10881,6 +10935,13 @@ int32_t tDeserializeSSTriggerExtPullRsp(void* buf, int32_t bufLen, SSTriggerExtP
         SColumnInfoData* column = taosArrayGet(block->pDataBlock, col);
         if (column->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
           TAOS_CHECK_EXIT(tDecodeU8(&decoder, &column->info.precision));
+          if (column->info.precision != TSDB_TIME_PRECISION_MILLI &&
+              column->info.precision != TSDB_TIME_PRECISION_MICRO &&
+              column->info.precision != TSDB_TIME_PRECISION_NANO) {
+            uError("invalid external timestamp precision:%d", (int)column->info.precision);
+            code = TSDB_CODE_INVALID_MSG;
+            goto _exit;
+          }
           uDebug("decode stream ext pull: type=%d block=%d col=%d timestamp precision=%d",
                  (int)pRsp->pullType, blockIdx, col, (int)column->info.precision);
         }

@@ -1102,12 +1102,82 @@ int32_t mndValidateStreamTimeConfig(const SCMCreateStreamReq *pCreate) {
   return TSDB_CODE_SUCCESS;
 }
 
+/* Validate the client-supplied physical plan JSON before the stream is persisted.
+ *
+ * The plan strings (calcPlan / calcScanPlanList[].scanPlan) are decoded into node
+ * graphs by nodesStringToNode, which instantiates whatever NodeType the JSON names
+ * and leaves *pNode NULL when a key is absent (see security finding "item 194").
+ * The mnode later walks these graphs as trusted SQueryPlan / SSubplan nodes and
+ * dereferences pNode; a wrong-typed or NULL node crashes the mnode leader and,
+ * because the SStreamObj is committed to sdb, replays into a persistent crash loop
+ * on every restart. Rejecting here means a malformed plan is never committed.
+ *
+ * Note: calcPlan is intentionally OPTIONAL (a NULL calcPlan is a valid stream shape);
+ * only a non-NULL calcPlan that fails to decode to a physical plan is rejected. */
+static int32_t mndValidateStreamPlan(const SCMCreateStreamReq *pCreate) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int64_t streamId = pCreate->streamId;
+
+  if (pCreate->calcPlan != NULL) {
+    SNode *pPlan = NULL;
+    code = nodesStringToNode(pCreate->calcPlan, &pPlan);
+    if (TSDB_CODE_SUCCESS != code || NULL == pPlan) {
+      mstsError("stream:%s invalid calcPlan (decode code:%s, node null:%d)", pCreate->name, tstrerror(code),
+                (pPlan == NULL));
+      nodesDestroyNode(pPlan);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
+    if (QUERY_NODE_PHYSICAL_PLAN != nodeType(pPlan)) {
+      mstsError("stream:%s calcPlan root node type %d is not QUERY_NODE_PHYSICAL_PLAN", pCreate->name,
+                nodeType(pPlan));
+      nodesDestroyNode(pPlan);
+      return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+    }
+    nodesDestroyNode(pPlan);
+  }
+
+  if (pCreate->calcScanPlanList != NULL) {
+    int32_t num = taosArrayGetSize(pCreate->calcScanPlanList);
+    for (int32_t i = 0; i < num; ++i) {
+      SStreamCalcScan *pScan = taosArrayGet(pCreate->calcScanPlanList, i);
+      // A calc scan without a scanPlan (or a NULL scan) is a deterministic NULL
+      // dereference in the deploy worker - reject it instead of persisting it.
+      if (pScan == NULL || pScan->scanPlan == NULL) {
+        mstsError("stream:%s calcScanPlanList[%d] has a NULL scanPlan", pCreate->name, i);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      }
+      SNode *pSub = NULL;
+      code = nodesStringToNode(pScan->scanPlan, &pSub);
+      if (TSDB_CODE_SUCCESS != code || NULL == pSub) {
+        mstsError("stream:%s calcScanPlanList[%d] scanPlan decode failed (code:%s, node null:%d)", pCreate->name, i,
+                  tstrerror(code), (pSub == NULL));
+        nodesDestroyNode(pSub);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      }
+      if (QUERY_NODE_PHYSICAL_SUBPLAN != nodeType(pSub)) {
+        mstsError("stream:%s calcScanPlanList[%d] scanPlan root node type %d is not QUERY_NODE_PHYSICAL_SUBPLAN",
+                  pCreate->name, i, nodeType(pSub));
+        nodesDestroyNode(pSub);
+        return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+      }
+      nodesDestroyNode(pSub);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndStreamValidateCreate(SMnode *pMnode, SRpcMsg *pReq, SCMCreateStreamReq* pCreate) {
   int32_t code = 0, lino = 0;
   int64_t streamId = pCreate->streamId;
   char   *pUser = RPC_MSG_USER(pReq);
 
   code = mndValidateStreamTimeConfig(pCreate);
+  TSDB_CHECK_CODE(code, lino, _OVER);
+
+  // Security hardening (see "item 194"): reject a malformed client plan before the
+  // stream is committed to sdb, so a bad plan can never replay into a crash loop.
+  code = mndValidateStreamPlan(pCreate);
   TSDB_CHECK_CODE(code, lino, _OVER);
 
 #ifdef TD_ENTERPRISE
@@ -1804,7 +1874,9 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
     if (pIter == NULL) break;
 
-    if (0 == strcmp(pStream->pCreate->streamDB, pDb->name)) {
+    // [FIX-198] streamDB may be NULL for legacy/corrupt stream objects persisted in sdb
+    // before the required-field check was added. Tolerate it instead of crashing the mnode.
+    if (pStream->pCreate->streamDB != NULL && 0 == strcmp(pStream->pCreate->streamDB, pDb->name)) {
       mInfo("start to drop stream %s in db %s", pStream->pCreate->name, pDb->name);
       
       pStream->updateTime = taosGetTimestampMs();
@@ -2635,6 +2707,8 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
                                        SUserObj *pUser, int32_t snodeId, txn_id_t txnId) {
   int32_t code = 0, lino = 0;
   STrans *pTrans = NULL;
+  bool    stbShadowAdded = false, streamShadowAdded = false, syncStarted = false;
+  char    outStbFName[TSDB_TABLE_FNAME_LEN] = {0};
   // Stack-local marker stream: zeroed, so its latch is 0 and never shared. It exists
   // only to carry the PRE_CREATE fields into mndStreamTransAppend (which R-latches it
   // briefly); nobody else can observe or contend on it. Do NOT free it - pCreate is
@@ -2667,8 +2741,8 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
   // The table is created with the txn markers set, so it is invisible to other sessions
   // and the CREATE_STB shadow op undoes it on ROLLBACK.
   //
-  // This needs its own trans: the marker trans below is changeless (SDB-only), while
-  // creating a table has to distribute schema to vnodes via redo actions.
+  // Output-table actions and the stream marker must share one trans and client response.
+  // A separate marker trans could reply before the vnode actions and STB commit finish.
   // Dispatch on whether the INTO target already exists - NOT on outStbExists, which is
   // only set for an existing SUPER table and would misclassify an existing normal table
   // as "needs creating" (FS Sec.4.2 keys the forms off target existence alone).
@@ -2678,61 +2752,34 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
           pCreate->outTblName);
   } else if (TSDB_SUPER_TABLE == pCreate->outTblType) {
     // Form A: output STB is created on the mnode, marked PRE_CREATE via txnId.
-    STrans *pOutTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq,
-                                       "create-stream-out-stb");
-    TSDB_CHECK_NULL(pOutTrans, code, lino, _exit, terrno);
+    pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream-out-stb");
+    TSDB_CHECK_NULL(pTrans, code, lino, _exit, terrno);
 
     ((SCMCreateStreamReq *)pCreate)->outStbUid =
         mndGenerateUid(pCreate->outTblName, strlen(pCreate->outTblName));
 
-    char outStbFName[TSDB_TABLE_FNAME_LEN] = {0};
     snprintf(outStbFName, sizeof(outStbFName), "%s%s%s", pCreate->outDB, TS_PATH_DELIMITER, pCreate->outTblName);
 
-    // Register the undo entry before the write, so a failure mid-way still rolls back.
-    code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STB, outStbFName, pCreate->outStbUid, pDb->name,
-                             NULL, 0);
-    if (code != 0) {
-      mndTransDrop(pOutTrans);
-      goto _exit;
-    }
-
-    code = mndStreamCreateOutStb(pMnode, pOutTrans, pCreate, RPC_MSG_USER(pReq), txnId);
+    code = mndStreamCreateOutStb(pMnode, pTrans, pCreate, RPC_MSG_USER(pReq), txnId);
     if (code != 0) {
       mError("stream:%s txn:%" PRId64 " failed to create output stb:%s, %s", pCreate->name, txnId,
              pCreate->outTblName, tstrerror(code));
-      mndTransDrop(pOutTrans);
       goto _exit;
     }
-
-    code = mndTransPrepare(pMnode, pOutTrans);
-    mndTransDrop(pOutTrans);
-    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-      mError("stream:%s txn:%" PRId64 " failed to prepare output stb trans, %s", pCreate->name, txnId,
-             tstrerror(code));
-      goto _exit;
-    }
-    code = 0;
-    mInfo("stream:%s txn:%" PRId64 " created output super table:%s as PRE_CREATE", pCreate->name, txnId,
+    mInfo("stream:%s txn:%" PRId64 " added output super table:%s to create transaction", pCreate->name, txnId,
           pCreate->outTblName);
   } else if (TSDB_NORMAL_TABLE == pCreate->outTblType && pCreate->nodelayCreateSubtable) {
     // Form B: NODELAY_CREATE_SUBTABLE means the user wants the output table usable right
     // away, so create it inside the txn rather than degrading that option (FS Sec.4.2). The
     // table lives in a vnode; txnId rides along in SVCreateTbReq and the vnode writes it
     // as META_TXN_PRE_CREATE, so it is visible to this txn only.
-    STrans *pOutTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq,
-                                       "create-stream-out-table");
-    TSDB_CHECK_NULL(pOutTrans, code, lino, _exit, terrno);
-    // mndStreamCreateOutTable only appends a vnode redo action; it writes no mnode SDB
-    // record, so this trans legitimately has no commit action. Say so explicitly, or
-    // mndTransCheckCommitActions rejects the prepare with TRANS_CLOG_IS_NULL. (The
-    // form-A branch above does not need this: creating an STB writes an SDB commit log.)
-    mndTransSetChangeless(pOutTrans);
+    pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream-out-table");
+    TSDB_CHECK_NULL(pTrans, code, lino, _exit, terrno);
 
-    code = mndStreamCreateOutTable(pMnode, pOutTrans, pCreate, txnId);
+    code = mndStreamCreateOutTable(pMnode, pTrans, pCreate, txnId);
     if (code != 0) {
       mError("stream:%s txn:%" PRId64 " failed to create output table:%s, %s", pCreate->name, txnId,
              pCreate->outTblName, tstrerror(code));
-      mndTransDrop(pOutTrans);
       goto _exit;
     }
 
@@ -2750,20 +2797,10 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
     if (code != 0) {
       mError("stream:%s txn:%" PRId64 " failed to register output table vgId:%d, %s", pCreate->name, txnId,
              pCreate->outTblVgId, tstrerror(code));
-      mndTransDrop(pOutTrans);
       goto _exit;
     }
 
-    code = mndTransPrepare(pMnode, pOutTrans);
-    mndTransDrop(pOutTrans);
-    if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
-      mError("stream:%s txn:%" PRId64 " failed to prepare output table trans, %s", pCreate->name, txnId,
-             tstrerror(code));
-      goto _exit;
-    }
-    code = 0;
-
-    mInfo("stream:%s txn:%" PRId64 " created output normal table:%s as PRE_CREATE on vgId:%d", pCreate->name,
+    mInfo("stream:%s txn:%" PRId64 " added output normal table:%s on vgId:%d to create transaction", pCreate->name,
           txnId, pCreate->outTblName, pCreate->outTblVgId);
   } else {
     // Form C: no NODELAY option - the stream creates the table on its first output,
@@ -2772,26 +2809,49 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
           txnId, pCreate->outTblName);
   }
 
-  // Create changeless marker trans (single SDB write, no vnode redos/undos).
-  TSDB_CHECK_NULL(
-      (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-precreate")),
-      code, lino, _exit, terrno);
-  mndTransSetChangeless(pTrans);
+  // Existing or lazily-created output tables only need the stream marker write.
+  if (pTrans == NULL) {
+    TSDB_CHECK_NULL(
+        (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-precreate")), code,
+        lino, _exit, terrno);
+    mndTransSetChangeless(pTrans);
+  }
 
-  // Encode marker stream and append to trans.
+  // Append the stream commit log, including the commit action required by form B.
   code = mndStreamTransAppend(&markerStream, pTrans, SDB_STATUS_READY);
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stream:%s txn:%" PRId64 " failed to append marker to trans, %s", pCreate->name, txnId, tstrerror(code));
     goto _exit;
   }
 
-  // Register shadow op for COMMIT/ROLLBACK handlers.
+  // The helpers above only build actions. Reserve names and register undo after
+  // all actions are built, but before prepare can persist or execute them.
+  // Keep the reservation with the durable internal transaction. User COMMIT or
+  // ROLLBACK must wait until its output actions and stream marker have finished.
+  SMndTxnStreamCreate *pPending = taosMemoryCalloc(1, sizeof(*pPending));
+  if (pPending == NULL) {
+    code = terrno;
+    goto _exit;
+  }
+  pPending->txnId = txnId;
+  tstrncpy(pPending->name, pCreate->name, sizeof(pPending->name));
+  mndTransSetUserData(pTrans, pPending, sizeof(*pPending));
+
+  if (outStbFName[0] != 0) {
+    code =
+        mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STB, outStbFName, pCreate->outStbUid, pDb->name, NULL, 0);
+    if (code != 0) goto _exit;
+    stbShadowAdded = true;
+  }
+
   code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STREAM, pCreate->name, pCreate->streamId,
                            pDb->name, NULL, 0);
   if (code != 0) goto _exit;
+  streamShadowAdded = true;
 
-  TAOS_CHECK_EXIT(mndTransPrepare(pMnode, pTrans));
-  mInfo("stream:%s txn:%" PRId64 " PRE_CREATE marker persisted, streamId:%" PRId64, pCreate->name, txnId, pCreate->streamId);
+  TAOS_CHECK_EXIT(mndTransPrepareWithSyncStatus(pMnode, pTrans, &syncStarted));
+  mInfo("stream:%s txn:%" PRId64 " PRE_CREATE transaction prepared, streamId:%" PRId64, pCreate->name, txnId,
+        pCreate->streamId);
 
   // Audit at DDL execution time, consistent with the non-txn path (and with one-phase
   // table DDL: mndStb.c writes createStb/dropStb audits as the statement executes).
@@ -2808,6 +2868,16 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
   }
 
 _exit:
+  // A sync error can have an uncertain outcome. Only undo registration when no
+  // proposal could have started; otherwise COMMIT/ROLLBACK still needs these ops.
+  if (code != 0 && !syncStarted) {
+    if (streamShadowAdded) {
+      mndTxnRemoveShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STREAM, pCreate->name, pCreate->streamId);
+    }
+    if (stbShadowAdded) {
+      mndTxnRemoveShadowOp(pMnode, txnId, MND_SHADOW_OP_CREATE_STB, outStbFName, pCreate->outStbUid);
+    }
+  }
   mndReleaseDb(pMnode, pDb);
   mndTransDrop(pTrans);
   // tFreeStreamObj(&markerStream)
@@ -3083,6 +3153,52 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
 
   streamId = pCreate->streamId;
 
+  // [FIX-198] Reject CREATE STREAM requests that are missing required string fields.
+  // The JSON form of SCMCreateStreamReq (jsonToSCMCreateStreamReq -> tjsonDupStringValue)
+  // leaves any absent key as a NULL pointer instead of failing. Many downstream paths
+  // dereference these strings without a NULL check:
+  //   - mndAcquireStream(name)  -> sdbGetkeySize does strlen(name)        (NULL name crash)
+  //   - auditRecord(sql, strlen(sql))                                     (NULL sql crash)
+  //   - mndStreamCreateOutStb -> strlen(outTblName) for super-table output (NULL outTblName crash)
+  //   - persisted NULL streamDB crashes every DROP DATABASE / SHOW STREAMS (mstChkSetDbInUse,
+  //     mndDropStreamByDb, mstSetStreamAttrResBlock).
+  // Reject the request early (before mndAcquireStream) so a malformed JSON body can never
+  // crash the mnode leader or commit a corrupt stream object to sdb.
+  if (pCreate->name == NULL || pCreate->name[0] == '\0') {
+    // [FIX-198] name is the very field under test (may be NULL), so pass streamId as the
+    // variadic arg required by the mstsError macro rather than pCreate->name.
+    mstsError("failed to create stream since required field 'name' is missing or empty, streamId:%" PRIx64,
+              streamId);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  if (pCreate->sql == NULL || pCreate->sql[0] == '\0') {
+    mstsError("stream:%s failed to create since required field 'sql' is missing or empty", pCreate->name);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  if (pCreate->streamDB == NULL || pCreate->streamDB[0] == '\0') {
+    mstsError("stream:%s failed to create since required field 'streamDB' is missing or empty", pCreate->name);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  // [FIX-198] outTblName is dereferenced (strlen / %s) whenever an output table is configured:
+  //   - super-table output: strlen(outTblName) in mndStreamCreateOutStb path and %s in logs
+  //   - normal-table output (nodelayCreateSubtable): strlen(outTblName) inside mndStreamCreateOutTable
+  //     (mndGenerateUid / taosStrdup at mndStream.c:866/870) and %s in logs
+  // Both the "create output table" (!outStbExists) and "use existing table" (outStbExists) paths
+  // reference outTblName, so require it for any configured output table. Streams with no output
+  // table (outTblType == 0) must NOT be required to supply outTblName.
+  if ((TSDB_SUPER_TABLE == pCreate->outTblType ||
+       (TSDB_NORMAL_TABLE == pCreate->outTblType && pCreate->nodelayCreateSubtable)) &&
+      (pCreate->outTblName == NULL || pCreate->outTblName[0] == '\0')) {
+    mstsError("stream:%s failed to create since required field 'outTblName' is missing or empty for an "
+              "output table",
+              pCreate->name);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
   mstsInfo("start to create stream %s, sql:%s", pCreate->name, pCreate->sql);
 
   // Batch meta txn (phase 2): snode assignment must happen before conflict checks,
@@ -3093,6 +3209,11 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _OVER);
   }
+
+  // Stream shadow ops reserve the name before asynchronous output-table actions
+  // finish and the PRE_CREATE marker becomes visible in SDB.
+  code = mndTxnCheckStreamConflict(pMnode, pCreate->name, (txn_id_t)pCreate->txnId);
+  TSDB_CHECK_CODE(code, lino, _OVER);
 
   code = mndAcquireStream(pMnode, pCreate->name, &pStream);
   if (pStream != NULL && code == 0) {

@@ -69,7 +69,29 @@ int32_t sclConvertToTsValueNode(int8_t precision, SValueNode *valueNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool sclIsValidDataType(const SDataType *pType) {
+  if (pType == NULL || pType->type < TSDB_DATA_TYPE_NULL || pType->type >= TSDB_DATA_TYPE_MAX) {
+    return false;
+  }
+  if (pType->type == TSDB_DATA_TYPE_NULL) {
+    return pType->bytes >= tDataTypes[pType->type].bytes;
+  }
+  if (pType->bytes <= 0) {
+    return false;
+  }
+  if (IS_STR_DATA_BLOB(pType->type)) {
+    return pType->bytes >= (int32_t)BLOBSTR_HEADER_SIZE;
+  }
+  if (IS_VAR_DATA_TYPE(pType->type)) {
+    return pType->bytes >= (int32_t)VARSTR_HEADER_SIZE;
+  }
+  return pType->bytes >= tDataTypes[pType->type].bytes;
+}
+
 int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarParam *pParam) {
+  if (!sclIsValidDataType(pType) || numOfRows < 0 || pParam == NULL) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   SColumnInfoData *pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
   if (pColumnData == NULL) {
     return terrno;
@@ -101,7 +123,12 @@ int32_t sclConvertValueToSclParam(SValueNode *pValueNode, SScalarParam *out, int
     return code;
   }
 
-  code = colDataSetVal(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
+  const void *value = nodesGetValueFromNode(pValueNode);
+  if (value == NULL) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    goto _exit;
+  }
+  code = colDataSetVal(in.columnData, 0, value, false);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -328,6 +355,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, SType
       }
     } else {
       buf = nodesGetValueFromNode(valueNode);
+      if (!sclIsValidDataType(&valueNode->node.resType) || buf == NULL) {
+        SCL_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       if (IS_VAR_DATA_TYPE(type)) {
         if (IS_STR_DATA_BLOB(type)) {
           len = blobDataTLen(buf);
@@ -335,7 +365,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type, SType
           len = varDataTLen(buf);
         }
       } else {
-        len = valueNode->node.resType.bytes;
+        len = tDataTypes[type].bytes;
       }
     }
 
@@ -402,13 +432,27 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
     return TSDB_CODE_SUCCESS;
   }
 
-  *res = taosMemoryMalloc(pNode->node.resType.bytes);
+  if (!sclIsValidDataType(&pNode->node.resType)) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  const void *value = nodesGetValueFromNode(pNode);
+  if (value == NULL) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  int32_t valueBytes = pNode->node.resType.bytes;
+  if (IS_VAR_DATA_TYPE(pNode->node.resType.type)) {
+    valueBytes = IS_STR_DATA_BLOB(pNode->node.resType.type) ? blobDataTLen(value) : varDataTLen(value);
+  } else {
+    valueBytes = tDataTypes[pNode->node.resType.type].bytes;
+  }
+
+  *res = taosMemoryMalloc(valueBytes);
   if (NULL == (*res)) {
-    sclError("malloc %d failed", pNode->node.resType.bytes);
+    sclError("malloc %d failed", valueBytes);
     SCL_ERR_RET(terrno);
   }
 
-  (void)memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
+  (void)memcpy(*res, value, valueBytes);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -611,7 +655,11 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataSetNULL(param->columnData, 0);
       } else {
-        SCL_ERR_RET(colDataSetVal(param->columnData, 0, nodesGetValueFromNode(valueNode), false));
+        const void *value = nodesGetValueFromNode(valueNode);
+        if (value == NULL) {
+          SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+        }
+        SCL_ERR_RET(colDataSetVal(param->columnData, 0, value, false));
       }
       break;
     }
@@ -752,11 +800,11 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       SColumnInfoData *columnData = (SColumnInfoData *)taosArrayGet(block->pDataBlock, ref->slotId);
       if (columnData) {
-        qDebug("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d type=%d bytes=%d hasData=%d",
+        qTrace("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d type=%d bytes=%d hasData=%d",
                ref->slotId, ref->colId, (int)block->info.rows, columnData->info.type,
                columnData->info.bytes, columnData->pData != NULL);
       } else {
-        qDebug("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d (missing column)",
+        qTrace("sclInitParam COLUMN: slotId=%d colId=%d blockRows=%d (missing column)",
                ref->slotId, ref->colId, (int)block->info.rows);
       }
 #if TAG_FILTER_DEBUG
@@ -1668,7 +1716,35 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t       rowNum = 0;
   int32_t       paramNum = 0;
   int32_t       code = 0;
+  if (!fmIsUserDefinedFunc(node->funcId)) {
+    char errBuf[256] = {0};
+    SCL_ERR_RET(fmValidateFuncNode(node, errBuf, sizeof(errBuf)));
+  }
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &paramNum, &rowNum, node->funcId));
+
+  if (!fmIsUserDefinedFunc(node->funcId) && !fmIsPseudoColumnFunc(node->funcId) && params != NULL &&
+      node->pParameterList != NULL && paramNum > 0) {
+    int8_t *pInputTypes = taosMemoryMalloc(paramNum * sizeof(*pInputTypes));
+    if (pInputTypes == NULL) {
+      code = terrno;
+      goto _return;
+    }
+    for (int32_t paramIndex = 0; paramIndex < paramNum; ++paramIndex) {
+      int32_t inputType = GET_PARAM_TYPE(&params[paramIndex]);
+      if (inputType < TSDB_DATA_TYPE_NULL || inputType >= TSDB_DATA_TYPE_MAX) {
+        code = TSDB_CODE_QRY_INVALID_INPUT;
+        break;
+      }
+      pInputTypes[paramIndex] = (int8_t)inputType;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = fmValidateFuncInputTypes(node->funcId, pInputTypes, paramNum);
+    }
+    taosMemoryFree(pInputTypes);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _return;
+    }
+  }
   // Lazily allocate timezone from tzName when tz is NULL (e.g. taosd deserializing a physical plan from client)
   if (node->tz == NULL && node->tzName[0] != '\0') {
     ((SFunctionNode*)node)->tz = tzalloc(node->tzName);
@@ -2224,6 +2300,10 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 //  output->nullResExpected = ctx->nullResExpected;
   
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
+  if (OperatorFn == NULL) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    goto _return;
+  }
 
   SScalarParam *pLeft = &params[0];
   SScalarParam *pRight = paramNum > 1 ? &params[1] : NULL;

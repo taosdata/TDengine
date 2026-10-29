@@ -770,7 +770,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006210 | Virtual table source table does not exist                                  | 虚拟表引用的源表不存在（已被删除或改名）                                  | 确认源表是否存在；重建源表或修正引用 |
 | 0x80006211 | Virtual table source column not found                                      | 虚拟表引用的源表列不存在                                                 | 确认源表 schema；修正引用列或重建源表 |
 | 0x80006212 | Virtual table ref column unresolved                                        | 虚拟表引用列无法解析（链路过深、成环或终端缺失）                           | 用 SHOW VTABLE VALIDATE 定位失败点；修正引用链 |
-| 0x80006213 | External column filters require a direct MySQL or PostgreSQL column reference | 对非 MySQL/PostgreSQL 外部源或间接虚拟表引用指定了新的列过滤条件 | 仅在直接引用 MySQL/PostgreSQL 外部表列时指定条件；虚拟表链使用叶子列保存的条件 |
+| 0x80006213 | External column filters require a direct MySQL, PostgreSQL, or SQL Server column reference | 对非 MySQL/PostgreSQL/SQL Server 外部源或间接虚拟表引用指定了新的列过滤条件 | 仅在直接引用 MySQL/PostgreSQL/SQL Server 外部表列时指定条件；虚拟表链使用叶子列保存的条件 |
 | 0x80006214 | Cannot generate or execute remote SQL with the stored external column filter | 无法生成带保存条件的远端 SQL，或外部数据库拒绝执行该 SQL | 根据错误详情检查列过滤条件和远端数据库支持的语法；保存条件必须在远端执行，不能降级为本地过滤 |
 | 0x80006215 | Invalid external column filter expression | 外部列过滤条件结构非法，或保存的条件无法解析 | 仅使用未限定列名与字面量进行比较，并通过 `AND` 连接；日期和时间使用字符串字面量 |
 | 0x80006216 | Duplicate column in external column filter | 外部列过滤条件中重复使用同一列，列名比较不区分大小写 | 确保每个条件列只出现一次 |
@@ -840,6 +840,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80007018 | Stream info contains invalid JSON format messages | 流式计算内部编码兼容性问题 | 保留现场和日志，github 上报         |
 | 0x8000701E | Invalid stream time configuration | 流任务时区或一周起始日缺失或无效 | 修正 `STREAM_OPTIONS(CONFIG(...))` 配置后重新创建流 |
 | 0x8000701F | Failed to load stream timezone | 执行节点无法加载流任务配置的时区 | 安装所需时区数据，或改用节点支持的 IANA 时区 |
+| 0x80007020 | Stream vtable redeploy timeout | 虚拟表运行期改绑触发的流重部署未在限期内完成 | 检查 mnode 部署日志，DROP 后重建该流 |
 | 0x80004100 | Stream task does not exist            | 流式计算任务不存在                    | 具体查看 server 端的错误日志       |
 | 0x80004118 | Stream rollup tag path is illegal     | ROLLUP BY 标签路径非法              | 检查并修正 rollup 标签路径         |
 | 0x80004119 | Invalid ROLLUP BY clause              | 流的 ROLLUP BY 子句非法             | 检查并修正建流语句                 |
@@ -848,6 +849,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000411C | PARTITION BY is not supported for the given external source type | 该外部源类型不支持 PARTITION BY | 移除 PARTITION BY，或改用支持的外部源类型 |
 | 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | 外部 reader 缺少本地流状态 | 保留现场和日志，github 上报 |
 | 0x8000411F | Influxdb tag key is too long or convert error | influxdb tag 的 key 或 value 长度不符合要求 | tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流 |
+| 0x80004120 | External timestamp primary key is finer than the microsecond stream cursor | 外部源时间戳主键的精度高于流 reader 使用的微秒游标（如 SQL Server `datetime2(7)` / `datetimeoffset(7)`） | 将外部表时间列的小数精度调整为 6 位或更低后重建流 |
 
 #### xnode
 

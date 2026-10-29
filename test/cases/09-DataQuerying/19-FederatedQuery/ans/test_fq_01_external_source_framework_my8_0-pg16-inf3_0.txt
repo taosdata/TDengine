@@ -4586,9 +4586,10 @@ count(*)
 1
 ---
 ### CASE-052m[MYS] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052m'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052m'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052m|127.0.0.1|13306|root|fq01_fw_mdb|{"read_timeout_ms":"2000","ssl_mode":"preferred"}
 ---
 ### CASE-052m[MYS] STEP-005 COUNT
 SQL: select count(*) from fq01_src052m.fq01_fw_mdb.src_t
@@ -4608,9 +4609,10 @@ count(*)
 1
 ---
 ### CASE-052m[MYS] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052m'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052m'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052m|127.0.0.1|13306|root|fq01_fw_mdb|{"connect_timeout_ms":"350","ssl_mode":"required"}
 ---
 ### CASE-052m[MYS] STEP-009 QUERY
 SQL: describe external source fq01_src052m
@@ -5699,9 +5701,10 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_src028i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql"}
 ---
 ### CASE-028i[INF] STEP-004 QUERY
-SQL: select source_name, `type`, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src028i'
+SQL: select source_name, `type`, `host`, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src028i'
 RESULT:
-ERROR: query failed
+source_name|type|host|port|user|database|options
+fq01_src028i|influxdb|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","protocol":"flight_sql"}
 ---
 ### CASE-028i[INF] STEP-005 COUNT
 SQL: select count(*) from fq01_src028i.src_t
@@ -5715,9 +5718,10 @@ RESULT:
 OK
 ---
 ### CASE-028i[INF] STEP-007 QUERY
-SQL: select source_name, `type`, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src028i'
+SQL: select source_name, `type`, `host`, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src028i'
 RESULT:
-ERROR: query failed
+source_name|type|host|port|user|database|options
+fq01_src028i|influxdb|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","protocol":"http"}
 ---
 ### CASE-028i[INF] STEP-008 COUNT
 SQL: select count(*) from fq01_src028i.src_t
@@ -6779,9 +6783,10 @@ count(*)
 1
 ---
 ### CASE-052i[INF] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052i'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052i'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052i|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"2000"}
 ---
 ### CASE-052i[INF] STEP-005 COUNT
 SQL: select count(*) from fq01_src052i.src_t
@@ -6801,9 +6806,10 @@ count(*)
 1
 ---
 ### CASE-052i[INF] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052i'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052i'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052i|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","connect_timeout_ms":"350","protocol":"http"}
 ---
 ### CASE-052i[INF] STEP-009 QUERY
 SQL: describe external source fq01_src052i
@@ -8971,9 +8977,10 @@ count(*)
 1
 ---
 ### CASE-052p[POS] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, `schema`, options from information_schema.ins_ext_sources where source_name='fq01_src052p'
+SQL: select source_name, host, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052p'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|schema|options
+fq01_src052p|127.0.0.1|15434|postgres|fq01_fw_pdb|public|{"read_timeout_ms":"2000","sslmode":"prefer"}
 ---
 ### CASE-052p[POS] STEP-005 COUNT
 SQL: select count(*) from fq01_src052p.public.src_t
@@ -8993,9 +9000,10 @@ count(*)
 1
 ---
 ### CASE-052p[POS] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, `schema`, options from information_schema.ins_ext_sources where source_name='fq01_src052p'
+SQL: select source_name, host, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052p'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|schema|options
+fq01_src052p|127.0.0.1|15434|postgres|fq01_fw_pdb|public|{"connect_timeout_ms":"350","sslmode":"require"}
 ---
 ### CASE-052p[POS] STEP-009 QUERY
 SQL: describe external source fq01_src052p
@@ -11121,7 +11129,7 @@ DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SEL
 ================================================================================================
 ================================================================================================
 CASE START: CASE-082m[MYS]
-DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6)
 ================================================================================================
 ### CASE-082m[MYS] STEP-001 EXEC
 SQL: drop external source if exists fq01_src082m
@@ -11157,47 +11165,41 @@ RESULT:
 1
 1
 ---
-### CASE-082m[MYS] STEP-005 QUERY
-SQL: select * from fq01_src082m.src_t where val=5
-RESULT:
-ts|val|score|name|flag
-2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
----
-### CASE-082m[MYS] STEP-006 EXEC
+### CASE-082m[MYS] STEP-005 EXEC
 SQL: refresh external source fq01_src082m
 RESULT:
 OK
 ---
-### CASE-082m[MYS] STEP-007 QUERY
+### CASE-082m[MYS] STEP-006 QUERY
 SQL: select * from fq01_src082m.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
 2024-01-01 00:04:00+08:00|5|5.5|epsilon|True|after_refresh
 ---
-### CASE-082m[MYS] STEP-008 QUERY
+### CASE-082m[MYS] STEP-007 QUERY
 SQL: select 1
 RESULT:
 1
 1
 ---
-### CASE-082m[MYS] STEP-009 COUNT
+### CASE-082m[MYS] STEP-008 COUNT
 SQL: select count(*) from fq01_src082m.fq01_fw_mdb.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-082m[MYS] STEP-010 CLEANUP
+### CASE-082m[MYS] STEP-009 CLEANUP
 SQL: drop external source if exists fq01_src082m
 RESULT:
 OK
 ---
 ================================================================================================
 CASE END: CASE-082m[MYS]
-DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6)
 ================================================================================================
 ================================================================================================
 CASE START: CASE-082p[POS]
-DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6)
 ================================================================================================
 ### CASE-082p[POS] STEP-001 EXEC
 SQL: drop external source if exists fq01_src082p
@@ -11233,43 +11235,2814 @@ RESULT:
 1
 1
 ---
-### CASE-082p[POS] STEP-005 QUERY
-SQL: select * from fq01_src082p.src_t where val=5
-RESULT:
-ts|val|score|name|flag
-2024-01-01 00:04:00+08:00|5|5.5|epsilon|1
----
-### CASE-082p[POS] STEP-006 EXEC
+### CASE-082p[POS] STEP-005 EXEC
 SQL: refresh external source fq01_src082p
 RESULT:
 OK
 ---
-### CASE-082p[POS] STEP-007 QUERY
+### CASE-082p[POS] STEP-006 QUERY
 SQL: select * from fq01_src082p.src_t where val=5
 RESULT:
 ts|val|score|name|flag|extra_note
 2024-01-01 00:04:00+08:00|5|5.5|epsilon|1|after_refresh
 ---
-### CASE-082p[POS] STEP-008 QUERY
+### CASE-082p[POS] STEP-007 QUERY
 SQL: select 1
 RESULT:
 1
 1
 ---
-### CASE-082p[POS] STEP-009 COUNT
+### CASE-082p[POS] STEP-008 COUNT
 SQL: select count(*) from fq01_src082p.public.src_t
 RESULT:
 count(*)
 5
 ---
-### CASE-082p[POS] STEP-010 CLEANUP
+### CASE-082p[POS] STEP-009 CLEANUP
 SQL: drop external source if exists fq01_src082p
 RESULT:
 OK
 ---
 ================================================================================================
 CASE END: CASE-082p[POS]
-DESC: ADD COLUMN without explicit REFRESH: immediate SELECT * stays on cached columns; REFRESH then exposes the new column
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6)
+================================================================================================
+================================================================================================
+CASE START: CASE-002s[SQL]
+DESC: CREATE IF NOT EXISTS is idempotent; second create with different params is ignored (SQL Server)
+================================================================================================
+### CASE-002s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src002s
+RESULT:
+OK
+---
+### CASE-002s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src002s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-002s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src002s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-002s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src002s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src002s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-002s[SQL] STEP-003 EXEC
+SQL: create external source if not exists fq01_src002s type='sqlserver' host='127.0.0.1' port=1434 user='alt_user' password='alt_pass' database='alt_db' schema='alt_schema'
+RESULT:
+OK
+---
+### CASE-002s[SQL] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src002s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-002s[SQL] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq01_src002s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src002s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-002s[SQL] STEP-004 COUNT
+SQL: select count(*) from fq01_src002s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-002s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_src002s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-002s[SQL]
+DESC: CREATE IF NOT EXISTS is idempotent; second create with different params is ignored (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-003s[SQL]
+DESC: duplicate CREATE raises ALREADY_EXISTS (SQL Server)
+================================================================================================
+### CASE-003s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src003s
+RESULT:
+OK
+---
+### CASE-003s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src003s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-003s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src003s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-003s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src003s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src003s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-003s[SQL] STEP-003 EXEC
+SQL: create external source fq01_src003s type='sqlserver' host='127.0.0.1' port=1434 user='alt_user' password='alt_pass' database='alt_db' schema='alt_schema'
+RESULT:
+ERROR: [0x640b]: External source already exists
+---
+### CASE-003s[SQL] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src003s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-003s[SQL] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq01_src003s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src003s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-003s[SQL] STEP-004 COUNT
+SQL: select count(*) from fq01_src003s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-003s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_src003s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-003s[SQL]
+DESC: duplicate CREATE raises ALREADY_EXISTS (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-004s[SQL]
+DESC: ALTER options then re-query (SQL Server)
+================================================================================================
+### CASE-004s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src004s
+RESULT:
+OK
+---
+### CASE-004s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src004s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-004s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src004s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-004s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src004s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src004s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-004s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src004s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-004s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src004s set options('connect_timeout_ms'='1500')
+RESULT:
+OK
+---
+### CASE-004s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src004s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src004s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1500"}
+---
+### CASE-004s[SQL] STEP-006 COUNT
+SQL: select count(*) from fq01_src004s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-004s[SQL] STEP-007 CLEANUP
+SQL: drop external source if exists fq01_src004s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-004s[SQL]
+DESC: ALTER options then re-query (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-005s[SQL]
+DESC: REFRESH is idempotent (SQL Server)
+================================================================================================
+### CASE-005s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src005s
+RESULT:
+OK
+---
+### CASE-005s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src005s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-005s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src005s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-005s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src005s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src005s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-005s[SQL] STEP-003 EXEC
+SQL: refresh external source fq01_src005s
+RESULT:
+OK
+---
+### CASE-005s[SQL] STEP-004 COUNT
+SQL: select count(*) from fq01_src005s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-005s[SQL] STEP-005 EXEC
+SQL: refresh external source fq01_src005s
+RESULT:
+OK
+---
+### CASE-005s[SQL] STEP-006 COUNT
+SQL: select count(*) from fq01_src005s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-005s[SQL] STEP-007 CLEANUP
+SQL: drop external source if exists fq01_src005s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-005s[SQL]
+DESC: REFRESH is idempotent (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-006s[SQL]
+DESC: DROP IF EXISTS is idempotent (SQL Server)
+================================================================================================
+### CASE-006s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src006s
+RESULT:
+OK
+---
+### CASE-006s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src006s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-006s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src006s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-006s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src006s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src006s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-006s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src006s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-006s[SQL] STEP-004 EXEC
+SQL: drop external source if exists fq01_src006s
+RESULT:
+OK
+---
+### CASE-006s[SQL] STEP-005 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src006s'
+RESULT:
+count(*)
+0
+---
+### CASE-006s[SQL] STEP-006 EXEC
+SQL: drop external source if exists fq01_src006s
+RESULT:
+OK
+---
+### CASE-006s[SQL] STEP-007 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src006s'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-006s[SQL]
+DESC: DROP IF EXISTS is idempotent (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-013s[SQL]
+DESC: missing mandatory fields each produce a syntax error (SQL Server)
+================================================================================================
+### CASE-013s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src013s
+RESULT:
+OK
+---
+### CASE-013s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src013s host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2600]: syntax error near "host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'"
+---
+### CASE-013s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-013s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-013s[SQL] STEP-003 EXEC
+SQL: create external source fq01_src013s type='sqlserver' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2600]: syntax error near "port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'"
+---
+### CASE-013s[SQL] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-013s[SQL] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-013s[SQL] STEP-004 EXEC
+SQL: create external source fq01_src013s type='sqlserver' host='127.0.0.1' user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2600]: syntax error near "user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'"
+---
+### CASE-013s[SQL] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-013s[SQL] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-013s[SQL] STEP-005 EXEC
+SQL: create external source fq01_src013s type='sqlserver' host='127.0.0.1' port=1433 password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2600]: syntax error near "password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'"
+---
+### CASE-013s[SQL] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-013s[SQL] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-013s[SQL] STEP-006 EXEC
+SQL: create external source fq01_src013s type='sqlserver' host='127.0.0.1' port=1433 user='sa' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2600]: PASSWORD cannot be empty
+---
+### CASE-013s[SQL] STEP-006 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-013s[SQL] STEP-006 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-013s[SQL] STEP-007 EXEC
+SQL: create external source fq01_src013s
+RESULT:
+ERROR: [0x2600]: Incomplete CREATE EXTERNAL SOURCE statement, missing mandatory fields
+---
+### CASE-013s[SQL] STEP-007 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-013s[SQL] STEP-007 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-013s[SQL] STEP-008 EXEC
+SQL: create external source fq01_src013s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-013s[SQL] STEP-008 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src013s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-013s[SQL] STEP-008 AUTO-DESCRIBE
+SQL: describe external source fq01_src013s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src013s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-013s[SQL] STEP-009 COUNT
+SQL: select count(*) from fq01_src013s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-013s[SQL] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src013s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-013s[SQL]
+DESC: missing mandatory fields each produce a syntax error (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-016s[SQL]
+DESC: type-specific options persist and alter (SQL Server)
+================================================================================================
+### CASE-016s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src016s
+RESULT:
+OK
+---
+### CASE-016s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src016s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('trust_server_certificate'='true', 'connect_timeout_ms'='3000')
+RESULT:
+OK
+---
+### CASE-016s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src016s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-016s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src016s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src016s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-016s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src016s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src016s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-016s[SQL] STEP-004 COUNT
+SQL: select count(*) from fq01_src016s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-016s[SQL] STEP-005 EXEC
+SQL: alter external source fq01_src016s set options('connect_timeout_ms'='1500')
+RESULT:
+OK
+---
+### CASE-016s[SQL] STEP-006 QUERY
+SQL: describe external source fq01_src016s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src016s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"1500"}
+---
+### CASE-016s[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_src016s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-016s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src016s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-016s[SQL]
+DESC: type-specific options persist and alter (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-017s[SQL]
+DESC: sensitive fields (password) are always masked in SHOW and DESCRIBE (SQL Server)
+================================================================================================
+### CASE-017s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src017s
+RESULT:
+OK
+---
+### CASE-017s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src017s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='AlwaysMask!987' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-017s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src017s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-017s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src017s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src017s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-017s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src017s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src017s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-017s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src017s set password='NewMask!654'
+RESULT:
+OK
+---
+### CASE-017s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src017s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src017s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-017s[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_src017s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-017s[SQL]
+DESC: sensitive fields (password) are always masked in SHOW and DESCRIBE (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-018s[SQL]
+DESC: ALTER with multiple fields combined (SQL Server)
+================================================================================================
+### CASE-018s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src018s
+RESULT:
+OK
+---
+### CASE-018s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src018s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-018s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src018s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-018s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src018s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src018s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-018s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src018s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-018s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src018s set host='127.0.0.1', port=1433, user='sa', password='TaosFq!2026'
+RESULT:
+OK
+---
+### CASE-018s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src018s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src018s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-018s[SQL] STEP-006 COUNT
+SQL: select count(*) from fq01_src018s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-018s[SQL] STEP-007 CLEANUP
+SQL: drop external source if exists fq01_src018s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-018s[SQL]
+DESC: ALTER with multiple fields combined (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-019s[SQL]
+DESC: ALTER database then revert (SQL Server)
+================================================================================================
+### CASE-019s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src019s
+RESULT:
+OK
+---
+### CASE-019s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src019s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-019s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src019s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-019s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src019s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src019s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-019s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src019s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-019s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src019s set database='fq01_fw_alt_sdb'
+RESULT:
+OK
+---
+### CASE-019s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src019s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src019s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_alt_sdb|dbo|{}
+---
+### CASE-019s[SQL] STEP-006 EXEC
+SQL: alter external source fq01_src019s set database='fq01_fw_sdb'
+RESULT:
+OK
+---
+### CASE-019s[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_src019s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-019s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src019s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-019s[SQL]
+DESC: ALTER database then revert (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-020s[SQL]
+DESC: repeated drop / re-create semantics (SQL Server)
+================================================================================================
+### CASE-020s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src020s
+RESULT:
+OK
+---
+### CASE-020s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src020s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-020s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src020s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-020s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src020s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src020s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-020s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src020s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-020s[SQL] STEP-004 EXEC
+SQL: drop external source if exists fq01_src020s
+RESULT:
+OK
+---
+### CASE-020s[SQL] STEP-005 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src020s'
+RESULT:
+count(*)
+0
+---
+### CASE-020s[SQL] STEP-006 EXEC
+SQL: drop external source if exists fq01_src020s
+RESULT:
+OK
+---
+### CASE-020s[SQL] STEP-007 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src020s'
+RESULT:
+count(*)
+0
+---
+### CASE-020s[SQL] STEP-008 EXEC
+SQL: create external source fq01_src020s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-020s[SQL] STEP-008 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src020s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-020s[SQL] STEP-008 AUTO-DESCRIBE
+SQL: describe external source fq01_src020s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src020s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-020s[SQL] STEP-009 COUNT
+SQL: select count(*) from fq01_src020s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-020s[SQL] STEP-010 EXEC
+SQL: drop external source fq01_src020s
+RESULT:
+OK
+---
+### CASE-020s[SQL] STEP-011 EXEC
+SQL: drop external source fq01_src020s
+RESULT:
+ERROR: [0x6407]: External source not found
+---
+### CASE-020s[SQL] STEP-012 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src020s'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-020s[SQL]
+DESC: repeated drop / re-create semantics (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-025s[SQL]
+DESC: host / user / password / database too long each raise NAME_OR_PASSWD_TOO_LONG (SQL Server)
+================================================================================================
+### CASE-025s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src025s
+RESULT:
+OK
+---
+### CASE-025s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src025s type='sqlserver' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2610]: HOST is too long
+---
+### CASE-025s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-025s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src025s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-025s[SQL] STEP-003 EXEC
+SQL: create external source fq01_src025s type='sqlserver' host='127.0.0.1' port=1433 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2610]: USER is too long
+---
+### CASE-025s[SQL] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-025s[SQL] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq01_src025s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-025s[SQL] STEP-004 EXEC
+SQL: create external source fq01_src025s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+ERROR: [0x2610]: PASSWORD is too long
+---
+### CASE-025s[SQL] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-025s[SQL] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq01_src025s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-025s[SQL] STEP-005 EXEC
+SQL: create external source fq01_src025s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' schema='dbo'
+RESULT:
+ERROR: [0x641d]: DATABASE is too long
+---
+### CASE-025s[SQL] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-025s[SQL] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq01_src025s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-025s[SQL] STEP-006 EXEC
+SQL: create external source fq01_src025s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-025s[SQL] STEP-006 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src025s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-025s[SQL] STEP-006 AUTO-DESCRIBE
+SQL: describe external source fq01_src025s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src025s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-025s[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_src025s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-025s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src025s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-025s[SQL]
+DESC: host / user / password / database too long each raise NAME_OR_PASSWD_TOO_LONG (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-028s[SQL]
+DESC: ins_ext_sources reflects CREATE / ALTER / DROP lifecycle (SQL Server)
+================================================================================================
+### CASE-028s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src028s
+RESULT:
+OK
+---
+### CASE-028s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src028s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-028s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src028s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-028s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src028s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src028s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-028s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src028s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-028s[SQL] STEP-004 QUERY
+SQL: select source_name, host, `type` from information_schema.ins_ext_sources where source_name='fq01_src028s'
+RESULT:
+source_name|host|type
+fq01_src028s|127.0.0.1|sqlserver
+---
+### CASE-028s[SQL] STEP-005 EXEC
+SQL: alter external source fq01_src028s set host='10.0.0.2'
+RESULT:
+OK
+---
+### CASE-028s[SQL] STEP-006 QUERY
+SQL: select source_name, host, `type` from information_schema.ins_ext_sources where source_name='fq01_src028s'
+RESULT:
+source_name|host|type
+fq01_src028s|10.0.0.2|sqlserver
+---
+### CASE-028s[SQL] STEP-007 CLEANUP
+SQL: drop external source if exists fq01_src028s
+RESULT:
+OK
+---
+### CASE-028s[SQL] STEP-008 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src028s'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-028s[SQL]
+DESC: ins_ext_sources reflects CREATE / ALTER / DROP lifecycle (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-029s[SQL]
+DESC: querying a non-existent source raises EXT_SOURCE_NOT_FOUND (SQL Server)
+================================================================================================
+### CASE-029s[SQL] STEP-001 QUERY
+SQL: select * from fq01_src029s_ghost.fq01_fw_sdb.dbo.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-029s[SQL] STEP-002 QUERY
+SQL: select * from fq01_src029s_ghost.fq01_fw_sdb.dbo.src_t
+RESULT:
+ERROR: query failed
+---
+================================================================================================
+CASE END: CASE-029s[SQL]
+DESC: querying a non-existent source raises EXT_SOURCE_NOT_FOUND (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-030s[SQL]
+DESC: create with unreachable host, then recover via ALTER + REFRESH (SQL Server)
+================================================================================================
+### CASE-030s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src030s
+RESULT:
+OK
+---
+### CASE-030s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src030s type='sqlserver' host='192.0.2.200' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='500')
+RESULT:
+OK
+---
+### CASE-030s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src030s|sqlserver|192.0.2.200|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"500"}
+---
+### CASE-030s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src030s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src030s|sqlserver|192.0.2.200|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"500"}
+---
+### CASE-030s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src030s.dbo.src_t
+RESULT:
+ERROR: count query failed (expected in negative case)
+---
+### CASE-030s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src030s set host='127.0.0.1', port=1433
+RESULT:
+OK
+---
+### CASE-030s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src030s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src030s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"500"}
+---
+### CASE-030s[SQL] STEP-006 EXEC
+SQL: refresh external source fq01_src030s
+RESULT:
+OK
+---
+### CASE-030s[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_src030s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-030s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src030s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-030s[SQL]
+DESC: create with unreachable host, then recover via ALTER + REFRESH (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-031s[SQL]
+DESC: query against an unreachable source fails with connect_timeout_ms configured (SQL Server)
+================================================================================================
+### CASE-031s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src031s
+RESULT:
+OK
+---
+### CASE-031s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src031s type='sqlserver' host='192.0.2.200' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='1000')
+RESULT:
+OK
+---
+### CASE-031s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src031s|sqlserver|192.0.2.200|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-031s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src031s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src031s|sqlserver|192.0.2.200|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-031s[SQL] STEP-003 QUERY
+SQL: select * from fq01_src031s.fq01_fw_sdb.dbo.ghost_table
+RESULT:
+ERROR: query failed
+---
+### CASE-031s[SQL] STEP-004 CLEANUP
+SQL: drop external source if exists fq01_src031s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-031s[SQL]
+DESC: query against an unreachable source fails with connect_timeout_ms configured (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-032s[SQL]
+DESC: doc-style CREATE IF NOT EXISTS (as shown in user docs, SQL Server)
+================================================================================================
+### CASE-032s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src032s
+RESULT:
+OK
+---
+### CASE-032s[SQL] STEP-002 EXEC
+SQL: create external source if not exists fq01_src032s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-032s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src032s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-032s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src032s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src032s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-032s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src032s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-032s[SQL] STEP-004 EXEC
+SQL: create external source if not exists fq01_src032s type='sqlserver' host='127.0.0.1' port=1434 user='alt_user' password='alt_pass' database='alt_db' schema='alt_schema'
+RESULT:
+OK
+---
+### CASE-032s[SQL] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src032s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-032s[SQL] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq01_src032s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src032s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-032s[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_src032s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-032s[SQL] STEP-006 QUERY
+SQL: describe external source fq01_src032s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src032s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-032s[SQL] STEP-007 CLEANUP
+SQL: drop external source if exists fq01_src032s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-032s[SQL]
+DESC: doc-style CREATE IF NOT EXISTS (as shown in user docs, SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-033s[SQL]
+DESC: SHOW EXTERNAL SOURCES includes non-null create_time (SQL Server)
+================================================================================================
+### CASE-033s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src033s
+RESULT:
+OK
+---
+### CASE-033s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src033s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-033s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src033s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-033s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src033s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src033s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-033s[SQL] STEP-003 QUERY
+SQL: select source_name, `type`, create_time from information_schema.ins_ext_sources where source_name='fq01_src033s'
+RESULT:
+source_name|type
+fq01_src033s|sqlserver
+---
+### CASE-033s[SQL] STEP-004 COUNT
+SQL: select count(*) from fq01_src033s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-033s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_src033s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-033s[SQL]
+DESC: SHOW EXTERNAL SOURCES includes non-null create_time (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-034s[SQL]
+DESC: all-types positive summary: CREATE / type opts / count / ALTER opts / count / DROP (SQL Server)
+================================================================================================
+### CASE-034s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src034s
+RESULT:
+OK
+---
+### CASE-034s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src034s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('trust_server_certificate'='true', 'connect_timeout_ms'='3000')
+RESULT:
+OK
+---
+### CASE-034s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src034s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-034s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src034s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src034s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-034s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src034s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-034s[SQL] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources
+RESULT:
+count(*)
+1
+---
+### CASE-034s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src034s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src034s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"trust_server_certificate":"true","connect_timeout_ms":"3000"}
+---
+### CASE-034s[SQL] STEP-006 EXEC
+SQL: alter external source fq01_src034s set options('connect_timeout_ms'='1500')
+RESULT:
+OK
+---
+### CASE-034s[SQL] STEP-007 COUNT
+SQL: select count(*) from fq01_src034s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-034s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src034s
+RESULT:
+OK
+---
+### CASE-034s[SQL] STEP-009 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src034s'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-034s[SQL]
+DESC: all-types positive summary: CREATE / type opts / count / ALTER opts / count / DROP (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-035s[SQL]
+DESC: non-admin user sees SHOW + DESCRIBE with masked password (SQL Server)
+================================================================================================
+### CASE-035s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src035s
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src035s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src035s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-035s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src035s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src035s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-035s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src035s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-035s[SQL] STEP-004 EXEC
+SQL: drop user if exists fq01fw035usr
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-005 EXEC
+SQL: create user fq01fw035usr pass 'FqFrame!2026'
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-006 CONNECT
+SQL: -- connect user=fq01fw035usr
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-007 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src035s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-035s[SQL] STEP-008 QUERY
+SQL: describe external source fq01_src035s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src035s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-035s[SQL] STEP-009 CONNECT
+SQL: -- connect user=root
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-010 EXEC
+SQL: drop user if exists fq01fw035usr
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-011 CLEANUP
+SQL: drop external source if exists fq01_src035s
+RESULT:
+OK
+---
+### CASE-035s[SQL] STEP-012 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src035s'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-035s[SQL]
+DESC: non-admin user sees SHOW + DESCRIBE with masked password (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-038s[SQL]
+DESC: valid boundary values: host 256, port 1, port 65535, user 128, pass 128, db 64 (SQL Server)
+================================================================================================
+### CASE-038s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src038s type='sqlserver' host='hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-004 CLEANUP
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-005 EXEC
+SQL: create external source fq01_src038s type='sqlserver' host='127.0.0.1' port=1 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-007 EXEC
+SQL: create external source fq01_src038s type='sqlserver' host='127.0.0.1' port=65535 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-007 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|65535|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-007 AUTO-DESCRIBE
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|65535|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-009 EXEC
+SQL: create external source fq01_src038s type='sqlserver' host='127.0.0.1' port=1433 user='uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-009 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1433|uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-009 AUTO-DESCRIBE
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1433|uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-011 EXEC
+SQL: create external source fq01_src038s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-011 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-011 AUTO-DESCRIBE
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-038s[SQL] STEP-012 CLEANUP
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-013 EXEC
+SQL: create external source fq01_src038s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' schema='dbo'
+RESULT:
+OK
+---
+### CASE-038s[SQL] STEP-013 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1433|sa|******|dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd|dbo|{}
+---
+### CASE-038s[SQL] STEP-013 AUTO-DESCRIBE
+SQL: describe external source fq01_src038s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src038s|sqlserver|127.0.0.1|1433|sa|******|dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd|dbo|{}
+---
+### CASE-038s[SQL] STEP-014 CLEANUP
+SQL: drop external source if exists fq01_src038s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-038s[SQL]
+DESC: valid boundary values: host 256, port 1, port 65535, user 128, pass 128, db 64 (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-041s[SQL]
+DESC: ALTER USER-only and ALTER PASSWORD-only each update independently (SQL Server)
+================================================================================================
+### CASE-041s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src041s
+RESULT:
+OK
+---
+### CASE-041s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src041s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-041s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src041s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-041s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src041s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src041s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-041s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src041s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-041s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src041s set user='alt_user'
+RESULT:
+OK
+---
+### CASE-041s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src041s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src041s|sqlserver|127.0.0.1|1433|alt_user|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-041s[SQL] STEP-006 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src041s|sqlserver|127.0.0.1|1433|alt_user|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-041s[SQL] STEP-007 EXEC
+SQL: alter external source fq01_src041s set password='AltPass!999'
+RESULT:
+OK
+---
+### CASE-041s[SQL] STEP-008 QUERY
+SQL: describe external source fq01_src041s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src041s|sqlserver|127.0.0.1|1433|alt_user|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-041s[SQL] STEP-009 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src041s|sqlserver|127.0.0.1|1433|alt_user|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-041s[SQL] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src041s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-041s[SQL]
+DESC: ALTER USER-only and ALTER PASSWORD-only each update independently (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-042s[SQL]
+DESC: ALTER OPTIONS patch-merge: adding a new key retains existing keys (SQL Server)
+================================================================================================
+### CASE-042s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src042s
+RESULT:
+OK
+---
+### CASE-042s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src042s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='1000')
+RESULT:
+OK
+---
+### CASE-042s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src042s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-042s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src042s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src042s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-042s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src042s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src042s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-042s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src042s set options('read_timeout_ms'='3000')
+RESULT:
+OK
+---
+### CASE-042s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src042s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src042s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000","read_timeout_ms":"3000"}
+---
+### CASE-042s[SQL] STEP-006 EXEC
+SQL: alter external source fq01_src042s set options('connect_timeout_ms'='500', 'trust_server_certificate'='true')
+RESULT:
+OK
+---
+### CASE-042s[SQL] STEP-007 QUERY
+SQL: describe external source fq01_src042s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src042s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"read_timeout_ms":"3000","connect_timeout_ms":"500","trust_server_certificate":"true"}
+---
+### CASE-042s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src042s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-042s[SQL]
+DESC: ALTER OPTIONS patch-merge: adding a new key retains existing keys (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-043s[SQL]
+DESC: ALTER OPTIONS value='' removes that key while preserving others (SQL Server)
+================================================================================================
+### CASE-043s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src043s
+RESULT:
+OK
+---
+### CASE-043s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src043s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='1000', 'read_timeout_ms'='2000')
+RESULT:
+OK
+---
+### CASE-043s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src043s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000","read_timeout_ms":"2000"}
+---
+### CASE-043s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src043s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src043s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000","read_timeout_ms":"2000"}
+---
+### CASE-043s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src043s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src043s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000","read_timeout_ms":"2000"}
+---
+### CASE-043s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src043s set options('read_timeout_ms'='')
+RESULT:
+OK
+---
+### CASE-043s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src043s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src043s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-043s[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_src043s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-043s[SQL]
+DESC: ALTER OPTIONS value='' removes that key while preserving others (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-045s[SQL]
+DESC: ALTER DATABASE='' clears database field; subsequent set restores it (SQL Server)
+================================================================================================
+### CASE-045s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src045s
+RESULT:
+OK
+---
+### CASE-045s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src045s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-045s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src045s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-045s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src045s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src045s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-045s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src045s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src045s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-045s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src045s set database=''
+RESULT:
+OK
+---
+### CASE-045s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src045s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src045s|sqlserver|127.0.0.1|1433|sa|******||dbo|{}
+---
+### CASE-045s[SQL] STEP-006 EXEC
+SQL: alter external source fq01_src045s set database='fq01_fw_sdb'
+RESULT:
+OK
+---
+### CASE-045s[SQL] STEP-007 QUERY
+SQL: describe external source fq01_src045s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src045s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-045s[SQL] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_src045s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-045s[SQL]
+DESC: ALTER DATABASE='' clears database field; subsequent set restores it (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-047s[SQL]
+DESC: timeout option boundary and invalid values are enforced; failed ALTER leaves source usable (SQL Server)
+================================================================================================
+### CASE-047s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src047s
+RESULT:
+OK
+---
+### CASE-047s[SQL] STEP-002 EXEC
+SQL: drop external source if exists fq01_src047s_bad
+RESULT:
+OK
+---
+### CASE-047s[SQL] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+count(*)
+0
+---
+### CASE-047s[SQL] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s_bad'
+RESULT:
+count(*)
+0
+---
+### CASE-047s[SQL] STEP-005 EXEC
+SQL: create external source fq01_src047s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='0', 'read_timeout_ms'='0')
+RESULT:
+OK
+---
+### CASE-047s[SQL] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"0","read_timeout_ms":"0"}
+---
+### CASE-047s[SQL] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq01_src047s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"0","read_timeout_ms":"0"}
+---
+### CASE-047s[SQL] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+count(*)
+1
+---
+### CASE-047s[SQL] STEP-007 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+source_name|options
+fq01_src047s|{"connect_timeout_ms":"0","read_timeout_ms":"0"}
+---
+### CASE-047s[SQL] STEP-008 QUERY
+SQL: describe external source fq01_src047s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"0","read_timeout_ms":"0"}
+---
+### CASE-047s[SQL] STEP-009 COUNT
+SQL: select count(*) from fq01_src047s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-047s[SQL] STEP-010 EXEC
+SQL: alter external source fq01_src047s set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')
+RESULT:
+OK
+---
+### CASE-047s[SQL] STEP-011 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+source_name|options
+fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-012 QUERY
+SQL: describe external source fq01_src047s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-013 COUNT
+SQL: select count(*) from fq01_src047s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-047s[SQL] STEP-014 EXEC
+SQL: alter external source fq01_src047s set options('connect_timeout_ms'='99')
+RESULT:
+ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
+---
+### CASE-047s[SQL] STEP-015 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+source_name|options
+fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-016 QUERY
+SQL: describe external source fq01_src047s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-017 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+count(*)
+1
+---
+### CASE-047s[SQL] STEP-018 COUNT
+SQL: select count(*) from fq01_src047s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-047s[SQL] STEP-019 EXEC
+SQL: alter external source fq01_src047s set options('read_timeout_ms'='600001')
+RESULT:
+ERROR: [0x2600]: read_timeout_ms must be 0 or in range [100, 600000]
+---
+### CASE-047s[SQL] STEP-020 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+source_name|options
+fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-021 QUERY
+SQL: describe external source fq01_src047s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src047s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-022 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+count(*)
+1
+---
+### CASE-047s[SQL] STEP-023 COUNT
+SQL: select count(*) from fq01_src047s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-047s[SQL] STEP-024 EXEC
+SQL: create external source fq01_src047s_bad type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='600001')
+RESULT:
+ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
+---
+### CASE-047s[SQL] STEP-024 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-047s[SQL] STEP-024 AUTO-DESCRIBE
+SQL: describe external source fq01_src047s_bad
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-047s[SQL] STEP-025 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s_bad'
+RESULT:
+count(*)
+0
+---
+### CASE-047s[SQL] STEP-026 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src047s'
+RESULT:
+count(*)
+1
+---
+### CASE-047s[SQL] STEP-027 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name in ('fq01_src047s', 'fq01_src047s_bad') order by source_name
+RESULT:
+source_name|options
+fq01_src047s|{"connect_timeout_ms":"100","read_timeout_ms":"600000"}
+---
+### CASE-047s[SQL] STEP-028 QUERY
+SQL: describe external source fq01_src047s_bad
+RESULT:
+ERROR: query failed
+---
+### CASE-047s[SQL] STEP-029 CLEANUP
+SQL: drop external source if exists fq01_src047s
+RESULT:
+OK
+---
+### CASE-047s[SQL] STEP-029 CLEANUP
+SQL: drop external source if exists fq01_src047s_bad
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-047s[SQL]
+DESC: timeout option boundary and invalid values are enforced; failed ALTER leaves source usable (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-048s[SQL]
+DESC: OPTIONS total length budget: valid combined payload accepted, oversized payload rejected (SQL Server)
+================================================================================================
+### CASE-048s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src048s
+RESULT:
+OK
+---
+### CASE-048s[SQL] STEP-002 EXEC
+SQL: drop external source if exists fq01_src048s_bad
+RESULT:
+OK
+---
+### CASE-048s[SQL] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s'
+RESULT:
+count(*)
+0
+---
+### CASE-048s[SQL] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s_bad'
+RESULT:
+count(*)
+0
+---
+### CASE-048s[SQL] STEP-005 EXEC
+SQL: create external source fq01_src048s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('tls_enabled'='false', 'tls_client_cert'='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tls_client_key'='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+RESULT:
+OK
+---
+### CASE-048s[SQL] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src048s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"tls_enabled":"false","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-048s[SQL] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq01_src048s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src048s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"tls_enabled":"false","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-048s[SQL] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s'
+RESULT:
+count(*)
+1
+---
+### CASE-048s[SQL] STEP-007 QUERY
+SQL: select source_name, length(options), options from information_schema.ins_ext_sources where source_name='fq01_src048s'
+RESULT:
+source_name|length(options)|options
+fq01_src048s|76|{"tls_enabled":"false","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-048s[SQL] STEP-008 QUERY
+SQL: describe external source fq01_src048s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src048s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"tls_enabled":"false","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-048s[SQL] STEP-009 COUNT
+SQL: select count(*) from fq01_src048s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-048s[SQL] STEP-010 EXEC
+SQL: create external source fq01_src048s_bad type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('tls_enabled'='false', 'tls_client_cert'='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'tls_client_key'='bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+RESULT:
+ERROR: [0x2610]: OPTIONS values total too long (max 4095 chars)
+---
+### CASE-048s[SQL] STEP-010 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-048s[SQL] STEP-010 AUTO-DESCRIBE
+SQL: describe external source fq01_src048s_bad
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-048s[SQL] STEP-011 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s_bad'
+RESULT:
+count(*)
+0
+---
+### CASE-048s[SQL] STEP-012 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src048s'
+RESULT:
+count(*)
+1
+---
+### CASE-048s[SQL] STEP-013 QUERY
+SQL: select source_name, length(options), options from information_schema.ins_ext_sources where source_name='fq01_src048s'
+RESULT:
+source_name|length(options)|options
+fq01_src048s|76|{"tls_enabled":"false","tls_client_cert":"******","tls_client_key":"******"}
+---
+### CASE-048s[SQL] STEP-014 QUERY
+SQL: describe external source fq01_src048s_bad
+RESULT:
+ERROR: query failed
+---
+### CASE-048s[SQL] STEP-015 CLEANUP
+SQL: drop external source if exists fq01_src048s
+RESULT:
+OK
+---
+### CASE-048s[SQL] STEP-015 CLEANUP
+SQL: drop external source if exists fq01_src048s_bad
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-048s[SQL]
+DESC: OPTIONS total length budget: valid combined payload accepted, oversized payload rejected (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-049s[SQL]
+DESC: ALTER DATABASE changes 2-segment path resolution; REFRESH after restore makes default path usable again (SQL Server)
+================================================================================================
+### CASE-049s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src049s
+RESULT:
+OK
+---
+### CASE-049s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src049s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-049s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src049s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-049s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src049s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src049s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-049s[SQL] STEP-003 QUERY
+SQL: select count(*) from fq01_src049s.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-049s[SQL] STEP-004 EXEC
+SQL: alter external source fq01_src049s set database='fq01_fw_alt_sdb'
+RESULT:
+OK
+---
+### CASE-049s[SQL] STEP-005 QUERY
+SQL: describe external source fq01_src049s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src049s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_alt_sdb|dbo|{}
+---
+### CASE-049s[SQL] STEP-006 QUERY
+SQL: select count(*) from fq01_src049s.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-049s[SQL] STEP-007 EXEC
+SQL: alter external source fq01_src049s set database='fq01_fw_sdb'
+RESULT:
+OK
+---
+### CASE-049s[SQL] STEP-008 EXEC
+SQL: refresh external source fq01_src049s
+RESULT:
+OK
+---
+### CASE-049s[SQL] STEP-009 QUERY
+SQL: describe external source fq01_src049s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src049s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-049s[SQL] STEP-010 QUERY
+SQL: select count(*) from fq01_src049s.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-049s[SQL] STEP-011 COUNT
+SQL: select count(*) from fq01_src049s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-049s[SQL] STEP-012 CLEANUP
+SQL: drop external source if exists fq01_src049s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-049s[SQL]
+DESC: ALTER DATABASE changes 2-segment path resolution; REFRESH after restore makes default path usable again (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-050s[SQL]
+DESC: REFRESH reflects external SQL Server schema change (add/drop column) with observable query behavior
+================================================================================================
+### CASE-050s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src050s
+RESULT:
+OK
+---
+### CASE-050s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src050s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-050s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src050s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-050s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src050s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src050s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-050s[SQL] STEP-003 QUERY
+SQL: select count(*) from fq01_src050s.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-050s[SQL] STEP-004 QUERY
+SQL: select extra_note from fq01_src050s.src_t where val=5
+RESULT:
+ERROR: query failed
+---
+### CASE-050s[SQL] STEP-005 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-050s[SQL] STEP-006 QUERY
+SQL: select extra_note from fq01_src050s.src_t where val=5
+RESULT:
+extra_note
+after_refresh
+---
+### CASE-050s[SQL] STEP-007 EXEC
+SQL: refresh external source fq01_src050s
+RESULT:
+OK
+---
+### CASE-050s[SQL] STEP-008 QUERY
+SQL: select extra_note from fq01_src050s.src_t where val=5
+RESULT:
+extra_note
+after_refresh
+---
+### CASE-050s[SQL] STEP-009 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-050s[SQL] STEP-010 EXEC
+SQL: refresh external source fq01_src050s
+RESULT:
+OK
+---
+### CASE-050s[SQL] STEP-011 QUERY
+SQL: select extra_note from fq01_src050s.src_t where val=5
+RESULT:
+ERROR: query failed
+---
+### CASE-050s[SQL] STEP-012 COUNT
+SQL: select count(*) from fq01_src050s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-050s[SQL] STEP-013 CLEANUP
+SQL: drop external source if exists fq01_src050s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-050s[SQL]
+DESC: REFRESH reflects external SQL Server schema change (add/drop column) with observable query behavior
+================================================================================================
+================================================================================================
+CASE START: CASE-052s[SQL]
+DESC: single ALTER combining base fields and OPTIONS supports add/remove patch semantics (SQL Server)
+================================================================================================
+### CASE-052s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src052s
+RESULT:
+OK
+---
+### CASE-052s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src052s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('read_timeout_ms'='2000', 'trust_server_certificate'='true')
+RESULT:
+OK
+---
+### CASE-052s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src052s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"read_timeout_ms":"2000","trust_server_certificate":"true"}
+---
+### CASE-052s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src052s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src052s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"read_timeout_ms":"2000","trust_server_certificate":"true"}
+---
+### CASE-052s[SQL] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'
+RESULT:
+count(*)
+1
+---
+### CASE-052s[SQL] STEP-004 QUERY
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052s'
+RESULT:
+source_name|host|port|user|database|options
+fq01_src052s|127.0.0.1|1433|sa|fq01_fw_sdb|{"read_timeout_ms":"2000","trust_server_certificate":"true"}
+---
+### CASE-052s[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_src052s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-052s[SQL] STEP-006 EXEC
+SQL: alter external source fq01_src052s set host='127.0.0.1', port=1433, user='sa', password='TaosFq!2026', database='fq01_fw_sdb', options('read_timeout_ms'='', 'connect_timeout_ms'='350', 'trust_server_certificate'='true')
+RESULT:
+OK
+---
+### CASE-052s[SQL] STEP-007 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'
+RESULT:
+count(*)
+1
+---
+### CASE-052s[SQL] STEP-008 QUERY
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052s'
+RESULT:
+source_name|host|port|user|database|options
+fq01_src052s|127.0.0.1|1433|sa|fq01_fw_sdb|{"connect_timeout_ms":"350","trust_server_certificate":"true"}
+---
+### CASE-052s[SQL] STEP-009 QUERY
+SQL: describe external source fq01_src052s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src052s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"350","trust_server_certificate":"true"}
+---
+### CASE-052s[SQL] STEP-010 COUNT
+SQL: select count(*) from fq01_src052s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-052s[SQL] STEP-011 CLEANUP
+SQL: drop external source if exists fq01_src052s
+RESULT:
+OK
+---
+### CASE-052s[SQL] STEP-012 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src052s'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-052s[SQL]
+DESC: single ALTER combining base fields and OPTIONS supports add/remove patch semantics (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-055s[SQL]
+DESC: namespace paths: 2-/3-/4-segment forms query SQL Server with explicit database/schema (FS §3.5)
+================================================================================================
+### CASE-055s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src055s
+RESULT:
+OK
+---
+### CASE-055s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src055s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-055s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src055s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-055s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src055s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src055s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-055s[SQL] STEP-003 QUERY
+SQL: select count(*) from fq01_src055s.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-055s[SQL] STEP-004 QUERY
+SQL: select count(*) from fq01_src055s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-055s[SQL] STEP-005 QUERY
+SQL: select count(*) from fq01_src055s.fq01_fw_sdb.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-055s[SQL] STEP-006 QUERY
+SQL: select val, score, name, flag from fq01_src055s.src_t order by ts limit 1
+RESULT:
+val|score|name|flag
+1|1.5|alpha|True
+---
+### CASE-055s[SQL] STEP-007 QUERY
+SQL: select val, score, name, flag from fq01_src055s.fq01_fw_sdb.dbo.src_t order by ts limit 1
+RESULT:
+val|score|name|flag
+1|1.5|alpha|True
+---
+### CASE-055s[SQL] STEP-008 EXEC
+SQL: alter external source fq01_src055s set database=''
+RESULT:
+OK
+---
+### CASE-055s[SQL] STEP-009 QUERY
+SQL: describe external source fq01_src055s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src055s|sqlserver|127.0.0.1|1433|sa|******||dbo|{}
+---
+### CASE-055s[SQL] STEP-010 QUERY
+SQL: select count(*) from fq01_src055s.fq01_fw_sdb.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-055s[SQL] STEP-011 EXEC
+SQL: alter external source fq01_src055s set database='fq01_fw_sdb'
+RESULT:
+OK
+---
+### CASE-055s[SQL] STEP-012 COUNT
+SQL: select count(*) from fq01_src055s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-055s[SQL] STEP-013 CLEANUP
+SQL: drop external source if exists fq01_src055s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-055s[SQL]
+DESC: namespace paths: 2-/3-/4-segment forms query SQL Server with explicit database/schema (FS §3.5)
+================================================================================================
+================================================================================================
+CASE START: CASE-062s[SQL]
+DESC: DROP after recent query succeeds; subsequent query fails (FS §3.4.5.2, SQL Server)
+================================================================================================
+### CASE-062s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src062s
+RESULT:
+OK
+---
+### CASE-062s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src062s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-062s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src062s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-062s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src062s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src062s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-062s[SQL] STEP-003 COUNT
+SQL: select count(*) from fq01_src062s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-062s[SQL] STEP-004 EXEC
+SQL: drop external source fq01_src062s
+RESULT:
+OK
+---
+### CASE-062s[SQL] STEP-005 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src062s'
+RESULT:
+count(*)
+0
+---
+### CASE-062s[SQL] STEP-006 QUERY
+SQL: select count(*) from fq01_src062s.fq01_fw_sdb.dbo.src_t
+RESULT:
+ERROR: query failed
+---
+================================================================================================
+CASE END: CASE-062s[SQL]
+DESC: DROP after recent query succeeds; subsequent query fails (FS §3.4.5.2, SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-064s[SQL]
+DESC: OPTIONS with unrecognized key on CREATE is rejected (FS §3.4.1.4, SQL Server)
+================================================================================================
+### CASE-064s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src064s
+RESULT:
+OK
+---
+### CASE-064s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src064s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('totally_unknown_key'='value123')
+RESULT:
+ERROR: [0x2600]: Unknown OPTIONS key 'totally_unknown_key' for source type
+---
+### CASE-064s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-064s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src064s
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-064s[SQL] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src064s'
+RESULT:
+count(*)
+0
+---
+### CASE-064s[SQL] STEP-004 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src064s'
+RESULT:
+source_name|options
+---
+### CASE-064s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_src064s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-064s[SQL]
+DESC: OPTIONS with unrecognized key on CREATE is rejected (FS §3.4.1.4, SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-069s[SQL]
+DESC: REFRESH on unreachable SQL Server source succeeds (metadata-only, FS §3.4.6)
+================================================================================================
+### CASE-069s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src069s
+RESULT:
+OK
+---
+### CASE-069s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src069s type='sqlserver' host='192.0.2.200' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo' options('connect_timeout_ms'='1000')
+RESULT:
+OK
+---
+### CASE-069s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src069s|sqlserver|192.0.2.200|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-069s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src069s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src069s|sqlserver|192.0.2.200|1433|sa|******|fq01_fw_sdb|dbo|{"connect_timeout_ms":"1000"}
+---
+### CASE-069s[SQL] STEP-003 EXEC
+SQL: refresh external source fq01_src069s
+RESULT:
+OK
+---
+### CASE-069s[SQL] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_src069s'
+RESULT:
+count(*)
+1
+---
+### CASE-069s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_src069s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-069s[SQL]
+DESC: REFRESH on unreachable SQL Server source succeeds (metadata-only, FS §3.4.6)
+================================================================================================
+================================================================================================
+CASE START: CASE-071s[SQL]
+DESC: FS §3.4.1.5 CREATE example adapted to test env — structure matches doc (SQL Server)
+================================================================================================
+### CASE-071s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src071s
+RESULT:
+OK
+---
+### CASE-071s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src071s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-071s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src071s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-071s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src071s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src071s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-071s[SQL] STEP-003 QUERY
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src071s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-071s[SQL] STEP-004 QUERY
+SQL: describe external source fq01_src071s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src071s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-071s[SQL] STEP-005 COUNT
+SQL: select count(*) from fq01_src071s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-071s[SQL] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_src071s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-071s[SQL]
+DESC: FS §3.4.1.5 CREATE example adapted to test env — structure matches doc (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-077s[SQL]
+DESC: DESCRIBE output and ins_ext_sources row cover all 10 DS §5.4 columns with consistent values (SQL Server source)
+================================================================================================
+### CASE-077s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src077s
+RESULT:
+OK
+---
+### CASE-077s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src077s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-077s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src077s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-077s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src077s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src077s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-077s[SQL] STEP-003 QUERY
+SQL: describe external source fq01_src077s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src077s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-077s[SQL] STEP-004 QUERY
+SQL: select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options`, create_time from information_schema.ins_ext_sources where source_name='fq01_src077s'
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src077s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-077s[SQL] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_src077s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-077s[SQL]
+DESC: DESCRIBE output and ins_ext_sources row cover all 10 DS §5.4 columns with consistent values (SQL Server source)
+================================================================================================
+================================================================================================
+CASE START: CASE-081s[SQL]
+DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column (SQL Server)
+================================================================================================
+### CASE-081s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src081s
+RESULT:
+OK
+---
+### CASE-081s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src081s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-081s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src081s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-081s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src081s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src081s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-081s[SQL] STEP-003 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-081s[SQL] STEP-004 EXEC
+SQL: refresh external source fq01_src081s
+RESULT:
+OK
+---
+### CASE-081s[SQL] STEP-005 QUERY
+SQL: select extra_note from fq01_src081s.src_t where val=5
+RESULT:
+extra_note
+after_refresh
+---
+### CASE-081s[SQL] STEP-006 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-081s[SQL] STEP-007 QUERY
+SQL: select extra_note from fq01_src081s.src_t where val=5
+RESULT:
+ERROR: query failed
+---
+### CASE-081s[SQL] STEP-008 QUERY
+SQL: select * from fq01_src081s.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
+---
+### CASE-081s[SQL] STEP-009 COUNT
+SQL: select count(*) from fq01_src081s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-081s[SQL] STEP-010 CLEANUP
+SQL: drop external source if exists fq01_src081s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-081s[SQL]
+DESC: DROP COLUMN without explicit REFRESH: dropped-column query fails, then SELECT * succeeds without the removed column (SQL Server)
+================================================================================================
+================================================================================================
+CASE START: CASE-082s[SQL]
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6, SQL Server)
+================================================================================================
+### CASE-082s[SQL] STEP-001 EXEC
+SQL: drop external source if exists fq01_src082s
+RESULT:
+OK
+---
+### CASE-082s[SQL] STEP-002 EXEC
+SQL: create external source fq01_src082s type='sqlserver' host='127.0.0.1' port=1433 user='sa' password='TaosFq!2026' database='fq01_fw_sdb' schema='dbo'
+RESULT:
+OK
+---
+### CASE-082s[SQL] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src082s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-082s[SQL] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_src082s
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_src082s|sqlserver|127.0.0.1|1433|sa|******|fq01_fw_sdb|dbo|{}
+---
+### CASE-082s[SQL] STEP-003 QUERY
+SQL: select * from fq01_src082s.src_t where val=5
+RESULT:
+ts|val|score|name|flag
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True
+---
+### CASE-082s[SQL] STEP-004 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-082s[SQL] STEP-005 EXEC
+SQL: refresh external source fq01_src082s
+RESULT:
+OK
+---
+### CASE-082s[SQL] STEP-006 QUERY
+SQL: select * from fq01_src082s.src_t where val=5
+RESULT:
+ts|val|score|name|flag|extra_note
+2024-01-01 00:04:00+08:00|5|5.5|epsilon|True|after_refresh
+---
+### CASE-082s[SQL] STEP-007 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-082s[SQL] STEP-008 COUNT
+SQL: select count(*) from fq01_src082s.dbo.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-082s[SQL] STEP-009 CLEANUP
+SQL: drop external source if exists fq01_src082s
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-082s[SQL]
+DESC: REFRESH after ADD COLUMN: SELECT * returns six columns including extra_note (FS section 3.4.6, SQL Server)
 ================================================================================================
 ================================================================================================
 CASE START: CASE-001s[SQL]

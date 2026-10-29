@@ -173,10 +173,91 @@ _return:
   return code;
 }
 
-int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
-                               void** pTimezone, bool* pOwnsTimezone) {
-  if (pTimezoneName == NULL || pTimezoneName[0] == '\0') {
-    return TSDB_CODE_SUCCESS;
+// Process-wide cache of validated timezone handles, keyed by timezone name.
+// Decoding/cloning a plan used to tzalloc() (which reads and parses the zoneinfo file) once per
+// node that carries a timezone name, e.g. every operator node of every subplan on every vgroup.
+// Cached handles are shared read-only (localtime_rz/mktime_z don't mutate them): nodes only
+// borrow them and never tzfree() one. The cache owns them and releases them all in
+// nodesCleanupTimezoneCache().
+//
+// The key is the name as sent by the client, and the number of spellings that resolve to the
+// same zone file is not bounded by the IANA list ("Asia//Shanghai", "Asia/./Shanghai", ...).
+// So the cache is bounded explicitly: only canonical names are admitted, and at most
+// NODES_TZ_CACHE_MAX entries. A name that is not admitted gets a handle that the node owns
+// (ownsTimezone = true), exactly as before the cache existed.
+#define NODES_TZ_CACHE_MAX 128
+
+static SHashObj* g_nodesTimezoneCache = NULL;  // accessed with atomic_*_ptr
+static int32_t   g_nodesTimezoneCacheCnt = 0;  // admitted entries, accessed atomically
+static int32_t   g_nodesTimezoneCacheMax = NODES_TZ_CACHE_MAX;
+
+#if defined(BUILD_TEST)
+void nodesTestSetTimezoneCacheMax(int32_t max) { g_nodesTimezoneCacheMax = max; }
+#endif
+
+// True for a plain "Area/Location" style name or an offset/UTC form: no absolute path and no
+// empty, "." or ".." path segment, so every distinct canonical spelling is a distinct zone.
+static bool nodesIsCacheableTimezoneName(const char* pName) {
+  if (pName[0] == '/') {
+    return false;
+  }
+  const char* seg = pName;
+  while (true) {
+    const char* end = seg;
+    while (*end != '\0' && *end != '/') ++end;
+    size_t len = (size_t)(end - seg);
+    if (len == 0 || (len == 1 && seg[0] == '.') || (len == 2 && seg[0] == '.' && seg[1] == '.')) {
+      return false;
+    }
+    if (*end == '\0') {
+      return true;
+    }
+    seg = end + 1;
+  }
+}
+
+static void nodesFreeCachedTimezone(void* p) {
+  timezone_t tz = *(timezone_t*)p;
+  if (tz != NULL) {
+    tzfree(tz);
+  }
+}
+
+// Lazily create the cache. Not a pthread_once: the cache can be re-created if it is used
+// again after nodesCleanupTimezoneCache().
+static SHashObj* nodesAcquireTimezoneCache(void) {
+  SHashObj* pCache = atomic_load_ptr(&g_nodesTimezoneCache);
+  if (pCache != NULL) {
+    return pCache;
+  }
+
+  SHashObj* pNew = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  if (pNew == NULL) {
+    return NULL;
+  }
+  taosHashSetFreeFp(pNew, nodesFreeCachedTimezone);
+
+  pCache = atomic_val_compare_exchange_ptr(&g_nodesTimezoneCache, NULL, pNew);
+  if (pCache != NULL) {
+    taosHashCleanup(pNew);  // another thread installed its cache first
+    return pCache;
+  }
+  return pNew;
+}
+
+// Resolve a timezone name to a handle. *pOwned is false when the handle is borrowed from the
+// cache, and true when the cache was unavailable and the caller has to tzfree() it.
+static int32_t nodesGetCachedTimezone(const char* pTimezoneName, timezone_t* pTz, bool* pOwned) {
+  SHashObj* pCache = nodesAcquireTimezoneCache();
+  size_t    keyLen = strlen(pTimezoneName);
+
+  if (pCache != NULL) {
+    timezone_t* pCached = taosHashGet(pCache, pTimezoneName, keyLen);
+    if (pCached != NULL && *pCached != NULL) {
+      *pTz = *pCached;
+      *pOwned = false;
+      return TSDB_CODE_SUCCESS;
+    }
   }
 
   timezone_t tz = NULL;
@@ -185,9 +266,60 @@ int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, i
     return code;
   }
 
+  if (pCache != NULL && nodesIsCacheableTimezoneName(pTimezoneName)) {
+    // Reserve a slot first so concurrent threads cannot overshoot the limit.
+    if (atomic_add_fetch_32(&g_nodesTimezoneCacheCnt, 1) <= g_nodesTimezoneCacheMax) {
+      if (taosHashPut(pCache, pTimezoneName, keyLen, &tz, sizeof(timezone_t)) == 0) {
+        *pTz = tz;  // now owned by the cache
+        *pOwned = false;
+        return TSDB_CODE_SUCCESS;
+      }
+      // Another thread inserted the same name first: use its handle and drop ours. A failed
+      // put does not take ownership (the dup-key path frees only the hash node).
+      (void)atomic_sub_fetch_32(&g_nodesTimezoneCacheCnt, 1);
+      timezone_t* pCached = taosHashGet(pCache, pTimezoneName, keyLen);
+      if (pCached != NULL && *pCached != NULL) {
+        tzfree(tz);
+        *pTz = *pCached;
+        *pOwned = false;
+        return TSDB_CODE_SUCCESS;
+      }
+    } else {
+      (void)atomic_sub_fetch_32(&g_nodesTimezoneCacheCnt, 1);  // full: not admitted
+    }
+  }
+
+  // Not cached (non-canonical name, cache full or unavailable): the node owns the handle and
+  // frees it with the node, as before the cache existed.
+  *pTz = tz;
+  *pOwned = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Release every cached timezone handle. Call only at process cleanup, after all plans/nodes
+// that may borrow a cached handle are destroyed and no thread decodes plans any more.
+void nodesCleanupTimezoneCache() {
+  SHashObj* pCache = atomic_exchange_ptr(&g_nodesTimezoneCache, NULL);
+  taosHashCleanup(pCache);  // tzfree()s each handle via nodesFreeCachedTimezone
+  atomic_store_32(&g_nodesTimezoneCacheCnt, 0);
+}
+
+int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,
+                               void** pTimezone, bool* pOwnsTimezone) {
+  if (pTimezoneName == NULL || pTimezoneName[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  timezone_t tz = NULL;
+  bool       owned = false;
+  int32_t    code = nodesGetCachedTimezone(pTimezoneName, &tz, &owned);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
   tstrncpy(pTimezoneBuf, pTimezoneName, bufSize);
   *pTimezone = tz;
-  *pOwnsTimezone = true;
+  *pOwnsTimezone = owned;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -198,13 +330,14 @@ int32_t nodesDecodeTimezoneNameInPlace(const char* pTimezoneName,
   }
 
   timezone_t tz = NULL;
-  int32_t    code = taosValidateTimezone(pTimezoneName, &tz);
+  bool       owned = false;
+  int32_t    code = nodesGetCachedTimezone(pTimezoneName, &tz, &owned);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
   *pTimezone = tz;
-  *pOwnsTimezone = true;
+  *pOwnsTimezone = owned;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2384,6 +2517,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pStmt->pVal);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyNode(pStmt->pFilterCond);
+      nodesDestroyNode(pStmt->pSeriesDecl);
       nodesDestroyList(pStmt->pList);
       break;
     }
@@ -2924,6 +3058,9 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFillExprs);
       nodesDestroyList(pLogicNode->pNotFillExprs);
       nodesDestroyList(pLogicNode->pFillNullExprs);
+      if (pLogicNode->ownsTimezone) {
+        tzfree(pLogicNode->timezone);
+      }
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -3063,6 +3200,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pFedNode->pExtTable);
       nodesDestroyList(pFedNode->pScanCols);
       nodesDestroyNode(pFedNode->pRemotePlan);
+      nodesDestroyNode(pFedNode->pTimeRange);
       taosMemoryFreeClear(pFedNode->pColTypeMappings);
       taosMemoryFreeClear(pFedNode->pTimestampTypeHints);
       break;
@@ -4055,9 +4193,13 @@ static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
 }
 
 static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
+  // MySQL and SQL Server fold filter-column names case-insensitively (matching
+  // the parser-side contract externalColumnNamesEqual()); PostgreSQL compares
+  // names literally.
+  bool caseInsensitive = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType;
   for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    bool equal = EXT_SOURCE_MYSQL == sourceType ? 0 == strcasecmp(pExtMeta->pCols[i].colName, colName)
-                                                : 0 == strcmp(pExtMeta->pCols[i].colName, colName);
+    bool equal = caseInsensitive ? 0 == strcasecmp(pExtMeta->pCols[i].colName, colName)
+                                 : 0 == strcmp(pExtMeta->pCols[i].colName, colName);
     if (equal) {
       return i;
     }
@@ -4190,6 +4332,12 @@ static int32_t validateExternalFilterOperator(SExternalFilterCxt* pCxt, SOperato
                                pColumn->colName);
     QUERY_CHECK_CODE(code, lino, _return);
   }
+  // SQL Server character ordering is collation-driven (case/accent/trailing
+  // space rules) and a supplementary-plane literal cannot travel through the
+  // ODBC SQL path.  Neither rejects the DDL: the planner keeps every predicate
+  // the dialect cannot render exactly in the local FederatedScan filter
+  // (fqSplitStoredFilterForLocal), so the declared filter still returns
+  // TDengine-equivalent rows without a silent result difference.
 
   const SExtColumnDef* pExtCol = &pCxt->pExtMeta->pCols[colIdx];
   SDataType            mappedType = {0};
@@ -4298,7 +4446,11 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
   QUERY_CHECK_NULL(pExtMeta->pCols, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(pExtMeta->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
-  if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType) {
+  if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType &&
+      EXT_SOURCE_SQLSERVER != pCxt->sourceType) {
+    // Non-relational sources (InfluxDB) have no remote primary key, so a
+    // declared filter cannot be bound; SQL Server is relational and follows
+    // the same primary-key coverage rules as MySQL / PostgreSQL.
     if (NULL != pFilterCond) {
       code =
           externalFilterError(pCxt, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,

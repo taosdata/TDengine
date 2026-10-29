@@ -31,6 +31,10 @@
 #define LOG_MAX_STACK_LINE_BUFFER_SIZE (LOG_MAX_STACK_LINE_SIZE + 3)
 #define LOG_MAX_LINE_DUMP_SIZE         (1024 * 1024)
 #define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 128)
+// estimated bytes per log line, used to estimate line count from file size or a bulk message
+#define LOG_EST_BYTES_PER_LINE 60
+// a bulk message (e.g. a json dump) longer than this is counted as len / LOG_EST_BYTES_PER_LINE lines
+#define LOG_BULK_MSG_THRESHOLD 512
 
 #define LOG_FILE_DAY_LEN 64
 
@@ -212,7 +216,8 @@ static void getFullPathName(char *fullName, const char *logName) {
 // meantime merely makes the retry fail and the caller keeps using the file it
 // already has.
 //
-// Set log permissions explicitly so restrictive umasks do not hide root's logs.
+// Try to set log permissions so restrictive umasks do not hide root's logs.
+// Keep writable logs usable when their permissions cannot be changed.
 static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
   TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
   if (pFile == NULL && terrno == TAOS_SYSTEM_ERROR(ELOOP)) {
@@ -221,11 +226,14 @@ static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
   }
 #ifndef WINDOWS
   if (pFile != NULL) {
+    int32_t savedTerrno = terrno;
     int32_t code = taosFchmodFile(pFile, 0666);
     if (code != 0) {
-      (void)taosCloseFile(&pFile);
-      terrno = code;
-      return NULL;
+      (void)fprintf(stderr,
+                    "WARNING: failed to set log file permissions:%s, reason:%s, code:%d; "
+                    "continuing with existing permissions\n",
+                    name, tstrerror(code), code);
+      terrno = savedTerrno;
     }
   }
 #endif
@@ -372,11 +380,21 @@ void taosCloseLog() {
   taosMemoryFreeClear(tsLogOutput);
 }
 
+/* Offset of the log file's mutual-exclusion token.  Windows byte-range locks
+ * are mandatory: locking the whole file (taosLockFile) would make the live log
+ * unreadable for tail/log collectors/other processes, so the token sits beyond
+ * any real data and readers never touch it. */
+#define LOG_FILE_LOCK_OFFSET ((int64_t)0x7FFFFFFFFFFFFFF0LL)
+
 static bool taosLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return false;
 
   if (tsLogObj.fileNum > 1) {
+#ifdef WINDOWS
+    int32_t ret = taosLockFileAt(pFile, LOG_FILE_LOCK_OFFSET, 1);
+#else
     int32_t ret = taosLockFile(pFile);
+#endif
     if (ret == 0) {
       return true;
     }
@@ -389,7 +407,11 @@ static void taosUnLockLogFile(TdFilePtr pFile) {
   if (pFile == NULL) return;
 
   if (tsLogObj.fileNum > 1) {
+#ifdef WINDOWS
+    int32_t code = taosUnLockFileAt(pFile, LOG_FILE_LOCK_OFFSET, 1);
+#else
     int32_t code = taosUnLockFile(pFile);
+#endif
     if (code != 0) {
       TAOS_UNUSED(printf("failed to unlock log file:%p, reason:%s\n", pFile, tstrerror(code)));
     }
@@ -714,7 +736,7 @@ static int32_t taosInitNormalLog(const char *logName, int32_t maxFileNum) {
   int64_t filesize = 0;
   TAOS_CHECK_EXIT(taosFStatFile(tsLogObj.logHandle->pFile, &filesize, NULL));
 
-  tsLogObj.lines = (int32_t)(filesize / 60);
+  tsLogObj.lines = (int32_t)(filesize / LOG_EST_BYTES_PER_LINE);
 
   if (taosLSeekFile(tsLogObj.logHandle->pFile, 0, SEEK_END) < 0) {
     TAOS_CHECK_EXIT(terrno);
@@ -773,6 +795,15 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
                   taosGetSelfPthreadId(), LOG_EDITION_FLG, flags);
 }
 
+// a single log (e.g. monitor report json) may span many lines; estimate by length only when it is long.
+// The estimate must never be 0, otherwise a long message would never add lines and the log would never
+// rotate; keep the divide-by-LOG_EST_BYTES_PER_LINE result floored at 1.
+static inline int32_t taosEstimateLogLines(int32_t len) {
+  if (len <= LOG_BULK_MSG_THRESHOLD) return 1;
+  int32_t n = len / LOG_EST_BYTES_PER_LINE;
+  return n > 0 ? n : 1;
+}
+
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceSufficient()) {
     taosUpdateLogNums(level);
@@ -783,7 +814,7 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
     }
 
     if (tsNumOfLogLines > 0) {
-      TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, 1));
+      TAOS_UNUSED(atomic_add_fetch_32(&tsLogObj.lines, taosEstimateLogLines(len)));
       if ((tsLogObj.lines > tsNumOfLogLines) && (tsLogObj.openInProgress == 0)) {
         TAOS_UNUSED(taosOpenNewLogFile());
       }

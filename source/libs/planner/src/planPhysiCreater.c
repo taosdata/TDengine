@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include "extConnector.h"
+#include "extTypeMap.h"
 #include "nodes.h"
 #include "planInt.h"
 
@@ -1852,6 +1853,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
   pTableScan->lastOnlyScan = pScanLogicNode->lastOnlyScan;
+  pTableScan->intervalLimit = pScanLogicNode->intervalLimit;
   pTableScan->pDynamicScanFuncs = NULL;
   int32_t code = nodesCloneList(pScanLogicNode->pDynamicScanFuncs, &pTableScan->pDynamicScanFuncs);
   if (TSDB_CODE_SUCCESS != code) {
@@ -2670,74 +2672,11 @@ static void fqLogFedScanPhysi(const SFederatedScanPhysiNode* pScan,
             pScan->numColTypeMappings);
 }
 
-static bool fqTypeStartsWithIgnoreCase(const char* pTypeName, const char* pPrefix) {
-  if (pTypeName == NULL || pPrefix == NULL) {
-    return false;
-  }
-
-  size_t prefixLen = strlen(pPrefix);
-  return prefixLen > 0 && 0 == strncasecmp(pTypeName, pPrefix, prefixLen);
-}
-
-static bool fqTypeContainsIgnoreCase(const char* pTypeName, const char* pNeedle) {
-  if (pTypeName == NULL || pNeedle == NULL || pNeedle[0] == '\0') {
-    return false;
-  }
-
-  size_t hayLen = strlen(pTypeName);
-  size_t needleLen = strlen(pNeedle);
-  if (needleLen > hayLen) {
-    return false;
-  }
-
-  for (size_t i = 0; i + needleLen <= hayLen; ++i) {
-    if (0 == strncasecmp(pTypeName + i, pNeedle, needleLen)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 static EExtTimestampTzClass fqPlanClassifyTimestampType(int8_t sourceType, const char* pExtTypeName) {
-  if (pExtTypeName == NULL || pExtTypeName[0] == '\0') {
-    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
-  }
-
-  switch ((EExtSourceType)sourceType) {
-    case EXT_SOURCE_MYSQL:
-      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp")) {
-        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
-      }
-      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "datetime") ||
-          fqTypeStartsWithIgnoreCase(pExtTypeName, "date")) {
-        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
-      }
-      break;
-    case EXT_SOURCE_POSTGRESQL:
-      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamptz") ||
-          fqTypeContainsIgnoreCase(pExtTypeName, "with time zone")) {
-        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
-      }
-      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp") ||
-          fqTypeStartsWithIgnoreCase(pExtTypeName, "date")) {
-        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
-      }
-      break;
-    case EXT_SOURCE_INFLUXDB:
-      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp")) {
-        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
-      }
-      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "date32") ||
-          fqTypeStartsWithIgnoreCase(pExtTypeName, "date64")) {
-        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
-      }
-      break;
-    default:
-      break;
-  }
-
-  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  // Single source of truth (extTypeMap.c): the class written here into the
+  // plan's timestamp hints must match the one the executor's runtime renderer
+  // and the external stream readers derive from the same remote type name.
+  return (EExtTimestampTzClass)extTimestampTypeTzClass((EExtSourceType)sourceType, pExtTypeName);
 }
 
 static int32_t fqBuildTimestampTypeHints(SFederatedScanPhysiNode* pScan, const SExtTableNode* pExtNode) {
@@ -2905,6 +2844,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     PLAN_ERR_JRET(terrno);
   }
   PLAN_ERR_JRET(fqInitFederatedScanSource(pScan, pExtNode));
+  // Stream calc scans carry the SELECT time range on the logic node; keep it on
+  // the physical node so the ETR can evaluate time-returning bounds per fetch.
+  PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pTimeRange, &pScan->pTimeRange));
 
   // dynamicOp external scan nodes (VStb path) have NULL pTargets/pScanCols;
   // DynQueryCtrl fills them at runtime after the common source initialization.
@@ -3851,9 +3793,13 @@ static int32_t addCrossJoinChildAliasKeys(SPhysiPlanContext* pCxt, const SLogicN
   SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pDesc->dataBlockId);
   int32_t targetNum = LIST_LENGTH(pLogicChild->pTargets);
   int32_t slotNum = LIST_LENGTH(pDesc->pSlots);
-  for (int32_t i = 0; NULL != pHash && i < targetNum && i < slotNum; ++i) {
-    SNode* pTarget = nodesListGetNode(pLogicChild->pTargets, i);
-    SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+  SListCell* pTargetCell = NULL != pLogicChild->pTargets ? pLogicChild->pTargets->pHead : NULL;
+  SListCell* pSlotCell = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+  for (int32_t i = 0; NULL != pHash && i < targetNum && i < slotNum;
+       ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL),
+       pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+    SNode* pTarget = (NULL != pTargetCell ? pTargetCell->pNode : NULL);
+    SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (QUERY_NODE_COLUMN != nodeType(pTarget) || '\0' == ((SColumnNode*)pTarget)->tableAlias[0]) {
       continue;
     }
@@ -5345,6 +5291,8 @@ static int32_t registerVtableFederatedOutputSlots(SPhysiPlanContext* pCxt, SFede
   // slots in the same order; reserve-only scan columns are appended last.
   int32_t outputIdx = 0;
   SNode*  pNode = NULL;
+  SNodeList* pSlots = pScan->node.pOutputDataBlockDesc->pSlots;
+  SListCell* pOutputCell = NULL != pSlots ? pSlots->pHead : NULL;
   FOREACH(pNode, pScan->pScanCols) {
     const SNode* pScanExpr = pNode;
     if (NULL != pScanExpr && QUERY_NODE_TARGET == nodeType(pScanExpr)) {
@@ -5357,10 +5305,13 @@ static int32_t registerVtableFederatedOutputSlots(SPhysiPlanContext* pCxt, SFede
       outputSlotId = getFederatedOutputSlot(pScan, pCol, outputIdx);
     } else {
       SSlotDescNode* pSlot =
-          (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx);
+          NULL != pOutputCell ? (SSlotDescNode*)pOutputCell->pNode : NULL;
       outputSlotId = NULL != pSlot ? pSlot->slotId : -1;
     }
     ++outputIdx;
+    if (NULL != pOutputCell) {
+      pOutputCell = pOutputCell->pNext;
+    }
     if (NULL == pScanExpr || outputSlotId < 0 || (mappedOutput && NULL == pCol)) {
       planError("Invalid federated scan expression or output slot, expr=%p, outputSlotId=%d", pScanExpr,
                 outputSlotId);

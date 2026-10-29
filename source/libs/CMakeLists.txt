@@ -28,6 +28,7 @@ add_subdirectory(monitorfw)
 add_subdirectory(sm4)
 add_subdirectory(crypt)
 add_subdirectory(metrics)
+add_subdirectory(wlr)
 
 add_subdirectory(scalar)
 add_subdirectory(function)

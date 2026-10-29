@@ -88,6 +88,10 @@ def _apply_runtime_exports(output):
 
 
 def _prepare_runtime_libs():
+    if sys.platform == "win32":
+        # Windows stages the provider DLLs next to taosd at build time, so
+        # there is nothing to prepare or export before the engine starts.
+        return
     here = os.path.dirname(os.path.abspath(__file__))
     script = os.path.join(here, "ensure_fq_runtime_libs.sh")
     env = _fq_subprocess_env()
@@ -128,6 +132,25 @@ def _odbcinst_registers_driver18():
     is used as the fallback driver name, so hiding libmsodbcsql alone does not
     make SQL Server unreachable on such hosts.
     """
+    if sys.platform == "win32":
+        # Windows keeps the driver registrations in the registry rather than
+        # odbcinst.ini; the MSI installs 'ODBC Driver 18 for SQL Server' under
+        # ODBCINST.INI\\ODBC Drivers.
+        try:
+            import winreg
+        except ImportError:
+            return False
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                with winreg.OpenKey(
+                        hive, r"SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers") as key:
+                    value, _ = winreg.QueryValueEx(
+                        key, "ODBC Driver 18 for SQL Server")
+                    if value:
+                        return True
+            except OSError:
+                continue
+        return False
     for path in ("/etc/odbcinst.ini",
                  "/usr/local/etc/odbcinst.ini",
                  os.path.expanduser("~/.odbcinst.ini")):
@@ -323,6 +346,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         Since: v3.4.2.0
 
         """
+        if sys.platform == "win32":
+            # The shell helper does not exist on Windows: the provider DLLs are
+            # staged next to the engine and _prepare_runtime_libs() is a no-op.
+            pytest.skip("shell-helper environment sanitising is Unix-only")
         for name in ("LD_PRELOAD", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
             monkeypatch.setenv(name, f"poison-{name}")
         for name in (
@@ -353,7 +380,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         result = _check_pymysql_dependency(tmp_path)
 
         assert result.returncode == 0, result.stderr
-        print("accept available PyMySQL dependency ......... [ passed ]")
+        tdLog.info("accept available PyMySQL dependency ......... [ passed ]")
 
     def do_report_missing_pymysql(self, tmp_path):
         result = _check_pymysql_dependency(tmp_path, module_available=False)
@@ -361,7 +388,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert result.returncode != 0
         assert "MySQL setup requires the pymysql module" in result.stderr
         assert f"{sys.executable} -m pip install pymysql" in result.stderr
-        print("report missing PyMySQL dependency .......... [ passed ]")
+        tdLog.info("report missing PyMySQL dependency .......... [ passed ]")
 
     def do_report_missing_python_interpreter(self, tmp_path):
         result = _check_pymysql_dependency(tmp_path, python_available=False)
@@ -369,7 +396,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert result.returncode != 0
         assert "MySQL setup requires Python, but the interpreter was not found" in result.stderr
         assert "Set FQ_PYTHON to the Python interpreter used by pytest" in result.stderr
-        print("report missing Python interpreter .......... [ passed ]")
+        tdLog.info("report missing Python interpreter .......... [ passed ]")
 
     def test_pymysql_dependency(self, tmp_path):
         """Check the Python dependencies used by MySQL setup
@@ -385,6 +412,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
         Labels: common,ci
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7034326784
+
         Jira: None
 
         History:
@@ -392,6 +421,13 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             - 2026-09-22 Wang Mingming Cover the retained PyMySQL dependency path
 
         """
+        if sys.platform == "win32":
+            # The Linux scenarios drive the bash setup script; on Windows the
+            # requirement is simply that the interpreter can import PyMySQL.
+            import importlib.util
+            assert importlib.util.find_spec("pymysql") is not None, (
+                "PyMySQL is required for the MySQL fixtures: pip install pymysql")
+            return
         self.do_accept_available_pymysql(tmp_path)
         self.do_report_missing_pymysql(tmp_path)
         self.do_report_missing_python_interpreter(tmp_path)
@@ -1077,6 +1113,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             - 2026-07-04 Codex Verify queries fail after runtime libraries disappear
 
         """
+        if sys.platform == "win32":
+            # Hiding the provider libraries relies on the ELF/Mach-O runtime
+            # directory layout (build/lib + LD_LIBRARY_PATH).  Windows loads
+            # the DLLs from the engine's own directory and keeps extra copies
+            # on PATH, so the hide cannot be made deterministic here; the
+            # packaged-layout check lives in the virtual-table runtime suite.
+            pytest.skip("runtime-library hiding is Unix-only; Windows ships "
+                        "provider DLLs next to taosd")
         if _try_prepare_runtime_libs():
             ExtSrcEnv.ensure_env()
             self._with_std_sources("fq19_runtime", self._check_remote_count_and_missing_runtime)

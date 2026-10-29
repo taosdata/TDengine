@@ -190,6 +190,7 @@ int32_t tRowSort(SArray *aRowP);
 int32_t tRowMerge(SArray *aRowP, STSchema *pTSchema, ERowMergeStrategy strategy);
 int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, int32_t nColData, int32_t flag);
 void    tRowGetPrimaryKey(SRow *pRow, SRowKey *key);
+bool    tRowPrimaryKeyValid(const SRow *pRow);
 int32_t tRowKeyCompare(const SRowKey *key1, const SRowKey *key2);
 void    tRowKeyAssign(SRowKey *pDst, SRowKey *pSrc);
 int32_t tRowSortWithBlob(SArray *aRowP, STSchema *pTSchema, SBlobSet *pBlobSet);
@@ -207,9 +208,16 @@ void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
 bool    tTagIsJsonNull(void *tagVal);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
+bool    tTagGetJsonBounded(const STag *pTag, int32_t availableLen, STagVal *pTagVal, bool *pFound);
+// pTag must point to at least sizeof(STag) readable bytes. availableLen is the
+// maximum number of readable bytes starting at pTag, including the header. An
+// empty JSON tag is valid only with nTag == 0 and len == sizeof(STag).
+bool    tTagValidateJson(const STag *pTag, int32_t availableLen);
 char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
+// Checks that a serialized STag of `len` bytes is self-consistent: header, idx[] offsets and every entry lie in len.
+int32_t tTagValidate(const void *pData, uint32_t len);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
 void    destroyTagVal(void *pTag);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove

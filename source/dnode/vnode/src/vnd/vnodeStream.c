@@ -3948,14 +3948,21 @@ int32_t vnodeCalculateNodeGroupReadRanges(STimeRangeNode* node, SStreamRuntimeFu
       current.valid = current.window.skey < current.window.ekey;
       if (current.valid) --current.window.ekey;
     }
-    if (pRanges != NULL && taosArrayPush(pRanges, &current) == NULL) {
-      code = terrno;
-      goto _exit;
-    }
     if (current.valid) {
+      // combined remains the effective MAIN range. Per-group reader ranges widen
+      // only for predecessor lookup and therefore intentionally keep a different skey.
       combined.skey = TMIN(combined.skey, current.window.skey);
       combined.ekey = TMAX(combined.ekey, current.window.ekey);
       combinedValid = true;
+      if (pRanges != NULL && pRuntime->withExternalWindow && pRuntime->externalWindowNeedsPrevRow) {
+        current.window.skey = INT64_MIN;
+      }
+    }
+    // Preserve one entry per curGrpRead index. qInstallReaderTableRanges uses
+    // valid=false entries as empty bindings and requires positional parity.
+    if (pRanges != NULL && taosArrayPush(pRanges, &current) == NULL) {
+      code = terrno;
+      goto _exit;
     }
   }
   if (combinedValid) *pRange = combined;
@@ -5315,6 +5322,53 @@ end:
   return code;
 }
 
+static int32_t streamCopyColRef(SColRef* pDst, const SColRef* pSrc) {
+  // Reject half-initialized sources so a colRef with a dangling length but no payload can never
+  // escape the copy.
+  if ((pSrc->tagCondLen > 0 && pSrc->tagCondJson == NULL) ||
+      (pSrc->filterCondLen > 0 && pSrc->filterCondJson == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *pDst = *pSrc;
+  pDst->tagCondJson = NULL;
+  pDst->filterCondJson = NULL;
+  if (pSrc->tagCondLen > 0 && pSrc->tagCondJson != NULL) {
+    // Same NUL-free length contract as the direct-reference path: drop a trailing NUL that the
+    // resolver may have included in the length.
+    int32_t tagCondLen = (int32_t)strnlen(pSrc->tagCondJson, (size_t)pSrc->tagCondLen);
+    if (tagCondLen <= 0) return TSDB_CODE_INVALID_MSG;
+    pDst->tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
+    if (pDst->tagCondJson == NULL) {
+      return terrno;
+    }
+    memcpy(pDst->tagCondJson, pSrc->tagCondJson, tagCondLen);
+    pDst->tagCondJson[tagCondLen] = '\0';
+    pDst->tagCondLen = tagCondLen;
+  }
+  if (pSrc->filterCondLen > 0 && pSrc->filterCondJson != NULL) {
+    int32_t filterCondLen = (int32_t)strnlen(pSrc->filterCondJson, (size_t)pSrc->filterCondLen);
+    if (filterCondLen <= 0) {
+      // Roll back the already-copied condition so a partially initialized col ref never
+      // escapes to a caller that has no failure cleanup for its reserved slot.
+      taosMemoryFreeClear(pDst->tagCondJson);
+      pDst->tagCondLen = 0;
+      return TSDB_CODE_INVALID_MSG;
+    }
+    pDst->filterCondJson = taosMemoryMalloc((size_t)filterCondLen + 1);
+    if (pDst->filterCondJson == NULL) {
+      // Roll back the already-copied condition so a partially initialized col ref never
+      // escapes to a caller that has no failure cleanup for its reserved slot.
+      taosMemoryFreeClear(pDst->tagCondJson);
+      pDst->tagCondLen = 0;
+      return terrno;
+    }
+    memcpy(pDst->filterCondJson, pSrc->filterCondJson, filterCondLen);
+    pDst->filterCondJson[filterCondLen] = '\0';
+    pDst->filterCondLen = filterCondLen;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_t uid, uint64_t gid, int64_t ver, SMetaReader* metaReader, SStreamTriggerReaderInfo* sStreamReaderInfo) {
   int32_t              code = 0;
   int32_t              lino = 0;
@@ -5350,7 +5404,10 @@ static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_
     vTable->cols.pColRef = taosMemoryCalloc(metaReader->me.colRef.nCols, sizeof(SColRef));
     STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
     for (size_t j = 0; j < metaReader->me.colRef.nCols; j++) {
-      memcpy(vTable->cols.pColRef + j, &metaReader->me.colRef.pColRef[j], sizeof(SColRef));
+      code = streamCopyColRef(&vTable->cols.pColRef[j], &metaReader->me.colRef.pColRef[j]);
+      if (code != 0) {
+        goto end;
+      }
     }
   } else {
     vTable->cols.nCols = taosArrayGetSize(cids);
@@ -5361,7 +5418,10 @@ static int32_t setVtableInfo(SVnode* pVnode, SArray* infos, SArray* cids, int64_
       for (size_t j = 0; j < metaReader->me.colRef.nCols; j++) {
         if (metaReader->me.colRef.pColRef[j].hasRef &&
             metaReader->me.colRef.pColRef[j].id == *(col_id_t*)taosArrayGet(cids, i)) {
-          memcpy(vTable->cols.pColRef + i, &metaReader->me.colRef.pColRef[j], sizeof(SColRef));
+          code = streamCopyColRef(&vTable->cols.pColRef[i], &metaReader->me.colRef.pColRef[j]);
+          if (code != 0) {
+            goto end;
+          }
           break;
         }
       }
@@ -5694,7 +5754,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     STREAM_CHECK_NULL_GOTO(pDst, terrno);
     STREAM_CHECK_RET_GOTO(varColSetVarData(pDst, 0, vtableName, strlen(vtableName), false));
   } else {
-    // Virtual child table: resolve tags via chain resolver (single uid, cache-bypass).
+    // Virtual child table: resolve tags with shared routing and private ref results.
     singleUid = taosArrayInit(1, sizeof(int64_t));
     STREAM_CHECK_NULL_GOTO(singleUid, terrno);
     int64_t uidVal = req->virTablePseudoColReq.uid;
@@ -5713,8 +5773,12 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
       STREAM_CHECK_NULL_GOTO(taosArrayPush(tagOnly, &cid), terrno);
     }
 
-    // PSEUDO_COL bypasses cache  -  pass NULL so resolver does not read/write it.
-    code = streamResolveVTableRefChain(pVnode, NULL, sStreamReaderInfo,
+    // Share only the reader's db -> vgroup routing map. The resolver uses a
+    // private tblRefCache and returns a caller-owned result hash, leaving
+    // the reader's tblRefCache and uid2Result untouched. Passing NULL here used
+    // to disable that map as well and made every pseudo-column request re-issue
+    // TDMT_MND_GET_DB_INFO to mnode for the same db.
+    code = streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
                                        req->virTablePseudoColReq.ver,
                                        singleUid, emptyCols, tagOnly, &uid2Result);
     taosArrayDestroy(tagOnly); tagOnly = NULL;
@@ -6080,6 +6144,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
       } else {
         ST_TASK_DLOG("vgId:%d %s no interp time range node", TD_VID(pVnode), __func__);
       }
+
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);

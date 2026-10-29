@@ -750,7 +750,9 @@ static int32_t winFuncInitOutputSrcSlots(SWindowFuncOperatorInfo *pInfo, const S
     pInfo->pOutputSrcSlots[slotId] = -1;
   }
 
-  for (int32_t dstSlot = 0; dstSlot < outputCols; ++dstSlot) {
+  SListCell* pSlotCell = NULL != pOutputDesc->pSlots ? pOutputDesc->pSlots->pHead : NULL;
+  for (int32_t dstSlot = 0; dstSlot < outputCols;
+       ++dstSlot, pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
     if (winFuncIsResultSlot(pInfo, dstSlot)) {
       continue;
     }
@@ -760,13 +762,15 @@ static int32_t winFuncInitOutputSrcSlots(SWindowFuncOperatorInfo *pInfo, const S
       continue;
     }
 
-    SSlotDescNode *pOutputSlot = (SSlotDescNode *)nodesListGetNode(pOutputDesc->pSlots, dstSlot);
+    SSlotDescNode *pOutputSlot = (SSlotDescNode *)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (pOutputSlot == NULL) {
       return terrno;
     }
 
-    for (int32_t srcSlot = 0; srcSlot < inputCols; ++srcSlot) {
-      SSlotDescNode *pInputSlot = (SSlotDescNode *)nodesListGetNode(pInputDesc->pSlots, srcSlot);
+    SListCell* pSlotCell2 = NULL != pInputDesc->pSlots ? pInputDesc->pSlots->pHead : NULL;
+    for (int32_t srcSlot = 0; srcSlot < inputCols;
+         ++srcSlot, pSlotCell2 = (NULL != pSlotCell2 ? pSlotCell2->pNext : NULL)) {
+      SSlotDescNode *pInputSlot = (SSlotDescNode *)(NULL != pSlotCell2 ? pSlotCell2->pNode : NULL);
       if (pInputSlot == NULL) {
         return terrno;
       }
@@ -1650,7 +1654,7 @@ static void winFuncCleanupSelectedAggs(SOperatorInfo *pOperator, SResultRow *pRo
     pCtx->resultInfo = getResultEntryInfo(pRow, i, pOperator->exprSupp.rowEntryInfoOffset);
     if (pCtx->needCleanup && pCtx->fpSet.cleanup != NULL) {
       pCtx->fpSet.cleanup(pCtx);
-      pCtx->needCleanup = false;
+      pCtx->needCleanup = pCtx->pendingCleanup > 0;
     }
     if (restoreResultInfo) {
       pCtx->resultInfo = pSaved;

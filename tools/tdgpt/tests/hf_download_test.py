@@ -29,7 +29,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
 
 def import_hf_download(monkeypatch):
-    module_name = "taosanalytics.misc.hf_download"
+    module_name = "lib.taosanalytics.misc.hf_download"
     fake_hf = SimpleNamespace(snapshot_download=mock.Mock())
     monkeypatch.setitem(sys.modules, "huggingface_hub", fake_hf)
     if module_name in sys.modules:

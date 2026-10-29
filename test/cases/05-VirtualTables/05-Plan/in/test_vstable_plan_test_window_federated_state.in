@@ -26,3 +26,9 @@ explain verbose true select _wstart, _wend, count(ts) from vt_window_federated_b
 
 # not optimized: a multi-unit window needs a calculation function
 explain verbose true select _wstart, _wend from vt_window_federated_batch.vst_mixed_sources state_window(state_col, 0) order by _wstart;
+
+# optimized: references mixed across multiple external sourceNames incl. SQL Server
+explain verbose true select _wstart, _wend, state_col, sum(mysql_a_v), sum(mysql_b_v), sum(postgres_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_sources state_window(state_col, 0) order by _wstart;
+
+# optimized: SQL Server source mixed with the internal table
+explain verbose true select _wstart, _wend, state_col, sum(local_v), sum(sqlserver_v) from vt_window_federated_batch.vst_local_ss state_window(state_col, 0) order by _wstart;

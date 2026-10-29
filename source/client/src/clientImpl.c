@@ -17,6 +17,7 @@
 
 #include "cJSON.h"
 #include "clientInt.h"
+#include "clientWlr.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
 #include "clientSession.h"
@@ -2278,7 +2279,10 @@ static int32_t createResultBlock(TAOS_RES* pRes, int32_t numOfRows, SSDataBlock*
   }
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    TAOS_ROW pRow = taos_fetch_row(pRes);
+    /* Driver completion thread: use the impl so this internal read does not appear
+     * as a user fetch (TS RE014). */
+    TAOS_ROW pRow = taos_fetch_row_impl(pRes);
+
     if (NULL == pRow[0] || NULL == pRow[1] || NULL == pRow[2]) {
       tscError("invalid data from vnode");
       blockDataDestroy(*pBlock);
@@ -2668,6 +2672,23 @@ void handleExtSourceError(SRequestObj* pRequest, int32_t code) {
 
     if (pRequest->extPushdownAttemptCount >= EXT_MAX_PUSHDOWN_ATTEMPTS) {
       extCapOverlayMarkAllCoarse(&pRequest->extSessionOverlay, EXT_DEMOTE_REASON_RETRY_ESCALATION);
+
+      // The budget is spent and the all-coarse baseline plan (no expression
+      // pushdown) has already run once, yet the remote source keeps failing
+      // with the same error: this failure sits inside the remote object itself
+      // (e.g. a view whose CAST fails on a row value), so no further demote can
+      // change the statement.  Restarting again would loop forever - surface
+      // the error to the user instead (DS 5.3.10).
+      if (pRequest->extPushdownAttemptCount > EXT_MAX_PUSHDOWN_ATTEMPTS) {
+        tscWarn("req:0x%" PRIx64
+                ", ext pushdown demote budget exhausted after %d attempts for source:'%s', "
+                "surfacing remote error, QID:0x%" PRIx64,
+                pRequest->self, pRequest->extPushdownAttemptCount, pRequest->extSourceName,
+                pRequest->requestId);
+        pRequest->code = TSDB_CODE_EXT_REMOTE_INTERNAL;
+        returnToUser(pRequest);
+        return;
+      }
     }
 
     restartAsyncQuery(pRequest, code);
@@ -4358,6 +4379,18 @@ _exit:
   }
 }
 
+/*
+ * The three credential-bearing connect variants are recorded as diagnostic events
+ * only: the secret (TOTP code, auth string, token) is never passed to the recorder,
+ * so replay cannot reissue these calls and rejects such a session before dispatch
+ * (DS 6.7.1). What IS recorded is endpoint/user/db/port and the API type, so the
+ * trace shows which auth method the application actually used.
+ *
+ * The logical conn ID is minted here for the same reason taos_connect mints one.
+ * A running recorder covers nested connects whose own BEGIN was skipped but whose
+ * later queries are outermost. A recorded token covers the shutdown transition while
+ * the real connect is in flight. Both paths require a non-zero CONN_ID (TS API007).
+ */
 TAOS* taos_connect_totp(const char* ip, const char* user, const char* pass, const char* totp, const char* db,
                         uint16_t port) {
   tscInfo("try to connect to %s:%u by totp, user:%s db:%s", ip, port, user, db);
@@ -4369,20 +4402,35 @@ TAOS* taos_connect_totp(const char* ip, const char* user, const char* pass, cons
     pass = TSDB_DEFAULT_PASS;
   }
 
+  (void)taos_init();
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT_TYPED(&wlrTok, WLR_API_CONNECT_TOTP, ip, user, db, port);
+
   STscObj* pObj = NULL;
   int32_t  code = taos_connect_internal(ip, user, pass, totp, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos_connect_totp to %s:%u, user:%s db:%s", ip, port, user, db);
+      /* Explicit rather than terrno: the connect above succeeded, so terrno holds
+       * whatever that path last set. taosMemoryCalloc does set OOM, but naming the
+       * code keeps the recorded value correct regardless of intervening calls. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
+      /* The connection succeeded, so it must be released before bailing out -- as the
+       * taos_connect_auth path below already does. Pre-existing leak, fixed here
+       * because this function is being touched anyway. */
+      taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
     return (TAOS*)rid;
   } else {
     terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
 }
 
@@ -4404,20 +4452,37 @@ int taos_connect_test(const char* ip, const char* user, const char* pass, const 
 TAOS* taos_connect_token(const char* ip, const char* token, const char* db, uint16_t port) {
   tscInfo("try to connect to %s:%u by token, db:%s", ip, port, db);
 
+  (void)taos_init();
+  /* No user is supplied by this API -- the token carries the identity. NULL is
+   * recorded as-is rather than invented. */
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT_TYPED(&wlrTok, WLR_API_CONNECT_TOKEN, ip, NULL, db, port);
+
   STscObj* pObj = NULL;
   int32_t  code = taos_connect_by_auth(ip, NULL, token, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos_connect_token to %s:%u db:%s", ip, port, db);
+      /* Explicit rather than terrno: the connect above succeeded, so terrno holds
+       * whatever that path last set. taosMemoryCalloc does set OOM, but naming the
+       * code keeps the recorded value correct regardless of intervening calls. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
+      /* The connection succeeded, so it must be released before bailing out -- as the
+       * taos_connect_auth path below already does. Pre-existing leak, fixed here
+       * because this function is being touched anyway. */
+      taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
     return (TAOS*)rid;
   } else {
     terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
 }
 
@@ -4427,9 +4492,20 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     user = TSDB_DEFAULT_USER;
   }
 
+  (void)taos_init();
+  /* Recorded before the auth check, so a rejected attempt still appears in the
+   * trace. taos_connect_totp and taos_connect_token have no such early return and
+   * always open a token; leaving this one behind the validation meant an application
+   * calling with no auth info produced an untraced connect, which is exactly the
+   * failure an operator would come to the recording to explain. The secret is not an
+   * argument here either way (FS 6.2) -- only endpoint/user/db/port are recorded. */
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT_TYPED(&wlrTok, WLR_API_CONNECT_AUTH, ip, user, db, port);
+
   if (auth == NULL) {
     tscError("No auth info is given, failed to connect to server");
     terrno = TSDB_CODE_INVALID_PARA;
+    WLR_API_END_CODE(&wlrTok, TSDB_CODE_INVALID_PARA);
     return NULL;
   }
 
@@ -4439,15 +4515,20 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
     int64_t* rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      /* Explicit rather than terrno: see the note on the other connect OOM paths. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
       taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
     return (TAOS*)rid;
   } else {
     terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
 }
 
@@ -5477,13 +5558,33 @@ void syncQueryFn(void* param, void* res, int32_t code) {
   }
 }
 
+static uint64_t wlrCompletePendingAsyncFailure(int32_t code, bool fromAsyncWrapper) {
+  if (!fromAsyncWrapper) return 0;
+  SWorkloadCallToken token = {0};
+  wlrTakePendingAsyncCall(&token.callId, &token.beginMonoNs, &token.apiType);
+  if (token.callId == 0) return 0;
+  token.recorded = true;
+  SWorkloadDoneArgs done = {0};
+  done.code = code;
+  wlrAsyncDone(&token, &done);
+  return token.callId;
+}
+
+static void wlrInvokeAsyncFailureCallback(__taos_async_fn_t fp, void *param, int32_t code,
+                                          uint64_t parentCallId) {
+  if (fp == NULL) return;
+  SWlrCallbackScope scope;
+  wlrCallbackScopeBegin(parentCallId, &scope);
+  fp(param, NULL, code);
+  wlrCallbackScopeEnd(&scope);
+}
+
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                        int8_t source) {
+                        int8_t source, bool fromAsyncWrapper) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    if (fp) {
-      fp(param, NULL, terrno);
-    }
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
 
     return;
   }
@@ -5492,7 +5593,8 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   if (sqlLen > (size_t)tsMaxSQLLength) {
     tscError("conn:0x%" PRIx64 ", sql string exceeds max length:%d", connId, tsMaxSQLLength);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
@@ -5502,29 +5604,40 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
   code = connCheckAndUpateMetric(connId);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
   pRequest->source = source;
   pRequest->body.queryFp = fp;
+
+  /* Taken, not read: consuming it prevents a later request on this thread from
+   * inheriting the ID if that path was not recorded (DS 6.8). All preflight checks
+   * are complete here. Once attached to pRequest, every doAsyncQuery failure path
+   * reaches doRequestCallback, which emits wlrAsyncDone before invoking the user. */
+  if (fromAsyncWrapper) {
+    wlrTakePendingAsyncCall(&pRequest->wlrAsyncCallId, &pRequest->wlrAsyncBeginMonoNs,
+                            &pRequest->wlrAsyncApiType);
+  }
+
   doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
 void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
-                                 int64_t reqid) {
+                                 int64_t reqid, bool fromAsyncWrapper) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    if (fp) {
-      fp(param, NULL, terrno);
-    }
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
 
     return;
   }
@@ -5533,7 +5646,8 @@ void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* 
   if (sqlLen > (size_t)tsMaxSQLLength) {
     tscError("conn:0x%" PRIx64 ", QID:0x%" PRIx64 ", sql string exceeds max length:%d", connId, reqid, tsMaxSQLLength);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
@@ -5543,7 +5657,8 @@ void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* 
   int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, reqid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
@@ -5553,11 +5668,21 @@ void taosAsyncQueryImplWithReqid(TAOS_STMT2 *stmt, uint64_t connId, const char* 
 
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
-    fp(param, NULL, terrno);
+    uint64_t parentCallId = wlrCompletePendingAsyncFailure(terrno, fromAsyncWrapper);
+    wlrInvokeAsyncFailureCallback(fp, param, terrno, parentCallId);
     return;
   }
 
   pRequest->body.queryFp = fp;
+
+  /* Successful requests carry the token to doRequestCallback. Preflight failures
+   * consume it earlier, emit DONE, and invoke the synchronous failure callback in
+   * the original call's callback scope. */
+  if (fromAsyncWrapper) {
+    wlrTakePendingAsyncCall(&pRequest->wlrAsyncCallId, &pRequest->wlrAsyncBeginMonoNs,
+                            &pRequest->wlrAsyncApiType);
+  }
+
   doAsyncQuery(pRequest, CLIENT_META_REFRESH_NONE);
 }
 
@@ -5578,7 +5703,7 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly, int8_t s
     return NULL;
   }
 
-  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source);
+  taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, source, false);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -5619,7 +5744,7 @@ TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly,
     return NULL;
   }
 
-  taosAsyncQueryImplWithReqid(NULL, *(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
+  taosAsyncQueryImplWithReqid(NULL, *(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid, false);
   code = tsem_wait(&param->sem);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(param);
@@ -5681,7 +5806,7 @@ static void fetchCallback(void* pResult, void* param, int32_t code) {
   pRequest->body.fetchFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, pResultInfo->numOfRows);
 }
 
-void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
+int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param) {
   pRequest->body.fetchFp = fp;
   ((SSyncQueryParam*)pRequest->body.interParam)->userParam = param;
 
@@ -5693,7 +5818,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
 
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   // all data has returned to App already, no need to try again
@@ -5712,7 +5837,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     }
 
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   SSchedulerReq req = {
@@ -5726,6 +5851,7 @@ void taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* param
     tscError("0x%" PRIx64 " failed to schedule fetch rows", pRequest->requestId);
     // pRequest->body.fetchFp(param, pRequest, code);
   }
+  return code;
 }
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
@@ -5772,7 +5898,58 @@ void doRequestCallback(SRequestObj* pRequest, int32_t code) {
            pRequest);
 
   if (pRequest->body.queryFp != NULL) {
+    /*
+     * Establish the callback context before handing control to user code, and clear
+     * it after (DS 6.8). A public API the user calls from inside this callback then
+     * records a parentCallId, which is how replay learns "not before that completed".
+     *
+     * Clearing is not optional: this thread is a driver completion thread and will
+     * run other callbacks. A stale value would attach an unrelated parent to a later
+     * call, and replay would wait on a dependency that has nothing to do with it
+     * (TS API027b). wlrCallbackBegin also temporarily clears an outer synchronous
+     * wrapper's depth, so callbacks reached on an error path can record their own
+     * public calls as children rather than being mistaken for nested implementation calls.
+     */
+    /*
+     * REQUEST_DONE, the third moment of an async call (DS 6.8). Emitted before the
+     * user callback runs, so it is ordered ahead of any API the callback itself
+     * records -- which will name this call as its parent via the context set below.
+     *
+     * The token is rebuilt from the fields carried on the request: the original was a
+     * stack object in the public wrapper and returned to the user long ago. recorded
+     * is set true because a non-zero Call ID can only have come from a recorded BEGIN.
+     */
+    if (pRequest->wlrAsyncCallId != 0 && pRequest->wlrResultId == 0 &&
+        TD_RES_QUERY(&pRequest->resType)) {
+      /* The asynchronous request first becomes a user-visible TAOS_RES here.
+       * Mint its ID before DONE and before user code can fetch/free the result. */
+      pRequest->wlrResultId = wlrNextResultId();
+    }
+
+    if (pRequest->wlrAsyncCallId != 0) {
+      SWorkloadCallToken wlrTok = {0};
+      wlrTok.callId = pRequest->wlrAsyncCallId;
+      wlrTok.beginMonoNs = pRequest->wlrAsyncBeginMonoNs;
+      wlrTok.apiType = pRequest->wlrAsyncApiType;
+      wlrTok.recorded = true;
+      /* depthOwner stays false: RETURN already unwound the depth on the originating
+       * thread, and this is a driver thread. wlrAsyncDone must not touch depth. */
+
+      SWorkloadDoneArgs wlrDone = {0};
+      wlrDone.code = code;
+      wlrDone.logicalResultId = pRequest->wlrResultId;
+      wlrDone.affectedRows = taos_affected_rows64(pRequest);
+      wlrAsyncDone(&wlrTok, &wlrDone);
+    }
+
+    /* User callbacks are C ABI callbacks and must return normally. A C++ exception or
+     * longjmp escaping this frame is unsupported by the client callback contract; C
+     * has no cleanup construct that can make the TLS and inCallback restoration safe
+     * across such a non-local exit. Save/restore handles supported nested callbacks. */
+    SWlrCallbackScope wlrScope;
+    wlrCallbackScopeBegin(pRequest->wlrAsyncCallId, &wlrScope);
     pRequest->body.queryFp(((SSyncQueryParam*)pRequest->body.interParam)->userParam, pRequest, code);
+    wlrCallbackScopeEnd(&wlrScope);
   }
 
   pRequest->inCallback = false;

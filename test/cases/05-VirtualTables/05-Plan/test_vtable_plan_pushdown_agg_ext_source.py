@@ -30,6 +30,7 @@ _EXTERNAL_SOURCES = {
     "mysql": "vt_pushdown_agg_mysql_src",
     "postgres": "vt_pushdown_agg_pg_src",
     "influx": "vt_pushdown_agg_influx_src",
+    "sqlserver": "vt_pushdown_agg_ss_src",
 }
 
 
@@ -100,6 +101,20 @@ class TestVTablePlanPushdownAggExtSource:
         else:
             raise AssertionError("InfluxDB remote_values is not visible")
 
+        ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_create_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_exec(
+            _EXTERNAL_DB,
+            [
+                "create table dbo.remote_values "
+                "(ts datetime2(6) not null primary key, v int)",
+                "insert into dbo.remote_values values "
+                "('2024-01-01 00:00:00', 10000), "
+                "('2024-01-01 00:00:01', 20000), "
+                "('2024-01-01 00:00:02', 30000)",
+            ],
+        )
+
     @classmethod
     def create_external_sources(cls):
         for source in _EXTERNAL_SOURCES.values():
@@ -128,6 +143,14 @@ class TestVTablePlanPushdownAggExtSource:
             f"options('api_token'='{influx.token}','protocol'='flight_sql')"
         )
 
+        sqlserver = cls.adapters["sqlserver"]
+        tdSql.execute(
+            f"create external source {_EXTERNAL_SOURCES['sqlserver']} "
+            f"type='sqlserver' host='{sqlserver.host}' port={sqlserver.port} "
+            f"user='{sqlserver.user}' password='{sqlserver.password}' "
+            f"database={_EXTERNAL_DB} schema=dbo"
+        )
+
     @classmethod
     def create_virtual_tables(cls):
         mysql_ref = (
@@ -138,6 +161,12 @@ class TestVTablePlanPushdownAggExtSource:
         )
         influx_ref = (
             f"{_EXTERNAL_SOURCES['influx']}.{_EXTERNAL_DB}.remote_values.v"
+        )
+        # SQL Server: the middle segment of a three-part path is the schema
+        # (DS §5.3.4), so the database is qualified explicitly (five-part
+        # column path source.database.schema.table.column).
+        sqlserver_ref = (
+            f"{_EXTERNAL_SOURCES['sqlserver']}.{_EXTERNAL_DB}.dbo.remote_values.v"
         )
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -163,6 +192,10 @@ class TestVTablePlanPushdownAggExtSource:
             f"local_v int from local_values.v, remote_v bigint from {influx_ref})"
         )
         tdSql.execute(
+            "create vtable vt_sqlserver (ts timestamp, "
+            f"local_v int from local_values.v, remote_v int from {sqlserver_ref})"
+        )
+        tdSql.execute(
             "create vtable vt_external_mixed (ts timestamp, "
             f"mysql_v int from {mysql_ref}, "
             f"postgres_v int from {postgres_ref}, "
@@ -175,6 +208,14 @@ class TestVTablePlanPushdownAggExtSource:
             f"postgres_v int from {postgres_ref}, "
             f"influx_v bigint from {influx_ref})"
         )
+        tdSql.execute(
+            "create vtable vt_all_mixed_ss (ts timestamp, "
+            "local_v int from local_values.v, "
+            f"mysql_v int from {mysql_ref}, "
+            f"postgres_v int from {postgres_ref}, "
+            f"influx_v bigint from {influx_ref}, "
+            f"sqlserver_v int from {sqlserver_ref})"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -184,6 +225,7 @@ class TestVTablePlanPushdownAggExtSource:
         ExtSrcEnv.mysql_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.pg_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.influx_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
 
     @staticmethod
     def do_compare_pushdown_agg_plan():

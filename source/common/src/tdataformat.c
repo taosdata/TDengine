@@ -41,6 +41,28 @@ static int32_t tRowBuildKVRowWithBlob2(SArray *aColVal, const SRowBuildScanInfo 
 // ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
+// Reads a varint of at most maxBytes bytes (5 for a uint32, 3 for a zigzag int16) from p[0, remaining). Fails if it is
+// still continuing after maxBytes or runs out of input. Inlined: it is on the tag lookup hot path.
+static FORCE_INLINE bool tTagReadVarintBounded(const uint8_t *p, uint32_t remaining, uint32_t maxBytes,
+                                               uint32_t *pValue, uint32_t *pLen) {
+  // Fast path: cids and lengths are almost always < 128, i.e. a single byte with the high bit clear.
+  if (remaining > 0 && !(p[0] & 0x80)) {
+    *pValue = p[0];
+    *pLen = 1;
+    return true;
+  }
+  uint32_t value = 0;
+  for (uint32_t i = 0; i < maxBytes && i < remaining; ++i) {
+    value |= (uint32_t)(p[i] & 0x7f) << (7 * i);
+    if ((p[i] & 0x80) == 0) {
+      *pValue = value;
+      *pLen = i + 1;
+      return true;
+    }
+  }
+  return false;
+}
+
 // SRow ========================================================================
 #define KV_FLG_LIT ((uint8_t)0x10)
 #define KV_FLG_MID ((uint8_t)0x20)
@@ -2481,6 +2503,73 @@ int32_t tRowUpsertColData(SRow *pRow, STSchema *pTSchema, SColData *aColData, in
   }
 }
 
+// Rows come from the wire (submit/WAL); check that the primary-key index entries and the values they point at lie
+// inside the row before tRowGetPrimaryKey trusts them.
+//
+// The caller must guarantee that `row` points at least row->len readable bytes (tDecodeRow does, through
+// tDecodeBinaryWithSize); row->len itself is only checked against the offsets and lengths inside the row, not against
+// the real size of the buffer.
+//
+// Layout of row->data when numOfPKs > 0:
+//   [type0 | varint offset0] [type1 | varint offset1] ...   <- PK index area, one entry per PK
+//   [value area]                                            <- offsetN is relative to the start of this area
+// A PK value is, in order: [varint int16 colId, KV rows only] [varint length, var-length types only] payload.
+//
+// Varints are 7 data bits per byte, high bit set = "more bytes follow", so a 32-bit value takes at most
+// ceil(32 / 7) = 5 bytes and a (zigzag) 16-bit value at most ceil(16 / 7) = 3 bytes. The maxBytes argument of
+// tTagReadVarintBounded is that cap; it stops a run of 0x80 bytes from being read forever.
+//
+// All range checks are written as "len > end - pos" rather than "pos + len > end": end - pos is known to be
+// non-negative, whereas pos + len can wrap around when len comes from an untrusted varint.
+bool tRowPrimaryKeyValid(const SRow *row) {
+  // Not even a complete header, nothing below may be read.
+  if (row == NULL || row->len < sizeof(SRow)) return false;
+  if (row->numOfPKs == 0) return true;
+  // types[] and offsets[] below are fixed-size arrays; this also keeps the loops from overrunning them.
+  if (row->numOfPKs > TD_MAX_PK_COLS) return false;
+
+  const uint8_t *end = (const uint8_t *)row + row->len;  // first byte past the row; every read must stay below it
+  const uint8_t *data = row->data;                       // cursor, walks the index area then stops at the value area
+  uint32_t       v = 0, l = 0;                           // v: decoded varint value, l: bytes that varint occupied
+  int8_t         types[TD_MAX_PK_COLS];
+  uint32_t       offsets[TD_MAX_PK_COLS];
+
+  // Pass 1: walk the index area, collecting each PK's type and value offset.
+  for (int32_t i = 0; i < row->numOfPKs; i++) {
+    if (data >= end) return false;  // no byte left for the 1-byte type
+    types[i] = (int8_t)*data++;
+    // The type is used below to index tDataTypes[], so reject anything outside the known range.
+    if (IS_INVALID_TYPE(types[i])) return false;
+    // Offset is a uint32 varint (max 5 bytes) and must fit in what is left of the row.
+    if (!tTagReadVarintBounded(data, (uint32_t)(end - data), 5, &offsets[i], &l)) return false;
+    data += l;
+  }
+
+  // From here data points at the value area. Pass 2: check each PK value lies fully inside the row.
+  for (int32_t i = 0; i < row->numOfPKs; i++) {
+    // The value must start inside the row.
+    if (offsets[i] >= (uint32_t)(end - data)) return false;
+    const uint8_t *tdata = data + offsets[i];
+    if (row->flag >> 4) {
+      // KV row (flag bits 4+ are KV_FLG_*; the low bits are HAS_NONE/NULL/VALUE): each value is prefixed by its
+      // int16 column id as a varint (max 3 bytes). Skip it, as tRowGetPrimaryKey does with tGetI16v.
+      if (!tTagReadVarintBounded(tdata, (uint32_t)(end - tdata), 3, &v, &l)) return false;
+      tdata += l;
+    }
+    if (IS_VAR_DATA_TYPE(types[i])) {
+      // Var-length value: uint32 varint length (max 5 bytes) followed by v payload bytes. The payload must fit in
+      // what is left after the length prefix itself, hence "- l".
+      if (!tTagReadVarintBounded(tdata, (uint32_t)(end - tdata), 5, &v, &l) || v > (uint32_t)(end - tdata) - l) {
+        return false;
+      }
+    } else if ((uint32_t)tDataTypes[types[i]].bytes > (uint32_t)(end - tdata)) {
+      // Fixed-length value (e.g. 8 bytes for BIGINT) must fit in the remaining bytes.
+      return false;
+    }
+  }
+  return true;
+}
+
 void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
   key->numOfPKs = row->numOfPKs;
 
@@ -2488,16 +2577,23 @@ void tRowGetPrimaryKey(SRow *row, SRowKey *key) {
     return;
   }
 
+  // Never write past the fixed-size arrays, even for a row that bypassed tRowPrimaryKeyValid.
+  if (key->numOfPKs > TD_MAX_PK_COLS) {
+    uError("row numOfPKs:%d exceeds max:%d", row->numOfPKs, TD_MAX_PK_COLS);
+    key->numOfPKs = 0;
+    return;
+  }
+
   SPrimaryKeyIndex indices[TD_MAX_PK_COLS];
 
   uint8_t *data = row->data;
 
-  for (int32_t i = 0; i < row->numOfPKs; i++) {
+  for (int32_t i = 0; i < key->numOfPKs; i++) {
     data += tGetPrimaryKeyIndex(data, &indices[i]);
   }
 
   // primary keys
-  for (int32_t i = 0; i < row->numOfPKs; i++) {
+  for (int32_t i = 0; i < key->numOfPKs; i++) {
     key->pks[i].type = indices[i].type;
 
     uint8_t *tdata = data + indices[i].offset;
@@ -2739,6 +2835,8 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
 
   return n;
 }
+// Unchecked: trusts every length inside the blob. Only for blobs built by this process (debugPrintSTag); anything that
+// may come from outside must use tTagGetEntry / tTagGetValBounded.
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   int32_t n = 0;
 
@@ -2763,7 +2861,212 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   return n;
 }
 
+// Parses and validates one tag entry laid out by tPutTagVal; fails if any part of it would lie outside [p, end).
+//   [key: cid varint (1..3 bytes) | JSON: varint length + NUL-terminated string][type: 1 byte][value]
+//   value = fixed-width type:  tDataTypes[type].bytes bytes
+//         = var-length type:   [length: varint, 1..5 bytes][length bytes of data]
+// Every read is checked against `end`, so a forged entry cannot make it read out of the blob.
+// It is split in two so that tTagGet, which only compares keys while searching, decodes the value of the matching entry
+// only; the other callers parse a whole entry with tTagGetValBounded.
+
+// Parses the key of the entry at *pp into pTagVal (cid, or pKey for JSON) and advances *pp past it.
+static FORCE_INLINE bool tTagGetKeyBounded(const uint8_t **pp, const uint8_t *end, STagVal *pTagVal, int8_t isJson) {
+  const uint8_t *p = *pp;
+  uint32_t       v = 0, l = 0;
+  if (p >= end) return false;
+  if (isJson) {
+    if (!tTagReadVarintBounded(p, (uint32_t)(end - p), 5, &v, &l)) return false;
+    p += l;
+    // the key is stored with its terminating NUL (tPutCStr) and is later compared with strcmp
+    if (v == 0 || v > (uint32_t)(end - p) || p[v - 1] != '\0') return false;
+    pTagVal->pKey = (char *)p;
+    p += v;
+  } else {
+    if (!tTagReadVarintBounded(p, (uint32_t)(end - p), 3, &v, &l)) return false;
+    p += l;
+    pTagVal->cid = ZIGZAGD(int16_t, (uint16_t)v);
+  }
+  *pp = p;
+  return true;
+}
+
+// Parses the type and value that follow the key (see tTagGetKeyBounded) into pTagVal.
+static FORCE_INLINE bool tTagGetTypeValBounded(const uint8_t *p, const uint8_t *end, STagVal *pTagVal) {
+  uint32_t v = 0, l = 0;
+  if (p >= end) return false;
+  pTagVal->type = (int8_t)*p++;
+  if (IS_INVALID_TYPE(pTagVal->type)) return false;
+  if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+    if (!tTagReadVarintBounded(p, (uint32_t)(end - p), 5, &v, &l)) return false;
+    p += l;
+    if (v > (uint32_t)(end - p)) return false;
+    pTagVal->pData = (uint8_t *)p;
+    pTagVal->nData = v;
+    return true;
+  }
+  int32_t bytes = tDataTypes[pTagVal->type].bytes;
+  // fixed-width values are stored in the 8-byte i64 of STagVal; wider types (DECIMAL128) must not overrun it
+  if ((uint32_t)bytes > sizeof(pTagVal->i64) || (uint32_t)bytes > (uint32_t)(end - p)) return false;
+  (void)memcpy(&(pTagVal->i64), p, bytes);
+  return true;
+}
+
+static FORCE_INLINE bool tTagGetValBounded(const uint8_t *p, const uint8_t *end, STagVal *pTagVal, int8_t isJson) {
+  return tTagGetKeyBounded(&p, end, pTagVal, isJson) && tTagGetTypeValBounded(p, end, pTagVal);
+}
+
 bool tTagIsJson(const void *pTag) { return (((const STag *)pTag)->flags & TD_TAG_JSON); }
+
+static bool tTagReadU32vBounded(const uint8_t *pData, const uint8_t *pEnd, uint32_t *pValue,
+                                int32_t *pBytes) {
+  uint32_t value = 0;
+  for (int32_t i = 0; i < 5 && pData + i < pEnd; ++i) {
+    uint8_t byte = pData[i];
+    if (i == 4 && (byte & 0xf0) != 0) {
+      return false;
+    }
+    value |= (uint32_t)(byte & 0x7f) << (7 * i);
+    if ((byte & 0x80) == 0) {
+      *pValue = value;
+      *pBytes = i + 1;
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t tTagIndexOffset(const STag *pTag, int32_t index) {
+  if ((pTag->flags & TD_TAG_LARGE) == 0) {
+    return pTag->idx[index];
+  }
+  int16_t offset = 0;
+  (void)memcpy(&offset, pTag->idx + index * (int32_t)sizeof(offset), sizeof(offset));
+  return offset;
+}
+
+static bool tTagReadJsonEntry(const STag *pTag, int32_t index, const uint8_t *pValues,
+                              const uint8_t *pEnd, STagVal *pTagVal) {
+  int32_t offset = tTagIndexOffset(pTag, index);
+  int32_t nextOffset = index + 1 < pTag->nTag ? tTagIndexOffset(pTag, index + 1) : (int32_t)(pEnd - pValues);
+  if (offset < 0 || nextOffset <= offset || nextOffset > pEnd - pValues) {
+    return false;
+  }
+
+  const uint8_t *pValue = pValues + offset;
+  const uint8_t *pEntryEnd = pValues + nextOffset;
+  uint32_t keyLen = 0;
+  int32_t prefixBytes = 0;
+  if (!tTagReadU32vBounded(pValue, pEntryEnd, &keyLen, &prefixBytes) || keyLen == 0 ||
+      (uint64_t)keyLen > (uint64_t)(pEntryEnd - pValue - prefixBytes)) {
+    return false;
+  }
+  pValue += prefixBytes;
+  if (pValue[keyLen - 1] != '\0') {
+    return false;
+  }
+  const char *pKey = (const char *)pValue;
+  pValue += keyLen;
+  if (pValue >= pEntryEnd) {
+    return false;
+  }
+
+  int8_t type = *(const int8_t *)pValue++;
+  if (type < TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+    return false;
+  }
+
+  STagVal value = {.pKey = (char *)pKey, .type = type};
+  if (IS_VAR_DATA_TYPE(type)) {
+    uint32_t dataLen = 0;
+    if (!tTagReadU32vBounded(pValue, pEntryEnd, &dataLen, &prefixBytes) ||
+        (uint64_t)dataLen > (uint64_t)(pEntryEnd - pValue - prefixBytes)) {
+      return false;
+    }
+    value.nData = dataLen;
+    value.pData = (uint8_t *)pValue + prefixBytes;
+  } else {
+    int32_t valueLen = tDataTypes[type].bytes;
+    if (valueLen <= 0 || valueLen > (int32_t)sizeof(value.i64) || valueLen > pEntryEnd - pValue) {
+      return false;
+    }
+    (void)memcpy(&value.i64, pValue, valueLen);
+  }
+  if (pTagVal != NULL) {
+    *pTagVal = value;
+  }
+  return true;
+}
+
+bool tTagValidateJson(const STag *pTag, int32_t availableLen) {
+  if (pTag == NULL || availableLen < (int32_t)sizeof(STag) || (pTag->flags & TD_TAG_JSON) == 0 ||
+      pTag->len < (int32_t)sizeof(STag) || pTag->len > availableLen || pTag->nTag < 0) {
+    return false;
+  }
+
+  int32_t indexBytes = (pTag->flags & TD_TAG_LARGE) ? (int32_t)sizeof(int16_t) : (int32_t)sizeof(int8_t);
+  int64_t indexEnd = (int64_t)offsetof(STag, idx) + (int64_t)pTag->nTag * indexBytes;
+  if (indexEnd > pTag->len) {
+    return false;
+  }
+  if (pTag->nTag == 0) {
+    return pTag->len == (int32_t)sizeof(STag);
+  }
+
+  const uint8_t *pValues = (const uint8_t *)pTag + indexEnd;
+  const uint8_t *pEnd = (const uint8_t *)pTag + pTag->len;
+  int32_t        previousOffset = -1;
+  for (int32_t i = 0; i < pTag->nTag; ++i) {
+    int32_t offset = tTagIndexOffset(pTag, i);
+    if (offset <= previousOffset || !tTagReadJsonEntry(pTag, i, pValues, pEnd, NULL)) {
+      return false;
+    }
+    previousOffset = offset;
+  }
+  return true;
+}
+
+bool tTagGetJsonBounded(const STag *pTag, int32_t availableLen, STagVal *pTagVal, bool *pFound) {
+  if (pFound == NULL || pTagVal == NULL || pTagVal->pKey == NULL) {
+    return false;
+  }
+  *pFound = false;
+  if (pTag == NULL || availableLen < (int32_t)sizeof(STag) || (pTag->flags & TD_TAG_JSON) == 0 ||
+      pTag->len < (int32_t)sizeof(STag) || pTag->len > availableLen || pTag->nTag < 0) {
+    return false;
+  }
+
+  int32_t indexBytes = (pTag->flags & TD_TAG_LARGE) ? (int32_t)sizeof(int16_t) : (int32_t)sizeof(int8_t);
+  int64_t indexEnd = (int64_t)offsetof(STag, idx) + (int64_t)pTag->nTag * indexBytes;
+  if (indexEnd > pTag->len) {
+    return false;
+  }
+  if (pTag->nTag == 0) {
+    return pTag->len == (int32_t)sizeof(STag);
+  }
+
+  const uint8_t *pValues = (const uint8_t *)pTag + indexEnd;
+  const uint8_t *pEnd = (const uint8_t *)pTag + pTag->len;
+  int32_t first = 0;
+  int32_t last = pTag->nTag - 1;
+  while (first <= last) {
+    int32_t middle = first + (last - first) / 2;
+    STagVal value = {0};
+    if (!tTagReadJsonEntry(pTag, middle, pValues, pEnd, &value)) {
+      return false;
+    }
+    int32_t compare = strcmp(pTagVal->pKey, value.pKey);
+    if (compare < 0) {
+      last = middle - 1;
+    } else if (compare > 0) {
+      first = middle + 1;
+    } else {
+      *pTagVal = value;
+      *pFound = true;
+      return true;
+    }
+  }
+  return true;
+}
 
 bool tTagIsJsonNull(void *data) {
   STag  *pTag = (STag *)data;
@@ -2804,6 +3107,14 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   } else {
     szTag = szTag + sizeof(STag) + sizeof(int16_t) * nTag;
     isLarge = 1;
+  }
+
+  // STag.len and idx[] offsets are int16: refuse to build a blob whose header cannot describe its contents.
+  if (szTag > INT16_MAX || szTag < 0) {
+    uError("tag size:%d exceeds limit:%d", szTag, INT16_MAX);
+    (*ppTag) = NULL;
+    code = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+    goto _err;
   }
 
   // build tag
@@ -2881,39 +3192,60 @@ char *tTagValToData(const STagVal *value, bool isJson) {
   return data;
 }
 
+// Locates the entry area (just after idx[]) of a blob and its end, using integer arithmetic only so that a forged
+// nTag/len is rejected before any out-of-bounds pointer is formed. An empty blob yields *ppBody == *ppEnd.
+static bool tTagGetBody(const STag *pTag, const uint8_t **ppBody, const uint8_t **ppEnd) {
+  const uint8_t *pEnd = (const uint8_t *)pTag + pTag->len;
+  const uint8_t *idxStart = (const uint8_t *)pTag->idx;
+  if (pTag->len < 0 || pTag->nTag < 0 || pEnd < idxStart) return false;
+
+  // idx[] entries are 1 or 2 bytes wide; shift by log2(width) instead of dividing, this runs on every tTagGet
+  uint32_t idxShift = (pTag->flags & TD_TAG_LARGE) ? 1 : 0;
+  if ((uint32_t)pTag->nTag > ((uint32_t)(pEnd - idxStart) >> idxShift)) return false;
+
+  *ppBody = idxStart + ((uint32_t)pTag->nTag << idxShift);
+  *ppEnd = pEnd;
+  return true;
+}
+
+// Parses the iTag-th entry through idx[]; fails if its offset or any part of the entry lies outside [pBody, pEnd).
+static FORCE_INLINE bool tTagGetEntry(const STag *pTag, const uint8_t *pBody, const uint8_t *pEnd, int16_t iTag,
+                                      STagVal *pTagVal) {
+  int16_t offset = (pTag->flags & TD_TAG_LARGE) ? ((const int16_t *)pTag->idx)[iTag] : pTag->idx[iTag];
+  if (offset < 0 || offset >= pEnd - pBody) return false;
+  return tTagGetValBounded(pBody + offset, pEnd, pTagVal, pTag->flags & TD_TAG_JSON);
+}
+
 bool tTagGet(const STag *pTag, STagVal *pTagVal) {
   if (!pTag || !pTagVal) {
     return false;
   }
 
-  int16_t  lidx = 0;
-  int16_t  ridx = pTag->nTag - 1;
-  int16_t  midx;
-  uint8_t *p;
-  int8_t   isJson = pTag->flags & TD_TAG_JSON;
-  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
-  int16_t  offset;
-  STagVal  tv;
-  int      c;
-
-  if (isLarge) {
-    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
-  } else {
-    p = (uint8_t *)&pTag->idx[pTag->nTag];
-  }
+  int8_t         isJson = pTag->flags & TD_TAG_JSON;
+  STagVal        tv;
+  int            c;
+  const uint8_t *pBody, *pEnd;
 
   pTagVal->type = TSDB_DATA_TYPE_NULL;
   pTagVal->pData = NULL;
   pTagVal->nData = 0;
+
+  // The blob may predate tTagValidate (e.g. persisted on disk), so every entry is bounded by the blob's own length.
+  if (!tTagGetBody(pTag, &pBody, &pEnd)) return false;
+
+  int8_t  isLarge = pTag->flags & TD_TAG_LARGE;
+  int16_t lidx = 0;
+  int16_t ridx = pTag->nTag - 1;
+  int16_t midx;
   while (lidx <= ridx) {
     midx = (lidx + ridx) / 2;
-    if (isLarge) {
-      offset = ((int16_t *)pTag->idx)[midx];
-    } else {
-      offset = pTag->idx[midx];
-    }
 
-    int32_t nt = tGetTagVal(p + offset, &tv, isJson);
+    // Only the key is needed to steer the search; the value is decoded once, for the matching entry.
+    int16_t offset = isLarge ? ((const int16_t *)pTag->idx)[midx] : pTag->idx[midx];
+    if (offset < 0 || offset >= pEnd - pBody) return false;
+    const uint8_t *p = pBody + offset;
+    if (!tTagGetKeyBounded(&p, pEnd, &tv, isJson)) return false;
+
     if (isJson) {
       c = tTagValJsonCmprFn(pTagVal, &tv);
     } else {
@@ -2925,6 +3257,7 @@ bool tTagGet(const STag *pTag, STagVal *pTagVal) {
     } else if (c > 0) {
       lidx = midx + 1;
     } else {
+      if (!tTagGetTypeValBounded(p, pEnd, &tv)) return false;
       (void)memcpy(pTagVal, &tv, sizeof(tv));
       return true;
     }
@@ -2936,19 +3269,49 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
   return tEncodeBinary(pEncoder, (const uint8_t *)pTag, pTag->len);
 }
 
-int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL); }
+// Validates only the fixed header of a serialized STag: len matches the buffer, nTag is non-negative and flags are known.
+// O(1). Used by tDecodeTag when a tag is loaded from the meta store (a hot path), where entries are not walked up
+// front because tTagGet/tTagToValArray bounds-check every entry again on each read.
+static int32_t tTagValidateHeader(const void *pData, uint32_t len) {
+  const STag *pTag = (const STag *)pData;
+  if (pTag == NULL || len < sizeof(STag) || len > INT16_MAX) return TSDB_CODE_INVALID_MSG;
+  if (pTag->len != (int16_t)len || pTag->nTag < 0) return TSDB_CODE_INVALID_MSG;
+  if ((pTag->flags & ~(TD_TAG_JSON | TD_TAG_LARGE)) != 0) return TSDB_CODE_INVALID_MSG;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Fully validates a serialized STag: the header (tTagValidateHeader), idx[] and every entry (key, type, value) must lie
+// inside len. O(nTag). Call it where a tag blob first arrives from an untrusted source and will be stored or used as is:
+// request decoding (tDecodeSVCreateTbReq) and the set-tag path (metaUpdateTableJsonTagValue). Do not call it per
+// read or on the meta load path; use tDecodeTag there.
+int32_t tTagValidate(const void *pData, uint32_t len) {
+  TAOS_CHECK_RETURN(tTagValidateHeader(pData, len));
+
+  const STag    *pTag = (const STag *)pData;
+  const uint8_t *pBody, *pEnd;
+  if (!tTagGetBody(pTag, &pBody, &pEnd)) return TSDB_CODE_INVALID_MSG;
+  for (int16_t i = 0; i < pTag->nTag; ++i) {
+    STagVal tv;
+    if (!tTagGetEntry(pTag, pBody, pEnd, i, &tv)) return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) {
+  uint32_t len = 0;
+  TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, (uint8_t **)ppTag, &len));
+  // Entries are bounds-checked by tTagGet/tTagToValArray on every read, so only the header is checked here.
+  return tTagValidateHeader(*ppTag, len);
+}
 
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
-  int32_t  code = 0;
-  uint8_t *p = NULL;
-  STagVal  tv = {0};
-  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
-  int16_t  offset = 0;
+  int32_t        code = 0;
+  STagVal        tv = {0};
+  const uint8_t *pBody, *pEnd;
 
-  if (isLarge) {
-    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
-  } else {
-    p = (uint8_t *)&pTag->idx[pTag->nTag];
+  // Bound every entry by the blob's own length so a malformed persisted blob cannot drive out-of-bounds reads.
+  if (!tTagGetBody(pTag, &pBody, &pEnd)) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
@@ -2958,12 +3321,10 @@ int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
   }
 
   for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
-    if (isLarge) {
-      offset = ((int16_t *)pTag->idx)[iTag];
-    } else {
-      offset = pTag->idx[iTag];
+    if (!tTagGetEntry(pTag, pBody, pEnd, iTag, &tv)) {
+      code = TSDB_CODE_INVALID_PARA;
+      goto _err;
     }
-    int32_t nt = tGetTagVal(p + offset, &tv, pTag->flags & TD_TAG_JSON);
     if (taosArrayPush(*ppArray, &tv) == NULL) {
       code = terrno;
       goto _err;
@@ -5688,7 +6049,7 @@ void tColDataArrGetRowKey(SColData *aColData, int32_t nColData, int32_t iRow, SR
   key->ts = ((TSKEY *)aColData[0].pData)[iRow];
   key->numOfPKs = 0;
 
-  for (int i = 1; i < nColData; i++) {
+  for (int i = 1; i < nColData && key->numOfPKs < TD_MAX_PK_COLS; i++) {
     if (aColData[i].cflag & COL_IS_KEY) {
       tColDataGetValue4(&aColData[i], iRow, &cv);
       key->pks[key->numOfPKs++] = cv.value;
@@ -6187,8 +6548,14 @@ int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
 
-  SRow *pRow = (SRow *)(pDecoder->data + pDecoder->pos);
-  return tDecodeBinaryWithSize(pDecoder, pRow->len, (uint8_t **)ppRow);
+  SRow   *pRow = (SRow *)(pDecoder->data + pDecoder->pos);
+  int32_t code = tDecodeBinaryWithSize(pDecoder, pRow->len, (uint8_t **)ppRow);
+  if (code) return code;
+  if (!tRowPrimaryKeyValid(*ppRow)) {
+    uError("invalid row, len:%u numOfPKs:%d", pRow->len, pRow->numOfPKs);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return code;
 }
 
 int32_t tEncodeBlobSet(SEncoder *pEncoder, SBlobSet *pRow) {

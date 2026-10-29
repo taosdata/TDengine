@@ -21,6 +21,7 @@
 #include "extConnector.h"
 #include "clientLog.h"
 #include "clientMonitor.h"
+#include "clientWlr.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "osSleep.h"
@@ -73,6 +74,23 @@ int32_t   clientStop = -1;
 SHashObj *pTimezoneMap = NULL;
 
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
+
+static const char *wlrInitErrorName(int32_t code) {
+  switch (code) {
+    case WLR_E_INIT_DIR:
+      return "WLR_E_INIT_DIR";
+    case WLR_E_ALLOC:
+      return "WLR_E_ALLOC";
+    case WLR_E_WRITE:
+      return "WLR_E_WRITE";
+    case WLR_E_PAYLOAD_LIMIT:
+      return "WLR_E_PAYLOAD_LIMIT";
+    case WLR_E_CONFIG:
+      return "WLR_E_CONFIG";
+    default:
+      return "WLR_E_UNKNOWN";
+  }
+}
 volatile int32_t    tscInitRes = 0;
 
 static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
@@ -1239,6 +1257,16 @@ void taos_init_imp(void) {
 
   if (tsSessionControl) {
     ENV_ERR_RET(sessMgtInit(), "failed to init session management");
+  }
+
+  // Workload recorder (DS 6.4). Deliberately NOT ENV_ERR_RET: recording is
+  // fail-open, so a bad directory or a full disk must leave a fully working
+  // driver rather than aborting client startup (FS 4.8). The failure is already
+  // logged with a WLR_E_* reason by the recorder itself.
+  int32_t wlrInitCode = wlrRecorderInitFromCfg();
+  if (wlrInitCode != WLR_E_OK) {
+    tscWarn("WLR: workload recording disabled, init error:%s(%d), client continues",
+            wlrInitErrorName(wlrInitCode), wlrInitCode);
   }
 
   tscInfo("TAOS driver is initialized successfully");

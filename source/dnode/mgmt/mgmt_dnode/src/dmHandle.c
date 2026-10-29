@@ -754,6 +754,35 @@ int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
+// cfgDumpItemValue prints string-like items with "%s", so a NULL str must not be snapshotted.
+// CFG_DTYPE_TIMEZONE is included because its case in cfgDumpItemValue falls through to the
+// string case.
+static bool dmIsNullStrCfgItem(const SConfigItem *pItem) {
+  switch (pItem->dtype) {
+    case CFG_DTYPE_STRING:
+    case CFG_DTYPE_DIR:
+    case CFG_DTYPE_LOCALE:
+    case CFG_DTYPE_CHARSET:
+    case CFG_DTYPE_TIMEZONE:
+    case CFG_DTYPE_NONE:
+      return pItem->str == NULL;
+    default:
+      return false;
+  }
+}
+
+// Restore an item whose new value was committed to SConfig but then failed to apply, so the
+// rejected value is not left behind for the next successful request to persist.
+static void dmRollbackCfgItem(SConfig *pCfg, const char *name, const char *oldValue) {
+  SConfigItem *pItem = NULL;
+  int32_t      code = cfgGetAndSetItem(pCfg, &pItem, name, oldValue, CFG_STYPE_ALTER_SERVER_CMD, true);
+  if (code != 0) {
+    dError("failed to roll back option:%s to value:%s since %s", name, oldValue, tstrerror(code));
+  } else {
+    dInfo("option:%s rolled back to value:%s since it failed to apply", name, oldValue);
+  }
+}
+
 int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   int32_t       code = 0;
   SDCfgDnodeReq cfgReq = {0};
@@ -768,6 +797,37 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("start to config, option:%s, value:%s", cfgReq.config, cfgReq.value);
+
+  // The dnode cannot authenticate the sender of TDMT_DND_CONFIG_DNODE, so it must not assume the
+  // mnode already validated the request. Re-run the same dyn-scope and category checks here,
+  // before the value is committed to the SConfig item - cfgGetAndSetItem only range-checks and
+  // never consults dynScope, so without this a non-dynamic or client-only item (supportVnodes,
+  // audit, fqdn, logDir, ...) would be applied and persisted.
+  // "resetlog" is not a config item and (enterprise) "ssblocksize" is pre-validated by the
+  // mnode; both intentionally bypass cfgCheckRangeForDynUpdate there, so mirror that here.
+  if (strncasecmp(cfgReq.config, "resetlog", strlen("resetlog")) != 0 &&
+      strncasecmp(cfgReq.config, "ssblocksize", strlen("ssblocksize")) != 0) {
+    code = cfgCheckRangeForDynUpdate(pCfg, cfgReq.config, cfgReq.value, true, cfgReq.alterType);
+    if (code != 0) {
+      dError("failed to config option:%s, value:%s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
+      return code;
+    }
+  }
+
+  // Snapshot the current value so an item that passes the checks above but still fails to apply
+  // can be rolled back, instead of being left in SConfig for the next request to persist. Only
+  // the requested item is snapshotted: the derived items that a "syncTimeout" request fans out
+  // to below are not rolled back, but they are all CFG_DYN_SERVER and so already passed the
+  // dyn-scope gate.
+  char         oldValue[TSDB_DNODE_VALUE_LEN] = {0};
+  int32_t      oldValueLen = 0;
+  bool         canRollback = false;
+  SConfigItem *pOldItem = cfgGetItem(pCfg, cfgReq.config);
+  if (pOldItem != NULL && pOldItem->array == NULL && !dmIsNullStrCfgItem(pOldItem) &&
+      cfgDumpItemValue(pOldItem, oldValue, sizeof(oldValue), &oldValueLen) == 0 &&
+      oldValueLen < (int32_t)sizeof(oldValue)) {
+    canRollback = true;
+  }
 
   code = cfgGetAndSetItem(pCfg, &pItem, cfgReq.config, cfgReq.value, CFG_STYPE_ALTER_SERVER_CMD, true);
   if (code != 0) {
@@ -855,7 +915,14 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   if (!isConifgItemLazyMode(pItem)) {
-    TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, cfgReq.config, true));
+    code = taosCfgDynamicOptions(pCfg, cfgReq.config, true);
+    if (code != 0) {
+      dError("failed to apply option:%s, value:%s since %s", cfgReq.config, cfgReq.value, tstrerror(code));
+      if (canRollback) {
+        dmRollbackCfgItem(pCfg, cfgReq.config, oldValue);
+      }
+      return code;
+    }
 
     if (taosStrncasecmp(cfgReq.config, "syncTimeout", 128) == 0) {
       TAOS_CHECK_RETURN(taosCfgDynamicOptions(pCfg, "arbSetAssignedTimeoutMs", true));

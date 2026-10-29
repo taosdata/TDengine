@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #

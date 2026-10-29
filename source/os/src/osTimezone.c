@@ -916,6 +916,30 @@ const char *taosWindowsNameToIana(const char *winName) {
   return NULL;
 }
 
+const char *taosIanaNameToWindows(const char *ianaName) {
+  if (ianaName == NULL || ianaName[0] == '\0') return NULL;
+  // Two passes over the same Windows<->IANA tables taosWindowsNameToIana()
+  // uses: first accept a canonical Windows spelling as-is (T-SQL AT TIME ZONE
+  // takes it directly, e.g. 'UTC'), then map an IANA name to its Windows
+  // canonical equivalent.
+#ifdef WINDOWS
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz[i][0], ianaName) == 0) return win_tz[i][0];
+  }
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz[i][1], ianaName) == 0) return win_tz[i][0];
+  }
+#else
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz_xplat[i][0], ianaName) == 0) return win_tz_xplat[i][0];
+  }
+  for (int i = 0; i < W_TZ_NUM; i++) {
+    if (strcasecmp(win_tz_xplat[i][1], ianaName) == 0) return win_tz_xplat[i][0];
+  }
+#endif
+  return NULL;
+}
+
 #define TZ_SLOTS 8
 
 typedef struct {
@@ -1091,6 +1115,8 @@ static int32_t parseTimezoneOffset(const char* tzname, int64_t* offset_seconds, 
   return TSDB_CODE_TIME_ERROR;
 }
 
+static bool windowsZoneAbbrev(const char *zoneName, char *out, size_t outLen);
+
 // Windows version of tzalloc: create timezone object
 timezone_t tzalloc(const char* tzname) {
   if (tzname == NULL) {
@@ -1106,6 +1132,7 @@ timezone_t tzalloc(const char* tzname) {
   // Initialize mutex and reference count
   taosThreadMutexInit(&tz_obj->mutex, NULL);
   tz_obj->refCount = 1;
+  tstrncpy(tz_obj->zoneName, tzname, sizeof(tz_obj->zoneName));
 
   // Parse timezone name and calculate offset
   int32_t code = parseTimezoneOffset(tzname, &tz_obj->offset_seconds, tz_obj->name, TD_TIMEZONE_LEN);
@@ -1118,6 +1145,106 @@ timezone_t tzalloc(const char* tzname) {
   uDebug("tzalloc(%s) -> offset=%lld, name=%s", tzname, tz_obj->offset_seconds, tz_obj->name);
 
   return (timezone_t)tz_obj;
+}
+
+// -- Daylight-saving aware wall-clock conversion ----------------------------
+// WindowsTimezoneObj stores one fixed UTC offset, which is only correct
+// outside daylight-saving periods.  The helpers below resolve the zone's
+// dynamic data (the same rules Windows applies to the system clock) and let
+// the local->UTC conversion pick the right offset for the given date.
+
+static volatile LONG gZoneCacheLock = 0;
+static char          gZoneCacheName[TD_TIMEZONE_LEN * 2] = {0};
+static bool          gZoneCacheValid = false;
+static DYNAMIC_TIME_ZONE_INFORMATION gZoneCacheInfo;
+
+static void zoneCacheLock(void) {
+  while (InterlockedCompareExchange(&gZoneCacheLock, 1, 0) != 0) {
+    Sleep(0);
+  }
+}
+
+static void zoneCacheUnlock(void) { InterlockedExchange(&gZoneCacheLock, 0); }
+
+static bool lookupDynamicZone(const char *target, DYNAMIC_TIME_ZONE_INFORMATION *out) {
+  zoneCacheLock();
+  if (gZoneCacheValid && _stricmp(gZoneCacheName, target) == 0) {
+    *out = gZoneCacheInfo;
+    zoneCacheUnlock();
+    return true;
+  }
+  zoneCacheUnlock();
+
+  /* TimeZoneKeyName is a WCHAR array, so the comparison has to be wide. */
+  WCHAR targetW[128] = {0};
+  if (MultiByteToWideChar(CP_ACP, 0, target, -1, targetW,
+                          (int)(sizeof(targetW) / sizeof(targetW[0]))) == 0) {
+    return false;
+  }
+
+  for (DWORD i = 0;; ++i) {
+    DYNAMIC_TIME_ZONE_INFORMATION info;
+    if (EnumDynamicTimeZoneInformation(i, &info) != ERROR_SUCCESS) {
+      break;
+    }
+    if (info.TimeZoneKeyName[0] != L'\0' && _wcsicmp(info.TimeZoneKeyName, targetW) == 0) {
+      *out = info;
+      zoneCacheLock();
+      tstrncpy(gZoneCacheName, target, sizeof(gZoneCacheName));
+      gZoneCacheInfo  = info;
+      gZoneCacheValid = true;
+      zoneCacheUnlock();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool taosWindowsZoneToEpoch(const char *zoneName, int32_t year, int32_t mon, int32_t day,
+                            int32_t hour, int32_t min, int32_t sec, time_t *pEpoch) {
+  if (zoneName == NULL || zoneName[0] == '\0' || pEpoch == NULL) {
+    return false;
+  }
+  /* Accept both IANA ("America/Los_Angeles") and Windows
+   * ("Pacific Standard Time") spellings; the mapping returns the input
+   * unchanged for a Windows name and NULL when it cannot be mapped. */
+  const char *mapped = taosIanaNameToWindows(zoneName);
+  const char *target = (mapped != NULL && mapped[0] != '\0') ? mapped : zoneName;
+
+  DYNAMIC_TIME_ZONE_INFORMATION info;
+  if (!lookupDynamicZone(target, &info)) {
+    return false;
+  }
+
+  SYSTEMTIME localTime;
+  memset(&localTime, 0, sizeof(localTime));
+  localTime.wYear   = (WORD)year;
+  localTime.wMonth  = (WORD)mon;
+  localTime.wDay    = (WORD)day;
+  localTime.wHour   = (WORD)hour;
+  localTime.wMinute = (WORD)min;
+  localTime.wSecond = (WORD)sec;
+
+  SYSTEMTIME utcTime;
+  if (!TzSpecificLocalTimeToSystemTimeEx(&info, &localTime, &utcTime)) {
+    return false;
+  }
+
+  FILETIME ft;
+  if (!SystemTimeToFileTime(&utcTime, &ft)) {
+    return false;
+  }
+  ULARGE_INTEGER fileTime;
+  fileTime.LowPart  = ft.dwLowDateTime;
+  fileTime.HighPart = ft.dwHighDateTime;
+
+  const uint64_t epochFileTime = 116444736000000000ULL; /* 1970-01-01T00:00:00Z */
+  if (fileTime.QuadPart >= epochFileTime) {
+    *pEpoch = (time_t)((fileTime.QuadPart - epochFileTime) / 10000000ULL);
+  } else {
+    *pEpoch = (time_t)(-(int64_t)((epochFileTime - fileTime.QuadPart) / 10000000ULL));
+  }
+  return true;
 }
 
 // Windows version of tzfree: release timezone object
@@ -1322,7 +1449,14 @@ int32_t taosSetGlobalTimezone(const char *tz) {
         if (strcasecmp(tz, "UTC") == 0) {
           snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, +0000)", tz);
         } else {
-          snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", tz, origSign, tzHours, tzMins);
+          /* Use the zone's own abbreviation ("China Standard Time" -> CST) so
+           * the display matches the tz-database spelling used elsewhere. */
+          char abbrev[TD_TIMEZONE_LEN] = {0};
+          if (!windowsZoneAbbrev(tz, abbrev, sizeof(abbrev))) {
+            tstrncpy(abbrev, "UTC", sizeof(abbrev));
+          }
+          snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %c%02d%02d)", tz, abbrev,
+                   origSign, tzHours, tzMins);
         }
       }
       break;
@@ -1428,12 +1562,99 @@ int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code) {
 #endif
 }
 
+#ifdef WINDOWS
+/* Abbreviation for a zone, derived from the Windows dynamic zone name
+ * ("China Standard Time" -> "CST", "UTC" -> "UTC").  The CRT's %Z only knows
+ * the process-wide TZ, so it would print "UTC" for every zone object. */
+/* Initials of an ASCII zone name: "China Standard Time" -> "CST".  Derived
+ * from the zone key itself so no DYNAMIC_TIME_ZONE_INFORMATION field is
+ * trusted here. */
+static bool abbrevFromAsciiName(const char *name, char *out, size_t outLen) {
+  if (name == NULL || name[0] == '\0' || out == NULL || outLen == 0) return false;
+  size_t n = 0;
+  bool   atWordStart = true;
+  for (const char *p = name; *p != '\0' && n + 1 < outLen; ++p) {
+    if (*p == ' ' || *p == '\t' || *p == '-') {
+      atWordStart = true;
+      continue;
+    }
+    if (atWordStart) {
+      out[n++] = (char)toupper((unsigned char)*p);
+      atWordStart = false;
+    }
+  }
+  out[n] = '\0';
+  return n > 0;
+}
+
+static bool windowsZoneAbbrev(const char *zoneName, char *out, size_t outLen) {
+  if (zoneName == NULL || zoneName[0] == '\0') return false;
+  const char *mapped = taosIanaNameToWindows(zoneName);
+  const char *target = (mapped != NULL && mapped[0] != '\0') ? mapped : zoneName;
+  if (_stricmp(target, "UTC") == 0 || _stricmp(target, "Coordinated Universal Time") == 0) {
+    tstrncpy(out, "UTC", outLen);
+    return true;
+  }
+  return abbrevFromAsciiName(target, out, outLen);
+}
+
+/* UTC offset (east-positive seconds) that the zone applies at instant t. */
+static bool windowsZoneOffsetAt(const char *zoneName, time_t t, int32_t *pOffset) {
+  if (zoneName == NULL || zoneName[0] == '\0' || pOffset == NULL) return false;
+  const char *mapped = taosIanaNameToWindows(zoneName);
+  const char *target = (mapped != NULL && mapped[0] != '\0') ? mapped : zoneName;
+  DYNAMIC_TIME_ZONE_INFORMATION info;
+  if (!lookupDynamicZone(target, &info)) return false;
+
+  const uint64_t epochFileTime = 116444736000000000ULL;
+  uint64_t       fileTime = (uint64_t)((int64_t)t * 10000000LL) + epochFileTime;
+  FILETIME       ft;
+  ft.dwLowDateTime  = (DWORD)(fileTime & 0xFFFFFFFFULL);
+  ft.dwHighDateTime = (DWORD)(fileTime >> 32);
+  SYSTEMTIME utc, local;
+  if (!FileTimeToSystemTime(&ft, &utc)) return false;
+  if (!SystemTimeToTzSpecificLocalTimeEx(&info, &utc, &local)) return false;
+  FILETIME localFt;
+  if (!SystemTimeToFileTime(&local, &localFt)) return false;
+  ULARGE_INTEGER lf;
+  lf.LowPart  = localFt.dwLowDateTime;
+  lf.HighPart = localFt.dwHighDateTime;
+  *pOffset = (int32_t)(((int64_t)(lf.QuadPart - epochFileTime)) / 10000000LL - (int64_t)t);
+  return true;
+}
+#endif
+
 int32_t taosFormatTimezoneStr(time_t t, const char *tz, timezone_t sp, char *outTimezoneStr) {
   struct tm tm1;
   if (taosLocalTime(&t, &tm1, NULL, 0, sp) == NULL) {
     uError("%s failed to get local time: code:%d", __FUNCTION__, ERRNO);
     return TSDB_CODE_TIME_ERROR;
   }
+
+#ifdef WINDOWS
+  if (sp != NULL) {
+    WindowsTimezoneObj *obj = (WindowsTimezoneObj *)sp;
+    char                zoneName[TD_TIMEZONE_LEN] = {0};
+    int64_t             fixedOffset = 0;
+    taosThreadMutexLock(&obj->mutex);
+    tstrncpy(zoneName, obj->zoneName, sizeof(zoneName));
+    fixedOffset = obj->offset_seconds;
+    taosThreadMutexUnlock(&obj->mutex);
+
+    char abbrev[TD_TIMEZONE_LEN] = {0};
+    if (zoneName[0] != '\0' && windowsZoneAbbrev(zoneName, abbrev, sizeof(abbrev))) {
+      int32_t offset = (int32_t)(-fixedOffset); /* east-positive by default */
+      (void)windowsZoneOffsetAt(zoneName, t, &offset);
+      int32_t minutes = offset / 60;
+      char    sign    = minutes < 0 ? '-' : '+';
+      int32_t absMin  = minutes < 0 ? -minutes : minutes;
+      (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %c%02d%02d)", tz, abbrev,
+                     sign, absMin / 60, absMin % 60);
+      uDebug("[tz] system timezone:%s", outTimezoneStr);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+#endif
 
   /*
    * format example:
@@ -1545,8 +1766,15 @@ int32_t taosGetSystemTimezone(char *outTimezoneStr) {
           return TAOS_SYSTEM_WINAPI_ERROR(result);
         }
         if (bufferSize > 0) {  // value like (UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi
-          snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%c%c%c%c)", outTimezoneStr, value[4], value[5],
-                   value[6], value[8], value[9]);
+          /* Report the zone's own abbreviation ("China Standard Time" -> CST)
+           * instead of a hard-coded "UTC", so the display matches the
+           * tz-database spelling used on other platforms. */
+          char abbrev[TD_TIMEZONE_LEN] = {0};
+          if (!windowsZoneAbbrev(win_tz[i][0], abbrev, sizeof(abbrev))) {
+            tstrncpy(abbrev, "UTC", sizeof(abbrev));
+          }
+          snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %c%c%c%c%c)", outTimezoneStr, abbrev,
+                   value[4], value[5], value[6], value[8], value[9]);
         }
         break;
       }
@@ -1572,6 +1800,17 @@ int32_t initTimezoneInfo(void) {
   DWORD envLen = GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv));
   if (envLen > 0 && envLen < sizeof(tzEnv) && tzEnv[0] != '\0') {
     uInfo("[tz] Windows timezone already configured via TZ=%s", tzEnv);
+    /* The TZ override must also drive the display/name string, otherwise the
+     * session timezone name keeps the registry zone and disagrees with the
+     * offsets actually applied.  Skip the POSIX-offset spelling this module
+     * itself installs during startup ("UTC-08:00"): refreshing from it would
+     * replace the resolved IANA name (e.g. "Asia/Shanghai") with the offset. */
+    bool offsetForm = (tzEnv[0] == '+' || tzEnv[0] == '-') ||
+                      (strncasecmp(tzEnv, "UTC", 3) == 0 &&
+                       (tzEnv[3] == '+' || tzEnv[3] == '-'));
+    if (!offsetForm) {
+      (void)taosSetGlobalTimezone(tzEnv);
+    }
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1625,7 +1864,22 @@ int32_t initTimezoneInfo(void) {
       const char *src = tsTimezoneStr[0] != '\0' ? tsTimezoneStr : winStr;
       tstrncpy(name, src, sizeof(name));
       truncateTimezoneString(name);
-      snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (UTC, %c%02d%02d)", name,
+      /* Report the zone's own abbreviation ("China Standard Time" -> CST),
+       * matching the tz-database spelling used on other platforms. */
+      char                        abbrev[TD_TIMEZONE_LEN] = {0};
+      DYNAMIC_TIME_ZONE_INFORMATION dtzi = {0};
+      if (GetDynamicTimeZoneInformation(&dtzi) != TIME_ZONE_ID_INVALID &&
+          dtzi.TimeZoneKeyName[0] != L'\0') {
+        char keyName[128] = {0};
+        if (WideCharToMultiByte(CP_ACP, 0, dtzi.TimeZoneKeyName, -1, keyName,
+                                (int)sizeof(keyName), NULL, NULL) > 0) {
+          (void)abbrevFromAsciiName(keyName, abbrev, sizeof(abbrev));
+        }
+      }
+      if (abbrev[0] == '\0') {
+        tstrncpy(abbrev, "UTC", sizeof(abbrev));
+      }
+      snprintf(tsTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %c%02d%02d)", name, abbrev,
                minute_offset <= 0 ? '+' : '-', offset_hours, offset_mins);
     }
   } else {

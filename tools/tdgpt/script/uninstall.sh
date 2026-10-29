@@ -84,14 +84,6 @@ else
   service_mod=2
 fi
 
-kill_service_of() {
-  _service=$1
-  pid=$(ps -ef | grep $_service | grep -v grep | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    "${csudo}"${installDir}/bin/stop.sh:
-  fi
-}
-
 run_python_service_command() {
   local command=$1
   shift || true
@@ -116,7 +108,7 @@ run_python_service_command() {
 force_kill_leftovers() {
   local patterns=(
     "${installDir}/cfg/taosanode.config.py"
-    "${installDir}/lib/taosanalytics/tsfmservice/"
+    "${installDir}/lib/tsfm/service/"
     "${dataDir}/venv/bin/python3 -m gunicorn"
     "${dataDir}/moirai_venv/bin/python3"
     "${dataDir}/momentfm_venv/bin/python3"
@@ -147,11 +139,6 @@ force_kill_leftovers() {
 
 kill_model_service() {
   run_python_service_command model-stop all
-
-  for script in stop-tdtsfm.sh stop-time-moe.sh; do
-    script_path="${installDir}/bin/${script}"
-    [ -f "${script_path}" ] && sudo bash "${script_path}" || :
-  done
 }
 
 clean_service_on_systemd_of() {
@@ -207,9 +194,8 @@ clean_service_of() {
     clean_service_on_systemd_of $_service
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit_of $_service
-  else
-    kill_service_of $_service
   fi
+  # Process mode is stopped once by remove_service before this per-entry cleanup.
 }
 
 remove_service_of() {
@@ -222,19 +208,14 @@ remove_service_of() {
 }
 
 remove_model_service() {
-  declare -A links=(
-    ["start-tdtsfm"]="start-tdtsfm.sh"
-    ["stop-tdtsfm"]="stop-tdtsfm.sh"
-    ["start-time-moe"]="start-time-moe.sh"
-    ["stop-time-moe"]="stop-time-moe.sh"
-  )
-
-  # Iterate over the array and create/remove links as needed
-  for link in "${!links[@]}"; do
-    target="${links[$link]}"
-    [ -L "${bin_link_dir}/${link}" ] && ${csudo}rm -rf "${bin_link_dir}/${link}" || :
+  # Include legacy links so upgrades and uninstall do not leave dangling commands.
+  local link
+  for link in start-model stop-model start-tdtsfm stop-tdtsfm start-time-moe stop-time-moe start-model-from-remote; do
+    if [ -L "${bin_link_dir}/${link}" ]; then
+      ${csudo}rm -f "${bin_link_dir}/${link}" || \
+        echo "Warning: failed to remove ${bin_link_dir}/${link}; continuing uninstall." >&2
+    fi
   done
-  
 }
 
 remove_service() {

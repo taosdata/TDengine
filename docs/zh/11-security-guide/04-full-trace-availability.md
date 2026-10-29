@@ -371,7 +371,7 @@ taosX-Agent 部署在远端边缘，长连接到 taosX。网络抖动或 taosX �
 - 采集缓冲（本地持久队列）保证重连期间数据不丢；
 - 重连成功后，按已确认位点继续上送。
 
-存储转发的配置细则见 [存储转发（Store and Forward）](../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md)。
+存储转发的配置细则见 [存储转发（Store and Forward）](../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md)。
 
 ---
 

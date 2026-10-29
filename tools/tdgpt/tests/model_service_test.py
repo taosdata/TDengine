@@ -1,4 +1,4 @@
-# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
@@ -174,10 +174,10 @@ class TestModelService:
         model_dir = os.path.join(mock_config.tsfm_model_dir, "tdtsfm")
         os.makedirs(model_dir, exist_ok=True)
         service_dir = os.path.join(
-            mock_config.install_dir, "lib", "taosanalytics", "tsfmservice"
+            mock_config.install_dir, "lib", "tsfm", "service"
         )
         os.makedirs(service_dir, exist_ok=True)
-        open(os.path.join(service_dir, "tdtsfm-server.py"), "a", encoding="utf-8").close()
+        open(os.path.join(service_dir, "tdtsfm_server.py"), "a", encoding="utf-8").close()
         mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
         mocker.patch.object(model_service.process_mgr, "wait_for_service", return_value=True)
         mocker.patch.object(model_service.process_mgr, "wait_for_tcp_port", return_value=True)

@@ -1002,6 +1002,99 @@ static int32_t mndCheckStbComment(const char *pComment, int32_t commentLen) {
   return 0;
 }
 
+// A super table carries at most one rollup function and only these functions are supported. The
+// client-side parser enforces the same restriction (checkTableRollupOption in parTranslater.c),
+// but it is not a trust boundary: the mnode adopts numOfFuncs/pFuncs verbatim from the request
+// and persists them into sdb, from where every mnode and every SHOW STABLES reader replays them.
+#define TSDB_MAX_ROLLUP_FUNCS 1
+
+static bool mndIsValidRollupFunc(const char *pFunc) {
+  static const char *rollupFuncs[] = {"avg", "sum", "min", "max", "last", "first"};
+  for (int32_t i = 0; i < (int32_t)(sizeof(rollupFuncs) / sizeof(rollupFuncs[0])); ++i) {
+    if (0 == strcmp(rollupFuncs[i], pFunc)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// [FIX-ITEM-333] Validate that a super-table column/tag byte width is consistent with its data type.
+//
+// The mnode persists client-supplied column/tag widths verbatim. For fixed-width types the canonical
+// storage width is ALWAYS tDataTypes[type].bytes (libtaos always sets SField.bytes to that value, see
+// parTranslater.c calcTypeBytes / columnDefNodeToField). A width that differs from the canonical value
+// is malformed and, once persisted into the schema and shipped to the vnodes, lets the TMQ reader
+// (tqRead.c buildResSDataBlock) and the stream virtual-table tag builder (vnodeStream.c) copy that
+// many bytes out of the 8/16-byte SValue union, over-reading vnode stack/heap.
+//
+// For variable-length types (binary / varbinary / nchar / geometry) the width must be large enough to
+// hold the var-length header and must not exceed the per-type maximum (the same bound the client-side
+// parser enforces in parTranslater.c). 'isColumn' selects the column vs. tag length limit.
+//
+// This is a trust boundary: TDengine's RPC transport does not authenticate the peer, so any 6030 peer
+// can assert an existing user and submit a hand-built CREATE/ALTER STB frame with an inflated width.
+//
+// Returns TSDB_CODE_SUCCESS when the width is acceptable, otherwise a negative TSDB error code.
+static int32_t mndCheckFieldWidth(int32_t type, int32_t bytes, bool isColumn) {
+  if (type <= TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+    return TSDB_CODE_MND_INVALID_STB_OPTION;
+  }
+
+  if (IS_VAR_DATA_TYPE(type)) {
+    // a var column/tag must at least be able to hold an empty payload (header only)
+    if (bytes < VARSTR_HEADER_SIZE) {
+      return TSDB_CODE_MND_INVALID_STB_OPTION;
+    }
+    int32_t maxBytes = 0;
+    switch (type) {
+      case TSDB_DATA_TYPE_NCHAR:
+        maxBytes = isColumn ? TSDB_MAX_NCHAR_LEN : TSDB_MAX_TAGS_LEN;
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
+        maxBytes = isColumn ? TSDB_MAX_BINARY_LEN : TSDB_MAX_TAGS_LEN;
+        break;
+      default:
+        // json/blob and any other var type: fall back to the generic per-row / per-tag limit.
+        maxBytes = isColumn ? TSDB_MAX_BYTES_PER_ROW : TSDB_MAX_TAGS_LEN;
+        break;
+    }
+    if (bytes > maxBytes) {
+      return TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Fixed-width type: the persisted width MUST equal the canonical type width.
+  if (bytes != tDataTypes[type].bytes) {
+    mError("mndCheckFieldWidth: fixed-type %d (canonical bytes=%d) rejects declared bytes=%d", (int)type,
+           (int)tDataTypes[type].bytes, (int)bytes);
+    return TSDB_CODE_MND_INVALID_STB_OPTION;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// [FIX][item-167] Validate that a DECIMAL/DECIMAL64 column's typeMod encodes a legal
+// (precision, scale). precision must be within [TSDB_DECIMAL_MIN_PRECISION, maxPrecisionForType]
+// and scale must satisfy TSDB_DECIMAL_MIN_SCALE <= scale <= precision. Returns true when the
+// typeMod is consistent with colType, false otherwise.
+static bool mndIsValidDecimalTypeMod(int8_t colType, STypeMod typeMod) {
+  if (!IS_DECIMAL_TYPE(colType)) {
+    return false;
+  }
+  uint8_t prec = 0, scale = 0;
+  decimalFromTypeMod(typeMod, &prec, &scale);
+  uint8_t maxPrec = (colType == TSDB_DATA_TYPE_DECIMAL64) ? TSDB_DECIMAL64_MAX_PRECISION : TSDB_DECIMAL_MAX_PRECISION;
+  if (prec < TSDB_DECIMAL_MIN_PRECISION || prec > maxPrec) {
+    return false;
+  }
+  if (scale < TSDB_DECIMAL_MIN_SCALE || scale > prec) {
+    return false;
+  }
+  return true;
+}
+
 int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   int32_t code = 0;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
@@ -1045,8 +1138,28 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
     }
+    bool hasTypeMod = ((pField1->flags & COL_HAS_TYPE_MOD) != 0);
+    // [FIX][item-167] A DECIMAL/DECIMAL64 column MUST carry COL_HAS_TYPE_MOD together with a
+    // valid typeMod (precision/scale). Otherwise mndBuildStbFromReq leaves pExtSchemas == NULL
+    // while the column stays decimal, and mndRetrieveStbCol dereferences NULL on every
+    // information_schema.ins_columns retrieve, crashing the mnode.
+    // NOTE: We intentionally do NOT reject COL_HAS_TYPE_MOD on non-decimal columns here. That is a
+    // stricter invariant (recommended by the original finding) but is not required to fix the
+    // NULL-deref crash, and rejecting it breaks existing test cases. Non-decimal columns never
+    // read pExtSchemas in mndRetrieveStbCol, so leaving the flag on them is harmless.
+    if (IS_DECIMAL_TYPE(pField1->type)) {
+      if (!hasTypeMod || !mndIsValidDecimalTypeMod(pField1->type, pField1->typeMod)) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
+    }
     if (pField1->bytes <= 0) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
+      TAOS_RETURN(code);
+    }
+    // [FIX-ITEM-333] reject a fixed-width column whose bytes != tDataTypes[type].bytes, and bound
+    // var-length columns to their per-type maximum before the width is persisted and shipped to vnodes.
+    if ((code = mndCheckFieldWidth(pField1->type, pField1->bytes, true)) != TSDB_CODE_SUCCESS) {
       TAOS_RETURN(code);
     }
     if (pField1->name[0] == 0) {
@@ -1065,7 +1178,60 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
     }
+    // [FIX-ITEM-333] same per-field width validation as for columns, but using the tag length limit.
+    if ((code = mndCheckFieldWidth(pField1->type, pField1->bytes, false)) != TSDB_CODE_SUCCESS) {
+      TAOS_RETURN(code);
+    }
     if (pField1->name[0] == 0) {
+      code = TSDB_CODE_MND_INVALID_STB_OPTION;
+      TAOS_RETURN(code);
+    }
+  }
+
+  // [FIX-ITEM-333] Enforce the total row / tag length budgets. CREATE STB previously had no such check
+  // (the ALTER path enforces it via mndValidateSchema); an individually-valid column/tag sum can still
+  // exceed TSDB_MAX_BYTES_PER_ROW / TSDB_MAX_TAGS_LEN, which the vnode would then try to materialise.
+  {
+    int32_t rowLen = 0;
+    for (int32_t i = 0; i < pCreate->numOfColumns; ++i) {
+      SFieldWithOptions *pField = taosArrayGet(pCreate->pColumns, i);
+      rowLen += pField->bytes;
+    }
+    int32_t maxBytesPerRow = pCreate->virtualStb ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW;
+    if (rowLen > maxBytesPerRow) {
+      mError("stb:%s, create row length %d exceeds limit %d", pCreate->name, rowLen, maxBytesPerRow);
+      code = TSDB_CODE_PAR_INVALID_ROW_LENGTH;
+      TAOS_RETURN(code);
+    }
+
+    int32_t tagLen = 0;
+    for (int32_t i = 0; i < pCreate->numOfTags; ++i) {
+      SField *pField = taosArrayGet(pCreate->pTags, i);
+      tagLen += pField->bytes;
+    }
+    if (tagLen > TSDB_MAX_TAGS_LEN) {
+      mError("stb:%s, create tag length %d exceeds limit %d", pCreate->name, tagLen, TSDB_MAX_TAGS_LEN);
+      code = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+      TAOS_RETURN(code);
+    }
+  }
+
+  // Rollup function list. numOfFuncs / pFuncs are decoded straight off the wire and stored in sdb
+  // as they are, so reject a count or a name outside the supported set before the object is
+  // persisted and replicated. pFuncs is NULL for requests built inside the mnode itself
+  // (mndStreamCreateOutStb), which carries no rollup function at all.
+  int32_t numOfFuncs = (pCreate->pFuncs == NULL) ? 0 : (int32_t)taosArrayGetSize(pCreate->pFuncs);
+  if (pCreate->numOfFuncs < 0 || pCreate->numOfFuncs > TSDB_MAX_ROLLUP_FUNCS || pCreate->numOfFuncs != numOfFuncs) {
+    mError("stb:%s, check: invalid numOfFuncs:%d, actual num of funcs:%d", pCreate->name, pCreate->numOfFuncs,
+           numOfFuncs);
+    code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
+  for (int32_t i = 0; i < numOfFuncs; ++i) {
+    char *pFunc = taosArrayGet(pCreate->pFuncs, i);
+    if (pFunc == NULL || !mndIsValidRollupFunc(pFunc)) {
+      mError("stb:%s, check: invalid rollup func:%s", pCreate->name, (pFunc == NULL) ? "" : pFunc);
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
     }
@@ -2638,28 +2804,49 @@ _OVER:
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   int32_t code = 0;
+
+  // The comment is always bounded here: mndUpdateTableOptions stores it verbatim into the SStbObj
+  // for TSDB_ALTER_TABLE_UPDATE_OPTIONS and nothing downstream re-checks it, so validate it whenever
+  // a comment is supplied. commentLen >= 0 is the on-wire default and is attacker-controlled, so we
+  // must NOT early-return on it: doing so would skip the pFields validation below for every field
+  // alter type and let a malformed request reach the handlers (NULL-deref crash, mnode item 169).
   if (pAlter->commentLen >= 0) {
-    // TSDB_ALTER_TABLE_UPDATE_OPTIONS: mndUpdateTableOptions stores this comment verbatim into the
-    // SStbObj, so it has to be bounded here (nothing downstream checks it again).
     if ((code = mndCheckStbComment(pAlter->comment, pAlter->commentLen)) != 0) {
       TAOS_RETURN(code);
     }
-    return 0;
   }
-  if (pAlter->ttl != 0) return 0;
-  if (pAlter->keep != -1) return 0;
-  if (pAlter->secureDelete >= 0) return 0;
 
-  // BASE ON alter types don't use pFields
-  if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON || pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
-    if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
-      code = TSDB_CODE_MND_INVALID_STB_OPTION;
-      TAOS_RETURN(code);
+  // These alter types never carry a pFields array:
+  //   - TSDB_ALTER_TABLE_UPDATE_OPTIONS carries only option fields (comment/ttl/keep/secureDelete/
+  //     securityLevel), which are validated above / by mndUpdateTableOptions;
+  //   - ADD/DROP_BASE_ON carry numParents instead.
+  // For them no field-array validation is required.
+  if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_OPTIONS ||
+      pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+      pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+    if (pAlter->alterType == TSDB_ALTER_TABLE_ADD_BASE_ON ||
+        pAlter->alterType == TSDB_ALTER_TABLE_DROP_BASE_ON) {
+      if (pAlter->numParents < 1 || pAlter->numParents > TSDB_MAX_VST_PARENTS) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
     }
-    return 0;
+    TAOS_RETURN(0);
   }
 
-  if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
+  // Every remaining (field-operating) alter type must provide a consistent, non-empty pFields array
+  // so the per-alterType handlers in mndApplyAlterStbAction never dereference a NULL field pointer
+  // and crash the mnode write thread (mnode item 169, CWE-476). Enforce this BEFORE any element is
+  // touched: taosArrayGet returns NULL for out-of-range indices, and the handlers index pFields by
+  // position without their own NULL checks.
+  // Tag/column RENAME needs exactly two fields (old name, new name); all other field alters need >= 1.
+  int32_t minFields = 1;
+  if (pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_NAME ||
+      pAlter->alterType == TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME) {
+    minFields = 2;
+  }
+  if (pAlter->numOfFields < minFields ||
+      pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
     TAOS_RETURN(code);
   }
@@ -2768,6 +2955,11 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   for (int32_t i = 0; i < ntags; i++) {
     SField *pField = taosArrayGet(pFields, i);
+    // [FIX-ITEM-333] reject a fixed-width tag whose bytes != tDataTypes[type].bytes, and bound
+    // var-length tags to their per-type maximum before the width reaches the vnodes.
+    if ((code = mndCheckFieldWidth(pField->type, pField->bytes, false)) != TSDB_CODE_SUCCESS) {
+      TAOS_RETURN(code);
+    }
     if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
       code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       TAOS_RETURN(code);
@@ -2817,6 +3009,12 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
     }
 
     SNode *pAst = NULL;
+    // @fix(review): pNodeList is declared and initialised to NULL here, BEFORE the goto NEXT
+    // below, so that every path reaching the NEXT label (including the early skip for a
+    // non-SELECT AST) sees a valid NULL pNodeList. Declaring it after the goto would leave it
+    // uninitialised when NEXT calls nodesDestroyList(pNodeList), causing a use-of-uninitialised
+    // pointer crash -- the very failure this fix set out to prevent.
+    SNodeList *pNodeList = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {
       code = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
@@ -2825,7 +3023,15 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
       TAOS_RETURN(code);
     }
 
-    SNodeList *pNodeList = NULL;
+    // @fix(item164): only inspect the AST as a SELECT statement when it actually is one.
+    // A non-SELECT root node passed to nodesCollectColumns((SSelectStmt *)) reads SSelectStmt
+    // offsets from foreign memory and crashes the mnode on every ALTER STB DROP/RENAME COLUMN.
+    // Skip the conflict check for such (legacy/corrupt) ASTs instead of crashing.
+    if (nodeType(pAst) != QUERY_NODE_SELECT_STMT) {
+      mInfo("tsma:%s, persisted AST is not a SELECT statement, skip column conflict check", pSma->name);
+      goto NEXT;
+    }
+
     if ((code = nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList)) !=
         0) {
       sdbCancelFetch(pSdb, pIter);
@@ -3129,6 +3335,12 @@ static int32_t mndAlterStbTagBytes(SMnode *pMnode, const SStbObj *pOld, SStbObj 
     TAOS_RETURN(code);
   }
 
+  // [FIX-ITEM-333] bound the widened tag width to its per-type maximum (the client-side parser
+  // enforces this; the mnode must not trust a width beyond TSDB_MAX_TAGS_LEN either).
+  if ((code = mndCheckFieldWidth(pTag->type, pField->bytes, false)) != TSDB_CODE_SUCCESS) {
+    TAOS_RETURN(code);
+  }
+
   if (pField->bytes <= pTag->bytes) {
     code = TSDB_CODE_MND_INVALID_ROW_BYTES;
     TAOS_RETURN(code);
@@ -3221,6 +3433,11 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
   for (int32_t i = 0; i < ncols; i++) {
     if (withCompress) {
       SFieldWithOptions *pField = taosArrayGet(pReq->pFields, i);
+      // [FIX-ITEM-333] reject a fixed-width column whose bytes != tDataTypes[type].bytes, and bound
+      // var-length columns to their per-type maximum before the width reaches the vnodes.
+      if ((code = mndCheckFieldWidth(pField->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
       if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
         code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
         TAOS_RETURN(code);
@@ -3255,6 +3472,10 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     } else {
       SField *pField = taosArrayGet(pReq->pFields, i);
+      // [FIX-ITEM-333] same per-field width validation as the withCompress branch.
+      if ((code = mndCheckFieldWidth(pField->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
+        TAOS_RETURN(code);
+      }
       if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
         code = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
         TAOS_RETURN(code);
@@ -3284,6 +3505,22 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     }
   }
+
+  // [FIX][item-167] For every newly added DECIMAL/DECIMAL64 column, a valid typeMod must be
+  // present in pReq->pTypeMods at the same index. Without it, mndAddSuperTableColumn would leave
+  // pNew->pExtSchemas NULL for that column (or read it out of bounds), and mndRetrieveStbCol would
+  // then dereference NULL on information_schema.ins_columns, crashing the mnode.
+  int32_t nTypeMods = (pReq->pTypeMods != NULL) ? (int32_t)taosArrayGetSize(pReq->pTypeMods) : 0;
+  for (int32_t i = 0; i < ncols; ++i) {
+    SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
+    if (IS_DECIMAL_TYPE(pSchema->type)) {
+      if (i >= nTypeMods || !mndIsValidDecimalTypeMod(pSchema->type, *(STypeMod *)taosArrayGet(pReq->pTypeMods, i))) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
+    }
+  }
+
   // 1. old schema already has extschemas
   // 2. new schema has extschemas
   if (pReq->pTypeMods || pOld->pExtSchemas) {
@@ -3373,6 +3610,12 @@ static int32_t mndAlterStbColumnBytes(SMnode *pMnode, const SStbObj *pOld, SStbO
   if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_VARBINARY ||
         pCol->type == TSDB_DATA_TYPE_NCHAR || pCol->type == TSDB_DATA_TYPE_GEOMETRY)) {
     code = TSDB_CODE_MND_INVALID_STB_OPTION;
+    TAOS_RETURN(code);
+  }
+
+  // [FIX-ITEM-333] bound the widened column width to its per-type maximum (the client-side parser
+  // enforces this; the mnode must not trust a width beyond TSDB_MAX_BINARY_LEN / TSDB_MAX_NCHAR_LEN).
+  if ((code = mndCheckFieldWidth(pCol->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
     TAOS_RETURN(code);
   }
 
@@ -6163,7 +6406,11 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
       char    stbFName[TSDB_TABLE_FNAME_LEN] = {0};
       snprintf(stbFName, sizeof(stbFName), "%s.%s", infoReq.dbFName, infoReq.tbName);
       int32_t txnCode = mndTxnGetAlterOpsForStb(pMnode, (txn_id_t)infoReq.txnId, stbFName, &pAlterOps);
-      if (txnCode == 0 && pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
+      if (txnCode != 0) {
+        code = txnCode;
+        goto _OVER;
+      }
+      if (pAlterOps != NULL && taosArrayGetSize(pAlterOps) > 0) {
         SDbObj  *pDb = mndAcquireDb(pMnode, infoReq.dbFName);
         SStbObj *pStb = mndAcquireStb(pMnode, stbFName);
         if (pDb != NULL && pStb != NULL) {
@@ -6595,21 +6842,34 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)maxDelay, false), pStb, &lino, _ERROR);
 
+    // Build the comma-separated list of rollup function names. The list is stored in sdb and was
+    // historically accepted from the wire unvalidated, so it may hold more/longer names than the
+    // column can display. Track the bytes actually written instead of a remaining-length counter:
+    // the old counter was decremented by strlen(funcName) even when strncat copied fewer bytes,
+    // so once the buffer filled up it went negative and, converted to the size_t bound of strncat,
+    // turned every following append into an unbounded write past the end of this stack buffer.
     char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
-    char   *sep = ", ";
-    int32_t sepLen = strlen(sep);
-    int32_t rollupLen = sizeof(rollup) - VARSTR_HEADER_SIZE - 2;
+    char   *rollupVal = varDataVal(rollup);
+    // One byte of the content area is reserved for the terminating '\0'.
+    int32_t rollupCap = (int32_t)sizeof(rollup) - VARSTR_HEADER_SIZE - 1;
+    int32_t rollupLen = 0;
     for (int32_t i = 0; i < rollupNum; ++i) {
       char *funcName = taosArrayGet(pStb->pFuncs, i);
-      if (i) {
-        (void)strncat(varDataVal(rollup), sep, rollupLen);
-        rollupLen -= sepLen;
+      // Bound the scan to the element size so a name that lost its terminator cannot overrun.
+      int32_t nameLen = (int32_t)strnlen(funcName, TSDB_FUNC_NAME_LEN - 1);
+      int32_t sepLen = (i == 0) ? 0 : 2;  // ", " precedes every name but the first
+      // Stop at the first name that no longer fits; never write a partial one.
+      if (rollupLen + sepLen + nameLen > rollupCap) break;
+      if (sepLen > 0) {
+        memcpy(rollupVal + rollupLen, ", ", sepLen);
+        rollupLen += sepLen;
       }
-      (void)strncat(varDataVal(rollup), funcName, rollupLen);
-      rollupLen -= strlen(funcName);
+      memcpy(rollupVal + rollupLen, funcName, nameLen);
+      rollupLen += nameLen;
     }
-    varDataSetLen(rollup, strlen(varDataVal(rollup)));
+    rollupVal[rollupLen] = '\0';
+    varDataSetLen(rollup, rollupLen);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (const char *)rollup, false), pStb, &lino, _ERROR);
@@ -6895,11 +7155,16 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
               snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
                        "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
         } else if (IS_DECIMAL_TYPE(colType)) {
-          STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
-          uint8_t prec = 0, scale = 0;
-          decimalFromTypeMod(typeMod, &prec, &scale);
-          colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
-                                 sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
+          // [FIX][item-167] pExtSchemas can be NULL for a decimal column when an inconsistent
+          // schema was persisted by an older/buggy build. Do not dereference it; render the type
+          // name without precision so the retrieve succeeds instead of crashing the mnode.
+          if (pStb->pExtSchemas != NULL) {
+            STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
+            uint8_t prec = 0, scale = 0;
+            decimalFromTypeMod(typeMod, &prec, &scale);
+            colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
+                                   sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
+          }
         }
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);

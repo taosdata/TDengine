@@ -406,6 +406,13 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
+      // Validate the raw-supplied length before allocating (security finding item 267):
+      // it must be non-negative and must not exceed the bytes still available in the raw,
+      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
+      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
@@ -421,6 +428,10 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
+      if (action.contLen < 0 || action.contLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
@@ -470,6 +481,13 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
+      // Validate the raw-supplied length before allocating (security finding item 267):
+      // it must be non-negative and must not exceed the bytes still available in the raw,
+      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
+      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
@@ -483,6 +501,10 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
+      if (action.contLen < 0 || action.contLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+        goto _OVER;
+      }
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
@@ -592,7 +614,15 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTrans->stopFunc, _OVER)
   if (mndTransIsStreamStopCallback(pTrans->stopFunc)) pTrans->stopCbState = TRANS_STOP_CB_PENDING;
   SDB_GET_INT32(pRaw, dataPos, &pTrans->paramLen, _OVER)
-  if (pTrans->paramLen != 0) {
+  // Fail-closed: an illegal paramLen (negative, or larger than the bytes still available in the
+  // raw) must abort the whole trans decode, NOT be silently skipped. Otherwise the object is left
+  // in an inconsistent (param == NULL, paramLen == illegal) state that the trans commit/delete
+  // callbacks later dereference (e.g. mndTransTestStartFunc formats param with %s) -> null deref.
+  if (pTrans->paramLen < 0 || pTrans->paramLen > pRaw->dataLen - dataPos) {
+    terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+    goto _OVER;
+  }
+  if (pTrans->paramLen > 0) {
     pTrans->param = taosMemoryMalloc(pTrans->paramLen);
     if (pTrans->param == NULL) goto _OVER;
     SDB_GET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER);
@@ -635,6 +665,12 @@ SSdbRow *mndTransDecode(SSdbRaw *pRaw) {
 
   if (sver >= TRANS_VER_USER_DATA) {
     SDB_GET_INT32(pRaw, dataPos, &pTrans->userDataLen, _OVER)
+    // Same fail-closed rule as paramLen: reject the whole trans on a malformed length instead of
+    // leaving an inconsistent (userData == NULL, userDataLen == illegal) object for callbacks.
+    if (pTrans->userDataLen < 0 || pTrans->userDataLen > pRaw->dataLen - dataPos) {
+      terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+      goto _OVER;
+    }
     if (pTrans->userDataLen > 0) {
       pTrans->userData = taosMemoryMalloc(pTrans->userDataLen);
       if (pTrans->userData == NULL) goto _OVER;
@@ -893,10 +929,25 @@ static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {
   return 0;
 }
 
+// [Security fix for finding item 268] The new array is decoded from an untrusted raw (a
+// replicated trans), so it is not guaranteed to be at least as long as the stored one: the
+// old code walked the OLD array and dereferenced taosArrayGet(pNewArray, i) unchecked,
+// which is a NULL dereference for any replicated trans carrying fewer actions than the
+// trans already in sdb. Walk only the common prefix instead; a size mismatch is not
+// expected in the legitimate flow (both arrays are encoded from the same trans), so log it.
 static void mndTransUpdateActions(SArray *pOldArray, SArray *pNewArray) {
-  for (int32_t i = 0; i < taosArrayGetSize(pOldArray); ++i) {
+  int32_t oldNum = (int32_t)taosArrayGetSize(pOldArray);
+  int32_t newNum = (int32_t)taosArrayGetSize(pNewArray);
+
+  if (oldNum != newNum) {
+    mWarn("trans action array size mismatch while updating, old:%d new:%d, only the first %d actions are updated",
+          oldNum, newNum, TMIN(oldNum, newNum));
+  }
+
+  for (int32_t i = 0; i < TMIN(oldNum, newNum); ++i) {
     STransAction *pOldAction = taosArrayGet(pOldArray, i);
     STransAction *pNewAction = taosArrayGet(pNewArray, i);
+    if (pOldAction == NULL || pNewAction == NULL) break;
     pOldAction->rawWritten = pNewAction->rawWritten;
     pOldAction->msgSent = pNewAction->msgSent;
     pOldAction->msgReceived = pNewAction->msgReceived;
@@ -1281,7 +1332,7 @@ void mndTransSetChangeless(STrans *pTrans) { pTrans->changeless = true; }
 
 void mndTransSetOper(STrans *pTrans, EOperType oper) { pTrans->oper = oper; }
 
-static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
+static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans, bool *pSyncStarted) {
   int32_t  code = 0;
   SSdbRaw *pRaw = mndTransEncode(pTrans);
   if (pRaw == NULL) {
@@ -1294,6 +1345,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
 
   mInfo("trans:%d, sync to other mnodes, stage:%s createTime:%" PRId64, pTrans->id, mndTransStr(pTrans->stage),
         pTrans->createdTime);
+  if (pSyncStarted != NULL) *pSyncStarted = true;
   code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync, errno:%s code:0x%x createTime:%" PRId64 " saved trans:%d", pTrans->id,
@@ -1550,8 +1602,11 @@ static int32_t mndTransCheckCommitActions(SMnode *pMnode, STrans *pTrans) {
   TAOS_RETURN(code);
 }
 
-int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) { return mndTransPrepareWithSyncStatus(pMnode, pTrans, NULL); }
+
+int32_t mndTransPrepareWithSyncStatus(SMnode *pMnode, STrans *pTrans, bool *pSyncStarted) {
   int32_t code = 0;
+  if (pSyncStarted != NULL) *pSyncStarted = false;
   if (pTrans == NULL) {
     TAOS_CHECK_RETURN(TSDB_CODE_INVALID_PARA);
   }
@@ -1600,7 +1655,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   TAOS_CHECK_RETURN(mndTransCheckCommitActions(pMnode, pTrans));
 
   mInfo("trans:%d, prepare transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, pSyncStarted)) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, tstrerror(code));
     sdbWriteLock(pMnode->pSdb, SDB_TRANS);
     tsMaxTransId = TMAX(pTrans->id, tsMaxTransId);
@@ -1635,7 +1690,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   mInfo("trans:%d, commit transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, NULL)) != 0) {
     mError("trans:%d, failed to commit since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1646,7 +1701,7 @@ static int32_t mndTransCommit(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   mInfo("trans:%d, rollback transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, NULL)) != 0) {
     mError("trans:%d, failed to rollback since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -1657,7 +1712,7 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 static int32_t mndTransPreFinish(SMnode *pMnode, STrans *pTrans) {
   int32_t code = 0;
   mInfo("trans:%d, pre-finish transaction", pTrans->id);
-  if ((code = mndTransSync(pMnode, pTrans)) != 0) {
+  if ((code = mndTransSync(pMnode, pTrans, NULL)) != 0) {
     mError("trans:%d, failed to pre-finish since %s", pTrans->id, tstrerror(code));
     TAOS_RETURN(code);
   }
@@ -2233,7 +2288,7 @@ static int32_t mndTransExecuteActionsSerial(SMnode *pMnode, STrans *pTrans, SArr
       mInfo("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
             pAction->id);
       (void)taosThreadMutexUnlock(&pTrans->mutex);
-      code = mndTransSync(pMnode, pTrans);
+      code = mndTransSync(pMnode, pTrans, NULL);
       (void)taosThreadMutexLock(&pTrans->mutex);
       if (code != 0) {
         pTrans->actionPos--;
@@ -2377,7 +2432,7 @@ static int32_t mndTransExecuteActionsSerialGroup(SMnode *pMnode, STrans *pTrans,
       mInfo("trans:%d, %s:%d is finished and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
             pAction->id);
       (void)taosThreadMutexUnlock(&pTrans->mutex);
-      code = mndTransSync(pMnode, pTrans);
+      code = mndTransSync(pMnode, pTrans, NULL);
       (void)taosThreadMutexLock(&pTrans->mutex);
       mInfo("trans:%d, try to reset all action msgSent except:%d", pTrans->id, pAction->id);
       for (int32_t i = 0; i < taosArrayGetSize(pTrans->redoActions); ++i) {

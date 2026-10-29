@@ -391,7 +391,13 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_ASSIGNED_LEADER_RSP, mmPutMsgToArbQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT_ELECTION, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT_ELECTION is intentionally NOT registered here.
+  // Sync election-timeout messages are produced only by this mnode's own local
+  // timer (syncNodeEqElectTimer -> syncBuildTimeout -> mndSyncEqMsg) and must
+  // never arrive over the network. Registering it as a network-dispatched type
+  // allowed an unauthenticated peer to force a re-election (see finding 265).
+  // The local enqueue path does not use this dispatch table, so removing the
+  // registration does not affect legitimate timer processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_REPLY, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
@@ -405,7 +411,14 @@ SArray *mmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_FORCE_FOLLOWER_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT is intentionally NOT registered here. Ping/role
+  // timer messages are produced only by this mnode's own local timer
+  // (syncNodeEqPingTimer -> syncBuildTimeout -> mndSyncEqMsg) and must never
+  // arrive over the network. Registering it as a network-dispatched type allowed
+  // an unauthenticated peer to trigger syncNodeTimerRoutine at an attacker-chosen
+  // rate (see finding 265). The local enqueue path does not use this dispatch
+  // table, so removing the registration does not affect legitimate timer
+  // processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;

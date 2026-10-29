@@ -21,7 +21,6 @@
 #include "qworker.h"
 #include "tanalytics.h"
 #include "tversion.h"
-#define IS_STREAM_TRIGGER_RSP_MSG(_msg) (TDMT_STREAM_TRIGGER_CALC_RSP == (_msg) || TDMT_STREAM_TRIGGER_PULL_RSP == (_msg) || TDMT_STREAM_TRIGGER_DROP_RSP == (_msg))
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   if (rpcSendResponse(pMsg) != 0) {
@@ -71,6 +70,13 @@ static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
 
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   const STraceId *trace = &pMsg->info.traceId;
+
+  // msgType comes from the wire and is used as an index into msgFps[TDMT_MAX]; an undefined
+  // segment code or an out-of-range sequence byte would read past the table.
+  if (!tmsgIsValid(pMsg->msgType)) {
+    dGError("msg:%p, not processed since msg type:%u is invalid", pMsg, pMsg->msgType);
+    return TSDB_CODE_INVALID_MSG;
+  }
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
@@ -167,9 +173,23 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t       code = -1;
   SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
-  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  SDnodeHandle *pHandle = NULL;
 
   const STraceId *trace = &pRpc->info.traceId;
+
+  // The peer fully controls msgType, and TMSG_INDEX() expands to
+  // tMsgDict[(type & 0xff00) >> 8] + (type & 0xff). An undefined segment code reads past
+  // tMsgDict, and the garbage index is then used to read SDnodeHandle and msgFps. Refuse the
+  // frame before any of those tables is touched. The type is not trustworthy enough to answer
+  // with msgType + 1 either, so just drop it.
+  if (!tmsgIsValid(pRpc->msgType)) {
+    dGError("msg:%p, is discarded since msg type:%u is invalid, ip:%s", pRpc, pRpc->msgType,
+            IP_ADDR_STR(&pRpc->info.conn.cliAddr));
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+    return;
+  }
+  pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   dGDebug("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64 " %" PRIx64 ":%" PRIx64, TMSG_INFO(pRpc->msgType),
           pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
@@ -283,7 +303,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
   if (pHandle->needCheckVgId) {
-    if (pRpc->contLen > 0) {
+    if (pRpc->contLen >= (int32_t)sizeof(SMsgHead)) {
       const SMsgHead *pHead = pRpc->pCont;
       const int32_t   vgId = ntohl(pHead->vgId);
       switch (vgId) {
@@ -300,7 +320,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
           break;
       }
     } else {
-      dGError("msg:%p, type:%s contLen is 0", pRpc, TMSG_INFO(pRpc->msgType));
+      dGError("msg:%p, type:%s invalid header length:%d", pRpc, TMSG_INFO(pRpc->msgType), pRpc->contLen);
       code = TSDB_CODE_INVALID_MSG_LEN;
       goto _OVER;
     }
@@ -353,9 +373,18 @@ _OVER:
           dError("failed to send response, msg:%p", &rsp);
         }
       }
-    } else if (NULL == pMsg && IS_STREAM_TRIGGER_RSP_MSG(pRpc->msgType)) {
+    } else if (pRpc->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pRpc->msgType)) {
+      /*
+       * The response never reached the snode trigger worker (queue item
+       * allocation, dispatch or enqueue failed), so nothing else will release
+       * the send handle allocated by the trigger task.  A successful dispatch
+       * transfers ownership to the worker, which releases it exactly once.
+       */
+      dDebug("msg:%p, type:%s ahandle %p freed since dispatch failed, code:%s, trace:0x%" PRIx64 ":0x%" PRIx64,
+             pMsg, TMSG_INFO(pRpc->msgType), pRpc->info.ahandle, tstrerror(code), TRACE_GET_ROOTID(trace),
+             TRACE_GET_MSGID(trace));
       destroyAhandle(pRpc->info.ahandle);
-      dDebug("msg:%s ahandle freed", TMSG_INFO(pRpc->msgType));
+      pRpc->info.ahandle = NULL;
     }
 
     if (pMsg != NULL) {
@@ -471,7 +500,19 @@ static void dmProcessClientRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet)
 }
 
 static void dmProcessServerRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  if (pRpc->msgType == TDMT_MND_STREAM_HEARTBEAT_RSP) {
+  // dmProcessRpcMsg is shared by the inbound server listener and by the dnode's own client
+  // transports, and SRpcMsg carries no indication of which side a frame arrived on. Only
+  // request types can legitimately arrive here: a response to a request this dnode sent comes
+  // back on the client transport that sent it. Without this gate any peer able to reach the
+  // listener could forge mnode replies - TDMT_MND_RETRIEVE_IP_WHITELIST_DUAL_RSP,
+  // TDMT_MND_RETRIEVE_DATETIME_WHITELIST_RSP, TDMT_MND_RETRIEVE_ANAL_ALGO_RSP,
+  // TDMT_MND_STREAM_HEARTBEAT_RSP - and have them applied as trusted configuration.
+  // Note every explicitly named type in tmsgdef.h is odd (TD_DEF_MSG_TYPE emits TYPE and
+  // TYPE##_RSP in pairs after TYPE##_MIN = seg << 8), so sync messages such as
+  // TDMT_SYNC_HEARTBEAT_REPLY and TDMT_SYNC_SNAPSHOT_RSP are requests and still pass.
+  if (!tmsgIsValid(pRpc->msgType) || !IsReq(pRpc)) {
+    dError("msg:%p, type:%u is discarded since a response frame cannot be a server request, ip:%s", pRpc,
+           pRpc->msgType, IP_ADDR_STR(&pRpc->info.conn.cliAddr));
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
     return;

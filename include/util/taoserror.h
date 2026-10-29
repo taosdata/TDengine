@@ -43,7 +43,9 @@ extern STaosError errors[];
 #define TAOS_FAILED(err)                    ((err) < 0)
 
 const char* tstrerror(int32_t err);
-const char* terrstr();
+// terrstr() takes no argument (it renders the global terrno); the (void) prototype
+// makes argument-passing misuses a compile error instead of a silent no-op
+const char* terrstr(void);
 
 #define  ERR_MSG_LEN                        256
 
@@ -1396,6 +1398,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO    TAOS_DEF_ERROR_CODE(0, 0x411D)
 #define TSDB_CODE_STREAM_EXT_HISTORY_NOT_SUPPORTED   TAOS_DEF_ERROR_CODE(0, 0x411E)
 #define TSDB_CODE_STREAM_EXT_TAG_INVALID             TAOS_DEF_ERROR_CODE(0, 0x411F)
+#define TSDB_CODE_STREAM_EXT_TS_PRECISION_NOT_SUPPORTED TAOS_DEF_ERROR_CODE(0, 0x4120)
 
 // TDLite
 #define TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS         TAOS_DEF_ERROR_CODE(0, 0x5100)
@@ -1534,6 +1537,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_STREAM_VTB_TAG_CHANGED         TAOS_DEF_ERROR_CODE(0, 0x701D)
 #define TSDB_CODE_MND_STREAM_INVALID_TIME_CONFIG TAOS_DEF_ERROR_CODE(0, 0x701E)
 #define TSDB_CODE_STREAM_TIMEZONE_LOAD_FAILED    TAOS_DEF_ERROR_CODE(0, 0x701F)
+#define TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT TAOS_DEF_ERROR_CODE(0, 0x7020)
 
 // xnode
 #define TSDB_CODE_MND_XNODE_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x8000)

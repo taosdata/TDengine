@@ -117,6 +117,9 @@ int32_t vnodeSetSyncTimeout(SVnode *pVnode, int32_t ms);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeGetLoadLite(SVnode *pVnode, SVnodeLoadLite *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
+// true when the vnode's [hashBegin, hashEnd] owns tbName under the same hash the
+// table-placement router uses; false lets callers skip the meta name-index lookup
+bool vnodeTbNameInHashRange(void *pVnode, const char *tbName);
 
 int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
@@ -339,7 +342,7 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 bool    taosXGetTablePrimaryKey(SSnapContext *ctx);
 void    taosXSetTablePrimaryKey(SSnapContext *ctx, int64_t uid);
 int32_t buildSnapContext(SVnode *pVnode, int64_t snapVersion, int64_t suid, int8_t subType, int8_t withMeta,
-                         SSnapContext **ctxRet);
+                         const SArray *pTbUidList, SSnapContext **ctxRet);
 int32_t getTableInfoFromSnapshot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
 int32_t getMetaTableInfoFromSnapshot(SSnapContext *ctx, SMetaTableInfo *info);
 int32_t setForSnapShot(SSnapContext *ctx, int64_t uid);

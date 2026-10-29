@@ -692,6 +692,15 @@ class TestStreamVtableChainRef:
         tdSql.execute(
             f"create vtable {db}.vt2 (ts timestamp, v int from {db}.ct2.v)"
         )
+        tdLog.debug("TC10: drive the new terminal and wait for patched output")
+        tdSql.execute(
+            f"insert into {db}.ct2 values ({ts + 2000}, 300) ({ts + 3000}, 400)"
+        )
+        self._checkRows(
+            "TC10-patched",
+            f"select cast(ts as bigint), v from {db}.res order by ts",
+            [(ts, 100), (ts + 1000, 200), (ts + 2000, 300), (ts + 3000, 400)],
+        )
         # Runtime vtable schema changes are hot-patched without redeploy.
         tdStream.checkStreamStatus("s6")
         tdSql.query(
@@ -723,18 +732,25 @@ class TestStreamVtableChainRef:
         db = "tc11"
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int)")
+        tdSql.execute(f"create table {db}.ct1 (ts timestamp, v int, probe int)")
         tdSql.execute(f"create vtable {db}.vt1 (ts timestamp, v int from {db}.ct1.v)")
-        tdSql.execute(f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v)")
+        tdSql.execute(
+            f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v, "
+            f"probe int from {db}.ct1.probe)"
+        )
         tdSql.execute(
             f"create stream {db}.s7 sliding(1s) from {db}.vt2 "
-            f"into {db}.res as select ts, v from {db}.vt2"
+            f"into {db}.res as select ts, v, probe from %%trows"
         )
         tdStream.checkStreamStatus("s7")
         ts = int(time.time() * 1000) // 1000 * 1000
         # Initial insert builds vtbCache for the full vt2 -> vt1 -> ct1 chain.
-        tdSql.execute(f"insert into {db}.ct1 values ({ts}, 1)")
-        self._waitRows(f"select cast(ts as bigint), v from {db}.res", 1)
+        tdSql.execute(f"insert into {db}.ct1 values ({ts}, 1, 100)")
+        self._checkRows(
+            "TC11-baseline",
+            f"select cast(ts as bigint), v, probe from {db}.res order by ts",
+            [(ts, 1, 100)],
+        )
         tdSql.query(
             "select status, message from information_schema.ins_streams "
             "where stream_name = 's7'"
@@ -743,6 +759,17 @@ class TestStreamVtableChainRef:
         # Drop the middle-chain vtable. The runtime patch must keep the
         # stream alive instead of failing and asking mnode to redeploy.
         tdSql.execute(f"drop vtable {db}.vt1")
+        # The direct probe keeps producing rows after the chained column disappears.
+        # A non-NULL v would expose a stale binding; the NULL result is the patch barrier.
+        tdLog.debug("TC11: drive the surviving probe and verify the retired binding")
+        tdSql.execute(
+            f"insert into {db}.ct1 values ({ts + 1000}, 2, 200) ({ts + 2000}, 3, 300)"
+        )
+        self._checkRows(
+            "TC11-patched",
+            f"select cast(ts as bigint), v, probe from {db}.res order by ts",
+            [(ts, 1, 100), (ts + 1000, None, 200), (ts + 2000, None, 300)],
+        )
         tdStream.checkStreamStatus("s7")
         tdSql.query(
             "select status, message from information_schema.ins_streams "
@@ -777,16 +804,23 @@ class TestStreamVtableChainRef:
             f"create vtable {db}.vt1 ("
             f"ts timestamp, v int from {db}.nt.v, pad int from {db}.nt.x)"
         )
-        tdSql.execute(f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v)")
+        tdSql.execute(
+            f"create vtable {db}.vt2 (ts timestamp, v int from {db}.vt1.v, "
+            f"probe int from {db}.nt.x)"
+        )
         tdSql.execute(
             f"create stream {db}.s8 sliding(1s) from {db}.vt2 "
-            f"into {db}.res as select ts, v from {db}.vt2"
+            f"into {db}.res as select ts, v, probe from %%trows"
         )
         tdStream.checkStreamStatus("s8")
         ts = int(time.time() * 1000) // 1000 * 1000
         # Initial insert primes vtbCache with the full vt2 -> vt1 -> nt chain.
         tdSql.execute(f"insert into {db}.nt values ({ts}, 1, 100)")
-        self._waitRows(f"select cast(ts as bigint), v from {db}.res", 1)
+        self._checkRows(
+            "TC12-baseline",
+            f"select cast(ts as bigint), v, probe from {db}.res order by ts",
+            [(ts, 1, 100)],
+        )
         tdSql.query(
             "select status, message from information_schema.ins_streams "
             "where stream_name = 's8'"
@@ -795,6 +829,17 @@ class TestStreamVtableChainRef:
         # Drop the intermediate vtable column. The runtime patch must keep
         # the stream alive instead of failing and asking mnode to redeploy.
         tdSql.execute(f"alter vtable {db}.vt1 drop column v")
+        # The direct probe keeps producing rows after the chained column disappears.
+        # A non-NULL v would expose a stale binding; the NULL result is the patch barrier.
+        tdLog.debug("TC12: drive the surviving probe and verify the retired binding")
+        tdSql.execute(
+            f"insert into {db}.nt values ({ts + 1000}, 2, 200) ({ts + 2000}, 3, 300)"
+        )
+        self._checkRows(
+            "TC12-patched",
+            f"select cast(ts as bigint), v, probe from {db}.res order by ts",
+            [(ts, 1, 100), (ts + 1000, None, 200), (ts + 2000, None, 300)],
+        )
         tdStream.checkStreamStatus("s8")
         tdSql.query(
             "select status, message from information_schema.ins_streams "

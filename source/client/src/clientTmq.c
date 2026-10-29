@@ -582,7 +582,8 @@ static int32_t askEpCb(void* param, SDataBuf* pMsg, int32_t code) {
   int32_t     epoch = atomic_load_32(&tmq->epoch);
   tqDebugC("consumer:0x%" PRIx64 ", recv ep, msg epoch %d, current epoch %d", tmq->consumerId, head->epoch, epoch);
 
-  if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp) == NULL) {
+  int32_t bodyLen = (int32_t)(pMsg->len - sizeof(SMqRspHead));
+  if (tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), bodyLen, &rsp) == NULL) {
     code = TSDB_CODE_TMQ_INVALID_MSG;
     tqErrorC("consumer:0x%" PRIx64 ", decode ep rsp failed", tmq->consumerId);
     goto END;
@@ -957,6 +958,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   pTmq->maxPollWaitTime = conf->maxPollWaitTime;
   pTmq->minPollRows = conf->minPollRows;
   pTmq->enableBatchMeta = conf->enableBatchMeta;
+  pTmq->startTs = conf->startTs;
   tstrncpy(pTmq->user, user, TSDB_USER_LEN);
   if (taosGetFqdn(pTmq->fqdn) != 0) {
     tstrncpy(pTmq->fqdn, "localhost", TSDB_FQDN_LEN);
@@ -1352,6 +1354,7 @@ void tmqBuildConsumeReqImpl(SMqPollReq* pReq, tmq_t* tmq, SMqClientTopic* pTopic
   pReq->sourceExcluded = tmq->sourceExcluded;
   pReq->rawData = tmq->rawData;
   pReq->enableBatchMeta = tmq->enableBatchMeta;
+  pReq->startTs = tmq->startTs;
 }
 
 int32_t tmqValidateRawDataBlock(const void* data, uint32_t dataLen) {
@@ -1794,13 +1797,17 @@ static int32_t processMqRsp(tmq_t* tmq, SMqRspWrapper* pRspWrapper, SMqRspObj** 
     }
     char buf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(buf, TSDB_OFFSET_LEN, &pollRspWrapper->rspOffset);
-    if (pollRspWrapper->dataRsp.blockNum == 0) {
+    if (pollRspWrapper->dataRsp.blockNum == 0 && pollRspWrapper->dataRsp.createTableNum == 0) {
       acceptDataRsp = true;
       pVg->emptyBlockReceiveTs = taosGetTimestampMs();
       tqDebugC("consumer:0x%" PRIx64 " empty block received, vgId:%d, offset:%s, vg total:%" PRId64
                    ", total:%" PRId64 ", QID:0x%" PRIx64,
                tmq->consumerId, pVg->vgId, buf, pVg->numOfRows, tmq->totalRows, pollRspWrapper->reqId);
     } else {
+      if (pollRspWrapper->dataRsp.blockNum == 0) {
+        tqDebugC("consumer:0x%" PRIx64 " deliver metadata-only data response, vgId:%d, tables:%d",
+                 tmq->consumerId, pVg->vgId, pollRspWrapper->dataRsp.createTableNum);
+      }
       *pRspObj = buildRsp(pollRspWrapper);
       if (*pRspObj == NULL) {
         tqErrorC("consumer:0x%" PRIx64 " failed to allocate memory for meta rsp", tmq->consumerId);
@@ -1866,7 +1873,7 @@ END:
     }
     tmqUpdateVgInfo(pVg, &pDataRsp->reqOffset, &pDataRsp->rspOffset,
                     pDataRsp->head.walsver, pDataRsp->head.walever, tmq->consumerId,
-                    pDataRsp->blockNum != 0, acceptDataRsp);
+                    pDataRsp->blockNum != 0 || pDataRsp->createTableNum > 0, acceptDataRsp);
   }
   tmqWUnlock(tmq);
   return code;

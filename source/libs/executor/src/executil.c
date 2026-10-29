@@ -430,8 +430,9 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     return pList;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SOrderByExprNode* pSortKey = (SOrderByExprNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    SOrderByExprNode* pSortKey = (SOrderByExprNode*)pListNode;
     if (!pSortKey) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       taosArrayDestroy(pList);
@@ -1110,7 +1111,7 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   SArray*      groupData = NULL;
   SArray*      pUidTagList = NULL;
   SArray*      gInfo = NULL;
-  int32_t      tbNameIndex = 0;
+  int32_t      tbNameIndex = -1;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
@@ -1141,13 +1142,6 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   code = qGetColumnsFromNodeList(group, true, &pColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
-  }
-
-  for (int32_t i = 0; i < taosArrayGetSize(pColList); ++i) {
-    SColumnInfo* tmp = (SColumnInfo*)taosArrayGet(pColList, i);
-    if (tmp != NULL && tmp->colId == -1) {
-      tbNameIndex = i;
-    }
   }
 
   // For triggers sourced from a virtual super table, vchild tags may be col-refs
@@ -1221,6 +1215,11 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
       goto end;
     }
 
+    // Input columns are deduplicated; the marker belongs to the evaluated result slot.
+    if (fmIsCanonicalTbnameFunction(pNode) ||
+        (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME)) {
+      tbNameIndex = taosArrayGetSize(groupData);
+    }
     void* tmp = taosArrayPush(groupData, &output.columnData);
     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
   }
@@ -1464,17 +1463,15 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     char* pStart = (char*)keyBuf + baseIdLen + sizeof(int8_t) * LIST_LENGTH(group);
     // groupData skips QUERY_NODE_VALUE nodes while keyLen above sums the whole list, so
     // the per-column expression must be located with a cursor that skips them too.
-    int32_t groupCursor = 0;
+    SListCell* pGroupCell = NULL != group ? group->pHead : NULL;
     for (int j = 0; j < taosArrayGetSize(groupData); j++) {
-      while (groupCursor < LIST_LENGTH(group)) {
-        SNode* gn = nodesListGetNode(group, groupCursor);
-        if (nodeType(gn) != QUERY_NODE_VALUE) break;
-        groupCursor++;
+      while (NULL != pGroupCell && nodeType(pGroupCell->pNode) == QUERY_NODE_VALUE) {
+        pGroupCell = pGroupCell->pNext;
       }
-      SExprNode* pGroupExprAligned = (groupCursor < LIST_LENGTH(group))
-                                         ? (SExprNode*)nodesListGetNode(group, groupCursor)
-                                         : NULL;
-      groupCursor++;
+      SExprNode* pGroupExprAligned = NULL != pGroupCell ? (SExprNode*)pGroupCell->pNode : NULL;
+      if (NULL != pGroupCell) {
+        pGroupCell = pGroupCell->pNext;
+      }
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
 
       if (groupIdMap != NULL && gInfo != NULL) {
@@ -2919,6 +2916,10 @@ int32_t getTableList(void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, S
 }
 
 int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList, void* pTaskInfo) {
+  return qGetTableListByApi(suid, pVnode, node, tableList, &((SExecTaskInfo*)pTaskInfo)->storageAPI);
+}
+
+int32_t qGetTableListByApi(int64_t suid, void* pVnode, void* node, SArray** tableList, SStorageAPI* pStorageAPI) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SSubplan*      pSubplan = (SSubplan*)node;
@@ -2930,7 +2931,7 @@ int32_t qGetTableList(int64_t suid, void* pVnode, void* node, SArray** tableList
   STableListInfo* pTableListInfo = tableListCreate();
   QUERY_CHECK_NULL(pTableListInfo, code, lino, _end, terrno);
   code = getTableList(pVnode, &pNode, pSubplan ? pSubplan->pTagCond : NULL, pSubplan ? pSubplan->pTagIndexCond : NULL,
-                      pTableListInfo, NULL, "qGetTableList", &((SExecTaskInfo*)pTaskInfo)->storageAPI, NULL, 0);
+                      pTableListInfo, NULL, "qGetTableList", pStorageAPI, NULL, 0);
   QUERY_CHECK_CODE(code, lino, _end);
   *tableList = pTableListInfo->pTableList;
   pTableListInfo->pTableList = NULL;
@@ -3055,8 +3056,9 @@ SArray* makeColumnArrayFromList(SNodeList* pNodeList) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnNode* pColNode = (SColumnNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    SColumnNode* pColNode = (SColumnNode*)pListNode;
     if (!pColNode) {
       taosArrayDestroy(pList);
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR));
@@ -3299,14 +3301,24 @@ int32_t createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     }
 #endif
 
+    char errBuf[256] = {0};
+    code = fmValidateFuncNode(pFuncNode, errBuf, sizeof(errBuf));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("%s failed at line %d, %s", __func__, __LINE__, errBuf);
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+
     int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
 
     pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
     QUERY_CHECK_NULL(pExp->base.pParam, code, lino, _end, terrno);
     pExp->base.numOfParams = numOfParam;
 
-    for (int32_t j = 0; j < numOfParam && TSDB_CODE_SUCCESS == code; ++j) {
-      SNode* p1 = nodesListGetNode(pFuncNode->pParameterList, j);
+    SListCell* pParameterCell =
+        NULL != pFuncNode->pParameterList ? pFuncNode->pParameterList->pHead : NULL;
+    for (int32_t j = 0; j < numOfParam && TSDB_CODE_SUCCESS == code;
+         ++j, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+      SNode* p1 = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
       QUERY_CHECK_NULL(p1, code, lino, _end, terrno);
       if (p1->type == QUERY_NODE_COLUMN) {
         SColumnNode* pcn = (SColumnNode*)p1;
@@ -3389,10 +3401,14 @@ SExprInfo* createExpr(SNodeList* pNodeList, int32_t* numOfExprs) {
     return NULL;
   }
 
-  for (int32_t i = 0; i < (*numOfExprs); ++i) {
+  SListCell* pNodeCell = NULL != pNodeList ? pNodeList->pHead : NULL;
+  for (int32_t i = 0; i < (*numOfExprs);
+       ++i, pNodeCell = (NULL != pNodeCell ? pNodeCell->pNext : NULL)) {
     SExprInfo* pExp = &pExprs[i];
-    int32_t    code = createExprFromOneNode(pExp, nodesListGetNode(pNodeList, i), i + UD_TAG_COLUMN_INDEX);
+    int32_t code =
+        createExprFromOneNode(pExp, NULL != pNodeCell ? pNodeCell->pNode : NULL, i + UD_TAG_COLUMN_INDEX);
     if (code != TSDB_CODE_SUCCESS) {
+      destroyExprInfo(pExprs, *numOfExprs);
       taosMemoryFreeClear(pExprs);
       terrno = code;
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
@@ -3642,6 +3658,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->pStore = pStore;
     pCtx->hasWindowOrGroup = false;
     pCtx->needCleanup = false;
+    pCtx->pendingCleanup = 0;
     pCtx->skipDynDataCheck = false;
   }
 
@@ -4714,8 +4731,29 @@ static int32_t initQueryTableDataCondImpl(SQueryTableDataCond* pCond, STableScan
     }
   }
 
+  const SStreamRuntimeInfo* pRuntime = readHandle->streamRtInfo;
+  bool externalWindowNeedsPrevRow = pRuntime != NULL && pRuntime->funcInfo.withExternalWindow &&
+                                    pRuntime->funcInfo.externalWindowNeedsPrevRow;
+  if (applyExtWin && externalWindowNeedsPrevRow && pCond->type != TIMEWINDOW_RANGE_EXTERNAL) {
+    pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+    pCond->extTwindows[0] = TSWINDOW_DESC_INITIALIZER;
+    pCond->extTwindows[1] = TSWINDOW_DESC_INITIALIZER;
+    if (pCond->twindows.skey != INT64_MIN) {
+      pCond->extTwindows[0].skey = INT64_MIN;
+      pCond->extTwindows[0].ekey = pCond->twindows.skey - 1;
+    }
+  }
   pCond->mainFirst = pCond->type == TIMEWINDOW_RANGE_EXTERNAL &&
-                     pTableScanNode->interpMode != INTERP_MODE_LEGACY;
+                     (pTableScanNode->interpMode != INTERP_MODE_LEGACY || externalWindowNeedsPrevRow);
+  if (pCond->mainFirst && pRuntime != NULL) {
+    if (pRuntime->funcInfo.withExternalWindow && pRuntime->funcInfo.externalWindowNeedsPrevRow &&
+        pCond->extTwindows[0].skey <= pCond->extTwindows[0].ekey) {
+      // Widen only the PREV phase after MAIN has been intersected with both
+      // ranges. Mutating readHandle->winRange earlier loses an independent
+      // scan bound when winRange and extWinRange differ.
+      pCond->extTwindows[0].skey = INT64_MIN;
+    }
+  }
 
   if (pTableScanNode->pPrimaryCond) {
     bool isStrict = false;
@@ -6138,15 +6176,12 @@ int32_t createExprSubQResBlock(SSDataBlock** ppBlock, SDataType* pResType, int32
 }
 
 
-int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) {
-  int32_t            code = TSDB_CODE_SUCCESS;
-  int32_t            lino = 0;
-  void*              decompBuf = NULL;
+int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, int32_t rspLen, SSDataBlock* pb, bool dynamicSchema) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  void*   decompBuf = NULL;
 
-  char* pNextStart = pRetrieveRsp->data;
-  char* pStart = pNextStart;
-
-  int32_t index = 0;
+  char* pStart = pRetrieveRsp->data;
 
 #if defined(BUILD_TEST)
   if (TSDB_CODE_SUCCESS != g_execUtilTestExtractSingleRspBlockFailCode) {
@@ -6156,32 +6191,50 @@ int32_t extractSingleRspBlock(SRetrieveTableRsp* pRetrieveRsp, SSDataBlock* pb) 
   }
 #endif
 
-  if (pRetrieveRsp->compressed) {  // decompress the data
-    decompBuf = taosMemoryMalloc(pRetrieveRsp->payloadLen);
-    QUERY_CHECK_NULL(decompBuf, code, lino, _end, terrno);
+  if (rspLen < (int32_t)sizeof(*pRetrieveRsp) + PAYLOAD_PREFIX_LEN || pRetrieveRsp->numOfBlocks != 1) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _end;
+  }
+  int32_t payloadLen = rspLen - (int32_t)sizeof(*pRetrieveRsp);
+  if (pRetrieveRsp->compLen <= 0 || pRetrieveRsp->compLen > payloadLen || pRetrieveRsp->payloadLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _end;
   }
 
-  int32_t compLen = *(int32_t*)pStart;
+  int32_t compLen = 0;
+  memcpy(&compLen, pStart, sizeof(compLen));
   pStart += sizeof(int32_t);
 
-  int32_t rawLen = *(int32_t*)pStart;
+  int32_t rawLen = 0;
+  memcpy(&rawLen, pStart, sizeof(rawLen));
   pStart += sizeof(int32_t);
-  QUERY_CHECK_CONDITION((compLen <= rawLen && compLen != 0), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_CONDITION((compLen > 0 && rawLen > 0 && compLen <= rawLen &&
+                         compLen <= payloadLen - PAYLOAD_PREFIX_LEN &&
+                         (pRetrieveRsp->compressed || compLen == rawLen) &&
+                         pRetrieveRsp->payloadLen >= rawLen), code, lino, _end, TSDB_CODE_INVALID_MSG);
 
-  pNextStart = pStart + compLen;
   if (pRetrieveRsp->compressed && (compLen < rawLen)) {
+    decompBuf = taosMemoryMalloc((size_t)rawLen);
+    QUERY_CHECK_NULL(decompBuf, code, lino, _end, terrno);
     int32_t t = tsDecompressString(pStart, compLen, 1, decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
     QUERY_CHECK_CONDITION((t == rawLen), code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     pStart = decompBuf;
   }
 
-  code = blockDecodeInternal(pb, pStart, (const char**)&pStart);
-  if (code != 0) {
-    taosMemoryFreeClear(pRetrieveRsp);
-    goto _end;
+  size_t expectedCols = taosArrayGetSize(pb->pDataBlock);
+  bool nullWireColumn = false;
+  if (!dynamicSchema && expectedCols == 1) {
+    code = blockIsSingleNullColumnEncoded(pStart, (size_t)rawLen, &nullWireColumn);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (dynamicSchema || nullWireColumn) blockDataFreeRes(pb);
+  code = blockDecodeInternalBounded(pb, pStart, (size_t)rawLen, NULL);
+  if (code == TSDB_CODE_SUCCESS && expectedCols > 0 && taosArrayGetSize(pb->pDataBlock) != expectedCols) {
+    code = TSDB_CODE_INVALID_MSG;
   }
 
 _end:
+  taosMemoryFree(decompBuf);
   if (code != TSDB_CODE_SUCCESS) {
     // The response block is created and destroyed by the caller on both
     // success and failure paths.
@@ -6253,7 +6306,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
         ctx->code = blockDataEnsureCapacity(pResBlock, 1);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+        ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
         ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6314,7 +6367,7 @@ void handleRemoteValueRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
     ctx->code = blockDataEnsureCapacity(pResBlock, 1);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
-    ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+    ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
     ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6373,7 +6426,7 @@ void handleRemoteValueListRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SR
       ctx->code = blockDataEnsureCapacity(pResBlock, pRsp->numOfRows);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
-      ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+      ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
       ctx->code = setValueListFromResBlock(ctx, pRemote, pResBlock);
@@ -6471,7 +6524,7 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
         ctx->code = blockDataEnsureCapacity(pResBlock, 1);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
-        ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+        ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
       }
       if (TSDB_CODE_SUCCESS == ctx->code) {
         ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6552,7 +6605,7 @@ void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetriev
     ctx->code = blockDataEnsureCapacity(pResBlock, 1);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
-    ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+    ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, false);
   }
   if (TSDB_CODE_SUCCESS == ctx->code) {
     ctx->code = setValueFromResBlock(ctx, &pRemote->val, pResBlock);
@@ -6657,7 +6710,7 @@ void handleRemoteTableRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetri
   if (pRsp->numOfRows > 0) {
     ctx->code = createExprSubQResBlock(&pResBlock, NULL, pRemote->resCols);
     if (TSDB_CODE_SUCCESS == ctx->code) {
-      ctx->code = extractSingleRspBlock(pRsp, pResBlock);
+      ctx->code = extractSingleRspBlock(pRsp, ctx->rspLen, pResBlock, true);
     }
     if (TSDB_CODE_SUCCESS == ctx->code) {
       ctx->code = setTableFromResBlock(ctx, pRemote, &pResBlock);
@@ -6712,12 +6765,13 @@ int32_t remoteFetchCallBack(void* param, SDataBuf* pMsg, int32_t code) {
     ctx->transporterId = -1;
   }
 
-  if (0 == code && NULL == pMsg->pData) {
+  if (0 == code && (NULL == pMsg->pData || pMsg->len < (int32_t)sizeof(SRetrieveTableRsp))) {
     qError("%s invalid rsp msg, msgType:%d, len:%d", idStr, pMsg->msgType, pMsg->len);
     code = TSDB_CODE_QRY_INVALID_MSG;
   }
 
   if (code == TSDB_CODE_SUCCESS) {
+    ctx->rspLen = pMsg->len;
     SRetrieveTableRsp* pRsp = pMsg->pData;
     pRsp->numOfRows = htobe64(pRsp->numOfRows);
     pRsp->compLen = htonl(pRsp->compLen);
@@ -7278,4 +7332,375 @@ SColumnInfoData* getDataBlockColBySlotId(const SSDataBlock* pBlock, int32_t slot
     *pIndex = index;
   }
   return (index >= 0) ? taosArrayGet(pBlock->pDataBlock, index) : NULL;
+}
+
+SColumnInfoData* getBitDurationInputColumn(const SqlFunctionCtx* pCtx, const SSDataBlock* pBlock) {
+  if (pCtx == NULL || pBlock == NULL || pBlock->pDataBlock == NULL || pCtx->numOfParams < 1 ||
+      pCtx->param == NULL || pCtx->param[0].pCol == NULL) {
+    return NULL;
+  }
+
+  int32_t slotId = pCtx->param[0].pCol->slotId;
+  return getDataBlockColBySlotId(pBlock, slotId, NULL);
+}
+
+static bool isBitDurationInterpInputType(int8_t type) {
+  return !IS_INVALID_TYPE(type) && (IS_INTEGER_TYPE(type) || type == TSDB_DATA_TYPE_BOOL);
+}
+
+int32_t prepareBitDurationInterpCache(SBitDurationInterpCache* pCache, const SqlFunctionCtx* pCtx,
+                                      SColumnInfoData* pCol, const TSKEY* tsCols, int32_t rows,
+                                      const SSDataBlock* pBlock) {
+  if (pCache != NULL) {
+    // A prepare attempt starts a new mapping generation. Invalidate the
+    // borrowed block identity before validation so a failed or empty prepare
+    // cannot expose mappings from an earlier object at the same address.
+    pCache->preparedRows = 0;
+    pCache->preparedLatestRow = -1;
+    pCache->pPreparedBlock = NULL;
+  }
+  if (pCache == NULL || pCtx == NULL || pCtx->numOfParams < 1 || pCtx->param == NULL ||
+      pCtx->param[0].pCol == NULL || pBlock == NULL || rows < 0 || rows != pBlock->info.rows) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE &&
+      pCtx->param[1].param.i == 0) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pCol == NULL || !isBitDurationInterpInputType(pCol->info.type) ||
+      pCol->info.bytes != tDataTypes[pCol->info.type].bytes) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  int32_t inputSlotId = pCtx->param[0].pCol->slotId;
+  if (pCol->info.slotId != inputSlotId) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  STypeMod inputTypeMod = typeGetTypeModFromColInfo(&pCol->info);
+  bool inputTypeChanged = pCache->hasInputMetadata &&
+                          (pCache->inputSlotId != inputSlotId || pCache->inputType != pCol->info.type ||
+                           pCache->inputTypeMod != inputTypeMod);
+  if (rows == 0) {
+    if (inputTypeChanged) {
+      // pSavedData is reusable allocation owned by the cache. Invalidate its
+      // payload metadata here; resetBitDurationInterpCache follows the same rule.
+      pCache->hasSavedValue = false;
+      pCache->savedTs = 0;
+      pCache->savedValueBytes = 0;
+    }
+    pCache->inputSlotId = inputSlotId;
+    pCache->inputType = pCol->info.type;
+    pCache->inputTypeMod = inputTypeMod;
+    pCache->hasInputMetadata = true;
+    // No row exists to advance prevTs; compatible saved history remains reusable.
+    return TSDB_CODE_SUCCESS;
+  }
+  if (tsCols == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  char*    newSavedData = NULL;
+  int32_t* newPrevRows = NULL;
+  int32_t  newCapacity = pCache->capacity;
+  if (pCache->capacity < rows) {
+    newCapacity = rows;
+    if (pCache->capacity > 0 && pCache->capacity <= INT32_MAX / 2) {
+      newCapacity = TMAX(rows, pCache->capacity * 2);
+    }
+    newPrevRows = taosMemoryMalloc(sizeof(int32_t) * newCapacity);
+    if (newPrevRows == NULL) {
+      qError("%s failed to allocate bit_duration row cache, rows:%d, code:%s", __func__, newCapacity,
+             tstrerror(terrno));
+      return terrno;
+    }
+  }
+
+  // savedDataCapacity is buffer capacity. Keep a larger allocation when a later input
+  // is narrower; savedValueBytes records the width of the valid payload.
+  if (pCache->savedDataCapacity < pCol->info.bytes) {
+    newSavedData = taosMemoryMalloc(pCol->info.bytes);
+    if (newSavedData == NULL) {
+      taosMemoryFree(newPrevRows);
+      qError("%s failed to allocate bit_duration saved-value cache, bytes:%d, code:%s", __func__,
+             pCol->info.bytes, tstrerror(terrno));
+      return terrno;
+    }
+  }
+
+  if (newSavedData != NULL) {
+    taosMemoryFreeClear(pCache->pSavedData);
+    pCache->pSavedData = newSavedData;
+    pCache->savedDataCapacity = pCol->info.bytes;
+    pCache->hasSavedValue = false;
+    pCache->savedTs = 0;
+    pCache->savedValueBytes = 0;
+  }
+  if (newPrevRows != NULL) {
+    taosMemoryFreeClear(pCache->pPrevRows);
+    pCache->pPrevRows = newPrevRows;
+    pCache->capacity = newCapacity;
+  }
+  if (inputTypeChanged) {
+    pCache->hasSavedValue = false;
+    pCache->savedTs = 0;
+    pCache->savedValueBytes = 0;
+  }
+  pCache->inputSlotId = inputSlotId;
+  pCache->hasPrimaryKey = pCtx->hasPrimaryKey;
+  pCache->inputType = pCol->info.type;
+  pCache->inputTypeMod = inputTypeMod;
+  pCache->hasInputMetadata = true;
+
+  int32_t prevValidRow = -1;
+  for (int32_t row = 0; row < rows; ++row) {
+    bool selectedPkRow = !pCtx->hasPrimaryKey;
+    if (!selectedPkRow) {
+      if (row == 0) {
+        selectedPkRow = !pCache->hasPrevTs || tsCols[row] != pCache->prevTs;
+      } else {
+        selectedPkRow = tsCols[row] != tsCols[row - 1];
+      }
+    }
+    if (selectedPkRow && !colDataIsNull_s(pCol, row)) {
+      prevValidRow = row;
+      if (pCache->preparedLatestRow < 0 || tsCols[row] > tsCols[pCache->preparedLatestRow]) {
+        pCache->preparedLatestRow = row;
+      }
+    }
+    pCache->pPrevRows[row] = prevValidRow;
+  }
+  if (pBlock->info.scanPhase == SCAN_PHASE_PREV && pCtx->hasPrimaryKey) {
+    int32_t previousGroupRow = -1;
+    int32_t nearestGroupRow = -1;
+    for (int32_t groupStart = 0; groupStart < rows;) {
+      int32_t groupEnd = groupStart + 1;
+      while (groupEnd < rows && tsCols[groupEnd] == tsCols[groupStart]) {
+        ++groupEnd;
+      }
+      for (int32_t row = groupStart; row < groupEnd; ++row) {
+        pCache->pPrevRows[row] = previousGroupRow;
+      }
+      int32_t representativeRow = groupEnd - 1;
+      if (!colDataIsNull_s(pCol, representativeRow)) {
+        previousGroupRow = representativeRow;
+        if (nearestGroupRow < 0) {
+          nearestGroupRow = representativeRow;
+        }
+      }
+      groupStart = groupEnd;
+    }
+    pCache->preparedLatestRow = nearestGroupRow;
+  }
+  pCache->preparedRows = rows;
+  pCache->pPreparedBlock = pBlock;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+bool getBitDurationInterpState(const SBitDurationInterpCache* pCache, const SqlFunctionCtx* pCtx,
+                               SColumnInfoData* pCol, int32_t prevRowIndex, const SSDataBlock* pBlock,
+                               bool* pNonZero, bool* pMappingMismatch) {
+  if (pMappingMismatch != NULL) {
+    *pMappingMismatch = false;
+  }
+  if (pCache == NULL || pCtx == NULL || pCtx->numOfParams < 1 || pCtx->param == NULL ||
+      pCtx->param[0].pCol == NULL || pNonZero == NULL ||
+      pCtx->param[0].pCol->slotId != pCache->inputSlotId) {
+    return false;
+  }
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE &&
+      pCtx->param[1].param.i == 0) {
+    if (pMappingMismatch != NULL) {
+      *pMappingMismatch = true;
+    }
+    return false;
+  }
+
+  const char* pData = NULL;
+  int8_t      inputType = pCache->inputType;
+  STypeMod    inputTypeMod = pCache->inputTypeMod;
+  if (prevRowIndex >= 0) {
+    bool validColumnType = pCol != NULL && isBitDurationInterpInputType(pCol->info.type);
+    bool currentMappingValid = pBlock != NULL && pCache->pPreparedBlock == pBlock && validColumnType &&
+                               pCache->preparedRows == pBlock->info.rows &&
+                               pCol->info.slotId == pCache->inputSlotId &&
+                               pCache->pPrevRows != NULL && prevRowIndex < pCache->preparedRows &&
+                               pCol->info.type == pCache->inputType &&
+                               pCol->info.bytes == tDataTypes[pCol->info.type].bytes &&
+                               typeGetTypeModFromColInfo(&pCol->info) == pCache->inputTypeMod;
+    if (currentMappingValid) {
+      int32_t selectedRow = pCache->pPrevRows[prevRowIndex];
+      if (selectedRow >= pCache->preparedRows || selectedRow >= pBlock->info.rows) {
+        if (pMappingMismatch != NULL) {
+          *pMappingMismatch = true;
+        }
+        return false;
+      }
+      if (selectedRow >= 0) {
+        pData = colDataGetData(pCol, selectedRow);
+        if (pData == NULL) {
+          if (pMappingMismatch != NULL) {
+            *pMappingMismatch = true;
+          }
+          return false;
+        }
+      }
+    } else {
+      if (pMappingMismatch != NULL) {
+        *pMappingMismatch = true;
+      }
+      return false;
+    }
+  }
+  if (pData == NULL && pCache->hasSavedValue) {
+    bool validSavedType = isBitDurationInterpInputType(pCache->inputType);
+    if (!validSavedType || pCache->pSavedData == NULL ||
+        pCache->savedValueBytes > pCache->savedDataCapacity) {
+      if (pMappingMismatch != NULL) {
+        *pMappingMismatch = true;
+      }
+      return false;
+    }
+    if (pCache->savedValueBytes != tDataTypes[pCache->inputType].bytes) {
+      if (pMappingMismatch != NULL) {
+        *pMappingMismatch = true;
+      }
+      return false;
+    }
+    // prepareBitDurationInterpCache invalidates saved history before changing its type metadata.
+    pData = pCache->pSavedData;
+  }
+  if (pData == NULL) {
+    return false;
+  }
+  if (!isBitDurationInterpInputType(inputType)) {
+    return false;
+  }
+
+  uint64_t value = 0;
+  uint64_t mask = 1;
+  GET_TYPED_DATA(value, uint64_t, inputType, pData, inputTypeMod);
+  int32_t valueBytes = tDataTypes[inputType].bytes;
+  if (valueBytes > 0 && valueBytes < sizeof(value)) {
+    // GET_TYPED_DATA sign-extends signed 8/16/32-bit inputs when storing them
+    // in uint64_t. Keep only the source-width bits before applying the mask.
+    value &= UINT64_MAX >> ((sizeof(value) - valueBytes) * CHAR_BIT);
+  }
+  if (pCtx->numOfParams > 1 && pCtx->param[1].type == FUNC_PARAM_TYPE_VALUE) {
+    mask = (uint64_t)pCtx->param[1].param.i;
+  }
+  *pNonZero = (value & mask) != 0;
+  return true;
+}
+
+void saveBitDurationInterpCacheHistory(SBitDurationInterpCache* pCache, const SColumnInfoData* pCol,
+                                       const TSKEY* tsCols, int32_t rows, const SSDataBlock* pBlock) {
+  if (pCache == NULL || tsCols == NULL || rows <= 0 || pBlock == NULL || rows != pBlock->info.rows) {
+    return;
+  }
+
+  if (pCol == NULL || !isBitDurationInterpInputType(pCol->info.type)) {
+    return;
+  }
+  if (pBlock->info.scanPhase == SCAN_PHASE_PREV &&
+      pCache->savedScanPhase != SCAN_PHASE_PREV) {
+    pCache->hasSavedValue = false;
+    pCache->savedValueBytes = 0;
+    pCache->savedTs = 0;
+  }
+  int32_t valueBytes = tDataTypes[pCol->info.type].bytes;
+  if (pCache->pPreparedBlock != pBlock ||
+      pCache->preparedRows != rows ||
+      pCol->info.bytes != valueBytes ||
+      pCache->inputSlotId != pCol->info.slotId || pCache->inputType != pCol->info.type ||
+      pCache->inputTypeMod != typeGetTypeModFromColInfo(&pCol->info)) {
+    return;
+  }
+
+  // Saving a predecessor value is a separate best-effort step.
+  if (pCache->pPrevRows == NULL || pCache->pSavedData == NULL ||
+      pCache->savedDataCapacity < valueBytes) {
+    return;
+  }
+
+  bool prevPkScan = pBlock->info.scanPhase == SCAN_PHASE_PREV && pCache->hasPrimaryKey;
+  if (prevPkScan && pCache->hasSavedValue) {
+    if (tsCols[0] < pCache->savedTs) {
+      pCache->savedPkGroupComplete = true;
+      pCache->hasPrevTs = true;
+      pCache->prevTs = tsCols[rows - 1];
+      return;
+    }
+    if (!pCache->savedPkGroupComplete && tsCols[0] == pCache->savedTs) {
+      int32_t groupEnd = 1;
+      while (groupEnd < rows && tsCols[groupEnd] == tsCols[0]) {
+        ++groupEnd;
+      }
+      int32_t representativeRow = groupEnd - 1;
+      if (colDataIsNull_s(pCol, representativeRow)) {
+        pCache->hasSavedValue = false;
+        pCache->savedValueBytes = 0;
+        pCache->savedTs = 0;
+      }
+    }
+  }
+
+  pCache->hasPrevTs = true;
+  pCache->prevTs = tsCols[rows - 1];
+
+  int32_t selectedRow = pCache->preparedLatestRow;
+  if (selectedRow < 0 || selectedRow >= rows) {
+    return;
+  }
+  if (prevPkScan && pCache->hasSavedValue && tsCols[selectedRow] < pCache->savedTs) {
+    pCache->savedPkGroupComplete = true;
+    return;
+  }
+  if (!pCache->hasSavedValue || tsCols[selectedRow] > pCache->savedTs ||
+      (prevPkScan && tsCols[selectedRow] == pCache->savedTs)) {
+    const char* pSource = colDataGetData(pCol, selectedRow);
+    if (pSource == NULL) {
+      return;
+    }
+    memcpy(pCache->pSavedData, pSource, valueBytes);
+    pCache->hasSavedValue = true;
+    pCache->savedValueBytes = valueBytes;
+    pCache->savedTs = tsCols[selectedRow];
+    pCache->savedScanPhase = pBlock->info.scanPhase;
+    pCache->savedPkGroupComplete = !prevPkScan || selectedRow < rows - 1;
+  }
+}
+
+void resetBitDurationInterpCache(SBitDurationInterpCache* pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+
+  // Keep owned allocations and their capacities for reuse. All validity and
+  // mapping metadata is cleared, so retained bytes cannot be observed.
+  pCache->preparedRows = 0;
+  pCache->preparedLatestRow = -1;
+  pCache->savedValueBytes = 0;
+  pCache->inputSlotId = 0;
+  pCache->inputType = 0;
+  pCache->savedScanPhase = 0;
+  pCache->inputTypeMod = 0;
+  pCache->hasInputMetadata = false;
+  pCache->hasSavedValue = false;
+  pCache->hasPrevTs = false;
+  pCache->hasPrimaryKey = false;
+  pCache->savedPkGroupComplete = false;
+  pCache->pPreparedBlock = NULL;
+  pCache->savedTs = 0;
+  pCache->prevTs = 0;
+}
+
+void destroyBitDurationInterpCache(void* param) {
+  SBitDurationInterpCache* pCache = param;
+  if (pCache == NULL) {
+    return;
+  }
+  taosMemoryFreeClear(pCache->pPrevRows);
+  taosMemoryFreeClear(pCache->pSavedData);
+  memset(pCache, 0, sizeof(*pCache));
 }

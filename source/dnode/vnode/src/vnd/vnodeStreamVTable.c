@@ -163,13 +163,24 @@ static int32_t streamCopyResolvedTagCond(SColRef *pDst, const SColResolveItem *p
   if (pItem->tagCondJson == NULL) {
     return TSDB_CODE_INVALID_MSG;
   }
-  pDst->tagCondJson = taosMemoryMalloc((size_t)pItem->tagCondLen + 1);
+
+  // nodesNodeToString() reports the length including the trailing NUL and the
+  // resolver keeps that length, while the direct-reference path
+  // (streamCopyColRefTagCond) stores the NUL-free strnlen() length. Follow the
+  // same contract here: the external registry rejects a NUL inside the stored
+  // range (stStreamExtCanonicalizeJson), so a multi-layer virtual table with an
+  // Influx SERIES tag condition would otherwise fail stream initialization.
+  int32_t tagCondLen = (int32_t)strnlen(pItem->tagCondJson, (size_t)pItem->tagCondLen);
+  if (tagCondLen <= 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  pDst->tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
   if (pDst->tagCondJson == NULL) {
     return terrno;
   }
-  memcpy(pDst->tagCondJson, pItem->tagCondJson, pItem->tagCondLen);
-  pDst->tagCondJson[pItem->tagCondLen] = '\0';
-  pDst->tagCondLen = pItem->tagCondLen;
+  memcpy(pDst->tagCondJson, pItem->tagCondJson, tagCondLen);
+  pDst->tagCondJson[tagCondLen] = '\0';
+  pDst->tagCondLen = tagCondLen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -381,6 +392,13 @@ bool tagValueEqual(const STagValue *a, const STagValue *b) {
 #define STREAM_VTB_RECHECK_INTERVAL_MS 1000
 #define STREAM_VTB_RECHECK_SLICE_SIZE  1000
 #define STREAM_VTB_RPC_TIMEOUT_MS      30000
+
+// Resolve batching budgets (STREAM_VTB_RESOLVE_UID_CHUNK /
+// STREAM_VTB_RESOLVE_MAX_ITEMS) are declared in vnodeStreamVTable.h so the unit
+// test pins exactly the boundaries the resolver uses.
+bool streamResolveBatchFull(int32_t seededUids, int32_t workItemCnt) {
+  return seededUids >= STREAM_VTB_RESOLVE_UID_CHUNK || workItemCnt >= STREAM_VTB_RESOLVE_MAX_ITEMS;
+}
 
 // Throttled hook called at the entry of every WAL meta request.
 // On tag change: returns TSDB_CODE_STREAM_VTB_TAG_CHANGED so caller bails out fast.
@@ -923,11 +941,17 @@ static int32_t vnodeFillResolveRspFromColRef(SVnode *pVnode, const SMetaEntry *p
   // after the metadata reader releases its source column reference.
   if (pFound != NULL && pFound->tagCondLen > 0) {
     if (pFound->tagCondJson == NULL) return TSDB_CODE_INVALID_MSG;
-    r->nextRef.tagCondJson = taosMemoryMalloc((size_t)pFound->tagCondLen + 1);
+    // Normalize to the NUL-free length contract used by the direct-reference path
+    // (streamCopyColRefTagCond): the resolver may keep nodesNodeToString()'s length, which
+    // includes the trailing NUL, and a NUL inside the stored range is later rejected by
+    // stStreamExtCanonicalizeJson.
+    int32_t tagCondLen = (int32_t)strnlen(pFound->tagCondJson, (size_t)pFound->tagCondLen);
+    if (tagCondLen <= 0) return TSDB_CODE_INVALID_MSG;
+    r->nextRef.tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
     if (r->nextRef.tagCondJson == NULL) return terrno;
-    memcpy(r->nextRef.tagCondJson, pFound->tagCondJson, pFound->tagCondLen);
-    r->nextRef.tagCondJson[pFound->tagCondLen] = '\0';
-    r->nextRef.tagCondLen = pFound->tagCondLen;
+    memcpy(r->nextRef.tagCondJson, pFound->tagCondJson, tagCondLen);
+    r->nextRef.tagCondJson[tagCondLen] = '\0';
+    r->nextRef.tagCondLen = tagCondLen;
   }
   if (isVtable) {
     if (pFound == NULL) {
@@ -1678,18 +1702,16 @@ _end:
 }
 
 // Get SUseDbRsp for dbFName, using cache if available; otherwise fetch and insert.
-// Returned *ppOut is owned by the cache (when pCache != NULL) or by the caller
-// (when pCache == NULL); caller never frees the cached entry.
+// Returned *ppOut is owned by the cache (when pCache->dbVgInfo != NULL) or by
+// the caller (otherwise); caller never frees the cached entry.
 static int32_t streamGetOrFetchDbVgInfo(SVnode *pVnode, SStreamVTableInfoCache *pCache,
-                                        const char *dbFName, SUseDbRsp **ppOut, bool *pCached) {
+                                        const char *dbFName, SUseDbRsp **ppOut) {
   *ppOut = NULL;
-  if (pCached) *pCached = false;
 
   if (pCache != NULL && pCache->dbVgInfo != NULL) {
     SUseDbRsp *pHit = (SUseDbRsp *)taosHashGet(pCache->dbVgInfo, dbFName, strlen(dbFName));
     if (pHit != NULL) {
       *ppOut = pHit;
-      if (pCached) *pCached = true;
       return 0;
     }
   }
@@ -1701,15 +1723,24 @@ static int32_t streamGetOrFetchDbVgInfo(SVnode *pVnode, SStreamVTableInfoCache *
   if (pCache != NULL && pCache->dbVgInfo != NULL) {
     // taosHashPut copies the value bytes; we must still keep the inner array
     // alive (pVgroupInfos is a heap pointer the cached entry now owns).
-    if (taosHashPut(pCache->dbVgInfo, dbFName, strlen(dbFName), pNew, sizeof(*pNew)) != 0) {
+    // The cache is shared (hash is allocated with HASH_ENTRY_LOCK and
+    // enableUpdate=false), so a concurrent resolver may win the insert race:
+    // DUP_KEY is the normal outcome there and must not be reported as failure.
+    int32_t putCode = taosHashPut(pCache->dbVgInfo, dbFName, strlen(dbFName), pNew, sizeof(*pNew));
+    if (putCode != TSDB_CODE_SUCCESS && putCode != TSDB_CODE_DUP_KEY) {
       tFreeSUsedbRsp(pNew);
       taosMemoryFree(pNew);
-      return terrno;
+      return putCode;
     }
-    // Hash now owns pVgroupInfos via the copied struct; drop our outer wrapper
-    // without freeing the array (cleanup uses tFreeSUsedbRsp on hash entries).
+    // Hash now owns pVgroupInfos via the copied struct (or another thread's
+    // identical entry does); drop our outer wrapper without freeing the array
+    // (cleanup uses tFreeSUsedbRsp on hash entries).
+    if (putCode == TSDB_CODE_DUP_KEY) {
+      tFreeSUsedbRsp(pNew);
+    }
     taosMemoryFree(pNew);
     *ppOut = (SUseDbRsp *)taosHashGet(pCache->dbVgInfo, dbFName, strlen(dbFName));
+    if (*ppOut == NULL) return TSDB_CODE_INVALID_MSG;
     return 0;
   }
 
@@ -2371,6 +2402,14 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
     // External references are terminal at this vnode. They identify a remote
     // source, not a TDengine table that can be routed to a local vgroup.
     if (w->refType != 0) {
+      // External tables carry no tags: a TAG reference to a remote source has no resolvable
+      // value. Reject it explicitly instead of synthesizing an empty STagValue that downstream
+      // consumers would silently treat as an absent tag.
+      if (w->kind == STREAM_VREF_KIND_TAG) {
+        stError("%s external TAG reference is not supported, source:%s table:%s col:%s", __func__,
+                w->refSourceName, w->refTableName, w->refColName);
+        return TSDB_CODE_OPS_NOT_SUPPORT;
+      }
       SVTableRefResolveRspItem *dst = taosArrayGet(outRspItems, i);
       dst->terminated = true;
       dst->nextRef.kind = w->kind;
@@ -2383,11 +2422,17 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
       tstrncpy(dst->nextRef.refColName, w->refColName, TSDB_COL_NAME_LEN);
       if (w->tagCondLen > 0) {
         if (w->tagCondJson == NULL) return TSDB_CODE_INVALID_MSG;
-        dst->nextRef.tagCondJson = taosMemoryMalloc((size_t)w->tagCondLen + 1);
+        // Normalize to the NUL-free length contract used by the direct-reference path
+        // (streamCopyColRefTagCond): the resolver may keep nodesNodeToString()'s length, which
+        // includes the trailing NUL, and a NUL inside the stored range is later rejected by
+        // stStreamExtCanonicalizeJson.
+        int32_t tagCondLen = (int32_t)strnlen(w->tagCondJson, (size_t)w->tagCondLen);
+        if (tagCondLen <= 0) return TSDB_CODE_INVALID_MSG;
+        dst->nextRef.tagCondJson = taosMemoryMalloc((size_t)tagCondLen + 1);
         if (dst->nextRef.tagCondJson == NULL) return terrno;
-        memcpy(dst->nextRef.tagCondJson, w->tagCondJson, w->tagCondLen);
-        dst->nextRef.tagCondJson[w->tagCondLen] = '\0';
-        dst->nextRef.tagCondLen = w->tagCondLen;
+        memcpy(dst->nextRef.tagCondJson, w->tagCondJson, tagCondLen);
+        dst->nextRef.tagCondJson[tagCondLen] = '\0';
+        dst->nextRef.tagCondLen = tagCondLen;
       }
       origToDedupIdx[i] = -1;
       continue;
@@ -2434,59 +2479,185 @@ int32_t streamBatchTryCacheAndDedup(SStreamVTableInfoCache *pCache, SArray *batc
   return 0;
 }
 
+void streamDbRouteMemoInit(SStreamDbRouteMemo *pMemo) {
+  memset(pMemo, 0, sizeof(*pMemo));
+}
+
+// Returns the memoized response for dbFName, or NULL on a miss.
+SUseDbRsp *streamDbRouteMemoGet(SStreamDbRouteMemo *pMemo, const char *dbFName) {
+  if (pMemo == NULL || dbFName == NULL) return NULL;
+
+  for (int32_t i = 0; i < pMemo->num; ++i) {
+    if (strcmp(pMemo->slots[i].dbFName, dbFName) == 0) return pMemo->slots[i].pRsp;
+  }
+  if (pMemo->pOverflow == NULL) return NULL;
+
+  SUseDbRsp **ppRsp = (SUseDbRsp **)taosHashGet(pMemo->pOverflow, dbFName, strlen(dbFName));
+  return (ppRsp == NULL) ? NULL : *ppRsp;
+}
+
+// Takes ownership of pRsp. Returns 0 when the memo now owns it; on any failure,
+// including TSDB_CODE_DUP_KEY, the caller keeps ownership and must release pRsp
+// after use.
+int32_t streamDbRouteMemoPut(SStreamDbRouteMemo *pMemo, const char *dbFName, SUseDbRsp *pRsp) {
+  if (pMemo == NULL || dbFName == NULL || pRsp == NULL) return TSDB_CODE_INVALID_PARA;
+
+  if (pMemo->num < STREAM_VTB_LOCAL_DB_ROUTE_MAX) {
+    tstrncpy(pMemo->slots[pMemo->num].dbFName, dbFName, sizeof(pMemo->slots[0].dbFName));
+    pMemo->slots[pMemo->num].pRsp = pRsp;
+    pMemo->num++;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pMemo->pOverflow == NULL) {
+    pMemo->pOverflow = taosHashInit(STREAM_VTB_LOCAL_DB_ROUTE_MAX,
+                                    taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (pMemo->pOverflow == NULL) return terrno;
+  }
+
+  int32_t code = taosHashPut(pMemo->pOverflow, dbFName, strlen(dbFName), &pRsp, sizeof(pRsp));
+  if (code == TSDB_CODE_DUP_KEY) {
+    // The memo already holds an identical response and answers later lookups
+    // with it. pRsp stays owned by the caller, which still routes with it and
+    // releases it afterwards: freeing it here and reporting success would hand
+    // the caller a response the memo had already freed.
+    stDebug("%s db route memo already holds db:%s, keep caller ownership", __func__, dbFName);
+    return TSDB_CODE_DUP_KEY;
+  }
+  return code;
+}
+
+void streamDbRouteMemoDestroy(SStreamDbRouteMemo *pMemo) {
+  if (pMemo == NULL) return;
+
+  for (int32_t i = 0; i < pMemo->num; ++i) {
+    if (pMemo->slots[i].pRsp != NULL) {
+      tFreeSUsedbRsp(pMemo->slots[i].pRsp);
+      taosMemoryFree(pMemo->slots[i].pRsp);
+      pMemo->slots[i].pRsp = NULL;
+    }
+  }
+  pMemo->num = 0;
+
+  if (pMemo->pOverflow != NULL) {
+    void *p = NULL;
+    while ((p = taosHashIterate(pMemo->pOverflow, p)) != NULL) {
+      SUseDbRsp *pRsp = *(SUseDbRsp **)p;
+      if (pRsp != NULL) {
+        tFreeSUsedbRsp(pRsp);
+        taosMemoryFree(pRsp);
+      }
+    }
+    taosHashCleanup(pMemo->pOverflow);
+    pMemo->pOverflow = NULL;
+  }
+}
+
 // Phase 2 of streamCallResolveBatched: route each dedup item to its target vg
 // (via the mnode cache or live lookup) and bucket the dedup-index into
 // vg2Idx[vgId]. Also records the SEpSet per vg in vg2Ep for the fan-out phase.
+//
+// Routing info is a property of the db, not of the item, while one batch can
+// hold a very large number of items: one per (uid x ref column/tag) plus one per
+// chain hop. When the caller passes pCache == NULL (the tag-only chain resolver)
+// every item used to issue its own TDMT_MND_GET_DB_INFO to mnode, so resolving a
+// virtual super table with N children and k ref tags became N*k mnode
+// round-trips in one call.
+//
+// pMemo is owned by the resolve call (not by this pass) so it survives uid
+// chunks: a whole resolve pays at most one GET_DB_INFO per distinct db.
 static int32_t streamBatchRouteToVgs(SVnode *pVnode, SStreamVTableInfoCache *pCache,
-                                     SArray *dedupItems, SHashObj *vg2Idx, SHashObj *vg2Ep) {
+                                     SArray *dedupItems, SHashObj *vg2Idx, SHashObj *vg2Ep,
+                                     SStreamDbRouteMemo *pMemo) {
   int32_t acctId = 0;
   if (sscanf(pVnode->config.dbname, "%d.", &acctId) != 1) return TSDB_CODE_INVALID_PARA;
 
-  int32_t dedupN = (int32_t)taosArrayGetSize(dedupItems);
+  // True when streamGetOrFetchDbVgInfo stores into / returns from the shared
+  // cache; otherwise the returned SUseDbRsp is owned by pMemo or by this item.
+  bool    cacheActive = (pCache != NULL && pCache->dbVgInfo != NULL);
+  int32_t code        = TSDB_CODE_SUCCESS;
+  int32_t dedupN      = (int32_t)taosArrayGetSize(dedupItems);
+
   for (int32_t i = 0; i < dedupN; ++i) {
     SResolveWorkItem *w = taosArrayGet(dedupItems, i);
 
     char dbFName[TSDB_DB_FNAME_LEN] = {0};
     (void)tsnprintf(dbFName, sizeof(dbFName), "%d.%s", acctId, w->refDbName);
 
-    SUseDbRsp *pRsp      = NULL;
-    bool       fromCache = false;
-    int32_t    rc = streamGetOrFetchDbVgInfo(pVnode, pCache, dbFName, &pRsp, &fromCache);
-    if (rc != 0) {
-      stError("vgId:%d %s uid=%" PRId64 " getDbVgInfo db=%s rc=0x%x -> propagate",
-              TD_VID(pVnode), __func__, w->originVtbUid, dbFName, rc);
-      return rc;
+    SUseDbRsp *pRsp = streamDbRouteMemoGet(pMemo, dbFName);
+    bool       owned = (pRsp != NULL);  // cache or memo already owns it
+
+    if (pRsp == NULL) {
+      code = streamGetOrFetchDbVgInfo(pVnode, pCache, dbFName, &pRsp);
+      if (code != 0) {
+        stError("vgId:%d %s uid=%" PRId64 " getDbVgInfo db=%s rc=0x%x -> propagate",
+                TD_VID(pVnode), __func__, w->originVtbUid, dbFName, code);
+        goto _end;
+      }
+      if (cacheActive) {
+        owned = true;  // the shared cache owns the response
+      } else {
+        int32_t memoRc = streamDbRouteMemoPut(pMemo, dbFName, pRsp);
+        owned = (memoRc == TSDB_CODE_SUCCESS);
+        if (!owned) {
+          // The memo did not take ownership (duplicate db entry or overflow
+          // hash failure), so pRsp stays private to this item and is released
+          // after routing below.
+          if (memoRc == TSDB_CODE_DUP_KEY) {
+            stDebug("vgId:%d %s uid=%" PRId64 " route memo dup db=%s -> per-item response",
+                    TD_VID(pVnode), __func__, w->originVtbUid, dbFName);
+          } else {
+            stWarn("vgId:%d %s uid=%" PRId64 " route memo put db=%s rc=0x%x -> per-item response",
+                   TD_VID(pVnode), __func__, w->originVtbUid, dbFName, memoRc);
+          }
+        }
+      }
     }
 
     int32_t vgId  = 0;
     SEpSet  epSet = {0};
-    rc = streamRouteTableToVg(pRsp, dbFName, w->refTableName, &vgId, &epSet);
-    if (!fromCache && pCache == NULL) {
+    int32_t rc = streamRouteTableToVg(pRsp, dbFName, w->refTableName, &vgId, &epSet);
+    if (!owned) {
+      // The memo did not take ownership (duplicate entry or OOM): this response
+      // stays private to the current item.
       tFreeSUsedbRsp(pRsp);
       taosMemoryFree(pRsp);
     }
     if (rc != 0) {
       stError("vgId:%d %s uid=%" PRId64 " routeTableToVg db=%s tb=%s rc=0x%x -> propagate",
               TD_VID(pVnode), __func__, w->originVtbUid, dbFName, w->refTableName, rc);
-      return rc;
+      code = rc;
+      goto _end;
     }
 
     SArray **ppList = (SArray **)taosHashGet(vg2Idx, &vgId, sizeof(vgId));
     SArray  *pList  = NULL;
     if (ppList == NULL) {
       pList = taosArrayInit(4, sizeof(int32_t));
-      if (pList == NULL) return terrno;
+      if (pList == NULL) {
+        code = terrno;
+        goto _end;
+      }
       if (taosHashPut(vg2Idx, &vgId, sizeof(vgId), &pList, sizeof(pList)) != 0) {
         taosArrayDestroy(pList);
-        return terrno;
+        code = terrno;
+        goto _end;
       }
-      if (taosHashPut(vg2Ep, &vgId, sizeof(vgId), &epSet, sizeof(epSet)) != 0) return terrno;
+      if (taosHashPut(vg2Ep, &vgId, sizeof(vgId), &epSet, sizeof(epSet)) != 0) {
+        code = terrno;
+        goto _end;
+      }
     } else {
       pList = *ppList;
     }
-    if (taosArrayPush(pList, &i) == NULL) return terrno;
+    if (taosArrayPush(pList, &i) == NULL) {
+      code = terrno;
+      goto _end;
+    }
   }
-  return 0;
+
+_end:
+  return code;
 }
 
 // Phase 3a sub-step: run the local vg's items synchronously via vnodeResolveOneHop.
@@ -2758,7 +2929,8 @@ static int32_t streamBatchScatterAndPublish(SStreamVTableInfoCache *pCache, SArr
 // / streamBatchScatterAndPublish) so the per-phase invariants are easier to
 // read and modify in isolation.
 static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *pCache,
-                                        int64_t ver, SArray *batch, SArray *outRspItems) {
+                                        int64_t ver, SArray *batch, SArray *outRspItems,
+                                        SStreamDbRouteMemo *pMemo) {
   int32_t   code     = 0;
   SHashObj *vg2Idx   = NULL;  // key: int32_t vgId, value: SArray<int32_t>* (positions in dedupItems)
   SHashObj *vg2Ep    = NULL;  // key: int32_t vgId, value: SEpSet
@@ -2796,7 +2968,7 @@ static int32_t streamCallResolveBatched(SVnode *pVnode, SStreamVTableInfoCache *
   vg2Idx = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   vg2Ep  = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (vg2Idx == NULL || vg2Ep == NULL) { code = terrno; goto _end; }
-  code = streamBatchRouteToVgs(pVnode, pCache, dedupItems, vg2Idx, vg2Ep);
+  code = streamBatchRouteToVgs(pVnode, pCache, dedupItems, vg2Idx, vg2Ep, pMemo);
   if (code != 0) goto _end;
 
   // ---- Phase 3: fan-out + drain ----
@@ -3058,6 +3230,66 @@ static void streamLogFinalResolveResult(SVnode *pVnode, SSHashObj *uid2Result) {
   }
 }
 
+// Whether this batch's reference results are worth keeping in the call-private
+// ref cache. Several refs can converge within the batch or across hops; a
+// nonempty batch also needs to be kept when more uids are still unseeded,
+// because constant tags contribute no work items and a later sparse batch can
+// resolve the very same ref. Empty batches and a final single-ref batch stay on
+// the allocation-free path.
+bool streamResolveNeedsRefCache(int32_t workItemCnt, bool hasMoreUids) {
+  return workItemCnt > 1 || (workItemCnt > 0 && hasMoreUids);
+}
+
+// Whether streamResolveVTableRefChain needs the call-private cache view:
+// borrowed routing requires a struct to point at it, and cached reference
+// results require one as well (see streamResolveNeedsRefCache).
+bool streamResolveNeedsPrivateCacheView(const SStreamVTableInfoCache *pShared, bool needsRefCache) {
+  return pShared != NULL || needsRefCache;
+}
+
+// Build the call-private cache view used by the resolver. Routing info is
+// borrowed from the reader cache (db -> vgroup does not depend on the table
+// version and is safe to share); ref results are private to this call so a
+// concurrent resolve can never free entries this call is still copying. Every
+// field of the struct is left in a valid state, so a future callee that takes
+// lock/uid2Result fails loudly instead of reading stack garbage.
+// pShared may be NULL (tag-only resolve): there is then no routing cache to
+// borrow, and the view falls back to the call-level route memo.
+// createRefCache == false leaves tblRefCache NULL; callers that cannot yet tell
+// whether the ref cache is worth it use streamResolveCacheEnableRefCache() later.
+int32_t streamResolveCacheInit(SStreamVTableInfoCache *pOut, const SStreamVTableInfoCache *pShared,
+                               bool createRefCache) {
+  memset(pOut, 0, sizeof(*pOut));
+  taosInitRWLatch(&pOut->lock);
+  if (pShared != NULL) {
+    pOut->dbVgInfo = pShared->dbVgInfo;  // borrowed: owned by the reader cache
+  }
+
+  if (!createRefCache) return TSDB_CODE_SUCCESS;
+
+  return streamResolveCacheEnableRefCache(pOut);
+}
+
+// Allocate the ref cache of a call-private view on demand. Idempotent, and a
+// no-op for NULL views. Only refs resolved by the current call are ever visible
+// here, so enabling it late cannot leak state across calls.
+int32_t streamResolveCacheEnableRefCache(SStreamVTableInfoCache *pCache) {
+  if (pCache == NULL || pCache->tblRefCache != NULL) return TSDB_CODE_SUCCESS;
+
+  pCache->tblRefCache = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (pCache->tblRefCache == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+
+  taosHashSetFreeFp(pCache->tblRefCache, streamTblRefCacheItemFree);
+  return TSDB_CODE_SUCCESS;
+}
+
+void streamResolveCacheDestroy(SStreamVTableInfoCache *pCache) {
+  if (pCache == NULL) return;
+  taosHashCleanup(pCache->tblRefCache);  // NULL-safe
+  pCache->tblRefCache = NULL;
+  pCache->dbVgInfo    = NULL;            // borrowed, never freed here
+}
+
 int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCache,
                                     SStreamTriggerReaderInfo *pReaderInfo, int64_t ver,
                                     SArray *vtbUids, SArray *virtColCids, SArray *virtTagCids,
@@ -3067,20 +3299,19 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   SArray    *nextWorkList = NULL;
   SArray    *rspItems     = NULL;
   SSHashObj *uid2Result   = NULL;
+  SStreamVTableInfoCache resolveCache = {0};
+  bool       resolveCacheInited = false;
 
   SArray    *fullUids     = NULL;
   SArray    *pTableListArray = NULL;
 
+  // db -> routing memo owned by this resolve call, not by one route pass: it
+  // also spans uid chunks, so a resolve pays at most one GET_DB_INFO per db.
+  SStreamDbRouteMemo routeMemo;
+  streamDbRouteMemoInit(&routeMemo);
+
   if (pVnode == NULL || ppUid2Result == NULL) return TSDB_CODE_INVALID_PARA;
   *ppUid2Result = NULL;
-
-  // Invalidate per-table ref cache at the start of each full resolve cycle.
-  // The cache is only useful within a single multi-hop resolve call to avoid
-  // redundant RPC for the same (db,table,col) across hops; stale results from
-  // a previous cycle could mask schema changes.
-  if (pCache) {
-    taosHashClear(pCache->tblRefCache);
-  }
 
   stDebug("vgId:%d %s enter: ver=%" PRId64 " vtbUids=%d virtCols=%d virtTags=%d", TD_VID(pVnode),
           __func__, ver, (int32_t)taosArrayGetSize(vtbUids),
@@ -3095,6 +3326,8 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
             (int32_t)taosArrayGetSize(pTableListArray), (int32_t)taosArrayGetSize(fullUids));
   }
 
+  int32_t nUid = (int32_t)taosArrayGetSize(vtbUids);
+
   uid2Result = tSimpleHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
   if (uid2Result == NULL) { code = terrno; goto _end; }
   tSimpleHashSetFreeFp(uid2Result, streamVTableResolveResultDestroy);
@@ -3102,72 +3335,113 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
   workList = taosArrayInit(64, sizeof(SResolveWorkItem));
   if (workList == NULL) { code = terrno; goto _end; }
 
-  // 1. seed work-list. H2 v0.5: streamPushInitialWorkItemsForUid swallows
-  //    top-level uid-not-exist (warn + return 0 without entry); any other
-  //    error (col/tag not in ref triple, OOM) is propagated upward so the
-  //    caller (reader -> trigger -> mnode) can fail-fast and trigger a
-  //    redeploy.
-  int32_t nUid = (int32_t)taosArrayGetSize(vtbUids);
-  for (int32_t i = 0; i < nUid; ++i) {
-    int64_t uid = *(int64_t *)taosArrayGet(vtbUids, i);
-    int32_t rc  = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, workList, uid2Result);
-    if (rc == 0) continue;
-    stError("vgId:%d %s seed uid=%" PRId64 " push rc=0x%x -> propagate (strict)",
-            TD_VID(pVnode), __func__, uid, rc);
-    code = rc;
-    goto _end;
-  }
-  stDebug("vgId:%d %s after seed: workListSz=%d uid2ResultSz=%d",
-          TD_VID(pVnode), __func__,
-          (int32_t)taosArrayGetSize(workList),
-          tSimpleHashGetSize(uid2Result));
+  // 1. seed work-list, then run the hop loop, per bounded batch. H2 v0.5:
+  //    streamPushInitialWorkItemsForUid swallows top-level uid-not-exist (warn
+  //    + return 0 without entry); any other error (col/tag not in ref triple,
+  //    OOM) is propagated upward so the caller (reader -> trigger -> mnode) can
+  //    fail-fast and trigger a redeploy. Batches share workList/uid2Result, so
+  //    the merged output is the same as resolving every uid in one pass.
+  int32_t uidIdx = 0;
+  while (uidIdx < nUid) {
+    int32_t seedBegin = uidIdx;
+    while (uidIdx < nUid) {
+      // Always seed at least one uid per batch; after that, close the batch as
+      // soon as either budget (uids or work items) is exhausted.
+      if (uidIdx > seedBegin &&
+          streamResolveBatchFull(uidIdx - seedBegin, (int32_t)taosArrayGetSize(workList))) {
+        break;
+      }
 
-  // 2. main hop loop
-  for (int32_t hop = 0; hop < STREAM_VTB_MAX_HOPS; ++hop) {
-    int32_t cur = (int32_t)taosArrayGetSize(workList);
-    stDebug("vgId:%d %s hop=%d workListSz=%d", TD_VID(pVnode), __func__, hop, cur);
-    if (cur == 0) break;
+      int64_t uid = *(int64_t *)taosArrayGet(vtbUids, uidIdx);
+      int32_t rc  = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, workList, uid2Result);
+      if (rc != 0) {
+        stError("vgId:%d %s seed uid=%" PRId64 " push rc=0x%x -> propagate (strict)",
+                TD_VID(pVnode), __func__, uid, rc);
+        code = rc;
+        goto _end;
+      }
+      uidIdx++;
+    }
+    stDebug("vgId:%d %s after seed: uids=[%d,%d) workListSz=%d uid2ResultSz=%d",
+            TD_VID(pVnode), __func__, seedBegin, uidIdx,
+            (int32_t)taosArrayGetSize(workList),
+            tSimpleHashGetSize(uid2Result));
 
-    rspItems = taosArrayInit(cur, sizeof(SVTableRefResolveRspItem));
-    if (rspItems == NULL) { code = terrno; goto _end; }
-
-    int32_t rc = streamCallResolveBatched(pVnode, pCache, ver, workList, rspItems);
-    if (rc != 0) {
-      // H2 v0.5: any error (OOM, routing, RPC) propagates immediately.
-      code = rc;
-      goto _end;
+    // Keep even a single ref for later uid batches. Constant tags do not
+    // contribute work items, so sparse batches may each contain just one ref.
+    int32_t workItems = (int32_t)taosArrayGetSize(workList);
+    bool hasMoreUids = uidIdx < nUid;
+    bool cacheRefs = streamResolveNeedsRefCache(workItems, hasMoreUids);
+    if (!resolveCacheInited && streamResolveNeedsPrivateCacheView(pCache, cacheRefs)) {
+      code = streamResolveCacheInit(&resolveCache, pCache, cacheRefs);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("vgId:%d %s create private ref cache failed, code:0x%x", TD_VID(pVnode), __func__, code);
+        goto _end;
+      }
+      resolveCacheInited = true;
+      pCache = &resolveCache;
+      stDebug("vgId:%d %s private ref cache:%s, shared routing:%d, uids:%d workItems:%d moreUids:%d",
+              TD_VID(pVnode), __func__, resolveCache.tblRefCache != NULL ? "on" : "off",
+              resolveCache.dbVgInfo != NULL, uidIdx, workItems, hasMoreUids);
+    } else if (resolveCacheInited && pCache->tblRefCache == NULL && cacheRefs) {
+      // Earlier empty batches only borrowed routing; retain this batch's
+      // refs now that another ref can occur in this or a later batch.
+      code = streamResolveCacheEnableRefCache(pCache);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("vgId:%d %s enable private ref cache failed, code:0x%x", TD_VID(pVnode), __func__, code);
+        goto _end;
+      }
+      stDebug("vgId:%d %s enabled private ref cache, seededUids:%d workItems:%d moreUids:%d", TD_VID(pVnode),
+              __func__, uidIdx, workItems, hasMoreUids);
     }
 
-    nextWorkList = taosArrayInit(cur, sizeof(SResolveWorkItem));
-    if (nextWorkList == NULL) { code = terrno; goto _end; }
+    // 2. main hop loop
+    for (int32_t hop = 0; hop < STREAM_VTB_MAX_HOPS; ++hop) {
+      int32_t cur = (int32_t)taosArrayGetSize(workList);
+      stDebug("vgId:%d %s hop=%d workListSz=%d", TD_VID(pVnode), __func__, hop, cur);
+      if (cur == 0) break;
 
-    code = streamConsumeOneHopResults(pVnode, hop, workList, rspItems, uid2Result, nextWorkList);
-    if (code != 0) goto _end;
+      rspItems = taosArrayInit(cur, sizeof(SVTableRefResolveRspItem));
+      if (rspItems == NULL) { code = terrno; goto _end; }
 
-    SVTableRefResolveRsp completedRsp = {.items = rspItems};
-    tFreeSVTableRefResolveRsp(&completedRsp);
-    rspItems = NULL;
-    streamDestroyResolveWorkList(workList);
-    workList     = nextWorkList;
-    nextWorkList = NULL;
-  }
-
-  // 3. hop overflow: any leftover work-items mean the chain exceeded MAX_HOPS.
-  //    H2 v0.5: report TSDB_CODE_STREAM_VTB_REF_TOO_DEEP rather than silently
-  //    skipping the offending uids.
-  if (workList != NULL) {
-    int32_t leftover = (int32_t)taosArrayGetSize(workList);
-    if (leftover > 0) {
-      for (int32_t i = 0; i < leftover; ++i) {
-        SResolveWorkItem *w = taosArrayGet(workList, i);
-        stError("vgId:%d %s OVERFLOW uid=%" PRId64 " kind=%d cid=%d ref=%s.%s.%s",
-                TD_VID(pVnode), __func__, w->originVtbUid, w->kind, w->originCid,
-                w->refDbName, w->refTableName, w->refColName);
+      int32_t rc = streamCallResolveBatched(pVnode, pCache, ver, workList, rspItems, &routeMemo);
+      if (rc != 0) {
+        // H2 v0.5: any error (OOM, routing, RPC) propagates immediately.
+        code = rc;
+        goto _end;
       }
-      stError("vgId:%d %s HOP_OVERFLOW leftover=%d -> propagate TOO_DEEP",
-              TD_VID(pVnode), __func__, leftover);
-      code = TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
-      goto _end;
+
+      nextWorkList = taosArrayInit(cur, sizeof(SResolveWorkItem));
+      if (nextWorkList == NULL) { code = terrno; goto _end; }
+
+      code = streamConsumeOneHopResults(pVnode, hop, workList, rspItems, uid2Result, nextWorkList);
+      if (code != 0) goto _end;
+
+      SVTableRefResolveRsp completedRsp = {.items = rspItems};
+      tFreeSVTableRefResolveRsp(&completedRsp);
+      rspItems = NULL;
+      streamDestroyResolveWorkList(workList);
+      workList     = nextWorkList;
+      nextWorkList = NULL;
+    }
+
+    // 3. hop overflow: any leftover work-items mean the chain exceeded MAX_HOPS.
+    //    H2 v0.5: report TSDB_CODE_STREAM_VTB_REF_TOO_DEEP rather than silently
+    //    skipping the offending uids.
+    if (workList != NULL) {
+      int32_t leftover = (int32_t)taosArrayGetSize(workList);
+      if (leftover > 0) {
+        for (int32_t i = 0; i < leftover; ++i) {
+          SResolveWorkItem *w = taosArrayGet(workList, i);
+          stError("vgId:%d %s OVERFLOW uid=%" PRId64 " kind=%d cid=%d ref=%s.%s.%s",
+                  TD_VID(pVnode), __func__, w->originVtbUid, w->kind, w->originCid,
+                  w->refDbName, w->refTableName, w->refColName);
+        }
+        stError("vgId:%d %s HOP_OVERFLOW leftover=%d -> propagate TOO_DEEP",
+                TD_VID(pVnode), __func__, leftover);
+        code = TSDB_CODE_STREAM_VTB_REF_TOO_DEEP;
+        goto _end;
+      }
     }
   }
 
@@ -3195,6 +3469,8 @@ _end:
     taosArrayDestroy(rspItems);
   }
   tSimpleHashCleanup(uid2Result);
+  if (resolveCacheInited) streamResolveCacheDestroy(&resolveCache);
+  streamDbRouteMemoDestroy(&routeMemo);
 
   return code;
 }
@@ -3226,6 +3502,7 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
   bool         readerInited = false;
   SArray      *uids         = NULL;
   SArray      *tagCids      = NULL;
+  SArray      *noColCids    = NULL;
   SArray      *tagVals      = NULL;
   SSHashObj   *uid2Result = NULL;
   int32_t      nTagCols     = 0;
@@ -3280,8 +3557,16 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
     if (taosArrayPush(uids, &uid) == NULL) { code = terrno; goto _end; }
   }
 
-  // 3) chain-resolve.
-  code = streamResolveVTableRefChain(pVn, NULL, NULL, -1, uids, NULL, tagCids, &uid2Result);
+  // 3) chain-resolve. streamResolveVTableRefChain reads virtColCids == NULL as
+  //    "resolve every column ref of the vtable", but this helper only consumes
+  //    tagMap. Pass an empty (non-NULL) array so no column ref is expanded: on a
+  //    vtable with 82 columns that was ~70% of the seed work items.
+  noColCids = taosArrayInit(0, sizeof(col_id_t));
+  if (noColCids == NULL) {
+    code = terrno;
+    goto _end;
+  }
+  code = streamResolveVTableRefChain(pVn, NULL, NULL, -1, uids, noColCids, tagCids, &uid2Result);
   if (code != 0 || uid2Result == NULL) {
     stTrace("vgId:%d %s chain resolve rc=0x%x uid2Result=%p", TD_VID(pVn), __func__,
             code, (void *)uid2Result);
@@ -3368,9 +3653,10 @@ int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagLi
 
 _end:
   if (readerInited) metaReaderClear(&mr);
-  if (uids    != NULL) taosArrayDestroy(uids);
-  if (tagCids != NULL) taosArrayDestroy(tagCids);
-  if (tagVals != NULL) taosArrayDestroy(tagVals);
+  if (uids      != NULL) taosArrayDestroy(uids);
+  if (tagCids   != NULL) taosArrayDestroy(tagCids);
+  if (noColCids != NULL) taosArrayDestroy(noColCids);
+  if (tagVals   != NULL) taosArrayDestroy(tagVals);
   tSimpleHashCleanup(uid2Result);
   return code;
 }

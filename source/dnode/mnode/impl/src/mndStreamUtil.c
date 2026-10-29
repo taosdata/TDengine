@@ -650,7 +650,10 @@ static bool mstChkSetDbInUse(SMnode *pMnode, void *pObj, void *p1, void *p2, voi
   }
 
   SStmCheckDbInUseCtx* pCtx = (SStmCheckDbInUseCtx*)p2;
-  if (pCtx->ignoreCurrDb && 0 == strcmp(pStream->pCreate->streamDB, p1)) {
+  // [FIX-198] streamDB may be NULL for legacy/corrupt stream objects persisted in sdb
+  // before the required-field check was added. Tolerate it instead of crashing the mnode.
+  if (pCtx->ignoreCurrDb && pStream->pCreate->streamDB != NULL &&
+      0 == strcmp(pStream->pCreate->streamDB, p1)) {
     return true;
   }
   
@@ -1146,7 +1149,7 @@ void mstLogSStreamObj(char* tips, SStreamObj* p) {
 void mstLogSStmTaskStatus(char* name, int64_t streamId, SStmTaskStatus* pTask, int32_t idx) {
   mstsDebug("%s[%d]: task %" PRIx64 " deployId:%d SID:%" PRId64 " nodeId:%d tidx:%d type:%s flags:%" PRIx64 " status:%s lastUpTs:%" PRId64, 
       name, idx, pTask->id.taskId, pTask->id.deployId, pTask->id.seriousId, pTask->id.nodeId, pTask->id.taskIdx,
-      gStreamTaskTypeStr[pTask->type], pTask->flags, gStreamStatusStr[pTask->status], pTask->lastUpTs);
+      mndStreamTaskTypeStr(pTask->type), pTask->flags, mndStreamStatusStr(pTask->status), pTask->lastUpTs);
 }
 
 void mstLogSStmStatus(char* tips, int64_t streamId, SStmStatus* p) {
@@ -1473,7 +1476,7 @@ _end:
 int32_t mstGetTaskStatusStr(SStmTaskStatus* pTask, char* status, int32_t statusSize, char* msg, int32_t msgSize) {
   char tmpBuf[256];
   
-  STR_WITH_MAXSIZE_TO_VARSTR(status, gStreamStatusStr[pTask->status], statusSize);
+  STR_WITH_MAXSIZE_TO_VARSTR(status, mndStreamStatusStr(pTask->status), statusSize);
   if (STREAM_STATUS_FAILED == pTask->status && pTask->errCode) {
     if (pTask->extraErrMsg != NULL) {
       snprintf(tmpBuf, sizeof(tmpBuf), "Last error: %s, %s", tstrerror(pTask->errCode), pTask->extraErrMsg);
@@ -2059,6 +2062,17 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   
   TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
+
+  // Security hardening (see "item 194"): nodesStringToNode returns SUCCESS and
+  // leaves *pNode NULL when scanPlan is a missing/optional JSON key, and it
+  // instantiates whatever NodeType the JSON names. A NULL or wrong-typed node
+  // here would be dereferenced right below (pSubplan->pNode) and crash the
+  // mnode. Reject non-physical-subplan results instead of walking them.
+  if (NULL == pSubplan || QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)pSubplan)) {
+    mstsError("stream:%" PRId64 " scanPlan decoded to invalid node (null:%d, type:%d)", streamId, (pSubplan == NULL),
+              (pSubplan ? nodeType((SNode*)pSubplan) : -1));
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
 
   // The calc-scan reader root is usually a TABLE_SCAN. For the virtual-stable-agg pushdown the
   // reader is rooted at a partial aggregate (HASH_AGG -> TableScan); only in that case descend

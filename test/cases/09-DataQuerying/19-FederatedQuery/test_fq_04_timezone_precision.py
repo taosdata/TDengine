@@ -44,6 +44,7 @@ History:
 import datetime as _dt_mod
 import os
 import re
+import sys
 import time as _time
 
 import pytz as _pytz
@@ -1325,7 +1326,10 @@ _TPC_PARITY_CASES = [
     ("tpc-09", "SELECT _qstart, _qend, COUNT(*) FROM {tbl} WHERE ts >= '2024-01-01' AND ts < '2024-01-01 00:05:00'"),
     ("tpc-10", "SELECT _qduration, COUNT(*) FROM {tbl} WHERE ts >= '2024-01-01' AND ts < '2024-01-01 00:05:00'"),
     ("tpc-11", "SELECT _wstart, COUNT(*) FROM {tbl} INTERVAL(2m) SLIDING(1m) ORDER BY _wstart"),
-    ("tpc-12", "SELECT _wstart, val, COUNT(*) FROM {tbl} PARTITION BY val INTERVAL(5m)"),
+    # All five partitions fall in one 5m window, so every row shares _wstart and
+    # the source-returned order is engine-dependent: compare order-insensitively.
+    ("tpc-12", "SELECT _wstart, val, COUNT(*) FROM {tbl} PARTITION BY val INTERVAL(5m)",
+     {"ordered": False}),
     ("tpc-13", "SELECT CAST(_wstart AS BIGINT), COUNT(*) FROM {tbl} INTERVAL(1m) ORDER BY _wstart"),
     ("tpc-14", "SELECT _wstart, _wend, COUNT(*) FROM {tbl} EXTERNAL_WINDOW ((SELECT _wstart, _wend FROM {tbl} INTERVAL(1m)) w) ORDER BY _wstart"),
     ("tpc-15", "SELECT _wstart, val, COUNT(*) FROM {tbl} PARTITION BY val SESSION(ts, 30s)"),
@@ -1961,8 +1965,32 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         by hand.  See BASELINE MAINTENANCE POLICY in the module docstring.
         """
         _norm_re = re.compile(r'(root@)[0-9a-f]{12}\b')
+        _pre1900_re = re.compile(r'^-?\d{17,}$')
+
+        def _normalize_pre1900(text):
+            """Blank pre-1900 epochs on Windows.
+
+            The tz database applies each zone's Local Mean Time before the
+            1901 standard-time switch (Asia/Shanghai +08:05:43), while the
+            Windows time zone data only carries the modern fixed offset.  The
+            affected values are TO_TIMESTAMP() parse-failure sentinels; their
+            exact epoch is a tz-database artifact, not a conversion defect.
+            """
+            out = []
+            for line in text.splitlines(True):
+                stripped = line.strip()
+                if (_pre1900_re.match(stripped) and
+                        int(stripped) < -2_208_988_800_000_000):
+                    out.append("<PRE-1900-TS>" + ("\n" if line.endswith("\n") else ""))
+                else:
+                    out.append(line)
+            return "".join(out)
+
         def normalize(text):
-            return _norm_re.sub(r'\1<HOST>', text)
+            text = _norm_re.sub(r'\1<HOST>', text)
+            if sys.platform == "win32":
+                text = _normalize_pre1900(text)
+            return text
 
         os.makedirs(self._TMP_DIR, exist_ok=True)
         tmp_file = os.path.join(

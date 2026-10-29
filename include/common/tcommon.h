@@ -262,6 +262,7 @@ typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAggBuf;      // reusable storage for block SMA results
   uint32_t        pBlockAggBufSize;  // number of entries in pBlockAggBuf
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SArray*         pConstTagCols;  // owned SConstTagColumn; local single-table scan->aggregate only.
   SDataBlockInfo  info;
   uint64_t        recycleKey;
   int64_t         recycleTime;
@@ -288,6 +289,12 @@ typedef struct SColumnInfoData {
   bool        reassigned;  // if current column data is reassigned.
 } SColumnInfoData;
 
+typedef struct SConstTagColumn {
+  int32_t         slotId;
+  uint64_t        uid;  // zero until the current single-table block supplies a value.
+  SColumnInfoData column;  // one owned value; logical rows come from the input block.
+} SConstTagColumn;
+
 typedef struct SQueryTableDataCond {
   uint64_t     suid;
   int32_t      order;  // desc|asc order to iterate the data block
@@ -311,6 +318,12 @@ typedef struct SQueryTableDataCond {
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);
 void*   tDecodeDataBlock(const void* buf, SSDataBlock* pBlock);
+// Decodes one complete data-block prefix from buf. pBlock must not already own
+// column or aggregate buffers. On success pConsumed is the number of bytes
+// consumed; on failure it is reset to zero, pBlock info/resources are cleared,
+// and allocations are released. Malformed frames return MSG_DECODE_ERROR;
+// allocation failures preserve terrno.
+int32_t tDecodeDataBlockBounded(const void* buf, int32_t bufLen, SSDataBlock* pBlock, int32_t* pConsumed);
 
 void colDataDestroy(SColumnInfoData* pColData);
 

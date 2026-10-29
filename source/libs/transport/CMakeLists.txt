@@ -71,7 +71,7 @@ endif()
 
 if(BUILD_TEST AND TD_LINUX)
   add_executable(transportTest test/transportTests.cpp test/transportHeartbeatHarness.c
-                 test/transSvrUserInfoHarness.c)
+                 test/transSvrUserInfoHarness.c test/thttpTelemSecHarness.c)
   DEP_ext_gtest(transportTest)
   target_include_directories(transportTest PRIVATE $<TARGET_PROPERTY:transport,INCLUDE_DIRECTORIES>)
   target_compile_definitions(transportTest PRIVATE $<TARGET_PROPERTY:transport,COMPILE_DEFINITIONS>)

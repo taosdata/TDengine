@@ -505,9 +505,21 @@ class TestStreamIdleTrigger:
         tdSql.execute("insert into d001 values (now, 1)")
         for cycle in range(1, 4):
             tdLog.debug(f"Idle-resume cycle {cycle}: waiting for idle timeout before resuming")
+            # Snapshot the idle-event count BEFORE this cycle: the guard below must wait for THIS
+            # cycle's idle event, not for a cumulative total that an earlier cycle can satisfy.
+            tdSql.query("select count(*) from out_cycles where idle_start is not null")
+            cycle_base = tdSql.getData(0, 0)
             time.sleep(5)
             tdSql.execute(f"insert into d001 values (now, {cycle + 1})")
             tdLog.debug(f"Idle-resume cycle {cycle}: resume data inserted")
+            # Wait for this cycle's idle event to land before starting the next cycle: on a slow
+            # engine the next resume row could otherwise arrive before the idle event is emitted
+            # and be folded into this cycle's group, leaving it with a single row forever.
+            tdSql.checkResultsByFunc(
+                sql="select count(*) from out_cycles where idle_start is not null",
+                func=lambda base=cycle_base: tdSql.getData(0, 0) >= base + 1,
+                retry=60,
+            )
 
         tdSql.checkResultsByFunc(
             sql="select idle_start, count(*) from out_cycles group by idle_start having count(*) = 2",

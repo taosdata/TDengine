@@ -19,9 +19,33 @@
 #include "smInt.h"
 #include "stream.h"
 
-static void smFreeRpcQitem(void *pItem) {
+void smFreeRpcQitem(void *pItem) {
   SRpcMsg *pMsg = (SRpcMsg *)pItem;
+  if (pMsg == NULL) {
+    return;
+  }
+
+  /*
+   * Trigger responses carry the send handle (SMsgSendInfo + SSTriggerAHandle)
+   * of the trigger task that issued the request.  When the queue is torn down
+   * with such a response still pending, the worker never sees it and nobody
+   * else releases the handle, so drop it here together with the message body.
+   *
+   * A non-NULL info.ahandle means the item still owns its handle, therefore the
+   * handle is cleared right after the release: whoever releases a handle must
+   * leave the message without ownership so that a second free path cannot
+   * release it again.
+   */
+  if (pMsg->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pMsg->msgType)) {
+    dDebug("msg:%p, type:%s ahandle %p freed with queue, trace:0x%" PRIx64 ":0x%" PRIx64, pMsg,
+           TMSG_INFO(pMsg->msgType), pMsg->info.ahandle, TRACE_GET_ROOTID(&pMsg->info.traceId),
+           TRACE_GET_MSGID(&pMsg->info.traceId));
+    destroyAhandle(pMsg->info.ahandle);
+    pMsg->info.ahandle = NULL;
+  }
+
   rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }
 
 static void smProcessRunnerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
@@ -108,7 +132,7 @@ static int32_t smProcessStreamProgressRequest(SRpcMsg *pMsg) {
   QUERY_CHECK_CODE(code, lino, _end);
 
   int32_t msgNum = taosArrayGetSize(batchReq.pMsgs);
-  QUERY_CHECK_CONDITION(msgNum < MAX_META_MSG_IN_BATCH, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  QUERY_CHECK_CONDITION(msgNum > 0 && msgNum < MAX_META_MSG_IN_BATCH, code, lino, _end, TSDB_CODE_INVALID_PARA);
   batchRsp.pRsps = taosArrayInit(msgNum, sizeof(SBatchRspMsg));
   QUERY_CHECK_NULL(batchRsp.pRsps, code, lino, _end, terrno);
 
@@ -185,6 +209,9 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   }
 
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, taskId, &pTask, &taskAddr));
+  if (pTask->type != STREAM_TRIGGER_TASK) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   int64_t errTaskId = 0;
   code = stTriggerTaskProcessRsp(pTask, pMsg, &errTaskId);
@@ -197,8 +224,15 @@ _exit:
   if (taskAddr != NULL) {
     streamReleaseTask(taskAddr);
   }
-  if (ahandle != NULL) {
-    destroyAhandle(ahandle);
+  /*
+   * Release on the ownership marker itself instead of the branch-local copy, so a message
+   * that took another path through this function cannot keep its handle.  A non-NULL
+   * info.ahandle means the item still owns it, which is the contract the queue free hook
+   * (smFreeRpcQitem) relies on to release a dropped response exactly once.
+   */
+  if (pMsg->info.ahandle != NULL && tmsgIsStreamTriggerRsp(pMsg->msgType)) {
+    destroyAhandle(pMsg->info.ahandle);
+    pMsg->info.ahandle = NULL;
   }
   dTrace("msg:%p, is freed, code:%d", pMsg, code);
   rpcFreeCont(pMsg->pCont);
@@ -224,7 +258,15 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
       dError("msg:%p, failed to deserialize batch meta request", pMsg);
       TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
     }
-    SBatchMsg         *pReq = TARRAY_DATA(batchReq.pMsgs);
+    // tDeserializeSBatchReq returns success with pMsgs == NULL when the wire-declared message
+    // count is <= 0, so indexing the array unconditionally would dereference NULL here - on
+    // the dispatch path, which tAddTaskIntoDispatchWorkerPool runs synchronously under
+    // poolLock for every TDMT_SND_BATCH_META frame.
+    if (taosArrayGetSize(batchReq.pMsgs) <= 0) {
+      dError("msg:%p, batch meta request carries no message", pMsg);
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    SBatchMsg         *pReq = taosArrayGet(batchReq.pMsgs, 0);
     SStreamProgressReq req = {0};
     code = tDeserializeStreamProgressReq(pReq->msg, pReq->msgLen, &req);
     if (code != TSDB_CODE_SUCCESS) {
@@ -270,9 +312,11 @@ _exit:
     streamReleaseTask(taskAddr);
   }
   if (code) {
-    destroyAhandle(ahandle);
-    //rpcFreeCont(pMsg->pCont);
-    //taosFreeQitem(pMsg);
+    /*
+     * Ownership of ahandle stays with the caller: dmProcessNodeMsg() releases
+     * it when the message cannot be handed over to a worker, so releasing it
+     * here would double free the same handle.
+     */
     stError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 

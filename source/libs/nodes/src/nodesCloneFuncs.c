@@ -1082,6 +1082,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   COPY_SCALAR_FIELD(dataRequired);
   COPY_SCALAR_FIELD(lastOnlyScan);
+  COPY_SCALAR_FIELD(intervalLimit);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
   COPY_SCALAR_FIELD(sliding);
@@ -1316,6 +1317,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowAlgo);
   COPY_SCALAR_FIELD(fastInterval);
   COPY_SCALAR_FIELD(exInterval);
+  COPY_SCALAR_FIELD(intervalLimitHint);
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
   COPY_SCALAR_FIELD(indefRowsFunc);
@@ -1364,8 +1366,14 @@ static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
   COPY_SCALAR_FIELD(firstDayOfWeek);
-  pDst->timezone = pSrc->timezone;
-  COPY_CHAR_ARRAY_FIELD(timezoneName);
+  if (pSrc->ownsTimezone) {
+    // The source owns its handle, so the clone must not share it: re-decode its own.
+    CLONE_TIMEZONE_FIELD();
+  } else {
+    pDst->timezone = pSrc->timezone;  // borrowed from the plan context or the timezone cache
+    pDst->ownsTimezone = false;
+    COPY_CHAR_ARRAY_FIELD(timezoneName);
+  }
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
   CLONE_NODE_FIELD(pTimeRange);
   CLONE_NODE_LIST_FIELD(pFillNullExprs);
@@ -1608,6 +1616,7 @@ static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, S
   CLONE_NODE_FIELD(pExtTable);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_FIELD(pRemotePlan);
+  CLONE_NODE_FIELD(pTimeRange);
   COPY_SCALAR_FIELD(pushdownFlags);
   COPY_SCALAR_FIELD(sourceType);
   COPY_CHAR_ARRAY_FIELD(srcHost);
@@ -1662,6 +1671,7 @@ static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) 
   COPY_SCALAR_FIELD(tsPrimaryColIdx);
   COPY_CHAR_ARRAY_FIELD(remoteTableName);
   COPY_SCALAR_FIELD(srcNameFromPath);
+  COPY_SCALAR_FIELD(nsFromPathOnly);
   // pExtMeta: deep-copied so the planner can translate TDengine column names to
   // remote column names (e.g. 'ts'  ->  'time' for InfluxDB) before serialization.
   if (pSrc->pExtMeta) {
@@ -1719,6 +1729,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
   COPY_SCALAR_FIELD(lastOnlyScan);
+  COPY_SCALAR_FIELD(intervalLimit);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(interval);

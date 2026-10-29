@@ -620,9 +620,9 @@ static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeLi
     pSortOperInfo->maxTupleLength += pInfo->dataType.bytes;
   }
 
-  size = LIST_LENGTH(pSortKeys);
-  for (size_t i = 0; i < size; ++i) {
-    SOrderByExprNode* pOrderExprNode = (SOrderByExprNode*)nodesListGetNode(pSortKeys, i);
+  SNode* pSortKeyNode = NULL;
+  FOREACH(pSortKeyNode, pSortKeys) {
+    SOrderByExprNode* pOrderExprNode = (SOrderByExprNode*)pSortKeyNode;
     pSortOperInfo->maxTupleLength += ((SColumnNode*)pOrderExprNode->pExpr)->node.resType.bytes;
   }
 }

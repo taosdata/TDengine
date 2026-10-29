@@ -34,8 +34,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from taosanalytics.conf import Configure
-from taosanalytics.service_registry import ServiceRegistry
+from lib.conf import Configure
+from lib.service_registry import ServiceRegistry
 
 
 class TestSyncDynamicServicesSubdirectoryBranch(unittest.TestCase):

@@ -370,6 +370,75 @@ static int32_t mndSetUpdateSmaStbCommitLogs(SMnode *pMnode, STrans *pTrans, SStb
   TAOS_RETURN(code);
 }
 
+// @brief Shared predicate: is pNode a well-formed TSMA function entry?
+//        A valid TSMA function is a SFunctionNode whose funcId is TSMA-supported and whose
+//        first parameter is a column node. This is the SINGLE source of truth for what a
+//        TSMA function entry must look like; it is used by both the run-time consumers
+//        (dumpTSMAInfoFromSmaObj / mndRetrieveTSMA skip non-matching entries) and referenced
+//        by the creation-time validator, so the two can never drift apart (see review note on
+//        strictness consistency for item 164).
+static bool mndIsValidTsmaFuncNode(SNode *pNode) {
+  if (nodeType(pNode) != QUERY_NODE_FUNCTION) return false;
+  SFunctionNode *pFuncNode = (SFunctionNode *)pNode;
+  if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) return false;
+  if (pFuncNode->pParameterList == NULL || pFuncNode->pParameterList->pHead == NULL) return false;
+  if (nodeType(pFuncNode->pParameterList->pHead->pNode) != QUERY_NODE_COLUMN) return false;
+  return true;
+}
+
+// @brief Validate the client-supplied TSMA AST JSON before it is persisted into sdb.
+//        The mnode previously stored the AST verbatim and only the consumers parsed it,
+//        which allowed a crafted AST to crash the mnode later (see security finding "item 164").
+//
+//        Strictness is intentionally kept in SYNC with the run-time consumers: per-projection
+//        entries that are not TSMA-supported functions (non-function nodes, unsupported
+//        functions, or functions without a column first-parameter) are SKIPPED rather than
+//        rejected. The original code and the consumers (dumpTSMAInfoFromSmaObj /
+//        mndRetrieveTSMA) have always silently ignored such entries, and legitimate TSMA ASTs
+//        produced by older SDKs/clients may legitimately contain them (e.g. extra pseudo-column
+//        projection items). Rejecting them at creation would break backward compatibility for
+//        ASTs the read path already tolerates, while still leaving the mnode crashable.
+//
+//        The only root-level rejections are structures the consumers CANNOT recover from:
+//        a non-SELECT root node, or a NULL projection list. Both would otherwise cause the
+//        consumers to perform type-confused / out-of-bounds reads when cast to SSelectStmt.
+//        All per-entry crash scenarios are instead neutralised in the consumers via
+//        mndIsValidTsmaFuncNode (which makes them skip malformed entries safely).
+// @return TSDB_CODE_SUCCESS if the AST is structurally acceptable, otherwise an error code.
+static int32_t mndValidateSmaAst(const char *ast) {
+  SNode *pNode = NULL;
+  // nodesStringToNode instantiates whatever NodeType the JSON names; reject parse failures.
+  if (TSDB_CODE_SUCCESS != nodesStringToNode(ast, &pNode)) {
+    mError("tsma: failed to parse AST json, reject create tsma");
+    return TSDB_CODE_MND_INVALID_SMA_OPTION;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  // The persisted AST must be a SELECT statement; otherwise consumers that cast it to
+  // SSelectStmt and read pProjectionList would perform type-confused out-of-bounds reads.
+  if (nodeType(pNode) != QUERY_NODE_SELECT_STMT) {
+    mError("tsma: AST root node is not a SELECT statement, reject create tsma");
+    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    goto _OVER;
+  }
+
+  // A NULL projection list is invalid and not something the consumers can skip.
+  if (((SSelectStmt *)pNode)->pProjectionList == NULL) {
+    mError("tsma: AST projection list is NULL, reject create tsma");
+    code = TSDB_CODE_MND_INVALID_SMA_OPTION;
+    goto _OVER;
+  }
+
+  // Per-entry validation is deliberately NOT performed here: entries that are not valid TSMA
+  // functions are skipped (not rejected) consistently with the consumers, preserving backward
+  // compatibility. See mndIsValidTsmaFuncNode and the consumers for the shared definition.
+
+_OVER:
+  if (pNode) nodesDestroyNode(pNode);
+  return code;
+}
+
 static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   int32_t code = TSDB_CODE_MND_INVALID_SMA_OPTION;
   if (pCreate->name[0] == 0) TAOS_RETURN(code);
@@ -389,6 +458,12 @@ static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   if (pCreate->tagsFilterLen != 0 && strlen(pCreate->tagsFilter) + 1 != pCreate->tagsFilterLen) TAOS_RETURN(code);
   if (pCreate->sqlLen != 0 && strlen(pCreate->sql) + 1 != pCreate->sqlLen) TAOS_RETURN(code);
   if (pCreate->astLen != 0 && strlen(pCreate->ast) + 1 != pCreate->astLen) TAOS_RETURN(code);
+
+  // @fix(item164): validate the persisted AST JSON structure before it is committed to sdb,
+  // so that a crafted/non-conforming AST cannot later crash the mnode consumers.
+  if (pCreate->astLen != 0) {
+    if (TSDB_CODE_SUCCESS != (code = mndValidateSmaAst(pCreate->ast))) TAOS_RETURN(code);
+  }
 
   SName smaName = {0};
   if (tNameFromString(&smaName, pCreate->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE) < 0) return -1;
@@ -1582,10 +1657,15 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     }
     if (TSDB_CODE_SUCCESS == code) {
       char *start = buf + VARSTR_HEADER_SIZE;
-      FOREACH(pFunc, ((SSelectStmt *)pNode)->pProjectionList) {
-        if (nodeType(pFunc) == QUERY_NODE_FUNCTION) {
+      // @fix(item164): only walk the projection list if the persisted AST is actually a
+      // SELECT statement. A legacy/corrupt AST with a non-SELECT root node would otherwise
+      // read pProjectionList at a wrong offset and crash the mnode.
+      if (nodeType(pNode) == QUERY_NODE_SELECT_STMT && ((SSelectStmt *)pNode)->pProjectionList != NULL) {
+        FOREACH(pFunc, ((SSelectStmt *)pNode)->pProjectionList) {
+          // @fix(item164): use the same predicate as the creation-time validator
+          // (mndIsValidTsmaFuncNode) so the two stay in sync.
+          if (!mndIsValidTsmaFuncNode(pFunc)) continue;
           SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
-          if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
           len += snprintf(start, TSDB_MAX_SAVED_SQL_LEN - len, "%s%s", start != buf + VARSTR_HEADER_SIZE ? "," : "",
                           ((SExprNode *)pFunc)->userAlias);
           if (len >= TSDB_MAX_SAVED_SQL_LEN) {
@@ -1594,6 +1674,8 @@ static int32_t mndRetrieveTSMA(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
           }
           start = buf + VARSTR_HEADER_SIZE + len;
         }
+      } else {
+        mWarn("tsma: SHOW TSMAS encountered an invalid (non-SELECT) AST, skip func list for safety");
       }
       nodesDestroyNode(pNode);
     }
@@ -1670,14 +1752,36 @@ int32_t dumpTSMAInfoFromSmaObj(const SSmaObj *pSma, const SStbObj *pDestStb, STa
   if (TSDB_CODE_SUCCESS != nodesStringToNode(pBaseTsma ? pBaseTsma->ast : pSma->ast, &pNode)) {
     taosArrayDestroy(pInfo->pFuncs);
     pInfo->pFuncs = NULL;
-    return TSDB_CODE_TSMA_INVALID_STAT;
+    // @fix(review): must set terrno so callers (mndGetTSMA / mndGetSomeTsmas) that gate on
+    // `if (terrno)` actually take the error branch. A bare `return` leaves terrno == 0, which
+    // would let the half-initialized pTsma (pFuncs == NULL) be pushed into the response and
+    // later dereferenced during serialization.
+    TAOS_RETURN(TSDB_CODE_TSMA_INVALID_STAT);
   }
   if (pNode) {
+    // @fix(item164): a non-SELECT root node (or a NULL projection list) is invalid; fail
+    // gracefully (TSDB_CODE_TSMA_INVALID_STAT) instead of type-confusing pProjectionList and
+    // crashing the mnode. Valid TSMAs produced after the creation-time validation always pass.
+    if (nodeType(pNode) != QUERY_NODE_SELECT_STMT || ((SSelectStmt *)pNode)->pProjectionList == NULL) {
+      mError("tsma: persisted AST is not a valid SELECT statement, reject tsma info");
+      taosArrayDestroy(pInfo->pFuncs);
+      pInfo->pFuncs = NULL;
+      nodesDestroyNode(pNode);
+      // @fix(review): set terrno (via TAOS_RETURN) so the caller's `if (terrno)` guard catches
+      // this failure and frees pTsma instead of returning a success with NULL pFuncs.
+      TAOS_RETURN(TSDB_CODE_TSMA_INVALID_STAT);
+    }
+
     SSelectStmt *pSelect = (SSelectStmt *)pNode;
     FOREACH(pFunc, pSelect->pProjectionList) {
+      // @fix(item164): skip any entry that is not a well-formed TSMA function node, using the
+      // SAME predicate as the creation-time validator (mndIsValidTsmaFuncNode) so the two stay
+      // in sync. This avoids the NULL dereference / type confusion of the original
+      // unconditional cast + pParameterList->pHead->pNode dereference.
+      if (!mndIsValidTsmaFuncNode(pFunc)) continue;
+
+      SFunctionNode *pFuncNode = (SFunctionNode *)pFunc;
       STableTSMAFuncInfo funcInfo = {0};
-      SFunctionNode     *pFuncNode = (SFunctionNode *)pFunc;
-      if (!fmIsTSMASupportedFunc(pFuncNode->funcId)) continue;
       funcInfo.funcId = pFuncNode->funcId;
       funcInfo.colId = ((SColumnNode *)pFuncNode->pParameterList->pHead->pNode)->colId;
       if (!taosArrayPush(pInfo->pFuncs, &funcInfo)) {

@@ -2364,9 +2364,9 @@ int32_t buildStreamSubmitReqFromBlock(SStreamRunnerTask* pTask, SDataInserterHan
   QUERY_CHECK_CODE(code, lino, _end);
 
   ST_TASK_DLOG("[data inserter], Handle:%p, GROUP:%" PRId64 " tbname:%s autoCreate:%d uid:%" PRId64 " suid:%" PRId64
-               " sver:%d vgid:%d isLastBlock:%d",
+               " sver:%d vgid:%d isFirstBlock:%d isLastBlock:%d",
                pInserter, pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable, tbData->uid,
-               tbData->suid, tbData->sver, vgInfo->vgId, tbDataInfo->isFirstBlock);
+               tbData->suid, tbData->sver, vgInfo->vgId, tbDataInfo->isFirstBlock, tbDataInfo->isLastBlock);
 
   code = appendInsertData(pInsertParam, pDataBlock, tbData, pTSchema, tbDataInfo);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2583,6 +2583,10 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
       ST_TASK_ILOG("putStreamDataBlock, stream inserter table info not found, groupId:%" PRId64
                    ", tbName:%s. so reset dbVgInfo and try again",
                    pInput->pStreamDataInserterInfo->groupId, pInput->pStreamDataInserterInfo->tbName);
+      // The retry re-pushes pInput->pData into pDataBlocks, so drop the block pushed by this attempt.
+      // Otherwise the same block is submitted twice and its rows are appended twice to the same
+      // submit request, which corrupts the merged result of the first window.
+      taosArrayClear(pInserter->pDataBlocks);
       return putStreamDataBlock(pHandle, pInput, pContinue);
     }
 

@@ -22,8 +22,10 @@
 #include "clientSession.h"
 #include "clientStmt.h"
 #include "clientStmt2.h"
+#include "clientWlr.h"
 #include "functionMgt.h"
 #include "os.h"
+#include "parser.h"
 #include "query.h"
 #include "scheduler.h"
 #include "tcompare.h"
@@ -47,6 +49,10 @@ extern void shellStopDaemon();
 static void instanceRpcGlobalCleanup(void);
 
 static int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper);
+static int     taos_fetch_block_s_impl(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows);
+static int     taos_fetch_raw_block_impl(TAOS_RES *res, int *numOfRows, void **pData);
+static int     taos_select_db_impl(TAOS *taos, const char *db);
+static int32_t wlrEncodeSingleMultiBind(TAOS_MULTI_BIND *bind, uint8_t *buf, size_t bufLen);
 
 static int32_t waitRefSetToBaseCount(int32_t rsetId, const char *name, int64_t startMs, int64_t timeoutMs) {
   if (rsetId < 0) {
@@ -286,14 +292,16 @@ int32_t tscSetSessionTimezone(STscObj* pObj, const char* timezoneName, bool expl
  * established. ALTER LOCAL prepares the validated session state before changing
  * the client-level setting, then commits it after the change succeeds. */
 int32_t tscInitSessionTimezone(STscObj *pObj) {
-#if defined(WINDOWS) || defined(TD_ASTRA)
+#if defined(TD_ASTRA)
   (void)pObj;
   return TSDB_CODE_SUCCESS;
 #else
+#ifndef WINDOWS
   if (pTimezoneMap == NULL) {
     /* tzInit() not yet called; skip silently */
     return TSDB_CODE_SUCCESS;
   }
+#endif
 
   /* Extract the IANA name from tsTimezoneStr.
    * The string has the form "Name (Abbrev, +HHMM)". */
@@ -451,8 +459,62 @@ END:
   return terrno = code;
 }
 
+/* Stable spelling for the file. Deliberately not the enum's numeric value alone:
+ * the number is what replay applies, the name is what makes a trace readable
+ * without the header at hand. */
+static const char *wlrConnOptName(TSDB_OPTION_CONNECTION option, char *unknown, size_t unknownLen) {
+  switch (option) {
+    case TSDB_OPTION_CONNECTION_CLEAR:
+      return "clear";
+    case TSDB_OPTION_CONNECTION_CHARSET:
+      return "charset";
+    case TSDB_OPTION_CONNECTION_TIMEZONE:
+      return "timezone";
+    case TSDB_OPTION_CONNECTION_USER_IP:
+      return "userIp";
+    case TSDB_OPTION_CONNECTION_USER_APP:
+      return "userApp";
+    case TSDB_OPTION_CONNECTION_CONNECTOR_INFO:
+      return "connectorInfo";
+    default:
+      (void)snprintf(unknown, unknownLen, "unknown(%d)", (int32_t)option);
+      return unknown;
+  }
+}
+
 int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) {
-  return setConnectionOption(taos, option, (const char *)arg);
+  /* Connection options change how subsequent statements are interpreted (charset,
+   * timezone), so replay has to apply them in the same order relative to the
+   * queries that follow -- and with the same option and value, which is why both
+   * are recorded rather than just the fact that an option was set. */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  char               wlrUnknownOpt[32] = {0};
+  wlrArgs.apiType = WLR_API_OPTIONS_CONNECTION;
+  wlrArgs.connOptSet = true;
+  wlrArgs.connOptType = (int32_t)option;
+  wlrArgs.connOptName = wlrConnOptName(option, wlrUnknownOpt, sizeof(wlrUnknownOpt));
+  wlrArgs.connOptValue = (option == TSDB_OPTION_CONNECTION_CLEAR) ? NULL : (const char *)arg;
+  if (taos != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(*(int64_t *)taos);
+    }
+  }
+  if (wlrRecorderState() == WLR_STATE_RUNNING) (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
+  int32_t wlrCode = setConnectionOption(taos, option, (const char *)arg);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = wlrCode;
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 // this function may be called by user or system, or by both simultaneously.
@@ -463,6 +525,12 @@ void taos_cleanup(void) {
   }
 
   int64_t cleanupStartMs = taosGetTimestampMs();
+
+  // Stop recording first: it drains its queue, writes SESSION_STOP with the list
+  // of calls that never completed, and flushes. Doing this before the request ref
+  // pool drains means a still-running query is recorded as unfinished, which is
+  // the intended signal rather than a defect (DS 6.4, FS 4.7).
+  wlrRecorderClose();
 
   if (TSDB_CODE_SUCCESS !=
       waitRefSetToBaseCount(clientReqRefPool, "request", cleanupStartMs, CLIENT_CLEANUP_WAIT_TIMEOUT_MS)) {
@@ -517,10 +585,15 @@ void taos_cleanup(void) {
 #ifdef TAOSD_INTEGRATED
   shellStopDaemon();
 #endif
+  // The embedded daemon (TAOSD_INTEGRATED) shares the nodes library, and so this cache, with
+  // the client: its plans can borrow cached handles until the daemon thread has been stopped
+  // and joined, so the cache is released only after that. Local requests and connections were
+  // drained above.
+  nodesCleanupTimezoneCache();
   tscInfo("all local resources released");
   taosCleanupCfg();
 #ifndef TAOSD_INTEGRATED
-  taosCloseLog();
+  if (!wlrRecorderReleaseLog()) taosCloseLog();
 #endif
 }
 
@@ -547,21 +620,67 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pass = TSDB_DEFAULT_PASS;
   }
 
+  /*
+   * The driver env -- and with it the recorder -- is normally initialized deeper in,
+   * by taos_connect_by_auth. That is too late for the very first connect of a
+   * process: its BEGIN would run while the recorder is still OFF, so the connect
+   * would go unrecorded AND, because the logical connection ID used to be minted
+   * only for a recorded BEGIN, that connection would keep wlrConnId = 0 for its
+   * whole life. Every later event on it then omitted CONN_ID and the shipped
+   * decoder rejected the segment (TS API007, FS 4.5).
+   *
+   * taos_init() is taosThreadOnce-guarded and idempotent, so hoisting it here just
+   * moves the one-time setup ahead of the hook. A failure is deliberately ignored:
+   * taos_connect_internal performs the same init and owns the error path, so
+   * reporting it here would duplicate that with no added information.
+   */
+  (void)taos_init();
+
+  // Recorder: endpoint/user/db/port exactly as the caller supplied them. `pass` is
+  // deliberately not passed in -- the recorder has no way to reach a credential it
+  // never receives (FS 6.2).
+  //
+  // ip is recorded raw, including NULL. NULL means "resolve from firstEp", which is
+  // a different fact from any particular address: substituting the resolved value
+  // would pin replay to the recording host's config instead of the target's, and
+  // would put a value in the trace that the application never passed.
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_CONNECT(&wlrTok, ip, user, db, port);
+
   STscObj *pObj = NULL;
   int32_t  code = taos_connect_internal(ip, user, pass, NULL, db, port, CONN_TYPE__QUERY, &pObj);
   if (TSDB_CODE_SUCCESS == code) {
     int64_t *rid = taosMemoryCalloc(1, sizeof(int64_t));
     if (NULL == rid) {
       tscError("out of memory when taos connect to %s:%u, user:%s db:%s", ip, port, user, db);
+      /* Explicit rather than terrno: the connect above succeeded, so terrno holds
+       * whatever that path last set. Naming the code keeps the recorded value
+       * correct, matching the sibling connect variants in clientImpl.c. */
+      WLR_API_END_CODE(&wlrTok, TSDB_CODE_OUT_OF_MEMORY);
       taos_close_internal(pObj);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     *rid = pObj->id;
+
+    /*
+     * Mint the logical connection ID here so every later event on this connection
+     * can reference it.
+     *
+     * Mint while the recorder is RUNNING even when this BEGIN was nested and skipped:
+     * later outermost queries on that connection still need a non-zero CONN_ID. Also
+     * mint when this BEGIN was recorded, because shutdown may move the manager out of
+     * RUNNING while the real connect is in flight; its successful RETURN must not
+     * carry CONN_ID=0 (TS API007).
+     */
+    wlrConnectComplete(&wlrTok, &pObj->wlrConnId);
+
     return (TAOS *)rid;
   } else {
     terrno = code;
   }
 
+  WLR_API_END_CODE(&wlrTok, code);
   return NULL;
 }
 
@@ -610,6 +729,21 @@ TAOS *taos_connect_with(const OPTIONS *options) {
   const char *userApp = NULL;
   const char *connectorInfo = NULL;
 
+  typedef struct {
+    const char             *key;
+    TSDB_OPTION_CONNECTION  option;
+    const char            **value;
+  } SConnectOptionBinding;
+  SConnectOptionBinding connectionOptions[] = {
+      {"charset", TSDB_OPTION_CONNECTION_CHARSET, &charset},
+      {"timezone", TSDB_OPTION_CONNECTION_TIMEZONE, &timezone},
+      {"userIp", TSDB_OPTION_CONNECTION_USER_IP, &userIp},
+      {"userApp", TSDB_OPTION_CONNECTION_USER_APP, &userApp},
+      {"connectorInfo", TSDB_OPTION_CONNECTION_CONNECTOR_INFO, &connectorInfo},
+  };
+  const int32_t connectionOptionCount =
+      (int32_t)(sizeof(connectionOptions) / sizeof(connectionOptions[0]));
+
   if (options && options->count > 0) {
     size_t count = (size_t)options->count;
     for (size_t i = 0; i < count; ++i) {
@@ -630,32 +764,113 @@ TAOS *taos_connect_with(const OPTIONS *options) {
         db = value;
       } else if (strcmp(key, "port") == 0) {
         port = (uint16_t)taosStr2Int32(value, NULL, 10);
-      } else if (strcmp(key, "charset") == 0) {
-        charset = value;
-      } else if (strcmp(key, "timezone") == 0) {
-        timezone = value;
-      } else if (strcmp(key, "userIp") == 0) {
-        userIp = value;
-      } else if (strcmp(key, "userApp") == 0) {
-        userApp = value;
-      } else if (strcmp(key, "connectorInfo") == 0) {
-        connectorInfo = value;
       } else {
-        tscWarn("taos_connect_with unknown option key: %s", key);
+        bool matched = false;
+        for (int32_t j = 0; j < connectionOptionCount; ++j) {
+          if (strcmp(key, connectionOptions[j].key) == 0) {
+            *connectionOptions[j].value = value;
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) tscWarn("taos_connect_with unknown option key: %s", key);
       }
     }
   }
 
+  /* The recorder is initialized by taos_init. As with taos_connect, it must run
+   * before the BEGIN hook so the process's first connect_with call is captured. */
+  (void)taos_init();
+
+  /*
+   * One event for the one call the application made. The inner taos_connect and
+   * each set_connection_option_or_close are nested, so the depth rule suppresses
+   * their own events (FS 4.1) -- which means every option the bag carried has to
+   * ride along here, or replay would reconnect without them and silently
+   * misinterpret every statement that followed (charset, timezone).
+   *
+   * Only the options actually present are recorded. A key absent from the bag is
+   * not the same fact as a key explicitly set to NULL, and the inner helper skips
+   * NULLs anyway.
+   */
+  SWlrConnOptIn wlrOpts[sizeof(connectionOptions) / sizeof(connectionOptions[0])];
+  int32_t       wlrOptCount = 0;
+  for (int32_t i = 0; i < connectionOptionCount; ++i) {
+    if (*connectionOptions[i].value != NULL) {
+      wlrOpts[wlrOptCount].type = connectionOptions[i].option;
+      wlrOpts[wlrOptCount].name = connectionOptions[i].key;
+      wlrOpts[wlrOptCount].value = *connectionOptions[i].value;
+      ++wlrOptCount;
+    }
+  }
+
+  uint8_t *wlrOptBuf = NULL;
+  int32_t wlrOptLen = 0;
+  bool wlrOptListOmitted = false;
+  if (wlrOptCount > 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    const int32_t wlrOptCapacity = 4096;
+    wlrOptBuf = taosMemoryMalloc(wlrOptCapacity);
+    wlrOptLen = wlrOptBuf != NULL ? wlrEncodeConnOptList(wlrOptBuf, wlrOptCapacity, wlrOpts, wlrOptCount) : 0;
+    if (wlrOptLen <= 0 || wlrOptLen > wlrOptCapacity) {
+      tscWarn("WLR: connection option list exceeds capture capacity; recording an omission marker");
+      wlrOptLen = 0;
+      wlrOptListOmitted = true;
+    }
+  }
+
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_CONNECT_WITH;
+  wlrArgs.endpoint = ip;
+  wlrArgs.user = user != NULL ? user : "root";
+  wlrArgs.db = db;
+  wlrArgs.port = port;
+  wlrArgs.connOptList = (wlrOptLen > 0) ? wlrOptBuf : NULL;
+  wlrArgs.connOptListLen = wlrOptLen;
+  wlrArgs.connOptListOmitted = wlrOptListOmitted;
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  taosMemoryFree(wlrOptBuf);
+
   TAOS *taos = taos_connect(ip, user, pass, db, port);
-  if (taos == NULL) return NULL;
-
-  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CHARSET, charset) != TSDB_CODE_SUCCESS) return NULL;
-  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_TIMEZONE, timezone) != TSDB_CODE_SUCCESS) return NULL;
-  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_IP, userIp) != TSDB_CODE_SUCCESS) return NULL;
-  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_USER_APP, userApp) != TSDB_CODE_SUCCESS) return NULL;
-  if (set_connection_option_or_close(taos, TSDB_OPTION_CONNECTION_CONNECTOR_INFO, connectorInfo) != TSDB_CODE_SUCCESS)
+  if (taos == NULL) {
+    WLR_API_END_CODE(&wlrTok, terrno);
     return NULL;
+  }
 
+  /* The conn ID was minted by the inner taos_connect; read it back so this event's
+   * RETURN carries the same one every later event on the connection references. */
+  uint64_t wlrConnId = 0;
+  STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+  if (pWlrObj != NULL) {
+    wlrConnId = pWlrObj->wlrConnId;
+    releaseTscObj(*(int64_t *)taos);
+  }
+
+  int32_t wlrCode = TSDB_CODE_SUCCESS;
+  bool optionFailed = false;
+  for (int32_t i = 0; i < connectionOptionCount; ++i) {
+    if (set_connection_option_or_close(taos, connectionOptions[i].option, *connectionOptions[i].value) !=
+        TSDB_CODE_SUCCESS) {
+      optionFailed = true;
+      break;
+    }
+  }
+  if (optionFailed) {
+    /* The helper already closed the connection, so there is nothing to return but
+     * the failure -- and no live conn ID to report with it. */
+    wlrCode = terrno;
+    WLR_API_END_CODE(&wlrTok, wlrCode);
+    return NULL;
+  }
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = TSDB_CODE_SUCCESS;
+    wlrRet.logicalConnId = wlrConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
   return taos;
 }
 
@@ -1188,9 +1403,26 @@ void taos_close(TAOS *taos) {
     return;
   }
 
+  /* Read the logical ID while the object is still alive: after
+   * taos_close_internal it is gone. Recording close matters for replay because a
+   * connection's lifetime bounds which calls may share it (DS 6.7). */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_CLOSE;
+  wlrArgs.logicalConnId = pObj->wlrConnId;
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
   taos_close_internal(pObj);
   releaseTscObj(*(int64_t *)taos);
   taosMemoryFree(taos);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
 }
 
 /**
@@ -1208,18 +1440,59 @@ void taos_close(TAOS *taos) {
  * success processBeginTxnRsp promotes txnState to UTXN_STAGE_ACTIVE; on
  * failure it resets txnState back to UTXN_STAGE_IDLE.
  */
+#ifdef TD_ENTERPRISE
+/*
+ * Open a recording token for a txn boundary call.
+ *
+ * All three boundaries reach the server through taos_query("BEGIN"/"COMMIT"/
+ * "ROLLBACK"). Without a hook here that inner query is what gets recorded, so the
+ * file shows a plain QUERY and loses which txn API the application called. With
+ * one, the inner query and its taos_free_result see depth > 0 and stay silent
+ * (FS 4.1, TS RE001).
+ */
+static void wlrTxnBegin(TAOS *taos, uint16_t wlrApiType, SWorkloadCallToken *pTok, uint64_t *pConnId) {
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = wlrApiType;
+  if (taos != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(*(int64_t *)taos);
+    }
+  }
+  *pConnId = wlrArgs.logicalConnId;
+  (void)wlrApiBegin(&wlrArgs, pTok);
+}
+
+static int wlrTxnEnd(SWorkloadCallToken *pTok, int32_t code, uint64_t connId) {
+  if (pTok->recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = code;
+    wlrRet.logicalConnId = connId;
+    wlrApiReturn(pTok, &wlrRet);
+  } else {
+    wlrApiReturn(pTok, NULL);
+  }
+  return code;
+}
+#endif
+
 int taos_txn_begin(TAOS *taos) {
 #ifdef TD_ENTERPRISE
   if (taos == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t           wlrConnId = 0;
+  wlrTxnBegin(taos, WLR_API_TXN_BEGIN, &wlrTok, &wlrConnId);
+
   int64_t  connId = *(int64_t *)taos;
   STscObj *pTscObj = acquireTscObj(connId);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("invalid parameter for %s", __func__);
-    return terrno;
+    return wlrTxnEnd(&wlrTok, terrno, wlrConnId);
   }
 
   // Check-and-reserve under mutex: prevents concurrent BEGIN attempts.
@@ -1227,7 +1500,7 @@ int taos_txn_begin(TAOS *taos) {
   if (pTscObj->txnState != UTXN_STAGE_IDLE) {
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
-    return TSDB_CODE_TXN_ALREADY_IN_PROGRESS;
+    return wlrTxnEnd(&wlrTok, TSDB_CODE_TXN_ALREADY_IN_PROGRESS, wlrConnId);
   }
   atomic_store_8(&pTscObj->txnState, UTXN_STAGE_BEGIN_PENDING);
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
@@ -1238,7 +1511,7 @@ int taos_txn_begin(TAOS *taos) {
   TAOS_RES *res = taos_query(taos, "BEGIN");
   int32_t   code = taos_errno(res);
   taos_free_result(res);
-  return code;
+  return wlrTxnEnd(&wlrTok, code, wlrConnId);
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
@@ -1247,17 +1520,21 @@ int taos_txn_begin(TAOS *taos) {
 #ifdef TD_ENTERPRISE
 // Common implementation for COMMIT and ROLLBACK: validates txn state then
 // issues the SQL via taos_query (which handles the async MNode STrans response).
-static int tscTxnEndImpl(TAOS *taos, const char *sql) {
+static int tscTxnEndImpl(TAOS *taos, const char *sql, uint16_t wlrApiType) {
   if (taos == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t           wlrConnId = 0;
+  wlrTxnBegin(taos, wlrApiType, &wlrTok, &wlrConnId);
 
   int64_t  connId = *(int64_t *)taos;
   STscObj *pTscObj = acquireTscObj(connId);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscError("invalid parameter for %s, sql:%s", __func__, sql);
-    return terrno;
+    return wlrTxnEnd(&wlrTok, terrno, wlrConnId);
   }
 
   (void)taosThreadMutexLock(&pTscObj->mutex);
@@ -1271,11 +1548,11 @@ static int tscTxnEndImpl(TAOS *taos, const char *sql) {
       // completed the rollback.  Just clear client-side txn state.
       tscResetTxnState(pTscObj);
       releaseTscObj(connId);
-      return 0;
+      return wlrTxnEnd(&wlrTok, 0, wlrConnId);
     }
     // COMMIT (or any other end-of-txn call) is rejected: the txn is already gone.
     releaseTscObj(connId);
-    return TSDB_CODE_TXN_TIMEOUT_KILLED;
+    return wlrTxnEnd(&wlrTok, TSDB_CODE_TXN_TIMEOUT_KILLED, wlrConnId);
   }
 
   if (pTscObj->txnState != UTXN_STAGE_ACTIVE) {
@@ -1283,7 +1560,7 @@ static int tscTxnEndImpl(TAOS *taos, const char *sql) {
             pTscObj->txnId, pTscObj->txnState, sql);
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
     releaseTscObj(connId);
-    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+    return wlrTxnEnd(&wlrTok, TSDB_CODE_TXN_NOT_IN_PROGRESS, wlrConnId);
   }
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
   releaseTscObj(connId);
@@ -1291,13 +1568,13 @@ static int tscTxnEndImpl(TAOS *taos, const char *sql) {
   TAOS_RES *res = taos_query(taos, sql);
   int32_t   code = taos_errno(res);
   taos_free_result(res);
-  return code;
+  return wlrTxnEnd(&wlrTok, code, wlrConnId);
 }
 #endif
 
 int taos_txn_commit(TAOS *taos) {
 #ifdef TD_ENTERPRISE
-  return tscTxnEndImpl(taos, "COMMIT");
+  return tscTxnEndImpl(taos, "COMMIT", WLR_API_TXN_COMMIT);
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
@@ -1305,7 +1582,7 @@ int taos_txn_commit(TAOS *taos) {
 
 int taos_txn_rollback(TAOS *taos) {
 #ifdef TD_ENTERPRISE
-  return tscTxnEndImpl(taos, "ROLLBACK");
+  return tscTxnEndImpl(taos, "ROLLBACK", WLR_API_TXN_ROLLBACK);
 #else
   return TSDB_CODE_OPS_NOT_SUPPORT;
 #endif
@@ -1355,7 +1632,29 @@ void taos_free_result(TAOS_RES *res) {
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     tscDebug("QID:0x%" PRIx64 ", call taos_free_result to free query, res:%p", pRequest->requestId, res);
+
+    // Read the logical ID before the request is destroyed; afterwards the struct
+    // is invalid. A zero ID means this result was never handed to the user (an
+    // internal request being cleaned up), so there is nothing to record.
+    uint64_t wlrResId = pRequest->wlrResultId;
+    SWorkloadCallToken wlrTok = {0};
+    if (wlrResId != 0) {
+      SWorkloadBeginArgs wlrArgs = {0};
+      wlrArgs.apiType = WLR_API_FREE_RESULT;
+      wlrArgs.logicalResultId = wlrResId;
+      (void)wlrApiBegin(&wlrArgs, &wlrTok);
+    }
+
     destroyRequest(pRequest);
+
+    if (wlrTok.recorded) {
+      SWorkloadReturnArgs wlrRet = {0};
+      wlrRet.logicalResultId = wlrResId;
+      wlrApiReturn(&wlrTok, &wlrRet);
+      wlrResultFree(wlrResId);
+    } else {
+      wlrApiReturn(&wlrTok, NULL);
+    }
     return;
   }
 
@@ -1383,10 +1682,29 @@ void taos_kill_query(TAOS *taos) {
 
   int64_t  rid = *(int64_t *)taos;
   STscObj *pTscObj = acquireTscObj(rid);
+
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    /* Part of the workload, not incidental: a client that cancels its own in-flight
+     * queries stresses the server differently from one that waits for them. */
+    wlrArgs.apiType = WLR_API_KILL_QUERY;
+    if (pTscObj != NULL) wlrArgs.logicalConnId = pTscObj->wlrConnId;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
   if (pTscObj) {
     stopAllRequests(pTscObj->pRequests);
   }
   releaseTscObj(rid);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    wlrApiReturn(&wlrTok, NULL);
+  }
 }
 
 int taos_field_count(TAOS_RES *res) {
@@ -1409,9 +1727,94 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pResInfo->userFields;
 }
 
-TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP); }
+TAOS_RES *taos_query(TAOS *taos, const char *sql) {
+  /* The logical connection ID must be on the BEGIN frame, not just RETURN: a query
+   * that never returns produces no RETURN at all, and that hung case is the whole
+   * reason this feature exists. Without it replay could not tell which connection
+   * to reissue the statement on. Resolving it costs a ref acquire, paid only while
+   * recording is on. */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_QUERY;
+  wlrArgs.sql = sql;
+  wlrArgs.sqlLen = (sql == NULL) ? 0 : (int32_t)strlen(sql);
+  if (taos != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(*(int64_t *)taos);
+    }
+  }
+  if (wlrRecorderState() == WLR_STATE_RUNNING && wlrArgs.logicalConnId != 0) {
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
+  TAOS_RES *res = taosQueryImpl(taos, sql, false, TD_REQ_FROM_APP);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = taos_errno(res);
+    /* Carried from the BEGIN args rather than read off the result: CONN_ID is
+     * required on a query RETURN (kQueryReturnTags), and a failed query has no
+     * SRequestObj to take it from. Leaving it at 0 omitted the tag and made every
+     * failed query's RETURN fail its own schema. The result branch below overwrites
+     * it with the same value when a request does exist. */
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    // Mint the result ID only for a real query result: TMQ and raw result types
+    // are out of scope this phase and must not consume IDs.
+    if (res != NULL && TD_RES_QUERY(res)) {
+      SRequestObj *pReq = (SRequestObj *)res;
+      if (pReq->wlrResultId == 0) pReq->wlrResultId = wlrNextResultId();
+      wlrRet.logicalResultId = pReq->wlrResultId;
+      wlrRet.qid = (int64_t)pReq->requestId;
+      wlrRet.affectedRows = taos_affected_rows64(res);
+      if (pReq->pTscObj != NULL) wlrRet.logicalConnId = pReq->pTscObj->wlrConnId;
+    }
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return res;
+}
 TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
-  return taosQueryImplWithReqid(taos, sql, false, reqid);
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_QUERY_WITH_REQID;
+  wlrArgs.sql = sql;
+  wlrArgs.sqlLen = (sql == NULL) ? 0 : (int32_t)strlen(sql);
+  /* Preserved rather than regenerated: the caller chose this ID to correlate its own
+   * logs with server traces, and replacing it would break that correspondence. */
+  wlrArgs.reqid = reqid;
+  if (taos != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(*(int64_t *)taos);
+    }
+  }
+  if (wlrRecorderState() == WLR_STATE_RUNNING && wlrArgs.logicalConnId != 0) {
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
+  TAOS_RES *res = taosQueryImplWithReqid(taos, sql, false, reqid);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = taos_errno(res);
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    if (res != NULL && TD_RES_QUERY(res)) {
+      SRequestObj *pReq = (SRequestObj *)res;
+      if (pReq->wlrResultId == 0) pReq->wlrResultId = wlrNextResultId();
+      wlrRet.logicalResultId = pReq->wlrResultId;
+      wlrRet.qid = (int64_t)pReq->requestId;
+      wlrRet.affectedRows = taos_affected_rows64(res);
+      if (pReq->pTscObj != NULL) wlrRet.logicalConnId = pReq->pTscObj->wlrConnId;
+    }
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return res;
 }
 
 TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
@@ -1422,7 +1825,7 @@ TAOS_FIELD_E *taos_fetch_fields_e(TAOS_RES *res) {
   return pResInfo->fields;
 }
 
-TAOS_ROW taos_fetch_row(TAOS_RES *res) {
+TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
   if (res == NULL) {
     return NULL;
   }
@@ -1742,6 +2145,40 @@ int taos_result_precision(TAOS_RES *res) {
 }
 
 int taos_select_db(TAOS *taos, const char *db) {
+  if (taos == NULL || db == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  /* Records one select_db event. The internal taos_query("use db") and its
+   * taos_free_result see depth > 0 and record nothing, so replay issues one call
+   * instead of three (FS 4.1, TS RE001). */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_SELECT_DB;
+  wlrArgs.db = db;
+  if (taos != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(*(int64_t *)taos);
+    }
+  }
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
+  int32_t wlrCode = taos_select_db_impl(taos, db);
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = wlrCode;
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+static int taos_select_db_impl(TAOS *taos, const char *db) {
   STscObj *pObj = acquireTscObj(*(int64_t *)taos);
   if (pObj == NULL) {
     releaseTscObj(*(int64_t *)taos);
@@ -1773,7 +2210,25 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
+  uint64_t wlrResId = TD_RES_QUERY(res) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STOP_QUERY;
+    wlrArgs.logicalResultId = wlrResId;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
   stopAllQueries((SRequestObj *)res);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = 0;
+    wlrRet.logicalResultId = wlrResId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -1795,15 +2250,73 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 
 bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }
 
+/*
+ * Public entry. The body lives in taos_fetch_row_impl so internal callers can use
+ * it without producing an event: postSubQueryFetchCb runs on a driver completion
+ * thread where TLS depth is 0, so the depth rule cannot suppress it and only an
+ * internal entry point can (DS 6.6, TS RE014).
+ */
+TAOS_ROW taos_fetch_row(TAOS_RES *res) {
+  uint64_t wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_ROW, wlrResId);
+
+  TAOS_ROW row = taos_fetch_row_impl(res);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_FETCH(&wlrTok, taos_errno(res), wlrResId, row != NULL ? 1 : 0);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return row;
+}
+
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
+  uint64_t           wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_BLOCK, wlrResId);
+
   int32_t numOfRows = 0;
-  /*int32_t code = */ terrno = taos_fetch_block_s(res, &numOfRows, rows);
+  int32_t wlrCode =
+      (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res))
+          ? 0
+          : taos_fetch_block_s_impl(res, &numOfRows, rows);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, numOfRows);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+
+  /* Set last: this is the call's only error channel, and the recording path
+   * above runs code of its own that could otherwise clobber it. */
+  terrno = wlrCode;
   return numOfRows;
 }
 
 int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
   if (res == NULL || TD_RES_TMQ_RAW(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_BATCH_META(res)) {
     return 0;
+  }
+
+  /* taos_fetch_block calls through here, so when the user entered via that symbol
+   * this begin sees depth > 0 and records nothing -- the outer call already did
+   * (FS 4.1). */
+  uint64_t wlrResId = TD_RES_QUERY(res) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_BLOCK_S, wlrResId);
+  int32_t wlrCode = taos_fetch_block_s_impl(res, numOfRows, rows);
+  if (wlrTok.recorded) {
+    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, numOfRows != NULL ? *numOfRows : 0);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+static int taos_fetch_block_s_impl(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
+  if (res == NULL || numOfRows == NULL || rows == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (TD_RES_QUERY(res)) {
@@ -1842,6 +2355,20 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
 }
 
 int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
+  uint64_t wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_RAW_BLOCK, wlrResId);
+  int32_t wlrCode = taos_fetch_raw_block_impl(res, numOfRows, pData);
+  if (wlrTok.recorded) {
+    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, numOfRows != NULL ? *numOfRows : 0);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+static int taos_fetch_raw_block_impl(TAOS_RES *res, int *numOfRows, void **pData) {
+  if (numOfRows == NULL || pData == NULL) return TSDB_CODE_INVALID_PARA;
   *numOfRows = 0;
   *pData = NULL;
 
@@ -1942,11 +2469,37 @@ int taos_is_null_by_column(TAOS_RES *res, int columnIndex, bool result[], int *r
 }
 
 int taos_validate_sql(TAOS *taos, const char *sql) {
+  /* The internal taos_free_result below sees depth > 0 and records nothing, so this
+   * produces one validate_sql event rather than a validate plus a stray free
+   * (FS 4.1, TS RE008). */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_VALIDATE_SQL;
+  wlrArgs.sql = sql;
+  wlrArgs.sqlLen = (sql == NULL) ? 0 : (int32_t)strlen(sql);
+  if (taos != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(*(int64_t *)taos);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(*(int64_t *)taos);
+    }
+  }
+  if (wlrArgs.logicalConnId != 0) (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
   TAOS_RES *pObj = taosQueryImpl(taos, sql, true, TD_REQ_FROM_APP);
 
   int code = taos_errno(pObj);
 
   taos_free_result(pObj);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = code;
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
   return code;
 }
 
@@ -1957,7 +2510,23 @@ void taos_reset_current_db(TAOS *taos) {
     return;
   }
 
+  /* Recorded because it changes which database later unqualified statements resolve
+   * against: replaying the queries without this would run them in the wrong db. */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_RESET_CURRENT_DB;
+  wlrArgs.logicalConnId = pTscObj->wlrConnId;
+  (void)wlrApiBegin(&wlrArgs, &wlrTok);
+
   resetConnectDB(pTscObj);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
 
   releaseTscObj(*(int64_t *)taos);
 }
@@ -2358,12 +2927,75 @@ void continueInsertFromCsv(SSqlCallbackWrapper *pWrapper, SRequestObj *pRequest)
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   int64_t connId = *(int64_t *)taos;
-  taosAsyncQueryImpl(connId, sql, fp, param, false, TD_REQ_FROM_APP);
+
+  /* An async API has three moments, not two: BEGIN, the API returning to the user,
+   * and the request completing (DS 6.8). BEGIN and RETURN are recorded here; the
+   * third, REQUEST_DONE, is emitted from doRequestCallback, which is the only place
+   * that runs once per completion regardless of which driver thread finishes it.
+   *
+   * The token is handed to the request through thread-local pending state rather than
+   * per-connection state: several async queries can be in flight on one connection at
+   * once, so a per-connection slot would tie a DONE to the wrong call. */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_QUERY_A;
+  wlrArgs.sql = sql;
+  wlrArgs.sqlLen = (sql == NULL) ? 0 : (int32_t)strlen(sql);
+  if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(connId);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(connId);
+    }
+  }
+  if (wlrArgs.logicalConnId != 0) (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  wlrSetPendingAsyncCall(&wlrTok);
+
+  taosAsyncQueryImpl(connId, sql, fp, param, false, TD_REQ_FROM_APP, true);
+
+  /* Clear unconditionally: the driver's early-return paths (invalid args, request
+   * build failure) never reach the take, and a leftover token would be picked up by
+   * the next request built on this thread. Clearing after the call is safe because
+   * the take already happened if a request was created. */
+  wlrSetPendingAsyncCall(NULL);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
 }
 
 void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
   int64_t connId = *(int64_t *)taos;
-  taosAsyncQueryImplWithReqid(NULL, connId, sql, fp, param, false, reqid);
+
+  /* Same three-moment shape as taos_query_a, with the caller's reqid preserved. */
+  SWorkloadCallToken wlrTok = {0};
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_QUERY_A_WITH_REQID;
+  wlrArgs.sql = sql;
+  wlrArgs.sqlLen = (sql == NULL) ? 0 : (int32_t)strlen(sql);
+  wlrArgs.reqid = reqid;
+  if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    STscObj *pWlrObj = acquireTscObj(connId);
+    if (pWlrObj != NULL) {
+      wlrArgs.logicalConnId = pWlrObj->wlrConnId;
+      releaseTscObj(connId);
+    }
+  }
+  if (wlrArgs.logicalConnId != 0) (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  wlrSetPendingAsyncCall(&wlrTok);
+  taosAsyncQueryImplWithReqid(NULL, connId, sql, fp, param, false, reqid, true);
+  wlrSetPendingAsyncCall(NULL); /* see taos_query_a: covers the driver's early returns */
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.logicalConnId = wlrArgs.logicalConnId;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
 }
 
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SSqlCallbackWrapper *pWrapper) {
@@ -2649,24 +3281,87 @@ typedef struct SAsyncFetchParam {
   SRequestObj      *pReq;
   __taos_async_fn_t fp;
   void             *param;
+  SWorkloadCallToken wlrToken;
 } SAsyncFetchParam;
+
+static void wlrAsyncFetchCallback(void *opaque, void *res, int32_t value) {
+  SAsyncFetchParam *param = opaque;
+  SWorkloadDoneArgs done = {0};
+  done.code = value < 0 ? value : TSDB_CODE_SUCCESS;
+  done.logicalResultId = param->pReq->wlrResultId;
+  done.fetchRows = value > 0 ? value : 0;
+  wlrAsyncDone(&param->wlrToken, &done);
+
+  SWlrCallbackScope scope;
+  wlrCallbackScopeBegin(param->wlrToken.callId, &scope);
+  param->fp(param->param, res, value);
+  wlrCallbackScopeEnd(&scope);
+  taosMemoryFree(param);
+}
 
 static int32_t doAsyncFetch(void *pParam) {
   SAsyncFetchParam *param = pParam;
-  taosAsyncFetchImpl(param->pReq, param->fp, param->param);
-  taosMemoryFree(param);
+  /* taosAsyncFetchImpl owns completion through the callback even when dispatch
+   * returns an error. Some scheduler failures invoke the callback synchronously
+   * before returning that error, so this frame must never touch or free param after
+   * the call. */
+  (void)taosAsyncFetchImpl(param->pReq, wlrAsyncFetchCallback, param);
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * Async fetch recording.
+ *
+ * The heap-owned callback context carries the token until the driver invokes the
+ * user callback, allowing DONE to contain the callback result and parent nested calls.
+ *
+ * taos_fetch_raw_block_a has its own hook and reaches the shared body through
+ * taos_fetch_rows_a_impl, so the two API types stay distinct in the file instead
+ * of both logging as FETCH_ROWS_A (FS 4.1).
+ */
+static int32_t taos_fetch_rows_a_impl(TAOS_RES *res, __taos_async_fn_t fp, void *param,
+                                      const SWorkloadCallToken *wlrToken);
+static int32_t taos_fetch_raw_block_a_impl(TAOS_RES *res, __taos_async_fn_t fp, void *param,
+                                           const SWorkloadCallToken *wlrToken);
+
+static void invokeSynchronousFetchCallback(__taos_async_fn_t fp, void *param, TAOS_RES *res, int32_t code,
+                                           uint64_t parentCallId) {
+  SWlrCallbackScope scope;
+  wlrCallbackScopeBegin(parentCallId, &scope);
+  fp(param, res, code);
+  wlrCallbackScopeEnd(&scope);
+}
+
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
+  uint64_t wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_ROWS_A, wlrResId);
+  int32_t wlrCode = taos_fetch_rows_a_impl(res, fp, param, &wlrTok);
+  if (wlrTok.recorded) {
+    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, 0);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+}
+
+static int32_t taos_fetch_rows_a_impl(TAOS_RES *res, __taos_async_fn_t fp, void *param,
+                                      const SWorkloadCallToken *wlrToken) {
   if (res == NULL || fp == NULL) {
     tscError("taos_fetch_rows_a invalid paras");
-    return;
+    if (wlrToken->recorded) {
+      SWorkloadDoneArgs done = {
+          .code = TSDB_CODE_INVALID_PARA,
+          .logicalResultId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0};
+      wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
+    }
+    return TSDB_CODE_INVALID_PARA;
   }
   if (!TD_RES_QUERY(res)) {
     tscError("taos_fetch_rows_a res is NULL");
-    fp(param, res, TSDB_CODE_APP_ERROR);
-    return;
+    SWorkloadDoneArgs done = {.code = TSDB_CODE_APP_ERROR};
+    wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
+    invokeSynchronousFetchCallback(fp, param, res, TSDB_CODE_APP_ERROR, wlrToken->callId);
+    return TSDB_CODE_APP_ERROR;
   }
 
   SRequestObj *pRequest = res;
@@ -2675,37 +3370,68 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
 
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
     CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
-    fp(param, res, 0);
-    return;
+    SWorkloadDoneArgs done = {.logicalResultId = pRequest->wlrResultId};
+    wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
+    invokeSynchronousFetchCallback(fp, param, res, 0, wlrToken->callId);
+    return TSDB_CODE_SUCCESS;
   }
 
   SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
   if (!pParam) {
     CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
-    fp(param, res, terrno);
-    return;
+    SWorkloadDoneArgs done = {.code = terrno, .logicalResultId = pRequest->wlrResultId};
+    wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
+    invokeSynchronousFetchCallback(fp, param, res, terrno, wlrToken->callId);
+    return terrno;
   }
 
   CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_IN_PROGRESS);
   pParam->pReq = pRequest;
   pParam->fp = fp;
   pParam->param = param;
+  pParam->wlrToken = *wlrToken;
   int32_t code = taosAsyncExec(doAsyncFetch, pParam, NULL);
   if (TSDB_CODE_SUCCESS != code) {
+    SWorkloadDoneArgs done = {.code = code, .logicalResultId = pRequest->wlrResultId};
+    wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
     taosMemoryFree(pParam);
-    fp(param, res, code);
-    return;
+    invokeSynchronousFetchCallback(fp, param, res, code, wlrToken->callId);
+    return code;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
+  uint64_t wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_RAW_BLOCK_A, wlrResId);
+  int32_t wlrCode = taos_fetch_raw_block_a_impl(res, fp, param, &wlrTok);
+  if (wlrTok.recorded) {
+    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, 0);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+}
+
+static int32_t taos_fetch_raw_block_a_impl(TAOS_RES *res, __taos_async_fn_t fp, void *param,
+                                           const SWorkloadCallToken *wlrToken) {
   if (res == NULL || fp == NULL) {
     tscError("taos_fetch_raw_block_a invalid paras");
-    return;
+    if (wlrToken->recorded) {
+      SWorkloadDoneArgs done = {
+          .code = TSDB_CODE_INVALID_PARA,
+          .logicalResultId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0};
+      wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
+    }
+    return TSDB_CODE_INVALID_PARA;
   }
   if (!TD_RES_QUERY(res)) {
     tscError("taos_fetch_raw_block_a res is NULL");
-    return;
+    if (wlrToken->recorded) {
+      SWorkloadDoneArgs done = {.code = TSDB_CODE_APP_ERROR};
+      wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
+    }
+    return TSDB_CODE_APP_ERROR;
   }
   SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
@@ -2715,7 +3441,9 @@ void taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   pResultInfo->convertUcs4 = false;
 
   // it is a local executed query, no need to do async fetch
-  taos_fetch_rows_a(pRequest, fp, param);
+  /* Straight to the impl: the public symbol carries its own recording hook, and going
+   * through it would open a nested FETCH_ROWS_A call inside this one. */
+  return taos_fetch_rows_a_impl(pRequest, fp, param, wlrToken);
 }
 
 const void *taos_get_raw_block(TAOS_RES *res) {
@@ -2959,6 +3687,19 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
   TAOS_STMT *pStmt = stmtInit(pObj, 0, NULL);
   if (NULL == pStmt) {
     tscError("stmt init failed, errcode:%s", terrstr());
+  } else if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    /* Mint the logical statement ID so every later event on this handle can be
+     * correlated, then record the init itself (DS 6.9). */
+    ((STscStmt *)pStmt)->wlrStmtId = wlrNextStmtId();
+    SWorkloadCallToken wlrTok = {0};
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_INIT;
+    wlrArgs.logicalStmtId = ((STscStmt *)pStmt)->wlrStmtId;
+    wlrArgs.logicalConnId = pObj->wlrConnId;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+    if (wlrTok.recorded) {
+      WLR_API_END_STMT(&wlrTok, 0, wlrArgs.logicalStmtId);
+    }
   }
   releaseTscObj(*(int64_t *)taos);
 
@@ -2976,6 +3717,23 @@ TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
   TAOS_STMT *pStmt = stmtInit(pObj, reqid, NULL);
   if (NULL == pStmt) {
     tscError("stmt init failed, errcode:%s", terrstr());
+  } else if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    ((STscStmt *)pStmt)->wlrStmtId = wlrNextStmtId();
+    SWorkloadCallToken wlrTok = {0};
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_INIT_WITH_REQID;
+    wlrArgs.logicalStmtId = ((STscStmt *)pStmt)->wlrStmtId;
+    wlrArgs.logicalConnId = pObj->wlrConnId;
+    /* The caller-supplied reqid is the whole point of this variant, and replay must
+     * reissue it verbatim so the application's own logs still correlate with server
+     * traces (FS 4.5) -- the same reason taos_query_with_reqid records it. Without this
+     * the event was indistinguishable from a plain taos_stmt_init and replay had to
+     * mint a fresh one. */
+    wlrArgs.reqid = reqid;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+    if (wlrTok.recorded) {
+      WLR_API_END_STMT(&wlrTok, 0, wlrArgs.logicalStmtId);
+    }
   }
   releaseTscObj(*(int64_t *)taos);
 
@@ -2993,6 +3751,21 @@ TAOS_STMT *taos_stmt_init_with_options(TAOS *taos, TAOS_STMT_OPTIONS *options) {
   TAOS_STMT *pStmt = stmtInit(pObj, options->reqId, options);
   if (NULL == pStmt) {
     tscError("stmt init failed, errcode:%s", terrstr());
+  } else if (wlrRecorderState() == WLR_STATE_RUNNING) {
+    ((STscStmt *)pStmt)->wlrStmtId = wlrNextStmtId();
+    SWorkloadCallToken wlrTok = {0};
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_INIT_WITH_OPTIONS;
+    wlrArgs.logicalStmtId = ((STscStmt *)pStmt)->wlrStmtId;
+    wlrArgs.logicalConnId = pObj->wlrConnId;
+    wlrArgs.reqid = options->reqId;
+    wlrArgs.stmtInitOptionsSet = true;
+    if (options->singleStbInsert) wlrArgs.stmtInitOptions |= WLR_STMT_OPT_SINGLE_STB_INSERT;
+    if (options->singleTableBindOnce) wlrArgs.stmtInitOptions |= WLR_STMT_OPT_SINGLE_TABLE_BIND_ONCE;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+    if (wlrTok.recorded) {
+      WLR_API_END_STMT(&wlrTok, 0, wlrArgs.logicalStmtId);
+    }
   }
   releaseTscObj(*(int64_t *)taos);
 
@@ -3006,7 +3779,16 @@ int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length) {
     return terrno;
   }
 
-  return stmtPrepare(stmt, sql, length);
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT_PREPARE, wlrSid, sql, length);
+  int32_t wlrCode = stmtPrepare(stmt, sql, length);
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND *tags) {
@@ -3016,26 +3798,71 @@ int taos_stmt_set_tbname_tags(TAOS_STMT *stmt, const char *name, TAOS_MULTI_BIND
     return terrno;
   }
 
+  /* Calls the internal stmtSetTbName/stmtSetTbTags rather than the public wrappers, so
+   * no nested public event is produced and this needs its own. Records the table name;
+   * tag values are intentionally omitted because their count cannot be obtained safely. */
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    /* The tag count is deliberately NOT queried. stmtGetTagFields switches statement
+     * status and creates/recreates exec.pRequest -- freeing it outright on error -- so
+     * calling it here would let recording perturb the very insert it observes, and no
+     * non-destructive source for the count exists. The table name still records, which is what routes
+     * the row on replay; the tag values do not (FS 4.8). */
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_SET_TBNAME_TAGS;
+    wlrArgs.logicalStmtId = wlrSid;
+    wlrArgs.tbname = name;
+    wlrArgs.bindDesc = NULL;
+    wlrArgs.bindDescLen = 0;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
   int32_t code = stmtSetTbName(stmt, name);
-  if (code) {
-    return code;
+  if (code == 0 && tags != NULL) {
+    code = stmtSetTbTags(stmt, tags);
   }
 
-  if (tags) {
-    return stmtSetTbTags(stmt, tags);
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, code, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
   }
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
-int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
+/* Shared by taos_stmt_set_tbname and its taos_stmt_set_sub_tbname alias. The alias
+ * used to delegate to the public symbol, which recorded it as STMT_SET_TBNAME and
+ * lost which one the application called; the API type is a parameter instead. */
+static int stmtSetTbNameRecorded(TAOS_STMT *stmt, const char *name, uint16_t wlrApiType) {
   if (stmt == NULL || name == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
 
-  return stmtSetTbName(stmt, name);
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = wlrApiType;
+    wlrArgs.logicalStmtId = wlrSid;
+    wlrArgs.tbname = name;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
+  int32_t wlrCode = stmtSetTbName(stmt, name);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+int taos_stmt_set_tbname(TAOS_STMT *stmt, const char *name) {
+  return stmtSetTbNameRecorded(stmt, name, WLR_API_STMT_SET_TBNAME);
 }
 
 int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
@@ -3045,10 +3872,33 @@ int taos_stmt_set_tags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
     return terrno;
   }
 
-  return stmtSetTbTags(stmt, tags);
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    /* Tag count deliberately not queried: stmtGetTagFields mutates statement status
+     * and the pending request, so it must not run from a capture hook. See the note
+     * in taos_stmt_set_tbname_tags. */
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_SET_TAGS;
+    wlrArgs.logicalStmtId = wlrSid;
+    wlrArgs.bindDesc = NULL;
+    wlrArgs.bindDescLen = 0;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
+  int32_t wlrCode = stmtSetTbTags(stmt, tags);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
-int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) { return taos_stmt_set_tbname(stmt, name); }
+int taos_stmt_set_sub_tbname(TAOS_STMT *stmt, const char *name) {
+  return stmtSetTbNameRecorded(stmt, name, WLR_API_STMT_SET_SUB_TBNAME);
+}
 
 int taos_stmt_get_tag_fields(TAOS_STMT *stmt, int *fieldNum, TAOS_FIELD_E **fields) {
   if (stmt == NULL || NULL == fieldNum) {
@@ -3077,6 +3927,120 @@ void taos_stmt_reclaim_fields(TAOS_STMT *stmt, TAOS_FIELD_E *fields) {
   taosMemoryFree(fields);
 }
 
+
+static int32_t wlrEncodeSingleMultiBind(TAOS_MULTI_BIND *bind, uint8_t *buf, size_t bufLen) {
+  SWlrBindEncodeCol col = {0};
+  int32_t     num;
+  uint32_t    width;
+  uint8_t    *packedValues = NULL;
+
+  if (bind == NULL || buf == NULL) return 0;
+  if (bind->num <= 0) return 0;
+  num = bind->num;
+  col.type = (uint16_t)bind->buffer_type;
+  col.elemCount = num;
+  col.isNull = (const uint8_t *)bind->is_null;
+  col.lengths = bind->length;
+  col.values = (const uint8_t *)bind->buffer;
+  width = wlrTypeFixedWidth(col.type);
+  if (width == 0) {
+    uint32_t total = 0;
+    if (bind->length == NULL) {
+      if (bind->is_null == NULL) return 0;
+      for (int32_t row = 0; row < num; ++row) {
+        if (bind->is_null[row] == 0) return 0;
+      }
+    }
+    if (num > 1 && (uintptr_t)bind->buffer_length > UINTPTR_MAX / (uintptr_t)(num - 1)) return 0;
+    for (int32_t row = 0; row < num; ++row) {
+      if (bind->is_null != NULL && bind->is_null[row] != 0) continue;
+      if (bind->length[row] < 0 || (uintptr_t)bind->length[row] > bind->buffer_length ||
+          UINT32_MAX - total < (uint32_t)bind->length[row]) {
+        return 0;
+      }
+      total += (uint32_t)bind->length[row];
+    }
+    if (total > 0 && bind->buffer == NULL) return 0;
+    col.valueBytes = total;
+    if (wlrBindEncodedSize(&col, 1) > bufLen) return 0;
+    if (total > 0) {
+      packedValues = (uint8_t *)taosMemoryMalloc(total);
+      if (packedValues == NULL) return 0;
+      uint32_t packedOffset = 0;
+      for (int32_t row = 0; row < num; ++row) {
+        if (bind->is_null != NULL && bind->is_null[row] != 0) continue;
+        uint32_t rowLen = (uint32_t)bind->length[row];
+        if (rowLen > 0) {
+          memcpy(packedValues + packedOffset,
+                 (const uint8_t *)bind->buffer + (uintptr_t)row * bind->buffer_length, rowLen);
+          packedOffset += rowLen;
+        }
+      }
+    }
+    col.values = packedValues;
+  } else {
+    if ((uint64_t)width * (uint32_t)num > UINT32_MAX) return 0;
+    col.valueBytes = width * (uint32_t)num;
+    if (bind->buffer == NULL) {
+      if (bind->is_null == NULL) return 0;
+      for (int32_t row = 0; row < num; ++row) {
+        if (bind->is_null[row] == 0) return 0;
+      }
+      packedValues = (uint8_t *)taosMemoryCalloc(1, col.valueBytes);
+      if (packedValues == NULL) return 0;
+      col.values = packedValues;
+    }
+  }
+  if (width != 0 && wlrBindEncodedSize(&col, 1) > bufLen) {
+    taosMemoryFree(packedValues);
+    return 0;
+  }
+  int32_t written = wlrEncodeBind(buf, bufLen, &col, 1);
+  taosMemoryFree(packedValues);
+  return written > 0 ? written : 0;
+}
+
+static uint32_t wlrSingleMultiBindSize(const TAOS_MULTI_BIND *bind) {
+  if (bind == NULL || bind->num <= 0) return 0;
+  SWlrBindEncodeCol col = {0};
+  col.type = (uint16_t)bind->buffer_type;
+  col.elemCount = bind->num;
+  col.isNull = (const uint8_t *)bind->is_null;
+  col.lengths = bind->length;
+  col.values = (const uint8_t *)bind->buffer;
+  uint32_t width = wlrTypeFixedWidth(col.type);
+  if (width == 0) {
+    if (bind->length == NULL && bind->is_null == NULL) return 0;
+    uint64_t total = 0;
+    for (int32_t row = 0; row < bind->num; ++row) {
+      if (bind->is_null != NULL && bind->is_null[row] != 0) continue;
+      if (bind->length == NULL) return 0;
+      if (bind->length[row] < 0 || (uintptr_t)bind->length[row] > bind->buffer_length) return 0;
+      total += (uint32_t)bind->length[row];
+      if (total > UINT32_MAX) return 0;
+    }
+    col.valueBytes = (uint32_t)total;
+  } else {
+    uint64_t total = (uint64_t)width * (uint32_t)bind->num;
+    if (total > UINT32_MAX) return 0;
+    col.valueBytes = (uint32_t)total;
+  }
+  if (col.valueBytes > 0 && col.values == NULL) col.values = (const uint8_t *)bind;
+  return wlrBindEncodedSize(&col, 1);
+}
+
+#ifdef WLR_TEST_HOOKS
+uint32_t wlrTestSingleMultiBindSize(void *bind) {
+  return wlrSingleMultiBindSize((const TAOS_MULTI_BIND *)bind);
+}
+#endif
+
+#ifdef WLR_TEST_HOOKS
+int32_t wlrTestEncodeSingleMultiBind(void *bind, uint8_t *buf, size_t bufLen) {
+  return wlrEncodeSingleMultiBind((TAOS_MULTI_BIND *)bind, buf, bufLen);
+}
+#endif
+
 int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
   if (stmt == NULL || bind == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
@@ -3090,7 +4054,31 @@ int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
     return terrno;
   }
 
-  return stmtBindBatch(stmt, bind, -1);
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    /* bind points to the first element of the statement's column array. The
+     * single-row restriction means each column has num <= 1, not that there is
+     * only one column. The public API provides no column count, and querying it
+     * from this hook can mutate statement state. Do not guess one column and
+     * record a silently truncated payload; omit bind bytes so replay marks this
+     * call as skipped rather than applying an incomplete bind shape. */
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_BIND_PARAM;
+    wlrArgs.logicalStmtId = wlrSid;
+    wlrArgs.bindDesc = NULL;
+    wlrArgs.bindDescLen = 0;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
+  int32_t wlrCode = stmtBindBatch(stmt, bind, -1);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
@@ -3118,7 +4106,43 @@ int taos_stmt_bind_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind) {
     return terrno;
   }
 
-  return stmtBindBatch(stmt, bind, -1);
+  /* TAOS_MULTI_BIND carries no terminator and this hook cannot query the parsed
+   * statement without perturbing its execution state. The event is therefore
+   * recorded without bind bytes rather than guessing the caller's array length. */
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    /* The column count is deliberately NOT queried here. stmtGetColFields switches
+     * statement status, may free and recreate exec.pRequest, and frees it outright on
+     * error. That would let recording perturb the bind it is observing, which is never an
+     * acceptable trade for a diagnostic (FS 4.8). No non-destructive source for the
+     * count exists on the statement, so the event is recorded without bind bytes:
+     * losing the payload is better than corrupting the call.
+     *
+     * The absent WLR_TAG_BIND_BYTES is itself the signal, and replay is built to read
+     * it that way: replayBuildBinds returns <= 0 for a missing payload, and taosReplay
+     * skips the call, counts it in "calls skipped", and exits REPLAY_EXIT_PARTIAL
+     * rather than binding an invented shape. So a batch bind recorded this way is
+     * visibly unreplayable, not silently mis-replayed -- which is the whole point of
+     * refusing to guess. The STMT2 columnar paths do carry their payload. Both this
+     * STMT1 full-batch form and taos_stmt_bind_param omit it because their column
+     * count has no non-destructive source. */
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_BIND_PARAM_BATCH;
+    wlrArgs.logicalStmtId = wlrSid;
+    wlrArgs.bindDesc = NULL;
+    wlrArgs.bindDescLen = 0;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  }
+
+  int32_t wlrCode = stmtBindBatch(stmt, bind, -1);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int colIdx) {
@@ -3146,7 +4170,39 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, in
     return terrno;
   }
 
-  return stmtBindBatch(stmt, bind, colIdx);
+  /* This API explicitly targets one column, so unlike the full-row bind APIs its
+   * descriptor count is known without inspecting statement state. */
+  uint64_t           wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    uint32_t capacity = wlrSingleMultiBindSize(bind);
+    uint8_t *wlrBuf = capacity > 0 && capacity <= WLR_MAX_FRAME_PAYLOAD
+                          ? (uint8_t *)taosMemoryMalloc(capacity) : NULL;
+    int32_t wlrLen = wlrBuf != NULL ? wlrEncodeSingleMultiBind(bind, wlrBuf, capacity) : 0;
+    if (wlrBuf == NULL) {
+      tscWarn("WLR: unable to allocate single-param bind capture buffer; recording without bind bytes");
+    } else if (wlrLen <= 0) {
+      tscWarn("WLR: single-param bind payload exceeds capture capacity; recording without bind bytes");
+    }
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT_BIND_SINGLE_PARAM_BATCH;
+    wlrArgs.logicalStmtId = wlrSid;
+    wlrArgs.bindDesc = wlrLen > 0 ? wlrBuf : NULL;
+    wlrArgs.bindDescLen = wlrLen;
+    wlrArgs.bindColIdx = colIdx;
+    wlrArgs.bindColIdxSet = true;
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+    taosMemoryFree(wlrBuf);
+  }
+
+  int32_t wlrCode = stmtBindBatch(stmt, bind, colIdx);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt_add_batch(TAOS_STMT *stmt) {
@@ -3156,7 +4212,16 @@ int taos_stmt_add_batch(TAOS_STMT *stmt) {
     return terrno;
   }
 
-  return stmtAddBatch(stmt);
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT_ADD_BATCH, wlrSid, NULL, 0);
+  int32_t wlrCode = stmtAddBatch(stmt);
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt_execute(TAOS_STMT *stmt) {
@@ -3166,7 +4231,20 @@ int taos_stmt_execute(TAOS_STMT *stmt) {
     return terrno;
   }
 
-  return stmtExec(stmt);
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT_EXECUTE, wlrSid, NULL, 0);
+  int32_t wlrCode = stmtExec(stmt);
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = wlrCode;
+    wlrRet.logicalStmtId = wlrSid;
+    if (wlrCode == TSDB_CODE_SUCCESS) wlrRet.affectedRows = taos_stmt_affected_rows_once(stmt);
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt_is_insert(TAOS_STMT *stmt, int *insert) {
@@ -3206,7 +4284,30 @@ TAOS_RES *taos_stmt_use_result(TAOS_STMT *stmt) {
     return NULL;
   }
 
-  return stmtUseResult(stmt);
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT_USE_RESULT, wlrSid, NULL, 0);
+
+  TAOS_RES *res = stmtUseResult(stmt);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = taos_errno(res);
+    wlrRet.logicalStmtId = wlrSid;
+    /* This is where a statement result becomes visible to the user, so it gets a
+     * logical result ID -- the same one taos_free_result will reference. The
+     * internal taos_free_result(pStmt->exec.pRequest) calls inside clientStmt.c
+     * leave wlrResultId zero and so record nothing (TS RE013). */
+    if (res != NULL && TD_RES_QUERY(res)) {
+      SRequestObj *pReq = (SRequestObj *)res;
+      if (pReq->wlrResultId == 0) pReq->wlrResultId = wlrNextResultId();
+      wlrRet.logicalResultId = pReq->wlrResultId;
+    }
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return res;
 }
 
 char *taos_stmt_errstr(TAOS_STMT *stmt) { return (char *)stmtErrstr(stmt); }
@@ -3238,7 +4339,19 @@ int taos_stmt_close(TAOS_STMT *stmt) {
     return terrno;
   }
 
-  return stmtClose(stmt);
+  /* Read the logical ID before stmtClose: the handle is invalid afterwards. */
+  uint64_t wlrSid = ((STscStmt *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT_CLOSE, wlrSid, NULL, 0);
+
+  int32_t wlrCode = stmtClose(stmt);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
@@ -3256,6 +4369,27 @@ TAOS_STMT2 *taos_stmt2_init(TAOS *taos, TAOS_STMT2_OPTION *option) {
 
   TAOS_STMT2 *pStmt = stmtInit2(pObj, option);
 
+  if (pStmt != NULL && wlrRecorderState() == WLR_STATE_RUNNING) {
+    ((STscStmt2 *)pStmt)->wlrStmtId = wlrNextStmtId();
+    SWorkloadCallToken wlrTok = {0};
+    SWorkloadBeginArgs wlrArgs = {0};
+    wlrArgs.apiType = WLR_API_STMT2_INIT;
+    wlrArgs.logicalStmtId = ((STscStmt2 *)pStmt)->wlrStmtId;
+    wlrArgs.logicalConnId = pObj->wlrConnId;
+    wlrArgs.stmtInitOptionsSet = true;
+    if (option != NULL) {
+      wlrArgs.reqid = option->reqid;
+      if (option->singleStbInsert) wlrArgs.stmtInitOptions |= WLR_STMT_OPT_SINGLE_STB_INSERT;
+      if (option->singleTableBindOnce) wlrArgs.stmtInitOptions |= WLR_STMT_OPT_SINGLE_TABLE_BIND_ONCE;
+      if (option->asyncExecFn != NULL) wlrArgs.stmtInitOptions |= WLR_STMT_OPT_ASYNC_CALLBACK;
+      if (option->userdata != NULL) wlrArgs.stmtInitOptions |= WLR_STMT_OPT_USERDATA;
+    }
+    (void)wlrApiBegin(&wlrArgs, &wlrTok);
+    if (wlrTok.recorded) {
+      WLR_API_END_STMT(&wlrTok, 0, wlrArgs.logicalStmtId);
+    }
+  }
+
   releaseTscObj(*(int64_t *)taos);
 
   return pStmt;
@@ -3268,7 +4402,408 @@ int taos_stmt2_prepare(TAOS_STMT2 *stmt, const char *sql, unsigned long length) 
     return terrno;
   }
 
-  return stmtPrepare2(stmt, sql, length);
+  uint64_t wlrSid = ((STscStmt2 *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT2_PREPARE, wlrSid, sql, length);
+  int32_t wlrCode = stmtPrepare2(stmt, sql, length);
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+static int32_t wlrStmt2RowColumnCount(STscStmt2 *stmt, int32_t colIdx) {
+  if (colIdx >= 0) return 1;
+  if (stmt->sql.sqlStr == NULL) return 0;
+  if (stmt2IsSelect((TAOS_STMT2 *)stmt)) {
+    if (stmt->sql.pQuery == NULL || stmt->sql.pQuery->pPlaceholderValues == NULL) return 0;
+    return taosArrayGetSize(stmt->sql.pQuery->pPlaceholderValues);
+  }
+  if (stmt->sql.placeholderOfCols > 0) return stmt->sql.placeholderOfCols;
+  SPureInsertParserCtx pureInsert = {0};
+  if (qPureParseInsert(&pureInsert, stmt->sql.sqlStr) == TSDB_CODE_SUCCESS && pureInsert.nr_params > 1) {
+    return pureInsert.nr_params - 1;
+  }
+  int32_t fieldCount = 0;
+  int32_t colCount = 0;
+  TAOS_FIELD_ALL *fields = NULL;
+  if (taos_stmt2_get_fields((TAOS_STMT2 *)stmt, &fieldCount, &fields) == TSDB_CODE_SUCCESS && fields != NULL) {
+    for (int32_t index = 0; index < fieldCount; ++index) {
+      if (fields[index].field_type == TAOS_FIELD_COL) ++colCount;
+    }
+  }
+  taos_stmt2_free_fields((TAOS_STMT2 *)stmt, fields);
+  return colCount;
+}
+
+static uint32_t wlrEncodeStmt2RowBindv(const TAOS_STMT2_BINDV *bindv, int32_t colsPerTable,
+                                       uint8_t *buf, uint32_t bufLen, uint8_t *scratch) {
+  SWlrBindEncodeCol cols[128] = {0};
+  uint32_t packedOffset = 0;
+  if (bindv == NULL || bindv->bind_cols == NULL || bindv->count <= 0 || colsPerTable <= 0 ||
+      bindv->count > 128 / colsPerTable) return 0;
+
+  int32_t colCount = bindv->count * colsPerTable;
+  for (int32_t table = 0; table < bindv->count; ++table) {
+    if (bindv->bind_cols[table] == NULL) {
+      for (int32_t column = 0; column < colsPerTable; ++column) {
+        SWlrBindEncodeCol *col = &cols[table * colsPerTable + column];
+        col->type = 0;
+        col->flags = WLR_BIND_FLAG_ABSENT_TABLE;
+      }
+      continue;
+    }
+    for (int32_t column = 0; column < colsPerTable; ++column) {
+      const TAOS_STMT2_BIND *bind = &bindv->bind_cols[table][column];
+      SWlrBindEncodeCol *col = &cols[table * colsPerTable + column];
+      if (bind->num <= 0) return 0;
+      col->type = (uint16_t)bind->buffer_type;
+      col->flags = WLR_BIND_FLAG_TRISTATE_NULL;
+      col->elemCount = bind->num;
+      col->isNull = (const uint8_t *)bind->is_null;
+      col->lengths = bind->length;
+      col->values = (const uint8_t *)bind->buffer;
+
+      uint32_t width = wlrTypeFixedWidth(col->type);
+      if (width == 0) {
+        uint64_t valueBytes = 0;
+        size_t sourceOffset = 0;
+        uint32_t valueStart = packedOffset;
+        for (int32_t row = 0; row < bind->num; ++row) {
+          if (bind->is_null != NULL && bind->is_null[row] != 0) continue;
+          if (bind->length == NULL || bind->length[row] < 0) return 0;
+          size_t length = (size_t)bind->length[row];
+          if (valueBytes + length > UINT32_MAX || SIZE_MAX - sourceOffset < length ||
+              (length > 0 && bind->buffer == NULL)) return 0;
+          if (buf != NULL) {
+            if (packedOffset > bufLen || length > bufLen - packedOffset) return 0;
+            if (length > 0) memcpy(scratch + packedOffset, (const uint8_t *)bind->buffer + sourceOffset, length);
+            packedOffset += (uint32_t)length;
+          }
+          valueBytes += length;
+          sourceOffset += length;
+        }
+        col->valueBytes = (uint32_t)valueBytes;
+        if (buf != NULL) col->values = valueBytes > 0 ? scratch + valueStart : NULL;
+      } else {
+        uint64_t valueBytes = (uint64_t)width * (uint32_t)bind->num;
+        if (valueBytes > UINT32_MAX) return 0;
+        col->valueBytes = (uint32_t)valueBytes;
+        if (bind->buffer == NULL) {
+          if (bind->is_null == NULL) return 0;
+          for (int32_t row = 0; row < bind->num; ++row) {
+            if (bind->is_null[row] == 0) return 0;
+          }
+          if (buf == NULL) col->values = (const uint8_t *)bind;
+          if (buf != NULL) {
+            if (packedOffset > bufLen || valueBytes > bufLen - packedOffset) return 0;
+            memset(scratch + packedOffset, 0, (size_t)valueBytes);
+            col->values = scratch + packedOffset;
+            packedOffset += (uint32_t)valueBytes;
+          }
+        }
+      }
+    }
+  }
+
+  uint32_t encodedSize = wlrBindEncodedSize(cols, colCount);
+  if (buf == NULL) return encodedSize;
+  if (encodedSize == 0 || encodedSize > bufLen) return 0;
+  int32_t encoded = wlrEncodeBind(buf, bufLen, cols, colCount);
+  return encoded > 0 ? (uint32_t)encoded : 0;
+}
+
+static uint32_t wlrEncodeStmt2Tags(const TAOS_STMT2_BINDV *bindv, int32_t tagsPerTable,
+                                   uint8_t *buf, uint32_t bufLen, uint8_t *scratch) {
+  if (bindv == NULL || bindv->tags == NULL || bindv->count <= 0 || bindv->count > 128 ||
+      tagsPerTable <= 0 || tagsPerTable > 128) return 0;
+  uint64_t size = 4;
+  if (buf != NULL) {
+    if (bufLen < size) return 0;
+    wlrPutU32(buf, (uint32_t)bindv->count);
+  }
+  for (int32_t table = 0; table < bindv->count; ++table) {
+    TAOS_STMT2_BIND *tagRow = bindv->tags[table];
+    TAOS_STMT2_BIND scalarTags[128];
+    if (tagRow != NULL) {
+      for (int32_t tag = 0; tag < tagsPerTable; ++tag) {
+        scalarTags[tag] = tagRow[tag];
+        scalarTags[tag].num = 1;
+      }
+    }
+    TAOS_STMT2_BIND *scalarRow = tagRow != NULL ? scalarTags : NULL;
+    TAOS_STMT2_BINDV group = {.count = 1, .bind_cols = &scalarRow};
+    uint32_t groupSize = tagRow != NULL ? wlrEncodeStmt2RowBindv(&group, tagsPerTable, NULL, 0, NULL) : 0;
+    if (tagRow != NULL && (groupSize == 0 || groupSize > WLR_MAX_FRAME_PAYLOAD)) return 0;
+    if (size + 4 + groupSize > WLR_MAX_FRAME_PAYLOAD) return 0;
+    if (buf != NULL) {
+      if (size + 4 + groupSize > bufLen) return 0;
+      wlrPutU32(buf + size, groupSize);
+      if (groupSize > 0 &&
+          wlrEncodeStmt2RowBindv(&group, tagsPerTable, buf + size + 4,
+                                 bufLen - (uint32_t)size - 4, scratch) != groupSize) return 0;
+    }
+    size += 4 + groupSize;
+  }
+  return (uint32_t)size;
+}
+
+#ifdef WLR_TEST_HOOKS
+uint32_t wlrTestEncodeStmt2RowBindv(void *bindv, int32_t colsPerTable, uint8_t *buf, uint32_t bufLen) {
+  uint8_t *scratch = buf != NULL ? (uint8_t *)taosMemoryMalloc(bufLen) : NULL;
+  uint32_t size = buf == NULL || scratch != NULL
+                      ? wlrEncodeStmt2RowBindv((const TAOS_STMT2_BINDV *)bindv, colsPerTable, buf, bufLen, scratch)
+                      : 0;
+  taosMemoryFree(scratch);
+  return size;
+}
+
+uint32_t wlrTestEncodeStmt2Tags(void *bindv, int32_t tagsPerTable, uint8_t *buf, uint32_t bufLen) {
+  uint8_t *scratch = buf != NULL ? (uint8_t *)taosMemoryMalloc(bufLen) : NULL;
+  uint32_t size = buf == NULL || scratch != NULL
+                      ? wlrEncodeStmt2Tags((const TAOS_STMT2_BINDV *)bindv, tagsPerTable, buf, bufLen, scratch)
+                      : 0;
+  taosMemoryFree(scratch);
+  return size;
+}
+#endif
+
+static void wlrStmt2RowBindBegin(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t colIdx,
+                                 uint16_t apiType, SWorkloadCallToken *token) {
+  STscStmt2 *statement = (STscStmt2 *)stmt;
+  uint8_t *tbnameBuf = NULL;
+  int32_t tbnameLen = 0;
+  if (bindv != NULL && bindv->count > 0 && bindv->count <= 128) {
+    uint32_t tbnameCapacity = wlrStmt2NamesEncodedSize((const char *const *)bindv->tbnames, bindv->count);
+    if (tbnameCapacity <= WLR_MAX_FRAME_PAYLOAD) {
+      tbnameBuf = (uint8_t *)taosMemoryMalloc(tbnameCapacity);
+      if (tbnameBuf != NULL) {
+        tbnameLen = wlrEncodeStmt2Names(tbnameBuf, tbnameCapacity, (const char *const *)bindv->tbnames,
+                                      bindv->count);
+        if (tbnameLen <= 0) tbnameLen = 0;
+      }
+    }
+  }
+
+  bool noColumns = bindv != NULL && bindv->count > 0 && bindv->count <= 128;
+  for (int32_t table = 0; noColumns && bindv->bind_cols != NULL && table < bindv->count; ++table) {
+    if (bindv->bind_cols[table] != NULL) noColumns = false;
+  }
+  int32_t colsPerTable = noColumns ? 0 : wlrStmt2RowColumnCount(statement, colIdx);
+  uint32_t capacity = noColumns ? 4 : wlrEncodeStmt2RowBindv(bindv, colsPerTable, NULL, 0, NULL);
+  uint8_t *bindBuf = capacity > 0 && capacity <= WLR_MAX_FRAME_PAYLOAD
+                         ? (uint8_t *)taosMemoryMalloc((size_t)capacity * 2) : NULL;
+  uint32_t bindLen = 0;
+  if (bindBuf != NULL) {
+    if (noColumns) {
+      wlrPutU32(bindBuf, 0);
+      bindLen = 4;
+    } else {
+      bindLen = wlrEncodeStmt2RowBindv(bindv, colsPerTable, bindBuf, capacity, bindBuf + capacity);
+    }
+  }
+  bool hasTags = false;
+  if (bindv != NULL && bindv->tags != NULL && bindv->count > 0) {
+    for (int32_t table = 0; table < bindv->count; ++table) {
+      if (bindv->tags[table] != NULL) hasTags = true;
+    }
+  }
+  uint32_t tagCapacity = hasTags ? wlrEncodeStmt2Tags(bindv, statement->sql.placeholderOfTags, NULL, 0, NULL) : 0;
+  uint8_t *tagBuf = tagCapacity > 0 && tagCapacity <= WLR_MAX_FRAME_PAYLOAD
+                        ? (uint8_t *)taosMemoryMalloc((size_t)tagCapacity * 2) : NULL;
+  uint32_t tagLen = tagBuf != NULL
+                        ? wlrEncodeStmt2Tags(bindv, statement->sql.placeholderOfTags, tagBuf, tagCapacity,
+                                             tagBuf + tagCapacity)
+                        : 0;
+  if (hasTags && tagLen == 0) bindLen = 0;
+  if (tbnameLen == 0) bindLen = 0;
+
+  SWorkloadBeginArgs args = {0};
+  args.apiType = apiType;
+  args.logicalStmtId = statement->wlrStmtId;
+  args.bindDesc = bindLen > 0 ? bindBuf : NULL;
+  args.bindDescLen = (int32_t)bindLen;
+  args.tbnameList = tbnameLen > 0 ? tbnameBuf : NULL;
+  args.tbnameListLen = tbnameLen;
+  args.stmt2Tags = bindLen > 0 && tagLen > 0 ? tagBuf : NULL;
+  args.stmt2TagsLen = bindLen > 0 ? (int32_t)tagLen : 0;
+  if (bindv != NULL) {
+    args.bindTableCount = bindv->count;
+    args.bindTableCountSet = true;
+  }
+  args.bindColIdx = colIdx;
+  args.bindColIdxSet = true;
+  (void)wlrApiBegin(&args, token);
+  taosMemoryFree(tbnameBuf);
+  taosMemoryFree(bindBuf);
+  taosMemoryFree(tagBuf);
+}
+
+static int32_t wlrEncodeStmt2ColumnBindvWithScratch(TAOS_STMT2_COLUMN_BINDV *bindv, uint8_t *buf,
+                                                    size_t bufLen, uint8_t *packedValues) {
+  SWlrBindEncodeCol cols[128];
+  size_t            packedOffset = 0;
+  int32_t           result = 0;
+  int32_t           c;
+
+  if (bindv == NULL || bindv->columns == NULL) return 0;
+  if (bindv->num_columns > 128) {
+    tscWarn("WLR: stmt2 column bind has %d columns; recording without bind bytes", bindv->num_columns);
+    return 0;
+  }
+  if (bindv->num_columns <= 0) return 0;
+  if (bindv->num_rows <= 0) return 0;
+
+  if (packedValues == NULL) return 0;
+
+  for (c = 0; c < bindv->num_columns; ++c) {
+    TAOS_STMT2_COLUMN_BIND *b = &bindv->columns[c];
+    int32_t                 num = bindv->num_rows;
+    uint32_t                width;
+
+    cols[c].type = (uint16_t)b->buffer_type;
+    cols[c].flags = WLR_BIND_FLAG_TRISTATE_NULL;
+    cols[c].elemCount = num;
+    cols[c].isNull = (const uint8_t *)b->is_null;
+    cols[c].lengths = b->length;
+    cols[c].values = (const uint8_t *)b->buffer;
+
+    width = wlrTypeFixedWidth((uint16_t)b->buffer_type);
+    if (width == 0) {
+      uint32_t total = 0;
+      size_t   sourceOffset = 0;
+      int32_t  e;
+      if (b->length == NULL) goto _return; /* var-length with no lengths is unusable */
+      for (e = 0; e < num; ++e) {
+        if (b->length[e] < 0) goto _return;
+        size_t elemLen = (size_t)b->length[e];
+        if (b->is_null == NULL || b->is_null[e] == 0) {
+          if (SIZE_MAX - sourceOffset < elemLen) goto _return;
+          if (UINT32_MAX - total < elemLen || packedOffset > bufLen || elemLen > bufLen - packedOffset) {
+            goto _return;
+          }
+          if (elemLen > 0 && b->buffer == NULL) goto _return;
+          if (elemLen > 0) {
+            memcpy(packedValues + packedOffset, (const uint8_t *)b->buffer + sourceOffset, elemLen);
+          }
+          packedOffset += elemLen;
+          total += (uint32_t)elemLen;
+          sourceOffset += elemLen;
+        }
+      }
+      cols[c].values = (total > 0) ? packedValues + packedOffset - total : NULL;
+      cols[c].valueBytes = total;
+    } else {
+      if ((uint64_t)width * (uint32_t)num > UINT32_MAX) goto _return;
+      cols[c].valueBytes = width * (uint32_t)num;
+      if (b->buffer == NULL) {
+        if (b->is_null == NULL || packedOffset > bufLen || cols[c].valueBytes > bufLen - packedOffset) {
+          goto _return;
+        }
+        for (int32_t row = 0; row < num; ++row) {
+          if (b->is_null[row] == 0) goto _return;
+        }
+        memset(packedValues + packedOffset, 0, cols[c].valueBytes);
+        cols[c].values = packedValues + packedOffset;
+        packedOffset += cols[c].valueBytes;
+      }
+    }
+  }
+
+  if (wlrBindEncodedSize(cols, bindv->num_columns) > bufLen) goto _return;
+  result = wlrEncodeBind(buf, bufLen, cols, bindv->num_columns);
+  if (result < 0) result = 0;
+
+_return:
+  return result;
+}
+
+static uint32_t wlrStmt2ColumnBindvSize(const TAOS_STMT2_COLUMN_BINDV *bindv) {
+  if (bindv == NULL || bindv->columns == NULL || bindv->num_columns <= 0 ||
+      bindv->num_columns > 128 || bindv->num_rows <= 0) return 0;
+  SWlrBindEncodeCol cols[128] = {0};
+  for (int32_t colIdx = 0; colIdx < bindv->num_columns; ++colIdx) {
+    const TAOS_STMT2_COLUMN_BIND *bind = &bindv->columns[colIdx];
+    SWlrBindEncodeCol *col = &cols[colIdx];
+    col->type = (uint16_t)bind->buffer_type;
+    col->flags = WLR_BIND_FLAG_TRISTATE_NULL;
+    col->elemCount = bindv->num_rows;
+    col->isNull = (const uint8_t *)bind->is_null;
+    col->lengths = bind->length;
+    col->values = (const uint8_t *)bind->buffer;
+    uint32_t width = wlrTypeFixedWidth(col->type);
+    if (width == 0) {
+      if (bind->length == NULL) return 0;
+      uint64_t total = 0;
+      for (int32_t row = 0; row < bindv->num_rows; ++row) {
+        if (bind->length[row] < 0) return 0;
+        if (bind->is_null == NULL || bind->is_null[row] == 0) total += (uint32_t)bind->length[row];
+        if (total > UINT32_MAX) return 0;
+      }
+      col->valueBytes = (uint32_t)total;
+    } else {
+      uint64_t total = (uint64_t)width * (uint32_t)bindv->num_rows;
+      if (total > UINT32_MAX) return 0;
+      col->valueBytes = (uint32_t)total;
+    }
+    if (col->valueBytes > 0 && col->values == NULL) col->values = (const uint8_t *)bind;
+  }
+  return wlrBindEncodedSize(cols, bindv->num_columns);
+}
+
+#ifdef WLR_TEST_HOOKS
+uint32_t wlrTestStmt2ColumnBindvSize(void *bindv) {
+  return wlrStmt2ColumnBindvSize((const TAOS_STMT2_COLUMN_BINDV *)bindv);
+}
+#endif
+
+#ifdef WLR_TEST_HOOKS
+static int32_t wlrEncodeStmt2ColumnBindv(TAOS_STMT2_COLUMN_BINDV *bindv, uint8_t *buf, size_t bufLen) {
+  uint8_t *packedValues = (uint8_t *)taosMemoryMalloc(bufLen);
+  if (packedValues == NULL) return 0;
+  int32_t result = wlrEncodeStmt2ColumnBindvWithScratch(bindv, buf, bufLen, packedValues);
+  taosMemoryFree(packedValues);
+  return result;
+}
+
+int32_t wlrTestEncodeStmt2ColumnBindv(void *bindv, uint8_t *buf, size_t bufLen) {
+  return wlrEncodeStmt2ColumnBindv((TAOS_STMT2_COLUMN_BINDV *)bindv, buf, bufLen);
+}
+#endif
+
+/*
+ * Open a recording token for a columnar bind. Columnar mode has no tbnames vector
+ * (the table name is fixed in the SQL or carried in a tbname column), so unlike the
+ * row-mode hook there is no separate table-name list to record.
+ */
+static void wlrColumnBindBegin(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, uint16_t wlrApiType,
+                               SWorkloadCallToken *pTok, uint64_t *pSid) {
+  uint64_t wlrSid = (stmt != NULL) ? ((STscStmt2 *)stmt)->wlrStmtId : 0;
+  *pSid = wlrSid;
+  if (wlrSid == 0 || bindv == NULL || wlrRecorderState() != WLR_STATE_RUNNING) return;
+
+  size_t captureCapacity = wlrStmt2ColumnBindvSize(bindv);
+  uint8_t *wlrBuf = captureCapacity > 0 && captureCapacity <= WLR_MAX_FRAME_PAYLOAD
+                        ? (uint8_t *)taosMemoryMalloc(captureCapacity * 2) : NULL;
+  int32_t wlrLen =
+      (wlrBuf != NULL)
+          ? wlrEncodeStmt2ColumnBindvWithScratch(bindv, wlrBuf, captureCapacity,
+                                                 wlrBuf + captureCapacity)
+          : 0;
+
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = wlrApiType;
+  wlrArgs.logicalStmtId = wlrSid;
+  wlrArgs.bindDesc = (wlrLen > 0) ? wlrBuf : NULL;
+  wlrArgs.bindDescLen = wlrLen;
+  if (bindv != NULL) {
+    wlrArgs.bindTableCount = bindv->num_tables;
+    wlrArgs.bindTableCountSet = true;
+  }
+  (void)wlrApiBegin(&wlrArgs, pTok);
+  taosMemoryFree(wlrBuf);
 }
 
 static int32_t stmt2BindError(STscStmt2 *pStmt, int32_t code) {
@@ -3282,7 +4817,35 @@ static int32_t stmt2BindError(STscStmt2 *pStmt, int32_t code) {
   return terrno;
 }
 
+/*
+ * Public entry. The body is in the impl because the bind path has many early
+ * returns; wrapping here records exactly one event per user call without threading a
+ * token through every failure branch.
+ */
 int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
+  if (stmt == NULL) {
+    tscError("NULL parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  uint64_t wlrSid = ((STscStmt2 *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    wlrStmt2RowBindBegin(stmt, bindv, col_idx, WLR_API_STMT2_BIND_PARAM, &wlrTok);
+  }
+
+  int32_t wlrCode = stmt2BindParamImpl(stmt, bindv, col_idx);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+int stmt2BindParamImpl(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx) {
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
@@ -3398,7 +4961,9 @@ int taos_stmt2_bind_param(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col
 
 // Internal common implementation for async bind (both row and columnar)
 static int stmtBindParamAImpl(TAOS_STMT2 *stmt, void *bindv, int32_t col_idx,
-                              __taos_async_fn_t fp, void *param, bool is_columnar) {
+                              __taos_async_fn_t fp, void *param, bool is_columnar,
+                              const SWorkloadCallToken *wlrToken, ThreadArgs **wlrArgsOut) {
+  if (wlrArgsOut != NULL) *wlrArgsOut = NULL;
   if (stmt == NULL || bindv == NULL || fp == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
@@ -3417,6 +4982,11 @@ static int stmtBindParamAImpl(TAOS_STMT2 *stmt, void *bindv, int32_t col_idx,
   args->stmt = stmt;
   args->fp = fp;
   args->param = param;
+  args->wlrCallId = wlrToken->callId;
+  args->wlrBeginMonoNs = wlrToken->beginMonoNs;
+  args->wlrStmtId = pStmt->wlrStmtId;
+  args->wlrApiType = wlrToken->apiType;
+  args->wlrReturnReady = false;
   args->is_columnar = is_columnar;
   if (is_columnar) {
     args->column_bindv = (TAOS_STMT2_COLUMN_BINDV *)bindv;
@@ -3444,14 +5014,51 @@ static int stmtBindParamAImpl(TAOS_STMT2 *stmt, void *bindv, int32_t col_idx,
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
     tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
+  } else if (wlrToken->callId != 0 && wlrArgsOut != NULL) {
+    *wlrArgsOut = args;
   }
 
   return code_s;
 }
 
+static void wlrStmtAsyncDone(const SWorkloadCallToken *token, uint64_t stmtId, int32_t code) {
+  SWorkloadDoneArgs done = {.code = code, .logicalStmtId = stmtId};
+  wlrAsyncDone((SWorkloadCallToken *)token, &done);
+}
+
+/* Records dispatch/return here; the async bind thread records DONE immediately
+ * before it invokes the user's callback. */
 int taos_stmt2_bind_param_a(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp,
                             void *param) {
-  return stmtBindParamAImpl(stmt, bindv, col_idx, fp, param, false);
+  uint64_t           wlrSid = (stmt != NULL) ? ((STscStmt2 *)stmt)->wlrStmtId : 0;
+  SWorkloadCallToken wlrTok = {0};
+  if (wlrSid != 0 && wlrRecorderState() == WLR_STATE_RUNNING) {
+    wlrStmt2RowBindBegin(stmt, bindv, col_idx, WLR_API_STMT2_BIND_PARAM_A, &wlrTok);
+  }
+
+  ThreadArgs *wlrArgs = NULL;
+  int32_t wlrCode = stmtBindParamAImpl(stmt, bindv, col_idx, fp, param, false, &wlrTok,
+                                       &wlrArgs);
+  /* Literal binds return before allocating a worker; dispatch failures mean no
+   * worker was started. All other successful calls emit DONE on that worker. */
+  if (wlrTok.recorded &&
+      (wlrCode != TSDB_CODE_SUCCESS || stmtIsLiteral((STscStmt2 *)stmt))) {
+    wlrStmtAsyncDone(&wlrTok, wlrSid, wlrCode);
+  }
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  if (wlrArgs != NULL) {
+    STscStmt2 *pStmt = (STscStmt2 *)stmt;
+    (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+    wlrArgs->wlrReturnReady = true;
+    (void)taosThreadCondBroadcast(&pStmt->asyncBindParam.waitCond);
+    (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  }
+  return wlrCode;
 }
 
 int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
@@ -3461,7 +5068,32 @@ int taos_stmt2_exec(TAOS_STMT2 *stmt, int *affected_rows) {
     return terrno;
   }
 
-  return stmtExec2(stmt, affected_rows);
+  uint64_t wlrSid = ((STscStmt2 *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  STscStmt2 *pWlrStmt = (STscStmt2 *)stmt;
+  SWorkloadBeginArgs wlrArgs = {0};
+  wlrArgs.apiType = WLR_API_STMT2_EXEC;
+  wlrArgs.logicalStmtId = wlrSid;
+  wlrArgs.stmt2Async = pWlrStmt->options.asyncExecFn != NULL;
+  if (wlrSid != 0) (void)wlrApiBegin(&wlrArgs, &wlrTok);
+  else wlrApiSkipToken(&wlrTok);
+  int32_t wlrCode = stmtExec2(stmt, affected_rows, &wlrTok);
+  if (wlrCode != TSDB_CODE_SUCCESS && pWlrStmt->options.asyncExecFn != NULL && wlrTok.recorded) {
+    wlrStmtAsyncDone(&wlrTok, wlrSid, wlrCode);
+    if (pWlrStmt->wlrExecCallId == wlrTok.callId) pWlrStmt->wlrExecCallId = 0;
+  }
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = wlrCode;
+    wlrRet.logicalStmtId = wlrSid;
+    /* Recorded so replay can compare row counts without storing results (DS 6.11). */
+    wlrRet.affectedRows = wlrCode == TSDB_CODE_SUCCESS ? pWlrStmt->exec.affectedRows : 0;
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt2_close(TAOS_STMT2 *stmt) {
@@ -3471,7 +5103,19 @@ int taos_stmt2_close(TAOS_STMT2 *stmt) {
     return terrno;
   }
 
-  return stmtClose2(stmt);
+  /* Read the ID before stmtClose2 frees the handle. */
+  uint64_t wlrSid = ((STscStmt2 *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT2_CLOSE, wlrSid, NULL, 0);
+
+  int32_t wlrCode = stmtClose2(stmt);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
 }
 
 int taos_stmt2_is_insert(TAOS_STMT2 *stmt, int *insert) {
@@ -3525,7 +5169,28 @@ TAOS_RES *taos_stmt2_result(TAOS_STMT2 *stmt) {
     return NULL;
   }
 
-  return stmtUseResult2(stmt);
+  uint64_t wlrSid = ((STscStmt2 *)stmt)->wlrStmtId;
+  SWorkloadCallToken wlrTok = {0};
+  WLR_API_BEGIN_STMT(&wlrTok, WLR_API_STMT2_RESULT, wlrSid, NULL, 0);
+
+  TAOS_RES *res = stmtUseResult2(stmt);
+
+  if (wlrTok.recorded) {
+    SWorkloadReturnArgs wlrRet = {0};
+    wlrRet.code = taos_errno(res);
+    wlrRet.logicalStmtId = wlrSid;
+    /* Where a STMT2 result becomes user-visible, so it gets the result ID that a
+     * later taos_free_result will reference (TS RE013). */
+    if (res != NULL && TD_RES_QUERY(res)) {
+      SRequestObj *pReq = (SRequestObj *)res;
+      if (pReq->wlrResultId == 0) pReq->wlrResultId = wlrNextResultId();
+      wlrRet.logicalResultId = pReq->wlrResultId;
+    }
+    wlrApiReturn(&wlrTok, &wlrRet);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return res;
 }
 
 char *taos_stmt2_error(TAOS_STMT2 *stmt) { return (char *)stmt2Errstr(stmt); }
@@ -3760,7 +5425,7 @@ static void *instanceOpenRpcClient(const char *label) {
 
   int32_t code = taosVersionStrToInt(td_version, &rpcInit.compatibilityVer);
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("failed to convert taos version from str to int, errcode:%s", terrstr(code));
+    tscError("failed to convert taos version from str to int, errcode:%s", tstrerror(code));
     terrno = code;
     return NULL;
   }
@@ -4366,21 +6031,40 @@ static inline int processColumnsForTable(
 }
 
 // Columnar binding implementation - converts columnar data to row format and calls taos_stmt2_bind_param
+/* Public entry. Wrapped for the same reason as the row-mode bind: the impl has 16
+ * early returns, and wrapping records exactly one event per user call without
+ * threading a token through every failure branch. */
 int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv) {
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t           wlrSid = 0;
+  wlrColumnBindBegin(stmt, bindv, WLR_API_STMT2_BIND_PARAM_COLUMN, &wlrTok, &wlrSid);
+
+  int32_t wlrCode = stmt2BindParamColumnImpl(stmt, bindv);
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  return wlrCode;
+}
+
+int stmt2BindParamColumnImpl(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv) {
   int code = TSDB_CODE_SUCCESS;
-  STscStmt2 *pStmt = (STscStmt2 *)stmt;
-
-  // Resource management variables
-  int32_t *colOffsets = NULL;
-  TAOS_STMT2_BINDV rowBindv;
-  memset(&rowBindv, 0, sizeof(rowBindv));
-
-  // Input validation
   if (stmt == NULL) {
     tscError("NULL parameter for %s", __FUNCTION__);
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
+  STscStmt2 *pStmt = (STscStmt2 *)stmt;
+  if (bindv == NULL) {
+    return stmt2BindError(pStmt, TSDB_CODE_INVALID_PARA);
+  }
+
+  // Resource management variables
+  int32_t *colOffsets = NULL;
+  TAOS_STMT2_BINDV rowBindv;
+  memset(&rowBindv, 0, sizeof(rowBindv));
 
   if (atomic_load_8((int8_t *)&pStmt->asyncBindParam.asyncBindNum) > 1) {
     terrno = TSDB_CODE_TSC_STMT_API_ERROR;
@@ -4399,7 +6083,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
     return pStmt->errCode;
   }
 
-  if (bindv == NULL || bindv->num_columns < 1 || bindv->columns == NULL) {
+  if (bindv->num_columns < 1 || bindv->columns == NULL) {
     tscError("No columns in bindv");
     return stmt2BindError(pStmt, TSDB_CODE_INVALID_PARA);
   }
@@ -4599,7 +6283,9 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
                  code = TSDB_CODE_INVALID_PARA;
                  goto _return;
                }
-               colOffsets[fieldIdx] += length;
+               if (colBind->is_null == NULL || colBind->is_null[row] == 0) {
+                 colOffsets[fieldIdx] += length;
+               }
              }
           }
         }
@@ -4658,7 +6344,7 @@ int taos_stmt2_bind_param_column(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bind
   }
 
   // Call row-based bind function
-  code = taos_stmt2_bind_param(stmt, &rowBindv, -1);
+  code = stmt2BindParamImpl(stmt, &rowBindv, -1);
 
 _return:
   // Free resources
@@ -4707,6 +6393,33 @@ _return:
   return code;
 }
 
+/* Records dispatch/return here; the async bind thread records DONE immediately
+ * before it invokes the user's callback. */
 int taos_stmt2_bind_param_column_a(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv, __taos_async_fn_t fp, void *param) {
-  return stmtBindParamAImpl(stmt, bindv, 0, fp, param, true);
+  SWorkloadCallToken wlrTok = {0};
+  uint64_t           wlrSid = 0;
+  wlrColumnBindBegin(stmt, bindv, WLR_API_STMT2_BIND_PARAM_COLUMN_A, &wlrTok, &wlrSid);
+
+  ThreadArgs *wlrArgs = NULL;
+  int32_t wlrCode = stmtBindParamAImpl(stmt, bindv, 0, fp, param, true, &wlrTok,
+                                       &wlrArgs);
+  /* Keep DONE ownership mutually exclusive with stmtAsyncBindThreadFunc. */
+  if (wlrTok.recorded &&
+      (wlrCode != TSDB_CODE_SUCCESS || stmtIsLiteral((STscStmt2 *)stmt))) {
+    wlrStmtAsyncDone(&wlrTok, wlrSid, wlrCode);
+  }
+
+  if (wlrTok.recorded) {
+    WLR_API_END_STMT(&wlrTok, wlrCode, wlrSid);
+  } else {
+    wlrApiReturn(&wlrTok, NULL);
+  }
+  if (wlrArgs != NULL) {
+    STscStmt2 *pStmt = (STscStmt2 *)stmt;
+    (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+    wlrArgs->wlrReturnReady = true;
+    (void)taosThreadCondBroadcast(&pStmt->asyncBindParam.waitCond);
+    (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+  }
+  return wlrCode;
 }

@@ -843,7 +843,36 @@ static int32_t mndProcessStatisReq(SRpcMsg *pReq) {
   int32_t code = tDeserializeSStatisReq(pReq->pCont, pReq->contLen, &statisReq);
   if (code != 0) {
     tFreeSStatisReq(&statisReq);
+    mError("statis req from %s dropped: failed to deserialize payload, code:%s", RPC_MSG_USER(pReq),
+           tstrerror(code));
     TAOS_RETURN(code);
+  }
+
+  // Devon item 350: TDMT_MND_STATIS previously relayed the request body to taoskeeper
+  // without authenticating the sender. The RPC transport only carries a *claimed* user name
+  // (it never verifies a password and does not require a prior TDMT_MND_CONNECT handshake for
+  // non-CONNECT message types), so any peer able to reach the shared 6030 listener could forward
+  // arbitrary content to the monitoring endpoints, acting as a confused deputy toward taoskeeper.
+  // Require the claimed user to actually exist in the cluster, exactly like every other mnode
+  // message handler, before relaying anything.
+  SUserObj *pUser = NULL;
+  code = mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pUser);
+  if (code != 0) {
+    tFreeSStatisReq(&statisReq);
+    mError("statis req from %s dropped: claimed user does not exist or cannot be acquired, code:%s",
+           RPC_MSG_USER(pReq), tstrerror(code));
+    TAOS_RETURN(code);
+  }
+  mndReleaseUser(pMnode, pUser);
+  pUser = NULL;
+
+  // taoskeeper interpolates the relayed body into SQL executed with its stored root credentials,
+  // so a non-JSON / malformed payload must never reach the monitoring endpoints. Reject anything
+  // that is not well-formed JSON before forwarding it.
+  if (statisReq.pCont == NULL || !tjsonValidateJson(statisReq.pCont)) {
+    tFreeSStatisReq(&statisReq);
+    mError("statis req from %s dropped: payload is not valid JSON", RPC_MSG_USER(pReq));
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
 
   if (tsMonitorLogProtocol) {
@@ -1028,6 +1057,41 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         pDnode = mndAcquireDnodeAllStatusByEp(pMnode, statusReq.dnodeEp);
         if (pDnode == NULL) goto _OVER;
       }
+    }
+  }
+
+  // [SECURITY] Bind the status report to the identity of the claimed dnode.
+  //
+  // TDMT_MND_STATUS is the dnode->mnode heartbeat. The mnode handler historically trusted every
+  // field of the request and identified the reporting dnode purely from the dnodeId / dnodeEp carried
+  // in the body, with no transport- or handler-level authentication binding the frame to the genuine
+  // cluster member (security finding "Forged TDMT_MND_STATUS from any peer rewrites vnode roles,
+  // dnode online state and placement inputs"). Because the dnode dispatcher and the mnode dispatcher
+  // perform no per-message authentication, any peer able to reach the mnode's port could forge a
+  // heartbeat for an arbitrary dnodeId and rewrite vnode roles, dnode online state and placement inputs.
+  //
+  // Mitigation: the dnode already carries a stable, per-machine 'machineId' (generated once and
+  // persisted in SDB). Once a dnode has reported at least once (so the mnode has stored a non-empty
+  // machineId), we REQUIRE the incoming machineId to match before applying ANY state from the request.
+  // A wrong (non-empty) machineId means the frame does not originate from the genuine dnode, so we
+  // reject it cleanly.
+  //
+  // Two compatibility cases are intentionally NOT rejected:
+  //   * the mnode has no stored machineId yet (brand-new dnode bootstrap) -> allow to establish binding.
+  //   * the incoming status carries an EMPTY machineId -> a legitimate dnode may send an early status
+  //     before its per-machine machineId is loaded at startup (this is observed right after a taosd
+  //     restart), and machineId is not a secret (it travels in cleartext heartbeats), so an empty
+  //     incoming is treated as "not a forgery signal" rather than a hard failure. This keeps the check
+  //     effective against forged status carrying a WRONG non-empty machineId while staying compatible
+  //     with normal dnode startup heartbeats.
+  // On platforms where no machineId is available the stored value stays empty and this gate is a no-op.
+  if (pDnode != NULL && pDnode->machineId[0] != '\0' && statusReq.machineId[0] != '\0') {
+    if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
+      mError("dnode:%d, %s, status machineId mismatch (possible forged heartbeat), "
+             "stored:%s incoming:%s",
+             statusReq.dnodeId, statusReq.dnodeEp, pDnode->machineId, statusReq.machineId);
+      code = TSDB_CODE_MND_AUTH_FAILURE;
+      TAOS_CHECK_GOTO(code, &lino, _OVER);
     }
   }
 
@@ -1357,7 +1421,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->memTotal = statusReq.memTotal;
     pDnode->encryptionKeyStat = statusReq.clusterCfg.encryptionKeyStat;
     pDnode->encryptionKeyChksum = statusReq.clusterCfg.encryptionKeyChksum;
-    if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
+    // Do not let an empty incoming machineId erase a previously stored (valid) one; only persist when
+    // the dnode actually reports a non-empty machineId that differs from what we already have.
+    if (statusReq.machineId[0] != '\0' &&
+        memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
       tstrncpy(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN + 1);
       if ((code = mndUpdateDnodeObj(pMnode, pDnode)) != 0) {
         TAOS_CHECK_GOTO(code, &lino, _OVER);

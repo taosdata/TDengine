@@ -683,6 +683,22 @@ mv /var/lib/taos/taosx/taosx.db* /path/to/data/
 
 之后再重启服务（此行为仅影响 Linux 系统）。
 
+### 从 v3.4 以前的版本升级到 v3.4.x 时迁移任务
+
+v3.4 以前版本的 taosX 任务存储在 SQLite 中，v3.4.x 的任务存储在 mnode 中。升级不会自动迁移原有任务；如果没有在升级前导出任务，升级后将无法在 taosExplorer 中看到这些任务。请按以下顺序操作：
+
+1. **升级前导出任务**：在 taosExplorer 中进入 **数据写入** > **数据写入任务**，选中所有需要迁移的任务，点击 **导出任务**，将任务保存为 JSON 文件，并妥善保留该文件。
+
+   ![在数据写入任务页面选中任务并点击导出任务](../../assets/taosx-task-migration-export-zh.webp)
+
+2. **升级后导入任务**：在 v3.4.x 的同一页面点击 **导入任务**，上传升级前导出的 JSON 文件，在弹窗中选中要导入的任务并点击 **确定**。
+
+   ![上传 JSON 文件后选择要导入的任务并确认](../../assets/taosx-task-migration-import-zh.webp)
+
+3. **启动需要运行的任务**：导入后的任务处于“已创建”状态。选中需要运行的任务，点击页面上方的 **启动任务**；可以逐个启动，也可以全选需要运行的任务后批量启动。
+
+   ![已创建的任务与页面上方的启动任务按钮](../../assets/taosx-task-migration-start-zh.webp)
+
 ## taosX 监控指标
 
 taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeeper 写入监控数据库，默认是 `log` 库，可以在 taoskeeper 配置文件中修改。以下是这些监控指标的详细介绍。

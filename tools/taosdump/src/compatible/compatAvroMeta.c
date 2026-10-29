@@ -29,6 +29,7 @@
 #pragma pop_macro("__atomic_sub_fetch")
 #pragma pop_macro("__atomic_add_fetch")
 #include "bck.h"
+#include "bckProgress.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -413,6 +414,8 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
     int tagAdjExt = ctx->looseMode ? 0 : 1;
 
     while (!avro_file_reader_read_value(reader, &value)) {
+        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+
         // Check for embedded SQL (virtual tables)
         avro_value_t sqlVal, sqlBranch;
         if (avro_value_get_by_name(&value, "sql", &sqlVal, NULL) == 0) {
@@ -429,6 +432,7 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
                     char *renamed = avroAfterRenameSql(ctx, buf);
                     const char *execSql = renamed ? renamed : buf;
 
+                    logDebug("avro tbtags: execute SQL: %s", execSql);
                     TAOS_RES *res = taos_query(ctx->conn, execSql);
                     if (taos_errno(res) != 0) {
                         logWarn("avro tbtags: query failed(0x%08X): %s, reason: %s",
@@ -616,6 +620,7 @@ int64_t avroRestoreTbTags(AvroRestoreCtx *ctx, const char *dirPath,
         }
 
         // Execute
+        logDebug("avro tbtags: execute SQL: %s", sqlstr);
         TAOS_RES *res = taos_query(ctx->conn, sqlstr);
         if (taos_errno(res) != 0) {
             logWarn("avro tbtags: create child table failed(0x%08X): %s, reason: %s",
@@ -652,9 +657,6 @@ int64_t avroRestoreNtb(AvroRestoreCtx *ctx, const char *dirPath,
                                                   &schema, &reader);
     if (!rs) return -1;
 
-    // Register in schema tracking
-    avroAddStbChanged(pDbChange, ctx->targetDb, ctx->conn, rs, NULL);
-
     avro_value_iface_t *iface = avro_generic_class_from_schema(schema);
     avro_value_t value;
     avro_generic_value_new(iface, &value);
@@ -662,6 +664,8 @@ int64_t avroRestoreNtb(AvroRestoreCtx *ctx, const char *dirPath,
     int64_t success = 0, failed = 0;
 
     while (!avro_file_reader_read_value(reader, &value)) {
+        atomic_add_fetch_64(&g_progress.ctbDoneCur, 1);
+
         avro_value_t sqlVal, sqlBranch;
         avro_value_get_by_name(&value, "sql", &sqlVal, NULL);
 
@@ -681,6 +685,7 @@ int64_t avroRestoreNtb(AvroRestoreCtx *ctx, const char *dirPath,
         char *renamed = avroAfterRenameSql(ctx, buf);
         const char *execSql = renamed ? renamed : buf;
 
+        logDebug("avro ntb: execute SQL: %s", execSql);
         TAOS_RES *res = taos_query(ctx->conn, execSql);
         if (taos_errno(res) != 0) {
             logError("avro ntb: create table failed: %s, reason: %s",
@@ -691,6 +696,18 @@ int64_t avroRestoreNtb(AvroRestoreCtx *ctx, const char *dirPath,
         }
         taos_free_result(res);
         if (renamed) taosMemoryFree(renamed);
+    }
+
+    if (success > 0) {
+        int code = avroAddStbChanged(pDbChange, ctx->targetDb, ctx->conn, rs, NULL);
+        if (code != 0) {
+            // Tables are already created; the data phase falls back to an
+            // on-the-fly DESCRIBE when no stbChange is tracked, so this must
+            // not count as a failed restore.
+            logWarn("avro ntb: schema pre-check failed for %s (code=0x%08X), "
+                    "schema will be checked again during data restore",
+                    rs->name, code);
+        }
     }
 
     avro_value_decref(&value);

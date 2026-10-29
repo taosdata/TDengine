@@ -27,6 +27,16 @@ from test_vtable_plan_window_federated_batch import (
 from vtable_util import ExtSrcEnv
 
 
+# SQL Server source created by the federated batch environment (see
+# test_vtable_plan_window_federated_batch._SQLSERVER_SOURCE).
+_SQLSERVER_SOURCE = "vt_window_batch_ss"
+# Five-part SQL Server column path source.database.schema.table.column: the
+# middle segment of a three-part name is the schema (DS §5.3.4).
+_SQLSERVER_AGG_TABLE = (
+    f"{_SQLSERVER_SOURCE}.vt_window_federated_batch_ext.dbo.remote_agg_values"
+)
+
+
 class TestVTablePlanAggFederated:
     @classmethod
     def setup_class(cls):
@@ -82,6 +92,21 @@ class TestVTablePlanAggFederated:
                 "('2024-01-01 00:00:01', 'x'), "
                 "('2024-01-01 00:00:02', 'y'), "
                 "('2024-01-01 00:00:03', 'z')",
+            ],
+        )
+        # SQL Server rows are one decimal order above the MySQL / PG fixtures so
+        # the Remote SQL text and the merged aggregate results stay
+        # distinguishable between sources.
+        ExtSrcEnv.sqlserver_exec(
+            "vt_window_federated_batch_ext",
+            [
+                "create table dbo.remote_agg_values "
+                "(ts datetime2(6) not null primary key, v int)",
+                "insert into dbo.remote_agg_values values "
+                "('2024-01-01 00:00:00', 100000), "
+                "('2024-01-01 00:00:01', 200000), "
+                "('2024-01-01 00:00:02', 300000), "
+                "('2024-01-01 00:00:03', 400000)",
             ],
         )
         tdSql.execute("use vt_window_federated_batch")
@@ -200,10 +225,29 @@ class TestVTablePlanAggFederated:
             "vt_window_batch_pg.vt_window_federated_batch_ext.remote_text.v) "
             "using vst_string_federated tags (30)"
         )
+        tdSql.execute(
+            "create stable vst_ss_federated "
+            "(ts timestamp, local_v int, mysql_v int, postgres_v int, "
+            "sqlserver_v int) tags (scenario int) virtual 1"
+        )
+        for suffix, scenario in (("a", 40), ("b", 41)):
+            tdSql.execute(
+                f"create vtable vct_ss_federated_{suffix} ("
+                "local_v from local_values.v, "
+                "mysql_v from "
+                "vt_window_batch_mysql_b.vt_window_federated_batch_ext.remote_primary.v, "
+                "postgres_v from "
+                "vt_window_batch_pg.vt_window_federated_batch_ext.remote_values.v, "
+                f"sqlserver_v from {_SQLSERVER_AGG_TABLE}.v) "
+                f"using vst_ss_federated tags ({scenario})"
+            )
 
     @classmethod
     def teardown_class(cls):
         _FederatedEnv.teardown_class()
+        # Idempotent: the delegated teardown already drops the shared SQL Server
+        # database, this also covers the SQL Server fixture added in this file.
+        ExtSrcEnv.sqlserver_drop_db("vt_window_federated_batch_ext")
 
     @staticmethod
     def check_row(sql, expected):
@@ -592,6 +636,29 @@ class TestVTablePlanAggFederated:
         tdSql.checkData(1, 0, 4)
         print("federated VStableAgg tags and fallback ......... [ passed ]")
 
+    def do_sqlserver_aggregate(self):
+        db = "vt_window_federated_batch.vst_ss_federated"
+        self.check_row(
+            "select sum(local_v), sum(mysql_v), sum(postgres_v), "
+            f"sum(sqlserver_v) from {db}",
+            (20, 200, 20000, 2000000),
+        )
+        self.check_row(
+            "select count(local_v), avg(sqlserver_v), min(sqlserver_v), "
+            f"max(sqlserver_v) from {db}",
+            (8, 250000, 100000, 400000),
+        )
+        tdSql.query(
+            "select max(scenario), sum(mysql_v), sum(sqlserver_v) from "
+            f"{db} partition by scenario order by 1"
+        )
+        tdSql.checkRows(2)
+        for row, scenario in enumerate((40, 41)):
+            tdSql.checkData(row, 0, scenario)
+            tdSql.checkData(row, 1, 100)
+            tdSql.checkData(row, 2, 1000000)
+        print("federated VStableAgg SQL Server aggregates .... [ passed ]")
+
     def do_plan_golden(self):
         test_case = "test_vstable_plan_test_agg_federated"
         tdCom.compare_testcase_result(
@@ -630,4 +697,5 @@ class TestVTablePlanAggFederated:
         self.do_last_star()
         self.do_extended_distributable_functions()
         self.do_tag_aggregate_and_expression_fallback()
+        self.do_sqlserver_aggregate()
         self.do_plan_golden()

@@ -442,9 +442,10 @@ int32_t schProcessResponseMsg(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, in
       }
 
       SExplainRsp rsp = {0};
-      if (tDeserializeSExplainRsp(pMsg->pData, msgSize, &rsp)) {
+      int32_t decodeCode = tDeserializeSExplainRsp(pMsg->pData, msgSize, &rsp);
+      if (decodeCode != TSDB_CODE_SUCCESS) {
         tFreeSExplainRsp(&rsp);
-        SCH_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+        SCH_ERR_JRET(decodeCode);
       }
 
       SCH_ERR_JRET(schProcessExplainRsp(pJob, pTask, &rsp));

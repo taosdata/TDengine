@@ -67,11 +67,39 @@ typedef struct SUidIndexEntry {
  * pTagsetIndex: SSHashObj<char[] tagset, uint64_t uid>  (InfluxDB only)
  */
 typedef struct SStreamExtReaderInfo {
-  /* Connection to the external source.  Opened in streamReaderExtOpen. */
+  /* Connection to the external source.  Opened in streamReaderExtOpen and
+   * held for the reader's lifetime by the trigger reader only; NULL for calc
+   * readers (see borrowConn). */
   SExtConnectorHandle *pConn;
+
+  /* Calc readers borrow a pooled connection for each fetch and return it
+   * right after, instead of pinning one per execId for the stream's lifetime
+   * (execReplica instances per calc scan would otherwise exhaust the
+   * per-source pool).  The pool also probes liveness on reuse, so a broken
+   * connection is replaced instead of failing every later fetch. */
+  bool borrowConn;
+
+  /* Serializes use of pConn and the pull state of the trigger reader. */
+  TdThreadMutex connLock;
+  bool          connLockInited;
 
   /* Deploy-time spec snapshot (copy; owned by this struct). */
   SStreamExtTriggerSpec spec;
+
+  /* Client timezone (IANA name) of the stream owning this reader.  The reader
+   * executes its own SQL without a physi node, so it hands the name to the
+   * connector explicitly; timezone-naive source timestamps are then converted
+   * with the stream's timezone instead of the server global one.  Empty when
+   * the scan plan carries none (connector falls back to server global TZ). */
+  char timezone[TD_TIMEZONE_LEN];
+
+  /* EExtTimestampTzClass of the reader's source timestamp column, taken from
+   * SFederatedScanPhysiNode.pTimestampTypeHints.  The connector decodes
+   * timezone-aware columns (MySQL TIMESTAMP, PG timestamptz) with the server
+   * timezone and timezone-naive ones with the client timezone, so the remote
+   * fetch/metadata bounds must be rendered with the matching timezone.
+   * SQL Server datetimeoffset bounds use UTC, independently of either timezone. */
+  int8_t tsTzClass;
 
   /* Back-pointer to the owning task for log context (not owned; lifetime >= pInfo). */
   const SStreamTask *pTask;
@@ -97,6 +125,24 @@ typedef struct SStreamExtReaderInfo {
   SSHashObj *pUidIndex;    /* hash<uint64_t uid,    SUidIndexEntry> */
   SSHashObj *pGroupIndex;  /* hash<uint64_t groupId, SArray<uint64_t>*> */
   SSHashObj *pTagsetIndex; /* hash<char[] tagset,  uint64_t uid>; InfluxDB only */
+
+  /* Calc scan time range (STimeRangeNode*, owned) extracted from the calc
+   * reader's scan plan at deploy time.  Each execId owns a separate clone.
+   * mnode deploys one calc reader task per calc scan plan, so each external
+   * scan (including each side of a self-join) has its own replica array.
+   * When the calc statement carries
+   * time-returning expressions (e.g. _twstart/_twend or casted localtime
+   * placeholders), the fetch bounds must be evaluated per request with the
+   * window parameters - the same way vnodeStream.c processCalaTimeRange does
+   * for table scans - instead of trusting the raw merged [wstart, wend]
+   * range.  NULL when the plan has no time range (full scan). */
+  SNode *pCalcTimeRange;
+  /* InfluxDB empty-SERIES-match enumeration cache: timestamp (ms) of the last
+   * DISTINCT enumeration that matched no tag combinations. Repeated idle pulls
+   * skip the information_schema + DISTINCT round-trips within the re-check
+   * window; new remote data that appears later still triggers a fresh
+   * enumeration. Reset naturally when the reader is re-deployed for a patch. */
+  int64_t influxEmptyEnumTsMs;
 } SStreamExtReaderInfo;
 
 /* ---------------------------------------------------------------------------
@@ -105,8 +151,12 @@ typedef struct SStreamExtReaderInfo {
  *   streamReaderExtOpen   - decrypt password, open extConnector, init 3 hashes
  *   streamReaderExtClose  - close extConnector, cleanup hashes, zero the struct
  * --------------------------------------------------------------------------- */
-int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SStreamExtReaderInfo **ppReaderInfo);
+int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                            const char *timezone, int8_t tsTzClass,
+                            SStreamExtReaderInfo **ppReaderInfo);
 void    streamReaderExtClose(SStreamExtReaderInfo *pReaderInfo);
+int32_t streamReaderExtGetCalcInfo(const SStreamReaderTask *pTask, int32_t execId,
+                                  SStreamExtReaderInfo **ppReaderInfo);
 
 /* ---------------------------------------------------------------------------
  * PULL dispatcher
@@ -141,6 +191,45 @@ void streamExtPullRspFree(SSTriggerExtPullRsp *pRsp);
 int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                                  int64_t skey, int64_t ekey,
                                  SSDataBlock **ppOut);
+
+/* ---------------------------------------------------------------------------
+ * EXT fetch time-range evaluation  -  mirrors vnodeStream.c processCalaTimeRange.
+ *
+ *   pReaderInfo : ETR state (pCalcTimeRange may be NULL -> full scan)
+ *   pRt         : stream runtime func info of the fetch request (borrowed)
+ *   pSkey/pEkey : output inclusive fetch bounds.  INT64_MIN/INT64_MAX means
+ *                 unbounded (no range to apply / no windows).  An empty range
+ *                 is reported as skey > ekey (the remote query returns no rows).
+ *
+ * A raw merged [wstart, wend] range is only correct for the standard external
+ * window shape.  When the calc statement carries time-returning expressions
+ * (STimeRangeNode.needCalc), the bounds are evaluated with the current window
+ * parameters, exactly like the non-external reader path.  Multi-group calc
+ * requests are bounded by the union of the per-group ranges.
+ *
+ * When pReaderInfo->pCalcTimeRange is set the result is authoritative: the
+ * caller must not fall back to the runner-published curWindow.
+ * --------------------------------------------------------------------------- */
+int32_t streamReaderExtCalcFetchRange(SStreamExtReaderInfo *pReaderInfo,
+                                      const SStreamRuntimeFuncInfo *pRt,
+                                      int64_t *pSkey, int64_t *pEkey);
+
+/* ---------------------------------------------------------------------------
+ * Render the remote SQL literal for one time bound of this reader.
+ *
+ *   pInfo     : reader state; its tsTzClass and spec.sourceType select the
+ *               spelling (timezone-naive wall clock in the stream timezone,
+ *               UTC wall clock, UTC wall clock + "+00:00", or FROM_UNIXTIME()
+ *               for a timezone-aware MySQL column - see extSqlBoundForm).
+ *   bound     : epoch in `precision` units
+ *   precision : TSDB_TIME_PRECISION_* of `bound`
+ *   buf/bufLen: output buffer; EXT_SQL_TS_LITERAL_LEN is always enough
+ *
+ * Returns the number of bytes written (snprintf semantics), or a negative
+ * TSDB error code.
+ * --------------------------------------------------------------------------- */
+int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_t bound,
+                                       int8_t precision, char *buf, int32_t bufLen);
 
 #ifdef __cplusplus
 }

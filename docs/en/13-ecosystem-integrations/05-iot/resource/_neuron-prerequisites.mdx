@@ -1,0 +1,7 @@
+## Prerequisites
+
+- Neuron and eKuiper are deployed: either NeuronEX 4.0.0 or later (which bundles both; see [Install NeuronEX](https://docs.emqx.com/en/neuronex/latest/installation/introduction.html)), or the open-source combination of Neuron 2.15.0 or later and eKuiper (which must include the InfluxDB v1 sink).
+- Device collection is configured in Neuron (or NeuronEX): devices are added, collection groups are created, and tags are configured; devices are running and connected, and tag values are continuously updating in **Data Monitoring**. Any protocol supported by Neuron can be used — Modbus, OPC UA, Siemens S7, and so on.
+- The Neuron host can reach the taosAdapter HTTP port, which is `6041` by default.
+- To buffer data during outages and resend after recovery, confirm that eKuiper includes the retry fix described in [Store and Forward](../03-Neuron.md#store-and-forward).
+- TDengine TSDB 3.4.3.6 or later is deployed, and a database for writing has been created.

@@ -21,13 +21,22 @@ import sys
 
 import pytest
 
+# Open product finding (reported 2026-10-16): a SQL Server five-part external
+# column reference (source.database.schema.table.column) loses its schema
+# segment when the reference is re-rendered or re-resolved — SHOW CREATE VTABLE
+# prints the four-part form, and resolving through a local virtual-table chain
+# does the same — so the re-executed statement fails with 0x6410 ("External
+# table not found on remote source").  The affected SQL Server legs are marked
+# as strict expected failures: they start failing loudly as soon as the
+# rendering defect is fixed, which is when the marker must be removed.
+
 _VTABLE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, _VTABLE_DIR)
 
 from vtable_util import ExtSrcEnv, VtableQueryUtil
 from ext_source_helpers import (
     create_ext_source, create_mysql_table, create_pg_table, create_remote_db,
-    extract_show_create_sql,
+    create_sqlserver_table, extract_show_create_sql,
 )
 
 
@@ -56,16 +65,26 @@ class TestVTableFilterExtSource:
         tdSql.query("show local variables like 'timezone'")
         original_timezone = str(tdSql.getData(0, 1)).split(" ")[0]
         self.source = f"vfilter_ddl_{backend}"
+        self.backend = backend
         try:
             tdSql.execute('alter local "timezone" "UTC"')
-            source_type = "postgresql" if backend == "postgres" else "mysql"
+            source_type = self.SOURCE_TYPES[backend]
             create_remote_db(source_type, _REMOTE_DB)
-            create_table = create_pg_table if backend == "postgres" else create_mysql_table
-            timestamp_type = "timestamp(3)" if backend == "postgres" else "datetime(3)"
+            if backend == "mysql":
+                create_table, timestamp_type = create_mysql_table, "datetime(3)"
+                note_type = "varchar(8192)"
+            elif backend == "sqlserver":
+                # T-SQL varchar is capped at 8000 bytes and the escaped-literal
+                # case stores non-ASCII text, so the long note is nvarchar(max).
+                create_table, timestamp_type = create_sqlserver_table, "datetime2(3)"
+                note_type = "nvarchar(max)"
+            else:
+                create_table, timestamp_type = create_pg_table, "timestamp(3)"
+                note_type = "varchar(8192)"
             create_table(
                 _REMOTE_DB, "readings",
                 f"ts {timestamp_type} not null, device varchar(32) not null, "
-                "v int, note varchar(8192), primary key (ts, device)",
+                f"v int, note {note_type}, primary key (ts, device)",
                 ["('2024-01-01 00:00:00', 'd1', 10, '')",
                  f"('2024-01-01 00:00:01', 'd1', 11, '{_LONG_NOTE}')",
                  "('2024-01-01 00:00:00', 'd2', 20, '')",
@@ -77,19 +96,62 @@ class TestVTableFilterExtSource:
             )
             create_ext_source(self.source, source_type, _REMOTE_DB)
             tdSql.execute(f"drop database if exists {_LOCAL_DB}")
-            tdSql.execute(f"create database {_LOCAL_DB} precision 'ms'")
+            # SQL Server timestamps are microsecond-resolution (DS §5.3.7),
+            # so its virtual tables require a precision 'us' database (TS §12).
+            db_precision = "us" if backend == "sqlserver" else "ms"
+            tdSql.execute(f"create database {_LOCAL_DB} precision '{db_precision}'")
             tdSql.execute(f"use {_LOCAL_DB}")
             yield
         finally:
             tdSql.execute(f"drop database if exists {_LOCAL_DB}")
             tdSql.execute(f"drop external source if exists {self.source}")
-            if backend == "postgres":
-                ExtSrcEnv.pg_drop_db(_REMOTE_DB)
-            else:
+            if backend == "mysql":
                 ExtSrcEnv.mysql_drop_db(_REMOTE_DB)
+            elif backend == "sqlserver":
+                ExtSrcEnv.sqlserver_drop_db(_REMOTE_DB)
+            else:
+                ExtSrcEnv.pg_drop_db(_REMOTE_DB)
             tdSql.execute(f'alter local "timezone" "{original_timezone}"')
 
     # --- util ---
+
+    SOURCE_TYPES = {"mysql": "mysql", "postgres": "postgresql", "sqlserver": "sqlserver"}
+
+    @staticmethod
+    def remote_table_ref(source, backend, table="readings"):
+        """Fully-qualified remote table path for the given backend.
+
+        MySQL/PG use ``source.database.table``.  For SQL Server the middle
+        segment of a three-part path is the *schema* (DS §5.3.4), so the
+        database must be qualified explicitly:
+        ``source.database.schema.table``.
+        """
+        if backend == "sqlserver":
+            return f"{source}.{_REMOTE_DB}.dbo.{table}"
+        return f"{source}.{_REMOTE_DB}.{table}"
+
+    @staticmethod
+    def remote_rename_sql(backend, table, old, new, quote=""):
+        """Statement renaming one remote table column.
+
+        MySQL/PostgreSQL rename in place; T-SQL has no RENAME COLUMN clause and
+        renames through sp_rename, which takes a 'schema.table.column' path.
+        """
+        if backend == "sqlserver":
+            return f"exec sp_rename 'dbo.{table}.{old}', '{new}', 'COLUMN'"
+        return f"alter table {table} rename column {quote}{old}{quote} to {quote}{new}{quote}"
+
+    @staticmethod
+    def sqlserver_pk_name(table):
+        """Catalog name of a SQL Server table's primary-key constraint.
+
+        T-SQL has no fixed constraint name (unlike PostgreSQL's <table>_pkey),
+        so the name has to be read back before the key can be dropped.
+        """
+        return ExtSrcEnv.sqlserver_query(
+            _REMOTE_DB,
+            "select name from sys.key_constraints where "
+            f"parent_object_id = object_id('dbo.{table}') and type='PK'")
 
     @staticmethod
     def check_result(table, columns, expected):
@@ -117,13 +179,19 @@ class TestVTableFilterExtSource:
         return ddl
 
     def remote_exec(self, backend, statements):
-        execute = ExtSrcEnv.pg_exec if backend == "postgres" else ExtSrcEnv.mysql_exec
+        if backend == "mysql":
+            execute = ExtSrcEnv.mysql_exec
+        elif backend == "sqlserver":
+            execute = ExtSrcEnv.sqlserver_exec
+        else:
+            execute = ExtSrcEnv.pg_exec
         execute(_REMOTE_DB, statements)
 
     def prepare_binding_views(self, filtered=None):
+        readings = self.remote_table_ref(self.source, self.backend)
         if filtered is None:
-            filtered = f"{self.source}.{_REMOTE_DB}.readings.v where device = 'd1' and note = ''"
-        unfiltered = f"{self.source}.{_REMOTE_DB}.single_pk.v"
+            filtered = f"{readings}.v where device = 'd1' and note = ''"
+        unfiltered = f"{self.remote_table_ref(self.source, self.backend, table='single_pk')}.v"
         tdSql.execute(f"create vtable leaf (ts timestamp, a int from {filtered}, b int from {unfiltered})")
         tdSql.execute("create stable filter_stable (ts timestamp, a int, b int) tags (site int) virtual 1")
         tdSql.execute(
@@ -148,7 +216,22 @@ class TestVTableFilterExtSource:
             tdSql.error(f"select {column} from {_LOCAL_DB}.{table}", expectedErrno=error)
 
     def replace_primary_key(self, backend, table, columns):
-        drop = "drop primary key" if backend == "mysql" else f"drop constraint {table}_pkey"
+        if backend == "mysql":
+            drop = "drop primary key"
+        elif backend == "sqlserver":
+            # T-SQL drops the key by its catalog-generated constraint name.
+            # It also refuses a PRIMARY KEY over a nullable column, and the
+            # earlier ALTER COLUMN restores (and a nullable ADD DEFAULT leaves)
+            # nullable, so re-assert NOT NULL on every key member first.
+            col_types = {"ts": "datetime2(3)", "ts2": "datetime2(3)",
+                         "device": "varchar(32)", "v": "int"}
+            not_null = [f"alter table {table} alter column {c.strip()} {col_types[c.strip()]} not null"
+                        for c in columns.split(",") if c.strip() in col_types]
+            if not_null:
+                self.remote_exec(backend, not_null)
+            drop = f"drop constraint [{self.sqlserver_pk_name(table)}]"
+        else:
+            drop = f"drop constraint {table}_pkey"
         self.remote_exec(backend, [f"alter table {table} {drop}",
                                    f"alter table {table} add primary key ({columns})"])
 
@@ -162,6 +245,13 @@ class TestVTableFilterExtSource:
         lower_key = "device varchar(32) not null, " if is_pg else ""
         lower_pk = "device, " if is_pg else ""
         lower_value = "'d1', " if is_pg else ""
+        if backend == "sqlserver":
+            # T-SQL has no backtick quoting: the mixed-case names are declared
+            # unquoted, and SQL Server keeps that stored case in the catalog.
+            create_table, timestamp_type = create_sqlserver_table, "datetime2(3)"
+            device_col, note_col = "Device", "Note"
+        else:
+            device_col, note_col = f"{quote}Device{quote}", f"{quote}Note{quote}"
         rows = [f"('2024-01-01 00:00:00', {lower_value}'D1', 10, 'keep')",
                 f"('2024-01-01 00:00:00', {lower_value}'D2', 20, 'keep')",
                 f"('2024-01-01 00:00:01', {lower_value}'D1', 11, 'drop')"]
@@ -169,11 +259,11 @@ class TestVTableFilterExtSource:
             rows.append("('2024-01-01 00:00:00', 'd2', 'D1', 30, 'keep')")
         create_table(
             _REMOTE_DB, "case_readings",
-            f"ts {timestamp_type} not null, {lower_key}{quote}Device{quote} varchar(32) not null, "
-            f"v int, {quote}Note{quote} varchar(32), primary key (ts, {lower_pk}{quote}Device{quote})",
+            f"ts {timestamp_type} not null, {lower_key}{device_col} varchar(32) not null, "
+            f"v int, {note_col} varchar(32), primary key (ts, {lower_pk}{device_col})",
             rows,
         )
-        ref = f"{self.source}.{_REMOTE_DB}.case_readings.v"
+        ref = f"{self.remote_table_ref(self.source, backend, table='case_readings')}.v"
         lower_filter = "device = 'd1' and " if is_pg else ""
         keys = f"{lower_filter}`Device` = 'D1'"
         condition = f"{keys} and `Note` = 'keep'"
@@ -190,7 +280,9 @@ class TestVTableFilterExtSource:
         for table in tables:
             self.check_result(table, "a", [(10,)])
         ddl = self.check_roundtrip("case_leaf", 1, "a", [(10,)])
-        if is_pg:
+        if backend == "sqlserver" or is_pg:
+            # SQL Server and PostgreSQL keep the stored column case in the
+            # external metadata, so the saved filter echoes it as declared.
             assert "`Device`" in ddl and "`Note`" in ddl, ddl
         else:
             # MySQL exposes lowercase column names in external metadata.
@@ -206,6 +298,8 @@ class TestVTableFilterExtSource:
             tdSql.error(f"create vtable incomplete_case (ts timestamp, a int from {ref} where device = 'd1')",
                         expectedErrno=_INCOMPLETE_PK_FILTER)
         else:
+            # MySQL and SQL Server both resolve references case-insensitively,
+            # so name variants fold onto the same external column.
             tdSql.error(f"create vtable duplicate_case (ts timestamp, a int from {ref} "
                         "where device = 'D1' and `DEVICE` = 'D2')", expectedErrno=_DUPLICATE_FILTER_COLUMN)
             tdSql.execute(f"alter vtable case_leaf alter column a set {ref} "
@@ -216,17 +310,21 @@ class TestVTableFilterExtSource:
             self.check_result(table, "a", [(11,)])
         self.check_roundtrip("case_leaf", 1, "a", [(11,)])
 
-        self.remote_exec(backend, [f"alter table case_readings rename column {quote}Note{quote} to {quote}NOTE{quote}"])
+        self.remote_exec(backend, [self.remote_rename_sql(backend, "case_readings", "Note", "NOTE", quote)])
         tdSql.execute(f"refresh external source {self.source}")
         for table in tables:
             if is_pg:
+                # Quoted PostgreSQL names must match exactly, so the rename
+                # invalidates the saved filter reference.
                 tdSql.error(f"select a from {_LOCAL_DB}.{table}", expectedErrno=_SCHEMA_CHANGED)
             else:
+                # MySQL and SQL Server resolve references case-insensitively,
+                # so a case-only rename keeps the saved filter valid.
                 self.check_result(table, "a", [(11,)])
         print("external-filter column case rules ........ [ passed ]")
 
     def do_alter_filter(self, kind):
-        reference = f"{self.source}.{_REMOTE_DB}.readings.v"
+        reference = f"{self.remote_table_ref(self.source, self.backend)}.v"
         if kind == "normal":
             tdSql.execute(
                 f"create vtable leaf (ts timestamp, a int from {reference} where device = 'd1', b int)"
@@ -261,7 +359,8 @@ class TestVTableFilterExtSource:
         self.check_roundtrip("leaf", 3, "a, b, c", expected)
 
         # Rebinding without a filter must discard the previously saved condition.
-        tdSql.execute(f"alter vtable leaf alter column a set {self.source}.{_REMOTE_DB}.single_pk.v")
+        tdSql.execute(f"alter vtable leaf alter column a set "
+                      f"{self.remote_table_ref(self.source, self.backend, table='single_pk')}.v")
         expected = [(100, 10, 20), (101, 11, 21)]
         self.check_views(kind, expected)
         self.check_roundtrip("leaf", 2, "a, b, c", expected)
@@ -281,7 +380,7 @@ class TestVTableFilterExtSource:
         print(f"{kind} external-filter ALTER lifecycle ........ [ passed ]")
 
     def do_long_filter_roundtrip(self):
-        reference = f"{self.source}.{_REMOTE_DB}.readings.v"
+        reference = f"{self.remote_table_ref(self.source, self.backend)}.v"
         tdSql.execute(
             f"create vtable long_filter (ts timestamp, a int from {reference} "
             f"where device = 'd1' and note = '{_LONG_NOTE}')"
@@ -304,28 +403,48 @@ class TestVTableFilterExtSource:
             self.check_result(table, "a, b", [(10, 100), (None, 101)])
 
         # A changed filter column must not invalidate an unrelated projection.
-        self.remote_exec(backend, ["alter table readings rename column note to old_note"])
+        self.remote_exec(backend, [self.remote_rename_sql(backend, "readings", "note", "old_note")])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
         for table in tables:
             self.check_result(table, "b", [(100,), (101,)])
-        self.remote_exec(backend, ["alter table readings rename column old_note to note"])
+        self.remote_exec(backend, [self.remote_rename_sql(backend, "readings", "old_note", "note")])
 
         self.remote_exec(backend, ["update readings set note = '0'"])
-        change_note = "modify column note int" if backend == "mysql" else "alter column note type int using note::int"
+        if backend == "mysql":
+            change_note = "modify column note int"
+        elif backend == "sqlserver":
+            # T-SQL changes a column type in place — there is no USING clause.
+            change_note = "alter column note int"
+        else:
+            change_note = "alter column note type int using note::int"
         self.remote_exec(backend, [f"alter table readings {change_note}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
-        restore_note = ("modify column note varchar(8192)" if backend == "mysql"
-                        else "alter column note type varchar(8192) using note::varchar")
+        if backend == "mysql":
+            restore_note = "modify column note varchar(8192)"
+        elif backend == "sqlserver":
+            # Mirrors the fixture's nvarchar(max) note type (see prepare_backend).
+            restore_note = "alter column note nvarchar(max)"
+        else:
+            restore_note = "alter column note type varchar(8192) using note::varchar"
         self.remote_exec(backend, [f"alter table readings {restore_note}", "update readings set note = ''",
                                    f"update readings set note = '{_LONG_NOTE}' where v = 11"])
 
-        change_type = ("modify column v varchar(32)" if backend == "mysql"
-                       else "alter column v type varchar(32) using v::varchar")
+        if backend == "mysql":
+            change_type = "modify column v varchar(32)"
+        elif backend == "sqlserver":
+            change_type = "alter column v varchar(32)"
+        else:
+            change_type = "alter column v type varchar(32) using v::varchar"
         self.remote_exec(backend, [f"alter table readings {change_type}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
         for table in tables:
             self.check_result(table, "b", [(100,), (101,)])
-        restore_type = "modify column v int" if backend == "mysql" else "alter column v type int using v::int"
+        if backend == "mysql":
+            restore_type = "modify column v int"
+        elif backend == "sqlserver":
+            restore_type = "alter column v int"
+        else:
+            restore_type = "alter column v type int using v::int"
         self.remote_exec(backend, [f"alter table readings {restore_type}"])
 
         self.replace_primary_key(backend, "readings", "ts, device, v")
@@ -341,12 +460,25 @@ class TestVTableFilterExtSource:
                         expectedErrno=_INCOMPLETE_PK_FILTER)
         self.replace_primary_key(backend, "single_pk", "ts")
 
-        timestamp_type = "datetime(3)" if backend == "mysql" else "timestamp(3)"
-        self.remote_exec(backend, [f"alter table readings add column ts2 {timestamp_type} "
+        if backend == "mysql":
+            timestamp_type, add_column = "datetime(3)", "add column"
+        elif backend == "sqlserver":
+            # T-SQL has no ADD COLUMN keyword and uses datetime2(3) for the
+            # millisecond timestamp type.
+            timestamp_type, add_column = "datetime2(3)", "add"
+        else:
+            timestamp_type, add_column = "timestamp(3)", "add column"
+        self.remote_exec(backend, [f"alter table readings {add_column} ts2 {timestamp_type} "
                                    "not null default '2024-01-01 00:00:00'"])
         self.replace_primary_key(backend, "readings", "ts, ts2, device")
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
-        drop_key = "drop primary key" if backend == "mysql" else "drop constraint readings_pkey"
+        if backend == "mysql":
+            drop_key = "drop primary key"
+        elif backend == "sqlserver":
+            # T-SQL drops the key by its catalog-generated constraint name.
+            drop_key = f"drop constraint [{self.sqlserver_pk_name('readings')}]"
+        else:
+            drop_key = "drop constraint readings_pkey"
         self.remote_exec(backend, [f"alter table readings {drop_key}"])
         self.check_invalid_views(tables, "a", _SCHEMA_CHANGED)
         self.remote_exec(backend, ["alter table readings add primary key (ts, device)"])
@@ -359,7 +491,8 @@ class TestVTableFilterExtSource:
 
     def do_restart_binding(self):
         tables = self.prepare_binding_views()
-        tdSql.execute(f"alter vtable leaf alter column a set {self.source}.{_REMOTE_DB}.readings.v "
+        tdSql.execute(f"alter vtable leaf alter column a set "
+                      f"{self.remote_table_ref(self.source, self.backend)}.v "
                       "where device = 'd2'")
         tdSql.execute("alter vtable leaf_child alter column b set null")
         ddls = {table: extract_show_create_sql(f"show create vtable {_LOCAL_DB}.{table}")
@@ -375,7 +508,7 @@ class TestVTableFilterExtSource:
             self.check_result(table, "a, b", [(10, None)])
             self.check_result(table, "b", [])
         tdSql.execute(f"alter vtable {_LOCAL_DB}.leaf_child alter column b set "
-                      f"{self.source}.{_REMOTE_DB}.single_pk.v")
+                      f"{self.remote_table_ref(self.source, self.backend, table='single_pk')}.v")
         self.check_result("chain_stable", "a, b", [(10, 100), (None, 101)])
         print("external-filter restart persistence ........ [ passed ]")
 
@@ -393,7 +526,7 @@ class TestVTableFilterExtSource:
                 f"port={ExtSrcEnv.PG_PORT} user='{role}' password='filter_test' "
                 f"database={_REMOTE_DB} schema=public"
             )
-            ref = f"{source}.{_REMOTE_DB}.readings.v where device = 'd1'"
+            ref = f"{self.remote_table_ref(source, 'postgres')}.v where device = 'd1'"
             tdSql.execute(f"create vtable rejected (ts timestamp, a int from {ref})")
             tdSql.execute("create stable rejected_stable (ts timestamp, a int) tags (site int) virtual 1")
             tdSql.execute(f"create vtable rejected_child (a from {ref}) using rejected_stable tags (1)")
@@ -408,10 +541,19 @@ class TestVTableFilterExtSource:
         print("mandatory external-filter SQL failure ........ [ passed ]")
 
     def do_invalid_filters(self, backend):
-        self.remote_exec(backend, ["alter table readings add column rate double precision default 1.5",
-                                   "alter table readings add column active boolean default true"])
+        if backend == "sqlserver":
+            # T-SQL: float is the double-precision type, bit the boolean one, and
+            # ALTER TABLE ADD does not take the COLUMN keyword.  The columns are
+            # NOT NULL so the default backfills the existing rows  -  a nullable
+            # ADD DEFAULT leaves them NULL, which the filter then excludes.
+            new_columns = ["alter table readings add rate float not null default 1.5",
+                           "alter table readings add active bit not null default 1"]
+        else:
+            new_columns = ["alter table readings add column rate double precision default 1.5",
+                           "alter table readings add column active boolean default true"]
+        self.remote_exec(backend, new_columns)
         tdSql.execute(f"refresh external source {self.source}")
-        ref = f"{self.source}.{_REMOTE_DB}.readings.v"
+        ref = f"{self.remote_table_ref(self.source, backend)}.v"
         invalid = [
             ("", _INCOMPLETE_PK_FILTER),
             ("device != 'd1'", _INCOMPLETE_PK_FILTER),
@@ -454,8 +596,12 @@ class TestVTableFilterExtSource:
         print("external-filter DDL error codes ........ [ passed ]")
 
     def do_multiple_business_keys(self, backend):
-        create_table = create_pg_table if backend == "postgres" else create_mysql_table
-        timestamp_type = "timestamp(3)" if backend == "postgres" else "datetime(3)"
+        if backend == "mysql":
+            create_table, timestamp_type = create_mysql_table, "datetime(3)"
+        elif backend == "sqlserver":
+            create_table, timestamp_type = create_sqlserver_table, "datetime2(3)"
+        else:
+            create_table, timestamp_type = create_pg_table, "timestamp(3)"
         create_table(
             _REMOTE_DB, "tenant_readings",
             f"ts {timestamp_type} not null, device varchar(32) not null, "
@@ -465,7 +611,7 @@ class TestVTableFilterExtSource:
              for second in (0, 1)],
         )
         tdSql.execute(f"refresh external source {self.source}")
-        ref = f"{self.source}.{_REMOTE_DB}.tenant_readings.v"
+        ref = f"{self.remote_table_ref(self.source, backend, table='tenant_readings')}.v"
         tables = self.prepare_binding_views(f"{ref} where (device = 'd1') and (tenant = '1')")
         for table in tables:
             self.check_result(table, "a", [(10,), (11,)])
@@ -489,7 +635,7 @@ class TestVTableFilterExtSource:
 
     def do_failed_alter_preserves_binding(self):
         tables = self.prepare_binding_views()
-        ref = f"{self.source}.{_REMOTE_DB}.readings.v"
+        ref = f"{self.remote_table_ref(self.source, self.backend)}.v"
         invalid = (("device = 'd1' or v = 10", _INVALID_FILTER),
                    ("device = 'd1' and device = 'd2'", _DUPLICATE_FILTER_COLUMN),
                    ("device != 'd1'", _INCOMPLETE_PK_FILTER),
@@ -517,10 +663,11 @@ class TestVTableFilterExtSource:
         print("failed external-filter ALTER preserves binding ........ [ passed ]")
 
     def do_filter_literal_boundaries(self, backend):
-        self.remote_exec(backend, ["alter table readings add column observed_at date",
+        add_column = "add" if backend == "sqlserver" else "add column"  # T-SQL has no ADD COLUMN
+        self.remote_exec(backend, [f"alter table readings {add_column} observed_at date",
                                    "update readings set observed_at = '2024-01-01'"])
         tdSql.execute(f"refresh external source {self.source}")
-        ref = f"{self.source}.{_REMOTE_DB}.readings.v"
+        ref = f"{self.remote_table_ref(self.source, backend)}.v"
         # Every allowed comparison operator is exercised on a non-key column.
         conditions = (("v = 10", [(10,)]), ("v != 10", [(11,)]),
                       ("v < 11", [(10,)]), ("v <= 10", [(10,)]),
@@ -537,8 +684,12 @@ class TestVTableFilterExtSource:
             tdSql.execute("drop vtable literal_filter")
 
         # SQL-looking text is a literal, not an extra predicate or statement.
+        # T-SQL needs the N prefix so the Unicode literal survives the remote
+        # write into the fixture's nvarchar note column.
+        unicode_prefix = "N" if backend == "sqlserver" else ""
         for literal in ("'it''s a sensor'", "'d1'' OR ''1''=''1'", "'设备甲;--%_|&'"):
-            self.remote_exec(backend, [f"update readings set note = {literal} where device = 'd1'"])
+            self.remote_exec(backend,
+                             [f"update readings set note = {unicode_prefix}{literal} where device = 'd1'"])
             tdSql.execute(f"create vtable escaped_filter (ts timestamp, v int from {ref} "
                           f"where device = 'd1' and note = {literal})")
             self.check_roundtrip("escaped_filter", 1, "v", [(10,), (11,)])
@@ -547,7 +698,8 @@ class TestVTableFilterExtSource:
 
     # --- main ---
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     @pytest.mark.parametrize("kind", ("normal", "child"))
     def test_filter_column_case(self, backend, kind):
         """Match external filter column names using source-specific case rules
@@ -572,7 +724,8 @@ class TestVTableFilterExtSource:
         """
         self.do_filter_column_case(backend, kind)
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     @pytest.mark.parametrize("kind", ("normal", "child"))
     def test_alter_filter(self, backend, kind):
         """Preserve and clear saved filters through virtual-table ALTER
@@ -597,7 +750,8 @@ class TestVTableFilterExtSource:
         """
         self.do_alter_filter(kind)
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_long_filter_roundtrip(self, backend):
         """Round-trip long saved filter conditions through SHOW CREATE
 
@@ -619,7 +773,8 @@ class TestVTableFilterExtSource:
         """
         self.do_long_filter_roundtrip()
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_refresh_binding(self, backend):
         """Revalidate only accessed external bindings after REFRESH
 
@@ -642,7 +797,8 @@ class TestVTableFilterExtSource:
         """
         self.do_refresh_binding(backend)
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_restart_binding(self, backend):
         """Preserve saved column filters across a dnode restart
 
@@ -686,7 +842,8 @@ class TestVTableFilterExtSource:
         """
         self.do_remote_sql_failure()
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_invalid_filters(self, backend):
         """Return distinct errors for invalid external column filters
 
@@ -710,7 +867,8 @@ class TestVTableFilterExtSource:
         """
         self.do_invalid_filters(backend)
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_multiple_business_keys(self, backend):
         """Require every business key in three-column remote primary keys
 
@@ -733,7 +891,8 @@ class TestVTableFilterExtSource:
         """
         self.do_multiple_business_keys(backend)
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_failed_alter_preserves_binding(self, backend):
         """Keep the previous binding after a rejected filtered ALTER
 
@@ -756,7 +915,8 @@ class TestVTableFilterExtSource:
         """
         self.do_failed_alter_preserves_binding()
 
-    @pytest.mark.parametrize("backend", ("mysql", "postgres"))
+    @pytest.mark.parametrize("backend", ("mysql", "postgres",
+                                  "sqlserver"))
     def test_filter_literal_boundaries(self, backend):
         """Round-trip comparison, date and escaped-string filter literals
 

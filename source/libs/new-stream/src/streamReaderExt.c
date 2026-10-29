@@ -38,6 +38,7 @@
 #include <stdarg.h>
 #include "executor.h"
 #include "extConnector.h"
+#include "extTypeMap.h"   // extTimestampTypeTzClass
 #include "osString.h"     // taosUcs4ToMbs / TdUcs4 (extColCellToStr NCHAR conversion)
 #include "plannodes.h"    // SExtColTypeMapping full definition
 #include "querynodes.h"   // SColumnNode / SExprNode
@@ -77,10 +78,24 @@
  * ("col1=val1|col2=val2|..."). */
 #define EXT_TAGSET_KEY_MAX 1024
 
+/* Bound the re-enumeration skip after an Influx SERIES condition matched no tag
+ * combinations (see SStreamExtReaderInfo.influxEmptyEnumTsMs). */
+#define EXT_INFLUX_EMPTY_ENUM_RECHECK_MS 60000
+
 /* Scratch buffer size for one generated SQL clause fragment (a WHERE
  * prefilter condition or a SELECT column list) before it is spliced into a
  * full statement in one of the statement-shape buffers above. */
 #define EXT_SQL_CLAUSE_BUF_LEN 1024
+
+/* A quoted identifier is at most quote + ident + escaped-quote pairs + quote + NUL; the largest
+ * identifier spliced into generated SQL is a table name. */
+#define EXT_IDENT_QUOTE_BUF_LEN (TSDB_TABLE_NAME_LEN * 2 + 2)
+/* A discovered InfluxDB tag key is stored in EXT_INFLUX_KEY_NCHAR_CHARS bytes (up to 64 NCHARs);
+ * every byte can double when the key contains the dialect quote character, so size the tag-key
+ * quoting buffer off the tag-key limit rather than the table-name limit. */
+#define EXT_TAG_KEY_QUOTE_BUF_LEN (EXT_INFLUX_KEY_NCHAR_CHARS * 2 + 4)
+/* Fully quoted "qualifier"."table" with both parts at their maximum length. */
+#define EXT_TBL_REF_BUF_LEN (TSDB_DB_NAME_LEN * 2 + TSDB_TABLE_NAME_LEN * 2 + 8)
 
 /* A tagset key can expand when separators and escaped quotes are rendered as
  * SQL.  Four times the key limit covers that expansion without using the full
@@ -247,11 +262,110 @@ static bool extSrcIsRelational(int8_t sourceType) {
  * Output format: 'YYYY-MM-DD HH:MM:SS.uuuuuu'  (including surrounding quotes)
  * buf must be at least 32 bytes.
  * Returns the number of characters written (excluding NUL terminator).
+ *
+ * tzName is the client timezone of the owning stream.  The connector decodes
+ * timezone-naive source columns (MySQL DATETIME, PG timestamp without time
+ * zone, SQL Server datetime2) with that timezone, so the WHERE literals must
+ * be rendered with it as well; otherwise the fetch/metadata ranges shift by
+ * the offset between the stream and the server global timezone.  An empty or
+ * invalid name keeps the previous behaviour (server global timezone).
  * ============================================================ */
-static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, char *buf, int32_t bufLen) {
+static timezone_t extResolveSqlTimezone(const char *tzName) {
+  if (tzName == NULL || tzName[0] == '\0') {
+    return NULL;
+  }
+
+  timezone_t tz = NULL;
+  int32_t    code = taosValidateTimezone(tzName, &tz);
+  if (code != TSDB_CODE_SUCCESS) {
+    stWarn("ext: invalid timezone name:%s, using server global timezone", tzName);
+    if (tz != NULL) {
+      tzfree(tz);
+    }
+    return NULL;
+  }
+  return tz;
+}
+
+/* Timezone name used to render remote SQL timestamp bounds.
+ *
+ * The connector decodes timezone-naive source columns (MySQL DATETIME, PG
+ * timestamp without time zone, SQL Server datetime2) with the stream client
+ * timezone and timezone-aware ones (MySQL TIMESTAMP, PG timestamptz) into an
+ * absolute instant, independently of both the stream and the taosd timezone.
+ * Timezone-aware bounds are therefore always rendered from a UTC basis; see
+ * extSqlBoundForm() for how each dialect spells such a bound. */
+static const char *extSqlBoundTimezone(const SStreamExtReaderInfo *pInfo) {
+  if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return "UTC";
+  }
+  return pInfo->timezone;
+}
+
+/* How a timestamp bound literal is spelled for the remote dialect. */
+typedef enum {
+  /* Timezone-naive column (MySQL DATETIME, PG timestamp, SQL Server datetime2):
+   * the source wall clock is decoded with the stream timezone, so the bound is
+   * rendered in that same timezone. */
+  EXT_SQL_BOUND_LOCAL = 0,
+  /* Timezone-aware column: the bound is UTC wall clock plus an explicit
+   * "+00:00" suffix, because neither MySQL nor PG can be assumed to run its
+   * session in UTC and an offset-less literal would be read in the session
+   * timezone. */
+  EXT_SQL_BOUND_UTC_SUFFIX,
+  /* Timezone-aware column whose dialect reads an offset-less literal as UTC. */
+  EXT_SQL_BOUND_UTC_WALL,
+  /* Timezone-aware MySQL column: FROM_UNIXTIME(<epoch>), which is
+   * session-timezone independent without needing offset-literal support. */
+  EXT_SQL_BOUND_UNIX_EPOCH,
+} EExtSqlBoundForm;
+
+/* Pick the bound spelling for this reader.
+ *
+ * A timezone-aware column holds an absolute instant, but the remote side still
+ * has to know which instant a bare wall clock means:
+ *   - MySQL interprets an offset-less literal in the *session* timezone, and
+ *     the reader cannot observe that session.  An explicit "+00:00" suffix
+ *     fixes that but is only understood from MySQL 8.0.19 on; MySQL 5.7 (still
+ *     supported, FS section 12) treats the suffix as trailing garbage and keeps
+ *     comparing in the session timezone, which shifts every bound by the
+ *     session offset.  FROM_UNIXTIME() has no such version dependency and
+ *     always yields the session-timezone image of the requested instant, so it
+ *     compares correctly against a TIMESTAMP column in any session timezone
+ *     (>= 5.6.4 keeps the fractional seconds).
+ *   - PostgreSQL accepts an offset on a datetime literal in every supported
+ *     version, so the bound spells "+00:00".
+ *   - SQL Server needs no suffix: it reads an offset-less datetimeoffset
+ *     literal as +00:00 (DS 5.3.7), which the SQL Server end-to-end case pins
+ *     down.
+ */
+static EExtSqlBoundForm extSqlBoundForm(const SStreamExtReaderInfo *pInfo) {
+  if (pInfo->tsTzClass != EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return EXT_SQL_BOUND_LOCAL;
+  }
+
+  switch ((EExtSourceType)pInfo->spec.sourceType) {
+    case EXT_SOURCE_MYSQL:
+      return EXT_SQL_BOUND_UNIX_EPOCH;
+    case EXT_SOURCE_SQLSERVER:
+      return EXT_SQL_BOUND_UTC_WALL;
+    default:
+      return EXT_SQL_BOUND_UTC_SUFFIX;
+  }
+}
+
+/* Longest timestamp literal a remote bound can render:
+ * 'YYYY-MM-DD HH:MM:SS.uuuuuu+00:00' (34 bytes incl. quotes) + NUL, or
+ * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL. */
+#define EXT_SQL_TS_LITERAL_LEN 40
+
+static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *tzName,
+                                  EExtSqlBoundForm form, char *buf, int32_t bufLen) {
+  const char *suffix = (form == EXT_SQL_BOUND_UTC_SUFFIX) ? "+00:00'" : "'";
   /* Clamp INT64_MIN / negative to epoch origin. */
-  if (epoch == INT64_MIN || epoch < 0) {
-    return snprintf(buf, bufLen, "'1970-01-01 00:00:00.000000'");
+  bool clamped = (epoch == INT64_MIN || epoch < 0);
+  if (clamped) {
+    epoch = 0;
   }
   /* Normalize to microseconds for sub-second formatting. */
   int64_t epoch_us;
@@ -263,15 +377,113 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, char *buf, i
     /* MICRO  -  already in micros */
     epoch_us = epoch;
   }
+  if (form == EXT_SQL_BOUND_UNIX_EPOCH) {
+    /* Absolute instant as a numeric epoch: the remote evaluates it in its own
+     * session timezone, so the bound stays correct without an offset literal. */
+    return snprintf(buf, bufLen, "FROM_UNIXTIME(%" PRId64 ".%06d)",
+                    (int64_t)(epoch_us / 1000000LL), (int32_t)(epoch_us % 1000000LL));
+  }
+  if (clamped) {
+    return snprintf(buf, bufLen, "'1970-01-01 00:00:00.000000%s", suffix);
+  }
   time_t     sec     = (time_t)(epoch_us / 1000000LL);
   int        us      = (int)(epoch_us % 1000000LL);
   struct tm  tm_info = {0};
-  /* Use TDengine's taosLocalTime to honour the taosd system timezone. */
-  taosLocalTime(&sec, &tm_info, NULL, 0, NULL);
+  /* Render the bound in the same timezone the connector uses to decode the
+   * source column; NULL falls back to the server global timezone. */
+  timezone_t tz = extResolveSqlTimezone(tzName);
+  taosLocalTime(&sec, &tm_info, NULL, 0, tz);
+  if (tz != NULL) {
+    tzfree(tz);
+  }
   return snprintf(buf, bufLen,
-                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d'",
+                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
                   tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
-                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us);
+                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us, suffix);
+}
+
+/* Render the remote SQL literal for one time bound of this reader.
+ *
+ * The spelling depends on both the timestamp class and the source dialect (see
+ * extSqlBoundForm); keeping that decision in one entry point lets the reader
+ * and the unit tests exercise the same code path. */
+int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_t bound,
+                                       int8_t precision, char *buf, int32_t bufLen) {
+  if (pInfo == NULL || buf == NULL || bufLen <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return epochToDatetimeStr(bound, precision, extSqlBoundTimezone(pInfo),
+                            extSqlBoundForm(pInfo), buf, bufLen);
+}
+
+/* Last instant a MySQL TIMESTAMP column can hold: 2038-01-19 03:14:07.999999
+ * UTC, which is also the largest argument FROM_UNIXTIME() accepts. */
+#define EXT_MYSQL_TS_MAX_EPOCH_US 2147483647999999LL
+
+/* Keep an inclusive upper bound inside the MySQL TIMESTAMP domain.
+ *
+ * A timezone-aware MySQL column is a TIMESTAMP, and FROM_UNIXTIME() returns
+ * NULL once its seconds argument exceeds TIMESTAMP_MAX_VALUE (INT_MAX32), so
+ * both 5.7 and 8.0 reject anything past 2038-01-19 03:14:07.  A finite upper
+ * bound beyond that ceiling cannot exclude any TIMESTAMP row, but rendering
+ * its raw epoch would turn the predicate into "ts <= NULL", which matches
+ * nothing and empties the whole fetch window.
+ *
+ * Only upper bounds are clamped.  A lower bound past the ceiling must keep its
+ * raw epoch: "ts >= NULL" already produces the empty result that bound calls
+ * for, whereas clamping it to the ceiling would wrongly re-admit the newest
+ * rows. */
+static int64_t extClampMysqlUpperBound(const SStreamExtReaderInfo *pInfo, int64_t bound,
+                                       int8_t precision) {
+  if (extSqlBoundForm(pInfo) != EXT_SQL_BOUND_UNIX_EPOCH) {
+    return bound;
+  }
+  /* Compare in the caller's precision so no conversion can overflow. */
+  int64_t ceiling = EXT_MYSQL_TS_MAX_EPOCH_US;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    ceiling = EXT_MYSQL_TS_MAX_EPOCH_US * 1000LL;
+  } else if (precision == TSDB_TIME_PRECISION_MILLI) {
+    ceiling = EXT_MYSQL_TS_MAX_EPOCH_US / 1000LL;
+  }
+  return (bound > ceiling) ? ceiling : bound;
+}
+
+/* ============================================================
+ * Utility: quote one SQL identifier for the source dialect.
+ *
+ * PostgreSQL (and InfluxDB/DataFusion) use double quotes; MySQL uses backticks.
+ * Quoting preserves case and punctuation that the dialect would otherwise fold
+ * away: an unquoted PostgreSQL column resolves to its lower-case form, so a
+ * remote column created as "MixedValue" can only be selected as "MixedValue".
+ * The embedded quote character is escaped by doubling it.
+ *
+ * Returns the number of bytes written (excl. NUL), or a negative error code.
+ * ============================================================ */
+static int32_t extQuoteIdent(const SStreamExtTriggerSpec *pSpec, const char *ident,
+                             char *buf, int32_t bufLen) {
+  if (ident == NULL) ident = "";
+  int8_t srcType = pSpec != NULL ? pSpec->sourceType : EXT_SOURCE_POSTGRESQL;
+  char   quote = ((EExtSourceType)srcType == EXT_SOURCE_MYSQL) ? '`' : '"';
+  int32_t n = 0;
+  if (buf == NULL || bufLen < 3) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  buf[n++] = quote;
+  for (const char *p = ident; *p != '\0'; ++p) {
+    // Reserve room for the current char, its doubled escape (worst case), the closing quote and
+    // the trailing NUL (up to 4 more bytes); checking only for the char + escape would let the
+    // final quote/NUL write past a tight caller buffer.
+    if (n + 3 >= bufLen) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    buf[n++] = *p;
+    if (*p == quote) {
+      buf[n++] = quote;
+    }
+  }
+  buf[n++] = quote;
+  buf[n] = '\0';
+  return n;
 }
 
 /* ============================================================
@@ -308,12 +520,21 @@ static const char *extTableQualifier(const SStreamExtTriggerSpec *pSpec) {
  * ============================================================ */
 static int32_t buildExtTableRef(const SStreamExtTriggerSpec *pSpec,
                                 char *buf, int32_t bufLen) {
+  char    tableQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  int32_t code = extQuoteIdent(pSpec, pSpec->extTable, tableQ, sizeof(tableQ));
+  if (code < 0) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
   int32_t n = 0;
   if ((EExtSourceType)pSpec->sourceType == EXT_SOURCE_INFLUXDB) {
-    n = snprintf(buf, bufLen, "%s", pSpec->extTable);
+    n = snprintf(buf, bufLen, "%s", tableQ);
   } else {
-    n = snprintf(buf, bufLen, "%s.%s",
-                 extTableQualifier(pSpec), pSpec->extTable);
+    char    qualifierQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+    code = extQuoteIdent(pSpec, extTableQualifier(pSpec), qualifierQ, sizeof(qualifierQ));
+    if (code < 0) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    n = snprintf(buf, bufLen, "%s.%s", qualifierQ, tableQ);
   }
   if (n < 0 || n >= bufLen) {
     stError("ext: buildExtTableRef overflow need:%d have:%d table:%s", n, bufLen, pSpec->extTable);
@@ -409,9 +630,11 @@ static SArray *collectUidsFromWindow(SSHashObj *pUidWindow) {
 /* Convert a tagset key string "col1=val1|col2=val2|..." into an InfluxDB
  * WHERE fragment "col1='val1' AND col2='val2' AND ...".
  * Returns the number of bytes written (excl. NUL), or -1 on truncation.
- * If tagsetKey is empty (MySQL/PG single-group), writes nothing. */
-static int32_t buildInfluxTagWhereClause(const char *tagsetKey, char *buf,
-                                         int32_t bufLen) {
+ * If tagsetKey is empty (MySQL/PG single-group), writes nothing.
+ * Tag keys are quoted with the dialect's identifier quoting so a mixed-case
+ * key resolves consistently with the quoted SELECT column list. */
+static int32_t buildInfluxTagWhereClause(const SStreamExtTriggerSpec *pSpec, const char *tagsetKey,
+                                         char *buf, int32_t bufLen) {
   if (tagsetKey == NULL || tagsetKey[0] == '\0') {
     if (bufLen > 0) buf[0] = '\0';
     return 0;
@@ -437,6 +660,11 @@ static int32_t buildInfluxTagWhereClause(const char *tagsetKey, char *buf,
     const char *col = pair;
     const char *val = eq + 1;
 
+    char colQ[EXT_TAG_KEY_QUOTE_BUF_LEN] = {0};
+    if (extQuoteIdent(pSpec, col, colQ, sizeof(colQ)) < 0) {
+      return -1;
+    }
+
     /* Escape single quotes in the tag value so the SQL string literal stays
      * well-formed (and a value containing ' cannot break out of / inject into
      * the WHERE clause).  SQL standard: a single quote inside a literal is
@@ -455,7 +683,7 @@ static int32_t buildInfluxTagWhereClause(const char *tagsetKey, char *buf,
     escVal[ei] = '\0';
 
     int32_t n = snprintf(buf + off, bufLen - off,
-                         "%s%s='%s'", first ? "" : " AND ", col, escVal);
+                         "%s%s='%s'", first ? "" : " AND ", colQ, escVal);
     if (n < 0 || off + n >= bufLen) return -1;
     off  += n;
     first = false;
@@ -478,6 +706,7 @@ static int32_t buildInfluxTagWhereClause(const char *tagsetKey, char *buf,
  * Returns TSDB_CODE_SUCCESS; *ppOut is NULL when no rows were returned.
  * ============================================================ */
 static int32_t extQueryExecFetchOne(SExtConnectorHandle  *pConn,
+                                    const char           *timezone,
                                     const char           *sql,
                                     SExtColTypeMapping   *pMappings,
                                     int32_t               nMappings,
@@ -488,7 +717,7 @@ static int32_t extQueryExecFetchOne(SExtConnectorHandle  *pConn,
 
   stDebug("ext: extQueryExecFetchOne sql=\"%.120s\" nMappings=%d", sql, nMappings);
 
-  code = extConnectorExecQuery(pConn, NULL, sql, &pQHdl, &connErr);
+  code = extConnectorExecQuery(pConn, NULL, timezone, sql, &pQHdl, &connErr);
   if (code != TSDB_CODE_SUCCESS) {
     stError("ext: extQueryExecFetchOne exec failed code:%d msg:%s",
             code, connErr.remoteMessage);
@@ -521,6 +750,7 @@ typedef int32_t (*FExtBlockCallback)(SSDataBlock *pBlock, void *pCtx);
  * Ownership: each pBlock passed to cb belongs to cb; cb must destroy it.
  * ============================================================ */
 static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
+                                   const char           *timezone,
                                    const char           *sql,
                                    SExtColTypeMapping   *pMappings,
                                    int32_t               nMappings,
@@ -532,7 +762,7 @@ static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
 
   stDebug("ext: extQueryExecForEach sql=\"%.120s\" nMappings=%d", sql, nMappings);
 
-  code = extConnectorExecQuery(pConn, NULL, sql, &pQHdl, &connErr);
+  code = extConnectorExecQuery(pConn, NULL, timezone, sql, &pQHdl, &connErr);
   if (code != TSDB_CODE_SUCCESS) {
     stError("ext: extQueryExecForEach exec failed code:%d msg:%s",
             code, connErr.remoteMessage);
@@ -567,6 +797,7 @@ static int32_t extQueryExecForEach(SExtConnectorHandle  *pConn,
  * RecordBatches; using FetchOne would silently drop trailing batches.
  * ============================================================ */
 static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
+                                    const char           *timezone,
                                     const char           *sql,
                                     SExtColTypeMapping   *pMappings,
                                     int32_t               nMappings,
@@ -577,7 +808,7 @@ static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
 
   stDebug("ext: extQueryExecFetchAll sql=\"%.120s\" nMappings=%d", sql, nMappings);
 
-  code = extConnectorExecQuery(pConn, NULL, sql, &pQHdl, &connErr);
+  code = extConnectorExecQuery(pConn, NULL, timezone, sql, &pQHdl, &connErr);
   if (code != TSDB_CODE_SUCCESS) {
     stError("ext: extQueryExecFetchAll exec failed code:%d msg:%s",
             code, connErr.remoteMessage);
@@ -616,6 +847,30 @@ static int32_t extQueryExecFetchAll(SExtConnectorHandle  *pConn,
 static bool extIsValidTimePrecision(int8_t precision) {
   return precision == TSDB_TIME_PRECISION_MILLI || precision == TSDB_TIME_PRECISION_MICRO ||
          precision == TSDB_TIME_PRECISION_NANO;
+}
+
+/* Keep unbounded sentinels intact and clamp both signs before scaling to nanoseconds. */
+static int64_t extInfluxBoundToNanos(int64_t ts, int8_t precision, bool upperBound) {
+  if (ts == INT64_MIN || ts == INT64_MAX || precision == TSDB_TIME_PRECISION_NANO) {
+    return ts;
+  }
+  int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                   precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+  if (ts < INT64_MIN / factor) {
+    stDebug("ext: clamp negative Influx bound ts:%" PRId64 " precision:%d", ts, precision);
+    return INT64_MIN;
+  }
+  int64_t nanos = convertTimePrecision(ts, precision, TSDB_TIME_PRECISION_NANO);
+  /* Integer precision conversion truncates toward zero, so negative ticks
+   * extend below their multiple and tick zero spans both signs. */
+  int64_t extra = factor - 1;
+  if (upperBound && ts >= 0) {
+    return nanos > INT64_MAX - extra ? INT64_MAX : nanos + extra;
+  }
+  if (!upperBound && ts <= 0) {
+    return nanos < INT64_MIN + extra ? INT64_MIN : nanos - extra;
+  }
+  return nanos;
 }
 
 static int32_t extNormalizeTimestampBlockPrecision(int8_t fallbackPrecision, SSDataBlock *pBlock,
@@ -819,6 +1074,7 @@ static void extBuildSourceCfg(const SStreamExtTriggerSpec *pExtSpec, const char 
   tstrncpy(pCfg->user, pExtSpec->user, sizeof(pCfg->user));
   tstrncpy(pCfg->password, plainPwd, sizeof(pCfg->password));
   tstrncpy(pCfg->default_database, pExtSpec->extDb, sizeof(pCfg->default_database));
+  stDebug("ext: reader connection namespace source:%s db:%s", pExtSpec->sourceName, pExtSpec->extDb);
   tstrncpy(pCfg->options, pExtSpec->options, sizeof(pCfg->options));
   pCfg->meta_version = (int64_t)pExtSpec->connCfgVersion;
 }
@@ -904,8 +1160,8 @@ static int32_t extCopyReaderSpec(SStreamExtReaderInfo *pInfo, const SStreamExtTr
                                 "pCalcMappings");
 }
 
-static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStreamExtTriggerSpec *pExtSpec) {
-  const SStreamTask *pTask = pInfo->pTask;
+static int32_t extOpenReaderConnector(const SStreamTask *pTask, const SStreamExtTriggerSpec *pExtSpec,
+                                      SExtConnectorHandle **ppConn) {
   char          plainPwd[TSDB_EXT_SOURCE_PASSWORD_LEN] = {0};
   SExtSourceCfg cfg = {0};
   int32_t       code = TSDB_CODE_SUCCESS;
@@ -914,7 +1170,7 @@ static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStream
   extBuildSourceCfg(pExtSpec, plainPwd, &cfg);
   memset(plainPwd, 0, sizeof(plainPwd));
 
-  code = extConnectorOpen(&cfg, &pInfo->pConn);
+  code = extConnectorOpen(&cfg, ppConn);
   memset(cfg.password, 0, sizeof(cfg.password));
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: extConnectorOpen failed code:%d source=%s host=%s port=%d",
@@ -926,10 +1182,45 @@ static int32_t extOpenReaderConnector(SStreamExtReaderInfo *pInfo, const SStream
   return TSDB_CODE_SUCCESS;
 }
 
+/* Timezone class of the reader's source timestamp column, resolved from the
+ * remote type mnode recorded in the deploy spec.
+ *
+ * mnode always fills the mapping slot of the remote timestamp column, so the
+ * remote type name (e.g. "datetimeoffset(6)") is available even when the deploy
+ * plan carries no federated scan (virtual-table trigger) or when its timestamp
+ * hints do not include the bound column.  Returns
+ * EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the timestamp column is not mapped.
+ *
+ * Exported with a void* signature because streamReader.c cannot include this
+ * header (it redefines SStreamTriggerReaderInfo in its own translation unit);
+ * the deploy-time resolver calls this instead of keeping a second copy of the
+ * matching rules. */
+int8_t streamReaderExtSpecTsTzClass(const void *pSpecVoid) {
+  const SStreamExtTriggerSpec *pSpec = (const SStreamExtTriggerSpec *)pSpecVoid;
+  if (pSpec == NULL || pSpec->tsColumn[0] == '\0' || pSpec->pColMappings == NULL ||
+      pSpec->numColMappings <= 0) {
+    return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  }
+
+  EExtSourceType srcType = (EExtSourceType)pSpec->sourceType;
+  for (int32_t i = 0; i < pSpec->numColMappings; ++i) {
+    const SExtColTypeMapping *pMapping = &pSpec->pColMappings[i];
+    if (!extColumnNameEqual(srcType, pMapping->colName, pSpec->tsColumn)) {
+      continue;
+    }
+    int8_t tzClass = extTimestampTypeTzClass(srcType, pMapping->extTypeName);
+    stDebug("ext: resolved timestamp class from spec sourceType:%d column:%s type:%s class:%d",
+            (int)pSpec->sourceType, pSpec->tsColumn, pMapping->extTypeName, (int)tzClass);
+    return tzClass;
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
 /* ============================================================
  * Lifecycle: open
  * ============================================================ */
-int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
+int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                            const char *timezone, int8_t tsTzClass,
                             SStreamExtReaderInfo **ppReaderInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -937,6 +1228,7 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
 
   if (pSpec == NULL || ppReaderInfo == NULL) {
     stError("ext: streamReaderExtOpen invalid args");
+    nodesDestroyNode(pCalcTimeRange);
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -949,15 +1241,48 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask,
   SStreamExtReaderInfo *pInfo = taosMemoryCalloc(1, sizeof(SStreamExtReaderInfo));
   if (pInfo == NULL) {
     stError("ext: OOM allocating SStreamExtReaderInfo");
+    nodesDestroyNode(pCalcTimeRange);
     return terrno;
   }
 
   pInfo->pTask = pTask;
+  pInfo->pCalcTimeRange = pCalcTimeRange;
+  pCalcTimeRange = NULL;
+  if (timezone != NULL && timezone[0] != '\0') {
+    tstrncpy(pInfo->timezone, timezone, sizeof(pInfo->timezone));
+  }
+  pInfo->tsTzClass = tsTzClass;
+  if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+    /* The deploy-time resolver reads the plan's timestamp hints; fall back to
+     * the remote type recorded in the spec so a virtual-table reader without a
+     * federated scan still classifies a timezone-aware column. */
+    pInfo->tsTzClass = streamReaderExtSpecTsTzClass(pExtSpec);
+  }
+  if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN &&
+      (EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_SQLSERVER) {
+    /* An unclassified SQL Server timestamp would render datetimeoffset bounds
+     * as a client wall clock, which SQL Server reads as UTC; keep the shift
+     * diagnosable instead of silently dropping rows. */
+    stWarn("ext: cannot classify the SQL Server timestamp column, source:%s column:%s; "
+           "datetimeoffset bounds will be rendered in the stream timezone",
+           pExtSpec->sourceName, pExtSpec->tsColumn);
+  }
+  stDebug("ext: reader timezone=%s tsTzClass=%d",
+          pInfo->timezone[0] != '\0' ? pInfo->timezone : "(server global)",
+          (int)pInfo->tsTzClass);
+  code = taosThreadMutexInit(&pInfo->connLock, NULL);
+  if (code != TSDB_CODE_SUCCESS) goto _err;
+  pInfo->connLockInited = true;
+
   code = extCopyReaderSpec(pInfo, pExtSpec);
   if (code != TSDB_CODE_SUCCESS) goto _err;
 
-  code = extOpenReaderConnector(pInfo, pExtSpec);
-  if (code != TSDB_CODE_SUCCESS) goto _err;
+  /* triggerReader is set by stReaderTaskDeploy before the reader is opened. */
+  pInfo->borrowConn = (pTask != NULL && ((const SStreamReaderTask *)pTask)->triggerReader == 0);
+  if (!pInfo->borrowConn) {
+    code = extOpenReaderConnector(pTask, pExtSpec, &pInfo->pConn);
+    if (code != TSDB_CODE_SUCCESS) goto _err;
+  }
   code = extInitReaderHashes(pInfo);
   if (code != TSDB_CODE_SUCCESS) goto _err;
 
@@ -1005,6 +1330,12 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
     pInfo->pInfluxTagCols = NULL;
   }
 
+  /* Free the calc scan time range node kept for fetch-bound evaluation. */
+  if (pInfo->pCalcTimeRange) {
+    nodesDestroyNode(pInfo->pCalcTimeRange);
+    pInfo->pCalcTimeRange = NULL;
+  }
+
   /* Free parsed pPartitionColExprNodes cache. */
   if (pInfo->pPartitionColExprNodes) {
     int32_t n = (int32_t)taosArrayGetSize(pInfo->pPartitionColExprNodes);
@@ -1017,6 +1348,11 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
   }
 
   tCleanupSStreamExtTriggerSpec(&pInfo->spec);
+
+  if (pInfo->connLockInited) {
+    (void)taosThreadMutexDestroy(&pInfo->connLock);
+    pInfo->connLockInited = false;
+  }
 
   /* Zero the whole struct to prevent use-after-free leaking sensitive data. */
   memset(pInfo, 0, sizeof(*pInfo));
@@ -1037,9 +1373,11 @@ void streamReaderExtClose(SStreamExtReaderInfo *pInfo) {
 /* Called by stReaderTaskDeploy in streamReader.c for ext-source reader tasks.
  * Delegates to streamReaderExtOpen and returns the opaque info pointer
  * via *ppInfo (void*). */
-int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo) {
+int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                        const char *timezone, int8_t tsTzClass, void **ppInfo) {
   SStreamExtReaderInfo *pReaderInfo = NULL;
-  int32_t code = streamReaderExtOpen(pSpec, pTask, &pReaderInfo);
+  int32_t code =
+      streamReaderExtOpen(pSpec, pTask, pCalcTimeRange, timezone, tsTzClass, &pReaderInfo);
   *ppInfo = (void *)pReaderInfo;
   return code;
 }
@@ -1738,7 +2076,7 @@ static int32_t extDiscoverInfluxTagCols(SStreamExtReaderInfo *pInfo, SArray **pp
     return terrno;
   }
 
-  code = extQueryExecForEach(pInfo->pConn, schemaSQL, &nameMapping, 1, influxSchemaBlockCb, pTagCols);
+  code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, schemaSQL, &nameMapping, 1, influxSchemaBlockCb, pTagCols);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition schema query failed code:%d", code);
     taosArrayDestroy(pTagCols);
@@ -1760,10 +2098,18 @@ static int32_t extBuildInfluxDistinctSql(const SStreamExtReaderInfo *pInfo, SArr
 
   for (int32_t i = 0; ok && i < nTags; ++i) {
     const char *pColName = (const char *)taosArrayGet(pTagCols, i);
-    ok = extSqlCat(distSQL, distSqlLen, &off, "%s%s", pColName, (i + 1 < nTags) ? ", " : "");
+    char        colQ[EXT_TAG_KEY_QUOTE_BUF_LEN] = {0};
+    if (extQuoteIdent(&pInfo->spec, pColName, colQ, sizeof(colQ)) < 0) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    ok = extSqlCat(distSQL, distSqlLen, &off, "%s%s", colQ, (i + 1 < nTags) ? ", " : "");
   }
   if (ok) {
-    ok = extSqlCat(distSQL, distSqlLen, &off, " FROM %s", pInfo->spec.extTable);
+    char tblQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+    if (extQuoteIdent(&pInfo->spec, pInfo->spec.extTable, tblQ, sizeof(tblQ)) < 0) {
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
+    ok = extSqlCat(distSQL, distSqlLen, &off, " FROM %s", tblQ);
   }
   if (ok && pInfo->spec.tagCondJson != NULL && pInfo->spec.tagCondJson[0] != '\0') {
     SNode *pCond = NULL;
@@ -1917,7 +2263,7 @@ static int32_t extEnumerateInfluxDistinctGroups(SStreamExtReaderInfo *pInfo, SAr
     .partExprNodes = pPlan->partExprNodes,
   };
 
-  code = extQueryExecForEach(pInfo->pConn, distSQL, pMappings, nTags, influxDistinctBlockCb, &dCtx);
+  code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, distSQL, pMappings, nTags, influxDistinctBlockCb, &dCtx);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: initInfluxTagPartition distinct query failed code:%d", code);
     return code;
@@ -1969,6 +2315,18 @@ static int32_t extInitInfluxTagPartition(SStreamExtReaderInfo *pInfo) {
   SExtColTypeMapping   *pMappings = NULL;
   SInfluxPartitionPlan  plan = {0};
 
+  // A SERIES condition that matched no tag combinations leaves pUidIndex empty, which would
+  // otherwise re-run the information_schema query + DISTINCT enumeration on every idle pull.
+  // Re-enumerate only after the re-check window so data that appears later is still picked up.
+  int64_t nowMs = taosGetTimestampMs();
+  if (pInfo->influxEmptyEnumTsMs != 0 &&
+      nowMs - pInfo->influxEmptyEnumTsMs < EXT_INFLUX_EMPTY_ENUM_RECHECK_MS) {
+    ST_TASK_DLOG("ext: skip repeated Influx enumeration after empty SERIES match, ageMs:%" PRId64,
+                 nowMs - pInfo->influxEmptyEnumTsMs);
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->influxEmptyEnumTsMs = 0;
+
   code = extDiscoverInfluxTagCols(pInfo, &pTagCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
@@ -2009,6 +2367,7 @@ static int32_t extInitInfluxTagPartition(SStreamExtReaderInfo *pInfo) {
     taosArrayDestroy(pInfo->pInfluxTagCols);
     pInfo->pInfluxTagCols = pTagCols;
     pTagCols = NULL;
+    pInfo->influxEmptyEnumTsMs = taosGetTimestampMs();
     ST_TASK_DLOG("%s", "ext: initInfluxTagPartition SERIES condition matched no tag combinations");
     goto _exit;
   }
@@ -2090,10 +2449,10 @@ static int32_t extDispatchPullRequest(SStreamExtReaderInfo *pInfo,
   }
 }
 
-int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
-                                  int32_t pullType,
-                                  const void *pReqVoid,
-                                  void **ppRsp) {
+static int32_t extHandlePullLocked(SStreamExtReaderInfo *pInfo,
+                                   int32_t pullType,
+                                   const void *pReqVoid,
+                                   void **ppRsp) {
   int32_t             code = TSDB_CODE_SUCCESS;
   SSTriggerExtPullRsp *pRsp = NULL;
 
@@ -2168,6 +2527,21 @@ _exit:
   return code;
 }
 
+int32_t streamReaderExtHandlePull(SStreamExtReaderInfo *pInfo,
+                                  int32_t pullType,
+                                  const void *pReqVoid,
+                                  void **ppRsp) {
+  if (pInfo == NULL || ppRsp == NULL) {
+    stError("ext: handlePull invalid args");
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  (void)taosThreadMutexLock(&pInfo->connLock);
+  int32_t code = extHandlePullLocked(pInfo, pullType, pReqVoid, ppRsp);
+  (void)taosThreadMutexUnlock(&pInfo->connLock);
+  return code;
+}
+
 /* Forward declarations: influx batched implementation is defined later
  * (after buildInfluxBatchSql/SInfluxUidAgg/influxAccumBlockCb, which it
  * reuses), alongside handleMetaPullInflux. */
@@ -2195,17 +2569,20 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) return code;
 
-  /* Build SQL: SELECT MAX(ts) AS ts FROM <table> [WHERE triggerPrefilter]
-   * The AS alias ensures the result column name matches tsMapping.colName
-   * for databases (e.g. InfluxDB 3.x DataFusion) that name aggregates
-   * as "MAX(ts)" rather than the bare column name. */
-  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
+  /* Build SQL: SELECT MAX("ts") AS "ts" FROM <table> [WHERE triggerPrefilter]
+   * Both the argument and the AS alias are quoted so PostgreSQL keeps the exact column name
+   * (e.g. a remote "Ts" column) instead of folding it to lower case; the alias then still
+   * matches tsMapping.colName. */
+  char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
   code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
   if (code < 0) return code;
+  char tsColQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  code = extQuoteIdent(&pInfo->spec, tsCol, tsColQ, sizeof(tsColQ));
+  if (code < 0) return TSDB_CODE_OUT_OF_RANGE;
   int32_t off = 0;
   bool    ok  = extSqlCat(sqlBuf, sizeof(sqlBuf), &off,
                           "SELECT MAX(%s) AS %s FROM %s",
-                          tsCol, tsCol, tblRef);
+                          tsColQ, tsColQ, tblRef);
   if (prefilterBuf[0] != '\0') {
     ok = extSqlCat(sqlBuf, sizeof(sqlBuf), &off, " WHERE %s", prefilterBuf);
     /* Strip trailing " AND " added by buildPrefilterClause. */
@@ -2221,10 +2598,8 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   ST_TASK_DLOG("ext: lastTs relational SQL=\"%s\"", sqlBuf);
 
   /* Execute query with a single-column TIMESTAMP mapping for MAX(ts).
-   * All reader->trigger timestamps are normalised to nanoseconds so the
-   * trigger side has a single uniform precision to convert from.
-   * The connector will scale the source value (micros for MySQL/PG, ns for InfluxDB)
-   * to ns when tsPrecision is set to TSDB_TIME_PRECISION_NANO. */
+   * Decode source timestamps as nanoseconds, then normalize the result to
+   * spec.precision before exposing the watermark to the trigger. */
   SExtColTypeMapping tsMapping = {0};
   tsMapping.tdType.type   = TSDB_DATA_TYPE_TIMESTAMP;
   tsMapping.tdType.bytes  = sizeof(int64_t);
@@ -2232,7 +2607,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   tstrncpy(tsMapping.colName, tsCol, sizeof(tsMapping.colName));
 
   SSDataBlock *pBlock = NULL;
-  code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
+  code = extQueryExecFetchAll(pInfo->pConn, pInfo->timezone, sqlBuf,
                               &tsMapping, 1, &pBlock);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: handleLastTsPullRelational query failed code:%d", code);
@@ -2406,9 +2781,10 @@ static void extInitRelationalMetaMappings(const char *tsCol, SExtColTypeMapping 
 static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilterBuf,
                                          const char *tsCol, uint64_t uid, int64_t maxTs,
                                          int8_t boundPrecision,
+                                         const SStreamExtReaderInfo *pInfo,
                                          char *sqlBuf, int32_t sqlBufLen) {
-  char dtBuf[32] = {0};
-  epochToDatetimeStr(maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
+  char dtBuf[EXT_SQL_TS_LITERAL_LEN] = {0};
+  streamReaderExtRenderTimeBound(pInfo, maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
 
   /* Emit the uid as its signed 64-bit representation: group uids are
    * MurmurHash3 values with the full uint64 range, and roughly half of them
@@ -2494,7 +2870,13 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
   SSDataBlock *pBlock = NULL;
   SExtColTypeMapping metaMappings[4] = {0};
   char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
+  char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
+  // Quote the timestamp column for the source dialect; the mapping keeps the raw name so the
+  // connector can match result columns.
+  char tsColQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  if (extQuoteIdent(&pInfo->spec, tsCol, tsColQ, sizeof(tsColQ)) < 0) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
 
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) {
@@ -2517,9 +2899,9 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
       continue;
     }
 
-    code = extBuildRelationalMetaSql(tblRef, prefilterBuf, tsCol, uid,
+    code = extBuildRelationalMetaSql(tblRef, prefilterBuf, tsColQ, uid,
                                      extLookupUidMaxTs(pUidMaxTs, uid),
-                                     pInfo->spec.precision,
+                                     pInfo->spec.precision, pInfo,
                                      sqlBuf, sizeof(sqlBuf));
     if (code != TSDB_CODE_SUCCESS) {
       break;
@@ -2527,7 +2909,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
 
     ST_TASK_DLOG("ext: meta relational uid=%" PRIu64 " sql=\"%.120s\"", uid, sqlBuf);
 
-    code = extQueryExecFetchAll(pInfo->pConn, sqlBuf, metaMappings, 4, &pBlock);
+    code = extQueryExecFetchAll(pInfo->pConn, pInfo->timezone, sqlBuf, metaMappings, 4, &pBlock);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("ext: meta relational query uid=%" PRIu64 " code:%d", uid, code);
       break;
@@ -2589,6 +2971,17 @@ static int32_t buildInfluxBatchSql(SStreamExtReaderInfo *pInfo,
   int32_t off = 0;
   *pAnyUid = false;
 
+  // Quote the timestamp column and the table name for DataFusion so case-sensitive remote
+  // identifiers survive identifier resolution; the tag columns are quoted per arm below.
+  char tsColQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  if (extQuoteIdent(&pInfo->spec, tsCol, tsColQ, sizeof(tsColQ)) < 0) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  char tblQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  if (extQuoteIdent(&pInfo->spec, pInfo->spec.extTable, tblQ, sizeof(tblQ)) < 0) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
   /* One UNION ALL arm per uid, each a standalone SELECT with its own WHERE.
    * DataFusion (InfluxDB 3.x) cannot plan a single query whose top-level OR
    * combines branches with different time-column bounds ("unable to analyze
@@ -2604,7 +2997,7 @@ static int32_t buildInfluxBatchSql(SStreamExtReaderInfo *pInfo,
 
     char tagWhere[EXT_TAG_WHERE_BUF_LEN] = {0};
     if (nTags > 0) {
-      int32_t twLen = buildInfluxTagWhereClause(ent->tagsetKey,
+      int32_t twLen = buildInfluxTagWhereClause(&pInfo->spec, ent->tagsetKey,
                                                 tagWhere, sizeof(tagWhere));
       if (twLen < 0) {
         ST_TASK_ELOG("ext: influx batch tag WHERE exceeds %d bytes uid=%" PRIu64,
@@ -2620,13 +3013,17 @@ static int32_t buildInfluxBatchSql(SStreamExtReaderInfo *pInfo,
     int32_t saveOff  = off;
     bool    clauseOk = true;
     if (anyUid) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " UNION ALL ");
-    if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "SELECT %s", tsCol);
+    if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "SELECT %s", tsColQ);
     for (int32_t c = 0; clauseOk && c < nTags; c++) {
       const char *cn = (const char *)taosArrayGet(pInfo->pInfluxTagCols, c);
-      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s", cn);
+      char        cnQ[EXT_TAG_KEY_QUOTE_BUF_LEN] = {0};
+      if (extQuoteIdent(&pInfo->spec, cn, cnQ, sizeof(cnQ)) < 0) {
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s", cnQ);
     }
     if (clauseOk) {
-      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " FROM %s WHERE ", pInfo->spec.extTable);
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " FROM %s WHERE ", tblQ);
     }
     if (clauseOk && prefilterBuf[0] != '\0') {
       /* prefilterBuf already ends with " AND " */
@@ -2640,7 +3037,8 @@ static int32_t buildInfluxBatchSql(SStreamExtReaderInfo *pInfo,
      * nanosecond integers directly without unit conversion. */
     if (clauseOk) {
       clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off,
-                           "%s > to_timestamp_nanos(%" PRId64 ")", tsCol, maxTs);
+                           "%s > to_timestamp_nanos(%" PRId64 ")", tsColQ,
+                           extInfluxBoundToNanos(maxTs, pInfo->spec.precision, true));
     }
 
     if (!clauseOk) {
@@ -2777,7 +3175,7 @@ static int32_t extRunInfluxMetaBatch(SStreamExtReaderInfo *pInfo, SArray *pAllUi
     .pAgg = pAgg,
   };
 
-  int32_t code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
+  int32_t code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, sqlBuf, pMappings, nCols,
                                      influxAccumBlockCb, &aCtx);
   if (code == TSDB_CODE_SUCCESS) {
     code = extFlushInfluxMetaAgg(pInfo, pAllUids, batchStart, consumed, pAgg, pRsp,
@@ -2857,7 +3255,8 @@ static int32_t influxAccumBlockCb(SSDataBlock *pBlk, void *pCtx) {
   int32_t code = TSDB_CODE_SUCCESS;
   char *pValBufs = NULL;
 
-  ST_TASK_DLOG("ext: influxAccumBlockCb rows=%" PRId64, pBlk != NULL ? pBlk->info.rows : (int64_t)-1);
+  ST_TASK_DLOG("ext: influxAccumBlockCb rows=%" PRId64 " precision:%d",
+               pBlk != NULL ? pBlk->info.rows : (int64_t)-1, pACtx->pInfo->spec.precision);
 
   if (pACtx->nTags > TSDB_MAX_TAGS) {
     ST_TASK_ELOG("ext: accumulated tag count exceeds limit count:%d limit:%d",
@@ -2902,7 +3301,10 @@ static int32_t influxAccumBlockCb(SSDataBlock *pBlk, void *pCtx) {
       continue;
     }
 
-    int64_t ts = *(int64_t *)colDataGetData(pTsCol, r);
+    int8_t sourcePrecision = extIsValidTimePrecision(pTsCol->info.precision)
+                                 ? pTsCol->info.precision : TSDB_TIME_PRECISION_NANO;
+    int64_t ts = convertTimePrecision(*(int64_t *)colDataGetData(pTsCol, r),
+                                      sourcePrecision, pACtx->pInfo->spec.precision);
     if (ts < pACtx->pAgg[slot].skey) {
       pACtx->pAgg[slot].skey = ts;
     }
@@ -3038,7 +3440,7 @@ static int32_t extRunInfluxLastTsBatch(SStreamExtReaderInfo *pInfo, SArray *pAll
       .nTags = nTags,
       .pAgg = pAgg,
     };
-    code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMappings, nCols,
+    code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, sqlBuf, pMappings, nCols,
                                influxAccumBlockCb, &aCtx);
     if (code != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("ext: influx lastTs batch %d query failed code:%d", batchIdx, code);
@@ -3188,11 +3590,13 @@ static int32_t extBuildRelationalFetchSql(const char *colList, const char *tblRe
                                           const char *prefilterBuf, const char *tsCol,
                                           uint64_t uid, int64_t skey, int64_t ekey,
                                           int8_t boundPrecision,
+                                          const SStreamExtReaderInfo *pInfo,
                                           char *sqlBuf, int32_t sqlBufLen) {
-  char skeyDt[32] = {0};
-  char ekeyDt[32] = {0};
-  epochToDatetimeStr(skey, boundPrecision, skeyDt, sizeof(skeyDt));
-  epochToDatetimeStr(ekey, boundPrecision, ekeyDt, sizeof(ekeyDt));
+  char skeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
+  char ekeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
+  streamReaderExtRenderTimeBound(pInfo, skey, boundPrecision, skeyDt, sizeof(skeyDt));
+  streamReaderExtRenderTimeBound(pInfo, extClampMysqlUpperBound(pInfo, ekey, boundPrecision),
+                                 boundPrecision, ekeyDt, sizeof(ekeyDt));
 
   // The virtual-table merger and the external timestamp sorter both walk a slice as ascending
   // [skey, ekey] ranges and stop at the first row beyond the window, so an unordered result set
@@ -3219,7 +3623,7 @@ static int32_t extBuildInfluxFetchSql(SStreamExtReaderInfo *pInfo, const char *c
   char tagWhere[EXT_TAG_WHERE_BUF_LEN] = {0};
 
   if (pEntry != NULL && pEntry->tagsetKey[0] != '\0') {
-    int32_t tagCode = buildInfluxTagWhereClause(pEntry->tagsetKey, tagWhere, sizeof(tagWhere));
+    int32_t tagCode = buildInfluxTagWhereClause(&pInfo->spec, pEntry->tagsetKey, tagWhere, sizeof(tagWhere));
     if (tagCode < 0) {
       ST_TASK_ELOG("ext: fetchDataForUid tag WHERE exceeds %d bytes uid=%" PRIu64,
                    (int32_t)sizeof(tagWhere), uid);
@@ -3235,7 +3639,8 @@ static int32_t extBuildInfluxFetchSql(SStreamExtReaderInfo *pInfo, const char *c
                             " AND %s <= to_timestamp_nanos(%" PRId64 ")",
                             colList, tblRef,
                             wherePrefix, tagClause, timeSep,
-                            tsCol, skey, tsCol, ekey);
+                            tsCol, extInfluxBoundToNanos(skey, pInfo->spec.precision, false),
+                            tsCol, extInfluxBoundToNanos(ekey, pInfo->spec.precision, true));
   if (sqlLen < 0 || sqlLen >= sqlBufLen) {
     ST_TASK_ELOG("ext: fetchDataForUid influx SQL exceeds %d bytes uid=%" PRIu64,
                  sqlBufLen, uid);
@@ -3266,21 +3671,26 @@ static int32_t fetchDataForUid(SStreamExtReaderInfo *pInfo,
                                SSDataBlock **ppBlock) {
   const SStreamTask *pTask = pInfo->pTask;
   char sqlBuf[EXT_DATA_SQL_BUF_LEN] = {0};
-  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
+  char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
   const char *tsCol = (pInfo->spec.tsColumn[0] != '\0')
                         ? pInfo->spec.tsColumn : "ts";
+  char tsColQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
   const SExtColTypeMapping *pEffMappings = NULL;
   int32_t nEffMappings = 0;
-  int32_t code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
+  int32_t code = extQuoteIdent(&pInfo->spec, tsCol, tsColQ, sizeof(tsColQ));
+  if (code < 0) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
   if (code < 0) {
     return code;
   }
 
   code = isInflux
-           ? extBuildInfluxFetchSql(pInfo, colList, tblRef, prefilterBuf, tsCol,
+           ? extBuildInfluxFetchSql(pInfo, colList, tblRef, prefilterBuf, tsColQ,
                                     uid, skey, ekey, sqlBuf, sizeof(sqlBuf))
-           : extBuildRelationalFetchSql(colList, tblRef, prefilterBuf, tsCol,
-                                        uid, skey, ekey, boundPrecision,
+           : extBuildRelationalFetchSql(colList, tblRef, prefilterBuf, tsColQ,
+                                        uid, skey, ekey, boundPrecision, pInfo,
                                         sqlBuf, sizeof(sqlBuf));
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -3288,7 +3698,7 @@ static int32_t fetchDataForUid(SStreamExtReaderInfo *pInfo,
 
   ST_TASK_DLOG("ext: fetchDataForUid uid=%" PRIu64 " sql=\"%.180s\"", uid, sqlBuf);
   extSelectFetchMappings(pMappings, nMappings, &pEffMappings, &nEffMappings);
-  code = extQueryExecFetchAll(pInfo->pConn, sqlBuf,
+  code = extQueryExecFetchAll(pInfo->pConn, pInfo->timezone, sqlBuf,
                               (SExtColTypeMapping *)pEffMappings,
                               nEffMappings,
                               ppBlock);
@@ -3315,7 +3725,9 @@ static int32_t buildTriggerColList(const SStreamExtTriggerSpec *pSpec,
   int32_t n   = (int32_t)taosArrayGetSize(pSpec->triggerColumns);
   for (int32_t i = 0; i < n; i++) {
     const char *colName = (const char *)taosArrayGet(pSpec->triggerColumns, i);
-    if (!extSqlCat(buf, bufLen, &off, "%s%s", colName, (i < n - 1) ? "," : "")) {
+    char        colQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+    if (extQuoteIdent(pSpec, colName, colQ, sizeof(colQ)) < 0 ||
+        !extSqlCat(buf, bufLen, &off, "%s%s", colQ, (i < n - 1) ? "," : "")) {
       stError("ext: triggerColumns list exceeds %d bytes at col %d/%d", bufLen, i, n);
       return TSDB_CODE_OUT_OF_RANGE;
     }
@@ -3344,9 +3756,14 @@ static int32_t buildCalcColList(const SStreamExtTriggerSpec *pSpec,
   int32_t n   = (int32_t)taosArrayGetSize(pSpec->calcColumns);
   for (int32_t i = 0; i < n; i++) {
     const char *colName = (const char *)taosArrayGet(pSpec->calcColumns, i);
+    char        colQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+    if (extQuoteIdent(pSpec, colName, colQ, sizeof(colQ)) < 0) {
+      stError("ext: calcColumns quote exceeds %d bytes at col %d/%d", bufLen, i, n);
+      return TSDB_CODE_OUT_OF_RANGE;
+    }
     bool ok = aliasSelectItems
-                  ? extSqlCat(buf, bufLen, &off, "%s AS _td_ext_c%d%s", colName, i, (i < n - 1) ? "," : "")
-                  : extSqlCat(buf, bufLen, &off, "%s%s", colName, (i < n - 1) ? "," : "");
+                  ? extSqlCat(buf, bufLen, &off, "%s AS _td_ext_c%d%s", colQ, i, (i < n - 1) ? "," : "")
+                  : extSqlCat(buf, bufLen, &off, "%s%s", colQ, (i < n - 1) ? "," : "");
     if (!ok) {
       stError("ext: calcColumns list exceeds %d bytes at col %d/%d", bufLen, i, n);
       return TSDB_CODE_OUT_OF_RANGE;
@@ -3615,6 +4032,11 @@ static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const ch
   bool    anyUid = false;
   int32_t k = 0;
 
+  char tsColQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  if (extQuoteIdent(&pInfo->spec, tsCol, tsColQ, sizeof(tsColQ)) < 0) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+
   for (; k < batchSize; ++k) {
     uint64_t        uid = *(uint64_t *)taosArrayGet(pUids, batchStart + k);
     SExtUidWindow  *pWin = (SExtUidWindow *)taosArrayGet(pWins, batchStart + k);
@@ -3622,7 +4044,7 @@ static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const ch
     char            tagWhere[EXT_TAG_WHERE_BUF_LEN] = {0};
 
     if (pEntry != NULL && pEntry->tagsetKey[0] != '\0') {
-      int32_t twLen = buildInfluxTagWhereClause(pEntry->tagsetKey, tagWhere, sizeof(tagWhere));
+      int32_t twLen = buildInfluxTagWhereClause(&pInfo->spec, pEntry->tagsetKey, tagWhere, sizeof(tagWhere));
       if (twLen < 0) {
         ST_TASK_ELOG("ext: influx data batch tag WHERE exceeds %d bytes uid=%" PRIu64,
                      (int32_t)sizeof(tagWhere), uid);
@@ -3635,8 +4057,12 @@ static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const ch
     if (anyUid) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " UNION ALL ");
     if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "SELECT %s", colList);
     for (int32_t c = 0; clauseOk && c < nTags; ++c) {
-      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s",
-                           (const char *)taosArrayGet(pInfo->pInfluxTagCols, c));
+      char tagQ[EXT_TAG_KEY_QUOTE_BUF_LEN] = {0};
+      if (extQuoteIdent(&pInfo->spec, (const char *)taosArrayGet(pInfo->pInfluxTagCols, c), tagQ,
+                        sizeof(tagQ)) < 0) {
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, ", %s", tagQ);
     }
     if (clauseOk) clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, " FROM %s WHERE ", tblRef);
     if (clauseOk && prefilterBuf[0] != '\0') clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off, "%s", prefilterBuf);
@@ -3645,7 +4071,8 @@ static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const ch
       clauseOk = extSqlCat(sqlBuf, sqlBufLen, &off,
                            "%s >= to_timestamp_nanos(%" PRId64 ")"
                            " AND %s <= to_timestamp_nanos(%" PRId64 ")",
-                           tsCol, pWin->skey, tsCol, pWin->ekey);
+                           tsColQ, extInfluxBoundToNanos(pWin->skey, pInfo->spec.precision, false),
+                           tsColQ, extInfluxBoundToNanos(pWin->ekey, pInfo->spec.precision, true));
     }
     if (!clauseOk) {
       sqlBuf[saveOff] = '\0';
@@ -3699,7 +4126,7 @@ static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
   SInfluxDataDemuxCtx ctx = {0};
 
   const char *tsCol = (pInfo->spec.tsColumn[0] != '\0') ? pInfo->spec.tsColumn : "ts";
-  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
+  char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
   code = buildExtTableRef(&pInfo->spec, tblRef, sizeof(tblRef));
   if (code < 0) goto _exit;
 
@@ -3740,7 +4167,7 @@ static int32_t fetchDataBatchInflux(SStreamExtReaderInfo       *pInfo,
     if (anyUid) {
       ST_TASK_DLOG("ext: influx data batch [%d..%d) sql=\"%.180s\"",
                    batchStart, batchStart + consumed, sqlBuf);
-      code = extQueryExecForEach(pInfo->pConn, sqlBuf, pMapAll, nColsAll,
+      code = extQueryExecForEach(pInfo->pConn, pInfo->timezone, sqlBuf, pMapAll, nColsAll,
                                  influxDataDemuxBlockCb, &ctx);
       if (code == TSDB_CODE_SUCCESS) code = ctx.code;
       if (code != TSDB_CODE_SUCCESS) {
@@ -4594,15 +5021,227 @@ _exit:
 static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
                                     const char *tsCol, const char *op,
                                     int64_t ts, int8_t boundPrecision,
-                                    bool isInflux) {
+                                    const SStreamExtReaderInfo *pInfo, bool isInflux) {
   if (isInflux) {
     return extSqlCat(sql, sqlLen, pOff, " AND %s %s to_timestamp_nanos(%" PRId64 ")",
-                     tsCol, op, ts);
+                     tsCol, op, extInfluxBoundToNanos(ts, boundPrecision, strcmp(op, "<=") == 0));
   }
 
-  char dt[32] = {0};
-  epochToDatetimeStr(ts, boundPrecision, dt, sizeof(dt));
+  char dt[EXT_SQL_TS_LITERAL_LEN] = {0};
+  /* Only the inclusive upper bound is clamped into the remote domain; see
+   * extClampMysqlUpperBound(). */
+  int64_t bound = (strcmp(op, "<=") == 0) ? extClampMysqlUpperBound(pInfo, ts, boundPrecision) : ts;
+  streamReaderExtRenderTimeBound(pInfo, bound, boundPrecision, dt, sizeof(dt));
   return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt);
+}
+
+/* ============================================================
+ * EXT fetch time-range evaluation  -  mirrors vnodeStream.c
+ * processCalaTimeRange for the external-source reader.
+ * ============================================================ */
+
+/* Canonical empty fetch range: renders as "ts >= 1 AND ts <= 0" (no rows)
+ * without pushing extreme timestamps into the remote SQL. */
+#define EXT_FETCH_EMPTY_SKEY 1
+#define EXT_FETCH_EMPTY_EKEY 0
+
+static void extSetEmptyFetchRange(STimeWindow *pWin) {
+  pWin->skey = EXT_FETCH_EMPTY_SKEY;
+  pWin->ekey = EXT_FETCH_EMPTY_EKEY;
+}
+
+/* Evaluate the fetch range spanned by the window parameters in pParams[first..last]
+ * (start bound from pParams[first], end bound from pParams[last]).  pRt supplies the
+ * trigger type / precision; pParams, groupId and pPartColVals replace the request's
+ * own values on a local shallow copy so the scalar placeholders read this parameter
+ * set.  On success *pWin holds an inclusive [skey, ekey]; an empty range is
+ * reported as the canonical empty window and *pEmpty = true. */
+static int32_t extCalcParamsRange(STimeRangeNode *node, const SStreamRuntimeFuncInfo *pRt,
+                                  SArray *pParams, int64_t groupId, SArray *pPartColVals,
+                                  int32_t first, int32_t last, STimeWindow *pWin, bool *pEmpty) {
+  SSTriggerCalcParam *pFirst = taosArrayGet(pParams, first);
+  SSTriggerCalcParam *pLast  = taosArrayGet(pParams, last);
+  if (pFirst == NULL || pLast == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
+  if (!node->needCalc) {
+    win.skey = pFirst->wstart;
+    win.ekey = pLast->wend;
+    /* Sliding windows are half-open; the others already carry an inclusive end. */
+    if (pRt->triggerType == STREAM_TRIGGER_SLIDING && win.ekey != INT64_MIN) win.ekey--;
+  } else {
+    /* Time-returning expressions: evaluate the start bound with the first window
+     * parameter and the end bound with the last one. */
+    SStreamRuntimeFuncInfo tmp = *pRt;  // shallow view; never destroy tmp
+    tmp.isMultiGroupCalc      = false;
+    tmp.pStreamPesudoFuncVals = pParams;
+    tmp.pStreamPartColVals    = pPartColVals;
+    tmp.groupId               = groupId;
+    tmp.curIdx                = first;
+
+    STimeWindow cur   = {0};
+    bool        valid = false;
+    int32_t     code  = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 1);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    win.skey   = cur.skey;
+    tmp.curIdx = last;
+    code = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 2);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    /* streamCalcCurrWinTimeRange returns a half-open end; INT64_MAX = unbounded. */
+    win.ekey = cur.ekey;
+    if (win.ekey != INT64_MAX) {
+      if (win.ekey == INT64_MIN) {
+        /* The evaluated end bound collapsed to the sentinel: the window is
+         * invalid.  Fail loudly instead of silently fetching an empty range,
+         * mirroring vnodeCalculateNodeGroupReadRange's !currentValid ||
+         * current.ekey == INT64_MIN check. */
+        stError("ext: extCalcParamsRange evaluated end bound is INT64_MIN, invalid window");
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      }
+      win.ekey--;
+    }
+  }
+
+  *pEmpty = win.skey > win.ekey;
+  if (*pEmpty) {
+    extSetEmptyFetchRange(&win);
+  }
+  *pWin = win;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamReaderExtGetCalcInfo(const SStreamReaderTask *pTask, int32_t execId,
+                                  SStreamExtReaderInfo **ppReaderInfo) {
+  if (ppReaderInfo == NULL) {
+    stError("ext: calc reader lookup has NULL output, execId:%d", execId);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppReaderInfo = NULL;
+  if (pTask == NULL || pTask->triggerReader != 0 ||
+      !STREAM_IS_REF_EXT_SOURCE(pTask->task.flags)) {
+    stError("ext: calc reader lookup has invalid task:%p execId:%d",
+             pTask, execId);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pTask->info == NULL) {
+    stError("ext: calc reader has no local info, task:%" PRIx64,
+             pTask->task.taskId);
+    return TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO;
+  }
+  SArray *pReaders = pTask->info;
+  if (execId < 0 || (size_t)execId >= taosArrayGetSize(pReaders)) {
+    stError("ext: invalid calc execId:%d replicas:%zu task:%" PRIx64,
+             execId, taosArrayGetSize(pReaders), pTask->task.taskId);
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *ppReaderInfo = taosArrayGetP(pReaders, execId);
+  if (*ppReaderInfo == NULL) {
+    stError("ext: missing calc replica, execId:%d task:%" PRIx64,
+             execId, pTask->task.taskId);
+    return TSDB_CODE_STREAM_EXT_READER_NO_LOCAL_INFO;
+  }
+  stDebug("ext: selected calc reader execId:%d task:%" PRIx64 " info:%p",
+           execId, pTask->task.taskId, *ppReaderInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t streamReaderExtCalcFetchRange(SStreamExtReaderInfo *pReaderInfo,
+                                      const SStreamRuntimeFuncInfo *pRt,
+                                      int64_t *pSkey, int64_t *pEkey) {
+  if (pReaderInfo == NULL || pSkey == NULL || pEkey == NULL) {
+    stError("ext: streamReaderExtCalcFetchRange invalid args pInfo=%p pRt=%p",
+            pReaderInfo, pRt);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  /* Unbounded full scan: no time range, no window parameters, or an
+   * out-of-range window index. */
+  *pSkey = INT64_MIN;
+  *pEkey = INT64_MAX;
+
+  if (pRt == NULL || pReaderInfo->pCalcTimeRange == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STimeRangeNode *node  = (STimeRangeNode *)pReaderInfo->pCalcTimeRange;
+  STimeWindow     win   = {.skey = INT64_MIN, .ekey = INT64_MAX};
+  bool            empty = false;
+  int32_t         code  = TSDB_CODE_SUCCESS;
+  int32_t         nWin  = 0;
+
+  if (pRt->isMultiGroupCalc) {
+    /* Multi-group calc: the ext fetch carries every group's parameters in
+     * pGroupCalcInfos (pStreamPesudoFuncVals is not populated).  Bound the fetch
+     * with the union of the non-empty per-group [first, last] ranges - the ETR
+     * reads the whole external table, so this is the snode-side counterpart of
+     * vnodeCalculateNodeGroupReadRange without a per-vnode read scope. */
+    STimeWindow             combined = {.skey = INT64_MAX, .ekey = INT64_MIN};
+    bool                    any      = false;
+    int32_t                 iter     = 0;
+    SSTriggerGroupCalcInfo *pGrp     = tSimpleHashIterate(pRt->pGroupCalcInfos, NULL, &iter);
+    while (pGrp != NULL) {
+      const int32_t n = (int32_t)taosArrayGetSize(pGrp->pParams);
+      if (n > 0) {
+        const int64_t *pGid     = tSimpleHashGetKey(pGrp, NULL);
+        STimeWindow    current  = {0};
+        bool           curEmpty = false;
+        code = extCalcParamsRange(node, pRt, pGrp->pParams, *pGid, pGrp->pGroupColVals, 0, n - 1,
+                                  &current, &curEmpty);
+        if (code != TSDB_CODE_SUCCESS) break;
+        if (!curEmpty) {
+          combined.skey = TMIN(combined.skey, current.skey);
+          combined.ekey = TMAX(combined.ekey, current.ekey);
+          any           = true;
+        }
+        nWin += n;
+      }
+      pGrp = tSimpleHashIterate(pRt->pGroupCalcInfos, pGrp, &iter);
+    }
+    if (any) {
+      win = combined;
+    } else {
+      empty = true;
+      extSetEmptyFetchRange(&win);
+    }
+  } else {
+    SArray *vals = pRt->pStreamPesudoFuncVals;
+    nWin = (vals == NULL) ? 0 : (int32_t)taosArrayGetSize(vals);
+    if (nWin > 0) {
+      /* One calc request may carry multiple external windows: bound the fetch
+       * with the first window's start and the last window's end, exactly like
+       * processCalaTimeRange's withExternalWindow single-group branch.
+       * Otherwise only the current window is evaluated. */
+      const int32_t first = pRt->withExternalWindow ? 0 : pRt->curIdx;
+      const int32_t last  = pRt->withExternalWindow ? nWin - 1 : pRt->curIdx;
+      if (first < 0 || last >= nWin) {
+        stError("ext: streamReaderExtCalcFetchRange curIdx:%d out of range nWin:%d",
+                pRt->curIdx, nWin);
+        return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      }
+      code = extCalcParamsRange(node, pRt, vals, pRt->groupId, pRt->pStreamPartColVals, first, last,
+                                &win, &empty);
+    }
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("ext: streamReaderExtCalcFetchRange failed code:%d since %s",
+            code, tstrerror(code));
+    return code;
+  }
+  if (nWin <= 0) {
+    stDebug("ext: streamReaderExtCalcFetchRange no window params, full scan");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pSkey = win.skey;
+  *pEkey = win.ekey;
+  stDebug("ext: streamReaderExtCalcFetchRange needCalc:%d withExtWin:%d multiGroup:%d empty:%d skey:%" PRId64
+          " ekey:%" PRId64 " curIdx:%d nWin:%d",
+          node->needCalc, pRt->withExternalWindow, pRt->isMultiGroupCalc, empty, *pSkey, *pEkey, pRt->curIdx,
+          nWin);
+  return TSDB_CODE_SUCCESS;
 }
 
 /* ============================================================
@@ -4634,8 +5273,13 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
 
   const char *tsCol    = (pReaderInfo->spec.tsColumn[0] != '\0')
                            ? pReaderInfo->spec.tsColumn : "ts";
+  char tsColQ[EXT_IDENT_QUOTE_BUF_LEN] = {0};
+  code = extQuoteIdent(&pReaderInfo->spec, tsCol, tsColQ, sizeof(tsColQ));
+  if (code < 0) {
+    goto _exit;
+  }
 
-  char tblRef[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
+  char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
   code = buildExtTableRef(&pReaderInfo->spec, tblRef, sizeof(tblRef));
   if (code < 0) {
     goto _exit;
@@ -4678,19 +5322,30 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
   bool isInflux = ((EExtSourceType)pReaderInfo->spec.sourceType == EXT_SOURCE_INFLUXDB);
   int8_t boundPrecision = pReaderInfo->spec.precision;
   if (!extIsValidTimePrecision(boundPrecision)) {
-    ST_TASK_WLOG("ext: invalid calc fetch bound precision:%d, fallback to ns", boundPrecision);
-    boundPrecision = TSDB_TIME_PRECISION_NANO;
+    // Calc-only sources carry no trigger precision in the spec; keep the per-source fallback in
+    // line with the remote storage: Influx timestamps are nanoseconds, relational connectors
+    // expose microseconds.
+    boundPrecision = isInflux ? TSDB_TIME_PRECISION_NANO : TSDB_TIME_PRECISION_MICRO;
+    ST_TASK_WLOG("ext: invalid calc fetch bound precision:%d, fallback to %d",
+                 pReaderInfo->spec.precision, boundPrecision);
   }
   ST_TASK_DLOG("ext: streamReaderExtFetchData bounds skey:%" PRId64 " ekey:%" PRId64
                " precision:%d isInflux:%d aliasSelectItems:%d",
                skey, ekey, boundPrecision, isInflux, aliasSelectItems);
   if (ok && skey != INT64_MIN) {
-    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsCol, ">=", skey,
-                                 boundPrecision, isInflux);
+    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, ">=", skey,
+                                 boundPrecision, pReaderInfo, isInflux);
   }
   if (ok && ekey != INT64_MAX) {
-    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsCol, "<=", ekey,
-                                 boundPrecision, isInflux);
+    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, "<=", ekey,
+                                 boundPrecision, pReaderInfo, isInflux);
+  }
+  // External sources do not guarantee row order, and the trigger consumes calc rows with an
+  // ascending time cursor: order the fetch by the timestamp column like the relational uid
+  // fetch path (extBuildRelationalFetchSql) so an unordered remote result cannot drop rows
+  // or misplace them across windows.
+  if (ok) {
+    ok = extSqlCat(sql, sizeof(sql), &off, " ORDER BY %s ASC", tsColQ);
   }
   if (!ok) {
     ST_TASK_ELOG("ext: streamReaderExtFetchData SQL exceeds %d bytes, aborting fetch",
@@ -4702,8 +5357,19 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
   ST_TASK_DLOG("ext: streamReaderExtFetchData sql=\"%.200s\" nMappings=%d",
                sql, nMappings);
 
-  code = extQueryExecFetchAll(pReaderInfo->pConn, sql,
-                              (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+  if (pReaderInfo->borrowConn) {
+    /* Borrow a pooled connection just for this fetch (see borrowConn). */
+    SExtConnectorHandle *pConn = NULL;
+    code = extOpenReaderConnector(pTask, &pReaderInfo->spec, &pConn);
+    if (code != TSDB_CODE_SUCCESS) goto _exit;
+    code = extQueryExecFetchAll(pConn, pReaderInfo->timezone, sql, (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+    extConnectorClose(pConn);
+  } else {
+    (void)taosThreadMutexLock(&pReaderInfo->connLock);
+    code = extQueryExecFetchAll(pReaderInfo->pConn, pReaderInfo->timezone, sql,
+                                (SExtColTypeMapping *)pMappings, nMappings, ppOut);
+    (void)taosThreadMutexUnlock(&pReaderInfo->connLock);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: streamReaderExtFetchData failed code:%d", code);
     goto _exit;

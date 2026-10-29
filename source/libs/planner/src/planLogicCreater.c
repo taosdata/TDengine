@@ -947,6 +947,48 @@ static int32_t retainTemporalScanCandidates(SSelectStmt* pSelect,
                                             bool tags,
                                             SNodeList** ppCols);
 
+// True when every column referenced by a stream-calc SELECT time range belongs
+// to the table alias pAlias.  A range without column references (only window
+// placeholders such as _twstart/_twend) also qualifies: it carries no table
+// ownership and can be evaluated for any scan.
+//
+// For a temporal join such as
+//   FROM local a LEFT WINDOW JOIN ext.src b ...
+//   WHERE a.ts >= _twstart AND a.ts < _twend
+// the range is owned by a; pushing it onto b's scan would clip b rows that
+// still match within WINDOW_OFFSET, so b must stay unconstrained.
+static bool extTimeRangeOwnedByAlias(SNode* pTimeRange, const char* pAlias) {
+  if (NULL == pTimeRange || NULL == pAlias || '\0' == pAlias[0] ||
+      QUERY_NODE_TIME_RANGE != nodeType(pTimeRange)) {
+    return false;
+  }
+
+  // nodesWalkExpr does not descend into STimeRangeNode, so collect from the
+  // two bound expressions directly.
+  STimeRangeNode* pRange = (STimeRangeNode*)pTimeRange;
+  SNode*          bounds[2] = {pRange->pStart, pRange->pEnd};
+  SNodeList*      pCols = NULL;
+  if (TSDB_CODE_SUCCESS !=
+      nodesCollectColumnsFromMultiNodes(bounds, 2, NULL, COLLECT_COL_TYPE_ALL, &pCols)) {
+    return false;
+  }
+
+  bool owned = true;
+  SNode* pCol = NULL;
+  FOREACH(pCol, pCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pCol)) {
+      continue;
+    }
+    SColumnNode* pColumn = (SColumnNode*)pCol;
+    if (0 != strcmp(pColumn->tableAlias, pAlias)) {
+      owned = false;
+      break;
+    }
+  }
+  nodesDestroyList(pCols);
+  return owned;
+}
+
 
 // ---------------------------------------------------------------------------
 // createExternalScanLogicNode: builds an SScanLogicNode for an external table
@@ -975,6 +1017,21 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
                               pRealTable->table.tableName, &pScan);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
+  }
+
+  // Stream calc over an external source: keep the SELECT time range on the scan
+  // so the ETR can evaluate time-returning expressions (e.g. _twstart/_twend or
+  // casted localtime placeholders) per fetch, mirroring vnode processCalaTimeRange.
+  //
+  // In a temporal join the range may belong to the other side (e.g.
+  // "FROM local a LEFT WINDOW JOIN ext b ... WHERE a.ts >= _twstart AND
+  // a.ts < _twend"): carrying it onto b's scan would silently drop b rows that
+  // still match within WINDOW_OFFSET. Only scans owning the referenced columns
+  // carry the range; the other side stays unconstrained (full scan).
+  if (TSDB_CODE_SUCCESS == code && inStreamCalcClause(pCxt->pPlanCxt) &&
+      (NULL == pSelect->pTimeRange ||
+       extTimeRangeOwnedByAlias(pSelect->pTimeRange, pRealTable->table.tableAlias))) {
+    code = nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange);
   }
 
   pScan->scanSeq[0]  = pSelect->hasRepeatScanFuncs ? 2 : 1;
@@ -3786,7 +3843,8 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     created = true;
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
     pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
-    if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType) {
+    if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType ||
+        EXT_SOURCE_SQLSERVER == pExtTableNode->sourceType) {
       SExtTableNode* pScanTable = (SExtTableNode*)pExtScan->pExtTableNode;
       // Keep each condition group's slot identity distinct without changing the remote table name.
       snprintf(pScanTable->table.tableAlias, sizeof(pScanTable->table.tableAlias), "_vtb_ext_%d",
@@ -5856,8 +5914,10 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   // Add external scan nodes (one per external source) as children of VirtualTableScan
   {
     int32_t refCount = LIST_LENGTH(pVirtualTable->refTables);
-    for (int32_t i = 2; i < refCount; i++) {
-      SNode* pRefNode = nodesListGetNode(pVirtualTable->refTables, i);
+    SListCell* pRefTableCell = nodesListGetCell(pVirtualTable->refTables, 2);
+    for (int32_t i = 2; i < refCount;
+         i++, pRefTableCell = (NULL != pRefTableCell ? pRefTableCell->pNext : NULL)) {
+      SNode* pRefNode = (NULL != pRefTableCell ? pRefTableCell->pNode : NULL);
       if (NULL == pRefNode || nodeType(pRefNode) != QUERY_NODE_EXTERNAL_TABLE) continue;
 
       SExtTableNode*  pExtTableNode = (SExtTableNode*)pRefNode;
@@ -8143,6 +8203,7 @@ static int32_t createWindowLogicNodeByInterval(SLogicPlanContext* pCxt, SInterva
   }
 
   pWindow->winType = WINDOW_TYPE_INTERVAL;
+  pWindow->intervalLimitHint = getOptHint(pSelect->pHint, HINT_INTERVAL_LIMIT);
   pWindow->interval = ((SValueNode*)pInterval->pInterval)->datum.i;
   pWindow->intervalUnit = ((SValueNode*)pInterval->pInterval)->unit;
   pWindow->offset = (NULL != pInterval->pOffset ? ((SValueNode*)pInterval->pOffset)->datum.i : 0);
@@ -10301,35 +10362,102 @@ static int32_t createSetOpAggLogicNode(SLogicPlanContext* pCxt, SSetOperator* pS
   return code;
 }
 
-static int32_t createSetOpLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, SLogicNode** pLogicNode) {
-  SLogicNode* pSetOp = NULL;
-  int32_t     code = TSDB_CODE_SUCCESS;
-  switch (pSetOperator->opType) {
-    case SET_OP_TYPE_UNION_ALL:
-      code = createSetOpProjectLogicNode(pCxt, pSetOperator, &pSetOp);
-      break;
-    case SET_OP_TYPE_UNION:
-      code = createSetOpAggLogicNode(pCxt, pSetOperator, &pSetOp);
-      break;
-    default:
-      code = TSDB_CODE_FAILED;
-      break;
+// A set operator's projections keep the declared widths, while an operand's plan may
+// have widened its varlen columns to the source widths (see widenVirtualScanCols).  The
+// dispatcher requires every incoming block's rowSize to equal the schema totalRowSize
+// exactly, so one widened operand fails the whole query with QRY_INVALID_INPUT.  Varlen
+// output columns must therefore carry a single width across the whole set-op subtree.
+// Every node involved (set-op targets/projections, sort keys, agg group keys) is cloned
+// from pSetOperator->pProjectionList, so widening that ONE list before any clone is
+// taken makes the entire subtree consistent; the operands' own top projections must be
+// widened too because they size the blocks each operand emits.
+static void widenSetOpProjectionsByChildren(SSetOperator* pSetOperator, SNodeList* pChildren) {
+  if (NULL == pSetOperator->pProjectionList || NULL == pChildren) {
+    return;
   }
+  int32_t colIdx = 0;
+  SNode*  pProj = NULL;
+  FOREACH(pProj, pSetOperator->pProjectionList) {
+    if (QUERY_NODE_COLUMN == nodeType(pProj) && IS_VAR_DATA_TYPE(((SColumnNode*)pProj)->node.resType.type)) {
+      int32_t maxBytes = ((SColumnNode*)pProj)->node.resType.bytes;
+      SNode*  pChild = NULL;
+      FOREACH(pChild, pChildren) {
+        SNode* pChildTarget = nodesListGetNode(((SLogicNode*)pChild)->pTargets, colIdx);
+        if (NULL != pChildTarget && QUERY_NODE_COLUMN == nodeType(pChildTarget) &&
+            IS_VAR_DATA_TYPE(((SColumnNode*)pChildTarget)->node.resType.type) &&
+            ((SColumnNode*)pChildTarget)->node.resType.bytes > maxBytes) {
+          maxBytes = ((SColumnNode*)pChildTarget)->node.resType.bytes;
+        }
+      }
+      ((SColumnNode*)pProj)->node.resType.bytes = maxBytes;
+      // An operand narrower than the maximum must still emit blocks as wide as the
+      // set-op now declares, so widen its own top projections and targets as well.
+      FOREACH(pChild, pChildren) {
+        SLogicNode* pChildLogic = (SLogicNode*)pChild;
+        SNode*      pChildTarget = nodesListGetNode(pChildLogic->pTargets, colIdx);
+        if (NULL != pChildTarget && QUERY_NODE_COLUMN == nodeType(pChildTarget) &&
+            IS_VAR_DATA_TYPE(((SColumnNode*)pChildTarget)->node.resType.type)) {
+          ((SColumnNode*)pChildTarget)->node.resType.bytes = maxBytes;
+        }
+        if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild)) {
+          SNode* pChildProj = nodesListGetNode(((SProjectLogicNode*)pChild)->pProjections, colIdx);
+          if (NULL != pChildProj && QUERY_NODE_COLUMN == nodeType(pChildProj) &&
+              IS_VAR_DATA_TYPE(((SColumnNode*)pChildProj)->node.resType.type)) {
+            ((SColumnNode*)pChildProj)->node.resType.bytes = maxBytes;
+          }
+        }
+      }
+    }
+    ++colIdx;
+  }
+}
 
+static int32_t createSetOpLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetOperator, SLogicNode** pLogicNode) {
+  // Build the operands first: their plans know the real (widened) varlen widths.  Then
+  // widen the projection list before the set-op node clones it, so the set-op targets,
+  // the operand blocks and every later clone (sort keys, agg group keys) agree on one
+  // width per output column (see widenSetOpProjectionsByChildren).
+  SNodeList* pChildren = NULL;
+  int32_t    code = nodesMakeList(&pChildren);
   for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < setOperatorChildCount(pSetOperator); ++i) {
     SLogicNode* pChild = NULL;
     code = createQueryLogicNode(pCxt, setOperatorChildAt(pSetOperator, i), &pChild);
     if (TSDB_CODE_SUCCESS == code) {
-      code = nodesListMakeStrictAppend(&pSetOp->pChildren, (SNode*)pChild);
+      code = nodesListStrictAppend(pChildren, (SNode*)pChild);
     }
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    widenSetOpProjectionsByChildren(pSetOperator, pChildren);
+  }
+
+  SLogicNode* pSetOp = NULL;
+  if (TSDB_CODE_SUCCESS == code) {
+    switch (pSetOperator->opType) {
+      case SET_OP_TYPE_UNION_ALL:
+        code = createSetOpProjectLogicNode(pCxt, pSetOperator, &pSetOp);
+        break;
+      case SET_OP_TYPE_UNION:
+        code = createSetOpAggLogicNode(pCxt, pSetOperator, &pSetOp);
+        break;
+      default:
+        code = TSDB_CODE_FAILED;
+        break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    // Ownership of the operand list moves to the set-op node; pChildren is cleared so
+    // the destroy below never frees nodes the set-op node now owns.
+    pSetOp->pChildren = pChildren;
+    pChildren = NULL;
     pSetOp->precision = pSetOperator->precision;
     *pLogicNode = (SLogicNode*)pSetOp;
   } else {
     nodesDestroyNode((SNode*)pSetOp);
   }
+  // Non-NULL only on the error path: releases the operands built before the failure.
+  nodesDestroyList(pChildren);
 
   return code;
 }

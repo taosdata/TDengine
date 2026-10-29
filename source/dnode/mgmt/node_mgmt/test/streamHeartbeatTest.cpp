@@ -29,15 +29,110 @@ void    __real_rpcFreeCont(void*);
 namespace {
 std::vector<SRpcInit> registrations;
 void*                 trackedBody = nullptr;
+void*                 queuedWrapper = nullptr;
 int32_t               bodyFrees = 0;
 int32_t               queued = 0;
 int32_t               processed = 0;
 int32_t               processedGid = -1;
 int32_t               errorCalls = 0;
 int32_t               lastError = 0;
+int32_t               responseCode = 0;
+int32_t               requestCalls = 0;
+int32_t               requestCode = 0;
+void*                 requestTransport = nullptr;
+const SEpSet*         requestEpSet = nullptr;
+SRpcMsg*              requestMsg = nullptr;
+
+class StreamStartupTest : public testing::Test {
+ protected:
+  SRpcMsg       msg = {};
+  SEpSet        epSet = {};
+  EDndRunStatus savedStatus = DND_STAT_INIT;
+  void*         savedClientRpc = nullptr;
+
+  void SetUp() override {
+    SMsgCb callbacks = {};
+    tmsgSetDefault(&callbacks);
+    savedStatus = dmInstance()->status;
+    savedClientRpc = dmInstance()->trans.clientRpc;
+    dmInstance()->status = DND_STAT_INIT;
+    dmInstance()->trans.clientRpc = nullptr;
+    requestCalls = requestCode = bodyFrees = 0;
+    requestTransport = nullptr;
+    requestEpSet = nullptr;
+    requestMsg = nullptr;
+    msg.msgType = TDMT_MND_STREAM_HEARTBEAT;
+    msg.contLen = sizeof(SStreamMsgGrpHeader);
+    msg.pCont = rpcMallocCont(msg.contLen);
+    ASSERT_NE(msg.pCont, nullptr);
+    trackedBody = msg.pCont;
+  }
+
+  void TearDown() override {
+    rpcFreeCont(msg.pCont);
+    trackedBody = nullptr;
+    dmInstance()->status = savedStatus;
+    dmInstance()->trans.clientRpc = savedClientRpc;
+    SMsgCb callbacks = {};
+    tmsgSetDefault(&callbacks);
+  }
+
+  void registerDnodeCallbacks() {
+    SMsgCb callbacks = dmGetMsgcb(dmInstance());
+    tmsgSetDefault(&callbacks);
+  }
+};
+
+TEST_F(StreamStartupTest, HeartbeatBeforeCallbackRegistrationIsReleased) {
+  EXPECT_EQ(tmsgSendReq(&epSet, &msg), TSDB_CODE_APP_IS_STARTING);
+  EXPECT_EQ(msg.pCont, nullptr);
+  EXPECT_EQ(bodyFrees, 1);
+  EXPECT_EQ(requestCalls, 0);
+}
+
+TEST_F(StreamStartupTest, HeartbeatDuringDnodeInitializationIsReleased) {
+  registerDnodeCallbacks();
+  EXPECT_EQ(tmsgSendReq(&epSet, &msg), TSDB_CODE_APP_IS_STARTING);
+  EXPECT_EQ(msg.pCont, nullptr);
+  EXPECT_EQ(bodyFrees, 1);
+  EXPECT_EQ(requestCalls, 0);
+}
+
+TEST_F(StreamStartupTest, HeartbeatAfterDnodeStopsIsReleased) {
+  registerDnodeCallbacks();
+  dmInstance()->status = DND_STAT_STOPPED;
+  EXPECT_EQ(tmsgSendReq(&epSet, &msg), TSDB_CODE_APP_IS_STOPPING);
+  EXPECT_EQ(msg.pCont, nullptr);
+  EXPECT_EQ(bodyFrees, 1);
+  EXPECT_EQ(requestCalls, 0);
+}
+
+TEST_F(StreamStartupTest, HeartbeatAfterStartupUsesCurrentTransport) {
+  registerDnodeCallbacks();
+  dmInstance()->status = DND_STAT_RUNNING;
+  dmInstance()->trans.clientRpc = &epSet;
+  EXPECT_EQ(tmsgSendReq(&epSet, &msg), 0);
+  EXPECT_EQ(requestCalls, 1);
+  EXPECT_EQ(requestTransport, &epSet);
+  EXPECT_EQ(requestEpSet, &epSet);
+  EXPECT_EQ(requestMsg, &msg);
+  EXPECT_EQ(bodyFrees, 0);
+  EXPECT_EQ(msg.pCont, trackedBody);
+}
+
+TEST_F(StreamStartupTest, FailedHeartbeatSendReleasesBody) {
+  registerDnodeCallbacks();
+  dmInstance()->status = DND_STAT_RUNNING;
+  requestCode = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  EXPECT_EQ(tmsgSendReq(&epSet, &msg), TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  EXPECT_EQ(requestCalls, 1);
+  EXPECT_EQ(msg.pCont, nullptr);
+  EXPECT_EQ(bodyFrees, 1);
+}
 
 int32_t captureNodeQueue(void*, SRpcMsg* msg) {
   ++queued;
+  queuedWrapper = msg->info.wrapper;
   rpcFreeCont(msg->pCont);
   taosFreeQitem(msg);
   return 0;
@@ -78,27 +173,36 @@ class StreamHeartbeatTest : public testing::Test {
   SDnode  node = {};
   int32_t savedRpcThreads = 0;
   int32_t savedMgmtThreads = 0;
+  int64_t savedQueueMemoryAllowed = 0;
   void    SetUp() override {
     registrations.clear();
     trackedBody = nullptr;
+    queuedWrapper = nullptr;
     bodyFrees = queued = processed = errorCalls = lastError = 0;
+    responseCode = 0;
     processedGid = -1;
     savedRpcThreads = tsNumOfRpcThreads;
     savedMgmtThreads = tsNumOfStreamMgmtThreads;
+    savedQueueMemoryAllowed = tsQueueMemoryAllowed;
     tsNumOfRpcThreads = 8;
     tsNumOfStreamMgmtThreads = 3;
+    tsQueueMemoryAllowed = 1024 * 1024;
     node.status = DND_STAT_RUNNING;
     auto& wrapper = node.wrappers[DNODE];
     wrapper.name = "heartbeat-test";
     wrapper.pDnode = &node;
-    for (int32_t type : {TDMT_MND_STREAM_HEARTBEAT_RSP, TDMT_MND_STATUS_RSP}) {
+    for (int32_t type : {TDMT_MND_STREAM_HEARTBEAT_RSP, TDMT_MND_STATUS_RSP, TDMT_STREAM_SYNC_CHECKPOINT_RSP,
+                            TDMT_STREAM_TRIGGER_CALC}) {
+      // Start from DNODE so a valid routing header must explicitly select SNODE.
       node.trans.msgHandles[TMSG_INDEX(type)].defaultNtype = DNODE;
       wrapper.msgFps[TMSG_INDEX(type)] = captureNodeQueue;
     }
+    node.trans.msgHandles[TMSG_INDEX(TDMT_STREAM_TRIGGER_CALC)].needCheckVgId = true;
   }
   void TearDown() override {
     tsNumOfRpcThreads = savedRpcThreads;
     tsNumOfStreamMgmtThreads = savedMgmtThreads;
+    tsQueueMemoryAllowed = savedQueueMemoryAllowed;
   }
   void registerCallbacks() {
     ASSERT_EQ(dmInitClient(&node), 0);
@@ -133,6 +237,58 @@ TEST_F(StreamHeartbeatTest, ServerHeartbeatErrorCannotUpdateErrorState) {
   EXPECT_EQ(errorCalls, 0);
   EXPECT_EQ(bodyFrees, 1);
 }
+TEST_F(StreamHeartbeatTest, ServerCheckpointResponseIsFreedBeforeManagementQueue) {
+  registerCallbacks();
+  HeartbeatMessage response;
+  response.msg.msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP;
+  registrations[3].cfp(&node, &response.msg, nullptr);
+  EXPECT_EQ(queued, 0);
+  EXPECT_EQ(bodyFrees, 1);
+}
+TEST_F(StreamHeartbeatTest, ClientCheckpointResponseStillUsesManagementQueue) {
+  registerCallbacks();
+  HeartbeatMessage response;
+  response.msg.msgType = TDMT_STREAM_SYNC_CHECKPOINT_RSP;
+  registrations[0].cfp(&node, &response.msg, nullptr);
+  EXPECT_EQ(queued, 1);
+  EXPECT_EQ(bodyFrees, 1);
+}
+TEST_F(StreamHeartbeatTest, RunnerRequestRejectsTruncatedRoutingHeader) {
+  registerCallbacks();
+  for (int32_t length = -1; length < 8; ++length) {
+    HeartbeatMessage request;
+    bodyFrees = queued = responseCode = 0;
+    request.msg.msgType = TDMT_STREAM_TRIGGER_CALC;
+    request.msg.contLen = length;
+    registrations[3].cfp(&node, &request.msg, nullptr);
+    EXPECT_EQ(queued, 0);
+    EXPECT_EQ(bodyFrees, 1);
+    EXPECT_EQ(responseCode, TSDB_CODE_INVALID_MSG_LEN);
+  }
+}
+TEST_F(StreamHeartbeatTest, RunnerRequestWithValidRoutingHeaderUsesSnodeQueue) {
+  registerCallbacks();
+  auto& wrapper = node.wrappers[SNODE];
+  wrapper.name = "snode-routing-test";
+  wrapper.pDnode = &node;
+  wrapper.msgFps[TMSG_INDEX(TDMT_STREAM_TRIGGER_CALC)] = captureNodeQueue;
+
+  HeartbeatMessage request;
+  ASSERT_NE(request.msg.pCont, nullptr);
+  ASSERT_GE(request.msg.contLen, static_cast<int32_t>(sizeof(SMsgHead)));
+  request.msg.msgType = TDMT_STREAM_TRIGGER_CALC;
+  request.msg.contLen = sizeof(SMsgHead);
+  SMsgHead header = {};
+  header.contLen = htonl(request.msg.contLen);
+  header.vgId = htonl(SNODE_HANDLE);
+  memcpy(request.msg.pCont, &header, sizeof(header));
+
+  registrations[3].cfp(&node, &request.msg, nullptr);
+  EXPECT_EQ(queuedWrapper, &wrapper);
+  EXPECT_EQ(queued, 1);
+  EXPECT_EQ(bodyFrees, 1);
+  EXPECT_EQ(responseCode, 0);
+}
 TEST_F(StreamHeartbeatTest, ClientHeartbeatStillUsesManagementQueue) {
   registerCallbacks();
   HeartbeatMessage response;
@@ -140,11 +296,23 @@ TEST_F(StreamHeartbeatTest, ClientHeartbeatStillUsesManagementQueue) {
   EXPECT_EQ(queued, 1);
   EXPECT_EQ(bodyFrees, 1);
 }
-TEST_F(StreamHeartbeatTest, OtherServerResponseKeepsSharedRouting) {
+TEST_F(StreamHeartbeatTest, OtherServerResponseIsDroppedToo) {
+  // The server listener used to drop only TDMT_MND_STREAM_HEARTBEAT_RSP, so any other response
+  // type was routed like a request and a peer could forge mnode replies. dmProcessServerRpcMsg
+  // now rejects every response type; responses belong to the client transport.
   registerCallbacks();
   HeartbeatMessage response;
   response.msg.msgType = TDMT_MND_STATUS_RSP;
   registrations[3].cfp(&node, &response.msg, nullptr);
+  EXPECT_EQ(queued, 0);
+  EXPECT_EQ(bodyFrees, 1);
+}
+
+TEST_F(StreamHeartbeatTest, ClientStatusResponseKeepsSharedRouting) {
+  registerCallbacks();
+  HeartbeatMessage response;
+  response.msg.msgType = TDMT_MND_STATUS_RSP;
+  registrations[0].cfp(&node, &response.msg, nullptr);
   EXPECT_EQ(queued, 1);
   EXPECT_EQ(bodyFrees, 1);
 }
@@ -224,6 +392,19 @@ void* __wrap_rpcOpen(const SRpcInit* init) {
 void __wrap_rpcFreeCont(void* body) {
   if (body != nullptr && body == trackedBody) ++bodyFrees;
   __real_rpcFreeCont(body);
+}
+int32_t __wrap_rpcSendRequest(void* transport, const SEpSet* epSet, SRpcMsg* msg, int64_t*) {
+  ++requestCalls;
+  requestTransport = transport;
+  requestEpSet = epSet;
+  requestMsg = msg;
+  // Keep the body pending until the fixture tears down, as an asynchronous send would.
+  return requestCode;
+}
+int32_t __wrap_rpcSendResponse(const SRpcMsg* msg) {
+  responseCode = msg->code;
+  rpcFreeCont(msg->pCont);
+  return 0;
 }
 int32_t __wrap_dmMarkWrapper(SMgmtWrapper*) { return 0; }
 void    __wrap_dmReleaseWrapper(SMgmtWrapper*) {}

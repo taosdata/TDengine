@@ -29,6 +29,7 @@
 #include "tobjpool.h"
 #include "tringbuf.h"
 #include "tsimplehash.h"
+#include "ttrace.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -257,7 +258,15 @@ typedef struct SSTriggerRealtimeGroup {
   TD_DLIST_NODE(SSTriggerRealtimeGroup);
 
   SSHashObj *pWalMetas;  // Virtual: reader key; non-virtual: vgId
+  // Virtual EXT trigger readers only: consumed ekey per reader key. INT64_MIN
+  // marks a reader that has been seen but has nothing consumed yet. Lets a
+  // reader that has not yet delivered rows past the group threshold accept its
+  // full first range instead of being clipped by [oldThreshold+1, newThreshold].
+  SSHashObj *pReaderConsumedEkeys;
   SObjList   tableUids;  // Virtual: slice ref; non-virtual: {uid, vgId}
+  // Dedup set mirroring the virtual slice refs appended to tableUids; cleared
+  // together with the list so the append path stays O(1) instead of rescanning.
+  SSHashObj *pSeenTableUids;
   int64_t    oldThreshold;
   int64_t    newThreshold;
 
@@ -521,11 +530,20 @@ typedef struct SSTriggerExtProgress {
                                          // trigger-side watermark map; sent on
                                          // every PULL so reader never stores it.
   SSHashObj       *recoveryCheckpointMaxTs;  // SSHashObj<int64_t uid, int64_t maxTs>;
-                                             // checkpoint-safe completed cutoff; restored
-                                             // during recovery and advanced only by bootstrap
-                                             // or successful calc completion, never by META_EXT scans.
+                                             // FROZEN per-run recovery boundary: restored from the
+                                             // checkpoint (or bootstrap) and never advanced afterwards.
+                                             // The recovery filter dedups only rows below this boundary.
   SSHashObj       *recoveryCheckpointGroupMaxTs;  // SSHashObj<(registryEntryId, virtualGid), int64_t maxTs>;
-                                                   // per-group cutoff used for virtual external bindings.
+                                                   // frozen per-group recovery boundary for virtual external
+                                                   // bindings, same lifecycle as recoveryCheckpointMaxTs.
+  SSHashObj       *pCompletedCutoffMaxTs;    // SSHashObj<int64_t registryEntryId, int64_t maxTs>;
+                                             // rolling completed-cutoff advanced by successful calc
+                                             // completion (stRealtimeContextUpdateExtCompletedCutoffForGroup);
+                                             // serialized at checkpoint generation and restored into the
+                                             // frozen recovery maps on the next restart.
+  SSHashObj       *pCompletedCutoffGroupMaxTs;  // SSHashObj<(registryEntryId, virtualGid), int64_t maxTs>;
+                                                // per-group rolling completed-cutoff, mirrors the frozen
+                                                // per-group map.
   SSHashObj       *pUidWindow;           // SSHashObj<int64_t uid, SExtUidWindow>;
                                          // uid -> {skey,ekey} collected from the latest
                                          // META_EXT response; sent with DATA_EXT pull;
@@ -571,6 +589,8 @@ typedef struct SSTriggerExtProgress {
   int32_t          pendingCalcPulls;     // in-flight CALC_DATA_EXT counter for this EXT reader.
   int8_t           watermarkState;       // ESTriggerReaderWatermarkState.
   void            *pullReq;              // in-flight pull request handle, or NULL
+  STraceId         inFlightPullTraceId;  // Trace id of the sole pull, or zero after pulls overlap.
+                                         // Used only for teardown logging; not persisted or in heartbeat.
   ESTriggerPullType pullType;            // last in-flight pull type; used when
                                          // reader returns NO_DATA without payload.
   struct SStreamTriggerTask *pOwnerTask; // back ref for async PULL callback
@@ -632,6 +652,10 @@ typedef struct SSTriggerExtOrigTableRef {
   char   *tagCondJson;
   char   *canonicalKey;
   SArray *bindings;  // SArray<SSTriggerExtOrigTableBinding>
+  // virtualGid -> SArray<SSTriggerExtOrigTableBinding*>: lazily built index over bindings so a
+  // per-group lookup is O(1) instead of rescanning every binding. Cleared on destroy and when
+  // bindings are appended (patch merge), then rebuilt on next use.
+  SSHashObj *pGidToBindings;
 } SSTriggerExtOrigTableRef;
 
 typedef struct SSTriggerVTablePatchContext {
@@ -654,10 +678,19 @@ struct SSTriggerRealtimeContext {
   uint64_t                   nextNestedInputGeneration;
   ESTriggerWalMode           walMode;
   ESTriggerContextStatus     status;
+  // A name lookup suspends this context until its group-value response is cached.
+  bool                       notifyGroupColValuePending;
+  int64_t                    notifyGroupColValueGid;
+  // 0, STRIGGER_PULL_WAL_META_NEW or STRIGGER_PULL_WAL_META_DATA_NEW.
+  int8_t notifyIdleContinuation;
 
   SSHashObj                  *pReaderWalProgress;  // SSHashObj<vgId, SSTriggerWalProgress>
   SSHashObj                  *pReaderExtProgress;  // SSHashObj<int64_t taskId, SSTriggerExtProgress*>; NULL until P3 producer is introduced (DS section 6.1.3)
   SSTriggerExtProgress        *pRetiredExtProgress;
+  // gid -> SArray<SSTriggerExtOrigTableRef*> of the task's refs carrying a binding for the gid.
+  // Lazy cache so a single-group completed-cutoff update is O(refs-of-group) instead of rescanning
+  // every registry per group; invalidated when the task's refs array is replaced (registry patch).
+  SSHashObj                   *pGidToExtRefs;
   int32_t                     curReaderIdx;
   bool                        catchUp;  // whether all readers have caught up the latest wal data
   bool                        continueToFetch;
@@ -693,6 +726,7 @@ struct SSTriggerRealtimeContext {
   SSTriggerNewVtableMerger    *pMerger;
   SArray                      *pParentWindows;  // SArray<SSTriggerNotifyWindow>, valid parent windows in this round
   SArray                      *pWindows;        // SArray<SSTriggerNotifyWindow>, valid windows in this round
+  SSHashObj                   *pSparseWindows;  // pending sliding windows, retained across pseudo-column pulls
   SArray                      *pNotifyParams;   // SArray<SSTriggerCalcParam>
   STimeWindow                  calcRange;
   SSTriggerCalcParam          *pCurParam;
@@ -700,6 +734,9 @@ struct SSTriggerRealtimeContext {
   int64_t                      lastSentWinEnd;
   bool                         calcWalPulled;
   SObjList                     pAllCalcTableUids;  // SObjList<{uid, vgId}>
+  // Dedup set mirroring the virtual slice refs appended to pAllCalcTableUids;
+  // cleared together with the list so the append path stays O(1) per binding.
+  SSHashObj                   *pSeenCalcTableUids;
   SObjList                     pCalcTableUids;     // SObjList<{uid, vgId}>
   SSTriggerNewTimestampSorter *pCalcSorter;
   SSTriggerNewVtableMerger    *pCalcMerger;
@@ -747,6 +784,9 @@ typedef struct SSTriggerHistoryContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
+  // A name lookup suspends this context until its group-value response is cached.
+  bool                       notifyGroupColValuePending;
+  int64_t                    notifyGroupColValueGid;
 
   int64_t              gid;
   STimeWindow          scanRange;
@@ -896,6 +936,13 @@ typedef struct SSTriggerGroupPendingRecalc {
   SSTriggerRecalcReqList pendingRequests;
 } SSTriggerGroupPendingRecalc;
 
+typedef enum {
+  STREAM_CHECKPOINT_SYNC_PENDING = 0,
+  STREAM_CHECKPOINT_SYNC_READY = 1,
+  STREAM_CHECKPOINT_SYNC_RETRY = 2,
+  STREAM_CHECKPOINT_SYNC_CORRUPTED = 3,
+} EStreamCheckpointSyncState;
+
 typedef struct SStreamTriggerTask {
   SStreamTask                       task;
   SStreamTaskStats                 *pStats;
@@ -957,6 +1004,7 @@ typedef struct SStreamTriggerTask {
   bool    isVirtualTable;
   bool    isSuperTable;
   bool    stbPartByTbname;
+  bool               partitionByTbname;  // Actual partition expression, including direct child sources.
   bool    ignoreNoDataTrigger;
   bool    hasTriggerFilter;
   int8_t  precision;
@@ -1012,6 +1060,7 @@ typedef struct SStreamTriggerTask {
   SArray      *pNestedCalcCacheProjection;  // SArray<SStreamDataCacheColumnProjection>
   SRWLatch     virTableInfoLock;
   SSHashObj   *pVirtTableInfos;  // SSHashObj<vtbUid, SSTriggerVirtTableInfo>
+  SSHashObj   *pInternalGroupIndex;  // Derived gid-to-internal-reader summary; invalidated with virtual metadata.
   SSHashObj   *pOrigTableInfos;  // SSHashObj<otbUid, SSTriggerOrigTableInfo>
   // virtual table info response
   bool       virTableInfoReady;
@@ -1044,7 +1093,7 @@ typedef struct SStreamTriggerTask {
   SStreamRecalcTracker *pRecalcTracker;
 
   // runtime status
-  volatile int8_t           isCheckpointReady;
+  volatile int8_t           checkpointSyncState;
   volatile int8_t           historyFinished;
   volatile int8_t           realtimeStarted;
   volatile int32_t          checkpointVersion;
@@ -1116,6 +1165,18 @@ int32_t     stTriggerTaskValidateExtHistory(const SStreamTriggerTask *pTask);
 int32_t     stTriggerTaskMergeExtRegistryPatch(SSTriggerRealtimeContext *pContext);
 int32_t     stTriggerTaskPrepareExtRegistryPatch(SSTriggerRealtimeContext *pContext);
 SStreamProgressRange stTriggerTaskProgressRangeFromClosed(STimeWindow range);
+/* Frozen per-binding recovery boundary (in task precision) used to clamp replayed EXT trigger metas
+ * after a checkpoint restore, so rows a group already committed cannot re-enter its window state.
+ * Returns INT64_MIN when no checkpoint-restored boundary applies. */
+int64_t     stRealtimeContextExtTriggerRecoveryCutoff(const SSTriggerRealtimeContext *pContext,
+                                                      const SSTriggerExtOrigTableRef *pRef,
+                                                      const SSTriggerExtOrigTableBinding *pBinding,
+                                                      const SSTriggerExtProgress *pProgress);
+/* O(1) lookup of pRef's bindings belonging to gid via the lazily built per-ref gid index.
+ * Returns TSDB_CODE_SUCCESS with *ppBindings == NULL when the ref has no binding for gid; the
+ * returned array must not be modified by the caller. Index build failures are returned as an
+ * error code and must be propagated instead of being treated as "no bindings". */
+int32_t     stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef *pRef, int64_t gid, SArray **ppBindings);
 
 #ifdef __cplusplus
 }

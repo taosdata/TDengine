@@ -20,6 +20,7 @@ The TDengine image is launched with HTTP service activated by default. Use the f
 
 ```shell
 docker run -d --name tdengine \
+--hostname tdengine -e TAOS_FQDN=tdengine \
 -v ~/data/taos/dnode/data:/var/lib/taos \
 -v ~/data/taos/dnode/log:/var/log/taos \
 -p 6041:6041 tdengine/tsdb-ee
@@ -51,6 +52,20 @@ Query OK, 2 rows in database (0.033802s)
 
 Within the container, TDengine CLI or various connectors (such as JDBC-JNI) connect to the server via the container's hostname. Accessing TDengine inside the container from outside is more complex, and using RESTful/WebSocket connection methods is the simplest approach.
 
+## Preserve Node Identity When Recreating Containers {#preserve-node-identity}
+
+For new images built using image installation mode, TDengine defaults to the runtime container hostname when `fqdn` is not specified through `TAOS_FQDN` or a configuration file. The build container hostname is not retained. `--hostname` (short form `-h`) sets the container hostname; `--name` only sets the container name. Docker generates a hostname if `--hostname` is omitted.
+
+For a fresh deployment, explicitly set a stable hostname and `TAOS_FQDN` as shown above. Restarting the same container normally retains its hostname, but recreating it can change an automatically generated hostname. When reusing a data directory or upgrading the image, retain the original node FQDN. Historical images may use `localhost` or another value; do not replace it with the example value `tdengine`.
+
+Before deleting the old container, record the node endpoint:
+
+```shell
+docker exec tdengine taos -s "show dnodes;"
+```
+
+For example, if the original endpoint is `old-node:6030`, mount the same data directory and use `--hostname old-node -e TAOS_FQDN=old-node` when recreating the container, retaining the original port configuration. Other nodes in a cluster must also be able to resolve and reach that address. Do not manually edit node identity files in the data directory.
+
 ## Starting TDengine in host network mode
 
 Run the following command to start TDengine in host network mode, which allows using the host's FQDN to establish connections, rather than using the container's hostname.
@@ -75,7 +90,7 @@ Query OK, 1 rows in database (0.010654s)
 
 :::note
 
-- After version `v3.3.6.0`, the default `fqdn` has changed from `buildkitsandbox` to `localhost`. If it is a fresh start, there will be no issues. However, if it is an upgrade start, when running the container, you need to specify the previous `fqdn` with `-e TAOS_FQDN=<old_value>` and `-h <old_value>`, otherwise it may fail to start.
+- Default FQDN values vary across historical images. When upgrading or reusing a data directory, retain the original node FQDN as described in [Preserve Node Identity When Recreating Containers](#preserve-node-identity).
 - For root password changes, image upgrades, or `taos-check` behavior, follow the version-specific rules described earlier in this section.
 
 :::
@@ -85,6 +100,7 @@ Use the following command to establish a connection on a specified hostname usin
 ```shell
 docker run -d \
    --name tdengine \
+   --hostname tdengine \
    -e TAOS_FQDN=tdengine \
    -p 6030:6030 \
    -p 6041-6049:6041-6049 \

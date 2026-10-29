@@ -62,6 +62,32 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* toke
     }
   }
 
+  // Killing another user's queries/connections and altering roles (granting or
+  // revoking privileges) are cluster-management operations that must be performed
+  // by the superuser only. In the community build mndCheckOperPrivilege previously
+  // only special-cased CREATE_FUNC/DROP_FUNC/FLUSH_MNODE, so any enabled account
+  // could kill arbitrary sessions (denial of service) or rewrite role grants
+  // (privilege escalation) -- the KILL/ALTER ROLE gaps reported in item 282.
+  if (operType == MND_OPER_KILL_QUERY || operType == MND_OPER_KILL_CONN ||
+      operType == MND_OPER_ALTER_ROLE) {
+    if (!pUser->superUser) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
+  // ASSIGN LEADER FORCE (security finding 270) is a cluster-wide disaster-recovery operation:
+  // it hands leadership of every 2-replica vgroup to an arbitrary online member with force=true,
+  // which on the vnode side bypasses the arbitrator member-token comparison and makes the forced
+  // replica commit without quorum. Like FLUSH MNODE it must be limited to cluster administrators,
+  // so it is gated on the sysinfo flag (super users always pass). Note that merely reaching this
+  // point already proves the asserted user exists and is enabled (mndAcquireUser above), which
+  // the previously unprotected TDMT_MND_ARB_ASSIGN_LEADER handler did not even require.
+  if (operType == MND_OPER_ASSIGN_LEADER) {
+    if ((!pUser->superUser) && (!pUser->sysInfo)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
 _OVER:
   mndReleaseUser(pMnode, pUser);
   TAOS_RETURN(code);
@@ -122,7 +148,37 @@ _OVER:
   }
   TAOS_RETURN(code);
 }
-int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) { return 0; }
+int32_t mndCheckTotpSecretPrivilege(SMnode* pMnode, const char *opUser, const char* opToken, SUserObj *pUser, EPrivType privType) {
+  int32_t   code = 0, lino = 0;
+  SUserObj *pOperUser = NULL;
+
+  // A TOTP secret is a per-principal second factor. In the community build this
+  // helper used to unconditionally return success, so ANY enabled account could
+  // rotate or drop ANOTHER user's TOTP secret (disabling that principal's 2FA or
+  // taking over its binding). Enforce the documented model: a superuser may
+  // manage any principal's TOTP secret; a non-superuser may only manage their
+  // own (mirroring the self-only password-change rule in mndCheckAlterUserPrivilege).
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, opUser, &pOperUser), &lino, _OVER);
+
+  if (!pOperUser->enable) {
+    TAOS_CHECK_GOTO(TSDB_CODE_MND_USER_DISABLED, &lino, _OVER);
+  }
+  if (pOperUser->superUser) {
+    goto _OVER;
+  }
+  if (strncmp(opUser, pUser->user, TSDB_USER_LEN) == 0) {
+    // operator manages its own TOTP secret
+    goto _OVER;
+  }
+
+  TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, &lino, _OVER);
+_OVER:
+  mndReleaseUser(pMnode, pOperUser);
+  if (code != TSDB_CODE_SUCCESS) {
+    mError("mndCheckTotpSecretPrivilege failed at line:%d since %s", lino, tstrerror(code));
+  }
+  TAOS_RETURN(code);
+}
 int32_t mndCheckShowPrivilege(SMnode *pMnode, const char *user, const char* token, EShowType showType, const char *dbname) { return 0; }
 int32_t mndCheckDbPrivilege(SMnode *pMnode, const char *user, const char* token, EOperType operType, SDbObj *pDb) { return 0; }
 int32_t mndCheckDbPrivilegeByName(SMnode *pMnode, const char *user, const char *token, EOperType operType,

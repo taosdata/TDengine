@@ -22,6 +22,18 @@ FILTER_MODE_DUMMIES = tuple(f"dummy{i:02d}" for i in range(1, 11))
 FILTER_MODES = ("non_scalar", "scalar")
 QUERY_SHAPES = ("time_only", "pred_only", "time_and_pred")
 PRED_SHAPES = ("sma_friendly", "non_sma")
+ROW_COLUMNS = (
+    "ts",
+    "c_big",
+    "c_dbl",
+    "c_bin",
+    "c_nchar",
+    "c_pred",
+    "c_scalar",
+    "c_noise1",
+    "c_noise2",
+    "c_keep",
+)
 TARGET_TYPES = (
     ("c_big",),
     ("c_bin",),
@@ -61,6 +73,18 @@ def _build_bin(case_no: int, block_name: str, row_idx: int) -> str:
 
 def _build_nchar(case_no: int, block_name: str, row_idx: int) -> str:
     return f"汉字_{case_no}_{block_name}_{row_idx}"
+
+
+def _case_table_name(case_no: int) -> str:
+    return f"ct_{case_no:04d}"
+
+
+def _case_tag(case_no: int) -> str:
+    return f"grp5_case_{case_no:04d}"
+
+
+def _flatten_rows(rows_by_block: dict[str, list[dict]]) -> list[dict]:
+    return [row for block_name in BLOCK_NAMES for row in rows_by_block[block_name]]
 
 
 NON_NULL_BUILDERS: dict[str, Callable[[int, str, int], object]] = {
@@ -116,10 +140,12 @@ class TestLastSmaPrefilter:
             cases = cases[:limit]
         tdLog.info(f"generated {len(cases)} applicable cases for last SMA prefilter")
 
+        rows_by_case = self._prepare_applicable_data(cases)
+
         for case_no, case in enumerate(cases, start=1):
             if case_no == 1 or case_no % 50 == 0:
                 tdLog.info(f"running applicable case {case_no}/{len(cases)}: {case.case_id}")
-            self._run_applicable_case(case, case_no)
+            self._run_applicable_case(case, case_no, rows_by_case[case_no])
 
         self._run_deep_nested_and_regression()
         self._run_root_or_shape_regression()
@@ -172,52 +198,45 @@ class TestLastSmaPrefilter:
                                     pred_shape=pred_shape,
                                 )
 
-    def _run_applicable_case(self, case: ApplicableCase, case_no: int):
-        tb_name = f"ct_{case_no:04d}"
-        grp_num = case_no
-        grp5 = f"grp5_case_{case_no:04d}"
-        rows = self._create_case_table_and_rows(tb_name, grp_num, grp5, case, case_no)
-        sql = self._build_applicable_sql(case, grp5)
-        expected = self._compute_expected(rows, case.last_cols)
+    def _run_applicable_case(self, case: ApplicableCase, case_no: int, rows: dict[str, list[dict]]):
+        sql = self._build_applicable_sql(case, _case_tag(case_no))
+        expected = self._compute_expected(_flatten_rows(rows), case.last_cols)
 
         self._assert_query_result(case.case_id, sql, case.last_cols, expected)
         self._assert_hidden_not_null_plan(case.case_id, sql, case.last_cols, applicable=True)
         self._assert_explain_analyze(case.case_id, sql, case.last_cols, applicable=True)
 
-    def _create_case_table_and_rows(
-        self, tb_name: str, grp_num: int, grp5: str, case: ApplicableCase, case_no: int
-    ) -> list[dict[str, object]]:
-        tdSql.execute(f"create table {DB_NAME}.{tb_name} using {STB_NAME} tags ({grp_num}, '{grp5}')")
-        rows: list[dict[str, object]] = []
+    def _prepare_applicable_data(self, cases: list[ApplicableCase]) -> dict[int, dict[str, list[dict]]]:
+        """Create every case table first, then write block by block.
+
+        `flush database` commits the whole vnode, so flushing once per block covers
+        all case tables at once. Flushing per case instead makes every flush pay for
+        the data accumulated by all previous cases, which grows quadratically with
+        the case count and blows the CI time budget.
+        """
+        rows_by_case: dict[int, dict[str, list[dict]]] = {}
+        for case_no, case in enumerate(cases, start=1):
+            rows_by_case[case_no] = {
+                block_name: [self._build_row(case, case_no, block_name, row_idx) for row_idx in range(2)]
+                for block_name in BLOCK_NAMES
+            }
+            tdSql.execute(
+                f"create table {DB_NAME}.{_case_table_name(case_no)} using {STB_NAME} "
+                f"tags ({case_no}, '{_case_tag(case_no)}')"
+            )
 
         for block_name in BLOCK_NAMES:
-            value_sqls: list[str] = []
-            for row_idx in range(2):
-                row = self._build_row(case, case_no, block_name, row_idx)
-                rows.append(row)
-                value_sqls.append(
-                    "("
-                    + ", ".join(
-                        _fmt_sql_value(row[col_name])
-                        for col_name in (
-                            "ts",
-                            "c_big",
-                            "c_dbl",
-                            "c_bin",
-                            "c_nchar",
-                            "c_pred",
-                            "c_scalar",
-                            "c_noise1",
-                            "c_noise2",
-                            "c_keep",
-                        )
-                    )
-                    + ")"
+            for case_no in range(1, len(cases) + 1):
+                value_sqls = [
+                    "(" + ", ".join(_fmt_sql_value(row[col_name]) for col_name in ROW_COLUMNS) + ")"
+                    for row in rows_by_case[case_no][block_name]
+                ]
+                tdSql.execute(
+                    f"insert into {DB_NAME}.{_case_table_name(case_no)} values " + " ".join(value_sqls)
                 )
-            tdSql.execute(f"insert into {DB_NAME}.{tb_name} values " + " ".join(value_sqls))
             tdSql.execute(f"flush database {DB_NAME}")
 
-        return rows
+        return rows_by_case
 
     def _build_row(
         self, case: ApplicableCase, case_no: int, block_name: str, row_idx: int
@@ -625,18 +644,7 @@ class TestLastSmaPrefilter:
                     "("
                     + ", ".join(
                         _fmt_sql_value(row[col_name])
-                        for col_name in (
-                            "ts",
-                            "c_big",
-                            "c_dbl",
-                            "c_bin",
-                            "c_nchar",
-                            "c_pred",
-                            "c_scalar",
-                            "c_noise1",
-                            "c_noise2",
-                            "c_keep",
-                        )
+                        for col_name in ROW_COLUMNS
                     )
                     + ")"
                 )

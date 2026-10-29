@@ -10,7 +10,7 @@ toc_max_heading_level: 3
 
 ## 功能范围
 
-联邦查询仅可用于独立的 `SELECT` 查询，支持 MySQL、PostgreSQL 和 InfluxDB v3 作为外部数据源。除没有对应概念或无法映射类型的场景外，外部表可使用 TDengine 的全部查询功能，并可与本地表或其他外部源表组合查询。
+联邦查询仅可用于独立的 `SELECT` 查询，支持 MySQL、PostgreSQL、InfluxDB v3 和 SQL Server（2019 / 2022）作为外部数据源。除没有对应概念或无法映射类型的场景外，外部表可使用 TDengine 的全部查询功能，并可与本地表或其他外部源表组合查询。
 
 ### 支持能力
 
@@ -45,7 +45,7 @@ toc_max_heading_level: 3
 
 ### 联邦查询依赖库
 
-使用联邦查询前，必须安装与 TDengine 版本匹配的联邦查询依赖库安装包，并在实际执行联邦查询的服务器上完成安装。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 使用 Apache Arrow Flight SQL 运行库。
+使用联邦查询前，必须安装与 TDengine 版本匹配的联邦查询依赖库安装包，并在实际执行联邦查询的服务器上完成安装。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 使用 Apache Arrow Flight SQL 运行库，SQL Server 使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server。
 
 **注意事项**：未安装对应运行库时，无法创建或查询相应类型的外部数据源。升级 TDengine 时，应同时升级版本匹配的联邦查询依赖库安装包。
 
@@ -55,7 +55,7 @@ toc_max_heading_level: 3
 
 - 下载名称：`TDengine TSDB Federated Query Plugin`。
 - 下载渠道：自 `v3.4.3.0` 起可从下载中心获取。
-- 当前支持平台：Linux x64、Linux ARM64；其他平台暂不支持。
+- 当前支持平台：Linux x64、Linux ARM64、Windows x64。下面的目录结构是 Linux 插件包。
 
 插件包解压后通常包含如下结构：
 
@@ -76,7 +76,9 @@ toc_max_heading_level: 3
 **说明**
 
 - `libmariadb.so`、`libpq.so`、Arrow/Parquet 相关库用于外部连接器运行时依赖。
+- SQL Server 所需的 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server 随联邦查询依赖包分发，不需要在系统中单独安装或执行驱动注册；缺失时 `TYPE = 'sqlserver'` 的外部源创建与查询均返回外部源类型不支持的错误。
 - 安装后应确保动态链接库路径可被 `taosd` 与 `taosc` 进程加载。
+- Windows x64 上，MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 使用 HTTP，不依赖 Arrow Flight SQL。SQL Server 使用 ODBC。Windows 插件包的安装步骤尚未在本文给出。
 - 附录：当前内部下载地址（内网）为 `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`。
 - 该地址为内网临时地址，`v3.4.3.0` 发布后以下载中心提供的正式链接为准。
 - 详细安装与启动步骤将在后续补充。
@@ -88,7 +90,7 @@ toc_max_heading_level: 3
 
 ### 权限和安全
 
-密码采用 AES-CBC 加密保存，并在展示和日志中脱敏。外部源访问权限由外部数据库自身控制：创建外部数据源时指定的 `USER`、`PASSWORD` 或 `api_token` 代表该外部源的访问凭证，外部数据库据此决定可访问范围。TDengine 仅允许 root 用户管理外部数据源对象。
+密码采用 AES-CBC 加密保存，并在展示和日志中脱敏。外部源访问权限由外部数据库自身控制：创建外部数据源时指定的 `USER`、`PASSWORD` 或 `api_token` 代表该外部源的访问凭证，外部数据库据此决定可访问范围。TDengine 仅允许 root 用户管理外部数据源对象。SQL Server 外部源仅支持 SQL Server Authentication，不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。
 
 **注意事项**：外部通信支持加密传输和证书校验。不要在 SQL、日志或应用配置中暴露明文凭证。
 
@@ -100,7 +102,7 @@ toc_max_heading_level: 3
 
 ```sql
 CREATE EXTERNAL SOURCE [IF NOT EXISTS] source_name
-TYPE = 'mysql' | 'postgresql' | 'influxdb'
+TYPE = 'mysql' | 'postgresql' | 'influxdb' | 'sqlserver'
 HOST = 'hostname'
 PORT = port_number
 USER = 'username'
@@ -122,6 +124,7 @@ PASSWORD = 'password'
 | `mysql`      | `DATABASE` | 访问 MySQL 数据库和表。 |
 | `postgresql` | `DATABASE` 和可选的 `SCHEMA` | `DATABASE` 必填，`SCHEMA` 可作为默认 schema。 |
 | `influxdb`   | `DATABASE` | 访问 InfluxDB 数据库和 Measurement。 |
+| `sqlserver`  | `DATABASE` 和 `SCHEMA`，均可选 | 访问 SQL Server 数据库、schema 和表。短路径或 `USE` 解析时两个分量组合后必须齐全；不注入 `dbo`，也不使用登录账号的默认 schema 兜底。 |
 
 ### 字段说明和约束
 
@@ -129,16 +132,18 @@ PASSWORD = 'password'
 | --------------- | --- | --- | --- |
 | `IF NOT EXISTS` | 否 | 固定关键字 | 对象已存在时不报错。 |
 | `source_name`   | 是 | 最大 64 字节 | 外部数据源名称，全局唯一，且不得与本地数据库同名。 |
-| `TYPE`          | 是 | `mysql`、`postgresql`、`influxdb` | 外部源类型，不区分大小写，决定连接器和路径解析规则。 |
+| `TYPE`          | 是 | `mysql`、`postgresql`、`influxdb`、`sqlserver` | 外部源类型，不区分大小写，决定连接器和路径解析规则。 |
 | `HOST`          | 是 | 主机名或 IP，最大 256 字节 | 外部数据源地址，支持完整 FQDN。 |
 | `PORT`          | 是 | `1` 到 `65535` | 外部数据源端口。 |
 | `USER`          | 是 | 最大 128 字节 | 外部数据源访问账号。 |
 | `PASSWORD`      | 是 | 最大 128 字节 | 外部数据源访问密码，保存时加密，展示时脱敏。 |
-| `DATABASE`      | MySQL、InfluxDB 可选；PostgreSQL 必填 | 最大 64 字节 | 默认数据库。未设置默认数据库时，查询必须显式指定数据库。PostgreSQL 连接建立后不能切换数据库。 |
-| `SCHEMA`        | 否 | 最大 64 字节 | 默认 schema。未设置时，必要的查询必须显式指定 schema。 |
+| `DATABASE`      | MySQL、InfluxDB、SQL Server 可选；PostgreSQL 必填 | 最大 64 字节 | 默认数据库。未设置默认数据库时，查询必须显式指定数据库。PostgreSQL 连接建立后不能切换数据库。 |
+| `SCHEMA`        | 否 | 最大 64 字节 | 默认 schema。未设置时，必要的查询必须显式指定 schema。SQL Server 不注入 `dbo` 作为默认值。 |
 | `OPTIONS`       | 否 | key 最大 64 字节，value 最大 4095 字节，整体 JSON 最大 4095 字节 | 连接扩展参数。 |
 
 **注意事项**：所有标识符遵循 TDengine 数据库和表名规则：默认情况下限制字符类型且不区分大小写；使用转义标识符后可放宽字符限制且区分大小写。
+
+**SQL Server 命名空间**：`DATABASE` 和 `SCHEMA` 均由源定义中的默认值与本次显式指定的值组合得到。路径中显式给出的分量优先，其余分量取自源默认值；组合后任一分量仍为空时，查询返回 `TSDB_CODE_EXT_DEFAULT_NS_MISSING`，不做隐式兜底——既不注入 `dbo`，也不使用登录账号的默认 schema。因此三段式列路径要求源同时配置 `DATABASE` 和 `SCHEMA`，四段式列路径要求配置 `DATABASE`，五段式列路径不受此限制。SQL Server 仅支持同一实例内、登录账号有权限的 database，不支持跨实例访问。
 
 ### OPTIONS 参数
 
@@ -183,6 +188,16 @@ InfluxDB 专属参数如下：
 | `api_token` | 字符串 | 空 | InfluxDB 必填的认证 Token。设置该参数时，`USER` 和 `PASSWORD` 可以为空。展示时脱敏。 |
 | `protocol`  | `flight_sql` 或 `http` | `flight_sql` | 与 InfluxDB 通信的协议。`flight_sql` 使用 Arrow Flight SQL（gRPC），`http` 使用 HTTP API；两种协议均支持通用 TLS 参数。 |
 
+#### SQL Server 参数
+
+SQL Server 专属参数如下：
+
+| 参数 | 取值 | 默认值 | 说明 |
+| -------------------------- | --- | --- | --- |
+| `trust_server_certificate` | `true` 或 `false` | `false` | 是否校验服务端证书。为 `true` 时跳过证书链和主机名校验，仅在 `tls_enabled = true` 时有意义，建议只用于测试环境；为 `false` 时校验服务端证书链和证书中的主机名。 |
+
+通用 TLS 与超时参数对 SQL Server 同样适用。首版只支持 Microsoft ODBC Driver 18 for SQL Server，不使用 `Encrypt=strict`（TDS 8.0 仅 SQL Server 2022 可用），加密由 `tls_enabled` 统一控制。
+
 #### 参数行为和注意事项
 
 **说明**：显式设置 `connect_timeout_ms` 或 `read_timeout_ms`，包括设置为 `0`，优先于全局配置；只有未设置该 key 时才回退到全局配置。
@@ -191,7 +206,7 @@ InfluxDB 专属参数如下：
 
 #### 示例
 
-以下示例创建三个外部数据源：
+以下示例创建四个外部数据源：
 
 ```sql
 CREATE EXTERNAL SOURCE mysql_prod
@@ -227,6 +242,34 @@ OPTIONS (
     'api_token' = 'your_token',
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
+);
+
+-- SQL Server 2022：指定默认 database 和 schema，启用 TLS 并校验服务端证书
+CREATE EXTERNAL SOURCE sqlserver_prod
+TYPE = 'sqlserver'
+HOST = 'sqlserver.example.com'
+PORT = 1433
+USER = 'td_reader'
+PASSWORD = 'your_password'
+DATABASE = Telemetry
+SCHEMA = dbo
+OPTIONS (
+    'tls_enabled' = 'true',
+    'connect_timeout_ms' = '5000',
+    'read_timeout_ms' = '60000'
+);
+
+-- 测试环境：加密但不校验证书
+CREATE EXTERNAL SOURCE sqlserver_test
+TYPE = 'sqlserver'
+HOST = '192.0.2.10'
+PORT = 1433
+USER = 'readonly'
+PASSWORD = 'your_password'
+DATABASE = Telemetry
+OPTIONS (
+    'tls_enabled' = 'true',
+    'trust_server_certificate' = 'true'
 );
 ```
 
@@ -413,10 +456,12 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 | InfluxDB   | Field | 数据列。 |
 | InfluxDB   | Tag Set | 子表，每个唯一 Tag 组合对应一个子表。 |
 | InfluxDB   | `time` | 时间戳主键。 |
+| SQL Server | Database 和 Schema | 一个查询命名空间。 |
+| SQL Server | Table、View | 普通表。视图可不含时间戳列；无时间线时的规则见 [无时间线的外部表](#无时间线的外部表)。 |
 
-MySQL 的索引、存储过程和触发器，以及 PostgreSQL 的索引、序列和触发器不参与联邦查询。InfluxDB 的 Bucket 和 Retention Policy 为存储策略，不影响联邦查询。
+MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触发器，以及 SQL Server 的同义词、存储过程、触发器、索引、约束和 SQL Server Agent 对象不参与联邦查询。InfluxDB 的 Bucket 和 Retention Policy 为存储策略，不影响联邦查询。
 
-**说明**：标识符大小写遵循外部数据库规则：MySQL 默认不区分大小写；PostgreSQL 默认折叠为小写，使用引号时保留原始大小写；InfluxDB 区分大小写。
+**说明**：标识符大小写遵循外部数据库规则：MySQL 默认不区分大小写；PostgreSQL 默认折叠为小写，使用引号时保留原始大小写；InfluxDB 区分大小写；SQL Server 由对象所在 database 的排序规则决定，跨 database 时可能不同，使用方括号或双引号引用的标识符保留原始名称。
 
 ### 时间戳主键要求
 
@@ -425,12 +470,13 @@ MySQL 的索引、存储过程和触发器，以及 PostgreSQL 的索引、序�
 - MySQL 的时间戳主键列须为 `DATETIME` 或 `TIMESTAMP` 类型。
 - PostgreSQL 的时间戳主键列须为 `TIMESTAMP` 或 `TIMESTAMPTZ` 类型。
 - InfluxDB Measurement 的 `time` 列天然满足该要求。
+- SQL Server 的时间戳主键列须为 `datetime2`、`datetimeoffset`、`datetime`、`smalldatetime` 或 `date` 类型；`timestamp` / `rowversion` 是行版本二进制值，`time` 只表示一天内的时间且不含日期，均不能作为时间戳主键。
 
-**说明**：时间戳主键可以是复合主键中的一列，复合主键中的其他列以及其他索引均可存在；但同一外部表不能有第二个可映射为 TDengine `TIMESTAMP` 的主键列。**MySQL / PostgreSQL 视图（View）不受时间戳主键约束**；结果集不含时间戳列时的规则见下节。
+**说明**：时间戳主键可以是复合主键中的一列，复合主键中的其他列以及其他索引均可存在；但同一外部表不能有第二个可映射为 TDengine `TIMESTAMP` 的主键列。**MySQL / PostgreSQL / SQL Server 视图（View）不受时间戳主键约束**；结果集不含时间戳列时的规则见下节。
 
 ### 无时间线的外部表
 
-指 MySQL / PostgreSQL 中不含可映射为 `TIMESTAMP` 的主键时间列的普通表，或结果集不含时间戳列的外部视图。典型场景包括设备台账、资产维度表等。InfluxDB Measurement 均含 `time`，不适用本节。
+指 MySQL / PostgreSQL / SQL Server 中不含可映射为 `TIMESTAMP` 的主键时间列的普通表，或结果集不含时间戳列的外部视图。典型场景包括设备台账、资产维度表等。InfluxDB Measurement 均含 `time`，不适用本节。
 
 | 场景 | 是否支持 | 说明 |
 | --- | --- | --- |
@@ -446,6 +492,9 @@ SELECT COUNT(*) FROM pg_prod.public.device_info;
 
 -- 查询不含时间戳列的外部视图
 SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
+
+-- SQL Server 无时间戳主键的外部维度表
+SELECT * FROM sqlserver_prod.dbo.device_info;
 ```
 
 无时间线外部表不能用于 `INTERVAL`、状态/会话/事件/计数窗口、`FILL`、`INTERP`、时序差分/积分类函数、ASOF JOIN、Window JOIN 或虚拟表列引用。当前版本中，含非时间戳主键的外部普通表可能通过虚拟表 DDL 校验，但该路径不具备受测试保障的时间归并语义，不应在生产中使用。若需将外部维度数据与 TDengine 时序数据关联，应先在外部系统中提供具有时间戳主键的关联结果，或将维度数据同步到 TDengine 后再关联。
@@ -456,7 +505,7 @@ SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
 
 外部列在查询时映射为 TDengine 数据类型，遵循以下规则：
 
-- 可精确对应的类型直接映射，例如 MySQL `INT` 映射为 `INT`、PostgreSQL `double precision` 映射为 `DOUBLE`、InfluxDB `Float64` 映射为 `DOUBLE`。
+- 可精确对应的类型直接映射，例如 MySQL `INT` 映射为 `INT`、PostgreSQL `double precision` 映射为 `DOUBLE`、InfluxDB `Float64` 映射为 `DOUBLE`、SQL Server `int` 映射为 `INT`、`float` 映射为 `DOUBLE`。
 - 可降级转换的类型允许映射，但可能存在精度或语义损失。例如 `DATE` 在零点转换为 `TIMESTAMP`，`TIME` 转换为从午夜开始的毫秒数并存入 `BIGINT`，`SET` 序列化为逗号分隔字符串，`uuid` 转换为 `VARCHAR(36)`。发生降级转换时会记录日志。
 - 数组、范围、复合类型和 `hstore` 等结构化类型序列化为 JSON 或文本字符串并存入 `NCHAR` 或 `VARCHAR`，结构语义不保留，并会记录日志。
 - 无法识别或支持的外部类型码报错处理；若 `SELECT *` 展开到不可映射列，整条查询失败。
@@ -469,10 +518,11 @@ SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
 
 外部时间戳列的时区和精度规则如下：
 
-- PostgreSQL `timestamptz`、MySQL `TIMESTAMP` 等带时区类型按其自带时区解释。
-- PostgreSQL `timestamp`、MySQL `DATETIME` 和 `DATE` 等不带时区类型，按连接时区或客户端时区解释。
-- 单库查询中，TDengine 数据库使用其 `PRECISION`；MySQL 和 PostgreSQL 使用微秒精度，InfluxDB 使用纳秒精度。
+- PostgreSQL `timestamptz`、MySQL `TIMESTAMP`、SQL Server `datetimeoffset` 等带时区类型按其自带时区解释。
+- PostgreSQL `timestamp`、MySQL `DATETIME` 和 `DATE`、SQL Server `datetime2` / `datetime` / `smalldatetime` / `date` 等不带时区类型，按连接时区或客户端时区解释。
+- 单库查询中，TDengine 数据库使用其 `PRECISION`；MySQL、PostgreSQL 和 SQL Server 使用微秒精度，InfluxDB 使用纳秒精度。
 - 多库查询中，结果时间戳采用参与数据库的最高精度，低精度值补零扩展。例如 TDengine 毫秒库与 MySQL 联合查询得到微秒精度；与 InfluxDB 联合查询得到纳秒精度。
+- SQL Server 外部时间戳为微秒精度。创建引用 SQL Server 外部列的虚拟表时，虚拟表所在数据库的精度不得低于微秒（例如使用 `CREATE DATABASE ... PRECISION 'us'`）。
 
 ## 外部路径和 USE
 
@@ -487,8 +537,11 @@ SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
 | MySQL      | `source_name.table` | `source_name.database.table` |
 | PostgreSQL | `source_name.table` | `source_name.schema.table` |
 | InfluxDB   | `source_name.table` | `source_name.database.table` |
+| SQL Server | `source_name.table` | `source_name.schema.table`、`source_name.database.schema.table` |
 
-两段式路径使用创建外部数据源时指定的默认 `DATABASE` 或 `SCHEMA`；未设置默认值时必须使用三段式完整路径。
+两段式路径使用创建外部数据源时指定的默认 `DATABASE` 或 `SCHEMA`；未设置默认值时必须使用完整路径。
+
+**SQL Server 路径说明**：三段式 `source_name.schema.table` 的中间段为 schema，database 取默认值；四段式 `source_name.database.schema.table` 依次给出 database 和 schema。四段式路径只能访问同一 SQL Server 实例上、登录账号有权限的其他 database，不支持跨实例访问。
 
 ### 虚拟表外部列路径
 
@@ -501,6 +554,17 @@ SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
 | MySQL      | `source_name.table.column` | `source_name.database.table.column` |
 | PostgreSQL | `source_name.table.column` | `source_name.schema.table.column` |
 | InfluxDB   | `source_name.table.column` | `source_name.database.table.column` |
+| SQL Server | `source_name.table.column`（需默认 `DATABASE` 和 `SCHEMA`）、`source_name.schema.table.column`（需默认 `DATABASE`） | `source_name.database.schema.table.column` |
+
+**SQL Server 列路径说明**：SQL Server 外部列引用支持三段式、四段式和五段式三种形式：
+
+| 形式 | 路径 | 依赖的源默认值 |
+| ---------- | --- | --- |
+| 三段式 | `source_name.table.column` | `DATABASE` + `SCHEMA` |
+| 四段式 | `source_name.schema.table.column` | `DATABASE` |
+| 五段式 | `source_name.database.schema.table.column` | 无 |
+
+这三种形式均可用于 `CREATE VTABLE` 的列定义、`ALTER VTABLE ... ADD COLUMN ... FROM`、`ALTER VTABLE ... ALTER COLUMN ... SET` 以及虚拟子表（`CREATE VTABLE ... USING vstb`）的列定义。相对形式（三段式、四段式）在写入虚拟表元数据时展开为五段式完整命名空间，因此 `SHOW CREATE VTABLE` 和 `information_schema.ins_columns.col_source` 始终显示 `source.database.schema.table.column`；后续 `ALTER EXTERNAL SOURCE` 修改默认命名空间也不会改变已创建虚拟表的绑定。
 
 **注意事项**：内部列路径仍为 `table.column` 或 `db.table.column`。外部路径的 `source_name`、`database`、`schema` 和 `column` 最大为 64 字节，`table` 最大为 192 字节；超限对象会直接报错，不会截断、改名或按前缀匹配。
 
@@ -512,11 +576,20 @@ SELECT * FROM mysql_prod.meters;
 SELECT * FROM mysql_prod.power.meters;
 SELECT * FROM pg_prod.devices;
 SELECT * FROM pg_prod.public.devices;
+SELECT * FROM sqlserver_prod.sensor_data;
+SELECT * FROM sqlserver_prod.telemetry.sensor_data;
+SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
 
 -- 虚拟表 DDL 中引用外部列
 current FLOAT FROM mysql_prod.meters.current
 current FLOAT FROM mysql_prod.power.meters.current
 owner VARCHAR(64) FROM pg_prod.public.meter_asset.owner
+-- SQL Server 三段式（源需配置默认 database 和 schema）
+value FLOAT FROM sqlserver_prod.sensor_data.value
+-- SQL Server 四段式（源需配置默认 database，schema 由路径给出）
+value FLOAT FROM sqlserver_prod.telemetry.sensor_data.value
+-- SQL Server 五段式（完整命名空间）
+value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
 ```
 
 ### 使用 USE 切换外部命名空间
@@ -533,7 +606,9 @@ USE source_name.schema;
 
 #### 说明
 
-`USE source_name` 要求外部源已经设置默认命名空间：MySQL 和 InfluxDB 需要 `DATABASE`，PostgreSQL 需要 `SCHEMA`。未设置时返回 `TSDB_CODE_EXT_DEFAULT_NS_MISSING`。`USE source_name.database` 为 MySQL 或 InfluxDB 显式指定数据库；`USE source_name.schema` 为 PostgreSQL 显式指定 schema，PostgreSQL 的数据库仍以创建外部源时指定的 `DATABASE` 为准。
+`USE source_name` 要求外部源已经设置默认命名空间：MySQL 和 InfluxDB 需要 `DATABASE`，PostgreSQL 需要 `SCHEMA`，SQL Server 需要 `DATABASE` 和 `SCHEMA` 组合后均不为空。未设置时返回 `TSDB_CODE_EXT_DEFAULT_NS_MISSING`。`USE source_name.database` 为 MySQL 或 InfluxDB 显式指定数据库；`USE source_name.schema` 为 PostgreSQL 显式指定 schema，PostgreSQL 的数据库仍以创建外部源时指定的 `DATABASE` 为准。
+
+SQL Server 的 `USE` 语义为：`USE source_name` 使用默认 database 和默认 schema；`USE source_name.database` 切换 database，schema 使用默认值；`USE source_name.database.schema` 同时切换 database 和 schema。首版不提供只切换 schema 的 `USE` 形式，需要替换 schema 时使用三段式表路径 `source_name.schema.table`。`USE` 只影响当前 TDengine 会话的后续短路径解析，不改变外部源定义，也不影响已创建虚拟表的外部列来源。
 
 **注意事项**：解析 `USE` 的名称时，系统先匹配已注册外部数据源，再匹配本地数据库；由于两者禁止同名，不会产生歧义。
 
@@ -551,6 +626,18 @@ SELECT * FROM meters LIMIT 10;
 -- 显式选择 PostgreSQL schema
 USE pg_prod.public;
 SELECT * FROM devices LIMIT 10;
+
+-- 使用 SQL Server 默认命名空间
+USE sqlserver_prod;
+SELECT * FROM sensor_data LIMIT 10;
+
+-- 显式切换 SQL Server database（schema 使用默认值）
+USE sqlserver_prod.Archive;
+SELECT * FROM sensor_data LIMIT 10;
+
+-- 同时切换 SQL Server database 和 schema
+USE sqlserver_prod.Archive.telemetry;
+SELECT * FROM sensor_data LIMIT 10;
 
 -- 切回本地数据库并清除外部上下文
 USE power;
@@ -578,6 +665,13 @@ JOIN pg_prod.public.archive_meters a
   ON m.ts = a.ts AND m.meter_id = a.meter_id
 WHERE m.ts >= '2026-04-01 00:00:00'
   AND m.ts < '2026-04-02 00:00:00';
+
+-- SQL Server 外部表范围查询
+SELECT ts, value
+FROM sqlserver_prod.telemetry.sensor_data
+WHERE ts >= '2026-01-01 00:00:00'
+  AND ts < '2026-01-02 00:00:00'
+ORDER BY ts;
 ```
 
 更多示例如下：
@@ -627,7 +721,7 @@ ORDER BY ts;
 
 #### TAGS
 
-MySQL 和 PostgreSQL 外部表不支持 `SELECT TAGS ...`；InfluxDB 外部表支持 `TAGS`，但仅返回至少有一条数据的 Tag 组合。TDengine 中无数据子表也可返回 Tag 值，二者语义不同。
+MySQL、PostgreSQL 和 SQL Server 外部表不支持 `SELECT TAGS ...`；InfluxDB 外部表支持 `TAGS`，但仅返回至少有一条数据的 Tag 组合。TDengine 中无数据子表也可返回 Tag 值，二者语义不同。
 
 #### JOIN 约束
 
@@ -706,7 +800,7 @@ SERIES series_alias AS source_name.database_name.measurement_name
 
 该语法具有以下约束：
 
-- 仅支持 InfluxDB 外部数据源，不支持 MySQL 或 PostgreSQL。
+- 仅支持 InfluxDB 外部数据源，不支持 MySQL、PostgreSQL 或 SQL Server。
 - `SERIES` 目标必须使用完整的三段式路径 `source_name.database_name.measurement_name`，不能省略外部源名称或数据库名称。
 - 必须指定至少一个 Tag 条件。条件仅支持 `tag_name = 'tag_value'`，并且在声明时必须完整且不重复地包含该 Measurement 的全部 Tag；缺少 Tag、包含未知 Tag 或重复指定同一 Tag 均会报错。
 - `series_alias.field_name` 表示该 Tag 条件所限定的 Measurement Field。别名在同一虚拟表中必须唯一，且不能通过别名引用 InfluxDB Tag。
@@ -864,6 +958,9 @@ FederatedScan on mysql_prod.power.sensor_data
 | 外部对象结构变化 | 执行 `REFRESH EXTERNAL SOURCE source_name` 后重试，并检查类型映射。 |
 | 查询超时         | 调整超时和并发配置，缩小时间范围和返回规模，检查外部源慢查询与索引。 |
 | 虚拟表创建失败   | 检查外部数据源名称、外部 database、表和列、声明类型兼容性、时间戳主键以及外部连接。 |
+| SQL Server 无法连接 | 检查 SQL Server 是否启用 TCP/IP、`PORT` 是否为固定 TCP 端口、防火墙是否放行，以及是否允许 SQL Server Authentication；使用命名实例时应为其配置固定端口，不依赖 SQL Browser。 |
+| SQL Server TLS 或证书错误 | 检查 `tls_enabled`、`tls_ca_cert` 和 `trust_server_certificate` 的组合；生产环境应使用受信任 CA 签发的证书，不应长期启用 `trust_server_certificate = true`。 |
+| SQL Server database 或 schema 错误 | 检查路径顺序：三段式表路径为 `source.schema.table`，四段式为 `source.database.schema.table`；确认登录账号在目标 database 中存在对应用户（或已启用 `guest`），并对目标 schema 下的对象有读取权限。 |
 
 ## 版本和兼容性
 
@@ -876,16 +973,19 @@ FederatedScan on mysql_prod.power.sensor_data
 | MySQL      | 5.7、8.x | 8.0 | 推荐使用 8.0 及以上。MariaDB 10.x 兼容，但不做专项测试。 |
 | PostgreSQL | 14 及以上 | 16 | 需要支持标准 SQL 特性集。 |
 | InfluxDB   | v3.x | v3.0 | 不支持 v1.x 和 v2.x。 |
+| SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
+
+**SQL Server 支持范围**：仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
 
 ### 安装、升级和卸载
 
-**说明**：除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库，应安装在实际执行联邦查询服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
+**说明**：除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库（SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 也随包分发，无需单独注册），应安装在实际执行联邦查询服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
 
 建议按以下顺序检查：
 
 1. 确认 `taosd` 与 `taosc` 均已启用 `federatedQueryEnable`。
 2. 确认联邦查询依赖库或插件包版本与 TDengine 版本匹配。
-3. 确认目标机器架构受支持（当前为 Linux x64、Linux ARM64）。
+3. 确认目标机器架构受支持（Linux x64、Linux ARM64、Windows x64）。
 4. 执行 `SHOW EXTERNAL SOURCES`、`DESCRIBE EXTERNAL SOURCE ...` 与最小查询样例验证运行时依赖是否可用。
 
 ## 使用场景

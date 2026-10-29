@@ -38,17 +38,22 @@ class TestCase:
 
         consumeFile = open(srcFile, mode='r')
         queryFile = open(dstFile, mode='r')
+        srcLines = consumeFile.readlines()
+        dstLines = queryFile.readlines()
+        consumeFile.close()
+        queryFile.close()
 
-        index = 0
-        while True:
-            dst = queryFile.readline()
-            src = consumeFile.readline()
-            if src:
-                if dst != src:
-                    tdLog.exit("line:%d compare error: %s != %s"%(index, src, dst))
-            else:
-                break
-            index += 1
+        # Reject empty, partial and over-delivered results: both files must
+        # contain the same complete line sequence, otherwise a consumer that
+        # stops early (e.g. exits on the first empty poll) would silently pass.
+        if not srcLines:
+            tdLog.exit("compare error: %s is empty, expected %d line(s)"%(srcFile, len(dstLines)))
+        if len(srcLines) != len(dstLines):
+            tdLog.exit("compare error: %s has %d line(s), %s has %d line(s)"%(srcFile, len(srcLines), dstFile, len(dstLines)))
+
+        for index, (src, dst) in enumerate(zip(srcLines, dstLines)):
+            if src != dst:
+                tdLog.exit("line:%d compare error: %s != %s"%(index, src, dst))
         return
     
     def checkDataFilterStb(self):
@@ -271,6 +276,44 @@ class TestCase:
 
         self.checkJson(cfgPath, "tmq_taosx_tmp")
         self.checkDataFilterStb()
+        return
+
+    def checkSnapshotOnlyMetaTbnameFilter(self):
+        """Regression: ONLY META topic with tbname like 'f1%' filter.
+
+        The topic is created over stable st1 with 3 'f1_' child tables and 3
+        non-f1 child tables already existing. With the filter applied only the
+        'f1_' child tables' create events should be delivered in the meta
+        snapshot stage. If non-f1 child tables appear in the consumed meta json,
+        the defect still exists.
+        """
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t -onlymeta -tb'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        if os.system(cmdStr) != 0:
+            tdLog.exit(cmdStr)
+
+        self.checkTbnameFilterSet()
+        return
+
+    def checkTbnameFilterSet(self):
+        """Verify the ONLY META tbname-filter snapshot consumed result.
+
+        Compare the complete set of table names delivered in the snapshot
+        against the expected super table plus the three matching child tables.
+        The check rejects an empty result, missing tables and extra tables, and
+        is order-insensitive because the delivery order depends on the engine
+        snapshot iteration order.
+        """
+        cfgPath = tdCom.getClientCfgPath()
+        srcFile = '%s/../log/tmq_taosx_tmp_snapshot.source'%(cfgPath)
+
+        with open(srcFile, mode='r') as f:
+            actual = sorted(line.strip() for line in f if line.strip())
+        expected = sorted(['st1', 'f1_ctb_0', 'f1_ctb_1', 'f1_ctb_2'])
+        if actual != expected:
+            tdLog.exit("compare error: %s consumed table names %s != expected %s"%(srcFile, actual, expected))
         return
 
     def checkWal1VgroupTable(self):
@@ -790,6 +833,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -808,6 +852,7 @@ class TestCase:
 
         # -----stb sub-----
         self.checkWal1VgroupFilterTable()
+        self.checkSnapshotOnlyMetaTbnameFilter()
         self.checkWal1VgroupTable()
         self.checkSnapshot1VgroupTable()
 

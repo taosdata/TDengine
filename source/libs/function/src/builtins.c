@@ -275,10 +275,16 @@ static bool isUtcZeroOffsetName(const char *name) {
  * Falls back to the system timezone string if tz is NULL or the name
  * lookup fails.
  */
-static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISOOffset) {
+static int32_t addTimezoneNameParamEx(SNodeList* pList, timezone_t tz,
+                                      bool useISOOffset,
+                                      const char* sessionTzName) {
   char    buf[TD_TIMEZONE_LEN] = {0};
   char    origTzName[TD_TIMEZONE_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
+
+#ifndef WINDOWS
+  (void)sessionTzName;  /* only consumed by the Windows fallback below */
+#endif
 
   /*
    * Preferred path: use connection/session timezone name map so downstream
@@ -351,6 +357,22 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
       }
     }
   }
+
+#ifdef WINDOWS
+  /*
+   * Windows never populates pTimezoneNameMap (tzInit() skips it there), so the
+   * preferred branch above is dead and the display fallback below would inject
+   * a fixed offset ("+0800") instead of the session zone name.  The function
+   * node carries the session zone name verbatim (SFuncNode.tzName, copied from
+   * the parse context), and the plan context carries the same string, so prefer
+   * it when it names a zone rather than a bare offset.  Bare offsets keep the
+   * legacy fallback because taosValidateTimezone() expects POSIX/IANA spelling.
+   */
+  if (buf[0] == '\0' && sessionTzName != NULL && sessionTzName[0] != '\0' &&
+      sessionTzName[0] != '+' && sessionTzName[0] != '-') {
+    tstrncpy(buf, sessionTzName, sizeof(buf));
+  }
+#endif
 
   if (buf[0] == '\0') {
     /*
@@ -447,6 +469,10 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
     return code;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISOOffset) {
+  return addTimezoneNameParamEx(pList, tz, useISOOffset, NULL);
 }
 
 static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf, int32_t len) {
@@ -799,6 +825,9 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
   const char* msg7 = "HISTOGRAM function binDesc parameter \"start\" cannot be 0 with \"log_bin\" type";
   const char* msg8 = "HISTOGRAM function binDesc parameter \"factor\" cannot be negative or equal to 0/1";
   const char* msg9 = "HISTOGRAM function out of memory";
+  char msg10[96] = {0};
+  TAOS_UNUSED(snprintf(msg10, sizeof(msg10), "HISTOGRAM user_input requires 2 to %d boundary values",
+                       HISTOGRAM_MAX_BINS_NUM + 1));
 
   cJSON*  binDesc = cJSON_Parse(binDescStr);
   int32_t numOfBins;
@@ -923,6 +952,11 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
       return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
     }
     numOfBins = cJSON_GetArraySize(binDesc);
+    if (numOfBins < 2 || numOfBins > HISTOGRAM_MAX_BINS_NUM + 1) {
+      (void)snprintf(errMsg, msgLen, "%s", msg10);
+      cJSON_Delete(binDesc);
+      return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
+    }
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     if (intervals == NULL) {
       (void)snprintf(errMsg, msgLen, "%s", msg9);
@@ -938,13 +972,13 @@ static int32_t validateHistogramBinDesc(char* binDescStr, int8_t binType, char* 
     }
     int i = 0;
     while (bin) {
-      intervals[i] = bin->valuedouble;
       if (!cJSON_IsNumber(bin)) {
         (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
         cJSON_Delete(binDesc);
         return TSDB_CODE_FUNC_HISTOGRAM_ERROR;
       }
+      intervals[i] = bin->valuedouble;
       if (i != 0 && intervals[i] <= intervals[i - 1]) {
         (void)snprintf(errMsg, msgLen, "%s", msg3);
         taosMemoryFree(intervals);
@@ -1131,15 +1165,17 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     const SParamInfo* paramPattern = funcMgtBuiltins[pFunc->funcId].parameters.inputParaInfo[i];
 
     while (1) {
+      SListCell* pParamCell = nodesListGetCell(paramList, paramPattern[paramIdx].startParam - 1);
       // one table can have at most 4096 columns, int32_t is enough.
       for (int32_t j = paramPattern[paramIdx].startParam;
-           j <= (paramPattern[paramIdx].endParam == -1 ? INT32_MAX - 1 : paramPattern[paramIdx].endParam); j++) {
+           j <= (paramPattern[paramIdx].endParam == -1 ? INT32_MAX - 1 : paramPattern[paramIdx].endParam);
+           j++, pParamCell = (NULL != pParamCell ? pParamCell->pNext : NULL)) {
         if (j > LIST_LENGTH(paramList)) {
           code = TSDB_CODE_SUCCESS;
           isMatch = true;
           break;
         }
-        SNode* pNode = nodesListGetNode(paramList, j - 1);
+        SNode* pNode = NULL != pParamCell ? pParamCell->pNode : NULL;
         if (NULL == pNode) {
           code = TSDB_CODE_FUNC_FUNTION_PARA_NUM;
           isMatch = false;
@@ -1252,6 +1288,67 @@ static int32_t validateParam(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Function check parameter failed : %s",
                              pFunc->functionName);
   }
+}
+
+int32_t validateBuiltinFuncParams(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return validateParam(pFunc, pErrBuf, len);
+}
+
+int32_t validateBuiltinFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum || numOfParams < 0 ||
+      (numOfParams > 0 && pTypes == NULL)) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+
+  const SFunctionParaInfo* pParameters = &funcMgtBuiltins[funcId].parameters;
+  if (numOfParams < pParameters->minParamNum) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+  if (pParameters->maxParamNum >= 0 && numOfParams > pParameters->maxParamNum) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+  if (pParameters->paramInfoPattern == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    if (pTypes[i] < TSDB_DATA_TYPE_NULL || pTypes[i] >= TSDB_DATA_TYPE_MAX) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
+  }
+
+  // Every pattern is declared in strictly increasing startParam order.
+  int32_t validatedParams = pParameters->maxParamNum < 0
+                                ? numOfParams
+                                : TMIN(numOfParams, pParameters->maxParamNum);
+  for (int32_t patternIndex = 0; patternIndex < pParameters->paramInfoPattern; ++patternIndex) {
+    const SParamInfo* pPattern = pParameters->inputParaInfo[patternIndex];
+    bool              matches = true;
+    int32_t           paramInfoIndex = 0;
+    for (int32_t paramIndex = 1; paramIndex <= validatedParams; ++paramIndex) {
+      while (paramInfoIndex + 1 < MAX_FUNC_INPUT_PARA_NUM &&
+             !pPattern[paramInfoIndex].isLastParam &&
+             paramIndex >= pPattern[paramInfoIndex + 1].startParam) {
+        ++paramInfoIndex;
+      }
+      if (paramInfoIndex >= MAX_FUNC_INPUT_PARA_NUM ||
+          paramIndex < pPattern[paramInfoIndex].startParam ||
+          (pPattern[paramInfoIndex].endParam != -1 &&
+           paramIndex > pPattern[paramInfoIndex].endParam)) {
+        matches = false;
+        break;
+      }
+
+      SDataType type = {.type = pTypes[paramIndex - 1]};
+      if (!paramSupportDataType(&type, pPattern[paramInfoIndex].validDataType)) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
 }
 
 // There is only one parameter of numeric type, and the return type is parameter type
@@ -1876,8 +1973,10 @@ static int32_t translateForecast(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   // check all input parameters
   int32_t num = numOfParams - 1;
   if (numOfParams > 1) {
-    for (int32_t i = 0; i < num; ++i) {
-      valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+    SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+    for (int32_t i = 0; i < num;
+         ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+      valType = getSDataTypeFromNode((NULL != pParameterCell ? pParameterCell->pNode : NULL))->type;
       if (!IS_MATHABLE_TYPE(valType)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, "FORECAST only support mathable column");
       }
@@ -1930,8 +2029,10 @@ static int32_t translateImputation(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   // check all input parameters
   int32_t num = numOfParams - 1;
   if (numOfParams > 1) {
-    for (int32_t i = 0; i < num; ++i) {
-      valType = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i))->type;
+    SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+    for (int32_t i = 0; i < num;
+         ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+      valType = getSDataTypeFromNode((NULL != pParameterCell ? pParameterCell->pNode : NULL))->type;
       if (!IS_MATHABLE_TYPE(valType)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, "IMPUTATION only support mathable column");
       }
@@ -2119,22 +2220,24 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   int32_t sepBytes = 0;
 
   /* For concat/concat_ws function, if params have NCHAR type, promote the final result to NCHAR */
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
     uint8_t paraType = getSDataTypeFromNode(pPara)->type;
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
       resultType = paraType;
     }
   }
 
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < numOfParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SNode*  pPara = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
     uint8_t paraType = getSDataTypeFromNode(pPara)->type;
     int32_t paraBytes = getSDataTypeFromNode(pPara)->bytes;
     int32_t factor = 1;
     if (IS_NULL_TYPE(paraType)) {
       resultType = TSDB_DATA_TYPE_VARCHAR;
-      resultBytes = 0;
+      resultBytes = VARSTR_HEADER_SIZE;
       sepBytes = 0;
       break;
     }
@@ -2167,13 +2270,12 @@ static int32_t translateConcatWs(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 static int32_t translateGroupConcat(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
 
-  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   int32_t resultBytes = TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE;
   uint8_t resultType = TSDB_DATA_TYPE_BINARY;
 
   /* if params have NCHAR type, promote the final result to NCHAR */
-  for (int32_t i = 0; i < numOfParams; ++i) {
-    SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
     uint8_t paraType = getSDataTypeFromNode(pPara)->type;
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
       resultType = paraType;
@@ -2730,9 +2832,12 @@ static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
       return code;
     }
   } else {
-    /* inject connection timezone as POSIX form for taosValidateTimezone() */
-    int32_t code = addTimezoneNameParam(pFunc->pParameterList,
-                                        pFunc->tz, false);
+    /* inject connection timezone as POSIX form for taosValidateTimezone();
+     * pass the session zone name (SFuncNode.tzName) so Windows, which has no
+     * client-side timezone name map, injects the same name the plan context
+     * carries instead of a display-derived fixed offset. */
+    int32_t code = addTimezoneNameParamEx(pFunc->pParameterList,
+                                          pFunc->tz, false, pFunc->tzName);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2868,8 +2973,10 @@ static int32_t translateHistogramImpl(SFunctionNode* pFunc, char* pErrBuf, int32
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   int8_t  binType;
   char*   binDesc;
-  for (int32_t i = 1; i < numOfParams; ++i) {
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+  for (int32_t i = 1; i < numOfParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SValueNode* pValue = (SValueNode*)(NULL != pParameterCell ? pParameterCell->pNode : NULL);
     if (i == 1) {
       binType = validateHistogramBinType(varDataVal(pValue->datum.p));
       if (binType == UNKNOWN_BIN) {
@@ -2914,8 +3021,9 @@ static int32_t translateGreatestleast(SFunctionNode* pFunc, char* pErrBuf, int32
   int32_t   nullLitCount = 0;
   uint8_t   tsPrecision = 0;
   bool      hasTimestampArg = false;
-  for (int32_t i = 0; i < LIST_LENGTH(pFunc->pParameterList); i++) {
-    SDataType* para = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, i));
+  SNode* pParameterNode = NULL;
+  FOREACH(pParameterNode, pFunc->pParameterList) {
+    SDataType* para = getSDataTypeFromNode(pParameterNode);
 
     if (IS_NULL_TYPE(para->type)) {
       if (ignoreNull) {
@@ -3019,7 +3127,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_COUNT,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC |
                       FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3049,7 +3157,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_SUM,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
                       FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3079,7 +3187,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_MIN,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
                       FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3108,7 +3216,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_MAX,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
                       FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3137,7 +3245,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "stddev",
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3245,7 +3353,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_AVG,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
                       FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3555,7 +3663,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "spread",
     .type = FUNCTION_TYPE_SPREAD,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4538,7 +4646,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = 1000}},
+                                           .range = {.iMinVal = 1, .iMaxVal = SAMPLE_QUERY_LIMIT}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_DOUBLE_TYPE}},
     .translateFunc = translateOutDouble,
     .getEnvFunc   = getMavgFuncEnv,
@@ -4571,7 +4679,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
-                                           .range = {.iMinVal = 1, .iMaxVal = 1000}},
+                                           .range = {.iMinVal = 1, .iMaxVal = SAMPLE_QUERY_LIMIT}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_ALL_TYPE}},
     .translateFunc = translateSampleTail,
     .getEnvFunc   = getSampleFuncEnv,
@@ -4673,7 +4781,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "abs",
     .type = FUNCTION_TYPE_ABS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4695,7 +4803,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "log",
     .type = FUNCTION_TYPE_LOG,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -4724,7 +4832,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "pow",
     .type = FUNCTION_TYPE_POW,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -4753,7 +4861,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sqrt",
     .type = FUNCTION_TYPE_SQRT,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4775,7 +4883,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ceil",
     .type = FUNCTION_TYPE_CEIL,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4797,7 +4905,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "floor",
     .type = FUNCTION_TYPE_FLOOR,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4819,7 +4927,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "round",
     .type = FUNCTION_TYPE_ROUND,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -4848,7 +4956,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sin",
     .type = FUNCTION_TYPE_SIN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4870,7 +4978,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "cos",
     .type = FUNCTION_TYPE_COS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4892,7 +5000,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "tan",
     .type = FUNCTION_TYPE_TAN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4914,7 +5022,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "asin",
     .type = FUNCTION_TYPE_ASIN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4936,7 +5044,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "acos",
     .type = FUNCTION_TYPE_ACOS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4958,7 +5066,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "atan",
     .type = FUNCTION_TYPE_ATAN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -4980,7 +5088,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "length",
     .type = FUNCTION_TYPE_LENGTH,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5002,7 +5110,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "char_length",
     .type = FUNCTION_TYPE_CHAR_LENGTH,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5024,7 +5132,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 8,
                    .paramInfoPattern = 1,
@@ -5046,7 +5154,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "concat_ws",
     .type = FUNCTION_TYPE_CONCAT_WS,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 9,
                    .paramInfoPattern = 1,
@@ -5075,7 +5183,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "lower",
     .type = FUNCTION_TYPE_LOWER,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5097,7 +5205,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "upper",
     .type = FUNCTION_TYPE_UPPER,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5119,7 +5227,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ltrim",
     .type = FUNCTION_TYPE_LTRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5141,7 +5249,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "rtrim",
     .type = FUNCTION_TYPE_RTRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -5163,7 +5271,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "substr",
     .type = FUNCTION_TYPE_SUBSTR,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -5192,14 +5300,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "cast",
     .type = FUNCTION_TYPE_CAST,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = FQ_CAP_ALL | FQ_CAP_CAST_TS_INT_PG,  // All dialects support CAST; but only PG supports CAST(timestamp->int)
+    .fqPushCap = FQ_CAP_ALL | FQ_CAP_CAST_TS_INT_PG | FQ_CAP_SQLSERVER,  // All dialects support CAST; but only PG supports CAST(timestamp->int) (SQL Server keeps that sub-capability off, DS 5.3.13 cast row)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = true,
                                            .startParam = 1,
                                            .endParam = 1,
-                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_BLOB_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE | FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_GEOMETRY_TYPE | FUNC_PARAM_SUPPORT_BLOB_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE | FUNC_PARAM_SUPPORT_JSON_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
@@ -5243,7 +5351,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "to_unixtimestamp",
     .type = FUNCTION_TYPE_TO_UNIXTIMESTAMP,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL: pushable to MySQL/PG/InfluxDB via UNIX_TIMESTAMP/EXTRACT EPOCH
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -5310,7 +5418,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "timediff",
     .type = FUNCTION_TYPE_TIMEDIFF,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -5339,7 +5447,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "now",
     .type = FUNCTION_TYPE_NOW,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
@@ -5354,7 +5462,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "today",
     .type = FUNCTION_TYPE_TODAY,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_DATETIME_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
@@ -5943,7 +6051,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "to_char",
     .type = FUNCTION_TYPE_TO_CHAR,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -6298,7 +6406,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "md5",
     .type = FUNCTION_TYPE_MD5,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .fqArg0NcharPushCapSet = true,
     .fqArg0NcharPushCap = FQ_CAP_NONE,
     .parameters = {.minParamNum = 1,
@@ -6337,7 +6445,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "stddev_pop",
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6364,7 +6472,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "var_pop",
     .type = FUNCTION_TYPE_STDVAR,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6440,7 +6548,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "pi",
     .type = FUNCTION_TYPE_PI,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 0,
                    .paramInfoPattern = 0,
@@ -6455,7 +6563,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "exp",
     .type = FUNCTION_TYPE_EXP,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6477,7 +6585,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ln",
     .type = FUNCTION_TYPE_LN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6499,7 +6607,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "mod",
     .type = FUNCTION_TYPE_MOD,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6528,7 +6636,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sign",
     .type = FUNCTION_TYPE_SIGN,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6550,7 +6658,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "degrees",
     .type = FUNCTION_TYPE_DEGREES,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6572,7 +6680,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "radians",
     .type = FUNCTION_TYPE_RADIANS,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6594,7 +6702,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "truncate",
     .type = FUNCTION_TYPE_TRUNCATE,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6623,7 +6731,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "trunc",
     .type = FUNCTION_TYPE_TRUNCATE,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6652,7 +6760,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "substring",
     .type = FUNCTION_TYPE_SUBSTR,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -6770,7 +6878,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ascii",
     .type = FUNCTION_TYPE_ASCII,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6792,7 +6900,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "position",
     .type = FUNCTION_TYPE_POSITION,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6814,7 +6922,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "trim",
     .type = FUNCTION_TYPE_TRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6836,7 +6944,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "replace",
     .type = FUNCTION_TYPE_REPLACE,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 3,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -6858,7 +6966,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "repeat",
     .type = FUNCTION_TYPE_REPEAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 2,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6887,7 +6995,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "weekday",
     .type = FUNCTION_TYPE_WEEKDAY,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x3,  // FQ_CAP_MYSQL_PG
+    .fqPushCap = 0x3 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6909,7 +7017,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "dayofweek",
     .type = FUNCTION_TYPE_DAYOFWEEK,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6931,7 +7039,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "week",
     .type = FUNCTION_TYPE_WEEK,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 2,
                    .paramInfoPattern = 1,
@@ -6962,7 +7070,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "weekofyear",
     .type = FUNCTION_TYPE_WEEKOFYEAR,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -6984,7 +7092,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "rand",
     .type = FUNCTION_TYPE_RAND,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 0,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7443,7 +7551,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "date",
     .type = FUNCTION_TYPE_DATE,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // + SQL Server (phase-2 M4)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7700,7 +7808,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "std",
     .type = FUNCTION_TYPE_STDDEV,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7730,7 +7838,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "variance",
     .type = FUNCTION_TYPE_STDVAR,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7760,7 +7868,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "var_samp",
     .type = FUNCTION_TYPE_STDVAR_SAMP,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7790,7 +7898,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "stddev_samp",
     .type = FUNCTION_TYPE_STDDEV_SAMP,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7876,7 +7984,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "group_concat",
     .type = FUNCTION_TYPE_GROUP_CONCAT,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_KEEP_ORDER_FUNC, // | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_MYSQL_PG_INFLUXDB
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = -1,
                    .paramInfoPattern = 1,
@@ -7894,6 +8002,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = gconcatFunctionSetup,
     .processFunc  = gconcatFunction,
     .finalizeFunc = gconcatFinalize,
+    .cleanupFunc  = gconcatFunctionCleanup,
     /*
     .combineFunc  = gconcatCombine, // stream
     .pStateFunc = "group_concat",   // tsma
@@ -8050,7 +8159,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sha",
     .type = FUNCTION_TYPE_SHA1,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x1,  // FQ_CAP_MYSQL
+    .fqPushCap = 0x1 | FQ_CAP_SQLSERVER,  // MySQL + SQL Server (HASHBYTES)
     .fqArg0NcharPushCapSet = true,
     .fqArg0NcharPushCap = FQ_CAP_NONE,
     .parameters = {.minParamNum = 1,
@@ -8074,7 +8183,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sha1",
     .type = FUNCTION_TYPE_SHA1,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x1,  // FQ_CAP_MYSQL
+    .fqPushCap = 0x1 | FQ_CAP_SQLSERVER,  // MySQL + SQL Server (HASHBYTES)
     .fqArg0NcharPushCapSet = true,
     .fqArg0NcharPushCap = FQ_CAP_NONE,
     .parameters = {.minParamNum = 1,
@@ -8098,7 +8207,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "sha2",
     .type = FUNCTION_TYPE_SHA2,
     .classification = FUNC_MGT_SCALAR_FUNC,
-    .fqPushCap = 0x5,  // FQ_CAP_MYSQL | FQ_CAP_INFLUX: InfluxDB DataFusion supports SHA256/SHA512
+    .fqPushCap = 0x5 | FQ_CAP_SQLSERVER,  // MySQL/Influx + SQL Server (HASHBYTES SHA2_256/512)
     .fqArg0NcharPushCapSet = true,
     .fqArg0NcharPushCap = FQ_CAP_NONE,
     .parameters = {.minParamNum = 2,
@@ -8247,7 +8356,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_SCALAR_FUNC,
     .fqPushCap = 0x0,  // FQ_CAP_NONE
     .parameters = {.minParamNum = 2,
-                   .maxParamNum = 3,
+                   .maxParamNum = 4,
                    .paramInfoPattern = 1,
                    .inputParaInfo[0][0] = {.isLastParam = false,
                                            .startParam = 1,
@@ -8263,13 +8372,22 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
-                   .inputParaInfo[0][2] = {.isLastParam = true,
+                   .inputParaInfo[0][2] = {.isLastParam = false,
                                            .startParam = 3,
                                            .endParam = 3,
                                            .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
                                            .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][3] = {.isLastParam = true,
+                                           .startParam = 4,
+                                           .endParam = 4,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_VALUE_NODE_NOT_NULL,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 2,
+                                           .fixedStrValue = {"raw", "legacy"}},
                    .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE}},
     .translateFunc = translateOutAesDe,
     .getEnvFunc = NULL,
@@ -8341,7 +8459,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
                       FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M3)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -8383,7 +8501,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_PROCESS_BY_ROW |
                       FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
                       FUNC_MGT_SQL_WINDOW_FUNC | FUNC_MGT_SQL_WINDOW_ORDER_FUNC | FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
-    .fqPushCap = 0x7,  // FQ_CAP_ALL
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M3)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 3,
                    .paramInfoPattern = 1,
@@ -8987,6 +9105,47 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = bitChangesFunctionSetup,
     .processFunc  = bitChangesFunction,
     .finalizeFunc = bitChangesFinalize,
+  },
+  {
+    .name = "bit_duration",
+    .type = FUNCTION_TYPE_BIT_DURATION,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC |
+                      FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_SYSTABLE_FUNC | FUNC_MGT_PRIMARY_KEY_FUNC |
+                      FUNC_MGT_DEGRADED_TIMELINE_ROW_ORDER_FUNC,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 3,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = false,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_BOOL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .inputParaInfo[0][1] = {.isLastParam = false,
+                                           .startParam = 2,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_RANGE,
+                                           .range = {.iMinVal = 1, .iMaxVal = INT64_MAX}},
+                   .inputParaInfo[0][2] = {.isLastParam = true,
+                                           .startParam = 3,
+                                           .endParam = 3,
+                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_VALUE_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_HAS_FIXED_VALUE,
+                                           .fixedValueSize = 3,
+                                           .fixedNumValue = {BIT_DURATION_FLAG_NONZERO, BIT_DURATION_FLAG_ZERO,
+                                                             BIT_DURATION_FLAG_TOTAL}},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+    .getEnvFunc   = getBitDurationFuncEnv,
+    .initFunc     = bitDurationFunctionSetup,
+    .processFunc  = bitDurationFunction,
+    .finalizeFunc = bitDurationFinalize,
   },
 };
 // clang-format on

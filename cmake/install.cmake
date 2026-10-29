@@ -44,8 +44,11 @@ IF (TD_LINUX)
   INSTALL(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} bash ${TD_MAKE_INSTALL_SH} ${TD_SOURCE_DIR} ${CMAKE_BINARY_DIR} Linux ${BUILD_VER_NUMBER})")
 ELSEIF (TD_WINDOWS)
   SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.bat")
+  # cmake -E env runs the batch file directly (no cmd.exe wrapper), so the
+  # script path must use native separators.
+  FILE(TO_NATIVE_PATH "${TD_MAKE_INSTALL_SH}" TD_MAKE_INSTALL_SH_NATIVE)
   INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")
-  INSTALL(CODE "execute_process(COMMAND ${TD_MAKE_INSTALL_SH} :needAdmin ${TD_SOURCE_DIR} ${CMAKE_BINARY_DIR} Windows ${BUILD_VER_NUMBER})")
+  INSTALL(CODE "execute_process(COMMAND \"${CMAKE_COMMAND}\" -E env TD_INSTALL_FQ_RUNTIME_LIBS=${INSTALL_FQ_RUNTIME_LIBS} TD_BUILD_WITH_ODBC=${BUILD_WITH_ODBC} \"${TD_MAKE_INSTALL_SH_NATIVE}\" :needAdmin \"${TD_SOURCE_DIR}\" \"${CMAKE_BINARY_DIR}\" Windows ${BUILD_VER_NUMBER})")
 ELSEIF (TD_DARWIN)
   SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.sh")
   INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")

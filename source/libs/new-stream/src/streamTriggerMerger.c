@@ -1097,6 +1097,7 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
 
   *ppDataBlock = NULL;
 
+_retrieve:
   if (IS_TRIGGER_VTABLE_MERGER_EMPTY(pMerger)) {
     goto _end;
   } else {
@@ -1215,18 +1216,25 @@ int32_t stVtableMergerNextDataBlock(SSTriggerVtableMerger *pMerger, SSDataBlock 
         }
       }
     }
+    SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
+    QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
+    int64_t nextTs = ((int64_t *)pVirTsCol->pData)[nrows - 1] + 1;
     if (pMerger->pFilter != NULL) {
       int32_t status = 0;
       code = filterExecute(pMerger->pFilter, pMerger->pDataBlock, &p, NULL, blockDataGetNumOfCols(pDataBlock), &status);
       QUERY_CHECK_CODE(code, lino, _end);
       code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
       QUERY_CHECK_CODE(code, lino, _end);
+      colDataDestroy(p);
+      taosMemoryFreeClear(p);
+    }
+    pMerger->readRange.skey = TMAX(pMerger->readRange.skey, nextTs);
+    if (blockDataGetNumOfRows(pDataBlock) == 0) {
+      // A filtered batch is neither a row nor EOF. Continue until rows, a fetch,
+      // or the end of the read range, preserving progress through filtered rows.
+      goto _retrieve;
     }
     *ppDataBlock = pMerger->pDataBlock;
-    SColumnInfoData *pVirTsCol = taosArrayGet(pDataBlock->pDataBlock, 0);
-    QUERY_CHECK_NULL(pVirTsCol, code, lino, _end, terrno);
-    int64_t *pVirTsData = (int64_t *)pVirTsCol->pData;
-    pMerger->readRange.skey = TMAX(pMerger->readRange.skey, pVirTsData[nrows - 1] + 1);
   }
 
 _end:
@@ -2164,7 +2172,8 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
 
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
-                                 SSHashObj *pMetas, SSHashObj *pSlices, bool orderedInput) {
+                                 SSHashObj *pMetas, SSHashObj *pSlices, SSHashObj *pReaderConsumedEkeys,
+                                 bool orderedInput) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pMerger->pTask;
@@ -2233,8 +2242,20 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
         break;
       }
     }
+    STimeWindow readerRange = *pReadRange;
+    if (pReaderConsumedEkeys != NULL && pTableRef->readerKey.readerKind == STRIGGER_READER_KIND_EXTERNAL) {
+      int64_t *pConsumed =
+          (int64_t *)tSimpleHashGet(pReaderConsumedEkeys, &pTableRef->readerKey, sizeof(pTableRef->readerKey));
+      if (pConsumed == NULL || *pConsumed == INT64_MIN) {
+        // Reader has not delivered (or not consumed) anything for this group yet:
+        // accept its full range instead of clipping it to [oldThreshold+1, ...].
+        readerRange.skey = INT64_MIN;
+      } else {
+        readerRange.skey = TMAX(readerRange.skey, *pConsumed == INT64_MAX ? INT64_MAX : *pConsumed + 1);
+      }
+    }
     code = stNewTimestampSorterSetData(pReaderInfo->pReader, &pTableRef->readerKey, readerTsSlotId, readerPkSlotId,
-                                       pReadRange, pMeta, pSlice, orderedInput);
+                                       &readerRange, pMeta, pSlice, orderedInput);
     QUERY_CHECK_CODE(code, lino, _end);
     pReaderInfo->pColRef = pColRef;
     ST_TASK_DLOG("set virtual merger reader kind:%d, readerId:%" PRIu64 ", logicalUid:%" PRId64
@@ -2267,6 +2288,44 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+/* Copy nRows from the external original-table column into the virtual column slot.
+ * colDataAssignNRows requires identical byte widths, but a legal variable-length reference may
+ * declare a wider virtual column than the external mapping (e.g. VARCHAR(64) over VARCHAR(32)):
+ * copy those row by row through colDataSetVal, which takes the length from the value's var header
+ * and grows the destination in place. Fixed-width columns keep the strict bulk path. */
+static int32_t stNewVtableMergerAssignColRows(SColumnInfoData *pDst, int32_t dstStart, SColumnInfoData *pSrc,
+                                              int32_t srcStart, int32_t nRows) {
+  bool varWidthMismatch = (pSrc->info.type == TSDB_DATA_TYPE_VARCHAR || pSrc->info.type == TSDB_DATA_TYPE_NCHAR ||
+                           pSrc->info.type == TSDB_DATA_TYPE_VARBINARY) &&
+                          pSrc->info.bytes != pDst->info.bytes;
+  if (!varWidthMismatch) {
+    return colDataAssignNRows(pDst, dstStart, pSrc, srcStart, nRows);
+  }
+  // The bulk path already guarantees the destination width can hold the values, but a value wider
+  // than the destination declaration (e.g. an external VARCHAR(64) mapped onto a virtual
+  // VARCHAR(32)) would otherwise be copied silently into an over-wide block and only fail later
+  // at sink write time. Reject it here with an explicit error instead.
+  int32_t dstMaxLen = pDst->info.bytes > VARSTR_HEADER_SIZE ? (int32_t)(pDst->info.bytes - VARSTR_HEADER_SIZE) : -1;
+  for (int32_t i = 0; i < nRows; ++i) {
+    int32_t srcIdx = srcStart + i;
+    if (colDataIsNull_s(pSrc, srcIdx)) {
+      colDataSetNULL(pDst, dstStart + i);
+    } else {
+      char   *pData = colDataGetData(pSrc, srcIdx);
+      if (dstMaxLen > 0 && varDataLen(pData) > dstMaxLen) {
+        stError("ext: var-width merge value exceeds virtual column width, srcBytes:%d dstBytes:%d valueLen:%d dstMaxLen:%d",
+                (int32_t)pSrc->info.bytes, (int32_t)pDst->info.bytes, varDataLen(pData), dstMaxLen);
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      int32_t code = colDataSetVal(pDst, dstStart + i, pData, false);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bool *filled) {
@@ -2319,7 +2378,7 @@ static int32_t stNewVtableMergerDoRetrieve(SSTriggerNewVtableMerger *pMerger, bo
       QUERY_CHECK_NULL(pVirCol, code, lino, _end, terrno);
       SColumnInfoData *pOrigCol = taosArrayGet(pOrigDataBlock->pDataBlock, pColMatch->otbSlotId);
       QUERY_CHECK_NULL(pOrigCol, code, lino, _end, terrno);
-      code = colDataAssignNRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
+      code = stNewVtableMergerAssignColRows(pVirCol, virStartIdx, pOrigCol, pReaderInfo->startIdx, nRowsToCopy);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     pReaderInfo->startIdx += nRowsToCopy;
@@ -2431,6 +2490,8 @@ _retrieve:
       QUERY_CHECK_CODE(code, lino, _end);
       code = trimDataBlock(pMerger->pDataBlock, nrows, (bool *)p->pData);
       QUERY_CHECK_CODE(code, lino, _end);
+      colDataDestroy(p);
+      taosMemoryFreeClear(p);
       int32_t nrowsAfterFilter = blockDataGetNumOfRows(pMerger->pDataBlock);
       ST_TASK_DLOG("vtable merger filter applied, before: %d, after: %d", nrows, nrowsAfterFilter);
       if (nrowsAfterFilter == 0 && nrows == VTABLE_MERGER_NROWS_PER_BLOCK) {

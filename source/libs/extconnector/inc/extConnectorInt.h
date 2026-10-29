@@ -142,7 +142,7 @@ typedef struct SExtSlab {
 } SExtSlab;
 
 // ============================================================
-// Per-source connection pool (fully lock-free, no mutex)
+// Per-source/database connection pool (fully lock-free, no mutex)
 //
 // Concurrency model:
 //   idleHead    -  Treiber stack (idleNext links).  May contain FREE zombies
@@ -172,7 +172,20 @@ typedef struct SExtConnPool {
   int32_t          slabSize;        // entries per expansion slab (= maxPoolSize initially)
   int32_t          maxPoolSize;     // soft cap on (idleCount + inUseCount)
   volatile int32_t destroying;      // 1 = pool shutting down (set by destroyPool)
+  volatile int64_t lastActiveTime;  // ms timestamp of last successful open()/close() activity
 } SExtConnPool;
+
+// ============================================================
+// Internal test/diagnostic hooks
+// ============================================================
+
+// Number of pools currently registered in the pool hash (diagnostic/test use).
+int32_t extConnectorPoolCount(void);
+
+// Reclaim pools that no longer hold any connection and whose last activity is
+// older than ttlMs.  Runs on the eviction thread; exposed so unit tests can
+// exercise the reclaim path without waiting for the eviction interval.
+void extConnectorReclaimExpiredEmptyPools(int64_t nowMs, int64_t ttlMs);
 // ============================================================
 // Opaque handle types (declared in extConnector.h, defined here)
 // ============================================================

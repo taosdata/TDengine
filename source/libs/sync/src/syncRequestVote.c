@@ -108,6 +108,46 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     TAOS_RETURN(TSDB_CODE_SYN_LEARNER_NO_VOTE);
   }
 
+  // ---------------------------------------------------------------------------
+  // Security hardening for finding item 185 (sync-forged-request-vote-leader-deposition, CWE-290):
+  // The SYNC transport performs no peer authentication, so any host that can
+  // reach the 6030 listener may forge a TDMT_SYNC_REQUEST_VOTE frame whose
+  // srcId names a raft-group member. Two such frames are impossible in
+  // legitimate Raft and therefore must be dropped before any term / vote /
+  // role / election-timer state change:
+  //   1) A node never sends a RequestVote to itself. The self-vote is handled
+  //      locally via a RequestVoteReply in syncNodeVoteForSelf(), and
+  //      syncNodeRequestVotePeers() skips the local id (peersId excludes self,
+  //      see syncMain.c peersNum = totalReplicaNum - 1). A frame with
+  //      srcId == our own id, term == currentTerm and lastLogTerm/LastIndex ==
+  //      INT64_MAX passes the vote-grant check (the leader's voteFor IS its own
+  //      id), so grant becomes true and the subsequent syncNodeStepDown(ths,
+  //      currentTerm, srcId) demotes the leader at the SAME term with NO term
+  //      increase -> write unavailability for the vgroup / mnode.
+  //   2) The leader only issues AppendEntries/heartbeats, never RequestVote, so
+  //      a same-term RequestVote claiming to come from the node we currently
+  //      treat as leader is also forged.
+  // Rejecting these frames is safe: it cannot occur for a legitimate peer (see
+  // the election-path analysis above), so no election or vote can be broken.
+  // NOTE: the complete fix (per-connection peer authentication / a message MAC
+  // bound to the cluster secret) is tracked separately (finding item 185,
+  // recommended fix #1); this is the targeted ingress guard that closes the
+  // demonstrated same-term leader-deposition / election-suppression exploit.
+  // ---------------------------------------------------------------------------
+  if (syncUtilSameId(&pMsg->srcId, &ths->myRaftId)) {
+    syncLogRecvRequestVote(ths, pMsg, -1, "srcId equals myself, drop forged requestVote", "process",
+                           &pRpcMsg->info.traceId);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
+  }
+
+  SyncTerm currentTermChk = raftStoreGetTerm(ths);
+  if (ths->leaderCache.addr != 0 && pMsg->term == currentTermChk &&
+      syncUtilSameId(&pMsg->srcId, &ths->leaderCache)) {
+    syncLogRecvRequestVote(ths, pMsg, -1, "srcId equals current leader at same term, drop forged requestVote",
+                           "process", &pRpcMsg->info.traceId);
+    TAOS_RETURN(TSDB_CODE_SYN_NOT_IN_RAFT_GROUP);
+  }
+
   bool logOK = syncNodeOnRequestVoteLogOK(ths, pMsg);
   // maybe update term
   if (pMsg->term > raftStoreGetTerm(ths)) {

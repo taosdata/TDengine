@@ -911,7 +911,7 @@ static int32_t stbSplCreateMergeKeysByPrimaryKey(SNode* pPrimaryKey, EOrder orde
   return stbSplCreateMergeKeysByExpr(pPrimaryKey, order, pMergeKeys);
 }
 
-static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow) {
+static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow, bool partialOnly) {
   if (pWindow == NULL) {
     return false;
   }
@@ -919,8 +919,9 @@ static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow) {
   if (pWindow->winType != WINDOW_TYPE_INTERVAL || pWindow->interval <= 0 ||
       pWindow->sliding != pWindow->interval ||
       pWindow->slidingUnit != pWindow->intervalUnit || pWindow->offset != 0 ||
-      pWindow->node.groupAction == GROUP_ACTION_KEEP || LIST_LENGTH(pWindow->node.pChildren) != 1 ||
-      LIST_LENGTH(pWindow->pTsmaSubplans) != 0) {
+      LIST_LENGTH(pWindow->node.pChildren) != 1 ||
+      (!partialOnly && (pWindow->node.groupAction == GROUP_ACTION_KEEP ||
+                       LIST_LENGTH(pWindow->pTsmaSubplans) != 0))) {
     return false;
   }
 
@@ -946,9 +947,17 @@ static bool stbSplIntervalBaseEligible(const SWindowLogicNode* pWindow) {
   return span / (uint64_t)pWindow->interval + 2 <= EX_INTERVAL_MAX_WINDOWS;
 }
 
-static bool stbSplFastIntervalEligible(const SWindowLogicNode* pWindow) {
-  if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow)) {
+static bool stbSplFastIntervalShapeEligible(const SWindowLogicNode* pWindow, bool partialOnly) {
+  if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow, partialOnly)) {
     return false;
+  }
+
+  if (partialOnly) {
+    const SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0);
+    if (pChild == NULL || nodeType((const SNode*)pChild) != QUERY_NODE_LOGIC_PLAN_SCAN ||
+        ((const SScanLogicNode*)pChild)->scanType != SCAN_TYPE_TABLE) {
+      return false;
+    }
   }
 
   SNode* pFunc = NULL;
@@ -960,9 +969,6 @@ static bool stbSplFastIntervalEligible(const SWindowLogicNode* pWindow) {
   }
 
   if (pWindow->partType & WINDOW_PART_HAS) {
-    if (!(pWindow->partType & WINDOW_PART_TB) || 1 != LIST_LENGTH(pWindow->node.pChildren)) {
-      return false;
-    }
     SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0);
     while (NULL != pChild && QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) && 1 == LIST_LENGTH(pChild->pChildren)) {
       pChild = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
@@ -971,14 +977,37 @@ static bool stbSplFastIntervalEligible(const SWindowLogicNode* pWindow) {
       return false;
     }
     SNodeList* pGroupTags = ((SScanLogicNode*)pChild)->pGroupTags;
-    if (1 != LIST_LENGTH(pGroupTags) || !keysHasTbname(pGroupTags)) {
+    if (NULL == pGroupTags || keysHasCol(pGroupTags)) {
       return false;
+    }
+    if (!keysHasTbname(pGroupTags)) {
+      // Cross-table tag groups support FAST partial and merge aggregation. Keep
+      // expressions and group limits on the legacy path in this first version.
+      if (((SScanLogicNode*)pChild)->scanType != SCAN_TYPE_TABLE ||
+          pChild != (SLogicNode*)nodesListGetNode(pWindow->node.pChildren, 0) ||
+          pWindow->node.pLimit != NULL || pWindow->node.pSlimit != NULL) {
+        return false;
+      }
+      SNode* pTag = NULL;
+      FOREACH(pTag, pGroupTags) {
+        if (nodeType(pTag) != QUERY_NODE_COLUMN || ((SColumnNode*)pTag)->colType != COLUMN_TYPE_TAG) {
+          return false;
+        }
+      }
     }
   }
 
+  return true;
+}
+
+static bool stbSplHasFastIntervalHint(const SWindowLogicNode* pWindow) {
   SLogicNode* pRoot = getLogicNodeRootNode((SLogicNode*)pWindow);
   return getOptHint(pWindow->node.pHint, HINT_FAST_INTERVAL) ||
          (NULL != pRoot && getOptHint(pRoot->pHint, HINT_FAST_INTERVAL));
+}
+
+static bool stbSplFastIntervalEligible(const SWindowLogicNode* pWindow) {
+  return stbSplFastIntervalShapeEligible(pWindow, false) && stbSplHasFastIntervalHint(pWindow);
 }
 
 static bool stbSplExIntervalSingleDnode(const SLogicNode* pNode, const SEp** ppDnode, int32_t* pNumOfScans) {
@@ -1039,7 +1068,7 @@ static bool stbSplExIntervalFunctionEligible(const SFunctionNode* pFunction) {
 }
 
 static bool stbSplExIntervalEligible(const SWindowLogicNode* pWindow) {
-  if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow) || NULL == pWindow->pFuncs ||
+  if (NULL == pWindow || !stbSplIntervalBaseEligible(pWindow, false) || NULL == pWindow->pFuncs ||
       NULL != pWindow->node.pLimit || NULL != pWindow->node.pSlimit || (pWindow->partType & WINDOW_PART_HAS)) {
     return false;
   }
@@ -1088,6 +1117,27 @@ static bool stbSplFastIntervalPartialRowEligible(const SLogicNode* pPartWindow) 
   return totalRowSize < FAST_INTERVAL_MAX_PARTIAL_ROW_BYTES;
 }
 
+static bool stbSplFastGroupedMergeEligible(const SWindowLogicNode* pWindow) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pWindow->pFuncs) {
+    const SFunctionNode* pFunc = (const SFunctionNode*)pNode;
+    if (fmIsWindowPseudoColumnFunc(pFunc->funcId) ||
+        fmIsPlaceHolderFunc(pFunc->funcId) ||
+        fmIsGroupKeyFunc(pFunc->funcId) || fmIsSelectValueFunc(pFunc->funcId)) {
+      continue;
+    }
+    if (pFunc->funcType != FUNCTION_TYPE_COUNT &&
+        pFunc->funcType != FUNCTION_TYPE_SUM &&
+        pFunc->funcType != FUNCTION_TYPE_AVG &&
+        pFunc->funcType != FUNCTION_TYPE_AVG_MERGE &&
+        pFunc->funcType != FUNCTION_TYPE_MIN &&
+        pFunc->funcType != FUNCTION_TYPE_MAX) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static int32_t stbSplMarkIntervalTableScan(SLogicNode* pNode, bool fastInterval, bool exInterval, int32_t* pNumOfScans) {
   if (pNode == NULL || pNumOfScans == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1122,20 +1172,31 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   SLogicNode* pPartWindow = NULL;
   SNodeList*  pMergeKeys = NULL;
   bool        isStreamCalc = inStreamCalcClause(pCxt->pPlanCxt);
-  bool        fastInterval = !isStreamCalc && stbSplFastIntervalEligible(pWindow);
+  bool        fastHint = !isStreamCalc && stbSplHasFastIntervalHint(pWindow);
+  bool        hasTsmaSubplans = LIST_LENGTH(pWindow->pTsmaSubplans) > 0;
+  bool        fastInterval = !isStreamCalc &&
+                             (stbSplFastIntervalEligible(pWindow) ||
+                              (hasTsmaSubplans && fastHint && stbSplFastIntervalShapeEligible(pWindow, true)));
+  bool        fastMergeInterval = fastInterval &&
+                                    ((!(pWindow->partType & WINDOW_PART_HAS) && !hasTsmaSubplans) ||
+                                     stbSplFastGroupedMergeEligible(pWindow));
   bool        exInterval = !isStreamCalc && stbSplExIntervalEligible(pWindow);
   int32_t     code = stbSplCreatePartWindowNode(pCxt, pWindow,
                                                 &pPartWindow, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
     fastInterval = fastInterval && stbSplFastIntervalPartialRowEligible(pPartWindow);
-    bool optimizedInterval = fastInterval || exInterval;
+    fastMergeInterval = fastMergeInterval && fastInterval;
+    // TSMA and grouped FAST merge retain sorted, complete groups from all sources.
+    bool sortedFastMerge = fastMergeInterval &&
+                           ((pWindow->partType & WINDOW_PART_HAS) || hasTsmaSubplans);
+    bool optimizedInterval = (fastMergeInterval && !sortedFastMerge) || exInterval;
     ((SWindowLogicNode*)pPartWindow)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_HASH : EXTERNAL_ALGO_HASH;
     ((SWindowLogicNode*)pInfo->pSplitNode)->windowAlgo = ((SWindowLogicNode*)pInfo->pSplitNode)->winType == WINDOW_TYPE_INTERVAL ? INTERVAL_ALGO_MERGE : EXTERNAL_ALGO_MERGE;
     ((SWindowLogicNode*)pPartWindow)->fastInterval = fastInterval;
     ((SWindowLogicNode*)pPartWindow)->exInterval = exInterval;
-    pWindow->fastInterval = fastInterval;
+    pWindow->fastInterval = fastMergeInterval;
     pWindow->exInterval = exInterval;
-    if (optimizedInterval) {
+    if (fastInterval || exInterval) {
       int32_t numOfScans = 0;
       code = stbSplMarkIntervalTableScan(pPartWindow, fastInterval, exInterval, &numOfScans);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1156,7 +1217,7 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
       SExchangeLogicNode* pExchange = NULL;
       code = splCreateExchangeNode(pCxt, pPartWindow, &pExchange);
       if (TSDB_CODE_SUCCESS == code) {
-        if (fastInterval) {
+        if (fastMergeInterval) {
           pExchange->seqRecvData = false;
           pExchange->fastInterval = true;
         }
@@ -1181,7 +1242,9 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
   }
   if (code == TSDB_CODE_SUCCESS) {
     SNode* pNode;
-    bool optimizedInterval = fastInterval || exInterval;
+    bool sortedFastMerge = fastMergeInterval &&
+                           ((pWindow->partType & WINDOW_PART_HAS) || hasTsmaSubplans);
+    bool optimizedInterval = (fastMergeInterval && !sortedFastMerge) || exInterval;
     SMergeLogicNode* pMerge = optimizedInterval ? NULL : (SMergeLogicNode*)pInfo->pSplitNode->pChildren->pHead->pNode;
     SWindowLogicNode* pWindow = (SWindowLogicNode*)pInfo->pSplitNode;
     if (!optimizedInterval && LIST_LENGTH(pWindow->pTsmaSubplans) > 0) {
@@ -1192,11 +1255,29 @@ static int32_t stbSplSplitIntervalForBatch(SSplitContext* pCxt, SStableSplitInfo
         pSubplan->id.queryId = pCxt->queryId;
         //pSubplan->splitFlag = SPLIT_FLAG_STABLE_SPLIT;
         splSetSubplanVgroups(pSubplan, pSubplan->pNode);
-        code = stbSplCreatePartWindowNode(pCxt, (SWindowLogicNode*)pSubplan->pNode, &pPartWindow, NULL);
-        if (TSDB_CODE_SUCCESS == code) {
-          nodesDestroyNode((SNode*)pSubplan->pNode);
-          pSubplan->pNode = pPartWindow;
+        SWindowLogicNode* pTsmaWindow = (SWindowLogicNode*)pSubplan->pNode;
+        // TSMA leaf windows retain group ids for the cross-source merge and
+        // use the owning SELECT's hint for their local partial state.
+        bool tsmaFastInterval = fastHint && stbSplFastIntervalShapeEligible(pTsmaWindow, true);
+        code = stbSplCreatePartWindowNode(pCxt, pTsmaWindow, &pPartWindow, NULL);
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
         }
+        tsmaFastInterval = tsmaFastInterval && stbSplFastIntervalPartialRowEligible(pPartWindow);
+        ((SWindowLogicNode*)pPartWindow)->fastInterval = tsmaFastInterval;
+        if (tsmaFastInterval) {
+          int32_t numOfScans = 0;
+          code = stbSplMarkIntervalTableScan(pPartWindow, true, false, &numOfScans);
+          if (TSDB_CODE_SUCCESS == code && numOfScans != 1) {
+            code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+          }
+          if (TSDB_CODE_SUCCESS != code) {
+            nodesDestroyNode((SNode*)pPartWindow);
+            return code;
+          }
+        }
+        nodesDestroyNode((SNode*)pSubplan->pNode);
+        pSubplan->pNode = pPartWindow;
       }
       code = nodesListMakeStrictAppendList(&pInfo->pSubplan->pChildren, pWindow->pTsmaSubplans);
       pMerge->numOfSubplans = LIST_LENGTH(pInfo->pSubplan->pChildren) + 1;
@@ -2618,6 +2699,13 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     SExchangeLogicNode* pExchange = NULL;
     PLAN_ERR_JRET(splCreateExchangeNode(pCxt, (SLogicNode*)pChild, &pExchange));
 
+    // A dynamic exchange is reused by several original-table readers. Their
+    // individual row caps must not become a cap on the shared exchange.
+    if (info.pVirtual->node.dynamicOp) {
+      nodesDestroyNode(pExchange->node.pLimit);
+      pExchange->node.pLimit = NULL;
+    }
+
     pExchange->dynTbname = nodeType((SLogicNode*)pChild) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pChild)->phTbnameScan : false;
     pExchange->seqRecvData = (info.pVirtual->tableType == TSDB_SUPER_TABLE);
 
@@ -3410,11 +3498,14 @@ static bool needSplitSubplan(SLogicSubplan* pLogicSubplan) {
   return (MODIFY_TABLE_TYPE_INSERT == pModify->modifyType && NULL != pModify->node.pChildren);
 }
 
+static bool contextAllowsGroupMerge(SPlanContext* pCxt) {
+  return !pCxt->forceNoMergeDataBlock && !inStreamCalcClause(pCxt) &&
+         !inStreamTriggerClause(pCxt);
+}
+
 static bool interpCanMergeDataBlock(SPlanContext* pCxt,
                                    const SInterpFuncLogicNode* pInterp) {
-  if (pCxt->forceNoMergeDataBlock || inStreamCalcClause(pCxt) ||
-      inStreamTriggerClause(pCxt) ||
-      GROUP_ACTION_KEEP == pInterp->node.groupAction) {
+  if (!contextAllowsGroupMerge(pCxt)) {
     return false;
   }
 
@@ -3427,33 +3518,22 @@ static bool interpCanMergeDataBlock(SPlanContext* pCxt,
     return false;
   }
 
-  for (const SLogicNode* pParent = pInterp->node.pParent; pParent != NULL;
-       pParent = pParent->pParent) {
-    if (GROUP_ACTION_KEEP == pParent->groupAction ||
-        DATA_ORDER_LEVEL_NONE != pParent->requireDataOrder) {
-      return false;
-    }
-    switch (nodeType(pParent)) {
-      case QUERY_NODE_LOGIC_PLAN_PROJECT:
-        if (pParent->pSlimit != NULL ||
-            (pParent->pLimit != NULL &&
-             !((const SProjectLogicNode*)pParent)->inputIgnoreGroup)) {
-          return false;
-        }
-        break;
-      case QUERY_NODE_LOGIC_PLAN_SORT:
-        if (((const SSortLogicNode*)pParent)->groupSort) {
-          return false;
-        }
-        break;
-      default:
-        return false;
-    }
-  }
-  return true;
+  return planCanMergeOutputGroups(&pInterp->node);
 }
 
-static void setInterpMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
+static void setLastRowAggMergeDecision(SPlanContext* pCxt,
+                                       SAggLogicNode* pAgg) {
+  if (!pAgg->node.forceCreateNonBlockingOptr ||
+      !isLastRowPartTableAgg(pAgg)) {
+    return;
+  }
+  if (!contextAllowsGroupMerge(pCxt) ||
+      !planCanMergeOutputGroups(&pAgg->node)) {
+    pAgg->node.groupAction = GROUP_ACTION_KEEP;
+  }
+}
+
+static void setGroupMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_INTERP_FUNC == nodeType(pNode)) {
     if (interpCanMergeDataBlock(pCxt, (const SInterpFuncLogicNode*)pNode)) {
       pNode->resultDataOrder = DATA_ORDER_LEVEL_NONE;
@@ -3461,11 +3541,13 @@ static void setInterpMergeDecision(SPlanContext* pCxt, SLogicNode* pNode) {
     } else {
       pNode->groupAction = GROUP_ACTION_KEEP;
     }
+  } else if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+    setLastRowAggMergeDecision(pCxt, (SAggLogicNode*)pNode);
   }
 
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {
-    setInterpMergeDecision(pCxt, (SLogicNode*)pChild);
+    setGroupMergeDecision(pCxt, (SLogicNode*)pChild);
   }
 }
 
@@ -3473,7 +3555,7 @@ int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   // Preserve consumer requirements before splitting severs parent links.
   // Only terminal output through projections or global sorts can lose groups
   // and their timestamp ordering guarantees.
-  setInterpMergeDecision(pCxt, pLogicSubplan->pNode);
+  setGroupMergeDecision(pCxt, pLogicSubplan->pNode);
 
   if (!needSplitSubplan(pLogicSubplan)) {
     setVgroupsInfo(pLogicSubplan->pNode, pLogicSubplan);
