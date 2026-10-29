@@ -5062,10 +5062,8 @@ int32_t tColDataAddValueByBind2WithDecimal(SColData *pColData, TAOS_STMT2_BIND *
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
-        uint8_t *pV = taosMemCalloc(1, sizeof(Decimal128));
-        if (!pV) return terrno;
-        memcpy(pV, &dec, DECIMAL_WORD_NUM(Decimal128) * sizeof(DecimalWord));
-        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, pV, TYPE_BYTES[pColData->type]);
+        code = tColDataAppendValueImpl[pColData->flag][CV_FLAG_VALUE](pColData, (uint8_t *)&dec,
+                                                                      TYPE_BYTES[pColData->type]);
       }
     }
   }
@@ -5096,6 +5094,7 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
   int32_t code = 0;
   int32_t numOfRows = -1;
   SArray *colValArray, *bufArray;
+  Decimal128 *pDecimalVals = NULL;
   SColVal colVal;
   int32_t numOfFixedValue = 0;
   int32_t lino = 0;
@@ -5207,8 +5206,15 @@ int32_t tRowBuildFromBind2(SBindInfo2 *infos, int32_t numOfInfos, SSHashObj *par
             // precision check
             // scale auto fit
 
-            code = decimal128ToDataVal(&dec, &value);
-            TAOS_CHECK_GOTO(code, &lino, _exit);
+            if (pDecimalVals == NULL) {
+              pDecimalVals = taosMemoryCalloc(numOfInfos, sizeof(Decimal128));
+              if (pDecimalVals == NULL) {
+                code = terrno;
+                TAOS_CHECK_GOTO(code, &lino, _exit);
+              }
+            }
+            pDecimalVals[iInfo] = dec;
+            valueSetDatum(&value, TSDB_DATA_TYPE_DECIMAL, &pDecimalVals[iInfo], sizeof(Decimal128));
 
           } else if (infos[iInfo].type == TSDB_DATA_TYPE_DECIMAL64) {
             if (!pSchemaExt) {
@@ -5284,6 +5290,7 @@ _exit:
   }
   taosArrayDestroy(colValArray);
   taosArrayDestroy(bufArray);
+  taosMemoryFree(pDecimalVals);
   return code;
 }
 /* build rows to `rowArray` from bind

@@ -2448,8 +2448,15 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
       taosArrayDestroy(pStbRowsCxt->boundColsInfo.parseredTags->STagNames);
     }
     if (pStbRowsCxt->boundColsInfo.parseredTags->pTagVals != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pStbRowsCxt->boundColsInfo.parseredTags->pTagVals); ++i) {
+        STagVal* pVal = taosArrayGet(pStbRowsCxt->boundColsInfo.parseredTags->pTagVals, i);
+        if (IS_VAR_DATA_TYPE(pVal->type)) {
+          taosMemoryFreeClear(pVal->pData);
+        }
+      }
       taosArrayDestroy(pStbRowsCxt->boundColsInfo.parseredTags->pTagVals);
     }
+    taosMemoryFreeClear(pStbRowsCxt->boundColsInfo.parseredTags->pTagIndex);
     taosMemoryFreeClear(pStbRowsCxt->boundColsInfo.parseredTags);
   }
 }
@@ -2508,6 +2515,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
                               STableDataCxt** ppTableDataCxt) {
   bool          bFirstTable = false;
   bool          setCtbName = false;
+  bool          ctbColsTransferred = false;
   SBoundColInfo ctbCols = {0};
   int32_t code = getStbRowValues(pCxt, pStmt, ppSql, pStbRowsCxt, pGotRow, pToken, &bFirstTable, &setCtbName, &ctbCols);
 
@@ -2517,7 +2525,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   }
 
   if (code != TSDB_CODE_SUCCESS || !*pGotRow) {
-    return code;
+    goto _return;
   }
 
   if (code == TSDB_CODE_SUCCESS && bFirstTable) {
@@ -2528,7 +2536,7 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
       char ctbFName[TSDB_TABLE_FNAME_LEN];
       code = tNameExtractFullName(&pStbRowsCxt->ctbName, ctbFName);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _return;
       }
       code = insGetTableDataCxt(pStmt->pTableBlockHashObj, ctbFName, strlen(ctbFName), pStbRowsCxt->pCtbMeta,
                                 &pStbRowsCxt->pCreateCtbReq, ppTableDataCxt, true, true);
@@ -2541,6 +2549,8 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   if (code == TSDB_CODE_SUCCESS) {
     if (pCxt->pComCxt->stmtBindVersion == 2) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
+      // The helper takes ownership before reserving any column storage, including on failure.
+      ctbColsTransferred = true;
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
@@ -2570,6 +2580,10 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
     *pGotRow = true;
   }
 
+_return:
+  if (!ctbColsTransferred && ctbCols.pColIndex != NULL) {
+    qDestroyBoundColInfo(&ctbCols);
+  }
   clearStbRowsDataContext(pStbRowsCxt);
 
   return code;
@@ -3189,7 +3203,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 }
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  insDestroyBoundColInfo(&pCxt->tags);
+  qDestroyBoundColInfo(&pCxt->tags);
   clearInsertParseContext(pCxt);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
@@ -3893,7 +3907,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMeta(*pQuery);
   }
 
-  insDestroyBoundColInfo(&context.tags);
+  qDestroyBoundColInfo(&context.tags);
   clearInsertParseContext(&context);
   // if no data to insert, set emptyMode to avoid request server
   if (!context.needRequest) {

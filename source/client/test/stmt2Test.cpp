@@ -131,6 +131,7 @@ void do_query(TAOS* taos, const char* sql) {
   int code = taos_errno(result);
   while (code == TSDB_CODE_MND_DB_IN_CREATING || code == TSDB_CODE_MND_DB_IN_DROPPING) {
     taosMsleep(2000);
+    taos_free_result(result);
     result = taos_query(taos, sql);
     code = taos_errno(result);
   }
@@ -176,6 +177,7 @@ void do_stmt(const char* msg, TAOS* taos, TAOS_STMT2_OPTION* option, const char*
       char* tmp = (char*)taosMemoryMalloc(sizeof(char) * 100);
       sprintf(tmp, "create table stmt2_testdb_1.%s using stmt2_testdb_1.stb tags(0, 'after')", tbs[i]);
       do_query(taos, tmp);
+      taosMemoryFree(tmp);
     }
   }
   for (int r = 0; r < CYC_NUMS; r++) {
@@ -350,6 +352,8 @@ TEST(stmt2Case, timezone) {
       getRecordCounts++;
     }
     ASSERT_EQ(getRecordCounts, 1);
+    taos_stmt2_close(stmt);
+    taos_close(taos);
   }
 
   // stmt2 wiht time str in UTC timezone
@@ -1219,6 +1223,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     ASSERT_STREQ(pFields[0].name, "tbname");
     ASSERT_STREQ(pFields[1].name, "ts");
 
+    taos_stmt2_free_fields(stmt, pFields);
     int total_affect_rows = 0;
 
     int     t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
@@ -1247,6 +1252,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       ASSERT_STREQ(pFields[0].name, "tbname");
       ASSERT_STREQ(pFields[1].name, "ts");
 
+      taos_stmt2_free_fields(stmt, pFields);
       int affected_rows;
       taos_stmt2_exec(stmt, &affected_rows);
       total_affect_rows += affected_rows;
@@ -1257,6 +1263,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
       ASSERT_EQ(fieldNum, 2);
       ASSERT_STREQ(pFields[0].name, "tbname");
       ASSERT_STREQ(pFields[1].name, "ts");
+      taos_stmt2_free_fields(stmt, pFields);
     }
 
     ASSERT_EQ(total_affect_rows, 12);
@@ -1471,6 +1478,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     ASSERT_STREQ(pFields[1].name, "ts");
     ASSERT_STREQ(pFields[2].name, "b");
 
+    taos_stmt2_free_fields(stmt, pFields);
     taos_stmt2_close(stmt);
   }
 
@@ -1509,6 +1517,7 @@ TEST(stmt2Case, stmt2_insert_non_statndard) {
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(fieldNum, 7);
 
+    taos_stmt2_free_fields(stmt, pFields);
     int total_affect_rows = 0;
 
     int     t64_len[2] = {sizeof(int64_t), sizeof(int64_t)};
@@ -1808,6 +1817,7 @@ TEST(stmt2Case, stmt2_insert_duplicate) {
   code = taos_stmt2_exec(stmt, &affected_rows);
   ASSERT_EQ(code, TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE);
 
+  taos_stmt2_close(stmt);
   stmt = taos_stmt2_init(taos, &option);
   taos_stmt2_prepare(stmt, "INSERT INTO `stmt2_testdb_18`.`stb2` (ts,int_col,tbname)  VALUES (?,?,?)", 0);
   bindv3 = {1, &tbname3[0], NULL, &paramvs2[0]};
@@ -2472,6 +2482,7 @@ TEST(stmt2Case, stmt2_nchar) {
   taosMemoryFree(blob_len5);
   taosMemoryFree(blob_len3);
   taosMemoryFree(blob_len4);
+  taosMemoryFree(t64_len);
 
   // test null value
   do_query(taos, "create stable stmt2_testdb_10.stb (ts timestamp, b nchar(10)) tags(t1 nchar(10))");
@@ -2894,6 +2905,7 @@ TEST(stmt2Case, geometry) {
     code = taos_stmt2_exec(stmt, &affected_rows);
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(affected_rows, 4);
+    taos_stmt2_close(stmt);
   }
   // case 2 : interlace = 1
   {
@@ -3522,6 +3534,7 @@ TEST(stmt2Case, errcode) {
     code = taos_stmt2_exec(stmt, NULL);
     ASSERT_EQ(code, TSDB_CODE_TSC_STMT_API_ERROR);
 
+    taos_stmt2_free_fields(stmt, pFields);
     taos_stmt2_close(stmt);
   }
 
@@ -4080,6 +4093,7 @@ TEST(stmt2Case, exec_retry) {
 
   taos_stmt2_close(stmt);
   do_query(taos, "drop database if exists stmt2_testdb_21");
+  taos_close(taos);
 }
 
 void stmtAsyncQueryCb4(void* param, TAOS_RES* pRes, int code) { ASSERT_EQ(code, TSDB_CODE_SUCCESS); }
@@ -4195,6 +4209,7 @@ TEST(stmt2Case, tbname) {
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(fieldNum, 5);
 
+    taos_stmt2_free_fields(stmt, pFields);
     int     t1 = 1;
     char*   t2 = "abc";
     int32_t t2_len = 3;
@@ -4251,6 +4266,7 @@ TEST(stmt2Case, tbname) {
     checkError(stmt, code, __FILE__, __LINE__);
     ASSERT_EQ(fieldNum, 5);
 
+    taos_stmt2_free_fields(stmt, pFields);
     int     t1 = 1;
     char*   t2 = "abc";
     int32_t t2_len = 3;
@@ -4322,6 +4338,7 @@ TEST(stmt2Case, tbname) {
   }
 
   do_query(taos, "drop database if exists stmt2_testdb_22");
+  taos_close(taos);
 }
 
 // TS-7074
@@ -4629,6 +4646,7 @@ TEST(stmt2Case, bool_bind) {
 
   do_query(taos, "flush database stmt2_testdb_30");
 
+  taos_stmt2_close(stmt);
   option = {0, true, true, NULL, NULL};
   stmt = taos_stmt2_init(taos, &option);
   ASSERT_NE(stmt, nullptr);
