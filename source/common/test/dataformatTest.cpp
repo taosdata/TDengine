@@ -17,15 +17,15 @@
 
 #include <gtest/gtest.h>
 #include <chrono>
+#include <iostream>
+#include <random>
+#include <vector>
 
 #include <taoserror.h>
 #include <tdataformat.h>
 #include <tglobal.h>
 #include <tmsg.h>
-#include <iostream>
 #include <tdatablock.h>
-#include <random>
-#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -1318,7 +1318,8 @@ TEST(TagValidateTest, AcceptsBuiltTagsAndRejectsForgedHeaders) {
 // an empty value array rather than being rejected as forged (regression: tTagToValArray used
 // p >= pTagEnd, which fired when the data-area start coincides with the blob end).
 TEST(TagValidateTest, EmptyJsonBlobIsValidAndDecodesToEmptyArray) {
-  STag empty = {};
+  STag empty;
+  memset(&empty, 0, sizeof(empty));
   empty.flags = TD_TAG_JSON;
   empty.len = sizeof(empty);
   empty.nTag = 0;
@@ -1557,7 +1558,10 @@ TEST(RowKeyTest, ColDataKeyCountIsBounded) {
     SValue v = {0};
     v.type = aColData[i].type;
     v.val = 10 + i;
-    SColVal cv = COL_VAL_VALUE((int16_t)(i + 1), v);
+    SColVal cv = {};
+    cv.cid = (int16_t)(i + 1);
+    cv.flag = CV_FLAG_VALUE;
+    cv.value = v;
     ASSERT_EQ(tColDataAppendValue(&aColData[i], &cv), TSDB_CODE_SUCCESS);
   }
 
@@ -1710,8 +1714,15 @@ static void checkRowKeyRoundTrip(bool sparse, bool varKey, int32_t nPks, int32_t
     } else {
       v.val = 1000 + (int64_t)i;
     }
-    SColVal cv = COL_VAL_VALUE(cols[i].colId, v);
-    if (sparse && i + 1 == cols.size()) cv = COL_VAL_NONE(cols[i].colId, cols[i].type);  // forces the KV layout
+    SColVal cv = {};
+    cv.cid = cols[i].colId;
+    cv.flag = CV_FLAG_VALUE;
+    cv.value = v;
+    if (sparse && i + 1 == cols.size()) {  // forces the KV layout
+      cv.flag = CV_FLAG_NONE;
+      memset(&cv.value, 0, sizeof(cv.value));
+      cv.value.type = cols[i].type;
+    }
     taosArrayPush(pVals, &cv);
   }
 
