@@ -5621,7 +5621,11 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   }
 
   int32_t rc = streamCacheCommitResolved(sStreamReaderInfo->vtbCache, fullScan, cids, tagCids, &uid2Result);
-  if (rc != 0) { code = rc; goto end; }
+  if (rc != 0) {
+    code = rc;
+    lino = __LINE__;
+    goto end;
+  }
 
 end:
   if (tagCids != NULL) taosArrayDestroy(tagCids);

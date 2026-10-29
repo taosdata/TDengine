@@ -152,6 +152,10 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 TARGET_LINK_LIBRARIES(streamTriggerTaskTest PUBLIC ${TAOS_NATIVE_LIB_STATIC} os common executor function index new-stream)
 
+# Enables the stTriggerTest*/stRunnerTest* declarations in ../inc; the same macro is set on the
+# new-stream library so both sides see the seams.
+TARGET_COMPILE_DEFINITIONS(streamTriggerTaskTest PRIVATE BUILD_TEST)
+
 add_test(
     NAME streamTriggerTaskTest
     COMMAND streamTriggerTaskTest
