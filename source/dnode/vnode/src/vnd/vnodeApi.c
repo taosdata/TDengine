@@ -112,6 +112,7 @@ void initMetadataAPI(SStoreMeta* pMeta) {
   pMeta->getTableTags = metaGetTableTags;
   pMeta->getTableTagsByUidVersion = metaGetTableTagsByUidsVersion;
   pMeta->resolveVTableTagChain    = vnodeResolveVTableTagChain;
+  pMeta->isVirtualSuperTable      = vnodeIsVirtualSuperTable;
 
   pMeta->getTableUidByName = metaGetTableUidByName;
   pMeta->getTableUidsByNames = metaGetTableUidsByNames;

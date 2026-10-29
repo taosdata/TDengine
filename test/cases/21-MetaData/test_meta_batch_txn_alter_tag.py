@@ -514,6 +514,12 @@ class TestBatchMetaTxnAlterTag:
         tdSql.query("select vt1 from vstb where tbname='vctb2'")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 20)
+        # Literal TAG filter that matches no child: the TAG-condition path resolves
+        # child tag chains, and that resolve must keep the in-txn metadata snapshot.
+        # Reading outside the transaction would treat the new child as missing and
+        # abort the query instead of returning an empty result.
+        tdSql.query("select vt1 from vstb where vt1=999")
+        tdSql.checkRows(0)
         # Out-txn isolation: other session cannot see the uncommitted new table
         tdSql6 = tdCom.newTdSql()
         tdSql6.execute("use txn_vtag_db")
@@ -545,6 +551,13 @@ class TestBatchMetaTxnAlterTag:
         tdSql.query("show vtables like 'vctb3'")
         tdSql.checkRows(1)
         tdSql.query("select vt1 from vstb where tbname='vctb3'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 30)
+        # Before COMMIT: literal TAG filters must use the in-txn snapshot both when
+        # nothing matches and when the new child is the only match.
+        tdSql.query("select vt1 from vstb where vt1=999")
+        tdSql.checkRows(0)
+        tdSql.query("select vt1 from vstb where vt1=30")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 30)
         # Before COMMIT: other session cannot see the new table
