@@ -159,7 +159,26 @@ cp %{_communitysourcedir}/include/libs/function/taosudf.h       %{buildroot}%{ho
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 #cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
-cp -r %{_communitysourcedir}/examples/*             %{buildroot}%{homepath}/examples
+# Example code was consolidated into docs/examples, but the layout inside the
+# package is frozen: the shipped subset and the historical directory names
+# (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
+_examples_dir="%{_communitysourcedir}/docs/examples"
+_examples_manifest="%{_communitysourcedir}/packaging/examples-manifest.txt"
+while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    if [ "${ex_group}" != all ] && [ "${ex_group}" != debrpm ]; then
+        continue
+    fi
+    if [ ! -f "${_examples_dir}/${ex_src}" ]; then
+        echo "ERROR: example source missing: ${ex_src} (see ${_examples_manifest})" >&2
+        exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p %{buildroot}%{homepath}/examples/${ex_dst}/$(dirname "${ex_rel}")
+    cp "${_examples_dir}/${ex_src}" %{buildroot}%{homepath}/examples/${ex_dst}/${ex_rel}
+done < "${_examples_manifest}"
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{homepath}/jemalloc/ ||:

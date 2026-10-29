@@ -1,11 +1,23 @@
 %% Connect to TDengine
+% Prerequisite: download taos-jdbcdriver-<version>-dist.jar from
+% https://github.com/taosdata/taos-connector-jdbc/releases and add it to the
+% MATLAB Java class path (see `javaclasspath`).
+%
+% Pick one of the two drivers below:
+%   WebSocket (default, talks to taosAdapter on port 6041, no client library
+%   required):
+%       jdbcDriverName = 'com.taosdata.jdbc.ws.WebSocketDriver';
+%       jdbcUrl = 'jdbc:TAOS-WS://localhost:6041/';
+%   Native (requires libtaos on the machine, connects to taosd on port 6030):
+%       jdbcDriverName = 'com.taosdata.jdbc.TSDBDriver';
+%       jdbcUrl = 'jdbc:TAOS://localhost:6030/';
 clear;
 fprintf("Connecting to TDengine...");
 dbName = 'tsdb';
 user = 'root';
 password = 'taosdata';
-jdbcDriverName = 'com.taosdata.jdbc.TSDBDriver';
-jdbcUrl = 'jdbc:TSDB://192.168.1.113:0/';
+jdbcDriverName = 'com.taosdata.jdbc.ws.WebSocketDriver';
+jdbcUrl = 'jdbc:TAOS-WS://localhost:6041/';
 conn = database(dbName, user, password, jdbcDriverName, jdbcUrl)
 if isempty(conn.Message)
     fprintf("Connection is successfully established!\n");

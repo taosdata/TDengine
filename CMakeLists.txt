@@ -84,7 +84,6 @@ add_subdirectory(contrib)
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
-add_subdirectory(examples/c)
 
 if(TD_ENTERPRISE)
   add_subdirectory("${TD_ENTERPRISE_DIR}" "${CMAKE_BINARY_DIR}/enterprise")
