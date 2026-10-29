@@ -285,6 +285,11 @@ void smUndeployStreamTriggerTasks(SStreamInfo* pStream, int64_t streamId);
 #define STREAM_TMR_CB_LEAVE() \
   (void)atomic_sub_fetch_32(&gStreamMgmt.tmrInflight, 1)
 
+#if defined(BUILD_TEST)
+/* Test seam for streamTriggerTaskTest: drives the runner-side task mgmt request builder. */
+int32_t stRunnerTestBuildTaskMgmtReq(SStreamRunnerTask *pTask);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

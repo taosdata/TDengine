@@ -319,15 +319,27 @@ int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fullScan,
       SVTableResolveResult **pSlot = (SVTableResolveResult **)iter;
       SVTableResolveResult  *r     = *pSlot;
       if (r == NULL) continue;
-      code = tSimpleHashRemove(pCache->uid2Result, &uid, sizeof(uid));
-      if (code == 0) {
-        code = tSimpleHashPut(pCache->uid2Result, &uid, sizeof(uid), &r, POINTER_BYTES);
-        if (code != 0) {
+      // tSimpleHashRemove() reports "not found" as a non-zero code, and the cache is
+      // empty on the first commit, so a missing key is a normal case here rather than
+      // a failure. Only drop the stale entry when it exists: tSimpleHashPut() updates
+      // in place and would otherwise leak the previously owned resolve result.
+      if (tSimpleHashGet(pCache->uid2Result, &uid, sizeof(uid)) != NULL) {
+        code = tSimpleHashRemove(pCache->uid2Result, &uid, sizeof(uid));
+        if (code != TSDB_CODE_SUCCESS) {
           goto _exit;
         }
-        *pSlot = NULL;
-        qDebug("streamCacheCommitResolved transferred partial vtable cache uid:%" PRId64, uid);
       }
+      code = tSimpleHashPut(pCache->uid2Result, &uid, sizeof(uid), &r, POINTER_BYTES);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+      // Ownership moved into the reader cache: clear the source slot first so the
+      // caller's tSimpleHashCleanup() cannot free the result the cache now owns,
+      // then drop the emptied entry so the source hash only keeps results it
+      // still owns.
+      *pSlot = NULL;
+      tSimpleHashIterateRemove(*ppUid2Result, &uid, sizeof(uid), &iter, &it);
+      qDebug("streamCacheCommitResolved transferred partial vtable cache uid:%" PRId64, uid);
     }
   }
 
@@ -402,7 +414,9 @@ bool streamResolveBatchFull(int32_t seededUids, int32_t workItemCnt) {
 
 // Throttled hook called at the entry of every WAL meta request.
 // On tag change: returns TSDB_CODE_STREAM_VTB_TAG_CHANGED so caller bails out fast.
-// On col-only change: appends affected uids into rsp->tableBlock as TABLE_BLOCK_ADD.
+// On col-only change: appends affected uids into rsp->tableBlock as TABLE_BLOCK_ADD_RECHECK. The row
+// version is this request's WAL cursor, not the version of a WAL record, so the trigger keeps these
+// rows out of its replay dedup (several rechecks can share one cursor).
 // All other cases: returns 0 and lets caller continue normal processing.
 //
 // Locking discipline: the resolver round-trip (RPC + tsem2_timewait) is expensive
@@ -659,7 +673,8 @@ _cleanup:
     return code;
   }
   if (pRsp != NULL && changedUids != NULL && taosArrayGetSize(changedUids) > 0) {
-    int32_t rc = addUidListToBlock(changedUids, &pRsp->tableBlock, walVer, &pRsp->totalRows, TABLE_BLOCK_ADD);
+    int32_t rc = addUidListToBlock(changedUids, &pRsp->tableBlock, walVer, &pRsp->totalRows,
+                                  TABLE_BLOCK_ADD_RECHECK);
     stDebug("vgId:%d %s appended %d changed uids walVer=%" PRId64, TD_VID(pVnode), __func__,
             (int32_t)taosArrayGetSize(changedUids), walVer);
     if (rc != 0) { taosArrayDestroy(changedUids); return rc; }
