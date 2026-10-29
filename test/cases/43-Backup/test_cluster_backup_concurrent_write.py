@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
+import json
 import os
 import shutil
 import subprocess
@@ -40,6 +41,10 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
       - the snode/stream survive the restore
       - the restored instance keeps accepting writes
 
+    Bulk ingestion keeps 50 million rows with six writers/connections;
+    INFO/WARN/ERROR logging limits diagnostic volume during the backup.
+    The bulk database retains two vgroups and three replicas for this workload.
+
     The stream is created AFTER the big data set is written: state_window
     does not re-compute history (fill_history is off by default), so the
     stream only processes the small amount of new data written afterwards.
@@ -50,6 +55,34 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
     """
 
     backup_root = None
+
+    # Keep INFO/WARN/ERROR diagnostics without per-request DEBUG logging.
+    # Explicit module flags override the framework's verbose defaults.
+    updatecfgDict = {
+        "debugFlag": 131,
+        "cDebugFlag": 131,
+        "dDebugFlag": 131,
+        "jniDebugFlag": 131,
+        "mDebugFlag": 131,
+        "qDebugFlag": 131,
+        "rpcDebugFlag": 131,
+        "sDebugFlag": 131,
+        "smaDebugFlag": 131,
+        "stDebugFlag": 131,
+        "tmrDebugFlag": 131,
+        "tqDebugFlag": 131,
+        "uDebugFlag": 131,
+        "vDebugFlag": 131,
+        "wDebugFlag": 131,
+        "numOfLogLines": 50000,
+        "logKeepDays": 0,
+        "clientCfg": {
+            "debugFlag": 131,
+            "tmrDebugFlag": 131,
+            "numOfLogLines": 50000,
+            "logKeepDays": 0,
+        },
+    }
 
     DB = "big"
     # single super table used for both the big data set and the stream source
@@ -151,21 +184,23 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         taosBenchmark (much faster than a Python insert loop).
 
         The JSON config is a static template (json/insert_meters.json, the
-        same layout used by 81-Tools/03-Benchmark); only the cfgdir
-        placeholder is substituted at runtime with the real dnode cfg
-        directory of the local sim cluster.
+        same layout used by 81-Tools/03-Benchmark). Supply the local dnode
+        cfg directory and use six writers and pooled connections at runtime; preserve all
+        table counts, row counts, schema and replica settings.
         """
         from new_test_framework.utils import sc, epath
         template = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "json", "insert_meters.json")
         with open(template) as f:
-            config = f.read()
-        cfg_dir = os.path.join(sc.clusterRootPath(), "dnode1", "cfg")
-        config = config.replace("PLACEHOLDER_CFGDIR", cfg_dir)
+            config = json.load(f)
+        config["cfgdir"] = os.path.join(sc.clusterRootPath(), "dnode1", "cfg")
+        # Six writers preserve the 50M-row workload while limiting concurrent I/O.
+        config["thread_count"] = 6
+        config["connection_pool_size"] = 6
         json_path = os.path.join(self.backup_root, "bench.json")
         os.makedirs(self.backup_root, exist_ok=True)
         with open(json_path, "w") as f:
-            f.write(config)
+            json.dump(config, f)
         taosbenchmark_bin = epath.binFile("taosBenchmark")
         env = os.environ.copy()
         lib_dir = os.path.join(os.path.dirname(taosbenchmark_bin), "lib")
