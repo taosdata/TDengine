@@ -2680,6 +2680,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_ref_resolve_failure_fails_grouping" class="md-nav__link">
+        A broken TAG reference must fail grouping, not merge the other groups 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_json_literal_tag_does_not_crash" class="md-nav__link">
+        A JSON literal TAG must not reach the cid-based ref resolver 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.stream_rollup_topology.TestStreamRollupTopology.test_rollup_vstb_tbgids_multi" class="md-nav__link">
         A virtual table row contributes to parent and leaf rollup groups. 
       </a>
@@ -3670,6 +3692,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_vtable_tag" class="md-nav__link">
+        Stream: PRE_FILTER over a virtual TAG reference still reads source data 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_unused_ref.TestStreamVtableUnusedRef.test_rebind_deployment_scope" class="md-nav__link">
         Stream: redeploy only for required virtual-column sources 
       </a>
@@ -3694,6 +3727,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_rebind_redeploy.TestStreamVtableRebindRedeploy.test_stream_vtable_rebind_redeploy" class="md-nav__link">
         Stream: vtable column rebind + stream drop/create interleaving 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_tag_filter_cache_bypasses_ref_tag_update" class="md-nav__link">
+        Tag filter cache must not serve a vtable list built from a ref TAG 
       </a>
       
     </li>
@@ -4976,6 +5020,28 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_ref_resolve_failure_fails_grouping" class="md-nav__link">
+        A broken TAG reference must fail grouping, not merge the other groups 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_json_literal_tag_does_not_crash" class="md-nav__link">
+        A JSON literal TAG must not reach the cid-based ref resolver 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.stream_rollup_topology.TestStreamRollupTopology.test_rollup_vstb_tbgids_multi" class="md-nav__link">
         A virtual table row contributes to parent and leaf rollup groups. 
       </a>
@@ -5966,6 +6032,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_vtable_tag" class="md-nav__link">
+        Stream: PRE_FILTER over a virtual TAG reference still reads source data 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_unused_ref.TestStreamVtableUnusedRef.test_rebind_deployment_scope" class="md-nav__link">
         Stream: redeploy only for required virtual-column sources 
       </a>
@@ -5990,6 +6067,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_rebind_redeploy.TestStreamVtableRebindRedeploy.test_stream_vtable_rebind_redeploy" class="md-nav__link">
         Stream: vtable column rebind + stream drop/create interleaving 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_tag_filter_cache_bypasses_ref_tag_update" class="md-nav__link">
+        Tag filter cache must not serve a vtable list built from a ref TAG 
       </a>
       
     </li>
@@ -8720,6 +8808,140 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                     path:
                     <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py" target="_blank">
                       cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_vtable_tag" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_vtable_tag" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Stream: PRE_FILTER over a virtual TAG reference still reads source data</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Create a virtual super table whose TAG is either a literal or a TAG</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">reference (``from cfg.model``), let two virtual child tables map to two</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">physical tables with different models, and create an event-window</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">stream with ``pre_filter(`产品型号Tag` in (...))`` that matches only the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">first model. Only the matching vtable may contribute a window; the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">stream must produce data instead of idling with an empty table list.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_tag_filter_cache_bypasses_ref_tag_update" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_tag_filter_cache_bypasses_ref_tag_update" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>Tag filter cache must not serve a vtable list built from a ref TAG</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">A virtual child table stores a referenced TAG (``TAGS (... from cfg.model)``)</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">as NULL and resolves it at query time, so the literal value lives in the</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">source table. Updating a source TAG only invalidates the caches of the source</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">stable, never the virtual stable&#39;s tag filter cache. With ``tagFilterCache=1``</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">the cached child list must therefore not be reused: the same condition has to</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">match the children selected by the *new* TAG values.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_json_literal_tag_does_not_crash" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_prefilter_on_json_literal_tag_does_not_crash" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>A JSON literal TAG must not reach the cid-based ref resolver</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">A virtual super table may declare a single JSON TAG. The chain resolver reads</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">literal tags by cid, but a JSON STag is keyed by inner JSON key: ``tTagGet``</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">switches to ``tTagValJsonCmprFn`` and would read the cid union member as a</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">``pKey`` pointer. Building the table list for a stream whose ``pre_filter``</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">touches such a TAG must keep the children&#39;s original STag instead.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_ref_resolve_failure_fails_grouping" class="doc doc-heading">
+
+<a href="#18-StreamProcessing.02-Stream.test_stream_vtable_tagref_prefilter.TestStreamVtableTagRefPreFilter.test_ref_resolve_failure_fails_grouping" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>A broken TAG reference must fail grouping, not merge the other groups</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">The resolver rebuilds the TAG blob of every virtual child and reports the uids</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">it could not rebuild. When a grouping caller only logs that error and keeps</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">computing, the children whose references still resolve are folded into the same</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">NULL group as the broken one -- three models A/B/G silently become one group.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Grouping on such a referenced TAG must fail instead.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py" target="_blank">
+                      cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
                     </a>
                   </div>
         </div>
