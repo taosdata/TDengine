@@ -28,8 +28,23 @@
 #include <limits>
 
 extern "C" {
+#include "monitor.h"
 #include "tmsg.h"
 #include "vmInt.h"
+
+// libdnode pulls vnode and mnode objects whose archives are scanned before the
+// ones that define these symbols. This test only checks replica validation.
+SDmNotifyHandle dmNotifyHdl = {};
+int32_t mmReadFile(const char *path, void *pOption) {
+  (void)path;
+  (void)pOption;
+  return 0;
+}
+int32_t mmWriteFile(const char *path, const void *pOption) {
+  (void)path;
+  (void)pOption;
+  return 0;
+}
 }
 
 namespace {

@@ -26,15 +26,9 @@ target_include_directories(
 )
 # link the whole dnode library: mgmt_vnode alone leaves dmNotifyHdl (referenced from vnode) and the
 # dnode-module symbols mgmt_dnode pulls in unresolved.
-# GNU ld scans each static archive once, and vnode/mnode are pulled after the
-# dnode archives that define dmNotifyHdl, dmStop and mmReadFile. Rescan that cycle.
-target_link_libraries(
-    vmReplicaCfgTest
-    PRIVATE
-        os
-        util
-        common
-        "$<LINK_GROUP:RESCAN,dnode,mgmt_dnode,dmodule,node_util,mgmt_mnode,mnode,vnode>"
-)
+# The test translation unit stubs dmNotifyHdl, mmReadFile and mmWriteFile. GNU ld
+# scans the defining archives before vnode/mnode, and this image's CMake has no
+# LINK_GROUP rescan.
+target_link_libraries(vmReplicaCfgTest PRIVATE os util common dnode)
 
 add_test(NAME vmReplicaCfgTest COMMAND vmReplicaCfgTest)
