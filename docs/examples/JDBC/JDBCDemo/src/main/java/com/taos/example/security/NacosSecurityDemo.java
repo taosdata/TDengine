@@ -67,7 +67,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *   - TDENGINE_DB: Database name (default: empty)
  *
  * Run:
- *   cd docs/examples/JDBC/JDBCDemo
+ *   cd examples/JDBC/JDBCDemo
  *   export TDENGINE_HOST=your_host
  *   export TDENGINE_NACOS_ADDR=localhost:8848
  *   export TDENGINE_NACOS_USER=nacos

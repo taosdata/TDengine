@@ -13,104 +13,98 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-PROJECT(TDengine)
+# Build the C examples of this directory against a TDengine client.
+#
+# The client headers and libtaos are looked up in this order:
+#   1. -DTAOS_INCLUDE_DIR=<dir with taos.h> and -DTAOS_LIBRARY=<libtaos file>
+#      (the environment variables TAOS_INCLUDE_DIR / TAOS_LIBRARY work too)
+#   2. the installed package this directory belongs to
+#      (<prefix>/examples/c: headers in <prefix>/inc or <prefix>/include,
+#      library in <prefix>/driver)
+#   3. the source tree (source/taos-community/docs/examples/c, with the engine
+#      headers in source/taos-community/include/client)
+#   4. the usual install locations (/usr/local/taos, /usr/local, /usr)
+#
+# Examples:
+#   cmake -S . -B build && cmake --build build
+#   cmake -S . -B build -DTAOS_INCLUDE_DIR=/opt/taos/include -DTAOS_LIBRARY=/opt/taos/driver/libtaos.so
 
-IF (TD_LINUX)
-  INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc  ${TD_SOURCE_DIR}/inc)
-  AUX_SOURCE_DIRECTORY(. SRC)
+cmake_minimum_required(VERSION 3.10)
+project(tdengine_c_examples C)
 
-  add_executable(docs_connect_example "")
-  add_executable(docs_create_db_demo "")
-  add_executable(docs_insert_data_demo "")
-  add_executable(docs_query_data_demo "")
-  add_executable(docs_with_reqid_demo "")
-  add_executable(docs_sml_insert_demo "")
-  add_executable(docs_stmt_insert_demo "")
-  add_executable(docs_tmq_demo "")
+set(TD_EXAMPLE_INCLUDE_HINTS
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../inc/client"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../include/client"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../include/client"
+    "${TD_SOURCE_DIR}/include/client"
+    "${TD_SOURCE_DIR}/src/client/inc"
+    "/usr/local/taos/include"
+    "/usr/local/include"
+    "/usr/include")
 
-  target_sources(docs_connect_example
-      PRIVATE
-      "connect_example.c"
-      )
+set(TD_EXAMPLE_LIBRARY_HINTS
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../driver"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../driver"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../../../debug/build/lib"
+    "${TD_SOURCE_DIR}/../debug/build/lib"
+    "${TD_SOURCE_DIR}/build/lib"
+    "/usr/local/taos/driver"
+    "/usr/local/lib"
+    "/usr/lib/x86_64-linux-gnu"
+    "/usr/lib/aarch64-linux-gnu"
+    "/usr/lib")
 
-  target_sources(docs_create_db_demo
-      PRIVATE
-      "create_db_demo.c"
-      )
+# An explicit path wins over the search: it may point straight at a file.
+if(NOT TAOS_INCLUDE_DIR AND DEFINED ENV{TAOS_INCLUDE_DIR})
+  set(TAOS_INCLUDE_DIR "$ENV{TAOS_INCLUDE_DIR}")
+endif()
+if(TAOS_INCLUDE_DIR)
+  set(TD_CLIENT_INCLUDE_DIR "${TAOS_INCLUDE_DIR}")
+else()
+  find_path(TD_CLIENT_INCLUDE_DIR taos.h HINTS ${TD_EXAMPLE_INCLUDE_HINTS})
+endif()
 
-  target_sources(docs_insert_data_demo
-      PRIVATE
-      "insert_data_demo.c"
-      )
+if(NOT TAOS_LIBRARY AND DEFINED ENV{TAOS_LIBRARY})
+  set(TAOS_LIBRARY "$ENV{TAOS_LIBRARY}")
+endif()
+if(TAOS_LIBRARY)
+  set(TD_CLIENT_LIBRARY "${TAOS_LIBRARY}")
+else()
+  find_library(TD_CLIENT_LIBRARY taos HINTS ${TD_EXAMPLE_LIBRARY_HINTS})
+endif()
 
-  target_sources(docs_query_data_demo
-    PRIVATE 
-    "query_data_demo.c"
-    )
-    
-  target_sources(docs_with_reqid_demo
-    PRIVATE 
-    "with_reqid_demo.c"
-    )
+if(NOT TD_CLIENT_INCLUDE_DIR OR NOT EXISTS "${TD_CLIENT_INCLUDE_DIR}/taos.h")
+  message(FATAL_ERROR
+    "taos.h not found. Install the TDengine client or pass "
+    "-DTAOS_INCLUDE_DIR=<directory that contains taos.h>.")
+endif()
+if(NOT TD_CLIENT_LIBRARY)
+  message(FATAL_ERROR
+    "libtaos not found. Install the TDengine client or pass "
+    "-DTAOS_LIBRARY=<path to libtaos.so / libtaos.dylib>.")
+endif()
 
-  target_sources(docs_sml_insert_demo
-    PRIVATE 
-    "sml_insert_demo.c"
-    )
+message(STATUS "TDengine headers: ${TD_CLIENT_INCLUDE_DIR}")
+message(STATUS "TDengine library: ${TD_CLIENT_LIBRARY}")
 
-    target_sources(docs_stmt_insert_demo
-    PRIVATE 
-    "stmt_insert_demo.c"
-    )
+find_package(Threads REQUIRED)
 
-    target_sources(docs_tmq_demo
-    PRIVATE 
-    "tmq_demo.c"
-    )
+# Same set the Makefile in this directory builds.
+set(TD_EXAMPLES
+    connect_example
+    create_db_demo
+    insert_data_demo
+    query_data_demo
+    with_reqid_demo
+    sml_insert_demo
+    stmt_insert_demo
+    stmt2_insert_demo
+    tmq_demo)
 
-  target_link_libraries(docs_connect_example
-      taos
-      )
-
-  target_link_libraries(docs_create_db_demo
-      taos
-      )
-
-  target_link_libraries(docs_insert_data_demo
-      taos
-      )
-
-  target_link_libraries(docs_query_data_demo
-      taos
-      )
-  
-  target_link_libraries(docs_with_reqid_demo
-      taos
-      )
-
-  target_link_libraries(docs_sml_insert_demo
-      taos
-      )
-
-  target_link_libraries(docs_stmt_insert_demo
-      taos
-      )
-
-  target_link_libraries(docs_tmq_demo
-      taos
-      pthread
-      )
-
-  SET_TARGET_PROPERTIES(docs_connect_example PROPERTIES OUTPUT_NAME docs_connect_example)
-  SET_TARGET_PROPERTIES(docs_create_db_demo PROPERTIES OUTPUT_NAME docs_create_db_demo)
-  SET_TARGET_PROPERTIES(docs_insert_data_demo PROPERTIES OUTPUT_NAME docs_insert_data_demo)
-  SET_TARGET_PROPERTIES(docs_query_data_demo PROPERTIES OUTPUT_NAME docs_query_data_demo)
-  SET_TARGET_PROPERTIES(docs_with_reqid_demo PROPERTIES OUTPUT_NAME docs_with_reqid_demo)
-  SET_TARGET_PROPERTIES(docs_sml_insert_demo PROPERTIES OUTPUT_NAME docs_sml_insert_demo)
-  SET_TARGET_PROPERTIES(docs_stmt_insert_demo PROPERTIES OUTPUT_NAME docs_stmt_insert_demo)
-  SET_TARGET_PROPERTIES(docs_tmq_demo PROPERTIES OUTPUT_NAME docs_tmq_demo)
-ENDIF ()
-IF (TD_DARWIN)
-  INCLUDE_DIRECTORIES(. ${TD_SOURCE_DIR}/src/inc ${TD_SOURCE_DIR}/src/client/inc  ${TD_SOURCE_DIR}/inc)
-  AUX_SOURCE_DIRECTORY(. SRC)
-ENDIF ()
+foreach(example IN LISTS TD_EXAMPLES)
+  add_executable(${example} "${example}.c")
+  target_include_directories(${example} PRIVATE "${TD_CLIENT_INCLUDE_DIR}")
+  target_link_libraries(${example} PRIVATE "${TD_CLIENT_LIBRARY}" Threads::Threads)
+endforeach()

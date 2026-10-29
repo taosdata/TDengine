@@ -1,3 +1,5 @@
 *
 !*.c
 !.gitignore
+!CMakeLists.txt
+!Makefile
