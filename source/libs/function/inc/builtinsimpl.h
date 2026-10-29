@@ -42,6 +42,12 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);
 int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
+typedef enum EBitDurationFlag {
+  BIT_DURATION_FLAG_NONZERO = 0,
+  BIT_DURATION_FLAG_ZERO = 1,
+  BIT_DURATION_FLAG_TOTAL = 2,
+} EBitDurationFlag;
+
 // ---- shared DISTINCT dedup for aggregates that keep a result struct in their inter-buffer ----
 //
 // The set handle is appended after the function's own state, so that state keeps offset 0 and its
@@ -156,6 +162,7 @@ bool    gconcatGetFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t gconcatFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t gconcatFunction(SqlFunctionCtx* pCtx);
 int32_t gconcatFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+void    gconcatFunctionCleanup(SqlFunctionCtx* pCtx);
 
 bool    getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
@@ -350,6 +357,11 @@ bool    getBitChangesFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t bitChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t bitChangesFunction(SqlFunctionCtx* pCtx);
 int32_t bitChangesFinalize(struct SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool    getBitDurationFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t bitDurationFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t bitDurationFunction(SqlFunctionCtx* pCtx);
+int32_t bitDurationFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool getHasNullFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);

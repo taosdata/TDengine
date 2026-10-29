@@ -1037,8 +1037,8 @@ void taosTelemetryDestroy(STelemAddrMgmt* mgt) {
   mgt->recvBufRid = 0;
 }
 // TODO: parse http response head By LIB
-static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const char* key, char* val) {
-  if (key == NULL || val == NULL) {
+static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const char* key, char* val, int32_t valCap) {
+  if (key == NULL || val == NULL || valCap <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -1061,6 +1061,12 @@ static int32_t taosTelemetryGetValueFromHttpResp(const char* response, const cha
     start += strlen(buf);
     char* end = strchr(start, '"');
     if (end && end - start > 0) {
+      // Devon scan item 290: the copy length used to be the source span only, so an oversized
+      // report_url value in a telemetry response overflowed the caller's fixed-size buffer.
+      if (end - start >= valCap) {
+        tError("http resp value of key:%s too long, len:%d, cap:%d", key, (int32_t)(end - start), valCap);
+        TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &line, _end);
+      }
       tstrncpy(val, start, end - start + 1);
     } else {
       TAOS_CHECK_GOTO(TSDB_CODE_INVALID_PARA, &line, _end);
@@ -1075,7 +1081,7 @@ _end:
   taosMemoryFree(buf);
   return code;
 }
-static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr) {
+static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr, int32_t addrCap) {
   int32_t code = 0;
   char*   pRecv = NULL;
   int32_t nRecv = 0;
@@ -1086,7 +1092,7 @@ static int32_t taosGetAddrFromHttpResp(int64_t recvBufRid, char* telemAddr) {
     return code;
   }
 
-  code = taosTelemetryGetValueFromHttpResp(pRecv, "report_url", telemAddr);
+  code = taosTelemetryGetValueFromHttpResp(pRecv, "report_url", telemAddr, addrCap);
   taosMemoryFree(pRecv);
   return code;
 }
@@ -1103,7 +1109,7 @@ int32_t taosSendTelemReport(STelemAddrMgmt* mgt, const char* uri, uint16_t port,
       code = taosSendRecvHttpReportWithQID(mgt->defaultAddr, uri, port, pCont, contLen, flag, NULL, mgt->recvBufRid);
       TAOS_CHECK_GOTO(code, &line, _end);
     } else {
-      code = taosGetAddrFromHttpResp(mgt->recvBufRid, mgt->cachedAddr);
+      code = taosGetAddrFromHttpResp(mgt->recvBufRid, mgt->cachedAddr, (int32_t)sizeof(mgt->cachedAddr));
       if (code != 0) {
         tError("failed to get cache addr from http response since %s", tstrerror(code));
         addr = mgt->defaultAddr;

@@ -858,6 +858,9 @@ static int32_t mJoinInitColsInfo(int32_t* colNum, int64_t* rowSize, SMJoinColInf
     (*pCols)[i].jsonData = TSDB_DATA_TYPE_JSON == pColNode->node.resType.type;
     (*pCols)[i].vardata = IS_VAR_DATA_TYPE(pColNode->node.resType.type);
     (*pCols)[i].bytes = pColNode->node.resType.bytes;
+    if (pColNode->node.resType.bytes < 0 || *rowSize > INT64_MAX - pColNode->node.resType.bytes) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     *rowSize += pColNode->node.resType.bytes;
     ++i;
   }
@@ -1630,6 +1633,7 @@ int32_t mJoinSetKeyColsData(SSDataBlock* pBlock, SMJoinTableCtx* pTable) {
       pTable->keyCols[i].offset = pCol->varmeta.offset;
     }
     pTable->keyCols[i].colData = pCol;
+
   }
 
   return TSDB_CODE_SUCCESS;

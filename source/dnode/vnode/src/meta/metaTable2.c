@@ -17,10 +17,11 @@
 
 #include "meta.h"
 #include "osString.h"
+#include "querynodes.h"
 #include "scalar.h"
 #include "tarray.h"
 #include "tdatablock.h"
-#include "querynodes.h"
+#include "tdataformat.h"
 #include "thash.h"
 #include "tlogKeyOp.h"
 
@@ -4039,6 +4040,20 @@ static int32_t metaUpdateTableJsonTagValue(SMeta* pMeta, SMetaEntry* pTable, SSc
   SSchema *pCol = &pTagSchema->pSchema[0];
   int32_t colId = pCol->colId;
   SUpdatedTagVal *pTagVal = taosHashGet(pUpdatedTagVals, &colId, sizeof(colId));
+  if (pTagVal == NULL) {
+    const char *msgFmt = "vgId:%d, %s failed at %s:%d since tag value not found, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pTable->version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // The client-supplied JSON-tag blob is persisted verbatim and re-read on every query, so its header and every entry
+  // must lie inside the bytes we actually store.
+  if (tTagValidate(pTagVal->pTagVal, pTagVal->nTagVal) != TSDB_CODE_SUCCESS) {
+    const char *msgFmt = "vgId:%d, %s failed at %s:%d since invalid JSON tag blob, version:%" PRId64;
+    metaError(msgFmt, TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pTable->version);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   void *pNewTag = taosMemoryRealloc(pTable->ctbEntry.pTags, pTagVal->nTagVal);
   if (pNewTag == NULL) {
     const char* msgFmt = "vgId:%d, %s failed at %s:%d since %s, version:%" PRId64;
@@ -4087,6 +4102,14 @@ static int32_t metaUpdateTableNormalTagValue(SMeta* pMeta, SMetaEntry* pTable, S
       }
     } else {
       value.type = pCol->type;
+      // nTagVal comes from the request; check the width of a fixed-size value before anything reads it
+      if (!pNewVal->isNull && !IS_VAR_DATA_TYPE(pCol->type) &&
+          (pNewVal->pTagVal == NULL || pNewVal->nTagVal != tDataTypes[pCol->type].bytes)) {
+        metaError("vgId:%d, %s failed at %s:%d since invalid tag val len %d for tag %s, version:%" PRId64,
+                  TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pNewVal->nTagVal, pCol->name, pTable->version);
+        taosArrayDestroy(pTagArray);
+        TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+      }
       if (tagValueChanged(pNewVal, pOldTag)) {
         allSame = false;
       }

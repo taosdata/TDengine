@@ -152,6 +152,22 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     goto _exit;
   }
 
+  // The snodeId check above is the only authorization this handler has, and the id is a small
+  // sequential integer. Constrain the attacker-reachable part - the leader/replica epsets - to
+  // endpoints already known to be cluster dnodes, before they are written to snode.json or used
+  // by streamSyncAllCheckpoints to push every local checkpoint file to replica.epSet.
+  code = dmCheckEpSetInCluster(pInput->pData, createReq.leaders[0].nodeId, &createReq.leaders[0].epSet);
+  if (code == 0) {
+    code = dmCheckEpSetInCluster(pInput->pData, createReq.leaders[1].nodeId, &createReq.leaders[1].epSet);
+  }
+  if (code == 0) {
+    code = dmCheckEpSetInCluster(pInput->pData, createReq.replica.nodeId, &createReq.replica.epSet);
+  }
+  if (code != 0) {
+    dError("failed to create snode %d since its epsets are not cluster endpoints", createReq.snodeId);
+    goto _exit;
+  }
+
   bool deployed = true;
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) {
@@ -272,6 +288,13 @@ SArray *smGetMsgHandles() {
    * handleExtFetchReq, which invokes the ETR task's extConnector. */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_FETCH_EXT, smPutMsgToRunnerQueue, 0) == NULL) goto _OVER;
 
+  /*
+   * The trigger responses below carry the send handle allocated by the trigger
+   * task (msg.info.ahandle), so they must be released on every path that drops
+   * them.  Every type registered here with smPutMsgToTriggerQueue() must also
+   * be listed in tmsgIsStreamTriggerRsp() (include/common/tmsg.h), which drives
+   * the release in dmProcessRpcMsg() and smFreeRpcQitem().
+   */
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TRIGGER_PULL_RSP, smPutMsgToTriggerQueue, 0) == NULL) goto _OVER;
   /* Route EXT PULL responses back to the trigger task queue so that
    * stTriggerTaskProcessRsp can dispatch TDMT_STREAM_TRIGGER_PULL_EXT_RSP

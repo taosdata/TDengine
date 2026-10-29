@@ -1,4 +1,4 @@
-# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+# Copyright (c) 2025 TAOS Data, Inc. <jhtao@taosdata.com>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
@@ -131,7 +131,7 @@ tsfm_model_start_timeout = 300
 # conf.py auto-derives http://127.0.0.1:<port><endpoint> for each model.
 models = {
     "tdtsfm": {
-        "script": "tdtsfm-server.py",
+        "script": "tdtsfm_server.py",
         "default_model": None,
         "ip": "127.0.0.1",
         "port": 6061,
@@ -140,7 +140,7 @@ models = {
         "required": True,  # Must exist
     },
     "timemoe": {
-        "script": "timemoe-server.py",
+        "script": "timemoe_server.py",
         "default_model": "Maple728/TimeMoE-200M",
         "ip": "127.0.0.1",
         "port": 6062,
@@ -149,7 +149,7 @@ models = {
         "required": True,  # Must exist
     },
     "moirai": {
-        "script": "moirai-server.py",
+        "script": "moirai_server.py",
         "default_model": "Salesforce/moirai-moe-1.0-R-small",
         "ip": "127.0.0.1",
         "port": 6064,
@@ -157,7 +157,7 @@ models = {
         "required": False,  # Optional
     },
     "chronos": {
-        "script": "chronos-server.py",
+        "script": "chronos_server.py",
         "default_model": "amazon/chronos-bolt-base",
         "ip": "127.0.0.1",
         "port": 6063,
@@ -165,7 +165,7 @@ models = {
         "required": False,  # Optional
     },
     "timesfm": {
-        "script": "timesfm-server.py",
+        "script": "timesfm_server.py",
         "default_model": "google/timesfm-2.5-200m-pytorch",
         "ip": "127.0.0.1",
         "port": 6065,
@@ -173,7 +173,7 @@ models = {
         "required": False,  # Optional
     },
     "moment": {
-        "script": "moment-server.py",
+        "script": "moment_server.py",
         "default_model": "AutonLab/MOMENT-1-base",
         "ip": "127.0.0.1",
         "port": 6066,

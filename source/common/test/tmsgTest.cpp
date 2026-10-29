@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -34,6 +35,7 @@
 #include "streamMsg.h"
 #include "tcommon.h"
 #include "systable.h"
+#include "tconfig.h"
 #include "tdatablock.h"
 #include "tjson.h"
 #include "tmsg.h"
@@ -45,6 +47,12 @@ struct SExtColTypeMapping {
   int8_t    tsPrecision;
   char      colName[65];
 };
+
+/* Mirrors streamMsg.c: keep the test-side declaration in sync with plannodes.h. */
+#define TMSG_STATIC_ASSERT(cond, name) typedef char name[(cond) ? 1 : -1]
+TMSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, tdType) == 64, extMappingTdTypeOffsetAssert);
+TMSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, tsPrecision) == 72, extMappingTsPrecOffsetAssert);
+TMSG_STATIC_ASSERT(offsetof(SExtColTypeMapping, colName) == 73, extMappingColNameOffsetAssert);
 
 extern "C" {
 int32_t tEncodeSStreamReaderDeployMsg(SEncoder* pEncoder, const SStreamReaderDeployMsg* pMsg);
@@ -695,11 +703,17 @@ std::vector<uint8_t> makeProducerTableMetaFrame(bool partialRefs = false) {
 
 std::vector<uint8_t> makeProducerLargeSeriesTableMetaFrame(int32_t numOfSeries) {
   std::vector<SSeriesEntry> series(static_cast<size_t>(numOfSeries));
+  SSchema schema = {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = PRIMARYKEY_TIMESTAMP_COL_ID, .bytes = 8};
+  SSchemaExt schemaExt = {.colId = PRIMARYKEY_TIMESTAMP_COL_ID};
+  tstrncpy(schema.name, "ts", sizeof(schema.name));
 
   STableMetaRsp meta = {};
   tstrncpy(meta.tbName, "series_table", sizeof(meta.tbName));
   tstrncpy(meta.dbFName, "1.test", sizeof(meta.dbFName));
   meta.tableType = TSDB_NORMAL_TABLE;
+  meta.numOfColumns = 1;
+  meta.pSchemas = &schema;
+  meta.pSchemaExt = &schemaExt;
   meta.numOfSeries = numOfSeries;
   meta.pSeries = series.data();
 
@@ -1116,6 +1130,26 @@ TEST(td_msg_test, table_meta_rsp_public_decoder_accepts_producer_series_above_co
   EXPECT_EQ(TSDB_MAX_COLUMNS + 1, decoded.numOfSeries);
   ASSERT_NE(nullptr, decoded.pSeries);
   EXPECT_STREQ("", decoded.pSeries[TSDB_MAX_COLUMNS].alias);
+  tFreeSTableMetaRsp(&decoded);
+}
+
+TEST(td_msg_test, table_meta_rsp_accepts_child_create_reply_without_schema) {
+  STableMetaRsp source = {};
+  tstrncpy(source.tbName, "child", sizeof(source.tbName));
+  tstrncpy(source.stbName, "stable", sizeof(source.stbName));
+  tstrncpy(source.dbFName, "1.test", sizeof(source.dbFName));
+  source.tableType = TSDB_CHILD_TABLE;
+  const int32_t size = tSerializeSTableMetaRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(tSerializeSTableMetaRsp(frame.data(), size, &source), size);
+
+  STableMetaRsp decoded = {};
+  ASSERT_EQ(tDeserializeSTableMetaRsp(frame.data(), size, &decoded), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(decoded.tableType, TSDB_CHILD_TABLE);
+  EXPECT_EQ(decoded.numOfColumns, 0);
+  EXPECT_EQ(decoded.numOfTags, 0);
+  EXPECT_EQ(decoded.pSchemas, nullptr);
   tFreeSTableMetaRsp(&decoded);
 }
 
@@ -3394,6 +3428,8 @@ TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validat
   calcBinding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
   tstrncpy(calcBinding.externalColumn, "voltage", sizeof(calcBinding.externalColumn));
   calcBinding.expectedType = TSDB_DATA_TYPE_FLOAT;
+  calcBinding.expectedPrecision = 3;
+  calcBinding.expectedScale = 4;
   calcBinding.resultColumnSlot = 9;
   ASSERT_NE(taosArrayPush(req.bindings, &calcBinding), nullptr);
 
@@ -3443,6 +3479,8 @@ TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validat
   ASSERT_EQ(outCalcBinding->kind, STREAM_EXT_ORIGTBL_READER_BINDING_CALC);
   ASSERT_STREQ(outCalcBinding->externalColumn, "voltage");
   ASSERT_EQ(outCalcBinding->expectedType, calcBinding.expectedType);
+  ASSERT_EQ(outCalcBinding->expectedPrecision, calcBinding.expectedPrecision);
+  ASSERT_EQ(outCalcBinding->expectedScale, calcBinding.expectedScale);
   ASSERT_EQ(outCalcBinding->resultColumnSlot, calcBinding.resultColumnSlot);
 
   SStreamExtOrigTblReaderReq* clone = NULL;
@@ -3622,6 +3660,7 @@ TEST(td_msg_test, ext_orig_tbl_reader_management_protocol_roundtrips_and_validat
   int32_t vgId = 7;
   SStreamTaskAddr internalReader = {.taskId = 101, .nodeId = 8};
   SStreamExtOrigTblReaderRsp externalReader = {};
+  externalReader.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
   externalReader.registryEntryId = 99;
   externalReader.readerTaskAddr.taskId = 202;
   externalReader.readerTaskAddr.nodeId = 9;
@@ -3687,6 +3726,7 @@ TEST(td_msg_test, ext_orig_reader_many_virtual_bindings_roundtrip) {
   request.bindings = taosArrayInit(2 * virtualCount, sizeof(SStreamExtOrigTblReaderBinding));
   ASSERT_NE(request.bindings, nullptr);
   SStreamExtOrigTblReaderRsp response = {};
+  response.protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
   response.results = taosArrayInit(2 * virtualCount, sizeof(SStreamExtOrigTblReaderResult));
   ASSERT_NE(response.results, nullptr);
   for (int32_t virtualIndex = 0; virtualIndex < virtualCount; ++virtualIndex) {
@@ -4060,6 +4100,7 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_SINGLE};
   tstrncpy(fsParam.sourceName, "influx1", sizeof(fsParam.sourceName));
   tstrncpy(fsParam.dbName, "extdb", sizeof(fsParam.dbName));
+  tstrncpy(fsParam.schemaName, "dbo", sizeof(fsParam.schemaName));
   tstrncpy(fsParam.tableName, "cpu", sizeof(fsParam.tableName));
   fsParam.dstPrecision = 2;
   fsParam.colMap = taosArrayInit(2, sizeof(SColIdNameKV));
@@ -4100,22 +4141,34 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   bool    wireReuse = false;
   char    wireSourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
   char    wireDbName[TSDB_DB_NAME_LEN] = {0};
+  char    wireSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
   char    wireTableName[TSDB_TABLE_NAME_LEN] = {0};
+  int32_t wireMarker = 0;
+  int32_t wireParamType = 0;
   int32_t wireColNum = 0;
+  int32_t wireBatchNum = 0;
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireOpType), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireDownstreamIdx), 0);
   ASSERT_EQ(tDecodeBool(&wireDecoder, &wireReuse), 0);
   ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireSourceName), 0);
   ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireDbName), 0);
   ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireTableName), 0);
+  ASSERT_EQ(tDecodeI32(&wireDecoder, &wireMarker), 0);
+  ASSERT_EQ(tDecodeI32(&wireDecoder, &wireParamType), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireColNum), 0);
+  ASSERT_EQ(tDecodeI32(&wireDecoder, &wireBatchNum), 0);
+  ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireSchemaName), 0);
   ASSERT_EQ(wireOpType, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
   ASSERT_EQ(wireDownstreamIdx, 1);
   ASSERT_FALSE(wireReuse);
   ASSERT_STREQ(wireSourceName, "influx1");
   ASSERT_STREQ(wireDbName, "extdb");
   ASSERT_STREQ(wireTableName, "cpu");
+  ASSERT_EQ(wireMarker, TSDB_MAX_COLUMNS + 2);
+  ASSERT_EQ(wireParamType, FOREIGN_SCAN_PARAM_SINGLE);
   ASSERT_EQ(wireColNum, 2);
+  ASSERT_EQ(wireBatchNum, 0);
+  ASSERT_STREQ(wireSchemaName, "dbo");
   tDecoderClear(&wireDecoder);
 
   SOperatorParam out = {0};
@@ -4149,6 +4202,139 @@ TEST(td_msg_test, federated_scan_op_param_codec) {
   taosArrayDestroy(pOut->colMap);
   taosMemoryFree(pOut->tagCond);
   taosMemoryFree(pOut->filterCondJson);
+  taosMemoryFree(pOut);
+}
+
+TEST(td_msg_test, federated_scan_op_param_legacy_single_without_schema) {
+  // Exact pre-schema layout: sourceName, dbName, tableName, colNum, body.
+  std::vector<uint8_t> buf(512, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), buf.size());
+  ASSERT_EQ(tEncodeI32(&encoder, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "mysql1"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "db1"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "t1"), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI16(&encoder, 2), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "c1"), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, TSDB_TIME_PRECISION_MILLI), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  SForeignScanOperatorParam* pOut = (SForeignScanOperatorParam*)out.value;
+  ASSERT_NE(pOut, nullptr);
+  ASSERT_EQ(pOut->paramType, FOREIGN_SCAN_PARAM_SINGLE);
+  ASSERT_STREQ(pOut->sourceName, "mysql1");
+  ASSERT_STREQ(pOut->dbName, "db1");
+  ASSERT_STREQ(pOut->schemaName, "");
+  ASSERT_STREQ(pOut->tableName, "t1");
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOut->colMap), 1);
+  ASSERT_STREQ(((SColIdNameKV*)taosArrayGet(pOut->colMap, 0))->colName, "c1");
+  taosArrayDestroy(pOut->colMap);
+  taosMemoryFree(pOut);
+}
+
+TEST(td_msg_test, federated_scan_op_param_without_schema_keeps_legacy_wire) {
+  SOperatorParam param = {0};
+  param.opType = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+  SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_SINGLE};
+  tstrncpy(fsParam.sourceName, "mysql1", sizeof(fsParam.sourceName));
+  tstrncpy(fsParam.dbName, "db1", sizeof(fsParam.dbName));
+  tstrncpy(fsParam.tableName, "t1", sizeof(fsParam.tableName));
+  param.value = &fsParam;
+
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> buf(len, 0);
+  tEncoderInit(&encoder, buf.data(), len);
+  ASSERT_EQ(tSerializeSOperatorParam(&encoder, &param), 0);
+  tEncoderClear(&encoder);
+
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  int32_t opType = 0, downstreamIdx = 0, wireHeader = 0;
+  bool    reuse = false;
+  char    sourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
+  char    dbName[TSDB_DB_NAME_LEN] = {0};
+  char    tableName[TSDB_TABLE_NAME_LEN] = {0};
+  ASSERT_EQ(tDecodeI32(&decoder, &opType), 0);
+  ASSERT_EQ(tDecodeI32(&decoder, &downstreamIdx), 0);
+  ASSERT_EQ(tDecodeBool(&decoder, &reuse), 0);
+  ASSERT_EQ(tDecodeCStrTo(&decoder, sourceName), 0);
+  ASSERT_EQ(tDecodeCStrTo(&decoder, dbName), 0);
+  ASSERT_EQ(tDecodeCStrTo(&decoder, tableName), 0);
+  ASSERT_EQ(tDecodeI32(&decoder, &wireHeader), 0);
+  ASSERT_EQ(wireHeader, 0);  // a bare colNum, not the V2/V3 marker
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, federated_scan_batch_op_param_v2_without_schema) {
+  std::vector<uint8_t> buf(512, 0);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf.data(), buf.size());
+  ASSERT_EQ(tEncodeI32(&encoder, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "pg_prod"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, TSDB_MAX_COLUMNS + 1), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, FOREIGN_SCAN_PARAM_BATCH), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 42), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, TSDB_TIME_PRECISION_MILLI), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 7), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 1000), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 2000), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, true), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "db1"), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, "t1"), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI8(&encoder, TSDB_TIME_PRECISION_MILLI), 0);
+  ASSERT_EQ(tEncodeBool(&encoder, false), 0);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeCStr(&encoder, ""), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SOperatorParam out = {0};
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf.data(), len);
+  ASSERT_EQ(tDeserializeSOperatorParam(&decoder, &out), 0);
+  tDecoderClear(&decoder);
+
+  SForeignScanOperatorParam* pOut = (SForeignScanOperatorParam*)out.value;
+  ASSERT_NE(pOut, nullptr);
+  ASSERT_EQ(pOut->paramType, FOREIGN_SCAN_PARAM_BATCH);
+  ASSERT_STREQ(pOut->schemaName, "");
+  ASSERT_EQ((int32_t)taosArrayGetSize(pOut->pBatchTables), 1);
+  SForeignTableInfo* pTable = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, 0);
+  ASSERT_STREQ(pTable->dbName, "db1");
+  ASSERT_STREQ(pTable->schemaName, "");
+  ASSERT_STREQ(pTable->tableName, "t1");
+  taosArrayDestroy(pTable->colMap);
+  taosMemoryFree(pTable->pPushedCondJson);
+  taosArrayDestroy(pOut->pBatchTables);
   taosMemoryFree(pOut);
 }
 
@@ -4224,6 +4410,9 @@ TEST(td_msg_test, stream_ext_pull_timestamp_precision_roundtrip) {
   ASSERT_GT(len, 0);
   std::vector<uint8_t> buf(len);
   ASSERT_EQ(tSerializeSSTriggerExtPullRsp(buf.data(), len, &rsp), len);
+  SSTriggerExtPullRsp truncated = {};
+  EXPECT_NE(tDeserializeSSTriggerExtPullRsp(buf.data(), len / 2, &truncated), TSDB_CODE_SUCCESS);
+  tDestroySSTriggerExtPullRsp(&truncated);
   SSTriggerExtPullRsp decoded = {};
   ASSERT_EQ(tDeserializeSSTriggerExtPullRsp(buf.data(), len, &decoded), 0);
   for (SSDataBlock* block : {decoded.pMetaBlock, decoded.pDataBlock}) {
@@ -4364,6 +4553,7 @@ TEST(td_msg_test, stream_reader_deploy_ext_spec_column_mapping_roundtrip) {
 TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   SForeignScanOperatorParam fsParam = {FOREIGN_SCAN_PARAM_BATCH};
   tstrncpy(fsParam.sourceName, "pg_prod", sizeof(fsParam.sourceName));
+  tstrncpy(fsParam.schemaName, "public", sizeof(fsParam.schemaName));
   fsParam.sourceMetaVersion = 42;
   fsParam.dstPrecision = TSDB_TIME_PRECISION_MILLI;
   fsParam.groupId = 7;
@@ -4374,6 +4564,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
 
   SForeignTableInfo table1 = {0};
   tstrncpy(table1.dbName, "metrics", sizeof(table1.dbName));
+  tstrncpy(table1.schemaName, "public", sizeof(table1.schemaName));
   tstrncpy(table1.tableName, "sensor_a", sizeof(table1.tableName));
   table1.dstPrecision = TSDB_TIME_PRECISION_MILLI;
   table1.virtualChildUid = 101;
@@ -4392,6 +4583,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
 
   SForeignTableInfo table2 = {0};
   tstrncpy(table2.dbName, "archive", sizeof(table2.dbName));
+  tstrncpy(table2.schemaName, "archive_schema", sizeof(table2.schemaName));
   tstrncpy(table2.tableName, "sensor_b", sizeof(table2.tableName));
   table2.dstPrecision = TSDB_TIME_PRECISION_MICRO;
   table2.rowLimit = 128;
@@ -4432,6 +4624,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   bool    wireReuse = false;
   char    wireSourceName[TSDB_EXT_SOURCE_NAME_LEN] = {0};
   char    wireDbName[TSDB_DB_NAME_LEN] = {0};
+  char    wireSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
   char    wireTableName[TSDB_TABLE_NAME_LEN] = {0};
   int32_t wireMarker = 0;
   int32_t wireParamType = 0;
@@ -4447,16 +4640,18 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireParamType), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireColNum), 0);
   ASSERT_EQ(tDecodeI32(&wireDecoder, &wireBatchNum), 0);
+  ASSERT_EQ(tDecodeCStrTo(&wireDecoder, wireSchemaName), 0);
   ASSERT_EQ(wireOpType, QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN);
   ASSERT_EQ(wireDownstreamIdx, 3);
   ASSERT_FALSE(wireReuse);
   ASSERT_STREQ(wireSourceName, "pg_prod");
   ASSERT_STREQ(wireDbName, "");
   ASSERT_STREQ(wireTableName, "");
-  ASSERT_EQ(wireMarker, TSDB_MAX_COLUMNS + 1);
+  ASSERT_EQ(wireMarker, TSDB_MAX_COLUMNS + 2);
   ASSERT_EQ(wireParamType, FOREIGN_SCAN_PARAM_BATCH);
   ASSERT_EQ(wireColNum, 0);
   ASSERT_EQ(wireBatchNum, 2);
+  ASSERT_STREQ(wireSchemaName, "public");
   tDecoderClear(&wireDecoder);
 
   SOperatorParam out = {0};
@@ -4469,6 +4664,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_NE(pOut, nullptr);
   ASSERT_EQ(pOut->paramType, FOREIGN_SCAN_PARAM_BATCH);
   ASSERT_STREQ(pOut->sourceName, "pg_prod");
+  ASSERT_STREQ(pOut->schemaName, "public");
   ASSERT_EQ(pOut->sourceMetaVersion, 42);
   ASSERT_EQ(pOut->groupId, 7);
   ASSERT_EQ(pOut->window.skey, 1000);
@@ -4477,6 +4673,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   SForeignTableInfo* pOut1 = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, 0);
   SForeignTableInfo* pOut2 = (SForeignTableInfo*)taosArrayGet(pOut->pBatchTables, 1);
   ASSERT_STREQ(pOut1->dbName, "metrics");
+  ASSERT_STREQ(pOut1->schemaName, "public");
   ASSERT_STREQ(pOut1->tableName, "sensor_a");
   ASSERT_EQ(pOut1->virtualChildUid, 101);
   ASSERT_EQ(pOut1->scanParamId, 1001);
@@ -4486,6 +4683,7 @@ TEST(td_msg_test, federated_scan_batch_op_param_codec) {
   ASSERT_EQ(pOut1->pPushedCond, nullptr);
   ASSERT_STREQ(((SColIdNameKV*)taosArrayGet(pOut1->colMap, 0))->colName, "value");
   ASSERT_STREQ(pOut2->dbName, "archive");
+  ASSERT_STREQ(pOut2->schemaName, "archive_schema");
   ASSERT_STREQ(pOut2->tableName, "sensor_b");
   ASSERT_EQ(pOut2->rowLimit, 128);
   ASSERT_EQ(pOut2->virtualChildUid, 202);
@@ -4693,6 +4891,183 @@ TEST(td_msg_test, table_cfg_decode_clears_partial_column_filters) {
     EXPECT_EQ(decoded.pColRefs[i].filterCondLen, 0);
   }
   tFreeSTableCfgRsp(&decoded);
+}
+
+TEST(td_msg_test, table_cfg_rejects_invalid_counts_before_allocating_schemas) {
+  for (const auto counts : {std::pair<int32_t, int32_t>{-1, 2}, {1, INT32_MAX}, {0, 0}}) {
+    uint8_t buf[128] = {};
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, buf, sizeof(buf));
+    ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, "t"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, ""), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, "1.db"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, counts.first), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, counts.second), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI8(&encoder, TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+    tEndEncode(&encoder);
+    int32_t size = encoder.pos;
+    tEncoderClear(&encoder);
+
+    STableCfgRsp decoded = {};
+    EXPECT_EQ(tDeserializeSTableCfgRsp(buf, size, &decoded), TSDB_CODE_INVALID_MSG);
+    tFreeSTableCfgRsp(&decoded);
+  }
+}
+
+TEST(td_msg_test, table_cfg_rejects_comment_length_mismatch) {
+  SSchema schema = {};
+  SSchemaExt schemaExt = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  tstrncpy(schema.name, "ts", sizeof(schema.name));
+  STableCfgRsp source = {};
+  source.tableType = TSDB_NORMAL_TABLE;
+  source.numOfColumns = 1;
+  source.pSchemas = &schema;
+  source.pSchemaExt = &schemaExt;
+  source.commentLen = 4;
+  char comment[] = "abc";
+  source.pComment = comment;
+  int32_t size = tSerializeSTableCfgRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  std::vector<char> frame(size);
+  ASSERT_EQ(tSerializeSTableCfgRsp(frame.data(), size, &source), size);
+
+  STableCfgRsp decoded = {};
+  EXPECT_EQ(tDeserializeSTableCfgRsp(frame.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+  tFreeSTableCfgRsp(&decoded);
+}
+
+TEST(td_msg_test, table_cfg_rejects_missing_comment_blob) {
+  SSchema schema = {};
+  SSchemaExt schemaExt = {};
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  tstrncpy(schema.name, "ts", sizeof(schema.name));
+  STableCfgRsp source = {};
+  source.tableType = TSDB_NORMAL_TABLE;
+  source.numOfColumns = 1;
+  source.pSchemas = &schema;
+  source.pSchemaExt = &schemaExt;
+  source.commentLen = 1;
+  source.pComment = nullptr;
+  int32_t size = tSerializeSTableCfgRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  std::vector<char> frame(size);
+  ASSERT_EQ(tSerializeSTableCfgRsp(frame.data(), size, &source), size);
+
+  STableCfgRsp decoded = {};
+  EXPECT_EQ(tDeserializeSTableCfgRsp(frame.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+  tFreeSTableCfgRsp(&decoded);
+}
+
+TEST(td_msg_test, table_cfg_rejects_invalid_comment_blob) {
+  for (const auto& comment : {std::vector<uint8_t>{'x', 'y'}, std::vector<uint8_t>{'x', '\0', '\0'}}) {
+    uint8_t buf[128] = {};
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, buf, sizeof(buf));
+    ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, "t"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, ""), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, "1.db"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 1), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI8(&encoder, TSDB_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+    for (int32_t i = 0; i < 4; ++i) {
+      ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+    }
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // ttl
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // numOfFuncs
+    ASSERT_EQ(tEncodeI32(&encoder, static_cast<int32_t>(comment.size() - 1)), TSDB_CODE_SUCCESS);  // commentLen
+    ASSERT_EQ(tEncodeBinary(&encoder, comment.data(), static_cast<uint32_t>(comment.size())), TSDB_CODE_SUCCESS);
+    tEndEncode(&encoder);
+    int32_t size = encoder.pos;
+    tEncoderClear(&encoder);
+
+    STableCfgRsp decoded = {};
+    EXPECT_EQ(tDeserializeSTableCfgRsp(buf, size, &decoded), TSDB_CODE_INVALID_MSG);
+    tFreeSTableCfgRsp(&decoded);
+  }
+}
+
+TEST(td_msg_test, table_cfg_rejects_excessive_tag_reference_count) {
+  for (int32_t count : {-1, INT32_MAX}) {
+    uint8_t buf[256] = {};
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, buf, sizeof(buf));
+    ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, "t"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, ""), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeCStr(&encoder, "1.db"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 1), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI8(&encoder, TSDB_VIRTUAL_NORMAL_TABLE), TSDB_CODE_SUCCESS);
+    for (int32_t i = 0; i < 4; ++i) {
+      ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+    }
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // ttl
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // numOfFuncs
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // commentLen
+    SSchema schema = {};
+    schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+    schema.bytes = sizeof(int64_t);
+    tstrncpy(schema.name, "ts", sizeof(schema.name));
+    ASSERT_EQ(tEncodeSSchema(&encoder, &schema), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);  // tagsLen
+    ASSERT_EQ(tEncodeBinary(&encoder, nullptr, 0), TSDB_CODE_SUCCESS);
+    SSchemaExt schemaExt = {};
+    ASSERT_EQ(tEncodeSSchemaExt(&encoder, &schemaExt), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeU8(&encoder, 0), TSDB_CODE_SUCCESS);
+    SColRef colRef = {};
+    ASSERT_EQ(tEncodeSColRef(&encoder, &colRef), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tEncodeI32(&encoder, count), TSDB_CODE_SUCCESS);
+    tEndEncode(&encoder);
+    int32_t size = encoder.pos;
+    tEncoderClear(&encoder);
+
+    STableCfgRsp decoded = {};
+    EXPECT_EQ(tDeserializeSTableCfgRsp(buf, size, &decoded), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(decoded.numOfTagRefs, count);
+    EXPECT_EQ(decoded.pTagRefs, nullptr);
+    tFreeSTableCfgRsp(&decoded);
+  }
+}
+
+TEST(td_msg_test, db_cfg_rejects_invalid_retention_count_and_unit) {
+  SDbCfgRsp source = {};
+  SRetention retention = {.freq = 60000, .keep = 120000, .freqUnit = 'm', .keepUnit = 'm'};
+  source.pRetensions = taosArrayInit(1, sizeof(SRetention));
+  std::unique_ptr<SArray, decltype(&taosArrayDestroy)> retentions(source.pRetensions, taosArrayDestroy);
+  ASSERT_NE(source.pRetensions, nullptr);
+  ASSERT_NE(taosArrayPush(source.pRetensions, &retention), nullptr);
+
+  for (int32_t count : {-1, TSDB_RETENTION_MAX + 1}) {
+    source.numOfRetensions = count;
+    if (count > 0) {
+      while (taosArrayGetSize(source.pRetensions) < count) {
+        ASSERT_NE(taosArrayPush(source.pRetensions, &retention), nullptr);
+      }
+    }
+    int32_t size = tSerializeSDbCfgRsp(nullptr, 0, &source);
+    ASSERT_GT(size, 0);
+    std::vector<char> frame(size);
+    ASSERT_EQ(tSerializeSDbCfgRsp(frame.data(), size, &source), size);
+    SDbCfgRsp decoded = {};
+    EXPECT_EQ(tDeserializeSDbCfgRsp(frame.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+    tFreeSDbCfgRsp(&decoded);
+  }
+
+  source.numOfRetensions = 1;
+  retention.keepUnit = 'x';
+  memcpy(taosArrayGet(source.pRetensions, 0), &retention, sizeof(retention));
+  int32_t size = tSerializeSDbCfgRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  std::vector<char> frame(size);
+  ASSERT_EQ(tSerializeSDbCfgRsp(frame.data(), size, &source), size);
+  SDbCfgRsp decoded = {};
+  EXPECT_EQ(tDeserializeSDbCfgRsp(frame.data(), size, &decoded), TSDB_CODE_INVALID_MSG);
+  tFreeSDbCfgRsp(&decoded);
 }
 TEST(td_msg_test, retrieve_table_req_xnode_fields_roundtrip) {
   SRetrieveTableReq input = {0};
@@ -4935,7 +5310,11 @@ TEST(td_msg_test, clone_mixed_stream_management_request_failure_keeps_source_own
   tFreeSStreamMgmtReq(&source);
 }
 
-TEST(tmsgTest, vtable_resolve_response_preserves_series_conditions_and_legacy_prefix) {
+TEST(tmsgTest, vtable_resolve_response_strips_optional_tagcond_tail) {
+  // Decoder tolerance test for the optional tagCond tail: rebuild a frame with the SAME item
+  // layout but without the extension tail, and verify the decoder accepts it. This is NOT a
+  // cross-version compatibility test -- pre-extension frames had a different item layout
+  // (3 strings instead of 5) and cannot be decoded by the current format.
   SVTableRefResolveRsp source = {};
   source.items = taosArrayInit(2, sizeof(SVTableRefResolveRspItem));
   ASSERT_NE(source.items, nullptr);
@@ -4967,7 +5346,8 @@ TEST(tmsgTest, vtable_resolve_response_preserves_series_conditions_and_legacy_pr
   EXPECT_EQ(second->nextRef.tagCondJson, nullptr);
   tFreeSVTableRefResolveRsp(&decoded);
 
-  // Decode the legacy prefix, then rebuild a frame without the optional tail.
+  // Decode the prefix items of the current format, then rebuild a frame without the optional
+  // tagCond tail.
   SDecoder decoder = {};
   tDecoderInit(&decoder, bytes.data(), size);
   ASSERT_EQ(tStartDecode(&decoder), 0);
@@ -5065,6 +5445,74 @@ TEST(td_msg_test, explain_response_accepts_previous_format) {
   tFreeSExplainRsp(&output);
 }
 
+TEST(td_msg_test, explain_response_rejects_negative_plan_count) {
+  uint8_t buf[32] = {};
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, buf, sizeof(buf));
+  ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI32(&encoder, -1), TSDB_CODE_SUCCESS);
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SExplainRsp output = {};
+  EXPECT_EQ(tDeserializeSExplainRsp(buf, size, &output), TSDB_CODE_INVALID_MSG);
+  tFreeSExplainRsp(&output);
+}
+
+TEST(td_msg_test, explain_response_rejects_negative_buffer_length) {
+  uint8_t buf[8] = {};
+  SExplainRsp output = {};
+  EXPECT_EQ(tDeserializeSExplainRsp(buf, -1, &output), TSDB_CODE_INVALID_MSG);
+  tFreeSExplainRsp(&output);
+}
+
+TEST(td_msg_test, explain_response_rejects_plan_count_exceeding_payload) {
+  uint8_t buf[32] = {};
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, buf, sizeof(buf));
+  ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI32(&encoder, 2), TSDB_CODE_SUCCESS);
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SExplainRsp output = {};
+  EXPECT_EQ(tDeserializeSExplainRsp(buf, size, &output), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(output.subplanInfo, nullptr);
+  tFreeSExplainRsp(&output);
+}
+
+TEST(td_msg_test, explain_response_rejects_verbose_length_mismatch) {
+  uint8_t buf[128] = {};
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, buf, sizeof(buf));
+  ASSERT_EQ(tStartEncode(&encoder), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI32(&encoder, 1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeU32(&encoder, 2), TSDB_CODE_SUCCESS);
+  uint8_t actual[] = {1};
+  ASSERT_EQ(tEncodeBinary(&encoder, actual, sizeof(actual)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeU32(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeU64(&encoder, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), TSDB_CODE_SUCCESS);
+  tEndEncode(&encoder);
+  int32_t size = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GE(size, 80);
+
+  SExplainRsp output = {};
+  EXPECT_EQ(tDeserializeSExplainRsp(buf, size, &output), TSDB_CODE_INVALID_MSG);
+  tFreeSExplainRsp(&output);
+}
+
 /* The CONNECT request is the authentication step itself, so it is decoded on the mnode worker's
  * stack before any credential is examined. Its app/db/user/passwd/sVer/token fields are fixed
  * arrays in SConnectReq, and the decoder must never copy more than the destination holds. */
@@ -5077,22 +5525,26 @@ static int32_t encodeConnectBody(uint8_t *buf, int32_t cap, const char *app, uin
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, cap);
   int32_t code = tStartEncode(&encoder);
-  if (code < 0) return code;
-  if ((code = tEncodeI8(&encoder, 0)) < 0) return code;
-  if ((code = tEncodeI32(&encoder, 1234)) < 0) return code;
-  if ((code = tEncodeCStrWithLen(&encoder, app, appLen)) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "db")) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "user")) < 0) return code;
-  if ((code = tEncodeCStrWithLen(&encoder, passwd, TSDB_PASSWORD_LEN)) < 0) return code;
-  if ((code = tEncodeI64(&encoder, 1)) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "3.4.1.6")) < 0) return code;
-  if ((code = tEncodeI32(&encoder, 0)) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, "")) < 0) return code;
-  if ((code = tEncodeI64(&encoder, 2)) < 0) return code;
-  if ((code = tEncodeBinary(&encoder, signature, sizeof(signature))) < 0) return code;
-  if ((code = tEncodeCStr(&encoder, NULL)) < 0) return code;
+  if (code < 0) goto _exit;
+  if ((code = tEncodeI8(&encoder, 0)) < 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 1234)) < 0) goto _exit;
+  if ((code = tEncodeCStrWithLen(&encoder, app, appLen)) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "db")) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "user")) < 0) goto _exit;
+  if ((code = tEncodeCStrWithLen(&encoder, passwd, TSDB_PASSWORD_LEN)) < 0) goto _exit;
+  if ((code = tEncodeI64(&encoder, 1)) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "3.4.1.6")) < 0) goto _exit;
+  if ((code = tEncodeI32(&encoder, 0)) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, "")) < 0) goto _exit;
+  if ((code = tEncodeI64(&encoder, 2)) < 0) goto _exit;
+  if ((code = tEncodeBinary(&encoder, signature, sizeof(signature))) < 0) goto _exit;
+  if ((code = tEncodeCStr(&encoder, NULL)) < 0) goto _exit;
   tEndEncode(&encoder);
-  return encoder.pos;
+  code = encoder.pos;
+
+_exit:
+  tEncoderClear(&encoder);
+  return code;
 }
 
 TEST(td_msg_test, connect_req_rejects_app_that_does_not_fit) {
@@ -5328,8 +5780,8 @@ TEST(td_msg_test, create_xnode_task_req_releases_partial_decode_on_error) {
   req.sql = static_cast<char *>(taosMemoryCalloc(1, req.sqlLen));
   ASSERT_NE(req.sql, nullptr);
   memcpy(req.sql, sql, req.sqlLen);
-  req.source = xCreateClonedTaskSource(XNODE_TASK_SOURCE_DSN, 11, (char *)"source-dsn");
-  req.sink = xCreateClonedTaskSink(XNODE_TASK_SINK_DSN, 9, (char *)"sink-dsn");
+  req.source = xCreateClonedTaskSource(XNODE_TASK_SOURCE_DSN, (int32_t)strlen("source-dsn"), (char *)"source-dsn");
+  req.sink = xCreateClonedTaskSink(XNODE_TASK_SINK_DSN, (int32_t)strlen("sink-dsn"), (char *)"sink-dsn");
   // name stays NULL: the wire carries a zero length and the decoder rejects the request.
 
   const int32_t size = tSerializeSMCreateXnodeTaskReq(NULL, 0, &req);
@@ -5365,4 +5817,744 @@ TEST(td_msg_test, create_xnode_agent_req_releases_partial_decode_on_error) {
   EXPECT_EQ(tDeserializeSMCreateXnodeAgentReq(frame.data(), size, &decoded), TSDB_CODE_MND_XNODE_INVALID_MSG);
   EXPECT_EQ(decoded.sql, nullptr);
   EXPECT_EQ(decoded.name.ptr, nullptr);
+}
+
+// Mirrors tSerializeSBatchReq's layout but lets the caller declare an msgLen that disagrees with
+// the embedded binary, which is what a hostile TDMT_SND_BATCH_META frame does.
+static std::vector<uint8_t> buildBatchReqFrame(int32_t num, int32_t declaredMsgLen, const std::string &payload) {
+  auto encodeBody = [&](uint8_t *buf, int32_t bufLen) -> int32_t {
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, static_cast<uint32_t>(bufLen));
+    EXPECT_EQ(tStartEncode(&encoder), 0);
+    EXPECT_EQ(tEncodeI32(&encoder, num), 0);
+    for (int32_t i = 0; i < num; ++i) {
+      EXPECT_EQ(tEncodeI32(&encoder, i), 0);
+      EXPECT_EQ(tEncodeI32(&encoder, TDMT_MND_GET_STREAM_PROGRESS), 0);
+      EXPECT_EQ(tEncodeI32(&encoder, declaredMsgLen), 0);
+      EXPECT_EQ(tEncodeBinary(&encoder, reinterpret_cast<const uint8_t *>(payload.data()),
+                              static_cast<uint32_t>(payload.size())),
+                0);
+    }
+    tEndEncode(&encoder);
+    const int32_t len = static_cast<int32_t>(encoder.pos);
+    tEncoderClear(&encoder);
+    return len;
+  };
+
+  const int32_t bodyLen = encodeBody(nullptr, 0);
+  // tDeserializeSBatchReq skips sizeof(SMsgHead) and writes the header back, so the frame needs
+  // room for it and must be writable.
+  std::vector<uint8_t> frame(sizeof(SMsgHead) + bodyLen, 0);
+  encodeBody(frame.data() + sizeof(SMsgHead), bodyLen);
+  return frame;
+}
+
+TEST(td_msg_test, batch_req_with_zero_messages_yields_no_message_array) {
+  // A well-formed frame declaring num <= 0 decodes successfully with pMsgs == NULL. Callers must
+  // therefore check the array before indexing it - smDispatchStreamTriggerRsp used to read
+  // TARRAY_DATA(pMsgs) unconditionally and segfaulted the whole taosd process.
+  std::vector<uint8_t> frame = buildBatchReqFrame(0, 0, "");
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded), 0);
+  EXPECT_EQ(decoded.pMsgs, nullptr);
+  EXPECT_EQ(taosArrayGetSize(decoded.pMsgs), 0u);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_rejects_msg_len_larger_than_embedded_binary) {
+  // msgLen is an independent wire integer, while msg is sized by the embedded binary. Consumers
+  // decode msg bounded by msgLen, so a larger msgLen reads past the heap allocation.
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame =
+      buildBatchReqFrame(1, static_cast<int32_t>(payload.size()) + 4096, payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded),
+            TSDB_CODE_INVALID_MSG);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_rejects_negative_msg_len) {
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame = buildBatchReqFrame(1, -1, payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded),
+            TSDB_CODE_INVALID_MSG);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_accepts_msg_len_matching_embedded_binary) {
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame = buildBatchReqFrame(1, static_cast<int32_t>(payload.size()), payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  ASSERT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded), 0);
+  ASSERT_EQ(taosArrayGetSize(decoded.pMsgs), 1u);
+  SBatchMsg *pMsg = static_cast<SBatchMsg *>(taosArrayGet(decoded.pMsgs, 0));
+  ASSERT_NE(pMsg, nullptr);
+  EXPECT_EQ(pMsg->msgIdx, 0);
+  EXPECT_EQ(pMsg->msgType, TDMT_MND_GET_STREAM_PROGRESS);
+  EXPECT_EQ(pMsg->msgLen, static_cast<int32_t>(payload.size()));
+  ASSERT_NE(pMsg->msg, nullptr);
+  EXPECT_EQ(memcmp(pMsg->msg, payload.data(), payload.size()), 0);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, cfg_dnode_req_round_trips_alter_type) {
+  // The dnode re-runs cfgCheckRangeForDynUpdate with this alterType, so it has to survive the
+  // round trip: CFG_ALTER_DNODE is what forbids changing a global item on a single dnode.
+  SDCfgDnodeReq req = {0};
+  tstrncpy(req.config, "supportVnodes", sizeof(req.config));
+  tstrncpy(req.value, "0", sizeof(req.value));
+  req.version = 7;
+  req.alterType = CFG_ALTER_DNODE;
+
+  const int32_t size = tSerializeSDCfgDnodeReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(tSerializeSDCfgDnodeReq(frame.data(), size, &req), size);
+
+  SDCfgDnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSDCfgDnodeReq(frame.data(), size, &decoded), 0);
+  EXPECT_STREQ(decoded.config, "supportVnodes");
+  EXPECT_STREQ(decoded.value, "0");
+  EXPECT_EQ(decoded.version, 7);
+  EXPECT_EQ(decoded.alterType, CFG_ALTER_DNODE);
+}
+
+TEST(td_msg_test, cfg_dnode_req_defaults_alter_type_for_pre_upgrade_frame) {
+  // A pre-upgrade mnode omits the alterType tail field. The decoder must default to the
+  // permissive CFG_ALTER_ALL_DNODES so a rolling upgrade does not start refusing global alters.
+  const char *config = "clsRefreshInterval";
+  const char *value = "20";
+
+  auto encodeLegacy = [&](uint8_t *buf, int32_t bufLen) -> int32_t {
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, static_cast<uint32_t>(bufLen));
+    EXPECT_EQ(tStartEncode(&encoder), 0);
+    EXPECT_EQ(tEncodeI32(&encoder, 3), 0);
+    EXPECT_EQ(tEncodeCStr(&encoder, config), 0);
+    EXPECT_EQ(tEncodeCStr(&encoder, value), 0);
+    tEndEncode(&encoder);
+    const int32_t len = static_cast<int32_t>(encoder.pos);
+    tEncoderClear(&encoder);
+    return len;
+  };
+
+  const int32_t size = encodeLegacy(nullptr, 0);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(encodeLegacy(frame.data(), size), size);
+
+  SDCfgDnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSDCfgDnodeReq(frame.data(), size, &decoded), 0);
+  EXPECT_STREQ(decoded.config, config);
+  EXPECT_STREQ(decoded.value, value);
+  EXPECT_EQ(decoded.version, 3);
+  EXPECT_EQ(decoded.alterType, CFG_ALTER_ALL_DNODES);
+}
+
+TEST(td_msg_test, msg_type_validity_bounds_segment_and_sequence) {
+  // TMSG_INDEX(type) is tMsgDict[(type & 0xff00) >> 8] + (type & 0xff). The segment code comes
+  // straight off the wire (0..255) while tMsgDict has one entry per defined segment, so dnode
+  // dispatch must reject anything tmsgIsValid() rejects before indexing its handler tables.
+  const int32_t numOfSegments = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
+  ASSERT_GT(numOfSegments, 0);
+  ASSERT_LT(numOfSegments, 256);
+
+  // First segment code past the last defined one, and a far-out segment code.
+  EXPECT_FALSE(tmsgIsValid(static_cast<tmsg_t>(numOfSegments << 8)));
+  EXPECT_FALSE(tmsgIsValid(static_cast<tmsg_t>(0xFF01)));
+
+  // Defined request and response types stay valid.
+  EXPECT_TRUE(tmsgIsValid(TDMT_DND_CONFIG_DNODE));
+  EXPECT_TRUE(tmsgIsValid(TDMT_DND_CREATE_SNODE));
+  EXPECT_TRUE(tmsgIsValid(TDMT_MND_STREAM_HEARTBEAT_RSP));
+
+  // A sequence byte past the end of a defined segment is rejected too.
+  const tmsg_t pastDndSegment = static_cast<tmsg_t>(TDMT_DND_MSG_MAX);
+  ASSERT_EQ(TMSG_SEG_CODE(pastDndSegment), TMSG_SEG_CODE(TDMT_DND_CONFIG_DNODE));
+  EXPECT_FALSE(tmsgIsValid(pastDndSegment));
+}
+
+// ============================================================================
+// Regression tests for the bounded TMQ ask-ep response decoder (TD-SEC entry 245,
+// TDMT_MND_TMQ_ASK_EP_RSP). tDecodeSMqAskEpRsp must reject oversized topic/db/fqdn
+// strings, truncated bodies, invalid ep sets and bogus counts without any
+// out-of-bounds read or write.
+// ============================================================================
+
+namespace {
+
+// Hand-rolled legacy wire writer mirroring tcoding.h so tests can forge arbitrary
+// byte streams (a malicious server may send anything; the encoders have no limits).
+struct LegacyEnc {
+  std::vector<uint8_t> v;
+
+  void varu64(uint64_t val) {
+    while (val >= 0x80) {
+      v.push_back((uint8_t)(val | 0x80));
+      val >>= 7;
+    }
+    v.push_back((uint8_t)val);
+  }
+  void str(const char* s) {
+    varu64(strlen(s));
+    v.insert(v.end(), s, s + strlen(s));
+  }
+  void i32(int32_t val) {
+    uint32_t z = ZIGZAGE(int32_t, val);
+    v.push_back((uint8_t)(z & 0xff));
+    v.push_back((uint8_t)((z >> 8) & 0xff));
+    v.push_back((uint8_t)((z >> 16) & 0xff));
+    v.push_back((uint8_t)((z >> 24) & 0xff));
+  }
+  void i64(int64_t val) {
+    uint64_t z = ZIGZAGE(int64_t, val);
+    for (int32_t i = 0; i < 8; i++) {
+      v.push_back((uint8_t)((z >> (8 * i)) & 0xff));
+    }
+  }
+  void i8(int8_t val) { v.push_back((uint8_t)val); }
+  void u16(uint16_t val) {
+    v.push_back((uint8_t)(val & 0xff));
+    v.push_back((uint8_t)(val >> 8));
+  }
+  void allEps(const char* fqdn) {
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
+      u16(6030);
+      str(fqdn);
+    }
+  }
+};
+
+}  // namespace
+
+TEST(td_msg_test, askep_rsp_decode_roundtrip) {
+  SMqSubVgEp vgEp = {0};
+  vgEp.vgId = 3;
+  vgEp.offset = 42;
+  vgEp.epSet.inUse = 0;
+  vgEp.epSet.numOfEps = 1;
+  vgEp.epSet.eps[0].port = 6030;
+  snprintf(vgEp.epSet.eps[0].fqdn, TSDB_FQDN_LEN, "localhost");
+
+  SMqSubTopicEp topicEp = {0};
+  snprintf(topicEp.topic, TSDB_TOPIC_FNAME_LEN, "topic1");
+  snprintf(topicEp.db, TSDB_DB_FNAME_LEN, "db1");
+  topicEp.vgs = taosArrayInit(1, sizeof(SMqSubVgEp));
+  ASSERT_NE(topicEp.vgs, nullptr);
+  ASSERT_NE(taosArrayPush(topicEp.vgs, &vgEp), nullptr);
+
+  SMqAskEpRsp rsp = {0};
+  rsp.topics = taosArrayInit(1, sizeof(SMqSubTopicEp));
+  ASSERT_NE(rsp.topics, nullptr);
+  ASSERT_NE(taosArrayPush(rsp.topics, &topicEp), nullptr);
+
+  int32_t tlen = tEncodeSMqAskEpRsp(NULL, &rsp);
+  ASSERT_GT(tlen, 0);
+  std::vector<uint8_t> frame((size_t)tlen);
+  void*              p = frame.data();
+  ASSERT_EQ(tEncodeSMqAskEpRsp(&p, &rsp), tlen);
+  tDeleteSMqAskEpRsp(&rsp);
+
+  SMqAskEpRsp decoded = {0};
+  ASSERT_NE(tDecodeSMqAskEpRsp(frame.data(), (int32_t)frame.size(), &decoded), nullptr);
+  EXPECT_EQ(decoded.code, 0);
+  ASSERT_EQ(taosArrayGetSize(decoded.topics), 1);
+  SMqSubTopicEp* pTopic = (SMqSubTopicEp*)taosArrayGet(decoded.topics, 0);
+  EXPECT_STREQ(pTopic->topic, "topic1");
+  EXPECT_STREQ(pTopic->db, "db1");
+  ASSERT_EQ(taosArrayGetSize(pTopic->vgs), 1);
+  SMqSubVgEp* pVg = (SMqSubVgEp*)taosArrayGet(pTopic->vgs, 0);
+  EXPECT_EQ(pVg->vgId, 3);
+  EXPECT_EQ(pVg->offset, 42);
+  EXPECT_EQ(pVg->epSet.inUse, 0);
+  EXPECT_EQ(pVg->epSet.numOfEps, 1);
+  EXPECT_EQ(pVg->epSet.eps[0].port, 6030);
+  EXPECT_STREQ(pVg->epSet.eps[0].fqdn, "localhost");
+
+  tDeleteSMqAskEpRsp(&decoded);
+}
+
+TEST(td_msg_test, askep_rsp_decode_empty_topics) {
+  LegacyEnc e;
+  e.i32(0);  // zero topics
+  e.i32(7);  // code
+  SMqAskEpRsp rsp = {0};
+  ASSERT_NE(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  EXPECT_EQ(rsp.code, 7);
+  EXPECT_EQ(taosArrayGetSize(rsp.topics), 0);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_accept_max_topic_len) {
+  std::string topic((size_t)TSDB_TOPIC_FNAME_LEN - 1, 't');
+  LegacyEnc   e;
+  e.i32(1);
+  e.str(topic.c_str());
+  e.str("db");
+  e.i32(0);
+  e.i32(5);
+  SMqAskEpRsp rsp = {0};
+  ASSERT_NE(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  EXPECT_EQ(rsp.code, 5);
+  ASSERT_EQ(taosArrayGetSize(rsp.topics), 1);
+  SMqSubTopicEp* pTopic = (SMqSubTopicEp*)taosArrayGet(rsp.topics, 0);
+  EXPECT_STREQ(pTopic->topic, topic.c_str());
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_oversized_topic) {
+  std::string big((size_t)TSDB_TOPIC_FNAME_LEN, 't');  // dstCap bytes, no room for NUL
+  LegacyEnc   e;
+  e.i32(1);
+  e.str(big.c_str());
+  e.str("db");
+  e.i32(0);
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_oversized_db) {
+  std::string big((size_t)TSDB_DB_FNAME_LEN, 'd');
+  LegacyEnc   e;
+  e.i32(1);
+  e.str("topic");
+  e.str(big.c_str());
+  e.i32(0);
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_oversized_fqdn) {
+  std::string big((size_t)TSDB_FQDN_LEN, 'f');
+  LegacyEnc   e;
+  e.i32(1);
+  e.str("topic");
+  e.str("db");
+  e.i32(1);  // one vgroup
+  e.i32(1);  // vgId
+  e.i64(0);  // offset
+  e.i8(0);   // inUse
+  e.i8(1);   // numOfEps
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; i++) {
+    e.u16(6030);
+    e.str(i == 0 ? big.c_str() : "host");
+  }
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_truncated_string) {
+  LegacyEnc e;
+  e.i32(1);
+  e.varu64(100);                   // topic declares 100 bytes...
+  e.v.insert(e.v.end(), 10, 'a');  // ...but only 10 are present
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_missing_code) {
+  LegacyEnc e;
+  e.i32(1);
+  e.str("topic");
+  e.str("db");
+  e.i32(0);  // zero vgroups, no trailing code field
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_huge_topic_count) {
+  LegacyEnc e;
+  e.i32(0x0FFFFFFF);  // ~2^28 topics, cannot fit in the remaining payload
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_negative_topic_count) {
+  LegacyEnc e;
+  e.i32(-1);  // zigzag-encoded -1
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_invalid_epset) {
+  LegacyEnc e;
+  e.i32(1);
+  e.str("topic");
+  e.str("db");
+  e.i32(1);  // one vgroup
+  e.i32(1);  // vgId
+  e.i64(0);  // offset
+  e.i8(0);   // inUse
+  e.i8(TSDB_MAX_REPLICA + 1);  // numOfEps out of range
+  e.allEps("host");
+  e.i32(0);
+  SMqAskEpRsp rsp = {0};
+  EXPECT_EQ(tDecodeSMqAskEpRsp(e.v.data(), (int32_t)e.v.size(), &rsp), nullptr);
+  tDeleteSMqAskEpRsp(&rsp);
+}
+
+TEST(td_msg_test, askep_rsp_reject_invalid_epset_inuse) {
+  for (int8_t numOfEps = 1; numOfEps <= TSDB_MAX_REPLICA; ++numOfEps) {
+    for (int8_t inUse : {int8_t(-1), int8_t(numOfEps + 1)}) {
+      SCOPED_TRACE(static_cast<int>(numOfEps));
+      SCOPED_TRACE(static_cast<int>(inUse));
+      LegacyEnc encoded;
+      encoded.i32(1);
+      encoded.str("topic");
+      encoded.str("db");
+      encoded.i32(1);
+      encoded.i32(1);
+      encoded.i64(0);
+      encoded.i8(inUse);
+      encoded.i8(numOfEps);
+      encoded.allEps("host");
+      encoded.i32(0);
+      SMqAskEpRsp rsp = {0};
+      EXPECT_EQ(tDecodeSMqAskEpRsp(encoded.v.data(), (int32_t)encoded.v.size(), &rsp), nullptr);
+      tDeleteSMqAskEpRsp(&rsp);
+    }
+  }
+}
+
+TEST(td_msg_test, askep_rsp_accept_epset_inuse_boundary) {
+  for (int8_t numOfEps = 0; numOfEps <= TSDB_MAX_REPLICA; ++numOfEps) {
+    for (int8_t inUse = 0; inUse <= numOfEps; ++inUse) {
+      SCOPED_TRACE(static_cast<int>(numOfEps));
+      SCOPED_TRACE(static_cast<int>(inUse));
+      LegacyEnc encoded;
+      encoded.i32(1);
+      encoded.str("topic");
+      encoded.str("db");
+      encoded.i32(1);
+      encoded.i32(1);
+      encoded.i64(0);
+      encoded.i8(inUse);
+      encoded.i8(numOfEps);
+      encoded.allEps("host");
+      encoded.i32(0);
+      SMqAskEpRsp rsp = {0};
+      void* end = tDecodeSMqAskEpRsp(encoded.v.data(), (int32_t)encoded.v.size(), &rsp);
+      EXPECT_EQ(end, encoded.v.data() + encoded.v.size());
+      if (end != nullptr) {
+        EXPECT_EQ(rsp.code, 0);
+        EXPECT_EQ(taosArrayGetSize(rsp.topics), 1);
+        SMqSubTopicEp* topic = (SMqSubTopicEp*)taosArrayGet(rsp.topics, 0);
+        EXPECT_EQ(taosArrayGetSize(topic->vgs), 1);
+        SMqSubVgEp* vg = (SMqSubVgEp*)taosArrayGet(topic->vgs, 0);
+        EXPECT_EQ(vg->epSet.numOfEps, numOfEps);
+        EXPECT_EQ(vg->epSet.inUse, inUse == numOfEps ? 0 : inUse);
+        EXPECT_EQ(vg->epSet.eps[0].port, 6030);
+        EXPECT_STREQ(vg->epSet.eps[0].fqdn, "host");
+      }
+      tDeleteSMqAskEpRsp(&rsp);
+    }
+  }
+}
+
+namespace {
+
+SRefColInfo makeSubTableRef(int16_t colId, const char* db, const char* tb, const char* col, const char* src) {
+  SRefColInfo ref = {};
+  ref.colId = colId;
+  tstrncpy(ref.refDbName, db, sizeof(ref.refDbName));
+  tstrncpy(ref.refTableName, tb, sizeof(ref.refTableName));
+  tstrncpy(ref.refColName, col, sizeof(ref.refColName));
+  if (nullptr != src) {
+    tstrncpy(ref.refSourceName, src, sizeof(ref.refSourceName));
+  }
+  return ref;
+}
+
+uint32_t subTableRefArenaBytes(const SRefColInfo* refs, int32_t n) {
+  uint32_t bytes = 0;
+  for (int32_t i = 0; i < n; ++i) {
+    bytes += static_cast<uint32_t>(strlen(refs[i].refDbName)) + 1;
+    bytes += static_cast<uint32_t>(strlen(refs[i].refTableName)) + 1;
+    bytes += static_cast<uint32_t>(strlen(refs[i].refColName)) + 1;
+    if (refs[i].refSourceName[0] != '\0') {
+      bytes += static_cast<uint32_t>(strlen(refs[i].refSourceName)) + 1;
+    }
+    if (refs[i].refSchemaName[0] != '\0') {
+      bytes += static_cast<uint32_t>(strlen(refs[i].refSchemaName)) + 1;
+    }
+  }
+  return bytes;
+}
+
+}  // namespace
+
+// SVSubTablesRsp is decoded into a compact variable-length layout (header +
+// entries + string arena). This pins the roundtrip, the layout arithmetic and
+// the wire bytes staying stable across a decode/encode round.
+TEST(td_msg_test, vsubtables_rsp_codec_roundtrip_compact_layout) {
+  std::string longTb(TSDB_TABLE_NAME_LEN - 1, 't');
+  std::string longCol(TSDB_COL_NAME_LEN - 1, 'c');
+
+  SRefColInfo colRefs[3] = {
+      makeSubTableRef(2, "db0", "src0", "c0", nullptr),
+      makeSubTableRef(3, "db0", longTb.c_str(), longCol.c_str(), "ext_src"),
+      makeSubTableRef(4, "db1", "src1", "c1", nullptr),
+  };
+  SRefColInfo tagRefs[2] = {
+      makeSubTableRef(10, "db0", "src0", "t0", nullptr),
+      makeSubTableRef(11, "db1", "src1", "t1", "ext_tag"),
+  };
+  // external-schema and saved-filter flags ride along in the compact layout
+  tstrncpy(colRefs[1].refSchemaName, "ext_schema", sizeof(colRefs[1].refSchemaName));
+  colRefs[0].hasFilterCond = true;
+  tstrncpy(tagRefs[1].refSchemaName, "tag_schema", sizeof(tagRefs[1].refSchemaName));
+  SRefColInfo onlyTag[1] = {makeSubTableRef(20, "db2", "src2", "t2", nullptr)};
+
+  SVSubTablesRsp rsp = {};
+  rsp.vgId = 7;
+  rsp.pTables = taosArrayInit(3, sizeof(SVCTableRefCols*));
+  SVCTableRefCols* tbA = tBuildSVCTableRefCols(100, 2, colRefs, 3, tagRefs, 2);
+  SVCTableRefCols* tbB = tBuildSVCTableRefCols(101, 1, nullptr, 0, onlyTag, 1);  // tag-only child
+  SVCTableRefCols* tbC = tBuildSVCTableRefCols(102, 1, colRefs, 2, nullptr, 0);  // no tag refs
+  ASSERT_NE(nullptr, tbA);
+  ASSERT_NE(nullptr, tbB);
+  ASSERT_NE(nullptr, tbC);
+  taosArrayPush(rsp.pTables, &tbA);
+  taosArrayPush(rsp.pTables, &tbB);
+  taosArrayPush(rsp.pTables, &tbC);
+
+  // The content block is sized by actual string lengths instead of fixed 390B entries.
+  EXPECT_EQ(tbA->pContent->bufLen,
+            static_cast<int32_t>(sizeof(SVctRefContent) + 5 * sizeof(SRefColEntry) +
+                                 subTableRefArenaBytes(colRefs, 3) + subTableRefArenaBytes(tagRefs, 2)));
+  EXPECT_LT(static_cast<int32_t>(sizeof(SVCTableRefCols) + tbA->pContent->bufLen),
+            static_cast<int32_t>(sizeof(SVCTableRefCols) + 5 * sizeof(SRefColInfo)));
+
+  const int32_t size = tSerializeSVSubTablesRsp(nullptr, 0, &rsp);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(size, tSerializeSVSubTablesRsp(frame.data(), size, &rsp));
+
+  SVSubTablesRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(frame.data(), size, &decoded));
+  ASSERT_EQ(7, decoded.vgId);
+  ASSERT_EQ(3, taosArrayGetSize(decoded.pTables));
+
+  SVCTableRefCols* gotA = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 0);
+  SVCTableRefCols* gotB = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 1);
+  SVCTableRefCols* gotC = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 2);
+
+  EXPECT_EQ(100, gotA->uid);
+  EXPECT_EQ(2, gotA->numOfSrcTbls);
+  EXPECT_EQ(3, gotA->numOfColRefs);
+  EXPECT_EQ(2, gotA->numOfTagRefs);
+  SRefColInfo back = {};
+  vctRefColToInfo(gotA, vctColRefAt(gotA, 1), &back);
+  EXPECT_EQ(3, back.colId);
+  EXPECT_STREQ("db0", back.refDbName);
+  EXPECT_STREQ(longTb.c_str(), back.refTableName);
+  EXPECT_STREQ(longCol.c_str(), back.refColName);
+  EXPECT_STREQ("ext_src", back.refSourceName);
+  EXPECT_STREQ("ext_schema", back.refSchemaName);
+  EXPECT_FALSE(back.hasFilterCond);
+  vctRefColToInfo(gotA, vctColRefAt(gotA, 0), &back);
+  EXPECT_EQ(2, back.colId);
+  EXPECT_STREQ("", back.refSourceName);
+  EXPECT_STREQ("", back.refSchemaName);
+  EXPECT_TRUE(back.hasFilterCond);
+  vctRefColToInfo(gotA, vctTagRefAt(gotA, 1), &back);
+  EXPECT_EQ(11, back.colId);
+  EXPECT_STREQ("t1", back.refColName);
+  EXPECT_STREQ("ext_tag", back.refSourceName);
+  EXPECT_STREQ("tag_schema", back.refSchemaName);
+
+  // A tag-only child must survive the wire: decode used to drop tables with
+  // zero col refs before the appended tag-ref section could find them.
+  EXPECT_EQ(101, gotB->uid);
+  EXPECT_EQ(0, gotB->numOfColRefs);
+  ASSERT_EQ(1, gotB->numOfTagRefs);
+  vctRefColToInfo(gotB, vctTagRefAt(gotB, 0), &back);
+  EXPECT_EQ(20, back.colId);
+  EXPECT_STREQ("db2", back.refDbName);
+  EXPECT_STREQ("src2", back.refTableName);
+  EXPECT_STREQ("t2", back.refColName);
+
+  EXPECT_EQ(102, gotC->uid);
+  EXPECT_EQ(2, gotC->numOfColRefs);
+  EXPECT_EQ(0, gotC->numOfTagRefs);
+
+  // encode(decode(x)) == encode(x): the codec is byte-stable.
+  const int32_t size2 = tSerializeSVSubTablesRsp(nullptr, 0, &decoded);
+  ASSERT_EQ(size, size2);
+  std::vector<uint8_t> frame2(size2);
+  ASSERT_EQ(size2, tSerializeSVSubTablesRsp(frame2.data(), size2, &decoded));
+  EXPECT_EQ(0, memcmp(frame.data(), frame2.data(), size));
+
+  tDestroySVSubTablesRsp(&decoded);
+  tDestroySVSubTablesRsp(&rsp);
+}
+
+// A sender that predates the tag-ref/ref-source-name sections stops right
+// after the col-ref section; such frames must keep decoding (rolling upgrade).
+TEST(td_msg_test, vsubtables_rsp_decoder_accepts_legacy_frame_without_tag_sections) {
+  SEncoder encoder = {0};
+  std::vector<uint8_t> buf(256);
+  tEncoderInit(&encoder, buf.data(), static_cast<int32_t>(buf.size()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 9));    // vgId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfTables
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfSrcTbls
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfColRefs
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI16(&encoder, 2));    // colId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "db"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "tb"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "col"));
+  tEndEncode(&encoder);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVSubTablesRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(buf.data(), len, &decoded));
+  ASSERT_EQ(1, taosArrayGetSize(decoded.pTables));
+  SVCTableRefCols* pTb = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 0);
+  ASSERT_NE(nullptr, pTb);
+  EXPECT_EQ(555, pTb->uid);
+  EXPECT_EQ(1, pTb->numOfSrcTbls);
+  EXPECT_EQ(1, pTb->numOfColRefs);
+  EXPECT_EQ(0, pTb->numOfTagRefs);
+  SRefColInfo back = {};
+  vctRefColToInfo(pTb, vctColRefAt(pTb, 0), &back);
+  EXPECT_EQ(2, back.colId);
+  EXPECT_STREQ("db", back.refDbName);
+  EXPECT_STREQ("tb", back.refTableName);
+  EXPECT_STREQ("col", back.refColName);
+  EXPECT_STREQ("", back.refSourceName);
+
+  tDestroySVSubTablesRsp(&decoded);
+}
+
+// A malformed tag-ref section (negative per-table count) must be rejected
+// instead of being trusted as an entry count.
+TEST(td_msg_test, vsubtables_rsp_decoder_rejects_negative_tagref_count) {
+  SEncoder encoder = {0};
+  std::vector<uint8_t> buf(256);
+  tEncoderInit(&encoder, buf.data(), static_cast<int32_t>(buf.size()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 9));    // vgId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfTables
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfSrcTbls
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfColRefs
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI16(&encoder, 2));    // colId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "db"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "tb"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "col"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numTagRefEntries
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, -1));   // numOfTagRefs: malformed
+  tEndEncode(&encoder);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVSubTablesRsp decoded = {};
+  EXPECT_NE(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(buf.data(), len, &decoded));
+  // the decoder released the partially built response on error
+  EXPECT_EQ(nullptr, decoded.pTables);
+  tDestroySVSubTablesRsp(&decoded);
+}
+
+// A tag-ref count larger than the remaining payload must fail cleanly too.
+TEST(td_msg_test, vsubtables_rsp_decoder_rejects_truncated_tagref_section) {
+  SEncoder encoder = {0};
+  std::vector<uint8_t> buf(256);
+  tEncoderInit(&encoder, buf.data(), static_cast<int32_t>(buf.size()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 9));    // vgId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfTables
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfSrcTbls
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 0));    // numOfColRefs
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numTagRefEntries
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 3));    // numOfTagRefs, but no refs follow
+  tEndEncode(&encoder);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVSubTablesRsp decoded = {};
+  EXPECT_NE(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(buf.data(), len, &decoded));
+  EXPECT_EQ(nullptr, decoded.pTables);
+  tDestroySVSubTablesRsp(&decoded);
+}
+
+// Children sharing the same ref pattern must decode onto one shared content
+// block: N children over few source tables cost O(N) small records plus one
+// content block, not N copies of the ref payload.
+TEST(td_msg_test, vsubtables_rsp_decoder_shares_identical_ref_patterns) {
+  SRefColInfo colRefs[2] = {
+      makeSubTableRef(2, "db0", "src0", "c0", nullptr),
+      makeSubTableRef(3, "db0", "src0", "c1", "ext"),
+  };
+  SRefColInfo tagRefs[1] = {makeSubTableRef(9, "db0", "src0", "t0", nullptr)};
+
+  SVSubTablesRsp rsp = {};
+  rsp.vgId = 1;
+  rsp.pTables = taosArrayInit(3, sizeof(SVCTableRefCols*));
+  for (int32_t i = 0; i < 3; ++i) {
+    SVCTableRefCols* pTb = tBuildSVCTableRefCols(1000 + i, 1, colRefs, 2, tagRefs, 1);
+    ASSERT_NE(nullptr, pTb);
+    taosArrayPush(rsp.pTables, &pTb);
+  }
+
+  const int32_t size = tSerializeSVSubTablesRsp(nullptr, 0, &rsp);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(size, tSerializeSVSubTablesRsp(frame.data(), size, &rsp));
+
+  SVSubTablesRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(frame.data(), size, &decoded));
+  ASSERT_EQ(3, taosArrayGetSize(decoded.pTables));
+  SVCTableRefCols* t0 = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 0);
+  SVCTableRefCols* t1 = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 1);
+  SVCTableRefCols* t2 = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 2);
+  ASSERT_NE(nullptr, t0->pContent);
+  EXPECT_EQ(t0->pContent, t1->pContent);
+  EXPECT_EQ(t0->pContent, t2->pContent);
+  EXPECT_EQ(1001, t1->uid);  // identity stays per child
+  // the shared content still reads back correctly from every record
+  SRefColInfo back = {};
+  vctRefColToInfo(t2, vctColRefAt(t2, 1), &back);
+  EXPECT_EQ(3, back.colId);
+  EXPECT_STREQ("src0", back.refTableName);
+  EXPECT_STREQ("ext", back.refSourceName);
+  vctRefColToInfo(t1, vctTagRefAt(t1, 0), &back);
+  EXPECT_EQ(9, back.colId);
+  EXPECT_STREQ("t0", back.refColName);
+
+  // encode(decode(x)) == encode(x) even with shared contents
+  const int32_t size2 = tSerializeSVSubTablesRsp(nullptr, 0, &decoded);
+  ASSERT_EQ(size, size2);
+  std::vector<uint8_t> frame2(size2);
+  ASSERT_EQ(size2, tSerializeSVSubTablesRsp(frame2.data(), size2, &decoded));
+  EXPECT_EQ(0, memcmp(frame.data(), frame2.data(), size));
+
+  tDestroySVSubTablesRsp(&decoded);
+  tDestroySVSubTablesRsp(&rsp);
 }

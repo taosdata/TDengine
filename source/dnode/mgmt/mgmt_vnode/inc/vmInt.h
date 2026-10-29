@@ -125,6 +125,8 @@ bool       vmReleaseMountTfs(SVnodeMgmt *pMgmt, int64_t mountId, int32_t minRef)
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
+bool    vmIsReplicaCfgValid(int32_t vgId, int32_t replica, int32_t selfIndex, int32_t learnerReplica,
+                            int32_t learnerSelfIndex);
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);

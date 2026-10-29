@@ -612,6 +612,7 @@ class TestFunHistogram:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -644,3 +645,22 @@ class TestFunHistogram:
 
         #tdSql.close()
 
+    def test_histogram_user_bin_limit(self):
+        """Reject USER_INPUT histograms above the supported bin limit.
+
+        1. Create a minimal numeric input table.
+        2. Submit 1002 user-provided boundaries.
+        3. Verify validation rejects the oversized interval array.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,functional
+        """
+        tdSql.prepare(dbname="histogram_limit")
+        tdSql.execute("create table histogram_input (ts timestamp, value int)")
+        tdSql.execute("insert into histogram_input values (1700000000000, 1)")
+        oversized_bins = json.dumps(list(range(1002)))
+        tdSql.error(
+            "select histogram(value, 'USER_INPUT', "
+            f"'{oversized_bins}', 0) from histogram_input"
+        )

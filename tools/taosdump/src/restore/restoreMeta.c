@@ -517,7 +517,8 @@ static void applyAllRenamesInSql(char *buf, int bufSize) {
 typedef struct {
     char backupTbName[TSDB_TABLE_NAME_LEN];    // bare child table name, no db/backticks
     char backupVstbName[TSDB_TABLE_NAME_LEN];  // bare vstb name
-    char renamedSql[TSDB_MAX_SQL_LEN];         // skeleton DDL with targetDb applied, no TAGS
+    char *renamedSql;                          // skeleton DDL with targetDb applied, no TAGS;
+                                               // heap-allocated: SHOW CREATE VTABLE is BLOB, DDL can exceed 64KB
 } VtbChildSkeleton;
 
 // Context for vtbTagBlockCallback
@@ -818,6 +819,16 @@ static void emitVtbChild(VtbRestoreCtx *ctx) {
         return;
     }
 
+    // renamedSql is a heap pointer (taosStrdup) and the first dereference happens in
+    // parseVtbSkeletonTags below (strstr(NULL, ...) would crash): guard here, before
+    // any use, so a NULL slot fails loudly instead of crashing
+    if (!sk->renamedSql) {
+        logError("vtable child '%s' (vstb %s) skipped: skeleton SQL not available (allocation failure)",
+                 ctx->curTbname, ctx->vstbName);
+        ctx->failedCnt++;
+        return;
+    }
+
     // Build " TAGS (v1, v2, ...)" suffix. The skeleton's USING tag list is authoritative
     // for names and order: vstb tags followed by the child's own (extension) tags, which
     // are declared with inline types (e.g. `ext_city` NCHAR(16)).
@@ -885,13 +896,20 @@ static void emitVtbChild(VtbRestoreCtx *ctx) {
     tagsSuffix[pos++] = ')';
     tagsSuffix[pos]   = '\0';
 
-    // Final SQL: renamedSkeleton + TAGS suffix.
-    // renamedSql can be up to TSDB_MAX_SQL_LEN and tagsSuffix up to its own sizeof, so the
-    // combined buffer must hold both or snprintf would silently cut the statement short
-    // (defeating the truncation detection applied to tagsSuffix above).
-    char *fullSql = (char *)taosMemoryMalloc(TSDB_MAX_SQL_LEN + (int)sizeof(tagsSuffix));
-    if (!fullSql) { ctx->failedCnt++; return; }
-    snprintf(fullSql, TSDB_MAX_SQL_LEN + (int)sizeof(tagsSuffix), "%s%s", sk->renamedSql, tagsSuffix);
+    // Final SQL: renamedSkeleton + TAGS suffix. Size by the ACTUAL lengths (the skeleton
+    // DDL of a wide table can exceed 64KB and is not capped by TSDB_MAX_SQL_LEN in the
+    // SHOW CREATE BLOB path): the buffer always holds both parts exactly, so snprintf can
+    // never cut the statement short — preserving the truncation detection applied to
+    // tagsSuffix above without relying on a fixed upper bound.
+    size_t fullSqlSize = strlen(sk->renamedSql) + strlen(tagsSuffix) + 1;
+    char *fullSql = (char *)taosMemoryMalloc(fullSqlSize);
+    if (!fullSql) {
+        logError("vtable child '%s' (vstb %s) skipped: OOM building SQL of %zu bytes", ctx->curTbname, ctx->vstbName,
+                 fullSqlSize);
+        ctx->failedCnt++;
+        return;
+    }
+    snprintf(fullSql, fullSqlSize, "%s%s", sk->renamedSql, tagsSuffix);
 
     logDebug("restore vtable child sql: %s", fullSql);
     TAOS_RES *res = taos_query(ctx->conn, fullSql);
@@ -1347,9 +1365,18 @@ static int restoreVtbSql(const char *dbName) {
                     skeletons = tmp;
                 }
                 VtbChildSkeleton *sk = &skeletons[skeletonCount++];
+                // realloc-grown slots are not zero-initialized: pin renamedSql to NULL the
+                // moment the slot is counted, so the cleanup loop can never see garbage
+                sk->renamedSql = NULL;
                 snprintf(sk->backupTbName,   sizeof(sk->backupTbName),   "%s", bareTbName);
                 snprintf(sk->backupVstbName, sizeof(sk->backupVstbName), "%s", bareVstbName);
-                snprintf(sk->renamedSql,     sizeof(sk->renamedSql),     "%s", fullSql);
+                sk->renamedSql = taosStrdup(fullSql);
+                if (!sk->renamedSql) {
+                    skeletonCount--;
+                    taosMemoryFree(fullSql);
+                    code = TSDB_CODE_BCK_MALLOC_FAILED;
+                    break;
+                }
             } else {
                 // Execute immediately: virtual normal tables + old-format child DDLs with TAGS
                 logDebug("restore vtable sql: %s", fullSql);
@@ -1410,6 +1437,8 @@ static int restoreVtbSql(const char *dbName) {
             int vstbItemCnt = 0;
             for (int i = 0; i < skeletonCount; i++) {
                 if (strcasecmp(skeletons[i].backupVstbName, vstbName) == 0) {
+                    // Shallow copy on purpose: vstbItems only borrows renamedSql; the
+                    // skeletons array keeps ownership and frees it after all vstb runs.
                     vstbItems[vstbItemCnt++] = skeletons[i];
                 }
             }
@@ -1423,6 +1452,12 @@ static int restoreVtbSql(const char *dbName) {
     }
 
     logInfo("restored %d virtual table(s) for db: %s", vtbCount, dbName);
+    for (int i = 0; i < skeletonCount; i++) {
+        if (skeletons[i].renamedSql) {
+            taosMemoryFree(skeletons[i].renamedSql);
+            skeletons[i].renamedSql = NULL;
+        }
+    }
     atomic_add_fetch_64(&g_stats.vtbTotal, vtbCount);
     taosMemoryFree(skeletons);
     taosMemoryFree(content);

@@ -118,17 +118,14 @@ TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE toolscJson)
 # libtaos.so owns the public API and dispatches to the driver it dlopen()s;
 # libtaosnative.so carries the engine internals this tool uses directly
 # (functions *and* globals such as gMemPoolHandle).  Both are listed, and the
-# order does not matter on Linux: the driver no longer exports the public names
-# there -- it hands them to the dispatcher through tdNativeApiTable -- so even
-# if CMake hoists it ahead of libtaos.so, taos_options() still lands in the
-# dispatcher.  macOS keeps the driver's own export of those names, so it
-# resolves the internals through libtaos.dylib's re-export of the driver dylib
-# instead of naming it here.
+# order does not matter: on Linux the driver no longer exports the public names
+# -- it hands them to the dispatcher through tdNativeApiTable -- and on macOS the
+# linker binds each name to the first library that defines it.
 #
 # No --copy-dt-needed-entries: naming libtaosnative.so explicitly is what pulls
 # the internals in, and mold rejects that option outright.
 TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE taos)
-if(TD_LINUX)
+if(NOT TD_WINDOWS)
   TARGET_LINK_LIBRARIES(taosBenchmark PRIVATE ${TAOS_NATIVE_LIB})
 endif()
 

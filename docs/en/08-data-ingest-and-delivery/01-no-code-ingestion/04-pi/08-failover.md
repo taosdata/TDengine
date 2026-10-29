@@ -62,7 +62,7 @@ This command reassigns existing tasks on the specified Xnode to other Xnodes. Se
 
 ### Failover Prerequisites
 
-Configure taosX-Agent so it can reach all related taosX endpoints (the gRPC addresses registered for each Xnode). If the Agent points to only one taosX, the task may have nowhere to fail over when that instance is unavailable. See [Configuration Reference](../../../12-operations-and-tooling/03-components/07-taosx-agent/configuration.md).
+Configure taosX-Agent so it can reach all related taosX endpoints (the gRPC addresses registered for each Xnode). If the Agent points to only one taosX, the task may have nowhere to fail over when that instance is unavailable. See [Configuration Reference](../../../12-operations-and-tooling/03-components/07-taosx-agent/01-configuration.md).
 
 ## Subscription, Checkpoint, and State During Failover
 
@@ -137,4 +137,4 @@ Using the capabilities above typically requires:
 - [Historical Data Backfill](./04-backfill-guide.md)
 - [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md)
 - [taosX Reference](../../../12-operations-and-tooling/03-components/06-taosx.md)
-- [Configuration Reference](../../../12-operations-and-tooling/03-components/07-taosx-agent/configuration.md) (taosX-Agent)
+- [Configuration Reference](../../../12-operations-and-tooling/03-components/07-taosx-agent/01-configuration.md) (taosX-Agent)

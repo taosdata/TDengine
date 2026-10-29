@@ -546,6 +546,21 @@ TEST(columnTest, blob_column_comparator_scope) {
   }
 }
 
+TEST(columnTest, incompatible_comparator_types_are_rejected) {
+  EXPECT_EQ(nullptr,
+            filterGetCompFuncEx(TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BLOB,
+                                OP_TYPE_EQUAL));
+  EXPECT_EQ(nullptr,
+            filterGetCompFuncEx(TSDB_DATA_TYPE_BOOL,
+                                TSDB_DATA_TYPE_MEDIUMBLOB, OP_TYPE_EQUAL));
+  EXPECT_NE(nullptr,
+            filterGetCompFuncEx(TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BOOL,
+                                OP_TYPE_EQUAL));
+  EXPECT_EQ(nullptr,
+            filterGetCompFuncEx(TSDB_DATA_TYPE_JSON, TSDB_DATA_TYPE_INT,
+                                OP_TYPE_EQUAL));
+}
+
 TEST(columnTest, blob_column_in_predicates) {
   const bool inExpected[] = {true, false, true, false};
   const bool notInExpected[] = {false, true, false, false};

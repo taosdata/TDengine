@@ -105,6 +105,15 @@ Starting with TDengine v3.1.0.0, only the Windows client package is available fo
    <PkgList productName="TDengine TSDB-OSS" platform="macOS"/>
 2. Run the installer. If macOS blocks it, Control-click the package and select **Open**.
 
+:::note
+
+- The macOS OSS PKG performs a system-wide installation and requires administrator privileges. After installation, TDengine services run as `root` through system LaunchDaemons. Use `sudo start-all.sh`, `sudo stop-all.sh`, or `sudo launchctl` to manage them.
+- The default configuration, data, log, and temporary directories are `/etc/taos`, `/var/lib/taos`, `/var/log/taos`, and the system temporary directory. Regular users can run `taos` and other clients directly to access the service, but should not start `taosd` with the default configuration as a regular user.
+- To run `taosd` as a regular user, configure data, log, and temporary directories owned by that user. Do not share the default directories with the system service.
+- During an upgrade, preserve the existing ownership and permissions of data directories. Do not recursively run `chmod` or `chown` on `/var/lib/taos`, `/var/log/taos`, or their contents.
+
+:::
+
 </TabItem>
 </Tabs>
 
@@ -148,6 +157,8 @@ sudo launchctl start com.tdengine.taosadapter
 sudo launchctl start com.tdengine.taoskeeper
 sudo launchctl start com.tdengine.taos-explorer
 ```
+
+The system services run as `root`. Regular users should run `taos`, `taosBenchmark`, and other clients without `sudo`. Do not run a user-started `taosd` against `/etc/taos`, `/var/lib/taos`, `/var/log/taos`, or the same temporary directory used by the system service. Use separate configuration and directories for user-mode runs.
 
 </TabItem>
 </Tabs>

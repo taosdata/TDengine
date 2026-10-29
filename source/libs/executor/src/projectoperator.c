@@ -476,17 +476,6 @@ static void destroyIndefinitOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-static void cleanupProcessByRowIter(SqlFunctionCtx* pCtx) {
-  SFuncInputRowIter* pIter = &pCtx->rowIter;
-
-  if (pIter->pPrevRowBlock != NULL) {
-    blockDataDestroy(pIter->pPrevRowBlock);
-  }
-  taosMemoryFreeClear(pIter->pPrevData);
-  taosMemoryFreeClear(pIter->pPrevPk);
-  memset(pIter, 0, sizeof(*pIter));
-}
-
 static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                pOutput = pCtx->pOutput;
@@ -495,7 +484,7 @@ static int32_t resetProcessByRowCtx(SqlFunctionCtx* pCtx) {
     pCtx->fpSet.cleanup(pCtx);
   }
 
-  cleanupProcessByRowIter(pCtx);
+  funcInputRowIterCleanup(&pCtx->rowIter);
   pResInfo->initialized = false;
   pResInfo->numOfRes = 0;
   pCtx->bInputFinished = false;
@@ -1887,6 +1876,33 @@ static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, S
   }
 }
 
+static int32_t projectAssignColumn(SColumnInfoData* pDst, const SColumnInfoData* pSrc, int32_t rows,
+                                   const SDataBlockInfo* pBlockInfo) {
+  uint8_t precision = pDst->info.precision;
+  uint8_t scale = pDst->info.scale;
+  int32_t plannedBytes = pDst->info.bytes;
+  if (IS_DECIMAL_TYPE(pDst->info.type) && precision != 0 &&
+      (pSrc->info.precision != 0 || pSrc->info.scale != 0) &&
+      (precision != pSrc->info.precision || scale != pSrc->info.scale)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t code = colDataAssign(pDst, pSrc, rows, pBlockInfo);
+  if (code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pDst->info.type) && precision != 0) {
+    // colDataAssign copies source metadata; Project's declared decimal type owns the output schema.
+    pDst->info.precision = precision;
+    pDst->info.scale = scale;
+  }
+  if (code == TSDB_CODE_SUCCESS && IS_VAR_DATA_TYPE(pDst->info.type)) {
+    // colDataAssign also adopts the source column width.  For a varlen output column the
+    // plan may declare the result wider than the input block carries (e.g. a set-op
+    // operand widened to the union's maximum width), and the emitted block must keep the
+    // planned width: the data sink validates every block against the plan's schema.
+    pDst->info.bytes = plannedBytes;
+  }
+  return code;
+}
+
 int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t outputSlotId,
                            SqlFunctionCtx* pfCtx, int64_t* numOfRows, bool createNewColModel) {
   int32_t code = 0, lino = 0;
@@ -1919,13 +1935,13 @@ int32_t projectApplyColumn(SSDataBlock* pResult, SSDataBlock* pSrcBlock, int32_t
     SColumnInfoData* pInput = taosArrayGet(pSrcBlock->pDataBlock, slotId);
     TSDB_CHECK_NULL(pInput, code, lino, _exit, terrno);
 
-    TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
+    TAOS_CHECK_EXIT(projectAssignColumn(pColInfoData, pInput, pSrcBlock->info.rows, &pResult->info));
     *numOfRows = pSrcBlock->info.rows;
 
     return code;
   }
   
-  TAOS_CHECK_EXIT(colDataAssign(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
+  TAOS_CHECK_EXIT(projectAssignColumn(pColInfoData, pInputData->pData[0], pInputData->numOfRows, &pResult->info));
   *numOfRows = pInputData->numOfRows;
 
 _exit:

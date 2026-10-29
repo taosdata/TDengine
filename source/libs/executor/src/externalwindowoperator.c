@@ -18,6 +18,7 @@
 #include "cmdnodes.h"
 #include "executorInt.h"
 #include "filter.h"
+#include "functionMgt.h"
 #include "operator.h"
 #include "querytask.h"
 #include "stream.h"
@@ -170,9 +171,18 @@ typedef struct SExtWinCalcGrpCtx {
 
   SExtWinBroadcastState broadcast;
   SArray*               pWindowConditionResults;  // SArray<int8_t>: 0 skip, 1 pass
+  SArray*               pBitDurationInterpCaches;  // SArray<SBitDurationInterpCache>, aligned with expressions.
+  SArray*               pBitDurationEmptySeeds;
+  int32_t               capturedThroughWinIdx;
+  bool                  emptySeedsCapturedAtEnd;
   bool                  windowDecisionsReady;
   int32_t               settledThroughWinIdx;
 } SExtWinCalcGrpCtx;
+
+typedef struct SExtWinBitDurationSeed {
+  bool   valid;
+  double value;
+} SExtWinBitDurationSeed;
 
 typedef struct SExtWinTrigGrpCtx {
   SExtWinCalcGrpCtx* pCCtx;
@@ -567,6 +577,10 @@ static void extWinDestroyCGrpCtx(void* param) {
 
   extWinDestroyBroadcastState(&pCtx->broadcast);
   taosArrayDestroy(pCtx->pWindowConditionResults);
+  taosArrayDestroyEx(pCtx->pBitDurationInterpCaches, destroyBitDurationInterpCache);
+  pCtx->pBitDurationInterpCaches = NULL;
+  taosArrayDestroy(pCtx->pBitDurationEmptySeeds);
+  pCtx->pBitDurationEmptySeeds = NULL;
   taosArrayDestroy(pCtx->pWins);
 }
 
@@ -1394,6 +1408,7 @@ static int32_t extWinResetCompletedDownstream(SOperatorInfo* pDownstream) {
 }
 
 static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOperator, const STimeWindow* pTimeRange,
+                                                           const STimeWindow* pPredecessorRange,
                                                            int32_t* pScanAppliedNum, SExecTaskInfo* pRootTaskInfo) {
   if (pOperator == NULL || pTimeRange == NULL || pScanAppliedNum == NULL || pRootTaskInfo == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -1404,7 +1419,26 @@ static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOpera
   }
 
   if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
-    extWinApplyTimeRangeToTableScan(pOperator, pTimeRange);
+    STableScanInfo* pScanInfo = pOperator->info;
+    if (pPredecessorRange != NULL && pScanInfo != NULL && !pOperator->dynamicTask &&
+        pScanInfo->scanInfo.numOfAsc == 1 && pScanInfo->scanInfo.numOfDesc == 0 &&
+        pScanInfo->base.cond.order == TSDB_ORDER_ASC) {
+      STimeWindow sourceRange = pScanInfo->base.cond.twindows;
+      extWinApplyTimeRangeToTableScan(pOperator, pPredecessorRange);
+      SQueryTableDataCond* pCond = &pScanInfo->base.cond;
+      pCond->type = TIMEWINDOW_RANGE_EXTERNAL;
+      pCond->mainFirst = true;
+      pCond->extTwindows[0] = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+      pCond->extTwindows[1] = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+      if (pPredecessorRange->skey > INT64_MIN) {
+        sourceRange.ekey = TMIN(sourceRange.ekey, pPredecessorRange->skey - 1);
+        if (sourceRange.skey <= sourceRange.ekey) {
+          pCond->extTwindows[0] = sourceRange;
+        }
+      }
+    } else {
+      extWinApplyTimeRangeToTableScan(pOperator, pTimeRange);
+    }
     ++(*pScanAppliedNum);
   }
 
@@ -1427,7 +1461,8 @@ static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOpera
       extWinApplyTimeRangeToExchangeParam(pOperator->pDownstreamGetParams[i], pTimeRange);
     }
 
-    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pChild, pTimeRange, pScanAppliedNum, pRootTaskInfo);
+    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pChild, pTimeRange, pPredecessorRange,
+                                                               pScanAppliedNum, pRootTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -1436,7 +1471,8 @@ static int32_t extWinApplyNonStreamTimeRangeToOperatorTree(SOperatorInfo* pOpera
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperator, const STimeWindow* pTimeRange) {
+static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperator, const STimeWindow* pTimeRange,
+                                                         bool includePredecessor) {
   if (pOperator == NULL || pTimeRange == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -1449,6 +1485,14 @@ static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperato
     return TSDB_CODE_SUCCESS;
   }
 
+  STimeWindow scanRange = *pTimeRange;
+  if (includePredecessor) {
+    // The nearest predecessor may be arbitrarily old. Rows before the first
+    // external window are skipped by window matching but retained as
+    // bit_duration interpolation history.
+    scanRange.skey = INT64_MIN;
+  }
+
   int32_t scanAppliedNum = 0;
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SOperatorInfo* pDownstream = pOperator->pDownstream[i];
@@ -1456,7 +1500,8 @@ static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperato
       continue;
     }
 
-    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pDownstream, pTimeRange, &scanAppliedNum,
+    int32_t code = extWinApplyNonStreamTimeRangeToOperatorTree(pDownstream, &scanRange,
+                                                                includePredecessor ? pTimeRange : NULL, &scanAppliedNum,
                                                                 pOperator->pTaskInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1464,7 +1509,7 @@ static int32_t extWinApplyNonStreamTimeRangeToDownstream(SOperatorInfo* pOperato
   }
 
   qInfo("%s apply non-stream extWin timerange:[%" PRId64 ", %" PRId64 "] to downstream tree, tableScanCnt:%d",
-        GET_TASKID(pOperator->pTaskInfo), pTimeRange->skey, pTimeRange->ekey, scanAppliedNum);
+        GET_TASKID(pOperator->pTaskInfo), scanRange.skey, scanRange.ekey, scanAppliedNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1828,6 +1873,10 @@ static int32_t extWinInitCGrpCtx(SExternalWindowOperator* pExtW, SExecTaskInfo* 
   pCtx->windowDecisionsReady = false;
   pCtx->pWins = NULL;
   pCtx->outWinBufIdx = NULL;
+  pCtx->pBitDurationInterpCaches = NULL;
+  pCtx->pBitDurationEmptySeeds = NULL;
+  pCtx->capturedThroughWinIdx = -1;
+  pCtx->emptySeedsCapturedAtEnd = false;
   pCtx->broadcast.input.pStat = &pExtW->stat;
 
   SStreamRuntimeFuncInfo* pInfo = &pTaskInfo->pStreamRuntimeInfo->funcInfo;
@@ -1908,6 +1957,10 @@ static void extWinInitDynParamCGrpCtx(SExtWinCalcGrpCtx* pCtx) {
   pCtx->pWins = NULL;
   pCtx->outWinBufIdx = NULL;
   pCtx->pWindowConditionResults = NULL;
+  pCtx->pBitDurationInterpCaches = NULL;
+  pCtx->pBitDurationEmptySeeds = NULL;
+  pCtx->capturedThroughWinIdx = -1;
+  pCtx->emptySeedsCapturedAtEnd = false;
   pCtx->anyRowCached = false;
   pCtx->pAnyRow = NULL;
 }
@@ -2698,6 +2751,12 @@ static int32_t mergeAlignExtWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRe
     if (pExtW->pTGrpCtx->pCCtx->pWins) {
       taosArrayDestroy(pExtW->pTGrpCtx->pCCtx->pWins);
     }
+    taosArrayDestroyEx(pExtW->pTGrpCtx->pCCtx->pBitDurationInterpCaches, destroyBitDurationInterpCache);
+    pExtW->pTGrpCtx->pCCtx->pBitDurationInterpCaches = NULL;
+    taosArrayDestroy(pExtW->pTGrpCtx->pCCtx->pBitDurationEmptySeeds);
+    pExtW->pTGrpCtx->pCCtx->pBitDurationEmptySeeds = NULL;
+    pExtW->pTGrpCtx->pCCtx->capturedThroughWinIdx = -1;
+    pExtW->pTGrpCtx->pCCtx->emptySeedsCapturedAtEnd = false;
     extWinInitDynParamCGrpCtx(pExtW->pTGrpCtx->pCCtx);
     pExtW->pTGrpCtx->pCCtx->pWins = pExtParam->ExtWins;
     pExtParam->ExtWins = NULL;
@@ -3114,6 +3173,13 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
     code = initAggSup(pSup, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, NULL,
                       &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
+    for (int32_t i = 0; i < pSup->numOfExprs; ++i) {
+      if (fmIsBitDurationFunc(pSup->pCtx[i].functionId)) {
+        qError("%s merge-aligned external window does not support bit_duration", __func__);
+        code = TSDB_CODE_OPS_NOT_SUPPORT;
+        QUERY_CHECK_CODE(code, lino, _error);
+      }
+    }
   } else {
     code = extWinInitExprSupp(&pExtW->scalarSupp, pPhynode->window.pProjs, pTaskInfo);
     QUERY_CHECK_CODE(code, lino, _error);
@@ -3965,13 +4031,15 @@ static int32_t extWinApplyValueFill(SExternalWindowOperator* pExtW, SSDataBlock*
 
   SNodeListNode* pValueList = (SNodeListNode*)pExtW->pFillValues;
   int32_t matchNum = taosArrayGetSize(pExtW->fillMatchInfo.pList);
-  for (int32_t i = 0; i < matchNum; ++i) {
+  SListCell* pNodeCell = NULL != pValueList->pNodeList ? pValueList->pNodeList->pHead : NULL;
+  for (int32_t i = 0; i < matchNum;
+       ++i, pNodeCell = (NULL != pNodeCell ? pNodeCell->pNext : NULL)) {
     SColMatchItem* pItem = taosArrayGet(pExtW->fillMatchInfo.pList, i);
     if (pItem == NULL || !pItem->needOutput || pItem->dstSlotId < 0) {
       continue;
     }
 
-    SValueNode* pValue = (SValueNode*)nodesListGetNode(pValueList->pNodeList, i);
+    SValueNode* pValue = (SValueNode*)(NULL != pNodeCell ? pNodeCell->pNode : NULL);
     if (pValue == NULL) {
       continue;
     }
@@ -4286,6 +4354,394 @@ _exit:
 }
 
 
+// This is the smallest half-open end whose inclusive form collides with the
+// INT64_MIN no-boundary sentinel; smaller values also cannot be decremented safely.
+static const TSKEY EXT_WIN_MIN_BIT_DURATION_EXCLUSIVE_END = INT64_MIN + 1;
+
+typedef enum {
+  EXT_WIN_BIT_DURATION_CACHE_NOT_APPLICABLE = 0,
+  EXT_WIN_BIT_DURATION_CACHE_READY,
+  EXT_WIN_BIT_DURATION_CACHE_MISSING,
+} EExtWinBitDurationCacheStatus;
+
+static EExtWinBitDurationCacheStatus extWinGetBitDurationCache(const SExprSupp* pSupp,
+                                                               SExtWinCalcGrpCtx* pCCtx, int32_t exprIndex,
+                                                               SBitDurationInterpCache** ppCache) {
+  *ppCache = NULL;
+  if (!fmIsBitDurationFunc(pSupp->pCtx[exprIndex].functionId)) {
+    return EXT_WIN_BIT_DURATION_CACHE_NOT_APPLICABLE;
+  }
+  if (pCCtx != NULL && pCCtx->pBitDurationInterpCaches != NULL) {
+    *ppCache = taosArrayGet(pCCtx->pBitDurationInterpCaches, exprIndex);
+  }
+  return *ppCache == NULL ? EXT_WIN_BIT_DURATION_CACHE_MISSING : EXT_WIN_BIT_DURATION_CACHE_READY;
+}
+
+static bool extWinHasBitDurationExpr(const SExprSupp* pSupp) {
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    if (fmIsBitDurationFunc(pSupp->pCtx[i].functionId)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool extWinNeedsBitDurationPrevRow(const SExprSupp* pSupp) {
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    if (fmBitDurationNeedsPrevRow(&pSupp->pCtx[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t extWinSetBitDurationBoundary(SExprSupp* pSupp, const STimeWindow* pWin, bool finalInput) {
+  // External windows are normalized to [skey, ekey); bit_duration consumes an inclusive end key.
+  if (finalInput && extWinHasBitDurationExpr(pSupp) &&
+      (pWin->ekey <= pWin->skey || pWin->ekey <= EXT_WIN_MIN_BIT_DURATION_EXCLUSIVE_END)) {
+    qError("%s bit_duration boundary cannot represent external window:[%" PRId64 ", %" PRId64 ")", __func__,
+           pWin->skey, pWin->ekey);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    if (fmIsBitDurationFunc(pSupp->pCtx[i].functionId)) {
+      pSupp->pCtx[i].start.key = INT64_MIN;
+      pSupp->pCtx[i].start.val = 0;
+      // Convert a finite half-open end to an inclusive key; otherwise expose no boundary.
+      // INT64_MIN is reserved as the no-boundary sentinel, so a half-open end at
+      // INT64_MIN + 1 cannot be converted to a distinguishable inclusive key.
+      // Normalized external windows cannot reach this guard; reject an invalid or
+      // unnormalized window defensively instead of exposing an ambiguous boundary.
+      pSupp->pCtx[i].end.key = finalInput ? pWin->ekey - 1 : INT64_MIN;
+      pSupp->pCtx[i].end.val = 0;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void extWinMarkBitDurationReaderRequirement(SExecTaskInfo* pTaskInfo, const SExprSupp* pSupp) {
+  if (pTaskInfo->pStreamRuntimeInfo == NULL) {
+    return;
+  }
+
+  if (extWinNeedsBitDurationPrevRow(pSupp)) {
+    pTaskInfo->pStreamRuntimeInfo->funcInfo.externalWindowNeedsPrevRow = true;
+  }
+}
+
+static int32_t extWinPrepareBitDurationInterpCaches(SOperatorInfo* pOperator, SSDataBlock* pBlock,
+                                                     const TSKEY* tsCols) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  if (!extWinHasBitDurationExpr(pSupp)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pCCtx == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pBlock == NULL) {
+    if (pCCtx->pBitDurationInterpCaches != NULL) {
+      int32_t numOfCaches = taosArrayGetSize(pCCtx->pBitDurationInterpCaches);
+      for (int32_t i = 0; i < numOfCaches; ++i) {
+        SBitDurationInterpCache* pCache = taosArrayGet(pCCtx->pBitDurationInterpCaches, i);
+        if (pCache != NULL) {
+          pCache->preparedRows = 0;
+          pCache->preparedLatestRow = -1;
+          pCache->pPreparedBlock = NULL;
+        }
+      }
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (tsCols == NULL) {
+    qError("%s %s failed to extract timestamp column for bit_duration cache", GET_TASKID(pOperator->pTaskInfo),
+           __func__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  if (pCCtx->pBitDurationInterpCaches == NULL) {
+    // Cache entries are indexed by expression index; only bit_duration entries
+    // are initialized and every prepare/seed/save caller must filter likewise.
+    pCCtx->pBitDurationInterpCaches = taosArrayInit_s(sizeof(SBitDurationInterpCache), pSupp->numOfExprs);
+    if (pCCtx->pBitDurationInterpCaches == NULL) {
+      return terrno;
+    }
+  }
+
+  int32_t rows = (int32_t)pBlock->info.rows;
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pSupp->pCtx[i];
+    SBitDurationInterpCache* pCache = NULL;
+    EExtWinBitDurationCacheStatus cacheStatus = extWinGetBitDurationCache(pSupp, pCCtx, i, &pCache);
+    if (cacheStatus == EXT_WIN_BIT_DURATION_CACHE_NOT_APPLICABLE) {
+      continue;
+    }
+    if (cacheStatus == EXT_WIN_BIT_DURATION_CACHE_MISSING) {
+      qError("%s %s failed to get bit_duration cache, expression:%d", GET_TASKID(pOperator->pTaskInfo), __func__, i);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    SColumnInfoData* pCol = getBitDurationInputColumn(pCtx, pBlock);
+    if (pCol == NULL) {
+      qError("%s %s failed to get bit_duration input column, expression:%d", GET_TASKID(pOperator->pTaskInfo),
+             __func__, i);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    int32_t code = prepareBitDurationInterpCache(pCache, pCtx, pCol, tsCols, rows, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinFindPredecessorRow(const TSKEY* tsCols, int32_t rows, TSKEY key) {
+  int32_t left = 0;
+  int32_t right = rows - 1;
+  int32_t result = -1;
+  while (left <= right) {
+    int32_t mid = left + (right - left) / 2;
+    if (tsCols[mid] < key) {
+      result = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return result;
+}
+
+static int32_t extWinSeedBitDurationStart(SOperatorInfo* pOperator, const SExtWinTimeWindow* pWin,
+                                          SSDataBlock* pBlock) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    if (fmIsBitDurationFunc(pSupp->pCtx[i].functionId)) {
+      pSupp->pCtx[i].start.key = INT64_MIN;
+    }
+  }
+  if (pCCtx == NULL || pCCtx->pBitDurationInterpCaches == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  TSKEY* tsCols = pBlock == NULL ? NULL : extWinExtractTsCol(pBlock, pExtW->primaryTsIndex, pOperator->pTaskInfo);
+  if (pBlock != NULL && tsCols == NULL) {
+    qError("%s %s failed to extract timestamp column for bit_duration seed", GET_TASKID(pOperator->pTaskInfo),
+           __func__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int32_t prevRow = (pBlock == NULL || tsCols == NULL)
+                        ? -1
+                        : extWinFindPredecessorRow(tsCols, (int32_t)pBlock->info.rows, pWin->tw.skey);
+  // With no current prepared block, use saved history only. A restore block can
+  // differ from the last prepared block after broadcast/settle transitions.
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pSupp->pCtx[i];
+    SBitDurationInterpCache* pCache = NULL;
+    EExtWinBitDurationCacheStatus cacheStatus = extWinGetBitDurationCache(pSupp, pCCtx, i, &pCache);
+    if (cacheStatus == EXT_WIN_BIT_DURATION_CACHE_NOT_APPLICABLE) {
+      continue;
+    }
+    if (cacheStatus == EXT_WIN_BIT_DURATION_CACHE_MISSING) {
+      qError("%s %s failed to get bit_duration seed cache, expression:%d", GET_TASKID(pOperator->pTaskInfo),
+             __func__, i);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    int32_t cachePrevRow = pCache->pPreparedBlock == pBlock ? prevRow : -1;
+    SColumnInfoData* pCol = cachePrevRow >= 0 ? getBitDurationInputColumn(pCtx, pBlock) : NULL;
+    if (cachePrevRow >= 0 && pCol == NULL) {
+      qError("%s %s bit_duration seed input column is missing, expression:%d",
+             GET_TASKID(pOperator->pTaskInfo), __func__, i);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    bool bitState = false;
+    bool mappingMismatch = false;
+    if (!getBitDurationInterpState(pCache, pCtx, pCol, cachePrevRow,
+                                   cachePrevRow >= 0 ? pBlock : NULL, &bitState, &mappingMismatch)) {
+      if (mappingMismatch) {
+        qError("%s %s bit_duration seed mapping mismatch, expression:%d", GET_TASKID(pOperator->pTaskInfo),
+               __func__, i);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      pCtx->start.key = INT64_MIN;
+      continue;
+    }
+    if (cachePrevRow < 0 && pCache->savedTs >= pWin->tw.skey) {
+      pCtx->start.key = INT64_MIN;
+      continue;
+    }
+    pCtx->start.key = pWin->tw.skey;
+    // start.val stores the post-mask state, not the raw input value.
+    pCtx->start.val = bitState ? 1.0 : 0.0;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinCaptureEmptyBitDurationSeeds(SOperatorInfo* pOperator, int32_t endWinIdx,
+                                                   SSDataBlock* pBlock) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  if (pCCtx == NULL || pCCtx->pWins == NULL || pCCtx->pBitDurationInterpCaches == NULL ||
+      !extWinNeedsBitDurationPrevRow(pSupp) || endWinIdx < 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t winCount = (int32_t)taosArrayGetSize(pCCtx->pWins);
+  int32_t exprCount = pSupp->numOfExprs;
+  if (exprCount <= 0 || winCount > INT32_MAX / exprCount) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  endWinIdx = TMIN(endWinIdx, winCount - 1);
+  for (int32_t winIdx = TMAX(pCCtx->capturedThroughWinIdx, pCCtx->settledThroughWinIdx) + 1;
+       winIdx <= endWinIdx; ++winIdx) {
+    SExtWinTimeWindow* pWin = taosArrayGet(pCCtx->pWins, winIdx);
+    if (pWin == NULL) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    if (pWin->resWinIdx >= 0) {
+      continue;
+    }
+    if (pCCtx->pBitDurationEmptySeeds == NULL) {
+      pCCtx->pBitDurationEmptySeeds = taosArrayInit_s(sizeof(SExtWinBitDurationSeed), winCount * exprCount);
+      if (pCCtx->pBitDurationEmptySeeds == NULL) {
+        return terrno;
+      }
+    }
+    int32_t code = extWinSeedBitDurationStart(pOperator, pWin, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    for (int32_t exprIdx = 0; exprIdx < exprCount; ++exprIdx) {
+      if (!fmBitDurationNeedsPrevRow(&pSupp->pCtx[exprIdx])) {
+        continue;
+      }
+      SExtWinBitDurationSeed* pSeed = taosArrayGet(pCCtx->pBitDurationEmptySeeds, winIdx * exprCount + exprIdx);
+      if (pSeed == NULL) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (!pSeed->valid && pSupp->pCtx[exprIdx].start.key == pWin->tw.skey) {
+        pSeed->valid = true;
+        pSeed->value = pSupp->pCtx[exprIdx].start.val;
+      }
+    }
+  }
+  pCCtx->capturedThroughWinIdx = endWinIdx;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extWinCaptureEmptyBitDurationSeedsThroughBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock,
+                                                               const TSKEY* tsCols) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  if (pCCtx == NULL || pCCtx->pWins == NULL || pCCtx->pBitDurationInterpCaches == NULL ||
+      pBlock == NULL || pBlock->info.rows <= 0 || tsCols == NULL ||
+      pBlock->info.scanPhase != SCAN_PHASE_MAIN) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  TSKEY latestTs = TMAX(tsCols[0], tsCols[pBlock->info.rows - 1]);
+  int32_t endWinIdx = pCCtx->capturedThroughWinIdx;
+  int32_t winCount = (int32_t)taosArrayGetSize(pCCtx->pWins);
+  for (int32_t winIdx = endWinIdx + 1; winIdx < winCount; ++winIdx) {
+    SExtWinTimeWindow* pWin = taosArrayGet(pCCtx->pWins, winIdx);
+    if (pWin == NULL) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    if (pWin->tw.skey > latestTs) {
+      break;
+    }
+    endWinIdx = winIdx;
+  }
+  return extWinCaptureEmptyBitDurationSeeds(pOperator, endWinIdx, pBlock);
+}
+
+static void extWinRestoreEmptyBitDurationSeeds(SOperatorInfo* pOperator, int32_t winIdx,
+                                                const SExtWinTimeWindow* pWin) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  if (pCCtx == NULL || pCCtx->pBitDurationEmptySeeds == NULL) {
+    return;
+  }
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  for (int32_t exprIdx = 0; exprIdx < pSupp->numOfExprs; ++exprIdx) {
+    if (!fmBitDurationNeedsPrevRow(&pSupp->pCtx[exprIdx])) {
+      continue;
+    }
+    SExtWinBitDurationSeed* pSeed = taosArrayGet(pCCtx->pBitDurationEmptySeeds,
+                                                 winIdx * pSupp->numOfExprs + exprIdx);
+    if (pSeed != NULL && pSeed->valid) {
+      pSupp->pCtx[exprIdx].start.key = pWin->tw.skey;
+      pSupp->pCtx[exprIdx].start.val = pSeed->value;
+    }
+  }
+}
+
+static void extWinSaveBitDurationInterpHistory(SOperatorInfo* pOperator, SSDataBlock* pBlock,
+                                                const TSKEY* tsCols) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  if (pCCtx == NULL || pCCtx->pBitDurationInterpCaches == NULL || pBlock == NULL || tsCols == NULL ||
+      pBlock->info.rows <= 0) {
+    return;
+  }
+
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pSupp->pCtx[i];
+    SBitDurationInterpCache* pCache = NULL;
+    if (extWinGetBitDurationCache(pSupp, pCCtx, i, &pCache) != EXT_WIN_BIT_DURATION_CACHE_READY) {
+      continue;
+    }
+    SColumnInfoData* pCol = getBitDurationInputColumn(pCtx, pBlock);
+    if (pCol == NULL) {
+      continue;
+    }
+    saveBitDurationInterpCacheHistory(pCache, pCol, tsCols, (int32_t)pBlock->info.rows, pBlock);
+  }
+}
+
+static bool extWinBitDurationPrevReady(SOperatorInfo* pOperator) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+  if (pCCtx == NULL || pCCtx->pBitDurationInterpCaches == NULL) {
+    return false;
+  }
+
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    if (!fmBitDurationNeedsPrevRow(&pSupp->pCtx[i])) {
+      continue;
+    }
+    SBitDurationInterpCache* pCache = NULL;
+    EExtWinBitDurationCacheStatus cacheStatus = extWinGetBitDurationCache(pSupp, pCCtx, i, &pCache);
+    if (cacheStatus == EXT_WIN_BIT_DURATION_CACHE_NOT_APPLICABLE) {
+      continue;
+    }
+    if (cacheStatus == EXT_WIN_BIT_DURATION_CACHE_MISSING || !pCache->hasSavedValue ||
+        pCache->savedScanPhase != SCAN_PHASE_PREV ||
+        (pSupp->pCtx[i].hasPrimaryKey && !pCache->savedPkGroupComplete)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t extWinNotifyBitDurationPrevDone(SOperatorInfo* pOperator, const SSDataBlock* pBlock,
+                                               const TSKEY* tsCols) {
+  if (pBlock == NULL || pBlock->info.scanPhase != SCAN_PHASE_PREV || pBlock->info.rows <= 0 || tsCols == NULL ||
+      !extWinBitDurationPrevReady(pOperator)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // PREV scans in descending time order. Once every bit_duration expression
+  // has a predecessor, the block's upper edge is the nearest consumed point.
+  return interpMainFirstSetDownstreamNotifyParam(pOperator, INTERP_MODE_MAIN_FIRST, SCAN_PHASE_PREV,
+                                                 pBlock->info.window.ekey, pBlock);
+}
+
 static int32_t extWinAggSetWinOutputBuf(SOperatorInfo* pOperator, SExtWinTimeWindow* win, SExprSupp* pSupp, 
                                      SAggSupporter* pAggSup, SExecTaskInfo* pTaskInfo) {
   int32_t code = 0, lino = 0;
@@ -4310,6 +4766,8 @@ static int32_t extWinAggSetWinOutputBuf(SOperatorInfo* pOperator, SExtWinTimeWin
 
   // set time window for current result
   TAOS_CHECK_EXIT(setResultRowInitCtx(pResultRow, pSupp->pCtx, pSupp->numOfExprs, pSupp->rowEntryInfoOffset));
+
+  TAOS_CHECK_EXIT(extWinSetBitDurationBoundary(pSupp, &win->tw, false));
 
 _exit:
   
@@ -4683,6 +5141,7 @@ static int32_t extWinIndefRowsSetWinOutputBuf(SExternalWindowOperator* pExtW, SE
 
   // set time window for current result
   TAOS_CHECK_EXIT(setResultRowInitCtx(pResultRow, pSupp->pCtx, pSupp->numOfExprs, pSupp->rowEntryInfoOffset));
+  TAOS_CHECK_EXIT(extWinSetBitDurationBoundary(pSupp, &win->tw, true));
 
 _exit:
   
@@ -4841,6 +5300,36 @@ _exit:
   return code;
 }
 
+static int32_t extWinFilterNonAggOutput(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  SExternalWindowOperator* pExtW = pOperator->info;
+  SExecTaskInfo*           pTaskInfo = pOperator->pTaskInfo;
+  SColumnInfoData*         pFilterRes = NULL;
+  int32_t                  code = TSDB_CODE_SUCCESS, lino = 0;
+
+  if (pBlock->info.rows == 0 || pOperator->exprSupp.pFilterInfo == NULL) {
+    return code;
+  }
+
+  int32_t        rowsBeforeFilter = pBlock->info.rows;
+  SArray*        pIdx = pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx;
+  SColMatchInfo* pMatchInfo = pExtW->fillMatchInfo.pList != NULL ? &pExtW->fillMatchInfo : NULL;
+  TAOS_CHECK_EXIT(doFilter(pBlock, pOperator->exprSupp.pFilterInfo, pMatchInfo, &pFilterRes));
+  if (pBlock->info.rows < rowsBeforeFilter) {
+    if (pFilterRes != NULL) {
+      TAOS_CHECK_EXIT(extWinRebuildWinIdxByFilter(pTaskInfo, pIdx, rowsBeforeFilter, pFilterRes));
+    } else {
+      taosArrayClear(pIdx);
+    }
+  }
+
+_exit:
+  colDataDestroy(pFilterRes);
+  taosMemoryFree(pFilterRes);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
 
 static int32_t extWinNonAggOutputSingleGrpRes(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW, SSDataBlock** ppRes) {
   SExtWinCalcGrpCtx*  pCCtx = pExtW->pTGrpCtx->pCCtx;
@@ -4900,10 +5389,14 @@ static int32_t extWinNonAggOutputSingleGrpRes(SOperatorInfo* pOperator, SExterna
       extWinIncCurWinOutIdx(pOperator);
     }
 
-    if (pExtW->mode == EEXT_MODE_INDEFR_FUNC && pRes->info.rows == 0) {
-      extWinDestroyBlkNode(pExtW, pExtW->pLastBlkNode);
-      pExtW->pLastBlkNode = NULL;
+    TAOS_CHECK_EXIT(extWinFilterNonAggOutput(pOperator, pRes));
+    if (pRes->info.rows == 0 && (pExtW->mode == EEXT_MODE_INDEFR_FUNC || pOperator->exprSupp.pFilterInfo != NULL)) {
+      extWinRecycleOutputBlkNode(pExtW, &pOperator->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamBlkWinIdx,
+                                 &pExtW->pLastBlkNode);
       pRes = NULL;
+      if (pOperator->status == OP_NOT_OPENED) {
+        break;
+      }
       continue;
     }
     break;
@@ -5166,9 +5659,11 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
       }
     }
   } else {
-    for (; pExtW->outWinIdx < numOfWin; pExtW->outWinIdx++, extWinIncCurWinOutIdx(pOperator)) {
+    for (; pExtW->outWinIdx < numOfWin;) {
       SList* pList = taosArrayGetP(pExtW->pOutputBlocks, pExtW->outWinIdx);
       if (listNEles(pList) <= 0) {
+        pExtW->outWinIdx++;
+        extWinIncCurWinOutIdx(pOperator);
         continue;
       }
 
@@ -5182,6 +5677,15 @@ static int32_t extWinNonAggOutputRes(SOperatorInfo* pOperator, SSDataBlock** ppR
         extWinIncCurWinOutIdx(pOperator);
       }
 
+      TAOS_CHECK_EXIT(extWinFilterNonAggOutput(pOperator, pRes));
+      if (pRes->info.rows == 0 && pOperator->exprSupp.pFilterInfo != NULL) {
+        extWinRecycleOutputBlkNode(pExtW, &pStream->pStreamBlkWinIdx, &pExtW->pLastBlkNode);
+        pRes = NULL;
+        if (pOperator->status == OP_NOT_OPENED) {
+          break;
+        }
+        continue;
+      }
       break;
     }
   }
@@ -5204,6 +5708,60 @@ _exit:
   }
 
   return code;
+}
+
+static int32_t extWinAggFinalizeBitDuration(SOperatorInfo* pOperator, SExternalWindowOperator* pExtW,
+                                           SExtWinTimeWindow* pWin) {
+  if (pWin->resWinIdx < 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SResultRow* pRow = extWinGetResultRowByIdx(pExtW, pWin->resWinIdx, pExtW->aggSup.resultRowSize);
+  if (pRow == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  SExprSupp* pSupp = &pOperator->exprSupp;
+  int32_t code = setResultRowInitCtx(pRow, pSupp->pCtx, pSupp->numOfExprs, pSupp->rowEntryInfoOffset);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = extWinSetBitDurationBoundary(pSupp, &pWin->tw, true);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = extWinSeedBitDurationStart(pOperator, pWin, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (!extWinHasBitDurationExpr(pSupp)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
+  for (int32_t i = 0; i < pSupp->numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pSupp->pCtx[i];
+    if (!fmIsBitDurationFunc(pCtx->functionId)) {
+      continue;
+    }
+    if (!functionNeedToExecute(pCtx) || pCtx->fpSet.process == NULL) {
+      continue;
+    }
+
+    int32_t savedStartRow = pCtx->input.startRowIndex;
+    int64_t savedNumOfRows = pCtx->input.numOfRows;
+    // Boundary-only bit_duration processing consumes end.key and does not read
+    // input columns when numOfRows is zero.
+    pCtx->input.startRowIndex = 0;
+    pCtx->input.numOfRows = 0;
+    code = pCtx->fpSet.process(pCtx);
+    pCtx->input.startRowIndex = savedStartRow;
+    pCtx->input.numOfRows = savedNumOfRows;
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t extWinAggSettleThrough(SOperatorInfo* pOperator, int32_t endWinIdx, SSDataBlock* pRestoreInput) {
@@ -5261,11 +5819,22 @@ static int32_t extWinAggSettleThrough(SOperatorInfo* pOperator, int32_t endWinId
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }
+        code = extWinSeedBitDurationStart(pOperator, pWin, pRestoreInput);
+        if (code != TSDB_CODE_SUCCESS) {
+          break;
+        }
+        extWinRestoreEmptyBitDurationSeeds(pOperator, i, pWin);
         updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
         code = extWinAggDo(pOperator, 0, 1, pExtW->pEmptyInputBlock);
         if (code != TSDB_CODE_SUCCESS) {
           break;
         }
+      }
+    }
+    if (pass) {
+      code = extWinAggFinalizeBitDuration(pOperator, pExtW, pWin);
+      if (code != TSDB_CODE_SUCCESS) {
+        break;
       }
     }
 
@@ -5290,6 +5859,9 @@ static int32_t extWinAggSettleThrough(SOperatorInfo* pOperator, int32_t endWinId
 static int32_t extWinAggHandleEmptyWins(SOperatorInfo* pOperator, SSDataBlock* pBlock, bool allRemains,
                                         SExtWinTimeWindow* pWin) {
   (void)pWin;
+  if (!allRemains && extWinNeedsBitDurationPrevRow(&pOperator->exprSupp)) {
+    return TSDB_CODE_SUCCESS;
+  }
   SExternalWindowOperator* pExtW = pOperator->info;
   SExtWinCalcGrpCtx*       pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
   if (pCCtx == NULL || pCCtx->pWins == NULL) {
@@ -5307,6 +5879,30 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
   int32_t                  code = 0, lino = 0;
   SExtWinTimeWindow*       pWin = NULL;
   bool                     scalarCalc = false;
+  bool                     cachePrepared = false;
+
+  if (extWinHasBitDurationExpr(&pOperator->exprSupp)) {
+    SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+    if (pCCtx != NULL && pCCtx->pWins != NULL && pInputBlock->info.scanPhase == SCAN_PHASE_PREV &&
+        !pCCtx->emptySeedsCapturedAtEnd) {
+      TAOS_CHECK_EXIT(extWinCaptureEmptyBitDurationSeeds(pOperator, (int32_t)taosArrayGetSize(pCCtx->pWins) - 1,
+                                                        NULL));
+      pCCtx->emptySeedsCapturedAtEnd = true;
+    }
+    if (pExtW->scalarSupp.pExprInfo) {
+      SExprSupp* pScalarSup = &pExtW->scalarSupp;
+      TAOS_CHECK_EXIT(projectApplyFunctions(pScalarSup->pExprInfo, pInputBlock, pInputBlock, pScalarSup->pCtx,
+                                            pScalarSup->numOfExprs, pExtW->pPseudoColInfo,
+                                            GET_STM_RTINFO(pOperator->pTaskInfo), pOperator->pTaskInfo));
+    }
+    // In-place scalar projection may reallocate column buffers, so refresh the timestamp pointer.
+    tsCol = extWinExtractTsCol(pInputBlock, pExtW->primaryTsIndex, pOperator->pTaskInfo);
+    scalarCalc = true;
+    TAOS_CHECK_EXIT(setInputDataBlock(&pOperator->exprSupp, pInputBlock, pExtW->binfo.inputTsOrder,
+                                     pInputBlock->info.scanFlag, true));
+    TAOS_CHECK_EXIT(extWinPrepareBitDurationInterpCaches(pOperator, pInputBlock, tsCol));
+    cachePrepared = true;
+  }
 
   while (true) {
     TAOS_CHECK_EXIT((*pExtW->getWinFp)(pOperator, tsCol, &startPos, &pInputBlock->info, &pWin, &winRows));
@@ -5314,6 +5910,8 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
       break;
     }
 
+    TAOS_CHECK_EXIT(extWinCaptureEmptyBitDurationSeeds(pOperator, extWinGetCurWinIdx(pOperator) - 1,
+                                                       pInputBlock));
     TAOS_CHECK_EXIT(extWinAggHandleEmptyWins(pOperator, pInputBlock, false, pWin));
 
     bool pass = true;
@@ -5338,6 +5936,7 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
 
     TAOS_CHECK_EXIT(
         extWinAggSetWinOutputBuf(pOperator, pWin, &pOperator->exprSupp, &pExtW->aggSup, pOperator->pTaskInfo));
+    TAOS_CHECK_EXIT(extWinSeedBitDurationStart(pOperator, pWin, pInputBlock));
 
     updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
     TAOS_CHECK_EXIT(extWinAggDo(pOperator, startPos, winRows, pInputBlock));
@@ -5354,6 +5953,20 @@ static int32_t extWinAggOpen(SOperatorInfo* pOperator, SSDataBlock* pInputBlock)
   }
 
 _exit:
+
+  if (code == TSDB_CODE_SUCCESS && cachePrepared) {
+    code = extWinCaptureEmptyBitDurationSeedsThroughBlock(pOperator, pInputBlock, tsCol);
+    if (code == TSDB_CODE_SUCCESS) {
+      extWinSaveBitDurationInterpHistory(pOperator, pInputBlock, tsCol);
+      code = extWinNotifyBitDurationPrevDone(pOperator, pInputBlock, tsCol);
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS && cachePrepared) {
+    int32_t invalidateCode = extWinPrepareBitDurationInterpCaches(pOperator, NULL, NULL);
+    if (invalidateCode != TSDB_CODE_SUCCESS) {
+      qError("%s failed to invalidate bit_duration cache since:%s", __func__, tstrerror(invalidateCode));
+    }
+  }
 
   if (code) {
     qError("%s failed at line %d since:%s", __func__, lino, tstrerror(code));
@@ -6611,7 +7224,12 @@ static int32_t extWinBroadcastProcessPage(SOperatorInfo* pOperator, SExternalWin
           return code;
         }
       }
+      TSKEY* tsCols = extWinExtractTsCol(pBlock, pExtW->primaryTsIndex, pOperator->pTaskInfo);
       code = setInputDataBlock(&pOperator->exprSupp, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      code = extWinPrepareBitDurationInterpCaches(pOperator, pBlock, tsCols);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -6624,6 +7242,10 @@ static int32_t extWinBroadcastProcessPage(SOperatorInfo* pOperator, SExternalWin
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
+      }
+      code = extWinSeedBitDurationStart(pOperator, pWin, pBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
       updateTimeWindowInfo(&pExtW->twAggSup.timeWindowData, &pWin->tw, 1);
       code = extWinAggDo(pOperator, 0, (int32_t)pBlock->info.rows, pBlock);
@@ -6638,6 +7260,7 @@ static int32_t extWinBroadcastProcessPage(SOperatorInfo* pOperator, SExternalWin
       pCCtx->lastSKey = pWin->tw.skey;
       pCCtx->lastEKey = pWin->tw.ekey;
       pCCtx->lastWinId = extWinGetCurWinIdx(pOperator);
+      extWinSaveBitDurationInterpHistory(pOperator, pBlock, tsCols);
       return TSDB_CODE_SUCCESS;
     }
     default:
@@ -7587,6 +8210,12 @@ static int32_t extWinBroadcastStreamingNext(SOperatorInfo* pOperator, SExternalW
           extWinBroadcastAdvanceStreamingWindow(pCCtx);
         }
 
+        TAOS_CHECK_EXIT(extWinFilterNonAggOutput(pOperator, pBlock));
+        if (pBlock->info.rows == 0 && pOperator->exprSupp.pFilterInfo != NULL) {
+          extWinRecycleOutputBlkNode(pExtW, &pStream->pStreamBlkWinIdx, &pExtW->pLastBlkNode);
+          continue;
+        }
+
         pExtW->groupOutputComplete = pCCtx->broadcast.replayWinIdx >= winCount;
         pBlock->info.version = pOperator->pTaskInfo->version;
         pBlock->info.dataLoad = 1;
@@ -7720,6 +8349,12 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
       taosArrayDestroy(pExtW->pTGrpCtx->pCCtx->pWins);
     }
     taosArrayDestroy(pExtW->pTGrpCtx->pCCtx->pWindowConditionResults);
+    taosArrayDestroyEx(pExtW->pTGrpCtx->pCCtx->pBitDurationInterpCaches, destroyBitDurationInterpCache);
+    pExtW->pTGrpCtx->pCCtx->pBitDurationInterpCaches = NULL;
+    taosArrayDestroy(pExtW->pTGrpCtx->pCCtx->pBitDurationEmptySeeds);
+    pExtW->pTGrpCtx->pCCtx->pBitDurationEmptySeeds = NULL;
+    pExtW->pTGrpCtx->pCCtx->capturedThroughWinIdx = -1;
+    pExtW->pTGrpCtx->pCCtx->emptySeedsCapturedAtEnd = false;
     extWinDestroyBroadcastState(&pExtW->pTGrpCtx->pCCtx->broadcast);
 
     extWinInitDynParamCGrpCtx(pExtW->pTGrpCtx->pCCtx);
@@ -7817,6 +8452,12 @@ static int32_t extWinOpen(SOperatorInfo* pOperator) {
         TAOS_CHECK_EXIT(extWinPrepareStaticEofGroups(pOperator, pExtW));
       }
       if (EEXT_MODE_AGG == pExtW->mode) {
+        SExtWinCalcGrpCtx* pCCtx = pExtW->pTGrpCtx == NULL ? NULL : pExtW->pTGrpCtx->pCCtx;
+        if (pCCtx != NULL && pCCtx->pWins != NULL && !pCCtx->emptySeedsCapturedAtEnd) {
+          TAOS_CHECK_EXIT(extWinCaptureEmptyBitDurationSeeds(pOperator, (int32_t)taosArrayGetSize(pCCtx->pWins) - 1,
+                                                            NULL));
+          pCCtx->emptySeedsCapturedAtEnd = true;
+        }
         if (pInfo && pInfo->isMultiGroupCalc) {
           TAOS_CHECK_EXIT(extWinAggHandleMultiTGrpEmptyWins(pOperator, pExtW));
         } else {
@@ -7971,7 +8612,7 @@ static int32_t extWinNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         TAOS_CHECK_EXIT(extWinNonAggOutputRes(pOperator, ppRes));
       }
       if (NULL == *ppRes) {
-        if (multiGroupCalc && !pExtW->groupScanDone) {
+        if (pOperator->status == OP_NOT_OPENED || (multiGroupCalc && !pExtW->groupScanDone)) {
           continue;
         }
         setOperatorCompleted(pOperator);
@@ -8447,6 +9088,9 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initExprSupp(&pExtW->scalarSupp, pScalarExprInfo, numOfScalarExpr, &pTaskInfo->storageAPI.functionStore);
     QUERY_CHECK_CODE(code, lino, _error);
 
+    code = filterInitFromNode(pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0, pTaskInfo->pStreamRuntimeInfo);
+    QUERY_CHECK_CODE(code, lino, _error);
+
     pExtW->pOutputBlocks = taosArrayInit(STREAM_CALC_REQ_MAX_WIN_NUM, POINTER_BYTES);
     if (!pExtW->pOutputBlocks) QUERY_CHECK_CODE(terrno, lino, _error);
 
@@ -8487,6 +9131,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     pOperator->exprSupp.hasWindowOrGroup = true;
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str, 0, 0);
     QUERY_CHECK_CODE(code, lino, _error);
+    extWinMarkBitDurationReaderRequirement(pTaskInfo, &pOperator->exprSupp);
 
     code = filterInitFromNode((SNode*)pNode->pConditions, &pOperator->exprSupp.pFilterInfo, 0,
                               pTaskInfo->pStreamRuntimeInfo);
@@ -8499,7 +9144,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     }
 
     nodesWalkExprs(pPhynode->window.pFuncs, extWinHasCountLikeFunc, &pExtW->hasCountFunc);
-    if (pExtW->fillMode != FILL_MODE_NONE || (pExtW->hasCountFunc && pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM)) {
+    if (pExtW->fillMode != FILL_MODE_NONE ||
+        (pExtW->hasCountFunc && pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM)) {
       code = extWinCreateEmptyInputBlock(pOperator, &pExtW->pEmptyInputBlock);
       QUERY_CHECK_CODE(code, lino, _error);
       qDebug("%s ext window prepared empty input block, fillMode:%d", pOperator->pTaskInfo->id.str, pExtW->fillMode);
@@ -8533,6 +9179,7 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
     code = initAggSup(&pOperator->exprSupp, &pExtW->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str,
                               NULL, &pTaskInfo->storageAPI.functionStore);
     TSDB_CHECK_CODE(code, lino, _error);
+    extWinMarkBitDurationReaderRequirement(pTaskInfo, &pOperator->exprSupp);
     code = extWinBuildFillMatchInfo(&pExtW->fillMatchInfo, pPhynode->extFill.pFillExprs);
     QUERY_CHECK_CODE(code, lino, _error);
     if (pPhynode->window.pProjs != NULL) {
@@ -8614,7 +9261,8 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   }
 
   if (!isInStream) {
-    code = extWinApplyNonStreamTimeRangeToDownstream(pOperator, &nonStreamExtWinRange);
+    code = extWinApplyNonStreamTimeRangeToDownstream(
+        pOperator, &nonStreamExtWinRange, extWinNeedsBitDurationPrevRow(&pOperator->exprSupp));
     QUERY_CHECK_CODE(code, lino, _error);
   }
 

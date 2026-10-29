@@ -69,3 +69,9 @@ explain verbose true select sum(scenario) from vt_window_federated_batch.vst_tag
 
 # tag plus multiple ordinary data owners falls back
 explain verbose true select sum(scenario + local_v + mysql_v) from vt_window_federated_batch.vst_tag_federated;
+
+# SQL Server joins the local, MySQL and PostgreSQL partial aggregates
+explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_federated;
+
+# SQL Server aggregate under a partition with two child execution units
+explain verbose true select max(scenario), sum(mysql_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_federated partition by scenario order by 1;

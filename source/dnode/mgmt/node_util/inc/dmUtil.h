@@ -251,6 +251,7 @@ void    dmRotateMnodeEpSet(SDnodeData *pData);
 void    dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 bool    dmUpdateDnodeInfo(void *pData, int32_t *dnodeId, int64_t *clusterId, char *fqdn, uint16_t *port);
+int32_t dmCheckEpSetInCluster(SDnodeData *pData, int32_t nodeId, const SEpSet *pEpSet);
 void    dmRemoveDnodePairs(SDnodeData *pData);
 void    dmGetDnodeEp(void *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort);
 int32_t dmUpdateEncryptKey(char *key, bool toLogFile);

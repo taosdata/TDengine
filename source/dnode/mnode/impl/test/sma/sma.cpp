@@ -96,9 +96,9 @@ void* MndTestSma::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   strcpy(createReq.name, stbname);
 
   PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_TIMESTAMP, "ts");
-  PushField(createReq.pColumns, 2, TSDB_DATA_TYPE_TINYINT, "col1");
+  PushField(createReq.pColumns, 1, TSDB_DATA_TYPE_TINYINT, "col1");
   PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_BIGINT, "col2");
-  PushField(createReq.pTags, 2, TSDB_DATA_TYPE_TINYINT, "tag1");
+  PushField(createReq.pTags, 1, TSDB_DATA_TYPE_TINYINT, "tag1");
 
   int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pHead = rpcMallocCont(tlen);
@@ -118,9 +118,9 @@ void* MndTestSma::BuildCreateBSmaStbReq(const char* stbname, int32_t* pContLen) 
   strcpy(createReq.name, stbname);
 
   PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_TIMESTAMP, "ts");
-  PushField(createReq.pColumns, 2, TSDB_DATA_TYPE_TINYINT, "col1");
+  PushField(createReq.pColumns, 1, TSDB_DATA_TYPE_TINYINT, "col1");
   PushField(createReq.pColumns, 8, TSDB_DATA_TYPE_BIGINT, "col2");
-  PushField(createReq.pTags, 2, TSDB_DATA_TYPE_TINYINT, "tag1");
+  PushField(createReq.pTags, 1, TSDB_DATA_TYPE_TINYINT, "tag1");
 
   int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pHead = rpcMallocCont(tlen);

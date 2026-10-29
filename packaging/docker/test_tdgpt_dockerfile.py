@@ -59,7 +59,7 @@ def test_lite_image_uses_only_the_base_analytics_requirements():
 def test_lite_requirements_include_http_client():
     text = DOCKER_REQUIREMENTS.read_text(encoding="utf-8")
 
-    assert "requests==2.32.3" in text
+    assert "requests==2.33" in text
 
 
 def test_lite_target_uses_the_model_free_entrypoint():

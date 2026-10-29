@@ -136,6 +136,29 @@ static inline void walBuildIdxNameAt(const char* dir, int64_t fileFirstVer, char
   TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_INDEX_SUFFIX, dir, TD_DIRSEP, fileFirstVer));
 }
 
+static inline void walBuildTxnNameAt(const char* dir, int64_t fileFirstVer, char* buf) {
+  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_TXN_SUFFIX, dir, TD_DIRSEP, fileFirstVer));
+}
+
+// Resolve the directory of a segment whose diskId is already known, without consulting
+// pWal->fileInfoSet and without creating anything on disk (unlike walResolveSegDir).
+//
+// Deletion paths MUST use this rather than walResolveFileDir below: they all drop the
+// segment's fileInfoSet entry before building the file name, and once the entry is gone
+// the reverse lookup finds nothing and silently falls back to pWal->path. That makes
+// every unlink target the primary mount point, so segments on other level-0 mount points
+// are never actually removed.
+static inline void walResolveFileDirAt(SWal* pWal, SDiskID diskId, char* dirBuf, int32_t bufLen) {
+  if (pWal->pTfs != NULL && diskId.id >= 0) {
+    const char* diskPath = tfsGetDiskPath(pWal->pTfs, diskId);
+    if (diskPath != NULL) {
+      TAOS_UNUSED(snprintf(dirBuf, bufLen, "%s%s%s", diskPath, TD_DIRSEP, pWal->relDir));
+      return;
+    }
+  }
+  tstrncpy(dirBuf, pWal->path, bufLen);
+}
+
 // Resolve the directory that holds the segment starting at fileFirstVer, by looking up
 // its diskId in pWal->fileInfoSet. Falls back to pWal->path when tfs is unbound, the
 // segment predates this feature (diskId.id < 0), or no matching entry is found.
@@ -177,11 +200,19 @@ static inline void walBuildIdxName(SWal* pWal, int64_t fileFirstVer, char* buf) 
 static inline void walBuildTxnName(SWal* pWal, int64_t fileFirstVer, char* buf) {
   char dir[WAL_PATH_LEN];
   walResolveFileDir(pWal, fileFirstVer, dir, sizeof(dir));
-  TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s%020" PRId64 "." WAL_TXN_SUFFIX, dir, TD_DIRSEP, fileFirstVer));
+  walBuildTxnNameAt(dir, fileFirstVer, buf);
 }
 
 #define WAL_TXN_PENDING_FILE    "txn.pending"
 #define WAL_TXN_PENDING_MAGIC   0x544E5850U  // "TNXP"
+
+// Retention tuning knobs for walTxnFilesTrim (walTxn.c). Declared here rather than in
+// walTxn.c so the trim tests can state their preconditions in terms of the thresholds
+// instead of restating the literals.
+//   extra hours: keep .txn files no older than (oldest .log createTs - WAL_TXN_TRIM_EXTRA_HOURS)
+//   extra files: keep at most (logCount + WAL_TXN_TRIM_EXTRA_FILES) .txn files
+#define WAL_TXN_TRIM_EXTRA_HOURS 4
+#define WAL_TXN_TRIM_EXTRA_FILES 6
 
 static inline void walBuildTxnPendingName(SWal* pWal, char* buf) {
   TAOS_UNUSED(snprintf(buf, WAL_FILE_LEN, "%s%s" WAL_TXN_PENDING_FILE, pWal->path, TD_DIRSEP));

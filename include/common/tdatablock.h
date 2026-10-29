@@ -39,6 +39,8 @@ typedef struct SBlockOrderInfo {
 #define BLOCK_VERSION_2 2
 #define BLOCK_RECYCLE_TIMEOUT_MS 60000
 
+SConstTagColumn* blockDataGetConstTagColumn(const SSDataBlock* pBlock, int32_t slotId);
+
 #define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
 #define CharPos(r_)              ((r_) >> NBIT)
@@ -246,6 +248,30 @@ void blockDataTransform(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataMergeNRows(SSDataBlock* pDest, const SSDataBlock* pSrc, int32_t srcIdx, int32_t numOfRows);
 bool    blockDataBlobExceedLimit(const SSDataBlock* pBlock);
+
+// A table can carry at most one BLOB column (CREATE TABLE rejects more), so the row-append
+// loops only ever have to bound a single column.  Resolve it once per block instead of
+// walking every column of the block for every appended row.
+typedef struct SBlobColInfo {
+  const SColumnInfoData* pCol;           // the BLOB column; NULL when the block has none or several
+  int32_t                numOfBlobCols;  // number of BLOB columns in the block
+} SBlobColInfo;
+
+SBlobColInfo blockDataGetBlobCol(const SSDataBlock* pBlock);
+
+// Hot path of the row-append loops: pInfo comes from blockDataGetBlobCol(), so normally only
+// the accumulated payload of that one column is compared against the per-block budget.
+// Leaving room for one more maximum sized value keeps the appended row safe.  When the block
+// holds several BLOB columns that single column cannot bound it, so this falls back to
+// blockDataBlobExceedLimit(), which walks all columns.
+static inline bool blockDataBlobInfoExceedLimit(const SBlobColInfo* pInfo, const SSDataBlock* pBlock) {
+  if (pInfo->numOfBlobCols > 1) {
+    return blockDataBlobExceedLimit(pBlock);
+  }
+  return pInfo->pCol != NULL && (uint64_t)pInfo->pCol->varmeta.length + (uint64_t)TSDB_MAX_BLOB_LEN >
+                                    (uint64_t)TSDB_MAX_BLOB_BYTES_PER_BLOCK;
+}
+
 bool    blockDataMergeExceedLimit(const SSDataBlock* pDest, const SSDataBlock* pSrc);
 void    blockDataShrinkNRows(SSDataBlock* pBlock, int32_t numOfRows);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex,
@@ -288,6 +314,8 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void    colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);
+void    colInfoDataResetFlags(SColumnInfoData* pColumn);
+void    blockDataResetColFlags(SSDataBlock* pDataBlock);
 void    blockDataCleanup(SSDataBlock* pDataBlock);
 void    blockDataReset(SSDataBlock* pDataBlock);
 void    blockDataEmpty(SSDataBlock* pDataBlock);
@@ -297,6 +325,9 @@ int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockI
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize, int32_t extraSize);
 
 int32_t blockDataTrimFirstRows(SSDataBlock* pBlock, size_t n);
+// Same as blockDataTrimFirstRows(), but also reclaims the payload of the trimmed rows of
+// variable-length columns instead of leaving it in the block for the encoder to ship.
+int32_t blockDataTrimFirstRowsCompact(SSDataBlock* pBlock, size_t n);
 void    blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
 int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
@@ -331,8 +362,21 @@ int32_t blockGetEncodeSize(const SSDataBlock* pBlock);
 int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock);
 int32_t blockEncodeInternal(const SSDataBlock* pBlock, char* data, size_t dataBuflen, int32_t numOfCols);
 int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols);
+/**
+ * @warning UNSAFE, not recommended for new code: pData is NOT validated and the length fields inside it are trusted,
+ * so a malformed or corrupted buffer causes out-of-bounds reads/writes. Prefer blockDecodeBounded /
+ * blockDecodeInternalBounded, which run blockValidateEncoding first. Data from the network, disk or another node must
+ * never be passed here.
+ */
 int32_t blockDecodeInternal(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 int32_t blockDecodeInternalBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);
+int32_t blockIsSingleNullColumnEncoded(const char* pData, size_t dataLen, bool* pIsNull);
+/**
+ * @warning UNSAFE, not recommended for new code: pData is NOT validated and the length fields inside it are trusted,
+ * so a malformed or corrupted buffer causes out-of-bounds reads/writes. Prefer blockDecodeBounded /
+ * blockDecodeInternalBounded, which run blockValidateEncoding first. Data from the network, disk or another node must
+ * never be passed here.
+ */
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
 // Decodes one normal block from pData[0, dataLen). On success, pEndPos, when non-NULL, points to the byte after the
 // encoded block; callers retain ownership of pBlock and must release it with blockDataDestroy.
@@ -356,7 +400,7 @@ int32_t trimDataBlock(SSDataBlock* pBlock, int32_t totalRows, const bool* pBoolL
 int32_t copyPkVal(SDataBlockInfo* pDst, const SDataBlockInfo* pSrc);
 
 int32_t calcStrBytesByType(int8_t type, char* data);
-int32_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
+int64_t blockGetEncodeSizeOfRows(const SSDataBlock* pBlock, int32_t startIndex, int32_t endIndex);
 int32_t blockEncodeAsRows(const SSDataBlock* pBlock, char* data, size_t dataLen, int32_t numOfCols, int32_t startIndex,
                           int32_t endIndex, int32_t* pLen);
 int32_t blockSpecialDecodeLaterPart(SSDataBlock* pBlock, const char* pData, int32_t tsColSlotId, TSKEY start, TSKEY end);

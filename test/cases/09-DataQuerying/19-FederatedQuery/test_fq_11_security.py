@@ -72,6 +72,7 @@ Environment requirements:
 
 import glob
 import os
+import pytest
 import time as _time
 import json
 from pathlib import Path
@@ -132,7 +133,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         "sec001_mysql_simple", "sec001_mysql_special", "sec001_pg",
         "sec001_influx", "sec001_empty_pwd",
         "sec002_mysql", "sec002_pg", "sec002_influx", "sec002_tls",
-        "sec003_mysql", "sec003_influx",
+        "sec003_mysql", "sec003_influx", "sec003_sqlserver",
         "sec004_src",
         "sec005_mysql_tls", "sec005_mysql_ssl_disabled", "sec005_mysql_bad_ca",
         "sec005_pg_disable", "sec005_pg_require", "sec005_conflict",
@@ -146,7 +147,6 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         "sec012_audit",
         "sec013_charset_ok", "sec013_charset_bad", "sec013_read_timeout_low", "sec013_read_timeout_ok",
         "sec014_influx_http_ok", "sec014_influx_token_bad", "sec014_influx_flight_ok", "sec014_influx_http_tls",
-        "perf_timeout_src",
     ]
 
     def setup_class(self):
@@ -300,7 +300,15 @@ def check(expected):
     cursor.execute("select count(*),sum(val) from " + src + ".src_t")
     assert cursor.fetchall() == [expected]
 def read_logs():
-    return "".join(path.read_text(errors="replace") for path in pathlib.Path(logs).glob("taoslog*"))
+    # The client keeps its log file open; on Windows a plain open() can be
+    # denied, so unreadable files are skipped instead of aborting.
+    chunks = []
+    for path in pathlib.Path(logs).glob("taoslog*"):
+        try:
+            chunks.append(path.read_text(errors="replace"))
+        except OSError:
+            pass
+    return "".join(chunks)
 try:
     check((5, 15))
     baseline = read_logs().count("hb received ext source push:")
@@ -313,7 +321,7 @@ try:
             if cursor.fetchall() == [(1, 77)]:
                 print("HEARTBEAT_OK", flush=True)
                 break
-        select.select([], [], [], 0.1)
+        time.sleep(0.1)
     else:
         details = "\n".join(read_logs().splitlines()[-200:])
         raise AssertionError("普通用户未收到外部源心跳更新: " + details)
@@ -338,9 +346,30 @@ finally:
                         while "GET_OK" not in output.read_text():
                             assert proc.poll() is None, output.read_text()
                             assert _time.monotonic() < deadline, output.read_text()
-                            select.select([], [], [], 0.1)
-                        client_logs = "".join(path.read_text(errors="replace") for path in log_dir.glob("taoslog*"))
-                        assert f"source:{src}, try to get ext source from mnode" in client_logs
+                            _time.sleep(0.1)
+                        # The client buffers log lines and flushes them on a
+                        # timer, so the diagnostic may land in the file (or in
+                        # the captured stream when no log file is usable) a
+                        # moment after the query returns.  Poll instead of
+                        # reading once.
+                        needle = f"source:{src}, try to get ext source from mnode"
+                        deadline = _time.monotonic() + 10
+                        client_logs = ""
+                        while _time.monotonic() < deadline:
+                            client_logs = ""
+                            for _p in log_dir.glob("taoslog*"):
+                                try:
+                                    client_logs += _p.read_text(errors="replace")
+                                except OSError:
+                                    pass
+                            # When the client cannot create a log file it writes
+                            # the same diagnostics to its captured stream
+                            # (typical on Windows), so both sources are searched.
+                            client_logs += output.read_text()
+                            if needle in client_logs:
+                                break
+                            _time.sleep(0.2)
+                        assert needle in client_logs
                         tdSql.execute(f"alter external source {src} set schema='auth_changed'")
                         proc.communicate("updated\n", timeout=30)
                         assert proc.returncode == 0, output.read_text()
@@ -625,7 +654,8 @@ finally:
         """
         cfg_mysql = self._mysql_cfg()
         cfg_influx = self._influx_cfg()
-        names = ["sec003_mysql", "sec003_influx"]
+        cfg_ss = self._sqlserver_cfg()
+        names = ["sec003_mysql", "sec003_influx", "sec003_sqlserver"]
         self._cleanup(*names)
 
         # MySQL with known password — wrong creds on real host trigger auth error.
@@ -669,6 +699,34 @@ finally:
                 "altered password leaked in error message"
             assert "LogSecret99" not in err_msg, \
                 "old password leaked in error message"
+
+        # SQL Server with known password — wrong creds trigger an auth error
+        # on the real instance; the client-facing error must not echo it.
+        tdSql.execute(
+            f"create external source sec003_sqlserver type='sqlserver' "
+            f"host='{cfg_ss.host}' port={cfg_ss.port} user='sa' password='SsLogSecret99' "
+            f"database='master' schema='dbo' "
+            f"options('connect_timeout_ms'='500', 'trust_server_certificate'='true')"
+        )
+        try:
+            tdSql.query("select * from sec003_sqlserver.master.dbo.t1")
+        except Exception as e:
+            err_msg = str(e)
+            assert "SsLogSecret99" not in err_msg, \
+                "SQL Server password leaked in error message"
+
+        # ALTER password and trigger again (neither old nor new may leak)
+        tdSql.execute(
+            "alter external source sec003_sqlserver set password='SsAlteredPwd88'"
+        )
+        try:
+            tdSql.query("select * from sec003_sqlserver.master.dbo.t1")
+        except Exception as e:
+            err_msg = str(e)
+            assert "SsAlteredPwd88" not in err_msg, \
+                "altered SQL Server password leaked in error message"
+            assert "SsLogSecret99" not in err_msg, \
+                "old SQL Server password leaked in error message"
 
         self._cleanup(*names)
 
@@ -784,6 +842,8 @@ finally:
           4. PostgreSQL sslmode=disable/require must produce different session SSL
               state (checked through v_ssl_self view).
           5. Parser conflict remains enforced: tls_enabled=true + ssl_mode=disabled.
+          6. SQL Server trust_server_certificate=true connects; the
+              verification-enabled negative leg lives in test_fq_sec_005b.
 
         Catalog:
             - Query:FederatedSecurity
@@ -796,6 +856,7 @@ finally:
 
         History:
             - 2026-04-14 wpan Full rewrite with multi-dimensional coverage
+            - 2026-10-16 wpan Add the SQL Server TLS leg
 
         """
         cfg_mysql = self._mysql_cfg()
@@ -808,9 +869,12 @@ finally:
         src_pg_require = f"sec005_pg_require_{run_tag}"
         src_pg_tlsen_only = f"sec005_pg_tlsen_only_{run_tag}"
         src_conflict = f"sec005_conflict_{run_tag}"
+        cfg_ss = self._sqlserver_cfg()
+        src_ss_trust = f"sec005_ss_trust_{run_tag}"
         names = [
             src_mysql_tls, src_mysql_ssl_disabled, src_mysql_bad_ca,
             src_pg_disable, src_pg_require, src_pg_tlsen_only, src_conflict,
+            src_ss_trust,
         ]
         self._cleanup(*names)
 
@@ -922,6 +986,30 @@ finally:
             expectedErrno=TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT,
         )
 
+        # SQL Server TLS effectiveness: trust_server_certificate=true must
+        # yield a working encrypted session against the real instance.
+        ss_db = "sec005_tls_ssdb"
+        ss_tb = "t_ssl"
+        ExtSrcEnv.sqlserver_create_db(ss_db)
+        ExtSrcEnv.sqlserver_exec(ss_db, [
+            f"IF OBJECT_ID('dbo.{ss_tb}') IS NOT NULL DROP TABLE dbo.{ss_tb}",
+            f"CREATE TABLE dbo.{ss_tb} (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO dbo.{ss_tb} VALUES (1, 101)",
+        ])
+        tdSql.execute(
+            f"create external source {src_ss_trust} type='sqlserver' "
+            f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+            f"database='{ss_db}' schema='dbo' "
+            f"options('tls_enabled'='true', 'trust_server_certificate'='true')"
+        )
+        tdSql.query(f"select count(*) from {src_ss_trust}.{ss_db}.dbo.{ss_tb}")
+        assert int(tdSql.queryResult[0][0]) == 1, \
+            "trust_server_certificate=true should connect to SQL Server"
+
+        # The negative leg (verification enabled + no trusted CA) is carried
+        # by test_fq_sec_005b below, which is an expected failure until the
+        # TLS options have a runtime effect for SQL Server.
+
         self._cleanup(*names)
         ExtSrcEnv.mysql_exec_cfg(cfg_mysql, None, [
             f"DROP USER IF EXISTS '{mysql_user}'@'%'",
@@ -931,6 +1019,65 @@ finally:
             f"DROP DATABASE IF EXISTS \"{pg_db}\"",
             f"DROP ROLE IF EXISTS \"{pg_user}\"",
         ])
+        try:
+            ExtSrcEnv.sqlserver_drop_db(ss_db)
+        except Exception:
+            pass
+
+    # ------------------------------------------------------------------
+    # SEC-005b  SQL Server TLS verification has a runtime effect
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_005b_sqlserver_tls_verification_runtime_effect(self):
+        """FQSS-SEC-005b: verification-enabled SQL Server source must fail
+
+        DS §6.1.1 maps ``tls_enabled=true`` without
+        ``trust_server_certificate=true`` to ``Encrypt=yes`` with
+        ``TrustServerCertificate=false``: the driver must validate the server
+        certificate, so the self-signed test instance (and a non-existent CA
+        path that leaves no trusted CA) must be rejected instead of silently
+        falling back to an unverified connection.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-16 wpan Initial implementation
+
+        """
+        cfg_ss = self._sqlserver_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec005b_ss_no_trust_{run_tag}"
+        ss_db = "sec005b_tls_ssdb"
+        ss_tb = "t_ssl"
+        self._cleanup(src)
+        ExtSrcEnv.sqlserver_create_db(ss_db)
+        ExtSrcEnv.sqlserver_exec(ss_db, [
+            f"IF OBJECT_ID('dbo.{ss_tb}') IS NOT NULL DROP TABLE dbo.{ss_tb}",
+            f"CREATE TABLE dbo.{ss_tb} (id INT PRIMARY KEY, v INT)",
+            f"INSERT INTO dbo.{ss_tb} VALUES (1, 101)",
+        ])
+        try:
+            tdSql.execute(
+                f"create external source {src} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' "
+                f"password='{cfg_ss.password}' "
+                f"database='{ss_db}' schema='dbo' "
+                f"options('tls_enabled'='true', "
+                f"'tls_ca_cert'='/tmp/fq_nonexistent_ca.pem', "
+                f"'trust_server_certificate'='false')"
+            )
+            tdSql.error(f"select count(*) from {src}.{ss_db}.dbo.{ss_tb}")
+        finally:
+            self._cleanup(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ss_db)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # SEC-006  TLS two-way verification
@@ -1010,8 +1157,17 @@ finally:
             f"'tls_client_cert'='{FQ_MYSQL_CLIENT_CERT}', 'tls_client_key'='{FQ_MYSQL_CLIENT_KEY}', "
             f"'tls_enabled'='true')"
         )
-        tdSql.query(f"select count(*) from {src_mtls}.{mysql_db}.{mysql_tb}")
-        assert int(tdSql.queryResult[0][0]) == 1
+        if sys.platform == "win32":
+            # The Windows build of MariaDB Connector/C speaks TLS through
+            # Schannel, which does not consume PEM client certificates, so the
+            # handshake cannot present tls_client_cert/key.  The option
+            # plumbing is still exercised by the DDL and the negative cases
+            # below; only the positive mTLS query is unreachable here.
+            tdLog.info("SEC-006: positive MySQL mTLS query skipped on Windows "
+                       "(Schannel does not use PEM client certificates)")
+        else:
+            tdSql.query(f"select count(*) from {src_mtls}.{mysql_db}.{mysql_tb}")
+            assert int(tdSql.queryResult[0][0]) == 1
 
         # Negative runtime check: invalid client key path must fail.
         tdSql.execute(
@@ -1499,10 +1655,12 @@ finally:
         Since: v3.4.0.0
         """
         run_tag = str(int(_time.time() * 1000))[-6:]
+        cfg_ss = self._sqlserver_cfg()
         src_mysql = f"sec023_mysql_timeout_zero_{run_tag}"
         src_pg = f"sec023_pg_timeout_zero_{run_tag}"
         src_influx = f"sec023_influx_timeout_zero_{run_tag}"
-        self._cleanup(src_mysql, src_pg, src_influx)
+        src_ss = f"sec023_ss_timeout_zero_{run_tag}"
+        self._cleanup(src_mysql, src_pg, src_influx, src_ss)
 
         try:
             tdSql.execute(
@@ -1520,9 +1678,16 @@ finally:
                 "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
                 "options('api_token'='x', 'connect_timeout_ms'='0', 'read_timeout_ms'='0')"
             )
+            tdSql.execute(
+                f"create external source {src_ss} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+                f"database='master' schema='dbo' "
+                f"options('trust_server_certificate'='true', "
+                f"'connect_timeout_ms'='0', 'read_timeout_ms'='0')"
+            )
 
             tdSql.query("show external sources")
-            for src in [src_mysql, src_pg, src_influx]:
+            for src in [src_mysql, src_pg, src_influx, src_ss]:
                 row_idx = self._find_row(src)
                 assert row_idx >= 0
                 options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
@@ -1530,7 +1695,7 @@ finally:
                 assert "read_timeout_ms" in options_col
                 assert "0" in options_col
         finally:
-            self._cleanup(src_mysql, src_pg, src_influx)
+            self._cleanup(src_mysql, src_pg, src_influx, src_ss)
 
     # ------------------------------------------------------------------
     # SEC-024  tls_enabled invalid value rejected
@@ -1999,6 +2164,7 @@ finally:
         cfg_mysql = self._mysql_cfg()
         cfg_pg = self._pg_cfg()
         cfg_influx = self._influx_cfg()
+        cfg_ss = self._sqlserver_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
 
         cases = [
@@ -2061,6 +2227,20 @@ finally:
                 f"create external source sec020_influx_protocol_{run_tag} type='influxdb' "
                 f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' database='telegraf' "
                 f"options('protocol'='http')",
+            ),
+            (
+                f"sec020_ss_trust_{run_tag}",
+                f"create external source sec020_ss_trust_{run_tag} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+                f"database='master' schema='dbo' "
+                f"options('trust_server_certificate'='true')",
+            ),
+            (
+                f"sec020_ss_timeout_{run_tag}",
+                f"create external source sec020_ss_timeout_{run_tag} type='sqlserver' "
+                f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
+                f"database='master' schema='dbo' "
+                f"options('connect_timeout_ms'='1000', 'read_timeout_ms'='1000')",
             ),
         ]
 

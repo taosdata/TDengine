@@ -134,6 +134,26 @@ FQ_POSTGIS_FALLBACK_URL="${FQ_POSTGIS_FALLBACK_URL:-https://download.osgeo.org/p
 # Extra search paths for pre-staged tarballs (container mount or host compat-packages).
 FQ_STAGING_DIR="${FQ_STAGING_DIR:-/usr/local/src}"
 
+# Internal Nexus raw repository holding the engine tarballs.  CI containers
+# reach this host (apt already runs against it) but not the public mirrors, so
+# downloads prefer it; the upstream URL stays as the fallback.
+FQ_NEXUS_DEPS_BASE="${FQ_NEXUS_DEPS_BASE:-https://nexus.tdengine.net/repository/fq-deps}"
+
+# Map an upstream tarball basename to its path inside the internal mirror.
+# Prints the URL, or nothing when that name is not mirrored there.
+_nexus_engine_url() {
+    local name="$1"
+    case "$name" in
+        influxdb3-core-*.tar.gz) printf '%s/influx/%s\n' "$FQ_NEXUS_DEPS_BASE" "$name" ;;
+        mysql-*.tar.xz)          printf '%s/mysql/%s\n'  "$FQ_NEXUS_DEPS_BASE" "$name" ;;
+        *) return 1 ;;
+    esac
+}
+
+_url_exists() {
+    curl -fsI --connect-timeout 5 --max-time 10 "$1" >/dev/null 2>&1
+}
+
 # Empty FQ_*_VERSIONS="" disables that engine (e.g. FQ_PG_VERSIONS= for local tarball-only runs).
 if [[ -n "${FQ_MYSQL_VERSIONS+x}" && -z "${FQ_MYSQL_VERSIONS}" ]]; then
     MYSQL_VERSIONS=()
@@ -692,11 +712,15 @@ _download_with_retry() {
     # (skip check for simplicity; just re-download if last attempt was partial)
 
     while [[ "$attempt" -le "$max_attempts" ]]; do
-        info "download (attempt ${attempt}/${max_attempts}): $(basename "$dest")"
-        info "  URL: $url"
+        # Diagnostics go to stderr: callers wrap this in $( ) to capture the
+        # resolved path only (_ensure_tarball_cached), so stdout must stay clean.
+        info "download (attempt ${attempt}/${max_attempts}): $(basename "$dest")" >&2
+        info "  URL: $url" >&2
 
         # -C - resumes; if server doesn't support Range it re-downloads
         # --location follows redirects (GitHub releases redirect to S3)
+        # curl writes its progress meter to stderr; keep it there (1>&2) so a
+        # caller capturing stdout via $( ) still receives only the path.
         if curl -fL \
                 --location \
                 --retry 3 --retry-delay 5 --retry-connrefused \
@@ -704,7 +728,7 @@ _download_with_retry() {
                 --speed-time 60 --speed-limit 1024 \
                 -C - \
                 -o "$dest" \
-                "$url" 2>&1; then
+                "$url" 1>&2; then
             # Basic integrity: file must exist and be non-empty
             if [[ -s "$dest" ]]; then
                 return 0
@@ -818,7 +842,16 @@ _ensure_tarball_cached() {
         done
     done
 
-    _download_with_retry "$url" "$tarball"
+    # CI containers reach the internal Nexus but not the public mirror, and the
+    # engine tarballs are published there under <engine>/<upstream-basename>.
+    # Prefer that copy; fall back to the upstream URL when it is not mirrored.
+    local _mirror; _mirror="$(_nexus_engine_url "$(basename "$url")" || true)"
+    if [[ -n "$_mirror" ]] && _url_exists "$_mirror"; then
+        info "tarball: internal mirror hit $(basename "$_mirror")" >&2
+        _download_with_retry "$_mirror" "$tarball"
+    else
+        _download_with_retry "$url" "$tarball"
+    fi
     printf '%s\n' "$tarball"
 }
 
@@ -2385,7 +2418,9 @@ _sqlserver_lib_dirs() {
     # FQ_SQLSERVER_LIB_DIR / LD_LIBRARY_PATH.
     local bin="${TAOS_BIN_PATH:-}"
     if [[ -z "${bin}" ]]; then
-        local root; root="$(cd "${SCRIPT_DIR}/../../../../.." 2>/dev/null && pwd -P)"
+        # SCRIPT_DIR is <repo>/source/taos-community/test/cases/09-DataQuerying/19-FederatedQuery,
+        # so six levels up is the repo root (five lands on source/).
+        local root; root="$(cd "${SCRIPT_DIR}/../../../../../.." 2>/dev/null && pwd -P)"
         bin="${root}/debug/build/bin"
     fi
     local cands=()
@@ -2470,6 +2505,27 @@ _sqlserver_start() {
     local ver="$1"
     local base; base="$(sqlserver_base "${ver}")"
     local deps; deps="$(sqlserver_deps_dir "${ver}")"
+    # The engine pins its system databases to the fixed /var/opt/mssql path,
+    # which the official package's postinst creates (mkdir + chown mssql).  A
+    # green (extract-only) deployment never runs postinst, so on a fresh host
+    # the directory is missing; an unprivileged harness cannot create it, and
+    # sqlservr then falls back to "/" as its home and dies with the misleading
+    # "The system directory [/.system] could not be created".  Fail early with
+    # an actionable message instead.
+    if [[ ! -d /var/opt/mssql ]]; then
+        if [[ "$(id -u)" -eq 0 ]]; then
+            info "SQL Server ${ver}: creating /var/opt/mssql (postinst-equivalent)."
+            mkdir -p /var/opt/mssql || return 1
+        else
+            err "SQL Server ${ver}: /var/opt/mssql is missing; initialize it once as root:"
+            err "  sudo mkdir -p /var/opt/mssql && sudo chown -R \"$(id -un):$(id -gn)\" /var/opt/mssql"
+            return 1
+        fi
+    elif [[ ! -w /var/opt/mssql ]]; then
+        err "SQL Server ${ver}: /var/opt/mssql is not writable by $(id -un); fix it once as root:"
+        err "  sudo chown -R \"$(id -un):$(id -gn)\" /var/opt/mssql"
+        return 1
+    fi
     # Cap the engine and disable its memory-pressure self-shutdown.  CI hosts
     # run many case containers at once; with no cgroup limit the engine sizes
     # its caches to the *host's* memory and then either gets OOM-killed or
@@ -3432,7 +3488,9 @@ ensure_influx() {
         return 0
     fi
 
-    _influx_install "$ver" "$base"
+    if ! _influx_install "$ver" "$base"; then
+        OVERALL_OK=1; return 1
+    fi
     _influx_start   "$ver" "$port" "$base"
 
     if ! wait_port "$port" 120; then
@@ -3460,7 +3518,7 @@ ensure_influx() {
 _influx_install() {
     local ver="$1" base="$2"
     local url; url="$(_influx_binary_url "$ver")"
-    local tarball="${FQ_TARBALL_CACHE_DIR}/fq-influxdb-${ver}.tar.gz"
+    local dest_name="fq-influxdb-${ver}.tar.gz"
 
     # macOS: try Homebrew first
     if [[ "$OS" == "Darwin" ]] && command -v brew &>/dev/null; then
@@ -3469,7 +3527,37 @@ _influx_install() {
     fi
 
     mkdir -p "${base}/bin" "${base}/data" "${base}/log"
-    [[ -s "$tarball" ]] || _download_with_retry "$url" "$tarball"
+
+    # Resolve the tarball offline-first, like the MySQL/PostgreSQL paths:
+    # reuse a cached copy, else a staged one from the CI compat-packages mount
+    # (fq-influxdb-<ver>.tar.gz, influxdb3-core-*.tar.gz or influx/...), and
+    # only then fall back to the public mirror.
+    info "InfluxDB ${ver}: resolving tarball (staged cache or download) ..."
+    local tarball
+    tarball="$(_ensure_tarball_cached "$dest_name" "$url" || true)"
+
+    # A cached file can be stale, truncated or a placeholder (an aborted
+    # download, or a bad copy staged into the container).  Feeding such a file
+    # to tar with errors suppressed leaves an empty bin/ and only surfaces much
+    # later as "no binary found"; discard it and re-resolve instead.  Re-resolve
+    # only after a discard, so a plain download failure is not retried twice.
+    local discards=0
+    while [[ -n "$tarball" && -s "$tarball" && $discards -lt 2 ]] && \
+          ! tar -tzf "$tarball" 2>/dev/null | grep -qE '(^|/)(influxdb3|influxd)(\.exe)?$'; do
+        warn "InfluxDB ${ver}: $(basename "$tarball") is not a usable InfluxDB archive" \
+             "($(du -h "$tarball" 2>/dev/null | cut -f1)); discarding and re-resolving."
+        rm -f "$tarball"
+        discards=$((discards + 1))
+        tarball="$(_ensure_tarball_cached "$dest_name" "$url" || true)"
+    done
+
+    if [[ ! -s "$tarball" ]]; then
+        err "InfluxDB ${ver}: no usable tarball — searched staged dir \"${FQ_STAGING_DIR}\" and cache" \
+            "\"${FQ_TARBALL_CACHE_DIR}\" for ${dest_name}/influxdb3-core-*.tar.gz," \
+            "and the download from ${url} did not produce one."
+        return 1
+    fi
+    info "InfluxDB ${ver}: extracting $(basename "$tarball") ..."
 
     # Strip top-level directory if present
     local top; top="$(tar -tzf "$tarball" 2>/dev/null | head -1 | cut -d/ -f1)"
@@ -3484,6 +3572,12 @@ _influx_install() {
     find "${base}/bin" -mindepth 2 \( -name "influxdb3" -o -name "influxd" \) 2>/dev/null | \
         while read -r b; do mv -n "$b" "${base}/bin/" 2>/dev/null || true; done
     chmod +x "${base}/bin/influxdb3" "${base}/bin/influxd" 2>/dev/null || true
+
+    # Fail here, with the tarball named, rather than at the later start step.
+    if [[ ! -x "${base}/bin/influxdb3" && ! -x "${base}/bin/influxd" ]]; then
+        err "InfluxDB ${ver}: ${tarball} extracted but carries no influxdb3/influxd binary."
+        return 1
+    fi
 }
 
 _influx3_soft_reset() {

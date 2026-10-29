@@ -20,6 +20,11 @@ ENDIF()
 
 add_subdirectory(shell)
 
+# Workload replay: built from source when needed, never installed.
+IF(TD_LINUX)
+    add_subdirectory(taosReplay)
+ENDIF()
+
 IF(TD_LINUX)
     add_subdirectory(rocks-reader)
 ENDIF()

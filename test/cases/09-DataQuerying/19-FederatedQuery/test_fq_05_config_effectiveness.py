@@ -332,6 +332,27 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         self._query_local_var(param)
         tdSql.checkData(0, 1, value)
 
+    def _alter_dnode_and_verify_plain(self, param, value):
+        """ALTER ALL DNODES + verify, without touching the recorded baseline.
+
+        The SQL Server paths must leave ans/test_fq_05_003_behavioral.txt
+        byte-for-byte unchanged, so their verification queries go through
+        plain tdSql calls instead of the recording helpers above.
+        """
+        tdSql.execute(f"ALTER ALL DNODES '{param}' '{value}'", queryTimes=1)
+        tdSql.query(f"SHOW DNODE 1 VARIABLES LIKE '{self._like_pattern(param)}'",
+                    queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 2, value)
+
+    def _alter_local_and_verify_plain(self, param, value):
+        """ALTER LOCAL + verify, without touching the recorded baseline."""
+        tdSql.execute(f"ALTER LOCAL '{param}' '{value}'", queryTimes=1)
+        tdSql.query(f"SHOW LOCAL VARIABLES LIKE '{self._like_pattern(param)}'",
+                    queryTimes=1)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, value)
+
     @staticmethod
     def _block_port(port):
         """Add iptables DROP rule to silently drop outgoing TCP to 127.0.0.1:port."""
@@ -576,12 +597,12 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         The two pools are fully independent: ALTER LOCAL only affects the
         catalog phase, ALTER ALL DNODES only affects the data-query phase.
 
-        SQL Server paths (C1-s/C2-s/C3-s/C4-s/C5-s) mirror the MySQL
-        behavioural cases for the 4th external source.  SQL Server runs zero
-        pushdown in step 1 (filters/aggregations execute locally), so only
-        pushdown-independent behaviour is asserted.  These SQL Server paths
-        use plain tdSql calls instead of _rec_query/_rec_error so the recorded
-        block sequence — and therefore the
+        SQL Server paths (C1-s/C2-s/C3-s/C4-s/C5-s and the C2-s-client …
+        C5-s-client ALTER LOCAL mirrors) mirror the MySQL behavioural cases
+        for the 4th external source; sessions are observed through
+        sys.dm_exec_sessions instead of the MySQL processlist.  These SQL
+        Server paths use plain tdSql calls instead of _rec_query/_rec_error
+        so the recorded block sequence — and therefore the
         ans/test_fq_05_003_behavioral.txt baseline — stays unchanged.
 
         Since: v3.4.0.0
@@ -604,6 +625,11 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._c3_query_timeout_sqlserver()
             self._c4_pool_size_sqlserver()
             self._c5_idle_ttl_sqlserver()
+            # --- SQL Server client-side (ALTER LOCAL) mirrors ---
+            self._c2_connect_timeout_sqlserver_client()
+            self._c3_query_timeout_sqlserver_client()
+            self._c4_pool_size_sqlserver_client()
+            self._c5_idle_ttl_sqlserver_client()
         finally:
             self._restore_all_defaults()
         self._check_baseline("test_fq_05_003_behavioral")
@@ -1904,6 +1930,330 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                 tdSql.execute("ALTER LOCAL 'federatedQueryIdleConnTtlSec' '600'", queryTimes=1)
             except Exception:
                 pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ==================================================================
+    # Group C — SQL Server client-side (ALTER LOCAL) mirrors
+    #
+    # The C2c–C5c MySQL paths above drive the *client* ext-connector pool
+    # (catalog schema resolution) through ALTER LOCAL.  These SQL Server
+    # paths mirror them for the 4th source; sessions are observed through
+    # sys.dm_exec_sessions (see _sqlserver_session_count) instead of the
+    # MySQL processlist.  Like the server-side SQL Server paths they use
+    # plain tdSql calls so the recorded baseline stays unchanged.
+    # ==================================================================
+
+    # ----- C2-s-client: federatedQueryConnectTimeoutMs (ALTER LOCAL) -----
+    def _c2_connect_timeout_sqlserver_client(self):
+        """C2-s-client: ALTER LOCAL connect timeout controls catalog-phase connect."""
+        tdLog.info("[C2-s-client] federatedQueryConnectTimeoutMs — SQL Server client-side")
+        src = "fq05_ct_scl"
+        ext_db = "fq05_ct_scl_db"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: ALTER LOCAL default timeout, reachable → query OK --
+            self._alter_local_and_verify_plain("federatedQueryConnectTimeoutMs", "5000")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            self._cleanup_src(src)
+            tdLog.info("[C2-s-client] conn_tmo LOCAL=5000 query OK")
+
+            # -- Negative: non-routable IP → catalog connect fails --
+            tdSql.execute(f"drop external source if exists {src}", queryTimes=1)
+            tdSql.execute(
+                f"create external source {src} type='sqlserver' "
+                f"host='192.0.2.1' port={cfg.port} "
+                f"user='{cfg.user}' password='{cfg.password}' "
+                f"database={ext_db} schema='dbo'", queryTimes=1)
+            tdSql.error(f"select count(*) from {src}.push_t")
+            tdLog.info("[C2-s-client] non-routable host → catalog connect failed  OK")
+            self._cleanup_src(src)
+
+            # -- Dynamic: change LOCAL timeout, reachable source → query OK --
+            self._alter_local_and_verify_plain("federatedQueryConnectTimeoutMs", "600000")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            self._cleanup_src(src)
+
+            self._alter_local_and_verify_plain("federatedQueryConnectTimeoutMs", "100")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C2-s-client] dynamic conn_tmo LOCAL=100 reachable → OK")
+
+        finally:
+            for stmt in (
+                "ALTER LOCAL 'federatedQueryConnectTimeoutMs' '5000'",
+                "ALTER ALL DNODES 'federatedQueryConnectTimeoutMs' '5000'",
+            ):
+                try:
+                    tdSql.execute(stmt, queryTimes=1)
+                except Exception:
+                    pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C3-s-client: federatedQueryQueryTimeoutMs (ALTER LOCAL) -----
+    def _c3_query_timeout_sqlserver_client(self):
+        """C3-s-client: ALTER LOCAL query timeout affects catalog schema queries.
+
+        The client ext-connector resolves external table metadata through the
+        same statement timeout as data queries, which is intended.  SQL Server
+        ODBC only accepts whole seconds for SQL_ATTR_QUERY_TIMEOUT, so every
+        value is rounded up, and the first catalog query against a freshly
+        created database costs roughly one second (plan compilation plus system
+        catalog warm-up).  The documented minimum of 100 ms therefore rounds to
+        exactly 1 s and lands on that cold-start cost, which made this case
+        fail.  Query with a value that keeps headroom for a cold catalog query
+        (10000 ms), and still assert that the 100 ms boundary is accepted as a
+        configuration value.
+        """
+        tdLog.info("[C3-s-client] federatedQueryQueryTimeoutMs — SQL Server client-side")
+        src = "fq05_qt_scl"
+        ext_db = "fq05_qt_scl_db"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Configuration boundary: the documented minimum is accepted --
+            self._alter_local_and_verify_plain("federatedQueryQueryTimeoutMs", "100")
+
+            # -- Positive: 10 s timeout — cold catalog query still OK --
+            self._alter_local_and_verify_plain("federatedQueryQueryTimeoutMs", "10000")
+            self._alter_dnode_and_verify_plain("federatedQueryQueryTimeoutMs", "1000000000")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C3-s-client] query_tmo LOCAL=10000, catalog OK")
+
+            # -- Dynamic: switch LOCAL timeout from min to mid-range --
+            self._cleanup_src(src)
+            self._alter_local_and_verify_plain("federatedQueryQueryTimeoutMs", "5000")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C3-s-client] dynamic query_tmo LOCAL=5000 → OK")
+
+            # -- Dynamic: switch to max --
+            self._cleanup_src(src)
+            self._alter_local_and_verify_plain("federatedQueryQueryTimeoutMs", "1000000000")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C3-s-client] dynamic query_tmo LOCAL=max → OK")
+
+        finally:
+            for stmt in (
+                "ALTER LOCAL 'federatedQueryQueryTimeoutMs' '1000000000'",
+                "ALTER ALL DNODES 'federatedQueryQueryTimeoutMs' '1000000000'",
+            ):
+                try:
+                    tdSql.execute(stmt, queryTimes=1)
+                except Exception:
+                    pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C4-s-client: federatedQueryMaxPoolSizePerSource (ALTER LOCAL) -----
+    def _c4_pool_size_sqlserver_client(self):
+        """C4-s-client: ALTER LOCAL pool size affects the client catalog pool.
+
+        Concurrent catalog operations against localhost cannot exhaust the
+        pool reliably; the assertion is that the minimum pool size (1) does
+        not break serial catalog + query operations, including dynamic
+        switches in both directions.
+        """
+        tdLog.info("[C4-s-client] federatedQueryMaxPoolSizePerSource — SQL Server client-side")
+        src = "fq05_ps_scl"
+        ext_db = "fq05_ps_scl_db"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # -- Positive: pool=1, serial queries work --
+            self._alter_local_and_verify_plain("federatedQueryMaxPoolSizePerSource", "1")
+            self._alter_dnode_and_verify_plain("federatedQueryMaxPoolSizePerSource", "64")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C4-s-client] pool LOCAL=1, serial query OK")
+
+            for _ in range(5):
+                self._cleanup_src(src)
+                self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+                tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+                tdSql.checkData(0, 0, 5)
+            tdLog.info("[C4-s-client] pool LOCAL=1, 5 serial queries OK")
+
+            # -- Dynamic: pool 1→128, query OK --
+            self._cleanup_src(src)
+            self._alter_local_and_verify_plain("federatedQueryMaxPoolSizePerSource", "128")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C4-s-client] dynamic pool LOCAL=128 → OK")
+
+            # -- Dynamic: pool 128→1, query OK --
+            self._cleanup_src(src)
+            self._alter_local_and_verify_plain("federatedQueryMaxPoolSizePerSource", "1")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C4-s-client] dynamic pool LOCAL=1 → OK")
+
+        finally:
+            for stmt in (
+                "ALTER LOCAL 'federatedQueryMaxPoolSizePerSource' '64'",
+                "ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '64'",
+            ):
+                try:
+                    tdSql.execute(stmt, queryTimes=1)
+                except Exception:
+                    pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+
+    # ----- C5-s-client: federatedQueryIdleConnTtlSec (ALTER LOCAL) -----
+    def _c5_idle_ttl_sqlserver_client(self):
+        """C5-s-client: ALTER LOCAL idle TTL — independent catalog-pool eviction.
+
+        Same three phases as the MySQL [C5-client] path, observed through
+        sys.dm_exec_sessions:
+
+        Phase 1: server TTL=86400 (keep), client TTL=1 (evict)
+                 → client catalog sessions evicted, server sessions survive.
+        Phase 2: server TTL=1, client TTL=1 → all sessions evicted.
+        Phase 3: server TTL=1 (evict), client TTL=86400 (keep)
+                 → server sessions evicted, client catalog sessions survive.
+        """
+        tdLog.info("[C5-s-client] federatedQueryIdleConnTtlSec — SQL Server client-side")
+        src = "fq05_tc_scl"
+        ext_db = "fq05_tc_scl_db"
+        cfg = self._sqlserver_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.sqlserver_create_db(ext_db)
+            ExtSrcEnv.sqlserver_exec(ext_db, _SQLSERVER_PUSH_T_SQLS)
+
+            # ---- Phase 1: server TTL=86400, client TTL=1 ----
+            tdLog.info("[C5-s-client] Phase 1: server TTL=86400, client TTL=1")
+            self._alter_dnode_and_verify_plain("federatedQueryIdleConnTtlSec", "86400")
+            self._alter_local_and_verify_plain("federatedQueryIdleConnTtlSec", "1")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            cnt_p1_before = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_p1_before >= 1, (
+                f"[C5-s-client] P1: expected >= 1 sessions, got {cnt_p1_before}")
+            tdLog.info(f"[C5-s-client] P1 initial count = {cnt_p1_before}")
+
+            time.sleep(12)
+
+            cnt_p1_after = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_p1_after < cnt_p1_before, (
+                f"[C5-s-client] P1: client TTL=1 should evict catalog sessions "
+                f"but count didn't decrease (before={cnt_p1_before} "
+                f"after={cnt_p1_after})")
+            assert cnt_p1_after >= 1, (
+                f"[C5-s-client] P1: server sessions (TTL=86400) should remain "
+                f"but count dropped to {cnt_p1_after}")
+            tdLog.info(f"[C5-s-client] P1: {cnt_p1_before} → {cnt_p1_after} "
+                       f"(client evicted, server retained)  OK")
+
+            # query still works (catalog creates a new session)
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            # ---- Phase 2: both TTL=1 → all evicted ----
+            tdLog.info("[C5-s-client] Phase 2: both TTL=1")
+            self._cleanup_src(src)
+            self._alter_dnode_and_verify_plain("federatedQueryIdleConnTtlSec", "1")
+            self._alter_local_and_verify_plain("federatedQueryIdleConnTtlSec", "1")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            cnt_p2_before = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_p2_before >= 1, (
+                f"[C5-s-client] P2: expected >= 1 sessions, got {cnt_p2_before}")
+
+            time.sleep(12)
+
+            cnt_p2_after = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_p2_after == 0, (
+                f"[C5-s-client] P2: both TTL=1, all sessions should be evicted "
+                f"but {cnt_p2_after} remain")
+            tdLog.info(f"[C5-s-client] P2: both TTL=1 → all evicted "
+                       f"({cnt_p2_before} → {cnt_p2_after})  OK")
+
+            # ---- Phase 3: server TTL=1, client TTL=86400 ----
+            tdLog.info("[C5-s-client] Phase 3: server TTL=1, client TTL=86400")
+            self._cleanup_src(src)
+            self._alter_dnode_and_verify_plain("federatedQueryIdleConnTtlSec", "1")
+            self._alter_local_and_verify_plain("federatedQueryIdleConnTtlSec", "86400")
+            self._mk_sqlserver_real(src, database=ext_db, schema="dbo")
+
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+
+            cnt_p3_before = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_p3_before >= 1, (
+                f"[C5-s-client] P3: expected >= 1 sessions, got {cnt_p3_before}")
+            tdLog.info(f"[C5-s-client] P3 initial count = {cnt_p3_before}")
+
+            time.sleep(12)
+
+            cnt_p3_after = _sqlserver_session_count(cfg, ext_db)
+            assert cnt_p3_after < cnt_p3_before, (
+                f"[C5-s-client] P3: server TTL=1 should evict data-query "
+                f"sessions but count didn't decrease "
+                f"(before={cnt_p3_before} after={cnt_p3_after})")
+            assert cnt_p3_after >= 1, (
+                f"[C5-s-client] P3: client sessions (TTL=86400) should remain "
+                f"but count dropped to {cnt_p3_after}")
+            tdLog.info(f"[C5-s-client] P3: {cnt_p3_before} → {cnt_p3_after} "
+                       f"(server evicted, client retained)  OK")
+
+            # query still works
+            tdSql.query(f"select count(*) from {src}.push_t", queryTimes=1)
+            tdSql.checkData(0, 0, 5)
+            tdLog.info("[C5-s-client] all phases OK")
+
+        finally:
+            for stmt in (
+                "ALTER LOCAL 'federatedQueryIdleConnTtlSec' '600'",
+                "ALTER ALL DNODES 'federatedQueryIdleConnTtlSec' '600'",
+            ):
+                try:
+                    tdSql.execute(stmt, queryTimes=1)
+                except Exception:
+                    pass
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.sqlserver_drop_db(ext_db)

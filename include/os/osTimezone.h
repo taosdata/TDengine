@@ -33,6 +33,9 @@ typedef void *timezone_t;
 // Add Windows version function declarations
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
+/* POSIX mktime_z equivalent: interpret the broken-down time in the given
+ * fixed-offset timezone object and return the UTC epoch. */
+time_t     mktime_z(timezone_t, struct tm *);
 
 #else
 typedef struct state *timezone_t;
@@ -70,6 +73,14 @@ void    cleanupTimezoneInfo();
  * Available on all platforms.
  */
 const char *taosWindowsNameToIana(const char *winName);
+
+/*
+ * Map an IANA timezone name to its Windows canonical equivalent (the T-SQL
+ * "AT TIME ZONE" spelling).  The input is returned unchanged when it already
+ * names a Windows zone, and NULL when no mapping exists.  Mirrors
+ * taosWindowsNameToIana() over the same tables; available on all platforms.
+ */
+const char *taosIanaNameToWindows(const char *ianaName);
 
 #ifdef WINDOWS
 int64_t getWindowsTimezoneOffset(void);

@@ -214,6 +214,91 @@ static int32_t insertTableToScanIgnoreList(STableScanInfo* pTableScanInfo, uint6
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct STableIntervalLimitState {
+  TSKEY   windowStart;
+  TSKEY   windowEnd;
+  int64_t windows;
+} STableIntervalLimitState;
+
+static int32_t getTableIntervalLimitState(STableScanInfo* pInfo, uint64_t uid,
+                                          STableIntervalLimitState** ppState) {
+  if (pInfo->pIntervalLimitStates == NULL) {
+    int32_t tables = taosArrayGetSize(pInfo->base.pTableListInfo->pTableList);
+    pInfo->pIntervalLimitStates = taosHashInit(
+        tables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
+        HASH_NO_LOCK);
+    if (pInfo->pIntervalLimitStates == NULL) return terrno;
+  }
+  *ppState = taosHashGet(pInfo->pIntervalLimitStates, &uid, sizeof(uid));
+  if (*ppState == NULL) {
+    STableIntervalLimitState state = {0};
+    int32_t code = taosHashPut(pInfo->pIntervalLimitStates, &uid, sizeof(uid),
+                                &state, sizeof(state));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    *ppState = taosHashGet(pInfo->pIntervalLimitStates, &uid, sizeof(uid));
+    if (*ppState == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t applyTableIntervalLimit(STableScanInfo* pInfo,
+                                        SSDataBlock* pBlock) {
+  if (pInfo->intervalLimit <= 0 || pInfo->intervalTsSlot < 0 ||
+      pBlock->info.rows == 0 || pBlock->info.id.uid == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STableIntervalLimitState* pState = NULL;
+  int32_t code = getTableIntervalLimitState(pInfo, pBlock->info.id.uid, &pState);
+  if (code != TSDB_CODE_SUCCESS || pState->windows < 0) return code;
+
+  const SInterval* pInterval = &pInfo->base.pdInfo.interval;
+  bool loaded = pBlock->info.dataLoad;
+  SColumnInfoData* pTs = loaded
+      ? taosArrayGet(pBlock->pDataBlock, pInfo->intervalTsSlot) : NULL;
+  if ((!loaded && taosTimeTruncate(pBlock->info.window.skey, pInterval) !=
+                      taosTimeTruncate(pBlock->info.window.ekey, pInterval)) ||
+      (loaded && (pTs == NULL || pTs->pData == NULL))) {
+    // A metadata-only block must belong to one window to count it safely.
+    pState->windows = -1;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t rows = loaded ? (int32_t)pBlock->info.rows : 1;
+  for (int32_t i = 0; i < rows;) {
+    TSKEY ts = loaded ? *(TSKEY*)colDataGetData(pTs, i)
+                      : pBlock->info.window.skey;
+    if (pState->windows == 0 || ts < pState->windowStart ||
+        ts > pState->windowEnd) {
+      if (pState->windows == pInfo->intervalLimit) {
+        // Seeing a later window proves the retained one is complete for this
+        // UID. The shared ignore list skips its remaining file/STT/mem blocks.
+        code = insertTableToScanIgnoreList(pInfo, pBlock->info.id.uid);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        blockDataKeepFirstNRows(pBlock, loaded ? i : 0);
+        if (loaded && pBlock->info.rows > 0) {
+          code = blockDataUpdateTsWindow(pBlock, pInfo->intervalTsSlot);
+        }
+        return code;
+      }
+      pState->windows += 1;
+      pState->windowStart = taosTimeTruncate(ts, pInterval);
+      pState->windowEnd = taosTimeGetIntervalEnd(pState->windowStart, pInterval);
+    }
+    if (!loaded) break;
+    // Reuse the interval operator's ordered range lookup instead of
+    // recalculating the window for every row in the block.
+    int32_t order = pInfo->base.cond.order;
+    TSKEY end = order == TSDB_ORDER_ASC ? pState->windowEnd
+                                      : pState->windowStart;
+    int32_t forward = getNumOfRowsInTimeWindow(
+        &pBlock->info, (TSKEY*)pTs->pData, i, end, binarySearchForKey, NULL, order);
+    if (forward <= 0) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    i += forward;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool isLastColumnExpr(const SqlFunctionCtx* pCtx) {
   if (NULL == pCtx) {
     return false;
@@ -550,6 +635,29 @@ static bool skipSetTagColumnData(SOperatorInfo* pOperator) {
          ((STableScanInfo*)pOperator->info)->ignoreTag;
 }
 
+static int32_t saveVtableReaderLimit(SOperatorInfo* pOperator) {
+  if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN != pOperator->operatorType ||
+      !pOperator->dynamicTask) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableScanInfo* pInfo = pOperator->info;
+  if (!pInfo->virtualStableScan || NULL == pInfo->pVtableReaderLimits) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableKeyInfo* pTable = tableListGetInfo(pInfo->base.pTableListInfo, 0);
+  if (NULL == pTable) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  SLimitInfo* pSaved = taosHashGet(pInfo->pVtableReaderLimits, &pTable->uid,
+                                  sizeof(pTable->uid));
+  if (NULL != pSaved) {
+    *pSaved = pInfo->base.limitInfo;
+    return TSDB_CODE_SUCCESS;
+  }
+  return taosHashPut(pInfo->pVtableReaderLimits, &pTable->uid, sizeof(pTable->uid),
+                     &pInfo->base.limitInfo, sizeof(pInfo->base.limitInfo));
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -769,6 +877,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   if (limitReached) {  // set operator flag is done
     setOperatorCompleted(pOperator);
   }
+  code = saveVtableReaderLimit(pOperator);
+  QUERY_CHECK_CODE(code, lino, _end);
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -848,12 +958,40 @@ static void freeCachedMetaItem(const void* key, size_t keyLen, void* value, void
   freeTableCachedVal(value);
 }
 
+// The placeholder retains ordinary NULL metadata for diagnostics and checks;
+// its payload is omitted. Only the immediate aggregate reads the owned value.
+static SColumnInfoData* getConstTagOutputColumn(SSDataBlock* pBlock, int32_t slotId) {
+  SConstTagColumn* pConst = blockDataGetConstTagColumn(pBlock, slotId);
+  if (pConst == NULL || pBlock->info.id.uid == 0 || pBlock->info.blankFill) {
+    if (pConst != NULL) {
+      pConst->uid = 0;
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+      pCol->info.noData = false;
+    }
+    return NULL;
+  }
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  // Empty-table placeholders reuse this block and write NULL fixed-width
+  // values. Keep their buffer even while only the owned constant is read.
+  pCol->hasNull = true;
+  pCol->info.noData = true;
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    taosMemoryFreeClear(pCol->pData);
+    pCol->varmeta.length = 0;
+    pCol->varmeta.allocLen = 0;
+  }
+  colInfoDataCleanup(&pConst->column, 1);
+  pConst->uid = pBlock->info.id.uid;
+  return &pConst->column;
+}
+
 static void doSetNullValue(SSDataBlock* pBlock, const SExprInfo* pExpr, int32_t numOfExpr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
     int32_t dstSlotId = pExpr[j].base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-    colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
+    SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, dstSlotId);
+    colDataSetNNULL(pConstCol ? pConstCol : pColInfoData, 0, pConstCol ? 1 : pBlock->info.rows);
   }
 }
 
@@ -999,6 +1137,14 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
         QUERY_CHECK_CODE(code, lino, _end);
       }
     } else {  // these are tags
+      SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, pExpr1->base.resSchema.slotId);
+      int32_t tagRows = pBlock->info.rows;
+      if (pConstCol != NULL) {
+        pColInfoData = pConstCol;
+        tagRows = 1;
+      } else {
+        pColInfoData->info.noData = false;
+      }
       STagVal tagVal = {0};
       tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
       const char* p = NULL;
@@ -1015,9 +1161,13 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       bool isNullVal = (data == NULL) || (pColInfoData->info.type == TSDB_DATA_TYPE_JSON && tTagIsJsonNull(data));
       if (isNullVal) {
-        colDataSetNNULL(pColInfoData, 0, pBlock->info.rows);
+        colDataSetNNULL(pColInfoData, 0, tagRows);
       } else if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON) {
-        code = colDataSetNItems(pColInfoData, 0, data, pBlock->info.rows, 1, false);
+        if (pColInfoData->pData == NULL && !IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+          code = colInfoDataEnsureCapacity(pColInfoData, tagRows, false);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        code = colDataSetNItems(pColInfoData, 0, data, tagRows, 1, false);
         if (IS_VAR_DATA_TYPE(((const STagVal*)p)->type)) {
           taosMemoryFree(data);
         }
@@ -1264,6 +1414,13 @@ static int8_t tableScanInterpMode(const SOperatorInfo* pOperator) {
                            : pScanNode->interpMode;
 }
 
+static bool tableScanUsesPhasedProtocol(const STableScanPhysiNode* pScanNode, const SReadHandle* pReadHandle) {
+  const SStreamRuntimeInfo* pRuntime = pReadHandle == NULL ? NULL : pReadHandle->streamRtInfo;
+  return interpModeUsesPhasedProtocol(pScanNode->interpMode) ||
+         (pRuntime != NULL && pRuntime->funcInfo.withExternalWindow &&
+          pRuntime->funcInfo.externalWindowNeedsPrevRow);
+}
+
 // A grouped MAIN_FIRST multi-group scan drains every phase of one outer
 // group before moving to the next. The table scan and the table merge scan
 // share that contract, so they share one predicate. A NULL phys node maps
@@ -1483,6 +1640,11 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
 
     if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
       break;
+    }
+
+    if (status != FUNC_DATA_REQUIRED_FILTEROUT) {
+      code = applyTableIntervalLimit(pTableScanInfo, pBlock);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     // current block is filter out according to filter condition, continue load the next block
@@ -2219,6 +2381,37 @@ _return:
   return code;
 }
 
+static int32_t restoreVtableReaderLimit(SOperatorInfo* pOperator, uint64_t uid,
+                                          bool newParam) {
+  STableScanInfo* pInfo = pOperator->info;
+  const STableScanPhysiNode* pScan = pOperator->pPhyNode;
+  SLimitInfo* pSaved = NULL;
+  if (!newParam && NULL != pInfo->pVtableReaderLimits) {
+    pSaved = taosHashGet(pInfo->pVtableReaderLimits, &uid, sizeof(uid));
+  }
+  if (NULL != pSaved) {
+    pInfo->base.limitInfo = *pSaved;
+    return TSDB_CODE_SUCCESS;
+  }
+  initLimitInfo(pScan->scan.node.pLimit, pScan->scan.node.pSlimit,
+                &pInfo->base.limitInfo);
+  // A finer source precision can collapse several rows into one virtual
+  // timestamp. A raw-row cap cannot bound the required virtual-row prefix.
+  if (pInfo->srcPrecision > pInfo->vtablePrecision ||
+      pInfo->srcPrecision > TSDB_TIME_PRECISION_NANO) {
+    pInfo->base.limitInfo.limit.limit = -1;
+  }
+  if (pInfo->base.limitInfo.limit.limit >= 0 &&
+      NULL == pInfo->pVtableReaderLimits) {
+    pInfo->pVtableReaderLimits = taosHashInit(
+        16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    if (NULL == pInfo->pVtableReaderLimits) {
+      return terrno;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -2486,6 +2679,11 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       }
     }
   }
+
+  code = restoreVtableReaderLimit(pOperator, pUid, isNewScanParam(pParam));
+  QUERY_CHECK_CODE(code, lino, _return);
+  pInfo->base.cond.blockRowLimit = pInfo->base.limitInfo.limit.limit >= 0 ?
+      pInfo->base.orgCond.blockRowLimit : 0;
 
   void** reader = taosHashGet(pInfo->readerCache, &pUid, sizeof(uint64_t));
   if (reader) {
@@ -3138,6 +3336,114 @@ _return:
   return code;
 }
 
+static int32_t validateVstbDirectBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate) {
+  if (pBlock == NULL || pTemplate == NULL || pBlock->pDataBlock == NULL || pTemplate->pDataBlock == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  size_t numOfCols = taosArrayGetSize(pTemplate->pDataBlock);
+  if (taosArrayGetSize(pBlock->pDataBlock) != numOfCols) return TSDB_CODE_INVALID_MSG;
+
+  for (size_t i = 0; i < numOfCols; ++i) {
+    const SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+    const SColumnInfoData* pDst = taosArrayGet(pTemplate->pDataBlock, i);
+    if (pSrc == NULL || pDst == NULL || pSrc->info.slotId != pDst->info.slotId ||
+        pSrc->info.type != pDst->info.type ||
+        (!IS_VAR_DATA_TYPE(pDst->info.type) && pSrc->info.bytes != pDst->info.bytes) ||
+        (IS_DECIMAL_TYPE(pDst->info.type) &&
+         (pSrc->info.precision != pDst->info.precision || pSrc->info.scale != pDst->info.scale))) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createVstbSchemaSlotMap(const SSDataBlock* pTemplate, SSHashObj** ppSlots) {
+  if (pTemplate == NULL || pTemplate->pDataBlock == NULL || ppSlots == NULL) return TSDB_CODE_INVALID_MSG;
+
+  size_t dstCols = taosArrayGetSize(pTemplate->pDataBlock);
+  if (dstCols == 0 || dstCols > TSDB_MAX_COLUMNS) return TSDB_CODE_INVALID_MSG;
+  SSHashObj* pSlots = tSimpleHashInit(dstCols, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+  if (pSlots == NULL) return terrno;
+
+  for (size_t i = 0; i < dstCols; ++i) {
+    const SColumnInfoData* pCol = taosArrayGet(pTemplate->pDataBlock, i);
+    if (pCol == NULL || pCol->info.slotId < 0 ||
+        tSimpleHashGet(pSlots, &pCol->info.slotId, sizeof(pCol->info.slotId)) != NULL) {
+      tSimpleHashCleanup(pSlots);
+      return TSDB_CODE_INVALID_MSG;
+    }
+    int32_t index = (int32_t)i;
+    int32_t code = tSimpleHashPut(pSlots, &pCol->info.slotId, sizeof(pCol->info.slotId), &index, sizeof(index));
+    if (code != TSDB_CODE_SUCCESS) {
+      tSimpleHashCleanup(pSlots);
+      return code;
+    }
+  }
+
+  *ppSlots = pSlots;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t validateVstbMappedBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate,
+                                             SSHashObj* pSlots, bool* pDirect) {
+  if (pBlock == NULL || pTemplate == NULL || pSlots == NULL || pBlock->pDataBlock == NULL ||
+      pTemplate->pDataBlock == NULL || pDirect == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  size_t srcCols = taosArrayGetSize(pBlock->pDataBlock);
+  size_t dstCols = taosArrayGetSize(pTemplate->pDataBlock);
+  if (dstCols > TSDB_MAX_COLUMNS) return TSDB_CODE_INVALID_MSG;
+  *pDirect = srcCols == dstCols;
+  uint8_t seen[(TSDB_MAX_COLUMNS + 7) / 8] = {0};
+  size_t mappedCols = 0;
+  bool ignoredTimestamp = false;
+
+  for (size_t i = 0; i < srcCols; ++i) {
+    const SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+    if (pSrc == NULL) return TSDB_CODE_INVALID_MSG;
+    if (pSrc->info.slotId == -1 && pSrc->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      if (ignoredTimestamp) return TSDB_CODE_INVALID_MSG;
+      ignoredTimestamp = true;
+      *pDirect = false;
+      continue;
+    }
+
+    if (++mappedCols > dstCols) return TSDB_CODE_INVALID_MSG;
+    int32_t* pIndex = tSimpleHashGet(pSlots, &pSrc->info.slotId, sizeof(pSrc->info.slotId));
+    if (pIndex == NULL || *pIndex < 0 || (size_t)*pIndex >= dstCols) return TSDB_CODE_INVALID_MSG;
+    uint8_t mask = (uint8_t)(1U << (*pIndex & 7));
+    if (seen[*pIndex >> 3] & mask) return TSDB_CODE_INVALID_MSG;
+    seen[*pIndex >> 3] |= mask;
+    if ((size_t)*pIndex != i) *pDirect = false;
+
+    const SColumnInfoData* pDst = taosArrayGet(pTemplate->pDataBlock, *pIndex);
+    if (pDst == NULL || pSrc->info.type != pDst->info.type ||
+        (!IS_VAR_DATA_TYPE(pDst->info.type) && pSrc->info.bytes != pDst->info.bytes) ||
+        (IS_DECIMAL_TYPE(pDst->info.type) &&
+         (pSrc->info.precision != pDst->info.precision || pSrc->info.scale != pDst->info.scale))) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+#if defined(BUILD_TEST)
+int32_t scanTestValidateVstbDirectBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate) {
+  return validateVstbDirectBlockSchema(pBlock, pTemplate);
+}
+
+int32_t scanTestValidateVstbMappedBlockSchema(const SSDataBlock* pBlock, const SSDataBlock* pTemplate) {
+  SSHashObj* pSlots = NULL;
+  int32_t code = createVstbSchemaSlotMap(pTemplate, &pSlots);
+  bool direct = false;
+  if (code == TSDB_CODE_SUCCESS) code = validateVstbMappedBlockSchema(pBlock, pTemplate, pSlots, &direct);
+  tSimpleHashCleanup(pSlots);
+  return code;
+}
+#endif
+
 static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -3167,7 +3473,10 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
   // boundary immediately before scanning.
   pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
 
-  if (pInfo->newReader) {
+  if (pInfo->base.limitInfo.limit.limit >= 0 &&
+      pInfo->base.limitInfo.numOfOutputRows >= pInfo->base.limitInfo.limit.limit) {
+    setOperatorCompleted(pOperator);
+  } else if (pInfo->newReader) {
     code = startNextGroupScan(pOperator, &result);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
@@ -3184,10 +3493,13 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
     QUERY_CHECK_CODE(code, lino, _end);
 
     // A dynamic source may provide only a sparse subset of the virtual columns.
-    // Rebuild the full template block whenever slots are missing so Exchange and
-    // VirtualScan see a stable schema; unmapped slots stay NULL.  This also covers
-    // the existing VStableAgg tag-pseudo-column case.
-    if (taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize(result->pDataBlock)) {
+    // Rebuild when slots are missing or out of order so Exchange and VirtualScan
+    // see the template schema; unmapped slots stay NULL.  This also covers the
+    // existing VStableAgg tag-pseudo-column case.
+    bool direct = false;
+    code = validateVstbMappedBlockSchema(result, pInfo->pOrgBlock, pInfo->pVstbSchemaSlots, &direct);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!direct) {
       blockDataDestroy(pInfo->pVstbOutputBlock);
       pInfo->pVstbOutputBlock = NULL;
       code = createOneDataBlockWithTwoBlock(result, pInfo->pOrgBlock, pInfo->pBlockColMap, &res);
@@ -3552,11 +3864,14 @@ int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
 
     // The first block of a single dynamic virtual-table scan is normalized in
     // doVstbSingleDynamicTableScanNext().  Later blocks arrive through this
-    // ordinary continuation path and must obey the same full-slot contract.
+    // ordinary continuation path and must obey the same slot contract.
     if (pOperator->dynamicTask && pInfo->virtualStableScan && NULL != *ppRes) {
       code = blockSetVstbSlotId(*ppRes, pInfo->pBlockColMap);
       QUERY_CHECK_CODE(code, lino, _end);
-      if (taosArrayGetSize(pInfo->pOrgBlock->pDataBlock) > taosArrayGetSize((*ppRes)->pDataBlock)) {
+      bool direct = false;
+      code = validateVstbMappedBlockSchema(*ppRes, pInfo->pOrgBlock, pInfo->pVstbSchemaSlots, &direct);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!direct) {
         SSDataBlock* pDense = NULL;
         blockDataDestroy(pInfo->pVstbOutputBlock);
         pInfo->pVstbOutputBlock = NULL;
@@ -3818,12 +4133,15 @@ static void destroyTableScanOperatorInfo(void* param) {
   blockDataDestroy(pTableScanInfo->pOrgBlock);
   blockDataDestroy(pTableScanInfo->pVstbOutputBlock);
   taosHashCleanup(pTableScanInfo->pIgnoreTables);
+  taosHashCleanup(pTableScanInfo->pIntervalLimitStates);
+  taosHashCleanup(pTableScanInfo->pVtableReaderLimits);
   if (pTableScanInfo->virtualStableScan && pTableScanInfo->readerCache) {
     cleanReaderForVTable(pTableScanInfo);
     taosHashCleanup(pTableScanInfo->readerCache);
   }
   destroyTableScanBase(&pTableScanInfo->base);
   taosArrayDestroy(pTableScanInfo->pBlockColMap);
+  tSimpleHashCleanup(pTableScanInfo->pVstbSchemaSlots);
   taosMemoryFreeClear(param);
 }
 
@@ -3938,6 +4256,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   blockDataEmpty(pInfo->pOrgBlock);
   taosHashClear(pInfo->pIgnoreTables);
   taosArrayDestroy(pInfo->pBlockColMap);
+  taosHashClear(pInfo->pIntervalLimitStates);
   pInfo->pBlockColMap = NULL;
   return beginReaderStatsEpoch(&pInfo->base);
 }
@@ -3993,6 +4312,15 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
 
   pInfo->base.pdInfo.interval = extractIntervalInfo(pTableScanNode);
+  pInfo->intervalLimit = pTableScanNode->intervalLimit;
+  pInfo->intervalTsSlot = -1;
+  for (int32_t i = 0; i < pInfo->base.cond.numOfCols; ++i) {
+    if (pInfo->base.cond.colList[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      pInfo->intervalTsSlot = pInfo->base.cond.pSlotList
+          ? pInfo->base.cond.pSlotList[i] : i;
+      break;
+    }
+  }
   pInfo->base.readHandle = *readHandle;
   pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;
 
@@ -4022,6 +4350,8 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
     pInfo->pResBlock = NULL;
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
     memset(&pInfo->base.cond, 0, sizeof(SQueryTableDataCond));
+    code = createVstbSchemaSlotMap(pInfo->pOrgBlock, &pInfo->pVstbSchemaSlots);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
   if (pInfo->virtualStableScan) {
@@ -4655,9 +4985,9 @@ _end:
 }
 
 static void getTsSlotId(SNodeList* pNodeList, int32_t* pTsSlotId) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
     if (pNode && nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       *pTsSlotId = pNode->slotId;
     }
@@ -4665,9 +4995,9 @@ static void getTsSlotId(SNodeList* pNodeList, int32_t* pTsSlotId) {
 }
 
 static int32_t buildCol2SlotId(SNodeList* pNodeList, SHashObj* pCol2SlotId) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
+  SNode* pListNode = NULL;
+  FOREACH(pListNode, pNodeList) {
+    STargetNode* pNode = (STargetNode*)pListNode;
     if (pNode == NULL) {
       return TSDB_CODE_INVALID_PARA;
     }
@@ -6915,12 +7245,16 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
 
   blockDataCleanup(pResBlock);
 
+  // Hoisted out of the per-tuple loop: resolve the BLOB column of the result block once
+  // instead of walking every column for each appended tuple.
+  const SBlobColInfo blobCols = blockDataGetBlobCol(pResBlock);
+
   while (1) {
     while (1) {
       // Close the block before pulling the next tuple when a BLOB column is about to
       // overflow its int32_t byte offsets; the tuple stays in the sort handle and is
       // returned in the next block.
-      if (blockDataBlobExceedLimit(pResBlock)) {
+      if (blockDataBlobInfoExceedLimit(&blobCols, pResBlock)) {
         break;
       }
 
@@ -7234,7 +7568,7 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
   cleanupQueryTableDataCond(&pInfo->base.cond);
-  bool phased = interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  bool phased = tableScanUsesPhasedProtocol(pTableScanNode, &pInfo->base.readHandle);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
                                 &pInfo->base.readHandle, phased);
   if (code) {
@@ -7294,8 +7628,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
                              &pInfo->base.matchInfo);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  bool phased =
-      interpModeUsesPhasedProtocol(pTableScanNode->interpMode);
+  bool phased = tableScanUsesPhasedProtocol(pTableScanNode, readHandle);
   code = initQueryTableDataCond(&pInfo->base.cond, pTableScanNode,
                                 readHandle, phased);
   QUERY_CHECK_CODE(code, lino, _error);

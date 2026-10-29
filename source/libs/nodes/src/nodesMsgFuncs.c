@@ -3320,6 +3320,7 @@ enum {
   PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_SKEY,
   PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_EKEY,
   PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN,
+  PHY_FEDERATED_SCAN_CODE_TIME_RANGE,
 };
 
 static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3385,6 +3386,9 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN, pNode->underVTableScan);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pTimeRange != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_TIME_RANGE, nodeToMsg, pNode->pTimeRange);
   }
   return code;
 }
@@ -3484,6 +3488,9 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->underVTableScan);
         break;
+      case PHY_FEDERATED_SCAN_CODE_TIME_RANGE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pTimeRange);
+        break;
       default:
         break;
     }
@@ -3510,6 +3517,7 @@ enum {
   EXT_TABLE_CODE_REMOTE_TABLE_NAME,
   EXT_TABLE_CODE_TABLE_ALIAS,
   EXT_TABLE_CODE_SRC_NAME_FROM_PATH,
+  EXT_TABLE_CODE_NS_FROM_PATH_ONLY,
 };
 
 static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3558,6 +3566,9 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_SRC_NAME_FROM_PATH, pNode->srcNameFromPath);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_NS_FROM_PATH_ONLY, pNode->nsFromPathOnly);
   }
   return code;
 }
@@ -3612,6 +3623,9 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_SRC_NAME_FROM_PATH:
         code = tlvDecodeBool(pTlv, &pNode->srcNameFromPath);
+        break;
+      case EXT_TABLE_CODE_NS_FROM_PATH_ONLY:
+        code = tlvDecodeBool(pTlv, &pNode->nsFromPathOnly);
         break;
       default:
         break;
@@ -3840,6 +3854,7 @@ enum {
   // reinterpret an existing code (INTERP_MODE must stay at its released value).
   PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE,
   PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN,
+  PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3965,6 +3980,10 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
     code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN, true);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
+    code = tlvEncodeI64(pEncoder, PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
+                         pNode->intervalLimit);
+  }
 
   return code;
 }
@@ -4058,6 +4077,7 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
   pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
   pNode->lastOnlyScan = false;
+  pNode->intervalLimit = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
   STlv*   pTlv = NULL;
@@ -4114,6 +4134,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->lastOnlyScan);
+        break;
+      case PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT:
+        code = tlvDecodeI64(pTlv, &pNode->intervalLimit);
         break;
       default:
         break;

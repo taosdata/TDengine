@@ -81,12 +81,16 @@ int32_t translateExternalTableImpl(STranslateContext* pCxt, SRealTableNode* pRea
 int32_t refreshExternalTableMetaDirect(STranslateContext* pCxt, SRealTableNode* pRealTable, const char* colName);
 int32_t ensureExternalSyntheticColumn(SRealTableNode* pRealTable, const char* colName);
 int32_t ensureExternalSyntheticStarColumns(SRealTableNode* pRealTable, bool includeTags);
+int32_t translateUseExtSourceImpl(STranslateContext* pCxt, SUseExtSourceStmt* pStmt);
+#endif
+
+/* Declared for both editions: the enterprise plugin provides the implementation;
+ * the community parser carries a stub that reports TSDB_CODE_OSS_NOT_SUPPORT so
+ * enterprise-only external-reference call sites keep compiling in OSS builds. */
 int32_t getExternalTableMeta(STranslateContext* pCxt, const SExtSourceInfo* pSrcInfo,
                              const char* sourceName, const char* cacheMid0, const char* cacheMid1,
                              const char* dbName, const char* schemaName, const char* tableName,
                              bool forceRefresh, SExtTableMeta** ppExtMeta);
-int32_t translateUseExtSourceImpl(STranslateContext* pCxt, SUseExtSourceStmt* pStmt);
-#endif
 #ifdef __cplusplus
 }
 #endif

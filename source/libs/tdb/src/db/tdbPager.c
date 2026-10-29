@@ -712,7 +712,8 @@ int tdbPagerFlushPage(SPager *pPager, TXN *pTxn, bool *flushed) {
   return 0;
 }
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn);
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, bool *pReused,
+                            TXN *pTxn);
 
 int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                       TXN *pTxn) {
@@ -721,6 +722,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   int    ret;
   SPgno  pgno;
   u8     loadPage;
+  bool   reused = false;
   bool   flushed = true;
 
   pgno = *ppgno;
@@ -729,7 +731,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   // alloc new page
   if (pgno == 0) {
     loadPage = 0;
-    ret = tdbPagerAllocPage(pPager, &pgno, pTxn);
+    ret = tdbPagerAllocPage(pPager, &pgno, &reused, pTxn);
     if (ret < 0) {
       tdbError("tdb/pager: %p, ret: %d pgno: %" PRIu32 ", alloc page failed.", pPager, ret, pgno);
       return ret;
@@ -741,15 +743,30 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
-  // fetch a page container
-  memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
-  pgid.pgno = pgno;
-  while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn, !flushed, NULL)) == NULL) {
-    flushed = false;
-    int32_t code = tdbPagerFlushPage(pPager, pTxn, &flushed);
-    if (code) {
-      tdbError("tdb/pager: %p, pPage: %p, flush page failed.", pPager, pPage);
-      return code;
+  if (reused) {
+    // Preserve the pre-image, when needed, before reinitializing a reused page.
+    ret = tdbPagerFetchFreePage(pPager, pgno, &pPage, pTxn);
+    if (ret < 0) {
+      tdbError("tdb/pager: %p, ret: %d pgno: %" PRIu32 ", fetch free page failed.", pPager, ret, pgno);
+      return ret;
+    }
+    ret = tdbPagerWrite(pPager, pPage);
+    if (ret < 0) {
+      tdbError("tdb/pager: %p, pPage: %p, journal free page failed.", pPager, pPage);
+      tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+      return ret;
+    }
+  } else {
+    // fetch a page container
+    memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
+    pgid.pgno = pgno;
+    while ((pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn, !flushed, NULL)) == NULL) {
+      flushed = false;
+      int32_t code = tdbPagerFlushPage(pPager, pTxn, &flushed);
+      if (code) {
+        tdbError("tdb/pager: %p, pPage: %p, flush page failed.", pPager, pPage);
+        return code;
+      }
     }
   }
 
@@ -789,12 +806,9 @@ static int initFreePage(SPage *pPage, void *arg, int init) {
   return 0;
 }
 
-// tdbPagerFetchFreePage is only expected to be called in tdbBtreePushFreePage/tdbBtreePopFreePage.
-// in all other cases, please call tdbPagerFetchPage instead.
-//
-// for a page, if it is still in the cache, then the memory copy has the latest data, but for free
-// pages, tdbPagerFetchPage always load the page data from the file, this is not the desired behavior
-// in tdbBtreePushFreePage/tdbBtreePopFreePage, so we need tdbPagerFetchFreePage.
+// Fetch raw free-page contents for stack operations or journaling before reuse.
+// Preserve cache hits because they can contain newer links than the disk image;
+// on a cache miss, load the page without interpreting or changing its contents.
 int tdbPagerFetchFreePage(SPager *pPager, SPgno pgno, SPage **ppPage, TXN *pTxn) {
   SPage *pPage;
   SPgid  pgid;
@@ -872,10 +886,12 @@ static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
   return 0;
 }
 
-static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, bool *pReused,
+                            TXN *pTxn) {
   int ret;
 
   *ppgno = 0;
+  *pReused = false;
 
   // Try to allocate from the free list of the pager
   ret = tdbPagerAllocFreePage(pPager, ppgno, pTxn);
@@ -884,7 +900,10 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno, TXN *pTxn) {
   }
 
   ASSERT_CORE(*ppgno <= pPager->dbFileSize, "invalid pgno:%u, db file size:%u.", *ppgno, pPager->dbFileSize);
-  if (*ppgno != 0) return 0;
+  if (*ppgno != 0) {
+    *pReused = true;
+    return 0;
+  }
 
   // Allocate the page by extending the pager
   ret = tdbPagerAllocNewPage(pPager, ppgno);

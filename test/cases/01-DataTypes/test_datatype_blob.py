@@ -552,6 +552,7 @@ class TestDatatypeBlob:
         2. No row is lost or turned into NULL, every length() is exact
         3. select * spanning several query result blocks returns all rows
         4. first/last/last_row and order by ... desc read back whole values
+        5. Columns before and after BLOB stay aligned across byte-limited blocks
 
         Catalog:
             - DataTypes
@@ -564,6 +565,7 @@ class TestDatatypeBlob:
 
         History:
             - 2026-09-20 Bomin Zhang create
+            - 2026-10-20 Copilot Verify byte-limited blocks and companion columns
 
         """
         self.do_blob_many_large_values()
@@ -652,6 +654,85 @@ class TestDatatypeBlob:
         tdSql.execute(f"drop database if exists {db}")
         tdLog.info("blob payload size boundary ................. [ passed ]")
 
+    def test_blob_count_sma(self):
+        """BLOB count uses block statistics without materializing payloads.
+
+        1. Count mixed NULL, empty and nonempty values before and after flush
+        2. Verify clean blocks use SMA and filtered queries retain exact counts
+        3. Verify columns added after flush count historical rows as NULL
+
+        Catalog:
+            - DataTypes
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-20 Copilot Add BLOB count SMA regression
+
+        """
+        self.do_blob_count_sma()
+
+    def do_blob_count_sma(self):
+        db = "blob_count_sma"
+        rows = 8192
+        base_ts = 1700000000000
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(
+            f"create database {db} vgroups 1 stt_trigger 1 "
+            "minrows 100 maxrows 4096 keep 36500"
+        )
+        tdSql.execute(f"create table {db}.t (ts timestamp, v blob, n int)")
+        tdSql.execute(f"create table {db}.added (ts timestamp, n int)")
+        tdSql.execute(f"create table {db}.all_null (ts timestamp, v blob)")
+        for start in range(0, rows, 512):
+            values = []
+            for i in range(start, start + 512):
+                value = ("NULL", "'\\x'", "'\\x616263'", "'\\x00'")[i % 4]
+                values.append(f"({base_ts + i}, {value}, {i})")
+            tdSql.execute(f"insert into {db}.t values " + " ".join(values))
+            tdSql.execute(
+                f"insert into {db}.added values "
+                + " ".join(f"({base_ts + i}, {i})" for i in range(start, start + 512))
+            )
+            tdSql.execute(
+                f"insert into {db}.all_null values "
+                + " ".join(f"({base_ts + i}, NULL)" for i in range(start, start + 512))
+            )
+
+        for flushed in (False, True):
+            if flushed:
+                tdSql.flushDb(db)
+            tdSql.query(f"select count(v), count(n), count(*) from {db}.t")
+            for col, expected in enumerate((rows * 3 // 4, rows, rows)):
+                tdSql.checkData(0, col, expected)
+            tdSql.query(f"select count(v) from {db}.t where n < 1000")
+            tdSql.checkData(0, 0, 750)
+            tdSql.query(f"select count(v) from {db}.t where ts < {base_ts + 513}")
+            tdSql.checkData(0, 0, 384)
+            tdSql.query(f"select count(v) from {db}.t where length(v) > 0")
+            tdSql.checkData(0, 0, rows // 2)
+            tdSql.query(f"select count(v) from {db}.all_null")
+            tdSql.checkData(0, 0, 0)
+            tdSql.query(f"select count(v) from {db}.t where ts < {base_ts}")
+            tdSql.checkData(0, 0, 0)
+
+        tdSql.query(f"explain analyze verbose true select count(v) from {db}.t")
+        plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+        sma_blocks = re.search(r"sma_load_blocks=(\d+)", plan)
+        assert sma_blocks is not None and int(sma_blocks.group(1)) > 0, plan
+        assert re.search(r"check_rows=0\b", plan), plan
+
+        tdSql.execute(f"alter table {db}.added add column v blob")
+        tdSql.query(f"select count(v), count(n) from {db}.added")
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, rows)
+        tdSql.execute(f"drop database {db}")
+        tdLog.info("blob count block statistics ............... [ passed ]")
+
     def do_blob_many_large_values(self):
         db = "blob_big"
         tb = "t_big"
@@ -659,14 +740,21 @@ class TestDatatypeBlob:
         tdSql.execute(f"drop database if exists {db}")
         tdSql.execute(f"create database {db} vgroups 1")
         tdSql.execute(f"use {db}")
-        tdSql.execute(f"create table {tb} (ts timestamp, v blob)")
+        tdSql.execute(
+            f"create table {tb} (ts timestamp, before_blob int, v blob, "
+            "after_blob int, text_col varchar(32))"
+        )
 
         base_ts = 1700000000000
         payloads = []
         for i in range(rows):
             payload = self.blob_payload(self.MAX_BLOB_PAYLOAD, 0x20 + i)
             payloads.append(payload)
-            self.insert_blob_row(db, tb, base_ts + i * 1000, payload)
+            tdStmt2.execute_single(
+                f"insert into {db}.{tb} values(?, ?, ?, ?, ?)",
+                [base_ts + i * 1000, i, payload, -i, f"row-{i}"],
+                expected_rows=1,
+            )
         tdSql.flushDb(db)
         tdLog.info(f"inserted {rows} rows at the maximum payload size")
 
@@ -681,6 +769,20 @@ class TestDatatypeBlob:
         tdSql.checkRows(rows)
         for i in range(rows):
             tdSql.checkData(i, 0, self.MAX_BLOB_PAYLOAD)
+
+        for order in ("asc", "desc"):
+            tdSql.query(
+                f"select before_blob, length(v), crc32(v), after_blob, text_col "
+                f"from {tb} order by ts {order}"
+            )
+            tdSql.checkRows(rows)
+            for i in range(rows):
+                source = i if order == "asc" else rows - i - 1
+                tdSql.checkData(i, 0, source)
+                tdSql.checkData(i, 1, self.MAX_BLOB_PAYLOAD)
+                tdSql.checkData(i, 2, zlib.crc32(payloads[source]))
+                tdSql.checkData(i, 3, -source)
+                tdSql.checkData(i, 4, f"row-{source}")
 
         # more values than fit into a single result block, so the operator has to emit
         # intermediate blocks and keep merging the rest

@@ -21,6 +21,7 @@ SET(CMAKE_CXX_STANDARD 11)
 IF(NOT TD_WINDOWS)
     add_executable(tqTest tqTest.cpp)
     DEP_ext_gtest(tqTest)
+    DEP_ext_cppstub(tqTest)
     target_include_directories(tqTest
             PUBLIC
             "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -163,6 +164,7 @@ TARGET_INCLUDE_DIRECTORIES(
          bseTest
          PUBLIC "${TD_SOURCE_DIR}/include/common"
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src/bse"
          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 IF(NOT TD_WINDOWS)

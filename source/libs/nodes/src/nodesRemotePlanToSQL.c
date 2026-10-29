@@ -31,6 +31,7 @@
 #include "taoserror.h"
 #include "osMemory.h"
 #include "osTime.h"   // taosGetTimestampNs / taosGetTimestampMs
+#include "osTimezone.h"  // taosIanaNameToWindows (T-SQL AT TIME ZONE)
 #include "tdef.h"    // TSDB_DATA_TYPE_*
 #include "thash.h"  // taosHashIterate / taosHashGetKey
 #include "tlog.h"   // qDebug / qError
@@ -228,6 +229,10 @@ typedef struct {
   int32_t     cap;     // current capacity
   int32_t     err;     // first error code encountered (0 = OK)
   int32_t     exprDepth;  // Check correlation once per complete expression.
+  // T-SQL R1 (DS 5.3.12): the next expression append is consumed as a truth
+  // value (WHERE/HAVING/ON/CASE-WHEN/logic child).  Consumed - and reset -
+  // by dynAppendExpr so operand positions default back to value context.
+  int8_t      predicateCtx;
   // DS section 5.2.6: client timezone name for timestamp -> calendar conversion.
   // Pointer into the SNodesRemoteSQLCtx.tzName string; NOT owned by SDynSQL.
   // NULL means "use server global default timezone" (legacy behaviour).
@@ -242,6 +247,7 @@ static void dynSQLInit(SDynSQL* s) {
   s->cap    = 0;
   s->err    = 0;
   s->exprDepth = 0;
+  s->predicateCtx = 0;
   s->tzName = NULL;
 }
 
@@ -441,8 +447,15 @@ static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtS
 
 // Append a SQL-escaped string literal.
 // Single quotes -> double single-quotes; MySQL also escapes backslashes.
-static void dynAppendEscapedStringLen(SDynSQL* s, const char* str, int32_t len,
-                                      EExtSQLDialect dialect) {
+// ncharLiteral controls the T-SQL N prefix: an NCHAR literal must be nvarchar
+// (so DATALENGTH is 2 bytes/code unit), while a VARCHAR literal must stay a
+// byte string so that BIN2 comparison and DATALENGTH operate on the column's
+// own code-page bytes.
+static void dynAppendEscapedStringLenTyped(SDynSQL* s, const char* str, int32_t len,
+                                           EExtSQLDialect dialect, bool ncharLiteral) {
+  if (EXT_SQL_DIALECT_SQLSERVER == dialect && ncharLiteral) {
+    dynSQLAppendChar(s, 'N');
+  }
   dynSQLAppendChar(s, '\'');
   if (NULL != str && len > 0) {
     for (int32_t i = 0; i < len; ++i) {
@@ -459,6 +472,17 @@ static void dynAppendEscapedStringLen(SDynSQL* s, const char* str, int32_t len,
     }
   }
   dynSQLAppendChar(s, '\'');
+}
+
+static void dynAppendEscapedStringLen(SDynSQL* s, const char* str, int32_t len,
+                                      EExtSQLDialect dialect) {
+  dynAppendEscapedStringLenTyped(s, str, len, dialect, true);
+}
+
+static void dynAppendEscapedStringTyped(SDynSQL* s, const char* str, EExtSQLDialect dialect,
+                                        bool ncharLiteral) {
+  dynAppendEscapedStringLenTyped(s, str, NULL != str ? (int32_t)strlen(str) : 0, dialect,
+                                 ncharLiteral);
 }
 
 static void dynAppendEscapedString(SDynSQL* s, const char* str, EExtSQLDialect dialect) {
@@ -652,7 +676,13 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
   }
   switch (pVal->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
-      dynSQLAppendStr(s, pVal->datum.b ? "TRUE" : "FALSE");
+      /* T-SQL has no boolean literals: TRUE/FALSE parse as column names
+       * (Msg 207).  Render 1/0; the value domain matches TDengine's BOOL. */
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendStr(s, pVal->datum.b ? "1" : "0");
+      } else {
+        dynSQLAppendStr(s, pVal->datum.b ? "TRUE" : "FALSE");
+      }
       break;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
@@ -692,9 +722,9 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
              (int)pVal->node.resType.bytes,
              dialectName(dialect));
       if (pVal->datum.p) {
-        dynAppendEscapedString(s, varDataVal(pVal->datum.p), dialect);
+        dynAppendEscapedStringTyped(s, varDataVal(pVal->datum.p), dialect, false);
       } else {
-        dynAppendEscapedString(s, pVal->literal ? pVal->literal : "", dialect);
+        dynAppendEscapedStringTyped(s, pVal->literal ? pVal->literal : "", dialect, false);
       }
       break;
     case TSDB_DATA_TYPE_NCHAR:
@@ -738,26 +768,69 @@ typedef struct {
   int32_t     tokLen;      // strlen(tok), precomputed
   const char* mysql;       // MySQL DATE_FORMAT specifier
   const char* datafusion;  // DataFusion (chrono strftime) specifier
+  const char* net;         // T-SQL FORMAT (.NET) specifier; NULL = no exact mapping
 } SFmtTokenMap;
 
 static const SFmtTokenMap FMT_TOKENS[] = {
-    {"yyyy", 4, "%Y", "%Y"},
-    {"HH24", 4, "%H", "%H"},
-    {"HH12", 4, "%h", "%I"},
-    {"yy",   2, "%y", "%y"},
-    {"mm",   2, "%m", "%m"},
-    {"dd",   2, "%d", "%d"},
-    {"HH",   2, "%H", "%H"},
-    {"MI",   2, "%i", "%M"},
-    {"SS",   2, "%s", "%S"},
-    {"MS",   2, "%f", "%3f"},
-    {"US",   2, "%f", "%6f"},
-    {"NS",   2, "%f", "%9f"},
-    {"PM",   2, "%p", "%p"},
-    {"AM",   2, "%p", "%p"},
+    {"yyyy", 4, "%Y", "%Y", "yyyy"},
+    {"HH24", 4, "%H", "%H", "HH"},
+    {"HH12", 4, "%h", "%I", "hh"},
+    {"yy",   2, "%y", "%y", "yy"},
+    {"mm",   2, "%m", "%m", "MM"},
+    {"dd",   2, "%d", "%d", "dd"},
+    {"HH",   2, "%H", "%H", "HH"},
+    {"MI",   2, "%i", "%M", "mm"},
+    {"SS",   2, "%s", "%S", "ss"},
+    {"MS",   2, "%f", "%3f", "fff"},
+    {"US",   2, "%f", "%6f", "ffffff"},
+    {"NS",   2, "%f", "%9f", NULL},
+    {"PM",   2, "%p", "%p", "tt"},
+    {"AM",   2, "%p", "%p", "tt"},
 };
 
 #define FMT_TOKENS_N ((int32_t)(sizeof(FMT_TOKENS) / sizeof(FMT_TOKENS[0])))
+
+// Translate an Oracle-style format string into a T-SQL FORMAT (.NET pattern)
+// and append it as a string literal.  The mapping must be exact: any
+// alphabetic token without a .NET equivalent (e.g. NS, or unknown tokens)
+// fails the whole translation so the caller keeps TO_CHAR local - no partial
+// translation and no guessing (DS 5.3.13 to_char judged item 19).
+static int32_t dynAppendFmtStrNet(SDynSQL* s, const char* fmt, EExtSQLDialect dialect) {
+  SDynSQL out;
+  dynSQLInit(&out);
+  for (const char* p = fmt; *p;) {
+    if (isalpha((unsigned char)*p)) {
+      const SFmtTokenMap* pHit = NULL;
+      for (int32_t i = 0; i < FMT_TOKENS_N; i++) {
+        if (strncasecmp(p, FMT_TOKENS[i].tok, FMT_TOKENS[i].tokLen) == 0) {
+          pHit = &FMT_TOKENS[i];
+          break;
+        }
+      }
+      if (pHit == NULL || pHit->net == NULL) {
+        qError("FQ-SQL: TO_CHAR format token unmappable for T-SQL FORMAT fmt='%s' at '%.8s'; keeping local",
+               fmt, p);
+        dynSQLFree(&out);
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      dynSQLAppendStr(&out, pHit->net);
+      p += pHit->tokLen;
+    } else {
+      dynSQLAppendChar(&out, *p);
+      ++p;
+    }
+  }
+  if (out.err) {
+    dynSQLFree(&out);
+    return out.err;
+  }
+  // out.buf is a raw growable buffer: it is NOT NUL-terminated, so the
+  // strlen-based dynAppendEscapedString would read past pos (uninitialized
+  // bytes, ASan heap-buffer-overflow).  Use the length-aware variant.
+  dynAppendEscapedStringLen(s, out.buf != NULL ? out.buf : "", out.pos, dialect);
+  dynSQLFree(&out);
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
 
 // Translate an Oracle-style format string and emit it as a quoted SQL literal.
 // useDatafusion selects the DataFusion specifier column; otherwise MySQL's.
@@ -898,6 +971,10 @@ static int8_t fqDefaultTimestampPrecisionForDialect(EExtSQLDialect dialect) {
   switch (dialect) {
     case EXT_SQL_DIALECT_MYSQL:
     case EXT_SQL_DIALECT_POSTGRES:
+    case EXT_SQL_DIALECT_SQLSERVER:
+      // The SQL Server connector transports timestamps as microseconds even
+      // when the column is declared datetime2(p <= 3); using the millisecond
+      // default here would truncate the DATEDIFF_BIG unit on the fallback path.
       return TSDB_TIME_PRECISION_MICRO;
     case EXT_SQL_DIALECT_INFLUXQL:
       return TSDB_TIME_PRECISION_NANO;
@@ -1632,12 +1709,14 @@ static int32_t dynRenderGroupConcatRowExpr(SDynSQL* s, const SFunctionNode* pFun
   }
 
   dynSQLAppendStr(s, "CONCAT(");
-  for (int32_t i = 0; i < valueArgCount; ++i) {
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < valueArgCount;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
     if (i > 0) {
       dynSQLAppendStr(s, ", ");
     }
 
-    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell ? pParameterCell->pNode : NULL), dialect, pExtMeta, pCtx);
     if (code) {
       return code;
     }
@@ -1744,6 +1823,10 @@ static const char* dynFloatingCastType(EExtSQLDialect dialect, uint8_t type) {
   switch (dialect) {
     case EXT_SQL_DIALECT_MYSQL:
       return "DOUBLE";
+    case EXT_SQL_DIALECT_SQLSERVER:
+      // T-SQL float(53) is 8-byte double precision; FLOAT is the dialect
+      // spelling mandated by DS 5.3.6 R4 ({DATETIME2, FLOAT, NVARCHAR}).
+      return "FLOAT";
     case EXT_SQL_DIALECT_POSTGRES:
     case EXT_SQL_DIALECT_INFLUXQL:
     default:
@@ -1754,7 +1837,14 @@ static const char* dynFloatingCastType(EExtSQLDialect dialect, uint8_t type) {
 static const char* dynSqlCastType(EExtSQLDialect dialect, uint8_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_VARCHAR:
+      // DS 5.3.2: a TDengine VARCHAR corresponds to the remote source's
+      // VARCHAR (byte string), so the cast keeps the same width semantics -
+      // including for HASHBYTES, which hashes the code-page bytes.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "VARCHAR";
+      return (dialect == EXT_SQL_DIALECT_POSTGRES) ? "TEXT" : "CHAR";
     case TSDB_DATA_TYPE_NCHAR:
+      // DS 5.3.13 cast row: NCHAR -> NVARCHAR (Unicode semantics).
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "NVARCHAR";
       return (dialect == EXT_SQL_DIALECT_POSTGRES) ? "TEXT" : "CHAR";
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
@@ -1771,12 +1861,18 @@ static const char* dynSqlCastType(EExtSQLDialect dialect, uint8_t type) {
     case TSDB_DATA_TYPE_FLOAT:
       return "FLOAT";
     case TSDB_DATA_TYPE_DOUBLE:
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "FLOAT";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "DOUBLE" : "DOUBLE PRECISION";
     case TSDB_DATA_TYPE_BOOL:
+      // DS 5.3.13 cast row: BOOL -> BIT (T-SQL has no BOOLEAN type).
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "BIT";
       return "BOOLEAN";
     case TSDB_DATA_TYPE_TIMESTAMP:
+      // DS 5.3.6 R4: TIMESTAMP is rowversion in T-SQL - never emit it.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "DATETIME2";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "DATETIME(3)" : "TIMESTAMP";
     default:
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "NVARCHAR";
       return "CHAR";
   }
 }
@@ -1797,6 +1893,48 @@ static bool dynIsComparisonOp(EOperatorType opType) {
 
 static bool dynIsPgRegexNumericComparableType(int32_t type) {
   return dynIsIntegerType(type) || dynIsFloatingType(type) || type == TSDB_DATA_TYPE_BOOL;
+}
+
+// T-SQL has no boolean scalar type: a boolean-valued expression is legal only
+// where a condition is expected.  These node forms render as a complete
+// T-SQL predicate on their own; every other boolean expression must either be
+// wrapped in CASE WHEN (value context) or normalised to `<expr> = 1`
+// (condition context).  See DS 5.3.12 R1.
+static bool dynIsTsqlPredicateForm(const SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+  switch (nodeType((SNode*)pExpr)) {
+    case QUERY_NODE_LOGIC_CONDITION:
+      return true;
+    case QUERY_NODE_OPERATOR:
+      switch (((const SOperatorNode*)pExpr)->opType) {
+        case OP_TYPE_EQUAL:
+        case OP_TYPE_NOT_EQUAL:
+        case OP_TYPE_GREATER_THAN:
+        case OP_TYPE_GREATER_EQUAL:
+        case OP_TYPE_LOWER_THAN:
+        case OP_TYPE_LOWER_EQUAL:
+        case OP_TYPE_LIKE:
+        case OP_TYPE_NOT_LIKE:
+        case OP_TYPE_IN:
+        case OP_TYPE_NOT_IN:
+        case OP_TYPE_IS_NULL:
+        case OP_TYPE_IS_NOT_NULL:
+        case OP_TYPE_IS_TRUE:
+        case OP_TYPE_IS_FALSE:
+        case OP_TYPE_IS_UNKNOWN:
+        case OP_TYPE_IS_NOT_TRUE:
+        case OP_TYPE_IS_NOT_FALSE:
+        case OP_TYPE_IS_NOT_UNKNOWN:
+        case OP_TYPE_EXISTS:
+          return true;
+        default:
+          return false;
+      }
+    default:
+      return false;
+  }
 }
 
 static bool dynIsVarLikeType(int32_t type) {
@@ -2063,7 +2201,11 @@ static int32_t dynAppendRemoteListLiteral(SDynSQL* s, const SRemoteValueListNode
                                           EExtSQLDialect dialect, int8_t tsPrecision) {
   switch (pRemote->filterValueType) {
     case TSDB_DATA_TYPE_BOOL:
-      dynSQLAppendStr(s, (*(int8_t*)pKey) ? "TRUE" : "FALSE");
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendStr(s, (*(int8_t*)pKey) ? "1" : "0");  // R2: no T-SQL boolean literals
+      } else {
+        dynSQLAppendStr(s, (*(int8_t*)pKey) ? "TRUE" : "FALSE");
+      }
       break;
     case TSDB_DATA_TYPE_TINYINT:
       dynSQLAppendf(s, "%" PRId64, (int64_t)(*(int8_t*)pKey));
@@ -2123,8 +2265,9 @@ static int32_t dynAppendResolvedRemoteValueList(SDynSQL* s, const SRemoteValueLi
 
   // Empty set - "col IN ()" is invalid SQL; keep the historical FALSE
   // fallback for callers that render the list as a full standalone fragment.
+  // T-SQL has no boolean literal: use the always-false predicate form (R2).
   if (!pRemote->pHashFilter || taosHashGetSize(pRemote->pHashFilter) == 0) {
-    dynSQLAppendStr(s, "FALSE");
+    dynSQLAppendStr(s, (EXT_SQL_DIALECT_SQLSERVER == dialect) ? "(1 = 0)" : "FALSE");
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2384,6 +2527,283 @@ static int32_t dynAppendSubqBodyByMode(SDynSQL* s, EFqSubqRenderMode mode,
   return s->err ? s->err : TSDB_CODE_SUCCESS;
 }
 
+// Render the RIGHT-hand operand of a T-SQL LIKE predicate.  A string literal
+// pattern gets its '[' escaped to '[[]' (T-SQL character-set metacharacter,
+// plain character in TDengine); non-literal patterns (columns/expressions)
+// render normally and keep the remote pattern semantics.
+static int32_t dynAppendTsqlLikePattern(SDynSQL* s, const SNode* pExpr, bool ncharPattern,
+                                        EExtSQLDialect dialect,
+                                        const SExtTableMeta* pExtMeta,
+                                        const SNodesRemoteSQLCtx* pCtx) {
+  if (NULL != pExpr && QUERY_NODE_VALUE == nodeType((SNode*)pExpr)) {
+    const SValueNode* pVal = (const SValueNode*)pExpr;
+    if (pVal->isNull) {
+      dynSQLAppendStr(s, "NULL");
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+    // Prefer the original literal text (UTF-8, NUL-terminated).  A VARSTR
+    // datum is length-prefixed and the bytes after it are arbitrary node
+    // data, so it must be bounded by varDataLen instead of a NUL scan.
+    const char* content    = NULL;
+    int32_t     contentLen = 0;
+    if (NULL != pVal->literal) {
+      content    = pVal->literal;
+      contentLen = (int32_t)strlen(pVal->literal);
+    } else if (NULL != pVal->datum.p) {
+      content    = varDataVal(pVal->datum.p);
+      contentLen = (int32_t)varDataLen(pVal->datum.p);
+    }
+    if (NULL != content) {
+      SDynSQL esc;
+      dynSQLInit(&esc);
+      for (int32_t i = 0; i < contentLen; ++i) {
+        char ch = content[i];
+        if ('\\' == ch) {
+          // TDengine only treats '\\' as an escape before a wildcard or
+          // another backslash; every other backslash is a literal character.
+          // T-SQL's ESCAPE clause gives the backslash escape meaning in all
+          // positions, so normalize: keep real TDengine escapes, and double
+          // every literal backslash so T-SQL reads it as one character.
+          if (i + 1 < contentLen &&
+              ('%' == content[i + 1] || '_' == content[i + 1] || '\\' == content[i + 1])) {
+            dynSQLAppendChar(&esc, '\\');
+            dynSQLAppendChar(&esc, content[++i]);
+          } else {
+            dynSQLAppendStr(&esc, "\\\\");
+          }
+        } else if ('[' == ch) {
+          dynSQLAppendStr(&esc, "[[]");
+        } else if (ch >= 'a' && ch <= 'z') {
+          // Match the TRANSLATE(...upper...) applied to the column: TDengine
+          // LIKE is ASCII case-insensitive only.
+          dynSQLAppendChar(&esc, (char)(ch - 'a' + 'A'));
+        } else {
+          dynSQLAppendChar(&esc, ch);
+        }
+      }
+      if (esc.err) {
+        int32_t escErr = esc.err;
+        dynSQLFree(&esc);
+        return escErr;
+      }
+      dynAppendEscapedStringLenTyped(s, (NULL != esc.buf) ? esc.buf : "", esc.pos, dialect,
+                                     ncharPattern);
+      dynSQLFree(&esc);
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+  }
+  return dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+}
+
+static bool dynIsTsqlCharType(int32_t type) {
+  return IS_STR_DATA_TYPE(type) || IS_STR_DATA_BLOB(type);
+}
+
+// Length used by the exact character-equality rewrite.  For NCHAR the
+// sentinel character makes LEN count trailing spaces; two strings that are
+// already code-unit equal have equal character counts iff their code-unit
+// counts are equal (a surrogate pair appears on both sides together).  For
+// VARCHAR/VARBINARY DATALENGTH is the raw byte count, matching TDengine's
+// byte-wise comparison.
+static int32_t dynAppendTsqlCharCmpOperand(SDynSQL* s, const SNode* pExpr, bool asNchar,
+                                           EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                           const SNodesRemoteSQLCtx* pCtx) {
+  // A string literal's own node type is often VARCHAR even when the parser
+  // chose NCHAR as the comparison's common type.  Render the literal with the
+  // common type's prefix so DATALENGTH/LEN agree on both sides.
+  if (pExpr != NULL && nodeType((SNode*)pExpr) == QUERY_NODE_VALUE) {
+    const SValueNode* pVal = (const SValueNode*)pExpr;
+    if (!pVal->isNull && dynIsTsqlCharType((int32_t)pVal->node.resType.type)) {
+      const char* str = NULL;
+      if (pVal->node.resType.type == TSDB_DATA_TYPE_NCHAR) {
+        str = pVal->literal;
+      } else if (pVal->datum.p != NULL) {
+        str = varDataVal(pVal->datum.p);
+      } else {
+        str = pVal->literal;
+      }
+      if (str != NULL) {
+        dynAppendEscapedStringTyped(s, str, dialect, asNchar);
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+    }
+  }
+  return dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+}
+
+static int32_t dynAppendTsqlCharPayloadLen(SDynSQL* s, const SNode* pExpr, bool asNchar,
+                                           EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                           const SNodesRemoteSQLCtx* pCtx) {
+  dynSQLAppendStr(s, asNchar ? "(LEN(" : "DATALENGTH(");
+  int32_t code = dynAppendTsqlCharCmpOperand(s, pExpr, asNchar, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (asNchar) {
+    dynSQLAppendStr(s, " + N'.') - 1)");
+  } else {
+    dynSQLAppendChar(s, ')');
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// SQL Server character = / <> must reproduce TDengine's exact comparison:
+// code-point equality plus exact length (ANSI padding would otherwise make
+// 'abc' = 'abc ' true).  Force a binary collation so case/accent rules do not
+// apply, and compare the payload length separately.  For '=' the result is
+// (binary_equal AND same_length); for '<>' it is NOT(...), which preserves
+// SQL's three-valued NULL logic.
+static int32_t dynAppendTsqlCharEquality(SDynSQL* s, const SOperatorNode* pOp,
+                                         EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                         const SNodesRemoteSQLCtx* pCtx) {
+  const SExprNode* pLeft = (const SExprNode*)pOp->pLeft;
+  const SExprNode* pRight = (const SExprNode*)pOp->pRight;
+  // TDengine's common type for NCHAR vs VARCHAR is VARCHAR (UTF-8 bytes), but
+  // SQL Server's nvarchar stores UTF-16.  Rendering both sides as nvarchar and
+  // comparing characters is equivalent to TDengine's UTF-8 byte comparison for
+  // valid text; using DATALENGTH on the nvarchar side would compare UTF-16
+  // bytes against UTF-8 bytes and never match.  Both-VARCHAR keeps the byte
+  // path (BIN2 + DATALENGTH).
+  bool leftNchar = (pLeft->resType.type == TSDB_DATA_TYPE_NCHAR);
+  bool rightNchar = (pRight->resType.type == TSDB_DATA_TYPE_NCHAR);
+  bool asNchar = leftNchar || rightNchar;
+  bool isBinary = !asNchar &&
+                  (pLeft->resType.type == TSDB_DATA_TYPE_VARBINARY ||
+                   pRight->resType.type == TSDB_DATA_TYPE_VARBINARY ||
+                   pLeft->resType.type == TSDB_DATA_TYPE_BLOB ||
+                   pRight->resType.type == TSDB_DATA_TYPE_BLOB ||
+                   pLeft->resType.type == TSDB_DATA_TYPE_MEDIUMBLOB ||
+                   pRight->resType.type == TSDB_DATA_TYPE_MEDIUMBLOB);
+  bool             negate = (pOp->opType == OP_TYPE_NOT_EQUAL);
+
+  if (negate) {
+    dynSQLAppendStr(s, "(NOT ");
+  }
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendTsqlCharCmpOperand(s, pOp->pLeft, asNchar, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (!isBinary) {
+    dynSQLAppendStr(s, " COLLATE Latin1_General_BIN2");
+  }
+  dynSQLAppendStr(s, " = ");
+  code = dynAppendTsqlCharCmpOperand(s, pOp->pRight, asNchar, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (!isBinary) {
+    dynSQLAppendStr(s, " COLLATE Latin1_General_BIN2");
+  }
+  dynSQLAppendStr(s, " AND ");
+  code = dynAppendTsqlCharPayloadLen(s, pOp->pLeft, asNchar, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, " = ");
+  code = dynAppendTsqlCharPayloadLen(s, pOp->pRight, asNchar, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendChar(s, ')');
+  if (negate) {
+    dynSQLAppendChar(s, ')');
+  }
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// T-SQL CONCAT treats NULL as an empty string, while TDengine CONCAT and
+// CONCAT_WS return NULL when any argument (including the CONCAT_WS separator)
+// is NULL.  Wrap the native call in a NULL guard so the result is identical.
+static int32_t dynRenderTsqlConcat(SDynSQL* s, const SFunctionNode* pFunc, const char* funcName,
+                                   EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                   const SNodesRemoteSQLCtx* pCtx) {
+  int32_t nParams = (pFunc->pParameterList != NULL) ? LIST_LENGTH(pFunc->pParameterList) : 0;
+  if (nParams < 2) {
+    qError("FQ-SQL: %s requires at least two parameters", funcName);
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  dynSQLAppendStr(s, "(CASE WHEN ");
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < nParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    if (i > 0) {
+      dynSQLAppendStr(s, " OR ");
+    }
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell ? pParameterCell->pNode : NULL), dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " IS NULL");
+  }
+  dynSQLAppendStr(s, " THEN NULL ELSE ");
+  dynSQLAppendStr(s, funcName);
+  dynSQLAppendChar(s, '(');
+  SListCell* pParameterCell2 = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < nParams;
+       ++i, pParameterCell2 = (NULL != pParameterCell2 ? pParameterCell2->pNext : NULL)) {
+    if (i > 0) {
+      dynSQLAppendStr(s, ", ");
+    }
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell2 ? pParameterCell2->pNode : NULL), dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  // Close CONCAT(...), terminate the CASE, and close the outer parenthesis:
+  //   (CASE WHEN ... THEN NULL ELSE CONCAT(...) END)
+  dynSQLAppendStr(s, ") END)");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+static bool dynIsTsqlArithmeticOp(EOperatorType opType) {
+  return opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI ||
+         opType == OP_TYPE_DIV || opType == OP_TYPE_REM;
+}
+
+// TDengine promotes every non-decimal arithmetic result to DOUBLE; T-SQL
+// keeps the operand type, so integer + - * can overflow (8115) and / is an
+// integer division.  Cast both operands to FLOAT so the remote evaluation is
+// the same double arithmetic.  Division and modulo also map a zero divisor to
+// NULL, matching vectorMathDivide/vectorMathRemainder, instead of raising
+// error 8134.
+static int32_t dynAppendTsqlArithmeticExpr(SDynSQL* s, const SOperatorNode* pOp,
+                                           EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                           const SNodesRemoteSQLCtx* pCtx) {
+  const char* opStr = NULL;
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:   opStr = " + "; break;
+    case OP_TYPE_SUB:   opStr = " - "; break;
+    case OP_TYPE_MULTI: opStr = " * "; break;
+    case OP_TYPE_DIV:   opStr = " / "; break;
+    case OP_TYPE_REM:   opStr = " % "; break;
+    default: return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  dynSQLAppendChar(s, '(');
+  if (pOp->opType == OP_TYPE_REM) {
+    // T-SQL rejects `%` on float; integer modulo matches TDengine for the
+    // planner-approved non-BIGINT operands.  NULLIF maps a zero divisor to
+    // NULL instead of error 8134.
+    int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " % NULLIF(");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, ", 0)");
+    dynSQLAppendChar(s, ')');
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+
+  dynSQLAppendStr(s, "CAST(");
+  int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, " AS FLOAT)");
+  dynSQLAppendStr(s, opStr);
+  if (pOp->opType == OP_TYPE_DIV) {
+    dynSQLAppendStr(s, "NULLIF(CAST(");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " AS FLOAT), 0)");
+  } else {
+    dynSQLAppendStr(s, "CAST(");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " AS FLOAT)");
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect,
                                       const SExtTableMeta* pExtMeta,
                                       const SNodesRemoteSQLCtx* pCtx) {
@@ -2450,6 +2870,76 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     return s->err ? s->err : TSDB_CODE_SUCCESS;
   }
 
+  // DS 5.3.12 OP_TYPE_LIKE: T-SQL treats '[' / ']' / '[^]' as character-set
+  // metacharacters (TDengine treats '[' as a plain character), and the
+  // comparison's case sensitivity is collation-controlled (TDengine's LIKE is
+  // ASCII case-insensitive).  Rewrite the predicate with an explicit CI
+  // collation, escape the pattern's '[' as '[[]', and pin the escape
+  // character:
+  //   <expr> COLLATE Latin1_General_CI_AS LIKE <pattern> ESCAPE '\'
+  if (EXT_SQL_DIALECT_SQLSERVER == dialect &&
+      (pOp->opType == OP_TYPE_LIKE || pOp->opType == OP_TYPE_NOT_LIKE)) {
+    // TDengine LIKE folds ASCII letters only and compares every other
+    // character exactly.  A collation-based LIKE would fold Unicode and
+    // ignore the binary nature of the comparison; instead uppercase the
+    // ASCII letters on both sides and compare under a binary collation.
+    // Patterns containing '_' are kept local by the planner (T-SQL counts
+    // UTF-16 code units, TDengine counts UCS4 characters).
+    dynSQLAppendChar(s, '(');
+    dynSQLAppendStr(s, "TRANSLATE(");
+    (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    dynSQLAppendStr(s, ", 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')");
+    dynSQLAppendStr(s, " COLLATE Latin1_General_BIN2");
+    dynSQLAppendStr(s, (pOp->opType == OP_TYPE_LIKE) ? " LIKE " : " NOT LIKE ");
+    bool ncharPattern = (pOp->pLeft != NULL &&
+                         ((const SExprNode*)pOp->pLeft)->resType.type == TSDB_DATA_TYPE_NCHAR);
+    int32_t likeCode = dynAppendTsqlLikePattern(s, pOp->pRight, ncharPattern, dialect,
+                                                pExtMeta, pCtx);
+    if (TSDB_CODE_SUCCESS != likeCode) {
+      return likeCode;
+    }
+    dynSQLAppendStr(s, " ESCAPE '\\'");
+    dynSQLAppendChar(s, ')');
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+
+  // SQL Server character equality/inequality: exact rewrite (binary collation
+  // plus payload-length check).  See dynAppendTsqlCharEquality.
+  if (EXT_SQL_DIALECT_SQLSERVER == dialect &&
+      (pOp->opType == OP_TYPE_EQUAL || pOp->opType == OP_TYPE_NOT_EQUAL) &&
+      pOp->pLeft != NULL && pOp->pRight != NULL &&
+      dynIsTsqlCharType(((const SExprNode*)pOp->pLeft)->resType.type) &&
+      dynIsTsqlCharType(((const SExprNode*)pOp->pRight)->resType.type)) {
+    return dynAppendTsqlCharEquality(s, pOp, dialect, pExtMeta, pCtx);
+  }
+
+  // SQL Server arithmetic over non-decimal operands: TDengine evaluates in
+  // DOUBLE and maps a zero divisor to NULL.  Keep the exact double rewrite for
+  // the floating result type; decimal arithmetic is gated at plan time.
+  if (EXT_SQL_DIALECT_SQLSERVER == dialect && dynIsTsqlArithmeticOp(pOp->opType) &&
+      pOp->pLeft != NULL && pOp->pRight != NULL &&
+      dynIsFloatingType(((const SExprNode*)pOp)->resType.type)) {
+    return dynAppendTsqlArithmeticExpr(s, pOp, dialect, pExtMeta, pCtx);
+  }
+
+  // TDengine bit operations produce BIGINT; T-SQL keeps the narrowest operand
+  // type.  Cast both operands to BIGINT so the result type and value match.
+  if (EXT_SQL_DIALECT_SQLSERVER == dialect &&
+      (pOp->opType == OP_TYPE_BIT_AND || pOp->opType == OP_TYPE_BIT_OR) &&
+      pOp->pLeft != NULL && pOp->pRight != NULL) {
+    dynSQLAppendChar(s, '(');
+    dynSQLAppendStr(s, "CAST(");
+    int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    if (code) return code;
+    dynSQLAppendStr(s, " AS BIGINT)");
+    dynSQLAppendStr(s, (pOp->opType == OP_TYPE_BIT_AND) ? " & " : " | ");
+    dynSQLAppendStr(s, "CAST(");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code) return code;
+    dynSQLAppendStr(s, " AS BIGINT))");
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+
   const char* opStr = NULL;
   switch (pOp->opType) {
     case OP_TYPE_EQUAL:         opStr = " = ";    break;
@@ -2470,13 +2960,20 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     case OP_TYPE_BIT_AND:       opStr = " & ";        break;
     case OP_TYPE_BIT_OR:        opStr = " | ";        break;
     case OP_TYPE_MINUS:
-      // Unary minus: -(expr)
-      dynSQLAppendStr(s, "(-(");
-      {
+      // Unary minus: -(expr).  TDengine evaluates in DOUBLE; T-SQL keeps the
+      // operand type and would overflow on INT64_MIN.
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect && pOp->pLeft != NULL &&
+          dynIsFloatingType(((const SExprNode*)pOp)->resType.type)) {
+        dynSQLAppendStr(s, "(-(CAST(");
         int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         if (code) return code;
+        dynSQLAppendStr(s, " AS FLOAT)))");
+      } else {
+        dynSQLAppendStr(s, "(-(");
+        int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, "))");
       }
-      dynSQLAppendStr(s, "))");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_MATCH:
       // TDengine MATCH  ->  MySQL REGEXP / PostgreSQL ~ / InfluxDB(DataFusion) ~
@@ -2626,31 +3123,74 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS NOT NULL)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_TRUE:
+      // T-SQL has no IS [NOT] TRUE/FALSE/UNKNOWN (DS 5.3.12): rewrite to the
+      // 0/1 comparison forms.  NULL input yields UNKNOWN in T-SQL, which a
+      // WHERE filters out - matching TDengine's IS TRUE = false for NULL.
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendChar(s, '(');
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " <> 0)");
+        return TSDB_CODE_SUCCESS;
+      }
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS TRUE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_FALSE:
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendChar(s, '(');
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " = 0)");
+        return TSDB_CODE_SUCCESS;
+      }
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS FALSE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_UNKNOWN:
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendChar(s, '(');
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " IS NULL)");
+        return TSDB_CODE_SUCCESS;
+      }
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS UNKNOWN)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_TRUE:
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendChar(s, '(');
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " = 0 OR ");
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " IS NULL)");
+        return TSDB_CODE_SUCCESS;
+      }
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS NOT TRUE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_FALSE:
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendChar(s, '(');
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " <> 0 OR ");
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " IS NULL)");
+        return TSDB_CODE_SUCCESS;
+      }
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS NOT FALSE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_UNKNOWN:
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+        dynSQLAppendChar(s, '(');
+        (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, " IS NOT NULL)");
+        return TSDB_CODE_SUCCESS;
+      }
       dynSQLAppendChar(s, '(');
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       dynSQLAppendStr(s, " IS NOT UNKNOWN)");
@@ -2898,6 +3438,7 @@ static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pL
     dynSQLAppendStr(s, "NOT ");
     SNode* pNode = (SNode*)pLogic->pParameterList->pHead->pNode;
     dynSQLAppendChar(s, '(');
+    s->predicateCtx = 1;  // NOT operand is a condition (T-SQL R1)
     int32_t code = dynAppendExpr(s, pNode, dialect, pExtMeta, pCtx);
     if (code) return code;
     dynSQLAppendChar(s, ')');
@@ -2941,6 +3482,7 @@ static int32_t dynAppendLogicCondition(SDynSQL* s, const SLogicConditionNode* pL
   SNode* pNode = NULL;
   FOREACH(pNode, pLogic->pParameterList) {
     if (!first) dynSQLAppendStr(s, sep);
+    s->predicateCtx = 1;  // AND/OR operands are conditions (T-SQL R1)
     int32_t code = dynAppendExpr(s, pNode, dialect, pExtMeta, pCtx);
     if (code) return code;
     first = false;
@@ -2985,9 +3527,11 @@ static int32_t dynRenderNamedFuncKeepN(SDynSQL* s, const char* funcName,
                                        const SNodesRemoteSQLCtx* pCtx) {
   dynSQLAppendStr(s, funcName);
   dynSQLAppendChar(s, '(');
-  for (int32_t i = 0; i < nKeep; i++) {
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < nKeep;
+       i++, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
     if (i > 0) dynSQLAppendStr(s, ", ");
-    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell ? pParameterCell->pNode : NULL), dialect, pExtMeta, pCtx);
     if (code) return code;
   }
   dynSQLAppendChar(s, ')');
@@ -3003,6 +3547,18 @@ static int32_t dynRenderTdLengthExpr(SDynSQL* s, const SFunctionNode* pFunc,
     qDebug("FQ-SQL: LENGTH over NCHAR uses CHAR_LENGTH * %d dialect=%s argType=%d resultType=%d",
            (int)TSDB_NCHAR_SIZE, dialectName(dialect),
            ((const SExprNode*)pArg0)->resType.type, pFunc->node.resType.type);
+    if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+      // DS 5.3.13 length row: NCHAR columns -> (LEN(expr + N'.') - 1) * 4
+      // (the sentinel character makes LEN count a trailing space); align with
+      // the UCS4 byte length of TDengine NCHAR.
+      dynSQLAppendStr(s, "((LEN(");
+      int32_t code = dynAppendExpr(s, pArg0, dialect, pExtMeta, pCtx);
+      if (code) {
+        return code;
+      }
+      dynSQLAppendf(s, " + N'.') - 1) * %d)", (int)TSDB_NCHAR_SIZE);
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
     dynSQLAppendStr(s, "(CHAR_LENGTH(");
     int32_t code = dynAppendExpr(s, pArg0, dialect, pExtMeta, pCtx);
     if (code) {
@@ -3012,6 +3568,10 @@ static int32_t dynRenderTdLengthExpr(SDynSQL* s, const SFunctionNode* pFunc,
     return s->err ? s->err : TSDB_CODE_SUCCESS;
   }
 
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+    // DS 5.3.13 length row: VARCHAR columns -> DATALENGTH(expr).
+    return dynRenderNamedFunc(s, "DATALENGTH", pFunc, dialect, pExtMeta, pCtx);
+  }
   if (dialect == EXT_SQL_DIALECT_MYSQL) {
     return dynRenderNamedFunc(s, "LENGTH", pFunc, dialect, pExtMeta, pCtx);
   }
@@ -3024,6 +3584,28 @@ static int32_t dynRenderTdSubstringExpr(SDynSQL* s, const SFunctionNode* pFunc,
                                         const SExtTableMeta* pExtMeta,
                                         const SNodesRemoteSQLCtx* pCtx) {
   int32_t nParams = pFunc->pParameterList ? LIST_LENGTH(pFunc->pParameterList) : 0;
+
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 2) {
+    // DS 5.3.13 substr row: T-SQL SUBSTRING requires the length argument, so
+    // the two-argument form appends INT_MAX.  Start positions below 1 differ
+    // from TDengine (negative counts from the end) and are kept local by the
+    // planner gate.
+    dynSQLAppendStr(s, "SUBSTRING(");
+    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+    if (code) return code;
+    dynSQLAppendStr(s, ", ");
+    code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+    if (code) return code;
+    dynSQLAppendStr(s, ", ");
+    if (nParams >= 3) {
+      code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 2), dialect, pExtMeta, pCtx);
+      if (code) return code;
+    } else {
+      dynSQLAppendStr(s, "2147483647");
+    }
+    dynSQLAppendChar(s, ')');
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
 
   if ((dialect != EXT_SQL_DIALECT_POSTGRES && dialect != EXT_SQL_DIALECT_INFLUXQL) || nParams < 2) {
     return dynRenderNamedFunc(s, "SUBSTRING", pFunc, dialect, pExtMeta, pCtx);
@@ -3081,6 +3663,51 @@ static int32_t dynRenderTdSubstringExpr(SDynSQL* s, const SFunctionNode* pFunc,
   return s->err ? s->err : TSDB_CODE_SUCCESS;
 }
 
+// Render one argument of a T-SQL time function.  tz-aware external columns
+// (datetimeoffset) hold an absolute instant, so the function must first map it
+// into the client's wall clock: `<expr> AT TIME ZONE '<windows_tz>'`.
+// tz-naive columns (datetime2/datetime/date) already store the client wall
+// clock and render directly.  When a wrap is required but the client's Windows
+// zone name cannot be resolved from its IANA name, the caller keeps the whole
+// function local (DS 5.3.13 judged item 6).
+static int32_t dynAppendTsqlTimeArgWrapped(SDynSQL* s, const SNode* pArg, EExtSQLDialect dialect,
+                                           const SExtTableMeta* pExtMeta,
+                                           const SNodesRemoteSQLCtx* pCtx) {
+  EExtTimestampTzClass tsClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+  if (pArg != NULL && nodesIsExprNode((SNode*)pArg) &&
+      ((const SExprNode*)pArg)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    tsClass = fqResolveExprTimestampClass(pArg, dialect, pExtMeta, pCtx, NULL, NULL);
+  }
+  if (tsClass != EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  }
+  const char* pWinTz = (s->tzName != NULL && s->tzName[0] != '\0')
+                           ? taosIanaNameToWindows(s->tzName)
+                           : NULL;
+  if (pWinTz == NULL) {
+    qError("FQ-SQL: no Windows timezone name for client tz '%s'; keeping the time function local",
+           (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(null)");
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  if (code) {
+    return code;
+  }
+  dynSQLAppendStr(s, " AT TIME ZONE '");
+  dynSQLAppendStr(s, pWinTz);
+  dynSQLAppendStr(s, "')");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+static const char* dynTsqlEpochDatepartByPrecision(int8_t precision) {
+  switch (fqNormalizeTimePrecision(precision, TSDB_TIME_PRECISION_MICRO)) {
+    case TSDB_TIME_PRECISION_MILLI: return "MILLISECOND";
+    case TSDB_TIME_PRECISION_NANO:  return "NANOSECOND";
+    default:                        return "MICROSECOND";
+  }
+}
+
 static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
                                      EExtSQLDialect dialect,
                                      const SExtTableMeta* pExtMeta,
@@ -3091,7 +3718,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
   switch (funcType) {
     /* -- Math (all dialects) ------------------------------------------- */
     case FUNCTION_TYPE_ABS:     return dynRenderNamedFunc(s, "ABS",     pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_CEIL:    return dynRenderNamedFunc(s, "CEIL",    pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_CEIL:
+      // DS 5.3.13: T-SQL has CEILING, not CEIL.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "CEILING" : "CEIL",
+                                pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_FLOOR:   return dynRenderNamedFunc(s, "FLOOR",   pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_ROUND:
       // MySQL ROUND(double, n) follows approximate-number semantics and may
@@ -3128,18 +3758,33 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "ROUND",   pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SQRT:    return dynRenderNamedFunc(s, "SQRT",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_POW:
-      /* PostgreSQL only accepts POWER, not POW */
-      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL)
+      /* PostgreSQL only accepts POWER, not POW; T-SQL has no POW (DS 5.3.13) */
+      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL ||
+          dialect == EXT_SQL_DIALECT_SQLSERVER)
         return dynRenderNamedFunc(s, "POWER", pFunc, dialect, pExtMeta, pCtx);
       return dynRenderNamedFunc(s, "POW", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_EXP:     return dynRenderNamedFunc(s, "EXP",     pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_LN:      return dynRenderNamedFunc(s, "LN",      pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_LN:
+      // DS 5.3.13: T-SQL LOG() is the natural logarithm (no LN function name).
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "LOG" : "LN",
+                                pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LOG: {
       // DS section5.3.4.1.1: LOG() semantics differ by dialect.
       // Single-arg LOG(expr): TDengine means natural log; PG/Influx LOG() is base-10, must use LN().
       // Two-arg LOG(expr, base): TDengine means log_base(expr); others use LOG(base, expr) - swap args.
       if (nParams == 1 && (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL))
         return dynRenderNamedFunc(s, "LN", pFunc, dialect, pExtMeta, pCtx);
+      if (nParams >= 2 && dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13: T-SQL has no two-argument LOG; log_{e2}(e1) = LOG(e1)/LOG(e2).
+        dynSQLAppendStr(s, "(LOG(");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") / LOG(");
+        code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, "))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (nParams >= 2) {
         // Swap: LOG(expr, base) -> LOG(base, expr)
         dynSQLAppendStr(s, "LOG(");
@@ -3162,13 +3807,22 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_PI:      return dynRenderNamedFunc(s, "PI",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_MOD:
       // DS section5.3.4.1.1: DataFusion has no MOD() function; use % operator.
-      if (dialect == EXT_SQL_DIALECT_INFLUXQL && nParams >= 2) {
+      // DS 5.3.13: T-SQL has no MOD() either - integer operands use % (float
+      // operands are kept local by the planner gate).
+      if ((dialect == EXT_SQL_DIALECT_INFLUXQL || dialect == EXT_SQL_DIALECT_SQLSERVER) && nParams >= 2) {
         dynSQLAppendChar(s, '(');
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
         if (code) return code;
         dynSQLAppendStr(s, " % ");
+        if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+          // T-SQL modulo by zero raises 8134; TDengine returns NULL.
+          dynSQLAppendStr(s, "NULLIF(");
+        }
         code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
         if (code) return code;
+        if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+          dynSQLAppendStr(s, ", 0)");
+        }
         dynSQLAppendChar(s, ')');
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
@@ -3186,9 +3840,48 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       return dynRenderNamedFunc(s, "SIGN",    pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_DEGREES: return dynRenderNamedFunc(s, "DEGREES", pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_RADIANS: return dynRenderNamedFunc(s, "RADIANS", pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_DEGREES:
+    case FUNCTION_TYPE_RADIANS: {
+      // TDengine's DEGREES/RADIANS always produce a double, but T-SQL returns
+      // the argument's own type: DEGREES/RADIANS of an int column is an int
+      // (RADIANS(10) = 0), silently losing the fraction.  Force a floating
+      // argument for integer operands.
+      bool   isDegrees = (funcType == FUNCTION_TYPE_DEGREES);
+      SNode* pArg = (nParams >= 1) ? nodesListGetNode(pFunc->pParameterList, 0) : NULL;
+      bool   argIsInteger =
+          (pArg != NULL && nodesIsExprNode(pArg) && dynIsIntegerType(((const SExprNode*)pArg)->resType.type));
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && argIsInteger) {
+        qDebug("FQ-SQL: %s T-SQL integer argument - wrap in CAST(... AS FLOAT)",
+               isDegrees ? "DEGREES" : "RADIANS");
+        dynSQLAppendStr(s, isDegrees ? "DEGREES(CAST(" : "RADIANS(CAST(");
+        int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, " AS FLOAT))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      return dynRenderNamedFunc(s, isDegrees ? "DEGREES" : "RADIANS", pFunc, dialect, pExtMeta, pCtx);
+    }
     case FUNCTION_TYPE_TRUNCATE:
+      // DS 5.3.13: T-SQL has no TRUNC; ROUND(expr, digits, 1) truncates
+      // (third argument non-zero).  The digits argument must be constant.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 2) {
+        dynSQLAppendStr(s, "ROUND(");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", ");
+        code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 1)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams == 1) {
+        // TRUNC(expr) without digits: truncate toward zero at scale 0.
+        dynSQLAppendStr(s, "ROUND(");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 0, 1)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       // PG 2-arg TRUNC(value, scale) only exists for numeric, not double precision;
       // cast the first arg: TRUNC(expr::numeric, n).  InfluxDB TRUNC accepts double.
       if (dialect == EXT_SQL_DIALECT_POSTGRES && nParams >= 2) {
@@ -3210,8 +3903,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // sclfunc.c greatestLeastImpl); drop it - remote GREATEST/LEAST takes user args only.
       const char* funcName = pFunc->funcType == FUNCTION_TYPE_GREATEST ? "GREATEST" : "LEAST";
       bool hasTimestampArg = false;
-      for (int32_t i = 0; i < nParams - 1; ++i) {
-        SNode* pArg = nodesListGetNode(pFunc->pParameterList, i);
+      SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+      for (int32_t i = 0; i < nParams - 1;
+           ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+        SNode* pArg = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
         if (pArg != NULL && nodesIsExprNode(pArg) &&
             ((SExprNode*)pArg)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
           hasTimestampArg = true;
@@ -3242,9 +3937,27 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_LOWER:    return dynRenderNamedFunc(s, "LOWER",  pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LENGTH:
       return dynRenderTdLengthExpr(s, pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_CHAR_LENGTH:  return dynRenderNamedFunc(s, "CHAR_LENGTH",  pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_CONCAT:       return dynRenderNamedFunc(s, "CONCAT",       pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_CONCAT_WS:    return dynRenderNamedFunc(s, "CONCAT_WS",    pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_CHAR_LENGTH:
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 char_length row: LEN(expr + N'.') - 1 - the sentinel makes
+        // LEN count a trailing space, which plain LEN would ignore.
+        dynSQLAppendStr(s, "(LEN(");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, " + N'.') - 1)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      return dynRenderNamedFunc(s, "CHAR_LENGTH",  pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_CONCAT:
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        return dynRenderTsqlConcat(s, pFunc, "CONCAT", dialect, pExtMeta, pCtx);
+      }
+      return dynRenderNamedFunc(s, "CONCAT", pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_CONCAT_WS:
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        return dynRenderTsqlConcat(s, pFunc, "CONCAT_WS", dialect, pExtMeta, pCtx);
+      }
+      return dynRenderNamedFunc(s, "CONCAT_WS", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SUBSTR:
       return dynRenderTdSubstringExpr(s, pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_ASCII:        return dynRenderNamedFunc(s, "ASCII",        pFunc, dialect, pExtMeta, pCtx);
@@ -3290,7 +4003,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_LTRIM:        return dynRenderNamedFunc(s, "LTRIM",        pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_RTRIM:        return dynRenderNamedFunc(s, "RTRIM",        pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_REPLACE:      return dynRenderNamedFunc(s, "REPLACE",      pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_REPEAT:       return dynRenderNamedFunc(s, "REPEAT",       pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_REPEAT:
+      // DS 5.3.13 repeat row: T-SQL has REPLICATE, not REPEAT.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "REPLICATE" : "REPEAT",
+                                pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SUBSTR_IDX:
       // DS section5.3.4.1.2: SUBSTRING_INDEX - MySQL only; PG/InfluxDB have no equivalent.
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
@@ -3343,6 +4059,15 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 md5 row: T-SQL has no MD5(); style-2 CONVERT yields
+        // upper-case hex, so LOWER() pins the TDengine spelling.
+        dynSQLAppendStr(s, "LOWER(CONVERT(VARCHAR(32), HASHBYTES('MD5', ");
+        int32_t c = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (c) return c;
+        dynSQLAppendStr(s, "), 2))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       return dynRenderNamedFunc(s, "MD5", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_SHA1:
@@ -3357,6 +4082,14 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         qError("FQ-SQL: SHA1 not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 sha/sha1 row: LOWER() pins the style-2 hex spelling.
+        dynSQLAppendStr(s, "LOWER(CONVERT(VARCHAR(40), HASHBYTES('SHA1', ");
+        int32_t c = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (c) return c;
+        dynSQLAppendStr(s, "), 2))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       return dynRenderNamedFunc(s, "SHA1", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SHA2: {
       {
@@ -3369,6 +4102,31 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         // DS section5.3.4.1.4: PG needs pgcrypto; local only.
         qError("FQ-SQL: SHA2 not supported by PostgreSQL; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13 sha2 row: only hash_length 256/512 are pushable (the
+        // planner gate keeps other lengths local); HASHBYTES also yields
+        // upper-case hex for style 2, so LOWER() pins the spelling.
+        int64_t bits = 0;
+        if (nParams >= 2) {
+          SNode* pBitsNode = nodesListGetNode(pFunc->pParameterList, 1);
+          if (pBitsNode && nodeType(pBitsNode) == QUERY_NODE_VALUE) {
+            bits = ((SValueNode*)pBitsNode)->datum.i;
+          }
+        }
+        if (bits != 256 && bits != 512) {
+          qError("FQ-SQL: SHA2 hash_length=%" PRId64 " not supported by SQL Server; deferring to local",
+                 bits);
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        dynSQLAppendf(s, "LOWER(CONVERT(VARCHAR(%d), HASHBYTES('%s', ",
+                      bits == 256 ? 64 : 128, bits == 256 ? "SHA2_256" : "SHA2_512");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) {
+          return code;
+        }
+        dynSQLAppendStr(s, "), 2))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
         int64_t bits = 256;
@@ -3435,6 +4193,20 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_POSITION: {
       /* POSITION(needle IN haystack) - TDengine stores as POSITION(needle, haystack) */
       if (nParams >= 2) {
+        if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+          // DS 5.3.13 position row: T-SQL has CHARINDEX(needle, haystack);
+          // same argument order, 1-based position, 0 when not found.
+          dynSQLAppendStr(s, "CHARINDEX(");
+          int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                       dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, ", ");
+          code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1),
+                               dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendChar(s, ')');
+          return s->err ? s->err : TSDB_CODE_SUCCESS;
+        }
         if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
           // DS section5.3.4.1.2: DataFusion uses STRPOS(haystack, needle) - reversed args.
           dynSQLAppendStr(s, "STRPOS(");
@@ -3575,6 +4347,45 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
              pExtTypeName ? pExtTypeName : "(unknown)",
              (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(global)");
 
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13 to_unixtimestamp row: DATEDIFF_BIG at the database
+        // precision from the 1970 epoch.  tz-aware columns are normalised to
+        // UTC directly; tz-naive columns are first interpreted in the client
+        // zone (their Windows name must be resolvable).
+        if (argType != TSDB_DATA_TYPE_TIMESTAMP) {
+          qError("FQ-SQL: TO_UNIXTIMESTAMP non-timestamp argument not supported by SQL Server");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        const char* pUnit =
+            dynTsqlEpochDatepartByPrecision(fqResolveTimestampExprPrecision(
+                pArg, fqDefaultTimestampPrecisionForDialect(dialect)));
+        qDebug("FQ-SQL: render TO_UNIXTIMESTAMP() T-SQL unit=%s tsClass=%s col=%s clientTz=%s",
+               pUnit, fqExtTimestampClassName(tsClass), pExtColName ? pExtColName : "(expr)",
+               (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(global)");
+        dynSQLAppendf(s, "CAST(DATEDIFF_BIG(%s, '1970-01-01 00:00:00', CAST(", pUnit);
+        if (tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+          int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, " AT TIME ZONE 'UTC'");
+        } else {
+          const char* pWinTz = (s->tzName != NULL && s->tzName[0] != '\0')
+                                   ? taosIanaNameToWindows(s->tzName)
+                                   : NULL;
+          if (pWinTz == NULL) {
+            qError("FQ-SQL: no Windows timezone name for client tz '%s'; keeping TO_UNIXTIMESTAMP local",
+                   (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(null)");
+            return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+          }
+          int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, " AT TIME ZONE '");
+          dynSQLAppendStr(s, pWinTz);
+          dynSQLAppendStr(s, "' AT TIME ZONE 'UTC'");
+        }
+        dynSQLAppendStr(s, " AS DATETIME2)) AS BIGINT)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+
       if (dialect == EXT_SQL_DIALECT_MYSQL) {
         if (argType == TSDB_DATA_TYPE_TIMESTAMP && tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
           qDebug("FQ-SQL: render TO_UNIXTIMESTAMP() MySQL aware-ts via UNIX_TIMESTAMP col=%s extType=%s",
@@ -3634,9 +4445,28 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_NOW:
       /* InfluxDB 3 NOW() comparison semantics differ from TDengine; compute locally. */
       if (dialect == EXT_SQL_DIALECT_INFLUXQL) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      // DS 5.3.13 now row: SYSDATETIMEOFFSET() carries the offset so the
+      // connector maps it back to an absolute epoch instant.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER)
+        return dynRenderNamedFunc(s, "SYSDATETIMEOFFSET", pFunc, dialect, pExtMeta, pCtx);
       return dynRenderNamedFunc(s, "NOW", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_TODAY:
       // DS section5.3.4.1.9: MySQL uses CURDATE(); PG uses CURRENT_DATE; InfluxDB uses CURRENT_DATE.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13 today row: the client's today from the offset-aware clock.
+        const char* pWinTz = (s->tzName != NULL && s->tzName[0] != '\0')
+                                 ? taosIanaNameToWindows(s->tzName)
+                                 : NULL;
+        if (pWinTz == NULL) {
+          qError("FQ-SQL: no Windows timezone name for client tz '%s'; keeping TODAY local",
+                 (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(null)");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        dynSQLAppendStr(s, "CAST(SYSDATETIMEOFFSET() AT TIME ZONE '");
+        dynSQLAppendStr(s, pWinTz);
+        dynSQLAppendStr(s, "' AS DATE)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_MYSQL)
         return dynRenderNamedFunc(s, "CURDATE", pFunc, dialect, pExtMeta, pCtx);
       // PG/InfluxDB: CURRENT_DATE (no parentheses - it's a keyword, not a function call)
@@ -3646,6 +4476,15 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // DATE() returns a formatted date string in TDengine.
       // Render string-producing dialect forms to avoid provider-specific
       // binary DATE decoding paths.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 date row: CONVERT(VARCHAR(10), expr, 23) = yyyy-mm-dd.
+        SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+        dynSQLAppendStr(s, "CONVERT(VARCHAR(10), ");
+        int32_t code = dynAppendTsqlTimeArgWrapped(s, pArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 23)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 1) {
         dynSQLAppendStr(s, "DATE_FORMAT(");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3699,6 +4538,21 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // PG / InfluxDB only expose ISO-week semantics (equivalent to
       // TDengine WEEK(..., 3) / WEEKOFYEAR). Default WEEK(expr) and other
       // modes must stay local to preserve TDengine semantics.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 week row: only WEEK(expr, 3) (ISO) maps to
+        // DATEPART(ISO_WEEK, ...); every other mode stays local.
+        bool isoWeek = (nParams >= 3) && dynFuncArgInt64Equals(pFunc, 1, 3);
+        if (!isoWeek) {
+          qError("FQ-SQL: WEEK non-ISO mode not supported by SQL Server; keep local (nParams=%d)", nParams);
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        dynSQLAppendStr(s, "DATEPART(ISO_WEEK, ");
+        int32_t code = dynAppendTsqlTimeArgWrapped(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                   dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendChar(s, ')');
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         bool isoWeek = (nParams >= 3) && dynFuncArgInt64Equals(pFunc, 1, 3);
         if (!isoWeek) {
@@ -3720,6 +4574,16 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         qError("FQ-SQL: WEEKDAY() not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 weekday row: (DATEPART(WEEKDAY, x) + @@DATEFIRST + 5) % 7
+        // with Monday = 0, independent of the session's SET DATEFIRST.
+        dynSQLAppendStr(s, "((DATEPART(WEEKDAY, ");
+        int32_t code = dynAppendTsqlTimeArgWrapped(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                   dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") + @@DATEFIRST + 5) % 7)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_POSTGRES && nParams >= 1) {
         dynSQLAppendStr(s, "(EXTRACT(ISODOW FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3731,6 +4595,15 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     }
     case FUNCTION_TYPE_WEEKOFYEAR: {
       // DS section5.3.4.1.9: PG/InfluxDB -> EXTRACT(WEEK FROM expr)
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 weekofyear row: WEEKOFYEAR always equals ISO WEEK(x, 3).
+        dynSQLAppendStr(s, "DATEPART(ISO_WEEK, ");
+        int32_t code = dynAppendTsqlTimeArgWrapped(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                   dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendChar(s, ')');
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         dynSQLAppendStr(s, "EXTRACT(WEEK FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3742,6 +4615,16 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     }
     case FUNCTION_TYPE_DAYOFWEEK: {
       // DS section5.3.4.1.9: PG/InfluxDB -> EXTRACT(DOW FROM expr) + 1  [TDengine/MySQL: 1=Sunday]
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
+        // DS 5.3.13 dayofweek row: (DATEPART(WEEKDAY, x) + @@DATEFIRST - 1) % 7 + 1
+        // with Sunday = 1, independent of the session's SET DATEFIRST.
+        dynSQLAppendStr(s, "((DATEPART(WEEKDAY, ");
+        int32_t code = dynAppendTsqlTimeArgWrapped(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                   dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") + @@DATEFIRST - 1) % 7 + 1)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if ((dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) && nParams >= 1) {
         dynSQLAppendStr(s, "(EXTRACT(DOW FROM ");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3755,6 +4638,33 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // DS section5.3.4.1.8: MySQL -> DATE_FORMAT(expr, mysql_fmt); PG/Influx -> TO_CHAR(expr, fmt).
       // The 3rd param (timezone name) is TDengine-specific and not forwarded to remote.
       qDebug("FQ-SQL: TO_CHAR rendering dialect=%s nParams=%d", dialectName(dialect), nParams);
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 2) {
+        // DS 5.3.13 to_char row: FORMAT(expr, '<.NET pattern>'); tz-aware
+        // columns are converted through the client zone first.  The format
+        // must be a literal with an exact .NET translation - otherwise the
+        // whole TO_CHAR stays local (judged item 19).
+        SNode* pTsArg  = nodesListGetNode(pFunc->pParameterList, 0);
+        SNode* pFmtArg = nodesListGetNode(pFunc->pParameterList, 1);
+        if (pFmtArg == NULL || nodeType(pFmtArg) != QUERY_NODE_VALUE) {
+          qError("FQ-SQL: TO_CHAR non-literal format not supported by SQL Server; keeping local");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        const SValueNode* pFmtVal = (const SValueNode*)pFmtArg;
+        const char* fmtStr = (pFmtVal->datum.p != NULL) ? varDataVal(pFmtVal->datum.p)
+                                                        : (pFmtVal->literal != NULL ? pFmtVal->literal : "");
+        qDebug("FQ-SQL: TO_CHAR T-SQL fmt_in='%s'", fmtStr);
+        dynSQLAppendStr(s, "FORMAT(");
+        int32_t code = dynAppendTsqlTimeArgWrapped(s, pTsArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", ");
+        code = dynAppendFmtStrNet(s, fmtStr, dialect);
+        if (code) return code;
+        // Pin the culture: without it FORMAT uses the login's language, which
+        // changes AM/PM designators (and the calendar for some cultures), while
+        // TDengine's format tokens produce a fixed English/ASCII result.
+        dynSQLAppendStr(s, ", 'en-US')");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 2) {
         SNode* pTsArg  = nodesListGetNode(pFunc->pParameterList, 0);
         SNode* pFmtArg = nodesListGetNode(pFunc->pParameterList, 1);
@@ -3929,20 +4839,71 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
           }
         }
       }
+      // TDengine COUNT returns BIGINT.  T-SQL COUNT returns int and raises
+      // 8115 past 2^31-1 rows; COUNT_BIG keeps the value and type aligned.
+      // The DISTINCT modifier is rendered by the aggregate select-list path,
+      // not by dynRenderNamedFunc, so leave that shape untouched.
+      const char* countFn =
+          (dialect == EXT_SQL_DIALECT_SQLSERVER && !pFunc->isDistinct) ? "COUNT_BIG" : "COUNT";
       if (isCountStar) {
-        dynSQLAppendStr(s, "COUNT(*)");
+        dynSQLAppendStr(s, countFn);
+        dynSQLAppendStr(s, "(*)");
         return TSDB_CODE_SUCCESS;
       }
-      return dynRenderNamedFunc(s, "COUNT", pFunc, dialect, pExtMeta, pCtx);
+      return dynRenderNamedFunc(s, countFn, pFunc, dialect, pExtMeta, pCtx);
     }
-    case FUNCTION_TYPE_SUM:         return dynRenderNamedFunc(s, "SUM",         pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_AVG:         return dynRenderNamedFunc(s, "AVG",         pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_SUM: {
+      // TDengine SUM over a 32-bit-or-narrower integer returns BIGINT; T-SQL
+      // returns int and overflows at 2^31.  Widen the input to BIGINT.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1 && !pFunc->isDistinct) {
+        const SNode* pArg0 = nodesListGetNode(pFunc->pParameterList, 0);
+        int32_t      argType = (pArg0 != NULL) ? (int32_t)((const SExprNode*)pArg0)->resType.type : -1;
+        if (dynIsIntegerType(argType) && argType != TSDB_DATA_TYPE_BIGINT &&
+            argType != TSDB_DATA_TYPE_UBIGINT) {
+          dynSQLAppendStr(s, "SUM(CAST(");
+          int32_t code = dynAppendExpr(s, pArg0, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, " AS BIGINT))");
+          return s->err ? s->err : TSDB_CODE_SUCCESS;
+        }
+      }
+      return dynRenderNamedFunc(s, "SUM", pFunc, dialect, pExtMeta, pCtx);
+    }
+    case FUNCTION_TYPE_AVG: {
+      // TDengine AVG always returns DOUBLE; T-SQL AVG(int) returns int and
+      // truncates the fraction before the connector sees it.  Cast the input
+      // so the remote average is computed in floating point.
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1 && !pFunc->isDistinct) {
+        const SNode* pArg0 = nodesListGetNode(pFunc->pParameterList, 0);
+        int32_t      argType = (pArg0 != NULL) ? (int32_t)((const SExprNode*)pArg0)->resType.type : -1;
+        if (dynIsIntegerType(argType)) {
+          dynSQLAppendStr(s, "AVG(CAST(");
+          int32_t code = dynAppendExpr(s, pArg0, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, " AS FLOAT))");
+          return s->err ? s->err : TSDB_CODE_SUCCESS;
+        }
+      }
+      return dynRenderNamedFunc(s, "AVG", pFunc, dialect, pExtMeta, pCtx);
+    }
     case FUNCTION_TYPE_MIN:         return dynRenderNamedFunc(s, "MIN",         pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_MAX:         return dynRenderNamedFunc(s, "MAX",         pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_STDDEV:      return dynRenderNamedFunc(s, "STDDEV_POP",  pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_STDDEV_SAMP: return dynRenderNamedFunc(s, "STDDEV_SAMP", pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_STDVAR:      return dynRenderNamedFunc(s, "VAR_POP",     pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_STDVAR_SAMP: return dynRenderNamedFunc(s, "VAR_SAMP",    pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_STDDEV:
+      // DS 5.3.13: T-SQL has STDEVP (population) but no ANSI STDDEV_POP.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "STDEVP" : "STDDEV_POP",
+                                pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_STDDEV_SAMP:
+      // T-SQL has STDEV (sample) but no ANSI STDDEV_SAMP.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "STDEV" : "STDDEV_SAMP",
+                                pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_STDVAR:
+      // T-SQL has VARP (population) but no ANSI VAR_POP.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "VARP" : "VAR_POP",
+                                pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_STDVAR_SAMP:
+      // T-SQL has VAR (sample) but no ANSI VAR_SAMP.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "VAR" : "VAR_SAMP",
+                                pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_GROUP_CONCAT: {
       int32_t orderArgIdx = -1;
       if (nParams > 0 &&
@@ -4039,6 +5000,44 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
           dynAppendEscapedString(s, ",", dialect);
         }
         dynSQLAppendChar(s, ')');
+        return TSDB_CODE_SUCCESS;
+      }
+
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13: T-SQL has STRING_AGG(expr, sep) (2017+).  A deterministic
+        // order uses WITHIN GROUP (ORDER BY <pk>) - STRING_AGG has no ORDER BY
+        // clause of its own.
+        dynSQLAppendStr(s, "STRING_AGG(");
+        int32_t code = dynRenderGroupConcatRowExpr(s, pFunc, valueArgCount, dialect, pExtMeta, pCtx);
+        if (code) {
+          return code;
+        }
+        dynSQLAppendStr(s, ", ");
+        if (sepArgIdx >= 0) {
+          code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, sepArgIdx), dialect, pExtMeta, pCtx);
+          if (code) {
+            return code;
+          }
+        } else {
+          dynAppendEscapedString(s, ",", dialect);
+        }
+        dynSQLAppendChar(s, ')');
+        if (orderArgIdx >= 0) {
+          dynSQLAppendStr(s, " WITHIN GROUP (ORDER BY ");
+          code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, orderArgIdx), dialect, pExtMeta, pCtx);
+          if (code) {
+            return code;
+          }
+          dynSQLAppendChar(s, ')');
+          qDebug("FQ-SQL: GROUP_CONCAT SQL Server uses hidden order param idx=%d", orderArgIdx);
+        } else if (pPkColName != NULL) {
+          dynSQLAppendStr(s, " WITHIN GROUP (ORDER BY ");
+          dynAppendQuotedId(s, pPkColName, dialect);
+          dynSQLAppendChar(s, ')');
+          qDebug("FQ-SQL: GROUP_CONCAT SQL Server uses pk-ordered STRING_AGG pk=%s", pPkColName);
+        } else {
+          qDebug("FQ-SQL: GROUP_CONCAT SQL Server has no primary key metadata; emit unordered STRING_AGG");
+        }
         return TSDB_CODE_SUCCESS;
       }
 
@@ -4143,6 +5142,67 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         code = dynAppendExpr(s, pE1, dialect, pExtMeta, pCtx);
         if (code) return code;
         dynSQLAppendChar(s, ')');
+      } else if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13 timediff row: exact differences come from a finer
+        // DATEDIFF_BIG unit divided down (DATEDIFF counts unit boundaries).
+        // The finest unit follows the database precision; the optional unit
+        // argument divides further, mirroring the PG rendering.  tz-aware
+        // operands are normalised to UTC first.
+        const char* pUnitPart = dynTsqlEpochDatepartByPrecision(precision);
+        qDebug("FQ-SQL: TIMEDIFF T-SQL render unit=%s unitValue=%" PRId64 " unitLiteral=%s",
+               pUnitPart, unitValue, pUnitLiteral ? pUnitLiteral : "(null)");
+        // DATEDIFF_BIG(<unit>, start, end) = end - start, so the operands go in
+        // (e2, e1) order to keep the TDengine TIMEDIFF(e1, e2) sign.
+        dynSQLAppendf(s, "CAST(DATEDIFF_BIG(%s, ", pUnitPart);
+        for (int32_t operandIdx = 0; operandIdx < 2; ++operandIdx) {
+          SNode* pOperand = (0 == operandIdx) ? pE2 : pE1;
+          if (1 == operandIdx) {
+            dynSQLAppendStr(s, ", ");
+          }
+          EExtTimestampTzClass opClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+          if (pOperand != NULL && nodesIsExprNode(pOperand) &&
+              ((const SExprNode*)pOperand)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+            opClass = fqResolveExprTimestampClass(pOperand, dialect, pExtMeta, pCtx, NULL, NULL);
+          }
+          if (opClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+            // Both operands are compared in the client wall clock: a tz-aware
+            // column holds an absolute instant, so map it into the client zone
+            // first; a tz-naive column already stores that wall clock and needs
+            // no wrap.  Equal offsets on both sides leave the difference
+            // intact, matching TDengine's local evaluation.
+            const char* pWinTz = (s->tzName != NULL && s->tzName[0] != '\0')
+                                     ? taosIanaNameToWindows(s->tzName)
+                                     : NULL;
+            if (pWinTz == NULL) {
+              qError("FQ-SQL: no Windows timezone name for client tz '%s'; keeping TIMEDIFF local",
+                     (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(null)");
+              return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+            }
+            dynSQLAppendStr(s, "CAST(");
+            int32_t code = dynAppendExpr(s, pOperand, dialect, pExtMeta, pCtx);
+            if (code) return code;
+            dynSQLAppendStr(s, " AT TIME ZONE '");
+            dynSQLAppendStr(s, pWinTz);
+            dynSQLAppendStr(s, "' AS DATETIME2)");
+          } else if (pOperand != NULL && QUERY_NODE_VALUE == nodeType(pOperand) &&
+                     dynIsIntegerType(((const SExprNode*)pOperand)->resType.type)) {
+            // A raw integer operand is an epoch in the database precision
+            // (TDengine converts it before the subtraction).  T-SQL would
+            // instead convert the number itself to datetime2, which overflows
+            // for any realistic epoch, so emit the equivalent datetime2
+            // literal - DATEDIFF_BIG then works on two timestamps.
+            dynAppendTimestampLiteral(s, ((const SValueNode*)pOperand)->datum.i, precision, dialect);
+          } else {
+            int32_t code = dynAppendExpr(s, pOperand, dialect, pExtMeta, pCtx);
+            if (code) return code;
+          }
+        }
+        dynSQLAppendStr(s, ")");
+        if (unitValue > 1) {
+          dynSQLAppendStr(s, " / ");
+          dynSQLAppendf(s, "%" PRId64, unitValue);
+        }
+        dynSQLAppendStr(s, " AS BIGINT)");
       } else {
         if (dialect == EXT_SQL_DIALECT_POSTGRES) {
           int64_t ticksPerSecond = fqTimestampTicksPerSecond(precision);
@@ -4237,9 +5297,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       int32_t tsIdx = nParams - 1;  // last param = primary-key ts ordering column
       dynSQLAppendStr(s, "LAG(");
-      for (int32_t i = 0; i < tsIdx; i++) {
+      SListCell* pParameterCell2 = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+      for (int32_t i = 0; i < tsIdx;
+           i++, pParameterCell2 = (NULL != pParameterCell2 ? pParameterCell2->pNext : NULL)) {
         if (i > 0) dynSQLAppendStr(s, ", ");
-        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+        int32_t code =
+            dynAppendExpr(s, NULL != pParameterCell2 ? pParameterCell2->pNode : NULL, dialect, pExtMeta, pCtx);
         if (code) return code;
       }
       dynSQLAppendStr(s, ") OVER (ORDER BY ");
@@ -4257,9 +5320,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       int32_t leadTsIdx = nParams - 1;  // last param = primary-key ts ordering column
       dynSQLAppendStr(s, "LEAD(");
-      for (int32_t i = 0; i < leadTsIdx; i++) {
+      SListCell* pParameterCell3 = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+      for (int32_t i = 0; i < leadTsIdx;
+           i++, pParameterCell3 = (NULL != pParameterCell3 ? pParameterCell3->pNext : NULL)) {
         if (i > 0) dynSQLAppendStr(s, ", ");
-        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+        int32_t code =
+            dynAppendExpr(s, NULL != pParameterCell3 ? pParameterCell3->pNode : NULL, dialect, pExtMeta, pCtx);
         if (code) return code;
       }
       dynSQLAppendStr(s, ") OVER (ORDER BY ");
@@ -4280,9 +5346,11 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
         if (code) return code;
         dynSQLAppendStr(s, "::text");
-        for (int32_t i = 1; i < nParams; ++i) {
+        SListCell* pParameterCell4 = nodesListGetCell(pFunc->pParameterList, 1);
+        for (int32_t i = 1; i < nParams;
+             ++i, pParameterCell4 = (NULL != pParameterCell4 ? pParameterCell4->pNext : NULL)) {
           dynSQLAppendStr(s, ", ");
-          code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+          code = dynAppendExpr(s, (NULL != pParameterCell4 ? pParameterCell4->pNode : NULL), dialect, pExtMeta, pCtx);
           if (code) return code;
         }
         dynSQLAppendChar(s, ')');
@@ -4374,6 +5442,103 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
 
       char tickBuf[32];
       char offsetBuf[32];
+
+      if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+        // DS 5.3.13 / 5.3.5.1.2: T-SQL has no DATE_BIN, so a tumbling window
+        // becomes the remainder form
+        //   DATEADD(<unit>, -((DATEDIFF_BIG(<unit>, epoch, ts) - offset) % N), ts)
+        // Three T-SQL specifics shape this branch:
+        //   * DATEADD's number argument is a 32-bit int (DS "N < 2^31"), so the
+        //     bucket size is expressed in the coarsest unit that still keeps
+        //     both the interval and the origin offset integral.
+        //   * '%' truncates toward zero, which misaligns pre-1970 timestamps;
+        //     ((x % N) + N) % N yields the floor remainder TDengine's own
+        //     bucketing uses, so negative epoch offsets stay correct.
+        //   * DATEADD keeps the anchor's sub-unit fraction, so a timestamp at
+        //     08:02:00.123456 with a one-minute bucket would stay outside the
+        //     boundary; strip the source-precision fraction first with a second
+        //     DATEADD (its tick count is bounded by the unit ratio).
+        static const char* const bucketUnits[] = {"NANOSECOND", "MICROSECOND", "MILLISECOND", "SECOND"};
+        int32_t fineIdx;
+        switch (fqNormalizeTimePrecision(prec, TSDB_TIME_PRECISION_MICRO)) {
+          case TSDB_TIME_PRECISION_MILLI: fineIdx = 2; break;
+          case TSDB_TIME_PRECISION_NANO:  fineIdx = 0; break;
+          default:                        fineIdx = 1; break;
+        }
+        int32_t unitIdx = fineIdx;
+        int64_t nTicks = ticks;
+        int64_t offTicks = offsetTicks;
+        while (unitIdx < 3 && nTicks % 1000 == 0 && offTicks % 1000 == 0) {
+          nTicks /= 1000;
+          offTicks /= 1000;
+          unitIdx++;
+        }
+        int64_t finePerUnit = 1;
+        for (int32_t i = fineIdx; i < unitIdx; ++i) {
+          finePerUnit *= 1000;
+        }
+        if (nTicks <= 0 || nTicks > INT32_MAX || finePerUnit > INT32_MAX) {
+          qError("FQ-SQL: FQ_TIME_BUCKET T-SQL bucket %" PRId64 " %s (fine ratio %" PRId64
+                 ") exceeds DATEADD int range; keep local",
+                 nTicks, bucketUnits[unitIdx], finePerUnit);
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        const char* pUnitPart = bucketUnits[unitIdx];
+        (void)snprintf(tickBuf, sizeof(tickBuf), "%" PRId64, nTicks);
+        (void)snprintf(offsetBuf, sizeof(offsetBuf), "%" PRId64, offTicks);
+        qDebug("FQ-SQL: FQ_TIME_BUCKET T-SQL unit=%s ticks=%" PRId64 " offset=%" PRId64
+               " fineUnit=%s fineRatio=%" PRId64,
+               pUnitPart, nTicks, offTicks, bucketUnits[fineIdx], finePerUnit);
+
+        // Bucket start = anchor - floor remainder, where the anchor carries no
+        // sub-unit fraction.
+        dynSQLAppendf(s, "DATEADD(%s, -(((DATEDIFF_BIG(%s, '1970-01-01T00:00:00', ", pUnitPart,
+                      pUnitPart);
+        int32_t code = dynAppendExpr(s, pTsArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        if (offTicks != 0) {
+          dynSQLAppendStr(s, ") - ");
+          dynSQLAppendStr(s, offsetBuf);
+          dynSQLAppendStr(s, ") % ");
+        } else {
+          dynSQLAppendStr(s, ")) % ");
+        }
+        dynSQLAppendStr(s, tickBuf);
+        dynSQLAppendStr(s, " + ");
+        dynSQLAppendStr(s, tickBuf);
+        dynSQLAppendStr(s, ") % ");
+        dynSQLAppendStr(s, tickBuf);
+        dynSQLAppendStr(s, "), ");
+        if (fineIdx != unitIdx) {
+          char ratioBuf[32];
+          (void)snprintf(ratioBuf, sizeof(ratioBuf), "%" PRId64, finePerUnit);
+          dynSQLAppendf(s, "DATEADD(%s, -(((DATEDIFF_BIG(%s, '1970-01-01T00:00:00', ",
+                        bucketUnits[fineIdx], bucketUnits[fineIdx]);
+          code = dynAppendExpr(s, pTsArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          // Mirror the outer branch's offTicks == 0 form: close DATEDIFF_BIG and
+          // the first '-(((' paren.  A single ')' would leave both open and
+          // produce invalid T-SQL (the runtime then demotes the whole query).
+          dynSQLAppendStr(s, ")) % ");
+          dynSQLAppendStr(s, ratioBuf);
+          dynSQLAppendStr(s, " + ");
+          dynSQLAppendStr(s, ratioBuf);
+          dynSQLAppendStr(s, ") % ");
+          dynSQLAppendStr(s, ratioBuf);
+          dynSQLAppendStr(s, "), ");
+        }
+        code = dynAppendExpr(s, pTsArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        // The fine-precision DATEADD above, when present, supplies the outer
+        // DATEADD's anchor argument: the first ')' closes that inner DATEADD,
+        // the second the outer one.  Without the fine branch there is only the
+        // outer DATEADD to close.
+        dynSQLAppendChar(s, ')');
+        if (fineIdx != unitIdx) {
+          dynSQLAppendChar(s, ')');
+        }
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
 
       if (dialect == EXT_SQL_DIALECT_MYSQL) {
         // MySQL uses us precision (TSDB_TIME_PRECISION_MICRO).
@@ -4489,6 +5654,83 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
       return code;
     }
   }
+
+  // T-SQL R1 (DS 5.3.12): T-SQL has no boolean scalar type.  Consume the
+  // pending condition flag first so operand positions default back to value
+  // context; only the exact append marked by a clause/logic/CASE caller is a
+  // condition.
+  int8_t      wasPredicate = s->predicateCtx;
+  s->predicateCtx = 0;
+  // Only real expression nodes carry a valid SExprNode::resType.  A
+  // QUERY_NODE_GROUPING_SET shell has groupingSetType at the same offset
+  // (GP_TYPE_NORMAL == 1 == TSDB_DATA_TYPE_BOOL), so reading resType.type on
+  // it would misclassify the wrapper as a boolean and wrap the key in a CASE.
+  if (EXT_SQL_DIALECT_SQLSERVER == dialect && NULL != pExpr &&
+      nodesIsExprNode((const SNode*)pExpr) &&
+      ((const SExprNode*)pExpr)->resType.type == TSDB_DATA_TYPE_BOOL) {
+    if (QUERY_NODE_VALUE == nodeType((SNode*)pExpr)) {
+      const SValueNode* pVal = (const SValueNode*)pExpr;
+      bool              b = (!pVal->isNull) && pVal->datum.b;
+      if (wasPredicate) {
+        dynSQLAppendStr(s, b ? "(1 = 1)" : "(1 = 0)");
+      } else {
+        dynSQLAppendStr(s, b ? "1" : "0");
+      }
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+    if (wasPredicate) {
+      if (!dynIsTsqlPredicateForm(pExpr)) {
+        // Bare boolean value used as a condition: `<expr> = 1`.
+        ++s->exprDepth;
+        int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
+        --s->exprDepth;
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        dynSQLAppendStr(s, " = 1");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      // Predicate forms render natively in a condition position.
+    } else {
+      // Value position: wrap the whole predicate.  T-SQL has no boolean
+      // scalar type, so a bare boolean value (e.g. a BIT column) must be
+      // compared explicitly -- a naked bit column is rejected (native error
+      // 4145).  TDengine's BOOL keeps three-valued NULL semantics (NULL
+      // propagates), while a plain `<expr> = 1` condition would fall into the
+      // CASE ELSE branch and collapse NULL to 0.  For a bare boolean operand,
+      // compare against both 1 and 0 so a NULL operand lands in the NULL arm;
+      // a node that is already a predicate form yields a definite result
+      // (never NULL), so the plain wrap is exact for it.
+      if (!dynIsTsqlPredicateForm(pExpr)) {
+        dynSQLAppendStr(s, "(CASE WHEN ");
+        ++s->exprDepth;
+        int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
+        --s->exprDepth;
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        dynSQLAppendStr(s, " = 1 THEN 1 WHEN ");
+        ++s->exprDepth;
+        code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
+        --s->exprDepth;
+        if (TSDB_CODE_SUCCESS != code) {
+          return code;
+        }
+        dynSQLAppendStr(s, " = 0 THEN 0 ELSE NULL END)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      dynSQLAppendStr(s, "(CASE WHEN ");
+      ++s->exprDepth;
+      int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
+      --s->exprDepth;
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
+      }
+      dynSQLAppendStr(s, " THEN 1 ELSE 0 END)");
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+  }
+
   ++s->exprDepth;
   int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
   --s->exprDepth;
@@ -4744,6 +5986,7 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
       FOREACH(pItem, pCW->pWhenThenList) {
         const SWhenThenNode* pWT = (const SWhenThenNode*)pItem;
         dynSQLAppendStr(s, " WHEN ");
+        s->predicateCtx = 1;  // CASE WHEN condition (T-SQL R1)
         int32_t code = dynAppendExpr(s, pWT->pWhen, dialect, pExtMeta, pCtx);
         if (code != TSDB_CODE_SUCCESS) return code;
         dynSQLAppendStr(s, " THEN ");
@@ -4792,6 +6035,11 @@ int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf,
   }
   SDynSQL s;
   dynSQLInit(&s);
+  // Callers serialize a filter/WHERE fragment, so the root is consumed as a
+  // condition (T-SQL R1).  Without this flag the T-SQL value-context branch
+  // wraps a predicate in `(CASE WHEN ... THEN 1 ELSE 0 END)`, which is invalid
+  // in a WHERE clause (native error 4145).
+  s.predicateCtx = 1;
   int32_t code = dynAppendExpr(&s, pExpr, dialect, NULL, NULL);  // no ext table / resolve context for public API
   if (code) {
     dynSQLFree(&s);
@@ -4953,6 +6201,7 @@ static int32_t renderJoinTreeCondition(const SNode* pCond, const SExtTableMeta* 
     dynSQLAppendStr(s, " AND ");
   }
   dynSQLAppendChar(s, '(');
+  s->predicateCtx = 1;  // WHERE/ON conditions are consumed as truth values (T-SQL R1)
   int32_t code = dynAppendExpr(s, pCond, dialect, pMeta, pCtx);
   if (TSDB_CODE_SUCCESS != code) {
     qError("FQ-SQL: renderJoinTreeCondition failed code=0x%x meta=%p condType=%s",
@@ -5314,6 +6563,32 @@ static int32_t fqTryRenderCurrentScopePseudoColumn(SDynSQL* s, const SColumnNode
     dynSQLAppendStr(s, " + INTERVAL '");
     dynSQLAppendf(s, "%" PRId64, stepNanos);
     dynSQLAppendStr(s, " nanoseconds')");
+  } else if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+    // _wend = bucket start + step.  T-SQL has no timestamp arithmetic; add the
+    // step with DATEADD in the coarsest unit that keeps the count integral and
+    // inside the 32-bit number argument (same ladder as FQ_TIME_BUCKET).
+    static const char* const stepUnits[] = {"NANOSECOND", "MICROSECOND", "MILLISECOND", "SECOND"};
+    int32_t unitIdx;
+    switch (fqNormalizeTimePrecision(precision, TSDB_TIME_PRECISION_MICRO)) {
+      case TSDB_TIME_PRECISION_MILLI: unitIdx = 2; break;
+      case TSDB_TIME_PRECISION_NANO:  unitIdx = 0; break;
+      default:                        unitIdx = 1; break;
+    }
+    int64_t stepVal = stepTicks;
+    while (unitIdx < 3 && stepVal % 1000 == 0) {
+      stepVal /= 1000;
+      unitIdx++;
+    }
+    if (stepVal <= 0 || stepVal > INT32_MAX) {
+      qError("FQ-SQL: current-scope pseudo step %" PRId64 " %s exceeds DATEADD int range",
+             stepVal, stepUnits[unitIdx]);
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    }
+    qDebug("FQ-SQL: render current-scope pseudo _wend T-SQL unit=%s step=%" PRId64,
+           stepUnits[unitIdx], stepVal);
+    dynSQLAppendf(s, "DATEADD(%s, %" PRId64 ", ", stepUnits[unitIdx], stepVal);
+    dynAppendQuotedId(s, pBucketRefName, dialect);
+    dynSQLAppendChar(s, ')');
   } else {
     qError("FQ-SQL: current-scope pseudo %s not supported for dialect=%s",
            wantWend ? "_wend" : "_wduration", dialectName(dialect));
@@ -5724,6 +6999,7 @@ static bool renderWhere(SDynSQL* s, const SNode* pConditions, EExtSQLDialect dia
   SDynSQL cond;
   dynSQLInit(&cond);
   cond.tzName = s->tzName;
+  cond.predicateCtx = 1;  // WHERE conditions are consumed as truth values (T-SQL R1)
   int32_t code = dynAppendExpr(&cond, pConditions, dialect, pExtMeta, pCtx);
   if (code != TSDB_CODE_SUCCESS || cond.err) {
     if (!s->err) s->err = cond.err ? cond.err : code;
@@ -6224,6 +7500,30 @@ static void renderOrderBy(SDynSQL* s, const SNodeList* pSortKeys, const SNodeLis
         firstKey = false;
       }
     }
+    // T-SQL has no NULLS FIRST/LAST.  Its defaults are ASC->NULLs first and
+    // DESC->NULLs last, so the two non-default combinations get a prefix
+    // key: `CASE WHEN <expr> IS NULL THEN 0 ELSE 1 END ASC` (and the
+    // mirrored 1/0 for DESC NULLS LAST's opposite).
+    bool tsqlNeedsNullPrefix = false;
+    int  tsqlNullFirstVal = 0;
+    if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+      if (pOrd->order == ORDER_ASC && pOrd->nullOrder == NULL_ORDER_LAST) {
+        tsqlNeedsNullPrefix = true;
+        tsqlNullFirstVal = 1;  // NULLs sort after non-NULLs
+      } else if (pOrd->order == ORDER_DESC && pOrd->nullOrder == NULL_ORDER_FIRST) {
+        tsqlNeedsNullPrefix = true;
+        tsqlNullFirstVal = 0;  // NULLs sort before non-NULLs
+      }
+      qDebug("FQ-SQL-ORDER: key[%d] sqlserver null-prefix need=%d firstVal=%d",
+             keyIdx, (int)tsqlNeedsNullPrefix, tsqlNullFirstVal);
+    }
+    if (tsqlNeedsNullPrefix) {
+      dynSQLAppendStr(s, firstKey ? " ORDER BY CASE WHEN " : ", CASE WHEN ");
+      (void)dynAppendOrderExpr(s, pOrd->pExpr, pSelectExprs, dialect, pExtMeta, pCtx);
+      dynSQLAppendf(s, " IS NULL THEN %d ELSE %d END ASC", tsqlNullFirstVal,
+                    1 - tsqlNullFirstVal);
+      firstKey = false;
+    }
     dynSQLAppendStr(s, firstKey ? " ORDER BY " : ", ");
     firstKey = false;
     (void)dynAppendOrderExpr(s, pOrd->pExpr, pSelectExprs, dialect, pExtMeta, pCtx);
@@ -6232,7 +7532,7 @@ static void renderOrderBy(SDynSQL* s, const SNodeList* pSortKeys, const SNodeLis
     // MySQL does not support this syntax; handled above via ISNULL() conversion.
     qDebug("FQ-DBG renderOrderBy: dialect=%d nullOrder=%d NULL_ORDER_FIRST=%d NULL_ORDER_LAST=%d",
            (int)dialect, (int)pOrd->nullOrder, (int)NULL_ORDER_FIRST, (int)NULL_ORDER_LAST);
-    if (dialect != EXT_SQL_DIALECT_MYSQL) {
+    if (dialect != EXT_SQL_DIALECT_MYSQL && dialect != EXT_SQL_DIALECT_SQLSERVER) {
       if (pOrd->nullOrder == NULL_ORDER_FIRST)
         dynSQLAppendStr(s, " NULLS FIRST");
       else if (pOrd->nullOrder == NULL_ORDER_LAST)
@@ -6255,6 +7555,22 @@ static void renderLimit(SDynSQL* s, const SLimitNode* pLimit) {
   dynSQLAppendf(s, " LIMIT %" PRId64, pLimit->limit->datum.i);
   if (pLimit->offset && pLimit->offset->datum.i > 0)
     dynSQLAppendf(s, " OFFSET %" PRId64, pLimit->offset->datum.i);
+}
+
+// Render the T-SQL OFFSET ... FETCH NEXT form (DS 5.3.6).  Requires an
+// ORDER BY in the same SELECT, which the planner guarantees for every
+// SQL Server limit that reaches the renderer without TOP injection.
+static void renderTsqlFetchNext(SDynSQL* s, const SLimitNode* pLimit) {
+  if (!pLimit || !pLimit->limit) {
+    qDebug("FQ-SQL-LIMIT: skip empty T-SQL FETCH node=%p", pLimit);
+    return;
+  }
+  int64_t offset = (pLimit->offset != NULL) ? pLimit->offset->datum.i : 0;
+  if (offset < 0) offset = 0;
+  qDebug("FQ-SQL-LIMIT: render T-SQL OFFSET %" PRId64 " ROWS FETCH NEXT %" PRId64 " ROWS ONLY node=%p",
+         offset, pLimit->limit->datum.i, pLimit);
+  dynSQLAppendf(s, " OFFSET %" PRId64 " ROWS FETCH NEXT %" PRId64 " ROWS ONLY",
+                offset, pLimit->limit->datum.i);
 }
 
 // Get first child of a physi node.
@@ -6357,8 +7673,10 @@ static int32_t renderCollectedKeyExprs(SDynSQL* s, const SNodeList* pExprs, int3
   }
 
   bool first = true;
-  for (int32_t i = 0; i < count; ++i) {
-    const SNode* pExprNode = nodesListGetNode((SNodeList*)pExprs, i);
+  SListCell* pExprCell = NULL != pExprs ? pExprs->pHead : NULL;
+  for (int32_t i = 0; i < count;
+       ++i, pExprCell = (NULL != pExprCell ? pExprCell->pNext : NULL)) {
+    const SNode* pExprNode = (NULL != pExprCell ? pExprCell->pNode : NULL);
     const SNode* pExpr = pExprNode;
     if (pExpr == NULL) {
       qError("FQ-SQL: renderCollectedKeyExprs missing expr at idx=%d count=%d", i, count);
@@ -6416,8 +7734,10 @@ static int32_t renderCollectedAggTailExprs(SDynSQL* s, const SNodeList* pExprs, 
 
   bool wroteAny = (pWroteAny != NULL) ? *pWroteAny : false;
   int32_t len = LIST_LENGTH((SNodeList*)pExprs);
-  for (int32_t i = fromIdx; i < len; ++i) {
-    const SNode* pExprNode = nodesListGetNode((SNodeList*)pExprs, i);
+  SListCell* pExprCell = nodesListGetCell((SNodeList*)pExprs, fromIdx);
+  for (int32_t i = fromIdx; i < len;
+       ++i, pExprCell = (NULL != pExprCell ? pExprCell->pNext : NULL)) {
+    const SNode* pExprNode = (NULL != pExprCell ? pExprCell->pNode : NULL);
     const SNode* pExpr = pExprNode;
     if (pExpr == NULL) {
       qError("FQ-SQL: renderCollectedAggTailExprs missing expr at idx=%d len=%d", i, len);
@@ -7125,9 +8445,13 @@ static bool fqCanReuseRootTargetsAsAlignedRefs(const SNodeList* pOutputs,
     return false;
   }
 
-  for (int32_t idx = 0; idx < outputCnt; ++idx) {
-    const SNode* pOutputExpr = nodesListGetNode((SNodeList*)pOutputs, idx);
-    const SNode* pTargetExpr = nodesListGetNode((SNodeList*)pRootTargets, idx);
+  SListCell* pOutputCell = NULL != pOutputs ? pOutputs->pHead : NULL;
+  SListCell* pRootTargetCell = NULL != pRootTargets ? pRootTargets->pHead : NULL;
+  for (int32_t idx = 0; idx < outputCnt;
+       ++idx, pOutputCell = (NULL != pOutputCell ? pOutputCell->pNext : NULL),
+       pRootTargetCell = (NULL != pRootTargetCell ? pRootTargetCell->pNext : NULL)) {
+    const SNode* pOutputExpr = (NULL != pOutputCell ? pOutputCell->pNode : NULL);
+    const SNode* pTargetExpr = (NULL != pRootTargetCell ? pRootTargetCell->pNode : NULL);
     if (!fqProjectExprMatchesChildOutput(pTargetExpr, pOutputExpr, NULL)) {
       qDebug("FQ-SELECT: root target ref fallback rejected outputIdx=%d targetType=%d outputType=%d",
              idx, pTargetExpr ? (int)nodeType((SNode*)pTargetExpr) : -1,
@@ -9093,6 +10417,7 @@ static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
     bool wroteOuterWhere = false;
     if (pOuterScan->node.pConditions != NULL) {
       dynSQLAppendStr(s, " WHERE (");
+      s->predicateCtx = 1;  // semi/anti outer condition (T-SQL R1)
       code = dynAppendExpr(s, pOuterScan->node.pConditions, dialect, pOuterMeta, &semiCtx);
       if (code != TSDB_CODE_SUCCESS) {
         nodesDestroyRemoteSelectOutputs(&outputs);
@@ -9190,6 +10515,7 @@ static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
       if (combineOnConditions) {
         dynSQLAppendChar(s, '(');
       }
+      s->predicateCtx = 1;  // JOIN ON condition (T-SQL R1)
       code = dynAppendExpr(s, pOnCond, dialect, NULL, &joinCtx);
       if (TSDB_CODE_SUCCESS != code) {
         qError("FQ-SQL: render JOIN ON failed join=%p code=0x%x", pJoin, code);
@@ -9387,9 +10713,24 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
   }
 
   // -- Step 2: render one SELECT from the collected group --
-  dynSQLAppendStr(s, "SELECT ");
-
+  // T-SQL has no LIMIT/OFFSET clause: a limit without ORDER BY becomes a
+  // structural `SELECT TOP (n)` (injected before the select list), a limit
+  // with ORDER BY becomes the trailing OFFSET ... FETCH NEXT form below.
   bool distinctOnlyAgg = fqAggIsDistinctOnly(g.pAgg);
+  bool ssLimitUsesTop = (dialect == EXT_SQL_DIALECT_SQLSERVER && g.pLimit != NULL &&
+                         g.pSort == NULL);
+  bool ssTopInjected = false;
+  dynSQLAppendStr(s, "SELECT ");
+  if (ssLimitUsesTop) {
+    // DISTINCT precedes TOP in the T-SQL grammar; the select-list branches
+    // below emit DISTINCT themselves, so mirror the same condition here.
+    if (distinctOnlyAgg) dynSQLAppendStr(s, "DISTINCT ");
+    dynSQLAppendf(s, "TOP (%" PRId64 ") ", (int64_t)((const SLimitNode*)g.pLimit)->limit->datum.i);
+    ssTopInjected = true;
+    qDebug("FQ-SQL-LIMIT: T-SQL TOP(%" PRId64 ") injected distinct=%d",
+           (int64_t)((const SLimitNode*)g.pLimit)->limit->datum.i, (int)distinctOnlyAgg);
+  }
+
   if (passThroughChildOutputs) {
     qDebug("FQ-SQL-RENDER: agg wrapper select list uses collected outputs as child output refs root=%p agg=%p child=%p",
            pNode, g.pAgg, g.pFromChild);
@@ -9400,7 +10741,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
     renderSelectList(s, g.pProject->node.pTargets, dialect, selMeta, selCtx);
   } else if (outputs.source == NODES_REMOTE_SELECT_SOURCE_AGG) {
     bool isDistinct = distinctOnlyAgg;
-    if (isDistinct) dynSQLAppendStr(s, "DISTINCT ");
+    if (isDistinct && !ssTopInjected) dynSQLAppendStr(s, "DISTINCT ");
     code = renderAggSelectList(s, &outputs, isDistinct, dialect, selMeta, selCtx);
     if (code) {
       nodesDestroyRemoteSelectOutputs(&inputOutputs);
@@ -9430,14 +10771,14 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
       dynSQLAppendChar(s, '*');
     }
   } else if (g.pScanWhere != NULL) {
-    if (distinctOnlyAgg) {
+    if (distinctOnlyAgg && !ssTopInjected) {
       qDebug("FQ-SQL-RENDER: prepend DISTINCT for project-over-distinct-agg root=%p outputs=%d",
              pNode, outputs.pSelectExprs ? LIST_LENGTH(outputs.pSelectExprs) : 0);
       dynSQLAppendStr(s, "DISTINCT ");
     }
     renderSelectList(s, outputs.pSelectExprs, dialect, pMeta, selCtx);
   } else {
-    if (distinctOnlyAgg) {
+    if (distinctOnlyAgg && !ssTopInjected) {
       qDebug("FQ-SQL-RENDER: prepend DISTINCT for grouped outer select root=%p outputs=%d",
              pNode, outputs.pSelectExprs ? LIST_LENGTH(outputs.pSelectExprs) : 0);
       dynSQLAppendStr(s, "DISTINCT ");
@@ -9609,6 +10950,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
            g.pAgg->pAggFuncs ? (int)LIST_LENGTH(g.pAgg->pAggFuncs) : 0,
            dialectName(dialect));
     dynSQLAppendStr(s, " HAVING ");
+    s->predicateCtx = 1;  // HAVING condition (T-SQL R1)
     code = dynAppendExpr(s, g.pAgg->node.pConditions, dialect, selMeta, havingCtx);
     if (code) {
       nodesDestroyRemoteSelectOutputs(&inputOutputs);
@@ -9624,7 +10966,16 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
 
   // LIMIT (whichever node carried it).
   if (g.pLimit != NULL) {
-    renderLimit(s, (const SLimitNode*)g.pLimit);
+    // T-SQL: with ORDER BY the limit renders as the trailing OFFSET ... FETCH
+    // NEXT form (OFFSET 0 ROWS when only a row count is given); without
+    // ORDER BY it was already injected as SELECT TOP (n) above.
+    if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+      if (!ssTopInjected) {
+        renderTsqlFetchNext(s, (const SLimitNode*)g.pLimit);
+      }
+    } else {
+      renderLimit(s, (const SLimitNode*)g.pLimit);
+    }
   }
 
   nodesDestroyRemoteSelectOutputs(&inputOutputs);
@@ -9704,6 +11055,7 @@ int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
   if (pInnerSelect->pWhere) {
     SDynSQL condSql;
     dynSQLInit(&condSql);
+    condSql.predicateCtx = 1;  // subquery WHERE is consumed as a truth value (T-SQL R1)
     int32_t code = dynAppendExpr(&condSql, pInnerSelect->pWhere, dialect, NULL, NULL);
     if (code != TSDB_CODE_SUCCESS || condSql.err) {
       int32_t err = condSql.err ? condSql.err : code;
@@ -9822,6 +11174,7 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
   if (pInnerSelect->pWhere) {
     SDynSQL condSql;
     dynSQLInit(&condSql);
+    condSql.predicateCtx = 1;  // EXISTS body WHERE is consumed as a truth value (T-SQL R1)
     int32_t code = dynAppendExpr(&condSql, pInnerSelect->pWhere, dialect, NULL, &fullCtx);
     if (code != TSDB_CODE_SUCCESS || condSql.err) {
       int32_t err = condSql.err ? condSql.err : code;

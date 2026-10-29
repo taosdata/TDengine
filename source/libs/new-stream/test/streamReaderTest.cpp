@@ -31,9 +31,13 @@
 
 #include "dataSink.h"
 #include "nodes.h"
+#include "osTimezone.h"
 #include "stream.h"
 #include "streamInt.h"
 #include "streamReader.h"
+#include "streamReaderExt.h"
+#include "extConnector.h"
+#include "extTypeMap.h"
 #include "streamRunner.h"
 #include "stub.h"
 #include "tmsg.h"
@@ -42,9 +46,393 @@
 
 using reader_fetch_benchmark::ReaderFetchLayout;
 
-extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, void **ppInfo);
+extern "C" int32_t stExtReaderOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcTimeRange,
+                                   const char *timezone, int8_t tsTzClass, void **ppInfo);
+extern "C" void stExtReaderClose(void *pInfo);
 
 namespace {
+
+std::string gInfluxPrecisionSql;
+std::string gCapturedConnTimezone;
+
+int32_t captureInfluxPrecisionQuery(SExtConnectorHandle *, const SFederatedScanPhysiNode *,
+                                    const char *timezoneName, const char *sql,
+                                    SExtQueryHandle **query, SExtConnectorError *) {
+  gInfluxPrecisionSql = sql;
+  gCapturedConnTimezone = (timezoneName != nullptr) ? timezoneName : "";
+  *query = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t finishInfluxPrecisionQuery(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                                   SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeInfluxPrecisionQuery(SExtQueryHandle *) {}
+
+/* Restores the process-wide timezone whatever the assertion outcome: every test
+ * in this binary shares the taosd global timezone, so a mid-test ASSERT failure
+ * would otherwise leave the following cases running in the wrong timezone. */
+class GlobalTimezoneGuard {
+ public:
+  explicit GlobalTimezoneGuard(const char *timezone) : code_(taosSetGlobalTimezone(timezone)) {}
+  ~GlobalTimezoneGuard() {
+    if (code_ == TSDB_CODE_SUCCESS) {
+      (void)taosSetGlobalTimezone("UTC");
+    }
+  }
+  int32_t code() const { return code_; }
+
+ private:
+  int32_t code_;
+};
+
+TEST(StreamReaderTest, InfluxCalcBoundsUseReaderPrecisionAndSaturate) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                     precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    SSDataBlock *block = nullptr;
+    ASSERT_EQ(streamReaderExtFetchData(&reader, 1700000000, 1700000001, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000LL * factor) + ")"),
+              std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000001LL * factor + factor - 1) + ")"),
+              std::string::npos);
+    ASSERT_EQ(streamReaderExtFetchData(&reader, INT64_MIN, INT64_MAX, &block), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(gInfluxPrecisionSql.find("to_timestamp_nanos"), std::string::npos);
+    ASSERT_EQ(streamReaderExtFetchData(&reader, INT64_MIN + 1, INT64_MAX - 1, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" +
+                  std::to_string(factor == 1 ? INT64_MIN + 1 : INT64_MIN) + ")"), std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" +
+                  std::to_string(factor == 1 ? INT64_MAX - 1 : INT64_MAX) + ")"), std::string::npos);
+  }
+}
+
+/* Remote SQL bounds must be rendered with the same timezone the connector
+ * uses to decode the source column: the stream client timezone for
+ * timezone-naive columns (MySQL DATETIME, PG timestamp without time zone,
+ * SQL Server datetime2), and an absolute UTC instant for timezone-aware ones
+ * (MySQL TIMESTAMP, PG timestamptz).  Before this, bounds were always rendered
+ * in the server timezone, so a stream whose timezone differs from the server
+ * shifted every fetch and metadata range. */
+TEST(StreamReaderTest, RelationalFetchBoundsFollowSourceColumnTimezone) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_MYSQL;
+  reader.spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(reader.spec.extDb, "testdb", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+
+  // 2026-10-21 04:00:00Z == 2026-10-21 12:00:00 in Asia/Shanghai.
+  const int64_t skey = 1792555200000000LL;
+  const int64_t ekey = skey + 1000000LL;
+  SSDataBlock *block = nullptr;
+
+  // Timezone-naive column: bounds follow the stream timezone, matching the
+  // timezone the connector is told to use for decoding.
+  tstrncpy(reader.timezone, "Asia/Shanghai", sizeof(reader.timezone));
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, ekey, &block), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCapturedConnTimezone, "Asia/Shanghai");
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+
+  // Timezone-aware column: MySQL interprets an offset-less literal in its own
+  // session timezone, which the reader cannot observe, and an explicit
+  // "+00:00" suffix is only understood from MySQL 8.0.19 on (5.7 treats it as
+  // trailing garbage).  The bound is therefore an absolute instant rendered as
+  // FROM_UNIXTIME(<epoch>), which every supported MySQL evaluates in its
+  // session timezone, and it must not follow the stream timezone: the SQL is
+  // identical for two different stream timezones.
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, ekey, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find(">= FROM_UNIXTIME(1792555200.000000)"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_NE(gInfluxPrecisionSql.find("<= FROM_UNIXTIME(1792555201.000000)"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_EQ(gInfluxPrecisionSql.find("+00:00"), std::string::npos) << gInfluxPrecisionSql;
+  const std::string awareShanghai = gInfluxPrecisionSql;
+  tstrncpy(reader.timezone, "UTC", sizeof(reader.timezone));
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, ekey, &block), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gInfluxPrecisionSql, awareShanghai);
+}
+
+TEST(StreamReaderTest, SqlServerAwareBoundsUseUtcAndNaiveBoundsUseClientTimezone) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_SQLSERVER;
+  reader.spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(reader.spec.extDb, "testdb", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extSchema, "dbo", sizeof(reader.spec.extSchema));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  const int64_t skey = 1792555200000000LL;
+  SSDataBlock *block = nullptr;
+  for (const char *timezone : {"Asia/Shanghai", "America/New_York"}) {
+    tstrncpy(reader.timezone, timezone, sizeof(reader.timezone));
+    reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+    ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+    EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:00.000000'"), std::string::npos);
+    EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:01.000000'"), std::string::npos);
+    // SQL Server reads an offset-less datetimeoffset literal as +00:00, so the
+    // literal keeps the suffix-free form the end-to-end case validates.
+    EXPECT_EQ(gInfluxPrecisionSql.find("+00:00"), std::string::npos) << gInfluxPrecisionSql;
+    EXPECT_EQ(gCapturedConnTimezone, timezone);
+  }
+  tstrncpy(reader.timezone, "Asia/Shanghai", sizeof(reader.timezone));
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos);
+}
+
+/* Regression for a non-UTC taosd.  The reader used to render every remote SQL
+ * bound with the server global timezone, so on an Asia/Shanghai server the
+ * bounds above were emitted as 12:00:00 for the 04:00:00Z instant.  SQL Server
+ * reads an offset-less literal as +00:00, which shifted the whole fetch range
+ * by eight hours: rows just past the metadata watermark were filtered out and
+ * the window fetch returned nothing.  A tz-aware time axis must therefore stay
+ * on UTC whatever the server or stream timezone is, while a tz-naive one keeps
+ * following the stream timezone. */
+TEST(StreamReaderTest, SqlServerAwareBoundsIgnoreNonUtcServerTimezone) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_SQLSERVER;
+  reader.spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(reader.spec.extDb, "testdb", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extSchema, "dbo", sizeof(reader.spec.extSchema));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  tstrncpy(reader.spec.tsColumn, "ts", sizeof(reader.spec.tsColumn));
+  // 2026-10-21 04:00:00Z == 2026-10-21 12:00:00 in Asia/Shanghai.
+  const int64_t skey = 1792555200000000LL;
+  SSDataBlock *block = nullptr;
+
+  GlobalTimezoneGuard tzGuard("Asia/Shanghai");
+  ASSERT_EQ(tzGuard.code(), TSDB_CODE_SUCCESS);
+
+  // tz-aware (datetimeoffset): bounds must stay in UTC even though the server
+  // timezone now differs from the stream timezone.
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  tstrncpy(reader.timezone, "Asia/Shanghai", sizeof(reader.timezone));
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_EQ(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+
+  // tz-naive (datetime2): the stream timezone decides, not the server one.
+  reader.tsTzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  tstrncpy(reader.timezone, "UTC", sizeof(reader.timezone));
+  ASSERT_EQ(streamReaderExtFetchData(&reader, skey, skey + 1000000, &block), TSDB_CODE_SUCCESS);
+  EXPECT_NE(gInfluxPrecisionSql.find("'2026-10-21 04:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+  EXPECT_EQ(gInfluxPrecisionSql.find("'2026-10-21 12:00:00.000000'"), std::string::npos)
+      << gInfluxPrecisionSql;
+}
+
+bool gInfluxTimestampBatchPending = false;
+int32_t fetchInfluxTimestampBatch(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                                 SSDataBlock **block, SExtConnectorError *) {
+  *block = nullptr;
+  if (!gInfluxTimestampBatchPending) return TSDB_CODE_SUCCESS;
+  gInfluxTimestampBatchPending = false;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0);
+  column.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &column);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *ts = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  int64_t values[] = {1700000000123456789LL, 1700000000456789123LL};
+  for (int32_t row = 0; row < 2; ++row) {
+    code = colDataSetVal(ts, row, reinterpret_cast<const char *>(&values[row]), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+TEST(StreamReaderTest, InfluxMetaAndLastTimestampShareReaderPrecision) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, fetchInfluxTimestampBatch);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)), TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t divisor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                      precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    int64_t watermark = 1700000000000000000LL / divisor;
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)),
+              TSDB_CODE_SUCCESS);
+    for (auto type : {STRIGGER_PULL_LAST_TS_EXT, STRIGGER_PULL_META_EXT}) {
+      void *response = nullptr;
+      gInfluxTimestampBatchPending = true;
+      ASSERT_EQ(streamReaderExtHandlePull(&reader, type, &request, &response), TSDB_CODE_SUCCESS);
+      auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+      ASSERT_NE(rsp, nullptr);
+      if (type == STRIGGER_PULL_LAST_TS_EXT) {
+        auto *last = static_cast<SExtLastTsInfo *>(taosArrayGet(rsp->pLastTsArr, 0));
+        ASSERT_NE(last, nullptr);
+        EXPECT_EQ(last->ts, 1700000000456789123LL / divisor);
+      } else {
+        ASSERT_NE(rsp->pMetaBlock, nullptr);
+        auto *first = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 1));
+        auto *last = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 2));
+        EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(first, 0)), 1700000000123456789LL / divisor);
+        EXPECT_EQ(*reinterpret_cast<int64_t *>(colDataGetData(last, 0)), 1700000000456789123LL / divisor);
+        EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000000000000LL + divisor - 1) + ")"), std::string::npos);
+      }
+      streamExtPullRspFree(rsp);
+    }
+    watermark = 1700000000456789123LL / divisor;
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)),
+              TSDB_CODE_SUCCESS);
+    void *response = nullptr;
+    gInfluxTimestampBatchPending = false;
+    ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+              TSDB_CODE_STREAM_NO_DATA);
+    int64_t scannedThrough = watermark * divisor + divisor - 1;
+    EXPECT_GE(scannedThrough, 1700000000456789123LL);
+    EXPECT_NE(gInfluxPrecisionSql.find("> to_timestamp_nanos(" + std::to_string(scannedThrough) + ")"),
+              std::string::npos);
+    streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  }
+  tSimpleHashCleanup(request.pUidMaxTs);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxDataBoundsUseReaderPrecisionInSingleAndBatchFetch) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)), TSDB_CODE_SUCCESS);
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  SExtColTypeMapping mapping = {};
+  mapping.tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  mapping.tdType.bytes = sizeof(int64_t);
+  mapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(mapping.colName, "ts", sizeof(mapping.colName));
+  reader.spec.pColMappings = &mapping;
+  reader.spec.numColMappings = 1;
+  reader.spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.triggerColumns, nullptr);
+  char timestampColumn[TSDB_COL_NAME_LEN] = "ts";
+  ASSERT_NE(taosArrayPush(reader.spec.triggerColumns, timestampColumn), nullptr);
+  for (bool batched : {false, true}) {
+    if (batched) {
+      reader.pInfluxTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+      ASSERT_NE(reader.pInfluxTagCols, nullptr);
+      char tagColumn[TSDB_COL_NAME_LEN] = "host";
+      ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagColumn), nullptr);
+    }
+    for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+      reader.spec.precision = precision;
+      int64_t divisor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                        precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+      SExtUidWindow window = {};
+      window.skey = 1700000000123000000LL / divisor;
+      window.ekey = 1700000000456000000LL / divisor;
+      ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+                TSDB_CODE_SUCCESS);
+      void *response = nullptr;
+      ASSERT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+                TSDB_CODE_STREAM_NO_DATA);
+      EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(1700000000123000000)"), std::string::npos);
+      EXPECT_NE(gInfluxPrecisionSql.find("to_timestamp_nanos(" + std::to_string(1700000000456000000LL + divisor - 1) + ")"), std::string::npos);
+      streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+    }
+  }
+  taosArrayDestroy(reader.pInfluxTagCols);
+  taosArrayDestroy(reader.spec.triggerColumns);
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pUidIndex);
+}
+
+TEST(StreamReaderTest, InfluxCalcBoundsCoverTruncatedNegativeAndZeroTicks) {
+  Stub stub;
+  stub.set(extConnectorExecQuery, captureInfluxPrecisionQuery);
+  stub.set(extConnectorFetchBlock, finishInfluxPrecisionQuery);
+  stub.set(extConnectorCloseQuery, closeInfluxPrecisionQuery);
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    reader.spec.precision = precision;
+    int64_t factor = precision == TSDB_TIME_PRECISION_MILLI ? 1000000 :
+                     precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1;
+    for (int64_t tick : {-2LL, -1LL, 0LL, 1LL}) {
+      SSDataBlock *block = nullptr;
+      ASSERT_EQ(streamReaderExtFetchData(&reader, tick, tick, &block), TSDB_CODE_SUCCESS);
+      int64_t first = tick * factor - (tick <= 0 ? factor - 1 : 0);
+      int64_t last = tick * factor + (tick >= 0 ? factor - 1 : 0);
+      EXPECT_NE(gInfluxPrecisionSql.find(">= to_timestamp_nanos(" + std::to_string(first) + ")"),
+                std::string::npos);
+      EXPECT_NE(gInfluxPrecisionSql.find("<= to_timestamp_nanos(" + std::to_string(last) + ")"),
+                std::string::npos);
+      EXPECT_EQ(first / factor, tick);
+      EXPECT_EQ(last / factor, tick);
+      EXPECT_GT((last + 1) / factor, tick);
+    }
+  }
+}
 
 SNode *gExternalReaderPlan = nullptr;
 int32_t gExternalReaderOpenCalls = 0;
@@ -53,8 +441,10 @@ int32_t cloneExternalReaderPlan(const char *, SNode **ppNode) {
   return nodesCloneNode(gExternalReaderPlan, ppNode);
 }
 
-int32_t stopExternalReaderOpen(void *, const SStreamTask *, void **) {
+int32_t stopExternalReaderOpen(void *, const SStreamTask *, SNode *range, const char *, int8_t,
+                               void **) {
   ++gExternalReaderOpenCalls;
+  nodesDestroyNode(range);
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
@@ -101,6 +491,7 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
     SStreamReaderDeployMsg message = {};
     message.pExtSpec = &spec;
+    message.msg.calc.execReplica = 1;
     message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
     gExternalReaderOpenCalls = 0;
     Stub stub;
@@ -123,6 +514,269 @@ TEST(StreamReaderTest, ExternalDeployDoesNotTraverseRemoteLogicalHintsAsPhysical
     taosMemoryFree(spec.pCalcMappings);
     gExternalReaderPlan = nullptr;
   }
+}
+
+struct ExternalCalcReaderStub {
+  SNode *range;
+  std::string timezone;
+  int8_t tsTzClass;
+};
+
+int32_t gExternalReaderCloseCalls = 0;
+int32_t gExternalReaderFailAt = 0;
+
+int32_t openExternalCalcReaderStub(void *, const SStreamTask *, SNode *range, const char *timezone, int8_t tsTzClass,
+                                   void **info) {
+  ++gExternalReaderOpenCalls;
+  *info = nullptr;
+  if (gExternalReaderOpenCalls == gExternalReaderFailAt) {
+    nodesDestroyNode(range);
+    return TSDB_CODE_EXT_RESOURCE_EXHAUSTED;
+  }
+  *info = new ExternalCalcReaderStub{range, timezone, tsTzClass};
+  return TSDB_CODE_SUCCESS;
+}
+
+void closeExternalCalcReaderStub(void *info) {
+  if (info == nullptr) return;
+  auto *reader = static_cast<ExternalCalcReaderStub *>(info);
+  nodesDestroyNode(reader->range);
+  delete reader;
+  ++gExternalReaderCloseCalls;
+}
+
+void finishExternalReaderUndeploy(void *) {}
+
+class ExternalCalcReaderDeployTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    buildExternalReaderPlan(&gExternalReaderPlan, true);
+    ASSERT_NE(gExternalReaderPlan, nullptr);
+    auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_TIME_RANGE, &scan->pTimeRange), TSDB_CODE_SUCCESS);
+    tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+    message.pExtSpec = &spec;
+    message.msg.calc.calcScanPlan = const_cast<char *>("external-reader-plan");
+    message.msg.calc.execReplica = 3;
+    gExternalReaderOpenCalls = 0;
+    gExternalReaderCloseCalls = 0;
+    gExternalReaderFailAt = 0;
+    stub.set(nodesStringToNode, cloneExternalReaderPlan);
+    stub.set(stExtReaderOpen, openExternalCalcReaderStub);
+    stub.set(stExtReaderClose, closeExternalCalcReaderStub);
+  }
+
+  void TearDown() override {
+    if (task.info != nullptr) undeploy();
+    streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+    taosArrayDestroy(spec.calcColumns);
+    taosMemoryFree(spec.pCalcMappings);
+    nodesDestroyNode(gExternalReaderPlan);
+    gExternalReaderPlan = nullptr;
+  }
+
+  void undeploy() {
+    SStreamReaderTask *readerTask = &task;
+    task.task.undeployCb = finishExternalReaderUndeploy;
+    EXPECT_EQ(stReaderTaskUndeploy(&readerTask, true), TSDB_CODE_SUCCESS);
+  }
+
+  SStreamReaderTask task = {};
+  SStreamExtTriggerSpec spec = {};
+  SStreamReaderDeployMsg message = {};
+  Stub stub;
+};
+
+TEST_F(ExternalCalcReaderDeployTest, PreservesCaseSensitiveTimestampColumnIdentity) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  scan->sourceType = EXT_SOURCE_POSTGRESQL;
+  tstrncpy(scan->timezone, "Asia/Shanghai", sizeof(scan->timezone));
+  tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+  scan->pTimestampTypeHints = static_cast<SExtTimestampTypeHint *>(
+      taosMemoryCalloc(2, sizeof(SExtTimestampTypeHint)));
+  ASSERT_NE(scan->pTimestampTypeHints, nullptr);
+  scan->numTimestampTypeHints = 2;
+  tstrncpy(scan->pTimestampTypeHints[0].colName, "Ts", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[0].tzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  tstrncpy(scan->pTimestampTypeHints[1].colName, "ts", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[1].tzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t i = 0; i < message.msg.calc.execReplica; ++i) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, i));
+    EXPECT_EQ(reader->timezone, "Asia/Shanghai");
+    EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+  }
+}
+
+TEST_F(ExternalCalcReaderDeployTest, CreatesIndependentReplicasAndClosesAll) {
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gExternalReaderOpenCalls, 3);
+  auto *readers = static_cast<SArray *>(task.info);
+  ASSERT_EQ(taosArrayGetSize(readers), 3);
+  auto *first = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, 0));
+  auto *second = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, 1));
+  ASSERT_NE(first, second);
+  ASSERT_NE(first->range, nullptr);
+  ASSERT_NE(second->range, nullptr);
+  ASSERT_NE(first->range, second->range);
+  reinterpret_cast<STimeRangeNode *>(first->range)->needCalc = true;
+  EXPECT_FALSE(reinterpret_cast<STimeRangeNode *>(second->range)->needCalc);
+  undeploy();
+  EXPECT_EQ(task.info, nullptr);
+  EXPECT_EQ(gExternalReaderCloseCalls, 3);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, RollsBackPreviouslyOpenedReplicas) {
+  gExternalReaderFailAt = 3;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(gExternalReaderOpenCalls, 3);
+  EXPECT_EQ(gExternalReaderCloseCalls, 2);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, RejectsZeroReplicaCount) {
+  message.msg.calc.execReplica = 0;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(gExternalReaderOpenCalls, 0);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+TEST_F(ExternalCalcReaderDeployTest, OpensReplicasWithoutTimeRange) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  nodesDestroyNode(scan->pTimeRange);
+  scan->pTimeRange = nullptr;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(gExternalReaderOpenCalls, 3);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t execId = 0; execId < message.msg.calc.execReplica; ++execId) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, execId));
+    EXPECT_EQ(reader->range, nullptr);
+  }
+}
+
+TEST_F(ExternalCalcReaderDeployTest, FirstOpenFailureLeavesNoInstances) {
+  gExternalReaderFailAt = 1;
+  EXPECT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_EXT_RESOURCE_EXHAUSTED);
+  EXPECT_EQ(gExternalReaderOpenCalls, 1);
+  EXPECT_EQ(gExternalReaderCloseCalls, 0);
+  EXPECT_EQ(task.info, nullptr);
+}
+
+/* A stream whose trigger table is a virtual table backed by an external source
+ * is deployed as an original-table reader from a plain table scan: its plan has
+ * no federated-scan node, so the federated-scan lookup finds neither the client
+ * timezone nor the ts-column timezone class.  The reader then fell back to the
+ * server global timezone and EXT_TIMESTAMP_TZ_CLASS_UNKNOWN, which rendered
+ * SQL Server datetimeoffset bounds as an offset-less wall clock in the server
+ * timezone instead of UTC and dropped rows just past the watermark.  The plan's
+ * STableScanPhysiNode.timezoneName and the remote type in the deploy spec carry
+ * exactly the same information. */
+void buildVirtualTableScanPlan(SNode **ppNode, const char *timezone) {
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, ppNode), TSDB_CODE_SUCCESS);
+  auto *scan = reinterpret_cast<STableScanPhysiNode *>(*ppNode);
+  tstrncpy(scan->timezoneName, timezone, sizeof(scan->timezoneName));
+}
+
+class ExternalTriggerReaderDeployTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    buildVirtualTableScanPlan(&gExternalReaderPlan, "Asia/Shanghai");
+    ASSERT_NE(gExternalReaderPlan, nullptr);
+
+    spec.sourceType = EXT_SOURCE_SQLSERVER;
+    spec.precision = TSDB_TIME_PRECISION_MICRO;
+    tstrncpy(spec.sourceName, "remote", sizeof(spec.sourceName));
+    tstrncpy(spec.extDb, "metrics", sizeof(spec.extDb));
+    tstrncpy(spec.extSchema, "dbo", sizeof(spec.extSchema));
+    tstrncpy(spec.extTable, "dto_t", sizeof(spec.extTable));
+    tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+
+    char tsCol[TSDB_COL_NAME_LEN] = {0};
+    tstrncpy(tsCol, "ts", sizeof(tsCol));
+    spec.triggerColumns = taosArrayInit(1, TSDB_COL_NAME_LEN);
+    ASSERT_NE(spec.triggerColumns, nullptr);
+    ASSERT_NE(taosArrayPush(spec.triggerColumns, tsCol), nullptr);
+    spec.pColMappings = static_cast<SExtColTypeMapping *>(
+        taosMemoryCalloc(1, sizeof(SExtColTypeMapping)));
+    ASSERT_NE(spec.pColMappings, nullptr);
+    spec.numColMappings = 1;
+    tstrncpy(spec.pColMappings[0].colName, "ts", sizeof(spec.pColMappings[0].colName));
+
+    message.triggerReader = 1;
+    message.pExtSpec = &spec;
+    message.msg.trigger.triggerScanPlan = const_cast<char *>("virtual-table-scan-plan");
+
+    gExternalReaderOpenCalls = 0;
+    gExternalReaderCloseCalls = 0;
+    gExternalReaderFailAt = 0;
+    stub.set(nodesStringToNode, cloneExternalReaderPlan);
+    stub.set(stExtReaderOpen, openExternalCalcReaderStub);
+    stub.set(stExtReaderClose, closeExternalCalcReaderStub);
+  }
+
+  void TearDown() override {
+    if (task.info != nullptr) {
+      SStreamReaderTask *readerTask = &task;
+      task.task.undeployCb = finishExternalReaderUndeploy;
+      EXPECT_EQ(stReaderTaskUndeploy(&readerTask, true), TSDB_CODE_SUCCESS);
+    }
+    streamTaskStatsHandleLifecycle(&task.pStats, STREAM_TASK_STATS_OWNER_DESTROYED);
+    taosArrayDestroy(spec.triggerColumns);
+    taosMemoryFree(spec.pColMappings);
+    nodesDestroyNode(gExternalReaderPlan);
+    gExternalReaderPlan = nullptr;
+  }
+
+  void setRemoteType(const char *extTypeName) {
+    tstrncpy(spec.pColMappings[0].extTypeName, extTypeName, sizeof(spec.pColMappings[0].extTypeName));
+  }
+
+  SStreamReaderTask task = {};
+  SStreamExtTriggerSpec spec = {};
+  SStreamReaderDeployMsg message = {};
+  Stub stub;
+};
+
+TEST_F(ExternalTriggerReaderDeployTest, TakesTimezoneFromVirtualTableScanPlan) {
+  setRemoteType("datetime2(6)");
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *reader = static_cast<ExternalCalcReaderStub *>(task.info);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->timezone, "Asia/Shanghai");
+  EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+}
+
+TEST_F(ExternalTriggerReaderDeployTest, ClassifiesDatetimeoffsetFromRemoteTypeMapping) {
+  setRemoteType("datetimeoffset(6)");
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *reader = static_cast<ExternalCalcReaderStub *>(task.info);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->timezone, "Asia/Shanghai");
+  EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_AWARE);
+}
+
+TEST_F(ExternalTriggerReaderDeployTest, ClassifiesZeroScaleDatetimeoffsetFromRemoteTypeMapping) {
+  setRemoteType("datetimeoffset(0)");
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *reader = static_cast<ExternalCalcReaderStub *>(task.info);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_AWARE);
+}
+
+TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
+  // MySQL and SQL Server resolve unquoted identifiers case-insensitively, so a
+  // reference written in a different case still binds to the stored column;
+  // PostgreSQL and InfluxDB compare names literally.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, "Ts", "ts"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_SQLSERVER, "Ts", "ts"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "Ts", "ts"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "Ts", "ts"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "ts", "ts"));
+  // The helper stays total for optional metadata: a NULL name never matches a
+  // real one, and two NULLs compare equal.
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_MYSQL, "ts", nullptr));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, nullptr, nullptr));
 }
 
 SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {
@@ -202,6 +856,9 @@ TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
   const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
   EXPECT_EQ(2, ntohl(pRsp->numOfBlocks));
   EXPECT_EQ(2, be64toh(pRsp->numOfRows));
+  EXPECT_EQ(size - sizeof(*pRsp), ntohl(pRsp->payloadLen));
+  EXPECT_EQ(size - sizeof(*pRsp), ntohl(pRsp->compLen));
+  EXPECT_EQ(0, pRsp->compressed);
 
   const char *pCursor = pRsp->data;
   for (uint64_t expectedGid : {UINT64_C(101), UINT64_C(202)}) {
@@ -221,6 +878,41 @@ TEST(StreamReaderFetchBatchTest, LegacyResponseDropsEogBetweenDataBlocks) {
   blockDataDestroy(pFirst);
   blockDataDestroy(pEog);
   blockDataDestroy(pSecond);
+  taosArrayDestroy(pBlocks);
+}
+
+TEST(StreamReaderFetchBatchTest, LegacyEmptyResponseHasZeroPayloadLength) {
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  void *pData = nullptr;
+  size_t size = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamBuildFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  ASSERT_NE(nullptr, pData);
+  const auto *pRsp = static_cast<const SRetrieveTableRsp *>(pData);
+  EXPECT_EQ(sizeof(*pRsp), size);
+  EXPECT_EQ(0, ntohl(pRsp->payloadLen));
+  EXPECT_EQ(0, ntohl(pRsp->compLen));
+  EXPECT_EQ(1, pRsp->completed);
+  rpcFreeCont(pData);
+  taosArrayDestroy(pBlocks);
+}
+
+int32_t invalidLegacyFetchBlockSize(const SSDataBlock *) { return INT32_MAX; }
+
+TEST(StreamReaderFetchBatchTest, LegacyResponseRejectsOversizedBlock) {
+  SArray *pBlocks = taosArrayInit(1, sizeof(SSDataBlock *));
+  ASSERT_NE(nullptr, pBlocks);
+  SSDataBlock *pBlock = makeReaderFetchDataBlock(101, 11);
+  ASSERT_NE(nullptr, pBlock);
+  ASSERT_NE(nullptr, taosArrayPush(pBlocks, &pBlock));
+  Stub sizeStub;
+  sizeStub.set(blockGetInternalEncodeSize, invalidLegacyFetchBlockSize);
+  void *pData = reinterpret_cast<void *>(static_cast<uintptr_t>(1));
+  size_t size = 123;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, streamBuildFetchRsp(pBlocks, false, &pData, &size, TSDB_TIME_PRECISION_MILLI));
+  EXPECT_EQ(nullptr, pData);
+  EXPECT_EQ(0, size);
+  blockDataDestroy(pBlock);
   taosArrayDestroy(pBlocks);
 }
 

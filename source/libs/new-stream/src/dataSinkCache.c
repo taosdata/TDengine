@@ -297,8 +297,13 @@ int32_t buildSlidingWindowInMem(SSDataBlock* pBlock, int32_t tsColSlotId, int32_
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
-  // todo dataEncodeBufSize > real len
-  size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+  int64_t encodeSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+  if (encodeSize <= 0) {
+    stError("failed to get encode size of rows, startIndex:%d endIndex:%d rows:%" PRId64, startIndex, endIndex,
+            pBlock->info.rows);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  size_t dataEncodeBufSize = (size_t)encodeSize;
   char*  buf = taosMemoryCalloc(1, sizeof(SSlidingWindowInMem) + dataEncodeBufSize);
   if (buf == NULL) {
     return terrno;
@@ -369,11 +374,20 @@ int32_t getEnoughBuffWindow(SAlignGrpMgr* pAlignGrpMgr, size_t dataEncodeBufSize
     return TSDB_CODE_STREAM_INTERNAL_ERROR;
   }
 
+  // A window is stored as one contiguous record, and the same DS_FILE_BLOCK_SIZE limit is
+  // enforced when the memory block is flushed to a file (dataSinkFile.c). Reporting success for
+  // a larger request would hand the encoder a block smaller than it is told it can use.
+  if (dataEncodeBufSize > DS_FILE_BLOCK_SIZE) {
+    stError("window data size:%zu exceeds align block capacity:%d", dataEncodeBufSize, DS_FILE_BLOCK_SIZE);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
   if (pAlignGrpMgr->blocksInMem->size > 0) {
     pAlignBlockInfo =
         *(SAlignBlocksInMem**)taosArrayGet(pAlignGrpMgr->blocksInMem, pAlignGrpMgr->blocksInMem->size - 1);
-    if (pAlignBlockInfo && pAlignBlockInfo->capacity - pAlignBlockInfo->dataLen >= dataEncodeBufSize) {
+    if (pAlignBlockInfo && pAlignBlockInfo->dataLen <= pAlignBlockInfo->capacity &&
+        pAlignBlockInfo->capacity - pAlignBlockInfo->dataLen >= dataEncodeBufSize) {
       *ppAlignBlockInfo = pAlignBlockInfo;
       return TSDB_CODE_SUCCESS;
     }
@@ -403,8 +417,13 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
   int32_t lino = 0;
   size_t  numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 
-  // todo dataEncodeBufSize > real len
-  size_t dataEncodeBufSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+  int64_t encodeSize = blockGetEncodeSizeOfRows(pBlock, startIndex, endIndex);
+  if (encodeSize <= 0) {
+    stError("failed to get encode size of rows, startIndex:%d endIndex:%d rows:%" PRId64, startIndex, endIndex,
+            pBlock->info.rows);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  size_t dataEncodeBufSize = (size_t)encodeSize;
   size_t buffSize = sizeof(SSlidingWindowInMem) + dataEncodeBufSize;
 
   SAlignBlocksInMem* pAlignBlockInfo = NULL;
@@ -421,7 +440,11 @@ int32_t buildAlignWindowInMemBlock(SAlignGrpMgr* pAlignGrpMgr, SSDataBlock* pBlo
 
   char*   pStart = getWindowDataBuf(pSlidingWinInMem);
   int32_t len = 0;
-  code = blockEncodeAsRows(pBlock, pStart, dataEncodeBufSize, numOfCols, startIndex, endIndex, &len);
+  // pass the real writable tail of the block instead of the requested size, so a wrong size
+  // estimate can not make the encoder write past the end of the allocated block
+  size_t used = pAlignBlockInfo->dataLen + sizeof(SSlidingWindowInMem);
+  size_t writable = pAlignBlockInfo->capacity > used ? pAlignBlockInfo->capacity - used : 0;
+  code = blockEncodeAsRows(pBlock, pStart, writable, numOfCols, startIndex, endIndex, &len);
   QUERY_CHECK_CODE(code, lino, _end);
   if (len < 0) {
     stError("failed to encode data since %s, lineno:%d", tstrerror(len), lino);

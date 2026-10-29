@@ -785,7 +785,7 @@ Below are the business error codes for each module.
 | 0x80006210 | Virtual table source table does not exist                                  | The source table referenced by a virtual table does not exist (dropped or renamed).                                                              | Check whether the source table exists; recreate it or fix the reference. |
 | 0x80006211 | Virtual table source column not found                                      | The referenced column does not exist on the source table.                                                                                        | Check the source table schema; fix the referenced column or recreate the source. |
 | 0x80006212 | Virtual table ref column unresolved                                        | A virtual-table reference column cannot be resolved (chain too deep, circular, or terminal missing).                                             | Run SHOW VTABLE VALIDATE to locate the failing hop; fix the reference chain. |
-| 0x80006213 | External column filters require a direct MySQL or PostgreSQL column reference | A new column filter was specified for a non-MySQL/PostgreSQL source or an indirect virtual-table reference. | Specify filters only on direct MySQL/PostgreSQL external column references. Virtual-table chains use the filter saved on the leaf column. |
+| 0x80006213 | External column filters require a direct MySQL, PostgreSQL, or SQL Server column reference | A new column filter was specified for a source other than MySQL, PostgreSQL, or SQL Server, or on an indirect virtual-table reference. | Specify filters only on direct MySQL, PostgreSQL, or SQL Server external column references. Virtual-table chains use the filter saved on the leaf column. |
 | 0x80006214 | Cannot generate or execute remote SQL with the stored external column filter | SQL containing the saved column filter could not be generated, or the external database rejected it. | Check the error details, saved column filter, and remote SQL support. The saved filter must execute remotely and cannot fall back to local filtering. |
 | 0x80006215 | Invalid external column filter expression | The external column filter has an invalid structure, or its saved expression cannot be decoded. | Compare unqualified column names with literals and combine comparisons with `AND`. Use string literals for dates and times. |
 | 0x80006216 | Duplicate column in external column filter | A column occurs more than once in the external column filter. Column names are compared case-insensitively. | Use each filter column only once. |
@@ -839,6 +839,7 @@ Below are the business error codes for each module.
 | 0x80007018 | Stream info contains invalid JSON format messages | Internal encoding compatibility issues in stream computing | Report the issue to developers on GitHub. |
 | 0x8000701E | Invalid stream time configuration | The stream timezone or first day of week is missing or invalid | Correct the `STREAM_OPTIONS(CONFIG(...))` values and create the stream again |
 | 0x8000701F | Failed to load stream timezone | The configured timezone is unavailable on the executing node | Install the required timezone data or use an available IANA timezone |
+| 0x80007020 | Stream vtable redeploy timeout | A vtable runtime rebind triggered a stream redeploy that did not finish in time | Check the mnode deploy logs, then drop and recreate the stream |
 | 0x80004100 | Stream task does not exist | The stream computing task does not exist                     | Check the server-side error logs |
 | 0x80004118 | Stream rollup tag path is illegal | The ROLLUP BY tag path is invalid | Check and correct the rollup tag path |
 | 0x80004119 | Invalid ROLLUP BY clause | The stream ROLLUP BY clause is invalid | Check and correct the stream creation statement |
@@ -847,6 +848,7 @@ Below are the business error codes for each module.
 | 0x8000411C | PARTITION BY is not supported for the given external source type | The external source type does not support PARTITION BY | Remove PARTITION BY, or use an external source type that supports it |
 | 0x8000411D | External reader has no local SStreamTriggerReaderInfo; trigger must resend uid maxTs hash | Internal stream state for the external reader is missing | Report the issue to developers on GitHub |
 | 0x8000411F | Influxdb tag key is too long or convert error | the length of key or value in influxdb's tags is invalidate | If the tag name exceeds 64 characters or the tag value exceeds 256 characters, an error will be reported.After modifying the data, re-establish the stream |
+| 0x80004120 | External timestamp primary key is finer than the microsecond stream cursor | The external timestamp primary key is finer than the microsecond cursor the stream reader uses (for example SQL Server `datetime2(7)` / `datetimeoffset(7)`) | Reduce the fractional precision of the external timestamp column to 6 digits or less, then recreate the stream |
 
 #### xnode
 

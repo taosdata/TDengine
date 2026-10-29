@@ -40,8 +40,9 @@ fq_ci_needs_databases() {
       *test_vtable_plan_window_ext_source.py*|\
       *test_vtable_plan_window_federated_batch.py*|\
       *test_vtable_series_meta.py*|*test_vtable_series_smoke.py*|\
+      *test_virtual_stream_ext_recovery.py*|\
       *test_virtual_stream_mixed_external.py*|*test_virtual_stream_mixed_external_perf.py*|\
-      *test_fs_0[1-7]_*.py*|*test_meta_batch_txn_series.py*)
+      *test_fs_0[1-8]_*.py*|*test_meta_batch_txn_series.py*)
         return 0
         ;;
     esac

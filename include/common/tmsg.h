@@ -114,6 +114,25 @@ static inline bool tmsgIsValid(tmsg_t type) {
 
 #define TMSG_INFO(type) (tmsgIsValid(type) ? tMsgInfo[TMSG_INDEX(type)] : "unKnown")
 
+/*
+ * Stream trigger responses carry the send handle (SRpcMsg.info.ahandle, the
+ * SMsgSendInfo plus its SSTriggerAHandle) that the trigger task allocated when
+ * it issued the request.  The handle is owned by whoever finally deals with
+ * the message: normally the snode trigger worker releases it while processing
+ * the response, but any code path that drops the message instead (failed
+ * dispatch, queue allocation failure, queue teardown) must release it too.
+ *
+ * KEEP IN SYNC with smGetMsgHandles() in dnode/mgmt/mgmt_snode/src/smHandle.c:
+ * every stream trigger response registered there with smPutMsgToTriggerQueue()
+ * owns such a handle and must be listed here as well.  A response type that is
+ * routed to the snode trigger worker but missing from this list leaks its
+ * handle whenever the response is dropped instead of processed.
+ */
+static inline bool tmsgIsStreamTriggerRsp(tmsg_t type) {
+  return type == TDMT_STREAM_TRIGGER_CALC_RSP || type == TDMT_STREAM_TRIGGER_PULL_RSP ||
+         type == TDMT_STREAM_TRIGGER_DROP_RSP || type == TDMT_STREAM_TRIGGER_PULL_EXT_RSP;
+}
+
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
          (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_CONFIRM) || (type == TDMT_VND_COMMIT) ||
@@ -1286,7 +1305,9 @@ typedef struct {
   col_id_t id;
   int8_t   refType;                                   // 0=internal, 1=external (DS section 6.2.7)
   char     refSourceName[TSDB_EXT_SOURCE_NAME_LEN];   // external source name (refType=1)
-  char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema captured at virtual-table creation (PG only)
+  char     refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema: named by the reference path
+                                                       // (5-part SQL Server ref) or, for PostgreSQL only, the
+                                                       // source's creation-time default schema
   char     refDbName[TSDB_DB_NAME_LEN];
   char     refTableName[TSDB_TABLE_NAME_LEN];
   char     refColName[TSDB_COL_NAME_LEN];
@@ -1338,17 +1359,69 @@ typedef struct {
   char    refTableName[TSDB_TABLE_NAME_LEN];
   char    refColName[TSDB_COL_NAME_LEN];
   char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name, empty for internal refs
+  char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema (SQL Server / PG), empty otherwise
   bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
+// Compact ref entry stored inside a SVctRefContent block. Names live in the
+// trailing string arena of the same allocation; each offset is relative to
+// the content block start and 0 means the empty string (offset 0 is the
+// content header, never a valid string position).
+
+// flags bits of SRefColEntry
+#define VCT_REF_FLAG_HAS_FILTER_COND 0x1  // saved external-column filter exists for this col ref
+
+typedef struct {
+  int16_t  colId;
+  uint16_t flags;  // VCT_REF_FLAG_*
+  uint32_t dbOff;
+  uint32_t tbOff;
+  uint32_t colOff;
+  uint32_t srcOff;
+  uint32_t schemaOff;
+} SRefColEntry;
+
+// The ref payload of one virtual child table, kept as one allocation:
+//   [SVctRefContent][SRefColEntry x (numOfColRefs + numOfTagRefs)][string arena]
+// Col-ref entries come first, tag-ref entries follow. Children that share
+// the same ref pattern share one SVctRefContent, so a response with N
+// children referencing the same source columns costs O(N) small records
+// plus one content block. Only the in-memory form is compact; the
+// SVSubTablesRsp wire format is unchanged.
+typedef struct SVctRefContent {
+  int32_t numOfColRefs;
+  int32_t numOfTagRefs;
+  int32_t bufLen;  // total size in bytes of this allocation
+} SVctRefContent;
+
+// Per-child record: identity plus a shared content pointer.
 typedef struct SVCTableRefCols {
-  uint64_t     uid;
-  int32_t      numOfSrcTbls;
-  int32_t      numOfColRefs;
-  SRefColInfo* refCols;
-  int32_t      numOfTagRefs;
-  SRefColInfo* tagRefCols;
+  SVctRefContent* pContent;  // first field: keeps the pointer 8-aligned in the pack(1) region
+  uint64_t        uid;
+  int32_t         numOfSrcTbls;
+  int32_t         numOfColRefs;
+  int32_t         numOfTagRefs;
 } SVCTableRefCols;
+
+static FORCE_INLINE SRefColEntry* vctContentColAt(const SVctRefContent* pContent, int32_t idx) {
+  return (SRefColEntry*)((char*)pContent + sizeof(SVctRefContent)) + idx;
+}
+
+static FORCE_INLINE SRefColEntry* vctContentTagAt(const SVctRefContent* pContent, int32_t idx) {
+  return vctContentColAt(pContent, pContent->numOfColRefs + idx);
+}
+
+static FORCE_INLINE SRefColEntry* vctColRefAt(const SVCTableRefCols* pTb, int32_t idx) {
+  return vctContentColAt(pTb->pContent, idx);
+}
+
+static FORCE_INLINE SRefColEntry* vctTagRefAt(const SVCTableRefCols* pTb, int32_t idx) {
+  return vctContentColAt(pTb->pContent, pTb->numOfColRefs + idx);
+}
+
+static FORCE_INLINE const char* vctRefStr(const SVCTableRefCols* pTb, uint32_t off) {
+  return 0 == off ? "" : (const char*)pTb->pContent + off;
+}
 
 typedef struct SVCTableMergeInfo {
   uint64_t uid;
@@ -2843,6 +2916,21 @@ typedef struct {
 int32_t tSerializeSVSubTablesRsp(void* buf, int32_t bufLen, SVSubTablesRsp* pRsp);
 int32_t tDeserializeSVSubTablesRsp(void* buf, int32_t bufLen, SVSubTablesRsp* pRsp);
 void    tDestroySVSubTablesRsp(void* rsp);
+
+// Variable-length ref-content helpers. A SVctRefContent block is laid out as
+// [header][entries][string arena]; arenaBytes must cover every name appended
+// via tVctRefContentPutStr (sum of strlen+1 per non-empty name).
+SVctRefContent* tVctRefContentAlloc(int32_t numOfColRefs, int32_t numOfTagRefs, uint64_t arenaBytes);
+uint32_t        tVctRefContentPutStr(SVctRefContent* pContent, uint32_t* pArenaPos, const char* str);
+// Dedup pCand against previously kept contents keyed by full content bytes:
+// returns the owning block (pCand itself when new) and frees pCand when an
+// identical block already exists.
+SVctRefContent* vctRefContentDedup(SHashObj* pContentHash, SVctRefContent* pCand);
+SVCTableRefCols* tVctRefRecordNew(uint64_t uid, int32_t numOfSrcTbls, int32_t numOfColRefs,
+                                  int32_t numOfTagRefs, SVctRefContent* pContent);
+SVCTableRefCols* tBuildSVCTableRefCols(uint64_t uid, int32_t numOfSrcTbls, const SRefColInfo* pColRefs,
+                                       int32_t numOfColRefs, const SRefColInfo* pTagRefs, int32_t numOfTagRefs);
+void            vctRefColToInfo(const SVCTableRefCols* pTb, const SRefColEntry* pEntry, SRefColInfo* pInfo);
 
 typedef struct {
   SMsgHead header;
@@ -4739,6 +4827,11 @@ typedef struct {
   char    config[TSDB_DNODE_CONFIG_LEN];
   char    value[TSDB_DNODE_VALUE_LEN];
   int32_t version;
+  // CfgAlterType of the originating ALTER statement, so the receiving dnode can re-run the
+  // same dyn-scope/category validation the mnode did instead of trusting the sender.
+  // Optional on the wire: a pre-upgrade mnode omits it and the decoder defaults to
+  // CFG_ALTER_ALL_DNODES, which is the permissive value for CFG_CATEGORY_GLOBAL items.
+  int8_t alterType;
 } SDCfgDnodeReq;
 
 int32_t tSerializeSDCfgDnodeReq(void* buf, int32_t bufLen, SDCfgDnodeReq* pReq);
@@ -5657,6 +5750,7 @@ typedef struct SOrgTbInfo {
 typedef struct SForeignSourceInfo {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // SQL Server / PostgreSQL namespace; empty otherwise
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;   // SArray<SColIdNameKV>
   char*   tagCond;  // heap, owned; external series filter shared by this group (may be NULL)
@@ -5742,6 +5836,7 @@ typedef enum EForeignScanParamType {
 
 typedef struct SForeignTableInfo {
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // SQL Server / PostgreSQL namespace; empty otherwise
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;       // SArray<SColIdNameKV>
   int8_t  dstPrecision;
@@ -5762,6 +5857,7 @@ typedef struct SForeignScanOperatorParam {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   int64_t sourceMetaVersion;
   char    dbName[TSDB_DB_NAME_LEN];
+  char    schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // SQL Server / PostgreSQL namespace; empty otherwise
   char    tableName[TSDB_TABLE_NAME_LEN];
   SArray* colMap;  // SArray<SColIdNameKV>
   // Destination precision for TIMESTAMP columns of the virtual table this
@@ -5977,7 +6073,7 @@ enum {
 };
 
 #define DEFAULT_MAX_POLL_INTERVAL  300000
-#define DEFAULT_SESSION_TIMEOUT    12000
+#define DEFAULT_SESSION_TIMEOUT    45000
 #define DEFAULT_MAX_POLL_WAIT_TIME 1000
 #define DEFAULT_MIN_POLL_ROWS      4096
 
@@ -7477,6 +7573,7 @@ typedef struct {
   int8_t       rawData;
   int32_t      minPollRows;
   int8_t       enableBatchMeta;
+  int64_t      startTs;  // msg.consume.start.ts: only consume data with primary ts >= this (ms), 0 = disabled
   SHashObj*    uidHash;  // to find if uid is duplicated
 } SMqPollReq;
 
@@ -7498,12 +7595,10 @@ static FORCE_INLINE int32_t tEncodeSMqSubVgEp(void** buf, const SMqSubVgEp* pVgE
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
-  buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
-  buf = taosDecodeFixedI64(buf, &pVgEp->offset);
-  buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
-  return buf;
-}
+// Bounded legacy-walker decode for the TMQ ask-ep response. pLen carries the remaining
+// payload length and is decreased as fields are consumed; every string is checked against
+// its destination capacity and every count against the remaining bytes (see tmsg.c).
+void* tDecodeSMqSubVgEp(void* buf, int32_t* pLen, SMqSubVgEp* pVgEp);
 
 typedef struct {
   char    topic[TSDB_TOPIC_FNAME_LEN];
@@ -7512,7 +7607,7 @@ typedef struct {
 } SMqSubTopicEp;
 
 int32_t tEncodeMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp);
-void*   tDecodeMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicEp);
+void*   tDecodeMqSubTopicEp(void* buf, int32_t* pLen, SMqSubTopicEp* pTopicEp);
 void    tDeleteMqSubTopicEp(SMqSubTopicEp* pSubTopicEp);
 
 typedef struct {
@@ -7603,28 +7698,10 @@ static FORCE_INLINE int32_t tEncodeSMqAskEpRsp(void** buf, const SMqAskEpRsp* pR
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
-  // buf = taosDecodeStringTo(buf, pRsp->cgroup);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
-  if (pRsp->topics == NULL) {
-    return NULL;
-  }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqSubTopicEp topicEp;
-    buf = tDecodeMqSubTopicEp(buf, &topicEp);
-    if (buf == NULL) {
-      return NULL;
-    }
-    if ((taosArrayPush(pRsp->topics, &topicEp) == NULL)) {
-      return NULL;
-    }
-  }
-  buf = taosDecodeFixedI32(buf, &pRsp->code);
-
-  return buf;
-}
+// Bounded legacy-walker decode of the ask-ep response body (see tmsg.c). bufLen is the
+// length of the body after the SMqRspHead; a truncated or malicious body is rejected
+// without writing past topic[]/db[] or reading past the received buffer.
+void* tDecodeSMqAskEpRsp(void* buf, int32_t bufLen, SMqAskEpRsp* pRsp);
 
 static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (FDelete)tDeleteMqSubTopicEp);

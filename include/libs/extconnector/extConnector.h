@@ -156,8 +156,12 @@ int32_t extConnectorSupportsTimezoneConversion(SExtConnectorHandle *pHandle,
 // regenerating via nodesRemotePlanToSQL (which has no subquery resolve context).
 // The Executor MUST pass the pre-generated SQL when pNode->pConditions contains
 // REMOTE_VALUE_LIST nodes (IN subquery pushdown path).
+// pNode is optional too: stream readers build their own SQL and have no physi
+// node, so they pass an explicit timezoneName instead (NULL/"" -> server
+// global timezone). pNode->timezone wins when both are supplied.
 int32_t extConnectorExecQuery(SExtConnectorHandle              *pHandle,
                               const SFederatedScanPhysiNode    *pNode,
+                              const char                       *timezoneName,
                               const char                       *pSQL,
                               SExtQueryHandle                 **ppQHandle,
                               SExtConnectorError               *pOutErr);

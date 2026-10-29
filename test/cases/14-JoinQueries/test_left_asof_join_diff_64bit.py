@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import datetime
+import time
 
 from new_test_framework.utils import tdLog, tdSql, etool
 
@@ -86,13 +87,20 @@ class TestLeftAsofJoinDiff64bit:
                 values.append(
                     f"({ts_ms}, {row_idx}, {row_idx + 10}, {row_idx + 20}, {row_idx + 30}, {row_idx + 40}, {row_idx + 50})"
                 )
+            tdLog.info(f"=== insert front_machine rows [{start}, {end}) started")
+            start_time = time.monotonic()
             tdSql.execute(f"insert into {self.FRONT_TABLE} values " + ",".join(values))
+            tdLog.info(
+                f"=== insert front_machine rows [{start}, {end}) completed in "
+                f"{time.monotonic() - start_time:.3f}s"
+            )
 
     def _insert_back_rows(self):
         tdLog.info("=== insert back_machine rows for pici switches")
         second_offset = self.FIRST_PICI_ROWS
         third_offset = self.RANGE_START_OFFSET
         fourth_offset = self.RANGE_END_OFFSET - 1
+        start_time = time.monotonic()
         tdSql.execute(
             f"""
             insert into {self.BACK_TABLE} values
@@ -102,11 +110,13 @@ class TestLeftAsofJoinDiff64bit:
                 ({self._ts_ms(fourth_offset)}, '{self.PICI_FOURTH}', 1)
             """
         )
+        tdLog.info(f"=== insert back_machine rows completed in {time.monotonic() - start_time:.3f}s")
 
     def _prepare_data(self):
         self._prepare_schema()
         self._insert_front_rows()
         self._insert_back_rows()
+        tdLog.info("=== left asof join diff data prepared")
         print("prepare left asof join diff data ............ [ passed ]")
 
     def _join_from_clause(self):
@@ -176,101 +186,120 @@ class TestLeftAsofJoinDiff64bit:
             ) t
         """
 
-    def _assert_count(self, sql, expected):
-        count = int(tdSql.getFirstValue(f"select count(*) from ({sql}) t"))
-        if count != expected:
-            raise AssertionError(f"expect count {expected}, actual {count}")
-
-    def _assert_range_boundary(self, sql, expected_count, first_pici, last_pici):
-        range_start = self._ts_str(self.RANGE_START_OFFSET)
-        range_end = self._ts_str(self.RANGE_END_OFFSET)
-        range_sql = f"""
-            select *
-            from ({sql}) t
-            where ts >= '{range_start}'
-              and ts <= '{range_end}'
-        """
-        range_count = int(tdSql.getFirstValue(f"select count(*) from ({range_sql}) s"))
-        if range_count != expected_count:
-            raise AssertionError(f"expect range count {expected_count}, actual {range_count}")
-
-        tdSql.query(
-            f"""
-            select pici_hao, timediff(ts, '{range_start}', 1s)
-            from ({range_sql}) s
-            order by ts asc
-            limit 1
-            """
+    def _timed_query(self, label, sql):
+        tdLog.info(f"=== SQL started [{label}]: {sql.strip()}")
+        start = time.monotonic()
+        try:
+            result = tdSql.query(sql, row_tag=True)
+        except Exception:
+            tdLog.info(
+                f"=== SQL failed [{label}] after {time.monotonic() - start:.3f}s"
+            )
+            raise
+        tdLog.info(
+            f"=== SQL completed [{label}] in {time.monotonic() - start:.3f}s, "
+            f"rows={len(result)}"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, first_pici)
-        tdSql.checkData(0, 1, 0)
+        return result
 
-        tdSql.query(
-            f"""
-            select pici_hao, timediff(ts, '{range_end}', 1s)
-            from ({range_sql}) s
-            order by ts desc
-            limit 1
-            """
+    def _assert_timestamp(self, label, row, expected_offset):
+        actual_ms = round(row[0].timestamp() * 1000)
+        expected_ms = self._ts_ms(expected_offset)
+        if actual_ms != expected_ms:
+            raise AssertionError(
+                f"{label}: expected timestamp {expected_ms}, actual {actual_ms}"
+            )
+
+    def _assert_result(
+        self, label, sql, expected_count, first_offset, last_offset,
+        last_values, check_range=False, range_first_values=None,
+    ):
+        rows = self._timed_query(
+            label, f"select * from ({sql}) t order by ts asc"
         )
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, last_pici)
-        tdSql.checkData(0, 1, 0)
+        assertion_start = time.monotonic()
+        if len(rows) != expected_count:
+            raise AssertionError(
+                f"{label}: expected {expected_count} rows, actual {len(rows)}"
+            )
+        self._assert_timestamp(f"{label} first row", rows[0], first_offset)
+        self._assert_timestamp(f"{label} last row", rows[-1], last_offset)
+        for col, expected in last_values.items():
+            tdSql.checkData(len(rows) - 1, col, expected)
+
+        if check_range:
+            range_start = self._ts_ms(self.RANGE_START_OFFSET)
+            range_end = self._ts_ms(self.RANGE_END_OFFSET)
+            range_rows = [
+                row for row in rows
+                if range_start <= round(row[0].timestamp() * 1000) <= range_end
+            ]
+            expected_range_count = self.RANGE_END_OFFSET - self.RANGE_START_OFFSET + 1
+            if len(range_rows) != expected_range_count:
+                raise AssertionError(
+                    f"{label}: expected {expected_range_count} range rows, "
+                    f"actual {len(range_rows)}"
+                )
+            self._assert_timestamp(
+                f"{label} range first row", range_rows[0], self.RANGE_START_OFFSET
+            )
+            self._assert_timestamp(
+                f"{label} range last row", range_rows[-1], self.RANGE_END_OFFSET
+            )
+            if range_rows[0][1] != self.PICI_THIRD:
+                raise AssertionError(f"{label}: unexpected first range pici {range_rows[0][1]}")
+            if range_rows[-1][1] != self.PICI_FOURTH:
+                raise AssertionError(f"{label}: unexpected last range pici {range_rows[-1][1]}")
+            for col, expected in (range_first_values or {}).items():
+                actual = range_rows[0][col]
+                if actual != expected:
+                    raise AssertionError(
+                        f"{label}: expected first range column {col}={expected}, "
+                        f"actual {actual}"
+                    )
+        tdLog.info(
+            f"=== assertions completed [{label}] in "
+            f"{time.monotonic() - assertion_start:.3f}s"
+        )
 
     def do_filtered_diff_case(self):
         sql = self._diff_query_core(with_filter=True)
-        self._assert_count(sql, self.FIRST_PICI_ROWS - 1)
-        tdSql.query(f"select * from ({sql}) t order by ts desc limit 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, self.PICI_FIRST)
-        tdSql.checkData(0, 2, 1)
-        tdSql.checkData(0, 7, 1)
+        self._assert_result(
+            "filtered diff", sql, self.FIRST_PICI_ROWS - 1, 1,
+            self.FIRST_PICI_ROWS - 1, {1: self.PICI_FIRST, 2: 1, 7: 1},
+        )
         print("filtered left asof join diff ............... [ passed ]")
 
     def do_unfiltered_diff_case(self):
         sql = self._diff_query_core(with_filter=False)
-        self._assert_count(sql, self.TOTAL_ROWS - 1)
-        self._assert_range_boundary(
-            sql,
-            self.RANGE_END_OFFSET - self.RANGE_START_OFFSET + 1,
-            self.PICI_THIRD,
-            self.PICI_FOURTH,
+        self._assert_result(
+            "unfiltered diff", sql, self.TOTAL_ROWS - 1, 1,
+            self.TOTAL_ROWS - 1, {2: 1, 7: 1}, check_range=True,
+            range_first_values={2: 1, 7: 1},
         )
-        tdSql.query(f"select * from ({sql}) t order by ts desc limit 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 2, 1)
-        tdSql.checkData(0, 7, 1)
         print("unfiltered left asof join diff ............. [ passed ]")
 
     def do_unfiltered_raw_case(self):
         sql = self._raw_query_core()
-        self._assert_count(sql, self.TOTAL_ROWS)
-        self._assert_range_boundary(
-            sql,
-            self.RANGE_END_OFFSET - self.RANGE_START_OFFSET + 1,
-            self.PICI_THIRD,
-            self.PICI_FOURTH,
+        self._assert_result(
+            "unfiltered raw", sql, self.TOTAL_ROWS, 0,
+            self.TOTAL_ROWS - 1,
+            {2: self.TOTAL_ROWS - 1, 7: self.TOTAL_ROWS - 1 + 50},
+            check_range=True,
+            range_first_values={
+                2: self.RANGE_START_OFFSET,
+                7: self.RANGE_START_OFFSET + 50,
+            },
         )
-        tdSql.query(f"select * from ({sql}) t order by ts desc limit 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 2, self.TOTAL_ROWS - 1)
-        tdSql.checkData(0, 7, self.TOTAL_ROWS - 1 + 50)
         print("unfiltered left asof join raw columns ...... [ passed ]")
 
     def do_outer_diff_case(self):
         sql = self._outer_diff_query_core()
-        self._assert_count(sql, self.TOTAL_ROWS - 1)
-        self._assert_range_boundary(
-            sql,
-            self.RANGE_END_OFFSET - self.RANGE_START_OFFSET + 1,
-            self.PICI_THIRD,
-            self.PICI_FOURTH,
+        self._assert_result(
+            "outer diff", sql, self.TOTAL_ROWS - 1, 1,
+            self.TOTAL_ROWS - 1, {2: 1, 7: 1}, check_range=True,
+            range_first_values={2: 1, 7: 1},
         )
-        tdSql.query(f"select * from ({sql}) t order by ts desc limit 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 2, 1)
-        tdSql.checkData(0, 7, 1)
         print("outer subquery diff ........................ [ passed ]")
 
     # --- main ---
@@ -296,6 +325,7 @@ class TestLeftAsofJoinDiff64bit:
             - 2026-07-10 Codex add left asof join diff large-row regression
 
         """
+        case_start = time.monotonic()
         try:
             self._prepare_data()
             self.do_filtered_diff_case()
@@ -303,4 +333,11 @@ class TestLeftAsofJoinDiff64bit:
             self.do_unfiltered_raw_case()
             self.do_outer_diff_case()
         finally:
+            tdLog.info("=== left asof join diff cleanup started")
+            cleanup_start = time.monotonic()
             self._drop_db()
+            tdLog.info(
+                f"=== left asof join diff cleanup completed in "
+                f"{time.monotonic() - cleanup_start:.3f}s; "
+                f"case elapsed={time.monotonic() - case_start:.3f}s"
+            )

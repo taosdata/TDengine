@@ -18,6 +18,9 @@
 #include "version.h"
 #include "wrapper.h"
 
+/* Last include on purpose: re-points the memory macros at the local libc shims. */
+#include "wrapperLiteMem.h"
+
 static TdThreadOnce tsDriverEnvOnce = PTHREAD_ONCE_INIT;
 static TdThreadOnce tsDriverOnce = PTHREAD_ONCE_INIT;
 volatile int32_t    tsDriverOnceRet = 0;
@@ -64,6 +67,9 @@ setConfRet taos_set_config(const char *config) {
 }
 
 static void taos_init_driver_env(void) {
+  /* Reads taos.cfg (logDir, jniDebugFlag) and opens the wrapper's own log file
+   * before the driver is loaded, so driver-loading diagnostics land in it. */
+  tdLiteLogInit();
   taosDriverEnvInit();
 }
 
@@ -100,9 +106,46 @@ int taos_init(void) {
 
 void taos_cleanup(void) {
   (*fp_taos_cleanup)();
+  tdLiteLogClose();
 }
 
 int taos_options(TSDB_OPTION option, const void *arg, ...) {
+  /* The JNI layer writes the directory it was given straight into the wrapper's own
+   * configDir (Java_com_taosdata_jdbc_TSDBJNIConnector_initImp does the same copy).
+   * A caller that uses the public option -- the Python/Go/C connectors do -- has to
+   * land in the same place, because the wrapper reads its logDir and jniDebugFlag out
+   * of <configDir>/taos.cfg, and before the thin dispatcher that directory was the
+   * engine's single global.  It has to happen before the once below opens the log and
+   * before the driver is loaded, which is when configDir is handed over. */
+  if (option == TSDB_OPTION_CONFIGDIR) {
+    if (arg == NULL) {
+      /* The engine's public taos_options() answers TSDB_CODE_INVALID_PARA for a NULL
+       * value (taos_options_imp() would strlen(NULL)); this dispatcher reports failure
+       * as -1 + terrno everywhere else, so it does that here too.  Forwarding the NULL
+       * to the driver instead would make the two entry points disagree. */
+      terrno = TSDB_CODE_INVALID_PARA;
+      return -1;
+    }
+    /* tdLiteSetConfigDir() is the engine's own rule for this option
+     * (clientEnv.c's taos_options_imp: a path that needs quoting is stored quoted,
+     * because the engine parses the value with wordexp()) in the buffer that
+     * wrapperDriver.c hands to the engine when the driver is loaded.  Copying the raw
+     * string here -- what this path used to do -- made a directory with a space
+     * behave differently depending on whether it was set before or after
+     * taos_init(): it is the value the engine receives that gets parsed. */
+    int32_t code = tdLiteSetConfigDir((const char *)arg);
+    if (code == 0 && tsDriver != NULL) {
+      /* Keep a loaded driver in step.  The caller's own string is passed on, not the
+       * canonical one -- the WebSocket driver takes it as a plain path and the engine
+       * normalizes it itself -- and its answer wins, since it is what will be in use. */
+      int32_t drvCode = (*fp_taos_options)(option, arg);
+      if (drvCode != 0) {
+        return drvCode;
+      }
+    }
+    return code;
+  }
+
   (void)taosThreadOnce(&tsDriverEnvOnce, taos_init_driver_env);
   if (option == TSDB_OPTION_DRIVER) {
     if (tsDriver == NULL) {
@@ -120,7 +163,14 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   }
   (void)taosThreadOnce(&tsDriverOnce, taos_init_driver);
 
-  return (*fp_taos_options)(option, arg);
+  int code = (*fp_taos_options)(option, arg);
+  if (code == 0 && option == TSDB_OPTION_CHARSET && arg != NULL) {
+    /* The engine's tsCharset is not reachable from here (it exports no data symbol on
+     * Windows, and the WebSocket driver has none), so record what it accepted: this is
+     * the value getTsCharset() has to report, and the only place the wrapper sees it. */
+    tdLiteSetCharset((const char *)arg);
+  }
+  return code;
 }
 
 int taos_options_connection(TAOS *taos, TSDB_OPTION_CONNECTION option, const void *arg, ...) {

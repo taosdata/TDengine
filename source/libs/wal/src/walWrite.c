@@ -190,12 +190,21 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     for (int i = pWal->writeCur + 1; i < fileSetSize; i++) {
       SWalFileInfo *pInfo = taosArrayPop(pWal->fileInfoSet);
 
-      walBuildLogName(pWal, pInfo->firstVer, fnameStr);
+      // taosArrayPop only decrements size and returns the element in place, so this
+      // segment is already invisible to walBuildLogName's reverse lookup (it iterates up
+      // to taosArrayGetSize) and the name would fall back to the primary dir. Resolve
+      // from the popped entry's own diskId instead -- leaving a rolled-back segment
+      // behind on another mount point would let walScanActualLogFiles resurrect it into
+      // fileInfoSet on the next restart.
+      char segDir[WAL_PATH_LEN];
+      walResolveFileDirAt(pWal, pInfo->diskId, segDir, sizeof(segDir));
+
+      walBuildLogNameAt(segDir, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       if (taosRemoveFile(fnameStr) != 0) {
         wWarn("vgId:%d, failed to remove file %s for rollback since %s", pWal->cfg.vgId, fnameStr, terrstr());
       }
-      walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
+      walBuildIdxNameAt(segDir, pInfo->firstVer, fnameStr);
       wDebug("vgId:%d, wal remove file %s for rollback", pWal->cfg.vgId, fnameStr);
       if (taosRemoveFile(fnameStr) != 0) {
         wWarn("vgId:%d, failed to remove file %s for rollback since %s", pWal->cfg.vgId, fnameStr, terrstr());
@@ -542,12 +551,18 @@ int32_t walEndSnapshot(SWal *pWal, bool forceTrim) {
   for (int i = 0; i < deleteCnt; i++) {
     pInfo = taosArrayGet(pWal->toDeleteFiles, i);
 
-    walBuildLogName(pWal, pInfo->firstVer, fnameStr);
+    // These segments were popped off fileInfoSet above, so walBuildLogName's reverse
+    // lookup can no longer find them and would silently resolve to the primary dir.
+    // toDeleteFiles holds whole-struct copies, so use each entry's own diskId instead.
+    char segDir[WAL_PATH_LEN];
+    walResolveFileDirAt(pWal, pInfo->diskId, segDir, sizeof(segDir));
+
+    walBuildLogNameAt(segDir, pInfo->firstVer, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
       wError("vgId:%d, failed to remove log file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
       goto _exit;
     }
-    walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
+    walBuildIdxNameAt(segDir, pInfo->firstVer, fnameStr);
     if (taosRemoveFile(fnameStr) < 0 && ERRNO != ENOENT) {
       wError("vgId:%d, failed to remove idx file %s since %s", pWal->cfg.vgId, fnameStr, strerror(ERRNO));
       goto _exit;

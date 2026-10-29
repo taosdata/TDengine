@@ -59,8 +59,7 @@ typedef struct SSortMemFile {
   int32_t cacheSize;
   int32_t blockSize;
 
-  FILE* pTdFile;
-  char  memFilePath[PATH_MAX];
+  TdFilePtr pTdFile;
 } SSortMemFile;
 
 struct SSortHandle {
@@ -134,8 +133,12 @@ static int32_t msortComparFn(const void* pLeft, const void* pRight, void* param)
 
 // | offset[0] | offset[1] |....| nullbitmap | data |...|
 static void* createTuple(uint32_t columnNum, uint32_t tupleLen) {
-  uint32_t totalLen = sizeof(uint32_t) * columnNum + BitmapLen(columnNum) + tupleLen;
-  return taosMemoryCalloc(1, totalLen);
+  uint64_t totalLen = (uint64_t)sizeof(uint32_t) * columnNum + ((uint64_t)columnNum + 7) / 8 + tupleLen;
+  if (totalLen > UINT32_MAX) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return NULL;
+  }
+  return taosMemoryCalloc(1, (size_t)totalLen);
 }
 
 static void destoryAllocatedTuple(void* t) { taosMemoryFree(t); }
@@ -157,13 +160,15 @@ static inline int32_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, 
                                     size_t length, bool isNull, uint32_t tupleLen, uint32_t* pOffset) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  if (length > UINT32_MAX - offset) return TSDB_CODE_INVALID_MSG;
   tupleSetOffset(*t, colIdx, offset);
 
   if (isNull) {
     tupleSetNull(*t, colIdx, colNum);
   } else {
-    if (offset + length > tupleLen + tupleGetDataStartOffset(colNum)) {
-      void* px = taosMemoryRealloc(*t, offset + length);
+    uint64_t initialLen = (uint64_t)tupleLen + tupleGetDataStartOffset(colNum);
+    if ((uint64_t)offset + length > initialLen) {
+      void* px = taosMemoryRealloc(*t, (size_t)offset + length);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
 
       *t = px;
@@ -171,7 +176,7 @@ static inline int32_t tupleAddField(char** t, uint32_t colNum, uint32_t offset, 
     tupleSetData(*t, offset, data, length);
   }
 
-  (*pOffset) = offset + length;
+  (*pOffset) = offset + (uint32_t)length;
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -214,6 +219,10 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
     return terrno;
   }
 
+  if (colNum > UINT32_MAX || (uint64_t)sizeof(uint32_t) * colNum + ((uint64_t)colNum + 7) / 8 + tupleLen > UINT32_MAX) {
+    taosMemoryFree(t);
+    return TSDB_CODE_INVALID_MSG;
+  }
   void* pTuple = createTuple(colNum, tupleLen);
   if (!pTuple) {
     taosMemoryFree(t);
@@ -221,11 +230,13 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
   }
 
   size_t   colLen = 0;
-  uint32_t offset = tupleGetDataStartOffset(colNum);
+  uint32_t offset = (uint32_t)((uint64_t)sizeof(uint32_t) * colNum + ((uint64_t)colNum + 7) / 8);
   for (size_t colIdx = 0; colIdx < colNum; ++colIdx) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, colIdx);
     if (pCol == NULL) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
+      taosMemoryFree(pTuple);
+      taosMemoryFree(t);
       return terrno;
     }
 
@@ -238,6 +249,8 @@ static int32_t createAllocatedTuple(SSDataBlock* pBlock, size_t colNum, uint32_t
     }
     if (code != TSDB_CODE_SUCCESS) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+      taosMemoryFree(pTuple);
+      taosMemoryFree(t);
       return code;
     }
   }
@@ -1394,13 +1407,14 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
       return terrno;
     }
 
-    TAOS_CHECK_RETURN(taosSeekCFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET));
+    if (taosLSeekFile(pMemFile->pTdFile, pRegion->fileOffset, SEEK_SET) < 0) {
+      return terrno;
+    }
 
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize);
-    int32_t ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
-    if (ret != 1) {
-      terrno = TAOS_SYSTEM_ERROR(ERRNO);
-      return terrno;
+    int64_t ret = taosReadFile(pMemFile->pTdFile, pRegion->buf, readBytes);
+    if (ret != readBytes) {
+      return ret < 0 ? terrno : TSDB_CODE_FILE_CORRUPTED;
     }
     pRegion->bufLen = readBytes;
   }
@@ -1420,15 +1434,16 @@ static int32_t getRowBufFromExtMemFile(SSortHandle* pHandle, int32_t regionId, i
     memcpy(*ppRow, pRegion->buf + tupleOffset - pRegion->bufRegOffset, szThisBlock);
 
     // todo
-    if (taosSeekCFile(pMemFile->pTdFile, pRegion->fileOffset + pRegion->bufRegOffset + pRegion->bufLen, SEEK_SET) < 0) {
+    int64_t offset = pRegion->fileOffset + pRegion->bufRegOffset +
+                     pRegion->bufLen;
+    if (taosLSeekFile(pMemFile->pTdFile, offset, SEEK_SET) < 0) {
       return terrno;
     }
     int32_t readBytes = TMIN(pMemFile->blockSize, pRegion->regionSize - (pRegion->bufRegOffset + pRegion->bufLen));
-    int32_t ret = taosReadFromCFile(pRegion->buf, readBytes, 1, pMemFile->pTdFile);
-    if (ret != 1) {
+    int64_t ret = taosReadFile(pMemFile->pTdFile, pRegion->buf, readBytes);
+    if (ret != readBytes) {
       taosMemoryFreeClear(*ppRow);
-      terrno = TAOS_SYSTEM_ERROR(ERRNO);
-      return terrno;
+      return ret < 0 ? terrno : TSDB_CODE_FILE_CORRUPTED;
     }
     memcpy(*ppRow + szThisBlock, pRegion->buf, rowLen - szThisBlock);
     *pFreeRow = true;
@@ -1448,19 +1463,12 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
     code = terrno;
   }
   if (code == TSDB_CODE_SUCCESS) {
-    taosGetTmpfilePath(tsTempDir, "sort-ext-mem", pMemFile->memFilePath);
-    pMemFile->pTdFile = taosOpenCFile(pMemFile->memFilePath, "w+b");
+    pMemFile->pTdFile = taosOpenTempFile(tsTempDir, "sort-ext-mem");
     if (pMemFile->pTdFile == NULL) {
-      code = terrno = TAOS_SYSTEM_ERROR(ERRNO);
+      code = terrno;
     }
   }
   if (code == TSDB_CODE_SUCCESS) {
-    code = taosSetAutoDelFile(pMemFile->memFilePath);
-    if (code) {
-      qError("failed to set the auto-delete file attribute");
-      return code;
-    }
-
     pMemFile->currRegionId = -1;
     pMemFile->currRegionOffset = -1;
 
@@ -1489,7 +1497,7 @@ static int32_t createSortMemFile(SSortHandle* pHandle) {
       if (pMemFile->aFileRegions) taosMemoryFreeClear(pMemFile->aFileRegions);
       if (pMemFile->writeBuf) taosMemoryFreeClear(pMemFile->writeBuf);
       if (pMemFile->pTdFile) {
-        (void)taosCloseCFile(pMemFile->pTdFile);
+        (void)taosCloseFile(&pMemFile->pTdFile);
         pMemFile->pTdFile = NULL;
       }
       taosMemoryFreeClear(pMemFile);
@@ -1519,9 +1527,8 @@ static void destroySortMemFile(SSortHandle* pHandle) {
   taosMemoryFree(pMemFile->writeBuf);
   pMemFile->writeBuf = NULL;
 
-  (void)taosCloseCFile(pMemFile->pTdFile);
+  (void)taosCloseFile(&pMemFile->pTdFile);
   pMemFile->pTdFile = NULL;
-  (void)taosRemoveFile(pMemFile->memFilePath);
   taosMemoryFree(pMemFile);
   pHandle->pExtRowsMemFile = NULL;
 }
@@ -1573,10 +1580,10 @@ static int32_t tsortCloseRegion(SSortHandle* pHandle) {
   pRegion->regionSize = pMemFile->currRegionOffset;
   int32_t writeBytes = pRegion->regionSize - (pMemFile->writeFileOffset - pRegion->fileOffset);
   if (writeBytes > 0) {
-    int32_t ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
-    if (ret != 1) {
-      terrno = TAOS_SYSTEM_ERROR(ERRNO);
-      return terrno;
+    int64_t ret = taosWriteFile(pMemFile->pTdFile, pMemFile->writeBuf,
+                                writeBytes);
+    if (ret != writeBytes) {
+      return ret < 0 ? terrno : TSDB_CODE_APP_ERROR;
     }
     pMemFile->bRegionDirty = false;
   }
@@ -1622,10 +1629,10 @@ static int32_t saveBlockRowToExtRowsMemFile(SSortHandle* pHandle, SSDataBlock* p
   {
     if (pMemFile->currRegionOffset + pHandle->extRowBytes >= pMemFile->writeBufSize) {
       int32_t writeBytes = pMemFile->currRegionOffset - (pMemFile->writeFileOffset - pRegion->fileOffset);
-      int32_t ret = fwrite(pMemFile->writeBuf, writeBytes, 1, pMemFile->pTdFile);
-      if (ret != 1) {
-        terrno = TAOS_SYSTEM_ERROR(ERRNO);
-        return terrno;
+      int64_t ret = taosWriteFile(pMemFile->pTdFile, pMemFile->writeBuf,
+                                  writeBytes);
+      if (ret != writeBytes) {
+        return ret < 0 ? terrno : TSDB_CODE_APP_ERROR;
       }
       pMemFile->writeFileOffset = pRegion->fileOffset + pMemFile->currRegionOffset;
     }
@@ -2841,13 +2848,14 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
           return terrno;
         }
 
-        tupleLen += pCol->info.bytes;
+        if (pCol->info.bytes <= 0 || (uint64_t)tupleLen + (uint32_t)pCol->info.bytes > UINT32_MAX) {
+          return TSDB_CODE_INVALID_MSG;
+        }
+        tupleLen += (uint32_t)pCol->info.bytes;
         if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-          if (IS_STR_DATA_BLOB(pCol->info.type)) {
-            tupleLen += sizeof(BlobDataLenT);
-          } else {
-            tupleLen += sizeof(VarDataLenT);
-          }
+          uint32_t headerLen = IS_STR_DATA_BLOB(pCol->info.type) ? sizeof(BlobDataLenT) : sizeof(VarDataLenT);
+          if (tupleLen > UINT32_MAX - headerLen) return TSDB_CODE_INVALID_MSG;
+          tupleLen += headerLen;
         }
       }
     }

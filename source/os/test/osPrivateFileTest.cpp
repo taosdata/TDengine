@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #include "os.h"
+#include "taoserror.h"
 #ifdef WINDOWS
 #include <aclapi.h>
 #else
@@ -91,6 +92,115 @@ TEST_F(PrivateFileTest, ExclusiveCreateAndReadIdentity) {
   char data[4] = {0};
   ASSERT_EQ(taosReadFile(reader.get(), data, sizeof(data)), sizeof(data));
   EXPECT_EQ(std::string(data, sizeof(data)), "data");
+}
+
+TEST_F(PrivateFileTest, TemporaryFileRoundTripAndCleanup) {
+  TdFilePtr file = taosOpenTempFile(root.c_str(), "paged-buf");
+  ASSERT_NE(file, nullptr);
+  EXPECT_EQ(taosWriteFile(file, "query-data", 10), 10);
+  EXPECT_EQ(taosLSeekFile(file, 0, SEEK_SET), 0);
+  char data[10] = {0};
+  EXPECT_EQ(taosReadFile(file, data, sizeof(data)), sizeof(data));
+  EXPECT_EQ(std::string(data, sizeof(data)), "query-data");
+  EXPECT_EQ(taosCloseFile(&file), 0);
+
+  TdDirPtr dir = taosOpenDir(root.c_str());
+  ASSERT_NE(dir, nullptr);
+  TdDirEntryPtr entry = nullptr;
+  while ((entry = taosReadDir(dir)) != nullptr) {
+    const char* name = taosGetDirEntryName(entry);
+    EXPECT_TRUE(strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
+        << "Unexpected directory entry: " << name;
+  }
+  EXPECT_EQ(taosCloseDir(&dir), 0);
+}
+
+TEST_F(PrivateFileTest, TemporaryFileRejectsInvalidArguments) {
+  const std::string longDir(PATH_MAX, 'd');
+  const std::string longPrefix(TD_TMP_FILE_PREFIX_MAX_LEN + 1, 'p');
+  const struct {
+    const char* name;
+    const char* dir;
+    const char* prefix;
+  } cases[] = {
+      {"null directory", nullptr, "spill"},
+      {"empty directory", "", "spill"},
+      {"long directory", longDir.c_str(), "spill"},
+      {"null prefix", root.c_str(), nullptr},
+      {"empty prefix", root.c_str(), ""},
+      {"slash in prefix", root.c_str(), "spill/name"},
+      {"backslash in prefix", root.c_str(), "spill\\name"},
+      {"colon in prefix", root.c_str(), "spill:name"},
+      {"long prefix", root.c_str(), longPrefix.c_str()},
+  };
+  for (const auto& input : cases) {
+    SCOPED_TRACE(input.name);
+    terrno = 0;
+    FileHandle file(taosOpenTempFile(input.dir, input.prefix));
+    EXPECT_EQ(file.get(), nullptr);
+    EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  }
+}
+
+TEST_F(PrivateFileTest, TemporaryFileAcceptsMaximumPrefixLength) {
+  const std::string prefix(TD_TMP_FILE_PREFIX_MAX_LEN, 'p');
+  FileHandle file(taosOpenTempFile(root.c_str(), prefix.c_str()));
+  ASSERT_NE(file.get(), nullptr);
+  EXPECT_EQ(taosWriteFile(file.get(), "safe", 4), 4);
+}
+
+TEST_F(PrivateFileTest, TemporaryFileAcceptsDirectoryWithTrailingSlash) {
+  for (const auto& dir : {root, root + TD_DIRSEP}) {
+    FileHandle file(taosOpenTempFile(dir.c_str(), "paged-buf"));
+    ASSERT_NE(file.get(), nullptr);
+    EXPECT_EQ(taosWriteFile(file.get(), "safe", 4), 4);
+  }
+}
+
+TEST_F(PrivateFileTest, TemporaryFilesHaveIndependentIdentityAndContents) {
+  FileHandle first(taosOpenTempFile(root.c_str(), "spill"));
+  ASSERT_NE(first.get(), nullptr);
+  FileHandle second(taosOpenTempFile(root.c_str(), "spill"));
+  ASSERT_NE(second.get(), nullptr);
+  int64_t dev1 = 0, ino1 = 0, dev2 = 0, ino2 = 0;
+  ASSERT_EQ(taosDevInoFile(first.get(), &dev1, &ino1), 0);
+  ASSERT_EQ(taosDevInoFile(second.get(), &dev2, &ino2), 0);
+  EXPECT_EQ(dev1, dev2);
+  EXPECT_NE(ino1, ino2);
+  ASSERT_EQ(taosWriteFile(first.get(), "first-data", 10), 10);
+  ASSERT_EQ(taosWriteFile(second.get(), "second-data", 11), 11);
+  ASSERT_EQ(taosLSeekFile(first.get(), 0, SEEK_SET), 0);
+  ASSERT_EQ(taosLSeekFile(second.get(), 0, SEEK_SET), 0);
+  char firstData[10] = {};
+  char secondData[11] = {};
+  ASSERT_EQ(taosReadFile(first.get(), firstData, sizeof(firstData)),
+            sizeof(firstData));
+  ASSERT_EQ(taosReadFile(second.get(), secondData, sizeof(secondData)),
+            sizeof(secondData));
+  EXPECT_EQ(std::string(firstData, sizeof(firstData)), "first-data");
+  EXPECT_EQ(std::string(secondData, sizeof(secondData)), "second-data");
+}
+
+TEST_F(PrivateFileTest, TemporaryFileAcceptsLinkedParentWithTrailingSlash) {
+  const auto link = path("link");
+#ifdef WINDOWS
+  if (!CreateSymbolicLinkA(link.c_str(), root.c_str(),
+                           SYMBOLIC_LINK_FLAG_DIRECTORY | 0x2)) {
+    GTEST_SKIP() << "Creating directory links requires developer mode or "
+                   "the symbolic-link privilege";
+  }
+#else
+  ASSERT_EQ(symlink(root.c_str(), link.c_str()), 0);
+#endif
+  for (const auto& dir : {link, link + TD_DIRSEP}) {
+    FileHandle file(taosOpenTempFile(dir.c_str(), "paged-buf"));
+    ASSERT_NE(file.get(), nullptr);
+    EXPECT_EQ(taosWriteFile(file.get(), "safe", 4), 4);
+    EXPECT_EQ(taosLSeekFile(file.get(), 0, SEEK_SET), 0);
+    char data[4] = {};
+    EXPECT_EQ(taosReadFile(file.get(), data, sizeof(data)), sizeof(data));
+    EXPECT_EQ(std::string(data, sizeof(data)), "safe");
+  }
 }
 
 TEST_F(PrivateFileTest, MissingReadDoesNotCreate) {

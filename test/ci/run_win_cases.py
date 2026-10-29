@@ -394,7 +394,7 @@ def process_pytest_file(
                     rf.write(result_str)
                 continue
 
-            # 解析 pytest 命令 - 格式: priority,rerunTimes,sanitizer(y/n),path,command
+            # 解析 pytest 命令 - 格式: priority,maxAttempts,sanitizer(y/n),path,command
             # 检查格式: 第三列是 y/n，第五列决定使用 ./ci/pytest.sh 还是 pytest
             parts = line.split(",")
             if len(parts) < 5:
@@ -409,10 +409,16 @@ def process_pytest_file(
                 continue
 
             # 根据原逻辑解析 pytest 命令
-            if "ci/pytest.sh " in line:
-                pytest_cmd = line.split("ci/pytest.sh ")[1]
+            command_field = parts[4].strip()
+            if "ci/pytest.sh " in command_field:
+                pytest_cmd = command_field.split("ci/pytest.sh ")[1]
             else:
-                pytest_cmd = line.split(",,n,.,")[1]
+                pytest_cmd = command_field
+
+            # Optional 6th column: per-case timeout in seconds
+            per_case_timeout = 1200
+            if len(parts) >= 6 and parts[5].strip().isdigit():
+                per_case_timeout = int(parts[5].strip())
 
             if not pytest_cmd.startswith("pytest"):
                 logger.warning(f"异常pytest命令: {pytest_cmd}")
@@ -446,6 +452,12 @@ def process_pytest_file(
 
                 global current_process
                 pytest_cmd_clean = f"{normalize_pytest_command(pytest_cmd)} --clean"
+                # pytest.ini caps every test at 1200s, which kills the first
+                # federated-query case while it is still provisioning the
+                # external engines.  Let the pytest-timeout plugin follow the
+                # per-case limit from win_cases.task instead.
+                if "--timeout" not in pytest_cmd_clean:
+                    pytest_cmd_clean = f"{pytest_cmd_clean} --timeout={per_case_timeout}"
 
                 with open(log_file, "w", buffering=1) as log:
                     current_process = subprocess.Popen(
@@ -458,7 +470,7 @@ def process_pytest_file(
 
                     # 轮询等待
                     waited = 0
-                    while waited < 1200:
+                    while waited < per_case_timeout:
                         ret = current_process.poll()
                         if ret is not None:
                             return_code = ret
@@ -552,6 +564,18 @@ def process_pytest_file(
 
             with open(result_file, "a", encoding="utf-8") as rf:
                 rf.write(result_str)
+
+            # Surface the failure in the CI trace immediately, so a failing
+            # round can be diagnosed without waiting for the job artifacts.
+            if return_code != 0 and os.path.exists(log_file):
+                logger.info(f"---- tail of {log_file} ----")
+                try:
+                    with open(log_file, "r", encoding="utf-8", errors="replace") as failed_log:
+                        for line in failed_log.readlines()[-60:]:
+                            logger.info(line.rstrip())
+                except Exception as read_error:
+                    logger.info(f"unable to read {log_file}: {read_error}")
+                logger.info("---- end of case log ----")
 
     # ========== 收尾 ==========
     end_time = time.time()

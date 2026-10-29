@@ -166,7 +166,8 @@ class TestCase:
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
-                        auto.offset.reset:earliest'
+                        auto.offset.reset:earliest,\
+                        session.timeout.ms:12000'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
 
         event.wait()
@@ -186,6 +187,10 @@ class TestCase:
         # wait for data ready
         prepareEnvThread.join()
         tdLog.info("insert process end, and start to check consume result")
+
+        # wait until the killed consumer is evicted by mnode
+        # (session.timeout.ms=12000) before starting a new consumer
+        time.sleep(15)
 
         tdLog.info("again start consume processer")
         tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -238,7 +243,8 @@ class TestCase:
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
                         auto.commit.interval.ms:200,\
-                        auto.offset.reset:earliest'
+                        auto.offset.reset:earliest,\
+                        session.timeout.ms:12000'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit, useConsumerIdTimestamp=False)
 
         event.wait()
@@ -259,6 +265,10 @@ class TestCase:
         # wait for data ready
         prepareEnvThread.join()
         tdLog.info("insert process end, and start to check consume result")
+
+        # wait until the killed consumer is evicted by mnode
+        # (session.timeout.ms=12000) before starting a new consumer
+        time.sleep(15)
 
         tdLog.info("again start consume processer")
         tmqCom.startTmqSimProcess(pollDelay,parameterDict["dbName"],showMsg, showRow)
@@ -290,6 +300,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

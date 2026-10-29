@@ -1088,3 +1088,94 @@ taos> explain verbose true select sum(scenario + local_v + mysql_v) from vt_wind
           -> System Table Scan on ins_virtual_child_columns (columns=10 width=804)                                                                                                    |
                 Output: columns=10 width=804                                                                                                                                          |
 
+taos> explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_federated;
+                                                                                      QUERY_PLAN                                                                                      |
+=======================================================================================================================================================================================
+ -> Dynamic Query Control for Virtual Stable Agg (has_partition=0 batch_process_child=1 width=32)                                                                                     |
+       Output: columns=4 width=32                                                                                                                                                     |
+    -> Data Exchange 2:1 (width=804)                                                                                                                                                  |
+          Output: columns=10 width=804                                                                                                                                                |
+       -> System Table Scan on ins_virtual_child_columns (columns=10 width=804)                                                                                                       |
+             Output: columns=10 width=804                                                                                                                                             |
+    -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                               |
+          Output: columns=4 width=32 blocking=1                                                                                                                                       |
+          Merge ResBlocks: True                                                                                                                                                       |
+       -> Merge (columns=4 width=32 input_order=unknown output_order=unknown mode=merge)                                                                                              |
+             Output: columns=4 width=32                                                                                                                                               |
+          -> Data Exchange 2:1 (width=32)                                                                                                                                             |
+                Output: columns=4 width=32                                                                                                                                            |
+             -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                      |
+                   Output: columns=4 width=32 blocking=1                                                                                                                              |
+                   Merge ResBlocks: False                                                                                                                                             |
+                -> Table Scan on vst_ss_federated (columns=5 width=24 order=[asc|1 desc|0] mode=ts_order data_load=sma)                                                               |
+                      Output: columns=5 width=24                                                                                                                                      |
+                      Time Range: [-9223372036854775808, 9223372036854775807]                                                                                                         |
+          -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                         |
+                Output: columns=4 width=32 blocking=1                                                                                                                                 |
+                Merge ResBlocks: False                                                                                                                                                |
+             -> Federated Scan on vt_window_batch_ss. (sqlserver) (width=24)                                                                                                          |
+                   Output: columns=5 width=24                                                                                                                                         |
+                   Source: 127.0.0.1:1433 user=sa                                                                                                                                     |
+          -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                         |
+                Output: columns=4 width=32 blocking=1                                                                                                                                 |
+                Merge ResBlocks: False                                                                                                                                                |
+             -> Federated Scan on vt_window_batch_mysql_b. (mysql) (width=24)                                                                                                         |
+                   Output: columns=5 width=24                                                                                                                                         |
+                   Source: 127.0.0.1:13306 user=root                                                                                                                                  |
+          -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                         |
+                Output: columns=4 width=32 blocking=1                                                                                                                                 |
+                Merge ResBlocks: False                                                                                                                                                |
+             -> Federated Scan on vt_window_batch_pg. (postgresql) (width=24)                                                                                                         |
+                   Output: columns=5 width=24                                                                                                                                         |
+                   Source: 127.0.0.1:15434 user=postgres                                                                                                                              |
+
+taos> explain verbose true select max(scenario), sum(mysql_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_federated partition by scenario order by 1;
+                                                                                      QUERY_PLAN                                                                                      |
+=======================================================================================================================================================================================
+ -> Sort input_order=unknown output_order=unknown  (columns=3 width=20)                                                                                                               |
+       Output: columns=3 width=20                                                                                                                                                     |
+    -> Aggregate (functions=3 width=20 input_order=unknown)                                                                                                                           |
+          Output: columns=3 width=20 blocking=1                                                                                                                                       |
+          Merge ResBlocks: True                                                                                                                                                       |
+       -> Dynamic Query Control for Virtual Stable Agg (has_partition=1 batch_process_child=0 width=20)                                                                               |
+             Output: columns=3 width=20                                                                                                                                               |
+          -> Data Exchange 2:1 (width=804)                                                                                                                                            |
+                Output: columns=10 width=804                                                                                                                                          |
+             -> System Table Scan on ins_virtual_child_columns (columns=10 width=804)                                                                                                 |
+                   Output: columns=10 width=804                                                                                                                                       |
+          -> Partition on Column scenario (width=12)                                                                                                                                  |
+                Output: columns=2 width=12                                                                                                                                            |
+                Partition Key: partitions=1                                                                                                                                           |
+             -> Data Exchange 2:1 (width=12)                                                                                                                                          |
+                   Output: columns=2 width=12                                                                                                                                         |
+                -> Tag Scan on vst_ss_federated (pseudo_columns=2 width=12)                                                                                                           |
+                      Output: columns=2 width=12                                                                                                                                      |
+          -> Merge (columns=3 width=20 input_order=unknown output_order=unknown mode=merge)                                                                                           |
+                Output: columns=3 width=20                                                                                                                                            |
+             -> Data Exchange 2:1 (width=20)                                                                                                                                          |
+                   Output: columns=3 width=20                                                                                                                                         |
+                -> Aggregate (functions=3 width=20 input_order=asc)                                                                                                                   |
+                      Output: columns=3 width=20 blocking=1                                                                                                                           |
+                      Merge ResBlocks: False                                                                                                                                          |
+                   -> Table Scan on vst_ss_federated (columns=3 pseudo_columns=2 width=28 order=[asc|1 desc|0] mode=ts_order data_load=sma)                                           |
+                         Output: columns=5 width=28                                                                                                                                   |
+                         Time Range: [-9223372036854775808, 9223372036854775807]                                                                                                      |
+             -> Aggregate (functions=3 width=20 input_order=unknown)                                                                                                                  |
+                   Output: columns=3 width=20 blocking=1                                                                                                                              |
+                   Merge ResBlocks: False                                                                                                                                             |
+                -> Federated Scan on vt_window_batch_ss. (sqlserver) (width=28)                                                                                                       |
+                      Output: columns=5 width=28                                                                                                                                      |
+                      Source: 127.0.0.1:1433 user=sa                                                                                                                                  |
+             -> Aggregate (functions=3 width=20 input_order=unknown)                                                                                                                  |
+                   Output: columns=3 width=20 blocking=1                                                                                                                              |
+                   Merge ResBlocks: False                                                                                                                                             |
+                -> Federated Scan on vt_window_batch_mysql_b. (mysql) (width=28)                                                                                                      |
+                      Output: columns=5 width=28                                                                                                                                      |
+                      Source: 127.0.0.1:13306 user=root                                                                                                                               |
+             -> Aggregate (functions=3 width=20 input_order=unknown)                                                                                                                  |
+                   Output: columns=3 width=20 blocking=1                                                                                                                              |
+                   Merge ResBlocks: False                                                                                                                                             |
+                -> Federated Scan on vt_window_batch_pg. (postgresql) (width=28)                                                                                                      |
+                      Output: columns=5 width=28                                                                                                                                      |
+                      Source: 127.0.0.1:15434 user=postgres                                                                                                                           |
+
