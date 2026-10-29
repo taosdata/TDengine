@@ -4117,6 +4117,22 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SRpcMsg* pMsg, SyncIndex* pRetIn
   SyncTerm        term = raftStoreGetTerm(ths);
   SSyncRaftEntry* pEntry = NULL;
   if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
+    // SECURITY FIX (finding item 52): a SyncClientRequest is produced only by the local
+    // syncNodePropose() loopback. Its dataLen field is fully attacker-controlled if the frame ever
+    // reaches here from the network, and syncEntryBuildFromClientRequest() trusts it as the memcpy
+    // length without comparing it to the real rpc frame length (pMsg->contLen). A short frame with a
+    // large dataLen would read far past the buffer (heap over-read, crash, or attacker bytes
+    // persisted into the WAL and replicated). Reject any request whose declared dataLen does not
+    // fit inside the received frame. A well-formed local request always satisfies this because its
+    // pMsg->contLen equals sizeof(SyncClientRequest) + dataLen.
+    SyncClientRequest* pClientReq = (SyncClientRequest*)pMsg->pCont;
+    if (pMsg->contLen < (int32_t)sizeof(SyncClientRequest) ||
+        pClientReq->dataLen > (uint32_t)(pMsg->contLen - (int32_t)sizeof(SyncClientRequest))) {
+      sGError(&pMsg->info.traceId,
+              "vgId:%d, msg:%p, drop malformed client request: contLen:%d dataLen:%u, possible forgery",
+              ths->vgId, pMsg, pMsg->contLen, pClientReq->dataLen);
+      return TSDB_CODE_SYN_INTERNAL_ERROR;
+    }
     pEntry = syncEntryBuildFromClientRequest(pMsg->pCont, term, index, &pMsg->info.traceId);
   } else {
     pEntry = syncEntryBuildFromRpcMsg(pMsg, term, index);
