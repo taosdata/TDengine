@@ -25,6 +25,7 @@ import time
 import datetime
 import platform
 import subprocess
+import shutil
 
 #
 #  platform
@@ -82,7 +83,29 @@ def run(command, timeout = 20, ret_code=False, show = True):
     out = f"out_{id}.txt"
     err = f"err_{id}.txt"
     
+    started_ns = time.time_ns()
     code = exe(command + f" 1>{out} 2>{err}", show)
+
+    # Optional CI evidence: retain the original bytes before decoding/deleting
+    # temporary output. The caller's output and assertions remain unchanged.
+    evidence_dir = os.environ.get("TAOSBACKUP_DIAGNOSTICS_DIR")
+    if evidence_dir and "taosdump" in command.lower():
+        try:
+            os.makedirs(evidence_dir, exist_ok=True)
+            stamp = str(time.time_ns())
+            for path, suffix in ((out, "stdout"), (err, "stderr"),
+                                 ("tmp/backup.log", "backup.log"),
+                                 ("restore.log", "restore.log")):
+                if os.path.isfile(path):
+                    # Mirrors may survive a previous invocation using another
+                    # output directory. Do not label those as current evidence.
+                    if suffix.endswith(".log") and os.stat(path).st_mtime_ns < started_ns:
+                        continue
+                    shutil.copyfile(path, os.path.join(evidence_dir, f"{stamp}-{suffix}"))
+            with open(os.path.join(evidence_dir, f"{stamp}-exit.txt"), "w") as evidence:
+                evidence.write(str(code))
+        except OSError as error:
+            print(f"taosBackup evidence capture failed: {error}")
 
     # read from file
     output = readFileContext(out)

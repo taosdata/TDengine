@@ -460,12 +460,23 @@ def process_pytest_file(
                     pytest_cmd_clean = f"{pytest_cmd_clean} --timeout={per_case_timeout}"
 
                 with open(log_file, "w", buffering=1) as log:
+                    case_environment = os.environ.copy()
+                    backup_evidence = None
+                    if "/06-TaosBackup/" in pytest_cmd:
+                        backup_evidence = os.path.abspath(os.path.join(log_dir, f"{case_name}-evidence"))
+                        try:
+                            os.makedirs(backup_evidence, exist_ok=True)
+                            case_environment["TAOSBACKUP_DIAGNOSTICS_DIR"] = backup_evidence
+                        except OSError as error:
+                            logger.warning("Cannot create backup evidence directory: %s", error)
+                            backup_evidence = None
                     current_process = subprocess.Popen(
                         pytest_cmd_clean,
                         shell=True,
                         stdout=log,
                         stderr=subprocess.STDOUT,
                         text=True,
+                        env=case_environment,
                     )
 
                     # 轮询等待
@@ -489,6 +500,16 @@ def process_pytest_file(
                             f"Case {pytest_cmd} running timeout, killed process."
                         )
                     current_process = None
+
+                # Preserve the mirror before another case clears tmp/. Chinese
+                # restore uses subprocess directly; its output is in log_file.
+                if backup_evidence:
+                    for mirror in ("tmp/backup.log", "restore.log"):
+                        if os.path.isfile(mirror) and os.path.getmtime(mirror) >= case_start:
+                            try:
+                                shutil.copyfile(mirror, os.path.join(backup_evidence, os.path.basename(mirror)))
+                            except OSError as error:
+                                logger.warning("Cannot preserve %s: %s", mirror, error)
 
                 # 确保日志刷盘
                 if os.path.exists(log_file):
