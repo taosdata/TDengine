@@ -784,6 +784,7 @@ typedef struct SSTriggerHistoryContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
+  bool                       executionInitialized;
   // A name lookup suspends this context until its group-value response is cached.
   bool                       notifyGroupColValuePending;
   int64_t                    notifyGroupColValueGid;
@@ -1061,6 +1062,7 @@ typedef struct SStreamTriggerTask {
   SRWLatch     virTableInfoLock;
   SSHashObj   *pVirtTableInfos;  // SSHashObj<vtbUid, SSTriggerVirtTableInfo>
   SSHashObj   *pInternalGroupIndex;  // Derived gid-to-internal-reader summary; invalidated with virtual metadata.
+  SSHashObj   *pVirtTableGidIndex;   // Derived gid-to-vtable pointers; invalidated with virtual metadata.
   SSHashObj   *pOrigTableInfos;  // SSHashObj<otbUid, SSTriggerOrigTableInfo>
   // virtual table info response
   bool       virTableInfoReady;
