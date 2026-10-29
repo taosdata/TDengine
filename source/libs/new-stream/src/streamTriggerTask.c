@@ -17601,6 +17601,12 @@ _end:
   return code;
 }
 
+static int32_t stTriggerPendingCreateTableCompareGid(const void *pLeft, const void *pRight) {
+  const SSTriggerPendingCreateTableEntry *pLeftEntry = pLeft;
+  const SSTriggerPendingCreateTableEntry *pRightEntry = pRight;
+  return compareInt64Val(&pLeftEntry->gid, &pRightEntry->gid);
+}
+
 // send STRIGGER_PULL_GROUP_COL_VALUE for given (pProgress, gid); used when pulling groupInfo for pending create-table
 static int32_t stRealtimeContextSendPullReqForGid(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
                                                   int64_t gid) {
@@ -22436,6 +22442,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       // all readers responded; send first GROUP_COL_VALUE pull for nodelay create-table if any
       if (pContext->pPendingCreateTableGids != NULL &&
           taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+        if (pTask->isVirtualTable) {
+          // Several physical sources can contribute the same virtual group.
+          taosArraySort(pContext->pPendingCreateTableGids, stTriggerPendingCreateTableCompareGid);
+          taosArrayRemoveDuplicate(pContext->pPendingCreateTableGids, stTriggerPendingCreateTableCompareGid, NULL);
+        }
         SSTriggerPendingCreateTableEntry *pFirst =
             (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
         QUERY_CHECK_NULL(pFirst, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -23767,6 +23778,12 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
     // retry pending create-table when slot freed (previous attempt may have failed due to no slot)
     if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL &&
         taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
+      // The pull response owns the queue head until it returns, even when this
+      // group's values are already cached. Advancing here can reuse its request
+      // for another gid or finish initialization before the response arrives.
+      if (stRealtimeContextHasPendingWalPulls(pContext)) {
+        goto _end;
+      }
       SSTriggerPendingCreateTableEntry *pFirst =
           (SSTriggerPendingCreateTableEntry *)taosArrayGet(pContext->pPendingCreateTableGids, 0);
       if (pFirst != NULL) {
