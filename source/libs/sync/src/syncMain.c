@@ -333,7 +333,17 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
   int32_t contLen = 0;
 
   SVArbSetAssignedLeaderReq req = {0};
-  if (tDeserializeSVArbSetAssignedLeaderReq((char*)pRpcMsg->pCont + sizeof(SMsgHead), pRpcMsg->contLen, &req) != 0) {
+  // [SECURITY FIX for finding "item49"] The buffer pointer is advanced by sizeof(SMsgHead) but the
+  // length passed to the deserializer used to be the full pRpcMsg->contLen, which over-reads up to
+  // sizeof(SMsgHead) bytes (8 bytes) beyond the actual frame. Pass the remaining length after the
+  // message header and reject malformed/short frames before decoding.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    sError("vgId:%d, set assigned leader msg too short, contLen:%d", ths->vgId, pRpcMsg->contLen);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+  if (tDeserializeSVArbSetAssignedLeaderReq((char*)pRpcMsg->pCont + sizeof(SMsgHead),
+                                            pRpcMsg->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     sError("vgId:%d, failed to deserialize SVArbSetAssignedLeaderReq", ths->vgId);
     code = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -347,12 +357,21 @@ int32_t syncBecomeAssignedLeader(SSyncNode* ths, SRpcMsg* pRpcMsg) {
 
   ths->arbTerm = TMAX(req.arbTerm, ths->arbTerm);
 
-  if (!req.force) {
-    if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
-      sInfo("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
-            req.memberToken);
-      goto _OVER;
-    }
+  // [SECURITY FIX for finding "item 49"] The 'force' flag is a plain wire field that any host
+  // reachable on the dnode RPC port (6030) can set; the transport performs no sender authentication.
+  // Formerly 'force' skipped the only authorization check (the memberToken comparison), so an
+  // unauthenticated peer could send {arbTerm=huge, force=1} and become an ASSIGNED_LEADER without
+  // the shared-secret token, causing a split brain. The memberToken must ALWAYS match the locally
+  // generated ths->arbToken (the per-vnode secret established via the arbitrator heartbeat
+  // handshake) before the role/term is changed. The 'force' flag no longer bypasses auth.
+  if (strncmp(req.memberToken, ths->arbToken, TSDB_ARB_TOKEN_SIZE) != 0) {
+    // [SECURITY FIX for finding "item49" follow-up] Promote to sError: a rejected SET_ASSIGNED_LEADER
+    // (token mismatch) must be visible. The mnode relies on this result (and a follow-up heartbeat /
+    // timer re-send) to converge the operator-assigned leader; a silent skip would make the operator
+    // believe the assignment succeeded while the vgroup stays non-writable.
+    sError("vgId:%d, skip to set assigned leader, token mismatch, local:%s, msg:%s", ths->vgId, ths->arbToken,
+           req.memberToken);
+    goto _OVER;
   }
 
   if (ths->state != TAOS_SYNC_STATE_ASSIGNED_LEADER) {
