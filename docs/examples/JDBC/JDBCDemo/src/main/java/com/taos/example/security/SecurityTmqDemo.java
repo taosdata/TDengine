@@ -41,7 +41,7 @@ import java.util.Properties;
  *   export TDENGINE_NACOS_ADDR=localhost:8848
  *   export TDENGINE_NACOS_USER=nacos
  *   export TDENGINE_NACOS_PASSWORD=nacos
- *   cd docs/examples/JDBC/JDBCDemo
+ *   cd examples/JDBC/JDBCDemo
  *   mvn compile exec:java -Dexec.mainClass=com.taos.example.security.SecurityTmqDemo
  */
 public class SecurityTmqDemo {

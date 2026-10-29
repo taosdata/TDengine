@@ -134,8 +134,25 @@ int taos_metric_formatter_load_l_value(taos_metric_formatter_t *self, const char
     r = taos_string_builder_add_char(self->string_builder, '"');
     if (r) return r;
 
-    r = taos_string_builder_add_str(self->string_builder, (const char *)label_values[i]);
-    if (r) return r;
+    // Sanitize the label value before embedding it between the quotes. Some metric
+    // label values are attacker-influenced: for example the 'username' label of
+    // tsInsertCounter is taken verbatim from the unauthenticated RPC SUBMIT header
+    // user field (vnodeSvr.c passes RPC_MSG_USER(pMsg) into taos_counter_add). If a
+    // value contained any of the delimiter characters this formatter relies on
+    // (',', '=', '"', '{', '}'), the periodic monitor report parser
+    // (taos_metric_formatter_load_sample_new) would mis-parse the l_value and could
+    // dereference NULL or write past the parse buffer, crashing the dnode. Replace
+    // those characters with '_' so a malicious value can never alter the parse.
+    const char *val = (const char *)label_values[i];
+    if (val == NULL) val = "";
+    for (const char *p = val; *p != '\0'; p++) {
+      char c = *p;
+      if (c == ',' || c == '=' || c == '"' || c == '{' || c == '}') {
+        c = '_';
+      }
+      r = taos_string_builder_add_char(self->string_builder, c);
+      if (r) return r;
+    }
 
     r = taos_string_builder_add_char(self->string_builder, '"');
     if (r) return r;

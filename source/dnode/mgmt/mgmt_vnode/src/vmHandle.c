@@ -479,7 +479,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     dInfo("vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.vgId, i, req.learnerReplicas[i].fqdn,
-          req.learnerReplicas[i].port, req.replicas[i].id);
+          req.learnerReplicas[i].port, req.learnerReplicas[i].id);
   }
 
   SReplica *pReplica = NULL;
@@ -1413,7 +1413,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
 
@@ -1533,7 +1533,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
 
@@ -1597,6 +1597,14 @@ int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmProcessSetKeepVersionReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  // the mgmt queue does not validate the message head, so check before touching pCont: the ntohl below
+  // writes 8 bytes and the decoder length would underflow for a shorter body
+  if (pMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    dError("invalid rpc msg with no msg head at pCont, type:%s, contLen:%d", TMSG_INFO(pMsg->msgType), pMsg->contLen);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
@@ -1749,11 +1757,11 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     SReplica *pReplica = &alterReq.replicas[i];
-    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
   for (int32_t i = 0; i < alterReq.learnerReplica; ++i) {
     SReplica *pReplica = &alterReq.learnerReplicas[i];
-    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
+    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
 
   SReplica *pReplica = NULL;
@@ -2232,8 +2240,19 @@ SArray *vmGetMsgHandles() {
   // allowed an unauthenticated peer to force a re-election (see finding 265).
   // The local enqueue path does not use this dispatch table, so removing the
   // registration does not affect legitimate timer processing.
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  
+  // SECURITY FIX (finding item 52): TDMT_SYNC_CLIENT_REQUEST / TDMT_SYNC_CLIENT_REQUEST_BATCH are
+  // *internal loopback* message types produced only by the local syncNodePropose() path and must
+  // never be accepted from the network. Registering them here made this dnode's sync queue
+  // reachable from any host that can reach port 6030, letting a non-member forge a raft entry
+  // (arbitrary originalRpcType/dataLen/data) that a leader would append, persist, replicate and
+  // apply via the mnode/vnode FSM (full cluster takeover / config change / crash). They are now
+  // deliberately NOT registered, so dmProcessRpcMsg drops such frames (TSDB_CODE_MSG_NOT_PROCESSED)
+  // before they can reach syncNodeOnClientRequest. The local propose path enqueues these messages
+  // directly via syncEqMsg and is therefore unaffected.
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;

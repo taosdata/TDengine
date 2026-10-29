@@ -97,6 +97,31 @@ code_dir="${community_dir}"
 cfg_dir="${community_dir}/packaging/cfg"
 tools_dir="${community_dir}/packaging/tools"
 
+# Copy the shipped C examples from packaging/examples-manifest.txt. The sources
+# were consolidated into docs/examples, but this wrapper keeps the same package
+# subset as the tarball / deb / rpm packagers so the examples payload does not
+# grow with the whole docs tree.
+copy_c_examples() {
+  local dst_dir=$1
+  local examples_src="${community_dir}/docs/examples"
+  local examples_manifest="${community_dir}/packaging/examples-manifest.txt"
+
+  mkdir -p "${dst_dir}/examples"
+  while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    [ "${ex_group}" = all ] || continue
+    [ "${ex_dst}" = c ] || continue
+    if [ ! -f "${examples_src}/${ex_src}" ]; then
+      echo "Error: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+      exit 1
+    fi
+    # Keep the path below the language directory; see makepkg.sh.
+    ex_rel="${ex_src#*/}"
+    mkdir -p "${dst_dir}/examples/${ex_dst}/$(dirname "${ex_rel}")"
+    cp "${examples_src}/${ex_src}" "${dst_dir}/examples/${ex_dst}/${ex_rel}"
+  done < "${examples_manifest}"
+}
+
 # Verify build directory exists
 if [ ! -d "$build_dir" ]; then
   echo "Error: build directory not found: $build_dir"
@@ -249,10 +274,7 @@ cp "${build_dir}/lib/libtaosnative.so" "${server_dir}/driver/libtaosnative.so.${
 echo "${versionComp}" > "${server_dir}/driver/vercomp.txt"
 
 # --- Outer package: examples/ ---
-if [ -d "${code_dir}/examples/c" ]; then
-  mkdir -p "${server_dir}/examples"
-  cp -r "${code_dir}/examples/c" "${server_dir}/examples/"
-fi
+copy_c_examples "${server_dir}"
 
 # --- Outer package: install.sh ---
 cp "${tools_dir}/install.sh" "${server_dir}/"
@@ -380,10 +402,7 @@ cp "${build_dir}/lib/libtaosnative.so" "${client_dir}/driver/libtaosnative.so.${
 echo "${versionComp}" > "${client_dir}/driver/vercomp.txt"
 
 # --- Outer package: examples/ ---
-if [ -d "${code_dir}/examples/c" ]; then
-  mkdir -p "${client_dir}/examples"
-  cp -r "${code_dir}/examples/c" "${client_dir}/examples/"
-fi
+copy_c_examples "${client_dir}"
 
 # --- Outer package: install_client.sh ---
 cp "${tools_dir}/install_client.sh" "${client_dir}/"

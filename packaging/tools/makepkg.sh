@@ -311,39 +311,57 @@ if [[ $dbName == "taos" ]]; then
   cp ${internal_dir}/packaging/README.md ${install_dir}
   chmod a+x ${install_dir}/start-all.sh
   chmod a+x ${install_dir}/stop-all.sh
-  # Copy example code  
+  # The sources were consolidated into docs/examples, but the layout inside the
+  # package is frozen: the shipped subset and the historical directory names
+  # (`C#`, `nodejs`) come from packaging/examples-manifest.txt.
   mkdir -p ${install_dir}/examples
-  examples_dir="${top_dir}/examples"
-  new_example_dir="${top_dir}/docs/examples"
-  cp -r ${examples_dir}/c ${install_dir}/examples
+  examples_dir="${top_dir}/docs/examples"
+  examples_manifest="${top_dir}/packaging/examples-manifest.txt"
+
+  examples_skip_optional=false
+  if [[ "$pagMode" == "lite" ]] || [[ "$cpuType" == "aarch32" ]]; then
+    examples_skip_optional=true
+  fi
+
+  while read -r ex_group ex_dst ex_src; do
+    case "${ex_group}" in "" | \#*) continue ;; esac
+    [ "${ex_group}" = all ] || continue
+    if [ "${examples_skip_optional}" = true ] && [ "${ex_dst}" != c ]; then
+      continue
+    fi
+    if [ ! -f "${examples_dir}/${ex_src}" ]; then
+      echo "ERROR: example source missing: ${ex_src} (see ${examples_manifest})" >&2
+      exit 1
+    fi
+    # Keep the path below the language directory so that same-named files
+    # (Program.cs, main.go, ...) do not overwrite each other.
+    ex_rel="${ex_src#*/}"
+    mkdir -p "${install_dir}/examples/${ex_dst}/$(dirname "${ex_rel}")"
+    cp "${examples_dir}/${ex_src}" "${install_dir}/examples/${ex_dst}/${ex_rel}"
+  done < "${examples_manifest}"
+
   if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-    if [ -d ${new_example_dir}/JDBC/connectionPools/target ]; then
-      rm -rf ${new_example_dir}/JDBC/connectionPools/target
+    if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
+      rm -rf ${examples_dir}/JDBC/connectionPools/target
     fi
-    if [ -d ${new_example_dir}/JDBC/JDBCDemo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/JDBCDemo/target
+    if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/JDBCDemo/target
     fi
-    if [ -d ${new_example_dir}/JDBC/mybatisplus-demo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/mybatisplus-demo/target
+    if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
+      rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
     fi
-    if [ -d ${new_example_dir}/JDBC/springbootdemo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/springbootdemo/target
+    if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/springbootdemo/target
     fi
-    if [ -d ${new_example_dir}/JDBC/SpringJdbcTemplate/target ]; then
-      rm -rf ${new_example_dir}/JDBC/SpringJdbcTemplate/target
+    if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
+      rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
     fi
-    if [ -d ${new_example_dir}/JDBC/taosdemo/target ]; then
-      rm -rf ${new_example_dir}/JDBC/taosdemo/target
+    if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/taosdemo/target
     fi
 
-    cp -r ${new_example_dir}/JDBC ${install_dir}/examples ||:
-    cp -r ${examples_dir}/matlab ${install_dir}/examples ||:
-    cp -r ${examples_dir}/python ${install_dir}/examples ||:
-    cp -r ${examples_dir}/R ${install_dir}/examples ||:
-    cp -r ${examples_dir}/go ${install_dir}/examples ||:
-    cp -r ${examples_dir}/nodejs ${install_dir}/examples ||:
-    cp -r ${examples_dir}/C# ${install_dir}/examples ||:
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
+    cp -r ${examples_dir}/JDBC ${install_dir}/examples ||:
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${top_dir}/tools/taosBenchmark/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then    

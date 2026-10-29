@@ -962,6 +962,11 @@ static int32_t genTagFilterDigest(const SNode* pTagCond, T_MD5_CTX* pContext) {
   return TSDB_CODE_SUCCESS;
 }
 
+// digest[0] states shared with the table-group cache: 0 = no tag condition, 1 = a tag
+// condition digest is present, 2 = a tag condition exists but must not be served from
+// any tag-dependent cache (e.g. a virtual stable whose TAG refs can change outside it).
+#define TB_GROUP_DIGEST_NO_CACHE 2
+
 static int32_t genTbGroupDigest(const SNode* pGroup, uint8_t* filterDigest, T_MD5_CTX* pContext) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -987,6 +992,30 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+// Collects the TAG column ids read by pColList (as produced by qGetColumnsFromNodeList).
+// Returns NULL when the list cannot be built; callers then fall back to resolving every
+// TAG, which is always safe, only more expensive.
+static SArray* qBuildTagCidList(SArray* pColList) {
+  if (pColList == NULL) return NULL;
+
+  SArray* pTagCids = taosArrayInit(taosArrayGetSize(pColList) + 1, sizeof(col_id_t));
+  if (pTagCids == NULL) return NULL;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pColList); ++i) {
+    SColumnInfo* pCol = (SColumnInfo*)taosArrayGet(pColList, i);
+    if (pCol == NULL || pCol->colId < 0) continue;  // tbname pseudo column
+    // A JSON container TAG cannot take part in ref resolution: the vnode side reads
+    // literal tags by cid, while JSON STags are keyed by their inner JSON key.
+    if (pCol->type == TSDB_DATA_TYPE_JSON) continue;
+
+    if (taosArrayPush(pTagCids, &pCol->colId) == NULL) {
+      taosArrayDestroy(pTagCids);
+      return NULL;
+    }
+  }
+  return pTagCids;
 }
 
 int32_t qGetColumnsFromNodeList(void* data, bool isList, SArray** pColList) {
@@ -1102,8 +1131,8 @@ end:
   return code;
 }
 
-static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo,
-                                   SStorageAPI* pAPI, SHashObj* groupIdMap) {
+static int32_t getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo,
+                                   SStorageAPI* pAPI, SHashObj* groupIdMap, int64_t txnId) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SArray*      pBlockList = NULL;
@@ -1111,11 +1140,12 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   SArray*      groupData = NULL;
   SArray*      pUidTagList = NULL;
   SArray*      gInfo = NULL;
+  SArray*      pColList = NULL;
   int32_t      tbNameIndex = -1;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
   if (rows == 0) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
@@ -1132,13 +1162,15 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   if (taosArrayGetSize(pUidTagList) > 0) {
     code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1);
   } else {
-    code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList, 0);
+    // Defensive: unreachable while `rows > 0` above guarantees a non-empty uid list.
+    // Keep the caller's txn snapshot rather than a literal 0 so this branch can never
+    // reintroduce the committed-snapshot read that the txn plumbing removed.
+    code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList, txnId);
   }
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
-  SArray* pColList = NULL;
   code = qGetColumnsFromNodeList(group, true, &pColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
@@ -1148,18 +1180,31 @@ static void getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, 
   // (possibly multi-hop and cross-vnode). Always invoke resolveVTableTagChain;
   // the vnode-side implementation no-ops when suid is not a virtual stable, and
   // for virtual stables it merges chain-resolved tags onto literal tags so the
-  // groupId hashing later sees the correct values.
+  // groupId hashing later sees the correct values. Only the group columns' TAGs are
+  // resolved: they are the only ones read below, and resolving unrelated TAGs would
+  // block on cross-vnode ref resolution.
+  // A resolve failure is fatal here: the vnode helper rebuilds tags per uid and only
+  // reports a missing uid at the end, so continuing would group the uids it could
+  // not rebuild under a NULL tag and merge unrelated groups together.
   if (pAPI->metaFn.resolveVTableTagChain != NULL) {
-    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
+    SArray* pGroupCids = qBuildTagCidList(pColList);
+    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, pTableListInfo->idInfo.suid, pUidTagList, pGroupCids,
+                                                    txnId);
+    if (pGroupCids != NULL) {
+      taosArrayDestroy(pGroupCids);
+    }
     if (rc != TSDB_CODE_SUCCESS) {
-      qWarn("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64, __func__, rc,
-            (uint64_t)pTableListInfo->idInfo.suid);
+      qError("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64, __func__, rc,
+             (uint64_t)pTableListInfo->idInfo.suid);
+      code = rc;
+      goto end;
     }
   }
   
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
   pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI, 0);
   taosArrayDestroy(pColList);
+  pColList = NULL;
   if (pResBlock == NULL) {
     code = terrno;
     goto end;
@@ -1262,10 +1307,12 @@ end:
   taosArrayDestroyEx(pUidTagList, freeItem);
   taosArrayDestroyP(groupData, releaseColInfoData);
   taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
+  taosArrayDestroy(pColList);
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  return code;
 }
 
 int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
@@ -1279,6 +1326,7 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   SArray*      pUidTagList = NULL;
   SArray*      tableList = NULL;
   SArray*      gInfo = NULL;
+  SArray*      pColList = NULL;
   void*        pVnode = pHandle->vnode;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
@@ -1287,7 +1335,7 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   } 
 
   T_MD5_CTX context = {0};
-  if (tsTagFilterCache && groupIdMap == NULL && digest) {
+  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE) {
     SNodeListNode* listNode = NULL;
     code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&listNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1336,24 +1384,36 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   // (possibly multi-hop / cross-vnode). Always invoke resolveVTableTagChain;
   // the vnode-side implementation no-ops when suid is not a virtual stable, and
   // for virtual stables it merges chain-resolved tags onto literal tags so the
-  // partition-by-tag groupId computed below sees the correct values.
-  if (pAPI->metaFn.resolveVTableTagChain != NULL) {
-    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, pTableListInfo->idInfo.suid, pUidTagList);
-    if (rc != TSDB_CODE_SUCCESS) {
-      qWarn("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64, __func__, rc,
-            (uint64_t)pTableListInfo->idInfo.suid);
-    }
-  }
-
-  SArray* pColList = NULL;
+  // partition-by-tag groupId computed below sees the correct values. Only the group
+  // columns' TAGs are resolved: they are the only ones read below, and resolving
+  // unrelated TAGs would block on cross-vnode ref resolution.
+  // A resolve failure is fatal here: the vnode helper rebuilds tags per uid and only
+  // reports a missing uid at the end, so continuing would group the uids it could
+  // not rebuild under a NULL tag and merge unrelated groups together.
   code = qGetColumnsFromNodeList(group, true, &pColList);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
 
+  if (pAPI->metaFn.resolveVTableTagChain != NULL) {
+    SArray* pGroupCids = qBuildTagCidList(pColList);
+    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, pTableListInfo->idInfo.suid, pUidTagList, pGroupCids,
+                                                    pHandle->txnId);
+    if (pGroupCids != NULL) {
+      taosArrayDestroy(pGroupCids);
+    }
+    if (rc != TSDB_CODE_SUCCESS) {
+      qError("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64, __func__, rc,
+             (uint64_t)pTableListInfo->idInfo.suid);
+      code = rc;
+      goto end;
+    }
+  }
+
   int32_t numOfTables = taosArrayGetSize(pUidTagList);
   pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI, 0);
   taosArrayDestroy(pColList);
+  pColList = NULL;
   if (pResBlock == NULL) {
     code = terrno;
     goto end;
@@ -1557,7 +1617,7 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     }
   }
 
-  if (tsTagFilterCache && groupIdMap == NULL && digest) {
+  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
     QUERY_CHECK_NULL(tableList, code, lino, end, terrno);
 
@@ -1577,6 +1637,7 @@ end:
   taosArrayDestroyEx(pUidTagList, freeItem);
   taosArrayDestroyP(groupData, releaseColInfoData);
   taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
+  taosArrayDestroy(pColList);
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -2193,6 +2254,7 @@ int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode
   SSDataBlock* pResBlock = NULL;
   SScalarParam output = {0};
   SArray*      pUidTagList = NULL;
+  SArray*      pColList = NULL;
 
   SDataType type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
 
@@ -2234,13 +2296,44 @@ int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode
     goto end;
   }
 
-  SArray* pColList = NULL;
+  // Extract the TAG columns the condition really reads before touching any ref
+  // chain: only those CIDs have to be resolved below.
   code = qGetColumnsFromNodeList(pTagCond, false, &pColList); 
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
+
+  // A virtual child table stores a tag column that is a reference (`TAGS (... from
+  // db.tb.tag)`) as NULL in its own tag blob; the literal value only exists behind the
+  // ref chain and is resolved at query time. Resolve those refs before evaluating the
+  // condition, otherwise every virtual child is rejected here and a condition over a
+  // referenced TAG (e.g. a stream PRE_FILTER) prunes the whole virtual super table --
+  // the stream reader would then have no source table at all.
+  // Only the condition's TAG CIDs are passed down. Resolving unrelated TAGs would block
+  // on cross-vnode ref resolution (bounded by STREAM_VTB_RPC_TIMEOUT_MS) while the
+  // stream reader holds its own write lock, and a condition written on literal TAGs
+  // must not pay for any ref resolution at all.
+  // The vnode-side helper merges the chain-resolved values into pTagVal and is a no-op
+  // when suid is not a virtual stable. txnId keeps the caller's batch metadata snapshot:
+  // a virtual child created in the same transaction must stay visible here, otherwise
+  // the resolve reports it as missing and aborts a query whose literal TAGs are fine.
+  if (pAPI->metaFn.resolveVTableTagChain != NULL) {
+    SArray* pTagCids = qBuildTagCidList(pColList);
+    int32_t rc = pAPI->metaFn.resolveVTableTagChain(pVnode, suid, pUidTagList, pTagCids, txnId);
+    if (rc != TSDB_CODE_SUCCESS) {
+      qError("%s resolveVTableTagChain rc=0x%x suid=%" PRIu64 " nCids=%d", __func__, rc, (uint64_t)suid,
+            pTagCids == NULL ? -1 : (int32_t)taosArrayGetSize(pTagCids));
+    }
+    if (pTagCids != NULL) {
+      taosArrayDestroy(pTagCids);
+    }
+    code = rc;
+    QUERY_CHECK_CODE(code, lino, end);
+  }
+
   pResBlock = createTagValBlockForFilter(pColList, numOfTables, pUidTagList, pVnode, pAPI, txnId);
   taosArrayDestroy(pColList);
+  pColList = NULL;
   if (pResBlock == NULL) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, end);
@@ -2280,6 +2373,7 @@ end:
   if (code != 0) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
+  taosArrayDestroy(pColList);
   blockDataDestroy(pResBlock);
   taosArrayDestroy(pBlockList);
   taosArrayDestroyEx(pUidTagList, freeItem);
@@ -2684,12 +2778,32 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
     bool      needStableTagCacheWarmup = false;
     T_MD5_CTX context = {0};
 
+    // A TAG of a virtual super table may be a ref (`TAGS (... from db.tb.tag)`) whose value
+    // lives outside this table's own meta entry. Updating the source TAG only invalidates
+    // the caches of the source stable, never this virtual stable's, so a cached uid list
+    // would keep matching stale TAG values. Until dependency-driven invalidation exists,
+    // bypass the tag filter caches on both read and write for such conditions.
+    bool bypassTagFilterCache = false;
+    if (hasTagCond && pStorageAPI->metaFn.isVirtualSuperTable != NULL) {
+      bypassTagFilterCache = pStorageAPI->metaFn.isVirtualSuperTable(pVnode, pScanNode->suid, txnId);
+      if (bypassTagFilterCache) {
+        qDebug("suid:%" PRIu64 ", %s virtual stable tag condition bypasses tag filter cache", pScanNode->suid,
+               idstr);
+        // Mark the digest as "tag condition present but not cacheable": the downstream
+        // table-group cache keys only on the group expression when no tag digest is
+        // appended, so it must not read or write an entry keyed without this condition.
+        if (digest != NULL) {
+          digest[0] = TB_GROUP_DIGEST_NO_CACHE;
+        }
+      }
+    }
+
     qTrace("start to get table list by tag filter, suid:%" PRIu64 ",tsStableTagFilterCache:%d, tsTagFilterCache:%d",
            pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache);
 
     bool acquired = false;
     // first, check whether we can use stable tag filter cache
-    if (tsStableTagFilterCache && isStream && hasTagCond) {
+    if (!bypassTagFilterCache && tsStableTagFilterCache && isStream && hasTagCond) {
       if (pTagLookupPlan != NULL) {
         code = streamTagLookupBind(pTagLookupPlan, pStreamInfo, &key, &canCacheTagEqCondFilter);
         QUERY_CHECK_CODE(code, lino, end);
@@ -2726,7 +2840,7 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
       QUERY_CHECK_CODE(code, lino, end);
     }
 
-    if (canCacheTagEqCondFilter) {
+    if (!bypassTagFilterCache && canCacheTagEqCondFilter) {
       qDebug("%s, stable tag filter condition can be optimized", idstr);
       if (preparedKey) {
         pTagCondKey = (char*)key.pTagCondKey;
@@ -2746,7 +2860,7 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
             preparedKey ? key.pTagColIds : pTagColIds, pUidList, &acquired);
         QUERY_CHECK_CODE(code, lino, end);
       }
-    } else if (tsTagFilterCache) {
+    } else if (!bypassTagFilterCache && tsTagFilterCache) {
       // second, try to use normal tag filter cache
       qDebug("%s using normal tag filter cache", idstr);
       if (pStreamInfo != NULL && ((SStreamRuntimeFuncInfo*)pStreamInfo)->hasPlaceHolder) {
@@ -2822,7 +2936,7 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
     // let's add the filter results into meta-cache
     numOfTables = taosArrayGetSize(pUidList);
 
-    if (canCacheTagEqCondFilter) {
+    if (!bypassTagFilterCache && canCacheTagEqCondFilter) {
       qInfo("%s, suid:%" PRIu64 ", add uid list to stable tag filter cache, "
             "uidListSize:%d, origin key:%" PRIu64 ",%" PRIu64,
             idstr, pScanNode->suid, (int32_t)numOfTables,
@@ -2842,7 +2956,7 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
         digest[0] = 1;
         memcpy(digest + 1, context.digest, tListLen(context.digest));
       }
-    } else if (tsTagFilterCache) {
+    } else if (!bypassTagFilterCache && tsTagFilterCache) {
       qInfo("%s, suid:%" PRIu64 ", add uid list to normal tag filter cache, "
             "uidListSize:%d, origin key:%" PRIu64 ",%" PRIu64,
             idstr, pScanNode->suid, (int32_t)numOfTables,
@@ -5480,8 +5594,13 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
         
       }
     }
-    if (groupIdMap && group != NULL){
-      getColInfoResultForGroupbyForStream(pHandle->vnode, group, pTableListInfo, pAPI, groupIdMap);
+    if (groupIdMap && group != NULL) {
+      code = getColInfoResultForGroupbyForStream(pHandle->vnode, group, pTableListInfo, pAPI, groupIdMap,
+                                                 pHandle->txnId);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
+        return code;
+      }
     }
 
     pTableListInfo->oneTableForEachGroup = groupByTbname;

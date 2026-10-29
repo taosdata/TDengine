@@ -2428,6 +2428,10 @@ end:
 }
 
 static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
+  // Only called from qStreamFilterTableListForReader, which runs on the WAL-driven
+  // stream-reader path. That path has no metadata transaction context (the reader
+  // reacts to committed WAL entries), so txnId is intentionally 0 here and the
+  // readers below see the latest committed snapshot.
   int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX,
                                     pStorageAPI, NULL, 0, pListInfo);
   if (code != 0) {

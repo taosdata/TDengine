@@ -214,7 +214,8 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
     endif()
     list(APPEND _fq_dll_dirs
       "${ext_mariadb_install}/bin"
-      "${ext_mariadb_install}/lib/mariadb")
+      "${ext_mariadb_install}/lib/mariadb"
+      "${ext_mariadb_install}/lib/mariadb/plugin")
   endif()
   if(BUILD_WITH_LIBPQ)
     if(DEFINED EXT_LIBPQ_DLL_DIR AND NOT "${EXT_LIBPQ_DLL_DIR}" STREQUAL "")
@@ -233,7 +234,7 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       COMMAND "${CMAKE_COMMAND}"
         "-DOUT_DIR=${_td_runtime_lib_dir}"
         "-DSEARCH_DIRS=${_fq_dll_dirs_str}"
-        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread"
+        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread;^caching_sha2_password[.]dll$;^sha256_password[.]dll$;^client_ed25519[.]dll$;^dialog[.]dll$;^mysql_clear_password[.]dll$;^pvio_shmem[.]dll$"
         -P "${TD_SOURCE_DIR}/cmake/stage_fq_runtime_windows.cmake"
       COMMENT "Staging federated-query provider runtime DLLs -> build/bin/"
       VERBATIM
