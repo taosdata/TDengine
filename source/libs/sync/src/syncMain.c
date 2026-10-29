@@ -3164,12 +3164,22 @@ int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHand
 }
 #endif
 
-void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TODO SAlterVnodeReplicaReq name is proper?
+int32_t syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TODO SAlterVnodeReplicaReq name is proper?
   cfg->replicaNum = 0;
   cfg->totalReplicaNum = 0;
-  int32_t code = 0;
 
-  for (int i = 0; i < pReq->replica; ++i) {
+  // cfg->nodeInfo has TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA slots and the request arrays are
+  // fixed-size, so the counts decoded from the entry must never drive the loops past them
+  int32_t numOfReplicas = pReq->replica;
+  int32_t numOfLearners = pReq->learnerReplica;
+  if (numOfReplicas < 0 || numOfReplicas > TSDB_MAX_REPLICA || numOfLearners < 0 ||
+      numOfLearners > TSDB_MAX_LEARNER_REPLICA) {
+    sError("vgId:%d, invalid replica:%d learnerReplica:%d in config change request", pReq->vgId, numOfReplicas,
+           numOfLearners);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  for (int i = 0; i < numOfReplicas; ++i) {
     SNodeInfo* pNode = &cfg->nodeInfo[i];
     pNode->nodeId = pReq->replicas[i].id;
     pNode->nodePort = pReq->replicas[i].port;
@@ -3183,7 +3193,7 @@ void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TO
   if (pReq->selfIndex != -1) {
     cfg->myIndex = pReq->selfIndex;
   }
-  for (int i = cfg->replicaNum; i < pReq->replica + pReq->learnerReplica; ++i) {
+  for (int i = cfg->replicaNum; i < numOfReplicas + numOfLearners; ++i) {
     SNodeInfo* pNode = &cfg->nodeInfo[i];
     pNode->nodeId = pReq->learnerReplicas[cfg->totalReplicaNum].id;
     pNode->nodePort = pReq->learnerReplicas[cfg->totalReplicaNum].port;
@@ -3194,11 +3204,12 @@ void syncBuildConfigFromReq(SAlterVnodeReplicaReq* pReq, SSyncCfg* cfg) {  // TO
           pNode->nodePort, pNode->nodeId, pNode->nodeRole, update);
     cfg->totalReplicaNum++;
   }
-  cfg->totalReplicaNum += pReq->replica;
+  cfg->totalReplicaNum += numOfReplicas;
   if (pReq->learnerSelfIndex != -1) {
-    cfg->myIndex = pReq->replica + pReq->learnerSelfIndex;
+    cfg->myIndex = numOfReplicas + pReq->learnerSelfIndex;
   }
   cfg->changeVersion = pReq->changeVersion;
+  return 0;
 }
 
 int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
@@ -3217,7 +3228,7 @@ int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   }
 
   SSyncCfg cfg = {0};
-  syncBuildConfigFromReq(&req, &cfg);
+  TAOS_CHECK_RETURN(syncBuildConfigFromReq(&req, &cfg));
 
   if (cfg.totalReplicaNum >= 1 &&
       (ths->state == TAOS_SYNC_STATE_LEADER || ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER)) {
@@ -3568,7 +3579,7 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
   }
 
   SSyncCfg cfg = {0};
-  syncBuildConfigFromReq(&req, &cfg);
+  TAOS_CHECK_RETURN(syncBuildConfigFromReq(&req, &cfg));
 
   if (cfg.changeVersion <= ths->raftCfg.cfg.changeVersion) {
     sInfo(

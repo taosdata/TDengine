@@ -479,7 +479,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     dInfo("vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.vgId, i, req.learnerReplicas[i].fqdn,
-          req.learnerReplicas[i].port, req.replicas[i].id);
+          req.learnerReplicas[i].port, req.learnerReplicas[i].id);
   }
 
   SReplica *pReplica = NULL;
@@ -1413,7 +1413,7 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
 
@@ -1533,7 +1533,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
 
@@ -1597,6 +1597,14 @@ int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmProcessSetKeepVersionReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  // the mgmt queue does not validate the message head, so check before touching pCont: the ntohl below
+  // writes 8 bytes and the decoder length would underflow for a shorter body
+  if (pMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    dError("invalid rpc msg with no msg head at pCont, type:%s, contLen:%d", TMSG_INFO(pMsg->msgType), pMsg->contLen);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
@@ -1749,11 +1757,11 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     SReplica *pReplica = &alterReq.replicas[i];
-    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
   for (int32_t i = 0; i < alterReq.learnerReplica; ++i) {
     SReplica *pReplica = &alterReq.learnerReplicas[i];
-    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
+    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
 
   SReplica *pReplica = NULL;

@@ -138,9 +138,9 @@ TEST(vmReplicaCfg, rejectsRequestThatRefersToNoLocalReplica) {
   EXPECT_FALSE(IsValid(ReplicaCfg{TSDB_MAX_REPLICA, -1, TSDB_MAX_LEARNER_REPLICA, -1}));
 }
 
-// The decoder reads a fixed TSDB_MAX_REPLICA entries and never compares them against the counter, so an
-// oversized replica survives the round trip untouched: the handlers are the only place that can stop it.
-TEST(vmReplicaCfg, oversizedReplicaSurvivesCreateVnodeReqWire) {
+// The decoder bounds the counters to the fixed-size arrays and rejects an oversized request; the handler
+// check (vmIsReplicaCfgValid) stays as the second line of defense for values that reach it some other way.
+TEST(vmReplicaCfg, oversizedReplicaRejectedByCreateVnodeReqDecoder) {
   SCreateVnodeReq req = {};
   req.vgId = 2;
   req.replica = std::numeric_limits<int8_t>::max();
@@ -155,18 +155,15 @@ TEST(vmReplicaCfg, oversizedReplicaSurvivesCreateVnodeReqWire) {
   ASSERT_GT(tSerializeSCreateVnodeReq(pCont, contLen, &req), 0);
 
   SCreateVnodeReq decoded = {};
-  ASSERT_EQ(tDeserializeSCreateVnodeReq(pCont, contLen, &decoded), 0);
-  EXPECT_EQ(static_cast<int32_t>(decoded.replica), std::numeric_limits<int8_t>::max());
-  EXPECT_EQ(static_cast<int32_t>(decoded.learnerReplica), std::numeric_limits<int8_t>::max());
+  EXPECT_NE(tDeserializeSCreateVnodeReq(pCont, contLen, &decoded), 0);
 
-  EXPECT_FALSE(vmIsReplicaCfgValid(decoded.vgId, decoded.replica, decoded.selfIndex, decoded.learnerReplica,
-                                   decoded.learnerSelfIndex));
+  EXPECT_FALSE(vmIsReplicaCfgValid(req.vgId, req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex));
 
   (void)tFreeSCreateVnodeReq(&decoded);
   taosMemoryFree(pCont);
 }
 
-TEST(vmReplicaCfg, oversizedReplicaSurvivesAlterVnodeReplicaReqWire) {
+TEST(vmReplicaCfg, oversizedReplicaRejectedByAlterVnodeReplicaReqDecoder) {
   SAlterVnodeReplicaReq req = {};
   req.vgId = 2;
   req.replica = std::numeric_limits<int8_t>::max();
@@ -181,12 +178,9 @@ TEST(vmReplicaCfg, oversizedReplicaSurvivesAlterVnodeReplicaReqWire) {
   ASSERT_GT(tSerializeSAlterVnodeReplicaReq(pCont, contLen, &req), 0);
 
   SAlterVnodeReplicaReq decoded = {};
-  ASSERT_EQ(tDeserializeSAlterVnodeReplicaReq(pCont, contLen, &decoded), 0);
-  EXPECT_EQ(static_cast<int32_t>(decoded.replica), std::numeric_limits<int8_t>::max());
-  EXPECT_EQ(static_cast<int32_t>(decoded.selfIndex), TSDB_MAX_REPLICA);
+  EXPECT_NE(tDeserializeSAlterVnodeReplicaReq(pCont, contLen, &decoded), 0);
 
-  EXPECT_FALSE(vmIsReplicaCfgValid(decoded.vgId, decoded.replica, decoded.selfIndex, decoded.learnerReplica,
-                                   decoded.learnerSelfIndex));
+  EXPECT_FALSE(vmIsReplicaCfgValid(req.vgId, req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex));
 
   taosMemoryFree(pCont);
 }
