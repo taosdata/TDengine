@@ -54,6 +54,12 @@
 #define STREAM_TRIGGER_BLOCK_SIZE_LIMIT   (8 * 1024 * 1024)              // 8MB
 #define STREAM_TRIGGER_REPORT_INTERVAL_NS 5 * NANOSECOND_PER_MINUTE      // 5min
 #define IS_PATCHING_VITRUAL_TABLE(pContext) (tSimpleHashGetSize(pContext->patchContext.pPatchItems) > 0)
+// A virtual table patch retries its prepare step on every realtime check, which runs once per second.
+// A prepare failure keeps the pending items, so retrying cannot fix it: tolerate a short streak, then
+// escalate. At the 1s cadence the attempt count is the effective bound (three ticks, about 3s); the
+// timeout is only a backstop for a slower cadence, such as a skipped tick or a resumed session.
+#define STREAM_TRIGGER_VTABLE_PATCH_PREPARE_MAX_FAILURES 3
+#define STREAM_TRIGGER_VTABLE_PATCH_PREPARE_TIMEOUT_MS   (60 * 1000LL)
 #define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
 #define IS_TRIGGER_GROUP_IN_IDLE_LIST(pGroup) \
@@ -5411,6 +5417,11 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     pProgress->savedVer = pEntry->savedVer;
     pProgress->doneVer = pEntry->startVer;
     pProgress->lastScanVer = pEntry->startVer;
+    // The checkpoint stores the reader cursor, i.e. the version of the next WAL record to read, while
+    // savedTbVer tracks the last table change already turned into a patch item. The last consumed
+    // record is the cursor minus one, so start the watermark there: a table change that becomes the
+    // very next record after the restart is then still queued instead of being filtered out.
+    pProgress->savedTbVer = pEntry->savedVer > 0 ? pEntry->savedVer - 1 : 0;
     ++nBoundedVnodes;
     ST_TASK_DLOG("parse checkpoint, vgId: %d, startVer: %" PRId64 ", doneVer: %" PRId64, pEntry->vgId, pEntry->startVer,
                  pEntry->savedVer);
@@ -15342,6 +15353,9 @@ static int32_t stRealtimeContextInitPatchContext(SSTriggerRealtimeContext *pCont
   QUERY_CHECK_NULL(pPatch->pExtRegistryPatchIds, code, lino, _end, terrno);
   pPatch->pExtCleanupRefs = taosArrayInit(0, sizeof(SSTriggerExtOrigTableRef));
   QUERY_CHECK_NULL(pPatch->pExtCleanupRefs, code, lino, _end, terrno);
+  // The retry counters live in a calloc'ed context and are maintained by
+  // stRealtimeContextResetPatchContext() whenever a round ends, so there is nothing to initialize
+  // here.
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -15400,6 +15414,8 @@ static void stRealtimeContextResetPatchContext(SSTriggerRealtimeContext *pContex
     taosArrayClearEx(pPatch->pExtCleanupRefs, stTriggerTaskDestroyExtOrigTableRef);
   }
   pPatch->extRegistryPatchPrepared = false;
+  pPatch->prepareFailures = 0;
+  pPatch->prepareFirstFailureMs = 0;
 }
 
 // The reverse map pOrigTableInfos[otbUid].pVtbUids is the only way trigger input rows are
@@ -15436,11 +15452,19 @@ static int32_t stRealtimeContextPrepareVtablePatch(SSTriggerRealtimeContext *pCo
 
   taosWLockLatch(&pTask->virTableInfoLock);
   stTriggerTaskInvalidateInternalGroupIndex(pTask);
+  QUERY_CHECK_NULL(pTask->pVirtTableInfos, code, lino, _end, TSDB_CODE_STREAM_INTERNAL_ERROR);
   int32_t                   iter = 0;
   SSTriggerVTablePatchItem *pItem = tSimpleHashIterate(pPatch->pPatchItems, NULL, &iter);
   while (pItem != NULL) {
-    code = tSimpleHashRemove(pTask->pVirtTableInfos, &pItem->vtbUid, sizeof(int64_t));
-    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t rmCode = tSimpleHashRemove(pTask->pVirtTableInfos, &pItem->vtbUid, sizeof(int64_t));
+    // tSimpleHashRemove reports TSDB_CODE_INVALID_PARA for a missing key. A patch item may name a
+    // vtable this task never registered: it was retired before the patch, the table block row is
+    // replayed from an older WAL position, or a previous patch round already dropped it. Treat that
+    // as a no-op. Failing here is not recoverable: pPatchItems keeps the item while pVirTableInfoRsp
+    // stays empty, so every following check retries the same prepare and the context never recovers.
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_DLOG("virtual table %" PRId64 " is not registered, nothing to retire for the patch", pItem->vtbUid);
+    }
     // Patched vtables are re-registered (with a fresh reverse mapping) from the vtable info
     // collected below; retired ones must disappear from both maps.
     stTriggerTaskPruneOrigTableVtbUid(pTask, pItem->vtbUid);
@@ -15454,6 +15478,65 @@ _end:
   }
   return code;
 }
+
+// The patch prepare step is retried on every realtime check tick. Its failure is not self-healing:
+// pPatchItems still holds the pending items and pVirTableInfoRsp stays empty, so each tick repeats
+// the same failure and the trigger never leaves the patch state. Tolerate a short transient streak,
+// then escalate the failure to the task level.
+//
+// Escalating instead of dropping the round keeps the vtable set consistent with the catalog. The WAL
+// table-change rows that produced these items were consumed by the scan and are not reported again,
+// so a dropped round would silently leave a dropped TABLE_BLOCK_ADD unknown and a dropped
+// TABLE_BLOCK_RETIRE registered, with only an ELOG to show for it. Failing the task rebuilds
+// pVirtTableInfos from the reader vtable list and recovers from the checkpoint instead.
+static int32_t stRealtimeContextHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code) {
+  SStreamTriggerTask          *pTask = pContext->pTask;
+  SSTriggerVTablePatchContext *pPatch = &pContext->patchContext;
+  // Monotonic clock: the budget measures an elapsed interval, so a wall clock step (NTP) must not
+  // move it. Same source as the executor-side redeploy deadline.
+  int64_t                      nowMs = taosGetMonoTimestampMs();
+
+  if (pPatch->prepareFailures == 0) {
+    pPatch->prepareFirstFailureMs = nowMs;
+  }
+  pPatch->prepareFailures++;
+
+  int64_t elapsedMs = nowMs - pPatch->prepareFirstFailureMs;
+  if (pPatch->prepareFailures < STREAM_TRIGGER_VTABLE_PATCH_PREPARE_MAX_FAILURES &&
+      elapsedMs < STREAM_TRIGGER_VTABLE_PATCH_PREPARE_TIMEOUT_MS) {
+    ST_TASK_WLOG("prepare virtual table patch failed, attempt:%d, error:%s", pPatch->prepareFailures,
+                 tstrerror(code));
+    return code;
+  }
+
+  ST_TASK_ELOG("give up virtual table patch after %d failed prepares in %" PRId64 " ms, error:%s",
+               pPatch->prepareFailures, elapsedMs, tstrerror(code));
+  // Release the round so a task that outlives this check cannot stay stuck in the patch state, then
+  // record a task-level failure. Continuing here is not an option: the vtable set this task owns no
+  // longer matches the catalog, and only a rebuild reconciles it.
+  stRealtimeContextResetPatchContext(pContext);
+  streamHandleTaskError(pTask->task.streamId, pTask->task.taskId, code);
+  // Same shape as the EXT pull failure path: idle this session so the failed task does not spin
+  // until the management layer restarts it. Shadow contexts replay without a real session.
+  if (!pContext->suppressOutput) {
+    int32_t waitCode = stTriggerTaskAddWaitSession(pTask, pContext->sessionId,
+                                                   taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+    if (waitCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to idle the session after giving up virtual table patch since %s", tstrerror(waitCode));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestPrepareVtablePatch(SSTriggerRealtimeContext *pContext) {
+  return stRealtimeContextPrepareVtablePatch(pContext);
+}
+
+int32_t stTriggerTestHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code) {
+  return stRealtimeContextHandleVtablePatchPrepareFailure(pContext, code);
+}
+#endif
 
 static bool stTriggerTaskBindingBelongsToPatch(const SSHashObj *pPatchItems,
                                                const SSTriggerExtOrigTableBinding *pBinding) {
@@ -20813,7 +20896,15 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     bool pullVtableInfo = (taosArrayGetSize(pContext->patchContext.pVirTableInfoRsp) == 0);
     if (pullVtableInfo) {
       code = stRealtimeContextPrepareVtablePatch(pContext);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Retries a short transient streak, then records a task-level failure and clears the round.
+        code = stRealtimeContextHandleVtablePatchPrepareFailure(pContext, code);
+        QUERY_CHECK_CODE(code, lino, _end);
+        // The round is gone and the task is failing, so there is nothing left to pull table info for.
+        if (!IS_PATCHING_VITRUAL_TABLE(pContext)) {
+          goto _end;
+        }
+      }
     }
     ST_TASK_DLOG("continue virtual table patch, pullVtableInfo:%d", pullVtableInfo);
     for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
@@ -21837,11 +21928,23 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
     int64_t *pUids = (int64_t *)pUidCol->pData;
     int64_t *pVers = (int64_t *)pVerCol->pData;
     uint8_t *pTypes = (uint8_t *)pTypeCol->pData;
+    // A WAL table-change row carries the version of the record that produced it, so it is compared
+    // against the watermark of rows already applied instead of savedVer: the WAL window ends at
+    // savedVer and replaying that window delivers the row recorded at savedVer once more, even
+    // though it already became a patch item. A TABLE_BLOCK_ADD_RECHECK row is exempt from that
+    // comparison: the reader-side cache recheck stamps it with the pull request cursor, which does
+    // not move when the change comes from another vgroup, so two independent rechecks can carry the
+    // same version and filter the later one out. Shadow replay bundles rebuild their own state from
+    // an inclusive WAL window and keep the previous savedVer - 1 gate.
+    const int64_t tbPatchWatermark = pContext->suppressOutput ? pProgress->savedVer - 1 : pProgress->savedTbVer;
 #define TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE 1
     for (int32_t i = 0; i < nrows; i++) {
-      if (pTypes[i] == TABLE_BLOCK_ADD && pTask->isVirtualTable && pVers[i] >= pProgress->savedVer) {
+      const bool isRecheckAdd = (pTypes[i] == TABLE_BLOCK_ADD_RECHECK);
+      const bool passesTbGate = isRecheckAdd || pVers[i] > tbPatchWatermark;
+      if ((pTypes[i] == TABLE_BLOCK_ADD || isRecheckAdd) && pTask->isVirtualTable && passesTbGate) {
 #if TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE
-        ST_TASK_DLOG("found runtime virtual table add, uid:%" PRId64 ", ver:%" PRId64, pUids[i], pVers[i]);
+        ST_TASK_DLOG("found runtime virtual table %s, uid:%" PRId64 ", ver:%" PRId64,
+                     isRecheckAdd ? "add (cache recheck)" : "add", pUids[i], pVers[i]);
         SSTriggerVTablePatchItem  newItem = {.vtbUid = pUids[i], .ver = pVers[i], .vgId = vgId, .op = TABLE_BLOCK_ADD};
         SSHashObj                *pPatchItems = pContext->patchContext.pPatchItems;
         // stRealtimeContextInitPatchContext() initializes pPatchItems for every virtual-table
@@ -21855,12 +21958,17 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         } else {
           *pExist = newItem;
         }
+        // Only a WAL record version advances the applied watermark; a recheck row reports the same
+        // change at most once and must not hide a later change that reuses the cursor.
+        if (!isRecheckAdd) {
+          pProgress->savedTbVer = TMAX(pProgress->savedTbVer, pVers[i]);
+        }
 #else
         ST_TASK_DLOG("found new added/altered virtual table, uid:%" PRId64, pUids[i]);
         code = TSDB_CODE_INTERNAL_ERROR;
         QUERY_CHECK_CODE(code, lino, _end);
 #endif
-      } else if (pTypes[i] == TABLE_BLOCK_RETIRE && pTask->isVirtualTable && pVers[i] >= pProgress->savedVer) {
+      } else if (pTypes[i] == TABLE_BLOCK_RETIRE && pTask->isVirtualTable && pVers[i] > tbPatchWatermark) {
 #if TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE
         ST_TASK_DLOG("found runtime virtual table retire, uid:%" PRId64 ", ver:%" PRId64, pUids[i], pVers[i]);
         SSTriggerVTablePatchItem newItem = {
@@ -21876,6 +21984,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         } else {
           *pExist = newItem;
         }
+        pProgress->savedTbVer = TMAX(pProgress->savedTbVer, pVers[i]);
 #else
         ST_TASK_DLOG("found dropped virtual table, uid:%" PRId64, pUids[i]);
         code = TSDB_CODE_INTERNAL_ERROR;
@@ -21912,6 +22021,13 @@ _end:
   }
   return code;
 }
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestProcWalMeta(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
+                                 int64_t nowNs) {
+  return stRealtimeContextProcWalMeta(pContext, pProgress, nowNs);
+}
+#endif
 
 static int32_t stTriggerTaskBuildExtReaderReq(SStreamTriggerTask *pTask, SSTriggerExtOrigTableRef *pRef,
                                               int32_t capabilities,
