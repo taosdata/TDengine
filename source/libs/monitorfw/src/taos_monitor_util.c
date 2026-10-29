@@ -67,6 +67,11 @@ int taos_monitor_count_occurrences(char *str, char *toSearch) {
 
 void taos_monitor_strip(char *s)
 {
+    // Defensive guard: a malformed label token (one without '=') leaves the value
+    // NULL. The caller in taos_metric_formatter_load_sample_new already guards this,
+    // but a NULL here would otherwise dereference NULL inside strlen() and crash the
+    // root taosd process, so reject it up front as well.
+    if (s == NULL) return;
     size_t i;
     size_t len = strlen(s);
     size_t offset = 0;

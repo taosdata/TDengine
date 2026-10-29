@@ -28,6 +28,7 @@
 #include "tanalytics.h"
 #include "stream.h"
 #include "extConnector.h"
+#include "nodes.h"
 #include "tglobal.h"
 // clang-format on
 
@@ -247,6 +248,12 @@ void dmCleanup() {
 
   if (dmCheckRepeatCleanup(pDnode) != 0) return;
   dmCleanupDnode(pDnode);
+#ifndef TAOSD_INTEGRATED
+  // Standalone taosd: the nodes were closed by dmRun and dmCleanupDnode stopped the scheduler,
+  // so no plan can still borrow a cached timezone handle. When the daemon is embedded in the
+  // client library, the client side owns the cache and releases it after this thread is joined.
+  nodesCleanupTimezoneCache();
+#endif
   extConnectorModuleDestroy();
   monCleanup();
   auditCleanup();
@@ -360,10 +367,16 @@ static int32_t dmProcessAlterNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   
   SDnode *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
+  if (pWrapper == NULL) {
+    // ALTER must not double as a deploy. The acquire result used to be discarded, so a
+    // TDMT_DND_ALTER_SNODE frame ran the create path on a dnode hosting no snode - and the
+    // dmReleaseWrapper below then dropped a reference this function never took.
+    code = TSDB_CODE_SNODE_NOT_DEPLOYED;
+    dError("failed to alter snode since %s", tstrerror(code));
+    return terrno = code;
+  }
 
   dInfo("start to process alter-node-request");
-
-  pWrapper = &pDnode->wrappers[ntype];
 
   (void)taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);

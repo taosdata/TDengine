@@ -684,7 +684,7 @@ static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveT
   return code;
 }
 
-static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
+static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput, bool useBlob) {
   QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
@@ -696,7 +696,11 @@ static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
   code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
+    // The "Create Table" column is BLOB (4-byte length header) only when the DDL can
+    // exceed the 2-byte varstr cap; otherwise it stays VARCHAR (the historical type).
+    int8_t  col2Type = useBlob ? TSDB_DATA_TYPE_BLOB : TSDB_DATA_TYPE_VARCHAR;
+    int32_t col2Bytes = useBlob ? SHOW_CREATE_TB_RESULT_FIELD2_BYTES : SHOW_CREATE_TB_RESULT_FIELD2_LEN;
+    infoData = createColumnInfoData(col2Type, col2Bytes, 2);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
 
@@ -1376,8 +1380,69 @@ static int32_t appendTableOptions(char* buf, int32_t bufSize, int32_t* len, SDbC
   return TSDB_CODE_SUCCESS;
 }
 
+// Finalizes the assembled DDL text for the "Create Table" result column.
+//
+// The append helpers write the text right after the VARSTR_HEADER_SIZE offset of buf2
+// (a layout shared by every assembly site). For a BLOB result column the text must sit
+// behind a 4-byte blob length header instead, so it is shifted in place; for VARCHAR the
+// offset already matches and only the 2-byte header is written.
+//
+// `len` accumulates snprintf-style would-be lengths on the TABLE path, so once an
+// snprintf truncates, it over-counts the bytes actually written (the RSMA path's
+// tsnprintf already clamps its return to the written count). Precondition for the
+// strlen below: the assembly sites stay within capacity, i.e. their running len never
+// overshoots (an overshoot would feed a negative size to a later snprintf -- a
+// pre-existing upstream assembly pattern, out of this change's scope; it needs a DDL
+// larger than SHOW_CREATE_TB_RESULT_FIELD2_LEN, which the minimum tsMaxSQLLength
+// (1MB -> 3MB buffer) keeps unreachable for schema-bound DDLs, though extreme JSON
+// tag payloads could in principle exceed it). Within the precondition the text is
+// NUL-terminated inside buf2 (a truncating write leaves its NUL at the buffer end),
+// so the real length is recovered with strlen before any byte is moved; otherwise
+// the memmove below could copy uninitialized heap bytes into the BLOB payload.
+//
+// The two clamps differ in observability on purpose: the non-FULL form clamps
+// at the varstr cap silently in the RESULT (byte-identical with pre-BLOB
+// releases -- that compatibility is the point of the default form) with only a
+// qWarn, while the FULL form clamps at the BLOB layout cap (~tsMaxSQLLength*3,
+// reachable only by legitimately extreme schemas) with the same observability.
+// Which branch runs is decided purely by the statement's FULL suffix.
+static int32_t setShowCreateDdlIntoResultBuf(char* buf2, int32_t len, bool useBlob, const char* objName) {
+  int32_t written = (int32_t)strlen(buf2 + VARSTR_HEADER_SIZE);
+  if (len > written) {
+    len = written;
+  }
+
+  if (useBlob) {
+    // SHOW_CREATE_TB_BLOB_RESULT_MAX_PAYLOAD == min(assembler buffer, BLOB
+    // limit) - header, i.e. exactly the payload cap the declared column width
+    // (SHOW_CREATE_TB_RESULT_FIELD2_BYTES) advertises. See cmdnodes.h.
+    int32_t maxLen = SHOW_CREATE_TB_BLOB_RESULT_MAX_PAYLOAD;
+    if (len > maxLen) {
+      qWarn("SHOW CREATE %s FULL: DDL of %d bytes exceeds the largest result layout (buffer %d), truncated to %d bytes. "
+            "Consider enlarging SHOW_CREATE_TB_RESULT_FIELD2_LEN (tsMaxSQLLength).",
+            objName, len, SHOW_CREATE_TB_RESULT_FIELD2_LEN, maxLen);
+      len = maxLen;
+    }
+    memmove(buf2 + BLOBSTR_HEADER_SIZE, buf2 + VARSTR_HEADER_SIZE, len);
+    blobDataSetLen(buf2, len);
+  } else if (len > SHOW_CREATE_VARSTR_RESULT_MAX_LEN) {
+    // Non-FULL form on an over-cap DDL: clamp silently to the varstr limit,
+    // byte-identical with pre-BLOB releases (old consumers keep their exact
+    // historical result shape). The qWarn keeps the clamp observable so users
+    // hitting it can re-issue the statement with the FULL suffix.
+    qWarn("SHOW CREATE %s: DDL of %d bytes exceeds the VARCHAR cap; clamped to %d. "
+          "Re-issue with the FULL suffix to get the complete DDL as BLOB.",
+          objName, len, SHOW_CREATE_VARSTR_RESULT_MAX_LEN);
+    len = SHOW_CREATE_VARSTR_RESULT_MAX_LEN;
+    varDataSetLen(buf2, len);
+  } else {
+    varDataSetLen(buf2, len);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg,
-                                              void* charsetCxt) {
+                                              void* charsetCxt, bool useBlob) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int32_t bufSize = SHOW_CREATE_TB_RESULT_FIELD2_LEN;
@@ -1398,6 +1463,11 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   QUERY_CHECK_CODE(code, lino, _return);
   buf2 = taosMemoryMalloc(bufSize);
   QUERY_CHECK_NULL(buf2, code, lino, _return, terrno);
+  // Guarantee the text region starts NUL-terminated even when no assembly
+  // branch below matches this tableType (e.g. a future TSDB_TSMA_TABLE cfg):
+  // setShowCreateDdlIntoResultBuf() strlen()s the assembled text, and with
+  // nothing written that strlen would scan uninitialized heap memory.
+  buf2[VARSTR_HEADER_SIZE] = '\0';
 
   int32_t len = 0;
 #define APPEND_CREATE_SQL(...)                                                                      \
@@ -1526,10 +1596,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   }
 #undef APPEND_CREATE_SQL
 
-  if (NULL != pFilterSQL) {
-    QUERY_CHECK_CONDITION(len <= UINT16_MAX, code, lino, _return, TSDB_CODE_OUT_OF_BUFFER);
-  }
-  varDataLen(buf2) = (len > UINT16_MAX) ? UINT16_MAX : len;
+  code = setShowCreateDdlIntoResultBuf(buf2, len, useBlob, tbName);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   code = colDataSetVal(pCol2, 0, buf2, false);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -1574,7 +1642,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
   snprintf(varDataVal(buf2), SHOW_CREATE_VIEW_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, "CREATE VIEW `%s`.`%s` AS %s",
            pStmt->dbName, pStmt->viewName, pMeta->querySql);
   int32_t len = strlen(varDataVal(buf2));
-  varDataLen(buf2) = (len > 65535) ? 65535 : len;
+  varDataLen(buf2) = (len > SHOW_CREATE_VARSTR_RESULT_MAX_LEN) ? SHOW_CREATE_VARSTR_RESULT_MAX_LEN : len;
   code = colDataSetVal(pCol2, 0, buf2, false);
   taosMemoryFree(buf2);
 
@@ -1582,7 +1650,7 @@ static int32_t setCreateViewResultIntoDataBlock(SSDataBlock* pBlock, SShowCreate
 }
 
 extern const char* fmGetFuncName(int32_t funcId);
-static int32_t     setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt) {
+static int32_t     setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCreateRsmaStmt* pStmt, bool useBlob) {
   int32_t       code = 0, lino = 0;
   char*         buf2 = NULL;
   SRsmaInfoRsp* pMeta = pStmt->pRsmaMeta;
@@ -1605,6 +1673,11 @@ static int32_t     setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCr
   if (!(buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN))) {
     return terrno;
   }
+  // Same defensive prime as the TABLE path: the first tsnprintf below always
+  // writes today, but setShowCreateDdlIntoResultBuf() strlen()s the text
+  // region and must not scan uninitialized heap if a future branch ever
+  // writes nothing.
+  buf2[VARSTR_HEADER_SIZE] = '\0';
 
   SName name = {0};
   TAOS_CHECK_EXIT(tNameFromString(&name, pMeta->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
@@ -1630,7 +1703,7 @@ static int32_t     setCreateRsmaResultIntoDataBlock(SSDataBlock* pBlock, SShowCr
   }
   code = appendFmt(varDataVal(buf2), SHOW_CREATE_TB_RESULT_FIELD2_LEN - VARSTR_HEADER_SIZE, &len, ")");
   TAOS_CHECK_EXIT(code);
-  varDataLen(buf2) = len;
+  TAOS_CHECK_EXIT(setShowCreateDdlIntoResultBuf(buf2, len, useBlob, pStmt->rsmaName));
   code = colDataSetVal(pCol2, 0, buf2, false);
 _exit:
   taosMemoryFree(buf2);
@@ -1639,9 +1712,10 @@ _exit:
 
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
   SSDataBlock* pBlock = NULL;
-  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock, pStmt->fullResult);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg, charsetCxt);
+    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg, charsetCxt,
+                                          pStmt->fullResult);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
@@ -1652,9 +1726,10 @@ static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRs
 
 static int32_t execShowCreateVTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp, void* charsetCxt) {
   SSDataBlock* pBlock = NULL;
-  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock, pStmt->fullResult);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg, charsetCxt);
+    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg, charsetCxt,
+                                          pStmt->fullResult);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
@@ -1913,9 +1988,9 @@ static int32_t execShowCreateView(SShowCreateViewStmt* pStmt, SRetrieveTableRsp*
 
 static int32_t execShowCreateRsma(SShowCreateRsmaStmt* pStmt, SRetrieveTableRsp** pRsp) {
   SSDataBlock* pBlock = NULL;
-  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock, pStmt->fullResult);
   if (TSDB_CODE_SUCCESS == code) {
-    code = setCreateRsmaResultIntoDataBlock(pBlock, pStmt);
+    code = setCreateRsmaResultIntoDataBlock(pBlock, pStmt, pStmt->fullResult);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);

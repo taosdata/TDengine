@@ -134,13 +134,6 @@ class TestScalarFunction:
 
     def run_repeat(self):
         self.run_normal_query_new("repeat")
-        tdSql.error("select repeat('ab', 2147483647);")
-        tdSql.execute("create table repeat_overflow_input (ts timestamp, repeat_count int);")
-        try:
-            tdSql.execute("insert into repeat_overflow_input values (now, 2147483647);")
-            tdSql.error("select repeat('ab', repeat_count) from repeat_overflow_input;")
-        finally:
-            tdSql.execute("drop table repeat_overflow_input;")
 
     def run_substr(self):
         self.run_normal_query_new("substr")
@@ -883,6 +876,32 @@ class TestScalarFunction:
 
         """
         self.run_repeat()
+
+    def test_string_result_length_bounds(self):
+        """Reject scalar string results beyond the field limit.
+
+        1. Accept REPEAT and REPLACE results at the maximum payload boundary.
+        2. Reject results one byte beyond the maximum payload boundary.
+        3. Reject a row-driven REPEAT count that would overflow multiplication.
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,functional
+        """
+        tdSql.query("select char_length(repeat('a', 65517));")
+        tdSql.checkData(0, 0, 65517)
+        tdSql.error("select repeat('a', 65518);")
+
+        tdSql.query("select char_length(replace(repeat('a', 32758), 'a', 'aa'));")
+        tdSql.checkData(0, 0, 65516)
+        tdSql.error("select replace(repeat('a', 32759), 'a', 'aa');")
+
+        tdSql.execute("create table repeat_overflow_input (ts timestamp, repeat_count int);")
+        try:
+            tdSql.execute("insert into repeat_overflow_input values (now, 2147483647);")
+            tdSql.error("select repeat('ab', repeat_count) from repeat_overflow_input;")
+        finally:
+            tdSql.execute("drop table repeat_overflow_input;")
 
     def test_fun_sca_replace(self):
         """ Fun: replace()

@@ -357,11 +357,15 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, SN
   bool needKeyBuf = pTable->keyNum > 1;
   int32_t i = 0;
   SNode* pNode = NULL;
+  SListCell* pPeerCell = NULL != pPeerList ? pPeerList->pHead : NULL;
   FOREACH(pNode, pList) {
     SExprNode* pExpr = QUERY_NODE_TARGET == nodeType(pNode) ? (SExprNode*)((STargetNode*)pNode)->pExpr : (SExprNode*)pNode;
     int32_t slotId = QUERY_NODE_TARGET == nodeType(pNode) ? ((STargetNode*)pNode)->slotId : ((SColumnNode*)pNode)->slotId;
     pTable->keyCols[i].srcSlot = slotId;
-    SNode* pPeer = nodesListGetNode(pPeerList, i);
+    SNode* pPeer = NULL != pPeerCell ? pPeerCell->pNode : NULL;
+    if (NULL != pPeerCell) {
+      pPeerCell = pPeerCell->pNext;
+    }
     pTable->keyCols[i].isExpr = QUERY_NODE_TARGET == nodeType(pNode) ||
                                 (NULL != pPeer && QUERY_NODE_TARGET == nodeType(pPeer));
     pTable->keyCols[i].type = pExpr->resType.type;

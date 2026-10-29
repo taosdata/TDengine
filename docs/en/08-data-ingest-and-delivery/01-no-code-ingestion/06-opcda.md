@@ -168,7 +168,7 @@ In **Batch Size**, set the batch size for each write, that is, the maximum numbe
 
 In **Batch Delay**, set the maximum delay for a single send (in seconds). When the timeout ends, as long as there is data, it is sent immediately even if it does not meet the **Batch Size**.
 
-When **Cache Realtime Data** is enabled, data consumed from OPC DA is first written to a local file; a background task continuously reads from the file and sends data to the downstream consumer. This is intended for traffic shaping when the data rate is high enough that downstream cannot keep up and would otherwise drop messages. Once the backlog is consumed, the file is cleaned up automatically. Disabled by default. For detailed information about this feature, see [Store and Forward](../../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md).
+When **Cache Realtime Data** is enabled, data consumed from OPC DA is first written to a local file; a background task continuously reads from the file and sends data to the downstream consumer. This is intended for traffic shaping when the data rate is high enough that downstream cannot keep up and would otherwise drop messages. Once the backlog is consumed, the file is cleaned up automatically. Disabled by default. For detailed information about this feature, see [Store and Forward](../../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md).
 
 In **Cache Storage Directory**, you can enter the directory where the cache files are stored. It defaults to the data directory configured at taosX startup, but can be overridden. This option only takes effect when **Cache Realtime Data** is enabled.
 
@@ -228,6 +228,30 @@ For OPC UA auto-mapping of BrowseName / Description / Path and Property→TAG, s
 Install the Agent once near the OPC server and keep it running. After that, create, edit, start/stop Data In tasks, adjust collection settings, and append or update the point CSV in taosExplorer (or via [Data Ingestion (Xnode)](../../05-tdengine-sql/08-cluster-management/02-xnode.md) SQL). In general you do not need to repackage or reinstall the Agent when points change.
 
 You only need to change the Agent host configuration or reinstall when replacing `endpoint` / `token`, upgrading the Agent, or changing host-local options such as store-and-forward directories. Installation steps: [Install taosX-Agent](./01-install-agent.md).
+
+## Frequently Asked Questions
+
+1. How do I troubleshoot the connectivity check error `TryConnect was not successful: connection failed. Error: OPC ERROR code:0x80080005, error:Unknown error, may be system error: Server execution failed`?
+
+**Possible causes**: The OPC DA server failed to start, or the taosX-Agent service account lacks the required COM/DCOM launch, activation, or access permissions.
+
+**Solution**: First, confirm that the OPC DA server has started successfully. On the Windows host running taosX-Agent, open PowerShell as administrator and stop the Agent service:
+
+```powershell
+Stop-Service -Name taosx-agent -ErrorAction Stop
+(Get-Service -Name taosx-agent).WaitForStatus('Stopped', '00:00:30')
+Get-Process -Name taosx-agent,taosx-agent-srv -ErrorAction SilentlyContinue
+```
+
+Once these processes have exited, start the Agent in the foreground using the current Windows login account. Adjust the paths to match your installation:
+
+```powershell
+$env:PLUGINS_HOME = 'C:\TDengine\plugins'
+$env:LOGS_HOME = 'C:\TDengine\log'
+& 'C:\TDengine\taosx-agent.exe' --config 'C:\TDengine\cfg\agent.toml'
+```
+
+Keep the window open and repeat the connectivity check in taosExplorer with the same agent and OPC configuration. If the check succeeds in the foreground but fails when the service is restored, check the service account and COM/DCOM permissions. In `services.msc`, open the service properties and use the **Log On** tab to replace the default `LocalSystem` account with the account verified in the foreground, enter its valid password, and restart the service to retest. Before restoring the service, press Ctrl+C to exit the foreground Agent so that two instances do not run simultaneously. If the foreground check also fails, investigate the OPC DA server startup status and Windows event logs.
 
 ## Related Documents
 

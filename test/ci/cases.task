@@ -289,6 +289,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/01-Basic/test_vtable_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_eliminate_virtual_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_last_time_range.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_order_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_timerange.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py
@@ -369,8 +370,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_nchar_length.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_nchar_length_supplemental.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/01-Basic/test_vtable_validate_referencing.py
-# Temporarily disabled pending fixes for the known virtual-table JOIN and UNION ALL failures.
-# ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_comprehensive.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_comprehensive.py
 
 # Performance and Stress tests
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vtable_performance.py
@@ -924,6 +924,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_mavg.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_sample.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_statecount.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_bit_duration.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_stateduration.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_twa.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_tw_weighted.py
@@ -1227,6 +1228,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable5.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_agg_optimize.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_vtable_chain_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_calc_range_extra_ts_cond.py
@@ -1279,6 +1281,7 @@
 ## 07-SubQuery
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_empty_group_order.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_output_filter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_scalar.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
@@ -1498,6 +1501,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive_slow_status.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_db.py
+,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_table_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_diskinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
@@ -1716,6 +1720,8 @@
 # 02-Taosc
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_count_always_return_value.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_taosc_hot_refresh_config.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_workload_record.py
+,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_workload_replay.py
 
 # 81-Tools
 
@@ -1758,6 +1764,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_long_ddl.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py

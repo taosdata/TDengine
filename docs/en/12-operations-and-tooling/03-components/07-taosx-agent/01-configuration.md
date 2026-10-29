@@ -1,5 +1,5 @@
 ---
-title: Configuration Reference
+title: taosX-Agent Configuration Reference
 sidebar_label: Configuration Reference
 toc_max_heading_level: 4
 ---
@@ -10,7 +10,7 @@ The taosX-Agent configuration file is located at `/etc/taos/agent.toml` (Linux) 
 
 | Parameter | Required | Default | Description |
 | --- | --- | --- | --- |
-| `endpoint` | Yes | — | gRPC service address of taosX, e.g., `http://localhost:6055` |
+| `endpoint` | Yes | — | gRPC service address of taosX, for example `http://localhost:6055`. Multiple addresses can be separated by commas. See [High Availability](./03-high-availability.md) |
 | `token` | Yes | — | Token generated when creating the Agent in Explorer |
 | `instanceId` | No | — | Agent instance ID. Must be unique when running multiple Agent instances on the same machine |
 | `compression` | No | `false` | Whether to enable communication data compression between Agent and taosX |
@@ -47,7 +47,7 @@ Configure logging behavior with the `[log]` section:
 ## Full Configuration Example
 
 ```toml
-# taosX gRPC service address (required)
+# taosX gRPC service address (required). Separate multiple addresses with commas
 endpoint = "http://192.168.1.100:6055"
 
 # Token generated when creating the Agent in Explorer (required)

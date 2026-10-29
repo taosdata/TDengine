@@ -391,9 +391,26 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_ASSIGNED_LEADER_RSP, mmPutMsgToArbQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT_ELECTION, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT_ELECTION is intentionally NOT registered here.
+  // Sync election-timeout messages are produced only by this mnode's own local
+  // timer (syncNodeEqElectTimer -> syncBuildTimeout -> mndSyncEqMsg) and must
+  // never arrive over the network. Registering it as a network-dispatched type
+  // allowed an unauthenticated peer to force a re-election (see finding 265).
+  // The local enqueue path does not use this dispatch table, so removing the
+  // registration does not affect legitimate timer processing.
+  
+  // SECURITY FIX (finding item 52): TDMT_SYNC_CLIENT_REQUEST / TDMT_SYNC_CLIENT_REQUEST_BATCH are
+  // *internal loopback* message types produced only by the local syncNodePropose() path and must
+  // never be accepted from the network. Registering them here made this dnode's sync queue
+  // reachable from any host that can reach port 6030, letting a non-member forge a raft entry
+  // (arbitrary originalRpcType/dataLen/data) that a leader would append, persist, replicate and
+  // apply via the mnode/vnode FSM (full cluster takeover / config change / crash). They are now
+  // deliberately NOT registered, so dmProcessRpcMsg drops such frames (TSDB_CODE_MSG_NOT_PROCESSED)
+  // before they can reach syncNodeOnClientRequest. The local propose path enqueues these messages
+  // directly via syncEqMsg and is therefore unaffected.
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
+
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_REPLY, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE_REPLY, mmPutMsgToSyncQueue, 1) == NULL) goto _OVER;
@@ -405,7 +422,14 @@ SArray *mmGetMsgHandles() {
 
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_FORCE_FOLLOWER_RSP, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT is intentionally NOT registered here. Ping/role
+  // timer messages are produced only by this mnode's own local timer
+  // (syncNodeEqPingTimer -> syncBuildTimeout -> mndSyncEqMsg) and must never
+  // arrive over the network. Registering it as a network-dispatched type allowed
+  // an unauthenticated peer to trigger syncNodeTimerRoutine at an attacker-chosen
+  // rate (see finding 265). The local enqueue path does not use this dispatch
+  // table, so removing the registration does not affect legitimate timer
+  // processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, mmPutMsgToSyncRdQueue, 1) == NULL) goto _OVER;

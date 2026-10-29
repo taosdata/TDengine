@@ -2071,7 +2071,17 @@ char* formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, time
   return buf;
 }
 
+// TICK_PER_SECOND[] has zero entries (HOUR/MINUTE) and only six slots; precision may come from a query plan, so it
+// must be milli/micro/nano (or seconds, used internally for whitelist ranges) before it is used as index and divisor.
+#define TS_PRECISION_VALID(_p)                                                                    \
+  (((_p) >= TSDB_TIME_PRECISION_MILLI && (_p) <= TSDB_TIME_PRECISION_NANO) ||                     \
+   (_p) == TSDB_TIME_PRECISION_SECONDS)
+
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz) {
+  if (!TS_PRECISION_VALID(precision)) {
+    uError("%s:%d invalid timestamp precision:%d", __func__, __LINE__, precision);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
   tm->fsec = ts % TICK_PER_SECOND[precision] * (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
   time_t t = ts / TICK_PER_SECOND[precision];
   if (NULL == taosLocalTime(&t, &tm->tm, NULL, 0, tz)) {
@@ -2081,6 +2091,10 @@ int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz) 
 }
 
 int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision, timezone_t tz) {
+  if (!TS_PRECISION_VALID(precision)) {
+    uError("%s:%d invalid timestamp precision:%d", __func__, __LINE__, precision);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
   *ts = taosMktime(&tm->tm, tz);
   *ts *= TICK_PER_SECOND[precision];
   *ts += tm->fsec / (TICK_PER_SECOND[TSDB_TIME_PRECISION_NANO] / TICK_PER_SECOND[precision]);
@@ -3077,6 +3091,10 @@ int32_t taosChar2Ts(const char* format, SArray** formats, const char* tsStr, int
       TAOS_RETURN(terrno);
     }
     TAOS_CHECK_RETURN(parseTsFormat(format, *formats));
+  }
+  if (!TS_PRECISION_VALID(precision)) {
+    uError("%s:%d invalid timestamp precision:%d", __func__, __LINE__, precision);
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
   int32_t code = char2ts(tsStr, *formats, ts, precision, &sErrPos, &fErrIdx, tz);
   if (code == -1) {

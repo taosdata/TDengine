@@ -1364,7 +1364,14 @@ int32_t syncLogReplContinue(SSyncLogReplMgr* pMgr, SSyncNode* pNode, SyncAppendE
       }
     }
     pMgr->states[pMsg->lastSendIndex % pMgr->size].acked = true;
-    pMgr->matchIndex = TMAX(pMgr->matchIndex, pMsg->matchIndex);
+    // TD-SEC-2026-044 (item 184): a follower's matchIndex can never exceed the
+    // highest log index this leader actually transmitted to it (pMgr->endIndex - 1).
+    // Clamp the reply's claim so a forged/spoofed reply cannot inflate the per-peer
+    // replication progress beyond what was really sent (it would otherwise let the
+    // leader believe a peer is further ahead than it is). For a genuine reply the
+    // claimed matchIndex is already <= lastSendIndex < endIndex, so this is a no-op.
+    SyncIndex maxSentIndex = (pMgr->endIndex > 0) ? (pMgr->endIndex - 1) : SYNC_INDEX_INVALID;
+    pMgr->matchIndex = TMAX(pMgr->matchIndex, TMIN(pMsg->matchIndex, maxSentIndex));
     for (SyncIndex index = pMgr->startIndex; index < pMgr->matchIndex; index++) {
       (void)memset(&pMgr->states[index % pMgr->size], 0, sizeof(pMgr->states[0]));
     }

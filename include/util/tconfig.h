@@ -145,6 +145,14 @@ SConfigItem *cfgGetItem(SConfig *pCfg, const char *pName);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgGetAndSetItem(SConfig *pCfg, SConfigItem **ppItem, const char *name, const char *value, ECfgSrcType stype,
                          bool lock);
+/* Publish an already-resolved DIR value without applying word/path expansion again.
+ * The caller must supply the final absolute, normalized path shorter than PATH_MAX. Variables,
+ * shell syntax, and invalid path components are stored literally and are not expanded
+ * or otherwise validated. stype is retained for display and persistence but does
+ * not participate in restart tracking. This clears any
+ * saved lazy-dynamic restart baseline and restartRequired state, and is therefore
+ * restricted to CFG_DYN_NONE items. */
+int32_t cfgSetDirResolved(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock);
 int32_t cfgCheckRangeForDynUpdate(SConfig *pCfg, const char *name, const char *pVal, bool isServer,
                                   CfgAlterType alterType);
 

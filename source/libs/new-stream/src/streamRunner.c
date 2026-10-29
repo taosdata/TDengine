@@ -424,6 +424,11 @@ static void stRunnerDestroyGroupedContinuation(SStreamRunnerTaskExecution* pExec
 static void stRunnerDestroyRuntimeInfo(SStreamRuntimeInfo* pRuntime) {
   stRunnerCleanupCalcRequestRuntime(pRuntime);
   tDestroyStRtFuncInfo(&pRuntime->funcInfo);
+  // The execution owns requests not yet collected by heartbeat and unconsumed responses.
+  taosArrayDestroy(pRuntime->vtableDeployInfo.addVgIds);
+  pRuntime->vtableDeployInfo.addVgIds = NULL;
+  taosArrayDestroy(pRuntime->vtableDeployInfo.addedVgInfo);
+  pRuntime->vtableDeployInfo.addedVgInfo = NULL;
 }
 
 static void stRunnerDestroyTaskExecution(void* pExec) {
@@ -665,6 +670,13 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosArrayDestroy(pTask->output.colCids);
   taosArrayDestroy(pTask->output.tagCids);
   streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_UNDEPLOYED);
+
+  // Undeploy can precede the management response in the same heartbeat.
+  taosWLockLatch(&pTask->task.mgmtReqLock);
+  SStreamMgmtReq* pMgmtReq = atomic_exchange_ptr(&pTask->task.pMgmtReq, NULL);
+  tFreeSStreamMgmtReq(pMgmtReq);
+  taosMemoryFree(pMgmtReq);
+  taosWUnLockLatch(&pTask->task.mgmtReqLock);
 
   cb(ppTask);
   
@@ -3010,6 +3022,27 @@ _exit:
 int32_t stRunnerBuildTaskMgmtReq(SStreamRunnerTask* pTask) {
   SStreamRunnerTaskExecMgr* pMgr = &pTask->execMgr;
   int32_t                   code = 0, lino = 0;
+
+  // A deployment request that has not been answered yet must not be replaced: the new vgroups stay in
+  // vtableDeployInfo and are reported once the pending request is released. Restore the deploy flag so
+  // the next heartbeat retries instead of silently dropping them.
+  //
+  // pMgmtReq is read under mgmtReqLock: the undeploy path and the management response free the request
+  // while holding the same latch, so dereferencing it outside of the latch would race with that free.
+  int64_t pendingReqId = -1;
+  taosRLockLatch(&pTask->task.mgmtReqLock);
+  SStreamMgmtReq* pPending = atomic_load_ptr(&pTask->task.pMgmtReq);
+  if (pPending != NULL) {
+    pendingReqId = pPending->reqId;
+  }
+  taosRUnLockLatch(&pTask->task.mgmtReqLock);
+
+  if (pendingReqId >= 0) {
+    (void)atomic_val_compare_exchange_8(&pTask->vtableDeployGot, 0, 1);
+    ST_TASK_DLOG("skip building task mgmtReq, previous reqId:%" PRId64 " is still pending", pendingReqId);
+    return TSDB_CODE_SUCCESS;
+  }
+
   code = taosThreadMutexLock(&pMgr->lock);
   if (code != 0) {
     ST_TASK_ELOG("%s failed to lock stream runner task exec mgr mutex, code:%s", __func__, tstrerror(code));
@@ -3066,6 +3099,10 @@ _exit:
   
   return code;
 }
+
+#if defined(BUILD_TEST)
+int32_t stRunnerTestBuildTaskMgmtReq(SStreamRunnerTask* pTask) { return stRunnerBuildTaskMgmtReq(pTask); }
+#endif
 
 int32_t stRunnerSetMgmtRsp(SStreamRunnerTask* pTask, SArray* pRspList, int32_t rspCode) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;

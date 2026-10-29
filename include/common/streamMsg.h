@@ -74,6 +74,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
 #define STREAM_READER_DIMENSION_BATCH_FRAME_VERSION 1
 #define STREAM_RUNNER_EOG_BATCH_FRAME_VERSION  1
+#define STREAM_EXTERNAL_WINDOW_PREV_FRAME_VERSION 1
 #define STREAM_RUNNER_FETCH_BATCH_VERSION      1
 #define STREAM_RUNNER_EOG_BATCH_MAX            64
 #define STREAM_READER_FETCH_BATCH_VERSION      1
@@ -88,6 +89,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
 #define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
+#define STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC UINT32_C(0x4e574550)
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
@@ -1472,6 +1474,12 @@ typedef enum {
   TABLE_BLOCK_DROP = 0,
   TABLE_BLOCK_ADD,
   TABLE_BLOCK_RETIRE,
+  // A column-reference change discovered by the reader-side vtable cache recheck. The trigger queues
+  // it like TABLE_BLOCK_ADD, but it is stamped with the pull request cursor instead of the version
+  // of a WAL record, so it must not take part in replay dedup: several independent rechecks can share
+  // one cursor (the WAL cursor does not move), and each change is emitted once because the reader
+  // cache is updated before the notification is sent.
+  TABLE_BLOCK_ADD_RECHECK,
 } ETableBlockType;
 
 typedef struct SSTriggerWalNewRsp {
@@ -1578,6 +1586,13 @@ typedef struct SVTableRefResolveGroupItem {
 typedef struct SVTableRefResolveReq {
   int64_t  ver;
   SArray  *groups;                               // SArray<SVTableRefResolveGroupItem> (table-grouped)
+  // Caller's metadata transaction snapshot, encoded as a trailing optional field
+  // so peers that predate it keep decoding the frame and fall back to the
+  // committed snapshot. Propagated to every meta reader opened on the target
+  // vnode so entries created by the in-flight transaction (META_TXN_PRE_CREATE)
+  // stay visible during chain resolution.
+  // 0 means "no transaction context, read the latest committed snapshot".
+  int64_t  txnId;
 } SVTableRefResolveReq;
 
 typedef struct SVTableRefResolveRspItem {
@@ -1883,6 +1898,8 @@ typedef struct SStreamRuntimeFuncInfo {
   int64_t sessionId;
   uint64_t streamGen;
   bool    withExternalWindow;
+  // Valid only with withExternalWindow; sent in the SResFetchReq capability frame.
+  bool    externalWindowNeedsPrevRow;
   bool    isWindowTrigger;
   int8_t  precision;
   int32_t curOutIdx; // to indicate the window index for current block, valid value start from 1

@@ -124,6 +124,7 @@ surfaces immediately as a test failure rather than a silent skip.
 
 import os
 import re
+import sys
 import time as _time
 
 import pytest
@@ -6881,7 +6882,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
                                'pg': ['Projection'],
                                'influx': ['Projection']}}},
  {'id': 'EXP-ds_crypto-02',
-  'sql': "select aes_decrypt(region, 'k') from {SRC}.sensor",
+  'sql': "select aes_decrypt(aes_encrypt(region, 'k'), 'k') from {SRC}.sensor",
   'sources': 'single',
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_not_has', 'local_has'],
   'check_args': {'remote_not_has': ['AES_DECRYPT'],
@@ -6897,7 +6898,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
                                'pg': ['Projection'],
                                'influx': ['Projection']}}},
  {'id': 'EXP-ds_crypto-04',
-  'sql': "select sm4_decrypt(region, 'k') from {SRC}.sensor",
+  'sql': "select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from {SRC}.sensor",
   'sources': 'single',
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_not_has', 'local_has'],
   'check_args': {'remote_not_has': ['SM4_DECRYPT'],
@@ -15465,6 +15466,15 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             r'^SQL: select (?:CLIENT_VERSION|SERVER_VERSION)\(\) from .+$',
             re.IGNORECASE | re.MULTILINE)
         _version_width_re = re.compile(r'(width=)\d+')
+        # Windows reaches InfluxDB through the HTTP/JSON transport (no Arrow
+        # Flight SQL), so the connector delivers the whole response as a single
+        # block, while the Linux FlightSQL transport splits the same rows into
+        # smaller batches.  EXPLAIN ANALYZE reports the rows the operator
+        # actually processed, so a downstream LIMIT may stop part-way through a
+        # differently sized block (e.g. 4 vs 5 of 5 rows).  The result set is
+        # identical; only these block-boundary statistics differ.
+        _influx_scan_rows_re = re.compile(r'(\(cost=[^)]*? rows=)\d+')
+        _remote_rows_re = re.compile(r'(Remote rows=)\d+')
 
         def _mask_exec_cost(m):
             s = m.group(0)
@@ -15481,6 +15491,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         def _mask_version_block(block):
             return _version_width_re.sub(r'\1<VERSION_WIDTH>', block)
+
+        def _mask_influx_rows(block):
+            block = _influx_scan_rows_re.sub(r'\1<ROWS>', block)
+            return _remote_rows_re.sub(r'\1<ROWS>', block)
 
         def normalize(text):
             t = _norm_re.sub(r'\1<HOST>', text)
@@ -15503,6 +15517,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             t = ''.join(
                 _mask_current_user_block(block) if _curr_user_sql_re.search(block)
                 else _mask_version_block(block) if _version_sql_re.search(block)
+                else _mask_influx_rows(block)
+                if sys.platform == 'win32' and '(influxdb)' in block
                 else block
                 for block in re.split(r'(?=### )', t))
             return t

@@ -669,6 +669,31 @@ taosc 和 taosd 存在许多同名参数，虽然名称相同但作用范围可�
 
 ### 调试相关
 
+#### workloadRecord
+
+- 说明：开启 Native 客户端工作负载录制。`0` 表示关闭，`1` 表示开启；`2`～`255` 为保留值，录制不会启动。录制与回放的操作步骤见 [工作负载录制与回放](../02-operations/13-analysis-and-debug/06-workload-record-and-replay.md)。
+- 类型：整数
+- 默认值：0
+- 取值范围：0～255
+- 动态修改：不支持，修改后需重启客户端进程
+
+#### workloadRecordDir
+
+- 说明：录制文件的存放目录。目录内会生成 `.wlr` 分段文件及会话清单文件；客户端需要对该目录有写入权限。
+- 类型：目录路径
+- 默认值：`logDir/workload`，即当前客户端 `logDir` 下的 `workload` 目录
+- 动态修改：不支持，修改后需重启客户端进程
+
+#### workloadRecordBufferSize
+
+- 说明：录制队列的缓冲区大小。
+- 类型：整数
+- 单位：MB
+- 默认值：256
+- 最小值：16
+- 最大值：4096
+- 动态修改：不支持，修改后需重启客户端进程
+
 #### crashReporting
 
 - 说明：是否上传 crash 到 telemetry

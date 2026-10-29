@@ -83,7 +83,6 @@ def build_dependent_driver(wrapper_dir):
     # The random numeric suffix keeps these test DLL names unique, so a stray
     # same-named DLL on the host can never satisfy the loads below.
     dependency_name = "tdengine_colocated_dependency_6765327128.dll"
-    import_library = "libtdengine_colocated_dependency_6765327128.a"
     dependency_source = wrapper_dir / "dependency.c"
     dependency_source.write_text(
         "__declspec(dllexport) int td_colocated_dependency(void) { return 1; }\n",
@@ -96,17 +95,36 @@ def build_dependent_driver(wrapper_dir):
         "{ return td_colocated_dependency(); }\n",
         encoding="utf-8",
     )
+    # Compile with the same VS2022 toolchain used by Windows CI. The MinGW
+    # compiler can be present while its runtime DLLs are absent from PATH.
+    vcvars = os.environ.get("WIN_VCVARS")
+    if not vcvars:
+        for edition in ("BuildTools", "Community", "Professional", "Enterprise"):
+            for root in ("C:/Program Files", "C:/Program Files (x86)"):
+                candidate = Path(root) / "Microsoft Visual Studio/2022" / edition / "VC/Auxiliary/Build/vcvarsall.bat"
+                if candidate.is_file():
+                    vcvars = str(candidate)
+                    break
+            if vcvars:
+                break
+    assert vcvars and Path(vcvars).is_file(), "VS2022 vcvarsall.bat is required to build the test DLLs"
     commands = (
-        ["gcc", "-shared", "-o", dependency_name, dependency_source.name,
-         f"-Wl,--out-implib,{import_library}"],
-        ["gcc", "-shared", "-o", "taosnative.dll", driver_source.name, import_library],
+        ["cl.exe", "/nologo", "/LD", dependency_source.name, "/link",
+         f"/OUT:{dependency_name}", "/IMPLIB:dependency.lib"],
+        ["cl.exe", "/nologo", "/LD", driver_source.name, "dependency.lib", "/link", "/OUT:taosnative.dll"],
     )
-    for command in commands:
-        process = subprocess.run(
-            command, cwd=wrapper_dir, capture_output=True, text=True,
-            timeout=60, check=False,
-        )
-        assert process.returncode == 0, process.stdout + process.stderr
+    script = wrapper_dir / "build-dependent-driver.cmd"
+    script.write_text(
+        f'@call "{vcvars}" x64 >nul\n@if errorlevel 1 exit /b %errorlevel%\n'
+        + "\n".join(subprocess.list2cmdline(command) + "\n@if errorlevel 1 exit /b %errorlevel%" for command in commands)
+        + "\n", encoding="utf-8",
+    )
+    process = subprocess.run(
+        ["cmd.exe", "/d", "/c", str(script)], cwd=wrapper_dir,
+        capture_output=True, text=True, timeout=120, check=False,
+    )
+    assert process.returncode == 0, process.stdout + process.stderr
+
 
 
 class TestWrapperColocatedWindows:

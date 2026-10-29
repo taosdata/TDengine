@@ -290,8 +290,8 @@ static int32_t qCreateStreamExecTask(SReadHandle* readHandle, int32_t vgId, uint
   int32_t subTaskNum = (int32_t)LIST_LENGTH(pSubplan->pSubQ);
   SArray* subEndPoints = taosArrayInit(subTaskNum, POINTER_BYTES);
   SDownstreamSourceNode* pSource = NULL;
-  for (int32_t i = 0; i < subTaskNum; ++i) {
-    SNode* pVal = nodesListGetNode(pSubplan->pSubQ, i);
+  SNode* pVal = NULL;
+  FOREACH(pVal, pSubplan->pSubQ) {
 
     TSDB_CHECK_CODE(nodesCloneNode(pVal, (SNode**)&pSource), lino, _error);
 
@@ -2428,6 +2428,10 @@ end:
 }
 
 static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
+  // Only called from qStreamFilterTableListForReader, which runs on the WAL-driven
+  // stream-reader path. That path has no metadata transaction context (the reader
+  // reacts to committed WAL entries), so txnId is intentionally 0 here and the
+  // readers below see the latest committed snapshot.
   int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX,
                                     pStorageAPI, NULL, 0, pListInfo);
   if (code != 0) {

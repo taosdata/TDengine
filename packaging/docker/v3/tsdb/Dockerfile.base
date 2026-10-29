@@ -1,0 +1,33 @@
+FROM debian:bookworm-slim
+
+LABEL description="TDengine TSDB Base Image with Essential Dependencies"
+
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        curl \
+        gdb \
+        locales \
+        net-tools \
+        netcat-openbsd \
+        tini \
+        tzdata \
+        valgrind \
+        vim-tiny \
+        xz-utils \
+        psmisc \
+        procps \
+        iputils-ping; \
+    rm -rf /var/lib/apt/lists/*; \
+    echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen; \
+    locale-gen; \
+    # drop package docs and locale sources; locale-gen has already compiled
+    # what it needs into /usr/lib/locale/locale-archive, so /usr/share/i18n
+    # is only needed to regenerate locales
+    rm -rf /usr/share/doc /usr/share/man /usr/share/i18n \
+           /var/cache/apt/* /var/log/*
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    LANG=en_US.UTF-8 \
+    LC_CTYPE=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8

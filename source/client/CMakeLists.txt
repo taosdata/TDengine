@@ -133,7 +133,7 @@ endif()
 target_link_libraries(
     ${TAOS_NATIVE_LIB}
     INTERFACE api
-    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal extconnector
+    PRIVATE util common transport monitor nodes parser command planner catalog scheduler function qcom geometry ${TAOSD_MODULE} decimal extconnector wlr
     # PRIVATE, not PUBLIC: the driver is a shared library, so it does not need to
     # hand os's archive to its consumers.  With PUBLIC, libos.a lands on every
     # consumer's link line (taosdump, taos, taosBenchmark, the C test tools...)
@@ -171,7 +171,7 @@ target_include_directories(
 target_link_libraries(
     ${TAOS_NATIVE_LIB_STATIC}
     INTERFACE api
-    PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal extconnector
+    PUBLIC os util common transport monitor nodes parser command planner catalog scheduler function qcom geometry decimal wlr extconnector
 )
 
 # libgsasl: application-layer SCRAM-SHA-256 authentication on the CONNECT handshake
@@ -186,6 +186,7 @@ if (NOT ${TD_WINDOWS})
 endif()
 
 if(BUILD_TEST)
+    target_compile_definitions(${TAOS_NATIVE_LIB_STATIC} PRIVATE WLR_TEST_HOOKS)
     ADD_SUBDIRECTORY(test)
 endif()
 

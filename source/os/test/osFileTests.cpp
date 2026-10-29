@@ -17,6 +17,9 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#ifndef WINDOWS
+#include <sys/stat.h>
+#endif
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -250,6 +253,120 @@ TEST(osFileTests, taosFprintfFile) {
   taosCloseFile(&pFile);
   taosRemoveFile(testFile);
 }
+
+TEST(osFileTests, privateStreamOpenIsRejected) {
+  char testFile[256] = {0};
+  buildTmpPath(testFile, sizeof(testFile), "test_private_stream.txt");
+  taosRemoveFile(testFile);
+  ASSERT_FALSE(taosCheckExistFile(testFile));
+
+  terrno = 0;
+  TdFilePtr pFile = taosOpenFile(
+      testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM | TD_FILE_PRIVATE);
+  EXPECT_EQ(pFile, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  if (pFile != nullptr) (void)taosCloseFile(&pFile);
+  EXPECT_FALSE(taosCheckExistFile(testFile));
+
+  terrno = 0;
+  FILE *stream = taosOpenFileForStream(
+      testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_PRIVATE);
+  EXPECT_EQ(stream, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  if (stream != nullptr) (void)taosCloseCFile(stream);
+  EXPECT_FALSE(taosCheckExistFile(testFile));
+  taosRemoveFile(testFile);
+}
+
+TEST(osFileTests, getFileModeFailurePreservesOutput) {
+  char testFile[256] = {0};
+  buildTmpPath(testFile, sizeof(testFile), "test_missing_mode.txt");
+  taosRemoveFile(testFile);
+
+  int32_t mode = 0123;
+  terrno = 0;
+  ASSERT_EQ(taosGetFileMode(testFile, &mode), TAOS_SYSTEM_ERROR(ENOENT));
+  EXPECT_EQ(terrno, TAOS_SYSTEM_ERROR(ENOENT));
+  EXPECT_EQ(mode, 0123);
+  EXPECT_EQ(taosGetFileMode(testFile, nullptr), TSDB_CODE_INVALID_PARA);
+}
+
+#ifndef WINDOWS
+TEST(osFileTests, privateFileOpenUsesOwnerOnlyPermissions) {
+  char testFile[256] = {0};
+  buildTmpPath(testFile, sizeof(testFile), "test_private_file.txt");
+  taosRemoveFile(testFile);
+  ASSERT_FALSE(taosCheckExistFile(testFile));
+
+  // This binary is registered as one CTest process, so gtest never runs its cases
+  // concurrently. Keep all process-global umask mutations in this one test.
+  struct UmaskGuard {
+    explicit UmaskGuard(int32_t initialMask) : originalMask(taosUmaskFile(initialMask)) {}
+    ~UmaskGuard() { (void)taosUmaskFile(originalMask); }
+    void set(int32_t mask) { (void)taosUmaskFile(mask); }
+    int32_t originalMask;
+  } umaskGuard{0};
+  ASSERT_LE(umaskGuard.originalMask, 0777);
+  TdFilePtr pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_PRIVATE);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+
+  int32_t mode = 0;
+  ASSERT_EQ(taosGetFileMode(testFile, &mode), 0);
+  EXPECT_EQ(mode & 0777, 0600);
+
+  taosRemoveFile(testFile);
+  umaskGuard.set(0400);
+  pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_PRIVATE);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+  ASSERT_EQ(taosGetFileMode(testFile, &mode), 0);
+  EXPECT_EQ(mode & 0777, 0200) << "TD_FILE_PRIVATE permissions must still honor umask";
+
+  taosRemoveFile(testFile);
+  umaskGuard.set(0);
+  pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+  ASSERT_EQ(chmod(testFile, 0644), 0);
+  ASSERT_EQ(taosGetFileMode(testFile, &mode), 0);
+  ASSERT_EQ(mode & 0777, 0644);
+  terrno = 0;
+  pFile = taosOpenFile(testFile, TD_FILE_READ | TD_FILE_PRIVATE);
+  ASSERT_EQ(pFile, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  ASSERT_EQ(taosGetFileMode(testFile, &mode), 0);
+  EXPECT_EQ(mode & 0777, 0644);
+
+  taosRemoveFile(testFile);
+  pFile = taosOpenFile(testFile,
+                       TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_SHARE_READ | TD_FILE_PRIVATE);
+  ASSERT_NE(pFile, nullptr);
+  ASSERT_EQ(taosCloseFile(&pFile), 0);
+  ASSERT_EQ(taosGetFileMode(testFile, &mode), 0);
+  EXPECT_EQ(mode & 0777, 0600) << "TD_FILE_PRIVATE must override TD_FILE_SHARE_READ";
+  taosRemoveFile(testFile);
+}
+#else
+TEST(osFileTests, privateFileOpenIsRejectedOnWindows) {
+  char testFile[256] = {0};
+  buildTmpPath(testFile, sizeof(testFile), "test_private_file.txt");
+  taosRemoveFile(testFile);
+  ASSERT_FALSE(taosCheckExistFile(testFile));
+
+  terrno = 0;
+  TdFilePtr pFile = taosOpenFile(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_PRIVATE);
+  ASSERT_EQ(pFile, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS);
+  EXPECT_FALSE(taosCheckExistFile(testFile));
+
+  terrno = 0;
+  FILE *stream = taosOpenFileForStream(testFile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_PRIVATE);
+  EXPECT_EQ(stream, nullptr);
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  taosRemoveFile(testFile);
+}
+#endif
 
 TEST(osFileTests, taosUmaskFile) {
 #ifndef WINDOWS

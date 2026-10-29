@@ -1075,6 +1075,26 @@ static int32_t mndCheckFieldWidth(int32_t type, int32_t bytes, bool isColumn) {
   return TSDB_CODE_SUCCESS;
 }
 
+// [FIX][item-167] Validate that a DECIMAL/DECIMAL64 column's typeMod encodes a legal
+// (precision, scale). precision must be within [TSDB_DECIMAL_MIN_PRECISION, maxPrecisionForType]
+// and scale must satisfy TSDB_DECIMAL_MIN_SCALE <= scale <= precision. Returns true when the
+// typeMod is consistent with colType, false otherwise.
+static bool mndIsValidDecimalTypeMod(int8_t colType, STypeMod typeMod) {
+  if (!IS_DECIMAL_TYPE(colType)) {
+    return false;
+  }
+  uint8_t prec = 0, scale = 0;
+  decimalFromTypeMod(typeMod, &prec, &scale);
+  uint8_t maxPrec = (colType == TSDB_DATA_TYPE_DECIMAL64) ? TSDB_DECIMAL64_MAX_PRECISION : TSDB_DECIMAL_MAX_PRECISION;
+  if (prec < TSDB_DECIMAL_MIN_PRECISION || prec > maxPrec) {
+    return false;
+  }
+  if (scale < TSDB_DECIMAL_MIN_SCALE || scale > prec) {
+    return false;
+  }
+  return true;
+}
+
 int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   int32_t code = 0;
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
@@ -1117,6 +1137,21 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     if (pField1->type >= TSDB_DATA_TYPE_MAX) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
       TAOS_RETURN(code);
+    }
+    bool hasTypeMod = ((pField1->flags & COL_HAS_TYPE_MOD) != 0);
+    // [FIX][item-167] A DECIMAL/DECIMAL64 column MUST carry COL_HAS_TYPE_MOD together with a
+    // valid typeMod (precision/scale). Otherwise mndBuildStbFromReq leaves pExtSchemas == NULL
+    // while the column stays decimal, and mndRetrieveStbCol dereferences NULL on every
+    // information_schema.ins_columns retrieve, crashing the mnode.
+    // NOTE: We intentionally do NOT reject COL_HAS_TYPE_MOD on non-decimal columns here. That is a
+    // stricter invariant (recommended by the original finding) but is not required to fix the
+    // NULL-deref crash, and rejecting it breaks existing test cases. Non-decimal columns never
+    // read pExtSchemas in mndRetrieveStbCol, so leaving the flag on them is harmless.
+    if (IS_DECIMAL_TYPE(pField1->type)) {
+      if (!hasTypeMod || !mndIsValidDecimalTypeMod(pField1->type, pField1->typeMod)) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
     }
     if (pField1->bytes <= 0) {
       code = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -2330,9 +2365,187 @@ static bool mndValidateSchema(SSchema *pSchemas, int32_t nSchema, SArray *pField
   return rowLen <= maxLen;
 }
 
+// [FIX-ITEM-130] Validate the CREATE STB create-as-alter request against the stored schema.
+//
+// The create-as-alter branch (igExists + TAOX/SML source, gated in mndProcessCreateStbReq) hands
+// the request straight to mndBuildStbFromAlter, which rebuilds the stable's columns/tags entirely
+// from the request and then mndAlterStbImp persists pDst verbatim into sdb
+// (mndSetAlterStbPrepareLogs/mndSetAlterStbCommitLogs -> mndStbActionEncode). Meanwhile the vnode
+// only receives a regular ALTER (ADD_COLUMN / UPDATE_COLUMN_BYTES) built by buildAlterMsg. An
+// unvalidated request therefore diverges the mnode catalog from the vnode schema and, combined with
+// the vnode's blind acceptance, can trigger vnode commit crashes / read heap overflows
+// (security audit entry 130). This function enforces exactly the invariants the regular ALTER STB
+// path already enforces (mndAlterStbColumnBytes / mndAlterStbTagBytes / mndValidateSchema), so only
+// the operations SML/TAOX legitimately need are permitted:
+//   - keep every existing column/tag (no deletion);
+//   - keep the type of every existing column/tag UNCHANGED (security-critical: blocks the
+//     DOUBLE->BOOL style type confusion that drives the vnode crashes / overflow);
+//   - only grow the bytes of an existing VAR-type (BINARY/VARBINARY/NCHAR/GEOMETRY) column/tag;
+//   - keep total row length <= TSDB_MAX_BYTES_PER_ROW (virtual: TSDB_MAX_BYTES_PER_ROW_VIRTUAL)
+//     and total tag length <= TSDB_MAX_TAGS_LEN.
+// NOTE: flags are deliberately NOT compared. The SML client never transmits flags
+// (clientSml.c smlBuildFields only copies type/bytes/name) and flags do not participate in the
+// type-confusion/overflow chain, so enforcing flags consistency would wrongly reject legitimate
+// SML appends (e.g. DECIMAL columns carrying COL_HAS_TYPE_MOD).
+static int32_t mndValidateStbAlterSchema(const SStbObj *pStb, const SMCreateStbReq *createReq) {
+  int32_t code = 0;
+  int32_t rowLen = 0;
+  int32_t tagLen = 0;
+  int32_t maxBytesPerRow = pStb->virtualStb ? TSDB_MAX_BYTES_PER_ROW_VIRTUAL : TSDB_MAX_BYTES_PER_ROW;
+  bool   *colFound = NULL;
+  bool   *tagFound = NULL;
+
+  // TAOX / TAOX_OLD carry cross-cluster CDC replication (tmq_write_raw) of genuine
+  // ALTER STABLE ... DROP COLUMN / DROP TAG: the replay reaches this function with
+  // source = TD_REQ_FROM_TAOX and a schema that legitimately has FEWER columns/tags.
+  // Dropping a column/tag is NOT a type-confusion vector (the remaining columns keep
+  // their colId/type), so it is permitted for TAOX and relied upon by replication.
+  // SML never drops a column/tag and must stay restricted (defense in depth against a
+  // crafted SML-style request), which is why the "no deletion" check below is gated on
+  // !allowDrop rather than removed outright.
+  bool allowDrop = (createReq->source == TD_REQ_FROM_TAOX || createReq->source == TD_REQ_FROM_TAOX_OLD);
+
+  // ---- columns: type unchanged, bytes only grow on var types, no deletion ----
+  colFound = taosMemoryCalloc(pStb->numOfColumns, sizeof(bool));
+  if (colFound == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  for (int32_t i = 0; i < createReq->numOfColumns; ++i) {
+    SFieldWithOptions *pField = taosArrayGet(createReq->pColumns, i);
+    int32_t            cIndex = mndFindSuperTableColumnIndex(pStb, pField->name);
+    if (cIndex >= 0) {
+      colFound[cIndex] = true;
+      const SSchema *pOld = &pStb->pColumns[cIndex];
+      // (1) type of an existing column must not change - security-critical invariant.
+      if (pField->type != pOld->type) {
+        mError("stb:%s, create-as-alter type change on column %s (%d->%d) is not allowed",
+               pStb->name, pField->name, (int)pOld->type, (int)pField->type);
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        goto _OVER;
+      }
+      // (2) bytes of an existing column must not shrink.
+      if (pField->bytes < pOld->bytes) {
+        mError("stb:%s, create-as-alter shrink bytes on column %s (%d->%d) is not allowed",
+               pStb->name, pField->name, pOld->bytes, pField->bytes);
+        code = TSDB_CODE_MND_INVALID_ROW_BYTES;
+        goto _OVER;
+      }
+      // (3) widening an existing column is only allowed for var types, within per-type max.
+      if (pField->bytes > pOld->bytes) {
+        if (!(pOld->type == TSDB_DATA_TYPE_BINARY || pOld->type == TSDB_DATA_TYPE_VARBINARY ||
+              pOld->type == TSDB_DATA_TYPE_NCHAR || pOld->type == TSDB_DATA_TYPE_GEOMETRY)) {
+          mError("stb:%s, create-as-alter widen bytes on fixed-length column %s is not allowed",
+                 pStb->name, pField->name);
+          code = TSDB_CODE_MND_INVALID_STB_OPTION;
+          goto _OVER;
+        }
+        if ((code = mndCheckFieldWidth(pOld->type, pField->bytes, true)) != TSDB_CODE_SUCCESS) {
+          goto _OVER;
+        }
+      }
+      rowLen += pField->bytes;
+    } else {
+      rowLen += pField->bytes;  // newly appended column
+    }
+  }
+  // (4) no existing column may be dropped, EXCEPT for TAOX/TAOX_OLD cross-cluster
+  //     replication which legitimately replays ALTER STABLE ... DROP COLUMN.
+  if (!allowDrop) {
+    for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
+      if (!colFound[i]) {
+        mError("stb:%s, create-as-alter drops existing column %s, which is not allowed for source %d",
+               pStb->name, pStb->pColumns[i].name, (int)createReq->source);
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        goto _OVER;
+      }
+    }
+  }
+  // (5) total row length budget.
+  if (rowLen > maxBytesPerRow) {
+    mError("stb:%s, create-as-alter row length %d exceeds limit %d", pStb->name, rowLen, maxBytesPerRow);
+    code = TSDB_CODE_MND_INVALID_ROW_BYTES;
+    goto _OVER;
+  }
+
+  // ---- tags: same invariants as columns ----
+  tagFound = taosMemoryCalloc(pStb->numOfTags, sizeof(bool));
+  if (tagFound == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+  for (int32_t i = 0; i < createReq->numOfTags; ++i) {
+    SField *pField = taosArrayGet(createReq->pTags, i);
+    int32_t  tIndex = mndFindSuperTableTagIndex(pStb, pField->name);
+    if (tIndex >= 0) {
+      tagFound[tIndex] = true;
+      const SSchema *pOld = &pStb->pTags[tIndex];
+      if (pField->type != pOld->type) {
+        mError("stb:%s, create-as-alter type change on tag %s is not allowed", pStb->name, pField->name);
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        goto _OVER;
+      }
+      if (pField->bytes < pOld->bytes) {
+        mError("stb:%s, create-as-alter shrink bytes on tag %s is not allowed", pStb->name, pField->name);
+        code = TSDB_CODE_MND_INVALID_ROW_BYTES;
+        goto _OVER;
+      }
+      if (pField->bytes > pOld->bytes) {
+        if (!(pOld->type == TSDB_DATA_TYPE_BINARY || pOld->type == TSDB_DATA_TYPE_VARBINARY ||
+              pOld->type == TSDB_DATA_TYPE_NCHAR || pOld->type == TSDB_DATA_TYPE_GEOMETRY)) {
+          mError("stb:%s, create-as-alter widen bytes on fixed-length tag %s is not allowed", pStb->name,
+                 pField->name);
+          code = TSDB_CODE_MND_INVALID_STB_OPTION;
+          goto _OVER;
+        }
+        if ((code = mndCheckFieldWidth(pOld->type, pField->bytes, false)) != TSDB_CODE_SUCCESS) {
+          goto _OVER;
+        }
+      }
+      tagLen += pField->bytes;
+    } else {
+      tagLen += pField->bytes;  // newly appended tag
+    }
+  }
+  // (4) same "no deletion" rule for tags, also gated on !allowDrop (TAOX replays DROP TAG).
+  if (!allowDrop) {
+    for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+      if (!tagFound[i]) {
+        mError("stb:%s, create-as-alter drops existing tag %s, which is not allowed for source %d",
+               pStb->name, pStb->pTags[i].name, (int)createReq->source);
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        goto _OVER;
+      }
+    }
+  }
+  if (tagLen > TSDB_MAX_TAGS_LEN) {
+    mError("stb:%s, create-as-alter tag length %d exceeds limit %d", pStb->name, tagLen, TSDB_MAX_TAGS_LEN);
+    code = TSDB_CODE_PAR_INVALID_TAGS_LENGTH;
+    goto _OVER;
+  }
+
+_OVER:
+  if (colFound != NULL) taosMemoryFree(colFound);
+  if (tagFound != NULL) taosMemoryFree(tagFound);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndBuildStbFromAlter(SStbObj *pStb, SStbObj *pDst, SMCreateStbReq *createReq) {
   int32_t code = 0;
   taosRLockLatch(&pStb->lock);
+  // [FIX-ITEM-130] Validate the create-as-alter request against the stored schema BEFORE memcpy'ing
+  // pStb into pDst. The validation only reads pStb and createReq, so it does not depend on pDst.
+  // Running it under the read lock (and returning before memcpy on failure) keeps pDst's pointer
+  // members untouched (still NULL), so the caller's unconditional taosMemoryFreeClear of
+  // pDst.pColumns/pTags/pCmpr/pExtSchemas becomes a no-op and we never alias / free the live SDB
+  // object's arrays -- which would be a UAF / double-free of an online super table. That class of
+  // bug is strictly worse than the entry-130 hardening is meant to prevent, so the ordering here is
+  // deliberate: validation must precede the pDst<->pStb aliasing memcpy.
+  if ((code = mndValidateStbAlterSchema(pStb, createReq)) != TSDB_CODE_SUCCESS) {
+    taosRUnLockLatch(&pStb->lock);
+    mError("stb:%s, create-as-alter schema validation failed with code %d", pStb->name, code);
+    TAOS_RETURN(code);
+  }
   memcpy(pDst, pStb, sizeof(SStbObj));
   taosRUnLockLatch(&pStb->lock);
 
@@ -3470,6 +3683,22 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
       mInfo("stb:%s, start to add column %s", pNew->name, pSchema->name);
     }
   }
+
+  // [FIX][item-167] For every newly added DECIMAL/DECIMAL64 column, a valid typeMod must be
+  // present in pReq->pTypeMods at the same index. Without it, mndAddSuperTableColumn would leave
+  // pNew->pExtSchemas NULL for that column (or read it out of bounds), and mndRetrieveStbCol would
+  // then dereference NULL on information_schema.ins_columns, crashing the mnode.
+  int32_t nTypeMods = (pReq->pTypeMods != NULL) ? (int32_t)taosArrayGetSize(pReq->pTypeMods) : 0;
+  for (int32_t i = 0; i < ncols; ++i) {
+    SSchema *pSchema = &pNew->pColumns[pOld->numOfColumns + i];
+    if (IS_DECIMAL_TYPE(pSchema->type)) {
+      if (i >= nTypeMods || !mndIsValidDecimalTypeMod(pSchema->type, *(STypeMod *)taosArrayGet(pReq->pTypeMods, i))) {
+        code = TSDB_CODE_MND_INVALID_STB_OPTION;
+        TAOS_RETURN(code);
+      }
+    }
+  }
+
   // 1. old schema already has extschemas
   // 2. new schema has extschemas
   if (pReq->pTypeMods || pOld->pExtSchemas) {
@@ -7104,11 +7333,16 @@ static int32_t mndRetrieveStbCol(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
               snprintf(varDataVal(colTypeStr) + colTypeLen, sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE,
                        "(%d)", (int32_t)((pStb->pColumns[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
         } else if (IS_DECIMAL_TYPE(colType)) {
-          STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
-          uint8_t prec = 0, scale = 0;
-          decimalFromTypeMod(typeMod, &prec, &scale);
-          colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
-                                 sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
+          // [FIX][item-167] pExtSchemas can be NULL for a decimal column when an inconsistent
+          // schema was persisted by an older/buggy build. Do not dereference it; render the type
+          // name without precision so the retrieve succeeds instead of crashing the mnode.
+          if (pStb->pExtSchemas != NULL) {
+            STypeMod typeMod = pStb->pExtSchemas[i].typeMod;
+            uint8_t prec = 0, scale = 0;
+            decimalFromTypeMod(typeMod, &prec, &scale);
+            colTypeLen += snprintf(varDataVal(colTypeStr) + colTypeLen,
+                                   sizeof(colTypeStr) - colTypeLen - VARSTR_HEADER_SIZE, "(%d,%d)", prec, scale);
+          }
         }
         varDataSetLen(colTypeStr, colTypeLen);
         RETRIEVE_CHECK_GOTO(colDataSetVal(pColInfo, numOfRows, (char *)colTypeStr, false), pStb, &lino, _OVER);

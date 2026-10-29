@@ -54,6 +54,10 @@ void smUpdateSnodeInfo(SDCreateSnodeReq* pReq);
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
 void    smStopWorker(SSnodeMgmt *pMgmt);
+/* Queue free hook: releases the cont and, for stream trigger responses, the
+ * send handle of the trigger task that issued the request.
+ * Exported for unit tests (dsnodeTest); not a general-purpose API. */
+void    smFreeRpcQitem(void *pItem);
 int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pMsg);
 int32_t smPutMsgToRunnerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t smPutMsgToTriggerQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);

@@ -21,6 +21,10 @@
 #include "taes.h"
 #include "tglobal.h"
 
+#if TAOS_AES_BLOCK_LEN != AES_BLOCKLEN
+#error "TAOS_AES_BLOCK_LEN must match the bundled AES implementation"
+#endif
+
 extern int32_t CBC_DecryptImpl(SCryptOpts *opts);
 extern int32_t CBC_EncryptImpl(SCryptOpts *opts);
 extern int32_t Builtin_CBC_DecryptImpl(SCryptOpts *opts);
@@ -292,54 +296,67 @@ static void pkcs7_padding_pad_buffer(uint8_t *buffer, size_t data_length, uint8_
   }
 }
 
-static size_t pkcs7_padding_data_length(uint8_t *buffer, size_t buffer_size, uint8_t modulus) {
-  /* test for valid buffer size */
-  if (buffer_size % modulus != 0 || buffer_size < modulus) {
-    return 0;
+static bool pkcs7PaddingDataLength(const uint8_t *buffer, size_t buffer_size, uint8_t modulus,
+                                   size_t *pDataLength) {
+  if (pDataLength == NULL || buffer_size % modulus != 0 || buffer_size < modulus) {
+    return false;
   }
-  uint8_t padding_value;
-  padding_value = buffer[buffer_size - 1];
-  /* test for valid padding value */
+
+  uint8_t padding_value = buffer[buffer_size - 1];
   if (padding_value < 1 || padding_value > modulus) {
-    return buffer_size;
+    return false;
   }
-  /* buffer must be at least padding_value + 1 in size */
-  if (buffer_size < padding_value + 1) {
-    return 0;
-  }
-  uint8_t count = 1;
-  buffer_size--;
-  for (; count < padding_value; count++) {
-    buffer_size--;
-    if (buffer[buffer_size] != padding_value) {
-      return 0;
+  for (uint8_t count = 1; count <= padding_value; ++count) {
+    if (buffer[buffer_size - count] != padding_value) {
+      return false;
     }
   }
-  return buffer_size;
+  *pDataLength = buffer_size - padding_value;
+  return true;
 }
 
-#define SM4_BLOCKLEN 16  // Block length in bytes - SM4 is 128b block only
+static bool normalizeCryptKey(const uint8_t *key, int32_t keylen,
+                              uint8_t normalizedKey[ENCRYPT_KEY_LEN]) {
+  if (key == NULL || keylen <= 0) {
+    return false;
+  }
+
+  int32_t copyLen = TMIN(keylen, ENCRYPT_KEY_LEN);
+  memcpy(normalizedKey, key, copyLen);
+  if (copyLen < ENCRYPT_KEY_LEN) {
+    uint8_t padding = TAOS_AES_BLOCK_LEN - (uint8_t)(keylen % TAOS_AES_BLOCK_LEN);
+    memset(normalizedKey + copyLen, padding, ENCRYPT_KEY_LEN - copyLen);
+  }
+  return true;
+}
 
 uint32_t tsm4_encrypt_len(int32_t len) {
-  uint32_t paddedlen = len + SM4_BLOCKLEN - (len % SM4_BLOCKLEN);
+  if (len < 0 || len > INT32_MAX - TAOS_SM4_BLOCK_LEN) {
+    return 0;
+  }
+  uint32_t paddedlen = (uint32_t)len + TAOS_SM4_BLOCK_LEN - ((uint32_t)len % TAOS_SM4_BLOCK_LEN);
 
   return paddedlen;
 }
 
 int32_t taosSm4Encrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len) {
+  uint32_t encryptlen = tsm4_encrypt_len(len);
+  uint8_t  normalizedKey[ENCRYPT_KEY_LEN] = {0};
+  if (pBuf == NULL || encryptlen == 0 || !normalizeCryptKey(key, keylen, normalizedKey)) {
+    return -1;
+  }
   int32_t    count = 0;
   SCryptOpts opts = {0};
 
-  pkcs7_padding_pad_buffer(key, keylen, SM4_BLOCKLEN);
-  pkcs7_padding_pad_buffer(pBuf, len, SM4_BLOCKLEN);
+  pkcs7_padding_pad_buffer(pBuf, len, TAOS_SM4_BLOCK_LEN);
 
-  opts.len = tsm4_encrypt_len(len);
+  opts.len = encryptlen;
   opts.source = pBuf;
   opts.unitLen = 16;
   opts.result = pBuf;
 
   memset(opts.key, 0, ENCRYPT_KEY_LEN + 1);
-  memcpy(opts.key, key, ENCRYPT_KEY_LEN);
+  memcpy(opts.key, normalizedKey, ENCRYPT_KEY_LEN);
 
   count = Builtin_CBC_Encrypt(&opts);
 
@@ -347,10 +364,13 @@ int32_t taosSm4Encrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len)
 }
 
 int32_t taosSm4Decrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len) {
+  uint8_t normalizedKey[ENCRYPT_KEY_LEN] = {0};
+  if (pBuf == NULL || len <= 0 || len % TAOS_SM4_BLOCK_LEN != 0 ||
+      !normalizeCryptKey(key, keylen, normalizedKey)) {
+    return -1;
+  }
   int32_t    count = 0;
   SCryptOpts opts = {0};
-
-  pkcs7_padding_pad_buffer(key, keylen, SM4_BLOCKLEN);
 
   opts.len = len;
   opts.source = pBuf;
@@ -358,37 +378,51 @@ int32_t taosSm4Decrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len)
   opts.result = pBuf;
 
   memset(opts.key, 0, ENCRYPT_KEY_LEN + 1);
-  memcpy(opts.key, key, ENCRYPT_KEY_LEN);
+  memcpy(opts.key, normalizedKey, ENCRYPT_KEY_LEN);
 
   count = Builtin_CBC_Decrypt(&opts);
-  count = pkcs7_padding_data_length(pBuf, count, SM4_BLOCKLEN);
+  if (count != len) {
+    memset(pBuf, 0, len);
+    return -1;
+  }
+  size_t dataLen = 0;
+  if (!pkcs7PaddingDataLength(pBuf, count, TAOS_SM4_BLOCK_LEN, &dataLen)) {
+    memset(pBuf, 0, len);
+    return -1;
+  }
 
-  return count;
+  return (int32_t)dataLen;
 }
 
 uint32_t taes_encrypt_len(int32_t len) {
-  uint32_t paddedlen = len + AES_BLOCKLEN - (len % AES_BLOCKLEN);
+  if (len < 0 || len > INT32_MAX - TAOS_AES_BLOCK_LEN) {
+    return 0;
+  }
+  uint32_t paddedlen = (uint32_t)len + TAOS_AES_BLOCK_LEN - ((uint32_t)len % TAOS_AES_BLOCK_LEN);
 
   return paddedlen;
 }
 
 int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
-  uint32_t       encryptlen = taes_encrypt_len(len);
-  int32_t        blocks = encryptlen / AES_BLOCKLEN;
+  uint32_t encryptlen = taes_encrypt_len(len);
+  uint8_t  normalizedKey[ENCRYPT_KEY_LEN] = {0};
+  if (pBuf == NULL || encryptlen == 0 || !normalizeCryptKey(key, keylen, normalizedKey)) {
+    return -1;
+  }
+  int32_t        blocks = encryptlen / TAOS_AES_BLOCK_LEN;
   struct AES_ctx ctx;
 
-  pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
-  pkcs7_padding_pad_buffer(pBuf, len, AES_BLOCKLEN);
+  pkcs7_padding_pad_buffer(pBuf, len, TAOS_AES_BLOCK_LEN);
 
   if (iv) {
-    AES_init_ctx_iv(&ctx, key, iv);
+    AES_init_ctx_iv(&ctx, normalizedKey, iv);
 
     AES_CBC_encrypt_buffer(&ctx, pBuf, encryptlen);
   } else {
-    AES_init_ctx(&ctx, key);
+    AES_init_ctx(&ctx, normalizedKey);
 
     for (int32_t block = 0; block < blocks; ++block) {
-      AES_ECB_encrypt(&ctx, pBuf + block * AES_BLOCKLEN);
+      AES_ECB_encrypt(&ctx, pBuf + block * TAOS_AES_BLOCK_LEN);
     }
   }
 
@@ -396,25 +430,41 @@ int32_t taosAesEncrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
 }
 
 int32_t taosAesDecrypt(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len, const uint8_t *iv) {
-  int32_t        blocks = len / AES_BLOCKLEN;
+  // This length-returning API uses -1 for invalid input or padding; callers
+  // translate that sentinel into their layer-specific error code.
+  uint8_t normalizedKey[ENCRYPT_KEY_LEN] = {0};
+  if (pBuf == NULL || len <= 0 || len % TAOS_AES_BLOCK_LEN != 0 ||
+      !normalizeCryptKey(key, keylen, normalizedKey)) {
+    return -1;
+  }
+  int32_t        blocks = len / TAOS_AES_BLOCK_LEN;
   size_t         datalen = 0;
   struct AES_ctx ctx;
 
-  pkcs7_padding_pad_buffer(key, keylen, AES_BLOCKLEN);
-
   if (iv) {
-    AES_init_ctx_iv(&ctx, key, iv);
+    AES_init_ctx_iv(&ctx, normalizedKey, iv);
 
     AES_CBC_decrypt_buffer(&ctx, pBuf, len);
   } else {
-    AES_init_ctx(&ctx, key);
+    AES_init_ctx(&ctx, normalizedKey);
 
     for (int32_t block = 0; block < blocks; ++block) {
-      AES_ECB_decrypt(&ctx, pBuf + block * AES_BLOCKLEN);
+      AES_ECB_decrypt(&ctx, pBuf + block * TAOS_AES_BLOCK_LEN);
     }
   }
 
-  datalen = pkcs7_padding_data_length(pBuf, len, AES_BLOCKLEN);
+  if (!pkcs7PaddingDataLength(pBuf, len, TAOS_AES_BLOCK_LEN, &datalen)) {
+    memset(pBuf, 0, len);
+    return -1;
+  }
 
   return datalen;
+}
+
+int32_t taosAesDecryptLegacyVarDataIv(uint8_t *key, int32_t keylen, uint8_t *pBuf, int32_t len,
+                                   const uint8_t *ivVarData) {
+  if (ivVarData == NULL || varDataLen(ivVarData) != TAOS_AES_BLOCK_LEN) {
+    return -1;
+  }
+  return taosAesDecrypt(key, keylen, pBuf, len, ivVarData);
 }

@@ -71,8 +71,19 @@ _PROVIDER_RUNTIME_PATTERNS = {
     # providers' client libraries, DS 3.3).
     "sqlserver": ("libodbc*", "libmsodbcsql*"),
 }
+# Windows stages the provider client libraries next to the executables as
+# DLLs (build\bin) instead of build\lib, so both the location and the file
+# patterns differ from the Unix build.
+_PROVIDER_RUNTIME_PATTERNS_WINDOWS = {
+    "mysql": ("libmariadb*.dll", "libmysqlclient*.dll"),
+    "postgresql": ("libpq*.dll",),
+    "influxdb": ("taos_ext_influx_arrow*.dll", "libtaos_ext_influx_arrow*.dll"),
+}
 _PROVIDER_PLUGIN_PATTERNS = {
     "influxdb": ("libtaos_ext_influx_arrow*",),
+}
+_PROVIDER_PLUGIN_PATTERNS_WINDOWS = {
+    "influxdb": ("taos_ext_influx_arrow*.dll",),
 }
 _PROVIDER_RESOLVED_DEP_PREFIXES = {
     "influxdb": ("libarrow", "libparquet"),
@@ -84,6 +95,10 @@ def _runtime_lib_dir():
     if override:
         return override
     taos_bin_path = os.environ.get("TAOS_BIN_PATH")
+    if sys.platform == "win32":
+        if taos_bin_path:
+            return os.path.abspath(taos_bin_path)
+        return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "bin"))
     if taos_bin_path:
         return os.path.abspath(os.path.join(taos_bin_path, "..", "lib"))
     return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "lib"))
@@ -113,7 +128,11 @@ def _path_is_under(path, root):
 def _provider_runtime_files(provider):
     runtime_dir = _runtime_lib_dir()
     files = []
-    for pattern in _PROVIDER_RUNTIME_PATTERNS[provider]:
+    if sys.platform == "win32":
+        patterns = _PROVIDER_RUNTIME_PATTERNS_WINDOWS[provider]
+    else:
+        patterns = _PROVIDER_RUNTIME_PATTERNS[provider]
+    for pattern in patterns:
         files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
         files.extend(glob.glob(os.path.join(runtime_dir, "**", pattern), recursive=True))
     files.extend(_resolved_runtime_dep_files(provider))
@@ -125,7 +144,11 @@ def _provider_runtime_files(provider):
 def _provider_plugin_files(provider):
     runtime_dir = _runtime_lib_dir()
     files = []
-    for pattern in _PROVIDER_PLUGIN_PATTERNS.get(provider, ()):
+    if sys.platform == "win32":
+        patterns = _PROVIDER_PLUGIN_PATTERNS_WINDOWS.get(provider, ())
+    else:
+        patterns = _PROVIDER_PLUGIN_PATTERNS.get(provider, ())
+    for pattern in patterns:
         files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
     return _existing_runtime_files(
         path for path in files if _path_is_under(path, runtime_dir)
@@ -181,7 +204,10 @@ def _runtime_dep_search_dirs(plugin):
 
 def _resolved_runtime_dep_files(provider):
     prefixes = _PROVIDER_RESOLVED_DEP_PREFIXES.get(provider)
-    if not prefixes or sys.platform == "darwin":
+    if not prefixes or sys.platform in ("darwin", "win32"):
+        # ldd/readelf are not available on Windows, and Arrow is not built
+        # there (the InfluxDB plugin uses the HTTP transport), so there are no
+        # resolved Arrow/Parquet dependencies to track.
         return []
 
     files = []
@@ -205,6 +231,7 @@ def _without_provider_runtime_libs(provider):
     runtime_dir = _runtime_lib_dir()
     hidden_dir = tempfile.mkdtemp(prefix=".fq-runtime-hidden.", dir=runtime_dir)
     moved = []
+    path_backup = None
     try:
         for path in _provider_runtime_files(provider):
             hidden_path = os.path.join(hidden_dir, f"{len(moved)}-{os.path.basename(path)}")
@@ -212,8 +239,29 @@ def _without_provider_runtime_libs(provider):
             moved.append((hidden_path, path))
         if not moved:
             raise AssertionError(f"no runtime libraries found in {runtime_dir} for {provider}")
+        if sys.platform == "win32":
+            # The Windows DLL search order also walks PATH.  The client keeps
+            # its own copies in the Python directory (and finds them through
+            # its application directory), but the engine started inside this
+            # context must not pick them up from PATH either, otherwise the
+            # hidden directory has no effect.
+            path_backup = os.environ.get("PATH", "")
+            patterns = _PROVIDER_RUNTIME_PATTERNS_WINDOWS.get(provider, ())
+            keep = []
+            for entry in path_backup.split(os.pathsep):
+                if not entry:
+                    continue
+                try:
+                    hit = any(glob.glob(os.path.join(entry, pat)) for pat in patterns)
+                except OSError:
+                    hit = False
+                if not hit:
+                    keep.append(entry)
+            os.environ["PATH"] = os.pathsep.join(keep)
         yield
     finally:
+        if path_backup is not None:
+            os.environ["PATH"] = path_backup
         for hidden_path, path in reversed(moved):
             if os.path.lexists(hidden_path) and not os.path.lexists(path):
                 shutil.move(hidden_path, path)
@@ -371,18 +419,37 @@ class TestVtableQueryExtSourceRuntimeLibs:
         for table in tables:
             _check_count(f"SELECT count(*) FROM {table}", 2)
         with _writable_runtime_copy_if_needed():
-            try:
+            if sys.platform == "win32":
+                # Windows keeps a loaded DLL locked, so taosd has to release
+                # the provider libraries before they can be moved aside (and
+                # again before they are restored).
+                tdDnodes.stop(1)
                 with _without_provider_runtime_libs(provider):
-                    _restart_taosd()
-                    tdSql.execute(f"USE {_LOCAL_DB}")
-                    for table in tables:
-                        tdSql.error(
-                            f"SELECT count(*) FROM {table}",
-                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
-                        )
-            finally:
+                    try:
+                        _restart_taosd()
+                        tdSql.execute(f"USE {_LOCAL_DB}")
+                        for table in tables:
+                            tdSql.error(
+                                f"SELECT count(*) FROM {table}",
+                                expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                            )
+                    finally:
+                        tdDnodes.stop(1)
                 _restart_taosd()
                 tdSql.execute(f"USE {_LOCAL_DB}")
+            else:
+                try:
+                    with _without_provider_runtime_libs(provider):
+                        _restart_taosd()
+                        tdSql.execute(f"USE {_LOCAL_DB}")
+                        for table in tables:
+                            tdSql.error(
+                                f"SELECT count(*) FROM {table}",
+                                expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                            )
+                finally:
+                    _restart_taosd()
+                    tdSql.execute(f"USE {_LOCAL_DB}")
         for table in tables:
             _check_count(f"SELECT count(*) FROM {table}", 2)
 
@@ -392,7 +459,11 @@ class TestVtableQueryExtSourceRuntimeLibs:
         self._check_vtable_fails_without_runtime_libs(
             "influxdb", ("v_influx", "v_influx_http")
         )
-        self._check_vtable_fails_without_runtime_libs("sqlserver", "v_sqlserver")
+        if sys.platform != "win32":
+            # SQL Server resolves the system ODBC driver (odbc32.dll in
+            # System32) on Windows; it is not staged in the runtime directory
+            # and therefore cannot be hidden by this check.
+            self._check_vtable_fails_without_runtime_libs("sqlserver", "v_sqlserver")
         print("missing runtime libraries fail vtable queries ......................... [ passed ]")
 
     def test_missing_runtime_libs_fail_vtable_queries(self):

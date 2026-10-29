@@ -1709,12 +1709,14 @@ static int32_t dynRenderGroupConcatRowExpr(SDynSQL* s, const SFunctionNode* pFun
   }
 
   dynSQLAppendStr(s, "CONCAT(");
-  for (int32_t i = 0; i < valueArgCount; ++i) {
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < valueArgCount;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
     if (i > 0) {
       dynSQLAppendStr(s, ", ");
     }
 
-    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell ? pParameterCell->pNode : NULL), dialect, pExtMeta, pCtx);
     if (code) {
       return code;
     }
@@ -2715,22 +2717,26 @@ static int32_t dynRenderTsqlConcat(SDynSQL* s, const SFunctionNode* pFunc, const
   }
 
   dynSQLAppendStr(s, "(CASE WHEN ");
-  for (int32_t i = 0; i < nParams; ++i) {
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < nParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
     if (i > 0) {
       dynSQLAppendStr(s, " OR ");
     }
-    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell ? pParameterCell->pNode : NULL), dialect, pExtMeta, pCtx);
     if (code != TSDB_CODE_SUCCESS) return code;
     dynSQLAppendStr(s, " IS NULL");
   }
   dynSQLAppendStr(s, " THEN NULL ELSE ");
   dynSQLAppendStr(s, funcName);
   dynSQLAppendChar(s, '(');
-  for (int32_t i = 0; i < nParams; ++i) {
+  SListCell* pParameterCell2 = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < nParams;
+       ++i, pParameterCell2 = (NULL != pParameterCell2 ? pParameterCell2->pNext : NULL)) {
     if (i > 0) {
       dynSQLAppendStr(s, ", ");
     }
-    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell2 ? pParameterCell2->pNode : NULL), dialect, pExtMeta, pCtx);
     if (code != TSDB_CODE_SUCCESS) return code;
   }
   // Close CONCAT(...), terminate the CASE, and close the outer parenthesis:
@@ -3521,9 +3527,11 @@ static int32_t dynRenderNamedFuncKeepN(SDynSQL* s, const char* funcName,
                                        const SNodesRemoteSQLCtx* pCtx) {
   dynSQLAppendStr(s, funcName);
   dynSQLAppendChar(s, '(');
-  for (int32_t i = 0; i < nKeep; i++) {
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < nKeep;
+       i++, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
     if (i > 0) dynSQLAppendStr(s, ", ");
-    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    int32_t code = dynAppendExpr(s, (NULL != pParameterCell ? pParameterCell->pNode : NULL), dialect, pExtMeta, pCtx);
     if (code) return code;
   }
   dynSQLAppendChar(s, ')');
@@ -3895,8 +3903,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // sclfunc.c greatestLeastImpl); drop it - remote GREATEST/LEAST takes user args only.
       const char* funcName = pFunc->funcType == FUNCTION_TYPE_GREATEST ? "GREATEST" : "LEAST";
       bool hasTimestampArg = false;
-      for (int32_t i = 0; i < nParams - 1; ++i) {
-        SNode* pArg = nodesListGetNode(pFunc->pParameterList, i);
+      SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+      for (int32_t i = 0; i < nParams - 1;
+           ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+        SNode* pArg = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
         if (pArg != NULL && nodesIsExprNode(pArg) &&
             ((SExprNode*)pArg)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
           hasTimestampArg = true;
@@ -5287,9 +5297,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       int32_t tsIdx = nParams - 1;  // last param = primary-key ts ordering column
       dynSQLAppendStr(s, "LAG(");
-      for (int32_t i = 0; i < tsIdx; i++) {
+      SListCell* pParameterCell2 = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+      for (int32_t i = 0; i < tsIdx;
+           i++, pParameterCell2 = (NULL != pParameterCell2 ? pParameterCell2->pNext : NULL)) {
         if (i > 0) dynSQLAppendStr(s, ", ");
-        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+        int32_t code =
+            dynAppendExpr(s, NULL != pParameterCell2 ? pParameterCell2->pNode : NULL, dialect, pExtMeta, pCtx);
         if (code) return code;
       }
       dynSQLAppendStr(s, ") OVER (ORDER BY ");
@@ -5307,9 +5320,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       int32_t leadTsIdx = nParams - 1;  // last param = primary-key ts ordering column
       dynSQLAppendStr(s, "LEAD(");
-      for (int32_t i = 0; i < leadTsIdx; i++) {
+      SListCell* pParameterCell3 = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+      for (int32_t i = 0; i < leadTsIdx;
+           i++, pParameterCell3 = (NULL != pParameterCell3 ? pParameterCell3->pNext : NULL)) {
         if (i > 0) dynSQLAppendStr(s, ", ");
-        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+        int32_t code =
+            dynAppendExpr(s, NULL != pParameterCell3 ? pParameterCell3->pNode : NULL, dialect, pExtMeta, pCtx);
         if (code) return code;
       }
       dynSQLAppendStr(s, ") OVER (ORDER BY ");
@@ -5330,9 +5346,11 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
         if (code) return code;
         dynSQLAppendStr(s, "::text");
-        for (int32_t i = 1; i < nParams; ++i) {
+        SListCell* pParameterCell4 = nodesListGetCell(pFunc->pParameterList, 1);
+        for (int32_t i = 1; i < nParams;
+             ++i, pParameterCell4 = (NULL != pParameterCell4 ? pParameterCell4->pNext : NULL)) {
           dynSQLAppendStr(s, ", ");
-          code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+          code = dynAppendExpr(s, (NULL != pParameterCell4 ? pParameterCell4->pNode : NULL), dialect, pExtMeta, pCtx);
           if (code) return code;
         }
         dynSQLAppendChar(s, ')');
@@ -7655,8 +7673,10 @@ static int32_t renderCollectedKeyExprs(SDynSQL* s, const SNodeList* pExprs, int3
   }
 
   bool first = true;
-  for (int32_t i = 0; i < count; ++i) {
-    const SNode* pExprNode = nodesListGetNode((SNodeList*)pExprs, i);
+  SListCell* pExprCell = NULL != pExprs ? pExprs->pHead : NULL;
+  for (int32_t i = 0; i < count;
+       ++i, pExprCell = (NULL != pExprCell ? pExprCell->pNext : NULL)) {
+    const SNode* pExprNode = (NULL != pExprCell ? pExprCell->pNode : NULL);
     const SNode* pExpr = pExprNode;
     if (pExpr == NULL) {
       qError("FQ-SQL: renderCollectedKeyExprs missing expr at idx=%d count=%d", i, count);
@@ -7714,8 +7734,10 @@ static int32_t renderCollectedAggTailExprs(SDynSQL* s, const SNodeList* pExprs, 
 
   bool wroteAny = (pWroteAny != NULL) ? *pWroteAny : false;
   int32_t len = LIST_LENGTH((SNodeList*)pExprs);
-  for (int32_t i = fromIdx; i < len; ++i) {
-    const SNode* pExprNode = nodesListGetNode((SNodeList*)pExprs, i);
+  SListCell* pExprCell = nodesListGetCell((SNodeList*)pExprs, fromIdx);
+  for (int32_t i = fromIdx; i < len;
+       ++i, pExprCell = (NULL != pExprCell ? pExprCell->pNext : NULL)) {
+    const SNode* pExprNode = (NULL != pExprCell ? pExprCell->pNode : NULL);
     const SNode* pExpr = pExprNode;
     if (pExpr == NULL) {
       qError("FQ-SQL: renderCollectedAggTailExprs missing expr at idx=%d len=%d", i, len);
@@ -8423,9 +8445,13 @@ static bool fqCanReuseRootTargetsAsAlignedRefs(const SNodeList* pOutputs,
     return false;
   }
 
-  for (int32_t idx = 0; idx < outputCnt; ++idx) {
-    const SNode* pOutputExpr = nodesListGetNode((SNodeList*)pOutputs, idx);
-    const SNode* pTargetExpr = nodesListGetNode((SNodeList*)pRootTargets, idx);
+  SListCell* pOutputCell = NULL != pOutputs ? pOutputs->pHead : NULL;
+  SListCell* pRootTargetCell = NULL != pRootTargets ? pRootTargets->pHead : NULL;
+  for (int32_t idx = 0; idx < outputCnt;
+       ++idx, pOutputCell = (NULL != pOutputCell ? pOutputCell->pNext : NULL),
+       pRootTargetCell = (NULL != pRootTargetCell ? pRootTargetCell->pNext : NULL)) {
+    const SNode* pOutputExpr = (NULL != pOutputCell ? pOutputCell->pNode : NULL);
+    const SNode* pTargetExpr = (NULL != pRootTargetCell ? pRootTargetCell->pNode : NULL);
     if (!fqProjectExprMatchesChildOutput(pTargetExpr, pOutputExpr, NULL)) {
       qDebug("FQ-SELECT: root target ref fallback rejected outputIdx=%d targetType=%d outputType=%d",
              idx, pTargetExpr ? (int)nodeType((SNode*)pTargetExpr) : -1,

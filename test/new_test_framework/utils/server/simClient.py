@@ -83,17 +83,27 @@ class TDSimClient:
         self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
         if os.path.exists(self.logDir):
-            shutil.rmtree(self.logDir)
+            # Windows: the client library loaded in this pytest process keeps
+            # its client log file open, so the delete can fail with WinError 32
+            # (Linux unlinks open files, so this never fails there).  Removing
+            # the directory is housekeeping only — continue when a file is held.
+            try:
+                shutil.rmtree(self.logDir)
+            except PermissionError:
+                pass
 
-        os.makedirs(self.logDir)
+        os.makedirs(self.logDir, exist_ok=True)
 
         if os.path.exists(self.cfgDir):
-            shutil.rmtree(self.cfgDir)
+            try:
+                shutil.rmtree(self.cfgDir)
+            except PermissionError:
+                pass
 
         # cmd = "mkdir -p " + self.cfgDir
         # if os.system(cmd) != 0:
         #     tdLog.exit(cmd)
-        os.makedirs(self.cfgDir)
+        os.makedirs(self.cfgDir, exist_ok=True)
 
         with open(self.cfgPath, "a"):
             os.utime(self.cfgPath, None)

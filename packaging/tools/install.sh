@@ -488,8 +488,15 @@ function setup_env() {
 
 function install_extension_package() {
   local manifest="${script_dir}/.extension-files"
+  local extension_info="${script_dir}/.package-info"
+  local installed_info="${installDir}/.package-info"
+  local key extension_value installed_value
   if [ ! -f "$manifest" ]; then
     echo "Extension package manifest not found: $manifest"
+    exit 1
+  fi
+  if [ ! -f "$extension_info" ] || [ ! -f "$installed_info" ]; then
+    echo "Package metadata is required to validate extension compatibility." >&2
     exit 1
   fi
   if [ ! -d "$installDir" ] || [ ! -x "${installDir}/bin/taosd" ] ||
@@ -505,13 +512,59 @@ function install_extension_package() {
       exit 1
     fi
   fi
+
+  for key in version platform arch edition; do
+    extension_value=$(awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$extension_info")
+    installed_value=$(awk -F= -v key="$key" '$1 == key {sub(/^[^=]*=/, ""); print; exit}' "$installed_info")
+    if [ -z "$extension_value" ] || [ -z "$installed_value" ] || [ "$extension_value" != "$installed_value" ]; then
+      echo "Extension package ${key} does not match the installed core/full package (extension=${extension_value:-missing}, installed=${installed_value:-missing})." >&2
+      exit 1
+    fi
+  done
+  local installed_version package_version
+  package_version=$(awk -F= '$1 == "version" {print $2; exit}' "$extension_info")
+  installed_version=$("${installDir}/bin/taosd" -V 2>/dev/null | awk '/version:/ {print $3; exit}')
+  installed_version=${installed_version%.enterprise}
+  if [ "$installed_version" != "$package_version" ]; then
+    echo "Extension package version does not match installed taosd (extension=${package_version}, taosd=${installed_version:-unknown})." >&2
+    exit 1
+  fi
+  if [ "$(uname -s | tr '[:upper:]' '[:lower:]')" != "$(awk -F= '$1 == "platform" {print $2; exit}' "$extension_info")" ]; then
+    echo "Extension package platform does not match this host." >&2
+    exit 1
+  fi
+  local host_arch
+  case "$(uname -m)" in
+    x86_64|amd64) host_arch=x64 ;;
+    aarch64|arm64) host_arch=arm64 ;;
+    *) host_arch=$(uname -m) ;;
+  esac
+  if [ "$host_arch" != "$(awk -F= '$1 == "arch" {print $2; exit}' "$extension_info")" ]; then
+    echo "Extension package architecture does not match this host (extension=$(awk -F= '$1 == "arch" {print $2; exit}' "$extension_info"), host=${host_arch})." >&2
+    exit 1
+  fi
+  if [ "$(awk -F= '$1 == "edition" {print $2; exit}' "$extension_info")" != "enterprise" ]; then
+    echo "Only enterprise extension packages are supported." >&2
+    exit 1
+  fi
+
+  # Validate the complete payload before changing the installed tree. Paths in
+  # the manifest are package-relative and must never escape the installation.
   while IFS= read -r path || [ -n "$path" ]; do
     [ -z "$path" ] && continue
     [[ "$path" == \#* ]] && continue
+    if [[ "$path" == /* || "/$path/" == *"/../"* ]]; then
+      echo "Invalid path in extension package manifest: ${path}" >&2
+      exit 1
+    fi
     if [ ! -f "${script_dir}/${path}" ]; then
       echo "Extension package file is missing: ${path}"
       exit 1
     fi
+  done < "$manifest"
+  while IFS= read -r path || [ -n "$path" ]; do
+    [ -z "$path" ] && continue
+    [[ "$path" == \#* ]] && continue
     mkdir -p "${installDir}/$(dirname "$path")"
     cp -a "${script_dir}/${path}" "${installDir}/${path}"
   done < "$manifest"
@@ -703,14 +756,42 @@ function install_main_path() {
   # - Real directories from old versions must be preserved (data loss risk)
   # - Symlinks are safely overwritten by ln -sf in install_log/install_config
   # - data_link_dir is not recreated during upgrade (install_data not called)
+  if [ -f "${install_main_dir}/.extension-files" ]; then
+    local extension_path
+    local extension_paths=()
+    while IFS= read -r extension_path || [ -n "$extension_path" ]; do
+      [ -z "$extension_path" ] && continue
+      if [[ "$extension_path" == /* || "$extension_path" == .. || "$extension_path" == ../* || \
+            "$extension_path" == */../* || "$extension_path" == */.. ]]; then
+        echo "Invalid path in installed extension manifest: ${extension_path}" >&2
+        exit 1
+      fi
+      extension_paths+=("$extension_path")
+    done < "${install_main_dir}/.extension-files"
+    # Validate the complete manifest before removing anything. Configuration
+    # files may live below cfg -> /etc/taos and must follow config policy.
+    for extension_path in "${extension_paths[@]}"; do
+      case "$extension_path" in
+        cfg|cfg/*) continue ;;
+      esac
+      rm -f -- "${install_main_dir}/${extension_path}"
+    done
+  fi
   rm -rf "${bin_dir}" || :
   rm -rf "${driver_dir}" || :
+  # A full/core package owns the installation tree. Remove optional payloads
+  # left by an earlier full or extension install before laying down this role.
+  rm -rf "${install_main_dir}/connector" \
+         "${install_main_dir}/plugins" \
+         "${install_main_dir}/taosx/plugins" || :
+  rmdir "${install_main_dir}/taosx" 2>/dev/null || :
   rm -rf "${install_main_dir}/examples" || :
   rm -rf "${install_main_dir}/include" || :
   rm -rf "${install_main_dir}/share" || :
   # Remove package-role metadata left by a previous extension install. The
   # full/core installer owns the tree and must not inherit extension mode.
   rm -f "${install_main_dir}/.extension-files" \
+        "${install_main_dir}/.package-info" \
         "${install_main_dir}/.package-role" \
         "${install_main_dir}/.package-role.extension" || :
 
@@ -725,6 +806,13 @@ function install_main_path() {
   #  mkdir -p "${install_main_dir}/init.d"
   if [ "$verMode" == "cluster" ]; then
     mkdir -p "${install_main_dir}/share"
+  fi
+  if [ -d "${script_dir}/share" ]; then
+    mkdir -p "${install_main_dir}/share"
+    cp -a "${script_dir}/share/." "${install_main_dir}/share/"
+  fi
+  if [ -f "${script_dir}/.package-info" ]; then
+    cp -f "${script_dir}/.package-info" "${install_main_dir}/.package-info"
   fi
 
   if [[ -e ${script_dir}/email ]]; then

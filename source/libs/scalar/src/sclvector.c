@@ -1257,6 +1257,11 @@ int32_t vectorConvertSingleCol(SScalarParam *input, SScalarParam *output, int32_
 
   SDataType t = {.type = type};
   t.bytes = (IS_VAR_DATA_TYPE(t.type) && input->columnData) ? input->columnData->info.bytes : tDataTypes[type].bytes;
+  if (IS_STR_DATA_BLOB(t.type)) {
+    t.bytes = TMAX(t.bytes, (int32_t)BLOBSTR_HEADER_SIZE);
+  } else if (IS_VAR_DATA_TYPE(t.type)) {
+    t.bytes = TMAX(t.bytes, (int32_t)VARSTR_HEADER_SIZE);
+  }
   t.precision =
       (IS_TIMESTAMP_TYPE(t.type) && input->columnData) ? input->columnData->info.precision : TSDB_TIME_PRECISION_MILLI;
   if (IS_DECIMAL_TYPE(type)) {
@@ -2097,6 +2102,9 @@ int32_t vectorCompareWithHashParam(SSclCompareCtx *pCtx) {
 }
 
 int32_t vectorCompareBetweenMathTypes(SSclCompareCtx *pCtx) {
+  if (pCtx->fp == NULL) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
   bool   *pRes = (bool *)pCtx->pOut->columnData->pData;
   bool    chkTrue = pCtx->pRight->remoteParam.hasRemoteParam && !pCtx->isAny;
   bool    chkFalse = pCtx->pRight->remoteParam.hasRemoteParam && pCtx->isAny;
@@ -2192,6 +2200,9 @@ int32_t vectorCompareIncludeVarTypes(SSclCompareCtx *pCtx) {
     if (!result) {
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&result);
     } else {
+      if (pCtx->fp == NULL) {
+        SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
       bool res = filterDoCompare(pCtx->fp, pCtx->optr, pLeftData, pRightData);
       colDataSetInt8(pCtx->pOut->columnData, i, (int8_t *)&res);
       if (res) {
@@ -2314,10 +2325,16 @@ int32_t vectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarPara
 
   int32_t lType = GET_PARAM_TYPE(ctx.pLeft);
   int32_t rType = GET_PARAM_TYPE(ctx.pRight);
-  if (lType == rType) {
+  if (lType == TSDB_DATA_TYPE_NULL || rType == TSDB_DATA_TYPE_NULL) {
+    ctx.fp = NULL;
+  } else if (lType == rType) {
     SCL_ERR_JRET(filterGetCompFunc(&ctx.fp, lType, optr));
   } else {
     ctx.fp = filterGetCompFuncEx(lType, rType, optr);
+    if (ctx.fp == NULL && lType != TSDB_DATA_TYPE_JSON && rType != TSDB_DATA_TYPE_JSON) {
+      code = TSDB_CODE_QRY_INVALID_INPUT;
+      goto _return;
+    }
   }
 
   if (startIndex < 0) {
@@ -2438,20 +2455,102 @@ int32_t vectorIsTrue(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pO
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getJsonValue(char *json, char *key, bool *isExist, STagVal *val) {
+int32_t getJsonValue(char *json, int32_t availableLen, char *key, bool *isExist, STagVal *val) {
   val->pKey = key;
-  if (json == NULL || tTagIsJson((const STag *)json) == false) {
+  bool find = false;
+  if (!tTagGetJsonBounded((const STag *)json, availableLen, val, &find)) {
     if (isExist) {
       *isExist = false;
     }
     SCL_ERR_RET(TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR);
   }
 
-  bool find = tTagGet(((const STag *)json), val);  // json value is null and not exist is different
   if (isExist) {
     *isExist = find;
   }
   SCL_RET(TSDB_CODE_SUCCESS);
+}
+
+static int32_t compareJsonOffsets(const void *pLeft, const void *pRight) {
+  int32_t left = *(const int32_t *)pLeft;
+  int32_t right = *(const int32_t *)pRight;
+  return (left > right) - (left < right);
+}
+
+static int32_t buildJsonOffsets(const SColumnInfoData *pColumn, int32_t numOfRows, int32_t **ppOffsets,
+                                int32_t *pCount, bool *pMonotonic) {
+  *ppOffsets = NULL;
+  *pCount = 0;
+  *pMonotonic = true;
+  if (pColumn == NULL || numOfRows < 0) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  if (numOfRows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pColumn->varmeta.offset == NULL) {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  int32_t *offsets = taosMemoryMalloc((size_t)numOfRows * sizeof(*offsets));
+  if (offsets == NULL) {
+    return terrno;
+  }
+  int32_t previousOffset = -1;
+  for (int32_t row = 0; row < numOfRows; ++row) {
+    int32_t offset = pColumn->varmeta.offset[row];
+    if (offset == -1) {
+      continue;
+    }
+    if (offset < 0 || offset > pColumn->varmeta.length) {
+      taosMemoryFree(offsets);
+      return TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
+    }
+    if (offset <= previousOffset) {
+      *pMonotonic = false;
+    }
+    previousOffset = offset;
+    offsets[(*pCount)++] = offset;
+  }
+  if (*pMonotonic) {
+    int32_t nextEnd = pColumn->varmeta.length;
+    for (int32_t row = numOfRows - 1; row >= 0; --row) {
+      int32_t offset = pColumn->varmeta.offset[row];
+      offsets[row] = nextEnd;
+      if (offset >= 0) {
+        nextEnd = offset;
+      }
+    }
+  } else if (*pCount > 1) {
+    taosSort(offsets, *pCount, sizeof(*offsets), compareJsonOffsets);
+  }
+  *ppOffsets = offsets;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonRecordAvailable(const SColumnInfoData *pColumn, int32_t row, const int32_t *offsets,
+                                   int32_t count, bool monotonic) {
+  if (pColumn == NULL || pColumn->varmeta.offset == NULL || row < 0 || offsets == NULL) {
+    return 0;
+  }
+  int32_t offset = pColumn->varmeta.offset[row];
+  if (offset < 0 || offset >= pColumn->varmeta.length) {
+    return 0;
+  }
+  if (monotonic) {
+    return offsets[row] - offset;
+  }
+  int32_t first = 0;
+  int32_t last = count;
+  while (first < last) {
+    int32_t middle = first + (last - first) / 2;
+    if (offsets[middle] <= offset) {
+      first = middle + 1;
+    } else {
+      last = middle;
+    }
+  }
+  int32_t end = first < count ? offsets[first] : pColumn->varmeta.length;
+  return end - offset;
 }
 
 int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t _ord) {
@@ -2462,12 +2561,20 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   int16_t leftType = pLeft->columnData->info.type;
+  int32_t *jsonOffsets = NULL;
+  int32_t jsonOffsetCount = 0;
+  bool jsonOffsetsMonotonic = true;
+  if (leftType == TSDB_DATA_TYPE_JSON) {
+    SCL_ERR_RET(buildJsonOffsets(pLeft->columnData, pLeft->numOfRows, &jsonOffsets, &jsonOffsetCount,
+                                 &jsonOffsetsMonotonic));
+  }
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
   char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
   if (NULL == jsonKey) {
+    taosMemoryFree(jsonOffsets);
     SCL_ERR_RET(terrno);
   }
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
@@ -2495,7 +2602,9 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
       } else {
         // Native JSON (STag binary) path  -  unchanged.
         STagVal value;
-        SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
+        int32_t available = jsonRecordAvailable(pLeft->columnData, i, jsonOffsets, jsonOffsetCount,
+                                                jsonOffsetsMonotonic);
+        SCL_ERR_JRET(getJsonValue(pLeftData, available, jsonKey, &isExist, &value));
       }
     }
     if (isExist) {
@@ -2505,6 +2614,7 @@ int32_t vectorJsonContains(SScalarParam *pLeft, SScalarParam *pRight, SScalarPar
   }
 
 _return:
+  taosMemoryFree(jsonOffsets);
   taosMemoryFree(jsonKey);
   SCL_RET(code);
 }
@@ -2515,12 +2625,18 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
+  int32_t *jsonOffsets = NULL;
+  int32_t jsonOffsetCount = 0;
+  bool jsonOffsetsMonotonic = true;
+  SCL_ERR_RET(buildJsonOffsets(pLeft->columnData, pLeft->numOfRows, &jsonOffsets, &jsonOffsetCount,
+                               &jsonOffsetsMonotonic));
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
 
   char *pRightData = colDataGetVarData(pRight->columnData, 0);
   char *jsonKey = taosMemoryCalloc(1, varDataLen(pRightData) + 1);
   if (NULL == jsonKey) {
+    taosMemoryFree(jsonOffsets);
     SCL_ERR_RET(terrno);
   }
   (void)memcpy(jsonKey, varDataVal(pRightData), varDataLen(pRightData));
@@ -2533,7 +2649,9 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
     char   *pLeftData = colDataGetVarData(pLeft->columnData, i);
     bool    isExist = false;
     STagVal value;
-    SCL_ERR_JRET(getJsonValue(pLeftData, jsonKey, &isExist, &value));
+    int32_t available = jsonRecordAvailable(pLeft->columnData, i, jsonOffsets, jsonOffsetCount,
+                                            jsonOffsetsMonotonic);
+    SCL_ERR_JRET(getJsonValue(pLeftData, available, jsonKey, &isExist, &value));
     char *data = isExist ? tTagValToData(&value, true) : NULL;
     code = colDataSetVal(pOutputCol, i, data, data == NULL);
     if (isExist && IS_VAR_DATA_TYPE(value.type) && data) {
@@ -2543,6 +2661,7 @@ int32_t vectorJsonArrow(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam 
   }
 
 _return:
+  taosMemoryFree(jsonOffsets);
   taosMemoryFree(jsonKey);
   SCL_RET(code);
 }

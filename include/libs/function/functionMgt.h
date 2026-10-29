@@ -65,6 +65,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TWVAR_LOCF,
   FUNCTION_TYPE_VALUE_CHANGES,
   FUNCTION_TYPE_BIT_CHANGES,
+  FUNCTION_TYPE_BIT_DURATION,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -341,6 +342,13 @@ struct SResultRowEntryInfo;
 struct STimeWindow;
 
 int32_t fmFuncMgtInit();
+// Validates runtime input types after fmFuncMgtInit. UDF IDs above the reserved
+// FUNC_UDF_ID_START boundary and pseudo-column functions are accepted without
+// count or type validation; FUNC_UDF_ID_START itself is invalid. pTypes may be
+// NULL only when numOfParams is zero or the ID identifies a UDF.
+// Returns query-input errors for invalid IDs and function parameter errors for
+// an invalid count or type.
+int32_t fmValidateFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t numOfParams);
 
 void fmFuncMgtDestroy();
 
@@ -408,6 +416,10 @@ bool fmIsNoPushdownFunc(int32_t funcId);
 bool fmisSelectGroupConstValueFunc(int32_t funcId);
 bool fmIsElapsedFunc(int32_t funcId);
 bool fmIsTwLocfFunc(int32_t funcId);
+// Identifies bit_duration for interval/external-window boundary state mapping.
+bool fmIsBitDurationFunc(int32_t funcId);
+// Returns whether bit_duration needs a predecessor row for its selected mode.
+bool fmBitDurationNeedsPrevRow(const SqlFunctionCtx* pCtx);
 bool fmIsDBUsageFunc(int32_t funcId);
 bool fmIsRowTsOriginFunc(int32_t funcId);
 bool fmIsSelectColsFunc(int32_t funcId);
@@ -440,6 +452,10 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, SDataBlockIn
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+// Validates a function node after fmFuncMgtInit. UDF nodes are accepted without
+// validating their name; invalid built-in nodes return TSDB_CODE_QRY_INVALID_INPUT
+// and write a diagnostic to pErrBuf when it is non-NULL and len is positive.
+int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef BUILD_NO_CALL

@@ -206,8 +206,10 @@ int32_t createAnomalywindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* p
   // custom anomaly payload after the full flexible result-row bytes.
   pInfo->bufSize = pInfo->aggSup.resultRowSize;
 
-  for (int32_t i = 0; i < LIST_LENGTH(pColNodes); ++i) {
-    SColumn node = extractColumnFromColumnNode((SColumnNode*)nodesListGetNode(pColNodes, i));
+  SListCell* pColNodeCell = NULL != pColNodes ? pColNodes->pHead : NULL;
+  for (int32_t i = 0; i < LIST_LENGTH(pColNodes);
+       ++i, pColNodeCell = (NULL != pColNodeCell ? pColNodeCell->pNext : NULL)) {
+    SColumn node = extractColumnFromColumnNode((SColumnNode*)(NULL != pColNodeCell ? pColNodeCell->pNode : NULL));
     if (!IS_MATHABLE_TYPE(node.type)) {
       qError("%s invalid column type %d for anomaly_window, must be numeric or timestamp", id, node.type);
       code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;

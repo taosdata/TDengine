@@ -67,9 +67,29 @@ int taos_metric_formatter_load_sample_new(taos_metric_formatter_t *self, taos_me
     char* str = *(keyvalue + i);
 
     char** pair = arr + i * 2;
-    taos_monitor_split_str(pair, str, "=");
+    // Split the label token on '=' into at most two slots (pair[0] = key,
+    // pair[1] = value). The original code called taos_monitor_split_str(pair, str, "=")
+    // which wrote one pointer per strsep token into the fixed 2-slot 'pair', so a
+    // value containing multiple '=' characters (e.g. an untrusted RPC username such
+    // as "a=b=c=d=e") overflowed 'arr' with out-of-bounds heap pointer writes and
+    // corrupted the root taosd process. Bound the split to two slots and ignore any
+    // extra '=' so the write can never escape 'arr' (malloc'd as (count + 1) * 2).
+    char* lasts = NULL;
+    char* token = strsep(&str, "=");
+    pair[0] = token;
+    token = strsep(&str, "=");
+    pair[1] = token;  // NULL when the token has no '=' (a malformed label)
 
-    taos_monitor_strip(pair[1]);
+    // A label value that contains the ',' delimiter (e.g. RPC username "a,b") makes
+    // the outer ',' split emit a token without '=', leaving pair[1] == NULL. The
+    // original code passed that NULL straight into taos_monitor_strip -> strlen(NULL)
+    // and crashed taosd. Guard against NULL and fall back to an empty value so the
+    // monitor report is built safely instead of segfaulting.
+    if (pair[1] != NULL) {
+      taos_monitor_strip(pair[1]);
+    } else {
+      pair[1] = (char*)"";
+    }
   }
 
   int32_t table_size = tjsonGetArraySize(arrayMetricGroups);

@@ -72,7 +72,7 @@ extern "C" {
 
 #define FUNC_MGT_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
-#define FUNC_UDF_ID_START 5000
+#define FUNC_UDF_ID_START 5000  // reserved boundary; valid UDF IDs are strictly greater
 
 #define FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(n) ((uint64_t)1 << n)
 #define FUNC_PARAM_SUPPORT_ALL_TYPE         FUNC_MGT_FUNC_PARAM_SUPPORT_TYPE(0)

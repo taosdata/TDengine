@@ -267,6 +267,45 @@ void vmCleanExpiredMetrics(SVnodeMgmt *pMgmt) {
   taosHashCleanup(pValidVgroups);
 }
 
+// [TD-SEC-2026-034] replica/learnerReplica/selfIndex/learnerSelfIndex are attacker-controlled int8 fields
+// of SCreateVnodeReq/SAlterVnodeReplicaReq. The decoder always reads exactly TSDB_MAX_REPLICA (resp.
+// TSDB_MAX_LEARNER_REPLICA) entries, so the counters are never checked against the arrays they describe:
+//   - replica/learnerReplica are used as loop bounds when filling the fixed-size
+//     syncCfg.nodeInfo[TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA] (vmGenerateVnodeCfg, vnodeAlterReplica),
+//   - selfIndex/learnerSelfIndex are used to index replicas[]/learnerReplicas[] directly.
+// An oversized counter therefore overflows nodeInfo (a stack array in the create path), and an out-of-range
+// index reads past the request. Every handler must run this check before touching those arrays.
+// The valid ranges below mirror what the mnode produces in mndAddCreateVnodeAction/mndAddAlterVnodeReplicaAction:
+// selfIndex is assigned a slot of replicas[] (so it stays below replica), -1 meaning "this dnode is a learner",
+// and at least one of the two indexes always points at a real entry.
+bool vmIsReplicaCfgValid(int32_t vgId, int32_t replica, int32_t selfIndex, int32_t learnerReplica,
+                         int32_t learnerSelfIndex) {
+  if (replica < 1 || replica > TSDB_MAX_REPLICA) {
+    dError("vgId:%d, invalid replica:%d in request, valid range is [1, %d]", vgId, replica, TSDB_MAX_REPLICA);
+    return false;
+  }
+  if (learnerReplica < 0 || learnerReplica > TSDB_MAX_LEARNER_REPLICA) {
+    dError("vgId:%d, invalid learnerReplica:%d in request, valid range is [0, %d]", vgId, learnerReplica,
+           TSDB_MAX_LEARNER_REPLICA);
+    return false;
+  }
+  if (selfIndex < -1 || selfIndex >= replica) {
+    dError("vgId:%d, invalid selfIndex:%d in request, valid range is [-1, %d)", vgId, selfIndex, replica);
+    return false;
+  }
+  if (learnerSelfIndex < -1 || learnerSelfIndex >= learnerReplica) {
+    dError("vgId:%d, invalid learnerSelfIndex:%d in request, valid range is [-1, %d)", vgId, learnerSelfIndex,
+           learnerReplica);
+    return false;
+  }
+  if (selfIndex < 0 && learnerSelfIndex < 0) {
+    dError("vgId:%d, invalid request, neither selfIndex:%d nor learnerSelfIndex:%d refers to this dnode", vgId,
+           selfIndex, learnerSelfIndex);
+    return false;
+  }
+  return true;
+}
+
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   memcpy(pCfg, &vnodeCfgDefault, sizeof(SVnodeCfg));
 
@@ -405,8 +444,15 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // normalize before validating: requests from a pre-learner mnode carry no learner fields at all, so
+  // learnerSelfIndex is left at its zero-initialized value and must be reset to -1 first
   if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
+  }
+
+  if (!vmIsReplicaCfgValid(req.vgId, req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex)) {
+    (void)tFreeSCreateVnodeReq(&req);
+    return TSDB_CODE_INVALID_MSG;
   }
 
   dInfo(
@@ -433,7 +479,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     dInfo("vgId:%d, learnerReplica:%d ep:%s:%u dnode:%d", req.vgId, i, req.learnerReplicas[i].fqdn,
-          req.learnerReplicas[i].port, req.replicas[i].id);
+          req.learnerReplicas[i].port, req.learnerReplicas[i].id);
   }
 
   SReplica *pReplica = NULL;
@@ -1267,6 +1313,13 @@ int32_t vmProcessMountVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (pCreateReq->learnerReplica == 0) {
     pCreateReq->learnerSelfIndex = -1;
   }
+
+  if (!vmIsReplicaCfgValid(pCreateReq->vgId, pCreateReq->replica, pCreateReq->selfIndex, pCreateReq->learnerReplica,
+                           pCreateReq->learnerSelfIndex)) {
+    (void)tFreeSMountVnodeReq(&req);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   for (int32_t i = 0; i < pCreateReq->replica; ++i) {
     dInfo("mount:%s, vgId:%d, replica:%d ep:%s:%u dnode:%d", req.mountName, pCreateReq->vgId, i,
           pCreateReq->replicas[i].fqdn, pCreateReq->replicas[i].port, pCreateReq->replicas[i].id);
@@ -1360,8 +1413,16 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
+  }
+
+  // [TD-SEC-2026-034] validate before the loops below index replicas[]/learnerReplicas[] and before
+  // vnodeAlterReplica() uses the counters as bounds on syncCfg.nodeInfo
+  if (!vmIsReplicaCfgValid(req.vgId, req.replica, req.selfIndex, req.learnerReplica, req.learnerSelfIndex)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, failed to alter vnode type since invalid msg", req.vgId);
+    return -1;
   }
 
   dInfo("vgId:%d, vnode management handle msgType:%s, start to process alter-node-type-request", req.vgId,
@@ -1403,14 +1464,6 @@ int32_t vmProcessAlterVnodeTypeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < req.learnerReplica; ++i) {
     SReplica *pReplica = &req.learnerReplicas[i];
     dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
-  }
-
-  if (req.replica <= 0 || (req.selfIndex < 0 && req.learnerSelfIndex < 0) || req.selfIndex >= req.replica ||
-      req.learnerSelfIndex >= req.learnerReplica) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    dError("vgId:%d, failed to alter replica since invalid msg", vgId);
-    vmReleaseVnode(pMgmt, pVnode);
-    return -1;
   }
 
   SReplica *pReplica = NULL;
@@ -1480,7 +1533,7 @@ int32_t vmProcessCheckLearnCatchupReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (req.learnerReplicas == 0) {
+  if (req.learnerReplica == 0) {
     req.learnerSelfIndex = -1;
   }
 
@@ -1544,6 +1597,14 @@ int32_t vmProcessDisableVnodeWriteReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t vmProcessSetKeepVersionReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  // the mgmt queue does not validate the message head, so check before touching pCont: the ntohl below
+  // writes 8 bytes and the decoder length would underflow for a shorter body
+  if (pMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    dError("invalid rpc msg with no msg head at pCont, type:%s, contLen:%d", TMSG_INFO(pMsg->msgType), pMsg->contLen);
+    terrno = TSDB_CODE_INVALID_MSG;
+    return terrno;
+  }
+
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
@@ -1678,6 +1739,15 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     alterReq.learnerSelfIndex = -1;
   }
 
+  // [TD-SEC-2026-034] validate before the loops below index replicas[]/learnerReplicas[] and before
+  // vnodeAlterReplica() uses the counters as bounds on syncCfg.nodeInfo
+  if (!vmIsReplicaCfgValid(alterReq.vgId, alterReq.replica, alterReq.selfIndex, alterReq.learnerReplica,
+                           alterReq.learnerSelfIndex)) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, failed to alter replica since invalid msg", alterReq.vgId);
+    return -1;
+  }
+
   int32_t vgId = alterReq.vgId;
   dInfo(
       "vgId:%d, vnode management handle msgType:%s, start to alter vnode replica:%d selfIndex:%d leanerReplica:%d "
@@ -1687,18 +1757,11 @@ int32_t vmProcessAlterVnodeReplicaReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     SReplica *pReplica = &alterReq.replicas[i];
-    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
+    dInfo("vgId:%d, replica:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
   for (int32_t i = 0; i < alterReq.learnerReplica; ++i) {
     SReplica *pReplica = &alterReq.learnerReplicas[i];
-    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->port);
-  }
-
-  if (alterReq.replica <= 0 || (alterReq.selfIndex < 0 && alterReq.learnerSelfIndex < 0) ||
-      alterReq.selfIndex >= alterReq.replica || alterReq.learnerSelfIndex >= alterReq.learnerReplica) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    dError("vgId:%d, failed to alter replica since invalid msg", vgId);
-    return -1;
+    dInfo("vgId:%d, learnerReplicas:%d ep:%s:%u dnode:%d", vgId, i, pReplica->fqdn, pReplica->port, pReplica->id);
   }
 
   SReplica *pReplica = NULL;
@@ -2170,9 +2233,26 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CONFIG_CHANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_ELECTBASELINE, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT_ELECTION, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT_ELECTION is intentionally NOT registered here.
+  // Sync election-timeout messages are produced only by this node's own local
+  // timer (syncNodeEqElectTimer -> syncBuildTimeout -> vnodeSyncEqMsg) and must
+  // never arrive over the network. Registering it as a network-dispatched type
+  // allowed an unauthenticated peer to force a re-election (see finding 265).
+  // The local enqueue path does not use this dispatch table, so removing the
+  // registration does not affect legitimate timer processing.
+  
+  // SECURITY FIX (finding item 52): TDMT_SYNC_CLIENT_REQUEST / TDMT_SYNC_CLIENT_REQUEST_BATCH are
+  // *internal loopback* message types produced only by the local syncNodePropose() path and must
+  // never be accepted from the network. Registering them here made this dnode's sync queue
+  // reachable from any host that can reach port 6030, letting a non-member forge a raft entry
+  // (arbitrary originalRpcType/dataLen/data) that a leader would append, persist, replicate and
+  // apply via the mnode/vnode FSM (full cluster takeover / config change / crash). They are now
+  // deliberately NOT registered, so dmProcessRpcMsg drops such frames (TSDB_CODE_MSG_NOT_PROCESSED)
+  // before they can reach syncNodeOnClientRequest. The local propose path enqueues these messages
+  // directly via syncEqMsg and is therefore unaffected.
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  // if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_BATCH, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_CLIENT_REQUEST_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_REQUEST_VOTE_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
@@ -2183,7 +2263,14 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_PREP_SNAPSHOT, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_FORCE_FOLLOWER, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_TIMEOUT, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
+  // SECURITY: TDMT_SYNC_TIMEOUT is intentionally NOT registered here. Ping/role
+  // timer messages are produced only by this node's own local timer
+  // (syncNodeEqPingTimer -> syncBuildTimeout -> vnodeSyncEqMsg) and must never
+  // arrive over the network. Registering it as a network-dispatched type allowed
+  // an unauthenticated peer to trigger syncNodeTimerRoutine at an attacker-chosen
+  // rate (see finding 265). The local enqueue path does not use this dispatch
+  // table, so removing the registration does not affect legitimate timer
+  // processing.
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, vmPutMsgToSyncRdQueue, 0) == NULL) goto _OVER;

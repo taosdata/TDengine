@@ -27,7 +27,8 @@ taosX-Agent 是 TDengine TSDB Enterprise 的一个组件，作为 taosX 的代�
 | 数据压缩传输 | 支持开启 Agent 与 taosX 之间的通信数据压缩，降低带宽消耗                                                          |
 | 内存缓存     | 支持配置内存缓存批次数，提升数据传输效率                                                                          |
 | 断线重连     | 支持 taosX 服务不可用时保持运行并自动重连                                                                         |
-| 存储转发     | 网络中断时将采集数据持久化到本地磁盘，网络恢复后自动补发，确保数据零丢失。详见 [存储转发](./store-and-forward.md) |
+| 高可用       | 同时连接多个 taosX，某个 taosX 停机后任务改派到其他 taosX 继续采集。详见 [高可用](./03-high-availability.md)          |
+| 存储转发     | 网络中断时将采集数据持久化到本地磁盘，网络恢复后自动补发，确保数据零丢失，详见 [存储转发](./02-store-and-forward.md) |
 | 多实例部署   | 同一台机器可部署多个 Agent 实例，通过 instanceId 区分                                                             |
 
 ## 获取 taosX-Agent
@@ -46,7 +47,7 @@ taosX-Agent 需要与 taosX 服务以及数据源分别保持网络连通：
 
 | 方向           | 说明                                                             |
 | -------------- | ---------------------------------------------------------------- |
-| Agent → taosX  | Agent 需要能够访问 taosX 的 gRPC 服务端口（默认 6055）           |
+| Agent → taosX  | Agent 需要能够访问 taosX 的 gRPC 服务端口（默认 6055）；连接多个 taosX 时，需能访问每一个 taosX |
 | Agent → 数据源 | Agent 需要能够访问数据源（如 OPC UA Server、PI Data Archive 等） |
 
 :::tip
@@ -69,7 +70,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ### 依赖服务
 
-- **taosX**：taosX-Agent 必须连接到一个正在运行的 taosX 实例。
+- **taosX**：taosX-Agent 至少需要连接一个正在运行的 taosX 实例。连接多个 taosX 可实现高可用，详见 [高可用](./03-high-availability.md)。
 - **taosExplorer**：需要通过 taosExplorer 界面创建 Agent 并获取 Token。
 
 ## 安装
@@ -96,7 +97,7 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 
 ![创建 Agent](../../../assets/taosx-agent-01.webp)
 
-5. 按照创建代理的指引操作，系统会生成 **endpoint** 和 **token**，请将其复制保存到 `agent.toml` 配置文件中。
+5. 按照创建代理的指引操作，系统会生成 **endpoint** 和 **token**，请将其复制保存到 `agent.toml` 配置文件中。集群中注册了多个 xnode 时，生成的 endpoint 包含全部 xnode 的地址，以英文逗号分隔。
 
 ![生成 endpoint 和 token](../../../assets/taosx-agent-02.webp)
 
@@ -109,14 +110,14 @@ Test-NetConnection -ComputerName <taosX_host> -Port 6055
 编辑配置文件，填入从 taosExplorer 获取的信息：
 
 ```toml
-# taosX 的 gRPC 服务地址（必填）
+# taosX 的 gRPC 服务地址（必填），多个地址以英文逗号分隔
 endpoint = "http://<taosX_host>:6055"
 
 # 在 taosExplorer 中创建 Agent 时生成的 Token（必填）
 token = "<your_token>"
 ```
 
-完整的配置项说明请参考 [配置参考](./configuration.md)。
+完整的配置项说明请参考 [配置参考](./01-configuration.md)。
 
 ### 第 3 步：启动服务
 

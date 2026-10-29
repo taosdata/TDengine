@@ -532,8 +532,10 @@ static int32_t validInputParams(SFunctionNode* pFunc, const char* id) {
     goto _end;
   }
 
-  for (int32_t i = 0; i < num; ++i) {
-    SNode* p = nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = NULL != pFunc->pParameterList ? pFunc->pParameterList->pHead : NULL;
+  for (int32_t i = 0; i < num;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SNode* p = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
     if (p == NULL) {
       code = TSDB_CODE_PLAN_INTERNAL_ERROR;
       qError("%s %d-th parameter in forecast function is NULL, code:%s", id, i, tstrerror(code));
@@ -642,8 +644,8 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
             qError("%s invalid target column type %d for forecast, must be numeric or timestamp", id, pSupp->targetValType);
             return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
           }
-          for (int32_t i = 0; i < numOfParam; ++i) {
-            SNode* pNode = nodesListGetNode(pFunc->pParameterList, i);
+          SNode* pNode = NULL;
+          FOREACH(pNode, pFunc->pParameterList) {
             if (nodeType(pNode) == QUERY_NODE_COLUMN) {
               SColumnNode* pColNode = (SColumnNode*)pNode;
               if (pColNode->isPrimTs && (!assignTs)) {
@@ -675,8 +677,10 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
           pSupp->pDynamicRealList = taosArrayInit(4, sizeof(SColFutureData));
 
           // the first is the target column
-          for (int32_t i = 1; i < numOfParam; ++i) {
-            SColumnNode* p = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, i);
+          SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+          for (int32_t i = 1; i < numOfParam;
+               ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+            SColumnNode* p = (SColumnNode*)(NULL != pParameterCell ? pParameterCell->pNode : NULL);
             if ((nodeType(p) != QUERY_NODE_COLUMN) || (nodeType(p) == QUERY_NODE_COLUMN && p->isPrimTs)) {
               break;
             }

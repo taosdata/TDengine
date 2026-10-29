@@ -27,3 +27,7 @@ target_include_directories(
 target_link_libraries(
     mgmt_vnode node_util
 )
+
+if(BUILD_TEST AND NOT TD_WINDOWS)
+    add_subdirectory(test)
+endif()

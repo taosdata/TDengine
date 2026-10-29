@@ -176,7 +176,7 @@ CSV 文件中的每个 Row 配置一个 OPC 数据点位。Row 的规则如下�
 
 在 **批次延时** 中设置单次发送最大延时（单位为秒），当超时结束时，只要有数据，即使不满足 **批次大小**，也立即发送。
 
-当 **缓存实时数据** 选项开启时，OPC 消费的数据会先存入本地文件中，本地文件的数据会被后台任务持续读出并发送给下游处理。当 OPC 数据流量巨大，下游无法及时处理造成数据消费卡顿导致数据丢弃时使用，即用于流量削峰，当数据消费完毕后，会自动清理文件。此功能默认关闭。关于该功能的详细原理和配置说明，请参考 [存储转发](../../12-operations-and-tooling/03-components/07-taosx-agent/store-and-forward.md)。
+当 **缓存实时数据** 选项开启时，OPC 消费的数据会先存入本地文件中，本地文件的数据会被后台任务持续读出并发送给下游处理。当 OPC 数据流量巨大，下游无法及时处理造成数据消费卡顿导致数据丢弃时使用，即用于流量削峰，当数据消费完毕后，会自动清理文件。此功能默认关闭。关于该功能的详细原理和配置说明，请参考 [存储转发](../../12-operations-and-tooling/03-components/07-taosx-agent/02-store-and-forward.md)。
 
 在 **缓存数据存储目录** 中可填写数据缓存的存储目录路径，默认为 taosX 启动时配置的数据目录，也可以填写自定义目录。此选项仅在 **缓存实时数据** 选项开启时有效。
 
@@ -236,6 +236,30 @@ OPC UA 侧对 BrowseName / Description / Path 以及 Property→TAG 的自动映
 Agent 在 OPC 服务器附近安装一次并保持运行即可。之后在 taosExplorer（或通过 [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md) SQL）上创建、编辑、启停 Data In 任务、调整采集参数、追加或更新点位 CSV，一般无需为点位变更重新打包或重装 Agent。
 
 仅在以下情况需要改动 Agent 本机配置或重装：更换 `endpoint` / `token`、升级 Agent 版本、调整 Agent 本机高级项（如存储转发目录）等。安装步骤见 [安装 taosX-Agent](./01-install-agent.md)。
+
+## 常见问题
+
+1. 连通性检查报错 `TryConnect was not successful: connection failed. Error: OPC ERROR code:0x80080005, error:Unknown error, may be system error: Server execution failed`，如何排查？
+
+**可能原因**：OPC DA 服务器未能正常启动，或 taosX-Agent 服务运行账号缺少所需的 COM/DCOM 启动、激活或访问权限。
+
+**解决方法**：先确认 OPC DA 服务器已正常启动。在 taosX-Agent 所在 Windows 主机上，以管理员身份打开 PowerShell，停止 Agent 服务：
+
+```powershell
+Stop-Service -Name taosx-agent -ErrorAction Stop
+(Get-Service -Name taosx-agent).WaitForStatus('Stopped', '00:00:30')
+Get-Process -Name taosx-agent,taosx-agent-srv -ErrorAction SilentlyContinue
+```
+
+确认上述进程均已退出后，使用当前 Windows 登录账号前台启动 Agent，路径按实际安装位置调整：
+
+```powershell
+$env:PLUGINS_HOME = 'C:\TDengine\plugins'
+$env:LOGS_HOME = 'C:\TDengine\log'
+& 'C:\TDengine\taosx-agent.exe' --config 'C:\TDengine\cfg\agent.toml'
+```
+
+保持窗口打开，在 taosExplorer 中使用同一代理和 OPC 配置重新检查连通性。若前台成功、恢复服务后失败，重点检查服务账号与 COM/DCOM 权限；可在 `services.msc` 的服务属性“登录”页，将默认的 `LocalSystem` 改为前台验证成功的账号并填写有效密码，重启服务复测。恢复服务前，先按 Ctrl+C 退出前台 Agent，避免同时运行两个实例。若前台仍失败，继续检查 OPC DA 服务器启动状态及 Windows 事件日志。
 
 ## 相关文档
 

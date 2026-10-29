@@ -68,14 +68,47 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
     sGDebug(&pRpcMsg->info.traceId, "vgId:%d, received append entries reply, src addr:0x%" PRIx64 ", term:%" PRId64 ", matchIndex:%" PRId64,
             pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
 
+    // TD-SEC-2026-044 (item 184): fetch the per-peer replication manager up front.
+    // It holds the authoritative record (pMgr->endIndex - 1) of the highest log
+    // index this leader has actually transmitted to the acknowledging peer. We use
+    // it below to reject a forged reply that claims a matchIndex larger than what
+    // was really sent, which would otherwise let a single spoofed reply fabricate a
+    // raft quorum and commit entries no real follower stored (raft safety break).
+    SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
+    if (pMgr == NULL) {
+      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
+      if (terrno != 0) code = terrno;
+      sError("vgId:%d, failed to get log repl mgr for src addr:0x%" PRIx64, ths->vgId, pMsg->srcId.addr);
+      TAOS_RETURN(code);
+    }
+
     if (pMsg->success) {
       SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
-      if (pMsg->matchIndex > oldMatchIndex) {
-        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+
+      // TD-SEC-2026-044 (item 184): defense against a forged AppendEntriesReply.
+      // The leader's own matchIndex always counts toward quorum, so a single
+      // spoofed success reply with matchIndex = INT64_MAX is enough (3 replicas)
+      // to declare every entry in the leader's log committed. A genuine follower
+      // can only have matched log indexes the leader actually sent it; that upper
+      // bound is pMgr->endIndex - 1 (the last index the leader replicated to this
+      // peer). Any claim above it is impossible for a real follower and is treated
+      // as a spoofing attempt: we clamp it down and do not advance the recorded
+      // matchIndex / commit index beyond what was genuinely replicated.
+      SyncIndex validMatchIndex = pMsg->matchIndex;
+      SyncIndex maxSentIndex = (pMgr->endIndex > 0) ? (pMgr->endIndex - 1) : SYNC_INDEX_INVALID;
+      if (validMatchIndex > maxSentIndex) {
+        sWarn("vgId:%d, reject impossible matchIndex:%" PRId64 " claimed by dnode:%d, leader only sent up to %" PRId64
+              " to this peer, possible forged AppendEntriesReply (TD-SEC-2026-044 item 184)",
+              ths->vgId, pMsg->matchIndex, DID(&pMsg->srcId), maxSentIndex);
+        validMatchIndex = maxSentIndex;
+      }
+
+      if (validMatchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), validMatchIndex);
       }
 
       // commit if needed
-      SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
+      SyncIndex indexLikely = TMIN(validMatchIndex, ths->pLogBuf->matchIndex);
       SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely, &pRpcMsg->info.traceId);
       if (ths->state == TAOS_SYNC_STATE_ASSIGNED_LEADER) {
         if (commitIndex >= ths->assignedCommitIndex) {
@@ -104,14 +137,7 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
       }
     }
 
-    // replicate log
-    SSyncLogReplMgr* pMgr = syncNodeGetLogReplMgr(ths, &pMsg->srcId);
-    if (pMgr == NULL) {
-      code = TSDB_CODE_MND_RETURN_VALUE_NULL;
-      if (terrno != 0) code = terrno;
-      sError("vgId:%d, failed to get log repl mgr for src addr:0x%" PRIx64, ths->vgId, pMsg->srcId.addr);
-      TAOS_RETURN(code);
-    }
+    // replicate log (pMgr already fetched and validated above)
     TAOS_CHECK_RETURN(syncLogReplProcessReply(pMgr, ths, pMsg));
   }
   TAOS_RETURN(code);

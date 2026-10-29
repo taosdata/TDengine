@@ -636,6 +636,7 @@ typedef struct SUdfcUvSession {
 
 typedef struct SClientUvTaskNode {
   SUdfcProxy *udfc;
+  SUdfcUvSession *session;
   int8_t      type;
   int32_t     errCode;
 
@@ -859,6 +860,142 @@ void *decodeUdfRequest(const void *buf, SUdfRequest *request) {
   return (void *)buf;
 }
 
+typedef struct SUdfDecodeCursor {
+  const uint8_t *pCursor;
+  const uint8_t *pEnd;
+} SUdfDecodeCursor;
+
+static bool udfDecodeRead(SUdfDecodeCursor *pCursor, void *pValue, int64_t bytes) {
+  if (bytes < 0 || bytes > pCursor->pEnd - pCursor->pCursor) {
+    return false;
+  }
+  if (bytes > 0 && pValue != NULL) {
+    (void)memcpy(pValue, pCursor->pCursor, bytes);
+  }
+  pCursor->pCursor += bytes;
+  return true;
+}
+
+static bool udfDecodeI64(SUdfDecodeCursor *pCursor, int64_t *pValue) {
+  if (pCursor->pEnd - pCursor->pCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  pCursor->pCursor = taosDecodeFixedI64(pCursor->pCursor, pValue);
+  return true;
+}
+
+static bool udfDecodeI32(SUdfDecodeCursor *pCursor, int32_t *pValue) {
+  if (pCursor->pEnd - pCursor->pCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  pCursor->pCursor = taosDecodeFixedI32(pCursor->pCursor, pValue);
+  return true;
+}
+
+static bool udfDecodeI8(SUdfDecodeCursor *pCursor, int8_t *pValue) {
+  if (pCursor->pEnd - pCursor->pCursor < (int64_t)sizeof(*pValue)) {
+    return false;
+  }
+  pCursor->pCursor = taosDecodeFixedI8(pCursor->pCursor, pValue);
+  return true;
+}
+
+static int32_t udfDecodeInterBufBounded(SUdfDecodeCursor *pCursor, SUdfInterBuf *pState) {
+  if (!udfDecodeI8(pCursor, &pState->numOfResult) ||
+      !udfDecodeI32(pCursor, &pState->bufLen) || pState->bufLen < 0 ||
+      (int64_t)pState->bufLen > pCursor->pEnd - pCursor->pCursor || pState->bufLen > TSDB_MAX_MSG_SIZE) {
+    pState->numOfResult = 0;
+    pState->bufLen = 0;
+    return TSDB_CODE_MSG_DECODE_ERROR;
+  }
+  if (pState->bufLen > 0) {
+    pState->buf = taosMemoryMalloc(pState->bufLen);
+    if (pState->buf == NULL) {
+      return terrno;
+    }
+  }
+  if (!udfDecodeRead(pCursor, pState->buf, pState->bufLen)) {
+    freeUdfInterBuf(pState);
+    return TSDB_CODE_MSG_DECODE_ERROR;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t decodeUdfRequestBounded(const void *buf, int32_t bufLen, SUdfRequest *request) {
+  if (buf == NULL || bufLen < 0 || request == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  (void)memset(request, 0, sizeof(*request));
+  SUdfDecodeCursor cursor = {.pCursor = buf, .pEnd = (const uint8_t *)buf + bufLen};
+  if (!udfDecodeRead(&cursor, &request->msgLen, sizeof(request->msgLen)) || request->msgLen != bufLen ||
+      !udfDecodeI64(&cursor, &request->seqNum) ||
+      !udfDecodeI8(&cursor, &request->type)) {
+    return TSDB_CODE_MSG_DECODE_ERROR;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (request->type == UDF_TASK_SETUP) {
+    if (udfDecodeRead(&cursor, request->setup.udfName, TSDB_FUNC_NAME_LEN)) {
+      request->setup.udfName[TSDB_FUNC_NAME_LEN] = '\0';
+    } else {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+    }
+  } else if (request->type == UDF_TASK_TEARDOWN) {
+    if (!udfDecodeI64(&cursor, &request->teardown.udfHandle)) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+    }
+  } else if (request->type == UDF_TASK_CALL) {
+    SUdfCallRequest *pCall = &request->call;
+    int8_t           callType = 0;
+    if (!udfDecodeI64(&cursor, &pCall->udfHandle) || !udfDecodeI8(&cursor, &callType)) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+      goto _error;
+    }
+    pCall->callType = callType;
+    if (pCall->callType == TSDB_UDF_CALL_SCALA_PROC || pCall->callType == TSDB_UDF_CALL_AGG_PROC) {
+      int32_t consumed = 0;
+      code = tDecodeDataBlockBounded(cursor.pCursor, (int32_t)(cursor.pEnd - cursor.pCursor), &pCall->block, &consumed);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
+      if (consumed <= 0) {
+        code = TSDB_CODE_MSG_DECODE_ERROR;
+        goto _error;
+      }
+      cursor.pCursor += consumed;
+    }
+    if (pCall->callType == TSDB_UDF_CALL_AGG_INIT) {
+      if (!udfDecodeI8(&cursor, &pCall->initFirst)) {
+        code = TSDB_CODE_MSG_DECODE_ERROR;
+      }
+    } else if (pCall->callType == TSDB_UDF_CALL_AGG_PROC || pCall->callType == TSDB_UDF_CALL_AGG_FIN) {
+      code = udfDecodeInterBufBounded(&cursor, &pCall->interBuf);
+    // AGG_MERGE is not a supported request operation. The legacy encoder emits
+    // no body for it, and the daemon has no merge dispatch callback.
+    } else if (pCall->callType != TSDB_UDF_CALL_SCALA_PROC) {
+      code = TSDB_CODE_UDF_INVALID_INPUT;
+    }
+  } else {
+    code = TSDB_CODE_UDF_INVALID_INPUT;
+  }
+
+  if (code != TSDB_CODE_SUCCESS || cursor.pCursor != cursor.pEnd) {
+    if (code == TSDB_CODE_SUCCESS) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+    }
+    goto _error;
+  }
+  return TSDB_CODE_SUCCESS;
+
+_error:
+  if (request->type == UDF_TASK_CALL) {
+    blockDataFreeRes(&request->call.block);
+    freeUdfInterBuf(&request->call.interBuf);
+    freeUdfInterBuf(&request->call.interBuf2);
+  }
+  return code;
+}
+
 int32_t encodeUdfSetupResponse(void **buf, const SUdfSetupResponse *setupRsp) {
   int32_t len = 0;
   len += taosEncodeFixedI64(buf, setupRsp->udfHandle);
@@ -948,7 +1085,9 @@ int32_t encodeUdfResponse(void **buf, const SUdfResponse *rsp) {
       len += encodeUdfSetupResponse(buf, &rsp->setupRsp);
       break;
     case UDF_TASK_CALL:
-      len += encodeUdfCallResponse(buf, &rsp->callRsp);
+      if (rsp->code == TSDB_CODE_SUCCESS) {
+        len += encodeUdfCallResponse(buf, &rsp->callRsp);
+      }
       break;
     case UDF_TASK_TEARDOWN:
       len += encodeUdfTeardownResponse(buf, &rsp->teardownRsp);
@@ -997,6 +1136,81 @@ void *decodeUdfResponse(const void *buf, SUdfResponse *rsp) {
   return (void *)buf;
 }
 
+int32_t decodeUdfResponseBounded(const void *buf, int32_t bufLen, SUdfResponse *rsp) {
+  if (buf == NULL || bufLen < 0 || rsp == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  (void)memset(rsp, 0, sizeof(*rsp));
+  SUdfDecodeCursor cursor = {.pCursor = buf, .pEnd = (const uint8_t *)buf + bufLen};
+  int64_t          frameSeqNum = 0;
+  if (!udfDecodeRead(&cursor, &rsp->msgLen, sizeof(rsp->msgLen)) || rsp->msgLen != bufLen ||
+      !udfDecodeRead(&cursor, &frameSeqNum, sizeof(frameSeqNum)) ||
+      !udfDecodeI64(&cursor, &rsp->seqNum) || frameSeqNum != rsp->seqNum ||
+      !udfDecodeI8(&cursor, &rsp->type) ||
+      !udfDecodeI32(&cursor, &rsp->code)) {
+    return TSDB_CODE_MSG_DECODE_ERROR;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (rsp->type == UDF_TASK_CALL && rsp->code != TSDB_CODE_SUCCESS) {
+    // Error responses intentionally carry no call body.
+    return cursor.pCursor == cursor.pEnd ? TSDB_CODE_SUCCESS : TSDB_CODE_MSG_DECODE_ERROR;
+  }
+  if (rsp->type == UDF_TASK_SETUP) {
+    if (!udfDecodeI64(&cursor, &rsp->setupRsp.udfHandle) ||
+        !udfDecodeI8(&cursor, &rsp->setupRsp.outputType) ||
+        !udfDecodeI32(&cursor, &rsp->setupRsp.bytes) ||
+        !udfDecodeI32(&cursor, &rsp->setupRsp.bufSize)) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+    } else if (rsp->code == TSDB_CODE_SUCCESS &&
+               (rsp->setupRsp.udfHandle <= 0 || rsp->setupRsp.outputType <= TSDB_DATA_TYPE_NULL ||
+               rsp->setupRsp.outputType >= TSDB_DATA_TYPE_MAX || rsp->setupRsp.bufSize < 0 ||
+               (IS_VAR_DATA_TYPE(rsp->setupRsp.outputType)
+                    ? rsp->setupRsp.bytes < VARSTR_HEADER_SIZE
+                    : rsp->setupRsp.bytes != tDataTypes[rsp->setupRsp.outputType].bytes))) {
+      code = TSDB_CODE_UDF_INVALID_INPUT;
+    }
+  } else if (rsp->type == UDF_TASK_CALL) {
+    SUdfCallResponse *pCall = &rsp->callRsp;
+    if (!udfDecodeI8(&cursor, &pCall->callType)) {
+      code = TSDB_CODE_MSG_DECODE_ERROR;
+    } else if (pCall->callType == TSDB_UDF_CALL_SCALA_PROC) {
+      ptrdiff_t remaining = cursor.pEnd - cursor.pCursor;
+      if (remaining > INT32_MAX) {
+        code = TSDB_CODE_MSG_DECODE_ERROR;
+        goto _response_done;
+      }
+      int32_t consumed = 0;
+      code = tDecodeDataBlockBounded(cursor.pCursor, (int32_t)remaining,
+                                     &pCall->resultData, &consumed);
+      if (code == TSDB_CODE_SUCCESS && consumed <= 0) {
+        code = TSDB_CODE_MSG_DECODE_ERROR;
+      } else if (code == TSDB_CODE_SUCCESS) {
+        cursor.pCursor += consumed;
+      }
+    } else if (pCall->callType == TSDB_UDF_CALL_AGG_INIT ||
+               pCall->callType == TSDB_UDF_CALL_AGG_PROC ||
+               pCall->callType == TSDB_UDF_CALL_AGG_FIN) {
+      code = udfDecodeInterBufBounded(&cursor, &pCall->resultBuf);
+    } else {
+      code = TSDB_CODE_UDF_INVALID_INPUT;
+    }
+  } else if (rsp->type != UDF_TASK_TEARDOWN) {
+    code = TSDB_CODE_UDF_INVALID_INPUT;
+  }
+
+_response_done:
+  if (code == TSDB_CODE_SUCCESS && cursor.pCursor != cursor.pEnd) {
+    code = TSDB_CODE_MSG_DECODE_ERROR;
+  }
+  if (code != TSDB_CODE_SUCCESS && rsp->type == UDF_TASK_CALL) {
+    blockDataFreeRes(&rsp->callRsp.resultData);
+    freeUdfInterBuf(&rsp->callRsp.resultBuf);
+  }
+  return code;
+}
+
 void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta) {
   TAOS_UDF_CHECK_PTR_RVOID(data, meta);
   if (IS_VAR_DATA_TYPE(meta->type)) {
@@ -1032,6 +1246,8 @@ void freeUdfInterBuf(SUdfInterBuf *buf) {
   TAOS_UDF_CHECK_PTR_RVOID(buf);
   taosMemoryFree(buf->buf);
   buf->buf = NULL;
+  buf->bufLen = 0;
+  buf->numOfResult = 0;
 }
 
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock) {
@@ -1073,6 +1289,9 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
       }
       if (col->reassigned) {
         for (int32_t row = 0; row < udfCol->colData.numOfRows; ++row) {
+          if (col->varmeta.offset[row] == -1) {
+            continue;
+          }
           char   *pColData = col->pData + col->varmeta.offset[row];
           int32_t colSize = 0;
           if (col->info.type == TSDB_DATA_TYPE_JSON) {
@@ -1664,13 +1883,19 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
   if (uvTask->type == UV_TASK_REQ_RSP) {
     if (uvTask->rspBuf.base != NULL) {
       SUdfResponse rsp = {0};
-      void        *buf = decodeUdfResponse(uvTask->rspBuf.base, &rsp);
-      code = rsp.code;
+      if (uvTask->rspBuf.len > INT32_MAX) {
+        code = TSDB_CODE_MSG_DECODE_ERROR;
+      } else {
+        code = decodeUdfResponseBounded(uvTask->rspBuf.base, (int32_t)uvTask->rspBuf.len, &rsp);
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        code = rsp.code;
+      }
       if (code != 0) {
         fnError("udfc get udf task result failure. code: %d", code);
       }
 
-      switch (task->type) {
+      switch (code == TSDB_CODE_SUCCESS ? task->type : -1) {
         case UDF_TASK_SETUP: {
           task->_setup.rsp = rsp.setupRsp;
           break;
@@ -1869,6 +2094,7 @@ void onUdfcPipeConnect(uv_connect_t *connect, int32_t status) {
 int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskNode *uvTask) {
   uvTask->type = uvTaskType;
   uvTask->udfc = task->session->udfc;
+  uvTask->session = task->session;
 
   if (uvTaskType == UV_TASK_CONNECT) {
   } else if (uvTaskType == UV_TASK_REQ_RSP) {
@@ -1909,8 +2135,6 @@ int32_t udfcInitializeUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvT
 
     uvTask->reqBuf = uv_buf_init(bufBegin, bufLen);
     uvTask->seqNum = request.seqNum;
-  } else if (uvTaskType == UV_TASK_DISCONNECT) {
-    uvTask->pipe = task->session->udfUvPipe;
   }
   if (uv_sem_init(&uvTask->taskSem, 0) != 0) {
     if (uvTaskType == UV_TASK_REQ_RSP) {
@@ -2015,14 +2239,14 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
       break;
     }
     case UV_TASK_DISCONNECT: {
-      uv_pipe_t *pipe = uvTask->pipe;
+      uv_pipe_t *pipe = uvTask->session->udfUvPipe;
       if (pipe == NULL) {
         code = TSDB_CODE_UDF_PIPE_NOT_EXIST;
       } else {
         SClientUvConn *conn = pipe->data;
         QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
-        if (!uv_is_closing((uv_handle_t *)uvTask->pipe)) {
-          uv_close((uv_handle_t *)uvTask->pipe, onUdfcPipeClose);
+        if (!uv_is_closing((uv_handle_t *)pipe)) {
+          uv_close((uv_handle_t *)pipe, onUdfcPipeClose);
         }
         code = 0;
       }
@@ -2241,6 +2465,7 @@ static void freeTaskSession(SClientUdfTask *task) {
 
 int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t         code = TSDB_CODE_SUCCESS, lino = 0;
+  bool            connected = false;
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   if (task == NULL) {
     fnError("doSetupUdf, failed to allocate memory for task");
@@ -2260,6 +2485,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
 
   code = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   TAOS_CHECK_GOTO(code, &lino, _exit);
+  connected = true;
 
   code = udfcRunUdfUvTask(task, UV_TASK_REQ_RSP);
   TAOS_CHECK_GOTO(code, &lino, _exit);
@@ -2278,6 +2504,12 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
 _exit:
   if (code != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d line:%d", udfName, code, lino);
+    if (connected) {
+      int32_t disconnectCode = udfcRunUdfUvTask(task, UV_TASK_DISCONNECT);
+      if (disconnectCode != TSDB_CODE_SUCCESS) {
+        fnError("failed to disconnect invalid udf setup session. udfname: %s, err: %d", udfName, disconnectCode);
+      }
+    }
   }
   freeTaskSession(task);
   taosMemoryFree(task);

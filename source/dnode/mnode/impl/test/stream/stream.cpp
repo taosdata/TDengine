@@ -6506,6 +6506,129 @@ constexpr int64_t MndStreamRecalcRecoveryTest::kStreamB;
 constexpr int64_t MndStreamRecalcRecoveryTest::kRecalcId;
 constexpr int64_t MndStreamRecalcRecoveryTest::kRequestTimeMs;
 
+class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
+ protected:
+  void TearDown() override {
+    stub_.reset(taosHashPut);
+    stub_.reset(tCloneStreamWindowPlan);
+    for (int64_t id : {kStreamA, kStreamB}) {
+      auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &id, sizeof(id)));
+      if (status != nullptr && status->pCreate != Stream(id)->pCreate) {
+        mstDestroySStmStatus(status);
+      }
+    }
+    MndStreamRecalcRecoveryTest::TearDown();
+  }
+
+  void HandleActions() {
+    SStreamHbMsg req = {};
+    req.dnodeId = 1;
+    req.pVgLeaders = taosArrayInit(0, sizeof(int32_t));
+    req.pStreamReq = taosArrayInit(0, sizeof(int32_t));
+    req.pStreamStatus = taosArrayInit(0, sizeof(SStmTaskStatusMsg));
+    ASSERT_NE(req.pVgLeaders, nullptr);
+    ASSERT_NE(req.pStreamReq, nullptr);
+    ASSERT_NE(req.pStreamStatus, nullptr);
+    SStmGrpCtx ctx = {};
+    ctx.pMnode = &mnode_;
+    ctx.currTs = 100;
+    ctx.pReq = &req;
+    ctx.actionStm = actionStm_;
+    ctx.deployStm = deployStm_;
+    EXPECT_EQ(msmNormalHandleHbMsg(&ctx), TSDB_CODE_SUCCESS);
+    tCleanupStreamHbMsg(&req, true);
+  }
+
+  void QueueDeploy(int64_t id) {
+    ASSERT_EQ(mstPostStreamAction(&actionQueue_, id, Stream(kStreamA)->name, nullptr, false, STREAM_ACT_DEPLOY),
+              TSDB_CODE_SUCCESS);
+  }
+
+  int32_t WatchTask() {
+    SStmGrpCtx ctx = {};
+    ctx.pMnode = &mnode_;
+    SStmTaskStatusMsg task = {};
+    task.streamId = kStreamA;
+    task.type = STREAM_READER_TASK;
+    return msmWatchRecordNewTask(&ctx, &task);
+  }
+
+  void FailClone() {
+    Stream(kStreamA)->pCreate->pWindowPlan =
+        static_cast<SStreamWindowPlan *>(taosMemoryCalloc(1, sizeof(SStreamWindowPlan)));
+    ASSERT_NE(Stream(kStreamA)->pCreate->pWindowPlan, nullptr);
+    stub_.set(tCloneStreamWindowPlan, failWindowPlanClone);
+  }
+
+  static int32_t FailHashPut(SHashObj *, const void *, size_t, const void *, size_t) {
+    return terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+};
+
+TEST_F(MndStreamDeployOwnershipTest, StaleActionCannotDeploySameNameReplacement) {
+  QueueDeploy(kStreamB);
+  HandleActions();
+
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 0);
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.taskMap), 0);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StaleActionPreservesReplacementAndContinuesQueue) {
+  SStmStatus *replacement = AddStatus(kStreamA);
+  ASSERT_NE(replacement, nullptr);
+  replacement->deployTimes = 7;
+  QueueDeploy(kStreamB);
+  QueueDeploy(kStreamA);
+  HandleActions();
+
+  EXPECT_EQ(mStreamMgmt.actionQ->qRemainNum, 0);
+  EXPECT_EQ(replacement->deployTimes, 8);
+  EXPECT_EQ(replacement->stopped, 0);
+  EXPECT_NE(replacement->triggerTask, nullptr);
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 1);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, SuccessfulInsertTransfersStatusOwnership) {
+  QueueDeploy(kStreamA);
+  HandleActions();
+
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(status, nullptr);
+  EXPECT_STREQ(status->streamName, Stream(kStreamA)->name);
+  EXPECT_NE(status->pCreate, Stream(kStreamA)->pCreate);
+  ASSERT_NE(status->pCreate, nullptr);
+  EXPECT_EQ(status->pCreate->triggerType, WINDOW_TYPE_INTERVAL);
+  EXPECT_NE(status->triggerTask, nullptr);
+}
+
+// LSan checks that failed initialization/insertion releases the unregistered status.
+TEST_F(MndStreamDeployOwnershipTest, DeployInsertFailureReleasesStatus) {
+  QueueDeploy(kStreamA);
+  stub_.set(taosHashPut, FailHashPut);
+  HandleActions();
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 0);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, DeployCloneFailureReleasesStatus) {
+  QueueDeploy(kStreamA);
+  FailClone();
+  HandleActions();
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 0);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchInsertFailureReleasesStatus) {
+  Stream(kStreamA)->pCreate->triggerTblType = TSDB_NORMAL_TABLE;
+  stub_.set(taosHashPut, FailHashPut);
+  EXPECT_EQ(WatchTask(), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 0);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchCloneFailureReleasesStatus) {
+  FailClone();
+  EXPECT_EQ(WatchTask(), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 0);
+}
+
 TEST_F(MndStreamRecalcRecoveryTest, NewRuntimeRestoresOriginalIdRangeAndRequestTime) {
   AddPersisted(kStreamA);
   SStmStatus status = {};

@@ -549,7 +549,7 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
 
   SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
-    (void)taosThreadMutexUnlock(&pCfg->lock);
+    if (lock) (void)taosThreadMutexUnlock(&pCfg->lock);
     TAOS_RETURN(TSDB_CODE_CFG_NOT_FOUND);
   }
 
@@ -565,6 +565,42 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
     (void)taosThreadMutexUnlock(&pCfg->lock);
   }
 
+  TAOS_RETURN(code);
+}
+
+int32_t cfgSetDirResolved(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype, bool lock) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (pCfg == NULL || name == NULL || value == NULL) TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  if (stype == CFG_STYPE_ALTER_CLIENT_CMD || stype == CFG_STYPE_ALTER_SERVER_CMD) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+
+  if (lock) (void)taosThreadMutexLock(&pCfg->lock);
+
+  SConfigItem *pItem = cfgGetItem(pCfg, name);
+  if (pItem == NULL) {
+    code = TSDB_CODE_CFG_NOT_FOUND;
+  } else if (pItem->dtype != CFG_DTYPE_DIR) {
+    uError("config item %s is not a directory", name);
+    code = TSDB_CODE_INVALID_CFG;
+  } else if (pItem->dynScope != CFG_DYN_NONE) {
+    uError("config directory %s is dynamic and cannot publish a resolved startup value", name);
+    code = TSDB_CODE_INVALID_CFG;
+  } else if (strlen(value) >= PATH_MAX) {
+    uError("resolved config directory %s exceeds %d bytes", name, PATH_MAX - 1);
+    code = TSDB_CODE_INVALID_CFG_VALUE;
+  } else {
+    /* Resolved startup directories use PATH_MAX-sized storage throughout their
+     * consumers. They deliberately bypass cfgSetItemVal/cfgCheckAndSetDir because
+     * startup already supplied the final value, and discard stale restart state. */
+    taosMemoryFreeClear(pItem->restartBaselineStr);
+    pItem->restartBaselineValid = 0;
+    code = cfgSetString(pItem, value, stype);
+    if (code == TSDB_CODE_SUCCESS) pItem->restartRequired = 0;
+  }
+
+  if (lock) (void)taosThreadMutexUnlock(&pCfg->lock);
   TAOS_RETURN(code);
 }
 
@@ -1100,8 +1136,40 @@ const char *cfgDtypeStr(ECfgDataType type) {
   }
 }
 
+// Configuration items whose value is a credential rather than a setting. Their value must never
+// be rendered into a variables listing: ssAccessString carries the object-storage accessKeyId
+// and secretAccessKey (see docs/en/08-operation/12-multi.md), which would otherwise be returned
+// verbatim by SHOW VARIABLES and by information_schema.ins_dnode_variables.
+static const char *cfgSecretItemNames[] = {
+    "ssAccessString",
+};
+
+#define CFG_SECRET_MASK "******"
+
+static bool cfgIsSecretItem(const char *name) {
+  if (name == NULL) return false;
+  for (size_t i = 0; i < sizeof(cfgSecretItemNames) / sizeof(cfgSecretItemNames[0]); ++i) {
+    if (strcasecmp(name, cfgSecretItemNames[i]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 int32_t cfgDumpItemValue(SConfigItem *pItem, char *buf, int32_t bufSize, int32_t *pLen) {
   int32_t len = 0;
+
+  // dumpConfToDataBlock is this function's only caller, i.e. the display path. Persistence goes
+  // through localConfigSerialize/globalConfigSerialize, so masking here cannot corrupt
+  // local.json/global.json.
+  if (cfgIsSecretItem(pItem->name)) {
+    len = snprintf(buf, bufSize, "%s", (pItem->str != NULL && pItem->str[0] != 0) ? CFG_SECRET_MASK : "");
+    if (len < 0) return terrno;
+    if (len > bufSize) len = bufSize;
+    *pLen = len;
+    TAOS_RETURN(TSDB_CODE_SUCCESS);
+  }
+
   switch (pItem->dtype) {
     case CFG_DTYPE_BOOL:
       len = snprintf(buf, bufSize, "%u", pItem->bval);

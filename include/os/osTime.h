@@ -64,6 +64,7 @@ extern "C" {
 int32_t taosGetTimeOfDay(struct timeval *tv);
 
 int32_t taosClockGetTime(int clock_id, struct timespec *pTS);
+int32_t taosGetMonotonicClockId(char *clockId, size_t capacity);
 
 //@return timestamp in second
 int32_t taosGetTimestampSec();
@@ -97,6 +98,13 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
 //@return timestamp of monotonic clock in millisecond
 static FORCE_INLINE int64_t taosGetMonoTimestampMs() {
   return taosClockGetTimestamp(CLOCK_MONOTONIC, MILLISECOND_PER_SECOND);
+}
+
+//@return timestamp of monotonic clock in nanosecond
+// The nanosecond field is retained (actual precision depends on the platform clock),
+// preserving sub-millisecond separation that taosGetMonoTimestampMs discards.
+static FORCE_INLINE int64_t taosGetMonoTimestampNs() {
+  return taosClockGetTimestamp(CLOCK_MONOTONIC, NANOSECOND_PER_SEC);
 }
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);

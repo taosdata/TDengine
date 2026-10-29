@@ -41,13 +41,19 @@ _MULTI_RESULT_TAG_QUERIES = {
 
 
 class _ExtSourceStbQueryMixin:
-    def run_normal_query(self, test_case):
+    def run_normal_query(self, test_case, ans_case=None):
+        """Run one shared .in case and compare against its committed baseline.
+
+        ans_case lets a setup variant compare against its own baseline when the
+        variant legitimately changes the rendered output (mode-2 child tables
+        carry different tag values and widened column types).
+        """
         tdLog.info(f"test case : {test_case}.")
         if test_case in _MULTI_RESULT_TAG_QUERIES:
             tdSql.execute('alter local "multiResultFunctionStarReturnTags" "1";')
         case_dir = os.path.dirname(os.path.dirname(__file__))
         sql_file = os.path.join(case_dir, "in", f"{test_case}.in")
-        ans_file = os.path.join(case_dir, "ans", f"{test_case}.ans")
+        ans_file = os.path.join(case_dir, "ans", f"{ans_case or test_case}.ans")
         VtableQueryUtil.compare_ext_source_testcase_result(
             sql_file, ans_file, test_case, float_tolerance=1e-1
         )
@@ -413,4 +419,9 @@ class TestVTableQueryExtSourceAllStbAgg(_ExtSourceStbAggQueryBase):
         Since: v3.4.4.0
 
         """
-        self.run_normal_query("test_vstable_select_test_projection_timerange_filter")
+        # Mode-2 children carry the "full" tag and the all-sources stable
+        # declares the per-backend column types, so the rendered table (tag cell
+        # and column widths) differs from the mode-1 baseline of the same .in.
+        self.run_normal_query(
+            "test_vstable_select_test_projection_timerange_filter",
+            ans_case="test_vstable_select_test_projection_timerange_filter_mode2")

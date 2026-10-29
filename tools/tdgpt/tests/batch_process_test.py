@@ -21,7 +21,12 @@ import pytest
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/..")
 
-from lib.taosanalytics.algo.envelop.batch_env import gen_batch_envelop, get_default_config
+from lib.taosanalytics.algo.envelop.batch_env import (
+    derivative_check,
+    gen_batch_envelop,
+    get_default_config,
+    normalize_progress,
+)
 
 ############################################
 # boundary test cases
@@ -502,18 +507,19 @@ class TestDataQuality:
         assert len(batches) > 0
 
     def test_duplicate_timestamps(self):
-        """test case: duplicate timestamps"""
+        """A repeated timestamp must not turn the batch into NaN/Inf."""
         time = np.array([0, 1, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         values = np.random.randn(12)
         windows = [(0, 10)]
         config = get_default_config()
 
-        try:
-            center, lower, upper, batches = gen_batch_envelop(
-                time, values, windows, config
-            )
-        except (ValueError, RuntimeError):
-            pass  # interpolation may fail
+        center, lower, upper, batches = gen_batch_envelop(
+            time, values, windows, config
+        )
+
+        assert len(batches) > 0
+        for series in (center, lower, upper):
+            assert np.all(np.isfinite(series))
 
     def test_missing_data_segments(self):
         """test case: missing data segments"""
@@ -592,3 +598,100 @@ class TestConfigurationParameters:
         center, lower, upper, batches = gen_batch_envelop(time, values, windows, config)
 
         assert len(batches) > 0
+
+
+class TestZeroIntervalGuard:
+    """A step whose timestamps do not advance must not become inf/nan.
+
+    `derivative_check` divides by `np.diff(time)`; a window with `end == start`,
+    or a repeated timestamp, gives a zero denominator. Left unguarded the rate is
+    inf/nan, and the threshold comparison then keeps or drops the point by
+    accident -- which is also how NaN reached the envelope.
+    """
+
+    def test_zero_interval_is_not_a_rate(self):
+        time = np.array([0.0, 1.0, 2.0, 3.0])
+        values = np.array([0.0, 10.0, 20.0, 30.0])
+
+        t_out, v_out = derivative_check(time, values, max_rate=100.0)
+
+        assert np.all(np.isfinite(v_out))
+        assert t_out.size == v_out.size
+
+    def test_repeated_timestamp_keeps_the_point(self):
+        """A zero-width step is "no change", so the point survives the filter."""
+        time = np.array([0.0, 0.0, 1.0, 2.0])
+        values = np.array([1.0, 1.0, 2.0, 3.0])
+
+        t_out, v_out = derivative_check(time, values, max_rate=100.0)
+
+        assert np.all(np.isfinite(v_out))
+        assert v_out.size == 4
+
+    def test_fractional_rate_is_not_truncated(self):
+        """With integer values the rate must still be a real number."""
+        time = np.array([0, 10, 20])
+        values = np.array([0, 1, 2])
+
+        t_out, v_out = derivative_check(time, values, max_rate=0.05)
+
+        # rate is 0.1, above the 0.05 threshold: truncating it to 0 would keep it.
+        assert v_out.size == 1
+
+
+class TestNormalizeDegenerateBatches:
+    """`interp1d` needs a strictly increasing grid; the normalizer must supply one."""
+
+    def test_repeated_timestamps_are_collapsed(self):
+        time = np.array([0.0, 0.0, 1.0, 1.0, 2.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+
+        t_norm, v_norm = normalize_progress(time, values, target_len=100)
+
+        assert t_norm.size == 100
+        assert v_norm.size == 100
+        assert np.all(np.isfinite(v_norm))
+
+    def test_a_single_timestamp_yields_a_flat_curve(self):
+        time = np.array([5.0, 5.0, 5.0])
+        values = np.array([2.0, 4.0, 6.0])
+
+        t_norm, v_norm = normalize_progress(time, values, target_len=50)
+
+        assert t_norm.size == 50
+        assert np.allclose(v_norm, 4.0)
+
+
+class TestOutOfOrderTimestamps:
+    """Out-of-order input is reported, never silently trimmed.
+
+    Collapsing repeated timestamps with `np.diff(t_norm) > 0` also dropped every
+    point that followed a decrease, so `[0, 3, 1, 2]` became `[0, 3]` and the
+    interpolated curve had nothing to do with the batch. The pipeline does not
+    sort, so the condition has to be rejected instead.
+    """
+
+    def test_normalization_rejects_a_decreasing_step(self):
+        time = np.array([0.0, 3.0, 1.0, 2.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0])
+
+        with pytest.raises(ValueError, match="ascending"):
+            normalize_progress(time, values, target_len=100)
+
+    def test_normalization_still_collapses_equal_steps(self):
+        time = np.array([0.0, 0.0, 1.0, 2.0])
+        values = np.array([1.0, 2.0, 3.0, 4.0])
+
+        t_norm, v_norm = normalize_progress(time, values, target_len=100)
+
+        assert t_norm.size == 100
+        assert np.all(np.isfinite(v_norm))
+
+    def test_batch_pipeline_reports_unsorted_input(self):
+        time = np.array([0.0, 3.0, 1.0, 2.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0])
+        values = np.random.randn(10)
+        windows = [(0, 10)]
+        config = get_default_config()
+
+        with pytest.raises(ValueError, match="ascending"):
+            gen_batch_envelop(time, values, windows, config)

@@ -22,6 +22,7 @@
 extern "C" {
 #endif
 #include "catalog.h"
+#include "clientWlr.h"
 /*
 typedef enum {
 STMT_TYPE_INSERT = 1,
@@ -170,6 +171,11 @@ typedef struct {
   int32_t           col_idx;
   __taos_async_fn_t fp;
   void             *param;
+  uint64_t          wlrCallId;
+  int64_t           wlrBeginMonoNs;
+  uint64_t          wlrStmtId;
+  uint16_t          wlrApiType;
+  bool              wlrReturnReady;
   bool              is_columnar;  // true for columnar binding, false for row binding
   union {
     TAOS_STMT2_BINDV         *bindv;         // row binding (when is_columnar=false)
@@ -214,6 +220,13 @@ typedef struct {
   char                      msgBuf[128];
   SStmt2LiteralCtx          ctx;
   uint8_t                   literal:1;
+  // Workload recorder: logical statement identity, minted at init. STMT1 and STMT2
+  // share one ID space so a session's statement IDs stay unique regardless of which
+  // API produced them (DS 6.9).
+  uint64_t wlrStmtId;
+  uint64_t wlrExecCallId;
+  int64_t  wlrExecBeginMonoNs;
+  uint16_t wlrExecApiType;
 } STscStmt2;
 /*
 extern char *gStmtStatusStr[];
@@ -292,7 +305,7 @@ extern char *gStmt2StatusStr[];
 
 TAOS_STMT2 *stmtInit2(STscObj *taos, TAOS_STMT2_OPTION *pOptions);
 int         stmtClose2(TAOS_STMT2 *stmt);
-int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows);
+int         stmtExec2(TAOS_STMT2 *stmt, int *affected_rows, const SWorkloadCallToken *wlrToken);
 int         stmtPrepare2(TAOS_STMT2 *stmt, const char *sql, unsigned long length);
 int         stmtBindLiteral2(TAOS_STMT2 *stmt);
 int         stmtSetTbName2(TAOS_STMT2 *stmt, const char *tbName);
@@ -310,6 +323,9 @@ TAOS_RES   *stmtUseResult2(TAOS_STMT2 *stmt);
 const char *stmt2Errstr(TAOS_STMT2 *stmt);
 int         stmt2AsyncBind(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx, __taos_async_fn_t fp, void *param);
 int         stmtAsyncBindThreadFunc(void *args);
+/* Internal non-instrumented bind entries implemented beside the public wrappers in clientMain.c. */
+int         stmt2BindParamImpl(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_idx);
+int         stmt2BindParamColumnImpl(TAOS_STMT2 *stmt, TAOS_STMT2_COLUMN_BINDV *bindv);
 void        stmtBuildErrorMsg(STscStmt2 *pStmt, const char *msg);
 int32_t     stmtBuildErrorMsgWithCode(STscStmt2 *pStmt, const char *msg, int32_t errorCode);
 

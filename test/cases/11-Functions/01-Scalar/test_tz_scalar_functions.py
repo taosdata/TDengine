@@ -133,6 +133,9 @@ class _ToIso8601IanaMixin:
             _check_invalid_timezone_detail(
                 f"select to_iso8601(ts, '{tz}') from {self.ntbname}", tz
             )
+        tdSql.error(
+            f"select to_iso8601(ts, '{'A' * 256}') from {self.ntbname}"
+        )
 
     def check_to_iso8601_no_param_uses_l2(self):
         """TO_ISO8601(ts) without tz param should use connection timezone (L2)."""
@@ -346,6 +349,9 @@ class _TimetruncateTzMixin:
             _check_invalid_timezone_detail(
                 f"select timetruncate(ts, 1d, '{tz}') from {self.ntbname}", tz
             )
+        tdSql.error(
+            f"select timetruncate(ts, 1d, '{'A' * 256}') from {self.ntbname}"
+        )
 
     def check_timetruncate_l1_overrides_l2(self):
         """Explicit tz (L1) should override connection timezone (L2)."""

@@ -34,6 +34,7 @@ This suite walks the fixed-width consumers with wider-than-declared values:
   6. value_changes                                    (prev-value interbuf)
   7. interval query with FILL                         (fill cell buffers)
   8. TOP/BOTTOM/TAIL/UNIQUE over the wide column     (reservoir/tail slots)
+  9. UNION / UNION ALL over the wide column          (set-op width alignment)
 
 Local real-table sources are width-widened during planning, so all of the above
 must return correct full-length results (no corruption, no truncation, no
@@ -48,6 +49,7 @@ DB = "td_vtb_wide"
 TS0 = 1700000000000  # base timestamp for source rows
 
 SRC_WIDE_BYTES = 480          # payload length actually stored in the source
+SRC_MID_BYTES = 200           # a second source, wide but narrower than SRC_WIDE_BYTES
 VT_DECLARED_BYTES = 50        # narrow width declared on the virtual table
 
 
@@ -60,6 +62,10 @@ def _pad(tag, ch, total):
 WIDE_A = _pad("groupA", "a", SRC_WIDE_BYTES)
 WIDE_B = _pad("groupB", "b", SRC_WIDE_BYTES)
 WIDE_C = _pad("groupC", "c", SRC_WIDE_BYTES)
+
+# Values for the medium-width source (UNION operands of mixed source widths).
+MID_X = _pad("midX", "x", SRC_MID_BYTES)
+MID_Y = _pad("midY", "y", SRC_MID_BYTES)
 
 ROWS = [
     # (offset_ms, value, group-for-value_changes)
@@ -100,6 +106,19 @@ class TestVtableWiderSourceCol:
         # would mask the fill-cell width behavior under test here.
         tdSql.execute(f"CREATE VTABLE v_fill (ts TIMESTAMP, "
                       f"narrow VARCHAR({VT_DECLARED_BYTES}) FROM wsrc0.wide);")
+
+        # A second source whose column is wide but LESS wide than wsrc0.wide, so a
+        # UNION between the two virtual tables mixes operand widths (the set-op
+        # output must align every operand to the per-position maximum width).
+        tdSql.execute(f"CREATE STABLE wsrc2 (ts TIMESTAMP, mid VARCHAR({SRC_MID_BYTES}), v INT) "
+                      "TAGS (city NCHAR(20));")
+        tdSql.execute("CREATE TABLE wsrc20 USING wsrc2 TAGS ('shanghai');")
+        tdSql.execute(f"INSERT INTO wsrc20 VALUES ({TS0}, '{MID_X}', 10);")
+        tdSql.execute(f"INSERT INTO wsrc20 VALUES ({TS0 + 1000}, '{MID_Y}', 11);")
+        tdSql.execute(f"INSERT INTO wsrc20 VALUES ({TS0 + 2000}, '{MID_X}', 12);")
+        tdSql.execute(f"CREATE VTABLE v_mid (ts TIMESTAMP, "
+                      f"mid VARCHAR({VT_DECLARED_BYTES}) FROM wsrc20.mid, "
+                      f"v INT FROM wsrc20.v) TAGS (city NCHAR(20) FROM wsrc20.city);")
         tdLog.info("=== setup complete ===")
         yield
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB};")
@@ -699,3 +718,247 @@ class TestVtableWiderSourceCol:
         finally:
             tdSql.execute(f"DROP TABLE {DB}.vs_narrow;")
         self._alive("virtual super table wide projection")
+
+    # ==================================================================
+    # 9. set operations over the wide column
+    # ==================================================================
+
+    def test_wide_union_all(self):
+        """Wide: UNION ALL over the same virtual table keeps full-length values.
+
+        1. UNION ALL two disjoint WHERE halves of the virtual table
+        2. All six rows come back
+        3. Every value keeps the full 480-byte source length
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT narrow FROM {DB}.v_narrow WHERE v <= 2 "
+                          f"UNION ALL "
+                          f"SELECT narrow FROM {DB}.v_narrow WHERE v > 2;")
+        assert len(rows) == len(ROWS)
+        got = sorted(r[0] for r in rows)
+        assert got == sorted(v for _ms, v, _g in ROWS), "UNION ALL lost or truncated values"
+        tdLog.info(f"  PASS: UNION ALL returned {len(rows)} full {SRC_WIDE_BYTES}-byte values")
+
+    def test_wide_union_all_mixed_width(self):
+        """Wide: UNION ALL operands with different source widths all stay intact.
+
+        1. UNION ALL the 480-byte virtual table with the 200-byte one
+        2. Five rows come back
+        3. Each operand's values keep their own full length (480 / 200), proving the
+           set-op output aligned every operand to the maximum width without
+           truncating or padding either side
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT narrow FROM {DB}.v_narrow WHERE v <= 1 "
+                          f"UNION ALL "
+                          f"SELECT mid FROM {DB}.v_mid;")
+        assert len(rows) == 5, f"expected 5 rows, got {len(rows)}"
+        for r in rows:
+            val = r[0]
+            if val.startswith("group"):
+                assert len(val) == SRC_WIDE_BYTES, f"wide operand truncated to {len(val)}"
+            elif val.startswith("mid"):
+                assert len(val) == SRC_MID_BYTES, f"mid operand truncated to {len(val)}"
+            else:
+                assert False, f"unexpected value prefix: {val[:16]}"
+        tdLog.info("  PASS: mixed-width UNION ALL kept 480- and 200-byte operands intact")
+
+    def test_wide_union_all_multi_col(self):
+        """Wide: multi-column UNION ALL aligns widths per position, no column mixups.
+
+        1. UNION ALL (v, narrow, ts) from both WHERE halves of the virtual table
+        2. All six rows come back
+        3. Each row's narrow length matches the 480-byte source and the v/ts pair
+           matches the row that carried that exact value, so per-position width
+           alignment cannot have shifted columns
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT v, narrow, CAST(ts AS BIGINT) FROM {DB}.v_narrow WHERE v <= 2 "
+                          f"UNION ALL "
+                          f"SELECT v, narrow, CAST(ts AS BIGINT) FROM {DB}.v_narrow WHERE v > 2;")
+        assert len(rows) == len(ROWS)
+        exp = {(str(ms // 1000), val, str(TS0 + ms)) for ms, val, _g in ROWS}
+        got = {(r[0], r[1], r[2]) for r in rows}
+        assert got == exp, "multi-column UNION ALL mixed up column values"
+        for _v, val, _ts in rows:
+            assert len(val) == SRC_WIDE_BYTES, f"value truncated to {len(val)}"
+        tdLog.info("  PASS: multi-column UNION ALL kept columns and widths aligned")
+
+    def test_wide_union_dedup(self):
+        """Wide: UNION dedup keeps one full-length copy of each wide value.
+
+        1. UNION (deduplicating) the same virtual table with itself
+        2. Exactly the three distinct wide values survive
+        3. Each keeps the full 480-byte source length
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT narrow FROM {DB}.v_narrow "
+                          f"UNION "
+                          f"SELECT narrow FROM {DB}.v_narrow;")
+        got = sorted(r[0] for r in rows)
+        assert got == sorted({WIDE_A, WIDE_B, WIDE_C}), "UNION dedup lost or truncated values"
+        tdLog.info(f"  PASS: UNION dedup kept {len(got)} full-length distinct values")
+
+    def test_wide_union_order_limit(self):
+        """Wide: UNION ALL with ORDER BY + LIMIT over wide values.
+
+        1. UNION ALL both halves, order by the wide column descending, keep 2 rows
+        2. The two lexicographically largest 480-byte values come back
+        3. Both keep the full source length
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT narrow FROM {DB}.v_narrow WHERE v <= 2 "
+                          f"UNION ALL "
+                          f"SELECT narrow FROM {DB}.v_narrow WHERE v > 2 "
+                          f"ORDER BY narrow DESC LIMIT 2;")
+        assert len(rows) == 2
+        got = [r[0] for r in rows]
+        exp = sorted((v for _ms, v, _g in ROWS), reverse=True)[:2]
+        assert got == exp, "ORDER BY/LIMIT over UNION ALL returned wrong rows"
+        tdLog.info("  PASS: UNION ALL + ORDER BY + LIMIT over wide values")
+
+    def test_wide_union_normal_operand(self):
+        """Wide: UNION ALL of the virtual table with the plain source table.
+
+        1. UNION ALL the virtual table half with a direct query on the source table
+        2. All six source rows come back
+        3. Both operands keep the full 480-byte length, proving a non-virtual
+           operand was width-aligned alongside the widened one
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT narrow FROM {DB}.v_narrow WHERE v <= 2 "
+                          f"UNION ALL "
+                          f"SELECT wide FROM {DB}.wsrc0 WHERE v > 2;")
+        assert len(rows) == len(ROWS)
+        got = sorted(r[0] for r in rows)
+        assert got == sorted(v for _ms, v, _g in ROWS), "normal-operand UNION ALL lost values"
+        tdLog.info("  PASS: virtual UNION ALL normal-table operand kept widths aligned")
+
+    def test_wide_union_nested(self):
+        """Wide: three nested UNION ALL branches over mixed virtual tables.
+
+        1. UNION ALL three branches: two slices of the wide virtual table and the
+           medium-width virtual table
+        2. Six rows come back (2 + 1 + 3)
+        3. Every value keeps its operand's own full length (480 / 200)
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT narrow FROM {DB}.v_narrow WHERE v <= 1 "
+                          f"UNION ALL "
+                          f"SELECT narrow FROM {DB}.v_narrow WHERE v = 5 "
+                          f"UNION ALL "
+                          f"SELECT mid FROM {DB}.v_mid;")
+        assert len(rows) == 6, f"expected 6 rows, got {len(rows)}"
+        for r in rows:
+            val = r[0]
+            if val.startswith("group"):
+                assert len(val) == SRC_WIDE_BYTES
+            else:
+                assert len(val) == SRC_MID_BYTES
+        tdLog.info("  PASS: nested three-branch UNION ALL kept all widths intact")
+
+    def test_wide_union_subquery_agg(self):
+        """Wide: outer aggregation over a wide UNION ALL subquery reads full values.
+
+        1. Feed the UNION ALL of both halves into an outer COUNT(*)/SUM(LENGTH())
+        2. COUNT equals the six source rows
+        3. SUM(LENGTH()) equals 6 * 480 bytes, so the outer aggregate consumed the
+           full-length values rather than declared-width truncations
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.1.0
+
+        Labels: virtual, query, width, union
+
+        Jira: None
+
+        History:
+            - 2026-10-12 Created
+        """
+        rows = self._rows(f"SELECT COUNT(*), SUM(LENGTH(narrow)) FROM "
+                          f"(SELECT narrow FROM {DB}.v_narrow WHERE v <= 2 "
+                          f"UNION ALL "
+                          f"SELECT narrow FROM {DB}.v_narrow WHERE v > 2);")
+        assert int(rows[0][0]) == len(ROWS), f"count mismatch: {rows[0][0]}"
+        assert int(rows[0][1]) == len(ROWS) * SRC_WIDE_BYTES, \
+            f"length sum {rows[0][1]} != {len(ROWS) * SRC_WIDE_BYTES} (values truncated)"
+        tdLog.info(f"  PASS: outer agg read {rows[0][0]} x {SRC_WIDE_BYTES} bytes from UNION ALL")

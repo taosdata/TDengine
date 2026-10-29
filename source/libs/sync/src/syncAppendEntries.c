@@ -98,6 +98,23 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
   SSyncRaftEntry*    pEntry = NULL;
   bool               resetElect = false;
 
+  // GHSA-q86r-32wm-qwpg (CWE-125): the RPC dispatch path (vmWorker.c /
+  // mmWorker.c) only guarantees contLen >= sizeof(SMsgHead) (8 bytes), which is
+  // far smaller than the full SyncAppendEntries header (~90 bytes). The handler
+  // below dereferences pMsg->srcId, pMsg->term and pMsg->prevLogIndex, all of
+  // which sit inside that header. Reading those fields from a frame shorter than
+  // the header would be a heap out-of-bounds read. The finding (item 261) requires
+  // contLen >= sizeof(SyncAppendEntries) *before any field access*, so reject a
+  // too-short frame here, before dereferencing anything. A legitimate
+  // SyncAppendEntries always carries contLen >= sizeof(SyncAppendEntries)
+  // (syncBuildAppendEntriesFromRaftEntry sets contLen = sizeof + dataLen, with
+  // dataLen >= 0), so this never rejects a well-formed message.
+  if ((uint32_t)pRpcMsg->contLen < (uint32_t)sizeof(SyncAppendEntries)) {
+    sError("vgId:%d, append entries frame too short for header. contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncAppendEntries));
+    goto _IGNORE;
+  }
+
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
     syncLogRecvAppendEntries(ths, pMsg, "not in my config", &pRpcMsg->info.traceId);
@@ -152,8 +169,10 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 
   // Reject when the declared entry data does not fit in the received RPC buffer,
   // or when the embedded 'bytes' field is inconsistent with the real buffer size.
-  if ((uint32_t)pRpcMsg->contLen < (uint32_t)sizeof(SyncAppendEntries) ||
-      pMsg->dataLen > (uint32_t)pRpcMsg->contLen - (uint32_t)sizeof(SyncAppendEntries)) {
+  // Note: contLen >= sizeof(SyncAppendEntries) is already guaranteed by the early
+  // header-size check at the top of this function, so the subtraction below
+  // cannot underflow and the first clause of the original check is now redundant.
+  if (pMsg->dataLen > (uint32_t)pRpcMsg->contLen - (uint32_t)sizeof(SyncAppendEntries)) {
     sError("vgId:%d, append entries dataLen overflows RPC buffer. prev index:%" PRId64 ", term:%" PRId64
            ", datalen:%u, contLen:%d",
            ths->vgId, pMsg->prevLogIndex, pMsg->prevLogTerm, pMsg->dataLen, pRpcMsg->contLen);

@@ -10385,6 +10385,11 @@ int32_t tSerializeSVTableRefResolveReq(void *buf, int32_t bufLen, const SVTableR
     }
   }
 
+  // Trailing optional field. It sits after the group payload on purpose so a peer
+  // built before txn propagation simply stops decoding earlier and still parses
+  // the frame; it then resolves against the committed snapshot like it used to.
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -10449,6 +10454,15 @@ int32_t tDeserializeSVTableRefResolveReq(void *buf, int32_t bufLen, SVTableRefRe
       goto _exit;
     }
     pendingCols = NULL;  // ownership transferred to groups
+  }
+
+  // Trailing optional field: absent in frames produced before txn propagation
+  // existed. Missing it degrades this request to the committed snapshot instead
+  // of failing the whole RPC, so a mixed-version cluster keeps resolving refs.
+  if (decoder.size - decoder.pos >= (int32_t)sizeof(int64_t)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  } else {
+    pReq->txnId = 0;
   }
 
   tEndDecode(&decoder);

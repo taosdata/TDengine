@@ -1,5 +1,5 @@
 ---
-title: 存储转发（Store and Forward）
+title: taosX-Agent 存储转发
 sidebar_label: 存储转发
 toc_max_heading_level: 4
 ---

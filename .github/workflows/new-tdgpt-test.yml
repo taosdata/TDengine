@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -66,7 +66,7 @@ jobs:
 
       - name: Checking the code with pylint
         run: |
-          pylint $(git ls-files '*.py') --exit-zero
+          git ls-files -z '*.py' | xargs -0 -r pylint --exit-zero
 
       - name: Checking the code with flake8
         run: |
@@ -76,10 +76,73 @@ jobs:
           flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
       - name: Run test cases with pytest
+        env:
+          TDGPT_CONF: ${{ runner.temp }}/tdgpt-test.config.py
         run: |
+          python - <<'PY'
+          import os
+          import tempfile
+          from pathlib import Path
+
+          root = Path(tempfile.mkdtemp(prefix="tdgpt-test-", dir=os.environ["RUNNER_TEMP"]))
+          paths = {
+              "app_log": root / "log" / "taosanode.app.log",
+              "model_dir": root / "model",
+              "dynamic_model_dir": root / "model" / "dynamic",
+              "img_dir": root / "img",
+              "resource_dir": root / "resource",
+          }
+          for key, path in paths.items():
+              (path.parent if key == "app_log" else path).mkdir(parents=True, exist_ok=True)
+          Path(os.environ["TDGPT_CONF"]).write_text(
+              "".join(f"{key} = {str(path)!r}\n" for key, path in paths.items()),
+              encoding="utf-8",
+          )
+          PY
           pytest
 
+  validate_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate changed test files
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python - <<'PYTHON'
+          import os
+          import subprocess
+          import sys
+          from pathlib import PurePosixPath
+
+          changed = subprocess.check_output([
+              "git", "diff", "--name-only", "-z", "--diff-filter=ACMR",
+              f'{os.environ["BASE_SHA"]}...{os.environ["HEAD_SHA"]}', "--", "test/cases/",
+          ])
+          failed = False
+          for raw in changed.split(b"\0"):
+              if not raw:
+                  continue
+              path = os.fsdecode(raw)
+              name = PurePosixPath(path).name
+              if not (name.startswith("test_") and name.endswith(".py")):
+                  continue
+              print(f"Validating {path}", flush=True)
+              result = subprocess.run([sys.executable, ".github/scripts/validate_tests.py", path])
+              failed = failed or result.returncode != 0
+          sys.exit(int(failed))
+          PYTHON
+
+  # Disabled by request: Linux functional tests use the self-hosted runner.
   function-tests:
+    if: ${{ false }}
     uses: taosdata/.github/.github/workflows/new-tdgpt-test.yml@main
     with:
       tdinternal: false

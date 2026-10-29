@@ -3948,14 +3948,21 @@ int32_t vnodeCalculateNodeGroupReadRanges(STimeRangeNode* node, SStreamRuntimeFu
       current.valid = current.window.skey < current.window.ekey;
       if (current.valid) --current.window.ekey;
     }
-    if (pRanges != NULL && taosArrayPush(pRanges, &current) == NULL) {
-      code = terrno;
-      goto _exit;
-    }
     if (current.valid) {
+      // combined remains the effective MAIN range. Per-group reader ranges widen
+      // only for predecessor lookup and therefore intentionally keep a different skey.
       combined.skey = TMIN(combined.skey, current.window.skey);
       combined.ekey = TMAX(combined.ekey, current.window.ekey);
       combinedValid = true;
+      if (pRanges != NULL && pRuntime->withExternalWindow && pRuntime->externalWindowNeedsPrevRow) {
+        current.window.skey = INT64_MIN;
+      }
+    }
+    // Preserve one entry per curGrpRead index. qInstallReaderTableRanges uses
+    // valid=false entries as empty bindings and requires positional parity.
+    if (pRanges != NULL && taosArrayPush(pRanges, &current) == NULL) {
+      code = terrno;
+      goto _exit;
     }
   }
   if (combinedValid) *pRange = combined;
@@ -5585,7 +5592,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   SArray *uidList = fullScan ? NULL : req->virTableInfoReq.uids;
   STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
-                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result));
+                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result, 0));
 
   // Acquire meta reader lock only after the cross-vnode RPC round-trip is done.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
@@ -5614,7 +5621,11 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   }
 
   int32_t rc = streamCacheCommitResolved(sStreamReaderInfo->vtbCache, fullScan, cids, tagCids, &uid2Result);
-  if (rc != 0) { code = rc; goto end; }
+  if (rc != 0) {
+    code = rc;
+    lino = __LINE__;
+    goto end;
+  }
 
 end:
   if (tagCids != NULL) taosArrayDestroy(tagCids);
@@ -5773,7 +5784,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     // TDMT_MND_GET_DB_INFO to mnode for the same db.
     code = streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
                                        req->virTablePseudoColReq.ver,
-                                       singleUid, emptyCols, tagOnly, &uid2Result);
+                                       singleUid, emptyCols, tagOnly, &uid2Result, 0);
     taosArrayDestroy(tagOnly); tagOnly = NULL;
     STREAM_CHECK_RET_GOTO(code);
 
@@ -6137,6 +6148,7 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
       } else {
         ST_TASK_DLOG("vgId:%d %s no interp time range node", TD_VID(pVnode), __func__);
       }
+
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);

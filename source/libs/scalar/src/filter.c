@@ -435,84 +435,92 @@ __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
     return NULL;
   }
 
+  bool rightSigned = rType == TSDB_DATA_TYPE_BOOL || IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType);
+  bool rightUnsigned = IS_UNSIGNED_NUMERIC_TYPE(rType);
+  if (!rightSigned && !rightUnsigned) {
+    return NULL;
+  }
+  int32_t rightIndex = rType == TSDB_DATA_TYPE_BOOL ? 0 :
+                       rightSigned ? rType - TSDB_DATA_TYPE_TINYINT : rType - TSDB_DATA_TYPE_UTINYINT;
+
   switch (lType) {
     case TSDB_DATA_TYPE_TINYINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gInt8SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gInt8SignCompare[rightIndex];
       } else {
-        return gInt8UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gInt8UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gInt16SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gInt16SignCompare[rightIndex];
       } else {
-        return gInt16UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gInt16UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gInt32SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gInt32SignCompare[rightIndex];
       } else {
-        return gInt32UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gInt32UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gInt64SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gInt64SignCompare[rightIndex];
       } else {
-        return gInt64UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gInt64UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gFloatSignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gFloatSignCompare[rightIndex];
       } else {
-        return gFloatUsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gFloatUsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gDoubleSignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gDoubleSignCompare[rightIndex];
       } else {
-        return gDoubleUsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gDoubleUsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gUint8SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gUint8SignCompare[rightIndex];
       } else {
-        return gUint8UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gUint8UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gUint16SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gUint16SignCompare[rightIndex];
       } else {
-        return gUint16UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gUint16UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gUint32SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gUint32SignCompare[rightIndex];
       } else {
-        return gUint32UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gUint32UsignCompare[rightIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
-      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
-        return gUint64SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      if (rightSigned) {
+        return gUint64SignCompare[rightIndex];
       } else {
-        return gUint64UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+        return gUint64UsignCompare[rightIndex];
       }
       break;
     }
@@ -1358,6 +1366,10 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
   int32_t  code = 0;
 
   if (node->opType == OP_TYPE_IN && (!IS_VAR_DATA_TYPE(type))) {
+    if (type <= TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+      code = TSDB_CODE_QRY_INVALID_INPUT;
+      FLT_ERR_RET(code);
+    }
     SNodeListNode *listNode = (SNodeListNode *)node->pRight;
 
     SScalarParam out = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
@@ -1365,7 +1377,7 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
       return terrno;
     }
     out.columnData->info.type = type;
-    out.columnData->info.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;  // reserved space for simple_copy
+    out.columnData->info.bytes = TMAX(tDataTypes[type].bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
 
     int32_t overflowCount = 0;
     SNode  *nodeItem = NULL;
@@ -1392,12 +1404,19 @@ int32_t fltAddGroupUnitFromNode(void *pContext, SFilterInfo *info, SNode *tree, 
         }
         out.columnData->pData = NULL;
       } else {
-        void *data = taosMemoryCalloc(1, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);  // reserved space for simple_copy
+        const void *value = nodesGetValueFromNode(valueNode);
+        if (value == NULL) {
+          code = TSDB_CODE_QRY_INVALID_INPUT;
+          break;
+        }
+        len = tDataTypes[type].bytes;
+        size_t dataBytes = TMAX(len, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+        void *data = taosMemoryCalloc(1, dataBytes);
         if (NULL == data) {
           code = terrno;
           break;
         }
-        (void)memcpy(data, nodesGetValueFromNode(valueNode), tDataTypes[type].bytes);
+        (void)memcpy(data, value, len);
         code = filterAddField(info, NULL, (void **)&data, FLD_TYPE_VALUE, &right, len, true, NULL);
         if (TSDB_CODE_SUCCESS != code) {
           break;
@@ -2301,6 +2320,9 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     uint32_t      type = FILTER_UNIT_DATA_TYPE(unit);
+    if (type <= TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
     int8_t        precision = FILTER_UNIT_DATA_PRECISION(unit);
     SFilterField *fi = right;
 
@@ -2340,12 +2362,25 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     SDataType *dType = &var->node.resType;
     if (dType->type == type) {
-      size_t bufBytes = TMAX(dType->bytes, sizeof(int64_t));
+      const void *value = nodesGetValueFromNode(var);
+      if (value == NULL || dType->bytes <= 0) {
+        return TSDB_CODE_QRY_INVALID_INPUT;
+      }
+      size_t valueBytes = 0;
+      if (IS_VAR_DATA_TYPE(type)) {
+        valueBytes = IS_STR_DATA_BLOB(type) ? blobDataTLen(value) : varDataTLen(value);
+      } else {
+        valueBytes = tDataTypes[type].bytes;
+        if (dType->bytes < (int32_t)valueBytes) {
+          return TSDB_CODE_QRY_INVALID_INPUT;
+        }
+      }
+      size_t bufBytes = TMAX(valueBytes, sizeof(int64_t));
       fi->data = taosMemoryCalloc(1, bufBytes);
       if (fi->data == NULL) {
         FLT_ERR_RET(terrno);
       }
-      assignVal(fi->data, nodesGetValueFromNode(var), dType->bytes, type);
+      (void)memcpy(fi->data, value, valueBytes);
     } else {
       // The comparison type is the left column type. Convert and cache the
       // constant now so row evaluation never performs charset conversion for
@@ -2398,14 +2433,20 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if (type == TSDB_DATA_TYPE_NCHAR && (unit->compare.optr == OP_TYPE_MATCH || unit->compare.optr == OP_TYPE_NMATCH)) {
-      char    newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-      int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), varDataLen(fi->data), varDataVal(newValData), NULL);
+      int32_t inputLen = varDataLen(fi->data);
+      char   *newValData = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
+      if (newValData == NULL) {
+        return terrno;
+      }
+      int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(fi->data), inputLen, varDataVal(newValData), NULL);
       if (len < 0) {
-        qError("%s failed to convert NCHAR value to string, len:%d", __func__, (int32_t)varDataLen(fi->data));
+        taosMemoryFree(newValData);
+        qError("%s failed to convert NCHAR value to string, len:%d", __func__, inputLen);
         return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
+      taosMemoryFree(newValData);
     }
   }
 
@@ -3308,6 +3349,13 @@ int32_t filterUpdateComUnits(SFilterInfo *info) {
     SFilterUnit *unit = &info->units[i];
 
     SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, unit);
+    SColumnInfoData *columnData = col->data;
+    if (columnData == NULL || columnData->info.type < TSDB_DATA_TYPE_NULL ||
+        columnData->info.type >= TSDB_DATA_TYPE_MAX ||
+        (!IS_VAR_DATA_TYPE(columnData->info.type) &&
+         columnData->info.bytes < tDataTypes[columnData->info.type].bytes)) {
+      return TSDB_CODE_QRY_INVALID_INPUT;
+    }
     info->cunits[i].colData = col->data;
   }
 
@@ -3740,21 +3788,12 @@ int32_t filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *p
     // match/nmatch for nchar type need convert from ucs4 to mbs
     if (info->cunits[uidx].dataType == TSDB_DATA_TYPE_NCHAR &&
         (info->cunits[uidx].optr == OP_TYPE_MATCH || info->cunits[uidx].optr == OP_TYPE_NMATCH)) {
-      // The conversion buffer is sized by the declared column width; a virtual table column
-      // may carry a value wider than declared (full source value by design) -- refuse to
-      // overrun the buffer.  Threshold basis: taosUcs4ToMbs emits at most one UTF-8 code
-      // point (<= 4 bytes) per UCS-4 code point (4 bytes), so its output never exceeds
-      // the ucs4 input byte count; the buffer holds dataSize code points' worth of ucs4.
-      int32_t colDataCap = (int32_t)(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE);
-      if ((int32_t)varDataLen(colData) > colDataCap) {
-        qError("%s nchar value needs %d bytes, buffer width is %d", __func__, (int32_t)varDataLen(colData), colDataCap);
-        FLT_ERR_RET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
-      }
-      char *newColData = taosMemoryCalloc(info->cunits[uidx].dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
+      int32_t inputLen = varDataLen(colData);
+      char *newColData = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
       if (newColData == NULL) {
         FLT_ERR_RET(terrno);
       }
-      int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData), NULL);
+      int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), inputLen, varDataVal(newColData), NULL);
       if (len < 0) {
         qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
                (int32_t)varDataLen(colData));
@@ -3833,22 +3872,13 @@ int32_t filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
           } else {
             if (cunit->dataType == TSDB_DATA_TYPE_NCHAR &&
                 (cunit->optr == OP_TYPE_MATCH || cunit->optr == OP_TYPE_NMATCH)) {
-              // The conversion buffer is sized by the declared column width; a virtual table
-              // column may carry a value wider than declared (full source value by design) --
-              // the ucs4-to-mbs output is bounded by the actual ucs4 length (<= 4 output
-              // bytes per 4-byte ucs4 code point), refuse to overrun the buffer.
-              int32_t colDataCap = (int32_t)(cunit->dataSize * TSDB_NCHAR_SIZE);
-              if ((int32_t)varDataLen(colData) > colDataCap) {
-                qError("%s nchar value needs %d bytes, buffer width is %d", __func__, (int32_t)varDataLen(colData),
-                       colDataCap);
-                FLT_ERR_RET(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
-              }
-              char *newColData = taosMemoryCalloc(cunit->dataSize * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE, 1);
+              int32_t inputLen = varDataLen(colData);
+              char *newColData = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
               if (newColData == NULL) {
                 FLT_ERR_RET(terrno);
               }
-              int32_t len =
-                  taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), varDataLen(colData), varDataVal(newColData), NULL);
+              int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(colData), inputLen,
+                                          varDataVal(newColData), NULL);
               if (len < 0) {
                 qError("%s failed to convert NCHAR column value to string for match/nmatch, len:%d", __func__,
                        (int32_t)varDataLen(colData));

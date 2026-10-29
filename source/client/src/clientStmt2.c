@@ -17,6 +17,7 @@
 
 #include "clientInt.h"
 #include "clientLog.h"
+#include "clientWlr.h"
 #include "taoserror.h"
 #include "tdef.h"
 #include "tglobal.h"
@@ -35,6 +36,55 @@ static int32_t stmtRefreshNormalTableBlock(STscStmt2* pStmt, STableDataCxt* pBlo
                                            const char* tbName, bool updateBindInfo);
 static bool stmtTableSchemaMatches(const STableMeta* pOldMeta, const STableMeta* pNewMeta);
 static void stmtClearExecResult2(STscStmt2* pStmt);
+
+static void stmt2WlrExecDone(STscStmt2 *pStmt, int32_t code, TAOS_RES *res) {
+  SRequestObj *request = res != NULL && TD_RES_QUERY(res) ? (SRequestObj *)res : NULL;
+  uint64_t callId = request != NULL ? request->wlrStmtExecCallId : 0;
+  if (callId == 0) callId = pStmt->wlrExecCallId;
+  if (callId == 0) return;
+
+  SWorkloadCallToken token = {0};
+  token.callId = callId;
+  token.beginMonoNs = request != NULL && request->wlrStmtExecCallId != 0
+                          ? request->wlrStmtExecBeginMonoNs
+                          : pStmt->wlrExecBeginMonoNs;
+  token.apiType = request != NULL && request->wlrStmtExecCallId != 0
+                      ? request->wlrStmtExecApiType
+                      : pStmt->wlrExecApiType;
+  token.recorded = true;
+
+  SWorkloadDoneArgs done = {0};
+  done.code = code;
+  done.logicalStmtId = pStmt->wlrStmtId;
+  if (res != NULL && TD_RES_QUERY(res)) {
+    SRequestObj *request = (SRequestObj *)res;
+    if (request->wlrResultId == 0) request->wlrResultId = wlrNextResultId();
+    done.logicalResultId = request->wlrResultId;
+  }
+  done.affectedRows = pStmt->exec.affectedRows;
+  wlrAsyncDone(&token, &done);
+  if (request != NULL && request->wlrStmtExecCallId == callId) request->wlrStmtExecCallId = 0;
+  if (pStmt->wlrExecCallId == callId) pStmt->wlrExecCallId = 0;
+}
+
+static uint64_t stmt2WlrExecCallId(const STscStmt2 *pStmt, const TAOS_RES *res) {
+  const SRequestObj *request = res != NULL && TD_RES_QUERY(res) ? (const SRequestObj *)res : NULL;
+  return request != NULL && request->wlrStmtExecCallId != 0 ? request->wlrStmtExecCallId : pStmt->wlrExecCallId;
+}
+
+static void stmt2WlrInstallLiteralExecToken(STscStmt2 *pStmt, const SWorkloadCallToken *token) {
+  if (pStmt->options.asyncExecFn == NULL || token == NULL || !token->recorded) return;
+  pStmt->wlrExecCallId = token->callId;
+  pStmt->wlrExecBeginMonoNs = token->beginMonoNs;
+  pStmt->wlrExecApiType = token->apiType;
+}
+
+static void stmt2WlrInstallRequestExecToken(SRequestObj *request, const SWorkloadCallToken *token) {
+  if (request == NULL || token == NULL || !token->recorded) return;
+  request->wlrStmtExecCallId = token->callId;
+  request->wlrStmtExecBeginMonoNs = token->beginMonoNs;
+  request->wlrStmtExecApiType = token->apiType;
+}
 
 typedef struct SStmt2RetryTags {
   bool            fixedTags;
@@ -3179,8 +3229,19 @@ static void stmtLiteralCallback(void *param, TAOS_RES *res, int code) {
       pStmt->ctx.executing = 0;
       pStmt->ctx.executed = 1;
 
+      pStmt->exec.affectedRows =
+          pStmt->ctx.code == TSDB_CODE_SUCCESS && !pStmt->ctx.has_result_set &&
+                  pStmt->exec.pRequest != NULL
+              ? taos_affected_rows(pStmt->exec.pRequest)
+              : 0;
+
+      uint64_t wlrParentCallId = stmt2WlrExecCallId(pStmt, pStmt->exec.pRequest);
+      stmt2WlrExecDone(pStmt, pStmt->ctx.code, pStmt->exec.pRequest);
+      SWlrCallbackScope scope;
+      wlrCallbackScopeBegin(wlrParentCallId, &scope);
       pStmt->options.asyncExecFn(pStmt->options.userdata,
           pStmt->exec.pRequest, pStmt->ctx.code);
+      wlrCallbackScopeEnd(&scope);
     } else {
       // NOTE: wake up waiting thread
       tsem_post(&pStmt->ctx.sem);
@@ -3211,7 +3272,7 @@ static int stmtPrepareLiteral2(TAOS_STMT2* stmt) {
   }
 
   taosAsyncQueryImplWithReqid(stmt, connId, sql,
-      stmtLiteralCallback, stmt, false, reqid);
+      stmtLiteralCallback, stmt, false, reqid, false);
   tsem_wait(&pStmt->ctx.sem);
 
   releaseTscObj(connId);
@@ -4770,6 +4831,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
           pNewReq->pWrapper = pWrapper;
           retryCode = createParseContext(pNewReq, &pWrapper->pParseCtx, pWrapper);
           if (retryCode == TSDB_CODE_SUCCESS) {
+            pNewReq->wlrStmtExecCallId = pResult->wlrStmtExecCallId;
+            pNewReq->wlrStmtExecBeginMonoNs = pResult->wlrStmtExecBeginMonoNs;
+            pNewReq->wlrStmtExecApiType = pResult->wlrStmtExecApiType;
             pNewReq->syncQuery = false;
             // Same as first exec: asyncQueryCb invokes user asyncExecFn once with userdata (not raw pStmt as fp's 1st arg).
             pNewReq->body.queryFp = asyncQueryCb;
@@ -4795,8 +4859,13 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
       }
     }
     stmtStoreExecOutcome(pStmt, code, pResult);
+    uint64_t wlrParentCallId = stmt2WlrExecCallId(pStmt, res);
+    stmt2WlrExecDone(pStmt, code, res);
     if (fp) {
+      SWlrCallbackScope scope;
+      wlrCallbackScopeBegin(wlrParentCallId, &scope);
       fp(pStmt->options.userdata, res, code);
+      wlrCallbackScopeEnd(&scope);
     }
   } else {
     if (code == TSDB_CODE_SUCCESS) {
@@ -4805,8 +4874,13 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     }
 
     stmtStoreExecOutcome(pStmt, code, (SRequestObj*)res);
+    uint64_t wlrParentCallId = stmt2WlrExecCallId(pStmt, res);
+    stmt2WlrExecDone(pStmt, code, res);
     if (fp) {
+      SWlrCallbackScope scope;
+      wlrCallbackScopeBegin(wlrParentCallId, &scope);
       fp(pStmt->options.userdata, res, code);
+      wlrCallbackScopeEnd(&scope);
     }
   }
 
@@ -4814,7 +4888,9 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
     pStmt->exec.pRequest->inCallback = false;
   }
 
+  int32_t wlrDepth = wlrInternalBegin();
   int32_t finalCode = stmtFinalizeExecBatch(pStmt, code);
+  wlrInternalEnd(wlrDepth);
   if (finalCode != code) {
     STMT2_ELOG("async exec cleanup failed, code:%d", finalCode);
   } else if (code != TSDB_CODE_SUCCESS) {
@@ -4826,7 +4902,7 @@ static void asyncQueryCb(void* userdata, TAOS_RES* res, int code) {
   }
 }
 
-static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
+static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows, const SWorkloadCallToken* wlrToken) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
 
@@ -4853,6 +4929,7 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
   pStmt->ctx.executing = 1;
 
   // NOTE: triggering execution logic of a prepared literal sql statement
+  stmt2WlrInstallLiteralExecToken(pStmt, wlrToken);
   taosAsyncExecLiteral(stmt);
 
   if (pStmt->options.asyncExecFn == NULL) {
@@ -4864,16 +4941,8 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
     pStmt->ctx.executed = 1;
 
     if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
-      if (affected_rows) {
-        if (pStmt->ctx.has_result_set) {
-          // NOTE: literal sql statement generates a result set
-          *affected_rows = 0;
-        } else {
-          // NOTE: literal sql statement does not generate any result set
-          TAOS_RES *res = pStmt->exec.pRequest;
-          *affected_rows = taos_affected_rows(res);
-        }
-      }
+      pStmt->exec.affectedRows = pStmt->ctx.has_result_set ? 0 : taos_affected_rows(pStmt->exec.pRequest);
+      if (affected_rows) *affected_rows = pStmt->exec.affectedRows;
     }
     return pStmt->ctx.code;
   }
@@ -4882,7 +4951,7 @@ static int stmtExecLiteral2(TAOS_STMT2* stmt, int *affected_rows) {
   return TSDB_CODE_SUCCESS;
 }
 
-int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
+int stmtExec2(TAOS_STMT2* stmt, int* affected_rows, const SWorkloadCallToken* wlrToken) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
   int32_t    code = 0;
   int64_t    startUs = taosGetTimestampUs();
@@ -4899,7 +4968,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
   }
 
   if (stmtIsLiteral(pStmt)) {
-    return stmtExecLiteral2(stmt, affected_rows);
+    return stmtExecLiteral2(stmt, affected_rows, wlrToken);
   }
 
   stmtClearExecResult2(pStmt);
@@ -5046,6 +5115,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows) {
     pRequest->body.queryFp = asyncQueryCb;
     ((SSyncQueryParam*)(pRequest)->body.interParam)->userParam = pStmt;
 
+    stmt2WlrInstallRequestExecToken(pRequest, wlrToken);
     pStmt->execSemWaited = false;
     launchAsyncQuery(pRequest, pStmt->sql.pQuery, NULL, pWrapper);
   }
@@ -5459,12 +5529,36 @@ int32_t stmtAsyncBindThreadFunc(void* args) {
   STscStmt2*  pStmt = (STscStmt2*)targs->stmt;
 
   int code;
+  int32_t wlrDepth = wlrInternalBegin();
   if (targs->is_columnar) {
-    code = taos_stmt2_bind_param_column(targs->stmt, targs->column_bindv);
+    code = stmt2BindParamColumnImpl(targs->stmt, targs->column_bindv);
   } else {
-    code = taos_stmt2_bind_param(targs->stmt, targs->bindv, targs->col_idx);
+    code = stmt2BindParamImpl(targs->stmt, targs->bindv, targs->col_idx);
   }
-  targs->fp(targs->param, NULL, code);
+  wlrInternalEnd(wlrDepth);
+  if (targs->wlrCallId != 0) {
+    (void)taosThreadMutexLock(&pStmt->asyncBindParam.mutex);
+    while (!targs->wlrReturnReady) {
+      (void)taosThreadCondWait(&pStmt->asyncBindParam.waitCond,
+                               &pStmt->asyncBindParam.mutex);
+    }
+    (void)taosThreadMutexUnlock(&pStmt->asyncBindParam.mutex);
+    SWorkloadCallToken token = {0};
+    token.callId = targs->wlrCallId;
+    token.beginMonoNs = targs->wlrBeginMonoNs;
+    token.apiType = targs->wlrApiType;
+    token.recorded = true;
+    SWorkloadDoneArgs done = {.code = code, .logicalStmtId = targs->wlrStmtId};
+    wlrAsyncDone(&token, &done);
+  }
+  if (targs->wlrCallId != 0) {
+    SWlrCallbackScope scope;
+    wlrCallbackScopeBegin(targs->wlrCallId, &scope);
+    targs->fp(targs->param, NULL, code);
+    wlrCallbackScopeEnd(&scope);
+  } else {
+    targs->fp(targs->param, NULL, code);
+  }
   (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
   (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
   (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));

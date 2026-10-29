@@ -1,5 +1,5 @@
 ---
-title: Store and Forward
+title: taosX-Agent Store and Forward
 sidebar_label: Store and Forward
 toc_max_heading_level: 4
 ---

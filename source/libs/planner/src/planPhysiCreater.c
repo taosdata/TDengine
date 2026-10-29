@@ -3793,9 +3793,13 @@ static int32_t addCrossJoinChildAliasKeys(SPhysiPlanContext* pCxt, const SLogicN
   SHashObj* pHash = taosArrayGetP(pCxt->pLocationHelper, pDesc->dataBlockId);
   int32_t targetNum = LIST_LENGTH(pLogicChild->pTargets);
   int32_t slotNum = LIST_LENGTH(pDesc->pSlots);
-  for (int32_t i = 0; NULL != pHash && i < targetNum && i < slotNum; ++i) {
-    SNode* pTarget = nodesListGetNode(pLogicChild->pTargets, i);
-    SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pDesc->pSlots, i);
+  SListCell* pTargetCell = NULL != pLogicChild->pTargets ? pLogicChild->pTargets->pHead : NULL;
+  SListCell* pSlotCell = NULL != pDesc->pSlots ? pDesc->pSlots->pHead : NULL;
+  for (int32_t i = 0; NULL != pHash && i < targetNum && i < slotNum;
+       ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL),
+       pSlotCell = (NULL != pSlotCell ? pSlotCell->pNext : NULL)) {
+    SNode* pTarget = (NULL != pTargetCell ? pTargetCell->pNode : NULL);
+    SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (QUERY_NODE_COLUMN != nodeType(pTarget) || '\0' == ((SColumnNode*)pTarget)->tableAlias[0]) {
       continue;
     }
@@ -5287,6 +5291,8 @@ static int32_t registerVtableFederatedOutputSlots(SPhysiPlanContext* pCxt, SFede
   // slots in the same order; reserve-only scan columns are appended last.
   int32_t outputIdx = 0;
   SNode*  pNode = NULL;
+  SNodeList* pSlots = pScan->node.pOutputDataBlockDesc->pSlots;
+  SListCell* pOutputCell = NULL != pSlots ? pSlots->pHead : NULL;
   FOREACH(pNode, pScan->pScanCols) {
     const SNode* pScanExpr = pNode;
     if (NULL != pScanExpr && QUERY_NODE_TARGET == nodeType(pScanExpr)) {
@@ -5299,10 +5305,13 @@ static int32_t registerVtableFederatedOutputSlots(SPhysiPlanContext* pCxt, SFede
       outputSlotId = getFederatedOutputSlot(pScan, pCol, outputIdx);
     } else {
       SSlotDescNode* pSlot =
-          (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx);
+          NULL != pOutputCell ? (SSlotDescNode*)pOutputCell->pNode : NULL;
       outputSlotId = NULL != pSlot ? pSlot->slotId : -1;
     }
     ++outputIdx;
+    if (NULL != pOutputCell) {
+      pOutputCell = pOutputCell->pNext;
+    }
     if (NULL == pScanExpr || outputSlotId < 0 || (mappedOutput && NULL == pCol)) {
       planError("Invalid federated scan expression or output slot, expr=%p, outputSlotId=%d", pScanExpr,
                 outputSlotId);

@@ -37,7 +37,7 @@ The table uses the default Linux directory. On Windows, replace `/var/log/taos` 
 | taosKeeper | `/var/log/taos` | `taoskeeper_<instance ID>_<date>.log` | `log.path` in `taoskeeper.toml`. See [taosKeeper Reference](../03-components/05-taoskeeper.md) |
 | taosExplorer | `/var/log/taos` | `taosexplorer_<instance ID>_<date>.log` | `log.path` in `explorer.toml`. See [taosExplorer Reference](../03-components/04-explorer.md) |
 | taosX | `/var/log/taos` | `taosx_<instance ID>_<date>.log` | `log.path` in `taosx.toml`. See [taosX Reference](../03-components/06-taosx.md) |
-| taosX-Agent | `/var/log/taos` | `taosx_agent_<instance ID>_<date>.log` | `log.path` in `agent.toml`. See [Configuration Reference](../03-components/07-taosx-agent/configuration.md) |
+| taosX-Agent | `/var/log/taos` | `taosx_agent_<instance ID>_<date>.log` | `log.path` in `agent.toml`. See [Configuration Reference](../03-components/07-taosx-agent/01-configuration.md) |
 | TDgpt (taosanode) | `/var/log/taos/taosanode` | `error.log`, `access.log`, `taosanode.app.log` | TDgpt configuration file. See [Anode Management](../../09-ai-and-advanced-analytics/01-tdgpt/03-management.md) |
 | License center (CLS) | `/var/log/taoscls` | `taoscls.log` | `file` in the `[log]` section of the CLS configuration file. See [Deploy and Activate](../03-components/09-license-center/01-deploy-and-activate.md) |
 

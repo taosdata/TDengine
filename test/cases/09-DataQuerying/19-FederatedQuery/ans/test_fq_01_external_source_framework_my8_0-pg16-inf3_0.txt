@@ -4586,9 +4586,10 @@ count(*)
 1
 ---
 ### CASE-052m[MYS] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052m'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052m'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052m|127.0.0.1|13306|root|fq01_fw_mdb|{"read_timeout_ms":"2000","ssl_mode":"preferred"}
 ---
 ### CASE-052m[MYS] STEP-005 COUNT
 SQL: select count(*) from fq01_src052m.fq01_fw_mdb.src_t
@@ -4608,9 +4609,10 @@ count(*)
 1
 ---
 ### CASE-052m[MYS] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052m'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052m'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052m|127.0.0.1|13306|root|fq01_fw_mdb|{"connect_timeout_ms":"350","ssl_mode":"required"}
 ---
 ### CASE-052m[MYS] STEP-009 QUERY
 SQL: describe external source fq01_src052m
@@ -5699,9 +5701,10 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_src028i|influxdb|127.0.0.1|18086|admin|******|fq01_fw_idb||{"api_token":"******","protocol":"flight_sql"}
 ---
 ### CASE-028i[INF] STEP-004 QUERY
-SQL: select source_name, `type`, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src028i'
+SQL: select source_name, `type`, `host`, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src028i'
 RESULT:
-ERROR: query failed
+source_name|type|host|port|user|database|options
+fq01_src028i|influxdb|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","protocol":"flight_sql"}
 ---
 ### CASE-028i[INF] STEP-005 COUNT
 SQL: select count(*) from fq01_src028i.src_t
@@ -5715,9 +5718,10 @@ RESULT:
 OK
 ---
 ### CASE-028i[INF] STEP-007 QUERY
-SQL: select source_name, `type`, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src028i'
+SQL: select source_name, `type`, `host`, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src028i'
 RESULT:
-ERROR: query failed
+source_name|type|host|port|user|database|options
+fq01_src028i|influxdb|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","protocol":"http"}
 ---
 ### CASE-028i[INF] STEP-008 COUNT
 SQL: select count(*) from fq01_src028i.src_t
@@ -6779,9 +6783,10 @@ count(*)
 1
 ---
 ### CASE-052i[INF] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052i'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052i'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052i|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","protocol":"flight_sql","read_timeout_ms":"2000"}
 ---
 ### CASE-052i[INF] STEP-005 COUNT
 SQL: select count(*) from fq01_src052i.src_t
@@ -6801,9 +6806,10 @@ count(*)
 1
 ---
 ### CASE-052i[INF] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052i'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052i'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052i|127.0.0.1|18086|admin|fq01_fw_idb|{"api_token":"******","connect_timeout_ms":"350","protocol":"http"}
 ---
 ### CASE-052i[INF] STEP-009 QUERY
 SQL: describe external source fq01_src052i
@@ -8971,9 +8977,10 @@ count(*)
 1
 ---
 ### CASE-052p[POS] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, `schema`, options from information_schema.ins_ext_sources where source_name='fq01_src052p'
+SQL: select source_name, host, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052p'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|schema|options
+fq01_src052p|127.0.0.1|15434|postgres|fq01_fw_pdb|public|{"read_timeout_ms":"2000","sslmode":"prefer"}
 ---
 ### CASE-052p[POS] STEP-005 COUNT
 SQL: select count(*) from fq01_src052p.public.src_t
@@ -8993,9 +9000,10 @@ count(*)
 1
 ---
 ### CASE-052p[POS] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, `schema`, options from information_schema.ins_ext_sources where source_name='fq01_src052p'
+SQL: select source_name, host, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052p'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|schema|options
+fq01_src052p|127.0.0.1|15434|postgres|fq01_fw_pdb|public|{"connect_timeout_ms":"350","sslmode":"require"}
 ---
 ### CASE-052p[POS] STEP-009 QUERY
 SQL: describe external source fq01_src052p
@@ -13501,9 +13509,10 @@ count(*)
 1
 ---
 ### CASE-052s[SQL] STEP-004 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052s'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052s'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052s|127.0.0.1|1433|sa|fq01_fw_sdb|{"read_timeout_ms":"2000","trust_server_certificate":"true"}
 ---
 ### CASE-052s[SQL] STEP-005 COUNT
 SQL: select count(*) from fq01_src052s.dbo.src_t
@@ -13523,9 +13532,10 @@ count(*)
 1
 ---
 ### CASE-052s[SQL] STEP-008 QUERY
-SQL: select source_name, host, port, user, database, options from information_schema.ins_ext_sources where source_name='fq01_src052s'
+SQL: select source_name, host, `port`, `user`, `database`, `options` from information_schema.ins_ext_sources where source_name='fq01_src052s'
 RESULT:
-ERROR: query failed
+source_name|host|port|user|database|options
+fq01_src052s|127.0.0.1|1433|sa|fq01_fw_sdb|{"connect_timeout_ms":"350","trust_server_certificate":"true"}
 ---
 ### CASE-052s[SQL] STEP-009 QUERY
 SQL: describe external source fq01_src052s

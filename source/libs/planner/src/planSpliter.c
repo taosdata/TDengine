@@ -2699,6 +2699,13 @@ static int32_t virtualTableSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
     SExchangeLogicNode* pExchange = NULL;
     PLAN_ERR_JRET(splCreateExchangeNode(pCxt, (SLogicNode*)pChild, &pExchange));
 
+    // A dynamic exchange is reused by several original-table readers. Their
+    // individual row caps must not become a cap on the shared exchange.
+    if (info.pVirtual->node.dynamicOp) {
+      nodesDestroyNode(pExchange->node.pLimit);
+      pExchange->node.pLimit = NULL;
+    }
+
     pExchange->dynTbname = nodeType((SLogicNode*)pChild) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pChild)->phTbnameScan : false;
     pExchange->seqRecvData = (info.pVirtual->tableType == TSDB_SUPER_TABLE);
 

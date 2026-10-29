@@ -109,6 +109,19 @@ static void setAllSourcesCompleted(SOperatorInfo* pOperator);
 static void clearSourceResponse(SSourceDataInfo* pDataInfo);
 static void destroyExchangeMultiGroupResult(void* pParam);
 
+int32_t getExchangeReaderSourceOpType(const SOperatorInfo* pOperator) {
+  if (pOperator == NULL || pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || pOperator->info == NULL) {
+    return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  }
+
+  const SExchangeInfo* pExchangeInfo = pOperator->info;
+  if (pExchangeInfo->readerSrcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      pExchangeInfo->readerSrcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    return pExchangeInfo->readerSrcOpType;
+  }
+  return QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+}
+
 static int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code);
 
 // Vtable data-source fetch types. EX_SRC_TYPE_VSTB_SYS_SCAN is deliberately
@@ -1402,8 +1415,11 @@ static int32_t initExchangeOperator(SExchangePhysiNode* pExNode, SExchangeInfo* 
     }
   }
 
-  for (int32_t i = 0; i < numOfSources; ++i) {
-    SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)nodesListGetNode((SNodeList*)pExNode->pSrcEndPoints, i);
+  SListCell* pSrcEndPointCell =
+      NULL != ((SNodeList*)pExNode->pSrcEndPoints) ? ((SNodeList*)pExNode->pSrcEndPoints)->pHead : NULL;
+  for (int32_t i = 0; i < numOfSources;
+       ++i, pSrcEndPointCell = (NULL != pSrcEndPointCell ? pSrcEndPointCell->pNext : NULL)) {
+    SDownstreamSourceNode* pNode = (SDownstreamSourceNode*)(NULL != pSrcEndPointCell ? pSrcEndPointCell->pNode : NULL);
     if (!pNode) {
       qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
       return terrno;
@@ -2369,6 +2385,7 @@ static int32_t serializeStreamFetchReq(void* buf, int32_t bufLen, SResFetchReq* 
     continuation.sessionId = pInfo->sessionId;
     continuation.streamGen = pInfo->streamGen;
     continuation.withExternalWindow = pInfo->withExternalWindow;
+    continuation.externalWindowNeedsPrevRow = pInfo->externalWindowNeedsPrevRow;
     continuation.triggerType = pInfo->triggerType;
     continuation.isWindowTrigger = pInfo->isWindowTrigger;
     continuation.precision = pInfo->precision;
@@ -4544,6 +4561,10 @@ int32_t addSingleExchangeSource(SOperatorInfo* pOperator,
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SExchangeInfo*     pExchangeInfo = pOperator->info;
+  if (pBasicParam->srcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+      pBasicParam->srcOpType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    pExchangeInfo->readerSrcOpType = pBasicParam->srcOpType;
+  }
   SExchangeSrcIndex* pIdx = tSimpleHashGet(pExchangeInfo->pHashSources, &pBasicParam->vgId, sizeof(pBasicParam->vgId));
 
   if (NULL == pIdx) {

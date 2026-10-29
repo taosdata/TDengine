@@ -49,5 +49,9 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
+    # The unit tests reach the trigger/runner state machines through the stTriggerTest*/stRunnerTest*
+    # seams declared in inc/streamTriggerTask.h and inc/streamInt.h. Define BUILD_TEST for the library
+    # as well, otherwise the seams are only declared (never defined) outside production builds.
+    TARGET_COMPILE_DEFINITIONS(new-stream PRIVATE BUILD_TEST)
     ADD_SUBDIRECTORY(test)
 endif(${BUILD_TEST})

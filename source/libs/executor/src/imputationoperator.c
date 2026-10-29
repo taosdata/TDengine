@@ -871,8 +871,8 @@ static int32_t doParseInputForImputation(SAnalysisOperatorInfo* pInfo, SImputati
             return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
           }
 
-          for (int32_t i = 0; i < pFunc->pParameterList->length; ++i) {
-            SNode* pNode = nodesListGetNode(pFunc->pParameterList, i);
+          SNode* pNode = NULL;
+          FOREACH(pNode, pFunc->pParameterList) {
             if (nodeType(pNode) == QUERY_NODE_COLUMN) {
               SColumnNode* pColNode = (SColumnNode*)pNode;
               if (pColNode->isPrimTs && (!assignTs)) {

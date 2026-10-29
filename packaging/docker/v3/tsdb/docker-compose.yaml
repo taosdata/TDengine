@@ -1,0 +1,52 @@
+# Copyright (c) TAOS Data, Inc. All rights reserved.
+#
+# SPDX-License-Identifier: LicenseRef-TAOSData-Commercial
+#
+# This file is proprietary to TAOS Data, Inc. and may contain confidential
+# information. No rights are granted by this file. Use is permitted only
+# under a written agreement with TAOS Data, Inc. or an authorized affiliate.
+# Unauthorized copying, modification, distribution, or disclosure, in whole
+# or in part, by any medium, is strictly prohibited.
+
+services:
+  td1:
+    image: tdengine/tsdb-ee-arm64:3.3.8.4.1130
+    environment:
+      - TAOS_FQDN=td1
+      - TAOS_ROOT_PASSWORD=Abc123!@#
+      - EXPLORER_SKIP_REGISTER=true
+      - TAOS_MONITOR=1
+    ports:
+      - "6030:6030"
+      - "6041:6041"
+      - "6043:6043"
+      - "6044-6049:6044-6049" 
+      - "6060:6060"
+      - "6044-6045:6044-6045/udp"
+
+  td2:
+    image: tdengine/tsdb-ee-arm64:3.3.8.4.1130
+    environment:
+      - TAOS_FQDN=td2
+      - TAOS_MONITOR=1
+      - TAOS_ROOT_PASSWORD=Abc123!@#
+      - TAOS_FIRST_EP=td1:6030
+      - TAOS_DISABLE_EXPLORER=1
+      - TAOS_DISABLE_TAOSX=1
+      - TAOS_DISABLE_KEEPER=1
+      - TAOS_DISABLE_ADAPTER=1
+
+
+  td3:
+    image: tdengine/tsdb-ee-arm64:3.3.8.4.1130
+    environment:
+      - TAOS_FQDN=td3
+      - TAOS_MONITOR=1
+      - TAOS_ROOT_PASSWORD=Abc123!@#
+      - TAOS_FIRST_EP=td1:6030
+      - TAOS_DISABLE_EXPLORER=1
+      - TAOS_DISABLE_TAOSX=1
+      - TAOS_DISABLE_KEEPER=1
+      - TAOS_DISABLE_ADAPTER=1
+
+

@@ -4411,21 +4411,21 @@ RESULT
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
 ### EXP-ds_crypto-02_mysql POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_mysql.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_mysql.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
+-> Projection (columns=1 width=148 input_order=unknown)
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
 ---
 ### EXP-ds_crypto-02_pg POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_pg.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_pg.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
+-> Projection (columns=1 width=65524 input_order=unknown)
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
 ---
 ### EXP-ds_crypto-02_influx POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_influx.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_influx.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
+-> Projection (columns=1 width=65524 input_order=unknown)
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
 ### EXP-ds_crypto-03_mysql POS
@@ -4447,21 +4447,21 @@ RESULT
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
 ### EXP-ds_crypto-04_mysql POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_mysql.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_mysql.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
+-> Projection (columns=1 width=148 input_order=unknown)
    -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=130)
 ---
 ### EXP-ds_crypto-04_pg POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_pg.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_pg.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
+-> Projection (columns=1 width=65524 input_order=unknown)
    -> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65519)
 ---
 ### EXP-ds_crypto-04_influx POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_influx.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_influx.sensor
 RESULT
--> Projection (columns=1 width=65521 input_order=unknown)
+-> Projection (columns=1 width=65524 input_order=unknown)
    -> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65519)
 ---
 ### EXP-ds_typeconv-01_mysql POS
@@ -17382,9 +17382,9 @@ RESULT
    -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (width=130)
 ---
 ### EXP-ds_crypto-02_sqlserver POS
-SQL: select aes_decrypt(region, 'k') from fq_exp_sqlserver.sensor
+SQL: select aes_decrypt(aes_encrypt(region, 'k'), 'k') from fq_exp_sqlserver.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
+-> Projection (columns=1 width=148 input_order=unknown)
    -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (width=130)
 ---
 ### EXP-ds_crypto-03_sqlserver POS
@@ -17394,9 +17394,9 @@ RESULT
    -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (width=130)
 ---
 ### EXP-ds_crypto-04_sqlserver POS
-SQL: select sm4_decrypt(region, 'k') from fq_exp_sqlserver.sensor
+SQL: select sm4_decrypt(sm4_encrypt(region, 'k'), 'k') from fq_exp_sqlserver.sensor
 RESULT
--> Projection (columns=1 width=132 input_order=unknown)
+-> Projection (columns=1 width=148 input_order=unknown)
    -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (width=130)
 ---
 ### EXP-ds_typeconv-02_sqlserver POS

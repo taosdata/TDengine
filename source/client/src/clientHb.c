@@ -426,6 +426,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
 
   SSTbHbRsp hbRsp = {0};
   if (tDeserializeSSTbHbRsp(value, valueLen, &hbRsp) != 0) {
+    tFreeSSTbHbRsp(&hbRsp);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

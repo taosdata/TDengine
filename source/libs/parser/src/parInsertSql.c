@@ -924,9 +924,14 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
           return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
         }
       }
+      if (iv != NULL && ivBytes != TAOS_AES_BLOCK_LEN) {
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsgExt(&pCxt->msg, TSDB_CODE_PAR_INVALID_VARBINARY,
+                                       "iv must be exactly %d bytes, got %d", TAOS_AES_BLOCK_LEN, ivBytes);
+      }
 
       int32_t outputBytes = taes_encrypt_len(inputBytes);
-      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+      if (outputBytes == 0 || outputBytes > bytes - VARSTR_HEADER_SIZE) {
         taosMemoryFree(tmpTokenBuf);
 
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -943,6 +948,11 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
 
       int32_t keypaddedlen = taes_encrypt_len(keyBytes);
+      if (keypaddedlen == 0) {
+        taosMemoryFreeClear(*pData);
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
         taosMemoryFree(tmpTokenBuf);
@@ -952,6 +962,13 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(pKeyPaddingBuf, key, keyBytes);
 
       int32_t len = taosAesEncrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes, iv);
+      if (len < 0) {
+        taosMemoryFree(pKeyPaddingBuf);
+        taosMemoryFreeClear(*pData);
+        *nData = 0;
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_VARBINARY, pSchema->name);
+      }
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
@@ -964,47 +981,12 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
+      bool nullInput = pToken->type == TK_NULL;
       if (TK_NK_STRING != pToken->type && TK_NULL != pToken->type) {
         taosMemoryFree(tmpTokenBuf);
 
         return buildSyntaxErrMsg(&pCxt->msg, "string or null expected", pToken->z);
-      } else if (TK_NULL == pToken->type) {
-        NEXT_VALID_TOKEN(*ppSql, *pToken);
-        if (TK_NK_COMMA != pToken->type) {
-          taosMemoryFree(tmpTokenBuf);
-
-          return buildSyntaxErrMsg(&pCxt->msg, ", expected", pToken->z);
-        }
-
-        NEXT_VALID_TOKEN(*ppSql, *pToken);
-        if (TK_NK_STRING != pToken->type) {
-          taosMemoryFree(tmpTokenBuf);
-
-          return buildSyntaxErrMsg(&pCxt->msg, "key string expected", pToken->z);
-        }
-
-        NEXT_VALID_TOKEN(*ppSql, *pToken);
-        if (TK_NK_RP == pToken->type) {
-          pVal->flag = CV_FLAG_NULL;
-
-          taosMemoryFree(tmpTokenBuf);
-
-          return TSDB_CODE_SUCCESS;
-        } else if (TK_NK_STRING == pToken->type) {
-          NEXT_VALID_TOKEN(*ppSql, *pToken);
-          if (TK_NK_RP == pToken->type) {
-            pVal->flag = CV_FLAG_NULL;
-
-            taosMemoryFree(tmpTokenBuf);
-
-            return TSDB_CODE_SUCCESS;
-          }
-        } else {
-          taosMemoryFree(tmpTokenBuf);
-
-          return buildSyntaxErrMsg(&pCxt->msg, "iv string expected", pToken->z);
-        }
-      } else {
+      } else if (!nullInput) {
         inputBytes = trimString(pToken->z, pToken->n, tmpTokenBuf, TSDB_MAX_BYTES_PER_ROW);
         input = tmpTokenBuf;
       }
@@ -1033,26 +1015,53 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       char*   iv = NULL;
       int32_t ivBytes = 0;
       char    tmpIvBuf[TSDB_MAX_BYTES_PER_ROW];
+      bool    legacyIv = false;
 
       NEXT_VALID_TOKEN(*ppSql, *pToken);
-      if (TK_NK_RP != pToken->type && TK_NK_STRING != pToken->type) {
-        taosMemoryFree(tmpTokenBuf);
-
-        return buildSyntaxErrMsg(&pCxt->msg, ") or iv expected", pToken->z);
-      } else if (TK_NK_STRING == pToken->type) {
+      if (TK_NK_COMMA == pToken->type) {
+        NEXT_VALID_TOKEN(*ppSql, *pToken);
+        if (TK_NK_STRING != pToken->type) {
+          taosMemoryFree(tmpTokenBuf);
+          return buildSyntaxErrMsg(&pCxt->msg, "iv string expected", pToken->z);
+        }
         ivBytes = trimString(pToken->z, pToken->n, tmpIvBuf, TSDB_MAX_BYTES_PER_ROW);
         iv = tmpIvBuf;
 
         NEXT_VALID_TOKEN(*ppSql, *pToken);
-        if (TK_NK_RP != pToken->type) {
-          taosMemoryFree(tmpTokenBuf);
-
-          return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+        if (TK_NK_COMMA == pToken->type) {
+          NEXT_VALID_TOKEN(*ppSql, *pToken);
+          if (TK_NK_STRING != pToken->type) {
+            taosMemoryFree(tmpTokenBuf);
+            return buildSyntaxErrMsg(&pCxt->msg, "IV mode string expected", pToken->z);
+          }
+          char    mode[8] = {0};
+          int32_t modeLen = trimString(pToken->z, pToken->n, mode, sizeof(mode));
+          if (modeLen == 6 && strncasecmp(mode, "legacy", 6) == 0) {
+            legacyIv = true;
+          } else if (modeLen != 3 || strncasecmp(mode, "raw", 3) != 0) {
+            taosMemoryFree(tmpTokenBuf);
+            return buildSyntaxErrMsg(&pCxt->msg, "IV mode must be raw or legacy", pToken->z);
+          }
+          NEXT_VALID_TOKEN(*ppSql, *pToken);
         }
+      }
+      if (TK_NK_RP != pToken->type) {
+        taosMemoryFree(tmpTokenBuf);
+        return buildSyntaxErrMsg(&pCxt->msg, ") expected", pToken->z);
+      }
+      if (iv != NULL && ivBytes != TAOS_AES_BLOCK_LEN) {
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsgExt(&pCxt->msg, TSDB_CODE_PAR_INVALID_VARBINARY,
+                                       "iv must be exactly %d bytes, got %d", TAOS_AES_BLOCK_LEN, ivBytes);
+      }
+      if (nullInput) {
+        pVal->flag = CV_FLAG_NULL;
+        taosMemoryFree(tmpTokenBuf);
+        return TSDB_CODE_SUCCESS;
       }
 
       int32_t outputBytes = taes_encrypt_len(inputBytes);
-      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+      if (outputBytes == 0 || outputBytes > bytes - VARSTR_HEADER_SIZE) {
         taosMemoryFree(tmpTokenBuf);
 
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -1069,15 +1078,35 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
 
       int32_t keypaddedlen = taes_encrypt_len(keyBytes);
+      if (keypaddedlen == 0) {
+        taosMemoryFreeClear(*pData);
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
+        taosMemoryFreeClear(*pData);
         taosMemoryFree(tmpTokenBuf);
 
         return terrno;
       }
       (void)memcpy(pKeyPaddingBuf, key, keyBytes);
 
-      int32_t len = taosAesDecrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes, iv);
+      char legacyIvVar[VARSTR_HEADER_SIZE + TAOS_AES_BLOCK_LEN] = {0};
+      if (legacyIv) {
+        varDataSetLen(legacyIvVar, TAOS_AES_BLOCK_LEN);
+        memcpy(varDataVal(legacyIvVar), iv, TAOS_AES_BLOCK_LEN);
+      }
+      int32_t len = legacyIv
+                        ? taosAesDecryptLegacyVarDataIv(pKeyPaddingBuf, keyBytes, *pData, inputBytes, legacyIvVar)
+                        : taosAesDecrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes, iv);
+      if (len < 0) {
+        taosMemoryFree(pKeyPaddingBuf);
+        taosMemoryFreeClear(*pData);
+        *nData = 0;
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_VARBINARY, pSchema->name);
+      }
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
@@ -1155,7 +1184,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       int32_t outputBytes = tsm4_encrypt_len(inputBytes);
-      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+      if (outputBytes == 0 || outputBytes > bytes - VARSTR_HEADER_SIZE) {
         taosMemoryFree(tmpTokenBuf);
 
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -1172,6 +1201,11 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
 
       int32_t keypaddedlen = tsm4_encrypt_len(keyBytes);
+      if (keypaddedlen == 0) {
+        taosMemoryFreeClear(*pData);
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
         taosMemoryFree(tmpTokenBuf);
@@ -1181,6 +1215,13 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(pKeyPaddingBuf, key, keyBytes);
 
       int32_t len = taosSm4Encrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes);
+      if (len < 0) {
+        taosMemoryFree(pKeyPaddingBuf);
+        taosMemoryFreeClear(*pData);
+        *nData = 0;
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_VARBINARY, pSchema->name);
+      }
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);
@@ -1258,7 +1299,7 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       }
 
       int32_t outputBytes = tsm4_encrypt_len(inputBytes);
-      if (outputBytes + VARSTR_HEADER_SIZE > bytes) {
+      if (outputBytes == 0 || outputBytes > bytes - VARSTR_HEADER_SIZE) {
         taosMemoryFree(tmpTokenBuf);
 
         return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -1275,8 +1316,14 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(*pData, input, inputBytes);
 
       int32_t keypaddedlen = tsm4_encrypt_len(keyBytes);
+      if (keypaddedlen == 0) {
+        taosMemoryFreeClear(*pData);
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
+      }
       char*   pKeyPaddingBuf = taosMemoryMalloc(keypaddedlen);
       if (!pKeyPaddingBuf) {
+        taosMemoryFreeClear(*pData);
         taosMemoryFree(tmpTokenBuf);
 
         return terrno;
@@ -1284,6 +1331,13 @@ static int32_t parseBinary(SInsertParseContext* pCxt, const char** ppSql, SToken
       (void)memcpy(pKeyPaddingBuf, key, keyBytes);
 
       int32_t len = taosSm4Decrypt(pKeyPaddingBuf, keyBytes, *pData, inputBytes);
+      if (len < 0) {
+        taosMemoryFree(pKeyPaddingBuf);
+        taosMemoryFreeClear(*pData);
+        *nData = 0;
+        taosMemoryFree(tmpTokenBuf);
+        return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_INVALID_VARBINARY, pSchema->name);
+      }
       *nData = len;
 
       taosMemoryFree(pKeyPaddingBuf);

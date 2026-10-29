@@ -399,8 +399,10 @@ static bool scanPathOptIsLastOnlyFunc(const SFunctionNode* pFunc) {
   }
 
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  for (int32_t i = 1; i < numOfParams; ++i) {
-    SNode* pExtra = nodesListGetNode(pFunc->pParameterList, i);
+  SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+  for (int32_t i = 1; i < numOfParams;
+       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+    SNode* pExtra = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
     if (NULL == pExtra || QUERY_NODE_COLUMN != nodeType(pExtra)) {
       return false;
     }
@@ -4886,8 +4888,9 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
     goto _return1;
   }
 
-  for (int32_t i = 0; i < LIST_LENGTH(pVScan->node.pChildren); ++i) {
-    SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pVScan->node.pChildren, i);
+  SNode* pChildrenNode = NULL;
+  FOREACH(pChildrenNode, pVScan->node.pChildren) {
+    SLogicNode* pChild = (SLogicNode*)pChildrenNode;
     if (NULL == pChild) {
       PLAN_ERR_JRET(
           generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_VTABLE_INVALID_ORIGIN_SCAN,
@@ -5597,6 +5600,47 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
   return false;
 }
 
+static bool sortPriKeyOptCanOrderVirtualScan(SVirtualScanLogicNode* pScan) {
+  if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren)) {
+    return false;
+  }
+  SNode* pChild = NULL;
+  bool hasDataScan = false;
+  FOREACH(pChild, pScan->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pChild)) {
+      continue;
+    }
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+      return false;
+    }
+    SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    if (SCAN_TYPE_TAG == pSource->scanType) {
+      continue;
+    }
+    if (SCAN_TYPE_TABLE != pSource->scanType ||
+        pSource->scanSeq[0] + pSource->scanSeq[1] != 1 ||
+        NULL != pSource->pGroupTags || NULL != pSource->node.pLimit ||
+        scanIsSmallDataScanSortHinted(pSource)) {
+      return false;
+    }
+    hasDataScan = true;
+  }
+  return hasDataScan;
+}
+
+static int32_t sortPriKeyOptCollectVirtualScan(SVirtualScanLogicNode* pScan,
+                                              SNodeList** pSequencingNodes) {
+  PLAN_ERR_RET(nodesListMakeAppend(pSequencingNodes, (SNode*)pScan));
+  SNode* pChild = NULL;
+  FOREACH(pChild, pScan->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+        SCAN_TYPE_TABLE == ((SScanLogicNode*)pChild)->scanType) {
+      PLAN_ERR_RET(nodesListMakeAppend(pSequencingNodes, pChild));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, SSortLogicNode* pSort,
                                             bool* pNotOptimize, SNodeList** pSequencingNodes, bool* keepSort) {
   EOrder sortOrder = sortPriKeyOptGetPriKeyOrder(pSort);
@@ -5659,6 +5703,17 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
           return nodesListMakeAppend(pSequencingNodes, (SNode*)pNode);
         }
       }
+      *pNotOptimize = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
+      SVirtualScanLogicNode* pScan = (SVirtualScanLogicNode*)pNode;
+      if (groupSort || pNode->dynamicOp ||
+          !sortPriKeyOptCanOrderVirtualScan(pScan)) {
+        *pNotOptimize = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      return sortPriKeyOptCollectVirtualScan(pScan, pSequencingNodes);
     }
     case QUERY_NODE_LOGIC_PLAN_AGG:
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
@@ -5717,6 +5772,11 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
         planPromoteScanToTableMerge(pScan, DATA_ORDER_LEVEL_GLOBAL, DATA_ORDER_LEVEL_GLOBAL);
       }
       pScan->sortPrimaryKey = true;
+    } else if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pSequencingNode)) {
+      SLogicNode* pOrdered = (SLogicNode*)pSequencingNode;
+      pOrdered->inputTsOrder = order;
+      pOrdered->outputTsOrder = order;
+      pOrdered->resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
     } else if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pSequencingNode)) {
       ((SLogicNode*)pSequencingNode)->outputTsOrder = order;
     }
@@ -5786,6 +5846,120 @@ static int32_t sortPrimaryKeyOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLo
     return TSDB_CODE_SUCCESS;
   }
   return sortPrimaryKeyOptimizeImpl(pCxt, pLogicSubplan, pSort);
+}
+
+static bool virtualTopNMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_SORT != nodeType(pNode) ||
+      !limitHasFiniteRows(pNode->pLimit) || NULL != pNode->pConditions ||
+      NULL != pNode->pSlimit || 1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SSortLogicNode* pSort = (SSortLogicNode*)pNode;
+  if (pSort->groupSort || !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys)) {
+    return false;
+  }
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL != nodeType(pChild)) {
+    return false;
+  }
+  SDynQueryCtrlLogicNode* pDyn = (SDynQueryCtrlLogicNode*)pChild;
+  if (DYN_QTYPE_VTB_SCAN != pDyn->qType || pDyn->vtbScan.hasPartition ||
+      pDyn->node.dynamicOp || NULL != pDyn->node.pConditions) {
+    return false;
+  }
+  SLogicNode* pScan = (SLogicNode*)nodesListGetNode(pChild->pChildren, 0);
+  return NULL != pScan &&
+         QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pScan) &&
+         NULL == pScan->pLimit &&
+         sortPriKeyOptCanOrderVirtualScan((SVirtualScanLogicNode*)pScan);
+}
+
+static int32_t virtualTopNOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SSortLogicNode* pSort = (SSortLogicNode*)optFindPossibleNode(
+      pLogicSubplan->pNode, virtualTopNMayBeOptimized, NULL);
+  if (NULL == pSort || inStreamCalcClause(pCxt->pPlanCxt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLimitNode* pLimit = (SLimitNode*)pSort->node.pLimit;
+  int64_t rows = pLimit->limit->datum.i;
+  int64_t offset = NULL == pLimit->offset ? 0 : pLimit->offset->datum.i;
+  if (rows <= 0 || offset < 0 || rows > INT64_MAX - offset) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLogicNode* pDyn = (SLogicNode*)nodesListGetNode(pSort->node.pChildren, 0);
+  SVirtualScanLogicNode* pScan =
+      (SVirtualScanLogicNode*)nodesListGetNode(pDyn->pChildren, 0);
+  SLimitNode* pLocalLimit = NULL;
+  PLAN_ERR_RET(nodesCloneNode((SNode*)pLimit, (SNode**)&pLocalLimit));
+  // OFFSET belongs to the global result. Every child must retain offset + limit.
+  pLocalLimit->limit->datum.i = rows + offset;
+  nodesDestroyNode((SNode*)pLocalLimit->offset);
+  pLocalLimit->offset = NULL;
+  pScan->node.pLimit = (SNode*)pLocalLimit;
+
+  EOrder order = sortPriKeyOptGetPriKeyOrder(pSort);
+  pScan->node.inputTsOrder = order;
+  pScan->node.outputTsOrder = order;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pScan->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) ||
+        SCAN_TYPE_TABLE != ((SScanLogicNode*)pChild)->scanType) {
+      continue;
+    }
+    SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    pSource->scanSeq[0] = ORDER_ASC == order;
+    pSource->scanSeq[1] = ORDER_DESC == order;
+    pSource->node.outputTsOrder = order;
+    pSource->sortPrimaryKey = true;
+  }
+  // The dynamic controller concatenates children; the global Sort stays in place.
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pNode) ||
+      !limitHasFiniteRows(pNode->pLimit) || NULL != pNode->pConditions ||
+      NULL != pNode->pSlimit ||
+      (ORDER_ASC != pNode->outputTsOrder && ORDER_DESC != pNode->outputTsOrder)) {
+    return false;
+  }
+  SVirtualScanLogicNode* pScan = (SVirtualScanLogicNode*)pNode;
+  if (pScan->hasFilterCond || !sortPriKeyOptCanOrderVirtualScan(pScan)) {
+    return false;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) ||
+        SCAN_TYPE_TABLE != ((SScanLogicNode*)pChild)->scanType) {
+      continue;
+    }
+    SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    int32_t direction = ORDER_ASC == pNode->outputTsOrder ? 0 : 1;
+    if (pSource->scanSeq[direction] != 1 ||
+        (!pSource->virtualStableScan && pSource->node.precision > pNode->precision)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t virtualSourceLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pScan = optFindPossibleNode(pLogicSubplan->pNode,
+                                        virtualSourceLimitMayBeOptimized, NULL);
+  if (NULL == pScan || inStreamCalcClause(pCxt->pPlanCxt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pScan->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild) &&
+        SCAN_TYPE_TABLE == ((SScanLogicNode*)pChild)->scanType) {
+      bool cloned = false;
+      PLAN_ERR_RET(cloneLimit(pScan, (SLogicNode*)pChild, CLONE_LIMIT, &cloned));
+      pCxt->optimized |= cloned;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static const char* getJoinCondPKTable(SNode* pNode) {
@@ -10131,6 +10305,18 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       }
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN:
+      if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pNodeWithLimit) &&
+          NULL == pNodeWithLimit->pConditions &&
+          !pNodeLimitPushTo->dynamicOp &&
+          sortPriKeyOptCanOrderVirtualScan((SVirtualScanLogicNode*)pNodeLimitPushTo)) {
+        code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
+        if (TSDB_CODE_SUCCESS == code) {
+          *pPushed = cloned;
+        }
+        return code;
+      }
+      break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       // FQ guard: do not push LIMIT into external scan; fqPushdownOptimize will harvest it.
       if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pNodeLimitPushTo)->scanType) {
@@ -17895,8 +18081,10 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "GroupJoin",                  .optimizeFunc = groupJoinOptimize},
   {.pName = "sortNonPriKeyOptimize",      .optimizeFunc = sortNonPriKeyOptimize},
   {.pName = "SortPrimaryKey",             .optimizeFunc = sortPrimaryKeyOptimize},
+  {.pName = "VirtualTopN",                .optimizeFunc = virtualTopNOptimize},
   {.pName = "SortForjoin",                .optimizeFunc = sortForJoinOptimize},
   {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize},
+  {.pName = "VirtualSourceLimit",         .optimizeFunc = virtualSourceLimitOptimize},
   {.pName = "PartitionTags",              .optimizeFunc = partTagsOptimize},
   {.pName = "MergeProjects",              .optimizeFunc = mergeProjectsOptimize},
   {.pName = "LastSmaNotNull",             .optimizeFunc = lastSmaNotNullPrefilterOptimize},
@@ -21262,6 +21450,7 @@ static int32_t fqSyncMergedPartitionKeyAliases(SNodeList* pGroupKeys, int32_t gr
   int32_t appendedCount = groupKeyCount - groupKeyStartIdx;
   int32_t aliasIdx = 0;
   SNode*  pWinFuncNode = NULL;
+  SListCell* pGroupKeyCell = nodesListGetCell(pGroupKeys, groupKeyStartIdx);
   FOREACH(pWinFuncNode, pWinFuncs) {
     if (aliasIdx >= appendedCount) {
       break;
@@ -21275,7 +21464,10 @@ static int32_t fqSyncMergedPartitionKeyAliases(SNodeList* pGroupKeys, int32_t gr
       continue;
     }
 
-    SNode* pKey = nodesListGetNode(pGroupKeys, groupKeyStartIdx + aliasIdx);
+    SNode* pKey = NULL != pGroupKeyCell ? pGroupKeyCell->pNode : NULL;
+    if (NULL != pGroupKeyCell) {
+      pGroupKeyCell = pGroupKeyCell->pNext;
+    }
     SExprNode* pAliasCarrier = fqGetAliasCarrierFromGroupKey(pKey);
     if (NULL == pAliasCarrier) {
       planDebug("FQ-buildIntervalAgg: alias sync skip idx=%d keyType=%d (no expr carrier)",
@@ -25328,8 +25520,8 @@ static int32_t fqUnionAllOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // Destroy non-representative branch subtrees.
   // Their FedScans' remote plans were transferred to the UNION ALL container,
   // so set pRemoteLogicPlan=NULL before destroy to avoid double-free.
-  for (int32_t bi = 0; bi < LIST_LENGTH(pSetOp->node.pChildren); bi++) {
-    SNode* pB = nodesListGetNode(pSetOp->node.pChildren, bi);
+  SNode* pB = NULL;
+  FOREACH(pB, pSetOp->node.pChildren) {
     SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pB);
     if (pScan == pRepScan) continue;  // rep scan is being reused, not destroyed
     if (pScan != NULL) {
@@ -25507,8 +25699,8 @@ static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   }
 
   // Destroy non-representative branch subtrees
-  for (int32_t bi = 0; bi < LIST_LENGTH(pDedup->node.pChildren); bi++) {
-    SNode* pB = nodesListGetNode(pDedup->node.pChildren, bi);
+  SNode* pB = NULL;
+  FOREACH(pB, pDedup->node.pChildren) {
     SScanLogicNode* pScan = fqGetWholePushBranchScan((SLogicNode*)pB);
     if (pScan == pRepScan) continue;
     if (pScan != NULL) pScan->pRemoteLogicPlan = NULL;
@@ -25765,9 +25957,13 @@ static int32_t postSplitEliminateSortImpl(SLogicSubplan* pSubplan, SLogicNode* p
     return TSDB_CODE_SUCCESS;
   }
 
-  for (int32_t i = 0; i < LIST_LENGTH(pSort->node.pTargets); ++i) {
-    SNode* pSortTarget = nodesListGetNode(pSort->node.pTargets, i);
-    SNode* pChildTarget = nodesListGetNode(pDirectChild->pTargets, i);
+  SListCell* pTargetCell = NULL != pSort->node.pTargets ? pSort->node.pTargets->pHead : NULL;
+  SListCell* pTargetCell2 = NULL != pDirectChild->pTargets ? pDirectChild->pTargets->pHead : NULL;
+  for (int32_t i = 0; i < LIST_LENGTH(pSort->node.pTargets);
+       ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL),
+       pTargetCell2 = (NULL != pTargetCell2 ? pTargetCell2->pNext : NULL)) {
+    SNode* pSortTarget = (NULL != pTargetCell ? pTargetCell->pNode : NULL);
+    SNode* pChildTarget = (NULL != pTargetCell2 ? pTargetCell2->pNode : NULL);
     if (!nodesEqualNode(pSortTarget, pChildTarget)) {
       return TSDB_CODE_SUCCESS;
     }

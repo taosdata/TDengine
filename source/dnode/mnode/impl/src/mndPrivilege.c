@@ -75,6 +75,19 @@ int32_t mndCheckOperPrivilege(SMnode *pMnode, const char *user, const char* toke
     }
   }
 
+  // ASSIGN LEADER FORCE (security finding 270) is a cluster-wide disaster-recovery operation:
+  // it hands leadership of every 2-replica vgroup to an arbitrary online member with force=true,
+  // which on the vnode side bypasses the arbitrator member-token comparison and makes the forced
+  // replica commit without quorum. Like FLUSH MNODE it must be limited to cluster administrators,
+  // so it is gated on the sysinfo flag (super users always pass). Note that merely reaching this
+  // point already proves the asserted user exists and is enabled (mndAcquireUser above), which
+  // the previously unprotected TDMT_MND_ARB_ASSIGN_LEADER handler did not even require.
+  if (operType == MND_OPER_ASSIGN_LEADER) {
+    if ((!pUser->superUser) && (!pUser->sysInfo)) {
+      TAOS_CHECK_GOTO(TSDB_CODE_MND_NO_RIGHTS, NULL, _OVER);
+    }
+  }
+
 _OVER:
   mndReleaseUser(pMnode, pUser);
   TAOS_RETURN(code);

@@ -470,6 +470,28 @@ class TestFunPercentile:
 
         print("do percentile ......................... [passed]\n")
 
+    def do_percentile_with_count_on_empty_table(self):
+        tdSql.execute("create database if not exists percentile_empty_regression")
+        tdSql.execute("create table percentile_empty_regression.t_empty (ts timestamp, v int)")
+        tdSql.query("select count(*), percentile(v, 50) from percentile_empty_regression.t_empty")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+        tdSql.checkData(0, 1, None)
+        tdSql.execute("drop database percentile_empty_regression")
+
+    def test_percentile_with_count_on_empty_table(self):
+        """Return NULL percentile alongside zero count for an empty table.
+
+        Check that an empty input placeholder completes percentile without a type error.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+        """
+        self.do_percentile_with_count_on_empty_table()
+
     #
     # ------------------ main ------------------
     #
@@ -485,6 +507,7 @@ class TestFunPercentile:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

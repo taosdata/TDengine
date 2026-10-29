@@ -571,11 +571,15 @@ int64_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   return numOfRows;
 }
 
-static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
+// Shared non-printable detection for binary-ish display decisions. allowWhitespace
+// tolerates the whitespace chars that occur in display text (SHOW CREATE of virtual
+// super tables embeds '\n' between clauses); any other control byte or invalid
+// multibyte sequence still reports non-printable (callers route such values to hex).
+static bool shellHasNonPrintableImpl(const char *val, int32_t length, bool allowWhitespace) {
   for (int32_t i = 0; i < length; i++) {
     unsigned char c = (unsigned char)val[i];
 
-    if (c < 0x20 || c == 0x7F) {
+    if (c == 0x7F || (c < 0x20 && !(allowWhitespace && (c == '\n' || c == '\r' || c == '\t')))) {
       return true;
     }
   }
@@ -593,7 +597,11 @@ static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
       return true;
     }
 
-    if (taosWcharWidth(wc) <= 0) {
+    // wcwidth() returns -1 for control chars, including the whitespace bytes that
+    // allowWhitespace exempts — skip those here too, mirroring shellPrintNChar
+    // (which special-cases '\t'/'\n'/'\r' before taking the width), or DDL text
+    // embedding '\n' would still be routed to hex output.
+    if (taosWcharWidth(wc) <= 0 && !(allowWhitespace && (wc == '\n' || wc == '\r' || wc == '\t'))) {
       return true;
     }
 
@@ -601,6 +609,16 @@ static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
   }
 
   return false;
+}
+
+static bool shellHasBinaryNonPrintable(const char *val, int32_t length) {
+  return shellHasNonPrintableImpl(val, length, false);
+}
+
+// BLOB values may hold display text (e.g. the DDL of SHOW CREATE TABLE, which may
+// embed '\n'): tolerate whitespace, everything else keeps the hex representation.
+static bool shellBlobHasNonPrintable(const char *val, int32_t length) {
+  return shellHasNonPrintableImpl(val, length, true);
 }
 
 static void shellHexEncode(char *dst, const char *val, int32_t length) {
@@ -833,6 +851,18 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width,
 
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB: {
+      // Display text (e.g. the DDL of SHOW CREATE TABLE, which may embed '\n') is shown
+      // as-is via the same shellPrintNChar path as VARCHAR/NCHAR, so embedded newlines
+      // render exactly as they did when the DDL arrived as VARCHAR. Other binary content
+      // keeps the pre-existing taosAscii2Hex ('\x'-prefixed) representation, consistent
+      // with VARBINARY and the dump-to-file output. Unlike BINARY (where -H affects only
+      // values containing non-printable bytes), -H forces hex even for display text, so
+      // users keep the pre-BLOB-text always-hex view for byte-level inspection of
+      // printable BLOBs.
+      if (!shell.args.is_binary_as_hex && !shellBlobHasNonPrintable(val, length)) {
+        shellPrintNChar(val, length, width);
+        break;
+      }
       void    *data = NULL;
       uint32_t size = 0;
       if (taosAscii2Hex(val, length, &data, &size) < 0) {

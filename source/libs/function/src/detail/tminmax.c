@@ -629,6 +629,9 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
 
   SColumnInfoData* pCol = pInput->pData[0];
   int32_t          type = pCol->info.type;
+  if (type < TSDB_DATA_TYPE_NULL || type >= TSDB_DATA_TYPE_MAX) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SMinmaxResInfo*      pBuf = GET_ROWCELL_INTERBUF(pResInfo);

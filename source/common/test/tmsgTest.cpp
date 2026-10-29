@@ -35,6 +35,7 @@
 #include "streamMsg.h"
 #include "tcommon.h"
 #include "systable.h"
+#include "tconfig.h"
 #include "tdatablock.h"
 #include "tjson.h"
 #include "tmsg.h"
@@ -5818,6 +5819,170 @@ TEST(td_msg_test, create_xnode_agent_req_releases_partial_decode_on_error) {
   EXPECT_EQ(decoded.name.ptr, nullptr);
 }
 
+// Mirrors tSerializeSBatchReq's layout but lets the caller declare an msgLen that disagrees with
+// the embedded binary, which is what a hostile TDMT_SND_BATCH_META frame does.
+static std::vector<uint8_t> buildBatchReqFrame(int32_t num, int32_t declaredMsgLen, const std::string &payload) {
+  auto encodeBody = [&](uint8_t *buf, int32_t bufLen) -> int32_t {
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, static_cast<uint32_t>(bufLen));
+    EXPECT_EQ(tStartEncode(&encoder), 0);
+    EXPECT_EQ(tEncodeI32(&encoder, num), 0);
+    for (int32_t i = 0; i < num; ++i) {
+      EXPECT_EQ(tEncodeI32(&encoder, i), 0);
+      EXPECT_EQ(tEncodeI32(&encoder, TDMT_MND_GET_STREAM_PROGRESS), 0);
+      EXPECT_EQ(tEncodeI32(&encoder, declaredMsgLen), 0);
+      EXPECT_EQ(tEncodeBinary(&encoder, reinterpret_cast<const uint8_t *>(payload.data()),
+                              static_cast<uint32_t>(payload.size())),
+                0);
+    }
+    tEndEncode(&encoder);
+    const int32_t len = static_cast<int32_t>(encoder.pos);
+    tEncoderClear(&encoder);
+    return len;
+  };
+
+  const int32_t bodyLen = encodeBody(nullptr, 0);
+  // tDeserializeSBatchReq skips sizeof(SMsgHead) and writes the header back, so the frame needs
+  // room for it and must be writable.
+  std::vector<uint8_t> frame(sizeof(SMsgHead) + bodyLen, 0);
+  encodeBody(frame.data() + sizeof(SMsgHead), bodyLen);
+  return frame;
+}
+
+TEST(td_msg_test, batch_req_with_zero_messages_yields_no_message_array) {
+  // A well-formed frame declaring num <= 0 decodes successfully with pMsgs == NULL. Callers must
+  // therefore check the array before indexing it - smDispatchStreamTriggerRsp used to read
+  // TARRAY_DATA(pMsgs) unconditionally and segfaulted the whole taosd process.
+  std::vector<uint8_t> frame = buildBatchReqFrame(0, 0, "");
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded), 0);
+  EXPECT_EQ(decoded.pMsgs, nullptr);
+  EXPECT_EQ(taosArrayGetSize(decoded.pMsgs), 0u);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_rejects_msg_len_larger_than_embedded_binary) {
+  // msgLen is an independent wire integer, while msg is sized by the embedded binary. Consumers
+  // decode msg bounded by msgLen, so a larger msgLen reads past the heap allocation.
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame =
+      buildBatchReqFrame(1, static_cast<int32_t>(payload.size()) + 4096, payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded),
+            TSDB_CODE_INVALID_MSG);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_rejects_negative_msg_len) {
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame = buildBatchReqFrame(1, -1, payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  EXPECT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded),
+            TSDB_CODE_INVALID_MSG);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, batch_req_accepts_msg_len_matching_embedded_binary) {
+  const std::string    payload = "stream-progress-payload";
+  std::vector<uint8_t> frame = buildBatchReqFrame(1, static_cast<int32_t>(payload.size()), payload);
+
+  SBatchReq decoded = {0};
+  decoded.header.vgId = SNODE_HANDLE;
+  ASSERT_EQ(tDeserializeSBatchReq(frame.data(), static_cast<int32_t>(frame.size()), &decoded), 0);
+  ASSERT_EQ(taosArrayGetSize(decoded.pMsgs), 1u);
+  SBatchMsg *pMsg = static_cast<SBatchMsg *>(taosArrayGet(decoded.pMsgs, 0));
+  ASSERT_NE(pMsg, nullptr);
+  EXPECT_EQ(pMsg->msgIdx, 0);
+  EXPECT_EQ(pMsg->msgType, TDMT_MND_GET_STREAM_PROGRESS);
+  EXPECT_EQ(pMsg->msgLen, static_cast<int32_t>(payload.size()));
+  ASSERT_NE(pMsg->msg, nullptr);
+  EXPECT_EQ(memcmp(pMsg->msg, payload.data(), payload.size()), 0);
+  taosArrayDestroyEx(decoded.pMsgs, tFreeSBatchReqMsg);
+}
+
+TEST(td_msg_test, cfg_dnode_req_round_trips_alter_type) {
+  // The dnode re-runs cfgCheckRangeForDynUpdate with this alterType, so it has to survive the
+  // round trip: CFG_ALTER_DNODE is what forbids changing a global item on a single dnode.
+  SDCfgDnodeReq req = {0};
+  tstrncpy(req.config, "supportVnodes", sizeof(req.config));
+  tstrncpy(req.value, "0", sizeof(req.value));
+  req.version = 7;
+  req.alterType = CFG_ALTER_DNODE;
+
+  const int32_t size = tSerializeSDCfgDnodeReq(NULL, 0, &req);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(tSerializeSDCfgDnodeReq(frame.data(), size, &req), size);
+
+  SDCfgDnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSDCfgDnodeReq(frame.data(), size, &decoded), 0);
+  EXPECT_STREQ(decoded.config, "supportVnodes");
+  EXPECT_STREQ(decoded.value, "0");
+  EXPECT_EQ(decoded.version, 7);
+  EXPECT_EQ(decoded.alterType, CFG_ALTER_DNODE);
+}
+
+TEST(td_msg_test, cfg_dnode_req_defaults_alter_type_for_pre_upgrade_frame) {
+  // A pre-upgrade mnode omits the alterType tail field. The decoder must default to the
+  // permissive CFG_ALTER_ALL_DNODES so a rolling upgrade does not start refusing global alters.
+  const char *config = "clsRefreshInterval";
+  const char *value = "20";
+
+  auto encodeLegacy = [&](uint8_t *buf, int32_t bufLen) -> int32_t {
+    SEncoder encoder = {0};
+    tEncoderInit(&encoder, buf, static_cast<uint32_t>(bufLen));
+    EXPECT_EQ(tStartEncode(&encoder), 0);
+    EXPECT_EQ(tEncodeI32(&encoder, 3), 0);
+    EXPECT_EQ(tEncodeCStr(&encoder, config), 0);
+    EXPECT_EQ(tEncodeCStr(&encoder, value), 0);
+    tEndEncode(&encoder);
+    const int32_t len = static_cast<int32_t>(encoder.pos);
+    tEncoderClear(&encoder);
+    return len;
+  };
+
+  const int32_t size = encodeLegacy(nullptr, 0);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(encodeLegacy(frame.data(), size), size);
+
+  SDCfgDnodeReq decoded = {0};
+  ASSERT_EQ(tDeserializeSDCfgDnodeReq(frame.data(), size, &decoded), 0);
+  EXPECT_STREQ(decoded.config, config);
+  EXPECT_STREQ(decoded.value, value);
+  EXPECT_EQ(decoded.version, 3);
+  EXPECT_EQ(decoded.alterType, CFG_ALTER_ALL_DNODES);
+}
+
+TEST(td_msg_test, msg_type_validity_bounds_segment_and_sequence) {
+  // TMSG_INDEX(type) is tMsgDict[(type & 0xff00) >> 8] + (type & 0xff). The segment code comes
+  // straight off the wire (0..255) while tMsgDict has one entry per defined segment, so dnode
+  // dispatch must reject anything tmsgIsValid() rejects before indexing its handler tables.
+  const int32_t numOfSegments = TMSG_SEG_CODE(TDMT_MAX_MSG_MIN);
+  ASSERT_GT(numOfSegments, 0);
+  ASSERT_LT(numOfSegments, 256);
+
+  // First segment code past the last defined one, and a far-out segment code.
+  EXPECT_FALSE(tmsgIsValid(static_cast<tmsg_t>(numOfSegments << 8)));
+  EXPECT_FALSE(tmsgIsValid(static_cast<tmsg_t>(0xFF01)));
+
+  // Defined request and response types stay valid.
+  EXPECT_TRUE(tmsgIsValid(TDMT_DND_CONFIG_DNODE));
+  EXPECT_TRUE(tmsgIsValid(TDMT_DND_CREATE_SNODE));
+  EXPECT_TRUE(tmsgIsValid(TDMT_MND_STREAM_HEARTBEAT_RSP));
+
+  // A sequence byte past the end of a defined segment is rejected too.
+  const tmsg_t pastDndSegment = static_cast<tmsg_t>(TDMT_DND_MSG_MAX);
+  ASSERT_EQ(TMSG_SEG_CODE(pastDndSegment), TMSG_SEG_CODE(TDMT_DND_CONFIG_DNODE));
+  EXPECT_FALSE(tmsgIsValid(pastDndSegment));
+}
+
 // ============================================================================
 // Regression tests for the bounded TMQ ask-ep response decoder (TD-SEC entry 245,
 // TDMT_MND_TMQ_ASK_EP_RSP). tDecodeSMqAskEpRsp must reject oversized topic/db/fqdn
@@ -6105,4 +6270,408 @@ TEST(td_msg_test, askep_rsp_accept_epset_inuse_boundary) {
       tDeleteSMqAskEpRsp(&rsp);
     }
   }
+}
+
+// ---- vnode mgmt request bounds (Devon scan items 34/54/272) ----
+
+static void fillVnodeReplicas(SReplica *replicas, int32_t n) {
+  for (int32_t i = 0; i < n; ++i) {
+    replicas[i].id = i + 1;
+    replicas[i].port = 6030;
+    snprintf(replicas[i].fqdn, sizeof(replicas[i].fqdn), "host%d", i + 1);
+  }
+}
+
+static int32_t decodeCreateVnode(int8_t replica, int8_t selfIndex, int8_t learnerReplica, int8_t learnerSelfIndex) {
+  SCreateVnodeReq req = {0};
+  req.vgId = 2;
+  req.replica = replica;
+  req.selfIndex = selfIndex;
+  req.learnerReplica = learnerReplica;
+  req.learnerSelfIndex = learnerSelfIndex;
+  fillVnodeReplicas(req.replicas, TSDB_MAX_REPLICA);
+  fillVnodeReplicas(req.learnerReplicas, TSDB_MAX_LEARNER_REPLICA);
+
+  std::vector<char> buf(64 * 1024);
+  int32_t           len = tSerializeSCreateVnodeReq(buf.data(), (int32_t)buf.size(), &req);
+  EXPECT_GT(len, 0);
+  if (len <= 0) return len;
+
+  SCreateVnodeReq out = {0};
+  int32_t         code = tDeserializeSCreateVnodeReq(buf.data(), len, &out);
+  tFreeSCreateVnodeReq(&out);
+  return code;
+}
+
+TEST(td_msg_test, create_vnode_req_bounds) {
+  EXPECT_EQ(decodeCreateVnode(3, 0, 0, -1), 0);
+  EXPECT_EQ(decodeCreateVnode(TSDB_MAX_REPLICA, TSDB_MAX_REPLICA - 1, TSDB_MAX_LEARNER_REPLICA,
+                              TSDB_MAX_LEARNER_REPLICA - 1),
+            0);
+  EXPECT_EQ(decodeCreateVnode(3, -1, 1, 0), 0);
+
+  // replica / learnerReplica out of range
+  EXPECT_NE(decodeCreateVnode(127, 0, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(-1, 0, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(TSDB_MAX_REPLICA + 1, 0, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, 127, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, -1, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, TSDB_MAX_LEARNER_REPLICA + 1, -1), 0);
+
+  // selfIndex / learnerSelfIndex out of range
+  EXPECT_NE(decodeCreateVnode(3, 127, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, -128, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, TSDB_MAX_REPLICA, 0, -1), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, 1, 127), 0);
+  EXPECT_NE(decodeCreateVnode(3, 0, 1, TSDB_MAX_LEARNER_REPLICA), 0);
+}
+
+static int32_t decodeAlterVnodeReplica(int8_t replica, int8_t selfIndex, int8_t learnerReplica,
+                                       int8_t learnerSelfIndex) {
+  SAlterVnodeReplicaReq req = {0};
+  req.vgId = 2;
+  req.replica = replica;
+  req.selfIndex = selfIndex;
+  req.learnerReplica = learnerReplica;
+  req.learnerSelfIndex = learnerSelfIndex;
+  fillVnodeReplicas(req.replicas, TSDB_MAX_REPLICA);
+  fillVnodeReplicas(req.learnerReplicas, TSDB_MAX_LEARNER_REPLICA);
+
+  std::vector<char> buf(64 * 1024);
+  int32_t           len = tSerializeSAlterVnodeReplicaReq(buf.data(), (int32_t)buf.size(), &req);
+  EXPECT_GT(len, 0);
+  if (len <= 0) return len;
+
+  SAlterVnodeReplicaReq out = {0};
+  return tDeserializeSAlterVnodeReplicaReq(buf.data(), len, &out);
+}
+
+TEST(td_msg_test, alter_vnode_replica_req_bounds) {
+  EXPECT_EQ(decodeAlterVnodeReplica(3, 0, 0, -1), 0);
+  EXPECT_EQ(decodeAlterVnodeReplica(TSDB_MAX_REPLICA, TSDB_MAX_REPLICA - 1, TSDB_MAX_LEARNER_REPLICA,
+                                    TSDB_MAX_LEARNER_REPLICA - 1),
+            0);
+
+  EXPECT_NE(decodeAlterVnodeReplica(127, 0, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(-1, 0, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, 127, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, -128, 0, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, 0, 127, -1), 0);
+  EXPECT_NE(decodeAlterVnodeReplica(3, 0, 1, 127), 0);
+}
+
+TEST(td_msg_test, set_keep_version_req_short_buffer) {
+  SVndSetKeepVersionReq req = {0};
+  req.keepVersion = 123;
+  char    buf[64] = {0};
+  int32_t len = tSerializeSVndSetKeepVersionReq(buf, sizeof(buf), &req);
+  ASSERT_GT(len, 0);
+
+  SVndSetKeepVersionReq out = {0};
+  EXPECT_EQ(tDeserializeSVndSetKeepVersionReq(buf, len, &out), 0);
+  EXPECT_EQ(out.keepVersion, 123);
+
+  // a truncated body must be rejected by the decoder rather than read past the buffer
+  for (int32_t n = 0; n < len; ++n) {
+    SVndSetKeepVersionReq tmp = {0};
+    EXPECT_NE(tDeserializeSVndSetKeepVersionReq(buf, n, &tmp), 0) << "len:" << n;
+  }
+}
+
+TEST(td_msg_test, replica_cfg_in_range) {
+  EXPECT_TRUE(tsdbReplicaCfgInRange(0, -1, TSDB_MAX_REPLICA));
+  EXPECT_TRUE(tsdbReplicaCfgInRange(TSDB_MAX_REPLICA, TSDB_MAX_REPLICA - 1, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(TSDB_MAX_REPLICA + 1, 0, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(-1, 0, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(3, -2, TSDB_MAX_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(3, TSDB_MAX_REPLICA, TSDB_MAX_REPLICA));
+  EXPECT_TRUE(tsdbReplicaCfgInRange(TSDB_MAX_LEARNER_REPLICA, TSDB_MAX_LEARNER_REPLICA - 1, TSDB_MAX_LEARNER_REPLICA));
+  EXPECT_FALSE(tsdbReplicaCfgInRange(1, TSDB_MAX_LEARNER_REPLICA, TSDB_MAX_LEARNER_REPLICA));
+}
+
+namespace {
+
+SRefColInfo makeSubTableRef(int16_t colId, const char* db, const char* tb, const char* col, const char* src) {
+  SRefColInfo ref = {};
+  ref.colId = colId;
+  tstrncpy(ref.refDbName, db, sizeof(ref.refDbName));
+  tstrncpy(ref.refTableName, tb, sizeof(ref.refTableName));
+  tstrncpy(ref.refColName, col, sizeof(ref.refColName));
+  if (nullptr != src) {
+    tstrncpy(ref.refSourceName, src, sizeof(ref.refSourceName));
+  }
+  return ref;
+}
+
+uint32_t subTableRefArenaBytes(const SRefColInfo* refs, int32_t n) {
+  uint32_t bytes = 0;
+  for (int32_t i = 0; i < n; ++i) {
+    bytes += static_cast<uint32_t>(strlen(refs[i].refDbName)) + 1;
+    bytes += static_cast<uint32_t>(strlen(refs[i].refTableName)) + 1;
+    bytes += static_cast<uint32_t>(strlen(refs[i].refColName)) + 1;
+    if (refs[i].refSourceName[0] != '\0') {
+      bytes += static_cast<uint32_t>(strlen(refs[i].refSourceName)) + 1;
+    }
+    if (refs[i].refSchemaName[0] != '\0') {
+      bytes += static_cast<uint32_t>(strlen(refs[i].refSchemaName)) + 1;
+    }
+  }
+  return bytes;
+}
+
+}  // namespace
+
+// SVSubTablesRsp is decoded into a compact variable-length layout (header +
+// entries + string arena). This pins the roundtrip, the layout arithmetic and
+// the wire bytes staying stable across a decode/encode round.
+TEST(td_msg_test, vsubtables_rsp_codec_roundtrip_compact_layout) {
+  std::string longTb(TSDB_TABLE_NAME_LEN - 1, 't');
+  std::string longCol(TSDB_COL_NAME_LEN - 1, 'c');
+
+  SRefColInfo colRefs[3] = {
+      makeSubTableRef(2, "db0", "src0", "c0", nullptr),
+      makeSubTableRef(3, "db0", longTb.c_str(), longCol.c_str(), "ext_src"),
+      makeSubTableRef(4, "db1", "src1", "c1", nullptr),
+  };
+  SRefColInfo tagRefs[2] = {
+      makeSubTableRef(10, "db0", "src0", "t0", nullptr),
+      makeSubTableRef(11, "db1", "src1", "t1", "ext_tag"),
+  };
+  // external-schema and saved-filter flags ride along in the compact layout
+  tstrncpy(colRefs[1].refSchemaName, "ext_schema", sizeof(colRefs[1].refSchemaName));
+  colRefs[0].hasFilterCond = true;
+  tstrncpy(tagRefs[1].refSchemaName, "tag_schema", sizeof(tagRefs[1].refSchemaName));
+  SRefColInfo onlyTag[1] = {makeSubTableRef(20, "db2", "src2", "t2", nullptr)};
+
+  SVSubTablesRsp rsp = {};
+  rsp.vgId = 7;
+  rsp.pTables = taosArrayInit(3, sizeof(SVCTableRefCols*));
+  SVCTableRefCols* tbA = tBuildSVCTableRefCols(100, 2, colRefs, 3, tagRefs, 2);
+  SVCTableRefCols* tbB = tBuildSVCTableRefCols(101, 1, nullptr, 0, onlyTag, 1);  // tag-only child
+  SVCTableRefCols* tbC = tBuildSVCTableRefCols(102, 1, colRefs, 2, nullptr, 0);  // no tag refs
+  ASSERT_NE(nullptr, tbA);
+  ASSERT_NE(nullptr, tbB);
+  ASSERT_NE(nullptr, tbC);
+  taosArrayPush(rsp.pTables, &tbA);
+  taosArrayPush(rsp.pTables, &tbB);
+  taosArrayPush(rsp.pTables, &tbC);
+
+  // The content block is sized by actual string lengths instead of fixed 390B entries.
+  EXPECT_EQ(tbA->pContent->bufLen,
+            static_cast<int32_t>(sizeof(SVctRefContent) + 5 * sizeof(SRefColEntry) +
+                                 subTableRefArenaBytes(colRefs, 3) + subTableRefArenaBytes(tagRefs, 2)));
+  EXPECT_LT(static_cast<int32_t>(sizeof(SVCTableRefCols) + tbA->pContent->bufLen),
+            static_cast<int32_t>(sizeof(SVCTableRefCols) + 5 * sizeof(SRefColInfo)));
+
+  const int32_t size = tSerializeSVSubTablesRsp(nullptr, 0, &rsp);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(size, tSerializeSVSubTablesRsp(frame.data(), size, &rsp));
+
+  SVSubTablesRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(frame.data(), size, &decoded));
+  ASSERT_EQ(7, decoded.vgId);
+  ASSERT_EQ(3, taosArrayGetSize(decoded.pTables));
+
+  SVCTableRefCols* gotA = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 0);
+  SVCTableRefCols* gotB = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 1);
+  SVCTableRefCols* gotC = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 2);
+
+  EXPECT_EQ(100, gotA->uid);
+  EXPECT_EQ(2, gotA->numOfSrcTbls);
+  EXPECT_EQ(3, gotA->numOfColRefs);
+  EXPECT_EQ(2, gotA->numOfTagRefs);
+  SRefColInfo back = {};
+  vctRefColToInfo(gotA, vctColRefAt(gotA, 1), &back);
+  EXPECT_EQ(3, back.colId);
+  EXPECT_STREQ("db0", back.refDbName);
+  EXPECT_STREQ(longTb.c_str(), back.refTableName);
+  EXPECT_STREQ(longCol.c_str(), back.refColName);
+  EXPECT_STREQ("ext_src", back.refSourceName);
+  EXPECT_STREQ("ext_schema", back.refSchemaName);
+  EXPECT_FALSE(back.hasFilterCond);
+  vctRefColToInfo(gotA, vctColRefAt(gotA, 0), &back);
+  EXPECT_EQ(2, back.colId);
+  EXPECT_STREQ("", back.refSourceName);
+  EXPECT_STREQ("", back.refSchemaName);
+  EXPECT_TRUE(back.hasFilterCond);
+  vctRefColToInfo(gotA, vctTagRefAt(gotA, 1), &back);
+  EXPECT_EQ(11, back.colId);
+  EXPECT_STREQ("t1", back.refColName);
+  EXPECT_STREQ("ext_tag", back.refSourceName);
+  EXPECT_STREQ("tag_schema", back.refSchemaName);
+
+  // A tag-only child must survive the wire: decode used to drop tables with
+  // zero col refs before the appended tag-ref section could find them.
+  EXPECT_EQ(101, gotB->uid);
+  EXPECT_EQ(0, gotB->numOfColRefs);
+  ASSERT_EQ(1, gotB->numOfTagRefs);
+  vctRefColToInfo(gotB, vctTagRefAt(gotB, 0), &back);
+  EXPECT_EQ(20, back.colId);
+  EXPECT_STREQ("db2", back.refDbName);
+  EXPECT_STREQ("src2", back.refTableName);
+  EXPECT_STREQ("t2", back.refColName);
+
+  EXPECT_EQ(102, gotC->uid);
+  EXPECT_EQ(2, gotC->numOfColRefs);
+  EXPECT_EQ(0, gotC->numOfTagRefs);
+
+  // encode(decode(x)) == encode(x): the codec is byte-stable.
+  const int32_t size2 = tSerializeSVSubTablesRsp(nullptr, 0, &decoded);
+  ASSERT_EQ(size, size2);
+  std::vector<uint8_t> frame2(size2);
+  ASSERT_EQ(size2, tSerializeSVSubTablesRsp(frame2.data(), size2, &decoded));
+  EXPECT_EQ(0, memcmp(frame.data(), frame2.data(), size));
+
+  tDestroySVSubTablesRsp(&decoded);
+  tDestroySVSubTablesRsp(&rsp);
+}
+
+// A sender that predates the tag-ref/ref-source-name sections stops right
+// after the col-ref section; such frames must keep decoding (rolling upgrade).
+TEST(td_msg_test, vsubtables_rsp_decoder_accepts_legacy_frame_without_tag_sections) {
+  SEncoder encoder = {0};
+  std::vector<uint8_t> buf(256);
+  tEncoderInit(&encoder, buf.data(), static_cast<int32_t>(buf.size()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 9));    // vgId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfTables
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfSrcTbls
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfColRefs
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI16(&encoder, 2));    // colId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "db"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "tb"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "col"));
+  tEndEncode(&encoder);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVSubTablesRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(buf.data(), len, &decoded));
+  ASSERT_EQ(1, taosArrayGetSize(decoded.pTables));
+  SVCTableRefCols* pTb = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 0);
+  ASSERT_NE(nullptr, pTb);
+  EXPECT_EQ(555, pTb->uid);
+  EXPECT_EQ(1, pTb->numOfSrcTbls);
+  EXPECT_EQ(1, pTb->numOfColRefs);
+  EXPECT_EQ(0, pTb->numOfTagRefs);
+  SRefColInfo back = {};
+  vctRefColToInfo(pTb, vctColRefAt(pTb, 0), &back);
+  EXPECT_EQ(2, back.colId);
+  EXPECT_STREQ("db", back.refDbName);
+  EXPECT_STREQ("tb", back.refTableName);
+  EXPECT_STREQ("col", back.refColName);
+  EXPECT_STREQ("", back.refSourceName);
+
+  tDestroySVSubTablesRsp(&decoded);
+}
+
+// A malformed tag-ref section (negative per-table count) must be rejected
+// instead of being trusted as an entry count.
+TEST(td_msg_test, vsubtables_rsp_decoder_rejects_negative_tagref_count) {
+  SEncoder encoder = {0};
+  std::vector<uint8_t> buf(256);
+  tEncoderInit(&encoder, buf.data(), static_cast<int32_t>(buf.size()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 9));    // vgId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfTables
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfSrcTbls
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfColRefs
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI16(&encoder, 2));    // colId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "db"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "tb"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeCStr(&encoder, "col"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numTagRefEntries
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, -1));   // numOfTagRefs: malformed
+  tEndEncode(&encoder);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVSubTablesRsp decoded = {};
+  EXPECT_NE(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(buf.data(), len, &decoded));
+  // the decoder released the partially built response on error
+  EXPECT_EQ(nullptr, decoded.pTables);
+  tDestroySVSubTablesRsp(&decoded);
+}
+
+// A tag-ref count larger than the remaining payload must fail cleanly too.
+TEST(td_msg_test, vsubtables_rsp_decoder_rejects_truncated_tagref_section) {
+  SEncoder encoder = {0};
+  std::vector<uint8_t> buf(256);
+  tEncoderInit(&encoder, buf.data(), static_cast<int32_t>(buf.size()));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 9));    // vgId
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfTables
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numOfSrcTbls
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 0));    // numOfColRefs
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));    // numTagRefEntries
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeU64(&encoder, 555));  // uid
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 3));    // numOfTagRefs, but no refs follow
+  tEndEncode(&encoder);
+  const int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+
+  SVSubTablesRsp decoded = {};
+  EXPECT_NE(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(buf.data(), len, &decoded));
+  EXPECT_EQ(nullptr, decoded.pTables);
+  tDestroySVSubTablesRsp(&decoded);
+}
+
+// Children sharing the same ref pattern must decode onto one shared content
+// block: N children over few source tables cost O(N) small records plus one
+// content block, not N copies of the ref payload.
+TEST(td_msg_test, vsubtables_rsp_decoder_shares_identical_ref_patterns) {
+  SRefColInfo colRefs[2] = {
+      makeSubTableRef(2, "db0", "src0", "c0", nullptr),
+      makeSubTableRef(3, "db0", "src0", "c1", "ext"),
+  };
+  SRefColInfo tagRefs[1] = {makeSubTableRef(9, "db0", "src0", "t0", nullptr)};
+
+  SVSubTablesRsp rsp = {};
+  rsp.vgId = 1;
+  rsp.pTables = taosArrayInit(3, sizeof(SVCTableRefCols*));
+  for (int32_t i = 0; i < 3; ++i) {
+    SVCTableRefCols* pTb = tBuildSVCTableRefCols(1000 + i, 1, colRefs, 2, tagRefs, 1);
+    ASSERT_NE(nullptr, pTb);
+    taosArrayPush(rsp.pTables, &pTb);
+  }
+
+  const int32_t size = tSerializeSVSubTablesRsp(nullptr, 0, &rsp);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> frame(size);
+  ASSERT_EQ(size, tSerializeSVSubTablesRsp(frame.data(), size, &rsp));
+
+  SVSubTablesRsp decoded = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(frame.data(), size, &decoded));
+  ASSERT_EQ(3, taosArrayGetSize(decoded.pTables));
+  SVCTableRefCols* t0 = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 0);
+  SVCTableRefCols* t1 = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 1);
+  SVCTableRefCols* t2 = *(SVCTableRefCols**)taosArrayGet(decoded.pTables, 2);
+  ASSERT_NE(nullptr, t0->pContent);
+  EXPECT_EQ(t0->pContent, t1->pContent);
+  EXPECT_EQ(t0->pContent, t2->pContent);
+  EXPECT_EQ(1001, t1->uid);  // identity stays per child
+  // the shared content still reads back correctly from every record
+  SRefColInfo back = {};
+  vctRefColToInfo(t2, vctColRefAt(t2, 1), &back);
+  EXPECT_EQ(3, back.colId);
+  EXPECT_STREQ("src0", back.refTableName);
+  EXPECT_STREQ("ext", back.refSourceName);
+  vctRefColToInfo(t1, vctTagRefAt(t1, 0), &back);
+  EXPECT_EQ(9, back.colId);
+  EXPECT_STREQ("t0", back.refColName);
+
+  // encode(decode(x)) == encode(x) even with shared contents
+  const int32_t size2 = tSerializeSVSubTablesRsp(nullptr, 0, &decoded);
+  ASSERT_EQ(size, size2);
+  std::vector<uint8_t> frame2(size2);
+  ASSERT_EQ(size2, tSerializeSVSubTablesRsp(frame2.data(), size2, &decoded));
+  EXPECT_EQ(0, memcmp(frame.data(), frame2.data(), size));
+
+  tDestroySVSubTablesRsp(&decoded);
+  tDestroySVSubTablesRsp(&rsp);
 }

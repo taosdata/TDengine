@@ -169,7 +169,7 @@ class TestVirtualStreamMixedExternal:
             "ts TIMESTAMP(3) PRIMARY KEY, payload BYTEA",
         )
 
-        warmup_ts = cls._local_timestamp(cls.BASE_MS - 2000)
+        warmup_ts = cls._remote_timestamp(cls.BASE_MS - 2000)
         ExtSrcEnv.mysql_exec(
             cls.MYSQL_DB,
             [f"INSERT INTO same_t VALUES ('{warmup_ts}', 1, 1)"],
@@ -243,7 +243,7 @@ class TestVirtualStreamMixedExternal:
             "same_t_extra",
             "ts DATETIME(3) NOT NULL PRIMARY KEY, value_x INT",
         )
-        warmup_ts = cls._local_timestamp(cls.BASE_MS - 2000)
+        warmup_ts = cls._remote_timestamp(cls.BASE_MS - 2000)
         ExtSrcEnv.mysql_exec(
             cls.MYSQL_DB,
             [f"INSERT INTO same_t VALUES ('{warmup_ts}', 1)"],
@@ -297,11 +297,10 @@ class TestVirtualStreamMixedExternal:
 
         create_remote_db("influxdb", cls.INFLUX_DB)
         seed_ms = cls.BASE_MS - 2 * cls.THREE_EXT_INTERVAL_STEP_MS
-        seed_text = cls._local_timestamp(seed_ms)
-        seed_ns = int(
-            datetime.datetime.strptime(seed_text, "%Y-%m-%d %H:%M:%S.%f").timestamp()
-            * 1_000_000_000
-        )
+        seed_text = cls._remote_timestamp(seed_ms)
+        # InfluxDB stores an absolute instant, so derive the ns epoch from the
+        # millisecond value instead of re-parsing a wall clock string.
+        seed_ns = seed_ms * 1_000_000
         tdLog.info(
             f"seeding three-external interval measurements: "
             f"seed_ts={seed_text}, seed_ns={seed_ns}"
@@ -405,11 +404,11 @@ class TestVirtualStreamMixedExternal:
             base_ts = cls.BASE_MS + start_offset + index * 10000
             local_rows.append(f"('{cls._timestamp(base_ts)}', {local_values[index]})")
             mysql_rows.append(
-                f"('{cls._local_timestamp(base_ts)}', {mysql_values[index][0]}, "
+                f"('{cls._remote_timestamp(base_ts)}', {mysql_values[index][0]}, "
                 f"{mysql_values[index][1]})"
             )
             pg_rows.append(
-                f"('{cls._local_timestamp(base_ts + pg_shift_ms)}', {pg_values[index][0]}, "
+                f"('{cls._remote_timestamp(base_ts + pg_shift_ms)}', {pg_values[index][0]}, "
                 f"{pg_values[index][1]})"
             )
 
@@ -436,14 +435,14 @@ class TestVirtualStreamMixedExternal:
             cls.MYSQL_DB,
             [
                 "INSERT INTO same_t VALUES "
-                f"('{cls._local_timestamp(late_ts)}', 900, 9000)"
+                f"('{cls._remote_timestamp(late_ts)}', 900, 9000)"
             ],
         )
         ExtSrcEnv.pg_exec(
             cls.PG_DB,
             [
                 "INSERT INTO same_t VALUES "
-                f"('{cls._local_timestamp(late_ts)}', 800, 8000)"
+                f"('{cls._remote_timestamp(late_ts)}', 800, 8000)"
             ],
         )
         tdSql.execute(
@@ -458,13 +457,10 @@ class TestVirtualStreamMixedExternal:
         base_ms = cls._three_external_interval_base_ms()
         for index in range(12):
             ts_ms = base_ms + index * cls.THREE_EXT_INTERVAL_STEP_MS
-            ts_text = cls._local_timestamp(ts_ms)
-            influx_ts = int(
-                datetime.datetime.strptime(
-                    ts_text, "%Y-%m-%d %H:%M:%S.%f"
-                ).timestamp()
-                * 1_000_000_000
-            )
+            ts_text = cls._remote_timestamp(ts_ms)
+            # InfluxDB timestamps are absolute ns epochs, so no wall-clock
+            # rendering is involved here.
+            influx_ts = ts_ms * 1_000_000
             mysql_rows.append(f"('{ts_text}', {100 + index})")
             pg_rows.append(f"('{ts_text}', {1000 + index})")
             influx_lines.append(
@@ -642,7 +638,7 @@ class TestVirtualStreamMixedExternal:
         mysql_extra_rows = []
         local_rows = []
         for index in range(3):
-            remote_ts_text = cls._local_timestamp(cls.BASE_MS + index * 1000)
+            remote_ts_text = cls._remote_timestamp(cls.BASE_MS + index * 1000)
             local_ts_text = cls._timestamp(cls.BASE_MS + index * 1000)
             mysql_rows.append(f"('{remote_ts_text}', {100 + index})")
             mysql_extra_rows.append(f"('{remote_ts_text}', {1000 + index})")
@@ -715,14 +711,39 @@ class TestVirtualStreamMixedExternal:
             cls._wait_totals(child_name, expected_rows, timeout=1)
             time.sleep(0.5)
 
+    # Timestamp rendering rules for this case (the container timezone must not
+    # change the data written or verified):
+    #   * SQL literals sent to TDengine are parsed by the server in the session
+    #     timezone, which setup_class pins to UTC ("set timezone 'UTC'").
+    #   * Timezone-naive external columns (MySQL DATETIME, PG timestamp) are
+    #     decoded by the stream external reader with the *stream* client
+    #     timezone, i.e. the session timezone captured by CREATE STREAM, so
+    #     their literals must be rendered in UTC as well (see
+    #     _remote_timestamp); rendering them in the OS local zone shifts every
+    #     external row by the local UTC offset.
+    #   * Values returned by tdSql are converted with datetime.fromtimestamp(),
+    #     i.e. the OS local timezone, so expected rows must be rendered with
+    #     _local_timestamp.
     @classmethod
     def _timestamp(cls, value_ms):
+        """Render an epoch (ms) as a UTC wall clock (session/stream timezone)."""
         return datetime.datetime.fromtimestamp(
             value_ms / 1000, datetime.timezone.utc
         ).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
     @classmethod
+    def _remote_timestamp(cls, value_ms):
+        """Render a timestamp literal for a timezone-naive remote column.
+
+        MySQL DATETIME / PG timestamp carry no offset and are decoded with the
+        stream client timezone, so they must spell the wall clock of that
+        timezone (UTC here) instead of the OS local one.
+        """
+        return cls._timestamp(value_ms)
+
+    @classmethod
     def _local_timestamp(cls, value_ms):
+        """Render an epoch (ms) in the OS local timezone (tdSql output form)."""
         return datetime.datetime.fromtimestamp(value_ms / 1000.0).strftime(
             "%Y-%m-%d %H:%M:%S.%f"
         )[:-3]
@@ -734,7 +755,7 @@ class TestVirtualStreamMixedExternal:
 
     @classmethod
     def _three_external_interval_sink_row(cls, index):
-        ts = cls._timestamp(
+        ts = cls._local_timestamp(
             cls._three_external_interval_base_ms()
             + index * cls.THREE_EXT_INTERVAL_STEP_MS
         )
@@ -747,7 +768,7 @@ class TestVirtualStreamMixedExternal:
             if cls.three_ext_interval_base_ms is not None
             else cls.BASE_MS
         )
-        ts = cls._timestamp(
+        ts = cls._local_timestamp(
             base_ms + start_index * cls.THREE_EXT_INTERVAL_STEP_MS
         )
         return (
@@ -773,7 +794,7 @@ class TestVirtualStreamMixedExternal:
         if hasattr(value, "strftime"):
             return value.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         if isinstance(value, int) and not isinstance(value, bool) and abs(value) > 10 ** 15:
-            return cls._timestamp(value // 1_000_000)
+            return cls._local_timestamp(value // 1_000_000)
         return value
 
     @classmethod
@@ -965,7 +986,7 @@ class TestVirtualStreamMixedExternal:
             "ts DATETIME(3) NOT NULL PRIMARY KEY, "
             "payload VARCHAR(32) CHARACTER SET latin1",
         )
-        warmup_ts = cls._local_timestamp(cls.BASE_MS - 2000)
+        warmup_ts = cls._remote_timestamp(cls.BASE_MS - 2000)
         ExtSrcEnv.mysql_exec(
             cls.MYSQL_DB,
             [f"INSERT INTO var_t VALUES ('{warmup_ts}', 'warmup')"],
@@ -988,7 +1009,7 @@ class TestVirtualStreamMixedExternal:
     @classmethod
     def _insert_var_width_rows(cls):
         rows = [
-            f"('{cls._local_timestamp(cls.BASE_MS + index * 1000)}', "
+            f"('{cls._remote_timestamp(cls.BASE_MS + index * 1000)}', "
             f"'payload_{index}')"
             for index in range(3)
         ]
@@ -1081,7 +1102,7 @@ class TestVirtualStreamMixedExternal:
     @classmethod
     def _insert_quoted_pg_rows(cls):
         rows = [
-            f"('{cls._local_timestamp(cls.BASE_MS + index * cls.QUOTED_PG_STEP_MS)}', "
+            f"('{cls._remote_timestamp(cls.BASE_MS + index * cls.QUOTED_PG_STEP_MS)}', "
             f"{10 + index})"
             for index in range(3)
         ]
@@ -1331,11 +1352,11 @@ class TestVirtualStreamMixedExternal:
             self._insert_influx_column_rows()
             self._wait_influx_column_sink(
                 "influx_col_a",
-                [(self._timestamp(self.BASE_MS), 701, 101)],
+                [(self._local_timestamp(self.BASE_MS), 701, 101)],
             )
             self._wait_influx_column_sink(
                 "influx_col_b",
-                [(self._timestamp(self.BASE_MS), 701, 201)],
+                [(self._local_timestamp(self.BASE_MS), 701, 201)],
             )
             tdLog.info("InfluxDB column-reference virtual stream [ passed ]")
         finally:

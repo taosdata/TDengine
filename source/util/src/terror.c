@@ -1429,6 +1429,6 @@ const char* tstrerror(int32_t err) {
   return "";
 }
 
-const char* terrstr() { return tstrerror(terrno); }
+const char* terrstr(void) { return tstrerror(terrno); }
 
 int32_t  taosGetErrSize() { return sizeof(errors)/sizeof(errors[0]); }
