@@ -27,20 +27,13 @@ on:
       - '.github/workflows/tdengine-docs-ci.yml'
       - '**/*.md'
 
-env:
-  DOC_WKC: '/root/doc_ci_work'
-  ZH_DOC_REPO: 'docs.taosdata.com'
-  EN_DOC_REPO: 'docs.tdengine.com'
-  TD_REPO: 'TDengine'
-  TOOLS_REPO: 'taos-tools'
-
 permissions:
   contents: read
-  
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-  
+
 jobs:
   check-with-typos:
     runs-on: ubuntu-latest
@@ -85,7 +78,7 @@ jobs:
         with:
           args: --lint docs/zh/* docs/en/*
         continue-on-error: true
-        
+
       - name: Report ReviewDog
         if: always() && steps.autocorrect.outcome == 'failure'
         uses: tomchon/autocorrect-action@39574019517181c82eeb0f3194206e3a7db9937f # fix/review-dog, pinned 2026-09-17
@@ -94,7 +87,7 @@ jobs:
         with:
           reviewdog: true
           args: ./docs/zh/*  ./docs/en/*
-      
+
       - name: Fail if AutoCorrect found issues
         if: steps.autocorrect.outcome == 'failure'
         run: |
@@ -123,17 +116,25 @@ jobs:
           separator: ","
       - name: Check with Markdownlint
         uses: DavidAnson/markdownlint-cli2-action@992badcdf24e3b8eb7e87ff9287fe931bcb00c6e # v20
-        if: steps.changed-files.outputs.any_changed == 'true'        
+        if: steps.changed-files.outputs.any_changed == 'true'
         with:
           config: 'docs/.markdownlint-cli2.jsonc'
           globs: ${{ steps.changed-files.outputs.all_changed_files }}
           separator: ','
 
+  # Disabled by request: this job uses the self-hosted doc-build runner.
   build-doc:
+    if: ${{ false }}
+    env:
+      DOC_WKC: '/root/doc_ci_work'
+      ZH_DOC_REPO: 'docs.taosdata.com'
+      EN_DOC_REPO: 'docs.tdengine.com'
+      TD_REPO: 'TDengine'
+      TOOLS_REPO: 'taos-tools'
     runs-on:
       group: CI
       labels: [self-hosted, doc-build]
-    needs: 
+    needs:
         - check-with-typos
         - check-with-autocorrect
         - check-with-markdownlint
@@ -149,7 +150,7 @@ jobs:
           git clean -f
           git remote prune origin
           git fetch
-          git checkout -- "$BASE_REF"
+          git checkout -B "$BASE_REF" "origin/$BASE_REF"
           git pull >/dev/null
           git fetch origin "+refs/pull/${PR_NUMBER}/merge"
           git checkout -qf FETCH_HEAD
@@ -201,9 +202,9 @@ jobs:
         if: ${{ steps.check-doc-lang.outputs.zh_doc_changed == 'true'}}
         run: |
           cd "$DOC_WKC/$ZH_DOC_REPO"
-          rm -rf build/* && rm -rf docs/* && git restore docs/ 
-          git checkout -f master && git pull origin master 
-          yarn install 
+          rm -rf build/* && rm -rf docs/* && git restore docs/
+          git checkout -f master && git pull origin master
+          yarn install
           yarn ass local
           yarn build
       - name: Build the english document
@@ -211,7 +212,7 @@ jobs:
         run: |
           cd "$DOC_WKC/$EN_DOC_REPO"
           rm -rf build/* && rm -rf docs/* && git restore docs/
-          git checkout -f main && git pull origin main 
-          yarn install 
+          git checkout -f main && git pull origin main
+          yarn install
           yarn ass local
           yarn build
