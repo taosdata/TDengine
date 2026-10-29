@@ -2448,8 +2448,15 @@ static void clearStbRowsDataContext(SStbRowsDataContext* pStbRowsCxt) {
       taosArrayDestroy(pStbRowsCxt->boundColsInfo.parseredTags->STagNames);
     }
     if (pStbRowsCxt->boundColsInfo.parseredTags->pTagVals != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pStbRowsCxt->boundColsInfo.parseredTags->pTagVals); ++i) {
+        STagVal* pVal = taosArrayGet(pStbRowsCxt->boundColsInfo.parseredTags->pTagVals, i);
+        if (IS_VAR_DATA_TYPE(pVal->type)) {
+          taosMemoryFreeClear(pVal->pData);
+        }
+      }
       taosArrayDestroy(pStbRowsCxt->boundColsInfo.parseredTags->pTagVals);
     }
+    taosMemoryFreeClear(pStbRowsCxt->boundColsInfo.parseredTags->pTagIndex);
     taosMemoryFreeClear(pStbRowsCxt->boundColsInfo.parseredTags);
   }
 }
@@ -3196,7 +3203,7 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
 }
 
 static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pStmt) {
-  insDestroyBoundColInfo(&pCxt->tags);
+  qDestroyBoundColInfo(&pCxt->tags);
   clearInsertParseContext(pCxt);
   taosMemoryFreeClear(pStmt->pTableMeta);
   nodesDestroyNode(pStmt->pTagCond);
@@ -3900,7 +3907,7 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMeta(*pQuery);
   }
 
-  insDestroyBoundColInfo(&context.tags);
+  qDestroyBoundColInfo(&context.tags);
   clearInsertParseContext(&context);
   // if no data to insert, set emptyMode to avoid request server
   if (!context.needRequest) {

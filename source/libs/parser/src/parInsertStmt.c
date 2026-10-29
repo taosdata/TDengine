@@ -292,7 +292,19 @@ end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
-      taosMemoryFreeClear(p->pData);
+      bool fromParsedTags = false;
+      if (tags->parseredTags) {
+        for (int j = 0; j < taosArrayGetSize(tags->parseredTags->pTagVals); ++j) {
+          STagVal* pParsed = taosArrayGet(tags->parseredTags->pTagVals, j);
+          if (pParsed->pData == p->pData) {
+            fromParsedTags = true;
+            break;
+          }
+        }
+      }
+      if (!fromParsedTags) {
+        taosMemoryFreeClear(p->pData);
+      }
     }
   }
   taosArrayDestroy(pTagArray);

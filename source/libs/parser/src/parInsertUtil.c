@@ -27,6 +27,13 @@
 #include "tmisce.h"
 #include "ttypes.h"
 
+static void destroyParsedTagVal(void* pVal) {
+  STagVal* pTagVal = (STagVal*)pVal;
+  if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+    taosMemoryFreeClear(pTagVal->pData);
+  }
+}
+
 void qDestroyBoundColInfo(void* pInfo) {
   if (NULL == pInfo) {
     return;
@@ -35,6 +42,12 @@ void qDestroyBoundColInfo(void* pInfo) {
   SBoundColInfo* pBoundInfo = (SBoundColInfo*)pInfo;
 
   taosMemoryFreeClear(pBoundInfo->pColIndex);
+  if (pBoundInfo->parseredTags) {
+    taosArrayDestroy(pBoundInfo->parseredTags->STagNames);
+    taosArrayDestroyEx(pBoundInfo->parseredTags->pTagVals, destroyParsedTagVal);
+    taosMemoryFreeClear(pBoundInfo->parseredTags->pTagIndex);
+    taosMemoryFreeClear(pBoundInfo->parseredTags);
+  }
 }
 
 static char* tableNameGetPosition(SToken* pToken, char target) {

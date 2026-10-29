@@ -282,6 +282,9 @@ static int32_t stmtUpdateBindInfo(TAOS_STMT2* stmt, STableMeta* pTableMeta, void
     taosMemoryFreeClear(pStmt->bInfo.boundTags);
   }
 
+  tSimpleHashCleanup(pStmt->bInfo.boundCols);
+  pStmt->bInfo.boundCols = NULL;
+  pStmt->bInfo.boundColsCached = false;
   if (cols) {
     pStmt->bInfo.boundCols =
         tSimpleHashInit(taosArrayGetSize(cols), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
