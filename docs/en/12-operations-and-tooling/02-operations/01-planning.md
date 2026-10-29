@@ -150,7 +150,7 @@ Thanks to TDengine's excellent horizontal scaling capabilities, we can easily ca
 
 The table below lists the default ports for TDengine products and components (including TSDB, IDMP, TDgpt, and CLS). These ports can be changed through parameters in the configuration file.
 
-To simplify firewall and security-group configuration, **open the port range `6030–6070` in one step** (TCP; StatsD / collectd related ports also require UDP). This covers all default ports listed below and avoids opening them one by one. If you deploy only core TSDB (without IDMP, TDgpt, or CLS), you can narrow the range to **`6030–6060`**.
+To simplify firewall and security-group configuration, **open the port range `6030–6070` in one step** (TCP; StatsD / collectd related ports also require UDP). This covers all default ports listed below and avoids opening them one by one. If you deploy only core TSDB (without IDMP, TDgpt, or CLS), you can narrow the range to **`6030–6060`**. This range is a coarse-grained recommendation; ports used only for local communication are listed under [Local-Only Ports](#local-only-ports) below and can be skipped when you configure ports one by one.
 
 | Product | Component    | Port      | Protocol | Description |
 |:--------|:-------------|:----------|:---------|:------------|
@@ -165,9 +165,9 @@ To simplify firewall and security-group configuration, **open the port range `60
 |         |              | 6044      | TCP/UDP  | StatsD format write |
 |         |              | 6045      | TCP/UDP  | collectd format write |
 |         |              | 6046      | TCP      | OpenTSDB TELNET format write |
-|         |              | 6047      | TCP      | collectd via OpenTSDB TELNET write |
-|         |              | 6048      | TCP      | icinga2 via OpenTSDB TELNET write |
-|         |              | 6049      | TCP      | tcollector via OpenTSDB TELNET write |
+|         |              | 6047      | TCP      | OpenTSDB TELNET write, stored in database `collectd_tsdb` (collectd clients) |
+|         |              | 6048      | TCP      | OpenTSDB TELNET write, stored in database `icinga2_tsdb` (icinga2 clients) |
+|         |              | 6049      | TCP      | OpenTSDB TELNET write, stored in database `tcollector_tsdb` (tcollector clients) |
 | IDMP    | IDMP         | 6034      | HTTPS    | HTTPS access (recommended for production) |
 |         |              | 6037      | MCP      | MCP / AI Agent |
 |         |              | 6038      | HTTP     | Embedded H2 web console |
@@ -175,6 +175,7 @@ To simplify firewall and security-group configuration, **open the port range `60
 |         |              | 6040      | HTTP     | Internal chat service API |
 |         |              | 6042      | HTTP     | Web UI / REST API |
 | TDgpt   | Anode        | 6035      | TCP      | TDgpt service interface |
+|         | TDmodel      | 6036      | TCP      | Model service (TDmodel) |
 |         | TDtsfm       | 6061      | TCP      | Time-series foundation model service |
 |         | Time-MoE     | 6062      | TCP      | Model service |
 |         | Chronos      | 6063      | TCP      | Model service |
@@ -183,3 +184,27 @@ To simplify firewall and security-group configuration, **open the port range `60
 |         | Moment       | 6066      | TCP      | Model service |
 |         | Reserved     | 6067-6070 | TCP      | Reserved model service ports |
 | CLS     | CLS          | 6059      | HTTP     | Web UI / license service |
+
+### Local-Only Ports
+
+The following ports and endpoints are used by default only for communication between processes on the same host (loopback listeners or Unix domain sockets). They do not provide external services, so **you do not need to open them in the firewall**. Re-evaluate only after the bind address is explicitly changed:
+
+| Product | Component | Port  | Protocol | Description |
+|:--------|:----------|:------|:---------|:------------|
+| TSDB    | xnoded    | 6051  | TCP      | XNode local management interface. On Linux and macOS, taosd talks to `xnoded` over the Unix domain socket `<dataDir>/.taosxnode.sock`, so no TCP port is listened on; on Windows, taosd reaches it at `localhost:6051`, which is reachable from the local host only. Only when `xnoded` is started manually without `--listen` / `XNODED_LISTEN` does it fall back to listening on `0.0.0.0:6051`, which must then be evaluated separately. `xnoded` in turn controls taosX through the taosX 6055 port |
+| IDMP    | IDMP      | 16042 | TCP      | Backend Quarkus service. Loopback only; all external access goes through the nginx 6042 (HTTP) / 6034 (HTTPS) entry points as a reverse proxy, so external access to 16042 neither needs to be allowed nor should be allowed directly |
+| TSDB    | taosX / taosX-Agent | 6051–16049 (dynamic) | TCP | Allocated at task runtime for intra-host process forwarding, within the `6051–16049` range, picking free ports from the low end and skipping the reserved ports (6051, 6055, 6060, and 7070) as well as any port already in use (including listeners bound only to the wildcard address). No service is exposed, but reserve this range in port planning |
+
+### Outbound Connection Ports
+
+In addition to the service listening ports above, depending on the deployment and usage requirements, you may need to allow the following **outbound connection** ports. They do not require a local listening port, but the firewall or security group must allow the server to **initiate outbound** connections (no configuration is needed if outbound traffic is allowed by default):
+
+| Product | Purpose | Port | Protocol | Description |
+|:--------|:--------|:-----|:---------|:------------|
+| TSDB    | Telemetry reporting (optional) | 80 | TCP | Outbound HTTP reporting to `telemetry.tdengine.com`. Can be disabled with `telemetryReporting`; enabled by default only in community builds (disabled by default in enterprise builds). Target and port are configurable (`telemetryServer` / `telemetryPort`) |
+| TSDB    | snode checkpoint backup | 873 | TCP | rsync protocol (configurable via `rsyncPort`) |
+| TSDB    | taosExplorer backup plan S3 dump | Configured S3 endpoint | HTTPS | Uploads backup files to S3 or compatible object storage; AWS S3 typically uses 443, while self-hosted MinIO and similar use the actual endpoint port |
+| taosX   | Subscribe to external MQTT broker | 1883 | TCP | `mqtt://` data source (such as Sparkplug B); the opposite direction to taosMqtt 6057, which provides the MQTT subscription service on this host |
+| IDMP    | SMTP email sending | 465 | TCP | Outbound (configurable via `CAPABILITY_MAIL_SMTP_PORT`) |
+| IDMP    | Redis connection | 6379 | TCP | Outbound. Required in cluster mode (`tda.redis.enabled=true`): distributed locks, ID generation, caching, and cross-node event delivery (Redis Stream / SSE event bridge); disabled by default in standalone mode and only required when explicitly enabled (configurable via `IDMP_REDIS_URL`) |
+| taosX   | Data source connections | As needed | TCP | MySQL 3306, PostgreSQL 5432, MongoDB 27017, SQL Server 1433, Oracle 1521, OpenTSDB 4242, etc., depending on the configured data sources |
