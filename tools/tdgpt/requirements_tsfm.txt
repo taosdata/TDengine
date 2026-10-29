@@ -19,7 +19,7 @@ pandas==2.1.4
 scipy==1.11.4
 scikit-learn==1.5.2
 # Keep a wheel-compatible line for Python 3.12 on Linux arm64.
-pyarrow==18.1.0
+pyarrow==23.0.1
 flask==3.0.3
 matplotlib==3.9.2
 
