@@ -7086,10 +7086,11 @@ int32_t stTriggerTaskReadyRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReal
 
   SSTriggerGroupPendingRecalc *pGroupRecalcs =
       tSimpleHashGet(pTask->pGroupPendingRecalcs, &pGroup->gid, sizeof(int64_t));
-  if (pGroupRecalcs == NULL || TD_DLIST_NELES(&pGroupRecalcs->pendingRequests) == 0) {
+  if (pGroupRecalcs == NULL) {
     goto _end;
   }
 
+  // Keep progress current even with no pending requests so later deletes can become ready without new input.
   int64_t progressTs = pGroup->oldThreshold;
   if (pGroup->pPendingCalcParams.neles > 0) {
     SSTriggerCalcParam *pParam = taosObjListGetHead(&pGroup->pPendingCalcParams);
