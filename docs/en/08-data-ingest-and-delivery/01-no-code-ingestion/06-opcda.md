@@ -229,6 +229,30 @@ Install the Agent once near the OPC server and keep it running. After that, crea
 
 You only need to change the Agent host configuration or reinstall when replacing `endpoint` / `token`, upgrading the Agent, or changing host-local options such as store-and-forward directories. Installation steps: [Install taosX-Agent](./01-install-agent.md).
 
+## Frequently Asked Questions
+
+1. How do I troubleshoot the connectivity check error `TryConnect was not successful: connection failed. Error: OPC ERROR code:0x80080005, error:Unknown error, may be system error: Server execution failed`?
+
+**Possible causes**: The OPC DA server failed to start, or the taosX-Agent service account lacks the required COM/DCOM launch, activation, or access permissions.
+
+**Solution**: First, confirm that the OPC DA server has started successfully. On the Windows host running taosX-Agent, open PowerShell as administrator and stop the Agent service:
+
+```powershell
+Stop-Service -Name taosx-agent -ErrorAction Stop
+(Get-Service -Name taosx-agent).WaitForStatus('Stopped', '00:00:30')
+Get-Process -Name taosx-agent,taosx-agent-srv -ErrorAction SilentlyContinue
+```
+
+Once these processes have exited, start the Agent in the foreground using the current Windows login account. Adjust the paths to match your installation:
+
+```powershell
+$env:PLUGINS_HOME = 'C:\TDengine\plugins'
+$env:LOGS_HOME = 'C:\TDengine\log'
+& 'C:\TDengine\taosx-agent.exe' --config 'C:\TDengine\cfg\agent.toml'
+```
+
+Keep the window open and repeat the connectivity check in taosExplorer with the same agent and OPC configuration. If the check succeeds in the foreground but fails when the service is restored, check the service account and COM/DCOM permissions. In `services.msc`, open the service properties and use the **Log On** tab to replace the default `LocalSystem` account with the account verified in the foreground, enter its valid password, and restart the service to retest. Before restoring the service, press Ctrl+C to exit the foreground Agent so that two instances do not run simultaneously. If the foreground check also fails, investigate the OPC DA server startup status and Windows event logs.
+
 ## Related Documents
 
 - [Install taosX-Agent](./01-install-agent.md): remote agent install and connectivity

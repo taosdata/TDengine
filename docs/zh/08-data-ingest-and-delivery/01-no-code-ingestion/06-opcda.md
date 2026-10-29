@@ -237,6 +237,30 @@ Agent 在 OPC 服务器附近安装一次并保持运行即可。之后在 taosE
 
 仅在以下情况需要改动 Agent 本机配置或重装：更换 `endpoint` / `token`、升级 Agent 版本、调整 Agent 本机高级项（如存储转发目录）等。安装步骤见 [安装 taosX-Agent](./01-install-agent.md)。
 
+## 常见问题
+
+1. 连通性检查报错 `TryConnect was not successful: connection failed. Error: OPC ERROR code:0x80080005, error:Unknown error, may be system error: Server execution failed`，如何排查？
+
+**可能原因**：OPC DA 服务器未能正常启动，或 taosX-Agent 服务运行账号缺少所需的 COM/DCOM 启动、激活或访问权限。
+
+**解决方法**：先确认 OPC DA 服务器已正常启动。在 taosX-Agent 所在 Windows 主机上，以管理员身份打开 PowerShell，停止 Agent 服务：
+
+```powershell
+Stop-Service -Name taosx-agent -ErrorAction Stop
+(Get-Service -Name taosx-agent).WaitForStatus('Stopped', '00:00:30')
+Get-Process -Name taosx-agent,taosx-agent-srv -ErrorAction SilentlyContinue
+```
+
+确认上述进程均已退出后，使用当前 Windows 登录账号前台启动 Agent，路径按实际安装位置调整：
+
+```powershell
+$env:PLUGINS_HOME = 'C:\TDengine\plugins'
+$env:LOGS_HOME = 'C:\TDengine\log'
+& 'C:\TDengine\taosx-agent.exe' --config 'C:\TDengine\cfg\agent.toml'
+```
+
+保持窗口打开，在 taosExplorer 中使用同一代理和 OPC 配置重新检查连通性。若前台成功、恢复服务后失败，重点检查服务账号与 COM/DCOM 权限；可在 `services.msc` 的服务属性“登录”页，将默认的 `LocalSystem` 改为前台验证成功的账号并填写有效密码，重启服务复测。恢复服务前，先按 Ctrl+C 退出前台 Agent，避免同时运行两个实例。若前台仍失败，继续检查 OPC DA 服务器启动状态及 Windows 事件日志。
+
 ## 相关文档
 
 - [安装 taosX-Agent](./01-install-agent.md)：远程代理安装与连通
