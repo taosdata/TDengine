@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
+from contextlib import contextmanager
 import html
 import os
 import re
@@ -165,18 +166,18 @@ def remove_stale_git_index_lock(source_dir):
 
 
 def sync_source(source_dir):
-    run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir)
+    if run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir).returncode:
+        fail("git fetch origin failed")
     remove_stale_git_index_lock(source_dir)
     for command in (("git", "reset", "--hard"), ("git", "clean", "-ffd")):
         if run(command, cwd=source_dir).returncode:
             fail(f"{' '.join(command)} failed")
-    if os.environ.get("PARENT_PIPELINE_SOURCE") == "merge_request_event":
-        merge_ref = f"merge-requests/{os.environ['PARENT_MR_IID']}/merge"
-        if run(["git", "fetch", "origin", merge_ref], cwd=source_dir).returncode:
-            fail("git fetch MR merge ref failed")
-        checkout_ref = "FETCH_HEAD"
-    else:
-        checkout_ref = os.environ["CI_COMMIT_SHA"]
+    # Build the exact commit GitLab checked out, including MR head pipelines.
+    # Local runner checkouts do not expose GitLab's synthetic MR merge refs.
+    # Fetch by SHA also handles detached HEADs with no corresponding branch.
+    checkout_ref = os.environ["CI_COMMIT_SHA"]
+    if run(["git", "fetch", "origin", checkout_ref], cwd=source_dir).returncode:
+        fail("git fetch pipeline commit failed")
     for command in (("git", "checkout", "--detach", "-f", checkout_ref), ("git", "reset", "--hard", checkout_ref), ("git", "clean", "-ffd")):
         if run(command, cwd=source_dir).returncode:
             fail(f"{' '.join(command)} failed")
@@ -581,6 +582,45 @@ def _select_cases(test_dir, task_file, log_dir, predicate, name):
     return filtered, len(lines)
 
 
+def running_fq_postgres():
+    import psutil
+
+    instances = {}
+    for pid_file in federated_query_base_dir().glob("pg/*/data/postmaster.pid"):
+        try:
+            pid = int(pid_file.read_text(encoding="utf-8").splitlines()[0])
+            process = psutil.Process(pid)
+            if process.name().lower() == "postgres.exe":
+                instances[pid_file.parent] = (pid, process.create_time())
+        except (OSError, ValueError, IndexError, psutil.Error):
+            continue
+    return instances
+
+
+@contextmanager
+def managed_fq_postgres():
+    # Preserve instances that were already running before this validation.
+    # pg_ctl's long-lived descendants can retain runner handles even after
+    # pytest exits; close only the instances started during our run.
+    existing = running_fq_postgres()
+    try:
+        yield
+    finally:
+        for data_dir in running_fq_postgres().keys() - existing.keys():
+            pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
+            try:
+                result = subprocess.run(
+                    [str(pg_ctl), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
+                    capture_output=True, text=True, errors="replace", timeout=60,
+                    check=False,
+                )
+                print(f"[windows-ci] stop owned PostgreSQL {data_dir}: "
+                      f"exit={result.returncode}; {result.stdout.strip()} {result.stderr.strip()}",
+                      flush=True)
+            except (OSError, subprocess.TimeoutExpired) as error:
+                print(f"[windows-ci] unable to stop owned PostgreSQL {data_dir}: {error}", flush=True)
+
+
 def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter=""):
     bin_dir = debug_dir / "build" / "bin"
     system_dir = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
@@ -596,6 +636,11 @@ def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter=""):
     environment = os.environ.copy()
     environment["PATH"] = f"{bin_dir}{os.pathsep}{environment['PATH']}"
     ensure_fq_pytest_dependencies(environment)
+    with managed_fq_postgres():
+        return run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter)
+
+
+def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter):
     provision_federated_query_env(source_dir, environment)
     test_dir = source_dir / "source" / "taos-community" / "test"
     task_file = Path("ci/win_cases.task")
@@ -715,7 +760,8 @@ def collect_artifacts(debug_dir, log_dir, artifact_dir):
     for status, command, duration in results:
         case = ElementTree.SubElement(suite, "testcase", name=command, classname="windows.pytest", time=duration)
         if status in {"FAILED", "ERROR"}:
-            ElementTree.SubElement(case, status.lower(), message="pytest command failed; see pytest artifact logs").text = command
+            tag = "failure" if status == "FAILED" else "error"
+            ElementTree.SubElement(case, tag, message="pytest command failed; see pytest artifact logs").text = command
         elif status == "Skip":
             ElementTree.SubElement(case, "skipped").text = "listed in win_ignore_cases"
     ElementTree.ElementTree(suite).write(pytest_artifacts / "junit-pytest-windows.xml", encoding="utf-8", xml_declaration=True)
