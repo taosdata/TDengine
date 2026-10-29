@@ -4405,13 +4405,21 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           (void)memcpy(varDataVal(output), convBuf, len);
           varDataSetLen(output, len);
         } else {
+          // outputSize reserves one byte for the NUL terminator added below; the truncated
+          // value still fills the full target width.
           int32_t outputSize =
               (outputLen - VARSTR_HEADER_SIZE) < bufSize ? (outputLen - VARSTR_HEADER_SIZE + 1) : bufSize;
+          if (outputSize < 1) {
+            outputSize = 1;
+          }
           if (IS_DECIMAL_TYPE(inputType)) {
             if (outputType == TSDB_DATA_TYPE_GEOMETRY) return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
             uint8_t inputPrec = GET_PARAM_PRECISON(&pInput[0]), inputScale = GET_PARAM_SCALE(&pInput[0]);
             code = decimalToStr(input, inputType, inputPrec, inputScale, buf, outputSize);
             if (code != 0) goto _end;
+            // decimalToStr copies the truncated prefix without a terminator when the value
+            // does not fit; terminate it here before the strlen below reads the buffer.
+            buf[outputSize - 1] = 0;
           } else {
             NUM_TO_STRING(inputType, input, outputSize, buf);
           }

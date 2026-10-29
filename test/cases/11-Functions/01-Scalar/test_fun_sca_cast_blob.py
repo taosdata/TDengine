@@ -191,20 +191,26 @@ class TestBlobCastFunc:
             tdSql.execute(f"create table {table} (ts timestamp, v {data_type})")
             tdSql.execute(
                 f"insert into {table} values (1735689600000, '{value}') "
-                "(1735689600001, NULL)"
+                "(1735689600001, NULL) (1735689600002, '0')"
             )
-            for target in ("blob", "varchar(128)", "varchar(3)"):
-                want = expected if target == "blob" else expected.decode("ascii")
-                if target == "varchar(3)":
-                    want = want[:3]
+            widths = sorted({1, 3, max(1, len(expected) - 1), len(expected), len(expected) + 1, 128})
+            targets = [("blob", None)]
+            targets.extend(
+                (f"{kind}({width})", width)
+                for kind in ("varchar", "binary", "nchar")
+                for width in widths
+            )
+            for target, width in targets:
+                want = expected if target == "blob" else expected.decode("ascii")[:width]
                 tdSql.query(f"select cast(cast('{value}' as {data_type}) as {target})")
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, want)
                 tdSql.query(f"select cast(v as {target}) from {table} order by ts")
-                tdSql.checkRows(2)
+                tdSql.checkRows(3)
                 tdSql.checkData(0, 0, want)
                 tdSql.checkData(1, 0, None)
-        tdLog.info("decimal to blob and varchar ................ [ passed ]")
+                tdSql.checkData(2, 0, b"0" if target == "blob" else "0")
+        tdLog.info("decimal to blob and strings ................ [ passed ]")
 
 
     def cast_blob_to_nchar(self):
@@ -413,7 +419,8 @@ class TestBlobCastFunc:
         15. BLOB in WHERE clause with CAST
         16. Aggregate functions with LENGTH(BLOB)
         17. GROUP BY with BLOB substr/cast (expect error)
-        18. CAST DECIMAL constants and columns to BLOB/VARCHAR with NULL and boundary values
+        18. CAST DECIMAL constants and columns to BLOB/VARCHAR/BINARY/NCHAR with NULL and boundary values
+        19. Truncate DECIMAL strings at one byte, below/exactly/above their formatted length, and across rows
 
         Since: v3.0.0.0
 
@@ -424,6 +431,7 @@ class TestBlobCastFunc:
         History:
             - 2026-03-20 Created BLOB cast/substr/length function tests
             - 2026-10-21 Cover DECIMAL formatting with different output capacities
+            - 2026-10-29 Cover short DECIMAL string casts without reading unterminated buffers
 
         """
         self._prepare_db()
