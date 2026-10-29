@@ -37510,3 +37510,488 @@ TEST(StreamTriggerExtCompletedCutoffTest, RejectsNullContext) {
   EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRealtimeContextUpdateExtCompletedCutoffForGroup(nullptr, 100, 5000));
   EXPECT_EQ(TSDB_CODE_INVALID_PARA, stRealtimeContextUpdateExtCompletedCutoffs(nullptr, nullptr));
 }
+
+namespace {
+
+// ---------------------------------------------------------------------------------------------
+// Virtual table patch state machine.
+//
+// Two rules of the runtime vtable patch used to fail silently: a prepare step that must be
+// idempotent for vtables the task no longer owns, and the WAL table-change gate that must not
+// queue a patch item twice when the WAL window is replayed. Both are driven here through the
+// stTriggerTest* seams (compiled only when BUILD_TEST is set).
+// ---------------------------------------------------------------------------------------------
+
+constexpr int64_t kVtablePatchOrigUid = 0x9000;
+constexpr int64_t kVtablePatchLiveUid = 0x9001;
+constexpr int64_t kVtablePatchGoneUid = 0x9002;
+constexpr int64_t kTableBlockVer = 10;
+
+static SSDataBlock* makeEmptyWalBlock() {
+  SSDataBlock* pBlock = nullptr;
+  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
+  pBlock->info.rows = 0;
+  return pBlock;
+}
+
+// Mirrors the table-change block the vnode sends back: (uid BIGINT, ver BIGINT, type TINYINT).
+static SSDataBlock* makeTableChangeBlock(int64_t uid, int64_t ver, int8_t type) {
+  SSDataBlock* pBlock = nullptr;
+  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
+
+  SColumnInfoData uidInfo = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0);
+  SColumnInfoData verInfo = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+  SColumnInfoData typeInfo = createColumnInfoData(TSDB_DATA_TYPE_TINYINT, sizeof(int8_t), 2);
+  if (blockDataAppendColInfo(pBlock, &uidInfo) != TSDB_CODE_SUCCESS ||
+      blockDataAppendColInfo(pBlock, &verInfo) != TSDB_CODE_SUCCESS ||
+      blockDataAppendColInfo(pBlock, &typeInfo) != TSDB_CODE_SUCCESS ||
+      blockDataEnsureCapacity(pBlock, 1) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+
+  auto* pUidCol = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0));
+  auto* pVerCol = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 1));
+  auto* pTypeCol = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 2));
+  if (pUidCol == nullptr || pVerCol == nullptr || pTypeCol == nullptr ||
+      colDataSetVal(pUidCol, 0, reinterpret_cast<const char*>(&uid), false) != TSDB_CODE_SUCCESS ||
+      colDataSetVal(pVerCol, 0, reinterpret_cast<const char*>(&ver), false) != TSDB_CODE_SUCCESS ||
+      colDataSetVal(pTypeCol, 0, reinterpret_cast<const char*>(&type), false) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+  pBlock->info.rows = 1;
+  return pBlock;
+}
+
+static void putVtablePatchItem(SSHashObj* pPatchItems, int64_t uid, ETableBlockType op) {
+  SSTriggerVTablePatchItem item = {};
+  item.vtbUid = uid;
+  item.ver = kTableBlockVer;
+  item.vgId = 7;
+  item.op = op;
+  ASSERT_NE(pPatchItems, nullptr);
+  ASSERT_EQ(tSimpleHashPut(pPatchItems, &uid, sizeof(uid), &item, sizeof(item)), TSDB_CODE_SUCCESS);
+}
+
+// The escalation path reports the failure through streamHandleTaskError(), which looks the task up in
+// the process-global gStreamMgmt.taskMap. Install a map for the lifetime of the guard and restore it
+// on destruction: an ASSERT failure returns from the test body, so RAII (not a trailing cleanup
+// statement) is what keeps the global from leaking into the following suites, where a leftover entry
+// would point at a task that already left the stack.
+class ScopedStreamTaskMap {
+ public:
+  ScopedStreamTaskMap() {
+    if (gStreamMgmt.taskMap == nullptr) {
+      pMap_ = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+      if (pMap_ != nullptr) {
+        gStreamMgmt.taskMap = pMap_;
+      }
+    }
+  }
+
+  ~ScopedStreamTaskMap() {
+    if (pMap_ != nullptr) {
+      gStreamMgmt.taskMap = nullptr;
+      taosHashCleanup(pMap_);
+    }
+  }
+
+  ScopedStreamTaskMap(const ScopedStreamTaskMap&) = delete;
+  ScopedStreamTaskMap& operator=(const ScopedStreamTaskMap&) = delete;
+
+  bool installed() const { return pMap_ != nullptr; }
+
+  bool registerTask(int64_t streamId, int64_t taskId, SStreamTask* pTask) {
+    int64_t key[2] = {streamId, taskId};
+    return taosHashPut(gStreamMgmt.taskMap, key, sizeof(key), &pTask, POINTER_BYTES) == TSDB_CODE_SUCCESS;
+  }
+
+ private:
+  SHashObj* pMap_ = nullptr;
+};
+
+// Mirrors the leading fields of StreamTriggerWaitInfo, the payload stTriggerTaskAddWaitSession()
+// appends to the process-global wait list. A local mirror keeps the capture out of that global list,
+// which a bare stTriggerTaskAddWaitSession() call would otherwise populate with a task that does not
+// exist once the test returns.
+struct VtablePatchWaitInfo {
+  int64_t streamId = 0;
+  int64_t taskId = 0;
+  int64_t sessionId = 0;
+  int64_t resumeTime = 0;
+};
+
+static VtablePatchWaitInfo gVtablePatchWaitInfo;
+static int32_t           gVtablePatchWaitCount = 0;
+
+static int32_t captureVtablePatchWaitAppend(SList* pList, const void* pData) {
+  (void)pList;
+  if (pData == nullptr) return TSDB_CODE_INVALID_PARA;
+  memcpy(&gVtablePatchWaitInfo, pData, sizeof(gVtablePatchWaitInfo));
+  ++gVtablePatchWaitCount;
+  return TSDB_CODE_SUCCESS;
+}
+
+}  // namespace
+
+TEST(StreamTriggerVtablePatchStateTest, PrepareIsIdempotentForVanishedVtables) {
+  SStreamTriggerTask       task = {};
+  SSTriggerRealtimeContext context = {};
+
+  context.pTask = &task;
+  task.pRealtimeContext = &context;
+  task.isVirtualTable = true;
+  taosInitRWLatch(&task.virTableInfoLock);
+
+  task.pVirtTableInfos = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+  SSTriggerVirtTableInfo liveInfo = {};
+  liveInfo.tbUid = kVtablePatchLiveUid;
+  liveInfo.vgId = 7;
+  liveInfo.tbGids = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(liveInfo.tbGids, nullptr);
+  ASSERT_EQ(tSimpleHashPut(task.pVirtTableInfos, &kVtablePatchLiveUid, sizeof(int64_t), &liveInfo, sizeof(liveInfo)),
+            TSDB_CODE_SUCCESS);
+
+  // The reverse map still references the retired vtable, exactly like a task that lost track of it.
+  task.pOrigTableInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pOrigTableInfos, nullptr);
+  SSTriggerOrigTableInfo origInfo = {};
+  origInfo.tbUid = kVtablePatchOrigUid;
+  origInfo.vgId = 7;
+  origInfo.pVtbUids = taosArrayInit(2, sizeof(int64_t));
+  ASSERT_NE(origInfo.pVtbUids, nullptr);
+  ASSERT_NE(taosArrayPush(origInfo.pVtbUids, &kVtablePatchLiveUid), nullptr);
+  ASSERT_NE(taosArrayPush(origInfo.pVtbUids, &kVtablePatchGoneUid), nullptr);
+  ASSERT_EQ(tSimpleHashPut(task.pOrigTableInfos, &kVtablePatchOrigUid, sizeof(int64_t), &origInfo, sizeof(origInfo)),
+            TSDB_CODE_SUCCESS);
+
+  context.patchContext.pPatchItems = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.patchContext.pPatchItems, nullptr);
+  putVtablePatchItem(context.patchContext.pPatchItems, kVtablePatchLiveUid, TABLE_BLOCK_RETIRE);
+  putVtablePatchItem(context.patchContext.pPatchItems, kVtablePatchGoneUid, TABLE_BLOCK_RETIRE);
+
+  EXPECT_EQ(stTriggerTestPrepareVtablePatch(&context), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tSimpleHashGetSize(task.pVirtTableInfos), 0);
+  auto* pOrig =
+      static_cast<SSTriggerOrigTableInfo*>(tSimpleHashGet(task.pOrigTableInfos, &kVtablePatchOrigUid, sizeof(int64_t)));
+  ASSERT_NE(pOrig, nullptr);
+  EXPECT_EQ(taosArrayGetSize(pOrig->pVtbUids), 0);
+
+  // Re-running the same prepare (the vtable info pull has not answered yet) stays a no-op instead of
+  // failing on the vtable that is already gone; the items stay queued until the round ends.
+  EXPECT_EQ(stTriggerTestPrepareVtablePatch(&context), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tSimpleHashGetSize(context.patchContext.pPatchItems), 2);
+  EXPECT_EQ(taosArrayGetSize(pOrig->pVtbUids), 0);
+  EXPECT_EQ(context.patchContext.prepareFailures, 0);
+
+  taosArrayDestroy(pOrig->pVtbUids);
+  tSimpleHashCleanup(task.pOrigTableInfos);
+  tSimpleHashCleanup(task.pVirtTableInfos);
+  taosArrayDestroy(liveInfo.tbGids);
+  tSimpleHashCleanup(context.patchContext.pPatchItems);
+}
+
+TEST(StreamTriggerVtablePatchStateTest, PrepareFailureEscalatesAfterRetryBudget) {
+  ASSERT_EQ(gStreamMgmt.taskMap, nullptr);
+
+  SStreamTriggerTask       task = {};
+  SSTriggerRealtimeContext context = {};
+
+  context.pTask = &task;
+  task.pRealtimeContext = &context;
+  task.isVirtualTable = true;
+  task.task.streamId = 0x7300;
+  task.task.taskId = 0x7301;
+  task.task.status = STREAM_STATUS_INIT;
+  // Shadow-style context: escalation must not try to idle a session it does not own.
+  context.suppressOutput = true;
+  context.patchContext.pPatchItems = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.patchContext.pPatchItems, nullptr);
+  putVtablePatchItem(context.patchContext.pPatchItems, kVtablePatchLiveUid, TABLE_BLOCK_ADD);
+
+  ScopedStreamTaskMap taskMap;
+  ASSERT_TRUE(taskMap.installed());
+  ASSERT_TRUE(taskMap.registerTask(task.task.streamId, task.task.taskId, reinterpret_cast<SStreamTask*>(&task)));
+
+  const int32_t prepareErr = TSDB_CODE_OUT_OF_MEMORY;
+
+  // A short transient streak stays local: the error is returned and the round is kept for the next tick.
+  EXPECT_EQ(stTriggerTestHandleVtablePatchPrepareFailure(&context, prepareErr), prepareErr);
+  EXPECT_EQ(context.patchContext.prepareFailures, 1);
+  EXPECT_EQ(stTriggerTestHandleVtablePatchPrepareFailure(&context, prepareErr), prepareErr);
+  EXPECT_EQ(context.patchContext.prepareFailures, 2);
+  EXPECT_EQ(tSimpleHashGetSize(context.patchContext.pPatchItems), 1);
+  EXPECT_EQ(atomic_load_32(&task.task.errorCode), 0);
+  EXPECT_EQ(task.task.status, STREAM_STATUS_INIT);
+
+  // Exhausting the budget releases the round and fails the task, so the caller rebuilds the vtable
+  // set from the reader vtable list instead of retrying the same prepare forever.
+  EXPECT_EQ(stTriggerTestHandleVtablePatchPrepareFailure(&context, prepareErr), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(context.patchContext.prepareFailures, 0);
+  EXPECT_EQ(context.patchContext.prepareFirstFailureMs, 0);
+  EXPECT_EQ(tSimpleHashGetSize(context.patchContext.pPatchItems), 0);
+  EXPECT_EQ(atomic_load_32(&task.task.errorCode), prepareErr);
+  EXPECT_EQ(task.task.status, STREAM_STATUS_FAILED);
+
+  tSimpleHashCleanup(context.patchContext.pPatchItems);
+}
+
+TEST(StreamTriggerVtablePatchStateTest, PrepareEscalationIdlesTheFailedSession) {
+  ASSERT_EQ(gStreamMgmt.taskMap, nullptr);
+
+  SStreamTriggerTask       task = {};
+  SSTriggerRealtimeContext context = {};
+
+  context.pTask = &task;
+  task.pRealtimeContext = &context;
+  task.isVirtualTable = true;
+  task.task.streamId = 0x7310;
+  task.task.taskId = 0x7311;
+  task.task.status = STREAM_STATUS_INIT;
+  // Real session: escalation must park it instead of letting the task spin until the management
+  // layer restarts it.
+  context.sessionId = 0x7312;
+  context.patchContext.pPatchItems = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.patchContext.pPatchItems, nullptr);
+  putVtablePatchItem(context.patchContext.pPatchItems, kVtablePatchLiveUid, TABLE_BLOCK_ADD);
+
+  ScopedStreamTaskMap taskMap;
+  ASSERT_TRUE(taskMap.installed());
+  ASSERT_TRUE(taskMap.registerTask(task.task.streamId, task.task.taskId, reinterpret_cast<SStreamTask*>(&task)));
+
+  gVtablePatchWaitInfo = {};
+  gVtablePatchWaitCount = 0;
+  Stub waitListStub;
+  waitListStub.set(tdListAppend, captureVtablePatchWaitAppend);
+
+  const int32_t prepareErr = TSDB_CODE_OUT_OF_MEMORY;
+  const int64_t beforeNs = taosGetTimestampNs();
+
+  EXPECT_EQ(stTriggerTestHandleVtablePatchPrepareFailure(&context, prepareErr), prepareErr);
+  EXPECT_EQ(stTriggerTestHandleVtablePatchPrepareFailure(&context, prepareErr), prepareErr);
+  // A tolerated streak must not idle the session.
+  EXPECT_EQ(gVtablePatchWaitCount, 0);
+
+  EXPECT_EQ(stTriggerTestHandleVtablePatchPrepareFailure(&context, prepareErr), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gVtablePatchWaitCount, 1);
+  EXPECT_EQ(gVtablePatchWaitInfo.streamId, task.task.streamId);
+  EXPECT_EQ(gVtablePatchWaitInfo.taskId, task.task.taskId);
+  EXPECT_EQ(gVtablePatchWaitInfo.sessionId, context.sessionId);
+  EXPECT_GT(gVtablePatchWaitInfo.resumeTime, beforeNs);
+  EXPECT_EQ(atomic_load_32(&task.task.errorCode), prepareErr);
+  EXPECT_EQ(task.task.status, STREAM_STATUS_FAILED);
+
+  tSimpleHashCleanup(context.patchContext.pPatchItems);
+}
+
+TEST(StreamTriggerVtablePatchStateTest, ReplayedTableBlockRowIsNotQueuedTwice) {
+  // ADD and RETIRE go through two duplicated branches of the table-block gate (own watermark update,
+  // own patch item), so both are driven here: a regression in only one of them stays invisible
+  // otherwise.
+  for (ETableBlockType op : {TABLE_BLOCK_ADD, TABLE_BLOCK_RETIRE}) {
+    SCOPED_TRACE(op == TABLE_BLOCK_ADD ? "TABLE_BLOCK_ADD" : "TABLE_BLOCK_RETIRE");
+
+    SStreamTriggerTask       task = {};
+    SSTriggerRealtimeContext context = {};
+    SStreamTaskAddr          readerAddr = {};
+    SSTriggerWalProgress     progress = {};
+    readerAddr.taskId = 0x7401;
+    readerAddr.nodeId = 7;
+
+    context.pTask = &task;
+    task.pRealtimeContext = &context;
+    task.isVirtualTable = true;
+    taosInitRWLatch(&task.readerProgressLock);
+    task.pReaderProgressSnapshots = taosArrayInit(2, sizeof(SStreamReaderProgressSnapshot));
+    ASSERT_NE(task.pReaderProgressSnapshots, nullptr);
+
+    context.pMetaBlock = makeEmptyWalBlock();
+    context.pTableBlock = makeTableChangeBlock(kVtablePatchLiveUid, kTableBlockVer, op);
+    context.pDeleteBlock = makeEmptyWalBlock();
+    ASSERT_NE(context.pMetaBlock, nullptr);
+    ASSERT_NE(context.pTableBlock, nullptr);
+    ASSERT_NE(context.pDeleteBlock, nullptr);
+    context.pMetaBlock->info.version = kTableBlockVer;
+
+    context.patchContext.pPatchItems = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(context.patchContext.pPatchItems, nullptr);
+
+    // The pull window of this round ends at the row's version, so a replay of that window delivers
+    // the row recorded at savedVer once more.
+    progress.pTaskAddr = &readerAddr;
+    progress.savedVer = kTableBlockVer;
+    progress.savedTbVer = 0;
+
+    const int64_t nowNs = taosGetTimestampNs();
+    EXPECT_EQ(stTriggerTestProcWalMeta(&context, &progress, nowNs), TSDB_CODE_SUCCESS);
+    auto* pItem = static_cast<SSTriggerVTablePatchItem*>(
+        tSimpleHashGet(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)));
+    ASSERT_NE(pItem, nullptr);
+    EXPECT_EQ(pItem->op, op);
+    EXPECT_EQ(pItem->ver, kTableBlockVer);
+    EXPECT_EQ(progress.savedTbVer, kTableBlockVer);
+
+    // Same row, same window: the table-block watermark drops it instead of queueing a second patch.
+    ASSERT_EQ(tSimpleHashRemove(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(stTriggerTestProcWalMeta(&context, &progress, nowNs), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(tSimpleHashGet(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)), nullptr);
+    EXPECT_EQ(progress.savedTbVer, kTableBlockVer);
+
+    // Shadow replay bundles rebuild their state from an inclusive window and keep the previous
+    // savedVer - 1 gate, so the very same row must still be queued there.
+    context.suppressOutput = true;
+    EXPECT_EQ(stTriggerTestProcWalMeta(&context, &progress, nowNs), TSDB_CODE_SUCCESS);
+    EXPECT_NE(tSimpleHashGet(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)), nullptr);
+
+    blockDataDestroy(context.pMetaBlock);
+    blockDataDestroy(context.pTableBlock);
+    blockDataDestroy(context.pDeleteBlock);
+    taosArrayDestroy(task.pReaderProgressSnapshots);
+    tSimpleHashCleanup(context.patchContext.pPatchItems);
+  }
+}
+
+// The reader-side cache recheck reports a column-reference change of an intermediate virtual table
+// and stamps it with the pull cursor, which does not move while the change lives on another vgroup.
+// Two independent changes can therefore carry the same version, and the replay watermark must not
+// filter the second one: the reader cache is already updated, so a dropped notification is never
+// re-sent and the trigger would keep the stale source-table mapping.
+TEST(StreamTriggerVtablePatchStateTest, RecheckNotificationWithSameCursorIsQueuedEveryTime) {
+  SStreamTriggerTask       task = {};
+  SSTriggerRealtimeContext context = {};
+  SStreamTaskAddr          readerAddr = {};
+  SSTriggerWalProgress     progress = {};
+  readerAddr.taskId = 0x7411;
+  readerAddr.nodeId = 7;
+
+  context.pTask = &task;
+  task.pRealtimeContext = &context;
+  task.isVirtualTable = true;
+  taosInitRWLatch(&task.readerProgressLock);
+  task.pReaderProgressSnapshots = taosArrayInit(2, sizeof(SStreamReaderProgressSnapshot));
+  ASSERT_NE(task.pReaderProgressSnapshots, nullptr);
+
+  context.pMetaBlock = makeEmptyWalBlock();
+  context.pTableBlock = makeTableChangeBlock(kVtablePatchLiveUid, kTableBlockVer, TABLE_BLOCK_ADD_RECHECK);
+  context.pDeleteBlock = makeEmptyWalBlock();
+  ASSERT_NE(context.pMetaBlock, nullptr);
+  ASSERT_NE(context.pTableBlock, nullptr);
+  ASSERT_NE(context.pDeleteBlock, nullptr);
+  context.pMetaBlock->info.version = kTableBlockVer;
+
+  context.patchContext.pPatchItems = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.patchContext.pPatchItems, nullptr);
+
+  progress.pTaskAddr = &readerAddr;
+  progress.savedVer = kTableBlockVer;  // cursor did not move between the two rechecks
+  progress.savedTbVer = 0;
+
+  const int64_t nowNs = taosGetTimestampNs();
+  EXPECT_EQ(stTriggerTestProcWalMeta(&context, &progress, nowNs), TSDB_CODE_SUCCESS);
+  EXPECT_NE(tSimpleHashGet(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)), nullptr);
+  // A recheck row is not a WAL record, so the applied watermark stays where it was.
+  EXPECT_EQ(progress.savedTbVer, 0);
+
+  // The patch round consumed the item; the next recheck reports a different column change at the
+  // very same cursor and must still reach the patch queue.
+  ASSERT_EQ(tSimpleHashRemove(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stTriggerTestProcWalMeta(&context, &progress, nowNs), TSDB_CODE_SUCCESS);
+  EXPECT_NE(tSimpleHashGet(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)), nullptr);
+  EXPECT_EQ(progress.savedTbVer, 0);
+
+  blockDataDestroy(context.pMetaBlock);
+  blockDataDestroy(context.pTableBlock);
+  blockDataDestroy(context.pDeleteBlock);
+  taosArrayDestroy(task.pReaderProgressSnapshots);
+  tSimpleHashCleanup(context.patchContext.pPatchItems);
+}
+
+// The checkpoint stores the reader cursor, i.e. the version of the next WAL record to read, not the
+// last record already consumed. Recovery must not hand that cursor to the table-change watermark, or
+// a virtual table created/dropped by the first record after the restart would be filtered out and
+// never registered.
+TEST(StreamTriggerVtablePatchStateTest, CheckpointRestoreKeepsFirstWalRecordVisible) {
+  constexpr int32_t kVgId = 7;
+  SStreamTriggerTask       task = {};
+  SSTriggerRealtimeContext context = {};
+  SStreamTaskAddr          readerAddr = {};
+  readerAddr.taskId = 0x7421;
+  readerAddr.nodeId = kVgId;
+
+  context.pTask = &task;
+  task.pRealtimeContext = &context;
+  task.isVirtualTable = true;
+  task.task.streamId = RealtimePipelineHarness::kStreamId;
+  context.pReaderWalProgress = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  ASSERT_NE(context.pReaderWalProgress, nullptr);
+  SSTriggerWalProgress progress = {};
+  ASSERT_EQ(tSimpleHashPut(context.pReaderWalProgress, &kVgId, sizeof(kVgId), &progress, sizeof(progress)),
+            TSDB_CODE_SUCCESS);
+
+  std::vector<uint8_t> checkpoint;
+  ASSERT_TRUE(makeRecoveryCheckpoint({{kVgId, 5, kTableBlockVer}}, {}, 0, &checkpoint, /*formatVersion=*/2));
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&task, checkpoint.data(), (int64_t)checkpoint.size()), TSDB_CODE_SUCCESS);
+
+  auto* pProgress = static_cast<SSTriggerWalProgress*>(
+      tSimpleHashGet(context.pReaderWalProgress, &kVgId, sizeof(kVgId)));
+  ASSERT_NE(pProgress, nullptr);
+  EXPECT_EQ(pProgress->savedVer, kTableBlockVer);
+  // kTableBlockVer is the next record to read, so the last consumed record is one below it.
+  EXPECT_EQ(pProgress->savedTbVer, kTableBlockVer - 1);
+
+  taosInitRWLatch(&task.readerProgressLock);
+  task.pReaderProgressSnapshots = taosArrayInit(2, sizeof(SStreamReaderProgressSnapshot));
+  ASSERT_NE(task.pReaderProgressSnapshots, nullptr);
+  context.pMetaBlock = makeEmptyWalBlock();
+  context.pTableBlock = makeTableChangeBlock(kVtablePatchLiveUid, kTableBlockVer, TABLE_BLOCK_ADD);
+  context.pDeleteBlock = makeEmptyWalBlock();
+  ASSERT_NE(context.pMetaBlock, nullptr);
+  ASSERT_NE(context.pTableBlock, nullptr);
+  ASSERT_NE(context.pDeleteBlock, nullptr);
+  context.pMetaBlock->info.version = kTableBlockVer;
+  context.patchContext.pPatchItems = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.patchContext.pPatchItems, nullptr);
+  pProgress->pTaskAddr = &readerAddr;
+
+  // The first WAL record after the restart is a vtable add at exactly the restored cursor.
+  EXPECT_EQ(stTriggerTestProcWalMeta(&context, pProgress, taosGetTimestampNs()), TSDB_CODE_SUCCESS);
+  auto* pItem = static_cast<SSTriggerVTablePatchItem*>(
+      tSimpleHashGet(context.patchContext.pPatchItems, &kVtablePatchLiveUid, sizeof(int64_t)));
+  ASSERT_NE(pItem, nullptr);
+  EXPECT_EQ(pItem->op, TABLE_BLOCK_ADD);
+  EXPECT_EQ(pItem->ver, kTableBlockVer);
+  EXPECT_EQ(pProgress->savedTbVer, kTableBlockVer);
+
+  blockDataDestroy(context.pMetaBlock);
+  blockDataDestroy(context.pTableBlock);
+  blockDataDestroy(context.pDeleteBlock);
+  taosArrayDestroy(task.pReaderProgressSnapshots);
+  tSimpleHashCleanup(context.patchContext.pPatchItems);
+  tSimpleHashCleanup(context.pReaderWalProgress);
+  tSimpleHashCleanup(task.pHistoryCutoffTime);
+}
+
+TEST(StreamRunnerTaskMgmtReqTest, KeepsPendingRequestInsteadOfReplacingIt) {
+  SStreamRunnerTask task = {};
+  SStreamMgmtReq    pending = {};
+
+  pending.reqId = 77;
+  taosInitRWLatch(&task.task.mgmtReqLock);
+  atomic_store_ptr(&task.task.pMgmtReq, &pending);
+  atomic_store_8(&task.vtableDeployGot, 0);
+
+  EXPECT_EQ(stRunnerTestBuildTaskMgmtReq(&task), TSDB_CODE_SUCCESS);
+
+  // The pending request still owns the vgroup lists the management response will answer; replacing
+  // it would leak the old request and silently drop the vgroups it carries.
+  EXPECT_EQ(static_cast<SStreamMgmtReq*>(atomic_load_ptr(&task.task.pMgmtReq)), &pending);
+  EXPECT_EQ(pending.reqId, 77);
+  // Restore the deploy flag so the next heartbeat retries once the request has been answered.
+  EXPECT_EQ(atomic_load_8(&task.vtableDeployGot), 1);
+  // Nothing was built: no request id consumed and no exec manager list touched (both left empty).
+  EXPECT_EQ(atomic_load_64(&task.mgmtReqId), 0);
+}

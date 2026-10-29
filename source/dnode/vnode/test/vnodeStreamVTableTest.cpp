@@ -1583,6 +1583,66 @@ TEST(VnodeStreamVTableHelpers, streamVTableInfoCacheInit_LeavesRefCacheToResolve
   streamVTableInfoCacheDestroy(&cache);
 }
 
+// Regression: the partial (non-fullScan) commit must accept a uid the reader
+// cache does not hold yet. tSimpleHashRemove() reports a missing key as
+// TSDB_CODE_INVALID_PARA, which used to be propagated as a hard failure on the
+// very first VTABLE_INFO request (empty cache), so the reader never received its
+// vtable info and the stream never started.
+TEST(VnodeStreamVTableHelpers, streamCacheCommitResolved_FirstPartialCommitAcceptsMissingUid) {
+  SStreamVTableInfoCache cache{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamVTableInfoCacheInit(&cache));
+  ASSERT_EQ(0, (int32_t)tSimpleHashGetSize(cache.uid2Result));
+
+  SSHashObj *resolved = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, resolved);
+  tSimpleHashSetFreeFp(resolved, streamVTableResolveResultDestroy);
+
+  int64_t               uid  = 4580749941641793279LL;
+  SVTableResolveResult *pRes = static_cast<SVTableResolveResult *>(taosMemoryCalloc(1, sizeof(SVTableResolveResult)));
+  ASSERT_NE(nullptr, pRes);
+  ASSERT_EQ(0, tSimpleHashPut(resolved, &uid, sizeof(uid), &pRes, POINTER_BYTES));
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamCacheCommitResolved(&cache, /*fullScan=*/false, nullptr, nullptr, &resolved));
+  EXPECT_TRUE(cache.valid);
+
+  EXPECT_EQ(1, (int32_t)tSimpleHashGetSize(cache.uid2Result));
+  auto **ppCached = static_cast<SVTableResolveResult **>(tSimpleHashGet(cache.uid2Result, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, ppCached);
+  EXPECT_EQ(pRes, *ppCached);  // ownership moved into the reader cache
+  EXPECT_EQ(0, (int32_t)tSimpleHashGetSize(resolved));
+
+  tSimpleHashCleanup(resolved);
+  streamVTableInfoCacheDestroy(&cache);
+}
+
+// A following partial commit for the same uid replaces the cached result and
+// releases the previous one; tSimpleHashPut() alone would leak it.
+TEST(VnodeStreamVTableHelpers, streamCacheCommitResolved_PartialRecommitReplacesCachedUid) {
+  SStreamVTableInfoCache cache{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamVTableInfoCacheInit(&cache));
+
+  const int64_t uid = 7;
+  for (int32_t round = 0; round < 2; ++round) {
+    SSHashObj *resolved = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(nullptr, resolved);
+    tSimpleHashSetFreeFp(resolved, streamVTableResolveResultDestroy);
+
+    SVTableResolveResult *pRes = static_cast<SVTableResolveResult *>(taosMemoryCalloc(1, sizeof(SVTableResolveResult)));
+    ASSERT_NE(nullptr, pRes);
+    ASSERT_EQ(0, tSimpleHashPut(resolved, &uid, sizeof(uid), &pRes, POINTER_BYTES));
+
+    EXPECT_EQ(TSDB_CODE_SUCCESS, streamCacheCommitResolved(&cache, /*fullScan=*/false, nullptr, nullptr, &resolved));
+    auto **ppCached = static_cast<SVTableResolveResult **>(tSimpleHashGet(cache.uid2Result, &uid, sizeof(uid)));
+    ASSERT_NE(nullptr, ppCached);
+    EXPECT_EQ(pRes, *ppCached);
+
+    tSimpleHashCleanup(resolved);
+  }
+
+  EXPECT_EQ(1, (int32_t)tSimpleHashGetSize(cache.uid2Result));
+  streamVTableInfoCacheDestroy(&cache);
+}
+
 TEST(VnodeStreamVTableHelpers, streamTblRefCacheItemFree_ReleasesBothPayloads) {
   // The single free callback shared by the reader cache and the call-private
   // resolver cache must clear both heap payloads; a miss shows up as a leak.
