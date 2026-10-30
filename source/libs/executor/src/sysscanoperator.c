@@ -8214,6 +8214,27 @@ _end:
   }
 }
 
+static void sysTableScanSetRetrieveCols(SSysTableScanInfo* pInfo) {
+  pInfo->req.colMaskSet = 0;
+  (void)memset(pInfo->req.colMask, 0, sizeof(pInfo->req.colMask));
+
+  int32_t numOfCols = (int32_t)taosArrayGetSize(pInfo->matchInfo.pList);
+  if (numOfCols <= 0) {
+    return;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColMatchItem* pItem = taosArrayGet(pInfo->matchInfo.pList, i);
+    if (pItem == NULL || pItem->colId <= 0 || pItem->colId > TSDB_RETRIEVE_COL_MASK_BYTES * 8) {
+      (void)memset(pInfo->req.colMask, 0, sizeof(pInfo->req.colMask));
+      return;
+    }
+    int32_t bit = pItem->colId - 1;
+    pInfo->req.colMask[bit / 8] |= (uint8_t)(1u << (bit % 8));
+  }
+  pInfo->req.colMaskSet = 1;
+}
+
 static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableScanInfo* pInfo, const char* name,
                                           SExecTaskInfo* pTaskInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -8221,6 +8242,8 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
+
+  sysTableScanSetRetrieveCols(pInfo);
 
   while (1) {
     int64_t startTs = taosGetTimestampUs();

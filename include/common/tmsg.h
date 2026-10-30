@@ -4566,6 +4566,8 @@ typedef struct {
 // int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
 // void    tFreeSShowRsp(SShowRsp* pRsp);
 
+#define TSDB_RETRIEVE_COL_MASK_BYTES 16  // covers system table colId 1..128
+
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   char    tb[TSDB_TABLE_NAME_LEN];
@@ -4578,6 +4580,8 @@ typedef struct {
   int8_t  xnodeDsnOutputMode;
   int8_t  xnodeRetrieveFilterType;
   int64_t xnodeRetrieveFilterValue;
+  int8_t  colMaskSet;  // 0: every column is needed
+  uint8_t colMask[TSDB_RETRIEVE_COL_MASK_BYTES];  // bit (colId - 1) set when the column is needed
 } SRetrieveTableReq;
 
 typedef enum {

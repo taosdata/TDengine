@@ -237,6 +237,8 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   (void)memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   tstrncpy(showObj.filterTb, pReq->filterTb, TSDB_TABLE_NAME_LEN);
   showObj.txnId = pReq->txnId;
+  showObj.colMaskSet = pReq->colMaskSet != 0;
+  (void)memcpy(showObj.colMask, pReq->colMask, sizeof(showObj.colMask));
   showObj.xnodeOutputMode = XNODE_SHOW_OUTPUT_PLAINTEXT;
   showObj.xnodeRetrieveFilterType = XNODE_RETRIEVE_FILTER_NONE;
   showObj.xnodeRetrieveFilterValue = 0;
@@ -573,4 +575,18 @@ void mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp
 void mndAddShowFreeIterHandle(SMnode *pMnode, EShowType showType, ShowFreeIterFp fp) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   pMgmt->freeIterFps[showType] = fp;
+}
+
+bool mndShowColRequested(const SShowObj *pShow, int32_t colIdx) {
+  if (!pShow->colMaskSet || pShow->pMeta == NULL || colIdx < 0 || colIdx >= pShow->pMeta->numOfColumns) {
+    return true;
+  }
+
+  int32_t colId = pShow->pMeta->pSchemas[colIdx].colId;
+  if (colId <= 0 || colId > TSDB_RETRIEVE_COL_MASK_BYTES * 8) {
+    return true;
+  }
+
+  int32_t bit = colId - 1;
+  return (pShow->colMask[bit / 8] & (1u << (bit % 8))) != 0;
 }
