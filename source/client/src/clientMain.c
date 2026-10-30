@@ -1242,7 +1242,6 @@ int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg,
   TAOS                        *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
-    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
@@ -1259,6 +1258,13 @@ int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg,
   int32_t numWhiteLists = 0;
   for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
     SDateTimeWhiteListItem *item = &wlRsp.pWhiteLists[i];
+
+    // start comes from the server reply; a weekly item must land inside one
+    // week before it can index the weekday table
+    if (!item->absolute && (item->start < 0 || item->start >= 7 * INT64_C(86400))) {
+      code = TSDB_CODE_INVALID_MSG;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
 
     char *p = taosMemCalloc(1, 128);
     if (p == NULL) {
@@ -1284,6 +1290,9 @@ int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg,
 
   pInfo->userCbFn(pInfo->userParam, code, taos, numWhiteLists, pWhiteLists);
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
+  }
   if (pWhiteLists != NULL) {
     for (int32_t i = 0; i < numWhiteLists; i++) {
       taosMemFree(pWhiteLists[i]);

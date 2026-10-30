@@ -86,12 +86,19 @@ extern "C" {
 
 #define MOVE_FORWARD_ONE(sql, len) ((void)memmove((void *)((sql)-1), (sql), len))
 
-#define PROCESS_SLASH_IN_MEASUREMENT(key, keyLen)           \
-  for (int i = 1; i < keyLen; ++i) {         \
-    if (IS_SLASH_LETTER_IN_MEASUREMENT(key + i)) {          \
-      MOVE_FORWARD_ONE(key + i, keyLen - i); \
-      keyLen--;                              \
-    }                                        \
+// Remove the backslash of every escape pair ("\,", "\ ", "\\"). The scan is the
+// same greedy left-to-right pairing the line-protocol validator uses, so the
+// resulting length always equals the validated unescaped length.
+#define PROCESS_SLASH_IN_MEASUREMENT(key, keyLen)                              \
+  for (int i = 0; i < (keyLen);) {                                             \
+    if ((i + 1 < (keyLen)) && (key)[i] == SLASH &&                             \
+        ((key)[i + 1] == COMMA || (key)[i + 1] == SPACE || (key)[i + 1] == SLASH)) { \
+      MOVE_FORWARD_ONE((key) + i + 1, (keyLen)-i - 1);                         \
+      (keyLen)--;                                                              \
+      i++;                                                                     \
+    } else {                                                                   \
+      i++;                                                                     \
+    }                                                                          \
   }
 
 #define SML_CHECK_CODE(CMD)              \
@@ -235,6 +242,7 @@ extern int64_t smlFactorS[];
 int32_t       smlBuildSmlInfo(TAOS *taos, SSmlHandle **handle);
 void          smlDestroyInfo(SSmlHandle *info);
 void          smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2);
+void          smlBuildInvalidDataMsgLen(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2, size_t msg2Len);
 int32_t       smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg);
 int64_t       smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision);
 
