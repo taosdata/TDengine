@@ -322,7 +322,7 @@ During a maintenance window, set `xnodeDsnProtection` back to `0` on all nodes r
 
 ### Notes
 
-- Neither the protection switch nor the key paths support runtime modification or hot reload; any change requires restarting the corresponding service.
+- The `taosd` protection switch and its two key paths can be modified through SQL; the corresponding settings for taosExplorer and taosX still require their configuration files. None of these changes or key-file replacements take effect until the corresponding service is restarted.
 - All related components (`taosd`, `taosExplorer`, `xnoded`, taosX) must be upgraded to the same version within the same maintenance window; running mixed versions is not supported.
 - This capability is not supported on Windows; explicitly enabling protection on Windows returns the `TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS` error.
 - Key rotation can only be performed uniformly during a maintenance window: deploy the same new key to all instances, update the configuration, and restart together; online rotation or rotating only some instances is not supported, and in-progress management operations must be drained before rotation.
