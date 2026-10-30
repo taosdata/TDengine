@@ -131,7 +131,7 @@ static int32_t buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* s
     }
 
     uint32_t alg = 0;
-    if (buildDefaultCompress) {
+    if (buildDefaultCompress || i >= pColCmprRow->nCols) {
       alg = createDefaultColCmprByType(s->type);
     } else {
       SColCmpr* pColCmpr = pColCmprRow->pColCmpr + i;
@@ -393,6 +393,12 @@ static int32_t processCreateStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
 
   RAW_LOG_START
   // decode and process req
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -422,6 +428,12 @@ static int32_t processAlterStb(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode and process req
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -439,6 +451,12 @@ static int32_t buildChildElement(cJSON* json, SVCreateTbReq* pCreateReq) {
   if (json == NULL || pCreateReq == NULL) {
     uError("invalid parameter in %s", __func__);
     return TSDB_CODE_INVALID_PARA;
+  }
+  // the ctb union arm is only valid for (virtual) child tables; reading it
+  // through another type reads unrelated union members as pointers
+  if (pCreateReq->type != TSDB_CHILD_TABLE && pCreateReq->type != TSDB_VIRTUAL_CHILD_TABLE) {
+    uError("%s invalid table type:%d for child table element", __func__, pCreateReq->type);
+    return TSDB_CODE_INVALID_MSG;
   }
   STag*   pTag = (STag*)pCreateReq->ctb.pTag;
   char*   sname = pCreateReq->ctb.stbName;
@@ -587,6 +605,12 @@ static int32_t processCreateTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   SVCreateTbReq*     pCreateReq;
   RAW_LOG_START
   // decode
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -728,6 +752,12 @@ static int32_t processAlterTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -911,6 +941,12 @@ static int32_t processDropSTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -941,15 +977,20 @@ static int32_t processDeleteTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   RAW_LOG_START
 
   // decode and process req
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
 
   tDecoderInit(&coder, data, len);
   RAW_RETURN_CHECK(tDecodeDeleteRes(&coder, &req));
   //  getTbName(req.tableFName);
-  char sql[256] = {0};
-  (void)snprintf(sql, sizeof(sql), "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName,
-                 req.tsColName, req.skey, req.tsColName, req.ekey);
+  char sql[RAW_BLOCK_DELETE_SQL_LEN] = {0};
+  RAW_RETURN_CHECK(rawBlockBuildDeleteSql(sql, sizeof(sql), &req));
 
   json = cJSON_CreateObject();
   RAW_NULL_CHECK(json);
@@ -975,6 +1016,12 @@ static int32_t processDropTable(SMqMetaRsp* metaRsp, cJSON** pJson) {
   int32_t          lino = 0;
   RAW_LOG_START
   // decode
+  if (metaRsp->metaRspLen < (int32_t)sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaRspLen:%d", __func__, metaRsp->metaRspLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
   int32_t len = metaRsp->metaRspLen - sizeof(SMsgHead);
   tDecoderInit(&decoder, data, len);
@@ -1072,12 +1119,22 @@ static int32_t processBatchMetaToJson(SMqBatchMetaRsp* pMsgRsp, char** string) {
       goto end;
     }
     SMqMetaRsp metaRsp = {0};
+    if (*len < (int32_t)sizeof(SMqRspHead)) {
+      uError("%s batch meta item too short, len:%d", __func__, *len);
+      code = TSDB_CODE_INVALID_MSG;
+      lino = __LINE__;
+      goto end;
+    }
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));
     cJSON* pItem = NULL;
-    RAW_RETURN_CHECK(processSimpleMeta(&metaRsp, &pItem));
+    code = processSimpleMeta(&metaRsp, &pItem);
     tDeleteMqMetaRsp(&metaRsp);
     tDecoderClear(&metaCoder);
+    if (code != TSDB_CODE_SUCCESS) {
+      lino = __LINE__;
+      goto end;
+    }
     if (pItem != NULL) RAW_FALSE_CHECK(cJSON_AddItemToArray(pMetaArr, pItem));
   }
 

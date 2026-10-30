@@ -378,6 +378,10 @@ int32_t blockIsSingleNullColumnEncoded(const char* pData, size_t dataLen, bool* 
  * never be passed here.
  */
 int32_t blockDecode(SSDataBlock* pBlock, const char* pData, const char** pEndPos);
+// Validates one variable-width value in pData[0, remaining) and returns its encoded length.
+bool blockDataValidateVariableValue(int8_t type, const char* pData, size_t remaining, size_t* pValueLen);
+// Validates one normal encoded block without materializing its columns.
+int32_t blockDataValidateEncoding(const char* pData, size_t dataLen);
 // Decodes one normal block from pData[0, dataLen). On success, pEndPos, when non-NULL, points to the byte after the
 // encoded block; callers retain ownership of pBlock and must release it with blockDataDestroy.
 int32_t blockDecodeBounded(SSDataBlock* pBlock, const char* pData, size_t dataLen, const char** pEndPos);

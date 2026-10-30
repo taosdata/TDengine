@@ -3335,8 +3335,8 @@ static int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     QRY_ERR_JRET(terrno);
   }
 
-  rsp->compLen = htonl(len);
-  rsp->payloadLen = htonl(len);
+  rsp->compLen = htonl(len + PAYLOAD_PREFIX_LEN);
+  rsp->payloadLen = htonl(len + PAYLOAD_PREFIX_LEN);
   rsp->compressed = 0;
 
   SET_PAYLOAD_LEN(rsp->data, len, len);
