@@ -24,6 +24,9 @@ import inspect
 import ctypes
 
 class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
+    updatecfgDict = {
+        "sDebugFlag": 143,
+    }
 
     def setup_class(cls):
         tdLog.debug(f"start to excute {__file__}")
@@ -187,6 +190,7 @@ class Test5dnode3mnodeSep1VnodeStopDnodeModifyMeta:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+        
         Jira: None
 
         History:
