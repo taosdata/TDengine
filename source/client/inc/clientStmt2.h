@@ -196,6 +196,8 @@ typedef struct {
   uint32_t          seqId;
   uint32_t          seqIds[STMT_MAX];
   bool              bindThreadInUse;
+  bool              bindQueueInited;
+  bool              asyncBindParamInited;
   TdThread          bindThread;
   TAOS_STMT2_OPTION options;
   bool              stbInterlaceMode;
@@ -210,6 +212,7 @@ typedef struct {
   int32_t          errCode;
   SStmt2ExecResult lastExec;  // Retained after request cleanup for taos_stmt2_error().
   tsem_t           asyncExecSem;
+  bool             asyncExecSemInited;
   bool             execSemWaited;
   AsyncBindParam   asyncBindParam;
   bool             asyncResultAvailable;
