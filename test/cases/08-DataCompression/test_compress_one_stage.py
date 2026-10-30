@@ -29,7 +29,7 @@ class TestOneStageComp:
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, "oneStageComp.json")
-        etool.benchMark(json=jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
         tdSql.execute(f"use {self.db}")
         # set insert data information
@@ -118,6 +118,7 @@ class TestOneStageComp:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

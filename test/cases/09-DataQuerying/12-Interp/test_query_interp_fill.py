@@ -123,9 +123,10 @@ class TestInterpFill:
 
         cmd = f"taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/in/insert_config.json"
         tdLog.info(f"Running command: {cmd}")
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _, err = process.communicate()
-        assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
+        with etool.benchmark_write_log() as cfg_dir:
+            process = subprocess.Popen(f'{cmd} -c "{cfg_dir}"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, err = process.communicate()
+            assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
 
         # insert data for surrounding time test
         tdSql.execute("create database test_surround keep 36500")
