@@ -918,6 +918,11 @@ int32_t tsCompressStringImp(const char *const input, int32_t inputSize, char *co
 int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, char *const output, int32_t outputSize) {
   // compressedSize is the size of data after compression.
 
+  if (compressedSize <= 0 || outputSize < 0) {
+    uError("Invalid decompress size, compressedSize:%d, outputSize:%d", compressedSize, outputSize);
+    return TSDB_CODE_THIRDPARTY_ERROR;
+  }
+
   if (input[0] == 1) {
     /* It is compressed by LZ4 algorithm */
     const int32_t decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
@@ -929,9 +934,13 @@ int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, c
     return decompressed_size;
   } else if (input[0] == 0) {
     /* It is not compressed by LZ4 algorithm */
+    if (compressedSize - 1 > outputSize) {
+      uError("Uncompressed data size:%d exceeds output buffer size:%d", compressedSize - 1, outputSize);
+      return TSDB_CODE_THIRDPARTY_ERROR;
+    }
     memcpy(output, input + 1, compressedSize - 1);
     return compressedSize - 1;
-  } else if (input[1] == 2) {
+  } else if (input[0] == 2) {
     uError("Invalid decompress string indicator:%d", input[0]);
     return TSDB_CODE_THIRDPARTY_ERROR;
   }

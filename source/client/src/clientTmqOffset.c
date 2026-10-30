@@ -647,21 +647,40 @@ int32_t tmqGetNextResInfo(TAOS_RES* res, bool convertUcs4, SReqResultInfo** pRes
     void*   rawData = NULL;
     int64_t rows = 0;
     int32_t precision = 0;
+    int32_t payloadLen = 0;
 
     // inline helper to get raw data rows and precision
     if (pRetrieve != NULL) {
-      if (*(int64_t*)pRetrieve == 0) {
+      int32_t* pRetrieveLen = taosArrayGet(data->blockDataLen, pRspObj->resIter);
+      if (pRetrieveLen == NULL || *pRetrieveLen < (int32_t)sizeof(int64_t)) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+
+      int64_t version = 0;
+      memcpy(&version, pRetrieve, sizeof(version));
+      if (version == RETRIEVE_TABLE_RSP_VERSION) {
+        if (*pRetrieveLen < (int32_t)sizeof(SRetrieveTableRsp)) {
+          return TSDB_CODE_INVALID_MSG;
+        }
         rawData = ((SRetrieveTableRsp*)pRetrieve)->data;
         rows = htobe64(((SRetrieveTableRsp*)pRetrieve)->numOfRows);
         precision = ((SRetrieveTableRsp*)pRetrieve)->precision;
-      } else if (*(int64_t*)pRetrieve == 1) {
+        payloadLen = *pRetrieveLen - sizeof(SRetrieveTableRsp);
+      } else if (version == RETRIEVE_TABLE_RSP_TMQ_VERSION) {
+        if (*pRetrieveLen < (int32_t)sizeof(SRetrieveTableRspForTmq)) {
+          return TSDB_CODE_INVALID_MSG;
+        }
         rawData = ((SRetrieveTableRspForTmq*)pRetrieve)->data;
         rows = htobe64(((SRetrieveTableRspForTmq*)pRetrieve)->numOfRows);
         precision = ((SRetrieveTableRspForTmq*)pRetrieve)->precision;
+        payloadLen = *pRetrieveLen - sizeof(SRetrieveTableRspForTmq);
+      } else {
+        return TSDB_CODE_INVALID_MSG;
       }
     }
 
     pRspObj->resInfo.pData = rawData;
+    pRspObj->resInfo.payloadLen = payloadLen;
     pRspObj->resInfo.numOfRows = rows;
     pRspObj->resInfo.current = 0;
     pRspObj->resInfo.precision = precision;

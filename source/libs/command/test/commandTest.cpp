@@ -27,6 +27,7 @@ extern "C" {
 #include "command.h"
 #include "parInt.h"
 #include "plannodes.h"
+#include "tcol.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 }
@@ -340,6 +341,70 @@ namespace {
 
 using QueryPtr = std::unique_ptr<SQuery, decltype(&qDestroyQuery)>;
 using FilterCase = std::tuple<int8_t, EExtSourceType>;
+
+TEST(DescribeResultSchemaTest, MatchesParserForEveryTableLayout) {
+  auto freeMemory = [](void* ptr) { taosMemoryFree(ptr); };
+  const int8_t tableTypes[] = {TSDB_NORMAL_TABLE, TSDB_CHILD_TABLE, TSDB_SUPER_TABLE,
+                               TSDB_VIRTUAL_NORMAL_TABLE, TSDB_VIRTUAL_CHILD_TABLE, TSDB_VIEW_TABLE};
+  for (int8_t tableType : tableTypes) {
+    for (bool withCompression : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << "tableType=" << static_cast<int>(tableType)
+                                       << ", compression=" << withCompression);
+      auto* meta = static_cast<STableMeta*>(taosMemoryCalloc(1, sizeof(STableMeta) + 2 * sizeof(SSchema)));
+      ASSERT_NE(meta, nullptr);
+      std::unique_ptr<STableMeta, decltype(freeMemory)> owner(meta, freeMemory);
+      meta->tableType = tableType;
+      meta->tableInfo.numOfColumns = 2;
+      meta->schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+      meta->schema[0].bytes = sizeof(int64_t);
+      tstrncpy(meta->schema[0].name, "ts", sizeof(meta->schema[0].name));
+      meta->schema[1].type = TSDB_DATA_TYPE_INT;
+      meta->schema[1].bytes = sizeof(int32_t);
+      tstrncpy(meta->schema[1].name, "v", sizeof(meta->schema[1].name));
+      SSchemaExt ext[2] = {};
+      for (int32_t i = 0; i < 2; ++i) ext[i].compress = createDefaultColCmprByType(meta->schema[i].type);
+      if (withCompression) meta->schemaExt = ext;
+      SColRef refs[2] = {};
+      if (hasColRef(tableType)) {
+        meta->colRef = refs;
+        meta->numOfColRefs = 2;
+        refs[1].hasRef = true;
+        tstrncpy(refs[1].refDbName, "source_db", sizeof(refs[1].refDbName));
+        tstrncpy(refs[1].refTableName, "source_table", sizeof(refs[1].refTableName));
+        tstrncpy(refs[1].refColName, "source_value", sizeof(refs[1].refColName));
+      }
+      SDescribeStmt stmt = {};
+      stmt.type = QUERY_NODE_DESCRIBE_STMT;
+      stmt.pMeta = meta;
+      int32_t numOfCols = 0;
+      SSchema* schema = nullptr;
+      SExtSchema* extSchema = nullptr;
+      ASSERT_EQ(extractResultSchema(reinterpret_cast<SNode*>(&stmt), &numOfCols, &schema, &extSchema),
+                TSDB_CODE_SUCCESS);
+      std::unique_ptr<SSchema, decltype(freeMemory)> schemaOwner(schema, freeMemory);
+      std::unique_ptr<SExtSchema, decltype(freeMemory)> extOwner(extSchema, freeMemory);
+      SRetrieveTableRsp* rsp = nullptr;
+      ASSERT_EQ(qExecCommand(nullptr, true, 0, reinterpret_cast<SNode*>(&stmt), &rsp, 0, nullptr), TSDB_CODE_SUCCESS);
+      std::unique_ptr<SRetrieveTableRsp, decltype(freeMemory)> rspOwner(rsp, freeMemory);
+      ASSERT_NE(rsp, nullptr);
+      SSDataBlock block = {};
+      ASSERT_EQ(blockDecodeBounded(&block, rsp->data + PAYLOAD_PREFIX_LEN,
+                                   ntohl(rsp->payloadLen) - PAYLOAD_PREFIX_LEN, nullptr), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(taosArrayGetSize(block.pDataBlock), static_cast<size_t>(numOfCols));
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        auto* col = static_cast<SColumnInfoData*>(taosArrayGet(block.pDataBlock, i));
+        EXPECT_EQ(col->info.type, schema[i].type) << "column=" << i;
+        EXPECT_EQ(col->info.bytes, schema[i].bytes) << "column=" << i;
+      }
+      if (hasColRef(tableType)) {
+        auto* ref = static_cast<SColumnInfoData*>(taosArrayGet(block.pDataBlock, 4));
+        char* value = colDataGetData(ref, 1);
+        EXPECT_EQ(std::string(varDataVal(value), varDataLen(value)), "source_db.source_table.source_value");
+      }
+      blockDataFreeRes(&block);
+    }
+  }
+}
 
 TEST(ShowCreateTableTest, ReturnsTruncatedWideTableDefinition) {
   constexpr int32_t kColumnCount = 2500;

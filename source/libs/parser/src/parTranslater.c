@@ -34699,11 +34699,11 @@ static int32_t extractShowCreateDatabaseResultSchema(int32_t* numOfCols, SSchema
   }
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = TSDB_DB_NAME_LEN;
+  (*pSchema)[0].bytes = SHOW_CREATE_DB_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "Database", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = TSDB_MAX_BINARY_LEN;
+  (*pSchema)[1].bytes = SHOW_CREATE_DB_RESULT_FIELD2_LEN;
   tstrncpy((*pSchema)[1].name, "Create Database", TSDB_COL_NAME_LEN);
 
   return TSDB_CODE_SUCCESS;
@@ -34802,35 +34802,37 @@ static int32_t extractShowCreateStreamResultSchema(int32_t* numOfCols, SSchema**
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema) {
-  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS;  // SHOW_VARIABLES_RESULT_COLS
+static int32_t extractShowVariablesResultSchema(int32_t* numOfCols, SSchema** pSchema,
+                                                bool isLocal) {
+  *numOfCols = SHOW_LOCAL_VARIABLES_RESULT_COLS;
   *pSchema = taosMemoryCalloc((*numOfCols), sizeof(SSchema));
   if (NULL == (*pSchema)) {
     return terrno;
   }
 
   (*pSchema)[0].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[0].bytes = TSDB_CONFIG_OPTION_LEN;
+  (*pSchema)[0].bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
   tstrncpy((*pSchema)[0].name, "name", TSDB_COL_NAME_LEN);
 
   (*pSchema)[1].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[1].bytes = TSDB_CONFIG_PATH_LEN;
+  (*pSchema)[1].bytes = isLocal ? SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN
+                               : TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE;
   tstrncpy((*pSchema)[1].name, "value", TSDB_COL_NAME_LEN);
 
   (*pSchema)[2].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[2].bytes = TSDB_CONFIG_SCOPE_LEN;
+  (*pSchema)[2].bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD3_LEN;
   tstrncpy((*pSchema)[2].name, "scope", TSDB_COL_NAME_LEN);
 
   (*pSchema)[3].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[3].bytes = TSDB_CONFIG_CATEGORY_LEN;
+  (*pSchema)[3].bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD4_LEN;
   tstrncpy((*pSchema)[3].name, "category", sizeof((*pSchema)[3].name));
 
   (*pSchema)[4].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[4].bytes = TSDB_CONFIG_INFO_LEN;
+  (*pSchema)[4].bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD5_LEN;
   tstrncpy((*pSchema)[4].name, "info", sizeof((*pSchema)[4].name));
 
   (*pSchema)[5].type = TSDB_DATA_TYPE_BINARY;
-  (*pSchema)[5].bytes = TSDB_CONFIG_REBOOT_LEN;
+  (*pSchema)[5].bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD6_LEN;
   tstrncpy((*pSchema)[5].name, "reboot", sizeof((*pSchema)[5].name));
 
   return TSDB_CODE_SUCCESS;
@@ -34943,8 +34945,9 @@ int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pS
     case QUERY_NODE_SHOW_CREATE_STREAM_STMT:
       return extractShowCreateStreamResultSchema(numOfCols, pSchema);
     case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
+      return extractShowVariablesResultSchema(numOfCols, pSchema, true);
     case QUERY_NODE_SHOW_VARIABLES_STMT:
-      return extractShowVariablesResultSchema(numOfCols, pSchema);
+      return extractShowVariablesResultSchema(numOfCols, pSchema, false);
     case QUERY_NODE_COMPACT_DATABASE_STMT:
     case QUERY_NODE_COMPACT_VGROUPS_STMT:
     case QUERY_NODE_ROLLUP_DATABASE_STMT:
