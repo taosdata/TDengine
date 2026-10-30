@@ -14111,6 +14111,11 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->cacheLast));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->replica));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->selfIndex));
+  // replica/selfIndex come from the wire and are used as loop bounds and indices over the fixed-size
+  // replicas[TSDB_MAX_REPLICA] array and over SSyncCfg.nodeInfo, so bound them to the array sizes here
+  if (!tsdbReplicaCfgInRange(pReq->replica, pReq->selfIndex, TSDB_MAX_REPLICA)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
@@ -14151,6 +14156,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->learnerReplica));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->learnerSelfIndex));
+    if (!tsdbReplicaCfgInRange(pReq->learnerReplica, pReq->learnerSelfIndex, TSDB_MAX_LEARNER_REPLICA)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
     for (int32_t i = 0; i < TSDB_MAX_LEARNER_REPLICA; ++i) {
       SReplica *pReplica = &pReq->learnerReplicas[i];
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
@@ -14828,6 +14836,11 @@ int32_t tDeserializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnode
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->strict));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->selfIndex));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->replica));
+  // replica/selfIndex are used as loop bounds and indices over replicas[TSDB_MAX_REPLICA] and over
+  // SSyncCfg.nodeInfo by every consumer of this request (vnodeAlterReplica, syncBuildConfigFromReq, ...)
+  if (!tsdbReplicaCfgInRange(pReq->replica, pReq->selfIndex, TSDB_MAX_REPLICA)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
@@ -14838,6 +14851,9 @@ int32_t tDeserializeSAlterVnodeReplicaReq(void *buf, int32_t bufLen, SAlterVnode
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->learnerSelfIndex));
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->learnerReplica));
+    if (!tsdbReplicaCfgInRange(pReq->learnerReplica, pReq->learnerSelfIndex, TSDB_MAX_LEARNER_REPLICA)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
     for (int32_t i = 0; i < TSDB_MAX_LEARNER_REPLICA; ++i) {
       SReplica *pReplica = &pReq->learnerReplicas[i];
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));

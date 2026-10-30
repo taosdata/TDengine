@@ -1474,6 +1474,12 @@ typedef enum {
   TABLE_BLOCK_DROP = 0,
   TABLE_BLOCK_ADD,
   TABLE_BLOCK_RETIRE,
+  // A column-reference change discovered by the reader-side vtable cache recheck. The trigger queues
+  // it like TABLE_BLOCK_ADD, but it is stamped with the pull request cursor instead of the version
+  // of a WAL record, so it must not take part in replay dedup: several independent rechecks can share
+  // one cursor (the WAL cursor does not move), and each change is emitted once because the reader
+  // cache is updated before the notification is sent.
+  TABLE_BLOCK_ADD_RECHECK,
 } ETableBlockType;
 
 typedef struct SSTriggerWalNewRsp {
@@ -1580,6 +1586,13 @@ typedef struct SVTableRefResolveGroupItem {
 typedef struct SVTableRefResolveReq {
   int64_t  ver;
   SArray  *groups;                               // SArray<SVTableRefResolveGroupItem> (table-grouped)
+  // Caller's metadata transaction snapshot, encoded as a trailing optional field
+  // so peers that predate it keep decoding the frame and fall back to the
+  // committed snapshot. Propagated to every meta reader opened on the target
+  // vnode so entries created by the in-flight transaction (META_TXN_PRE_CREATE)
+  // stay visible during chain resolution.
+  // 0 means "no transaction context, read the latest committed snapshot".
+  int64_t  txnId;
 } SVTableRefResolveReq;
 
 typedef struct SVTableRefResolveRspItem {

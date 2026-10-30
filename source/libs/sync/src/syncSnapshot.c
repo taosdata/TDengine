@@ -1140,18 +1140,22 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   int32_t                code = 0;
 
   // Security (TD-SEC-2026-042 / GHSA-xg67-9f8r-64v5, CWE-125 / CWE-130): the WHOLE fixed header of
-  // SyncSnapshotSend (i.e. everything up to and including the trailing dataLen field - equivalently
-  // sizeof(SyncSnapshotSend), which equals offsetof(SyncSnapshotSend, data) for the flexible array)
-  // MUST be present in the received RPC body before ANY field is dereferenced. The transport only
-  // guarantees pRpcMsg->contLen >= sizeof(SMsgHead) (8 bytes) up-stream (vmPutMsgToQueue), so a
-  // truncated frame would otherwise make the pMsg->srcId / pMsg->term / pMsg->dataLen reads below
-  // out-of-bounds heap reads on the calloc'd frame buffer. This is the FIRST guard and must precede
-  // the dataLen-vs-available check that follows. (Matches the pattern already used for AppendEntries
-  // in syncAppendEntries.c.)
-  if ((int64_t)pRpcMsg->contLen < (int64_t)sizeof(SyncSnapshotSend)) {
+  // SyncSnapshotSend (everything up to the flexible data[]) MUST be present in the received RPC body
+  // before ANY field is dereferenced. The transport only guarantees pRpcMsg->contLen >=
+  // sizeof(SMsgHead) (8 bytes) up-stream (vmPutMsgToQueue), so a truncated frame would otherwise make
+  // the pMsg->srcId / pMsg->term / pMsg->dataLen reads below out-of-bounds heap reads on the calloc'd
+  // frame buffer. This is the FIRST guard and must precede the dataLen-vs-available check that follows.
+  // (Matches the pattern already used for AppendEntries in syncAppendEntries.c.)
+  // NOTE: the bound is offsetof(SyncSnapshotSend, data) (== the fixed-header size, 196B), NOT
+  // sizeof(SyncSnapshotSend) (200B). sizeof includes trailing struct-alignment padding that is NOT
+  // transmitted on the wire; using sizeof would wrongly reject valid frames that carry the full fixed
+  // header plus only a few data bytes (e.g. the TD-SEC-2026-042 case3a prep-reply with a 4-byte
+  // payload), short-circuiting before the proper error path. The fixed header is exactly the bytes
+  // before data[], so offsetof is the correct and sufficient bound.
+  if ((int64_t)pRpcMsg->contLen < (int64_t)offsetof(SyncSnapshotSend, data)) {
     sRError(pReceiver,
             "reject snapshot msg with truncated fixed header, contLen:%u, require at least:%zu (TD-SEC-2026-042)",
-            pRpcMsg->contLen, sizeof(SyncSnapshotSend));
+            pRpcMsg->contLen, (size_t)offsetof(SyncSnapshotSend, data));
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
 
@@ -1163,7 +1167,7 @@ int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   // the outer payload (pMsg->dataLen) used by syncSnapReceiverExchgSnapInfo's first alloc/copy. The
   // inner embedded SSyncTLV.len (also attacker-controlled) is validated separately inside
   // syncSnapReceiverExchgSnapInfo / syncSnapSenderExchgSnapInfo, NOT by this check alone.
-  // NOTE: because the header guard above guarantees contLen >= sizeof(SyncSnapshotSend), snapDataAvail
+  // NOTE: because the header guard above guarantees contLen >= offsetof(SyncSnapshotSend, data), snapDataAvail
   // is guaranteed to be >= 0 here, so the comparison below can never be reached with an OOB dataLen read.
   int64_t snapDataAvail = (int64_t)pRpcMsg->contLen - (int64_t)offsetof(SyncSnapshotSend, data);
   if ((int64_t)pMsg->dataLen > snapDataAvail) {
@@ -1488,12 +1492,19 @@ int32_t syncNodeOnSnapshotRsp(SSyncNode *pSyncNode, SRpcMsg *pRpcMsg) {
   // sizeof(SMsgHead) (8 bytes) up-stream, so a truncated frame would otherwise make the pMsg->srcId /
   // pMsg->term / pMsg->ack / pMsg->code reads below (and the data[] TLV check further down) out-of-
   // bounds heap reads on the calloc'd frame buffer. This is the FIRST guard and must precede the
-  // payload TLV check at the prep-reply branch. (Analagous to the SyncSnapshotSend guard in
+  // payload TLV check at the prep-reply branch. (Analogous to the SyncSnapshotSend guard in
   // syncNodeOnSnapshot, and to the AppendEntries guard in syncAppendEntries.c.)
-  if ((int64_t)pRpcMsg->contLen < (int64_t)sizeof(SyncSnapshotRsp)) {
+  // NOTE: the bound is offsetof(SyncSnapshotRsp, data) (== the fixed-header size, 98B), NOT
+  // sizeof(SyncSnapshotRsp) (104B). sizeof includes trailing struct-alignment padding that is NOT
+  // transmitted on the wire; using sizeof would wrongly reject valid frames that carry the full fixed
+  // header plus only a few data bytes (e.g. the TD-SEC-2026-042 case3a prep-reply with a 4-byte
+  // payload: cont = 98 + 4 = 102 < 104), short-circuiting before the proper _ERROR path that stops
+  // the sender and calls syncNodeReplicateReset. The fixed header is exactly the bytes before data[],
+  // so offsetof is the correct and sufficient bound.
+  if ((int64_t)pRpcMsg->contLen < (int64_t)offsetof(SyncSnapshotRsp, data)) {
     sError("vgId:%d, reject snapshot rsp with truncated fixed header, contLen:%u, require at least:%zu "
            "(TD-SEC-2026-042)",
-           pSyncNode->vgId, pRpcMsg->contLen, sizeof(SyncSnapshotRsp));
+           pSyncNode->vgId, pRpcMsg->contLen, (size_t)offsetof(SyncSnapshotRsp, data));
     TAOS_RETURN(TSDB_CODE_SYN_INVALID_SNAPSHOT_MSG);
   }
 

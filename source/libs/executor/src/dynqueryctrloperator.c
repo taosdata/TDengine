@@ -5664,6 +5664,8 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
   if (pVtbScan->curOrgTbVg != NULL) {
     // which means rversion has changed
     void*   pCurIter = NULL;
+    // Scratch list of the vgroups to deploy. Owned here until addVgIds claims it, so every early exit
+    // below has to release it.
     SArray* tmpArray = NULL;
     while ((pCurIter = taosHashIterate(pVtbScan->curOrgTbVg, pCurIter))) {
       int32_t* vgId = (int32_t*)taosHashGetKey(pCurIter, NULL);
@@ -5672,24 +5674,41 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
           tmpArray = taosArrayInit(1, sizeof(int32_t));
           QUERY_CHECK_NULL(tmpArray, code, line, _return, terrno)
         }
-        QUERY_CHECK_NULL(taosArrayPush(tmpArray, vgId), code, line, _return, terrno)
+        if (taosArrayPush(tmpArray, vgId) == NULL) {
+          code = terrno;
+          line = __LINE__;
+          taosArrayDestroy(tmpArray);
+          goto _return;
+        }
       }
     }
     if (tmpArray == NULL) {
       return TSDB_CODE_SUCCESS;
     }
-    if (tmpArray != NULL && pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds == NULL) {
+    if (pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds == NULL) {
       SArray* expiredInfo = atomic_load_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addedVgInfo);
       if (expiredInfo && expiredInfo == atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addedVgInfo, expiredInfo, NULL)) {
         for (int32_t i = 0; i < taosArrayGetSize(expiredInfo); i++) {
           SStreamTaskAddr* vgInfo = (SStreamTaskAddr*)taosArrayGet(expiredInfo, i);
-          QUERY_CHECK_NULL(taosArrayPush(tmpArray, &vgInfo->nodeId), code, line, _return, terrno)
+          if (taosArrayPush(tmpArray, &vgInfo->nodeId) == NULL) {
+            code = terrno;
+            line = __LINE__;
+            taosArrayDestroy(expiredInfo);
+            taosArrayDestroy(tmpArray);
+            goto _return;
+          }
         }
         taosArrayDestroy(expiredInfo);
       }
       if (atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds, NULL, tmpArray)) {
         taosArrayDestroy(tmpArray);
       }
+    } else {
+      // A deploy request carrying an older vg list is still in flight (the runner claims addVgIds
+      // when it builds its mgmt request), so nobody would ever consume this scratch list. Release
+      // it here; the next rversion diff recomputes the same vg set against the stale
+      // existOrgTbVg baseline and reports it again once addVgIds is free.
+      taosArrayDestroy(tmpArray);
     }
     uint64_t deployUid = pVtbScan->uid;
     if (pVtbScan->isSuperTable) {

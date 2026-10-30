@@ -54,6 +54,12 @@
 #define STREAM_TRIGGER_BLOCK_SIZE_LIMIT   (8 * 1024 * 1024)              // 8MB
 #define STREAM_TRIGGER_REPORT_INTERVAL_NS 5 * NANOSECOND_PER_MINUTE      // 5min
 #define IS_PATCHING_VITRUAL_TABLE(pContext) (tSimpleHashGetSize(pContext->patchContext.pPatchItems) > 0)
+// A virtual table patch retries its prepare step on every realtime check, which runs once per second.
+// A prepare failure keeps the pending items, so retrying cannot fix it: tolerate a short streak, then
+// escalate. At the 1s cadence the attempt count is the effective bound (three ticks, about 3s); the
+// timeout is only a backstop for a slower cadence, such as a skipped tick or a resumed session.
+#define STREAM_TRIGGER_VTABLE_PATCH_PREPARE_MAX_FAILURES 3
+#define STREAM_TRIGGER_VTABLE_PATCH_PREPARE_TIMEOUT_MS   (60 * 1000LL)
 #define IS_TRIGGER_GROUP_TO_CHECK(pGroup) \
   (TD_DLIST_NODE_NEXT(pGroup) != NULL || TD_DLIST_TAIL(&pContext->groupsToCheck) == pGroup)
 #define IS_TRIGGER_GROUP_IN_IDLE_LIST(pGroup) \
@@ -984,6 +990,7 @@ static int32_t stHistoryGroupCleanNestedCacheScopes(SSTriggerHistoryGroup *pGrou
 static int32_t stHistoryContextCleanNestedCacheScopes(SSTriggerHistoryContext *pContext);
 
 static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t gid);
+static int32_t stHistoryGroupAddVirtTableInfo(SSTriggerHistoryGroup *pGroup, const SSTriggerVirtTableInfo *pInfo);
 static void    stHistoryGroupDestroy(void *ptr);
 static int32_t stHistoryGroupAddMetaDatas(SSTriggerHistoryGroup *pGroup, SArray *pMetadatas, SArray *pVgIds,
                                           bool *pAdded);
@@ -1202,6 +1209,9 @@ static void    stRealtimeContextExtendVirtualExtCalcRange(SSTriggerRealtimeConte
 static bool    stRealtimeContextHasPendingExtCalcPulls(const SSTriggerRealtimeContext *pContext);
 
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask);
+static bool    stHistoryContextMetadataReady(const SStreamTriggerTask *pTask);
+static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContext, bool isHistory, int64_t gid);
+static void    stHistoryContextClearExecution(SSTriggerHistoryContext *pContext);
 static void    stHistoryContextDestroy(void *ptr);
 static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext);
 static int32_t stTriggerTaskHandleManualAttemptOutcome(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq,
@@ -2221,11 +2231,26 @@ static int32_t stTriggerTaskResumeManualRecalc(SStreamTriggerTask *pTask, uint64
                                                bool *pRetryWait, bool *pResumed) {
   *pRetryWait = false;
   *pResumed = false;
+  if (!stHistoryContextMetadataReady(pTask)) {
+    *pRetryWait = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  taosRLockLatch(&pTask->recalcRequestLock);
+  SSTriggerRecalcRequest *pBackoffReq = stTriggerTaskFindBackoffRecalc(pTask, chainId);
+  bool                    hasBackoffRequest = pBackoffReq != NULL;
+  bool                    isHistory = hasBackoffRequest && pBackoffReq->isHistory;
+  int64_t                 gid = hasBackoffRequest ? pBackoffReq->gid : 0;
+  taosRUnLockLatch(&pTask->recalcRequestLock);
+  if (!hasBackoffRequest) {
+    taosMemoryFree(pWaitNode);
+    return TSDB_CODE_SUCCESS;
+  }
   SListNode               *pNextWaitNode = taosMemoryCalloc(1, sizeof(SListNode) + sizeof(StreamTriggerWaitInfo));
   SListNode               *pReadyNode = taosMemoryCalloc(1, sizeof(SListNode) + POINTER_BYTES);
   SSTriggerHistoryContext *pNewContext = taosMemoryCalloc(1, sizeof(*pNewContext));
   int32_t code = pNextWaitNode == NULL || pReadyNode == NULL || pNewContext == NULL ? terrno : TSDB_CODE_SUCCESS;
   if (code == TSDB_CODE_SUCCESS) code = stHistoryContextInit(pNewContext, pTask);
+  if (code == TSDB_CODE_SUCCESS) code = stHistoryContextPrepareExecution(pNewContext, isHistory, gid);
   if (code != TSDB_CODE_SUCCESS) {
     stHistoryContextDestroy(&pNewContext);
     taosMemoryFree(pReadyNode);
@@ -2278,6 +2303,7 @@ static int32_t stTriggerTaskResumeManualRecalc(SStreamTriggerTask *pTask, uint64
 
   stHistoryContextDestroy(&pTask->pHistoryContext);
   pTask->pHistoryContext = pNewContext;
+  stTriggerTaskPublishHistoryDebugGauges(pTask, pNewContext);
   taosMemoryFree(pWaitNode);
   *pResumed = true;
   return TSDB_CODE_SUCCESS;
@@ -5411,6 +5437,11 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     pProgress->savedVer = pEntry->savedVer;
     pProgress->doneVer = pEntry->startVer;
     pProgress->lastScanVer = pEntry->startVer;
+    // The checkpoint stores the reader cursor, i.e. the version of the next WAL record to read, while
+    // savedTbVer tracks the last table change already turned into a patch item. The last consumed
+    // record is the cursor minus one, so start the watermark there: a table change that becomes the
+    // very next record after the restart is then still queued instead of being filtered out.
+    pProgress->savedTbVer = pEntry->savedVer > 0 ? pEntry->savedVer - 1 : 0;
     ++nBoundedVnodes;
     ST_TASK_DLOG("parse checkpoint, vgId: %d, startVer: %" PRId64 ", doneVer: %" PRId64, pEntry->vgId, pEntry->startVer,
                  pEntry->savedVer);
@@ -6432,18 +6463,9 @@ int32_t stTriggerTaskReleaseDropTableRequest(SStreamTriggerTask *pTask, SSTrigge
 }
 
 static void stHistoryContextResetManualExecution(SSTriggerHistoryContext *pContext) {
-  pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
-  pContext->progressStepId = 0;
-  pContext->nextProgressRequestToken = 0;
-  pContext->pendingToFinish = false;
-  pContext->finishCheck = false;
-  pContext->pMinGroup = NULL;
-  pContext->curReaderIdx = 0;
-  taosArrayDestroy(pContext->pContributors);
-  pContext->pContributors = NULL;
-  if (pContext->pFirstTsMap != NULL) tSimpleHashClear(pContext->pFirstTsMap);
-  if (pContext->pTrigDataBlocks != NULL) taosArrayClearP(pContext->pTrigDataBlocks, (FDelete)blockDataDestroy);
-  if (pContext->pCalcDataBlocks != NULL) taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy);
+  // Manual outcomes are emitted only after the attempt's reader/runner barrier drains.
+  stHistoryContextClearExecution(pContext);
+  stTriggerTaskPublishHistoryDebugGauges(pContext->pTask, pContext);
 }
 
 static int32_t stTriggerTaskHandleManualAttemptOutcome(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq,
@@ -7075,10 +7097,11 @@ int32_t stTriggerTaskReadyRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReal
 
   SSTriggerGroupPendingRecalc *pGroupRecalcs =
       tSimpleHashGet(pTask->pGroupPendingRecalcs, &pGroup->gid, sizeof(int64_t));
-  if (pGroupRecalcs == NULL || TD_DLIST_NELES(&pGroupRecalcs->pendingRequests) == 0) {
+  if (pGroupRecalcs == NULL) {
     goto _end;
   }
 
+  // Keep progress current even with no pending requests so later deletes can become ready without new input.
   int64_t progressTs = pGroup->oldThreshold;
   if (pGroup->pPendingCalcParams.neles > 0) {
     SSTriggerCalcParam *pParam = taosObjListGetHead(&pGroup->pPendingCalcParams);
@@ -8063,6 +8086,10 @@ void stTriggerTaskInvalidateInternalGroupIndex(SStreamTriggerTask *pTask) {
     pTask->pInternalGroupIndex = NULL;
     ST_TASK_DLOG("%s", "invalidated internal group reader index");
   }
+  if (pTask->pVirtTableGidIndex != NULL) {
+    tSimpleHashCleanup(pTask->pVirtTableGidIndex);
+    pTask->pVirtTableGidIndex = NULL;
+  }
 }
 
 int32_t stTriggerTaskGetInternalGroupInfo(SStreamTriggerTask *pTask, int64_t gid, bool *pHasTrigger, int32_t *pVgId) {
@@ -8117,6 +8144,45 @@ int32_t stTriggerTaskGetInternalGroupInfo(SStreamTriggerTask *pTask, int64_t gid
     *pVgId = pInfo->vgId;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static void stTriggerTaskDestroyVirtTableGidIndexElem(void *pElem) { taosArrayDestroy(*(SArray **)pElem); }
+
+// The index borrows task metadata; groups own their copies. Publish only a complete index.
+static int32_t stTriggerTaskEnsureVirtTableGidIndex(SStreamTriggerTask *pTask) {
+  if (pTask->pVirtTableGidIndex != NULL) return TSDB_CODE_SUCCESS;
+
+  int32_t    code = TSDB_CODE_SUCCESS;
+  int32_t    lino = 0;
+  SSHashObj *pIndex = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pIndex, code, lino, _end, terrno);
+  tSimpleHashSetFreeFp(pIndex, stTriggerTaskDestroyVirtTableGidIndexElem);
+  int32_t                 iter = 0;
+  SSTriggerVirtTableInfo *pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
+  while (pInfo != NULL) {
+    for (int32_t i = 0; i < taosArrayGetSize(pInfo->tbGids); ++i) {
+      int64_t *pGid = TARRAY_GET_ELEM(pInfo->tbGids, i);
+      SArray **ppInfos = tSimpleHashGet(pIndex, pGid, sizeof(*pGid));
+      if (ppInfos == NULL) {
+        SArray *pInfos = taosArrayInit(1, POINTER_BYTES);
+        QUERY_CHECK_NULL(pInfos, code, lino, _end, terrno);
+        code = tSimpleHashPut(pIndex, pGid, sizeof(*pGid), &pInfos, POINTER_BYTES);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosArrayDestroy(pInfos);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        ppInfos = tSimpleHashGet(pIndex, pGid, sizeof(*pGid));
+      }
+      QUERY_CHECK_NULL(taosArrayPush(*ppInfos, &pInfo), code, lino, _end, terrno);
+    }
+    pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter);
+  }
+  pTask->pVirtTableGidIndex = pIndex;
+  pIndex = NULL;
+
+_end:
+  tSimpleHashCleanup(pIndex);
+  return code;
 }
 
 static int32_t stTriggerTaskAppendVirtualTbnameGroupValue(SStreamTriggerTask *pTask, SArray *pGroupColVals,
@@ -15342,6 +15408,9 @@ static int32_t stRealtimeContextInitPatchContext(SSTriggerRealtimeContext *pCont
   QUERY_CHECK_NULL(pPatch->pExtRegistryPatchIds, code, lino, _end, terrno);
   pPatch->pExtCleanupRefs = taosArrayInit(0, sizeof(SSTriggerExtOrigTableRef));
   QUERY_CHECK_NULL(pPatch->pExtCleanupRefs, code, lino, _end, terrno);
+  // The retry counters live in a calloc'ed context and are maintained by
+  // stRealtimeContextResetPatchContext() whenever a round ends, so there is nothing to initialize
+  // here.
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
@@ -15400,6 +15469,8 @@ static void stRealtimeContextResetPatchContext(SSTriggerRealtimeContext *pContex
     taosArrayClearEx(pPatch->pExtCleanupRefs, stTriggerTaskDestroyExtOrigTableRef);
   }
   pPatch->extRegistryPatchPrepared = false;
+  pPatch->prepareFailures = 0;
+  pPatch->prepareFirstFailureMs = 0;
 }
 
 // The reverse map pOrigTableInfos[otbUid].pVtbUids is the only way trigger input rows are
@@ -15436,11 +15507,19 @@ static int32_t stRealtimeContextPrepareVtablePatch(SSTriggerRealtimeContext *pCo
 
   taosWLockLatch(&pTask->virTableInfoLock);
   stTriggerTaskInvalidateInternalGroupIndex(pTask);
+  QUERY_CHECK_NULL(pTask->pVirtTableInfos, code, lino, _end, TSDB_CODE_STREAM_INTERNAL_ERROR);
   int32_t                   iter = 0;
   SSTriggerVTablePatchItem *pItem = tSimpleHashIterate(pPatch->pPatchItems, NULL, &iter);
   while (pItem != NULL) {
-    code = tSimpleHashRemove(pTask->pVirtTableInfos, &pItem->vtbUid, sizeof(int64_t));
-    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t rmCode = tSimpleHashRemove(pTask->pVirtTableInfos, &pItem->vtbUid, sizeof(int64_t));
+    // tSimpleHashRemove reports TSDB_CODE_INVALID_PARA for a missing key. A patch item may name a
+    // vtable this task never registered: it was retired before the patch, the table block row is
+    // replayed from an older WAL position, or a previous patch round already dropped it. Treat that
+    // as a no-op. Failing here is not recoverable: pPatchItems keeps the item while pVirTableInfoRsp
+    // stays empty, so every following check retries the same prepare and the context never recovers.
+    if (rmCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_DLOG("virtual table %" PRId64 " is not registered, nothing to retire for the patch", pItem->vtbUid);
+    }
     // Patched vtables are re-registered (with a fresh reverse mapping) from the vtable info
     // collected below; retired ones must disappear from both maps.
     stTriggerTaskPruneOrigTableVtbUid(pTask, pItem->vtbUid);
@@ -15454,6 +15533,65 @@ _end:
   }
   return code;
 }
+
+// The patch prepare step is retried on every realtime check tick. Its failure is not self-healing:
+// pPatchItems still holds the pending items and pVirTableInfoRsp stays empty, so each tick repeats
+// the same failure and the trigger never leaves the patch state. Tolerate a short transient streak,
+// then escalate the failure to the task level.
+//
+// Escalating instead of dropping the round keeps the vtable set consistent with the catalog. The WAL
+// table-change rows that produced these items were consumed by the scan and are not reported again,
+// so a dropped round would silently leave a dropped TABLE_BLOCK_ADD unknown and a dropped
+// TABLE_BLOCK_RETIRE registered, with only an ELOG to show for it. Failing the task rebuilds
+// pVirtTableInfos from the reader vtable list and recovers from the checkpoint instead.
+static int32_t stRealtimeContextHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code) {
+  SStreamTriggerTask          *pTask = pContext->pTask;
+  SSTriggerVTablePatchContext *pPatch = &pContext->patchContext;
+  // Monotonic clock: the budget measures an elapsed interval, so a wall clock step (NTP) must not
+  // move it. Same source as the executor-side redeploy deadline.
+  int64_t                      nowMs = taosGetMonoTimestampMs();
+
+  if (pPatch->prepareFailures == 0) {
+    pPatch->prepareFirstFailureMs = nowMs;
+  }
+  pPatch->prepareFailures++;
+
+  int64_t elapsedMs = nowMs - pPatch->prepareFirstFailureMs;
+  if (pPatch->prepareFailures < STREAM_TRIGGER_VTABLE_PATCH_PREPARE_MAX_FAILURES &&
+      elapsedMs < STREAM_TRIGGER_VTABLE_PATCH_PREPARE_TIMEOUT_MS) {
+    ST_TASK_WLOG("prepare virtual table patch failed, attempt:%d, error:%s", pPatch->prepareFailures,
+                 tstrerror(code));
+    return code;
+  }
+
+  ST_TASK_ELOG("give up virtual table patch after %d failed prepares in %" PRId64 " ms, error:%s",
+               pPatch->prepareFailures, elapsedMs, tstrerror(code));
+  // Release the round so a task that outlives this check cannot stay stuck in the patch state, then
+  // record a task-level failure. Continuing here is not an option: the vtable set this task owns no
+  // longer matches the catalog, and only a rebuild reconciles it.
+  stRealtimeContextResetPatchContext(pContext);
+  streamHandleTaskError(pTask->task.streamId, pTask->task.taskId, code);
+  // Same shape as the EXT pull failure path: idle this session so the failed task does not spin
+  // until the management layer restarts it. Shadow contexts replay without a real session.
+  if (!pContext->suppressOutput) {
+    int32_t waitCode = stTriggerTaskAddWaitSession(pTask, pContext->sessionId,
+                                                   taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+    if (waitCode != TSDB_CODE_SUCCESS) {
+      ST_TASK_ELOG("failed to idle the session after giving up virtual table patch since %s", tstrerror(waitCode));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestPrepareVtablePatch(SSTriggerRealtimeContext *pContext) {
+  return stRealtimeContextPrepareVtablePatch(pContext);
+}
+
+int32_t stTriggerTestHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code) {
+  return stRealtimeContextHandleVtablePatchPrepareFailure(pContext, code);
+}
+#endif
 
 static bool stTriggerTaskBindingBelongsToPatch(const SSHashObj *pPatchItems,
                                                const SSTriggerExtOrigTableBinding *pBinding) {
@@ -20813,7 +20951,15 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     bool pullVtableInfo = (taosArrayGetSize(pContext->patchContext.pVirTableInfoRsp) == 0);
     if (pullVtableInfo) {
       code = stRealtimeContextPrepareVtablePatch(pContext);
-      QUERY_CHECK_CODE(code, lino, _end);
+      if (code != TSDB_CODE_SUCCESS) {
+        // Retries a short transient streak, then records a task-level failure and clears the round.
+        code = stRealtimeContextHandleVtablePatchPrepareFailure(pContext, code);
+        QUERY_CHECK_CODE(code, lino, _end);
+        // The round is gone and the task is failing, so there is nothing left to pull table info for.
+        if (!IS_PATCHING_VITRUAL_TABLE(pContext)) {
+          goto _end;
+        }
+      }
     }
     ST_TASK_DLOG("continue virtual table patch, pullVtableInfo:%d", pullVtableInfo);
     for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
@@ -21837,11 +21983,23 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
     int64_t *pUids = (int64_t *)pUidCol->pData;
     int64_t *pVers = (int64_t *)pVerCol->pData;
     uint8_t *pTypes = (uint8_t *)pTypeCol->pData;
+    // A WAL table-change row carries the version of the record that produced it, so it is compared
+    // against the watermark of rows already applied instead of savedVer: the WAL window ends at
+    // savedVer and replaying that window delivers the row recorded at savedVer once more, even
+    // though it already became a patch item. A TABLE_BLOCK_ADD_RECHECK row is exempt from that
+    // comparison: the reader-side cache recheck stamps it with the pull request cursor, which does
+    // not move when the change comes from another vgroup, so two independent rechecks can carry the
+    // same version and filter the later one out. Shadow replay bundles rebuild their own state from
+    // an inclusive WAL window and keep the previous savedVer - 1 gate.
+    const int64_t tbPatchWatermark = pContext->suppressOutput ? pProgress->savedVer - 1 : pProgress->savedTbVer;
 #define TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE 1
     for (int32_t i = 0; i < nrows; i++) {
-      if (pTypes[i] == TABLE_BLOCK_ADD && pTask->isVirtualTable && pVers[i] >= pProgress->savedVer) {
+      const bool isRecheckAdd = (pTypes[i] == TABLE_BLOCK_ADD_RECHECK);
+      const bool passesTbGate = isRecheckAdd || pVers[i] > tbPatchWatermark;
+      if ((pTypes[i] == TABLE_BLOCK_ADD || isRecheckAdd) && pTask->isVirtualTable && passesTbGate) {
 #if TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE
-        ST_TASK_DLOG("found runtime virtual table add, uid:%" PRId64 ", ver:%" PRId64, pUids[i], pVers[i]);
+        ST_TASK_DLOG("found runtime virtual table %s, uid:%" PRId64 ", ver:%" PRId64,
+                     isRecheckAdd ? "add (cache recheck)" : "add", pUids[i], pVers[i]);
         SSTriggerVTablePatchItem  newItem = {.vtbUid = pUids[i], .ver = pVers[i], .vgId = vgId, .op = TABLE_BLOCK_ADD};
         SSHashObj                *pPatchItems = pContext->patchContext.pPatchItems;
         // stRealtimeContextInitPatchContext() initializes pPatchItems for every virtual-table
@@ -21855,12 +22013,17 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         } else {
           *pExist = newItem;
         }
+        // Only a WAL record version advances the applied watermark; a recheck row reports the same
+        // change at most once and must not hide a later change that reuses the cursor.
+        if (!isRecheckAdd) {
+          pProgress->savedTbVer = TMAX(pProgress->savedTbVer, pVers[i]);
+        }
 #else
         ST_TASK_DLOG("found new added/altered virtual table, uid:%" PRId64, pUids[i]);
         code = TSDB_CODE_INTERNAL_ERROR;
         QUERY_CHECK_CODE(code, lino, _end);
 #endif
-      } else if (pTypes[i] == TABLE_BLOCK_RETIRE && pTask->isVirtualTable && pVers[i] >= pProgress->savedVer) {
+      } else if (pTypes[i] == TABLE_BLOCK_RETIRE && pTask->isVirtualTable && pVers[i] > tbPatchWatermark) {
 #if TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE
         ST_TASK_DLOG("found runtime virtual table retire, uid:%" PRId64 ", ver:%" PRId64, pUids[i], pVers[i]);
         SSTriggerVTablePatchItem newItem = {
@@ -21876,6 +22039,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         } else {
           *pExist = newItem;
         }
+        pProgress->savedTbVer = TMAX(pProgress->savedTbVer, pVers[i]);
 #else
         ST_TASK_DLOG("found dropped virtual table, uid:%" PRId64, pUids[i]);
         code = TSDB_CODE_INTERNAL_ERROR;
@@ -21912,6 +22076,13 @@ _end:
   }
   return code;
 }
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestProcWalMeta(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
+                                 int64_t nowNs) {
+  return stRealtimeContextProcWalMeta(pContext, pProgress, nowNs);
+}
+#endif
 
 static int32_t stTriggerTaskBuildExtReaderReq(SStreamTriggerTask *pTask, SSTriggerExtOrigTableRef *pRef,
                                               int32_t capabilities,
@@ -23798,16 +23969,99 @@ static int32_t stHistoryContextEnsureCalcDataCache(SSTriggerHistoryContext *pCon
                              &pContext->pCalcDataCache);
 }
 
-static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      lino = 0;
-  SSDataBlock *pVirDataBlock = NULL;
-  SFilterInfo *pVirDataFilter = NULL;
+static int32_t stHistoryContextInitGroup(SSTriggerHistoryContext *pContext, int64_t gid) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (tSimpleHashGet(pContext->pGroups, &gid, sizeof(gid)) != NULL) return TSDB_CODE_SUCCESS;
 
+  SSTriggerHistoryGroup *pGroup = taosMemoryCalloc(1, sizeof(SSTriggerHistoryGroup));
+  QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
+  code = tSimpleHashPut(pContext->pGroups, &gid, sizeof(gid), &pGroup, POINTER_BYTES);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pGroup);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = stHistoryGroupInit(pGroup, pContext, gid);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pContext->pTask->isVirtualTable) {
+    SArray **ppInfos = tSimpleHashGet(pContext->pTask->pVirtTableGidIndex, &gid, sizeof(gid));
+    for (int32_t i = 0; ppInfos != NULL && i < taosArrayGetSize(*ppInfos); ++i) {
+      code = stHistoryGroupAddVirtTableInfo(pGroup, taosArrayGetP(*ppInfos, i));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+_end:
+  return code;
+}
+
+static int32_t stHistoryContextInitGroups(SSTriggerHistoryContext *pContext, bool isHistory, int64_t gid) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  pContext->pGroups = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
+  tSimpleHashSetFreeFp(pContext->pGroups, stHistoryGroupDestroy);
+  TD_DLIST_INIT(&pContext->groupsToCheck);
+  if (pTask->isVirtualTable) {
+    code = stTriggerTaskEnsureVirtTableGidIndex(pTask);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!isHistory) {
+      code = stHistoryContextInitGroup(pContext, gid);
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
+    }
+  }
+  // Preserve the discovered group set, including empty groups, for fill-history.
+  for (int32_t i = 0; i < taosArrayGetSize(pTask->pVirTableInfoRsp); ++i) {
+    VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
+    code = stHistoryContextInitGroup(pContext, pInfo->gId);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  return code;
+}
+
+static bool stHistoryContextMetadataReady(const SStreamTriggerTask *pTask) {
+  return !pTask->isVirtualTable ||
+         (pTask->virTableInfoReady &&
+          (pTask->pRealtimeContext == NULL || !IS_PATCHING_VITRUAL_TABLE(pTask->pRealtimeContext)) &&
+          stTriggerTaskExtBindingsReady(pTask->pExtOrigTableRefs));
+}
+
+static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
   pContext->pTask = pTask;
   pContext->sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
   pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
   TD_DLIST_INIT(&pContext->pendingNestedLeafEffects);
+  TD_DLIST_INIT(&pContext->groupsToCheck);
+  TD_DLIST_INIT(&pContext->groupsForceClose);
+  tdListInit(&pContext->retryPullReqs, POINTER_BYTES);
+  if (pTask->pHistoryContext == pContext) {
+    stTriggerTaskPublishHistoryDebugGauges(pTask, pContext);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContext, bool isHistory, int64_t gid) {
+  if (pContext->executionInitialized) {
+    if (!pContext->pTask->isVirtualTable || (pContext->isHistory == isHistory && pContext->gid == gid)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    // A resumed retry may be queued behind another group. Prepare the actual queue head.
+    stHistoryContextClearExecution(pContext);
+  }
+  pContext->isHistory = isHistory;
+  pContext->gid = gid;
+
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+  SSDataBlock        *pVirDataBlock = NULL;
+  SFilterInfo        *pVirDataFilter = NULL;
+
   if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     pContext->needTsdbMeta = true;
   } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
@@ -23851,26 +24105,8 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   pContext->pCalcDataBlocks = taosArrayInit(0, POINTER_BYTES);
   QUERY_CHECK_NULL(pContext->pCalcDataBlocks, code, lino, _end, terrno);
 
-  pContext->pGroups = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
-  QUERY_CHECK_NULL(pContext->pGroups, code, lino, _end, terrno);
-  tSimpleHashSetFreeFp(pContext->pGroups, stHistoryGroupDestroy);
-  TD_DLIST_INIT(&pContext->groupsToCheck);
-  int32_t nVirTables = taosArrayGetSize(pTask->pVirTableInfoRsp);
-  for (int32_t i = 0; i < nVirTables; i++) {
-    VTableInfo *pInfo = TARRAY_GET_ELEM(pTask->pVirTableInfoRsp, i);
-    void       *px = tSimpleHashGet(pContext->pGroups, &pInfo->gId, sizeof(int64_t));
-    if (px == NULL) {
-      SSTriggerHistoryGroup *pGroup = taosMemoryCalloc(1, sizeof(SSTriggerHistoryGroup));
-      QUERY_CHECK_NULL(pGroup, code, lino, _end, terrno);
-      code = tSimpleHashPut(pContext->pGroups, &pInfo->gId, sizeof(int64_t), &pGroup, POINTER_BYTES);
-      if (code != TSDB_CODE_SUCCESS) {
-        taosMemoryFreeClear(pGroup);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
-      code = stHistoryGroupInit(pGroup, pContext, pInfo->gId);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-  }
+  code = stHistoryContextInitGroups(pContext, isHistory, gid);
+  QUERY_CHECK_CODE(code, lino, _end);
   pContext->pMaxDelayHeap = heapCreate(stHistoryContextCompareGroup);
   QUERY_CHECK_NULL(pContext->pMaxDelayHeap, code, lino, _end, terrno);
   pContext->pGroupColVals = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
@@ -23918,10 +24154,16 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  tdListInit(&pContext->retryPullReqs, POINTER_BYTES);
+  pContext->executionInitialized = true;
 
 _end:
-  if (code == TSDB_CODE_SUCCESS) {
+  blockDataDestroy(pVirDataBlock);
+  if (pVirDataFilter != NULL) filterFreeInfo(pVirDataFilter);
+  if (code != TSDB_CODE_SUCCESS) {
+    stHistoryContextClearExecution(pContext);
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  if (pTask->pHistoryContext == pContext) {
     stTriggerTaskPublishHistoryDebugGauges(pTask, pContext);
   }
   return code;
@@ -23974,16 +24216,12 @@ _end:
   return code;
 }
 
-static void stHistoryContextDestroy(void *ptr) {
-  SSTriggerHistoryContext **ppContext = ptr;
-  if (ppContext == NULL || *ppContext == NULL) {
-    return;
-  }
-
-  SSTriggerHistoryContext *pContext = *ppContext;
+static void stHistoryContextClearExecution(SSTriggerHistoryContext *pContext) {
   SStreamTriggerTask      *pTask = pContext->pTask;
   stTriggerTaskDestroyRecalcRequest(&pContext->pManualRecalcRequest);
-  stTriggerTaskClearHistoryDebugGauges(pTask);
+  if (pTask != NULL && pTask->pHistoryContext == pContext) {
+    stTriggerTaskClearHistoryDebugGauges(pTask);
+  }
   stHistoryContextAbortNestedLeafEffects(pContext);
   if (pContext->pReaderTsdbProgress != NULL) {
     tSimpleHashCleanup(pContext->pReaderTsdbProgress);
@@ -24086,10 +24324,24 @@ static void stHistoryContextDestroy(void *ptr) {
   taosArrayDestroy(pContext->pNestedCalcRanges);
   pContext->pNestedCalcRanges = NULL;
 
-  taosMemFreeClear(*ppContext);
+  *pContext = (SSTriggerHistoryContext){
+      .pTask = pTask, .sessionId = STREAM_TRIGGER_HISTORY_SESSIONID, .status = STRIGGER_CONTEXT_WAIT_RECALC_REQ};
+  tdListInit(&pContext->retryPullReqs, POINTER_BYTES);
   if (pTask != NULL) {
     taosWUnLockLatch(&pTask->calcDataCacheIterLock);
   }
+}
+
+static void stHistoryContextDestroy(void *ptr) {
+  SSTriggerHistoryContext **ppContext = ptr;
+  if (ppContext == NULL || *ppContext == NULL) return;
+
+  SStreamTriggerTask *pTask = (*ppContext)->pTask;
+  stHistoryContextClearExecution(*ppContext);
+  // Cache consumers read the context pointer under this latch.
+  if (pTask != NULL) taosWLockLatch(&pTask->calcDataCacheIterLock);
+  taosMemFreeClear(*ppContext);
+  if (pTask != NULL) taosWUnLockLatch(&pTask->calcDataCacheIterLock);
 }
 
 static FORCE_INLINE SSTriggerHistoryGroup *stHistoryContextGetCurrentGroup(SSTriggerHistoryContext *pContext) {
@@ -24987,6 +25239,21 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   }
 
   if (pContext->status == STRIGGER_CONTEXT_WAIT_RECALC_REQ) {
+    taosRLockLatch(&pTask->recalcRequestLock);
+    SListNode              *pReadyNode = TD_DLIST_HEAD(pTask->pRecalcRequests);
+    bool                    hasReadyRequest = pReadyNode != NULL;
+    SSTriggerRecalcRequest *pReadyReq = hasReadyRequest ? *(SSTriggerRecalcRequest **)pReadyNode->data : NULL;
+    bool                    isHistory = hasReadyRequest && pReadyReq->isHistory;
+    int64_t                 gid = hasReadyRequest ? pReadyReq->gid : 0;
+    taosRUnLockLatch(&pTask->recalcRequestLock);
+    if (!hasReadyRequest || !stHistoryContextMetadataReady(pTask)) {
+      int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
+      code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, resumeTime);
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
+    }
+    code = stHistoryContextPrepareExecution(pContext, isHistory, gid);
+    QUERY_CHECK_CODE(code, lino, _end);
     SSTriggerRecalcRequest *pReq = NULL;
     code = stTriggerTaskFetchRecalcRequest(pTask, &pReq);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -30500,6 +30767,36 @@ static int32_t stHistoryGroupMetaDataSearch(const void *pLeft, const void *pRigh
   return ts - pMeta->ekey;
 }
 
+static int32_t stHistoryGroupAddVirtTableInfo(SSTriggerHistoryGroup *pGroup, const SSTriggerVirtTableInfo *pInfo) {
+  int32_t                 code = TSDB_CODE_SUCCESS;
+  int32_t                 lino = 0;
+  SSTriggerVirtTableInfo *pInfoClone = NULL;
+
+  code = stTriggerTaskCloneVirtTableInfo(pGroup->pContext->pTask, pInfo, &pInfoClone);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (taosArrayPush(pGroup->pVirtTableInfos, &pInfoClone) == NULL) {
+    code = terrno;
+    stTriggerTaskDestroyVirtTableInfoClone(&pInfoClone);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  // The group owns the clone from this point, including on metadata allocation failure.
+  SArray *pColRefs[] = {pInfoClone->pTrigColRefs, pInfoClone->pCalcColRefs};
+  for (int32_t kind = 0; kind < 2; ++kind) {
+    for (int32_t i = 0; i < taosArrayGetSize(pColRefs[kind]); ++i) {
+      SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pColRefs[kind], i);
+      if (tSimpleHashGet(pGroup->pTableMetas, &pColRef->otbUid, sizeof(int64_t)) == NULL) {
+        SSTriggerTableMeta meta = {.tbUid = pColRef->otbUid, .vgId = pColRef->otbVgId};
+        code = tSimpleHashPut(pGroup->pTableMetas, &pColRef->otbUid, sizeof(int64_t), &meta, sizeof(meta));
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+    }
+  }
+
+_end:
+  return code;
+}
+
 static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t gid) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -30522,40 +30819,6 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
   if (pContext->pTask->isVirtualTable) {
     pGroup->pVirtTableInfos = taosArrayInit(0, POINTER_BYTES);
     QUERY_CHECK_NULL(pGroup->pVirtTableInfos, code, lino, _end, terrno);
-    int32_t                 iter = 0;
-    SSTriggerVirtTableInfo *pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
-    while (pInfo != NULL) {
-      if (stTriggerTaskMatchVirtTableInfo(pInfo, gid)) {
-        SSTriggerVirtTableInfo *pInfoClone = NULL;
-        code = stTriggerTaskCloneVirtTableInfo(pTask, pInfo, &pInfoClone);
-        QUERY_CHECK_CODE(code, lino, _end);
-        void *px = taosArrayPush(pGroup->pVirtTableInfos, &pInfoClone);
-        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-        int32_t nTrigCols = taosArrayGetSize(pInfoClone->pTrigColRefs);
-        for (int32_t i = 0; i < nTrigCols; i++) {
-          SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pInfoClone->pTrigColRefs, i);
-          SSTriggerTableMeta   *pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &pColRef->otbUid, sizeof(int64_t));
-          if (pTableMeta == NULL) {
-            SSTriggerTableMeta newTableMeta = {.tbUid = pColRef->otbUid, .vgId = pColRef->otbVgId};
-            code = tSimpleHashPut(pGroup->pTableMetas, &pColRef->otbUid, sizeof(int64_t), &newTableMeta,
-                                  sizeof(SSTriggerTableMeta));
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-        }
-        int32_t nCalcCols = taosArrayGetSize(pInfoClone->pCalcColRefs);
-        for (int32_t i = 0; i < nCalcCols; i++) {
-          SSTriggerTableColRef *pColRef = TARRAY_GET_ELEM(pInfoClone->pCalcColRefs, i);
-          SSTriggerTableMeta   *pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &pColRef->otbUid, sizeof(int64_t));
-          if (pTableMeta == NULL) {
-            SSTriggerTableMeta newTableMeta = {.tbUid = pColRef->otbUid, .vgId = pColRef->otbVgId};
-            code = tSimpleHashPut(pGroup->pTableMetas, &pColRef->otbUid, sizeof(int64_t), &newTableMeta,
-                                  sizeof(SSTriggerTableMeta));
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-        }
-      }
-      pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter);
-    }
   }
 
   if (pTask->triggerType == STREAM_TRIGGER_STATE) {

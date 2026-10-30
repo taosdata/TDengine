@@ -153,7 +153,7 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 
 下表按产品与组件列出 TDengine 相关默认端口（含 TSDB、IDMP、TDgpt、CLS）。这些端口均可通过配置文件中的参数修改。
 
-为简化防火墙与安全组配置，**推荐一次性开放端口段 `6030–6070`**（TCP；其中 StatsD / collectd 相关端口同时需要 UDP），即可覆盖下表所列默认端口，避免逐个放行。若仅部署核心 TSDB（不含 IDMP、TDgpt、CLS），可收窄为 **`6030–6060`**。
+为简化防火墙与安全组配置，**推荐一次性开放端口段 `6030–6070`**（TCP；其中 StatsD / collectd 相关端口同时需要 UDP），即可覆盖下表所列默认端口，避免逐个放行。若仅部署核心 TSDB（不含 IDMP、TDgpt、CLS），可收窄为 **`6030–6060`**。该端口段是粗粒度的放行建议，默认只在本机通信、无须放行的端口见下文[仅本机通信的端口](#仅本机通信的端口)，逐端口精细配置时可以跳过。
 
 | 产品  | 组件         | 端口       | 协议    | 说明 |
 |:------|:-------------|:----------|:--------|:-----|
@@ -168,9 +168,9 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 |       |              | 6044      | TCP/UDP | StatsD 格式写入 |
 |       |              | 6045      | TCP/UDP | collectd 格式写入 |
 |       |              | 6046      | TCP     | OpenTSDB TELNET 格式写入 |
-|       |              | 6047      | TCP     | collectd 使用 OpenTSDB TELNET 写入 |
-|       |              | 6048      | TCP     | icinga2 使用 OpenTSDB TELNET 写入 |
-|       |              | 6049      | TCP     | tcollector 使用 OpenTSDB TELNET 写入 |
+|       |              | 6047      | TCP     | OpenTSDB TELNET 写入，落库 `collectd_tsdb`（collectd 客户端） |
+|       |              | 6048      | TCP     | OpenTSDB TELNET 写入，落库 `icinga2_tsdb`（icinga2 客户端） |
+|       |              | 6049      | TCP     | OpenTSDB TELNET 写入，落库 `tcollector_tsdb`（tcollector 客户端） |
 | IDMP  | IDMP         | 6034      | HTTPS   | HTTPS 访问（生产推荐） |
 |       |              | 6037      | MCP     | MCP / AI Agent |
 |       |              | 6038      | HTTP    | 内嵌 H2 Web 控制台 |
@@ -178,6 +178,7 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 |       |              | 6040      | HTTP    | 内部聊天服务 API |
 |       |              | 6042      | HTTP    | Web UI / REST API |
 | TDgpt | Anode        | 6035      | TCP     | TDgpt 服务接口 |
+|       | TDmodel      | 6036      | TCP     | 模型服务（TDmodel） |
 |       | TDtsfm       | 6061      | TCP     | 时序基础模型服务 |
 |       | Time-MoE     | 6062      | TCP     | 模型服务 |
 |       | Chronos      | 6063      | TCP     | 模型服务 |
@@ -186,3 +187,27 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 |       | Moment       | 6066      | TCP     | 模型服务 |
 |       | Reserved     | 6067-6070 | TCP     | 预留模型服务端口 |
 | CLS   | CLS          | 6059      | HTTP    | Web UI / 许可证服务 |
+
+### 仅本机通信的端口
+
+以下端口和端点默认只供本机进程之间调用（回环地址监听或 Unix 域套接字），不对外提供服务，**无须在防火墙上放行**。只有显式修改了绑定地址后才需要重新评估：
+
+| 产品 | 组件   | 端口  | 协议 | 说明 |
+|:------|:-------|:----------|:--------|:-----|
+| TSDB  | xnoded | 6051  | TCP  | XNode 本地管理接口。Linux、macOS 上 taosd 与 `xnoded` 通过 Unix 域套接字 `<dataDir>/.taosxnode.sock` 通信，默认不监听任何 TCP 端口；Windows 上 taosd 通过 `localhost:6051` 访问，仅本机可用。只有手动启动 `xnoded` 且未设置 `--listen` / `XNODED_LISTEN` 时，才会回退监听 `0.0.0.0:6051`，这种情况必须单独评估放行。`xnoded` 再通过 taosX 的 6055 端口控制 taosX |
+| IDMP  | IDMP   | 16042 | TCP  | 后端 Quarkus 服务。仅监听回环，外部访问统一经由 nginx 的 6042（HTTP）/ 6034（HTTPS）入口反向代理，无须也不应直接对 16042 放行外部访问 |
+| TSDB  | taosX / taosX-Agent | 6051–16049（动态分配） | TCP  | 任务运行时为本机进程间转发分配端口，以 `6051–16049` 为区间并从低位起挑选空闲端口，跳过预留端口（6051、6055、6060、7070）以及已被占用的端口（含仅绑定通配地址的监听）。不对外提供服务，但建议在端口资源规划时为其预留该区间 |
+
+### 出站连接端口
+
+除上表的服务监听端口外，根据不同部署和使用需求，可能需要开放以下**出站连接**端口。它们不要求本机开放监听，但要求防火墙/安全组允许服务器**向外**发起连接（若出站默认放行则无须配置）：
+
+| 产品  | 用途                    | 端口 | 协议 | 说明 |
+|:------|:------------------------|:-----|:-----|:-----|
+| TSDB  | telemetry 上报（可选）    | 80   | TCP  | 出站 HTTP 上报至 `telemetry.tdengine.com`。可通过 `telemetryReporting` 关闭；默认仅社区版编译启用（企业版编译默认关闭）。目标与端口可配（`telemetryServer`/`telemetryPort`） |
+| TSDB  | snode checkpoint 备份   | 873  | TCP  | rsync 协议（`rsyncPort` 可配） |
+| TSDB  | taosExplorer 备份计划 S3 转储 | 按 S3 endpoint 配置 | HTTPS | 将备份文件上传至 S3 或兼容对象存储；AWS S3 通常为 443，自建 MinIO 等按实际 endpoint 端口 |
+| taosX | 订阅外部 MQTT Broker    | 1883 | TCP  | `mqtt://` 数据源（如 Sparkplug B）；与 taosMqtt 的 6057（本机对外提供 MQTT 订阅服务）方向相反 |
+| IDMP  | SMTP 邮件发送           | 465  | TCP  | 出站（`CAPABILITY_MAIL_SMTP_PORT` 可配） |
+| IDMP  | Redis 连接              | 6379 | TCP  | 出站。集群模式（`tda.redis.enabled=true`）必选：分布式锁、ID 生成、缓存与跨节点事件分发（Redis Stream / SSE 事件桥）；单机模式默认关闭，仅当显式启用时须放行（`IDMP_REDIS_URL` 可配） |
+| taosX | 数据源连接              | 按需 | TCP  | MySQL 3306、PostgreSQL 5432、MongoDB 27017、SQL Server 1433、Oracle 1521、OpenTSDB 4242 等，取决于所配置的数据源 |

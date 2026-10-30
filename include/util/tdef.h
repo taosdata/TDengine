@@ -532,6 +532,12 @@ typedef enum {
 
 #define TSDB_MAX_REPLICA               5
 #define TSDB_MAX_LEARNER_REPLICA       10
+// Array-bound guard for a wire-decoded replica count / self index pair: count in [0, max] and
+// selfIndex in [-1, max - 1] (-1 means "this node is not in the list"). It only keeps loops and
+// indices inside the fixed-size arrays; whether selfIndex < count is checked by the vnode mgmt layer.
+static inline bool tsdbReplicaCfgInRange(int32_t count, int32_t selfIndex, int32_t max) {
+  return count >= 0 && count <= max && selfIndex >= -1 && selfIndex < max;
+}
 #define TSDB_SYNC_RESTORE_lEN          20
 // 100 -> 160: reserve space for the snapshot transfer/rate suffix "(t/T,r/s)" in the show vgroups status column
 #define TSDB_SYNC_APPLY_COMMIT_LEN     160

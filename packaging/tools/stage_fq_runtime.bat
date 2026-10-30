@@ -36,6 +36,12 @@ if not exist "%FQ_DEST%" mkdir "%FQ_DEST%" >nul 2>&1
 set /a FQ_COPIED=0
 for %%F in (
   "%FQ_BIN%\libmariadb*.dll"
+  "%FQ_BIN%\caching_sha2_password.dll"
+  "%FQ_BIN%\sha256_password.dll"
+  "%FQ_BIN%\client_ed25519.dll"
+  "%FQ_BIN%\dialog.dll"
+  "%FQ_BIN%\mysql_clear_password.dll"
+  "%FQ_BIN%\pvio_shmem.dll"
   "%FQ_BIN%\libmysqlclient*.dll"
   "%FQ_BIN%\libpq*.dll"
   "%FQ_BIN%\libssl*.dll"
@@ -45,12 +51,14 @@ for %%F in (
   "%FQ_BIN%\libwinpthread*.dll"
   "%FQ_BIN%\taos_ext_influx_arrow*.dll"
 ) do (
-  copy /y "%%~fF" "%FQ_DEST%\" >nul 2>&1
-  if errorlevel 1 (
-    echo [FQ] failed to copy %%~nxF 1>&2
-    exit /b 1
+  if exist "%%~fF" (
+    copy /y "%%~fF" "%FQ_DEST%\" >nul 2>&1
+    if errorlevel 1 (
+      echo [FQ] failed to copy %%~nxF 1>&2
+      exit /b 1
+    )
+    set /a FQ_COPIED+=1
   )
-  set /a FQ_COPIED+=1
 )
 if %FQ_COPIED% EQU 0 (
   echo [FQ] no federated-query runtime DLLs found in %FQ_BIN% 1>&2

@@ -374,6 +374,15 @@ typedef struct SSTriggerWalProgress {
   int64_t                   doneVer;      // version already processed
   int64_t                   lastScanVer;  // version of the last committed record in previous scan
   int64_t                   verTime;      // commit time of the last commit record in previous scan
+  // Highest WAL version of a table-block row (virtual table add/retire) already applied by this
+  // reader. The table block carries the WAL version of the record that produced the change, so it
+  // shares the WAL timeline with savedVer, but it needs its own watermark: the WAL window ends at
+  // savedVer and a replay of that window re-delivers the row recorded at savedVer, which was
+  // already turned into a patch item. Checkpoint recovery restores it as savedVer - 1, because the
+  // checkpoint stores the next cursor to read rather than the last consumed record. Rows of type
+  // TABLE_BLOCK_ADD_RECHECK are stamped with a pull cursor instead of a record version and never
+  // take part in this comparison.
+  int64_t                   savedTbVer;
   SSTriggerPullRequestUnion pullReq;
   // nodelay GROUP_COL_VALUE owns pullReq until its logical request finishes.
   bool                      groupColValuePullInFlight;
@@ -666,6 +675,11 @@ typedef struct SSTriggerVTablePatchContext {
   SArray    *pExtRegistryPatchIds; // SArray<int64_t>
   SArray    *pExtCleanupRefs;      // SArray<SSTriggerExtOrigTableRef>
   bool       extRegistryPatchPrepared;
+  // Consecutive failures of the patch prepare step in the current patch round, and the monotonic
+  // timestamp (ms) of the first failure of that streak. Reset when the round ends, either committed
+  // or escalated as a task-level failure.
+  int32_t    prepareFailures;
+  int64_t    prepareFirstFailureMs;
 } SSTriggerVTablePatchContext;
 
 struct SSTriggerRealtimeContext {
@@ -784,6 +798,7 @@ typedef struct SSTriggerHistoryContext {
   struct SStreamTriggerTask *pTask;
   int64_t                    sessionId;
   ESTriggerContextStatus     status;
+  bool                       executionInitialized;
   // A name lookup suspends this context until its group-value response is cached.
   bool                       notifyGroupColValuePending;
   int64_t                    notifyGroupColValueGid;
@@ -1061,6 +1076,7 @@ typedef struct SStreamTriggerTask {
   SRWLatch     virTableInfoLock;
   SSHashObj   *pVirtTableInfos;  // SSHashObj<vtbUid, SSTriggerVirtTableInfo>
   SSHashObj   *pInternalGroupIndex;  // Derived gid-to-internal-reader summary; invalidated with virtual metadata.
+  SSHashObj   *pVirtTableGidIndex;   // Derived gid-to-vtable pointers; invalidated with virtual metadata.
   SSHashObj   *pOrigTableInfos;  // SSHashObj<otbUid, SSTriggerOrigTableInfo>
   // virtual table info response
   bool       virTableInfoReady;
@@ -1177,6 +1193,17 @@ int64_t     stRealtimeContextExtTriggerRecoveryCutoff(const SSTriggerRealtimeCon
  * returned array must not be modified by the caller. Index build failures are returned as an
  * error code and must be propagated instead of being treated as "no bindings". */
 int32_t     stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef *pRef, int64_t gid, SArray **ppBindings);
+
+#if defined(BUILD_TEST)
+/* Test seams for streamTriggerTaskTest. They expose the virtual-table patch state machine and the WAL
+ * table-change gate so the retry/escalation and replay-dedup rules can be verified without a live
+ * vnode. They are compiled only when BUILD_TEST is set, so the production library exports none of
+ * them. */
+int32_t stTriggerTestPrepareVtablePatch(SSTriggerRealtimeContext *pContext);
+int32_t stTriggerTestHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code);
+int32_t stTriggerTestProcWalMeta(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
+                                 int64_t nowNs);
+#endif
 
 #ifdef __cplusplus
 }

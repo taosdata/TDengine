@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${1:-}"
+
+get_server_status() {
+    local output
+    output="$(taos --check 2>/dev/null || true)"
+    printf '%s\n' "$output" | awk -F: '/^[0-9]+:/{print $1; exit}'
+}
+
+resolve_root_password() {
+    local taos_pwd_file taos_pwd
+    taos_pwd_file="${TAOS_ROOT_PASSWORD_FILE:-}"
+
+    if [ -n "$taos_pwd_file" ] && [ -f "$taos_pwd_file" ]; then
+        taos_pwd="$(cat "$taos_pwd_file")"
+        printf '%s\n' "$taos_pwd"
+        return 0
+    fi
+
+    printf '%s\n' "${TAOS_ROOT_PASSWORD:-taosdata}"
+}
+
+try_cluster_alive() {
+    local password="$1"
+    local output
+
+    if [ -n "$password" ]; then
+        output="$(taos -p"$password" -s 'show cluster alive\G;' 2>/dev/null || true)"
+    else
+        output="$(taos -s 'show cluster alive\G;' 2>/dev/null || true)"
+    fi
+
+    printf '%s\n' "$output" | awk -F: '/status[[:space:]]*:/{gsub(/[[:space:]]/, "", $2); print $2; exit}'
+}
+
+startup_check() {
+    local code
+    code="$(get_server_status)"
+
+    case "$code" in
+        2|3)
+            return 0
+            ;;
+        0|1|4|'')
+            [ -n "$code" ] && echo "$code: taos startup incomplete"
+            return 1
+            ;;
+        *)
+            echo "$code: unexpected taos --check status"
+            return 1
+            ;;
+    esac
+}
+
+service_check() {
+    local configured_password cluster_status
+    configured_password="$(resolve_root_password)"
+    cluster_status="$(try_cluster_alive "$configured_password")"
+
+    case "$cluster_status" in
+        1|2)
+            return 0
+            ;;
+    esac
+
+    echo "cluster service unavailable"
+    return 1
+}
+
+case "$mode" in
+    startup)
+        startup_check
+        ;;
+    service)
+        service_check
+        ;;
+    *)
+        echo "usage: taos-check [startup|service]" >&2
+        exit 2
+        ;;
+esac
