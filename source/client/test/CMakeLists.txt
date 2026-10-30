@@ -210,6 +210,10 @@ IF(TD_LINUX)
                 NAME stmt2Test
                 COMMAND stmt2Test
         )
+        set_tests_properties(stmt2Test stmt2ErrorTest PROPERTIES
+                ENVIRONMENT "ASAN_OPTIONS=detect_odr_violation=0:detect_leaks=1:halt_on_error=1:exitcode=1;LSAN_OPTIONS=exitcode=1"
+                FAIL_REGULAR_EXPRESSION "ERROR: AddressSanitizer;ERROR: LeakSanitizer;AddressSanitizer:DEADLYSIGNAL;SUMMARY: AddressSanitizer"
+        )
         add_test(
                 NAME stmtTest
                 COMMAND stmtTest

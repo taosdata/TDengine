@@ -11199,11 +11199,10 @@ TEST_F(StreamNestedRecoveryTest, PostCutoverNonEmptyWindowsTableUidsAndPendingPa
       .range = {.skey = NestedRouteRuntimeFixture::kEventTs + 10, .ekey = NestedRouteRuntimeFixture::kEventTs + 20},
       .wrownum = 3,
   };
-  const SSTriggerCalcParam pending = {
-      .wstart = NestedRouteRuntimeFixture::kEventTs + 10,
-      .wend = NestedRouteRuntimeFixture::kEventTs + 20,
-      .wrownum = 3,
-  };
+  SSTriggerCalcParam pending = {};
+  pending.wstart = NestedRouteRuntimeFixture::kEventTs + 10;
+  pending.wend = NestedRouteRuntimeFixture::kEventTs + 20;
+  pending.wrownum = 3;
   ASSERT_EQ(TSDB_CODE_SUCCESS, taosObjListAppend(&pGroup->tableUids, &uidPair));
   ASSERT_EQ(TSDB_CODE_SUCCESS, taosObjListAppend(&pGroup->windows, &window));
   ASSERT_EQ(TSDB_CODE_SUCCESS, taosObjListAppend(&pGroup->pPendingParWinCalcParams, &pending));
@@ -33439,7 +33438,9 @@ class StreamTriggerRecalcBarrierTest : public ::testing::Test {
     historyGroup_.gid = 11;
     EXPECT_EQ(taosObjListInit(&historyGroup_.pPendingParWinCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
     EXPECT_EQ(taosObjListInit(&historyGroup_.pPendingCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
-    SSTriggerCalcParam calcParam = {.wstart = 100, .wend = 110};
+    SSTriggerCalcParam calcParam = {};
+    calcParam.wstart = 100;
+    calcParam.wend = 110;
     SObjList* pending = parentWindow ? &historyGroup_.pPendingParWinCalcParams : &historyGroup_.pPendingCalcParams;
     EXPECT_EQ(taosObjListAppend(pending, &calcParam), TSDB_CODE_SUCCESS);
     context_.pMaxDelayHeap = heapCreate(compareRecalcBarrierHistoryGroups);
@@ -34832,7 +34833,9 @@ TEST_F(StreamTriggerTaskManualRetryTest, LocalFailureAfterCalcAcquireReturnsPool
   historyGroup_.gid = request->gid;
   ASSERT_EQ(taosObjListInit(&historyGroup_.pPendingParWinCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
   ASSERT_EQ(taosObjListInit(&historyGroup_.pPendingCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
-  SSTriggerCalcParam calcParam = {.wstart = 100, .wend = 110};
+  SSTriggerCalcParam calcParam = {};
+  calcParam.wstart = 100;
+  calcParam.wend = 110;
   ASSERT_EQ(taosObjListAppend(&historyGroup_.pPendingCalcParams, &calcParam), TSDB_CODE_SUCCESS);
   context_.pMaxDelayHeap = heapCreate(compareRecalcBarrierHistoryGroups);
   ASSERT_NE(context_.pMaxDelayHeap, nullptr);
@@ -36832,7 +36835,10 @@ class CalcPoolHarness {
   }
 
   void attachContext(SSTriggerCalcRequest* request) {
-    SSTriggerCalcParam param = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+    SSTriggerCalcParam param = {};
+    param.wstart = 100;
+    param.wend = 199;
+    param.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
     ASSERT_NE(taosArrayPush(request->params, &param), nullptr);
     request->pContextPolicy = makePoolContextPolicy(request->gid);
     ASSERT_NE(request->pContextPolicy, nullptr);
