@@ -1648,6 +1648,14 @@ static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, S
            sizeof(SExtTimestampTypeHint) * pSrc->numTimestampTypeHints);
     pDst->numTimestampTypeHints = pSrc->numTimestampTypeHints;
   }
+  if (pSrc->pColumnRenderHints && pSrc->numColumnRenderHints > 0) {
+    pDst->pColumnRenderHints = (SExtColumnRenderHint*)taosMemoryMalloc(
+        sizeof(SExtColumnRenderHint) * pSrc->numColumnRenderHints);
+    if (!pDst->pColumnRenderHints) return terrno;
+    memcpy(pDst->pColumnRenderHints, pSrc->pColumnRenderHints,
+           sizeof(SExtColumnRenderHint) * pSrc->numColumnRenderHints);
+    pDst->numColumnRenderHints = pSrc->numColumnRenderHints;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

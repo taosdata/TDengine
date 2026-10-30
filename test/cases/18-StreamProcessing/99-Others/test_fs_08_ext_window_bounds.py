@@ -197,7 +197,10 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        self._with_std_sources(prefix, body)
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
+        self._with_std_sources(prefix, body, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-BND-002  INTERVAL + mixed upper bound.
@@ -272,7 +275,10 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        self._with_std_sources(prefix, body)
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
+        self._with_std_sources(prefix, body, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-BND-003  PERIOD + casted localtime bounds.
@@ -532,7 +538,10 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {sink_db}.{sink}")
 
-        self._with_std_sources(prefix, body)
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
+        self._with_std_sources(prefix, body, skip_oracle=True)
 
         # Report the InfluxDB environment limitation explicitly instead of
         # silently passing (the other sources already asserted their bounds).

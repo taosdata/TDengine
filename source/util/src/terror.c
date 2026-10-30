@@ -1279,6 +1279,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_EXT_CAPABILITY_CHANGED, "External source capability 
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT, "External source type not supported or provider not initialized")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT, "External source TLS options are incomplete")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_DB_NOT_EXIST,       "External source database or schema not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_ORACLE_VERSION_MISMATCH, "Oracle client and server versions are not compatible")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_INTERNAL,    "Connector internal logic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED, "Write operation not supported on external source table")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SOURCE_NAME_CONFLICT, "Database name conflicts with an existing external source")

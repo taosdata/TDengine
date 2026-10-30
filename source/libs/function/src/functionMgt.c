@@ -1518,6 +1518,14 @@ bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect
   uint16_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
+  /* The sub-capability band (bits 3-5, session band 11-13) is derived from the
+   * first three dialects only.  SQL Server (bit 6) and Oracle (bit 7) sit
+   * outside that band and have no shift-derived sub-capability; deriving one
+   * for them would read an unrelated dialect's bit. */
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE) {
+    return false;
+  }
+
   // Default band for the sub-capability (low byte, bits subCapShift..subCapShift+2).
   uint16_t subDefault = (uint16_t)(cap >> subCapShift);
 

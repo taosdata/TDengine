@@ -267,8 +267,12 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
             self._check_delete_option(src_name)
             self._check_drop_output_option(src_name)
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(
-            "ucctl", body, skip_pg=True, skip_influx=True, skip_sqlserver=True
+            "ucctl", body, skip_pg=True, skip_influx=True, skip_sqlserver=True,
+            skip_oracle=True
         )
         print("control option compatibility matrix ........ [ passed ]")
 
@@ -341,7 +345,8 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        self._with_std_sources(prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True)
+        self._with_std_sources(prefix, body, skip_pg=True, skip_influx=True,
+                               skip_sqlserver=True, skip_oracle=True)
 
     def _run_watermark_case(
         self, options: Optional[str], expected_batches: list

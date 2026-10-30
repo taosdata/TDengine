@@ -911,6 +911,17 @@ typedef struct SExtTimestampTypeHint {
   char   extTypeName[64];             // original external type name for diagnostics
   int8_t tzClass;                     // EExtTimestampTzClass
 } SExtTimestampTypeHint;
+
+// A remote column whose value cannot be selected as-is but has a lossless
+// server-side rewrite (Oracle XMLTYPE needs XMLSERIALIZE, DS 5.3.2.1).  The
+// renderer runs in taosd and has no SExtTableMeta, so the planner carries the
+// affected column names along with the plan, exactly like the timestamp hints.
+#define EXT_RENDER_REWRITE_NONE    0
+#define EXT_RENDER_REWRITE_XMLTYPE 1
+typedef struct SExtColumnRenderHint {
+  char   colName[TSDB_COL_NAME_LEN];  // remote column name as it appears in pRemotePlan
+  int8_t rewrite;                     // EXT_RENDER_REWRITE_*
+} SExtColumnRenderHint;
 // ---- Federated query: physical scan node ----
 // Inherits SPhysiNode directly (NOT SScanPhysiNode): external scan has no uid/suid/tableType.
 // All connection info is embedded here because Executor runs in taosd (server side) and
@@ -956,6 +967,9 @@ typedef struct SFederatedScanPhysiNode {
   // --- planner-provided remote timestamp type hints for runtime SQL rendering ---
   SExtTimestampTypeHint* pTimestampTypeHints;
   int32_t                numTimestampTypeHints;
+  // --- planner-provided column render hints (Oracle XMLTYPE serialization) ---
+  SExtColumnRenderHint*  pColumnRenderHints;
+  int32_t                numColumnRenderHints;
   // --- two-pass scan support (for PERCENTILE and other REPEAT_SCAN_FUNC) ---
   bool                twoPassMode;       // true: FedScan must do PRE_SCAN pass then MAIN_SCAN pass
   // --- client timezone (filled by Planner from SPlanContext.timezoneName) ---
@@ -1594,6 +1608,12 @@ typedef struct SNodesRemoteSQLCtx {
   // mapping instead of pExtMeta.
   const SExtTimestampTypeHint* pTimestampTypeHints;
   int32_t             numTimestampTypeHints;
+  // Planner-provided column render hints, for the same reason: a column whose
+  // remote value only becomes readable through a server-side rewrite (Oracle
+  // XMLTYPE -> XMLSERIALIZE) is marked here instead of in a table metadata the
+  // renderer cannot see.
+  const SExtColumnRenderHint* pColumnRenderHints;
+  int32_t             numColumnRenderHints;
   // DS section5.2.6: client timezone name (e.g. "UTC", "Asia/Shanghai").
   // When non-NULL and non-empty, timestamp epoch values in WHERE conditions
   // are formatted to calendar strings using this timezone instead of the
@@ -1609,6 +1629,12 @@ typedef struct SNodesRemoteSQLCtx {
   // Optional runtime-only half-open time range [skey, ekey). FederatedScan
   // supplies this for each VtableWindow batch; it is not persisted in pRemotePlan.
   const STimeWindow*  pRuntimeTimeRange;
+  // Time precision of the TDengine database the query runs against
+  // (TSDB_TIME_PRECISION_MILLI/MICRO/NANO); 0 = unknown.  Dialects that cannot
+  // return an epoch at a requested unit natively (Oracle) multiply the epoch
+  // seconds by the factor of this precision, so TO_UNIXTIMESTAMP / TIMEDIFF /
+  // time buckets match the local evaluation for every database precision.
+  int8_t              dbPrecision;
 } SNodesRemoteSQLCtx;
 
 typedef enum {
@@ -1655,6 +1681,12 @@ int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
                              char** ppSQL);
 int32_t nodesExprToExtSQL(const SNode* pExpr, EExtSQLDialect dialect, char* buf, int32_t bufLen,
                           int32_t* pLen);
+// True when a TDengine timestamp format string can be rewritten into an Oracle
+// format model that produces the same bytes.  forParsing selects the stricter
+// TO_TIMESTAMP mapping; pass false for TO_CHAR.  Shares its token table with
+// the Oracle renderer, so the planner's "keep local" decision and the
+// renderer's translation can never disagree.
+bool nodesOracleTimestampFmtIsPushable(const char* fmt, bool forParsing);
 
 #ifdef __cplusplus
 }

@@ -44,7 +44,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_sqlserver_table, create_influx_measurement)
+    create_sqlserver_table, create_influx_measurement, create_oracle_table)
 
 # --- names ---
 _LOCAL_DB = "vseries_local"
@@ -55,6 +55,11 @@ _PG_DB    = "vseries_pg"
 _PG_SRC   = "vseries_pg_src"
 _SS_DB    = "vseries_ss"
 _SS_SRC   = "vseries_ss_src"
+_OR_SRC   = "vseries_or_src"
+# Oracle has one namespace level: the source carries the Easy Connect service
+# name and the schema is the upper-case login user.
+_OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 
 # Nanosecond timestamps (InfluxDB line protocol precision = ns).
 _T0 = 1700000000000000000
@@ -117,6 +122,18 @@ def _write_ss_setup_data():
         ["('2024-01-01 00:00:00.000', 1)"])
 
 
+def _write_oracle_setup_data():
+    """Third non-Influx source (Oracle) for the SERIES rejection path.
+
+    SERIES is InfluxDB-only: Oracle stores timeseries as ordinary tables and
+    has no tag-set semantics, so the same negative DDL must be rejected for an
+    Oracle reference as well.  NUMBER(10,0) maps to BIGINT.
+    """
+    create_oracle_table(
+        "r", "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+        rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 1)"])
+
+
 # ===========================================================================
 
 class TestVtableSeriesExtSource:
@@ -130,9 +147,11 @@ class TestVtableSeriesExtSource:
         _write_setup_data()
         _write_pg_setup_data()
         _write_ss_setup_data()
+        _write_oracle_setup_data()
         create_ext_source(_INF_SRC, "influxdb", _INF_DB)
         create_ext_source(_PG_SRC, "postgresql", _PG_DB)
         create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
+        create_ext_source(_OR_SRC, "oracle", _OR_SVC)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -144,6 +163,13 @@ class TestVtableSeriesExtSource:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC_GROWTH}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_OR_SRC}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a run that
+        # visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INF_DB)
 
     def setup_method(self, method):
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -449,6 +475,12 @@ class TestVtableSeriesExtSource:
         tdSql.error(
             "CREATE VTABLE v_e1b (ts timestamp, v int FROM s1.v) "
             f"SERIES s1 AS {_SS_SRC}.{_SS_DB}.dbo.r (v='1')")
+
+        """E1c: the same is rejected for an Oracle source (its tables carry no
+        tag sets; the reference uses the source.schema.table form)."""
+        tdSql.error(
+            "CREATE VTABLE v_e1c (ts timestamp, v bigint FROM s1.v) "
+            f"SERIES s1 AS {_OR_SRC}.{_OR_SCHEMA}.r (v='1')")
 
         """E2: m2 has tags host+region; pinning only host is rejected."""
         tdSql.error(

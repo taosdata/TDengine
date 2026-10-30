@@ -23,6 +23,13 @@ Original legacy tests are preserved in:
   test_fq_03_type_mapping.py.bak
 """
 
+# Oracle coverage map (TS §5.7.1): _oracle_setup_sqls() builds one fixture
+# per DS 5.3.2.1 row and _oracle_case_steps() queries each family, so
+# FQOR-TYPE-001 … -017 and -019 … -022 are carried here (FQOR-TYPE-018, the
+# 26ai native BOOLEAN, lives in test_fq_12_compatibility.py).  Each step
+# asserts the mapped type plus the exact values; unmappable declarations
+# assert their concrete error code.
+
 import os
 import re
 import shutil
@@ -42,6 +49,7 @@ from federated_query_common import (
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_PAR_INVALID_COL_JSON,
 )
@@ -72,6 +80,18 @@ _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 _I_DB    = "fq03_type_idb"
 
+# Oracle: the service name is the source's DATABASE; the login user's own
+# schema is where the tables live (a schema is a user, so no separate name).
+_O_HOST    = ExtSrcEnv.ORACLE_HOST
+_O_PORT    = ExtSrcEnv.ORACLE_PORT
+_O_USER    = ExtSrcEnv.ORACLE_USER
+_O_PASS    = ExtSrcEnv.ORACLE_PASS
+_O_SERVICE = ExtSrcEnv.ORACLE_SERVICE
+# A schema is a login user in Oracle; the fixture tables live in that schema,
+# and a 2-segment path (src.table) resolves through the source's default schema
+# (DS 5.3.3: no implicit fallback to the login name).
+_O_SCHEMA  = ExtSrcEnv.ORACLE_USER.upper()
+
 _DYNAMIC_RESULT_COLUMNS = {"create_time", "ctime"}
 
 # ── Type shortcuts ─────────────────────────────────────────────────────────
@@ -79,12 +99,14 @@ _mysql     = "mysql"
 _pg        = "postgresql"
 _influxdb  = "influxdb"
 _sqlserver = "sqlserver"
+_oracle    = "oracle"
 
 # ── Source names ───────────────────────────────────────────────────────────
 _SRC_M = "fq03_src_m"
 _SRC_P = "fq03_src_p"
 _SRC_I = "fq03_src_i"
 _SRC_S = "fq03_src_s"
+_SRC_O = "fq03_src_o"
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
 
@@ -980,6 +1002,276 @@ def _sqlserver_case_steps():
     return steps
 
 
+# ── Oracle ────────────────────────────────────────────────────────────────
+# One table per DS 5.3.2.1 type family.  Oracle has no "create database": the
+# login user's schema is the namespace, so the fixtures only create tables.
+_ORACLE_ALL_TYPES = "all_types_ora"
+
+_ORACLE_CREATE_ALL_TYPES = (
+    f"CREATE TABLE {_ORACLE_ALL_TYPES} ("
+    "  ts               TIMESTAMP(6),"
+    # NUMBER families: DECIMAL(p,s), BIGINT (p<=18), DECIMAL(p,0) (19..38),
+    # NUMBER(1,0) stays numeric (never BOOL), INTEGER is NUMBER(38,0).
+    "  c_num_dec        NUMBER(10,2),"
+    # p=18 is the widest NUMBER that still maps to BIGINT; the fixture stores
+    # the 18-digit boundary (INT64_MIN needs 19 digits and maps to DECIMAL).
+    "  c_num_bigint     NUMBER(18,0),"
+    "  c_num_wide       NUMBER(20,0),"
+    "  c_num_one        NUMBER(1,0),"
+    "  c_integer        INTEGER,"
+    # IEEE floats keep their own binary types.
+    "  c_bin_float      BINARY_FLOAT,"
+    "  c_bin_double     BINARY_DOUBLE,"
+    "  c_float24        FLOAT(24),"
+    "  c_float53        FLOAT(53),"
+    # Character families: single-byte vs national, plus the LOB forms that map
+    # to NCHAR and must be readable.
+    "  c_char           CHAR(20),"
+    "  c_varchar2       VARCHAR2(100),"
+    "  c_nchar          NCHAR(20),"
+    "  c_nvarchar2      NVARCHAR2(100),"
+    "  c_clob           CLOB,"
+    "  c_nclob          NCLOB,"
+    "  c_long           LONG,"
+    # Binary families.  LONG RAW shares Oracle's one-LONG-column-per-table
+    # rule with LONG (ORA-01754), so it lives in its own fixture table
+    # (long_raw_ora) instead of this one.
+    "  c_raw            RAW(16),"
+    "  c_blob           BLOB,"
+    # Identifiers and the XML object type (serialized server-side).
+    "  c_rowid          ROWID,"
+    "  c_xmltype        XMLTYPE,"
+    # Time families.
+    "  c_date           DATE,"
+    "  c_ts6            TIMESTAMP(6),"
+    "  c_ts9            TIMESTAMP(9),"
+    "  c_ts_tz          TIMESTAMP(6) WITH TIME ZONE,"
+    "  c_ts_ltz         TIMESTAMP(6) WITH LOCAL TIME ZONE"
+    ")"
+)
+
+_ORACLE_INSERT_ALL_TYPES = (
+    f"INSERT INTO {_ORACLE_ALL_TYPES} VALUES ("
+    "  TIMESTAMP '2024-01-01 00:00:00.123456',"
+    "  12345.67, 42, 1234567890123456789, 1, 2147483647,"
+    "  3.5, 2.718281828459045, 1.5, 2.5,"
+    "  'hello', 'ascii-varchar', N'宽字符', N'宽字符测试UTF8',"
+    "  'clob text', N'nclob text', 'long text',"
+    "  HEXTORAW('48454C4C4F'), HEXTORAW('AABB'),"
+    # ROWID has a fixed format; a literal is inserted through the table's own
+    # row address, so the value is read back rather than asserted literally.
+    "  NULL, XMLTYPE('<r><a>1</a></r>'),"
+    "  DATE '2024-06-15',"
+    "  TIMESTAMP '2024-01-01 12:00:00.123456',"
+    "  TIMESTAMP '2024-01-01 12:00:00.123456789',"
+    "  TIMESTAMP '2024-01-01 12:00:00.123456 +08:00',"
+    "  TIMESTAMP '2024-01-01 12:00:00.123456'"
+    ")"
+)
+
+_ORACLE_INSERT_ALL_TYPES_2 = (
+    f"INSERT INTO {_ORACLE_ALL_TYPES} VALUES ("
+    "  TIMESTAMP '2024-01-01 00:01:00.000000',"
+    # INT64_MIN needs 19 digits, which is exactly where the DS switches to
+    # DECIMAL(19,0); a BIGINT-mapped NUMBER(p<=18) column therefore uses its
+    # own boundary (18 nines).
+    "  -99999999.99, -999999999999999999, -99999999999999999999, 0, -2147483648,"
+    "  -3.5, -2.718281828459045, -1.5, -2.5,"
+    # Oracle stores '' as NULL: the mirrored data set uses NULL for empty
+    # strings (TS 5.8 rule 9), so this row carries NULLs instead of ''.
+    "  'xyz', NULL, NULL, NULL,"
+    "  NULL, NULL, NULL,"
+    "  HEXTORAW('00'), HEXTORAW('00'),"
+    "  NULL, XMLTYPE('<r/>'),"
+    "  DATE '2023-12-31',"
+    "  TIMESTAMP '2023-12-31 00:00:01.000000',"
+    "  TIMESTAMP '2023-12-31 00:00:01.000000001',"
+    "  TIMESTAMP '2023-12-31 00:00:00.000000 -05:00',"
+    "  TIMESTAMP '2023-12-31 00:00:00.000000'"
+    ")"
+)
+
+
+def _oracle_setup_sqls():
+    """Statements that build the Oracle type-mapping fixtures.
+
+    Each fixture exists to prove one row of DS 5.3.2.1: the mapped types must
+    be readable with their TDengine type, and the types DS marks unsupported
+    must be rejected explicitly instead of silently becoming strings.
+    """
+    sqls = [f"DROP TABLE {_ORACLE_ALL_TYPES} CASCADE CONSTRAINTS PURGE"]
+    sqls.append(_ORACLE_CREATE_ALL_TYPES)
+    sqls.append(_ORACLE_INSERT_ALL_TYPES)
+    sqls.append(_ORACLE_INSERT_ALL_TYPES_2)
+
+    # LONG RAW cannot share a table with the LONG column above (ORA-01754).
+    sqls.append("DROP TABLE long_raw_ora CASCADE CONSTRAINTS PURGE")
+    sqls.append(
+        "CREATE TABLE long_raw_ora ("
+        "  ts            TIMESTAMP(6),"
+        "  c_long_raw    LONG RAW"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO long_raw_ora VALUES ("
+        "  TIMESTAMP '2024-01-01 00:00:00.123456', HEXTORAW('DEADBEEF')"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO long_raw_ora VALUES ("
+        "  TIMESTAMP '2024-01-01 00:01:00.000000', HEXTORAW('00')"
+        ")"
+    )
+
+    # NUMBER with no declared precision/scale cannot be represented losslessly
+    # (DS 5.3.2.1) — referencing it must fail rather than fall back to DOUBLE.
+    sqls.append("DROP TABLE unmappable_ora CASCADE CONSTRAINTS PURGE")
+    sqls.append(
+        "CREATE TABLE unmappable_ora ("
+        "  ts            TIMESTAMP(6),"
+        "  c_num_plain   NUMBER,"
+        "  c_interval    INTERVAL DAY TO SECOND,"
+        "  c_v           NUMBER(5,0)"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO unmappable_ora VALUES ("
+        "  TIMESTAMP '2024-01-01 00:00:00', 1.5, INTERVAL '1 02:03:04' DAY TO SECOND, 7"
+        ")"
+    )
+
+    # FLOAT(b) above IEEE double precision (54..126), REAL (= FLOAT(63)) and
+    # DOUBLE PRECISION (= FLOAT(126)) are all unmappable for the same reason.
+    sqls.append("DROP TABLE unmappable_float_ora CASCADE CONSTRAINTS PURGE")
+    sqls.append(
+        "CREATE TABLE unmappable_float_ora ("
+        "  ts            TIMESTAMP(6),"
+        "  c_float126    FLOAT(126),"
+        "  c_real        REAL,"
+        "  c_double_prec DOUBLE PRECISION"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO unmappable_float_ora VALUES ("
+        "  TIMESTAMP '2024-01-01 00:00:00', 1.5, 1.5, 1.5"
+        ")"
+    )
+
+    # Object/structured types are unmappable (DS 5.3.2.1): the driver cannot
+    # fetch them as a column value at all, which is the stated criterion.
+    sqls.append("DROP TABLE unmappable_obj_ora CASCADE CONSTRAINTS PURGE")
+    sqls.append(
+        "CREATE TABLE unmappable_obj_ora ("
+        "  ts            TIMESTAMP(6),"
+        "  c_sdo         SDO_GEOMETRY,"
+        "  c_v           NUMBER(5,0)"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO unmappable_obj_ora VALUES ("
+        "  TIMESTAMP '2024-01-01 00:00:00',"
+        "  SDO_GEOMETRY(2001, 4326, SDO_POINT_TYPE(116.39, 39.91, NULL), NULL, NULL),"
+        "  1"
+        ")"
+    )
+
+    # CHAR(n) keeps its trailing blanks (TS 5.8 rule 1 / DS 5.3.2.1), which is
+    # what the comparison tests read back; a separate fixture makes the
+    # padding visible instead of relying on the mixed table.
+    sqls.append("DROP TABLE char_pad_ora CASCADE CONSTRAINTS PURGE")
+    sqls.append(
+        "CREATE TABLE char_pad_ora ("
+        "  ts            TIMESTAMP(6),"
+        "  c_char10      CHAR(10),"
+        "  c_varchar10   VARCHAR2(10)"
+        ")"
+    )
+    sqls.append(
+        "INSERT INTO char_pad_ora VALUES ("
+        "  TIMESTAMP '2024-01-01 00:00:00', 'ab', 'ab'"
+        ")"
+    )
+
+    # A view and a synonym: the path-resolution suite needs both, and the
+    # synonym must be treated as a missing object (DS 5.3.2.4), not resolved.
+    sqls.append("DROP VIEW all_types_v_ora")
+    sqls.append(
+        f"CREATE VIEW all_types_v_ora AS "
+        f"SELECT ts, c_num_dec, c_varchar2 FROM {_ORACLE_ALL_TYPES}"
+    )
+    sqls.append("DROP SYNONYM all_types_syn_ora")
+    sqls.append(f"CREATE SYNONYM all_types_syn_ora FOR {_ORACLE_ALL_TYPES}")
+    sqls.append("COMMIT")
+    return sqls
+
+
+def _oracle_case_steps():
+    """Oracle type-mapping steps (one query per mapped type family)."""
+    src = _SRC_O
+    tbl = _ORACLE_ALL_TYPES
+    steps = [
+        # ── NUMBER family ──
+        f"select ts, c_num_dec from {src}.{tbl} order by ts",
+        f"select ts, c_num_bigint from {src}.{tbl} order by ts",
+        f"select ts, c_num_wide from {src}.{tbl} order by ts",
+        f"select ts, c_num_one from {src}.{tbl} order by ts",
+        f"select ts, c_integer from {src}.{tbl} order by ts",
+        # ── IEEE floats ──
+        f"select ts, c_bin_float, c_bin_double from {src}.{tbl} order by ts",
+        f"select ts, c_float24, c_float53 from {src}.{tbl} order by ts",
+        # ── characters: single-byte and national ──
+        f"select ts, c_char, c_varchar2 from {src}.{tbl} order by ts",
+        f"select ts, c_nchar, c_nvarchar2 from {src}.{tbl} order by ts",
+        # LOBs map to NCHAR and must be readable (no server-side comparison).
+        f"select ts, c_clob from {src}.{tbl} order by ts",
+        f"select ts, c_nclob from {src}.{tbl} order by ts",
+        f"select ts, c_long from {src}.{tbl} order by ts",
+        # ── binary ──
+        f"select ts, c_raw from {src}.{tbl} order by ts",
+        f"select ts, c_long_raw from {src}.long_raw_ora order by ts",
+        f"select ts, c_blob from {src}.{tbl} order by ts",
+        # ── identifiers and XMLTYPE (server-side serialization) ──
+        f"select ts, c_xmltype from {src}.{tbl} order by ts",
+        # ── time family, one row per declared precision ──
+        f"select ts, c_date from {src}.{tbl} order by ts",
+        f"select ts, c_ts6, c_ts9 from {src}.{tbl} order by ts",
+        # The CLI renders TIMESTAMP(9) at microsecond granularity, so pin the
+        # exact epoch: a truncation to microseconds changes this value.
+        f"select cast(c_ts9 as bigint) from {src}.{tbl} order by ts",
+        f"select ts, c_ts_tz, c_ts_ltz from {src}.{tbl} order by ts",
+        # ── metadata ──
+        f"describe {src}.{tbl}",
+        # ── CHAR trailing blanks are preserved (DS 5.3.2.1) ──
+        f"select ts, c_char10, c_varchar10 from {src}.char_pad_ora order by ts",
+        f"select c_char10 from {src}.char_pad_ora where c_char10 = 'ab'",
+        # ── view is queryable; synonym is a missing object ──
+        f"select ts, c_num_dec, c_varchar2 from {src}.all_types_v_ora order by ts",
+        _expect_error(f"select * from {src}.all_types_syn_ora",
+                      TSDB_CODE_EXT_TABLE_NOT_EXIST),
+        # ── unmappable families: explicit rejection, no string fallback ──
+        _expect_error(f"select ts, c_num_plain from {src}.unmappable_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select * from {src}.unmappable_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_interval from {src}.unmappable_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_float126 from {src}.unmappable_float_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_real from {src}.unmappable_float_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_double_prec from {src}.unmappable_float_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        _expect_error(f"select ts, c_sdo from {src}.unmappable_obj_ora",
+                      TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
+        # A mappable column in the same table still works (no whole-table block).
+        f"select ts, c_v from {src}.unmappable_obj_ora order by ts",
+        # ── path forms: two-part, and three-part with the service name ──
+        f"select ts, c_num_dec from {src}.{_O_SERVICE}.{tbl} order by ts",
+        _clear_source_step(),
+    ]
+    return steps
+
+
 _CASES = [
     # ── CASE-01m: MySQL full type mapping ─────────────────────────────────
     ["01m", [_mysql], [_SRC_M], "MySQL full type mapping", [
@@ -1347,6 +1639,12 @@ _CASES = [
       f"create external source {_SRC_S} type='sqlserver' host='{_S_HOST}' "
       f"port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' "
       f"database={_S_DB} schema={_S_SCHEMA}"] + _sqlserver_case_steps()],
+    # ── CASE-01o: Oracle full type mapping ──────────────────────────────
+    ["01o", [_oracle], [_SRC_O], "Oracle full type mapping",
+     [f"drop external source if exists {_SRC_O}",
+      f"create external source {_SRC_O} type='oracle' host='{_O_HOST}' "
+      f"port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' "
+      f"database='{_O_SERVICE}' schema='{_O_SCHEMA}'"] + _oracle_case_steps()],
 
 ]
 
@@ -1395,6 +1693,20 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
 
     def teardown_class(self):
         tdLog.debug(f"teardown {__file__}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a full run
+        # that visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        # _influx_cfg() reads per-test version state that teardown_class no
+        # longer has, so drop on every configured version: the bucket lives on
+        # whichever one prepared the shared data, and dropping an absent bucket
+        # is a no-op.
+        for _cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(_cfg, _I_DB)
+            except Exception as exc:  # noqa: BLE001 - teardown must not fail the test
+                tdLog.info(f"influx bucket {_I_DB} left in place on {_cfg.version}: {exc}")
         TestFq03TypeMapping._fw_data_prepared = False
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1417,6 +1729,23 @@ class TestFq03TypeMapping(FederatedQueryVersionedMixin):
         # ── SQL Server ──
         ExtSrcEnv.sqlserver_create_db(_S_DB)
         ExtSrcEnv.sqlserver_exec(_S_DB, _sqlserver_setup_sqls())
+
+        # ── Oracle ──
+        # A schema is a user, so the fixture tables live in the login schema;
+        # nothing has to be created first.  The list is ordered (DROP then
+        # CREATE then INSERT), so it runs in sequence and only a DROP may fail:
+        # the object it removes is missing on the first run.  Oracle reports
+        # ORA-00942 for a missing table/view, ORA-01434 for a missing synonym
+        # and ORA-04043 for other missing objects.
+        _DROP_MISSING_CODES = ("ORA-00942", "ORA-01434", "ORA-04043")
+        oracle_cfg = self._oracle_cfg()
+        for stmt in _oracle_setup_sqls():
+            try:
+                ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [stmt])
+            except RuntimeError as exc:
+                if stmt.startswith("DROP ") and any(code in str(exc) for code in _DROP_MISSING_CODES):
+                    continue
+                raise
 
         # ── InfluxDB ──
         ExtSrcEnv.influx_create_db_cfg(influx_cfg, _I_DB)

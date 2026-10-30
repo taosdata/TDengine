@@ -82,6 +82,8 @@ static bool fqLayerIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
                               const SPlanContext* pPlanCxt);
 static bool fqLayerLimitPushable(const SLogicNode* pNode, const SExtSourceCapability* pCap,
                                  const SExtCapSessionOverlay* pOverlay);
+static bool fqClauseGateOpen(EExtClauseKind clause, const SExtSourceCapability* pCap,
+                             const SExtCapSessionOverlay* pOverlay);
 
 static bool fqDiagEnabled(void) {
   return NULL != getenv("FQ_DIAG");
@@ -17876,6 +17878,8 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
                              const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt);
 static bool fqTsqlIsCharType(int32_t type);
 static bool fqTsqlExprTypeIsChar(const SNode* pExpr);
+static bool fqCharKeyIsExact(const SNode* pExpr, const SScanLogicNode* pScan,
+                             const SExtSourceCapability* pCap);
 static int32_t fqAlignRemoteRootTargetsForRender(SLogicNode* pRemoteRoot);
 
 static bool fqNodeIsSingleChildSetOpPassthrough(const SLogicNode* pNode) {
@@ -18216,7 +18220,7 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
         planDebug("FQ-push: Sort NOT pushable - key[%d] col=%s type=%d disabled by capability", kidx, pCol->colName, (int)keyType);
         return false;
       }
-      if (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_SQLSERVER && fqTsqlIsCharType(keyType)) {
+      if (!fqCharKeyIsExact((SNode*)pInner, pScan, pCap)) {
         planDebug("FQ-push: Sort NOT pushable - key[%d] col=%s character ordering depends on remote collation",
                   kidx, pCol->colName);
         return false;
@@ -18228,8 +18232,7 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
         planDebug("FQ-push: Sort NOT pushable - key[%d] non-col expr (nodeType=%d) not pushable", kidx, (int)nodeType(pInner));
         return false;
       }
-      if (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_SQLSERVER &&
-          fqTsqlExprTypeIsChar((SNode*)pInner)) {
+      if (!fqCharKeyIsExact((SNode*)pInner, pScan, pCap)) {
         planDebug("FQ-push: Sort NOT pushable - key[%d] character expression ordering depends on remote collation",
                   kidx);
         return false;
@@ -18317,8 +18320,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
       planDebug("FQ-push: AGG NOT pushable - groupKey[%d] blocked (nodeType=%d)", kidx, (int)nodeType(pExpr));
       return false;
     }
-    if (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_SQLSERVER &&
-        fqTsqlExprTypeIsChar(pExpr)) {
+    if (!fqCharKeyIsExact(pExpr, pScan, pCap)) {
       planDebug("FQ-push: AGG NOT pushable - groupKey[%d] character grouping depends on remote collation",
                 kidx);
       return false;
@@ -18911,10 +18913,24 @@ static bool fqSubqueryBodyTranslateIsSupported(int32_t dialect) {
   // subqueries written with explicit paths (srcNameFromPath=true, or a
   // namespace-incomplete raw text) can be re-rendered with fully qualified
   // [database].[schema].[table] names instead of falling back to local.
+  // Oracle needs the same re-render: its namespace is single-level (schema) and
+  // the connection sets no current schema (DS 5.3.5), so a raw text that does
+  // not name the schema itself can never be inlined verbatim.
   return dialect == EXT_SQL_DIALECT_MYSQL ||
          dialect == EXT_SQL_DIALECT_POSTGRES ||
          dialect == EXT_SQL_DIALECT_INFLUXQL ||
-         dialect == EXT_SQL_DIALECT_SQLSERVER;
+         dialect == EXT_SQL_DIALECT_SQLSERVER ||
+         dialect == EXT_SQL_DIALECT_ORACLE;
+}
+
+// A strict-namespace dialect carries no default namespace on the remote
+// connection, so DIRECT_SQL (raw subquery text inlined verbatim) is only legal
+// when the raw text already names the object's complete namespace.  Oracle sets
+// no CURRENT_SCHEMA (DS 5.3.5) and therefore qualifies alongside SQL Server.
+// Oracle's namespace is one level deep, which is exactly why nsFromPathOnly
+// matters: "src.table" under a USE context leaves the schema out of the text.
+static bool fqDialectIsStrictNamespace(int32_t dialect) {
+  return dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE;
 }
 
 static bool fqAssignNodeRenderMode(SNode* pNode, EExtClauseKind clause, int32_t dialect,
@@ -18922,7 +18938,7 @@ static bool fqAssignNodeRenderMode(SNode* pNode, EExtClauseKind clause, int32_t 
                                    EFqSubqRenderMode* pModeOut) {
   SLogicNode* pRenderRoot = planGetSubqueryRenderLogic(pPlanCxt, subQIdx, nodeType(pNode));
   bool needXlate = (NULL != pRenderRoot)
-                       ? fqLogicPlanNeedsTransform(pRenderRoot, dialect == EXT_SQL_DIALECT_SQLSERVER)
+                       ? fqLogicPlanNeedsTransform(pRenderRoot, fqDialectIsStrictNamespace(dialect))
                        : false;
   if (needXlate && !fqSubqueryBodyTranslateIsSupported(dialect)) {
     planDebug("FQ-render: subq node type=%d clause=%d subQIdx=%d needTransform=1 but dialect=%d has no 2b body translation support",
@@ -19110,6 +19126,37 @@ static bool fqTsqlToCharTzMatchesSession(const SFunctionNode* pFunc,
   return strcasecmp(pVal->literal, pPlanCxt->timezoneName) == 0;
 }
 
+// TO_CHAR / TO_TIMESTAMP format models (DS 5.3.13 judged item 3): a token with
+// no exact Oracle element keeps the function local.  The decision has to happen
+// here, at plan time: the renderer's own check runs while the remote SQL is
+// being built, and a failure there arrives as EXT_SYNTAX_UNSUPPORTED, which the
+// client treats as a pushdown failure and charges to the demotion budget -
+// exactly the state pollution the DS forbids.
+//
+// The format must also be a literal.  A computed format cannot be inspected
+// here, and Oracle's format model is a compile-time construct for our purposes,
+// so a non-literal format stays local rather than failing at render time.
+static bool fqOracleTimeFmtIsPushable(const SFunctionNode* pFunc) {
+  if (pFunc == NULL || pFunc->pParameterList == NULL ||
+      LIST_LENGTH(pFunc->pParameterList) < 2) {
+    return false;
+  }
+  const SNode* pFmt = nodesListGetNode(pFunc->pParameterList, 1);
+  if (pFmt == NULL || nodeType((SNode*)pFmt) != QUERY_NODE_VALUE) {
+    return false;
+  }
+  const SValueNode* pVal = (const SValueNode*)pFmt;
+  if (pVal->isNull) {
+    return false;
+  }
+  const char* fmt = (pVal->datum.p != NULL) ? varDataVal(pVal->datum.p) : pVal->literal;
+  if (fmt == NULL) {
+    return false;
+  }
+  return nodesOracleTimestampFmtIsPushable(fmt,
+                                           (EFunctionType)pFunc->funcType == FUNCTION_TYPE_TO_TIMESTAMP);
+}
+
 static bool fqTsqlConcatArgsSimple(const SFunctionNode* pFunc) {
   if (pFunc->pParameterList == NULL) {
     return false;
@@ -19126,23 +19173,581 @@ static bool fqTsqlConcatArgsSimple(const SFunctionNode* pFunc) {
 
 // SQL window OVER(PARTITION BY ...) uses the same collation-sensitive equality
 // as GROUP BY, so a character partition key must keep the whole window local.
-static bool fqTsqlWindowSpecHasCharKey(const SNode* pOver) {
+// Dialect-neutral form: a character key keeps the window local unless a
+// character key can be proven exact there.
+static bool fqWindowSpecCharKeyNotExact(const SNode* pOver, const SScanLogicNode* pScan,
+                                        const SExtSourceCapability* pCap) {
   if (pOver == NULL || nodeType((SNode*)pOver) != QUERY_NODE_SQL_WINDOW_SPEC) {
     return false;
   }
   const SWindowSpecNode* pSpec = (const SWindowSpecNode*)pOver;
   const SNode*           pKey = NULL;
   FOREACH(pKey, pSpec->pPartitionByList) {
-    if (fqTsqlExprTypeIsChar(pKey)) return true;
+    if (!fqCharKeyIsExact(pKey, pScan, pCap)) return true;
   }
   FOREACH(pKey, pSpec->pOrderByList) {
     const SNode* pInner = pKey;
     if (pInner != NULL && nodeType((SNode*)pInner) == QUERY_NODE_ORDER_BY_EXPR) {
       pInner = ((const SOrderByExprNode*)pInner)->pExpr;
     }
-    if (fqTsqlExprTypeIsChar(pInner)) return true;
+    if (!fqCharKeyIsExact(pInner, pScan, pCap)) return true;
   }
   return false;
+}
+
+// ---- Oracle semantic gates (DS 5.3.11) -------------------------------------
+// Oracle compares character data under the session NLS_SORT / NLS_COMP rules and
+// blank-pads CHAR/NCHAR comparisons, while TDengine compares VARCHAR as raw
+// bytes and NCHAR as UCS4 code points.  A character comparison, ordering or
+// grouping is equivalent only when
+//   (a) the connector proved the session sorts and compares in BINARY (the probe
+//       result rides along with the table metadata, DS 5.3.6 R6), and
+//   (b) no operand is a blank-padded CHAR/NCHAR column, and
+//   (c) no operand is an empty string literal (Oracle has no empty string: it
+//       stores '' as NULL, so `col = ''` is UNKNOWN there, DS 5.3.6 R5/R9).
+// Anything else stays local; the remote engine would not raise an error, it
+// would silently return a different result set.
+static bool fqOracleStrCmpExact(const SScanLogicNode* pScan) {
+  if (pScan == NULL || pScan->pExtTableNode == NULL) {
+    return false;
+  }
+  const SExtTableNode* pExtNode = (const SExtTableNode*)pScan->pExtTableNode;
+  return pExtNode->pExtMeta != NULL && pExtNode->pExtMeta->strCmpBinary == 1;
+}
+
+// LENGTH() maps to LENGTHB() and ASCII() returns the first byte of the database
+// character set; both equal the TDengine answer only in an AL32UTF8 database
+// (DS 5.3.13 ascii / length rows).  The probe result rides along with the table
+// metadata for the same reason as strCmpBinary.
+static bool fqOracleCharsetUtf8(const SScanLogicNode* pScan) {
+  if (pScan == NULL || pScan->pExtTableNode == NULL) {
+    return false;
+  }
+  const SExtTableNode* pExtNode = (const SExtTableNode*)pScan->pExtTableNode;
+  return pExtNode->pExtMeta != NULL && pExtNode->pExtMeta->charsetUtf8 == 1;
+}
+
+// Remote type name of a plain column of the scanned external table, or NULL when
+// the expression is not such a column.
+static const char* fqOracleColumnExtType(const SNode* pExpr, const SScanLogicNode* pScan) {
+  if (pExpr == NULL || nodeType((SNode*)pExpr) != QUERY_NODE_COLUMN) {
+    return NULL;
+  }
+  if (pScan == NULL || pScan->pExtTableNode == NULL) {
+    return NULL;
+  }
+  const SExtTableNode* pExtNode = (const SExtTableNode*)pScan->pExtTableNode;
+  const SExtTableMeta* pMeta = pExtNode->pExtMeta;
+  if (pMeta == NULL || pMeta->pCols == NULL) {
+    return NULL;
+  }
+  const char* colName = ((const SColumnNode*)pExpr)->colName;
+  if (colName == NULL || colName[0] == '\0') {
+    return NULL;
+  }
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (strcasecmp(pMeta->pCols[i].colName, colName) == 0) {
+      return pMeta->pCols[i].extTypeName;
+    }
+  }
+  return NULL;
+}
+
+// CHAR / NCHAR are blank-padded, so Oracle compares them by padding the shorter
+// value with blanks; TDengine compares the fetched VARCHAR values as they are.
+static bool fqOracleIsBlankPaddedType(const char* extTypeName) {
+  return extTypeName != NULL &&
+         (strncasecmp(extTypeName, "CHAR(", 5) == 0 || strncasecmp(extTypeName, "NCHAR(", 6) == 0);
+}
+
+static bool fqOracleExprIsBlankPadded(const SNode* pExpr, const SScanLogicNode* pScan) {
+  return fqOracleIsBlankPaddedType(fqOracleColumnExtType(pExpr, pScan));
+}
+
+// LOB columns (and the legacy LONG / LONG RAW that Oracle treats the same way)
+// have no comparison semantics on the server: using one as a comparison key,
+// a sort / grouping key or a MIN/MAX argument fails with ORA-22848 /
+// ORA-22849 instead of returning a value.  XMLTYPE is fetched as text but is
+// equally unusable as a key.  TDengine applies no such restriction, so every
+// such use has to be evaluated locally (DS 5.3.2.1 / 5.3.11).
+static bool fqOracleIsLobType(const char* extTypeName) {
+  if (extTypeName == NULL) {
+    return false;
+  }
+  // "LONG RAW" matches the LONG prefix on purpose: it carries the same limits.
+  return strncasecmp(extTypeName, "CLOB", 4) == 0 || strncasecmp(extTypeName, "NCLOB", 5) == 0 ||
+         strncasecmp(extTypeName, "LONG", 4) == 0 || strncasecmp(extTypeName, "XMLTYPE", 7) == 0 ||
+         strncasecmp(extTypeName, "BLOB", 4) == 0 || strncasecmp(extTypeName, "BFILE", 5) == 0;
+}
+
+static bool fqOracleExprIsLob(const SNode* pExpr, const SScanLogicNode* pScan) {
+  return fqOracleIsLobType(fqOracleColumnExtType(pExpr, pScan));
+}
+
+// A character operand is safe for a pushed comparison when it is a non-empty
+// literal (NULL is fine - the three-valued logic matches) or a non-blank-padded
+// column.  Node lists (IN lists) are checked element by element.
+static bool fqOracleCharOperandExact(const SNode* pExpr, const SScanLogicNode* pScan) {
+  if (pExpr == NULL) {
+    return true;
+  }
+  ENodeType nt = nodeType((SNode*)pExpr);
+  if (nt == QUERY_NODE_VALUE) {
+    const SValueNode* pVal = (const SValueNode*)pExpr;
+    if (pVal->isNull) {
+      return true;
+    }
+    return pVal->literal == NULL || pVal->literal[0] != '\0';
+  }
+  if (nt == QUERY_NODE_NODE_LIST) {
+    const SNode* pItem = NULL;
+    FOREACH(pItem, ((const SNodeListNode*)pExpr)->pNodeList) {
+      if (!fqOracleCharOperandExact(pItem, pScan)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return !fqOracleExprIsBlankPadded(pExpr, pScan) && !fqOracleExprIsLob(pExpr, pScan);
+}
+
+// DS 5.3.6 R7 / 5.3.12 MATCH row: push only the constructs that TDengine's regex
+// engine and Oracle's REGEXP_LIKE interpret identically.  TDengine compiles MATCH
+// patterns with glibc POSIX ERE (tcompare.c getRegComp passes REG_EXTENDED and
+// nothing else), so the common subset has to be proven construct by construct -
+// "POSIX ERE" alone is not enough, because glibc resolves several undefined
+// corners one way and Oracle another, and glibc's bracket semantics follow the
+// *process* locale while Oracle's follow the database character set.
+//
+// Kept (provably identical for any subject, in any locale): literal characters,
+// bracket *sets* such as `[abc]` / `[^abc]`, the quantifiers `*` `+` `?` and
+// `{m}` / `{m,}` / `{m,n}`, groups `(...)`, alternation `|`, the anchors `^` / `$`
+// at a branch boundary, and an escaped punctuation character (`\.`, `\$`, ...).
+//
+// Kept local, each because the two engines differ or because POSIX leaves the
+// construct undefined:
+//   * non-literal, NULL or empty patterns.  Oracle has no empty string at all
+//     ('' IS NULL), while an empty TDengine pattern matches every row;
+//   * `.`: glibc matches a newline with it (Oracle needs the 'n' parameter) and
+//     counts a multibyte locale's character where a single-byte locale counts a
+//     byte - and the server's locale is not something the plan can pin;
+//   * a backslash before a letter or digit: `\d` / `\w` / `\s` are literal
+//     `d` / `w` / `s` on the glibc side, `\b` is a word boundary there but a
+//     backspace in Oracle, and `\1`-`\9` are backreferences glibc accepts and
+//     Oracle does not;
+//   * backslashes inside a bracket expression: POSIX does not escape there,
+//     Oracle's regexp does;
+//   * bracket *ranges* (`[a-z]`) and the `[[:alpha:]]` / `[[=a=]]` / `[[.a.]]`
+//     extensions: both resolve them through a collation, and the two collations
+//     are different ones (under en_US.UTF-8 glibc even matches an accented
+//     letter with `[a-z]`);
+//   * any non-ASCII byte in the pattern, for the same collation reason;
+//   * lazy (`a*?`) and possessive (`a*+`) quantifiers: POSIX ERE defines
+//     neither, so neither engine's reading of them is the standard's;
+//   * a quantifier applied to a quantifier (`a**`, `a{2}*`): undefined in POSIX;
+//   * empty branches and empty groups (`a|`, `|a`, `a||b`, `()`);
+//   * a misplaced anchor (`a^b`, `a$b`): undefined, and glibc and Oracle resolve
+//     it differently;
+//   * a bare `}` or `]` outside a bracket expression: undefined in POSIX.
+// Anything else stays local.  The renderer pins case sensitivity explicitly
+// (match_parameter 'c'), so NLS_SORT cannot flip it either.
+static bool fqOracleRegexPatternMustStayLocal(const SNode* pPattern) {
+  if (pPattern == NULL || nodeType((SNode*)pPattern) != QUERY_NODE_VALUE) {
+    return true;
+  }
+  const SValueNode* pVal = (const SValueNode*)pPattern;
+  if (pVal->isNull) {
+    return false;  // MATCH NULL is NULL in both engines
+  }
+  const char* p = pVal->literal;
+  if (p == NULL || p[0] == '\0') {
+    return true;
+  }
+
+  bool atBranchStart = true;   // start of the pattern, or just after '(' / '|'
+  bool afterAtom = false;      // the previous token can take a quantifier
+  bool afterQuant = false;     // the previous token was a quantifier
+
+  for (int32_t i = 0; p[i] != '\0';) {
+    unsigned char c = (unsigned char)p[i];
+    if (c >= 0x80) {
+      return true;
+    }
+
+    if (c == '\\') {
+      unsigned char n = (unsigned char)p[i + 1];
+      if (n == '\0') {
+        return true;  // a trailing backslash does not compile locally
+      }
+      if ((n >= 'a' && n <= 'z') || (n >= 'A' && n <= 'Z') || (n >= '0' && n <= '9')) {
+        return true;
+      }
+      atBranchStart = false;
+      afterAtom = true;
+      afterQuant = false;
+      i += 2;
+      continue;
+    }
+
+    if (c == '[') {
+      int32_t j = i + 1;
+      if (p[j] == '^') {
+        j += 1;
+      }
+      bool first = true;   // a ']' or '-' in first position is a literal
+      bool closed = false;
+      while (p[j] != '\0') {
+        unsigned char bc = (unsigned char)p[j];
+        if (bc >= 0x80 || bc == '\\') {
+          return true;
+        }
+        if (bc == '[' && (p[j + 1] == ':' || p[j + 1] == '=' || p[j + 1] == '.')) {
+          return true;
+        }
+        if (bc == ']' && !first) {
+          closed = true;
+          j += 1;
+          break;
+        }
+        if (bc == '-' && !first && p[j + 1] != ']' && p[j + 1] != '\0') {
+          return true;  // range
+        }
+        first = false;
+        j += 1;
+      }
+      if (!closed) {
+        return true;  // an unclosed bracket does not compile locally
+      }
+      atBranchStart = false;
+      afterAtom = true;
+      afterQuant = false;
+      i = j;
+      continue;
+    }
+
+    switch (c) {
+      case '.':
+        return true;
+      case '^':
+        if (!atBranchStart) {
+          return true;
+        }
+        i += 1;
+        continue;
+      case '$':
+        if (!(p[i + 1] == '\0' || p[i + 1] == ')' || p[i + 1] == '|')) {
+          return true;
+        }
+        atBranchStart = false;
+        afterAtom = false;
+        afterQuant = false;
+        i += 1;
+        continue;
+      case '(':
+        if (afterQuant) {
+          return true;
+        }
+        atBranchStart = true;
+        afterAtom = false;
+        afterQuant = false;
+        i += 1;
+        continue;
+      case ')':
+        if (atBranchStart) {
+          return true;  // empty group
+        }
+        atBranchStart = false;
+        afterAtom = true;
+        afterQuant = false;
+        i += 1;
+        continue;
+      case '|':
+        if (atBranchStart) {
+          return true;  // empty alternative
+        }
+        atBranchStart = true;
+        afterAtom = false;
+        afterQuant = false;
+        i += 1;
+        continue;
+      case '*':
+      case '+':
+      case '?':
+        if (!afterAtom || afterQuant) {
+          return true;
+        }
+        if (p[i + 1] == '?' || p[i + 1] == '+') {
+          return true;  // lazy / possessive
+        }
+        afterAtom = false;
+        afterQuant = true;
+        i += 1;
+        continue;
+      case '{': {
+        if (!afterAtom || afterQuant) {
+          return true;
+        }
+        int32_t j = i + 1;
+        if (!(p[j] >= '0' && p[j] <= '9')) {
+          return true;  // not a POSIX interval
+        }
+        while (p[j] >= '0' && p[j] <= '9') {
+          j += 1;
+        }
+        if (p[j] == ',') {
+          j += 1;
+          while (p[j] >= '0' && p[j] <= '9') {
+            j += 1;
+          }
+        }
+        if (p[j] != '}') {
+          return true;
+        }
+        atBranchStart = false;
+        afterAtom = false;
+        afterQuant = true;
+        i = j + 1;
+        continue;
+      }
+      case '}':
+      case ']':
+        return true;  // undefined outside a bracket expression / interval
+      default:
+        atBranchStart = false;
+        afterAtom = true;
+        afterQuant = false;
+        i += 1;
+        continue;
+    }
+  }
+
+  return atBranchStart;  // trailing empty alternative (`a|`)
+}
+
+// Literal text of a value node, or NULL when the node is not a value or its
+// text is not available (a parameter placeholder whose value is still unknown).
+static const char* fqValueLiteralText(const SNode* pNode) {
+  if (pNode == NULL || nodeType((SNode*)pNode) != QUERY_NODE_VALUE) {
+    return NULL;
+  }
+  const SValueNode* pVal = (const SValueNode*)pNode;
+  if (pVal->isNull) {
+    return NULL;
+  }
+  return pVal->literal;
+}
+
+// repeat(n) on Oracle renders as RPAD(<e>, n * LENGTH(<e>), <e>) (DS 5.3.13
+// repeat row).  The rewrite only holds when the repeat count is a positive
+// literal and the repeated text is not blank-padded:
+//   * n = 0 makes RPAD truncate to zero instead of returning '', and Oracle has
+//     no empty string at all ('' IS NULL), so the result would be NULL;
+//   * a non-literal count cannot be shown to be > 0 at plan time;
+//   * an empty literal repeats to '' in TDengine while RPAD pads to NULL;
+//   * a CHAR/NCHAR column carries trailing blanks TDengine never repeats, and a
+//     LOB cannot be an RPAD argument at all.
+// A non-literal subject is safe even though it has no provable minimum length:
+// Oracle cannot store or produce an empty string, so a remote "" is always NULL,
+// and repeat(NULL, n) is NULL on both sides.  LENGTH() (not LENGTHB) is the
+// right multiplier because RPAD's target length is counted in characters.
+// The renderer assumes this gate has run and emits the rewrite unconditionally.
+static bool fqOracleRepeatIsExact(const SFunctionNode* pFunc, const SScanLogicNode* pScan) {
+  if (pFunc == NULL || pFunc->pParameterList == NULL || LIST_LENGTH(pFunc->pParameterList) < 2) {
+    return false;
+  }
+  SNode* pCountArg = nodesListGetNode(pFunc->pParameterList, 1);
+  if (pCountArg == NULL || nodeType(pCountArg) != QUERY_NODE_VALUE) {
+    return false;
+  }
+  const SValueNode* pCountVal = (const SValueNode*)pCountArg;
+  if (pCountVal->isNull || pCountVal->placeholderNo != 0) {
+    // A bound parameter has no value at plan time, so n > 0 cannot be shown.
+    return false;
+  }
+  int64_t count = IS_UNSIGNED_NUMERIC_TYPE(pCountVal->node.resType.type) ? (int64_t)pCountVal->datum.u
+                                                                         : pCountVal->datum.i;
+  if (count <= 0) {
+    return false;
+  }
+  SNode* pStrArg = nodesListGetNode(pFunc->pParameterList, 0);
+  if (pStrArg == NULL) {
+    return false;
+  }
+  if (nodeType(pStrArg) == QUERY_NODE_VALUE) {
+    const char* pText = fqValueLiteralText(pStrArg);
+    return pText != NULL && pText[0] != '\0';
+  }
+  // Only a plain column: an inner function could itself evaluate to an empty
+  // string, and repeat('', n) is '' in TDengine while RPAD yields NULL.
+  if (nodeType(pStrArg) != QUERY_NODE_COLUMN) {
+    return false;
+  }
+  return !fqOracleExprIsBlankPadded(pStrArg, pScan) && !fqOracleExprIsLob(pStrArg, pScan);
+}
+
+// regexp_extract on Oracle renders as REGEXP_SUBSTR(<e>, <pattern>, 1, 1, 'c',
+// <subexpr>) (DS 5.3.13 regexp_extract row).  On top of the MATCH common subset
+// (fqOracleRegexPatternMustStayLocal) two Oracle behaviours have to be excluded,
+// because they turn a value into NULL or pick a different substring:
+//   * alternation.  Oracle matches greedily left to right rather than POSIX
+//     leftmost-longest, so `a|ab` yields 'a' there and 'ab' locally; and when the
+//     requested subexpression does not participate in the first match Oracle
+//     keeps searching for a later occurrence, while glibc reports a
+//     non-participating group.
+//   * a construct that can match zero characters (`*`, `?`, `{0,...}`).  Oracle
+//     has no empty string, so an empty match comes back NULL where TDengine
+//     returns ''.
+// Without either, every group participates in the first match and the matched
+// text is uniquely determined, so the two engines agree.
+static bool fqOracleRegexExtractIsExact(const SFunctionNode* pFunc, const SScanLogicNode* pScan) {
+  if (pFunc == NULL || pFunc->pParameterList == NULL ||
+      LIST_LENGTH(pFunc->pParameterList) < 2) {
+    return false;
+  }
+  SNode* pPatArg = nodesListGetNode(pFunc->pParameterList, 1);
+  if (fqOracleRegexPatternMustStayLocal(pPatArg)) {
+    return false;
+  }
+  if (((const SExprNode*)pPatArg)->resType.type == TSDB_DATA_TYPE_NCHAR) {
+    // The NCHAR pattern reaches the local engine as converted MBS text; the
+    // plan-time node only carries the UCS4 view.
+    return false;
+  }
+  const char* p = fqValueLiteralText(pPatArg);
+  if (p == NULL || p[0] == '\0') {
+    return false;
+  }
+
+  int32_t groupCount = 0;
+  bool    hasAtom = false;  // a construct that consumes at least one character
+  for (int32_t i = 0; p[i] != '\0';) {
+    unsigned char c = (unsigned char)p[i];
+    if (c == '\\') {
+      hasAtom = true;
+      i += 2;  // the base scanner already rejected a trailing backslash
+      continue;
+    }
+    if (c == '[') {
+      hasAtom = true;
+      i += 1;  // bracket expressions hold literal characters only
+      if (p[i] == '^') {
+        i += 1;
+      }
+      while (p[i] != '\0' && p[i] != ']') {
+        i += 1;
+      }
+      if (p[i] == '\0') {
+        return false;  // unreachable: the base scanner requires a closing bracket
+      }
+      i += 1;
+      continue;
+    }
+    if (c == '|') {
+      return false;  // alternation: different match-selection rules
+    }
+    if (c == '*' || c == '?') {
+      return false;  // can match zero characters
+    }
+    if (c == '{') {
+      int32_t iNext = i + 1;
+      int64_t minRep = 0;
+      while (p[iNext] >= '0' && p[iNext] <= '9') {
+        minRep = minRep * 10 + (p[iNext] - '0');
+        iNext += 1;
+      }
+      if (minRep == 0) {
+        return false;  // {0} / {0,n}: can match zero characters
+      }
+      while (p[iNext] != '\0' && p[iNext] != '}') {
+        iNext += 1;
+      }
+      i = (p[iNext] == '}') ? iNext + 1 : iNext;
+      continue;
+    }
+    if (c == '(') {
+      groupCount += 1;
+      i += 1;
+      continue;
+    }
+    if (c == ')') {
+      i += 1;
+      continue;
+    }
+    if (c == '^' || c == '$') {
+      i += 1;  // zero-width; an anchor-only pattern is checked below
+      continue;
+    }
+    hasAtom = true;
+    i += 1;
+  }
+  if (!hasAtom) {
+    // An anchor-only pattern (`^`, `$`, `^$`) matches the empty string, which
+    // Oracle reports as NULL (it has no empty string) but TDengine as ''.
+    return false;
+  }
+
+  // group_idx is the third parameter; without it regexp_extract extracts group
+  // 1 (DS 5.3.4.1.2).  It maps directly onto REGEXP_SUBSTR's subexpr.
+  int64_t groupIdx = 1;
+  if (LIST_LENGTH(pFunc->pParameterList) >= 3) {
+    SNode* pIdxArg = nodesListGetNode(pFunc->pParameterList, 2);
+    if (pIdxArg == NULL || nodeType(pIdxArg) != QUERY_NODE_VALUE) {
+      return false;
+    }
+    const SValueNode* pIdxVal = (const SValueNode*)pIdxArg;
+    if (pIdxVal->isNull || pIdxVal->placeholderNo != 0) {
+      // A NULL group_idx propagates NULL, and a bound parameter has no value at
+      // plan time; neither can be shown to name an existing group.
+      return false;
+    }
+    groupIdx = IS_UNSIGNED_NUMERIC_TYPE(pIdxVal->node.resType.type) ? (int64_t)pIdxVal->datum.u
+                                                                    : pIdxVal->datum.i;
+  }
+  // A group number that does not exist yields NULL locally; only push an
+  // extraction that Oracle can resolve to the same group.  Group 0 is left local
+  // because Oracle documents it as a special case, and REGEXP_SUBSTR's subexpr
+  // stops at 9 - far below TDengine's 512 - so a deeper group cannot be named on
+  // the remote side at all.
+  if (groupIdx < 1 || groupIdx > groupCount || groupIdx > 9) {
+    return false;
+  }
+
+  // The subject: a blank-padded CHAR/NCHAR column carries trailing blanks on the
+  // remote side that the fetched value loses, which changes where an anchored
+  // pattern matches; a LOB has no regexp overload TDengine could read back.
+  // For a VARCHAR subject the two engines also have to be looking at the same
+  // bytes, which only an AL32UTF8 database guarantees (the same rule LENGTH and
+  // ASCII follow).  NCHAR/NVARCHAR2 subjects are compared as characters in the
+  // national character set, so the database charset does not enter.
+  SNode* pSubject = nodesListGetNode(pFunc->pParameterList, 0);
+  if (pSubject == NULL || fqOracleExprIsBlankPadded(pSubject, pScan) ||
+      fqOracleExprIsLob(pSubject, pScan)) {
+    return false;
+  }
+  if (((const SExprNode*)pSubject)->resType.type != TSDB_DATA_TYPE_NCHAR &&
+      !fqOracleCharsetUtf8(pScan)) {
+    return false;
+  }
+  return true;
+}
+
+// Whether a character expression may be used as a sort / grouping / partition
+// key on the remote side.  Shared by the ORDER BY, GROUP BY, DISTINCT and window
+// paths so all four apply the same rule.
+static bool fqCharKeyIsExact(const SNode* pExpr, const SScanLogicNode* pScan,
+                             const SExtSourceCapability* pCap) {
+  if (pCap == NULL || !fqTsqlExprTypeIsChar(pExpr)) {
+    return true;
+  }
+  if (pCap->dialect == EXT_SQL_DIALECT_SQLSERVER) {
+    // T-SQL collation decides the order; no rewrite makes it byte-exact.
+    return false;
+  }
+  if (pCap->dialect == EXT_SQL_DIALECT_ORACLE) {
+    return fqOracleStrCmpExact(pScan) && !fqOracleExprIsBlankPadded(pExpr, pScan) &&
+           !fqOracleExprIsLob(pExpr, pScan);
+  }
+  return true;
 }
 
 static bool fqWeekFuncIsPushable(const SFunctionNode* pFunc, int32_t dialect) {
@@ -19157,9 +19762,10 @@ static bool fqWeekFuncIsPushable(const SFunctionNode* pFunc, int32_t dialect) {
   // PG / InfluxDB only have ISO-week semantics (EXTRACT(WEEK ...)), which are
   // equivalent to TDengine WEEK(..., 3) / WEEKOFYEAR(). Default WEEK(ts) and
   // non-3 modes must stay local to preserve TDengine semantics.  SQL Server
-  // maps only WEEK(ts, 3) to DATEPART(ISO_WEEK, ...) for the same reason.
+  // maps only WEEK(ts, 3) to DATEPART(ISO_WEEK, ...) and Oracle only
+  // WEEK(ts, 3) to TO_CHAR(..., 'IW') for the same reason.
   if (dialect != EXT_SQL_DIALECT_POSTGRES && dialect != EXT_SQL_DIALECT_INFLUXQL &&
-      dialect != EXT_SQL_DIALECT_SQLSERVER) {
+      dialect != EXT_SQL_DIALECT_SQLSERVER && dialect != EXT_SQL_DIALECT_ORACLE) {
     return true;
   }
 
@@ -19444,6 +20050,121 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
              pOp->opType == OP_TYPE_REM) &&
             (leftIsChar || rightIsChar)) {
           planDebug("FQ-expr: sqlserver character operand in arithmetic blocked opType=%d",
+                    (int)pOp->opType);
+          return false;
+        }
+      }
+      // Oracle operand gates (DS 5.3.11 / 5.3.12).  Same idea as the SQL Server
+      // block above, with the differences the Oracle dialect has: BITAND is the
+      // only bit primitive, 19c has no IS [NOT] TRUE family, `/` and `%` are
+      // rewritten with a zero-divisor guard, and TIMESTAMP arithmetic is a
+      // TDengine extension Oracle cannot express with the same unit.
+      if (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_ORACLE) {
+        const bool leftIsChar = fqTsqlIsCharType(leftResType);
+        const bool rightIsChar = fqTsqlIsCharType(rightResType);
+        const bool leftIsTs = (leftResType == TSDB_DATA_TYPE_TIMESTAMP);
+        const bool rightIsTs = (rightResType == TSDB_DATA_TYPE_TIMESTAMP);
+        const bool isArith = (pOp->opType == OP_TYPE_ADD || pOp->opType == OP_TYPE_SUB ||
+                              pOp->opType == OP_TYPE_MULTI || pOp->opType == OP_TYPE_DIV ||
+                              pOp->opType == OP_TYPE_REM);
+        if (leftIsChar || rightIsChar) {
+          const bool bothChar = leftIsChar && rightIsChar;
+          const bool otherIsTimestamp = (!leftIsChar && leftIsTs) || (!rightIsChar && rightIsTs);
+          switch (pOp->opType) {
+            case OP_TYPE_IS_NULL:
+            case OP_TYPE_IS_NOT_NULL:
+              // NULL-ness does not depend on character content.
+              break;
+            case OP_TYPE_EQUAL:
+            case OP_TYPE_NOT_EQUAL:
+            case OP_TYPE_GREATER_THAN:
+            case OP_TYPE_GREATER_EQUAL:
+            case OP_TYPE_LOWER_THAN:
+            case OP_TYPE_LOWER_EQUAL:
+            case OP_TYPE_LIKE:
+            case OP_TYPE_NOT_LIKE:
+            case OP_TYPE_IN:
+            case OP_TYPE_NOT_IN:
+              // A string literal compared against a TIMESTAMP column is rendered
+              // as an ANSI TIMESTAMP literal and never reaches the character
+              // comparison rules.
+              if (otherIsTimestamp && !bothChar) {
+                break;
+              }
+              if (!fqOracleStrCmpExact(pScan) || !fqOracleCharOperandExact(pOp->pLeft, pScan) ||
+                  !fqOracleCharOperandExact(pOp->pRight, pScan)) {
+                planDebug("FQ-expr: oracle character comparison stays local opType=%d leftType=%d rightType=%d",
+                          (int)pOp->opType, leftResType, rightResType);
+                return false;
+              }
+              break;
+            case OP_TYPE_MATCH:
+            case OP_TYPE_NMATCH:
+              // R7: REGEXP_LIKE takes only the ERE / POSIX common subset, the
+              // subject must be an ordinary non-blank-padded VARCHAR (a CHAR is
+              // blank-padded, a LOB has no regexp overload).
+              if (fqOracleRegexPatternMustStayLocal(pOp->pRight) ||
+                  !fqOracleCharOperandExact(pOp->pLeft, pScan)) {
+                planDebug("FQ-expr: oracle regexp stays local opType=%d leftType=%d rightType=%d",
+                          (int)pOp->opType, leftResType, rightResType);
+                return false;
+              }
+              break;
+            default:
+              if (!bothChar) {
+                planDebug("FQ-expr: oracle unsupported mixed character operator opType=%d leftType=%d rightType=%d",
+                          (int)pOp->opType, leftResType, rightResType);
+                return false;
+              }
+              break;
+          }
+        }
+        if (pOp->opType == OP_TYPE_BIT_AND || pOp->opType == OP_TYPE_BIT_OR) {
+          // BITAND silently truncates non-integers, and `|` is the arithmetic
+          // identity a + b - BITAND(a, b), which only holds for integers.
+          if (!(IS_INTEGER_TYPE(leftResType) && IS_INTEGER_TYPE(rightResType))) {
+            planDebug("FQ-expr: oracle bit-op blocked opType=%d leftType=%d rightType=%d",
+                      (int)pOp->opType, leftResType, rightResType);
+            return false;
+          }
+        } else if (pOp->opType == OP_TYPE_IS_TRUE || pOp->opType == OP_TYPE_IS_FALSE ||
+                   pOp->opType == OP_TYPE_IS_UNKNOWN || pOp->opType == OP_TYPE_IS_NOT_TRUE ||
+                   pOp->opType == OP_TYPE_IS_NOT_FALSE || pOp->opType == OP_TYPE_IS_NOT_UNKNOWN) {
+          // The rewrite is `<> 0` / `= 0` / `IS NULL`, which needs a numeric
+          // operand (NUMBER(1,0) maps to TINYINT, never BOOL).
+          if (!(IS_INTEGER_TYPE(leftResType) || leftResType == TSDB_DATA_TYPE_FLOAT ||
+                leftResType == TSDB_DATA_TYPE_DOUBLE || leftResType == TSDB_DATA_TYPE_BOOL)) {
+            planDebug("FQ-expr: oracle is-bool blocked opType=%d leftType=%d",
+                      (int)pOp->opType, leftResType);
+            return false;
+          }
+        }
+        // TDengine evaluates arithmetic in DOUBLE (decimal keeps its own type);
+        // Oracle NUMBER arithmetic is exact decimal, so a decimal result would
+        // round differently.
+        if (isArith && (IS_DECIMAL_TYPE(leftResType) || IS_DECIMAL_TYPE(rightResType))) {
+          planDebug("FQ-expr: oracle decimal arithmetic stays local opType=%d leftType=%d rightType=%d",
+                    (int)pOp->opType, leftResType, rightResType);
+          return false;
+        }
+        // Timestamp arithmetic: TDengine adds a unit that follows the column
+        // precision, Oracle's DATE + n is days and TIMESTAMP + n is invalid.
+        if (isArith && (leftIsTs || rightIsTs)) {
+          planDebug("FQ-expr: oracle timestamp arithmetic stays local opType=%d leftType=%d rightType=%d",
+                    (int)pOp->opType, leftResType, rightResType);
+          return false;
+        }
+        // `%` is rendered as `a - TRUNC(a / b) * b`; TDengine evaluates it in
+        // double, so only operands that are exact in a double are equivalent.
+        if (pOp->opType == OP_TYPE_REM) {
+          if (!fqTsqlModOperandOk(pOp->pLeft) || !fqTsqlModOperandOk(pOp->pRight)) {
+            planDebug("FQ-expr: oracle modulo requires exact integer operands leftType=%d rightType=%d",
+                      leftResType, rightResType);
+            return false;
+          }
+        }
+        if (isArith && (leftIsChar || rightIsChar)) {
+          planDebug("FQ-expr: oracle character operand in arithmetic blocked opType=%d",
                     (int)pOp->opType);
           return false;
         }
@@ -19743,6 +20464,24 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
             }
           }
         }
+        // Oracle renders CAST(float -> character/binary) as the implicit
+        // NUMBER -> VARCHAR2 conversion, which switches to scientific notation
+        // (1.5 -> "1.5E+000") where TDengine emits decimal text.  No SQL-level
+        // function reproduces TDengine's formatting for the whole range, so
+        // the conversion stays local (DS 5.3.6 CAST row).
+        if (dialect == EXT_SQL_DIALECT_ORACLE && pFunc->pParameterList != NULL &&
+            LIST_LENGTH(pFunc->pParameterList) >= 1) {
+          int32_t resType = pFunc->node.resType.type;
+          bool resIsText = (resType == TSDB_DATA_TYPE_VARCHAR || resType == TSDB_DATA_TYPE_BINARY ||
+                            resType == TSDB_DATA_TYPE_VARBINARY || resType == TSDB_DATA_TYPE_NCHAR);
+          SNode* pArg0 = nodesListGetNode(pFunc->pParameterList, 0);
+          int32_t argType = (pArg0 != NULL) ? ((const SExprNode*)pArg0)->resType.type : -1;
+          if (resIsText && (argType == TSDB_DATA_TYPE_FLOAT || argType == TSDB_DATA_TYPE_DOUBLE)) {
+            planDebug("FQ-push: func=%s keep local - oracle CAST(float -> text) formatting differs",
+                      pFunc->functionName);
+            return false;
+          }
+        }
       }
       // SQL Server character-semantics gate.  T-SQL character comparison,
       // formatting, case mapping, length counting, hashing and parsing all
@@ -19800,8 +20539,8 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
             return false;
           }
         }
-        if (fqTsqlWindowSpecHasCharKey(pFunc->pOver)) {
-          planDebug("FQ-push: func=%s keep local - sqlserver window partition/order character key depends on remote collation",
+        if (fqWindowSpecCharKeyNotExact(pFunc->pOver, pScan, pCap)) {
+          planDebug("FQ-push: func=%s keep local - window partition/order character key depends on remote collation",
                     pFunc->functionName);
           return false;
         }
@@ -19826,6 +20565,144 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
                       pFunc->functionName);
             return false;
           }
+        }
+      }
+      // Oracle function gates (DS 5.3.11 / 5.3.13).  The same reasoning as the
+      // SQL Server block above, adapted to Oracle: character comparison depends
+      // on NLS and on blank padding, MOD is rendered through TRUNC, and SUBSTR
+      // clamps a zero start position where TDengine returns an empty string.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        EFunctionType ft = (EFunctionType)pFunc->funcType;
+        int32_t      nParams = (pFunc->pParameterList != NULL) ? LIST_LENGTH(pFunc->pParameterList) : 0;
+        // UPPER/LOWER render as an ASCII-only TRANSLATE fold, which is exact for
+        // a VARCHAR operand: doCaseConvFunction folds those byte by byte and no
+        // UTF-8 continuation byte falls in the A-Z / a-z ranges TDengine maps.
+        // An NCHAR operand is folded one code point at a time instead, and that
+        // mapping is the platform's wide-char case table (towlower/towupper on
+        // Windows, locale-dependent elsewhere), so non-ASCII letters do fold
+        // there while Oracle's ASCII TRANSLATE leaves them untouched.  Not
+        // provably equal -> local (DS 5.3.13 upper/lower rows).
+        if ((ft == FUNCTION_TYPE_UPPER || ft == FUNCTION_TYPE_LOWER) &&
+            fqFuncArgIsType(pFunc, 0, TSDB_DATA_TYPE_NCHAR)) {
+          planDebug("FQ-push: func=%s keep local - oracle ASCII-only fold cannot reproduce TDengine UCS4 NCHAR case mapping",
+                    pFunc->functionName);
+          return false;
+        }
+        if (ft == FUNCTION_TYPE_TO_CHAR && !fqTsqlToCharTzMatchesSession(pFunc, pPlanCxt)) {
+          planDebug("FQ-push: func=%s keep local - oracle TO_CHAR explicit timezone is not forwarded",
+                    pFunc->functionName);
+          return false;
+        }
+        if ((ft == FUNCTION_TYPE_TO_CHAR || ft == FUNCTION_TYPE_TO_TIMESTAMP) &&
+            !fqOracleTimeFmtIsPushable(pFunc)) {
+          planDebug("FQ-push: func=%s keep local - oracle format model has a token without an exact equivalent",
+                    pFunc->functionName);
+          return false;
+        }
+        // MOD renders as `a - TRUNC(a / b) * b`, evaluated by TDengine in double.
+        if (ft == FUNCTION_TYPE_MOD && nParams >= 2) {
+          SNode* pArg0 = nodesListGetNode(pFunc->pParameterList, 0);
+          SNode* pArg1 = nodesListGetNode(pFunc->pParameterList, 1);
+          if (!fqTsqlModOperandOk(pArg0) || !fqTsqlModOperandOk(pArg1)) {
+            planDebug("FQ-push: func=%s keep local - oracle MOD requires exact integer operands",
+                      pFunc->functionName);
+            return false;
+          }
+        }
+        // SUBSTR: TDengine returns an empty string for start 0 and for a length
+        // below 1, Oracle treats start 0 as 1 and returns NULL for length 0
+        // (DS 5.3.13 substr row).
+        if (ft == FUNCTION_TYPE_SUBSTR && nParams >= 2) {
+          SNode* pPos = nodesListGetNode(pFunc->pParameterList, 1);
+          if (pPos == NULL || nodeType(pPos) != QUERY_NODE_VALUE ||
+              ((const SValueNode*)pPos)->isNull || ((const SValueNode*)pPos)->datum.i < 1) {
+            planDebug("FQ-push: func=%s keep local - oracle SUBSTR needs a positive literal start",
+                      pFunc->functionName);
+            return false;
+          }
+          if (nParams >= 3) {
+            SNode* pLen = nodesListGetNode(pFunc->pParameterList, 2);
+            if (pLen == NULL || nodeType(pLen) != QUERY_NODE_VALUE ||
+                ((const SValueNode*)pLen)->isNull || ((const SValueNode*)pLen)->datum.i < 1) {
+              planDebug("FQ-push: func=%s keep local - oracle SUBSTR needs a literal length >= 1",
+                        pFunc->functionName);
+              return false;
+            }
+          }
+        }
+        // TRIM(remove_chars): Oracle removes one repeated character, TDengine
+        // removes any character of the set (DS 5.3.13 trim row).
+        if (ft == FUNCTION_TYPE_TRIM && nParams >= 3) {
+          planDebug("FQ-push: func=%s keep local - oracle TRIM takes a single trim character",
+                    pFunc->functionName);
+          return false;
+        }
+        // RAND: TDengine evaluates per row with its own generator.
+        if (ft == FUNCTION_TYPE_RAND) {
+          planDebug("FQ-push: func=%s keep local - oracle RAND is not per-row",
+                    pFunc->functionName);
+          return false;
+        }
+        // REPEAT renders as RPAD(<e>, n * LENGTH(<e>), <e>); only a positive
+        // literal count over non-empty, non-CHAR text is equivalent (DS 5.3.13
+        // repeat row).
+        if (ft == FUNCTION_TYPE_REPEAT && !fqOracleRepeatIsExact(pFunc, pScan)) {
+          planDebug("FQ-push: func=%s keep local - oracle RPAD rewrite is not exact for this count/operand",
+                    pFunc->functionName);
+          return false;
+        }
+        // REGEXP_EXTRACT renders as REGEXP_SUBSTR; the pattern must stay in the
+        // common subset and the match selection must agree (DS 5.3.13
+        // regexp_extract row).
+        if (ft == FUNCTION_TYPE_REGEXP_EXTRACT && !fqOracleRegexExtractIsExact(pFunc, pScan)) {
+          planDebug("FQ-push: func=%s keep local - oracle REGEXP_SUBSTR cannot reproduce the match",
+                    pFunc->functionName);
+          return false;
+        }
+        // LENGTH / ASCII report bytes in the DATABASE character set; only an
+        // AL32UTF8 database matches TDengine's UTF-8 byte view (DS 5.3.13).
+        if ((ft == FUNCTION_TYPE_LENGTH || ft == FUNCTION_TYPE_ASCII) && !fqOracleCharsetUtf8(pScan)) {
+          planDebug("FQ-push: func=%s keep local - oracle database character set is not AL32UTF8",
+                    pFunc->functionName);
+          return false;
+        }
+        // Any character argument that is a blank-padded CHAR/NCHAR column: the
+        // value the remote computes on differs from the value TDengine fetched
+        // (DS 5.3.6 R9).  A LOB argument is kept local as well: several
+        // functions reject LOB operands outright (ORA-22848 / ORA-22849), and
+        // the ones that accept them return a LOB whose fetched form TDengine
+        // cannot use as a key.
+        if (pFunc->pParameterList != NULL) {
+          SNode* pArg = NULL;
+          FOREACH(pArg, pFunc->pParameterList) {
+            if (fqOracleExprIsBlankPadded(pArg, pScan)) {
+              planDebug("FQ-push: func=%s keep local - oracle CHAR/NCHAR column is blank-padded",
+                        pFunc->functionName);
+              return false;
+            }
+            if (fqOracleExprIsLob(pArg, pScan)) {
+              planDebug("FQ-push: func=%s keep local - oracle LOB column has no remote comparison semantics",
+                        pFunc->functionName);
+              return false;
+            }
+          }
+        }
+        // MIN/MAX and DISTINCT over character data order and de-duplicate by
+        // the remote collation (DS 5.3.13 min/max rows).
+        if (pFunc->pParameterList != NULL && LIST_LENGTH(pFunc->pParameterList) >= 1) {
+          SNode* pArg0 = nodesListGetNode(pFunc->pParameterList, 0);
+          bool   charArg = fqTsqlExprTypeIsChar(pArg0);
+          if (charArg && ((ft == FUNCTION_TYPE_MIN || ft == FUNCTION_TYPE_MAX) || pFunc->isDistinct) &&
+              !fqCharKeyIsExact(pArg0, pScan, pCap)) {
+            planDebug("FQ-push: func=%s keep local - oracle character ordering depends on NLS",
+                      pFunc->functionName);
+            return false;
+          }
+        }
+        if (fqWindowSpecCharKeyNotExact(pFunc->pOver, pScan, pCap)) {
+          planDebug("FQ-push: func=%s keep local - oracle window character key depends on NLS",
+                    pFunc->functionName);
+          return false;
         }
       }
       // Check all arguments are pushable
@@ -20623,7 +21500,8 @@ static int32_t fqHarvestParentJoinWhereForRemoteSubtree(SLogicNode* pBoundaryRoo
             NULL != pJoinWhere, NULL != pOnCond, (int)nodeType((SNode*)pRemoteSubtree));
 
   if (NULL != pChosen) {
-    bool pushable = fqExprIsPushable(pChosen, pBoundaryScan, pCap, pOverlay, pPlanCxt);
+    bool pushable = fqClauseGateOpen(EXT_CLAUSE_FILTER, pCap, pOverlay) &&
+                    fqExprIsPushable(pChosen, pBoundaryScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-joinWhereHarvest: parentJoin=%p boundary=%p leg=%s chosenPushable=%d remoteRootHasCondBefore=%d",
               pJoin, pBoundaryRoot, isLeftLeg ? "left" : "right", (int)pushable,
               NULL != pRemoteSubtree->pConditions);
@@ -21969,10 +22847,15 @@ static bool fqScanListHasColumn(SNodeList* pList, const SColumnNode* pCol, EExtS
     return false;
   }
 
-  // Match the parser's column-name contract: MySQL / SQL Server fold case,
-  // PostgreSQL is case sensitive (`device` and `Device` are distinct columns).
-  bool caseInsensitive = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType;
-
+  // Match the parser's column-name contract through the shared helper: MySQL /
+  // SQL Server fold case, Oracle folds an unquoted reference to upper case,
+  // PostgreSQL / InfluxDB are case sensitive (`device` and `Device` are
+  // distinct columns).
+  //
+  // The exact spelling wins: Oracle keeps a quoted "Device" apart from a
+  // folded DEVICE, so a folded hit must not hide the fact that the exact
+  // column is missing from the list (DS 5.3.6 R1).
+  bool foldedMatch = false;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     const SNode* pInner = pNode;
@@ -21984,16 +22867,17 @@ static bool fqScanListHasColumn(SNodeList* pList, const SColumnNode* pCol, EExtS
     }
     const SColumnNode* pExist = (const SColumnNode*)pInner;
     if ('\0' != pExist->colName[0] && '\0' != pCol->colName[0]) {
-      int32_t cmp = caseInsensitive ? strcasecmp(pExist->colName, pCol->colName)
-                                    : strcmp(pExist->colName, pCol->colName);
-      if (0 == cmp) {
+      if (0 == strcmp(pExist->colName, pCol->colName)) {
         return true;
+      }
+      if (!foldedMatch && extColumnNameEqual(sourceType, pExist->colName, pCol->colName)) {
+        foldedMatch = true;
       }
     } else if (0 != pCol->colId && pExist->colId == pCol->colId) {
       return true;
     }
   }
-  return false;
+  return foldedMatch;
 }
 
 static int32_t fqAppendLocalFilterCols(SScanLogicNode* pScan, SNode* pLocalCond) {
@@ -22726,6 +23610,32 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
     planDebug("FqWindowIntervalIsPushable: no - interval<=0");
     return false;
   }
+
+  // 7. Oracle only: no explicit offset.  The Oracle time-bucket template
+  // aligns buckets to the epoch; INTERVAL(n, offset) shifts the origin, which
+  // the template does not carry (DS 5.3.14 INTERVAL_TUMBLING: no AUTO/offset).
+  // AUTO means epoch-aligned, so it stays pushable.
+  const bool oracleDialect = (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_ORACLE);
+  if (oracleDialect && pWin->offset != 0 && pWin->offset != AUTO_DURATION_VALUE) {
+    planDebug("FqWindowIntervalIsPushable: no - explicit offset=%" PRId64 " keeps INTERVAL local",
+              pWin->offset);
+    return false;
+  }
+
+  // 8. Oracle only: _wduration is not derivable from the bucket expression.
+  // Oracle's DS pins the window pseudo-columns to local computation except
+  // _wstart/_wend (DS 5.3.14 window pseudo-columns), and the other dialects' renderer keeps
+  // its established constant-step behaviour.
+  if (oracleDialect) {
+    FOREACH(pFuncNode, pWin->pFuncs) {
+      if (nodeType(pFuncNode) != QUERY_NODE_FUNCTION) continue;
+      const SFunctionNode* pFunc = (const SFunctionNode*)pFuncNode;
+      if ((EFunctionType)pFunc->funcType == FUNCTION_TYPE_WDURATION) {
+        planDebug("FqWindowIntervalIsPushable: no - _wduration output keeps INTERVAL local");
+        return false;
+      }
+    }
+  }
   return true;
 }
 
@@ -23156,8 +24066,7 @@ static bool fqPartitionIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
       planDebug("FqPartitionIsPushable: no - partition key not renderable (nodeType=%d)", (int)nodeType(pExpr));
       return false;
     }
-    if (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_SQLSERVER &&
-        fqTsqlExprTypeIsChar(pExpr)) {
+    if (!fqCharKeyIsExact(pExpr, (const SScanLogicNode*)pScan, pCap)) {
       planDebug("FqPartitionIsPushable: no - character partition key depends on remote collation");
       return false;
     }
@@ -23373,6 +24282,19 @@ static bool fqLayerLimitPushable(const SLogicNode* pNode, const SExtSourceCapabi
       return false;
     }
   }
+  if (pCap != NULL && pCap->dialect == EXT_SQL_DIALECT_ORACLE) {
+    // Oracle raises ORA-00933 for OFFSET without an ORDER BY in the same query
+    // (DS 5.3.14 EXT_CLAUSE_OFFSET).  A bare row count is fine - FETCH FIRST
+    // needs no ordering - and both the set-op statement and the SEMI/ANTI
+    // EXISTS statement are plain SELECTs, so FETCH FIRST applies to the whole
+    // result there too.
+    const SLimitNode* pLim = (const SLimitNode*)pNode->pLimit;
+    if (pLim->offset != NULL && pLim->offset->datum.i > 0 && !fqChainHasSort(pNode)) {
+      planDebug("FQ-collect: oracle OFFSET %" PRId64 " without ORDER BY - keep local",
+                pLim->offset->datum.i);
+      return false;
+    }
+  }
   return true;
 }
 
@@ -23398,11 +24320,18 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
                                   SLogicNode** ppBoundary) {
   *ppBoundary = NULL;
   // The scan itself is the bottom of the pushable subtree.  Its own WHERE
-  // (node.pConditions) must be pushable, else nothing pushes.
-  if (pScan->node.pConditions != NULL &&
-      !fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
-    planDebug("FQ-collect: scan WHERE not pushable - nothing pushes");
-    return TSDB_CODE_SUCCESS;
+  // (node.pConditions) must be pushable, else nothing pushes.  The FILTER
+  // gate covers ALTER EXTERNAL SOURCE ... DISABLE clause 'FILTER' and the
+  // error-escalation demotions, which must keep the predicate local.
+  if (pScan->node.pConditions != NULL) {
+    if (!fqClauseGateOpen(EXT_CLAUSE_FILTER, pCap, pOverlay)) {
+      planDebug("FQ-collect: scan WHERE stays local - FILTER clause disabled");
+      return TSDB_CODE_SUCCESS;
+    }
+    if (!fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+      planDebug("FQ-collect: scan WHERE not pushable - nothing pushes");
+      return TSDB_CODE_SUCCESS;
+    }
   }
   SLogicNode* pBoundary = (SLogicNode*)pScan;  // scan always in the subtree
   planDebug("FQ-collect: start scan=%p (scan is subtree leaf)", pScan);
@@ -23472,9 +24401,12 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
       break;
     }
     // A node's own WHERE must be pushable to push the node.  AGG's pConditions is
-    // HAVING (judged by fqAggIsPushdownable), so exempt it here.
+    // HAVING (judged by fqAggIsPushdownable), so exempt it here.  The FILTER
+    // gate keeps a demoted predicate local instead of letting the layer carry
+    // it into the remote SQL.
     if (pParent->pConditions != NULL && nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_AGG &&
-        !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+        (!fqClauseGateOpen(EXT_CLAUSE_FILTER, pCap, pOverlay) ||
+         !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt))) {
       planDebug("FQ-collect: stop - layer type=%d WHERE not pushable", (int)nodeType(pParent));
       break;
     }

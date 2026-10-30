@@ -764,6 +764,11 @@ static int32_t buildColRefFilterSQL(STableCfg* pCfg, char*** ppFilterSQL, int32_
     QUERY_CHECK_CODE(code, lino, _return);
 
     // TDengine DDL uses the same backtick and string escaping as the MySQL renderer.
+    // This fragment is echoed back into SHOW CREATE TABLE as part of the virtual
+    // table definition, so it is TDengine syntax that the user can re-issue against
+    // TDengine - it never becomes remote SQL and must NOT follow the source dialect
+    // (an Oracle virtual table still needs backtick identifiers here).  The remote
+    // side renders the pushed filter through the plan renderer instead.
     int32_t sqlLen = 0;
     code = nodesExprToExtSQL(pCond, EXT_SQL_DIALECT_MYSQL, NULL, 0, &sqlLen);
     QUERY_CHECK_CODE(code, lino, _return);
@@ -2012,6 +2017,7 @@ static const char* extSrcTypeToStr(int8_t srcType) {
     case 1: return "postgresql";
     case 2: return "influxdb";
     case EXT_SOURCE_SQLSERVER: return "sqlserver";
+    case EXT_SOURCE_ORACLE: return "oracle";
     default: return "unknown";
   }
 }

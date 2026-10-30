@@ -21,6 +21,7 @@ usage() {
   cat <<'EOF'
 Usage:
   stage_runtime_libs.sh copy-glob <src-dir> <dst-dir> <glob>...
+  stage_runtime_libs.sh copy-glob-links <src-dir> <dst-dir> <glob>...
   stage_runtime_libs.sh copy-ldd  <src-lib> <dst-dir>
   stage_runtime_libs.sh copy-ldd-glob <src-dir> <dst-dir> <glob>...
   stage_runtime_libs.sh fix-darwin-rpaths <dst-dir>
@@ -51,6 +52,61 @@ copy_to_dir() {
 
   [ -e "${dst}" ] && [ "${src}" -ef "${dst}" ] && return 0
   cp -Lf "${src}" "${dst}"
+}
+
+# Same globbing as copy_glob(), but preserves the alias structure instead of
+# dereferencing it.  Some vendors ship one physical library under a pile of
+# versioned symlinks (Oracle Instant Client: libclntsh.so.23.1 plus .10.1
+# through .22.1, all pointing at the same 99 MB file).  Dereferencing turns
+# that into nine full copies, which is how build/lib reached 1.2 GB of
+# libclntsh alone.  Here the real file is copied once and every alias is
+# recreated as a link to it, so the staged tree keeps the same layout at a
+# fraction of the size.
+copy_glob_links() {
+  local src_dir=$1
+  local dst_dir=$2
+  shift 2
+
+  mkdir -p "${dst_dir}"
+  shopt -s nullglob
+  local pattern=""
+  local src=""
+  local base=""
+  local real=""
+  local real_base=""
+
+  # Real files first, so that every alias has its target in place already.
+  for pattern in "$@"; do
+    for src in "${src_dir}"/${pattern}; do
+      [ -e "${src}" ] || continue
+      [ -L "${src}" ] && continue
+      copy_to_dir "${src}" "${dst_dir}"
+    done
+  done
+
+  # Then the aliases.  A link is flattened onto its final target's basename
+  # (readlink -f follows the whole chain); if the globs did not name that
+  # target, it is pulled in here so the link cannot dangle.
+  for pattern in "$@"; do
+    for src in "${src_dir}"/${pattern}; do
+      [ -L "${src}" ] || continue
+      base="$(basename "${src}")"
+      real="$(readlink -f "${src}" 2>/dev/null || true)"
+      [ -n "${real}" ] && [ -e "${real}" ] || continue
+      real_base="$(basename "${real}")"
+      if [ "${base}" = "${real_base}" ]; then
+        # The link resolves to a file of the same name elsewhere; copying it
+        # would be the only way to keep the name meaningful.
+        copy_to_dir "${real}" "${dst_dir}"
+        continue
+      fi
+      if [ ! -e "${dst_dir}/${real_base}" ]; then
+        copy_to_dir "${real}" "${dst_dir}"
+      fi
+      rm -f "${dst_dir}/${base}"
+      ln -s "${real_base}" "${dst_dir}/${base}"
+    done
+  done
 }
 
 prune_toolchain_runtime_libs() {
@@ -234,6 +290,10 @@ fix_linux_rpaths() {
     [ -f "${lib}" ] && [ ! -L "${lib}" ] || continue
     case "$(basename "${lib}")" in
       libtaos.so*|libtaosnative.so*|libtaosws.so*|libtaospyudf.so*) continue ;;
+      # Oracle's licence forbids modifying the Instant Client binaries; the
+      # provider resolves them by soname after the RTLD_LOCAL preload, so they
+      # do not need a rewritten RUNPATH (DS 9.1.7).
+      libsqora*|libclntsh*|libclntshcore*|libnnz*|libociei*|libons*|libnfsodm*|liborazt*|legacy.so*|fips*) continue ;;
     esac
     # Replace build-machine paths. The same layout is used by build/lib and
     # installed driver/. Microsoft driver resources stay in ../share/resources.
@@ -310,6 +370,11 @@ main() {
       [ $# -ge 4 ] || { usage >&2; exit 1; }
       shift
       copy_glob "$@"
+      ;;
+    copy-glob-links)
+      [ $# -ge 4 ] || { usage >&2; exit 1; }
+      shift
+      copy_glob_links "$@"
       ;;
     copy-ldd)
       [ $# -eq 3 ] || { usage >&2; exit 1; }
