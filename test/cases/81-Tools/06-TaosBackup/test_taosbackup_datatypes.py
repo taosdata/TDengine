@@ -818,7 +818,7 @@ class TestTaosBackupDataTypes:
             )
 
     def insertDataGeometry(self, benchmark, jsonFile, db):
-        self.exec(f"{benchmark} -f {jsonFile}")
+        etool.benchmark_write(f"{benchmark} -f {jsonFile}")
         self.checkCorrectWithJson(jsonFile)
 
         sqls = [
@@ -877,7 +877,7 @@ class TestTaosBackupDataTypes:
     # ------------------- varbinary ----------------
     #
     def insertDataVarbinary(self, benchmark, jsonFile, db):
-        self.exec(f"{benchmark} -f {jsonFile}")
+        etool.benchmark_write(f"{benchmark} -f {jsonFile}")
         self.checkCorrectWithJson(jsonFile)
 
         sqls = [

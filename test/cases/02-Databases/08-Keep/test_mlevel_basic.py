@@ -22,7 +22,7 @@ class TestMlevelBasic:
         tdLog.info(f"insert data.")
         # taosBenchmark run
         json = etool.curFile(__file__, "mlevel_basic.json")
-        etool.benchMark(json=json)
+        etool.benchMark(json=json, low_log=True)
 
         tdSql.execute(f"use {self.db}")
         # set insert data information
