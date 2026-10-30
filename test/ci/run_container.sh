@@ -571,16 +571,59 @@ done
 unset _mount_path
 # TSDB FQ tasks provision one exclusive database lease on the runner. Keep an
 # explicit local-mode escape hatch while rolling out to older worker hosts.
-fq_runner=()
-if fq_ci_needs_databases "$cmd" && \
-   [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]] && \
-   [[ -n "${TSDB_COMMUNITY:-}" ]]; then
-    FQ_COMMUNITY="$(cd "$REPDIR" && pwd -P)"
-    FQ_RUNNER="$(dirname "$(dirname "$FQ_COMMUNITY")")/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
-    if [[ ! -f "$FQ_RUNNER" ]]; then
-        echo "ERROR: FQ container runner missing: $FQ_RUNNER"
-        exit 1
+# Coverage CI checks out TDinternal/community only, so the monorepo-relative
+# runner is absent there. Look up the same run-ci.py the tsdb pipeline uses.
+_fq_ci_resolve_runner() {
+    if [[ -n "${FQ_CI_RUNNER:-}" && -f "${FQ_CI_RUNNER}" ]]; then
+        echo "${FQ_CI_RUNNER}"
+        return 0
     fi
+    local community_root candidate
+    community_root="$(cd "$REPDIR" && pwd -P)"
+    candidate="$(dirname "$(dirname "$community_root")")/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
+    if [[ -f "$candidate" ]]; then
+        echo "$candidate"
+        return 0
+    fi
+    if [[ -n "${FQ_CI_TOOLS_DIR:-}" && -f "${FQ_CI_TOOLS_DIR}/fq/run-ci.py" ]]; then
+        echo "${FQ_CI_TOOLS_DIR}/fq/run-ci.py"
+        return 0
+    fi
+    candidate="/root/tsdb/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
+    if [[ -f "$candidate" ]]; then
+        echo "$candidate"
+        return 0
+    fi
+    return 1
+}
+
+fq_runner=()
+fq_default_services=()
+if fq_ci_needs_databases "$cmd" && [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]]; then
+    if [[ -n "${TSDB_COMMUNITY:-}" ]]; then
+        FQ_COMMUNITY="$(cd "$REPDIR" && pwd -P)"
+        FQ_RUNNER="$(dirname "$(dirname "$FQ_COMMUNITY")")/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
+        if [[ ! -f "$FQ_RUNNER" ]]; then
+            echo "ERROR: FQ container runner missing: $FQ_RUNNER" >&2
+            exit 1
+        fi
+    else
+        FQ_RUNNER="$(_fq_ci_resolve_runner)" || {
+            echo "ERROR: FQ container runner not found. Set FQ_CI_RUNNER to tools/cicd/tsdb-test-pipeline/fq/run-ci.py" >&2
+            exit 1
+        }
+        # Tasks that omit FQ_REQUIRED_SERVICES still talk to MySQL, PostgreSQL,
+        # Influx and SQL Server. Leave Oracle off unless the task asks for it,
+        # so a coverage worker is not required to hold the Oracle image.
+        if [[ "$cmd" != *FQ_REQUIRED_SERVICES=* ]]; then
+            fq_default_services=(-e FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver)
+        fi
+        export FQ_CI_PLACEMENT="${FQ_CI_PLACEMENT:-local-first}"
+        export FQ_CI_LOCAL_MAX_SLOTS="${FQ_CI_LOCAL_MAX_SLOTS:-auto}"
+        export FQ_CI_PREPARE_TIMEOUT="${FQ_CI_PREPARE_TIMEOUT:-1200}"
+        export FQ_CI_AIO_MAX_NR="${FQ_CI_AIO_MAX_NR:-4194304}"
+    fi
+    echo "[FQ CI] lease runner: $FQ_RUNNER"
     fq_runner=(python3 "$FQ_RUNNER" --artifacts "$MOUNT_SOURCE/fq-artifacts/attempt-${FQ_CI_ATTEMPT:-1}"
                --cert-dir "$REPDIR/test/cases/09-DataQuerying/19-FederatedQuery/certs" --)
     export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
@@ -603,6 +646,7 @@ _ci_remove_flag=--rm
 [[ "${CI_WORKER_MANAGED_CONTAINER:-0}" != 1 ]] || _ci_remove_flag=""
 
 echo "docker run \
+    ${fq_default_services[@]+"${fq_default_services[@]} "} \
     ${name_param:+$name_param }--privileged=true \
     $asan_env \
     $mock_env \
@@ -623,6 +667,7 @@ rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-comma
 _ci_docker_start_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run event=start"
 "${fq_runner[@]}" docker run \
+    ${fq_default_services[@]+"${fq_default_services[@]}"} \
     ${name_param:+$name_param} --privileged=true \
     $asan_env \
     $mock_env \
