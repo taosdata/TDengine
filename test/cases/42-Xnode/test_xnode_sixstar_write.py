@@ -36,6 +36,7 @@ the xnoded unix socket. This test does not depend on Explorer UI or Server.
 import json
 import os
 import socketserver
+import subprocess
 import threading
 import time
 import uuid
@@ -201,41 +202,23 @@ class TestXnodeSixStarWrite:
         raise AssertionError(f"taosd did not come back after restart: {last_err}")
 
     @classmethod
-    def _switch_protection_preserving_data(cls, protection: int):
-        """Flip xnodeDsnProtection without wiping the dnode data directory.
+    def _read_persisted_config(cls, filename):
+        data_dir = tdDnodes.dnodes[0].dataDir[0].split(" ", 1)[0]
+        config_path = os.path.join(data_dir, "dnode", "config", filename)
+        with open(config_path, encoding="utf-8") as config_file:
+            return json.load(config_file)["configs"]
 
-        The persisted global config is loaded after taos.cfg and therefore
-        must be updated together with the external config file when present.
-        """
-        cfg_path = tdDnodes.dnodes[0].cfgPath
+    @classmethod
+    def _switch_protection_preserving_data(cls, protection: int):
+        tdSql.query("SHOW VARIABLES LIKE 'xnodeDsnProtection'")
+        previous = str(tdSql.queryResult[0][1])
+        tdSql.execute(f"ALTER ALL DNODES 'xnodeDsnProtection' '{protection}'")
+        tdSql.query("SHOW VARIABLES LIKE 'xnodeDsnProtection'")
+        assert str(tdSql.queryResult[0][1]) == str(protection), tdSql.queryResult
+        expected_reboot = "true" if previous != str(protection) else "false"
+        assert tdSql.queryResult[0][5] == expected_reboot, tdSql.queryResult
         tdSql.close()
         tdDnodes.stoptaosd(1)
-        with open(cfg_path) as cfg_file:
-            lines = cfg_file.readlines()
-        with open(cfg_path, "w") as cfg_file:
-            replaced = False
-            for line in lines:
-                if line.strip().startswith("xnodeDsnProtection"):
-                    cfg_file.write(f"xnodeDsnProtection {protection}\n")
-                    replaced = True
-                else:
-                    cfg_file.write(line)
-            if not replaced:
-                cfg_file.write(f"xnodeDsnProtection {protection}\n")
-
-        data_dir = tdDnodes.dnodes[0].dataDir[0].split(" ", 1)[0]
-        global_cfg_path = os.path.join(data_dir, "dnode", "config", "global.json")
-        if os.path.isfile(global_cfg_path):
-            with open(global_cfg_path, encoding="utf-8") as global_cfg_file:
-                global_cfg = json.load(global_cfg_file)
-            persisted_configs = global_cfg.get("configs")
-            if not isinstance(persisted_configs, dict) or "xnodeDsnProtection" not in persisted_configs:
-                raise AssertionError(f"xnodeDsnProtection is missing from {global_cfg_path}")
-            persisted_configs["xnodeDsnProtection"] = protection
-            with open(global_cfg_path, "w", encoding="utf-8") as global_cfg_file:
-                json.dump(global_cfg, global_cfg_file, separators=(",", ":"))
-                global_cfg_file.write("\n")
-
         tdDnodes.starttaosd(1)
         last_err = None
         for _ in range(30):
@@ -251,6 +234,7 @@ class TestXnodeSixStarWrite:
         tdSql.query("SHOW VARIABLES LIKE 'xnodeDsnProtection'")
         assert len(tdSql.queryResult) == 1, tdSql.queryResult
         assert str(tdSql.queryResult[0][1]) == str(protection), tdSql.queryResult
+        assert tdSql.queryResult[0][5] == "false", tdSql.queryResult
 
     def _start_mock_xnoded(self) -> MockXnoded:
         socket_path = os.path.join(tdDnodes.dnodes[0].dataDir[0], ".taosxnoded.sock")
@@ -422,7 +406,8 @@ class TestXnodeSixStarWrite:
 
         1. Restart taosd with xnodeDsnProtection=0 and a mock xnoded so CREATE
            XNODE TASK commits a plaintext real credential.
-        2. Flip xnodeDsnProtection to 1 without wiping the data directory.
+        2. Flip xnodeDsnProtection to 1 through ALTER ALL DNODES and restart
+           taosd without wiping the data directory.
         3. ALTER XNODE TASK with "******" KEEPs the pre-protection committed
            secret, SHOW reads the task back masked, and a fresh CREATE with a
            six-star marker is now rejected.
@@ -435,6 +420,7 @@ class TestXnodeSixStarWrite:
 
         History:
             - 2026-09-16 protection switch coverage
+            - 2026-10-26 Cover SQL-driven protection switch
         """
         self._restart_with_protection(0)
         mock = self._start_mock_xnoded()
@@ -461,3 +447,88 @@ class TestXnodeSixStarWrite:
             tdSql.execute(f"DROP XNODE TASK '{name}'", queryTimes=1)
         finally:
             mock.stop()
+
+    def test_lazy_config_update_restart(self):
+        """XNODE DSN config changes persist and apply after restart.
+
+        1. Reject single-dnode ALTER for the global protection switch.
+        2. Alter both key paths and verify their persisted values and pending reboot state.
+        3. Restart taosd and verify the new public key path is used successfully.
+
+        Catalog:
+            - Xnode
+
+        Since: v3.4.3.3
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Cover lazy configuration updates
+        """
+        self._restart_with_protection(0)
+        alt_public_key = f"{self.key_path}.alt"
+        private_key = f"{self.key_path}.private"
+        backup_public_key = f"{self.key_path}.backup"
+        try:
+            subprocess.run(
+                [
+                    "openssl",
+                    "genpkey",
+                    "-algorithm",
+                    "RSA",
+                    "-pkeyopt",
+                    "rsa_keygen_bits:2048",
+                    "-out",
+                    private_key,
+                ],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            subprocess.run(
+                ["openssl", "pkey", "-in", private_key, "-pubout", "-out", alt_public_key],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+
+            tdSql.error("ALTER DNODE 1 'xnodeDsnProtection' '1'", expectErrInfo="Invalid config option")
+            tdSql.execute(f"ALTER DNODE 1 'xnodeDsnPublicKeyFile' '{alt_public_key}'")
+            tdSql.execute(f"ALTER DNODE 1 'xnodedDsnPrivateKeyFile' '{private_key}'")
+
+            tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'xnodeDsnPublicKeyFile'")
+            assert len(tdSql.queryResult) == 1, tdSql.queryResult
+            assert tdSql.queryResult[0][2] == alt_public_key, tdSql.queryResult
+            assert tdSql.queryResult[0][6] == "true", tdSql.queryResult
+            tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'xnodedDsnPrivateKeyFile'")
+            assert len(tdSql.queryResult) == 1, tdSql.queryResult
+            assert tdSql.queryResult[0][2] == private_key, tdSql.queryResult
+            assert tdSql.queryResult[0][6] == "true", tdSql.queryResult
+
+            persisted = self._read_persisted_config("local.json")
+            assert persisted["xnodeDsnPublicKeyFile"] == alt_public_key, persisted
+            assert persisted["xnodedDsnPrivateKeyFile"] == private_key, persisted
+
+            os.replace(self.key_path, backup_public_key)
+            self._switch_protection_preserving_data(1)
+
+            persisted = self._read_persisted_config("local.json")
+            assert persisted["xnodeDsnPublicKeyFile"] == alt_public_key, persisted
+            assert persisted["xnodedDsnPrivateKeyFile"] == private_key, persisted
+            tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'xnodeDsnPublicKeyFile'")
+            assert len(tdSql.queryResult) == 1, tdSql.queryResult
+            assert tdSql.queryResult[0][2] == alt_public_key, tdSql.queryResult
+            assert tdSql.queryResult[0][6] == "false", tdSql.queryResult
+            tdSql.query("SHOW DNODE 1 VARIABLES LIKE 'xnodedDsnPrivateKeyFile'")
+            assert len(tdSql.queryResult) == 1, tdSql.queryResult
+            assert tdSql.queryResult[0][2] == private_key, tdSql.queryResult
+            assert tdSql.queryResult[0][6] == "false", tdSql.queryResult
+        finally:
+            self._restart_with_protection(0)
+            if os.path.exists(backup_public_key):
+                os.replace(backup_public_key, self.key_path)
+            for path in (alt_public_key, private_key, backup_public_key):
+                if os.path.exists(path):
+                    os.remove(path)
