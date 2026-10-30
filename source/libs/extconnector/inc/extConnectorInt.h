@@ -83,17 +83,17 @@ typedef struct SExtProvider {
 } SExtProvider;
 
 // EXT_SOURCE_TYPE_COUNT  -  must match the EExtSourceType enum in tmsg.h
-#define EXT_SOURCE_TYPE_COUNT  5   // MYSQL=0, POSTGRESQL=1, INFLUXDB=2, TDENGINE=3(reserved), SQLSERVER=4
+#define EXT_SOURCE_TYPE_COUNT  6   // MYSQL=0, POSTGRESQL=1, INFLUXDB=2, TDENGINE=3(reserved), SQLSERVER=4, ORACLE=5
 
 // Global provider table (indexed by EExtSourceType).
 // The table is indexed by the raw source-type value, so EXT_SOURCE_TYPE_COUNT
 // lagging behind the enum is an out-of-bounds access, not a compile error.
 extern SExtProvider gExtProviders[EXT_SOURCE_TYPE_COUNT];
 #if defined(__cplusplus)
-static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1),
+static_assert(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_ORACLE + 1),
               "EXT_SOURCE_TYPE_COUNT must match the highest EExtSourceType value (tmsg.h)");
 #else
-typedef char SExtProviderCountCheck[(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_SQLSERVER + 1)) ? 1 : -1];
+typedef char SExtProviderCountCheck[(EXT_SOURCE_TYPE_COUNT == (EXT_SOURCE_ORACLE + 1)) ? 1 : -1];
 #endif
 
 // ============================================================
@@ -275,8 +275,11 @@ static inline int32_t extDecodePostgresqlJsonb(const char *rawValue, int32_t raw
 void encryptExtSourcePassword(const char *plaintext, char *outBuf);
 void decryptExtSourcePassword(const char *cipherBuf, char *outPlain);
 
-// Helper: dialect from source type
-EExtSQLDialect extDialectFromSourceType(EExtSourceType srcType);
+// Source type -> dialect: use extResolveDialectBySource() (extDialect.h), which
+// returns an error code for an unknown source type.  The former
+// extDialectFromSourceType() was removed: it had no error channel and answered
+// "MySQL" for any type it did not know, which would have rendered MySQL SQL
+// (backticks, LIMIT) against a server that cannot parse it (Oracle DS 9.1.2).
 
 // ============================================================
 // Provider forward declarations (implemented per-provider)
@@ -292,6 +295,9 @@ bool pgProviderInit(void);
 void pgProviderCleanup(void);
 extern SExtProvider sqlserverProvider;
 bool sqlserverProviderInit(void);
+extern SExtProvider oracleProvider;
+bool oracleProviderInit(void);
+void oracleProviderCleanup(void);
 bool influxProviderInit(SExtProvider *pProvider);
 void influxProviderCleanup(void);
 void *extConnectorLoadRuntimeLibrary(const char *const *names, int32_t numNames, const char **pLoadedName);

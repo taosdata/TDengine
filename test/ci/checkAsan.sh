@@ -90,7 +90,19 @@ openssl_internal_pat="CRYPTO_|ERR_|BIO_(new_file|meth_new)|def_load|NCONF_load|C
 libpq_openssl_internal_pat="(X509_[A-Za-z0-9_]+|by_file_ctrl_ex).*/libpq\\.so\\.5"
 # libcrypto/libssl 里被剥掉符号的帧只打印成 "(libcrypto.so.3+0x1234)"，没有函数名，
 # 所以按模块名单独放行。
-third_party_module_pat="[/(](libcrypto|libssl)\\.so"
+#
+# Oracle Instant Client 同理：OCISessionBegin 内部会把协议协商串缓存进
+# kpuSetMatchingProtocol 的进程级状态（taosd 实测 49 字节；FIPS 随机数上下文、
+# DBGC 通知、sltsqKeyAdd 等也是同一类），客户端库退出时不会释放，LSan 就在 taosd
+# 退出时把它们报成 Direct leak。整条分配链都在 libclntsh/libclntshcore/libnnz 内，
+# 没有一帧 TDengine 代码——我们只是触发者。按模块放行，语义同 libcrypto：栈里一旦
+# 出现引擎源码帧（例如 provider 自己 OCIHandleAlloc 出来的句柄没释放），整块仍然计入。
+oracle_client_module_pat="[/(](libclntsh|libclntshcore|libnnz|libociei|libsqora|libaio)[^/]*\\.so"
+# The driver manager and the ODBC driver sit between the engine and the
+# Instant Client in every Oracle stack (libodbc.so.2 -> libsqora.so -> ...);
+# they are third-party plumbing too, exactly like the Instant Client modules.
+odbc_manager_module_pat="[/(](libodbc|libodbcinst)[^/]*\\.so"
+third_party_module_pat="[/(](libcrypto|libssl)\\.so|${oracle_client_module_pat}|${odbc_manager_module_pat}"
 plumbing_pat="asan_malloc_linux|__interceptor_|__pthread_once|${allocator_pat}|${third_party_module_pat}|${openssl_internal_pat}|${libpq_openssl_internal_pat}"
 
 # ---------- 2. 一次性读出内容，避免多次 cat ----------

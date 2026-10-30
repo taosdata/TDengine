@@ -9930,6 +9930,7 @@ static int8_t parseExtSourceType(const SToken* pToken) {
   if (strcmp(buf, "influxdb") == 0)   return EXT_SOURCE_INFLUXDB;
   if (strcmp(buf, "tdengine") == 0)   return EXT_SOURCE_TDENGINE;
   if (strcmp(buf, "sqlserver") == 0)  return EXT_SOURCE_SQLSERVER;
+  if (strcmp(buf, "oracle") == 0)     return EXT_SOURCE_ORACLE;
   return -1;
 }
 

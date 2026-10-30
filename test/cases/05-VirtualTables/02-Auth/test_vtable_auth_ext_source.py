@@ -50,21 +50,26 @@ class TestVtableAuthExtSource(FederatedQueryVersionedMixin):
             tdSql.execute(f"create database {db} precision 'ns'")
             tdSql.query("show external sources")
             row = next(row for row in tdSql.queryResult if row[0] == src)
-            # 四段式外部引用使用外部源的默认 database 作为中间段（与联邦查询用例一致）。
-            namespace = row[6]
+            # 三段式外部引用的中间段是该 provider 的命名空间：关系库为
+            # database，Oracle 没有 per-source database（DATABASE 段是 Easy
+            # Connect 服务名），命名空间是 schema。
+            source_type = str(row[1]).lower()
+            namespace = row[7] if source_type == "oracle" else row[6]
+            # Oracle NUMBER(10) 映射为 BIGINT，虚拟表列类型必须与之匹配。
+            val_type = "bigint" if source_type == "oracle" else "int"
             ref = f"{src}.{namespace}.src_t"
-            tdSql.execute(f"create vtable {db}.root_v(ts timestamp, val int from {ref}.val)")
-            tdSql.execute(f"create stable {db}.vst(ts timestamp, val int) tags(group_id int) virtual 1")
+            tdSql.execute(f"create vtable {db}.root_v(ts timestamp, val {val_type} from {ref}.val)")
+            tdSql.execute(f"create stable {db}.vst(ts timestamp, val {val_type}) tags(group_id int) virtual 1")
             tdSql.execute(f"create vtable {db}.root_child({ref}.val) using {db}.vst tags(1)")
             conn, sql = self._normal_sql(user)
             try:
                 sql.error(f"select val from {db}.root_v", expectedErrno=0x26E3)
-                sql.error(f"create vtable {db}.blocked(ts timestamp, val int from {ref}.val)",
+                sql.error(f"create vtable {db}.blocked(ts timestamp, val {val_type} from {ref}.val)",
                           expectedErrno=0x26E3)
                 tdSql.execute(f"grant use on database {db} to {user}")
                 tdSql.execute("reset query cache")
                 sql.error(f"select val from {db}.root_v", expectedErrno=0x2644)
-                sql.error(f"create vtable {db}.blocked(ts timestamp, val int from {ref}.val)",
+                sql.error(f"create vtable {db}.blocked(ts timestamp, val {val_type} from {ref}.val)",
                           expectedErrno=0x2644)
                 for table in ("root_v", "vst"):
                     tdSql.execute(f"grant select on table {db}.{table} to {user}")
@@ -74,7 +79,7 @@ class TestVtableAuthExtSource(FederatedQueryVersionedMixin):
                 tdSql.execute(f"grant create table on database {db} to {user}")
                 tdSql.execute("reset query cache")
                 for table, path in (("normal_full", ref), ("normal_short", f"{src}.src_t")):
-                    sql.execute(f"create vtable {db}.{table}(ts timestamp, val int from {path}.val)")
+                    sql.execute(f"create vtable {db}.{table}(ts timestamp, val {val_type} from {path}.val)")
                     tdSql.execute(f"grant select on table {db}.{table} to {user}")
                     tdSql.execute("reset query cache")
                     self._check_values(sql, f"{db}.{table}")
@@ -83,11 +88,11 @@ class TestVtableAuthExtSource(FederatedQueryVersionedMixin):
                 tdSql.execute(f"grant use on database {origin} to {user}")
                 tdSql.execute("reset query cache")
                 # 引用未授权 SELECT 的本地表时按表级权限拒绝（0x26E6）。
-                sql.error(f"create vtable {db}.mixed(ts timestamp, val int from {ref}.val, "
+                sql.error(f"create vtable {db}.mixed(ts timestamp, val {val_type} from {ref}.val, "
                           f"local_val int from {origin}.local_t.val)", expectedErrno=0x26E6)
                 tdSql.execute(f"grant select on table {origin}.local_t to {user}")
                 tdSql.execute("reset query cache")
-                sql.execute(f"create vtable {db}.mixed(ts timestamp, val int from {ref}.val, "
+                sql.execute(f"create vtable {db}.mixed(ts timestamp, val {val_type} from {ref}.val, "
                             f"local_val int from {origin}.local_t.val)")
                 sql.error(f"alter vtable {db}.root_v alter column val set {ref}.val",
                           expectedErrno=0x2644)

@@ -31,7 +31,14 @@ _EXTERNAL_SOURCES = {
     "postgres": "vt_pushdown_agg_pg_src",
     "influx": "vt_pushdown_agg_influx_src",
     "sqlserver": "vt_pushdown_agg_ss_src",
+    "oracle": "vt_pushdown_agg_oracle_src",
 }
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.  The
+# table name carries the file prefix because every Oracle fixture of this suite
+# lives in the same shared schema.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_TABLE = "VT_PUSHDOWN_AGG_ORA_VALUES"
 
 
 class TestVTablePlanPushdownAggExtSource:
@@ -115,6 +122,27 @@ class TestVTablePlanPushdownAggExtSource:
             ],
         )
 
+        cfg = next(ExtSrcEnv.oracle_version_configs())
+        ExtSrcEnv.oracle_drop_table_cfg(cfg, _ORACLE_TABLE)
+        ExtSrcEnv._oracle_sql(
+            cfg,
+            [
+                f"CREATE TABLE {_ORACLE_TABLE} "
+                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0))",
+                # Oracle has no multi-row VALUES clause and a bare string date
+                # would go through NLS_TIMESTAMP_FORMAT (ORA-01861).
+                f"INSERT ALL "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 100000) "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:01.000', 200000) "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:02.000', 300000) "
+                "SELECT 1 FROM dual",
+                "COMMIT",
+            ],
+        )
+
     @classmethod
     def create_external_sources(cls):
         for source in _EXTERNAL_SOURCES.values():
@@ -151,6 +179,16 @@ class TestVTablePlanPushdownAggExtSource:
             f"database={_EXTERNAL_DB} schema=dbo"
         )
 
+        # Oracle carries the Easy Connect service name in DATABASE and the
+        # schema (the only namespace level) in SCHEMA.
+        oracle = cls.adapters["oracle"]
+        tdSql.execute(
+            f"create external source {_EXTERNAL_SOURCES['oracle']} "
+            f"type='oracle' host='{oracle.host}' port={oracle.port} "
+            f"user='{oracle.user}' password='{oracle.password}' "
+            f"database={ExtSrcEnv.ORACLE_SERVICE} schema={_ORACLE_SCHEMA}"
+        )
+
     @classmethod
     def create_virtual_tables(cls):
         mysql_ref = (
@@ -167,6 +205,11 @@ class TestVTablePlanPushdownAggExtSource:
         # column path source.database.schema.table.column).
         sqlserver_ref = (
             f"{_EXTERNAL_SOURCES['sqlserver']}.{_EXTERNAL_DB}.dbo.remote_values.v"
+        )
+        # Oracle: one namespace level only, so the middle segment is the
+        # schema and the service name never appears in a path.
+        oracle_ref = (
+            f"{_EXTERNAL_SOURCES['oracle']}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE}.v"
         )
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -196,6 +239,10 @@ class TestVTablePlanPushdownAggExtSource:
             f"local_v int from local_values.v, remote_v int from {sqlserver_ref})"
         )
         tdSql.execute(
+            "create vtable vt_oracle (ts timestamp, "
+            f"local_v int from local_values.v, remote_v bigint from {oracle_ref})"
+        )
+        tdSql.execute(
             "create vtable vt_external_mixed (ts timestamp, "
             f"mysql_v int from {mysql_ref}, "
             f"postgres_v int from {postgres_ref}, "
@@ -216,6 +263,14 @@ class TestVTablePlanPushdownAggExtSource:
             f"influx_v bigint from {influx_ref}, "
             f"sqlserver_v int from {sqlserver_ref})"
         )
+        tdSql.execute(
+            "create vtable vt_all_mixed_oracle (ts timestamp, "
+            "local_v int from local_values.v, "
+            f"mysql_v int from {mysql_ref}, "
+            f"postgres_v int from {postgres_ref}, "
+            f"influx_v bigint from {influx_ref}, "
+            f"oracle_v bigint from {oracle_ref})"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -226,6 +281,30 @@ class TestVTablePlanPushdownAggExtSource:
         ExtSrcEnv.pg_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.influx_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.oracle_drop_table_cfg(
+            next(ExtSrcEnv.oracle_version_configs()), _ORACLE_TABLE)
+
+    @staticmethod
+    def check_row(sql, expected):
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        actual = tuple(tdSql.queryResult[0])
+        assert actual == expected, f"{sql}: expected {expected}, got {actual}"
+
+    @classmethod
+    def do_oracle_aggregate(cls):
+        """Aggregate the Oracle-backed and all-source virtual tables.
+
+        Oracle is a step-1 (zero pushdown) source, so the remote SQL is a plain
+        base scan and only the merged aggregate values are checked here.  The
+        plan itself is not compared yet; see the TODO in the test docstring.
+        """
+        cls.check_row(
+            "select sum(local_v), sum(remote_v) from vt_oracle", (6, 600000))
+        cls.check_row(
+            "select sum(local_v), sum(mysql_v), sum(postgres_v), "
+            "sum(influx_v), sum(oracle_v) from vt_all_mixed_oracle",
+            (6, 60, 600, 6000, 600000))
 
     @staticmethod
     def do_compare_pushdown_agg_plan():
@@ -245,9 +324,11 @@ class TestVTablePlanPushdownAggExtSource:
     def test_pushdown_agg_ext_source(self):
         """Push virtual-table aggregates into local and external scans.
 
-        1. Cover MySQL, PostgreSQL, and InfluxDB aggregate pushdown.
-        2. Cover local-plus-external and mixed-external source plans.
+        1. Cover MySQL, PostgreSQL, InfluxDB and Oracle aggregate pushdown.
+        2. Cover local-plus-external and mixed-external source plans,
+           including the Oracle single-source and all-source virtual tables.
         3. Verify merged aggregate results and output-column order.
+        4. Compare the EXPLAIN VERBOSE plans of every source, Oracle included.
 
         Catalog:
             - VirtualTable
@@ -260,6 +341,9 @@ class TestVTablePlanPushdownAggExtSource:
 
         History:
             - 2026-07-15 Codex Added federated pushdownAgg plan coverage
+            - 2026-10-26 Add Oracle aggregate value coverage
+            - 2026-10-27 Record the Oracle plan blocks in the shared golden
 
         """
         self.do_compare_pushdown_agg_plan()
+        self.do_oracle_aggregate()

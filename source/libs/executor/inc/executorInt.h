@@ -340,6 +340,7 @@ typedef struct SFederatedScanOperatorInfo {
   bool                      queryFinished;      // EOF reached
   bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
   bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
+  bool                      vstbLimitDemoted;   // true: remote top-N unsupported, retry without it
   int64_t                   fetchedRows;        // cumulative rows fetched
   int64_t                   fetchBlockCount;    // cumulative block count
   int64_t                   elapsedTimeUs;      // cumulative elapsed time (micros)

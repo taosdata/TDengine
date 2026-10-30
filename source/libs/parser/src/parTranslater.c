@@ -2928,9 +2928,10 @@ static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode
 static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, const char* queryName) {
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
-  // stored case; PostgreSQL compares quoted/identifier names literally.
-  // Delegates to qcom so mnode's binding step and the stream readers apply the
-  // identical fold.
+  // stored case; PostgreSQL compares quoted/identifier names literally, and
+  // Oracle folds an unquoted reference to upper case before comparing exactly
+  // (DS 5.3.6 R1).  The rule is shared with the executor and mnode through
+  // extColumnNameEqual() so the three resolution points cannot drift.
   return extColumnNameEqual((EExtSourceType)sourceType, schemaName, queryName);
 }
 
@@ -3086,6 +3087,39 @@ static bool preferExplicitAliasOverImplicitFunction(SExprNode** ppFoundExpr, SEx
   return true;
 }
 
+// True when a subquery's FROM clause reads an external source, directly or
+// through a join.  External tables keep the source's folded column names
+// (Oracle: upper case), and unquoted references resolve case-insensitively
+// against them; that tolerance must survive one level of derived table
+// ("SELECT * FROM src.t" as a JOIN leg), where the projections carry the
+// remote spelling.
+static bool tableNodeReadsExternal(const SNode* pTable) {
+  if (NULL == pTable) {
+    return false;
+  }
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_REAL_TABLE:
+      return ((const SRealTableNode*)pTable)->pExtTableNode != NULL;
+    case QUERY_NODE_JOIN_TABLE:
+      return tableNodeReadsExternal(((const SJoinTableNode*)pTable)->pLeft) ||
+             tableNodeReadsExternal(((const SJoinTableNode*)pTable)->pRight);
+    case QUERY_NODE_TEMP_TABLE: {
+      const SNode* pSub = ((const STempTableNode*)pTable)->pSubquery;
+      return (NULL != pSub && QUERY_NODE_SELECT_STMT == nodeType(pSub) &&
+              tableNodeReadsExternal(((const SSelectStmt*)pSub)->pFromTable));
+    }
+    default:
+      return false;
+  }
+}
+
+static bool tempTableSubqueryReadsExternal(const SNode* pSubquery) {
+  if (NULL == pSubquery || QUERY_NODE_SELECT_STMT != nodeType(pSubquery)) {
+    return false;
+  }
+  return tableNodeReadsExternal(((const SSelectStmt*)pSubquery)->pFromTable);
+}
+
 static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
                                          bool* pFound) {
   int32_t         code = TSDB_CODE_SUCCESS;
@@ -3118,6 +3152,29 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
     if (pFirstTsExpr == NULL &&
         TSDB_DATA_TYPE_TIMESTAMP == pExpr->resType.type) {
       pFirstTsExpr = pExpr;
+    }
+  }
+  // External-source projections carry the source's folded column names, so an
+  // unquoted reference (folded to lower case by the parser) must still match
+  // them - the same tolerance translateExternalTableImpl gives a direct
+  // reference.  Two columns differing only in case stay ambiguous.
+  if (!*pFound && tempTableSubqueryReadsExternal(pTempTable->pSubquery)) {
+    SExprNode* pCiMatch = NULL;
+    int32_t    ciMatches = 0;
+    SNode*     pCiNode = NULL;
+    FOREACH(pCiNode, pProjectList) {
+      SExprNode* pCiExpr = (SExprNode*)pCiNode;
+      if (0 == strcasecmp(pCol->colName, pCiExpr->aliasName)) {
+        pCiMatch = pCiExpr;
+        ++ciMatches;
+      }
+    }
+    if (ciMatches > 1) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
+    }
+    if (pCiMatch != NULL) {
+      pFoundExpr = pCiMatch;
+      *pFound = true;
     }
   }
   // Fallback: when _rowts not found but internal primary key col requested, use first TIMESTAMP col
@@ -11275,10 +11332,11 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   // database-scoped.  A SQL Server 4-part column path (source.schema.table.column)
   // carries the schema in the middle segment, so re-map it before resolving
   // (DS 5.3.3).  A 5-part path already fills refSchemaName.
-  const char* refDb = pColRef->refDbName;
-  const char* refSchema = pColRef->refSchemaName;
-  if ((EExtSourceType)pExtInfo->type == EXT_SOURCE_SQLSERVER && refSchema[0] == '\0' &&
-      refDb[0] != '\0') {
+  const char*    refDb = pColRef->refDbName;
+  const char*    refSchema = pColRef->refSchemaName;
+  EExtSourceType srcType = (EExtSourceType)pExtInfo->type;
+  bool           isOracle = (EXT_SOURCE_ORACLE == srcType);
+  if (EXT_SOURCE_SQLSERVER == srcType && refSchema[0] == '\0' && refDb[0] != '\0') {
     refSchema = refDb;
     refDb = "";
   }
@@ -11286,7 +11344,7 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   // PostgreSQL stores a single creation-time schema per source: a different ref
   // schema means the source's schema changed after the vtable was created.
   // SQL Server references may legitimately name other databases / schemas.
-  if ((EExtSourceType)pExtInfo->type != EXT_SOURCE_SQLSERVER && refSchema[0] != '\0' &&
+  if (srcType != EXT_SOURCE_SQLSERVER && srcType != EXT_SOURCE_ORACLE && refSchema[0] != '\0' &&
       0 != strcmp(refSchema, pExtInfo->schema_name)) {
     qError("external ref schema mismatch, source:%s, db:%s, table:%s, refSchema:%s, sourceSchema:%s",
            pColRef->refSourceName, pColRef->refDbName, pColRef->refTableName,
@@ -11295,11 +11353,26 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
     goto _return;
   }
 
-  const char* dbName = refDb[0] != '\0' ? refDb : pExtInfo->database;
-  const char* schemaName = refSchema[0] != '\0' ? refSchema : pExtInfo->schema_name;
+  // Oracle has a single namespace level: the middle segment is the schema and
+  // the service name never enters a path.  Passing the schema as dbName would
+  // make fetchExtTableMetaDirect() overwrite SExtSourceCfg.default_database
+  // (the service name) with it, so dbName stays empty (DS 5.3.10 item 5).
+  const char* dbName = isOracle ? "" : (refDb[0] != '\0' ? refDb : pExtInfo->database);
+  const char* schemaName = isOracle ? (refDb[0] != '\0' ? refDb : pExtInfo->schema_name)
+                                    : (refSchema[0] != '\0' ? refSchema : pExtInfo->schema_name);
   PAR_ERR_JRET(getExternalTableMeta(pCxt, pExtInfo, pColRef->refSourceName, refDb, NULL,
                                     dbName, schemaName, pColRef->refTableName, false, &pExtMeta));
   ownsExtMeta = (NULL != pExtMeta);
+
+  // Oracle resolves a path segment by folding it (DS 5.3.6 R1), and the folded
+  // spelling is what the data dictionary was searched with.  The rendered
+  // statement has to use that same spelling (DS 9.5), so the resolved schema -
+  // not the raw reference text - is what the external node carries.  Without
+  // this, `src.taosdata.emp` would be looked up as TAOSDATA and then queried as
+  // "taosdata"."EMP", which names nothing.
+  if (isOracle && NULL != pExtMeta && '\0' != pExtMeta->schemaName[0]) {
+    schemaName = pExtMeta->schemaName;
+  }
 
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, (SNode**)&pExtNode));
   tstrncpy(pExtNode->sourceName, pColRef->refSourceName, sizeof(pExtNode->sourceName));
@@ -11629,8 +11702,10 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
   EExtSourceType sourceType = (EExtSourceType)pExtNode->sourceType;
   // SQL Server is relational in the same sense (remote primary key, mappable
   // types), so a stale binding reports EXT_SCHEMA_CHANGED like MySQL/PG.
+  // Oracle joins them: its columns come from ALL_TAB_COLUMNS and its remote
+  // primary key drives the same binding rules.
   bool           isRelationalSource = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
-                            EXT_SOURCE_SQLSERVER == sourceType;
+                            EXT_SOURCE_SQLSERVER == sourceType || EXT_SOURCE_ORACLE == sourceType;
 
   int32_t schemaIdx = -1;
   for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; i++) {
@@ -33128,16 +33203,17 @@ static int32_t translateRollbackTrans(STranslateContext* pCxt, SRollbackTransStm
 // Federated query: external source DDL translation helpers
 // ============================================================
 
-/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3, SQLSERVER=4). */
+/* Valid OPTIONS keys per source type (EXT_SOURCE_MYSQL=0, PG=1, InfluxDB=2, TDengine=3, SQLSERVER=4, ORACLE=5). */
 static const char* const s_extCommonOpts[] = {
     "tls_enabled", "tls_ca_cert", "tls_client_cert", "tls_client_key",
     "connect_timeout_ms", "read_timeout_ms", NULL};
-static const char* const s_extTypeSpecOpts[5][8] = {
+static const char* const s_extTypeSpecOpts[6][8] = {
     /* MySQL      */ {"charset", "ssl_mode", NULL},
   /* PostgreSQL */ {"sslmode", NULL},
     /* InfluxDB   */ {"api_token", "protocol", NULL},
     /* TDengine (reserved) */ {NULL},
     /* SQL Server */ {"trust_server_certificate", NULL},
+    /* Oracle     */ {NULL},
 };
 
 /* Serialize a list of SExtOptionNode into a compact JSON object string.
@@ -33226,6 +33302,25 @@ static int32_t validateExtSourceOptionSemantic(int8_t srcType, const char* key, 
     if (value != NULL && value[0] != '\0' && !extOptValueInSet(value, s_boolValues)) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "trust_server_certificate must be one of true/false/1/0");
+    }
+  }
+
+  // Oracle: TLS is not configurable at the connector (Oracle Net negotiates its
+  // own encryption).  Silently accepting the keys would let a user believe
+  // encryption had been switched on, so both explicit TLS and client
+  // certificates are rejected instead of ignored (DS 6.1.1).  An empty value
+  // stays accepted so ALTER ... SET OPTIONS can clear a key.
+  if (srcType == EXT_SOURCE_ORACLE) {
+    if (strcasecmp(key, "tls_enabled") == 0 && value != NULL && value[0] != '\0' &&
+        !(strcasecmp(value, "false") == 0 || strcmp(value, "0") == 0)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "tls_enabled is not supported for Oracle external sources");
+    }
+    if ((strcasecmp(key, "tls_ca_cert") == 0 || strcasecmp(key, "tls_client_cert") == 0 ||
+         strcasecmp(key, "tls_client_key") == 0) &&
+        value != NULL && value[0] != '\0') {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "%s is not supported for Oracle external sources", key);
     }
   }
 
@@ -33468,6 +33563,24 @@ static void normalizeQuotedEmptyValue(char* value) {
   }
 }
 
+static int32_t parCheckServerVersionGate(STranslateContext* pCxt, const char* pMsgFmt, ...);
+
+// Oracle source support ships with this build: an older mnode/vnode decodes the
+// stored source type as an unknown value (5) and can only refuse it, and an
+// older executor has no Oracle dialect to render remote SQL with.  The
+// resulting failure is safe but happens far from the DDL that caused it, so
+// reject the CREATE up front when the connected server is older than this
+// client (Oracle DS 9.6.2 asks for a version gate on the mnode that creates an
+// Oracle source; DS 9.6.5 item 14 pins the client floor and the mixed-version
+// policy).  Same contract as
+// parCheckVchildOwnMembersSupported: in-server translate never sets
+// tsServerVerInt, so it is naturally exempt.
+static int32_t parCheckOracleSourceSupported(STranslateContext* pCxt) {
+  return parCheckServerVersionGate(
+      pCxt, "external source TYPE 'oracle' requires server version %s or later; "
+            "the connected server is older (mixed-version cluster)", td_version);
+}
+
 static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourceStmt* pStmt) {
   PAR_ENTERPRISE_ONLY(pCxt, "CREATE EXTERNAL SOURCE");
   if (!tsFederatedQueryEnable) {
@@ -33476,6 +33589,9 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   }
   if (pStmt->sourceType < 0) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Unknown external source TYPE");
+  }
+  if (pStmt->sourceType == EXT_SOURCE_ORACLE) {
+    PAR_ERR_RET(parCheckOracleSourceSupported(pCxt));
   }
   if (pStmt->sourceType == EXT_SOURCE_TDENGINE) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
@@ -33530,6 +33646,12 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   if (pStmt->sourceType == EXT_SOURCE_POSTGRESQL && pStmt->database[0] == '\0') {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "DATABASE is required for PostgreSQL external sources");
+  }
+  // Oracle carries the service name (Easy Connect) in DATABASE; without it there
+  // is nothing to connect to.  SCHEMA stays optional.
+  if (pStmt->sourceType == EXT_SOURCE_ORACLE && pStmt->database[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "DATABASE (service name) is required for Oracle external sources");
   }
   // Name length check: external source names follow database name rules (max 64 chars).
   if (strlen(pStmt->sourceName) >= TSDB_EXT_SOURCE_NAME_LEN) {
@@ -36278,6 +36400,11 @@ static col_id_t getTagSchemaIndex(const STableMeta* pTableMeta, const char* pTag
 // the persisted reference is self-contained: the planner keys external scan
 // nodes by the resolved (database, schema), and a stable namespace keeps the
 // rendered DDL replayable.
+//
+// Oracle has one namespace level only (the schema).  It is persisted in
+// refDbName and refSchemaName stays empty; the service name stored in
+// pInfo->database is a connection attribute and must never leak into the
+// reference (DS 5.3.10 item 2).
 static int32_t normalizeExternalRefNamespace(STranslateContext* pCxt, const char* refSourceName,
                                              char* refDbName, size_t dbCap, char* refSchemaName,
                                              size_t schemaCap) {
@@ -36299,6 +36426,30 @@ static int32_t normalizeExternalRefNamespace(STranslateContext* pCxt, const char
   }
 
   EExtSourceType sourceType = (EExtSourceType)pInfo->type;
+  if (EXT_SOURCE_ORACLE == sourceType) {
+    // The middle segment already holds the schema; a relative reference takes
+    // the source's configured default schema, and an unset default stays empty
+    // so resolution reports EXT_DEFAULT_NS_MISSING instead of inventing one.
+    //
+    // Oracle folds an unquoted identifier to upper case before it looks it up,
+    // and TDengine's parser lower-cases the raw path text on the way in.  The
+    // stored reference must carry the folded spelling: it is what the
+    // connector resolved against the data dictionary and what the external
+    // table node built at query time carries, so a lower-case spelling would
+    // name a different (non-existent) schema.
+    char        folded[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
+    const char* src = (refDbName[0] != '\0') ? refDbName : pInfo->schema_name;
+    int32_t     i = 0;
+    for (; src[i] != '\0' && i < (int32_t)sizeof(folded) - 1; ++i) {
+      char c = src[i];
+      folded[i] = (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
+    }
+    folded[i] = '\0';
+    tstrncpy(refDbName, folded, dbCap);
+    refSchemaName[0] = '\0';
+    freeExtSourceInfo(pInfo);
+    return TSDB_CODE_SUCCESS;
+  }
   if (EXT_SOURCE_POSTGRESQL == sourceType) {
     tstrncpy(refSchemaName, pInfo->schema_name, schemaCap);
   } else if (EXT_SOURCE_SQLSERVER == sourceType && refSchemaName[0] == '\0') {
@@ -38583,21 +38734,39 @@ static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceN
   PAR_ERR_JRET(getExternalSourceInfo(pCxt, sourceName, &pExtInfo));
   const char* seriesDb = refDb;
   const char* seriesSchema = (NULL != refSchema) ? refSchema : "";
-  if (EXT_SOURCE_SQLSERVER == (EExtSourceType)pExtInfo->type && seriesSchema[0] == '\0' &&
-      seriesDb[0] != '\0') {
+  EExtSourceType srcType = (EExtSourceType)pExtInfo->type;
+  if (EXT_SOURCE_SQLSERVER == srcType && seriesSchema[0] == '\0' && seriesDb[0] != '\0') {
     // SQL Server 4-part reference: the middle segment is the schema.
     seriesSchema = seriesDb;
     seriesDb = "";
+  } else if (EXT_SOURCE_ORACLE == srcType) {
+    // Oracle: the single middle segment is the schema and there is no database
+    // layer; the service name never comes from the reference (DS 5.3.10).
+    seriesSchema = (seriesDb[0] != '\0') ? seriesDb : pExtInfo->schema_name;
+    seriesDb = "";
   }
-  if (seriesDb[0] == '\0') seriesDb = pExtInfo->database;
+  if (seriesDb[0] == '\0' && EXT_SOURCE_ORACLE != srcType) seriesDb = pExtInfo->database;
   if (seriesSchema[0] == '\0') seriesSchema = pExtInfo->schema_name;
   PAR_ERR_JRET(getExternalTableMeta(pCxt, pExtInfo, sourceName, refDb, refSchema, seriesDb,
                                     seriesSchema, refTable, false, &pExtMeta));
   pCxt->pParseCxt->async = savedAsync;
 
   int32_t extColIdx = -1;
+  // Same fold contract as checkExternalColRef(): the reference spelling is
+  // resolved by extColumnNameEqual(), not by a raw strcmp.  For the series
+  // sources in use today the two agree, but a source whose identifiers fold
+  // (Oracle) or compare case-insensitively (MySQL / SQL Server) would
+  // otherwise resolve a different column here than on the path that actually
+  // renders the remote SQL.  The exact spelling wins over the folded one so a
+  // quoted "Device" never resolves onto a separate DEVICE column (DS 5.3.6 R1).
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
-    if (strcmp(pExtMeta->pCols[i].colName, refCol) == 0) {
+    if (0 == strcmp(pExtMeta->pCols[i].colName, refCol)) {
+      extColIdx = i;
+      break;
+    }
+  }
+  for (int32_t i = 0; extColIdx < 0 && i < pExtMeta->numOfCols; i++) {
+    if (externalColumnNamesEqual(srcType, pExtMeta->pCols[i].colName, refCol)) {
       extColIdx = i;
       break;
     }
@@ -38685,12 +38854,13 @@ static int32_t rejectUnsupportedExternalFilter(STranslateContext* pCxt, const SN
   // Relational sources carry a remote primary key, which is what the filter
   // binding validates against (DS 5.3.10 / phase-2 VTBLP-001..003).
   if (NULL == pFilterCond || EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
-      EXT_SOURCE_SQLSERVER == sourceType) {
+      EXT_SOURCE_SQLSERVER == sourceType || EXT_SOURCE_ORACLE == sourceType) {
     return TSDB_CODE_SUCCESS;
   }
   return generateSyntaxErrMsgExt(
       &pCxt->msgBuf, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
-      "external column filters are supported only for direct MySQL, PostgreSQL or SQL Server references");
+      "external column filters are supported only for direct MySQL, PostgreSQL, SQL Server or Oracle "
+      "references");
 }
 
 static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceName, const char* refDb,
@@ -38712,19 +38882,27 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
   //   SQL Server : source.database.schema.table.column, where the 4-part form
   //                source.schema.table.column carries the schema in the middle
   //                segment (mirrors createExtTableRefNode / DS 5.3.3).
+  //   Oracle     : source.schema.table.column; dbName stays empty so the
+  //                service name is never forwarded as a database.
   const char* dbName = refDb;
   const char* schemaName = (NULL != refSchema) ? refSchema : "";
   if (EXT_SOURCE_SQLSERVER == sourceType && schemaName[0] == '\0' && dbName[0] != '\0') {
     schemaName = dbName;
     dbName = "";
+  } else if (EXT_SOURCE_ORACLE == sourceType) {
+    schemaName = (dbName[0] != '\0') ? dbName : pInfo->schema_name;
+    dbName = "";
   }
-  if (dbName[0] == '\0') dbName = pInfo->database;
+  if (dbName[0] == '\0' && EXT_SOURCE_ORACLE != sourceType) dbName = pInfo->database;
   if (schemaName[0] == '\0') schemaName = pInfo->schema_name;
   code = getExternalTableMeta(pCxt, pInfo, sourceName, refDb, refSchema, dbName,
                               schemaName, refTable, false, &pExtMeta);
-  if (pCxt->pParseCxt->async && (TSDB_CODE_SUCCESS != code || NULL == pExtMeta)) {
+  if (pCxt->pParseCxt->async && EXT_SOURCE_ORACLE != sourceType &&
+      (TSDB_CODE_SUCCESS != code || NULL == pExtMeta)) {
     // Fallback: 3-seg speculative pre-fetch uses empty db (source db not known at pre-fetch time).
     // After disambiguation refDb is filled, but the cache key still has empty db  -  try that key.
+    // Oracle registers its pre-scan entry as (schema, "") and has no database
+    // component, so the empty-key retry would resolve the wrong entry.
     if (refDb[0] != '\0') {
       code = getExternalTableMeta(pCxt, pInfo, sourceName, "", NULL, refDb,
                                   pInfo->schema_name, refTable, false, &pExtMeta);
@@ -38741,9 +38919,16 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
                                           "external table '%s.%s' not found", sourceName, refTable));
   }
 
-  // (4) External column must exist
+  // (4) External column must exist.  The exact spelling wins over the folded
+  // one so a quoted "Device" never resolves onto a separate DEVICE column.
   int32_t extColIdx = -1;
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
+    if (0 == strcmp(pExtMeta->pCols[i].colName, refCol)) {
+      extColIdx = i;
+      break;
+    }
+  }
+  for (int32_t i = 0; extColIdx < 0 && i < pExtMeta->numOfCols; i++) {
     if (externalColumnNamesEqual(pInfo->type, pExtMeta->pCols[i].colName, refCol)) {
       extColIdx = i;
       break;
@@ -38779,13 +38964,13 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
   }
 
   // (7) External table must have a timestamp primary key column. The relational
-  // sources (MySQL, PostgreSQL and SQL Server) additionally require every
-  // non-timestamp primary-key column to be fixed by the stored external-column
-  // filter; this call also converts the filter literals to the remote column
-  // types, which the rendering depends on.
+  // sources (MySQL, PostgreSQL, SQL Server and Oracle) additionally require
+  // every non-timestamp primary-key column to be fixed by the stored
+  // external-column filter; this call also converts the filter literals to the
+  // remote column types, which the rendering depends on.
   const SExtColumnDef* pTsPk = NULL;
   if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
-      EXT_SOURCE_SQLSERVER == sourceType) {
+      EXT_SOURCE_SQLSERVER == sourceType || EXT_SOURCE_ORACLE == sourceType) {
     int32_t tsPrimaryKeyIndex = -1;
     PAR_ERR_JRET(nodesValidateExternalFilter(sourceType, pExtMeta, pFilterCond, pCxt->pParseCxt->timezone,
                                              pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len,
@@ -40819,12 +41004,21 @@ int32_t disambiguateThreeSegColOptions(STranslateContext* pCxt, SColumnOptions* 
     tstrncpy(sourceName, pOpts->refDb, sizeof(sourceName));
     pOpts->refType = 1;
     tstrncpy(pOpts->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
-    tstrncpy(pOpts->refDb, pInfo->database, TSDB_DB_NAME_LEN);
-    // SQL Server needs both components: filling the schema here keeps the
-    // resolved namespace distinguishable from a four-part path (where refDb
-    // carries the schema) in the later expansion step.
-    if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
-      tstrncpy(pOpts->refSchema, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    if ((EExtSourceType)pInfo->type == EXT_SOURCE_ORACLE) {
+      // Oracle's single namespace level is the schema: the service name in
+      // pInfo->database is not a namespace and must not be written here.  A
+      // relative three-segment reference keeps it empty; the effective schema
+      // (source default or USE) is resolved later (DS 5.3.10 item 1).
+      pOpts->refDb[0] = '\0';
+      pOpts->refSchema[0] = '\0';
+    } else {
+      tstrncpy(pOpts->refDb, pInfo->database, TSDB_DB_NAME_LEN);
+      // SQL Server needs both components: filling the schema here keeps the
+      // resolved namespace distinguishable from a four-part path (where refDb
+      // carries the schema) in the later expansion step.
+      if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
+        tstrncpy(pOpts->refSchema, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      }
     }
   } else if (isMissingExtSourceInfo(code, pInfo, pOpts->refDb)) {
     // Not an external source  -  keep as internal db.table.col reference
@@ -40855,10 +41049,16 @@ int32_t disambiguateThreeSegColRef(STranslateContext* pCxt, SColumnRefNode* pCol
     tstrncpy(sourceName, pColRef->refDbName, sizeof(sourceName));
     pColRef->refType = 1;
     tstrncpy(pColRef->refSourceName, sourceName, TSDB_EXT_SOURCE_NAME_LEN);
-    tstrncpy(pColRef->refDbName, pInfo->database, TSDB_DB_NAME_LEN);
-    // SQL Server needs both components (see disambiguateThreeSegColOptions).
-    if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
-      tstrncpy(pColRef->refSchemaName, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    if ((EExtSourceType)pInfo->type == EXT_SOURCE_ORACLE) {
+      // Oracle: single namespace level (schema).  See disambiguateThreeSegColOptions.
+      pColRef->refDbName[0] = '\0';
+      pColRef->refSchemaName[0] = '\0';
+    } else {
+      tstrncpy(pColRef->refDbName, pInfo->database, TSDB_DB_NAME_LEN);
+      // SQL Server needs both components (see disambiguateThreeSegColOptions).
+      if ((EExtSourceType)pInfo->type == EXT_SOURCE_SQLSERVER) {
+        tstrncpy(pColRef->refSchemaName, pInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
+      }
     }
   } else if (isMissingExtSourceInfo(code, pInfo, pColRef->refDbName)) {
     // Not an external source  -  keep as internal db.table.col reference

@@ -2784,6 +2784,249 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             )
             add_dependencies(build_externals ext_msodbc)
         endif()  # Microsoft ODBC Driver resolution
+
+        # ──────────────────────────────────────────────────────────────────────
+        # Oracle Instant Client ODBC driver — prebuilt artifact.
+        # The Instant Client is a binary-only distribution (no source build).
+        # Resolution order, same three steps as ext_msodbc:
+        #   1. EXT_ORACLE_SO_SRCPATH      — explicit driver .so path (or its dir)
+        #   2. standard system installs   — /usr/lib/oracle/*/client64/lib, ...
+        #   3. the mirrored artifact      — unpacked when INSTALL_FQ_RUNTIME_LIBS
+        #      is ON (dependency-package / test builds) and LOCAL_URL is set.
+        # The artifact bundles the two official packages (oracle-instantclient-
+        # basic + oracle-instantclient-odbc) unpacked into one directory: the
+        # driver resolves its base libraries by soname from the same directory,
+        # so a split layout does not work (Oracle DS 3.3).  Oracle's license
+        # allows verbatim redistribution but forbids modification, so the file
+        # contents are shipped exactly as published (DS 9.1.7).
+        #
+        # Step 3 is gated on a pinned SHA256 rather than fetched
+        # unconditionally.  The artifact is a release deliverable published to
+        # the dependency mirror separately, so the build must neither assume it
+        # is there (an ExternalProject with a dead URL fails the whole
+        # build_externals target, taking every other external source down with
+        # it) nor download it unverified.  The hash is pinned per architecture
+        # below, the way ext_msodbc pins its artifacts; EXT_ORACLE_ARTIFACT_SHA256
+        # overrides it (an architecture without a published artifact keeps an
+        # empty hash and the driver is skipped with a status message).
+        # ──────────────────────────────────────────────────────────────────────
+        set(_oracle_artifact "")
+        set(_oracle_artifact_hash "")
+        # Windows-only: the two official zips the merged artifact is made of.
+        # They are the fallback when LOCAL_URL is empty or its artifact does
+        # not match the pinned hash (see download_oracle_instantclient_windows.cmake).
+        set(_oracle_windows_basic_url "")
+        set(_oracle_windows_basic_hash "")
+        set(_oracle_windows_odbc_url "")
+        set(_oracle_windows_odbc_hash "")
+        if(TD_WINDOWS)
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
+                set(_oracle_artifact "oracle-instantclient-23.26.4.0.0-windows-amd64.zip")
+                # Published 2026-10-28: instantclient-basic-windows.x64-23.26.4.0.0.zip
+                # + instantclient-odbc-windows.x64-23.26.4.0.0.zip unpacked into
+                # one instantclient_23_26/ directory and repacked verbatim.
+                set(_oracle_artifact_hash
+                    "8b5ff789f4d115ff450135cf42c1e5616783e4c19074b0fc23bab57dc83c3594")
+                set(_oracle_windows_basic_url
+                    "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-basic-windows.x64-23.26.4.0.0.zip")
+                set(_oracle_windows_basic_hash
+                    "09e9b81cd492f5ce6f671317c23a0e1f5dee5e786258149d216321c3dad3023f")
+                set(_oracle_windows_odbc_url
+                    "https://download.oracle.com/otn_software/nt/instantclient/2326400/instantclient-odbc-windows.x64-23.26.4.0.0.zip")
+                set(_oracle_windows_odbc_hash
+                    "621ed172606c2c1e6af9b5d13f0567e536d0960ea47aadbef8208a0e86d81548")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                # Oracle publishes no ARM64 Windows Instant Client; leaving the
+                # artifact empty makes the resolution below skip the driver
+                # with a status message instead of failing the build.
+            endif()
+        elseif(NOT ${TD_DARWIN})
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
+                set(_oracle_artifact "oracle-instantclient-23.26.0.0.0-amd64.tar.gz")
+                # Published 2026-10-28: instantclient-basic + instantclient-odbc
+                # zips (23.26) unpacked into one directory, contents unmodified,
+                # plus the runtime dependency libaio.so.1 (LGPL-2.1, with its
+                # copyright file).  The Instant Client libraries link libaio and
+                # the CI test image does not ship it; neither does every build
+                # container, so the driver chain would fail to load with
+                # "Can't open lib ... : file not found".
+                set(_oracle_artifact_hash
+                    "b3ed09bb03fb423857bd1a91a3a87d0a012c40025dba7d1c5ab060d7a57cc864")
+            elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+                set(_oracle_artifact "oracle-instantclient-23.26.0.0.0-arm64.tar.gz")
+            endif()
+        endif()
+
+        # The ExternalProject branch caches its staged lib directory as the
+        # driver path, and that value keeps its $<CONFIG> expressions until
+        # generate time.  It is not a user-supplied prebuilt driver: treating
+        # it as one on a re-configure silently drops the ext_oracle target.
+        set(_oracle_prebuilt "")
+        set(_oracle_srcpath_is_prebuilt FALSE)
+        if(DEFINED EXT_ORACLE_SO_SRCPATH AND NOT "${EXT_ORACLE_SO_SRCPATH}" STREQUAL "")
+            string(FIND "${EXT_ORACLE_SO_SRCPATH}" "$<" _oracle_srcpath_genexpr)
+            if(_oracle_srcpath_genexpr EQUAL -1)
+                set(_oracle_srcpath_is_prebuilt TRUE)
+            endif()
+        endif()
+        if(_oracle_srcpath_is_prebuilt)
+            set(_oracle_prebuilt "${EXT_ORACLE_SO_SRCPATH}")
+        elseif(NOT TD_WINDOWS)
+            # Windows has no standard Instant Client install location: the
+            # driver is always registered with the system driver manager by
+            # the setup script, and the provider resolves it through that
+            # registration, so only the prebuilt and artifact paths apply.
+            file(GLOB _oracle_candidates
+                    "/usr/lib/oracle/*/client64/lib"
+                    "/usr/lib/oracle/*/client/lib"
+                    "/opt/oracle/instantclient*"
+                    "/usr/lib/instantclient*")
+            foreach(_oracle_dir ${_oracle_candidates})
+                file(GLOB _oracle_found "${_oracle_dir}/libsqora.so.*")
+                if(_oracle_found)
+                    list(GET _oracle_found 0 _oracle_prebuilt)
+                    break()
+                endif()
+            endforeach()
+        endif()
+
+        if(_oracle_prebuilt)
+            message(STATUS "[ext_oracle] Using prebuilt Oracle Instant Client ODBC driver: ${_oracle_prebuilt}")
+            set(EXT_ORACLE_SO_SRCPATH "${_oracle_prebuilt}" CACHE INTERNAL "")
+        elseif(NOT INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_oracle] No Oracle Instant Client ODBC driver found (set EXT_ORACLE_SO_SRCPATH "
+                "to the libsqora .so / sqora DLL or its directory); the Oracle external source will "
+                "report TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT at connect time")
+        elseif("z${_oracle_artifact}" STREQUAL "z")
+            message(STATUS
+                "[ext_oracle] Oracle Instant Client artifact unavailable for this platform "
+                "(processor=${CMAKE_SYSTEM_PROCESSOR}); the packaged driver will be missing")
+        elseif("z${LOCAL_URL}" STREQUAL "z" AND NOT TD_WINDOWS)
+            # Windows deliberately does not require LOCAL_URL: when the mirror
+            # artifact is absent the download script falls back to the two
+            # official zips (each hash-pinned), so a public build stays usable.
+            message(STATUS
+                "[ext_oracle] Oracle Instant Client artifact unavailable for this platform/mirror "
+                "(LOCAL_URL=${LOCAL_URL}); the packaged driver will be missing")
+        elseif("z${EXT_ORACLE_ARTIFACT_SHA256}" STREQUAL "z" AND "z${_oracle_artifact_hash}" STREQUAL "z")
+            message(STATUS
+                "[ext_oracle] Oracle Instant Client artifact ${_oracle_artifact} is not published for "
+                "this architecture yet (no pinned SHA256); the packaged driver will be missing. "
+                "Set EXT_ORACLE_ARTIFACT_SHA256 to a published tarball's SHA256 to stage it")
+        else()
+            set(_oracle_sha256 "${EXT_ORACLE_ARTIFACT_SHA256}")
+            if("z${_oracle_sha256}" STREQUAL "z")
+                set(_oracle_sha256 "${_oracle_artifact_hash}")
+            endif()
+            INIT_DIRS(ext_oracle ${TD_EXTERNALS_BASE_DIR})
+            if(TD_WINDOWS)
+                # No ExternalProject URL: the merged mirror artifact and the
+                # official zips have different shapes, so a build-time script
+                # resolves and unpacks whichever is available.  <SOURCE_DIR>
+                # is populated with instantclient_23_26/ and the shared
+                # install script stages its contents into ${_ins}/lib.
+                set(_oracle_src_dir "${_base}/src/ext_oracle")
+                set(_oracle_mirror_url "")
+                if(NOT "z${LOCAL_URL}" STREQUAL "z")
+                    set(_oracle_mirror_url "${LOCAL_URL}/${_oracle_artifact}")
+                endif()
+                ExternalProject_Add(ext_oracle
+                    PREFIX "${_base}"
+                    SOURCE_DIR "${_oracle_src_dir}"
+                    DOWNLOAD_COMMAND ${CMAKE_COMMAND}
+                        -Dwork_dir=${_oracle_src_dir}
+                        -Dmirror_url=${_oracle_mirror_url}
+                        -Dmirror_sha256=${_oracle_sha256}
+                        -Dbasic_url=${_oracle_windows_basic_url}
+                        -Dbasic_sha256=${_oracle_windows_basic_hash}
+                        -Dodbc_url=${_oracle_windows_odbc_url}
+                        -Dodbc_sha256=${_oracle_windows_odbc_hash}
+                        -P "${CMAKE_CURRENT_LIST_DIR}/download_oracle_instantclient_windows.cmake"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=${_oracle_src_dir}
+                            -Ddst=${_ins}/lib
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            else()
+                get_from_local_if_exists(
+                    "https://download.oracle.com/otn_software/linux/instantclient/${_oracle_artifact}"
+                    "${_oracle_artifact}"
+                )
+                ExternalProject_Add(ext_oracle
+                    URL ${_url}
+                    URL_HASH SHA256=${_oracle_sha256}
+                    PREFIX "${_base}"
+                    CONFIGURE_COMMAND ""
+                    BUILD_COMMAND ""
+                    # The layout picker runs as a build-time CMake script: a
+                    # multi-line `bash -c` argument here is split on its newlines by
+                    # the generated makefile and never copies anything.
+                    INSTALL_COMMAND
+                        COMMAND ${CMAKE_COMMAND}
+                            -Dsrc=<SOURCE_DIR>
+                            -Ddst=${_ins}/lib
+                            -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                    EXCLUDE_FROM_ALL TRUE
+                    VERBATIM
+                )
+            endif()
+            add_dependencies(build_externals ext_oracle)
+            set(EXT_ORACLE_SO_SRCPATH "${_ins}/lib" CACHE INTERNAL "")
+        endif()  # Oracle Instant Client resolution
+
+        # 19c Instant Client: the client generation that supports 11g R2.
+        # The bundle is the two official zips (Basic + ODBC) unpacked into one
+        # directory plus libaio.so.1, repacked verbatim; Oracle's license allows
+        # verbatim redistribution but forbids modification (Oracle DS 9.1.7).
+        # It is published to the dependency mirror under the same package as
+        # the 23ai bundle, so the mirror URL is the default and the pinned hash
+        # is the only thing a build trusts.  EXT_ORACLE_19C_ARTIFACT /
+        # _SHA256 override both for a different mirror.
+        set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-amd64.tar.gz")
+        set(_oracle19c_artifact_hash
+            "18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a")
+        set(EXT_ORACLE_19C_ARTIFACT "" CACHE STRING
+            "URL of the 19c Instant Client bundle (Basic + ODBC)")
+        set(EXT_ORACLE_19C_ARTIFACT_SHA256 "" CACHE STRING
+            "SHA256 of the 19c Instant Client bundle")
+        set(_oracle19c_url "${EXT_ORACLE_19C_ARTIFACT}")
+        set(_oracle19c_sha "${EXT_ORACLE_19C_ARTIFACT_SHA256}")
+        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL "")
+            set(_oracle19c_url "${LOCAL_URL}/${_oracle19c_artifact}")
+            set(_oracle19c_sha "${_oracle19c_artifact_hash}")
+        endif()
+        if(NOT TD_WINDOWS AND NOT TD_DARWIN
+           AND NOT "z${_oracle19c_url}" STREQUAL "z"
+           AND NOT "z${_oracle19c_sha}" STREQUAL "z")
+            INIT_DIRS(ext_oracle_19c ${TD_EXTERNALS_BASE_DIR})
+            ExternalProject_Add(ext_oracle_19c
+                URL "${_oracle19c_url}"
+                URL_HASH SHA256=${_oracle19c_sha}
+                PREFIX "${_base}"
+                CONFIGURE_COMMAND ""
+                BUILD_COMMAND ""
+                INSTALL_COMMAND
+                    COMMAND ${CMAKE_COMMAND}
+                        -Dsrc=<SOURCE_DIR>
+                        -Ddst=${_ins}/lib
+                        -P "${CMAKE_CURRENT_LIST_DIR}/install_oracle_instantclient.cmake"
+                EXCLUDE_FROM_ALL TRUE
+                VERBATIM
+            )
+            add_dependencies(build_externals ext_oracle_19c)
+            set(EXT_ORACLE_19C_SO_SRCPATH "${_ins}/lib" CACHE INTERNAL "")
+        elseif(INSTALL_FQ_RUNTIME_LIBS)
+            message(STATUS
+                "[ext_oracle_19c] 19c Instant Client bundle not configured "
+                "(EXT_ORACLE_19C_ARTIFACT / _SHA256, or a dependency mirror); "
+                "the 11g client tree will be missing")
+        endif()
     endif()  # BUILD_WITH_ODBC
 
 endif()   # } TD_ENTERPRISE ext connector client libraries

@@ -154,6 +154,18 @@ clean_odbc() {
     rm -f "${RUNTIME_DIR}"/libodbc* 2>/dev/null || true
 }
 
+clean_oracle() {
+    rm -f "${RUNTIME_DIR}"/libsqora* \
+          "${RUNTIME_DIR}"/libclntsh* \
+          "${RUNTIME_DIR}"/libnnz* \
+          "${RUNTIME_DIR}"/libons* \
+          "${RUNTIME_DIR}"/libnfsodm* \
+          "${RUNTIME_DIR}"/liborazt* \
+          "${RUNTIME_DIR}"/libociei* \
+          "${RUNTIME_DIR}"/legacy.so* \
+          "${RUNTIME_DIR}"/fips*.so* 2>/dev/null || true
+}
+
 ensure_mysql() {
     local ver="${FQ_MYSQL_RUNTIME_VERSION:-$(first_csv_value "${FQ_MYSQL_VERSIONS:-8.0}")}"
     if [ "${OS}" = "Darwin" ]; then
@@ -342,6 +354,57 @@ ensure_msodbc_resources() {
     return 1
 }
 
+# Oracle Instant Client (Basic + ODBC packages) ships the ODBC driver
+# `libsqora.so.<ver>` together with the Instant Client base libraries it
+# resolves by soname.  Both must land in the same runtime directory: the
+# provider resolves the driver by absolute path there and preloads the base
+# libraries with RTLD_GLOBAL.
+#
+# `legacy.so` belongs to that set even though nothing links against it: the
+# driver dlopen()s it to support the newer password verifiers, and without it
+# a 26ai instance rejects every login with ORA-28041.
+ensure_oracle() {
+    # Every Instant Client shared object except legacy.so links libaio; the
+    # bundle ships it because the CI test image does not provide it (the driver
+    # manager then reports "Can't open lib ...: file not found").  A runtime
+    # dir that already has the driver but not libaio is still incomplete.
+    if { has_glob "${RUNTIME_DIR}" 'libsqora*.so*' ||
+         has_glob "${RUNTIME_DIR}" 'libsqora*.dylib*'; } &&
+       { [ "${OS}" = "Darwin" ] || has_glob "${RUNTIME_DIR}" 'libaio*.so*'; }; then
+        return 0
+    fi
+
+    local dir
+    copy_glob "${STAGED_DIR}" 'libsqora*.so*' 'libclntsh*.so*' 'libclntshcore*.so*' \
+        'libnnz*.so*' 'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'libociei*.so*' \
+        'legacy.so*' 'fips*.so*' 'libaio*.so*' \
+        'libsqora*.dylib*' 'libclntsh*.dylib*' || true
+    copy_glob "${REPO_ROOT}/.externals/install/ext_oracle/${TD_CONFIG_NAME:-Debug}/lib" \
+        'libsqora*.so*' 'libclntsh*.so*' 'libclntshcore*.so*' 'libnnz*.so*' \
+        'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'libociei*.so*' 'legacy.so*' \
+        'libaio*.so*' || true
+    copy_glob "${BUILD_DIR}/build/driver/oracle" 'libsqora*.so*' 'libclntsh*.so*' \
+        'libclntshcore*.so*' 'libnnz*.so*' 'libons*.so*' 'libnfsodm*.so*' \
+        'liborazt*.so*' 'libociei*.so*' 'legacy.so*' 'libaio*.so*' || true
+    # An explicitly configured bundle (the CI image and a developer's own
+    # Instant Client extraction both land here).
+    for dir in "${FQ_ORACLE_RUNTIME_DIR:-}" \
+               "${FQ_BASE_DIR}/oracle/instantclient" \
+               "${FQ_BASE_DIR}/oracle/instantclient"/*; do
+        [ -d "${dir}" ] || continue
+        copy_glob "${dir}" 'libsqora*.so*' 'libclntsh*.so*' 'libclntshcore*.so*' \
+            'libnnz*.so*' 'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' \
+            'libociei*.so*' 'legacy.so*' 'fips*.so*' 'libaio*.so*' \
+            'libsqora*.dylib*' 'libclntsh*.dylib*' || true
+    done
+    copy_glob /usr/lib/oracle 'libsqora*.so*' 'libclntsh*.so*' 'libclntshcore*.so*' \
+        'libnnz*.so*' 'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'libociei*.so*' \
+        'legacy.so*' 'libaio*.so*' || true
+
+    has_glob "${RUNTIME_DIR}" 'libsqora*.so*' ||
+        has_glob "${RUNTIME_DIR}" 'libsqora*.dylib*'
+}
+
 if ! ensure_mysql; then
     echo "[fq-runtime] missing MySQL runtime libs; set FQ_MYSQL_RUNTIME_URL to a libmariadb runtime archive" >&2
     exit 1
@@ -368,10 +431,100 @@ if ! ensure_msodbc_resources; then
     echo "[fq-runtime]          SQL Server connections will fail with SQLAllocHandle(HENV)." >&2
 fi
 
+# Oracle Instant Client (Basic + ODBC) travels as one bundle: the provider
+# resolves `libsqora.so.<ver>` by absolute path from this directory and
+# preloads the Instant Client base libraries it needs (libclntsh and the leaf
+# libraries) with RTLD_GLOBAL, so no ORACLE_HOME / ld.so.conf entry is needed.
+# Only Oracle needs them, so a miss is a warning like SQL Server's.
+if ! ensure_oracle; then
+    echo "[fq-runtime] WARNING: Oracle Instant Client (libsqora.so.*) not found; Oracle" >&2
+    echo "[fq-runtime]          federated-query tests will fail. Set FQ_ORACLE_RUNTIME_DIR" >&2
+    echo "[fq-runtime]          (or EXT_ORACLE_SO_SRCPATH), or rebuild with" >&2
+    echo "[fq-runtime]          INSTALL_FQ_RUNTIME_LIBS=ON." >&2
+fi
+
+# A build tree stages both Instant Client generations under
+# build/driver/oracle/<version> and selects one through the `active` marker.
+# The marker is written at configure time, but the same tree serves every
+# test run: CI defaults to an 11g server (19c client), while a manual 26ai
+# run needs 23ai.  Align the marker with the selection this run is validated
+# against; a tree without the versioned layout (an installed package, or a
+# build that staged only one flat client) is left untouched.
+select_oracle_client() {
+    local layout="${BUILD_DIR}/build/driver/oracle"
+    local want="${FQ_ORACLE_ACTIVE_CLIENT:-}"
+    if [ -z "${want}" ]; then
+        case "$(printf '%s' "${FQ_ORACLE_VERSIONS:-11g}" | cut -d, -f1)" in
+            11g|12c|18c) want=19c ;;
+            *) want=23ai ;;
+        esac
+    fi
+    [ -d "${layout}/${want}" ] || return 0
+    # The 19c Instant Client's libnnz19.so carries no SONAME, so the loader
+    # cannot satisfy libclntsh's DT_NEEDED for it from the preloaded objects
+    # alone; put the active client directory on the library search path.
+    # It has to come before build/lib, whose flat client copies belong to the
+    # other generation.
+    oracleClientDir="${layout}/${want}"
+    if [ -f "${layout}/active" ] && \
+       [ "$(cat "${layout}/active" 2>/dev/null)" = "${want}" ]; then
+        return 0
+    fi
+    printf '%s\n' "${want}" > "${layout}/active"
+    echo "[fq-runtime] Oracle client ${want} selected for ${FQ_ORACLE_VERSIONS:-11g}" >&2
+}
+oracleClientDir=""
+select_oracle_client
+
+# The client-side planner opens Oracle connections in the pytest process
+# itself, whose loader search path was fixed at exec time and therefore never
+# sees a per-run directory prepend.  Keep the flat client copy in build/lib in
+# step with the selected generation: both the pytest process and the taosd it
+# starts resolve libnnz*/libclntsh* from there.  The other generation's stale
+# copies are removed first so a flat symlink cannot redirect a copy into the
+# wrong file.
+flatten_oracle_client() {
+    local dir="$oracleClientDir"
+    [ -n "$dir" ] || return 0
+    local pattern src base tmp
+    local -A keep=()
+    # Copy through a temporary name and rename into place: replacing a file
+    # that a running process has mmap'ed by truncation turns the next access
+    # into SIGBUS, while an atomic rename leaves the old inode intact.
+    for pattern in 'libsqora*.so*' 'libclntsh*.so*' 'libnnz*.so*' 'libociei*.so*' \
+                   'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'legacy.so*' \
+                   'fips*.so*' 'libaio*.so*'; do
+        for src in "${dir}"/${pattern}; do
+            [ -e "${src}" ] || continue
+            base=${src##*/}
+            keep["${base}"]=1
+            tmp="${RUNTIME_DIR}/.fq-oracle.$$.${base}"
+            if cp -Lf "${src}" "${tmp}"; then
+                mv -f "${tmp}" "${RUNTIME_DIR}/${base}"
+            else
+                rm -f "${tmp}"
+            fi
+        done
+    done
+    # Drop files from the other generation that the selected client does not
+    # provide (libnnz.so, legacy.so, ...), so a by-name lookup cannot pick a
+    # foreign client.
+    for pattern in 'libsqora*.so*' 'libclntsh*.so*' 'libnnz*.so*' 'libociei*.so*' \
+                   'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'legacy.so*' \
+                   'fips*.so*' 'libaio*.so*'; do
+        for src in "${RUNTIME_DIR}"/${pattern}; do
+            [ -e "${src}" ] || continue
+            base=${src##*/}
+            [ -n "${keep[${base}]:-}" ] || rm -f "${src}"
+        done
+    done
+}
+flatten_oracle_client
+
 bash "${STAGE_SCRIPT}" fix-darwin-rpaths "${RUNTIME_DIR}" || true
 
 cat <<EOF
 [fq-runtime] staged runtime libs in ${RUNTIME_DIR}
-export LD_LIBRARY_PATH=${RUNTIME_DIR}:\$LD_LIBRARY_PATH
-export DYLD_LIBRARY_PATH=${RUNTIME_DIR}:\$DYLD_LIBRARY_PATH
+export LD_LIBRARY_PATH=${oracleClientDir:+${oracleClientDir}:}${RUNTIME_DIR}:\$LD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=${oracleClientDir:+${oracleClientDir}:}${RUNTIME_DIR}:\$DYLD_LIBRARY_PATH
 EOF

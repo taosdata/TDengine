@@ -371,7 +371,22 @@ def before_test_session(request):
     request.session.work_dir = request.session.before_test.get_and_mkdir_workdir(request.session.work_dir, request.session.taos_bin_path)
     if request.session.clean and os.path.exists(request.session.work_dir):
         tdLog.info(f"rm {request.session.work_dir} before deploy")
-        shutil.rmtree(request.session.work_dir)
+        # A taosd that is still shutting down can keep a log file mapped for a moment
+        # after it is signalled.  On Windows that open handle makes rmtree() fail with
+        # WinError 32 and aborts the case during setup, so retry instead of giving up on
+        # the first attempt.
+        last_err = None
+        for attempt in range(10):
+            try:
+                shutil.rmtree(request.session.work_dir)
+                last_err = None
+                break
+            except OSError as e:
+                last_err = e
+                tdLog.info(f"rmtree {request.session.work_dir} failed (attempt {attempt + 1}): {e}")
+                time.sleep(2)
+        if last_err is not None:
+            raise last_err
 
     # 获取yaml文件，缓存到servers变量中，供cls使用
     if request.config.getoption("--yaml_file"):
@@ -438,6 +453,15 @@ def before_test_session(request):
             request.session.create_dnode_num = request.session.denodes_num
 
         request.session.before_test.get_config_from_param(request)
+
+    # Publish the validated bin path back into the environment.  A machine-wide
+    # TAOS_BIN_PATH can be stale (it may name a build root that no longer
+    # exists); get_taos_bin_path() already falls back to the local tree, but
+    # tests and helper modules that look the client up by reading the variable
+    # directly -- and every subprocess they spawn -- would otherwise keep using
+    # the stale directory while the deployment itself used the fallback.
+    if request.session.taos_bin_path:
+        os.environ['TAOS_BIN_PATH'] = request.session.taos_bin_path
 
     if request.session.work_dir is None:
         raise pytest.UsageError("WORK_DIR is not set")

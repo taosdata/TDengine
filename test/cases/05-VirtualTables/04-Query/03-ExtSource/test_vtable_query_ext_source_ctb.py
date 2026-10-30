@@ -27,6 +27,9 @@ from vtable_util import VtableQueryUtil
 pytestmark = pytest.mark.timeout(3600)
 
 
+# Oracle coverage map (Oracle TS 5.7.2): TestVTableQueryExtSourceOracleCtb
+# and ...OracleMixedCtb below cover FQOR-VTBL-012 (zero-pushdown virtual
+# table query) on the child-table form.
 class _ExtSourceCtbQueryBase:
     @classmethod
     def setup_class(cls):
@@ -42,7 +45,9 @@ class _ExtSourceCtbQueryBase:
         sql_file = os.path.join(case_dir, "in", f"{test_case}.in")
         ans_file = os.path.join(case_dir, "ans", f"{test_case}.ans")
         VtableQueryUtil.compare_ext_source_testcase_result(
-            sql_file, ans_file, test_case, float_tolerance=1e-1
+            sql_file, ans_file, test_case, float_tolerance=1e-1,
+            bool_text_columns=getattr(self, "NORMALIZE_BOOL_TEXT", False),
+            relative_tolerance=getattr(self, "RELATIVE_TOLERANCE", 0.0)
         )
 
     def test_projection(self):
@@ -217,6 +222,25 @@ class TestVTableQueryExtSourceSqlserverCtb(_ExtSourceCtbQueryBase):
         vtb_util.prepare_ext_source_vtables("sqlserver")
 
 
+# Oracle is also a step-1 (zero pushdown) source: predicates and aggregations
+# stay local and the remote SQL is a plain base scan, so the shared golden
+# files apply unchanged. Its external timestamps are millisecond-precision
+# (TIMESTAMP(3)), matching the shared millisecond baselines.
+class TestVTableQueryExtSourceOracleCtb(_ExtSourceCtbQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_ext_source_vtables("oracle")
+
+
 class TestVTableQueryExtSourceInfluxMixedCtb(_ExtSourceCtbQueryBase):
     @classmethod
     def _prepare_vtables(cls):
@@ -245,7 +269,30 @@ class TestVTableQueryExtSourceSqlserverMixedCtb(_ExtSourceCtbQueryBase):
         vtb_util.prepare_mixed_source_vtables("sqlserver")
 
 
+class TestVTableQueryExtSourceOracleMixedCtb(_ExtSourceCtbQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_mixed_source_vtables("oracle")
+
+
 class TestVTableQueryExtSourceAllCtb(_ExtSourceCtbQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
     @classmethod
     def _prepare_vtables(cls):
         vtb_util = VtableQueryUtil()
@@ -255,8 +302,8 @@ class TestVTableQueryExtSourceAllCtb(_ExtSourceCtbQueryBase):
         """Projection with a timestamp-range filter over the all-sources table.
 
         Runs the shared projection/range case where every column is backed by a
-        different source (the multi-source cycle includes SQL Server), so the query
-        exercises cross-source column binding end to end.
+        different source (the multi-source cycle includes SQL Server and Oracle),
+        so the query exercises cross-source column binding end to end.
 
         Since: v3.4.4.0
 

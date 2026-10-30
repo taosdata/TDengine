@@ -826,6 +826,7 @@ Below are the business error codes for each module.
 | 0x8000641D | External object identifier is too long | An external source, database, schema, table, or column identifier exceeds its TDengine limit | Use an identifier within the limit; the system never truncates or prefix-matches it |
 | 0x8000641E | Too many external columns required by query | The current SQL statement references more external columns than TDengine permits | Reduce the columns referenced by this query; an oversized external table alone does not cause this error |
 | 0x8000641F | Too many external tags required by query | The current SQL statement references more external tags than TDengine permits | Reduce the tags referenced by this query; an oversized external measurement alone does not cause this error |
+| 0x80006420 | Oracle client and server versions are not compatible | The Oracle client and server version combination is not supported | Use an Oracle Instant Client that matches the server version |
 
 #### stream
 

@@ -40,6 +40,7 @@
 100,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbAgg::test_agg_partition_expr
 100,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_group cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_tag_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_time_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbAgg::test_agg_partition_expr
 100,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_group cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_tag_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_time_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbAgg::test_agg_partition_expr
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleStbAgg::test_agg cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleStbAgg::test_agg_group cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleStbAgg::test_agg_tag_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleStbAgg::test_agg_time_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleStbAgg::test_agg_partition_expr
 100,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg
 100,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_group
 100,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_tag_filter
@@ -47,6 +48,7 @@
 100,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbAgg::test_agg_partition_expr
 100,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_group cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_tag_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_time_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbAgg::test_agg_partition_expr
 100,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_group cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_tag_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_time_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg::test_agg_partition_expr
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleMixedStbAgg::test_agg cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleMixedStbAgg::test_agg_group cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleMixedStbAgg::test_agg_tag_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleMixedStbAgg::test_agg_time_filter cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleMixedStbAgg::test_agg_partition_expr
 100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg
 100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_group
 100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_tag_filter
@@ -264,7 +266,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_alter_subtable.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_select.py
-100,,y,.,CASE_TIMEOUT=1300 env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
+100,,y,.,CASE_TIMEOUT=1300 env FQ_REQUIRED_SERVICES=mysql,pg,influx,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create_batch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_drop.py
@@ -272,11 +274,11 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_child_ext_col_tag.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_create_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_alter_ext_source.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_drop_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_drop_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_ddl_persistence.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_filter_ext_source.py
-100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_meta_ext_source.py
-100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_series_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_filter_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_meta_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_series_ext_source.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/03-Insert/test_vtable_insert.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_join.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_super_child_table_max_column
@@ -291,14 +293,14 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_last_time_range.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_order_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_timerange.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ts_subquery.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_optimize.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_federated.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_federated.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_optimize.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_ext_source.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_federated_batch.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_federated_batch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_replace_tbname.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_after_alter.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_after_alter_origin_table.py
@@ -311,41 +313,51 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbBasic
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxCtb
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlCtb
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter_batch.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter_batch.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgCtb
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceOracleCtb
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceInfluxMixedCtb
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceMysqlMixedCtb
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourcePgMixedCtb
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceOracleMixedCtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ctb.py::TestVTableQueryExtSourceAllCtb
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxNtb
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlNtb
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgNtb
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceOracleNtb
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceInfluxMixedNtb
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceMysqlMixedNtb
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourcePgMixedNtb
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceOracleMixedNtb
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_ntb.py::TestVTableQueryExtSourceAllNtb
 100,,y,.,CASE_TIMEOUT=3600 env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxStbBasic --timeout=3600
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleStbBasic
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceOracleMixedStbBasic
 100,1,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbBasic
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceInfluxVtbRefStb
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceMysqlVtbRefStb
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourcePgVtbRefStb
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_vtb_ref_stb.py::TestVTableQueryExtSourceOracleVtbRefStb
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_describe_shows_filter
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_vtable_queryable
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_mixed_series_queryable
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_series.py::TestVTableQueryExtSourceSeries::test_series_isolation
-100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_pg_normal_vtable_query_fails_when_backend_down_and_recovers
-100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_influx_normal_vtable_query_fails_when_backend_down_and_recovers
-100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_vstable_query_fails_when_one_child_backend_down_and_recovers
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_pg_normal_vtable_query_fails_when_backend_down_and_recovers
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_influx_normal_vtable_query_fails_when_backend_down_and_recovers
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_vstable_query_fails_when_one_child_backend_down_and_recovers
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_oracle_normal_vtable_query_fails_when_backend_down_and_recovers
+100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_oracle_stable_query_fails_when_child_backend_down_and_recovers
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_sqlserver.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_mysql_timestamp_pushdown.py
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_postgres_timestamp_pushdown.py
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_oracle_timestamp_pushdown.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_eliminate_virtual_scan.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_optimize_type_mismatch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/01-SameDb/test_vtable_query_same_db_ctb.py::TestVTableQuerySameDBCtb
@@ -716,6 +728,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/18-Stability/test_query_stability26.py
 
+## Oracle dependency package / install script (no database required)
+100,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest ../packaging/test_fq_oracle_install.py
+
 ## 19-FederatedQuery
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py
@@ -723,16 +738,24 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py
 100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_001_defaults
 100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_002_alter_and_verify
-100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_003_behavioral
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=mysql,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_003_behavioral
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_001
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_002
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_003
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_004
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_005
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_005
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_006
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_007
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_008
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_009
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_007
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_008
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_009
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_001_002
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_003_004
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_006_007
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_008
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_010
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_012
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_013
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_06_retry_policy.py::TestFq06RetryPolicy::test_fq_06_fqor_err_014
 100,,y,.,CASE_TIMEOUT=1500 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_07_boundary_contracts.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_08_system_observability.py
 100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_001_continuous_query_mix
@@ -751,6 +774,12 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_s09_sqlserver_repeat_consistency
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_s10_sqlserver_namespace_isolation
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_s11_sqlserver_restart_and_recovery
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o01_oracle_repeat_consistency
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o02_oracle_restart_and_recovery
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o03_oracle_namespace_isolation
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o04_oracle_mixed_workload
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o05_oracle_pool_exhaustion_recovery
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle,pg ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o06_oracle_multi_source_partial_failure
 100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_10_performance.py::TestFq10Performance::test_fq_perf_001_single_source_full_pushdown
 100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_10_performance.py::TestFq10Performance::test_fq_perf_002_single_source_zero_pushdown
 100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_10_performance.py::TestFq10Performance::test_fq_perf_003_pushdown_vs_zero_pushdown
@@ -779,11 +808,25 @@
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_join_timetruncate_external_sort_matrix
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_parity_disorder
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_parity_epoch_window_disorder
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_projection_pruning
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_zero_pushdown
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_three_paths
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_repeat_execution
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_views
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_large_result_set
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_type_semantics
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_14_result_parity.py::TestFq14ResultParity::test_fq_oracle_cross_source_join
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s01_mysql_stop_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s02_mysql_kill_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s03_mysql_restart_recovery cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s04_mysql_burst_all_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s05_mysql_schema_down_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s07_mysql_repeated_cycles
 100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s01_pg_stop_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s02_pg_kill_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s03_pg_restart_recovery cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s04_pg_burst_all_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s05_pg_schema_down_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s07_pg_repeated_cycles
 100,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s01_influx_stop_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s02_influx_kill_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s03_influx_restart_recovery cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s04_influx_burst_all_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s05_influx_schema_down_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s06_influx_isalive_probe cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s07_influx_repeated_cycles
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s01_sqlserver_stop_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s02_sqlserver_kill_query_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s03_sqlserver_restart_recovery cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s04_sqlserver_burst_all_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s05_sqlserver_schema_down_bounded cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s07_sqlserver_repeated_cycles
-100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_mysql_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_pg_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_influx_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_sqlserver_black_hole_timeout
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s01_oracle_stop_query_bounded
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s02_oracle_kill_query_bounded
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s03_oracle_restart_recovery
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s04_oracle_burst_all_bounded
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s05_oracle_schema_down_bounded
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s07_oracle_repeated_cycles
+100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_mysql_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_pg_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_influx_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_sqlserver_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_oracle_black_hole_timeout cases/09-DataQuerying/19-FederatedQuery/test_fq_15_service_disruption.py::TestFq15ServiceDisruption::test_svc_s08_oracle_syn_drop_bounded
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_16_multi_table_parity.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_17_unsupported_ops.py
 100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_18_source_specific.py
@@ -795,6 +838,11 @@
 100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_fq_runtime_provider_libs_available
 100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_fq_runtime_provider_libs_missing
 100,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_sqlserver_missing_driver_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_runtime_libs_available
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_driver_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_unixodbc_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_instant_client_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_pool_disconnect_reconnects
 
 ## 20-Charset
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/20-Charset/test_query_client_charset.py

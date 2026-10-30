@@ -29,3 +29,9 @@ explain verbose true select _wstart, _wend, sum(mysql_a_v), sum(mysql_b_v), sum(
 
 # optimized: SQL Server source mixed with the internal table
 explain verbose true select _wstart, _wend, sum(local_v), sum(sqlserver_v) from vt_window_federated_batch.vst_local_ss interval(2s) order by _wstart;
+
+# Oracle source mixed across two tables of one source
+explain verbose true select _wstart, _wend, sum(primary_v), sum(aux_v) from vt_window_federated_batch.vst_oracle_sources interval(2s) order by _wstart;
+
+# optimized: Oracle source mixed with the internal table
+explain verbose true select _wstart, _wend, sum(local_v), sum(oracle_v) from vt_window_federated_batch.vst_local_oracle interval(2s) order by _wstart;

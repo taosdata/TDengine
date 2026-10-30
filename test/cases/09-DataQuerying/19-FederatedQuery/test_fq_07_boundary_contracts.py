@@ -62,13 +62,22 @@ _MYSQL = "mysql"
 _PG = "postgresql"
 _INFLUX = "influxdb"
 _SQLSERVER = "sqlserver"
-_ALL_SOURCES = (_MYSQL, _PG, _INFLUX, _SQLSERVER)
+_ORACLE = "oracle"
+_ALL_SOURCES = (_MYSQL, _PG, _INFLUX, _SQLSERVER, _ORACLE)
 
 _MYSQL_DB = "fq07_boundary_m"
 _PG_DB = "fq07_boundary_p"
 _INFLUX_DB = "fq07_boundary_i"
 _SQLSERVER_DB = "fq07_boundary_s"
 _LOCAL_DB = "fq07_boundary_local"
+
+# A schema is a login user in Oracle, so the login account's own schema is the
+# single namespace level every fq07 fixture table is created in (DS 5.3.2).
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_FIXTURE_TABLES = (
+    "boundary_t", "schema_t", "unknown_t", "value_t", "quoted_t", "interp_t",
+    "fetch_t", "structured_t",
+)
 
 _BOUNDARY_EPOCH_MS = (1704067200000, 1704067260000, 1704067320000)
 _NCHAR_LIMIT_CHARS = 16379
@@ -506,9 +515,22 @@ _QUERY_CASES = (
     ),
 )
 
+# Per-source expected rows for the two cases that assert a column whose Oracle
+# value differs from the shared data set: Oracle stores '' as NULL, and
+# NUMBER(1,0) maps to TINYINT (never BOOL), so the flag reads back as 1/0.
+# Every other case asserts values Oracle represents identically.
+_ORACLE_ROW_OVERRIDES = {
+    "FQ07-B-PATH-001": ((1, 10, "alpha"), (2, 20, "beta"), (3, None, None)),
+    "FQ07-E-VALUE-001": (
+        (1, 1.5, None, 1),
+        (2, 2.5, "中文", 0),
+        (3, None, "emoji🙂", None),
+    ),
+}
+
 
 class TestFq07BoundaryContracts(FederatedQueryTestMixin):
-    """Boundary contract coverage for the three real external libraries."""
+    """Boundary contract coverage for the five real external libraries."""
 
     updatecfgDict = {
         "federatedQueryEnable": 1,
@@ -527,6 +549,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _PG: SourceSpec(_PG, "fq07_src_p", _PG_DB, "public", "ts"),
             _INFLUX: SourceSpec(_INFLUX, "fq07_src_i", _INFLUX_DB, _INFLUX_DB, "time"),
             _SQLSERVER: SourceSpec(_SQLSERVER, "fq07_src_s", _SQLSERVER_DB, "dbo", "ts"),
+            _ORACLE: SourceSpec(_ORACLE, "fq07_src_o", ExtSrcEnv.ORACLE_SERVICE,
+                                _ORACLE_SCHEMA, "ts"),
         }
 
     def setup_method(self, method):
@@ -622,6 +646,16 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             tdSql.execute(f"drop external source {self._source_ref(name)}")
         self._assert_source_absent(name)
 
+    def _drop_oracle_fixtures(self):
+        """Drop the fq07 tables from the Oracle login schema.
+
+        Oracle has no per-test database to drop: a schema is a login user, so
+        the fixtures are the only objects this suite creates there.
+        """
+        oracle_cfg = self._oracle_cfg()
+        for table in _ORACLE_FIXTURE_TABLES:
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table.upper())
+
     def _cleanup_runtime_data(self):
         for spec in self.specs.values():
             self._drop_source(spec.source)
@@ -630,6 +664,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), _PG_DB),
             lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), _INFLUX_DB),
             lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
+            self._drop_oracle_fixtures,
         ):
             try:
                 cleanup()
@@ -674,6 +709,10 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             cfg = self._sqlserver_cfg()
             sql = (f"create external source {self._source_ref(name)} type='sqlserver' host='{cfg.host}' "
                    f"port={cfg.port} user='{cfg.user}' password='{cfg.password}'")
+        elif spec.key == _ORACLE:
+            cfg = self._oracle_cfg()
+            sql = (f"create external source {self._source_ref(name)} type='oracle' host='{cfg.host}' "
+                   f"port={cfg.port} user='{cfg.user}' password='{cfg.password}'")
         else:
             cfg = self._influx_cfg()
             sql = (f"create external source {self._source_ref(name)} type='influxdb' host='{cfg.host}' "
@@ -687,6 +726,11 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             # The shared helper passes PG's default; SQL Server's default schema is dbo.
             sqlserver_schema = "dbo" if schema in ("", None, "public") else schema
             sql += f" schema='{sqlserver_schema}'"
+        if spec.key == _ORACLE and schema:
+            # DATABASE carries the service name, SCHEMA the single namespace
+            # level.  Oracle negotiates its own encryption, so no TLS keys are
+            # ever emitted (DS 5.3.2 / 6.1.1).
+            sql += f" schema='{schema}'"
         if options:
             sql += f" options({options})"
         return sql
@@ -698,6 +742,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 tdSql.execute(self._source_sql(spec, schema="public"))
             elif spec.key == _SQLSERVER:
                 tdSql.execute(self._source_sql(spec, schema="dbo"))
+            elif spec.key == _ORACLE:
+                tdSql.execute(self._source_sql(spec, schema=_ORACLE_SCHEMA))
             else:
                 tdSql.execute(self._source_sql(spec))
             self._assert_source_exists(spec.source)
@@ -707,6 +753,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 self._assert_source_config_value(spec.source, "schema", "public")
             if spec.key == _SQLSERVER:
                 self._assert_source_config_value(spec.source, "schema", "dbo")
+            if spec.key == _ORACLE:
+                self._assert_source_config_value(spec.source, "schema", _ORACLE_SCHEMA)
 
     def _prepare_remote_data(self):
         first_dt, second_dt, third_dt = (
@@ -878,6 +926,114 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _SQLSERVER_DB, "SELECT COUNT(*) FROM dbo.fetch_t"
         ) == str(_FETCH_BOUNDARY_ROWS)
 
+        # -- Oracle ----------------------------------------------------------
+        # A schema is a login user (DS 5.3.2): the fixtures live in the login
+        # schema and the source's SCHEMA default names it.  Oracle stores '' as
+        # NULL, so the shared data set's empty strings are inserted as '' and
+        # read back as NULL - the row overrides state that explicitly.
+        oracle_cfg = self._oracle_cfg()
+        for table in _ORACLE_FIXTURE_TABLES:
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table.upper())
+        ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [
+            (
+                "CREATE TABLE boundary_t ("
+                "ts TIMESTAMP(3), id NUMBER(10,0), val NUMBER(10,0), "
+                "score BINARY_DOUBLE, name VARCHAR2(32), category VARCHAR2(8), "
+                "note VARCHAR2(32), dec_ok NUMBER(18,4), flag NUMBER(1,0))"
+            ),
+            # 11g has no multi-row VALUES clause: INSERT ALL is the portable
+            # form for the three boundary rows.
+            (
+                "INSERT ALL "
+                "INTO boundary_t (ts, id, val, score, name, category, note, "
+                "dec_ok, flag) VALUES "
+                f"(TO_TIMESTAMP('{first_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
+                " 1, 10, 1.5, 'alpha', 'a', '', 123.4567, 1) "
+                "INTO boundary_t (ts, id, val, score, name, category, note, "
+                "dec_ok, flag) VALUES "
+                f"(TO_TIMESTAMP('{second_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
+                " 2, 20, 2.5, 'beta', 'b', '中文', -1.0000, 0) "
+                "INTO boundary_t (ts, id, val, score, name, category, note, "
+                "dec_ok, flag) VALUES "
+                f"(TO_TIMESTAMP('{third_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
+                " 3, NULL, NULL, '', 'a', 'emoji🙂', NULL, NULL) "
+                "SELECT 1 FROM dual"
+            ),
+            # SDO_GEOMETRY is deliberately absent: object types are not
+            # mappable (DS 5.3.2.1), so one here would make the whole table
+            # undescribable.  The unmappable family is exercised by unknown_t.
+            (
+                "CREATE TABLE schema_t ("
+                "ts TIMESTAMP(3), c_char CHAR(4), c_varchar VARCHAR2(8), "
+                "c_bin RAW(8), c_clob CLOB, c_dec NUMBER(18,4))"
+            ),
+            (
+                "INSERT INTO schema_t VALUES ("
+                "TIMESTAMP '2024-01-01 00:00:00.000', 'ab', 'text', "
+                "HEXTORAW('00FF'), '{\"k\":1}', 123.4567)"
+            ),
+            (
+                "CREATE TABLE unknown_t ("
+                "ts TIMESTAMP(3), id NUMBER(10,0), shape INTERVAL DAY TO SECOND)"
+            ),
+            (
+                "INSERT INTO unknown_t VALUES ("
+                "TIMESTAMP '2024-01-01 00:00:00.000', 1, "
+                "INTERVAL '1 02:03:04' DAY TO SECOND)"
+            ),
+            "CREATE TABLE value_t (id NUMBER(10,0), note CLOB)",
+            "CREATE TABLE quoted_t (ts TIMESTAMP(3), \"SELECT\" NUMBER(10,0))",
+            (
+                "INSERT ALL "
+                "INTO quoted_t VALUES "
+                f"(TO_TIMESTAMP('{first_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'), 10) "
+                "INTO quoted_t VALUES "
+                f"(TO_TIMESTAMP('{second_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'), 20) "
+                "SELECT 1 FROM dual"
+            ),
+            "CREATE TABLE interp_t (ts TIMESTAMP(3), val NUMBER(10,0))",
+            (
+                "INSERT ALL "
+                "INTO interp_t VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10) "
+                "INTO interp_t VALUES (TIMESTAMP '2024-01-01 00:02:00.000', 30) "
+                "SELECT 1 FROM dual"
+            ),
+            "CREATE TABLE fetch_t (ts TIMESTAMP(3), id NUMBER(10,0), val NUMBER(10,0))",
+            (
+                "INSERT INTO fetch_t (ts, id, val) "
+                "SELECT TIMESTAMP '2024-02-01 00:00:00' + NUMTODSINTERVAL(level - 1, 'SECOND'), "
+                f"level, level * 3 FROM dual CONNECT BY level <= {_FETCH_BOUNDARY_ROWS}"
+            ),
+            "CREATE TABLE structured_t (id NUMBER(10,0), doc VARCHAR2(4000))",
+            (
+                "INSERT INTO structured_t VALUES "
+                "(1, '{\"a\": [1, 2], \"flag\": true, \"name\": \"v\"}')"
+            ),
+            "COMMIT",
+        ])
+        # A VARCHAR2 literal is capped at 4000 bytes (ORA-01704 beyond that),
+        # so the NCHAR boundary values are built as CLOBs: RPAD over a CLOB
+        # returns a CLOB and is not subject to the VARCHAR2 limit.
+        ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [
+            "INSERT INTO value_t (id, note) SELECT 1, "
+            f"RPAD(TO_CLOB('x'), {_NCHAR_LIMIT_CHARS - 1}, TO_CLOB('x')) FROM dual",
+            "INSERT INTO value_t (id, note) SELECT 2, "
+            f"RPAD(TO_CLOB('y'), {_NCHAR_LIMIT_CHARS}, TO_CLOB('y')) FROM dual",
+            "INSERT INTO value_t (id, note) SELECT 3, "
+            f"RPAD(TO_CLOB('z'), {_NCHAR_LIMIT_CHARS + 1}, TO_CLOB('z')) FROM dual",
+        ])
+        assert ExtSrcEnv.oracle_query_cfg(
+            oracle_cfg, "SELECT COUNT(*) FROM boundary_t") == "3"
+        assert ExtSrcEnv.oracle_query_cfg(
+            oracle_cfg, "SELECT COUNT(*) FROM fetch_t") == str(_FETCH_BOUNDARY_ROWS)
+        assert ExtSrcEnv.oracle_query_cfg(
+            oracle_cfg, "SELECT MAX(LENGTH(note)) FROM value_t"
+        ) == str(_NCHAR_LIMIT_CHARS + 1)
+        assert ExtSrcEnv.oracle_query_cfg(
+            oracle_cfg, "SELECT COUNT(*) FROM value_t WHERE LENGTH(note) IN "
+            f"({_NCHAR_LIMIT_CHARS - 1}, {_NCHAR_LIMIT_CHARS})"
+        ) == "2"
+
         influx_cfg = self._influx_cfg()
         ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_DB)
         ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_DB, [
@@ -930,7 +1086,8 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
 
     def _run_query_case(self, case: QueryCase):
         assert set(case.sources) == set(_ALL_SOURCES), (
-            f"{case.case_id} must run through MySQL, PostgreSQL and InfluxDB"
+            f"{case.case_id} must run through every real external library: "
+            f"{', '.join(_ALL_SOURCES)}"
         )
         assert case.expected_rows is not None, f"{case.case_id} has no expected rows"
         assert case.expected_columns, f"{case.case_id} has no result-schema assertion"
@@ -939,7 +1096,10 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             sql = case.sql_template.format(
                 table=spec.table, source=spec.source, timestamp=spec.timestamp_column
             )
-            self._assert_rows(sql, case.expected_rows)
+            expected_rows = case.expected_rows
+            if source_key == _ORACLE:
+                expected_rows = _ORACLE_ROW_OVERRIDES.get(case.case_id, expected_rows)
+            self._assert_rows(sql, expected_rows)
             self._assert_result_columns(sql, case.expected_columns)
 
     def do_query_result_matrix(self):
@@ -993,6 +1153,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 (self.specs[_MYSQL].source, self.specs[_MYSQL].timestamp_column),
                 (self.specs[_PG].source, self.specs[_PG].timestamp_column),
                 (self.specs[_SQLSERVER].source, self.specs[_SQLSERVER].timestamp_column),
+                (self.specs[_ORACLE].source, self.specs[_ORACLE].timestamp_column),
                 (flight.source, flight.timestamp_column),
                 (http_source, flight.timestamp_column),
             )
@@ -1015,12 +1176,14 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _MYSQL: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
             _PG: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
             _SQLSERVER: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
+            _ORACLE: ((1, '{"a": [1, 2], "flag": true, "name": "v"}'),),
             _INFLUX: ((1, '{"a":[1,2],"flag":true,"name":"v"}'),),
         }
         decimal_expected = {
             _MYSQL: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
             _PG: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
             _SQLSERVER: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
+            _ORACLE: ((1, Decimal("123.4567")), (2, Decimal("-1.0000")), (3, None)),
             _INFLUX: ((1, 123.4567), (2, -1.0), (3, None)),
         }
         for spec in self.specs.values():
@@ -1040,9 +1203,11 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
 
     def do_path_and_explain_matrix(self):
         expected = ((1, "alpha"), (2, "beta"), (3, ""))
+        oracle_expected = ((1, "alpha"), (2, "beta"), (3, None))
         for spec in self.specs.values():
             self._assert_rows(
-                f"select id, name from {spec.explicit_table} order by id", expected
+                f"select id, name from {spec.explicit_table} order by id",
+                oracle_expected if spec.key == _ORACLE else expected,
             )
             self._assert_explain_has_federated_scan(
                 f"select id, name from {spec.table} where id >= 1 order by id"
@@ -1057,10 +1222,13 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
 
     def do_use_context_matrix(self):
         expected_external = ((1, "alpha"), (2, "beta"), (3, ""))
+        oracle_expected_external = ((1, "alpha"), (2, "beta"), (3, None))
         for spec in self.specs.values():
+            expected = (oracle_expected_external if spec.key == _ORACLE
+                        else expected_external)
             tdSql.execute(f"use {self._source_ref(spec.source)}")
             self._assert_rows(
-                "select id, name from boundary_t order by id", expected_external
+                "select id, name from boundary_t order by id", expected
             )
 
             if spec.key == _SQLSERVER:
@@ -1069,10 +1237,12 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 tdSql.execute(
                     f"use {self._source_ref(spec.source)}.{self._source_ref(spec.database)}")
             else:
+                # For Oracle the second segment is the schema, exactly as in a
+                # three-segment path (DS 5.3.4).
                 tdSql.execute(
                     f"use {self._source_ref(spec.source)}.{self._source_ref(spec.namespace)}")
             self._assert_rows(
-                "select id, name from boundary_t order by id", expected_external
+                "select id, name from boundary_t order by id", expected
             )
 
             tdSql.execute(f"use {_LOCAL_DB}")
@@ -1279,6 +1449,14 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 ("c_json", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 8, ""),
                 ("c_geom", "GEOMETRY", 65517, ""),
             ),
+            _ORACLE: (
+                # Oracle reports object names exactly as stored in the data
+                # dictionary (upper case for unquoted DDL), and VARCHAR2/CHAR
+                # map to VARCHAR while CLOB maps to NCHAR (DS 5.3.2.1).
+                ("TS", "TIMESTAMP", 8, ""), ("C_CHAR", "VARCHAR", 4, ""),
+                ("C_VARCHAR", "VARCHAR", 8, ""), ("C_BIN", "VARBINARY", 8, ""),
+                ("C_CLOB", "NCHAR", 16379, ""), ("C_DEC", "DECIMAL(18, 4)", 8, ""),
+            ),
             _INFLUX: (
                 ("time", "TIMESTAMP", 8, ""), ("c_float", "DOUBLE", 8, ""),
                 ("c_int", "BIGINT", 8, ""), ("c_str", "NCHAR", 16379, ""),
@@ -1301,6 +1479,17 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             _MYSQL: common + (FieldSchema("note", FieldType.C_NCHAR, 0, 0, 32),),
             _PG: common + (FieldSchema("note", FieldType.C_NCHAR, 0, 0, 16379),),
             _SQLSERVER: common + (FieldSchema("note", FieldType.C_NCHAR, 0, 0, 32),),
+            _ORACLE: (
+                # The result column names are the names the query wrote, not the
+                # remote data-dictionary spelling; the types come from the type
+                # map (NUMBER(10,0) -> BIGINT, VARCHAR2 -> VARCHAR,
+                # NUMBER(1,0) -> TINYINT, DS 5.3.2.1).
+                FieldSchema("id", FieldType.C_BIGINT, 0, 0, 8),
+                FieldSchema("score", FieldType.C_DOUBLE, 0, 0, 8),
+                FieldSchema("name", FieldType.C_VARCHAR, 0, 0, 32),
+                FieldSchema("flag", FieldType.C_TINYINT, 0, 0, 1),
+                FieldSchema("note", FieldType.C_VARCHAR, 0, 0, 32),
+            ),
             _INFLUX: (
                 FieldSchema("id", FieldType.C_BIGINT, 0, 0, 8),
                 FieldSchema("score", FieldType.C_DOUBLE, 0, 0, 8),
@@ -1309,17 +1498,19 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
                 FieldSchema("note", FieldType.C_NCHAR, 0, 0, 16379),
             ),
         }
+        oracle_rows = ((1, 1.5, "alpha", 1, None),)
         for source_key, fields in expected.items():
             spec = self.specs[source_key]
             self._assert_field_schema(
                 f"select id, score, name, flag, note from {spec.table} where id = 1",
                 fields,
-                ((1, 1.5, "alpha", True, ""),),
+                oracle_rows if source_key == _ORACLE else ((1, 1.5, "alpha", True, ""),),
             )
 
         decimal_fields = {
             _MYSQL: (FieldSchema("dec_ok", FieldType.C_DECIMAL64, 18, 4, 64),),
             _PG: (FieldSchema("dec_ok", FieldType.C_DECIMAL64, 18, 4, 64),),
+            _ORACLE: (FieldSchema("dec_ok", FieldType.C_DECIMAL64, 18, 4, 64),),
             _INFLUX: (FieldSchema("dec_ok", FieldType.C_DOUBLE, 0, 0, 8),),
         }
         for source_key, fields in decimal_fields.items():
@@ -1378,7 +1569,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             "select id from (select id, shape from {table}) q",
             "select id from {table} union all select id from {table} where shape is null",
         )
-        for source_key in (_MYSQL, _PG, _SQLSERVER):
+        for source_key in (_MYSQL, _PG, _SQLSERVER, _ORACLE):
             spec = self.specs[source_key]
             table = f"{spec.source}.unknown_t"
             self._assert_rows(f"select id from {table} order by id", ((1,),))
@@ -1484,8 +1675,14 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
             )
             self._assert_rows(direct_sql, ((1, 10), (2, 20)))
             self._assert_result_columns(direct_sql, ("id", "val"))
-            # T-SQL renders LIMIT as OFFSET/FETCH (no "limit" keyword).
-            limit_fragment = ("offset", "fetch next") if spec.key == _SQLSERVER else ("limit",)
+            # T-SQL renders LIMIT as OFFSET/FETCH and Oracle renders it as
+            # FETCH FIRST ... ROWS ONLY (neither emits the "limit" keyword).
+            if spec.key == _SQLSERVER:
+                limit_fragment = ("offset", "fetch next")
+            elif spec.key == _ORACLE:
+                limit_fragment = ("fetch first", "rows only")
+            else:
+                limit_fragment = ("limit",)
             self._assert_remote_sql(
                 direct_sql,
                 ("select", "where", "order by", *limit_fragment),
@@ -1534,7 +1731,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         for case in _QUERY_CASES:
             assert case.expected_rows is not None, f"{case.case_id} has no result assertion"
             assert set(case.sources) == set(_ALL_SOURCES), (
-                f"{case.case_id} does not cover all three external libraries"
+                f"{case.case_id} does not cover every real external library"
             )
             assert case.sql_template.strip().lower().startswith("select"), (
                 f"{case.case_id} must be an asserted query"
@@ -1548,7 +1745,7 @@ class TestFq07BoundaryContracts(FederatedQueryTestMixin):
         """Federated query boundary contracts.
 
         1. Validate external-source DDL identifiers, ALTER rollback, options and masking.
-        2. Validate three-library path, result, schema, EXPLAIN and SQL-shape matrices.
+        2. Validate five-library path, result, schema, EXPLAIN and SQL-shape matrices.
         3. Validate delayed unknown-type errors, recovery and assertion coverage.
 
         Catalog:
