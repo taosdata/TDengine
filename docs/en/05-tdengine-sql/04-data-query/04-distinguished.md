@@ -487,6 +487,10 @@ The event window supports using the TRUE_FOR parameter to set window-level filte
 
 **Close-condition streak threshold (`end(limit_expr)`)**: The `END WITH` expression must be continuously satisfied for the duration or row count specified by `limit_expr` before the window actually closes. `_wend` is set to the timestamp of the **first** row of the close streak (subsequent streak rows are not counted in the window). If the streak is interrupted, the counter resets and the window remains open. Only supported for single-condition `EVENT_WINDOW`.
 
+The limits inside `START(...)` and `END(...)` support the same four forms, for example, `TRUE_FOR(START(1m))`, `TRUE_FOR(START(1m AND COUNT 3))`, and `TRUE_FOR(END(10s OR COUNT 3))`. Duration is the timestamp difference between the first and last rows in the matching streak. A row that fails the corresponding condition resets both duration and row count. A fixed sampling interval is not required, and elapsed system time without new data does not satisfy a duration threshold.
+
+`TRUE_FOR(1m)` filters the duration of the whole window without requiring the start condition to remain true throughout it. `TRUE_FOR(START(1m))` instead requires the start condition to remain true for at least 1 minute before opening is confirmed. If `START(...)` or `END(...)` is omitted, the first row satisfying the corresponding condition opens or closes the window. Omitting the window-level filter adds no filter on the whole window's duration or row count. Commas separate the three parameters; they do not mean logical `OR`.
+
 For example, setting the minimum duration to 3 seconds:
 
 ```sql
@@ -522,6 +526,19 @@ Or combining open/close streak thresholds with a window-level filter:
 ```sql
 select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (5s, start(COUNT 2), end(COUNT 3));
 ```
+
+**Example with input data and a duration-based opening threshold**
+
+Using the `true_for_demo.sensor` table and seven input rows from the [stream TRUE_FOR configuration example](../../07-stream-processing/01-syntax.md#true_for-configuration-examples), run this query:
+
+```sql
+SELECT _wstart AS window_start, _wend AS window_end, COUNT(*) AS cnt
+FROM true_for_demo.sensor
+EVENT_WINDOW START WITH temperature >= 80 END WITH temperature < 80
+TRUE_FOR(START(1m), END(COUNT 2));
+```
+
+The expected result is one row: `window_start = 2026-01-01 10:01:00.000`, `window_end = 2026-01-01 10:02:10.000`, and `cnt = 4`. The streak starting at `10:00:00` is interrupted at `10:00:30`. The next streak starts at `10:01:00` and reaches the 1-minute opening threshold at `10:02:00`. The rows at `10:02:10` and `10:02:20` confirm closing, but the window ends at the first of these rows and excludes the second. Stream calculations use `_twstart` / `_twend` for the corresponding timestamps; ordinary window queries use `_wstart` / `_wend`.
 
 ### Count Window
 
