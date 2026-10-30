@@ -2800,6 +2800,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_nchar_result_width" class="md-nav__link">
+        GROUP_CONCAT preserves a result at the NCHAR width boundary. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_group_tag_and_window_regressions" class="md-nav__link">
         Keep empty tag groups stable when DISTINCT moves between query layers. 
       </a>
@@ -5779,6 +5790,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_nchar_result_width" class="md-nav__link">
+        GROUP_CONCAT preserves a result at the NCHAR width boundary. 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#11-Functions.02-Aggregate.test_agg_distinct.TestAggDistinct.test_count_distinct_empty_group_tag_and_window_regressions" class="md-nav__link">
         Keep empty tag groups stable when DISTINCT moves between query layers. 
       </a>
@@ -7945,6 +7967,36 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">GROUP_CONCAT extended regression: separator in merge-aligned operators,</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">NULL handling, multi-column, nchar/varchar mix, separator variants,</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">partition grouping, and edge cases.</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/11-Functions/02-Aggregate/test_agg_gconcat.py" target="_blank">
+                      cases/11-Functions/02-Aggregate/test_agg_gconcat.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_nchar_result_width" class="doc doc-heading">
+
+<a href="#11-Functions.02-Aggregate.test_agg_gconcat.TestFuncGconcat.test_nchar_result_width" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>GROUP_CONCAT preserves a result at the NCHAR width boundary.</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">Check the public character count and the returned value for an</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">unaligned result schema width.</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>

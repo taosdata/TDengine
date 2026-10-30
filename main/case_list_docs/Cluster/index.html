@@ -4103,6 +4103,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         
   
     <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_04_split_nonexistent_vgroup" class="md-nav__link">
+        SPLIT VGROUP 对不存在的 vgroupId 必须报错而非返回成功（回归用例） 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
       <a href="#70-Cluster.test_split_with_stream.TestSplitWithStream.test_stream_ops_during_split" class="md-nav__link">
         SPLIT VGROUP 执行过程中执行 stream 操作 
       </a>
@@ -5229,6 +5240,17 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
     <li class="md-nav__item">
       <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_01_force_split_without_stream" class="md-nav__link">
         SPLIT VGROUP FORCE 在无流计算时可正常执行 
+      </a>
+      
+    </li>
+  
+
+      
+        
+  
+    <li class="md-nav__item">
+      <a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_04_split_nonexistent_vgroup" class="md-nav__link">
+        SPLIT VGROUP 对不存在的 vgroupId 必须报错而非返回成功（回归用例） 
       </a>
       
     </li>
@@ -7551,6 +7573,49 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">该检查在 mnode 中先于 FORCE 判断，且完全忽略 force 标记，</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">因此 `split vgroup &lt;id&gt; force` 同样必须被拒绝。</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;">删除该流之后，普通 `split vgroup` 应恢复可用。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                      </div>
+                    </div>
+                  <div class="doc doc-docstring doc-function.path">
+                    path:
+                    <a href="https://github.com/taosdata/TDengine/blob/main/test/cases/70-Cluster/test_split_vgroup_force.py" target="_blank">
+                      cases/70-Cluster/test_split_vgroup_force.py
+                    </a>
+                  </div>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h2 id="70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_04_split_nonexistent_vgroup" class="doc doc-heading">
+
+<a href="#70-Cluster.test_split_vgroup_force.TestSplitVgroupForce.test_04_split_nonexistent_vgroup" class="headerlink" title="Permanent link">&para;</a></h2>  
+        <div class="doc doc-contents first">
+
+                  <div class="doc doc-docstring doc-summary">
+                    <strong>SPLIT VGROUP 对不存在的 vgroupId 必须报错而非返回成功（回归用例）</strong> 
+                  </div>
+                    <div class="doc doc-docstring doc-description">
+                      <div style="background: #f8f8f8; border-radius: 4px; padding: 0.8em 1em; margin: 0.5em 0; font-size: 1em;">
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">修复前 `mndProcessSplitVgroupMsgImp()`（taos-internal/.../mndVgroup.c）</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">在 vgroup 不存在时存在两个叠加缺陷：</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">1. 权限检查以 ``code = mndCheckOperPrivilege(...)`` 的形式写在 ``if``</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   条件里，检查通过返回 0，把初始化时的 ``-1`` 哨兵值静默覆盖；</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">2. ``mndAcquireVgroup()`` 返回 NULL 的分支只 ``goto _OVER``，既不设</div>
+                          <div style="margin-left: 2.4000000000000004em; white-space: pre-wrap;">   ``code`` 也不打日志。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">于是最终 ``TAOS_RETURN(0)``，把&#34;vgroup 不存在&#34;误报成成功。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">修复后该分支显式设置 ``TSDB_CODE_MND_VGROUP_NOT_EXIST``</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">（0x80000332, ``Vgroup does not exist or is not in the database``）</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">并返回错误，普通和 FORCE 两种写法都应被拒绝。</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">该路径在获取 vgroup 对象之后、流计算检查之前就返回，因此无论集群中</div>
+                          <div style="margin-left: 0.0em; white-space: pre-wrap;">是否残留流计算都不影响本用例（放在 scenario 3 之后也安全）。</div>
                           <div style="margin-left: 0.0em; white-space: pre-wrap;"></div>
                       </div>
                     </div>
