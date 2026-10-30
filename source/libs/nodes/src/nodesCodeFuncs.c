@@ -3774,6 +3774,29 @@ static int32_t jsonToExtTimestampTypeHint(const SJson* pJson, void* pObj) {
   }
   return code;
 }
+
+static int32_t extColumnRenderHintToJson(const void* pObj, SJson* pJson) {
+  const SExtColumnRenderHint* pHint = (const SExtColumnRenderHint*)pObj;
+  int32_t code = tjsonAddStringToObject(pJson, "colName", pHint->colName);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "rewrite", pHint->rewrite);
+  }
+  return code;
+}
+
+static int32_t jsonToExtColumnRenderHint(const SJson* pJson, void* pObj) {
+  SExtColumnRenderHint* pHint = (SExtColumnRenderHint*)pObj;
+  int32_t code = tjsonGetStringValue(pJson, "colName", pHint->colName);
+  if (TSDB_CODE_SUCCESS == code) {
+    int32_t rewrite = 0;
+    code = tjsonGetIntValue(pJson, "rewrite", &rewrite);
+    if (TSDB_CODE_SUCCESS == code) {
+      pHint->rewrite = (int8_t)rewrite;
+    }
+  }
+  return code;
+}
+
 static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
   const SFederatedScanPhysiNode* pNode = (const SFederatedScanPhysiNode*)pObj;
 
@@ -3827,6 +3850,11 @@ static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddArray(pJson, "TimestampTypeHints", extTimestampTypeHintToJson,
                          pNode->pTimestampTypeHints, sizeof(SExtTimestampTypeHint),
                          pNode->numTimestampTypeHints);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numColumnRenderHints > 0 && pNode->pColumnRenderHints) {
+    code = tjsonAddArray(pJson, "ColumnRenderHints", extColumnRenderHintToJson,
+                         pNode->pColumnRenderHints, sizeof(SExtColumnRenderHint),
+                         pNode->numColumnRenderHints);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, "TwoPassMode", pNode->twoPassMode);
@@ -3918,6 +3946,23 @@ static int32_t jsonToFederatedScanPhysiNode(const SJson* pJson, void* pObj) {
                             pNode->pTimestampTypeHints, sizeof(SExtTimestampTypeHint));
         if (TSDB_CODE_SUCCESS == code) {
           pNode->numTimestampTypeHints = n;
+        }
+      }
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    const SJson* pArr = tjsonGetObjectItem(pJson, "ColumnRenderHints");
+    int32_t      n    = (pArr ? tjsonGetArraySize(pArr) : 0);
+    if (n > 0) {
+      pNode->pColumnRenderHints =
+          (SExtColumnRenderHint*)taosMemoryCalloc(n, sizeof(SExtColumnRenderHint));
+      if (!pNode->pColumnRenderHints) {
+        code = terrno;
+      } else {
+        code = tjsonToArray(pJson, "ColumnRenderHints", jsonToExtColumnRenderHint,
+                            pNode->pColumnRenderHints, sizeof(SExtColumnRenderHint));
+        if (TSDB_CODE_SUCCESS == code) {
+          pNode->numColumnRenderHints = n;
         }
       }
     }

@@ -36,20 +36,60 @@ sys.path.insert(0, os.path.join(_VTABLE_DIR, "01-DDL", "03-ExtSource"))
 
 from vtable_util import ExtSrcEnv, VtableQueryUtil
 from ext_source_helpers import (
-    create_ext_source, create_mysql_table, create_pg_table, create_remote_db,
-    create_sqlserver_table,
+    create_ext_source, create_mysql_table, create_oracle_table,
+    create_pg_table, create_remote_db, create_sqlserver_table,
 )
 
 
 _LOCAL_DB = "vfilter_batch"
 _REMOTE_DB = "vfilter_batch_ext"
 _SOURCES = {"mysql": "vfilter_batch_mysql", "postgres": "vfilter_batch_pg",
-            "sqlserver": "vfilter_batch_sqlserver"}
-_SOURCE_TYPES = {"mysql": "mysql", "postgres": "postgresql", "sqlserver": "sqlserver"}
+            "sqlserver": "vfilter_batch_sqlserver",
+            "oracle": "vfilter_batch_oracle"}
+_SOURCE_TYPES = {"mysql": "mysql", "postgres": "postgresql",
+                 "sqlserver": "sqlserver", "oracle": "oracle"}
 _BASE_TIME = datetime.datetime(2024, 1, 1)
 _BASE_MS = 1704067200000
 # Both populated parameters exceed the connectors' 4096-row fetch size.
 _DEVICE_ROWS = {"d1": 8193, "d2": 10241}
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+# Oracle tables live in the shared login schema; prefixing their names keeps
+# them apart from the fixtures of the other ext-source test files.
+_ORACLE_TABLE_PREFIX = "oracle_"
+# sqlplus receives each statement as one argv entry (128 KiB per-argument
+# limit), so INSERT ALL statements carry a bounded number of rows.
+_ORACLE_INSERT_BATCH_ROWS = 500
+
+
+def _oracle_create_table(remote_db, table, col_defs, rows=None):
+    """Adapter matching the create_<backend>_table signature for Oracle.
+
+    Oracle has no per-test database and no multi-row VALUES clause, so the
+    helper drops the table in the login schema first and inserts its rows
+    through INSERT ALL.  The database argument is unused.
+    """
+    create_oracle_table(f"{_ORACLE_TABLE_PREFIX}{table}", col_defs, rows)
+
+
+def _integer_type(backend):
+    """Local integer type matching the fixture's external integer column.
+
+    Oracle NUMBER(p, 0) maps to BIGINT for p in 2..18 and a virtual table must
+    declare exactly the mapped type, so Oracle uses bigint where the other
+    backends use int.
+    """
+    return "bigint" if backend == "oracle" else "int"
+
+
+def _source_database(backend):
+    """Remote database argument for CREATE EXTERNAL SOURCE.
+
+    Oracle carries the Easy Connect service name in DATABASE; every other
+    backend carries the per-test database name.
+    """
+    return ExtSrcEnv.ORACLE_SERVICE if backend == "oracle" else _REMOTE_DB
 
 
 class TestVTableQueryExtSourceFilterBatch:
@@ -65,7 +105,7 @@ class TestVTableQueryExtSourceFilterBatch:
         try:
             self.prepare_remote_table(backend)
             source_type = _SOURCE_TYPES[backend]
-            create_ext_source(source, source_type, _REMOTE_DB)
+            create_ext_source(source, source_type, _source_database(backend))
             tdSql.execute(f"drop database if exists {_LOCAL_DB}")
             # SQL Server timestamps are microsecond-resolution (DS §5.3.7),
             # so its virtual tables require a precision 'us' database (TS §12).
@@ -74,7 +114,7 @@ class TestVTableQueryExtSourceFilterBatch:
             self.prepare_vtables(
                 backend, source,
                 ref_root=self.remote_table_ref(source, backend),
-                upper_ref=backend != "sqlserver")
+                upper_ref=backend not in ("sqlserver", "oracle"))
             yield
         finally:
             tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -83,8 +123,10 @@ class TestVTableQueryExtSourceFilterBatch:
                 ExtSrcEnv.mysql_drop_db(_REMOTE_DB)
             elif backend == "sqlserver":
                 ExtSrcEnv.sqlserver_drop_db(_REMOTE_DB)
-            else:
+            elif backend == "postgres":
                 ExtSrcEnv.pg_drop_db(_REMOTE_DB)
+            # Oracle owns the tables in the login schema; the next fixture run
+            # drops them before recreating.
 
     # --- util ---
 
@@ -102,29 +144,61 @@ class TestVTableQueryExtSourceFilterBatch:
             create_remote_db("sqlserver", _REMOTE_DB)
             create_table = create_sqlserver_table
             timestamp_type = "datetime2(3)"
+        elif backend == "oracle":
+            # Oracle has no CREATE DATABASE in this model; the namespace is the
+            # login user's schema.  TIMESTAMP(3) is millisecond precision and
+            # NUMBER(10, 0) maps to BIGINT, like the other backends' int.
+            create_remote_db("oracle", _REMOTE_DB)
+            create_table = _oracle_create_table
+            timestamp_type = "TIMESTAMP(3)"
         else:
             create_remote_db("postgresql", _REMOTE_DB)
             create_table = create_pg_table
             timestamp_type = "timestamp(3)"
-        create_table(
-            _REMOTE_DB, "readings",
+        column_defs = (
+            f"ts {timestamp_type} NOT NULL, device VARCHAR2(8) NOT NULL, "
+            "v NUMBER(10,0), w NUMBER(10,0), PRIMARY KEY (ts, device)"
+            if backend == "oracle" else
             f"ts {timestamp_type} not null, device varchar(8) not null, "
-            "v int, w int, primary key (ts, device)",
+            "v int, w int, primary key (ts, device)"
         )
+        create_table(_REMOTE_DB, "readings", column_defs)
         rows = []
         for device, count in _DEVICE_ROWS.items():
             offset = 100000 if device == "d1" else 200000
             for index in range(count):
                 if cls.has_row(device, index):
                     timestamp = _BASE_TIME + datetime.timedelta(seconds=index)
+                    if backend == "oracle":
+                        # A bare string date would go through
+                        # NLS_TIMESTAMP_FORMAT and raise ORA-01861.
+                        timestamp_literal = f"TIMESTAMP '{timestamp}'"
+                    else:
+                        timestamp_literal = f"'{timestamp}'"
                     rows.append(
-                        f"('{timestamp}', '{device}', "
+                        f"({timestamp_literal}, '{device}', "
                         f"{offset + index}, {-offset - index})"
                     )
         if backend == "mysql":
             execute = ExtSrcEnv.mysql_exec
         elif backend == "sqlserver":
             execute = ExtSrcEnv.sqlserver_exec
+        elif backend == "oracle":
+            # One INSERT ALL per bounded batch, each a single sqlplus argv
+            # entry; a single multi-row VALUES clause does not exist in Oracle.
+            cfg = next(ExtSrcEnv.oracle_version_configs())
+            for start in range(0, len(rows), _ORACLE_INSERT_BATCH_ROWS):
+                batch = rows[start:start + _ORACLE_INSERT_BATCH_ROWS]
+                # One INTO branch per line: SQL*Plus silently truncates an
+                # input line past ~5000 characters (SP2-0027) and would load
+                # only part of the batch.
+                into = "\n".join(
+                    f"INTO {_ORACLE_TABLE_PREFIX}readings VALUES {row}"
+                    for row in batch)
+                ExtSrcEnv._oracle_sql(
+                    cfg, f"INSERT ALL\n{into}\nSELECT 1 FROM dual")
+            ExtSrcEnv._oracle_sql(cfg, "COMMIT")
+            return
         else:
             execute = ExtSrcEnv.pg_exec
         execute(_REMOTE_DB, [
@@ -139,21 +213,26 @@ class TestVTableQueryExtSourceFilterBatch:
         MySQL/PG use ``source.database.table``.  For SQL Server the middle
         segment of a three-part path is the *schema* (DS §5.3.4), so the
         database must be qualified explicitly:
-        ``source.database.schema.table``.
+        ``source.database.schema.table``.  Oracle has a single namespace level,
+        the schema, so the middle segment is likewise the schema and the
+        fixture table name carries the file prefix: ``source.schema.table``.
         """
         if backend == "sqlserver":
             return f"{source}.{_REMOTE_DB}.dbo.{table}"
+        if backend == "oracle":
+            return f"{source}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE_PREFIX}{table}"
         return f"{source}.{_REMOTE_DB}.{table}"
 
-    @staticmethod
-    def references(source, first="d1", second="d2", with_types=False,
-                   ref_root=None, upper_ref=False):
-        reference = ref_root or f"{source}.{_REMOTE_DB}.readings"
+    @classmethod
+    def references(cls, source, backend, first="d1", second="d2",
+                   with_types=False, ref_root=None, upper_ref=False):
+        reference = ref_root or cls.remote_table_ref(source, backend)
         # The upper-cased variant exercises MySQL's case-insensitive remote
-        # resolution; SQL Server resolves the database/schema segments of a
-        # five-part path literally, so it keeps the exact-case form.
+        # resolution; SQL Server and Oracle resolve the database/schema
+        # segments of a multi-part path literally, so they keep the
+        # exact-case form.
         ref_b = reference.upper() if upper_ref else reference
-        column_type = " int" if with_types else ""
+        column_type = f" {_integer_type(backend)}" if with_types else ""
         return (
             f"a{column_type} from {reference}.v where device = '{first}', "
             f"b{column_type} from {ref_b}.w where device = '{first}', "
@@ -163,25 +242,27 @@ class TestVTableQueryExtSourceFilterBatch:
 
     @classmethod
     def prepare_vtables(cls, backend, source, ref_root=None, upper_ref=False):
+        integer_type = _integer_type(backend)
         tdSql.execute(
             f"create vtable {_LOCAL_DB}.normal_{backend} "
-            f"(ts timestamp, {cls.references(source, with_types=True, ref_root=ref_root, upper_ref=upper_ref)})"
+            f"(ts timestamp, {cls.references(source, backend, with_types=True, ref_root=ref_root, upper_ref=upper_ref)})"
         )
         tdSql.execute(
             f"create stable {_LOCAL_DB}.stable_{backend} "
-            "(ts timestamp, a int, b int, c int, empty_v int) "
+            f"(ts timestamp, a {integer_type}, b {integer_type}, "
+            f"c {integer_type}, empty_v {integer_type}) "
             "tags (scenario int) virtual 1"
         )
         for scenario, devices in enumerate((("d1", "d2"), ("d2", "d1")), 1):
             tdSql.execute(
                 f"create vtable {_LOCAL_DB}.child_{backend}_{scenario} "
-                f"({cls.references(source, *devices, ref_root=ref_root, upper_ref=upper_ref)}) "
+                f"({cls.references(source, backend, *devices, ref_root=ref_root, upper_ref=upper_ref)}) "
                 f"using {_LOCAL_DB}.stable_{backend} tags ({scenario})"
             )
         tdSql.execute(
             f"create vtable {_LOCAL_DB}.chain_{backend} (ts timestamp, "
             + ", ".join(
-                f"{column} int from {_LOCAL_DB}.child_{backend}_1.{column}"
+                f"{column} {integer_type} from {_LOCAL_DB}.child_{backend}_1.{column}"
                 for column in ("a", "b", "c", "empty_v")
             ) + ")"
         )
@@ -284,7 +365,7 @@ class TestVTableQueryExtSourceFilterBatch:
     # --- main ---
 
     @pytest.mark.parametrize("backend", ("mysql", "postgres",
-                                  "sqlserver"))
+                                  "sqlserver", "oracle"))
     def test_filter_batch(self, backend):
         """Merge multiple saved filters from one external table
 

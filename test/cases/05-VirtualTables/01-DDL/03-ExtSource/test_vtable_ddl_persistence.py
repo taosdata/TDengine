@@ -39,7 +39,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table, create_mysql_table,
-    create_influx_measurement, create_sqlserver_table,
+    create_influx_measurement, create_sqlserver_table, create_oracle_table,
     extract_show_create_sql as _extract_show_create_sql)
 
 
@@ -52,6 +52,11 @@ _PG_SRC   = "vpers_pg_src"
 _MY_SRC   = "vpers_my_src"
 _INF_SRC  = "vpers_inf_src"
 _SS_SRC   = "vpers_ss_src"
+_OR_SRC   = "vpers_or_src"
+# Oracle has one namespace level: the source carries the Easy Connect service
+# name and the schema is the upper-case login user.
+_OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 
 
 def _provision_remote():
@@ -59,6 +64,12 @@ def _provision_remote():
     create_remote_db("mysql", _MY_DB)
     create_remote_db("influxdb", _INF_DB)
     create_remote_db("sqlserver", _SS_DB)
+    # Oracle has no per-source database: the remote objects live in the login
+    # schema, and the source's DATABASE is the instance's service name.
+    create_oracle_table(
+        "r_persist", "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+        rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 31)",
+              "(TIMESTAMP '2024-01-01 00:01:00.000', 32)"])
     create_pg_table(_PG_DB, "r",
                     "ts TIMESTAMP PRIMARY KEY, v DOUBLE PRECISION",
                     ["('2024-01-01 00:00:00', 1.0)",
@@ -92,6 +103,7 @@ def _ensure_sources():
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
     create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
+    create_ext_source(_OR_SRC, "oracle", _OR_SVC)
 
 
 # ===========================================================================
@@ -143,12 +155,28 @@ class TestVtableDDLPersistence:
         tdSql.execute(
             "CREATE VTABLE v_persist_ss_other (ts timestamp, "
             f"v double FROM {_SS_SRC}.{_SS_DB}.other.r_schema.v)")
+        # Oracle schema-binding fixtures (FQOR-VTBL-006): the 3-segment form
+        # takes the schema from the source and the 4-segment form names it.
+        # Both persist the full reference, so a restarted dnode resolves the
+        # same object.  NUMBER(10,0) maps to BIGINT, hence the local bigint.
+        tdSql.execute(
+            "CREATE VTABLE v_persist_or (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_persist.v)")
+        tdSql.execute(
+            "CREATE VTABLE v_persist_or3 (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.r_persist.v)")
 
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        for n in (_PG_SRC, _MY_SRC, _INF_SRC, _SS_SRC):
+        for n in (_PG_SRC, _MY_SRC, _INF_SRC, _SS_SRC, _OR_SRC):
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {n}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a run that
+        # visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INF_DB)
 
     # -------------------------------------------------------------------
     # 7.1 — ext source / normal vtable
@@ -169,7 +197,7 @@ class TestVtableDDLPersistence:
         """Preserve external sources and normal virtual-table metadata after restart
 
         1. Restart the dnode and restore the query node
-        2. Verify all four external sources and the normal virtual table remain registered
+        2. Verify all five external sources and the normal virtual table remain registered
 
         Catalog:
             - VirtualTable
@@ -183,6 +211,7 @@ class TestVtableDDLPersistence:
         History:
             - 2026-09-07 Jing Sima Document existing persistence coverage
             - 2026-10-09 Add SQL Server to the source-count assertion
+            - 2026-10-26 Add Oracle to the source-count assertion
 
         """
         if not self._restart_dnode():
@@ -190,8 +219,8 @@ class TestVtableDDLPersistence:
         tdSql.execute(f"USE {_LOCAL_DB}")
         tdSql.query(f"SELECT count(*) FROM information_schema.ins_ext_sources "
                     f"WHERE source_name IN ('{_PG_SRC}', '{_MY_SRC}', "
-                    f"'{_INF_SRC}', '{_SS_SRC}')")
-        tdSql.checkData(0, 0, 4)
+                    f"'{_INF_SRC}', '{_SS_SRC}', '{_OR_SRC}')")
+        tdSql.checkData(0, 0, 5)
         tdSql.query(f"SELECT count(*) FROM information_schema.ins_tables "
                     f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_persist'")
         tdSql.checkData(0, 0, 1)
@@ -366,6 +395,53 @@ class TestVtableDDLPersistence:
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 21.0)
         tdSql.checkData(1, 0, 22.0)
+
+    def test_restart_preserves_oracle_schema_binding(self):
+        """Preserve the Oracle schema segment of a persisted column reference
+
+        1. Verify both reference forms (source.table.column and
+           source.schema.table.column) persist the full reference and return
+           the same rows
+        2. Restart the dnode and verify the bindings and values are unchanged
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle to the backend matrix (FQOR-VTBL-006)
+
+        """
+        def check_bindings():
+            # The 3-segment create resolves the schema from the source, but the
+            # persisted reference is the full source.schema.table.column form
+            # for both spellings.
+            for vtb in ("v_persist_or", "v_persist_or3"):
+                tdSql.query(
+                    "SELECT col_source FROM information_schema.ins_columns "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='{vtb}' "
+                    "AND col_name='v'")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, f"{_OR_SRC}.{_OR_SCHEMA}.r_persist.v")
+                tdSql.query(f"SELECT v FROM {vtb} ORDER BY ts")
+                tdSql.checkRows(2)
+                tdSql.checkData(0, 0, 31)
+                tdSql.checkData(1, 0, 32)
+                sql = _extract_show_create_sql(f"SHOW CREATE VTABLE {vtb}")
+                if _OR_SRC not in sql or _OR_SCHEMA not in sql:
+                    tdLog.exit(f"expected source and schema in {sql}")
+
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        check_bindings()
+        if not self._restart_dnode():
+            return
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        check_bindings()
 
     # -------------------------------------------------------------------
     # 7.2 — concurrent ALTER STABLE

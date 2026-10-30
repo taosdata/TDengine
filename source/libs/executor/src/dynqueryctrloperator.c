@@ -5970,6 +5970,12 @@ static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFede
   } else if (EXT_SOURCE_SQLSERVER == cfg.source_type) {
     // SQL Server: the reference's schema wins over the source's default schema.
     tstrncpy(table.schemaName, ('\0' != schema[0]) ? schema : pScan->srcSchema, sizeof(table.schemaName));
+  } else if (EXT_SOURCE_ORACLE == cfg.source_type) {
+    // Oracle has a single namespace level (the schema), so the reference's
+    // middle segment wins over the source default for the same reason as SQL
+    // Server; dbName stays empty because the service name is not a namespace
+    // (Oracle DS 5.3.3 / 5.3.10).
+    tstrncpy(table.schemaName, ('\0' != schema[0]) ? schema : pScan->srcSchema, sizeof(table.schemaName));
   }
   code = extConnectorOpen(&cfg, &pHandle);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -6004,17 +6010,22 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
   const SFederatedScanPhysiNode* pScan = dynFindForeignScan((const SPhysiNode*)pOperator->pPhyNode, sourceName);
   QUERY_CHECK_NULL(pScan, code, lino, _return, TSDB_CODE_EXT_SOURCE_NOT_FOUND);
   EExtSourceType sourceType = (EExtSourceType)pScan->sourceType;
-  if (EXT_SOURCE_MYSQL != sourceType && EXT_SOURCE_POSTGRESQL != sourceType && EXT_SOURCE_SQLSERVER != sourceType) {
+  if (EXT_SOURCE_MYSQL != sourceType && EXT_SOURCE_POSTGRESQL != sourceType &&
+      EXT_SOURCE_SQLSERVER != sourceType && EXT_SOURCE_ORACLE != sourceType) {
     QUERY_CHECK_CONDITION(0 == pRef->filterCondLen, code, lino, _return, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED);
     return code;
   }
-  // SQL Server resolves a 4-part runtime ref (source.schema.table.column) with
-  // the schema in the middle segment (DS 5.3.4); the database then falls back
-  // to the source's configured database.
+  // A 4-part runtime ref (source.<middle>.table.column) carries the schema in
+  // the middle segment for SQL Server and Oracle (DS 5.3.4); SQL Server then
+  // falls back to the source's configured database while Oracle has no
+  // database layer at all, so there useDb stays empty.
   const char* useDb = dbName;
   const char* useSchema = (NULL != schemaName) ? schemaName : "";
   if (EXT_SOURCE_SQLSERVER == sourceType && '\0' == useSchema[0] && '\0' != dbName[0]) {
     useSchema = dbName;
+    useDb = "";
+  } else if (EXT_SOURCE_ORACLE == sourceType) {
+    useSchema = ('\0' != useSchema[0]) ? useSchema : dbName;
     useDb = "";
   }
   code = dynGetForeignTableMeta(&pInfo->vtbScan, pScan, useDb, useSchema, tableName, &pMeta);
@@ -6078,9 +6089,10 @@ static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInf
   SForeignSourceInfo fsInfo = {0};
   SVtbScanDynCtrlInfo* pVtbScan = &((SDynQueryCtrlOperatorInfo*)pOperator->info)->vtbScan;
 
-  // SQL Server resolves a 4-part runtime ref (source.schema.table.column) with
-  // the schema in the middle segment (DS 5.3.4); the database then falls back
-  // to the source's configured database.
+  // A 4-part runtime ref (source.<middle>.table.column) carries the schema in
+  // the middle segment for SQL Server and Oracle (DS 5.3.4); SQL Server then
+  // falls back to the source's configured database while Oracle has no
+  // database layer at all, so there useDb stays empty.
   const char* useDb = refDbName;
   const char* useSchema = (NULL != refSchemaName) ? refSchemaName : "";
   {
@@ -6090,6 +6102,9 @@ static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInf
         '\0' == useSchema[0] && '\0' != refDbName[0]) {
       useSchema = refDbName;
       useDb = pScan->srcDatabase;
+    } else if (NULL != pScan && EXT_SOURCE_ORACLE == (EExtSourceType)pScan->sourceType) {
+      useSchema = ('\0' != useSchema[0]) ? useSchema : refDbName;
+      useDb = "";
     }
   }
 

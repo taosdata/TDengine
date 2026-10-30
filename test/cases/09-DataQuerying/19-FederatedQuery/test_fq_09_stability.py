@@ -54,6 +54,7 @@ from federated_query_common import (
     TSDB_CODE_PAR_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
+    TSDB_CODE_EXT_CONNECT_FAILED,
     TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
 )
 
@@ -77,6 +78,8 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     #   FQ_STAB_POOL_HOLD_S       Seconds to hold saturating connection (default 3)
     #   FQ_STAB_POOL_RETRY_WAIT_S Max seconds to wait for retry success (default 12)
     #   FQ_STAB_SS_REPEAT         SQL Server repeat-query count     (default 10)
+    #   FQ_STAB_O_MIX_ITERS       Oracle mixed-workload iterations   (default 10)
+    #   FQ_STAB_O_POOL_WAIT_S     Oracle pool-recovery wait limit    (default 240)
     #
     # Example (full stress run):
     #   FQ_STAB_ITERS=200 FQ_STAB_BURST_COUNT=20 FQ_STAB_BURST_SIZE=100 pytest fq_09...
@@ -97,6 +100,11 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
     _STAB_POOL_RETRY_WAIT_S = float(os.getenv("FQ_STAB_POOL_RETRY_WAIT_S", "12.0"))
     # SQL Server repeated-query count (FQSS-LOCAL-011).
     _STAB_SS_REPEAT         = int(os.getenv("FQ_STAB_SS_REPEAT",           "10"))
+    # Oracle mixed-workload cycle count (FQOR-STAB-004).
+    _STAB_O_MIX_ITERS       = int(os.getenv("FQ_STAB_O_MIX_ITERS",         "10"))
+    # Upper bound (s) on how long a query may wait for an exhausted Oracle
+    # pool to free a slot before the recovery assertions give up.
+    _STAB_O_POOL_WAIT_S     = float(os.getenv("FQ_STAB_O_POOL_WAIT_S",     "240"))
 
     # Class-level test result registry used by teardown_class summary
     _test_results: list = []
@@ -1736,5 +1744,729 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
                 pass
             try:
                 ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O01  Oracle: repeated identical queries (FQOR-STAB-003)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o01_oracle_repeat_consistency(self):
+        """FQOR-STAB-003: the same SQL executed repeatedly stays consistent
+
+        One aggregate SQL runs _STAB_SS_REPEAT times back-to-back against an
+        Oracle source; every run must return exactly the first run's result,
+        so connection reuse cannot drift the values.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O01_oracle_repeat_consistency"
+        repeat = self._STAB_SS_REPEAT
+        self._start_test(
+            _test_name,
+            f"Oracle same SQL x{repeat}, every run must match the first",
+            repeat,
+        )
+        src = "fq_stab_o01_src"
+        cfg = self._oracle_cfg()
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_T'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                "CREATE TABLE STAB_O_T ("
+                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
+                "INSERT INTO STAB_O_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
+                "INSERT INTO STAB_O_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 20)",
+                "INSERT INTO STAB_O_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 30)",
+                "INSERT INTO STAB_O_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:03.000', 40)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            sql = (f"select count(*), sum(val), min(val), max(val) "
+                   f"from {src}.stab_o_t")
+            baseline = None
+            for i in range(repeat):
+                tdSql.query(sql)
+                tdSql.checkRows(1)
+                row = tuple(tdSql.queryResult[0])
+                if baseline is None:
+                    baseline = row
+                    tdSql.checkData(0, 0, 4)     # count
+                    tdSql.checkData(0, 1, 100)   # sum = 10+20+30+40
+                    tdSql.checkData(0, 2, 10)    # min
+                    tdSql.checkData(0, 3, 40)    # max
+                elif row != baseline:
+                    raise AssertionError(
+                        f"result drift at execution {i + 1}/{repeat}: "
+                        f"got {row}, baseline {baseline}"
+                    )
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_O_T")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O02  Oracle fault injection: stop / restart / recovery
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o02_oracle_restart_and_recovery(self):
+        """FQOR-STAB-001: instance stop / restart / recovery
+
+        1. Create an Oracle source against the managed instance.
+        2. Stop the instance: every query must fail with a connection-layer
+           error (UNAVAILABLE, not syntax/catalog) and taosd must stay alive.
+        3. The source must survive repeated failures in the catalog.
+        4. Start the instance again; the same source answers correctly without
+           being rebuilt.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O02_oracle_restart_and_recovery"
+        self._start_test(
+            _test_name,
+            "Oracle stop -> connection errors -> restart -> recovery",
+            1,
+        )
+        src = "fq_stab_o02_src"
+        cfg = self._oracle_cfg()
+        ver = cfg.version
+        self._cleanup_src(src)
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_R'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                "CREATE TABLE STAB_O_R ("
+                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
+                "INSERT INTO STAB_O_R VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 9)",
+                "INSERT INTO STAB_O_R VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 99)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper(),
+                                 extra_options="'connect_timeout_ms'='500'")
+
+            # Healthy baseline
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_o_r")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            ExtSrcEnv.stop_oracle_instance(ver)
+            try:
+                deadline = time.time() + 60
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg.host, cfg.port):
+                    time.sleep(0.5)
+
+                for _ in range(self._STAB_UNREACHABLE_Q):
+                    tdSql.error(
+                        f"select count(*) from {src}.stab_o_r",
+                        expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED,
+                    )
+
+                # Source must still be in the catalog after repeated failures
+                tdSql.query(
+                    "select count(*) from information_schema.ins_ext_sources "
+                    f"where source_name = '{src}'"
+                )
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 1)
+
+                # taosd must still serve local queries (no crash)
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+
+            # Recovery — the same source must answer correctly again, and the
+            # rows written before the outage are still there.
+            tdSql.query(f"select count(*), sum(val) from {src}.stab_o_r")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 108)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_O_R")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O03  Oracle: concurrent namespace isolation (FQOR-STAB-002)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o03_oracle_namespace_isolation(self):
+        """FQOR-STAB-002: concurrent sessions do not cross schema boundaries
+
+        One Oracle source exposes the same table name in two schemas
+        (TAOSDATA.STAB_NS_T and the alternate account's STAB_NS_T) holding
+        different data.  Two logical sessions alternate between the two
+        3-segment paths; every query must return its own schema's rows.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O03_oracle_namespace_isolation"
+        _THREAD_COUNT = 2
+        _QUERIES_PER_THREAD = 5
+        self._start_test(
+            _test_name,
+            f"{_THREAD_COUNT} sessions x {_QUERIES_PER_THREAD} queries on "
+            f"different schemas",
+            _THREAD_COUNT * _QUERIES_PER_THREAD,
+        )
+        src = "fq_stab_o03_src"
+        cfg = self._oracle_cfg()
+        main_schema = ExtSrcEnv.ORACLE_USER.upper()
+        alt_schema = ExtSrcEnv.ORACLE_ALT_USER.upper()
+        self._cleanup_src(src)
+        errors: list = []
+        results: list = []
+        results_lock = threading.Lock()
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_NS_T'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                "CREATE TABLE STAB_NS_T ("
+                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
+                "INSERT INTO STAB_NS_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+                "INSERT INTO STAB_NS_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+                "INSERT INTO STAB_NS_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 3)",
+                "COMMIT",
+            ])
+            # The alternate namespace is a separate account, so its table is
+            # created while logged in as that account.
+            ExtSrcEnv._oracle_sql(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_NS_T'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                "CREATE TABLE STAB_NS_T ("
+                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
+                "INSERT INTO STAB_NS_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 101)",
+                "INSERT INTO STAB_NS_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 102)",
+                "INSERT INTO STAB_NS_T VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 103)",
+                "COMMIT",
+            ], user=ExtSrcEnv.ORACLE_ALT_USER,
+               password=ExtSrcEnv.ORACLE_ALT_PASS)
+            # Cross-schema reads need an explicit grant: Oracle has no
+            # search_path, and the test account has no privilege on the
+            # alternate account's objects by default.
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                f'GRANT SELECT ON "{alt_schema}"."STAB_NS_T" TO "{main_schema}"',
+            ])
+            self._mk_oracle_real(src, database=cfg.service, schema=main_schema)
+
+            expected = {main_schema: 1, alt_schema: 101}
+            lock = threading.Lock()
+
+            def worker(schema, base_val):
+                try:
+                    for _ in range(_QUERIES_PER_THREAD):
+                        # tdSql is a single connection: serialize the query.
+                        with lock:
+                            tdSql.query(
+                                f"select min(val) from {src}.{schema}.stab_ns_t")
+                            got = tdSql.queryResult[0][0]
+                        with results_lock:
+                            results.append((schema, got))
+                        if got != base_val:
+                            errors.append(
+                                f"schema {schema} returned {got}, "
+                                f"expected {base_val}")
+                except Exception as e:  # noqa: BLE001 - reported below
+                    with results_lock:
+                        errors.append(f"{schema}: {e}")
+
+            threads = [
+                threading.Thread(target=worker, args=(s, v))
+                for s, v in expected.items()
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+
+            if errors:
+                raise AssertionError(
+                    f"namespace leakage across {len(errors)} quer"
+                    f"{'y' if len(errors) == 1 else 'ies'}: {errors[:5]}")
+            if len(results) != _THREAD_COUNT * _QUERIES_PER_THREAD:
+                raise AssertionError(
+                    f"expected {_THREAD_COUNT * _QUERIES_PER_THREAD} results, "
+                    f"got {len(results)}")
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_NS_T")
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv._oracle_sql(
+                    cfg,
+                    "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_NS_T'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                    user=ExtSrcEnv.ORACLE_ALT_USER,
+                    password=ExtSrcEnv.ORACLE_ALT_PASS)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O04  Oracle: partial failure with a peer source healthy
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o06_oracle_multi_source_partial_failure(self):
+        """FQOR-STAB-001 (isolation): Oracle down leaves a peer source intact
+
+        Two external sources (Oracle and PostgreSQL) are registered; the
+        Oracle instance is stopped, so Oracle queries must fail with a
+        connection-layer availability error while the PostgreSQL source keeps
+        returning correct data.  After the instance is restarted the Oracle
+        source answers again without being rebuilt.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O04_oracle_partial_failure"
+        self._start_test(_test_name, "oracle down, pg still healthy", 1)
+        src_o = "fq_stab_o04_o"
+        src_p = "fq_stab_o04_p"
+        ext_db_p = "fq_stab_o04_p_ext"
+        cfg_o = self._oracle_cfg()
+        cfg_p = self._pg_cfg()
+        self._cleanup_src(src_o, src_p)
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg_o, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_P'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                "CREATE TABLE STAB_O_P (ID NUMBER(10,0) PRIMARY KEY, "
+                "VAL NUMBER(10,0))",
+                "INSERT INTO STAB_O_P VALUES (1, 333)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src_o, database=cfg_o.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper(),
+                                 extra_options="'connect_timeout_ms'='500'")
+
+            ExtSrcEnv.pg_create_db_cfg(cfg_p, ext_db_p)
+            ExtSrcEnv.pg_exec_cfg(cfg_p, ext_db_p, [
+                "drop table if exists public.stab_p",
+                "create table public.stab_p (id int primary key, val int)",
+                "insert into public.stab_p values (1, 222)",
+            ])
+            self._mk_pg_real(src_p, database=ext_db_p, schema="public")
+
+            tdSql.query(f"select val from {src_o}.stab_o_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+            tdSql.query(f"select val from {src_p}.stab_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 222)
+
+            ExtSrcEnv.stop_oracle_instance(cfg_o.version)
+            try:
+                deadline = time.time() + 60
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg_o.host, cfg_o.port):
+                    time.sleep(0.5)
+
+                tdSql.error(
+                    f"select val from {src_o}.stab_o_p",
+                    expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED,
+                )
+                tdSql.query(f"select val from {src_p}.stab_p")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 222)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(cfg_o.version)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {cfg_o.version} did not become ready after restart")
+
+            tdSql.query(f"select val from {src_o}.stab_o_p")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 333)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src_o, src_p)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg_o, "STAB_O_P")
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.pg_drop_db_cfg(cfg_p, ext_db_p)
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O04  Oracle: repeated mixed workload stays exact (FQOR-STAB-004)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o04_oracle_mixed_workload(self):
+        """FQOR-STAB-004: a mixed Oracle workload keeps returning exact rows
+
+        One cycle covers the four shapes the stability contract names: a plain
+        remote scan, a remote aggregate, a join between the remote table and a
+        local table on the timestamp axis, and a virtual table over remote
+        columns.  The mix repeats ``_STAB_O_MIX_ITERS`` times and every cycle
+        must reproduce the same exact values, so a leaked connection or a stale
+        cached projection shows up as a wrong row instead of a timeout.
+        ``server_version()`` is checked at the end of each cycle so a wedged
+        dnode is detected immediately rather than after the whole loop.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O04_oracle_mixed_workload"
+        iters = self._STAB_O_MIX_ITERS
+        self._start_test(
+            _test_name,
+            f"{iters}-cycle Oracle scan/aggregate/join/vtable mix, "
+            f"exact values every cycle",
+            iters,
+        )
+        src = "fq_stab_o04_mix_src"
+        db = self.STAB_DB
+        cfg = self._oracle_cfg()
+        schema = ExtSrcEnv.ORACLE_USER.upper()
+        base = 1704067200000
+        self._cleanup_src(src)
+        try:
+            # The timestamp join below compares the remote wall clock with the
+            # absolute millisecond values in the local table.  Pin the session
+            # timezone: a leftover Asia/Shanghai from an earlier timezone case
+            # would shift the remote side by eight hours and match nothing.
+            tdSql.connect("root", "taosdata")
+            tdSql.execute('ALTER LOCAL "timezone" "UTC"')
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_MIX'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                "CREATE TABLE STAB_O_MIX ("
+                " TS TIMESTAMP(3) PRIMARY KEY, ID NUMBER(10,0),"
+                " VAL NUMBER(10,0), SCORE BINARY_DOUBLE)",
+                "INSERT INTO STAB_O_MIX VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 1, 10, 1.5)",
+                "INSERT INTO STAB_O_MIX VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:01.000', 2, 20, 2.5)",
+                "INSERT INTO STAB_O_MIX VALUES "
+                " (TIMESTAMP '2024-01-01 00:00:02.000', 3, 30, 3.5)",
+                "COMMIT",
+            ])
+            self._mk_oracle_real(src, database=cfg.service, schema=schema)
+
+            tdSql.execute(f"drop database if exists {db}")
+            tdSql.execute(f"create database {db}")
+            tdSql.execute(
+                f"create table {db}.stab_o_dim "
+                f"(ts timestamp, id int, weight int)")
+            tdSql.execute(
+                f"insert into {db}.stab_o_dim values "
+                f"({base}, 1, 100) ({base + 1000}, 2, 200)")
+            # A vtable column has to declare the type the connector returns:
+            # Oracle NUMBER(10,0) arrives as BIGINT and BINARY_DOUBLE as
+            # DOUBLE, and the CREATE VTABLE compatibility check compares the
+            # declared type against that canonical mapping.  The standalone
+            # vtable form (no USING) is the one the Oracle external-ref cases
+            # in 05-VirtualTables query.
+            tdSql.execute(f"use {db}")
+            tdSql.execute(
+                f"create vtable stab_o_vt ("
+                f"ts timestamp, "
+                f"v_val bigint from {src}.{schema}.STAB_O_MIX.VAL, "
+                f"v_score double from {src}.{schema}.STAB_O_MIX.SCORE)")
+
+            for i in range(iters):
+                # Plain remote scan: both the row count and the ordering.
+                tdSql.query(
+                    f"select id, val from {src}.stab_o_mix order by ts")
+                tdSql.checkRows(3)
+                for row, (ident, val) in enumerate(
+                        ((1, 10), (2, 20), (3, 30))):
+                    tdSql.checkData(row, 0, ident)
+                    tdSql.checkData(row, 1, val)
+
+                # Remote aggregate over the same rows.
+                tdSql.query(
+                    f"select count(*), sum(val), min(score), max(score) "
+                    f"from {src}.stab_o_mix")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 3)
+                tdSql.checkData(0, 1, 60)
+                tdSql.checkData(0, 2, 1.5)
+                tdSql.checkData(0, 3, 3.5)
+
+                # Timestamp join between the remote table and a local table.
+                tdSql.query(
+                    f"select count(*), sum(o.val * d.weight) "
+                    f"from {src}.{schema}.stab_o_mix o, {db}.stab_o_dim d "
+                    f"where o.ts = d.ts")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 2)
+                tdSql.checkData(0, 1, 5000)
+
+                # Virtual table over the remote value columns.
+                tdSql.query(
+                    f"select v_val, v_score from {db}.stab_o_vt "
+                    f"order by v_val")
+                tdSql.checkRows(3)
+                for row, (val, score) in enumerate(
+                        ((10, 1.5), (20, 2.5), (30, 3.5))):
+                    tdSql.checkData(row, 0, val)
+                    tdSql.checkData(row, 1, score)
+
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            try:
+                tdSql.execute(f"drop database if exists {db}")
+            except Exception:
+                pass
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_O_MIX")
+            except Exception:
+                pass
+
+    # ------------------------------------------------------------------
+    # STAB-O05  Oracle: pool exhaustion and recovery (FQOR-STAB-005)
+    # ------------------------------------------------------------------
+
+    def test_fq_stab_o05_oracle_pool_exhaustion_recovery(self):
+        """FQOR-STAB-005: a saturated Oracle pool frees slots and waiters recover
+
+        The per-source pool is capped at one connection and the source logs in
+        as the session-limited pool account, so the cap is enforced by the
+        connector before Oracle's own SESSIONS_PER_USER profile can interfere.
+        A sleep view (the same fixture shape test_fq_05's Oracle pool case
+        uses) keeps that single slot busy in a background client for a known
+        10 s, long enough to outlast the pool acquire wait, so a concurrent
+        query deterministically reports the retryable resource-exhausted code
+        while the slot is held.  The very same statement must then succeed with
+        its exact value once the holder finishes, and a final query proves the
+        pool returned to a healthy state instead of staying wedged.
+
+        Catalog: - Query:FederatedStability
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "STAB-O05_oracle_pool_exhaustion_recovery"
+        self._start_test(
+            _test_name,
+            "pool=1 held by a 10 s sleep view; waiting query recovers",
+            3,
+        )
+        src = "fq_stab_o05_pool_src"
+        cfg = self._oracle_cfg()
+        schema = ExtSrcEnv.ORACLE_POOL_TEST_USER.upper()
+        hold_s = 10
+        self._cleanup_src(src)
+        try:
+            # Oracle has no SELECT-embedded SLEEP(), and DBMS_SESSION.SLEEP is
+            # definer-rights, so SYSTEM owns a one-line wrapper and grants it
+            # out.  The view that calls it makes one federated base scan take a
+            # known 10 s, which outlasts the pool acquire wait (< 6 s), so the
+            # concurrent attempt really meets a full pool.
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                *ExtSrcEnv.oracle_sleep_function_sql(
+                    "FQ09_STAB_SLEEP", hold_s),
+            ])
+            ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
+                "BEGIN EXECUTE IMMEDIATE 'DROP VIEW FQ_STAB_O_SLOW_V'; "
+                "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                # A cheap view lets the warm-up create the pool without
+                # spending the slot on the slow query.
+                "CREATE OR REPLACE VIEW FQ_STAB_O_ONE_V AS "
+                "SELECT CAST(1 AS NUMBER(10,0)) AS ONE FROM DUAL",
+                # A bare NUMBER return has no precision and would be rejected
+                # as unmappable, so the sleep result is cast like the fixture
+                # in test_fq_05.
+                "CREATE OR REPLACE VIEW FQ_STAB_O_SLOW_V AS "
+                "SELECT CAST(SYSTEM.FQ09_STAB_SLEEP AS NUMBER(10,0)) AS HOLD "
+                "FROM DUAL",
+            ])
+            # Cap the pool before the source is created: the pool is built on
+            # the first open and takes the dnode config current at that time.
+            tdSql.execute(
+                "alter all dnodes 'federatedQueryMaxPoolSizePerSource' '1'")
+            time.sleep(0.5)
+            self._mk_oracle_real(
+                src, database=cfg.service, schema=schema,
+                user=ExtSrcEnv.ORACLE_POOL_TEST_USER,
+                password=ExtSrcEnv.ORACLE_POOL_TEST_PASS)
+
+            # Warm-up creates the one-connection pool.
+            tdSql.query(f"select one from {src}.fq_stab_o_one_v")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+
+            bg_results = []
+            bg_errors = []
+
+            def _hold_pool():
+                # A dedicated client connection, not tdSql: the thread must be
+                # able to block while the test thread keeps using tdSql.
+                import taos  # noqa: PLC0415 - local import for thread safety
+                try:
+                    conn = taos.connect()
+                    try:
+                        cur = conn.cursor()
+                        try:
+                            cur.execute(
+                                f"select hold from {src}.fq_stab_o_slow_v")
+                            rows = cur.fetchall()
+                            bg_results.append(rows[0][0] if rows else None)
+                        finally:
+                            cur.close()
+                    finally:
+                        conn.close()
+                except Exception as exc:  # noqa: BLE001 - asserted below
+                    bg_errors.append(exc)
+
+            holder = threading.Thread(target=_hold_pool, daemon=True)
+            holder.start()
+            # Let the holder acquire the only pool slot and enter its sleep.
+            time.sleep(1.5)
+
+            # The slot is held for ~10 s, far longer than the pool acquire
+            # wait, so the concurrent attempt must report the retryable
+            # resource-exhausted code instead of hanging on the slot or
+            # failing hard.
+            started = time.time()
+            tdSql.error(
+                f"select hold from {src}.fq_stab_o_slow_v",
+                expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            )
+            if time.time() - started > self._STAB_O_POOL_WAIT_S:
+                raise AssertionError(
+                    "the pool acquire did not give up within "
+                    f"{self._STAB_O_POOL_WAIT_S:.0f}s")
+
+            holder.join(timeout=self._STAB_O_POOL_WAIT_S)
+            if holder.is_alive():
+                raise AssertionError(
+                    "the slow Oracle query did not finish within "
+                    f"{self._STAB_O_POOL_WAIT_S:.0f}s")
+            if bg_errors:
+                raise AssertionError(
+                    f"the slow Oracle query failed: {bg_errors[0]!r}")
+            if bg_results != [1]:
+                raise AssertionError(
+                    f"the slow Oracle query returned {bg_results}, "
+                    f"expected [1]")
+            tdLog.info(f"{_test_name}: pool exhaustion observed")
+
+            # The waiting side recovers as soon as the slot is free: the very
+            # statement that just failed now returns its exact value.
+            started = time.time()
+            tdSql.query(
+                f"select hold from {src}.fq_stab_o_slow_v", queryTimes=40)
+            elapsed = time.time() - started
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            if elapsed > self._STAB_O_POOL_WAIT_S:
+                raise AssertionError(
+                    f"pool recovery took {elapsed:.1f}s, limit is "
+                    f"{self._STAB_O_POOL_WAIT_S:.0f}s")
+
+            # The source is still healthy after the contention.
+            tdSql.query(f"select one from {src}.fq_stab_o_one_v")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+
+            self._record_pass(_test_name)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
+                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW FQ_STAB_O_SLOW_V'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW FQ_STAB_O_ONE_V'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                ])
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                    "BEGIN EXECUTE IMMEDIATE "
+                    "'DROP FUNCTION SYSTEM.FQ09_STAB_SLEEP'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                ])
+            except Exception:
+                pass
+            try:
+                tdSql.execute(
+                    "alter all dnodes 'federatedQueryMaxPoolSizePerSource' '64'")
             except Exception:
                 pass

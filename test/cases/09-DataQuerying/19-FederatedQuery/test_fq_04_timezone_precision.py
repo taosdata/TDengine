@@ -2512,3 +2512,133 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
             except Exception:
                 pass
             tdSql.execute(f"DROP DATABASE IF EXISTS {self._SS_REF_DB}")
+
+    # ------------------------------------------------------------------
+    # Oracle timezone / precision (step 1, zero pushdown)
+    # ------------------------------------------------------------------
+
+    _O_SRC = "fq04_src_o"
+    _O_REF_DB = "fq04_o_ref"
+
+    def _setup_oracle_tz_data(self):
+        """Provision the Oracle dialect tables used by the assertions below."""
+        cfg = self._oracle_cfg()
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            "BEGIN EXECUTE IMMEDIATE 'DROP TABLE TS_TYPES'; EXCEPTION WHEN OTHERS THEN NULL; END;",
+            "BEGIN EXECUTE IMMEDIATE 'DROP TABLE PK_DT'; EXCEPTION WHEN OTHERS THEN NULL; END;",
+            "CREATE TABLE TS_TYPES ("
+            " ID NUMBER(10,0) PRIMARY KEY, C_TS6 TIMESTAMP(6), C_TS3 TIMESTAMP(3),"
+            " C_TS9 TIMESTAMP(9), C_TS_TZ TIMESTAMP(6) WITH TIME ZONE,"
+            " C_TS_LTZ TIMESTAMP(6) WITH LOCAL TIME ZONE, C_DATE DATE)",
+            "INSERT INTO TS_TYPES VALUES ("
+            " 1, TIMESTAMP '2024-01-01 08:00:00.123000',"
+            " TIMESTAMP '2024-01-01 08:00:00.123',"
+            " TIMESTAMP '2024-01-01 08:00:00.123456789',"
+            " TIMESTAMP '2024-01-01 08:00:00.123000 +08:00',"
+            " TIMESTAMP '2024-01-01 08:00:00.123000',"
+            " DATE '2024-01-01')",
+            "CREATE TABLE PK_DT (TS TIMESTAMP(6) PRIMARY KEY, VAL NUMBER(10,0))",
+            "INSERT INTO PK_DT VALUES "
+            " (TIMESTAMP '2024-01-01 08:00:00.000000', 1)",
+            "INSERT INTO PK_DT VALUES "
+            " (TIMESTAMP '2024-01-02 08:00:00.000000', 2)",
+            "COMMIT",
+        ])
+        self._cleanup_src(self._O_SRC)
+        self._mk_oracle_real(self._O_SRC, database=cfg.service,
+                             schema=ExtSrcEnv.ORACLE_USER.upper())
+
+    def test_oracle_timezone_precision(self):
+        """FQOR-TYPE-017: Oracle timezone and precision contract.
+
+        Oracle's plain TIMESTAMP columns carry no zone, so they are read as
+        wall-clock in the session timezone; TIMESTAMP WITH TIME ZONE carries
+        its own offset.  A table holding a TIMESTAMP(9) column is read at
+        nanosecond precision (DS 5.3.7), while DATE has second resolution.
+        The expected epochs are computed from the same wall-clock values, so
+        the assertions do not depend on a baseline file.
+
+        Catalog: - Query:FederatedTimezonePrecision
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        self._setup_oracle_tz_data()
+        try:
+            # Pin the session to Asia/Shanghai (UTC+8): 2024-01-01 08:00 CST
+            # is 2024-01-01 00:00 UTC.
+            self._reset_td_session("Asia/Shanghai")
+            base_utc_ms = 1704067200000                     # 2024-01-01T00:00:00Z
+            day_utc_ms = base_utc_ms - 8 * 3600 * 1000      # 2023-12-31T16:00:00Z
+            base_ns = base_utc_ms * 1_000_000               # TS_TYPES carries TIMESTAMP(9)
+            # PK_DT holds only TIMESTAMP(6), so its transport precision is
+            # microsecond (DS 5.3.7): a literal compared with its primary ts
+            # must be written in microseconds, exactly like the SQL Server leg.
+            base_us = base_utc_ms * 1000
+
+            # The table carries TIMESTAMP(9), so every timestamp column comes
+            # back at nanosecond precision.
+            tdSql.query(
+                f"SELECT CAST(C_TS6 AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+            tdSql.checkData(0, 0, base_ns + 123_000_000)    # .123 s
+
+            # TIMESTAMP(3) truncates to milliseconds on the source side.
+            tdSql.query(
+                f"SELECT CAST(C_TS3 AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+            tdSql.checkData(0, 0, base_ns + 123_000_000)
+
+            # TIMESTAMP(9) keeps the full nanosecond fraction.
+            tdSql.query(
+                f"SELECT CAST(C_TS9 AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+            tdSql.checkData(0, 0, base_ns + 123_456_789)
+
+            # A zoned column resolves to the same instant regardless of the
+            # session timezone: the +08:00 offset matches the wall clock.
+            tdSql.query(
+                f"SELECT CAST(C_TS_TZ AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+            tdSql.checkData(0, 0, base_ns + 123_000_000)
+
+            # DATE has no fractional part; it is midnight of the wall clock day.
+            tdSql.query(
+                f"SELECT CAST(C_DATE AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+            tdSql.checkData(0, 0, day_utc_ms * 1_000_000)
+
+            # Precision alignment: a nanosecond local reference matches the
+            # external primary timestamp at whole seconds.
+            tdSql.execute(f"DROP DATABASE IF EXISTS {self._O_REF_DB}")
+            tdSql.execute(f"CREATE DATABASE {self._O_REF_DB} PRECISION 'ns'")
+            tdSql.execute(
+                f"CREATE TABLE {self._O_REF_DB}.ref_dt (ts TIMESTAMP, val INT)")
+            day_ns = 86400 * 1000 * 1000 * 1000
+            tdSql.execute(
+                f"INSERT INTO {self._O_REF_DB}.ref_dt VALUES "
+                f"({base_ns}, 11), ({base_ns + day_ns}, 12)")
+            tdSql.query(
+                f"SELECT r.val FROM {self._O_REF_DB}.ref_dt r "
+                f"INNER JOIN {self._O_SRC}.PK_DT e ON e.ts = r.ts ORDER BY r.val")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 11)
+            tdSql.checkData(1, 0, 12)
+
+            # Time-range predicates on the external primary timestamp select
+            # the same row whether written as a literal or as an epoch.
+            tdSql.query(
+                f"SELECT VAL FROM {self._O_SRC}.PK_DT "
+                "WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.query(
+                f"SELECT VAL FROM {self._O_SRC}.PK_DT "
+                f"WHERE ts >= {base_us} AND ts < {base_us + 86400000000} ORDER BY ts")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+        finally:
+            self._cleanup_src(self._O_SRC)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), "TS_TYPES")
+                ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), "PK_DT")
+            except Exception:
+                pass
+            tdSql.execute(f"DROP DATABASE IF EXISTS {self._O_REF_DB}")

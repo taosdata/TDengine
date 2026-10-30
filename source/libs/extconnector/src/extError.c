@@ -99,6 +99,34 @@ static bool extExtractTokenInt(const char* pMsg, const char* pToken, int32_t* pV
   return true;
 }
 
+/* Oracle prefixes every error text with its number, e.g.
+ *   "ORA-00942: table or view does not exist"
+ * The ODBC driver reports all of them under SQLSTATE 42000, so the number is
+ * the only way to tell a rendering mismatch apart from a real failure
+ * (DS 5.3.8.1).  Returns 0 when the text carries no ORA number. */
+static int32_t extParseOraNumber(const char* pMsg) {
+  if (NULL == pMsg) {
+    return 0;
+  }
+
+  const char* pPos = taosStrCaseStr(pMsg, "ORA-");
+  if (NULL == pPos) {
+    return 0;
+  }
+
+  pPos += 4;
+  int32_t value = 0;
+  int32_t digits = 0;
+  while (isdigit((unsigned char)*pPos)) {
+    if (digits < 6) {
+      value = value * 10 + (*pPos - '0');
+      ++digits;
+    }
+    ++pPos;
+  }
+  return (digits > 0) ? value : 0;
+}
+
 static bool extExtractFuncNameFallback(const char* pMsg, char* pBuf, int32_t bufLen) {
   if (NULL == pMsg || NULL == pBuf || bufLen <= 0) {
     return false;
@@ -360,6 +388,68 @@ int32_t extClassifyRemoteError(int32_t tdCode, const char* remoteSqlState, int32
     pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_TYPE;
     extFillDiagnosticDetail(pDiag, remoteMessage);
     return TSDB_CODE_SUCCESS;
+  }
+
+  /* Oracle (DS 5.3.8.1).  Every parse and semantic error arrives as SQLSTATE
+   * 42000, so the generic fallback below could only demote the whole session.
+   * The ORA number identifies the construct that failed, which keeps the demote
+   * precise: the retry drops just that function or clause and keeps the rest of
+   * the pushdown. */
+  switch (extParseOraNumber(remoteMessage)) {
+    case 904:   // invalid identifier
+    case 933:   // SQL command not properly ended
+    case 936:   // missing expression
+    case 900:   // invalid SQL statement
+    case 923:   // FROM keyword not found where expected
+      /* Deliberately vague (DS 5.3.8.1): an invalid identifier is either a
+       * function Oracle does not have (the capability bit was wrong) or a
+       * column name the renderer got wrong.  A precise demote would persist
+       * "this function is unavailable" into the capability state, which would
+       * hide a rendering defect instead of surfacing it.  The session overlay
+       * still falls back for the current statement. */
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_VAGUE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_NONE;
+      return TSDB_CODE_SUCCESS;
+    case 934:   // group function is not allowed here
+    case 937:   // not a single-group group function
+    case 979:   // not a GROUP BY expression
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_AGG;
+      return TSDB_CODE_SUCCESS;
+    case 918:   // column ambiguously defined
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_JOIN;
+      return TSDB_CODE_SUCCESS;
+    case 1791:  // not a SELECTed expression: DISTINCT plus ORDER BY on a hidden key
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_ORDER;
+      return TSDB_CODE_SUCCESS;
+    case 1795:  // maximum number of expressions in a list is 1000
+      /* Fallback only: the renderer splits long IN lists into groups of 1000
+       * (dynAppendOracleInList), so this fires only when that rewrite did not
+       * take effect.  It is a filter-shape problem, hence FILTER. */
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_SYNTAX_PRECISE;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+      pDiag->detail.clauseKind = EXT_CLAUSE_FILTER;
+      return TSDB_CODE_SUCCESS;
+    case 932:   // inconsistent datatypes
+    case 1722:  // invalid number
+    case 1861:  // literal does not match format string
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_TYPE_MISMATCH;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_TYPE;
+      extFillDiagnosticDetail(pDiag, remoteMessage);
+      return TSDB_CODE_SUCCESS;
+    case 909:   // invalid number of arguments
+    case 938:   // not enough arguments for function
+      pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_FUNC_MISS;
+      pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_FUNC;
+      extFillDiagnosticDetail(pDiag, remoteMessage);
+      return TSDB_CODE_SUCCESS;
+    default:
+      break;
   }
 
   if ((NULL != remoteSqlState && strncmp(remoteSqlState, "42", 2) == 0) ||

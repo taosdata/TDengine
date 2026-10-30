@@ -75,3 +75,9 @@ explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), sum(sql
 
 # SQL Server aggregate under a partition with two child execution units
 explain verbose true select max(scenario), sum(mysql_v), sum(sqlserver_v) from vt_window_federated_batch.vst_ss_federated partition by scenario order by 1;
+
+# Oracle joins the local, MySQL and PostgreSQL partial aggregates
+explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), sum(oracle_v) from vt_window_federated_batch.vst_oracle_federated;
+
+# Oracle aggregate under a partition with two child execution units
+explain verbose true select max(scenario), sum(mysql_v), sum(oracle_v) from vt_window_federated_batch.vst_oracle_federated partition by scenario order by 1;
