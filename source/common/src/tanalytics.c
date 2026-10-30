@@ -67,6 +67,8 @@ const char *taosAnalysisAlgoType(EAnalyAlgoType type) {
       return "regression";
     case ANALY_ALGO_TYPE_CLUSTERING:
       return "clustering";
+    case ANALY_ALGO_TYPE_SERIES_DIAGNOSIS:
+      return "series-diagnosis";
     default:
       return "unknown";
   }
@@ -90,6 +92,8 @@ const char *taosAnalyAlgoUrlStr(EAnalyAlgoType type) {
       return "regression";
     case ANALY_ALGO_TYPE_CLUSTERING:
       return "clustering";
+    case ANALY_ALGO_TYPE_SERIES_DIAGNOSIS:
+      return "series-diagnosis";
     default:
       return "unknown";
   }
