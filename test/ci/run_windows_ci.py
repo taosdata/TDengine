@@ -37,6 +37,15 @@ CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
 WINDOWS_CMAKE_BUILD_TYPE = "Debug"
 
+# The runner console uses a legacy code page (GBK on a Chinese-locale
+# host) while parts of the harness relay text decoded with
+# errors="replace" (the external-engine setup log is written by
+# PowerShell in that code page).  An unencodable character must not
+# abort the run, so push such characters through a backslash escape.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream is not None and hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="backslashreplace")
+
 
 def print_host_identity():
     print(f"[windows-ci] hostname: {socket.gethostname()}", flush=True)
@@ -524,8 +533,35 @@ def ensure_fq_pytest_dependencies(environment):
               "the FQ cases will report the missing module", flush=True)
 
 
+FQ_ENGINE_VERSION_VARS = {
+    "mysql": "FQ_MYSQL_VERSIONS",
+    "pg": "FQ_PG_VERSIONS",
+    "influx": "FQ_INFLUX_VERSIONS",
+    "sqlserver": "FQ_SQLSERVER_VERSIONS",
+    "oracle": "FQ_ORACLE_VERSIONS",
+}
+
+
+def federated_query_services(environment):
+    """Return the engines FQ_REQUIRED_SERVICES asks this run to provision.
+
+    Mirrors ``ExtSrcEnv.required_services`` in federated_query_common.py: every
+    engine is required by default, ``none`` disables all of them, and anything
+    else narrows the set.  The setup script reads the per-engine version lists,
+    where an empty value means "do not provision this engine"; forwarding the
+    selection that way keeps the script's own defaults (Oracle 26ai included)
+    from installing engines this run never uses.
+    """
+    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
+    services = set() if value == "none" else set(value.split(","))
+    unknown = services - set(FQ_ENGINE_VERSION_VARS)
+    if unknown:
+        raise ValueError(f"invalid FQ_REQUIRED_SERVICES: {sorted(unknown)}")
+    return services
+
+
 def provision_federated_query_env(source_dir, environment):
-    """Install/start MySQL, PostgreSQL, InfluxDB and SQL Server before pytest.
+    """Install/start the federated-query engines this run requires.
 
     Provisioning downloads several engine packages and must not run inside a
     pytest test (the plugin timeout would kill the first FQ case mid-download).
@@ -537,41 +573,67 @@ def provision_federated_query_env(source_dir, environment):
     if not script.exists():
         print("[windows-ci] federated-query setup script not found; skipping provisioning", flush=True)
         return
+    environment = dict(environment)
+    services = federated_query_services(environment)
+    for engine, variable in FQ_ENGINE_VERSION_VARS.items():
+        if engine not in services:
+            environment[variable] = ""
     print(f"[windows-ci] provisioning federated-query external engines: {script.name}", flush=True)
+    print("[windows-ci] federated-query engines requested: "
+          f"{', '.join(sorted(services)) or 'none'}", flush=True)
     base = environment.get("FQ_BASE_DIR") or str(Path(environment.get("LOCALAPPDATA", "")) / "taostest" / "fq")
     setup_log = Path(base) / "setup.log"
-    offset = setup_log.stat().st_size if setup_log.exists() else 0
     command = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-NoProfile", "-File", str(script)]
-    proc = subprocess.Popen(command, env=environment)
-    deadline = time.monotonic() + 7200
-    while proc.poll() is None:
-        if time.monotonic() > deadline:
-            proc.kill()
-            print("[windows-ci] federated-query provisioning timed out after 7200s", flush=True)
-            break
+    # Windows PowerShell 5.1 can terminate while the setup script starts MySQL
+    # or InfluxDB: the scriptblock output handlers run on a thread without a
+    # runspace context (WER: PSInvalidOperation in ScriptBlock.GetContextFromTLS).
+    # The engine itself keeps running, so a retry finds it up and continues
+    # with the next engine; four attempts cover both cold starts.
+    attempts = 4
+    for attempt in range(1, attempts + 1):
+        offset = setup_log.stat().st_size if setup_log.exists() else 0
+        proc = subprocess.Popen(command, env=environment)
+        deadline = time.monotonic() + 7200
+        timed_out = False
+        while proc.poll() is None:
+            if time.monotonic() > deadline:
+                proc.kill()
+                print("[windows-ci] federated-query provisioning timed out after 7200s", flush=True)
+                timed_out = True
+                break
+            try:
+                with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
+                    log_file.seek(offset)
+                    chunk = log_file.read()
+                    offset = log_file.tell()
+            except OSError:
+                chunk = ""
+            if chunk:
+                print(chunk.rstrip(), flush=True)
+            time.sleep(5)
+        returncode = proc.wait()
+        # Flush whatever the script wrote between the last poll and its exit; the
+        # interesting lines (a failing rule, a thrown error) are usually the last.
         try:
             with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
                 log_file.seek(offset)
                 chunk = log_file.read()
-                offset = log_file.tell()
         except OSError:
             chunk = ""
         if chunk:
             print(chunk.rstrip(), flush=True)
-        time.sleep(5)
-    returncode = proc.wait()
-    # Flush whatever the script wrote between the last poll and its exit; the
-    # interesting lines (a failing rule, a thrown error) are usually the last.
-    try:
-        with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
-            log_file.seek(offset)
-            chunk = log_file.read()
-    except OSError:
-        chunk = ""
-    if chunk:
-        print(chunk.rstrip(), flush=True)
-    if returncode != 0:
-        print(f"[windows-ci] warning: federated-query provisioning exited {returncode}; the FQ cases will report the failure", flush=True)
+        if returncode == 0:
+            return
+        if timed_out:
+            print("[windows-ci] warning: federated-query provisioning timed out; the FQ cases will report the failure", flush=True)
+            return
+        if attempt == attempts:
+            print(f"[windows-ci] warning: federated-query provisioning exited {returncode}; the FQ cases will report the failure", flush=True)
+            return
+        print(f"[windows-ci] federated-query provisioning exited {returncode}; "
+              f"retrying ({attempt + 1} of {attempts})", flush=True)
+        # Give the engine the failed attempt already started time to come up.
+        time.sleep(20)
 
 
 def _select_cases(test_dir, task_file, log_dir, predicate, name):
@@ -682,15 +744,25 @@ def parse_results(result_file):
     return [(status, command, duration) for status, command, duration, _ in parse_result_records(result_file)]
 
 
+def latest_log_file(log_dir, pattern):
+    """Newest file in ``log_dir`` matching ``pattern``, or None.
+
+    The names embed the source revision ("result_<sha>_<timestamp>.txt"), so
+    sorting by name would order by revision before time and hand back a
+    previous run's file when the workspace is reused.
+    """
+    candidates = list(log_dir.glob(pattern))
+    return max(candidates, key=lambda path: (path.stat().st_mtime, path.name)) if candidates else None
+
+
 def print_pytest_failure_logs(log_dir):
-    result_files = sorted(log_dir.glob("result_*.txt"))
-    records = parse_result_records(result_files[-1] if result_files else None)
+    records = parse_result_records(latest_log_file(log_dir, "result_*.txt"))
     failures = [record for record in records if record[0] in {"FAILED", "ERROR"}]
-    archives = sorted(log_dir.glob("log_*.zip"))
+    archive_name = latest_log_file(log_dir, "log_*.zip")
     if not failures:
         return []
     reports = []
-    archive = zipfile.ZipFile(archives[-1]) if archives else None
+    archive = zipfile.ZipFile(archive_name) if archive_name else None
     try:
         members = {Path(member).name: member for member in archive.namelist()} if archive else {}
         for status, command, _, detail in failures:
@@ -745,8 +817,7 @@ def collect_artifacts(debug_dir, log_dir, artifact_dir):
     (ctest_artifacts / "index.html").write_text(ctest_report, encoding="utf-8")
     pytest_artifacts = artifact_dir / "pytest"
     pytest_artifacts.mkdir(exist_ok=True)
-    result_files = sorted(log_dir.glob("result_*.txt"))
-    result_file = result_files[-1] if result_files else None
+    result_file = latest_log_file(log_dir, "result_*.txt")
     if result_file:
         shutil.copy2(result_file, pytest_artifacts / "result.txt")
     archives = sorted(log_dir.glob("log_*.zip"))
@@ -765,7 +836,7 @@ def collect_artifacts(debug_dir, log_dir, artifact_dir):
         elif status == "Skip":
             ElementTree.SubElement(case, "skipped").text = "listed in win_ignore_cases"
     ElementTree.ElementTree(suite).write(pytest_artifacts / "junit-pytest-windows.xml", encoding="utf-8", xml_declaration=True)
-    archive = archives[0] if len(archives) == 1 else None
+    archive = latest_log_file(log_dir, "log_*.zip")
     rows = []
     for status, command, duration in results:
         link = ""

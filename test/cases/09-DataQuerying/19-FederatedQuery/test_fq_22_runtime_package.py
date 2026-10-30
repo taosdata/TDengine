@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
+import fnmatch
 import os
 import struct
 import subprocess
@@ -36,11 +37,20 @@ _STAGER = _COMMUNITY_ROOT / "packaging" / "tools" / "stage_fq_runtime.bat"
 # Provider client libraries that must be present in the shipped package.  The
 # SQL Server check is the official driver installer: Windows resolves the
 # driver through its registry registration, not through a DLL in the package.
+# Oracle works the same way, but its registration helper lives next to the
+# Instant Client, so the whole Instant Client set travels in driver/oracle
+# and odbc_install.exe registers it on the target host.
+# Wildcards are allowed in the final path component.
 _REQUIRED_FILES = {
     "mysql": ["libmariadb.dll"],
     "postgresql": ["libpq.dll"],
     "influxdb": ["taos_ext_influx_arrow.dll"],
     "sqlserver": [os.path.join("driver", "msodbcsql18.msi")],
+    "oracle": [
+        os.path.join("driver", "oracle", "sqora32.dll"),
+        os.path.join("driver", "oracle", "oraociei*.dll"),
+        os.path.join("driver", "oracle", "odbc_install.exe"),
+    ],
 }
 
 # Libraries provided by Windows itself, by the Visual C++ redistributable
@@ -57,6 +67,11 @@ _SYSTEM_DLLS = {
     "msvcp140d.dll", "msvcp140_1d.dll", "msvcp140_2d.dll",
     "msvcp140d_atomic_wait.dll", "vccorlib140.dll", "vccorlib140d.dll",
     "concrt140.dll", "concrt140d.dll",
+    # MFC ships with the same Visual C++ redistributable and is imported by
+    # the Instant Client's setup DLL (sqoras32.dll).
+    "mfc140.dll", "mfc140u.dll",
+    # The Oracle ODBC driver and its setup DLL talk to the driver manager.
+    "odbc32.dll", "odbccp32.dll",
     # TDengine's own application libraries, installed next to taosd.
     "pthreadvc3.dll", "taos.dll", "taosnative.dll", "taosws.dll",
 }
@@ -169,10 +184,26 @@ def _read_pe_imports(path):
     return imports
 
 
+def _has_required(files, relative):
+    name = Path(relative).name.lower()
+    if any(ch in name for ch in "*?["):
+        return any(fnmatch.fnmatchcase(candidate, name) for candidate in files)
+    return name in files
+
+
 def _missing_imports(package_dir):
     files = _name_index(package_dir)
+    # The package-root DLLs plus the Oracle driver in driver/oracle.  The rest
+    # of the Instant Client is not scanned: those libraries are loaded by name
+    # at run time (oraociei, pulled in by OCI.dll) and orannz.dll deliberately
+    # imports libraries that exist only in a full database home (oracore and
+    # friends), so a static closure over them would report the official
+    # Instant Client layout as broken.
     pending = [p for p in _iter_files(package_dir)
                if p.suffix.lower() == ".dll" and p.parent == Path(package_dir)]
+    oracle_dir = Path(package_dir) / "driver" / "oracle"
+    if oracle_dir.is_dir():
+        pending.extend(oracle_dir.glob("sqora*.dll"))
     inspected = set()
     missing = []
     while pending:
@@ -197,9 +228,11 @@ class TestFqRuntimePackage:
         """Check the Windows federated-query dependency package is complete
 
         1. Stage the dependency package from the build output
-        2. Verify MySQL, PostgreSQL, InfluxDB and SQL Server dependencies exist
+        2. Verify MySQL, PostgreSQL, InfluxDB, SQL Server and Oracle dependencies
         3. Resolve the PE import closure of every packaged DLL
         4. Verify the SQL Server ODBC driver installer is present
+        5. Load the provider libraries, including the Oracle driver, from the
+           package only
 
         Catalog:
             - FederatedQuery
@@ -212,6 +245,7 @@ class TestFqRuntimePackage:
 
         History:
             - 2026-10-26 Wei Pan Add the Windows dependency package completeness check
+            - 2026-10-28 Wei Pan Cover the Oracle Instant Client in driver/oracle
 
         """
         bin_dir = _build_bin_dir()
@@ -227,7 +261,7 @@ class TestFqRuntimePackage:
             package_dir = Path(temp_dir) / "package"
             result = subprocess.run(
                 ["cmd", "/c", str(_STAGER), str(bin_dir), str(package_dir),
-                 "ON" if odbc_enabled else "OFF"],
+                 "ON" if odbc_enabled else "OFF", "ON" if odbc_enabled else "OFF"],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, timeout=300)
             tdLog.info(result.stdout)
@@ -237,11 +271,10 @@ class TestFqRuntimePackage:
             files = _name_index(package_dir)
             missing_files = []
             for provider, required in _REQUIRED_FILES.items():
-                if provider == "sqlserver" and not odbc_enabled:
+                if provider in ("sqlserver", "oracle") and not odbc_enabled:
                     continue
                 for relative in required:
-                    name = Path(relative).name.lower()
-                    if name not in files:
+                    if not _has_required(files, relative):
                         missing_files.append(f"{provider}: {relative}")
             assert not missing_files, (
                 "the dependency package is incomplete, missing: " + ", ".join(missing_files))
@@ -276,6 +309,17 @@ class TestFqRuntimePackage:
                 "        # search order so interpreter-directory copies are ignored.\n"
                 "        ctypes.WinDLL(path, winmode=0)\n"
                 "        loaded.append(name)\n"
+                "oracle = os.path.join(package, 'driver', 'oracle')\n"
+                "if os.path.isdir(oracle):\n"
+                "    os.add_dll_directory(oracle)\n"
+                "    path = os.path.join(oracle, 'sqora32.dll')\n"
+                "    if os.path.exists(path):\n"
+                "        # winmode=8 is LOAD_WITH_ALTERED_SEARCH_PATH, the flag the\n"
+                "        # provider itself passes: it resolves OCI.dll from the\n"
+                "        # driver's own directory and OCI.dll then loads oraociei\n"
+                "        # from there, which is the whole packaged chain.\n"
+                "        ctypes.WinDLL(path, winmode=8)\n"
+                "        loaded.append('oracle/sqora32.dll')\n"
                 "print('loaded ' + ','.join(loaded))\n"
             )
             result = subprocess.run(

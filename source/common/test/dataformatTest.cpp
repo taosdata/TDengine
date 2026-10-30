@@ -15,6 +15,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// <algorithm> has to be parsed before osRand.h is pulled in: that header maps
+// rand/srand to forbidden identifiers, and MSVC's <algorithm> still uses rand()
+// in the deprecated random_shuffle definition, which then fails to compile.
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <chrono>
 #include <iostream>
@@ -1318,15 +1322,17 @@ TEST(TagValidateTest, AcceptsBuiltTagsAndRejectsForgedHeaders) {
 // an empty value array rather than being rejected as forged (regression: tTagToValArray used
 // p >= pTagEnd, which fired when the data-area start coincides with the blob end).
 TEST(TagValidateTest, EmptyJsonBlobIsValidAndDecodesToEmptyArray) {
-  STag empty;
-  memset(&empty, 0, sizeof(empty));
-  empty.flags = TD_TAG_JSON;
-  empty.len = sizeof(empty);
-  empty.nTag = 0;
-  EXPECT_EQ(tTagValidate(&empty, sizeof(empty)), TSDB_CODE_SUCCESS);
+  // STag ends with a flexible array member, which MSVC refuses to instantiate
+  // by value (C2466); build the header-only blob in a byte buffer instead.
+  std::vector<uint8_t> emptyBlob(sizeof(STag), 0);
+  STag *empty = reinterpret_cast<STag *>(emptyBlob.data());
+  empty->flags = TD_TAG_JSON;
+  empty->len = sizeof(STag);
+  empty->nTag = 0;
+  EXPECT_EQ(tTagValidate(empty, sizeof(STag)), TSDB_CODE_SUCCESS);
 
   SArray *pVals = nullptr;
-  ASSERT_EQ(tTagToValArray(&empty, &pVals), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tTagToValArray(empty, &pVals), TSDB_CODE_SUCCESS);
   ASSERT_NE(pVals, nullptr);
   EXPECT_EQ(taosArrayGetSize(pVals), 0);
   taosArrayDestroy(pVals);
@@ -1558,7 +1564,10 @@ TEST(RowKeyTest, ColDataKeyCountIsBounded) {
     SValue v = {0};
     v.type = aColData[i].type;
     v.val = 10 + i;
-    SColVal cv = {};
+    // COL_VAL_VALUE is a C compound literal; MSVC rejects it in C++ (C4576),
+    // so the same value is assembled field by field here.
+    SColVal cv;
+    memset(&cv, 0, sizeof(cv));
     cv.cid = (int16_t)(i + 1);
     cv.flag = CV_FLAG_VALUE;
     cv.value = v;
@@ -1714,7 +1723,10 @@ static void checkRowKeyRoundTrip(bool sparse, bool varKey, int32_t nPks, int32_t
     } else {
       v.val = 1000 + (int64_t)i;
     }
-    SColVal cv = {};
+    // COL_VAL_VALUE / COL_VAL_NONE are C compound literals; MSVC rejects them
+    // in C++ (C4576), so the same values are assembled field by field here.
+    SColVal cv;
+    memset(&cv, 0, sizeof(cv));
     cv.cid = cols[i].colId;
     cv.flag = CV_FLAG_VALUE;
     cv.value = v;

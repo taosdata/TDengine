@@ -45,6 +45,7 @@ static const char* dialectName(EExtSQLDialect d) {
     case EXT_SQL_DIALECT_POSTGRES: return "PG";
     case EXT_SQL_DIALECT_INFLUXQL: return "InfluxDB";
     case EXT_SQL_DIALECT_SQLSERVER: return "SQLServer";
+    case EXT_SQL_DIALECT_ORACLE:    return "Oracle";
     default:                      return "Unknown";
   }
 }
@@ -233,6 +234,12 @@ typedef struct {
   // value (WHERE/HAVING/ON/CASE-WHEN/logic child).  Consumed - and reset -
   // by dynAppendExpr so operand positions default back to value context.
   int8_t      predicateCtx;
+  // Oracle only: a string literal that feeds a value-context expression
+  // (CASE ... THEN/ELSE, COALESCE/NVL arguments) whose result is NCHAR must
+  // be a national literal (N'...'), otherwise Oracle raises ORA-12704 mixing
+  // NVARCHAR2 and the database character set.  Comparisons do not need it
+  // (implicit conversion applies), so the flag is set only around those arms.
+  int8_t      ncharValueCtx;
   // DS section 5.2.6: client timezone name for timestamp -> calendar conversion.
   // Pointer into the SNodesRemoteSQLCtx.tzName string; NOT owned by SDynSQL.
   // NULL means "use server global default timezone" (legacy behaviour).
@@ -248,6 +255,10 @@ static void dynSQLInit(SDynSQL* s) {
   s->err    = 0;
   s->exprDepth = 0;
   s->predicateCtx = 0;
+  // Value-context literal flag: leaving it uninitialised let a stray N'...'
+  // leak into Oracle literals depending on the stack content, and made the
+  // two-pass nodesExprToExtSQL length query disagree with the render.
+  s->ncharValueCtx = 0;
   s->tzName = NULL;
 }
 
@@ -335,6 +346,53 @@ static char* dynSQLDetach(SDynSQL* s) {
 // Internal rendering helpers  -  all write to SDynSQL*
 // ---------------------------------------------------------------------------
 
+// Oracle reserved words (19c V$RESERVED_WORDS, RESERVED='Y').  An unquoted
+// path segment that folds onto one of these cannot be emitted bare - Oracle
+// would read it as the keyword - so it must be double-quoted (DS 5.3.6 R1).
+static bool dynOracleReservedWord(const char* upperName) {
+  static const char* const kReserved[] = {
+      "ACCESS", "ADD", "ALL", "ALTER", "AND", "ANY", "AS", "ASC", "AUDIT", "BETWEEN",
+      "BY", "CHAR", "CHECK", "CLUSTER", "COLUMN", "COMMENT", "COMPRESS", "CONNECT",
+      "CREATE", "CURRENT", "DATE", "DECIMAL", "DEFAULT", "DELETE", "DESC", "DISTINCT",
+      "DROP", "ELSE", "EXCLUSIVE", "EXISTS", "FILE", "FLOAT", "FOR", "FROM", "GRANT",
+      "GROUP", "HAVING", "IDENTIFIED", "IMMEDIATE", "IN", "INCREMENT", "INDEX",
+      "INITIAL", "INSERT", "INTEGER", "INTERSECT", "INTO", "IS", "LEVEL", "LIKE",
+      "LOCK", "LONG", "MAXEXTENTS", "MINUS", "MLSLABEL", "MODE", "MODIFY", "NOAUDIT",
+      "NOCOMPRESS", "NOT", "NOWAIT", "NULL", "NUMBER", "OF", "OFFLINE", "ON", "ONLINE",
+      "OPTION", "OR", "ORDER", "PCTFREE", "PRIOR", "PRIVILEGES", "PUBLIC", "RAW",
+      "RENAME", "RESOURCE", "REVOKE", "ROW", "ROWID", "ROWNUM", "ROWS", "SELECT",
+      "SESSION", "SET", "SHARE", "SIZE", "SMALLINT", "START", "SUCCESSFUL", "SYNONYM",
+      "SYSDATE", "TABLE", "THEN", "TO", "TRIGGER", "UID", "UNION", "UNIQUE", "UPDATE",
+      "USER", "VALIDATE", "VALUES", "VARCHAR", "VARCHAR2", "VIEW", "WHENEVER", "WHERE",
+      "WITH"};
+
+  for (size_t i = 0; i < sizeof(kReserved) / sizeof(kReserved[0]); ++i) {
+    if (0 == strcmp(upperName, kReserved[i])) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Does the folded name satisfy Oracle's unquoted-identifier grammar?
+// A quoted identifier may hold any character, but only this shape may be
+// written bare without changing which object it names.
+static bool dynOracleBareIdentifiable(const char* upperName) {
+  if (NULL == upperName || '\0' == upperName[0]) {
+    return false;
+  }
+  if (!(upperName[0] >= 'A' && upperName[0] <= 'Z')) {
+    return false;
+  }
+  for (const char* p = upperName + 1; *p != '\0'; ++p) {
+    if (!((*p >= 'A' && *p <= 'Z') || (*p >= '0' && *p <= '9') || *p == '_' || *p == '$' ||
+          *p == '#')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect dialect) {
   char q = (dialect == EXT_SQL_DIALECT_MYSQL) ? '`' : '"';
   char closeQ = q;
@@ -357,6 +415,53 @@ static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect diale
     len -= 2;
   }
 
+  if (dialect == EXT_SQL_DIALECT_ORACLE) {
+    // DS 5.3.6 R1 / DS 9.5.  Quoting is semantic on Oracle: an unquoted name
+    // folds to upper case and matches only that upper-case entry, while a
+    // double-quoted one keeps its case and names a different object ("emp" and
+    // EMP are not the same table).  Folding therefore happens exactly once, at
+    // resolution time - the connector folds a table/schema segment and the
+    // parser folds a column reference - and what reaches this function is
+    // already the exact remote spelling.  Folding again here would undo that
+    // work: a stored column "MiXeDCol" would be emitted as MIXEDCOL, which
+    // names nothing, and the metadata/statement mismatch is the failure DS 9.5
+    // calls out.  So the name is emitted as given, quoted only when Oracle
+    // would not read it back as the same name.
+    if ('"' == inputQuote) {
+      dynSQLAppendChar(s, '"');
+      for (size_t i = 0; i < len; ++i) {
+        char ch = value[i];
+        // A doubled quote in the input is the parser's spelling of one literal
+        // quote (same rule the generic branch below applies).  Skipping the
+        // second character and re-doubling below keeps "a""b" as the identifier
+        // a"b instead of turning it into a""b, which names a different object.
+        if (ch == '"' && i + 1 < len && value[i + 1] == '"') {
+          ++i;
+        }
+        if (ch == '"') {
+          dynSQLAppendChar(s, '"');
+        }
+        dynSQLAppendChar(s, ch);
+      }
+      dynSQLAppendChar(s, '"');
+      return;
+    }
+
+    if (dynOracleBareIdentifiable(value) && !dynOracleReservedWord(value)) {
+      dynSQLAppendStr(s, value);
+      return;
+    }
+    dynSQLAppendChar(s, '"');
+    for (size_t i = 0; i < len; ++i) {
+      if (value[i] == '"') {
+        dynSQLAppendChar(s, '"');
+      }
+      dynSQLAppendChar(s, value[i]);
+    }
+    dynSQLAppendChar(s, '"');
+    return;
+  }
+
   dynSQLAppendChar(s, q);
   for (size_t i = 0; i < len; ++i) {
     char ch = value[i];
@@ -369,6 +474,21 @@ static void dynAppendQuotedId(SDynSQL* s, const char* name, EExtSQLDialect diale
     dynSQLAppendChar(s, ch);
   }
   dynSQLAppendChar(s, closeQ);
+}
+
+// Alias for an internally generated derived table ("(subquery) _sq").  The
+// other dialects read a leading underscore as a plain identifier character, so
+// the bare spelling stays as it is.  Oracle does not: an unquoted name must
+// begin with a letter, and `_sq` is a syntax error (ORA-00911).  Quote it
+// there only, which keeps every existing remote-SQL baseline unchanged.
+static void dynAppendDerivedAlias(SDynSQL* s, const char* alias, EExtSQLDialect dialect) {
+  if (EXT_SQL_DIALECT_ORACLE == dialect) {
+    dynSQLAppendChar(s, '"');
+    dynSQLAppendStr(s, alias);
+    dynSQLAppendChar(s, '"');
+    return;
+  }
+  dynSQLAppendStr(s, alias);
 }
 
 static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtSQLDialect dialect) {
@@ -437,6 +557,32 @@ static void dynAppendTablePath(SDynSQL* s, const SExtTableNode* pExtTable, EExtS
       dynSQLAppendChar(s, '.');
       dynAppendQuotedId(s, pExtTable->table.tableName, dialect);
       break;
+    case EXT_SQL_DIALECT_ORACLE: {
+      // "schema"."table".  Oracle has a single namespace level, so the database
+      // component is never rendered: table.dbName is always empty on this path,
+      // and any "db.table" output would name a different object.
+      const char* schemaToUse = pExtTable->schemaName[0] ? pExtTable->schemaName : pExtTable->srcSchema;
+      if (NULL == schemaToUse || '\0' == schemaToUse[0]) {
+        // No login-user fallback: resolving against the connection's own schema
+        // would silently query a different object than the reference names
+        // (DS 5.3.3).
+        qError("FQ-SQL: Oracle table path missing schema source=%s table=%s",
+               pExtTable->sourceName, pExtTable->table.tableName);
+        if (!s->err) {
+          s->err = TSDB_CODE_EXT_DEFAULT_NS_MISSING;
+        }
+        return;
+      }
+      const char* tblToUse = pExtTable->remoteTableName[0]
+                               ? pExtTable->remoteTableName
+                               : ((pExtTable->pExtMeta && pExtTable->pExtMeta->remoteTableName[0])
+                                   ? pExtTable->pExtMeta->remoteTableName
+                                   : pExtTable->table.tableName);
+      dynAppendQuotedId(s, schemaToUse, dialect);
+      dynSQLAppendChar(s, '.');
+      dynAppendQuotedId(s, tblToUse, dialect);
+      break;
+    }
     case EXT_SQL_DIALECT_INFLUXQL:
     default:
       // "measurement"
@@ -568,9 +714,13 @@ static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtS
   char        normalizedTsText[64] = {0};
   const char* pLiteralText = tsText;
   // T-SQL datetime2 keeps at most 7 fractional digits; MySQL/PG literals keep 6.
+  // Oracle TIMESTAMP holds up to 9, so nothing is dropped there.
   int32_t     maxFractionDigits = (dialect == EXT_SQL_DIALECT_SQLSERVER)
                                       ? EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS + 1
                                       : EXT_SQL_MAX_TIMESTAMP_FRACTION_DIGITS;
+  if (dialect == EXT_SQL_DIALECT_ORACLE) {
+    maxFractionDigits = 9;
+  }
   if ((dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_POSTGRES ||
        dialect == EXT_SQL_DIALECT_SQLSERVER) &&
       dynTimestampFractionDigits(precision) > maxFractionDigits) {
@@ -608,6 +758,36 @@ static void dynAppendTypedTimestampLiteral(SDynSQL* s, const char* tsText, EExtS
       // compared with a datetime2 column (DS 5.3.12 rule R4).
       dynAppendEscapedString(s, pLiteralText, dialect);
       break;
+    case EXT_SQL_DIALECT_ORACLE: {
+      // ANSI timestamp literal (DS 5.3.6 R4).  The text must carry real digits:
+      // the "FF6" suffix is a format-model token and would raise ORA-01861.
+      // It also has to be a full timestamp: Oracle parses TIMESTAMP '...' with
+      // the ANSI grammar, so a declared filter over an Oracle DATE column whose
+      // literal is a bare date ('2024-01-01') raises ORA-01861 as well.  Pad a
+      // missing time/seconds part instead of letting NLS guess.
+      int32_t colons = 0;
+      for (const char* p = pLiteralText; *p != '\0'; ++p) {
+        if (*p == ':') ++colons;
+      }
+      const char* pPad = (0 == colons) ? " 00:00:00" : ((1 == colons) ? ":00" : NULL);
+      dynSQLAppendStr(s, "TIMESTAMP ");
+      if (NULL == pPad) {
+        dynAppendEscapedString(s, pLiteralText, dialect);
+      } else {
+        size_t textLen = strlen(pLiteralText);
+        size_t padLen = strlen(pPad);
+        char*  pPadded = taosMemoryMalloc(textLen + padLen + 1);
+        if (NULL == pPadded) {
+          s->err = TSDB_CODE_OUT_OF_MEMORY;
+          return;
+        }
+        memcpy(pPadded, pLiteralText, textLen);
+        memcpy(pPadded + textLen, pPad, padLen + 1);
+        dynAppendEscapedString(s, pPadded, dialect);
+        taosMemoryFree(pPadded);
+      }
+      break;
+    }
     default:
       dynAppendEscapedString(s, tsText, dialect);
       break;
@@ -668,6 +848,12 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
     dynSQLAppendStr(s, "NULL");
     return;
   }
+  // Oracle value-context string literal: emit the national form so it can mix
+  // with NVARCHAR2 columns (ORA-12704 otherwise).  Set by the CASE/COALESCE
+  // renderer only when the expression result is NCHAR.
+  bool oracleNationalLiteral = (dialect == EXT_SQL_DIALECT_ORACLE && s->ncharValueCtx &&
+                                (pVal->node.resType.type == TSDB_DATA_TYPE_BINARY ||
+                                 pVal->node.resType.type == TSDB_DATA_TYPE_NCHAR));
   // Raw SQL fragment  -  emit datum.p verbatim without quoting or escaping.
   // datum.p is a TDengine varstring (uint16_t length prefix + char content).
   if (pVal->flag & VALUE_FLAG_RAW_SQL_FRAG) {
@@ -677,8 +863,10 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
   switch (pVal->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
       /* T-SQL has no boolean literals: TRUE/FALSE parse as column names
-       * (Msg 207).  Render 1/0; the value domain matches TDengine's BOOL. */
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+       * (Msg 207).  Render 1/0; the value domain matches TDengine's BOOL.
+       * Oracle 19c has no SQL-level boolean at all (ORA-00904), so it takes the
+       * same numeric form (DS 5.3.6 R2). */
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendStr(s, pVal->datum.b ? "1" : "0");
       } else {
         dynSQLAppendStr(s, pVal->datum.b ? "TRUE" : "FALSE");
@@ -709,6 +897,15 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
       break;
     }
     case TSDB_DATA_TYPE_BINARY:   // TSDB_DATA_TYPE_VARCHAR has the same integer value
+      if ((pVal->flag & VALUE_FLAG_STORED_TS_TEXT) && dialect == EXT_SQL_DIALECT_ORACLE) {
+        // A declared-filter timestamp literal restored to its stored text.
+        // Oracle would parse a bare string with NLS_TIMESTAMP_FORMAT
+        // (ORA-01843 when that format is not ISO), so emit the ANSI form.
+        const char* pTsText = (pVal->datum.p != NULL) ? varDataVal(pVal->datum.p)
+                                                      : (pVal->literal ? pVal->literal : "");
+        dynAppendTypedTimestampLiteral(s, pTsText, dialect, pVal->node.resType.precision);
+        break;
+      }
       // datum.p is VARSTR format (2-byte length header + UTF-8 content, null-terminated).
       // varDataVal() skips the header to return the actual string content.
       // Some virtual-table SERIES/tag conditions keep the original string in
@@ -721,6 +918,9 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
              (int)pVal->translate,
              (int)pVal->node.resType.bytes,
              dialectName(dialect));
+      if (oracleNationalLiteral) {
+        dynSQLAppendChar(s, 'N');
+      }
       if (pVal->datum.p) {
         dynAppendEscapedStringTyped(s, varDataVal(pVal->datum.p), dialect, false);
       } else {
@@ -737,6 +937,9 @@ static void dynAppendValueLiteral(SDynSQL* s, const SValueNode* pVal, EExtSQLDia
              (int)pVal->translate,
              (int)pVal->node.resType.bytes,
              dialectName(dialect));
+      if (oracleNationalLiteral) {
+        dynSQLAppendChar(s, 'N');
+      }
       dynAppendEscapedString(s, pVal->literal ? pVal->literal : "", dialect);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -832,6 +1035,300 @@ static int32_t dynAppendFmtStrNet(SDynSQL* s, const char* fmt, EExtSQLDialect di
   return s->err ? s->err : TSDB_CODE_SUCCESS;
 }
 
+// ---------------------------------------------------------------------------
+// Oracle format-model translation (DS 5.3.6 / 5.3.13 to_char + to_timestamp)
+//
+// TDengine tokenises a format string in ttime.c parseTsFormat, with three rules
+// this translation has to reproduce:
+//   * an alphabetic run present in formatKeyWords[] is a token - matched case
+//     sensitively, because the table itself carries the upper, lower and
+//     mixed-case spellings (`Month` and `MONTH` are different tokens);
+//   * "..." is a verbatim span, where \" stands for a single quote character;
+//   * a backslash makes the following character literal.
+// Everything else - separators, digits, letters that are not tokens - is
+// copied through verbatim.
+//
+// Only a token whose Oracle element yields the same bytes may be forwarded
+// (DS 5.3.13 judged item 3: an unmapped token must keep the function local
+// instead of being passed through and rejected by the server).  Two classes
+// fall out:
+//
+//   * Exact: the year, month, day-of-month, day-of-year, hour, minute and
+//     second fields, the fractional seconds and the meridiem indicators.
+//     Note that TDengine's `HH` and `HH12` are BOTH 12-hour elements - ttime.c
+//     renders `tm_hour % 12 == 0 ? 12 : tm_hour % 12` for either, and char2ts
+//     rejects hour > 12 for them - so bare `HH` maps to `HH12`, never `HH24`.
+//     TDengine's `MS`/`US`/`NS` are cumulative views of the same instant
+//     (fsec/1e6, fsec/1e3, fsec), which is exactly FF3/FF6/FF9.
+//   * NLS dependent: `MONTH`/`MON`/`DAY`/`DY` and `D`.  Only
+//     NLS_DATE_LANGUAGE is pinned on the connection (5.3.5); NLS_TERRITORY and
+//     the exact blank padding are not, so these keep the function local.
+//     `TZH`/`TZ` print the value's own zone offset in Oracle but the session
+//     offset in TDengine, so they stay local too.
+//
+// TO_TIMESTAMP parses, so it is stricter than TO_CHAR: Oracle's `YY`/`YYY`/`Y`
+// century pivot is not TDengine's adjustYearTo2020(), and Oracle's FFn digit
+// count need not agree with TDengine's variable-width `MS`/`US`/`NS`.  Those
+// tokens are therefore local in the parsing direction only.
+typedef struct {
+  const char* tok;          // TDengine token, matched case sensitively
+  int32_t     len;          // precomputed strlen(tok)
+  const char* toChar;       // Oracle element for TO_CHAR;  NULL = not exact
+  const char* toTimestamp;  // Oracle element for TO_TIMESTAMP; NULL = not exact
+} SOracleFmtToken;
+
+static const SOracleFmtToken kOracleFmtTokens[] = {
+    {"yyyy",  4, "YYYY",  "YYYY"},
+    {"YYYY",  4, "YYYY",  "YYYY"},
+    {"yyy",   3, "YYY",   NULL},
+    {"YYY",   3, "YYY",   NULL},
+    {"yy",    2, "YY",    NULL},
+    {"YY",    2, "YY",    NULL},
+    {"y",     1, "Y",     NULL},
+    {"Y",     1, "Y",     NULL},
+    {"mm",    2, "MM",    "MM"},
+    {"MM",    2, "MM",    "MM"},
+    {"dd",    2, "DD",    "DD"},
+    {"DD",    2, "DD",    "DD"},
+    {"ddd",   3, "DDD",   "DDD"},
+    {"DDD",   3, "DDD",   "DDD"},
+    {"HH24",  4, "HH24",  "HH24"},
+    {"hh24",  4, "HH24",  "HH24"},
+    {"HH12",  4, "HH12",  "HH12"},
+    {"hh12",  4, "HH12",  "HH12"},
+    {"HH",    2, "HH12",  "HH12"},
+    {"hh",    2, "HH12",  "HH12"},
+    {"MI",    2, "MI",    "MI"},
+    {"mi",    2, "MI",    "MI"},
+    {"SS",    2, "SS",    "SS"},
+    {"ss",    2, "SS",    "SS"},
+    {"MS",    2, "FF3",   NULL},
+    {"ms",    2, "FF3",   NULL},
+    {"US",    2, "FF6",   NULL},
+    {"us",    2, "FF6",   NULL},
+    {"NS",    2, "FF9",   NULL},
+    {"ns",    2, "FF9",   NULL},
+    // Oracle prints the case of the model element, so the lowercase TDengine
+    // spellings need the lowercase element; AM and PM are interchangeable in
+    // Oracle, both print the meridiem indicator.
+    {"AM",    2, "AM",    "AM"},
+    {"am",    2, "am",    "am"},
+    {"PM",    2, "AM",    "AM"},
+    {"pm",    2, "am",    "am"},
+    {"A.M.",  4, "A.M.",  "A.M."},
+    {"a.m.",  4, "a.m.",  "a.m."},
+    {"P.M.",  4, "A.M.",  "A.M."},
+    {"p.m.",  4, "a.m.",  "a.m."},
+    // Month and weekday names.  NLS_DATE_LANGUAGE is pinned to AMERICAN at
+    // connect (DS 5.3.5), so Oracle emits exactly the English spellings in
+    // ttime.c's fullMonths/months/weekDays/shortWeekDays tables.  The blank
+    // padding agrees too: Oracle pads MONTH and DAY to 9 characters, which is
+    // TDengine's "%-9s"; MON and DY are 3 characters each in both.  Oracle
+    // takes the output case from the element, so `Month` -> "January" matches
+    // TDengine's fullMonths entry and `month` -> "january" its lower-cased
+    // form.  Parsing is case-insensitive in both engines.
+    {"MONTH", 5, "MONTH", "MONTH"}, {"Month", 5, "Month", "Month"}, {"month", 5, "month", "month"},
+    {"MON",   3, "MON",   "MON"},   {"Mon",   3, "Mon",   "Mon"},   {"mon",   3, "mon",   "mon"},
+    {"DAY",   3, "DAY",   "DAY"},   {"Day",   3, "Day",   "Day"},   {"day",   3, "day",   "day"},
+    {"DY",    2, "DY",    "DY"},    {"Dy",    2, "Dy",    "Dy"},    {"dy",    2, "dy",    "dy"},
+    // `D` is the day-of-week NUMBER, which Oracle derives from NLS_TERRITORY;
+    // only NLS_DATE_LANGUAGE is pinned, so the first day of the week is not
+    // fixed and this stays local.
+    {"D",     1, NULL,    NULL}, {"d",     1, NULL, NULL},
+    // TZH/TZ print the offset carried by a TIMESTAMP WITH TIME ZONE value.
+    // TDengine prints the session offset, and the operand handed to the
+    // renderer is a plain TIMESTAMP, for which Oracle rejects these elements
+    // outright (ORA-01821).
+    {"TZH",   3, NULL,    NULL}, {"tzh",   3, NULL, NULL},
+    {"TZ",    2, NULL,    NULL}, {"tz",    2, NULL, NULL},
+};
+
+#define ORACLE_FMT_TOKEN_N ((int32_t)(sizeof(kOracleFmtTokens) / sizeof(kOracleFmtTokens[0])))
+// Longest pending run of literal characters.  A run longer than this is simply
+// split into adjacent quoted pieces, which Oracle concatenates.
+#define ORACLE_FMT_LIT_MAX 128
+
+// Greedy longest match.  ttime.c's keywordSearch walks a per-initial-letter
+// group in table order; the two agree because within a group the longer
+// spelling is always the one that matches (e.g. `HH24` before `HH`,
+// `Month` before `Mon`, `A.M.` before `AM` - the shorter ones fail to compare
+// equal on the longer input).
+static const SOracleFmtToken* oracleFmtTokenFind(const char* p) {
+  const SOracleFmtToken* best = NULL;
+  for (int32_t i = 0; i < ORACLE_FMT_TOKEN_N; ++i) {
+    const SOracleFmtToken* t = &kOracleFmtTokens[i];
+    if (strncmp(p, t->tok, (size_t)t->len) != 0) continue;
+    if (best == NULL || t->len > best->len) best = t;
+  }
+  return best;
+}
+
+// Emit the pending literal run as one Oracle quoted literal.
+static int32_t oracleFmtFlushLiteral(SDynSQL* out, char* buf, int32_t* pLen,
+                                     int32_t* pEmitted) {
+  if (*pLen <= 0) return TSDB_CODE_SUCCESS;
+  *pEmitted += *pLen + 2;
+  if (out != NULL) {
+    dynSQLAppendChar(out, '"');
+    dynSQLAppendLen(out, buf, *pLen);
+    dynSQLAppendChar(out, '"');
+    *pLen = 0;
+    return out->err ? out->err : TSDB_CODE_SUCCESS;
+  }
+  *pLen = 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Append one literal character.  Oracle accepts "-/.,;:" bare in a format
+// model; everything else (letters, digits, blanks, punctuation) has to sit
+// inside a "..." run, otherwise a bare letter would be read as an element.
+static int32_t oracleFmtAppendLiteral(SDynSQL* out, char c, char* buf, int32_t* pLen,
+                                      int32_t* pEmitted) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (strchr("-/.,;:", c) != NULL) {
+    code = oracleFmtFlushLiteral(out, buf, pLen, pEmitted);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    ++*pEmitted;
+    if (out != NULL) {
+      dynSQLAppendChar(out, c);
+      if (out->err) return out->err;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (*pLen >= ORACLE_FMT_LIT_MAX) {
+    code = oracleFmtFlushLiteral(out, buf, pLen, pEmitted);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  buf[(*pLen)++] = c;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Translate `fmt` into an Oracle format model.  out == NULL only validates.
+// forParsing selects the TO_TIMESTAMP column of the table.
+static int32_t oracleFmtStrTranslate(const char* fmt, bool forParsing, SDynSQL* out) {
+  char    lit[ORACLE_FMT_LIT_MAX];
+  int32_t litLen = 0;
+  int32_t emitted = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  for (const char* p = fmt; *p;) {
+    if (*p == '"') {
+      // Verbatim span, mirroring parseTsFormat: the content is copied out
+      // as-is with \" standing for one quote character.
+      code = oracleFmtFlushLiteral(out, lit, &litLen, &emitted);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      emitted += 2;
+      if (out != NULL) dynSQLAppendChar(out, '"');
+      ++p;
+      while (*p != '\0' && *p != '"') {
+        char c = *p;
+        if (c == '\\' && *(p + 1) != '\0') {
+          c = *(p + 1);
+          p += 2;
+        } else {
+          ++p;
+        }
+        if (c == '"') {
+          // TDengine's \" yields one literal double quote; Oracle writes the
+          // same character as a doubled quote inside the run.
+          ++emitted;
+          if (out != NULL) {
+            dynSQLAppendChar(out, '"');
+            dynSQLAppendChar(out, '"');
+            if (out->err) return out->err;
+          }
+          continue;
+        }
+        ++emitted;
+        if (out != NULL) {
+          dynSQLAppendChar(out, c);
+          if (out->err) return out->err;
+        }
+      }
+      if (*p == '"') ++p;
+      if (out != NULL) {
+        dynSQLAppendChar(out, '"');
+        if (out->err) return out->err;
+      }
+      continue;
+    }
+
+    if (*p == '\\' && *(p + 1) != '\0') {
+      ++p;  // the backslash makes the next character literal
+      code = oracleFmtAppendLiteral(out, *p, lit, &litLen, &emitted);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      ++p;
+      continue;
+    }
+
+    if (isalpha((unsigned char)*p)) {
+      const SOracleFmtToken* pHit = oracleFmtTokenFind(p);
+      if (pHit != NULL) {
+        const char* mapped = forParsing ? pHit->toTimestamp : pHit->toChar;
+        if (mapped == NULL) {
+          qError("FQ-SQL: Oracle format token '%s' has no exact %s equivalent; keeping local",
+                 pHit->tok, forParsing ? "TO_TIMESTAMP" : "TO_CHAR");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        code = oracleFmtFlushLiteral(out, lit, &litLen, &emitted);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        emitted += (int32_t)strlen(mapped);
+        if (out != NULL) {
+          dynSQLAppendStr(out, mapped);
+          if (out->err) return out->err;
+        }
+        p += pHit->len;
+        continue;
+      }
+      // Not a TDengine token, so ttime.c copies the character through
+      // verbatim - it is literal text for Oracle too.
+    }
+
+    code = oracleFmtAppendLiteral(out, *p, lit, &litLen, &emitted);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    ++p;
+  }
+
+  code = oracleFmtFlushLiteral(out, lit, &litLen, &emitted);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  // An empty format model is NULL in Oracle ('' IS NULL), while TDengine
+  // returns an empty string / parses nothing.  Not equivalent.
+  if (emitted == 0) {
+    qError("FQ-SQL: Oracle empty format model would be NULL; keeping local");
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Used by the planner (planOptimizer.c) to keep TO_CHAR / TO_TIMESTAMP local at
+// plan time when the format model cannot be translated exactly.  Sharing the
+// table with the renderer is what keeps the two decisions in step: a token the
+// planner accepts can never be rejected by dynAppendFmtStrOracle.
+bool nodesOracleTimestampFmtIsPushable(const char* fmt, bool forParsing) {
+  if (fmt == NULL) return false;
+  return oracleFmtStrTranslate(fmt, forParsing, NULL) == TSDB_CODE_SUCCESS;
+}
+
+// Translate a TDengine format string into an Oracle TO_CHAR/TO_TIMESTAMP format
+// model and emit it as a string literal.
+static int32_t dynAppendFmtStrOracle(SDynSQL* s, const char* fmt, bool forParsing) {
+  SDynSQL out;
+  dynSQLInit(&out);
+  int32_t code = oracleFmtStrTranslate(fmt, forParsing, &out);
+  if (code != TSDB_CODE_SUCCESS) {
+    dynSQLFree(&out);
+    return code;
+  }
+  if (out.err) {
+    code = out.err;
+    dynSQLFree(&out);
+    return code;
+  }
+  dynAppendEscapedStringLen(s, out.buf != NULL ? out.buf : "", out.pos, EXT_SQL_DIALECT_ORACLE);
+  dynSQLFree(&out);
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 // Translate an Oracle-style format string and emit it as a quoted SQL literal.
 // useDatafusion selects the DataFusion specifier column; otherwise MySQL's.
 static void dynAppendFmtStr(SDynSQL* s, const char* fmt, bool useDatafusion) {
@@ -872,6 +1369,32 @@ static const SExtColumnDef* findExtColByTdName(const SExtTableMeta* pExtMeta, co
   }
 
   return NULL;
+}
+
+// XMLTYPE is the one Oracle type that is mapped (to NCHAR, DS 5.3.2.1) but
+// cannot be fetched as-is: the ODBC driver never defines a buffer for the
+// object type, so the very first SQLFetch fails with ORA-24359 / ORA-01062 no
+// matter which column or attribute is bound.  The value only becomes readable
+// once the server serializes it, so every reference is rendered as that
+// serialization and the fetched text is exactly the NCHAR payload the type map
+// promises.
+static bool fqColumnHasRenderRewrite(const SNodesRemoteSQLCtx* pCtx, const char* tdColName,
+                                     int8_t rewrite) {
+  if (pCtx == NULL || pCtx->pColumnRenderHints == NULL || pCtx->numColumnRenderHints <= 0 ||
+      tdColName == NULL || tdColName[0] == '\0') {
+    return false;
+  }
+  for (int32_t i = 0; i < pCtx->numColumnRenderHints; ++i) {
+    if (pCtx->pColumnRenderHints[i].rewrite == rewrite &&
+        0 == strcasecmp(pCtx->pColumnRenderHints[i].colName, tdColName)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool fqColumnIsXmlType(const SNodesRemoteSQLCtx* pCtx, const char* tdColName) {
+  return fqColumnHasRenderRewrite(pCtx, tdColName, EXT_RENDER_REWRITE_XMLTYPE);
 }
 
 static const SExtTimestampTypeHint* fqFindTimestampTypeHint(const SNodesRemoteSQLCtx* pCtx,
@@ -978,6 +1501,10 @@ static int8_t fqDefaultTimestampPrecisionForDialect(EExtSQLDialect dialect) {
       return TSDB_TIME_PRECISION_MICRO;
     case EXT_SQL_DIALECT_INFLUXQL:
       return TSDB_TIME_PRECISION_NANO;
+    case EXT_SQL_DIALECT_ORACLE:
+      // DS 5.3.7: metadata carries the real value; this is only the no-metadata
+      // fallback and must be MICRO for DATE / TIMESTAMP(0..6).
+      return TSDB_TIME_PRECISION_MICRO;
     default:
       return TSDB_TIME_PRECISION_MILLI;
   }
@@ -1023,6 +1550,23 @@ static EExtTimestampTzClass fqClassifyExtTimestampType(EExtSQLDialect dialect, c
       break;
     case EXT_SQL_DIALECT_INFLUXQL:
       return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+    case EXT_SQL_DIALECT_ORACLE:
+      // DS 5.3.7: "WITH [LOCAL] TIME ZONE" carries an absolute instant; DATE
+      // and a bare TIMESTAMP(n) hold the client wall clock.  The aware forms
+      // must be tested first - "TIMESTAMP(6) WITH TIME ZONE" also starts with
+      // "timestamp", so a prefix test would classify it as naive and every
+      // epoch/calendar conversion would reinterpret an absolute instant as a
+      // wall clock.  Same split as fqPlanClassifyTimestampType() and the
+      // executor's fedScanClassifyTimestampType(); all three must agree.
+      if (fqTypeContainsIgnoreCase(pExtTypeName, "with local time zone") ||
+          fqTypeContainsIgnoreCase(pExtTypeName, "with time zone")) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (fqTypeStartsWithIgnoreCase(pExtTypeName, "timestamp") ||
+          fqTypeStartsWithIgnoreCase(pExtTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
     default:
       break;
   }
@@ -1744,6 +2288,27 @@ static bool dynFuncArgInt64Equals(const SFunctionNode* pFunc, int32_t argIdx, in
   return pVal->datum.i == expected;
 }
 
+// Integer value of an argument node that the planner has already proven to be a
+// literal of integer type; falls back to pDefault otherwise.
+static int64_t dynFuncArgInt64Value(const SFunctionNode* pFunc, int32_t argIdx, int64_t argDefault) {
+  if (pFunc == NULL || pFunc->pParameterList == NULL || argIdx < 0 ||
+      argIdx >= LIST_LENGTH(pFunc->pParameterList)) {
+    return argDefault;
+  }
+
+  SNode* pArg = nodesListGetNode(pFunc->pParameterList, argIdx);
+  if (pArg == NULL || nodeType(pArg) != QUERY_NODE_VALUE) {
+    return argDefault;
+  }
+
+  const SValueNode* pVal = (const SValueNode*)pArg;
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
+    return argDefault;
+  }
+
+  return IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type) ? (int64_t)pVal->datum.u : pVal->datum.i;
+}
+
 static const SFunctionNode* findHavingAggFuncBySlot(const SNodeList* pAggFuncs, const SColumnNode* pCol) {
   if (pAggFuncs == NULL || pCol == NULL) {
     return NULL;
@@ -1817,7 +2382,9 @@ static bool dynIsFloatingType(uint8_t type) {
 
 static const char* dynFloatingCastType(EExtSQLDialect dialect, uint8_t type) {
   if (type == TSDB_DATA_TYPE_FLOAT) {
-    return "FLOAT";
+    // Oracle's FLOAT is a NUMBER subtype (decimal arithmetic), so the 4-byte
+    // IEEE type keeps its own name (DS 5.3.6 cast table).
+    return (dialect == EXT_SQL_DIALECT_ORACLE) ? "BINARY_FLOAT" : "FLOAT";
   }
 
   switch (dialect) {
@@ -1829,6 +2396,11 @@ static const char* dynFloatingCastType(EExtSQLDialect dialect, uint8_t type) {
       return "FLOAT";
     case EXT_SQL_DIALECT_POSTGRES:
     case EXT_SQL_DIALECT_INFLUXQL:
+      return "DOUBLE PRECISION";
+    case EXT_SQL_DIALECT_ORACLE:
+      // DS 5.3.6 cast table: DOUBLE -> BINARY_DOUBLE.  Oracle's plain FLOAT
+      // is an ANSI synonym for a NUMBER subtype, not an IEEE binary double.
+      return "BINARY_DOUBLE";
     default:
       return "DOUBLE PRECISION";
   }
@@ -1841,39 +2413,114 @@ static const char* dynSqlCastType(EExtSQLDialect dialect, uint8_t type) {
       // VARCHAR (byte string), so the cast keeps the same width semantics -
       // including for HASHBYTES, which hashes the code-page bytes.
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "VARCHAR";
+      // VARCHAR2 requires a length (ORA-00906); the caller appends it.  The
+      // bare name is only a last resort and is never emitted for Oracle.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "VARCHAR2";
       return (dialect == EXT_SQL_DIALECT_POSTGRES) ? "TEXT" : "CHAR";
     case TSDB_DATA_TYPE_NCHAR:
       // DS 5.3.13 cast row: NCHAR -> NVARCHAR (Unicode semantics).
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "NVARCHAR";
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "NVARCHAR2";
       return (dialect == EXT_SQL_DIALECT_POSTGRES) ? "TEXT" : "CHAR";
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
+      // DS 5.3.6: Oracle integers are NUMBER(p) with the precision that holds
+      // the TDengine width without loss.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "NUMBER(19)";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "SIGNED" : "BIGINT";
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UINT:
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "NUMBER(10)";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "SIGNED" : "INTEGER";
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_USMALLINT:
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "NUMBER(5)";
       return "SMALLINT";
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT:
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "NUMBER(3)";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "SIGNED" : "SMALLINT";
     case TSDB_DATA_TYPE_FLOAT:
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "BINARY_FLOAT";
       return "FLOAT";
     case TSDB_DATA_TYPE_DOUBLE:
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "FLOAT";
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "BINARY_DOUBLE";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "DOUBLE" : "DOUBLE PRECISION";
     case TSDB_DATA_TYPE_BOOL:
       // DS 5.3.13 cast row: BOOL -> BIT (T-SQL has no BOOLEAN type).
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "BIT";
+      // Oracle 19c has no SQL-level BOOLEAN; a NUMBER(1) column is the numeric
+      // form the rest of the renderer already uses for booleans (R2).
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "NUMBER(1)";
       return "BOOLEAN";
     case TSDB_DATA_TYPE_TIMESTAMP:
       // DS 5.3.6 R4: TIMESTAMP is rowversion in T-SQL - never emit it.
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "DATETIME2";
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "TIMESTAMP(6)";
       return (dialect == EXT_SQL_DIALECT_MYSQL) ? "DATETIME(3)" : "TIMESTAMP";
     default:
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) return "NVARCHAR";
+      if (dialect == EXT_SQL_DIALECT_ORACLE) return "VARCHAR2";
       return "CHAR";
+  }
+}
+
+// Append the target type of a CAST.  Oracle's VARCHAR2 / NVARCHAR2 / RAW must
+// carry an explicit length (a bare name is ORA-00906) and DECIMAL must carry
+// its precision and scale, so this form takes the whole SDataType; every other
+// dialect keeps the plain name returned by dynSqlCastType().
+static void dynAppendSqlCastType(SDynSQL* s, EExtSQLDialect dialect, const SDataType* pType) {
+  if (dialect != EXT_SQL_DIALECT_ORACLE) {
+    dynSQLAppendStr(s, dynSqlCastType(dialect, pType->type));
+    return;
+  }
+
+  switch (pType->type) {
+    case TSDB_DATA_TYPE_VARCHAR: {
+      // TDengine stores the value length in a header; the declared width is the
+      // payload.  Oracle's VARCHAR2 ceiling is 4000 bytes, so an over-long
+      // declaration is capped there rather than producing invalid SQL (the
+      // value itself is still checked at conversion time).
+      int32_t len = (int32_t)pType->bytes - VARSTR_HEADER_SIZE;
+      if (len <= 0) {
+        len = 4000;
+      }
+      if (len > 4000) {
+        len = 4000;
+      }
+      dynSQLAppendf(s, "VARCHAR2(%d)", len);
+      break;
+    }
+    case TSDB_DATA_TYPE_NCHAR: {
+      int32_t chars = ((int32_t)pType->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+      if (chars <= 0) {
+        chars = 2000;
+      }
+      if (chars > 2000) {
+        chars = 2000;
+      }
+      dynSQLAppendf(s, "NVARCHAR2(%d)", chars);
+      break;
+    }
+    case TSDB_DATA_TYPE_VARBINARY: {
+      int32_t len = (int32_t)pType->bytes - VARSTR_HEADER_SIZE;
+      if (len <= 0) {
+        len = 2000;
+      }
+      if (len > 2000) {
+        len = 2000;
+      }
+      dynSQLAppendf(s, "RAW(%d)", len);
+      break;
+    }
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_DECIMAL64:
+      dynSQLAppendf(s, "NUMBER(%d,%d)", (int)pType->precision, (int)pType->scale);
+      break;
+    default:
+      dynSQLAppendStr(s, dynSqlCastType(dialect, pType->type));
+      break;
   }
 }
 
@@ -1939,6 +2586,46 @@ static bool dynIsTsqlPredicateForm(const SNode* pExpr) {
 
 static bool dynIsVarLikeType(int32_t type) {
   return type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_NCHAR;
+}
+
+// Oracle 19c predicate forms (DS 5.3.6 R2).  The set matches T-SQL except for
+// the IS [NOT] TRUE/FALSE/UNKNOWN family, which Oracle has no syntax for: those
+// must be rewritten to comparisons by the operator renderer, so they are NOT
+// predicates here (otherwise the wrapper would emit `(expr IS TRUE)` and the
+// remote would raise ORA-00920).  MATCH / NMATCH render as REGEXP_LIKE /
+// NOT REGEXP_LIKE, which are predicates and boolean-valued: comparing the
+// result with 0 (`REGEXP_LIKE(...) <> 0`) is ORA-00920, so they belong here.
+static bool dynIsOraclePredicateForm(const SNode* pExpr) {
+  if (NULL == pExpr) {
+    return false;
+  }
+  switch (nodeType((SNode*)pExpr)) {
+    case QUERY_NODE_LOGIC_CONDITION:
+      return true;
+    case QUERY_NODE_OPERATOR:
+      switch (((const SOperatorNode*)pExpr)->opType) {
+        case OP_TYPE_EQUAL:
+        case OP_TYPE_NOT_EQUAL:
+        case OP_TYPE_GREATER_THAN:
+        case OP_TYPE_GREATER_EQUAL:
+        case OP_TYPE_LOWER_THAN:
+        case OP_TYPE_LOWER_EQUAL:
+        case OP_TYPE_LIKE:
+        case OP_TYPE_NOT_LIKE:
+        case OP_TYPE_MATCH:
+        case OP_TYPE_NMATCH:
+        case OP_TYPE_IN:
+        case OP_TYPE_NOT_IN:
+        case OP_TYPE_IS_NULL:
+        case OP_TYPE_IS_NOT_NULL:
+        case OP_TYPE_EXISTS:
+          return true;
+        default:
+          return false;
+      }
+    default:
+      return false;
+  }
 }
 
 static bool dynNeedsPgComparisonConversion(int32_t leftType, int32_t rightType, int32_t convertType) {
@@ -2437,6 +3124,50 @@ static int32_t dynAppendNodeList(SDynSQL* s, const SNodeListNode* pList, EExtSQL
   return TSDB_CODE_SUCCESS;
 }
 
+// Oracle rejects an IN list with more than 1000 expressions (ORA-01795).
+// Split the list into groups of 1000 and combine the groups with OR (AND for
+// the negated form, since NOT IN over a union is the conjunction of the
+// per-group predicates).  Both forms preserve the three-valued logic of a
+// single list, so the split is a pure rewrite (DS 5.3.12 OP_TYPE_IN).
+#define DYN_ORACLE_IN_LIST_LIMIT 1000
+
+static int32_t dynAppendOracleInList(SDynSQL* s, const SNode* pLeft, const SNodeListNode* pList,
+                                     bool negated, EExtSQLDialect dialect,
+                                     const SExtTableMeta* pExtMeta,
+                                     const SNodesRemoteSQLCtx* pCtx) {
+  const SNodeList* pItems = pList->pNodeList;
+  int32_t total = (NULL != pItems) ? LIST_LENGTH((SNodeList*)pItems) : 0;
+  if (total <= DYN_ORACLE_IN_LIST_LIMIT) {
+    int32_t code = dynAppendExpr(s, pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, negated ? " NOT IN " : " IN ");
+    return dynAppendNodeList(s, pList, dialect, pExtMeta, pCtx);
+  }
+
+  const char* pJoin = negated ? " AND " : " OR ";
+  qDebug("FQ-SQL: Oracle IN list has %d items; splitting into groups of %d", total,
+         DYN_ORACLE_IN_LIST_LIMIT);
+  dynSQLAppendChar(s, '(');
+  for (int32_t base = 0; base < total; base += DYN_ORACLE_IN_LIST_LIMIT) {
+    if (base > 0) {
+      dynSQLAppendStr(s, pJoin);
+    }
+    int32_t code = dynAppendExpr(s, pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, negated ? " NOT IN (" : " IN (");
+    int32_t end = base + DYN_ORACLE_IN_LIST_LIMIT;
+    if (end > total) end = total;
+    for (int32_t i = base; i < end; ++i) {
+      if (i > base) dynSQLAppendStr(s, ", ");
+      code = dynAppendExpr(s, nodesListGetNode((SNodeList*)pItems, i), dialect, pExtMeta, pCtx);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    dynSQLAppendChar(s, ')');
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 static bool dynIsZeroConstValue(const SNode* pNode) {
   if (NULL == pNode || QUERY_NODE_VALUE != nodeType(pNode)) {
     return false;
@@ -2471,6 +3202,7 @@ static int8_t dialectToExtSourceType(EExtSQLDialect dialect) {
     case EXT_SQL_DIALECT_POSTGRES: return EXT_SOURCE_POSTGRESQL;
     case EXT_SQL_DIALECT_INFLUXQL: return EXT_SOURCE_INFLUXDB;
     case EXT_SQL_DIALECT_SQLSERVER: return EXT_SOURCE_SQLSERVER;
+    case EXT_SQL_DIALECT_ORACLE:    return EXT_SOURCE_ORACLE;
     default:                       return -1;
   }
 }
@@ -2588,6 +3320,74 @@ static int32_t dynAppendTsqlLikePattern(SDynSQL* s, const SNode* pExpr, bool nch
       }
       dynAppendEscapedStringLenTyped(s, (NULL != esc.buf) ? esc.buf : "", esc.pos, dialect,
                                      ncharPattern);
+      dynSQLFree(&esc);
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+  }
+  return dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+}
+
+// Render the RIGHT-hand operand of an Oracle LIKE predicate.  Oracle's LIKE has
+// no character-set metacharacter ('[' is a plain character, exactly as in
+// TDengine), so only the escape normalisation and the ASCII case fold remain.
+// The pattern is uppercased so it matches the TRANSLATE(...) applied to the
+// column: TDengine's LIKE folds ASCII letters only and compares every other
+// character exactly, which UPPER()/NLS_UPPER would not preserve.
+static int32_t dynAppendOracleLikePattern(SDynSQL* s, const SNode* pExpr, bool ncharPattern,
+                                          EExtSQLDialect dialect,
+                                          const SExtTableMeta* pExtMeta,
+                                          const SNodesRemoteSQLCtx* pCtx) {
+  if (NULL != pExpr && QUERY_NODE_VALUE == nodeType((SNode*)pExpr)) {
+    const SValueNode* pVal = (const SValueNode*)pExpr;
+    if (pVal->isNull) {
+      dynSQLAppendStr(s, "NULL");
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+    const char* content    = NULL;
+    int32_t     contentLen = 0;
+    if (NULL != pVal->literal) {
+      content    = pVal->literal;
+      contentLen = (int32_t)strlen(pVal->literal);
+    } else if (NULL != pVal->datum.p) {
+      content    = varDataVal(pVal->datum.p);
+      contentLen = (int32_t)varDataLen(pVal->datum.p);
+    }
+    if (NULL != content) {
+      SDynSQL esc;
+      dynSQLInit(&esc);
+      for (int32_t i = 0; i < contentLen; ++i) {
+        char ch = content[i];
+        if ('\\' == ch) {
+          // TDengine only treats '\\' as an escape before a wildcard or
+          // another backslash; Oracle's ESCAPE clause gives the backslash
+          // escape meaning in all positions, so keep the real TDengine
+          // escapes and double every literal backslash.
+          if (i + 1 < contentLen &&
+              ('%' == content[i + 1] || '_' == content[i + 1] || '\\' == content[i + 1])) {
+            dynSQLAppendChar(&esc, '\\');
+            dynSQLAppendChar(&esc, content[++i]);
+          } else {
+            dynSQLAppendStr(&esc, "\\\\");
+          }
+        } else if (ch >= 'a' && ch <= 'z') {
+          dynSQLAppendChar(&esc, (char)(ch - 'a' + 'A'));
+        } else {
+          dynSQLAppendChar(&esc, ch);
+        }
+      }
+      if (esc.err) {
+        int32_t escErr = esc.err;
+        dynSQLFree(&esc);
+        return escErr;
+      }
+      // An NVARCHAR2 column compared with a VARCHAR2 literal is implicitly
+      // converted by Oracle and can raise ORA-12704 when the database
+      // character set cannot represent the text; make the literal national
+      // when the folded column is NCHAR.
+      if (ncharPattern) {
+        dynSQLAppendChar(s, 'N');
+      }
+      dynAppendEscapedStringLenTyped(s, (NULL != esc.buf) ? esc.buf : "", esc.pos, dialect, false);
       dynSQLFree(&esc);
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
@@ -2804,6 +3604,99 @@ static int32_t dynAppendTsqlArithmeticExpr(SDynSQL* s, const SOperatorNode* pOp,
   return s->err ? s->err : TSDB_CODE_SUCCESS;
 }
 
+// Oracle division / remainder (DS 5.3.12).  Oracle has no `%` operator, and
+// MOD(x, 0) returns x instead of raising, so both forms need an explicit zero
+// guard to reproduce TDengine's NULL-on-zero-divisor.  Integer division is
+// coerced to BINARY_DOUBLE first when TDengine's result type is floating, so
+// the remote evaluation is the same double arithmetic:
+//   <a> / <b>  ->  (CASE WHEN <b> = 0 THEN NULL ELSE <a> / <b> END)
+//   <a> % <b>  ->  (CASE WHEN <b> = 0 THEN NULL ELSE <a> - TRUNC(<a> / <b>) * <b> END)
+// The remainder cannot use MOD(): Oracle defines MOD(n2, n1) as
+// n2 - n1 * FLOOR(n2 / n1), so MOD(-7, 3) is 2, while TDengine truncates the
+// quotient towards zero (vectorMathRemainder) and returns -1.  The explicit
+// TRUNC form reproduces the truncated quotient, and the planner keeps
+// non-integer operands local so the double arithmetic stays exact.
+static int32_t dynAppendOracleDivisionExpr(SDynSQL* s, const SOperatorNode* pOp,
+                                           EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                           const SNodesRemoteSQLCtx* pCtx) {
+  bool isRem = (pOp->opType == OP_TYPE_REM);
+
+  dynSQLAppendStr(s, "(CASE WHEN ");
+  int32_t code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, " = 0 THEN NULL ELSE ");
+
+  if (isRem) {
+    dynSQLAppendChar(s, '(');
+    code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " - TRUNC(");
+    code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " / ");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, ") * ");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendChar(s, ')');
+  } else {
+    bool coerce = dynShouldCoerceDivisionToFloat(pOp, dialect);
+    if (coerce) {
+      dynSQLAppendStr(s, "CAST(");
+    }
+    code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (coerce) {
+      dynSQLAppendStr(s, " AS ");
+      dynSQLAppendStr(s, dynFloatingCastType(dialect, ((const SExprNode*)pOp)->resType.type));
+      dynSQLAppendChar(s, ')');
+    }
+    dynSQLAppendStr(s, " / ");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+
+  dynSQLAppendStr(s, " END)");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// Oracle bit operations (DS 5.3.12).  Oracle has no `&` / `|` operators:
+//   <a> & <b>  ->  BITAND(<a>, <b>)
+//   <a> | <b>  ->  (<a> + <b> - BITAND(<a>, <b>))
+// The OR identity holds in two's complement, including negative operands;
+// the planner keeps floating / decimal operands local because BITAND silently
+// truncates them to integers.
+static int32_t dynAppendOracleBitExpr(SDynSQL* s, const SOperatorNode* pOp,
+                                      EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                      const SNodesRemoteSQLCtx* pCtx) {
+  if (pOp->opType == OP_TYPE_BIT_AND) {
+    dynSQLAppendStr(s, "BITAND(");
+    int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, ", ");
+    code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendChar(s, ')');
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, " + ");
+  code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, " - BITAND(");
+  code = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, ", ");
+  code = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  dynSQLAppendStr(s, "))");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtSQLDialect dialect,
                                       const SExtTableMeta* pExtMeta,
                                       const SNodesRemoteSQLCtx* pCtx) {
@@ -2903,6 +3796,34 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
     return s->err ? s->err : TSDB_CODE_SUCCESS;
   }
 
+  // Oracle arithmetic / bit / regex rewrites (DS 5.3.12).  None of these
+  // operators exists with TDengine's semantics in Oracle: `/` and `%` need the
+  // zero-divisor guard, `&`/`|` are functions, and MATCH is REGEXP_LIKE.
+  if (EXT_SQL_DIALECT_ORACLE == dialect && pOp->pLeft != NULL && pOp->pRight != NULL) {
+    if (pOp->opType == OP_TYPE_DIV || pOp->opType == OP_TYPE_REM) {
+      return dynAppendOracleDivisionExpr(s, pOp, dialect, pExtMeta, pCtx);
+    }
+    if (pOp->opType == OP_TYPE_BIT_AND || pOp->opType == OP_TYPE_BIT_OR) {
+      return dynAppendOracleBitExpr(s, pOp, dialect, pExtMeta, pCtx);
+    }
+    if (pOp->opType == OP_TYPE_MATCH || pOp->opType == OP_TYPE_NMATCH) {
+      // DS 5.3.6 R7: only the ERE constructs both engines interpret alike are
+      // pushed; the planner rejects everything else, so the pattern renders
+      // as-is.  The match parameter pins case sensitivity: Oracle defaults it
+      // from NLS_SORT (a *_CI sort makes REGEXP_LIKE case-insensitive), while
+      // glibc, which compiles TDengine's MATCH patterns, always compares
+      // exactly.
+      dynSQLAppendStr(s, (pOp->opType == OP_TYPE_MATCH) ? "REGEXP_LIKE(" : "NOT REGEXP_LIKE(");
+      int32_t rxCode = dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+      if (rxCode != TSDB_CODE_SUCCESS) return rxCode;
+      dynSQLAppendStr(s, ", ");
+      rxCode = dynAppendExpr(s, pOp->pRight, dialect, pExtMeta, pCtx);
+      if (rxCode != TSDB_CODE_SUCCESS) return rxCode;
+      dynSQLAppendStr(s, ", 'c')");
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
+  }
+
   // SQL Server character equality/inequality: exact rewrite (binary collation
   // plus payload-length check).  See dynAppendTsqlCharEquality.
   if (EXT_SQL_DIALECT_SQLSERVER == dialect &&
@@ -2911,6 +3832,31 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynIsTsqlCharType(((const SExprNode*)pOp->pLeft)->resType.type) &&
       dynIsTsqlCharType(((const SExprNode*)pOp->pRight)->resType.type)) {
     return dynAppendTsqlCharEquality(s, pOp, dialect, pExtMeta, pCtx);
+  }
+
+  // Oracle LIKE (DS 5.3.12 OP_TYPE_LIKE row).  TDengine's LIKE folds ASCII
+  // letters only, while Oracle's case sensitivity comes from NLS_COMP /
+  // NLS_SORT - UPPER() would also fold non-ASCII and depend on NLS_UPPER.
+  // Fold both sides with TRANSLATE over the ASCII alphabet and pin the escape
+  // character, so the comparison is byte-exact apart from ASCII case:
+  //   TRANSLATE(<expr>, 'abc...', 'ABC...') LIKE TRANSLATE(<pat>, ...) ESCAPE '\'
+  if (EXT_SQL_DIALECT_ORACLE == dialect &&
+      (pOp->opType == OP_TYPE_LIKE || pOp->opType == OP_TYPE_NOT_LIKE)) {
+    dynSQLAppendChar(s, '(');
+    dynSQLAppendStr(s, "TRANSLATE(");
+    (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
+    dynSQLAppendStr(s, ", 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')");
+    dynSQLAppendStr(s, (pOp->opType == OP_TYPE_LIKE) ? " LIKE " : " NOT LIKE ");
+    bool ncharPattern = (pOp->pLeft != NULL &&
+                         ((const SExprNode*)pOp->pLeft)->resType.type == TSDB_DATA_TYPE_NCHAR);
+    int32_t likeCode = dynAppendOracleLikePattern(s, pOp->pRight, ncharPattern, dialect,
+                                                  pExtMeta, pCtx);
+    if (TSDB_CODE_SUCCESS != likeCode) {
+      return likeCode;
+    }
+    dynSQLAppendStr(s, " ESCAPE '\\'");
+    dynSQLAppendChar(s, ')');
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
   }
 
   // SQL Server arithmetic over non-decimal operands: TDengine evaluates in
@@ -3024,6 +3970,13 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
                                             false, dialect, pExtMeta, pCtx);
         }
       }
+      if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_NODE_LIST &&
+          dialect == EXT_SQL_DIALECT_ORACLE) {
+        // The helper renders the left operand itself: a list longer than 1000
+        // items is split into several IN groups joined by OR.
+        return dynAppendOracleInList(s, pOp->pLeft, (const SNodeListNode*)pOp->pRight, false,
+                                     dialect, pExtMeta, pCtx);
+      }
       (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
       if ((pOp->flag & OPERATOR_FLAG_NEGATIVE_OP) &&
           pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_REMOTE_VALUE_LIST) {
@@ -3040,8 +3993,8 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
         dynSQLAppendStr(s, ")");
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
-      dynSQLAppendStr(s, " IN ");
       if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_NODE_LIST) {
+        dynSQLAppendStr(s, " IN ");
         return dynAppendNodeList(s, (const SNodeListNode*)pOp->pRight, dialect, pExtMeta, pCtx);
       }
       if (pOp->pRight && nodeType(pOp->pRight) == QUERY_NODE_REMOTE_VALUE_LIST) {
@@ -3049,7 +4002,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
         // v2 two-state: DIRECT_SQL inlines inSubquerySql (original SQL);
         // ORIG_TYPE_2B renders the attached inner logic plan with dialect
         // transforms (2b: function mapping + schema/db/remoteTableName xlate).
-        dynSQLAppendStr(s, "(");
+        dynSQLAppendStr(s, " IN (");
         int32_t ec = dynAppendSubqBodyByMode(s, pRemote->renderMode, pRemote->inSubquerySql,
                                              pRemote->pRemotePlan, dialect, pRemote->subQIdx);
         if (ec != TSDB_CODE_SUCCESS) return ec;
@@ -3067,6 +4020,11 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
           return dynAppendInfluxNodeInChain(s, pOp,
                                             (const SNodeListNode*)pOp->pRight,
                                             true, dialect, pExtMeta, pCtx);
+        }
+        if (dialect == EXT_SQL_DIALECT_ORACLE) {
+          // Split groups are combined with AND (see dynAppendOracleInList).
+          return dynAppendOracleInList(s, pOp->pLeft, (const SNodeListNode*)pOp->pRight, true,
+                                       dialect, pExtMeta, pCtx);
         }
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " NOT IN ");
@@ -3123,10 +4081,12 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS NOT NULL)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_TRUE:
-      // T-SQL has no IS [NOT] TRUE/FALSE/UNKNOWN (DS 5.3.12): rewrite to the
-      // 0/1 comparison forms.  NULL input yields UNKNOWN in T-SQL, which a
-      // WHERE filters out - matching TDengine's IS TRUE = false for NULL.
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+      // T-SQL has no IS [NOT] TRUE/FALSE/UNKNOWN (DS 5.3.12) and Oracle 19c has
+      // no boolean type to test at all (DS 5.3.12 IS TRUE row, ORA-00920):
+      // rewrite both to the numeric comparison forms.  NULL input yields
+      // UNKNOWN, which a WHERE filters out - matching TDengine's IS TRUE =
+      // false for NULL.
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendChar(s, '(');
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " <> 0)");
@@ -3137,7 +4097,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS TRUE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_FALSE:
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendChar(s, '(');
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " = 0)");
@@ -3148,7 +4108,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS FALSE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_UNKNOWN:
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendChar(s, '(');
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " IS NULL)");
@@ -3159,7 +4119,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS UNKNOWN)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_TRUE:
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendChar(s, '(');
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " = 0 OR ");
@@ -3172,7 +4132,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS NOT TRUE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_FALSE:
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendChar(s, '(');
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " <> 0 OR ");
@@ -3185,7 +4145,7 @@ static int32_t dynAppendOperatorExpr(SDynSQL* s, const SOperatorNode* pOp, EExtS
       dynSQLAppendStr(s, " IS NOT FALSE)");
       return TSDB_CODE_SUCCESS;
     case OP_TYPE_IS_NOT_UNKNOWN:
-      if (EXT_SQL_DIALECT_SQLSERVER == dialect) {
+      if (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect) {
         dynSQLAppendChar(s, '(');
         (void)dynAppendExpr(s, pOp->pLeft, dialect, pExtMeta, pCtx);
         dynSQLAppendStr(s, " IS NOT NULL)");
@@ -3538,6 +4498,96 @@ static int32_t dynRenderNamedFuncKeepN(SDynSQL* s, const char* funcName,
   return TSDB_CODE_SUCCESS;
 }
 
+// Oracle trim helpers (DS 5.3.13 trim / ltrim / rtrim rows).  TDengine trims
+// the isspace() set (space, \t, \n, \v, \f, \r), while Oracle's one-argument
+// LTRIM/RTRIM and TRIM remove spaces only.  Oracle's two-argument LTRIM/RTRIM
+// take a character *set*, so the exact whitespace set can be spelled out:
+//   LTRIM(<e>, ' '||CHR(9)||CHR(10)||CHR(11)||CHR(12)||CHR(13))
+static void dynAppendOracleWhitespaceSet(SDynSQL* s) {
+  dynSQLAppendStr(s, "' '||CHR(9)||CHR(10)||CHR(11)||CHR(12)||CHR(13)");
+}
+
+// <fn>(<expr>, <chars-or-whitespace>) for LTRIM / RTRIM.
+static int32_t dynAppendOracleTrimOne(SDynSQL* s, const char* funcName, const SNode* pExpr,
+                                      const SNode* pChars, EExtSQLDialect dialect,
+                                      const SExtTableMeta* pExtMeta,
+                                      const SNodesRemoteSQLCtx* pCtx) {
+  dynSQLAppendStr(s, funcName);
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+  if (code) return code;
+  dynSQLAppendStr(s, ", ");
+  if (pChars != NULL) {
+    code = dynAppendExpr(s, pChars, dialect, pExtMeta, pCtx);
+    if (code) return code;
+  } else {
+    dynAppendOracleWhitespaceSet(s);
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// TRIM(<expr>[, <chars>] [LEADING|TRAILING|BOTH]) in TDengine terms.
+static int32_t dynAppendOracleTrim(SDynSQL* s, const SNode* pExpr, const SNode* pChars,
+                                   int64_t trimType, EExtSQLDialect dialect,
+                                   const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx) {
+  bool leading = (trimType == 1);
+  bool trailing = (trimType == 2);
+  bool both = (!leading && !trailing);
+  if (both) {
+    dynSQLAppendStr(s, "RTRIM(");
+  }
+  int32_t code = dynAppendOracleTrimOne(s, "LTRIM", pExpr, pChars, dialect, pExtMeta, pCtx);
+  if (code) return code;
+  if (!both) {
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
+  dynSQLAppendStr(s, ", ");
+  if (pChars != NULL) {
+    code = dynAppendExpr(s, pChars, dialect, pExtMeta, pCtx);
+    if (code) return code;
+  } else {
+    dynAppendOracleWhitespaceSet(s);
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// Oracle string concatenation (DS 5.3.6 R3).  Oracle's `||` treats NULL as the
+// empty string while TDengine's CONCAT returns NULL when any argument is NULL,
+// and Oracle's CONCAT() takes exactly two arguments.  The exact rewrite is a
+// NULL guard plus a `||` chain:
+//   (CASE WHEN <e1> IS NULL OR <e2> IS NULL THEN NULL ELSE <e1> || <e2> END)
+static int32_t dynRenderOracleConcat(SDynSQL* s, const SFunctionNode* pFunc,
+                                     EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                     const SNodesRemoteSQLCtx* pCtx) {
+  int32_t nParams = (pFunc->pParameterList != NULL) ? LIST_LENGTH(pFunc->pParameterList) : 0;
+  if (nParams < 2) {
+    qError("FQ-SQL: CONCAT requires at least two parameters");
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  dynSQLAppendStr(s, "(CASE WHEN ");
+  for (int32_t i = 0; i < nParams; ++i) {
+    if (i > 0) {
+      dynSQLAppendStr(s, " OR ");
+    }
+    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    dynSQLAppendStr(s, " IS NULL");
+  }
+  dynSQLAppendStr(s, " THEN NULL ELSE ");
+  for (int32_t i = 0; i < nParams; ++i) {
+    if (i > 0) {
+      dynSQLAppendStr(s, " || ");
+    }
+    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, i), dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  dynSQLAppendStr(s, " END)");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynRenderTdLengthExpr(SDynSQL* s, const SFunctionNode* pFunc,
                                      EExtSQLDialect dialect,
                                      const SExtTableMeta* pExtMeta,
@@ -3559,6 +4609,17 @@ static int32_t dynRenderTdLengthExpr(SDynSQL* s, const SFunctionNode* pFunc,
       dynSQLAppendf(s, " + N'.') - 1) * %d)", (int)TSDB_NCHAR_SIZE);
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
+    if (dialect == EXT_SQL_DIALECT_ORACLE) {
+      // DS 5.3.13 length row: NCHAR columns -> LENGTH(expr) * 4 (Oracle's
+      // LENGTH counts characters, TDengine's NCHAR length is UCS4 bytes).
+      dynSQLAppendStr(s, "(LENGTH(");
+      int32_t code = dynAppendExpr(s, pArg0, dialect, pExtMeta, pCtx);
+      if (code) {
+        return code;
+      }
+      dynSQLAppendf(s, ") * %d)", (int)TSDB_NCHAR_SIZE);
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
+    }
     dynSQLAppendStr(s, "(CHAR_LENGTH(");
     int32_t code = dynAppendExpr(s, pArg0, dialect, pExtMeta, pCtx);
     if (code) {
@@ -3575,6 +4636,12 @@ static int32_t dynRenderTdLengthExpr(SDynSQL* s, const SFunctionNode* pFunc,
   if (dialect == EXT_SQL_DIALECT_MYSQL) {
     return dynRenderNamedFunc(s, "LENGTH", pFunc, dialect, pExtMeta, pCtx);
   }
+  if (dialect == EXT_SQL_DIALECT_ORACLE) {
+    // DS 5.3.13 length row: LENGTHB counts bytes in the database character set;
+    // with AL32UTF8 (the only charset the connector accepts, since it must match
+    // TDengine's UTF-8 NCHAR/BINARY bytes) that equals the TDengine byte length.
+    return dynRenderNamedFunc(s, "LENGTHB", pFunc, dialect, pExtMeta, pCtx);
+  }
 
   return dynRenderNamedFunc(s, "OCTET_LENGTH", pFunc, dialect, pExtMeta, pCtx);
 }
@@ -3584,6 +4651,27 @@ static int32_t dynRenderTdSubstringExpr(SDynSQL* s, const SFunctionNode* pFunc,
                                         const SExtTableMeta* pExtMeta,
                                         const SNodesRemoteSQLCtx* pCtx) {
   int32_t nParams = pFunc->pParameterList ? LIST_LENGTH(pFunc->pParameterList) : 0;
+
+  if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 2) {
+    // DS 5.3.13 substr row: Oracle spells it SUBSTR and, like TDengine, counts
+    // a negative start from the end of the string; the two-argument form runs
+    // to the end of the string.  The one remaining difference - TDengine's
+    // pos = 0 returns an empty string while Oracle treats it as 1 - is kept
+    // local by the planner gate.
+    dynSQLAppendStr(s, "SUBSTR(");
+    int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+    if (code) return code;
+    dynSQLAppendStr(s, ", ");
+    code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+    if (code) return code;
+    if (nParams >= 3) {
+      dynSQLAppendStr(s, ", ");
+      code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 2), dialect, pExtMeta, pCtx);
+      if (code) return code;
+    }
+    dynSQLAppendChar(s, ')');
+    return s->err ? s->err : TSDB_CODE_SUCCESS;
+  }
 
   if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 2) {
     // DS 5.3.13 substr row: T-SQL SUBSTRING requires the length argument, so
@@ -3708,6 +4796,189 @@ static const char* dynTsqlEpochDatepartByPrecision(int8_t precision) {
   }
 }
 
+// --- Oracle time-expression helpers (DS 5.3.6 / 5.3.7) --------------------
+//
+// Unit factor applied to epoch seconds so the remote value matches TDengine's
+// database-precision result (ms -> 1000, us -> 1000000, ns -> 1000000000).
+// The factor follows the DATABASE precision, not the column precision: the
+// same query must return 13/16/19 digits on a ms/us/ns database.
+static int64_t dynOracleEpochUnitFactor(const SNodesRemoteSQLCtx* pCtx) {
+  int8_t precision = (pCtx != NULL) ? pCtx->dbPrecision : 0;
+  switch (fqNormalizeTimePrecision(precision, TSDB_TIME_PRECISION_MICRO)) {
+    case TSDB_TIME_PRECISION_MILLI: return 1000LL;
+    case TSDB_TIME_PRECISION_NANO:  return 1000000000LL;
+    default:                        return 1000000LL;
+  }
+}
+
+// Resolve the timezone class of a TIMESTAMP-typed expression for Oracle.
+static EExtTimestampTzClass dynOracleExprTzClass(const SNode* pExpr, EExtSQLDialect dialect,
+                                                 const SExtTableMeta* pExtMeta,
+                                                 const SNodesRemoteSQLCtx* pCtx);
+
+// Normalize a timestamp expression to UTC (see dynAppendOracleUtcArg below).
+// pAgg names an aggregate to wrap the operand in (SPREAD renders MAX/MIN);
+// NULL renders the expression itself.
+static int32_t dynAppendOracleUtcArg(SDynSQL* s, const char* pAgg, const SNode* pArg,
+                                     EExtTimestampTzClass tsClass, EExtSQLDialect dialect,
+                                     const SExtTableMeta* pExtMeta,
+                                     const SNodesRemoteSQLCtx* pCtx);
+
+// EPOCH_SEC(<ts>) from DS 5.3.6: Oracle has no numeric timestamp-difference
+// function (TIMESTAMP - TIMESTAMP yields an INTERVAL), so the four interval
+// components are summed explicitly.  The interval subexpression repeats four
+// times because Oracle offers no common-subexpression reuse; this is an
+// accepted cost.  CAST(<ts> AS DATE) * 86400 must NOT be used - it drops the
+// sub-second digits.  The operand is normalized to UTC first (DS 5.3.7).
+static int32_t dynAppendOracleEpochSec(SDynSQL* s, const char* pAgg, const SNode* pArg,
+                                       EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                       const SNodesRemoteSQLCtx* pCtx) {
+  static const struct {
+    const char* part;
+    int32_t     factor;
+  } kParts[] = {{"DAY", 86400}, {"HOUR", 3600}, {"MINUTE", 60}, {"SECOND", 1}};
+
+  EExtTimestampTzClass tsClass = dynOracleExprTzClass(pArg, dialect, pExtMeta, pCtx);
+
+  dynSQLAppendChar(s, '(');
+  for (int32_t i = 0; i < 4; ++i) {
+    if (i > 0) {
+      dynSQLAppendStr(s, " + ");
+    }
+    dynSQLAppendStr(s, "EXTRACT(");
+    dynSQLAppendStr(s, kParts[i].part);
+    dynSQLAppendStr(s, " FROM (");
+    int32_t code = dynAppendOracleUtcArg(s, pAgg, pArg, tsClass, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    dynSQLAppendStr(s, " - TIMESTAMP '1970-01-01 00:00:00'))");
+    if (kParts[i].factor > 1) {
+      dynSQLAppendf(s, " * %d", kParts[i].factor);
+    }
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// Render an operand, optionally wrapped in the aggregate named by pAgg
+// (SPREAD renders MAX(col) / MIN(col) instead of the bare column).
+static int32_t dynAppendOracleExprOrAgg(SDynSQL* s, const char* pAgg, const SNode* pArg,
+                                        EExtSQLDialect dialect, const SExtTableMeta* pExtMeta,
+                                        const SNodesRemoteSQLCtx* pCtx) {
+  if (pAgg == NULL) {
+    return dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  }
+  dynSQLAppendStr(s, pAgg);
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// Normalize a timestamp expression to UTC before an epoch/calendar conversion
+// (DS 5.3.7):
+//   tz-aware column  -> SYS_EXTRACT_UTC(<e>)                (already absolute)
+//   tz-naive column  -> SYS_EXTRACT_UTC(FROM_TZ(<e>, '<tz>')) (client wall clock)
+// Without a client timezone the naive interpretation is undefined (TDengine
+// would use the server default zone), so the caller keeps the expression local.
+static int32_t dynAppendOracleUtcArg(SDynSQL* s, const char* pAgg, const SNode* pArg,
+                                     EExtTimestampTzClass tsClass, EExtSQLDialect dialect,
+                                     const SExtTableMeta* pExtMeta,
+                                     const SNodesRemoteSQLCtx* pCtx) {
+  if (tsClass != EXT_TIMESTAMP_TZ_CLASS_AWARE &&
+      (s->tzName == NULL || s->tzName[0] == '\0')) {
+    qError("FQ-SQL: no client timezone for tz-naive timestamp; keeping the time function local");
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+
+  dynSQLAppendStr(s, "SYS_EXTRACT_UTC(");
+  if (tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    int32_t code = dynAppendOracleExprOrAgg(s, pAgg, pArg, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    dynSQLAppendStr(s, "FROM_TZ(");
+    int32_t code = dynAppendOracleExprOrAgg(s, pAgg, pArg, dialect, pExtMeta, pCtx);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    dynSQLAppendStr(s, ", '");
+    dynSQLAppendStr(s, s->tzName);
+    dynSQLAppendStr(s, "')");
+  }
+  dynSQLAppendChar(s, ')');
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// Resolve the timezone class of a TIMESTAMP-typed expression for Oracle.
+static EExtTimestampTzClass dynOracleExprTzClass(const SNode* pExpr, EExtSQLDialect dialect,
+                                                 const SExtTableMeta* pExtMeta,
+                                                 const SNodesRemoteSQLCtx* pCtx) {
+  if (pExpr != NULL && nodesIsExprNode((SNode*)pExpr) &&
+      ((const SExprNode*)pExpr)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    return fqResolveExprTimestampClass(pExpr, dialect, pExtMeta, pCtx, NULL, NULL);
+  }
+  return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+// Argument of a calendar function (TRUNC / TO_CHAR with a date format).
+// A tz-aware column is an absolute instant, so it is first mapped to the
+// client's wall clock: `<e> AT TIME ZONE '<tz>'` yields a plain TIMESTAMP in
+// that zone.  A tz-naive column already stores the client wall clock.
+static int32_t dynAppendOracleCalendarArg(SDynSQL* s, const SNode* pArg, EExtSQLDialect dialect,
+                                          const SExtTableMeta* pExtMeta,
+                                          const SNodesRemoteSQLCtx* pCtx) {
+  EExtTimestampTzClass tsClass = dynOracleExprTzClass(pArg, dialect, pExtMeta, pCtx);
+  if (tsClass != EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  }
+  if (s->tzName == NULL || s->tzName[0] == '\0') {
+    qError("FQ-SQL: no client timezone for tz-aware timestamp; keeping the calendar function local");
+    return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  dynSQLAppendStr(s, " AT TIME ZONE '");
+  dynSQLAppendStr(s, s->tzName);
+  dynSQLAppendStr(s, "')");
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
+// T-SQL operand of a timestamp DIFFERENCE (spread).  The aggregate is taken
+// over the raw column first; a tz-aware result is then mapped onto the UTC wall
+// clock and the offset dropped.  A tz-naive column already stores the client
+// wall clock and a constant zone offset cancels in a difference, so it is used
+// as is - which is why no client timezone name is needed here, unlike TIMEDIFF
+// (DS 5.3.7).
+static int32_t dynAppendTsqlAggDiffOperand(SDynSQL* s, const char* pAgg, const SNode* pArg,
+                                           EExtTimestampTzClass tsClass, EExtSQLDialect dialect,
+                                           const SExtTableMeta* pExtMeta,
+                                           const SNodesRemoteSQLCtx* pCtx) {
+  bool aware = (tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE);
+  if (aware) {
+    dynSQLAppendStr(s, "CAST(");
+  }
+  dynSQLAppendStr(s, pAgg);
+  dynSQLAppendChar(s, '(');
+  int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  dynSQLAppendChar(s, ')');
+  if (aware) {
+    dynSQLAppendStr(s, " AT TIME ZONE 'UTC' AS DATETIME2)");
+  }
+  return s->err ? s->err : TSDB_CODE_SUCCESS;
+}
+
 static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
                                      EExtSQLDialect dialect,
                                      const SExtTableMeta* pExtMeta,
@@ -3758,9 +5029,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "ROUND",   pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SQRT:    return dynRenderNamedFunc(s, "SQRT",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_POW:
-      /* PostgreSQL only accepts POWER, not POW; T-SQL has no POW (DS 5.3.13) */
+      /* PostgreSQL only accepts POWER, not POW; T-SQL has no POW, and Oracle
+         spells it POWER as well (DS 5.3.13). */
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL ||
-          dialect == EXT_SQL_DIALECT_SQLSERVER)
+          dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE)
         return dynRenderNamedFunc(s, "POWER", pFunc, dialect, pExtMeta, pCtx);
       return dynRenderNamedFunc(s, "POW", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_EXP:     return dynRenderNamedFunc(s, "EXP",     pFunc, dialect, pExtMeta, pCtx);
@@ -3772,7 +5044,8 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // DS section5.3.4.1.1: LOG() semantics differ by dialect.
       // Single-arg LOG(expr): TDengine means natural log; PG/Influx LOG() is base-10, must use LN().
       // Two-arg LOG(expr, base): TDengine means log_base(expr); others use LOG(base, expr) - swap args.
-      if (nParams == 1 && (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL))
+      if (nParams == 1 && (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL ||
+                           dialect == EXT_SQL_DIALECT_ORACLE))
         return dynRenderNamedFunc(s, "LN", pFunc, dialect, pExtMeta, pCtx);
       if (nParams >= 2 && dialect == EXT_SQL_DIALECT_SQLSERVER) {
         // DS 5.3.13: T-SQL has no two-argument LOG; log_{e2}(e1) = LOG(e1)/LOG(e2).
@@ -3804,11 +5077,42 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     case FUNCTION_TYPE_ASIN:    return dynRenderNamedFunc(s, "ASIN",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_ACOS:    return dynRenderNamedFunc(s, "ACOS",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_ATAN:    return dynRenderNamedFunc(s, "ATAN",    pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_PI:      return dynRenderNamedFunc(s, "PI",      pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_PI:
+      // DS 5.3.13: Oracle has no PI() function in either 19c or 26ai; the
+      // double-precision ACOS(-1) is the standard value.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        dynSQLAppendStr(s, "ACOS(-1)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      return dynRenderNamedFunc(s, "PI",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_MOD:
       // DS section5.3.4.1.1: DataFusion has no MOD() function; use % operator.
       // DS 5.3.13: T-SQL has no MOD() either - integer operands use % (float
       // operands are kept local by the planner gate).
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 2) {
+        // Oracle's MOD(x, 0) returns x instead of raising or returning NULL,
+        // so the zero divisor needs the explicit CASE guard (DS 5.3.12).
+        // MOD() is defined as n2 - n1 * FLOOR(n2 / n1), which flips the sign
+        // of the result for a negative divisor; TDengine truncates the
+        // quotient towards zero, so the explicit TRUNC form is used instead.
+        dynSQLAppendStr(s, "(CASE WHEN ");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, " = 0 THEN NULL ELSE (");
+        code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, " - TRUNC(");
+        code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, " / ");
+        code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") * ");
+        code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") END)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if ((dialect == EXT_SQL_DIALECT_INFLUXQL || dialect == EXT_SQL_DIALECT_SQLSERVER) && nParams >= 2) {
         dynSQLAppendChar(s, '(');
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3884,6 +5188,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       // PG 2-arg TRUNC(value, scale) only exists for numeric, not double precision;
       // cast the first arg: TRUNC(expr::numeric, n).  InfluxDB TRUNC accepts double.
+      // Oracle's truncation function is TRUNC (TRUNCATE is a DDL keyword, DS 5.3.13).
       if (dialect == EXT_SQL_DIALECT_POSTGRES && nParams >= 2) {
         dynSQLAppendStr(s, "TRUNC(");
         int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
@@ -3894,7 +5199,8 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendChar(s, ')');
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
-      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL)
+      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL ||
+          dialect == EXT_SQL_DIALECT_ORACLE)
         return dynRenderNamedFunc(s, "TRUNC", pFunc, dialect, pExtMeta, pCtx);
       return dynRenderNamedFunc(s, "TRUNCATE", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_GREATEST:
@@ -3933,8 +5239,28 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       return dynRenderNamedFunc(s, "RAND", pFunc, dialect, pExtMeta, pCtx);
 
     /* -- String (all dialects unless noted) --------------------------- */
-    case FUNCTION_TYPE_UPPER:    return dynRenderNamedFunc(s, "UPPER",  pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_LOWER:    return dynRenderNamedFunc(s, "LOWER",  pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_UPPER:
+      // DS 5.3.13 upper/lower rows: TDengine folds ASCII letters only, while
+      // Oracle's UPPER/LOWER follow NLS_UPPER/NLS_LOWER (they also fold
+      // accented letters).  TRANSLATE over the ASCII alphabet is the exact
+      // equivalent and leaves every other character untouched.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        dynSQLAppendStr(s, "TRANSLATE(");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ')");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      return dynRenderNamedFunc(s, "UPPER",  pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_LOWER:
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        dynSQLAppendStr(s, "TRANSLATE(");
+        int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0), dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      return dynRenderNamedFunc(s, "LOWER",  pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_LENGTH:
       return dynRenderTdLengthExpr(s, pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_CHAR_LENGTH:
@@ -3947,15 +5273,28 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendStr(s, " + N'.') - 1)");
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
-      return dynRenderNamedFunc(s, "CHAR_LENGTH",  pFunc, dialect, pExtMeta, pCtx);
+      // DS 5.3.13 char_length row: Oracle has no CHAR_LENGTH; its LENGTH counts
+      // characters (code points), which is the TDengine character length.
+      return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_ORACLE) ? "LENGTH" : "CHAR_LENGTH",
+                                pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_CONCAT:
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
         return dynRenderTsqlConcat(s, pFunc, "CONCAT", dialect, pExtMeta, pCtx);
+      }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        return dynRenderOracleConcat(s, pFunc, dialect, pExtMeta, pCtx);
       }
       return dynRenderNamedFunc(s, "CONCAT", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_CONCAT_WS:
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
         return dynRenderTsqlConcat(s, pFunc, "CONCAT_WS", dialect, pExtMeta, pCtx);
+      }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 concat_ws row: Oracle has no CONCAT_WS, and a `||` rewrite
+        // cannot reproduce "skip NULL arguments" plus separator placement
+        // without a CASE that grows with the argument count - keep it local.
+        qError("FQ-SQL: CONCAT_WS not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
       return dynRenderNamedFunc(s, "CONCAT_WS", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_SUBSTR:
@@ -3978,6 +5317,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       const char* dir = (trimType == 1) ? "LEADING " : (trimType == 2) ? "TRAILING " : "";
       SNode* pExprArg   = nodesListGetNode(pFunc->pParameterList, nUser - 1);  // expr is last user arg
       SNode* pRemoveArg = (nUser >= 2) ? nodesListGetNode(pFunc->pParameterList, 0) : NULL;
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 trim row: Oracle's TRIM removes spaces only, so the isspace
+        // set is spelled out through the two-argument LTRIM/RTRIM character-set
+        // form instead.
+        return dynAppendOracleTrim(s, pExprArg, pRemoveArg, trimType, dialect, pExtMeta, pCtx);
+      }
       if (dir[0] == '\0' && pRemoveArg == NULL) {
         // Plain BOTH-trim of whitespace -> TRIM(expr).
         dynSQLAppendStr(s, "TRIM(");
@@ -4000,16 +5345,79 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       dynSQLAppendChar(s, ')');
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
-    case FUNCTION_TYPE_LTRIM:        return dynRenderNamedFunc(s, "LTRIM",        pFunc, dialect, pExtMeta, pCtx);
-    case FUNCTION_TYPE_RTRIM:        return dynRenderNamedFunc(s, "RTRIM",        pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_LTRIM:
+    case FUNCTION_TYPE_RTRIM: {
+      const char* trimName = (pFunc->funcType == FUNCTION_TYPE_LTRIM) ? "LTRIM" : "RTRIM";
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 ltrim/rtrim rows: the one-argument Oracle form removes
+        // spaces only; pass the isspace set explicitly to match TDengine.
+        const SNode* pChars = (nParams >= 2) ? nodesListGetNode(pFunc->pParameterList, 1) : NULL;
+        return dynAppendOracleTrimOne(s, trimName, nodesListGetNode(pFunc->pParameterList, 0), pChars,
+                                      dialect, pExtMeta, pCtx);
+      }
+      return dynRenderNamedFunc(s, trimName, pFunc, dialect, pExtMeta, pCtx);
+    }
     case FUNCTION_TYPE_REPLACE:      return dynRenderNamedFunc(s, "REPLACE",      pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_REPEAT:
-      // DS 5.3.13 repeat row: T-SQL has REPLICATE, not REPEAT.
+      // DS 5.3.13 repeat row: T-SQL has REPLICATE, not REPEAT; Oracle has
+      // neither, so the repetition is spelled as padding: RPAD(<e>, <n> *
+      // LENGTH(<e>), <e>) fills up to n copies of <e> with <e>.  The rewrite
+      // is only equivalent for n > 0 on non-empty, non-CHAR input (n = 0 and an
+      // empty/NULL argument differ in padding semantics, and a blank-padded CHAR
+      // carries trailing blanks TDengine never repeats); the planner rejects
+      // those, so a render reaching here is already in the equivalent domain.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        SNode* pStrArg = nodesListGetNode(pFunc->pParameterList, 0);
+        SNode* pCntArg = (nParams >= 2) ? nodesListGetNode(pFunc->pParameterList, 1) : NULL;
+        dynSQLAppendStr(s, "RPAD(");
+        int32_t code = dynAppendExpr(s, pStrArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", (");
+        code = dynAppendExpr(s, pCntArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") * LENGTH(");
+        code = dynAppendExpr(s, pStrArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, "), ");
+        code = dynAppendExpr(s, pStrArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendChar(s, ')');
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       return dynRenderNamedFunc(s, (dialect == EXT_SQL_DIALECT_SQLSERVER) ? "REPLICATE" : "REPEAT",
                                 pFunc, dialect, pExtMeta, pCtx);
+    case FUNCTION_TYPE_REGEXP_EXTRACT:
+      // DS 5.3.13 regexp_extract row: Oracle has no REGEXP_EXTRACT, but
+      // REGEXP_SUBSTR names the occurrence and the subexpression directly, so
+      // "first match, group n" maps one to one.  The trailing 'c' pins case
+      // sensitivity the same way REGEXP_LIKE does above: Oracle would otherwise
+      // take it from NLS_SORT.  The planner pushes only patterns in the engine
+      // common subset whose first match selects a group deterministically, and
+      // only a literal group index that names an existing group; anything else
+      // stays local.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        SNode*  pStrArg  = nodesListGetNode(pFunc->pParameterList, 0);
+        SNode*  pPatArg  = (nParams >= 2) ? nodesListGetNode(pFunc->pParameterList, 1) : NULL;
+        int64_t groupIdx = (nParams >= 3) ? dynFuncArgInt64Value(pFunc, 2, 1) : 1;
+        dynSQLAppendStr(s, "REGEXP_SUBSTR(");
+        int32_t code = dynAppendExpr(s, pStrArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", ");
+        code = dynAppendExpr(s, pPatArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendf(s, ", 1, 1, 'c', %" PRId64 ")", groupIdx);
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      // No other dialect has a pushdown bit for REGEXP_EXTRACT (DS 5.3.13), so
+      // the planner never routes one here; refuse rather than emit a function
+      // name the remote engine does not have.
+      qError("FQ-SQL: REGEXP_EXTRACT not supported by %s; deferring to local", dialectName(dialect));
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
     case FUNCTION_TYPE_SUBSTR_IDX:
-      // DS section5.3.4.1.2: SUBSTRING_INDEX - MySQL only; PG/InfluxDB have no equivalent.
-      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
+      // DS section5.3.4.1.2: SUBSTRING_INDEX - MySQL only; PG/InfluxDB/Oracle
+      // have no equivalent.
+      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL ||
+          dialect == EXT_SQL_DIALECT_ORACLE) {
         qError("FQ-SQL: SUBSTRING_INDEX not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
@@ -4033,6 +5441,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         qError("FQ-SQL: TO_BASE64 not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 to_base64 row: Oracle's base64 encoder lives in the
+        // UTL_ENCODE PL/SQL package and cannot appear in a SELECT expression.
+        qError("FQ-SQL: TO_BASE64 not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       return dynRenderNamedFunc(s, "TO_BASE64",    pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_FROM_BASE64:
       // DS section5.3.4.1.3: PG uses DECODE(expr, 'base64'); InfluxDB has no decoding function.
@@ -4053,6 +5467,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         qError("FQ-SQL: FROM_BASE64 not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        qError("FQ-SQL: FROM_BASE64 not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       return dynRenderNamedFunc(s, "FROM_BASE64",  pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_MD5: {
       int32_t code = dynRejectFuncArg0NcharIfUnsupported(pFunc, dialect);
@@ -4068,6 +5486,11 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendStr(s, "), 2))");
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 md5 row: Oracle has no SQL-level MD5.
+        qError("FQ-SQL: MD5 not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       return dynRenderNamedFunc(s, "MD5", pFunc, dialect, pExtMeta, pCtx);
     }
     case FUNCTION_TYPE_SHA1:
@@ -4080,6 +5503,10 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       }
       if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
         qError("FQ-SQL: SHA1 not supported by %s; deferring to local", dialectName(dialect));
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        qError("FQ-SQL: SHA1 not supported by Oracle; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
@@ -4101,6 +5528,12 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       if (dialect == EXT_SQL_DIALECT_POSTGRES) {
         // DS section5.3.4.1.4: PG needs pgcrypto; local only.
         qError("FQ-SQL: SHA2 not supported by PostgreSQL; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 sha/sha1/sha2 rows: Oracle has no SQL-level hash function
+        // (DBMS_CRYPTO is a PL/SQL package and cannot be inlined).
+        qError("FQ-SQL: SHA2 not supported by Oracle; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
@@ -4162,10 +5595,17 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         qError("FQ-SQL: CRC32 not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 crc32 row: ORA_HASH / DBMS_UTILITY.GET_HASH_VALUE are not
+        // CRC32 and produce different values.
+        qError("FQ-SQL: CRC32 not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       return dynRenderNamedFunc(s, "CRC32", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_FIND_IN_SET:
-      // DS section5.3.4.1.2: PG/InfluxDB have no equivalent function.
-      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL) {
+      // DS section5.3.4.1.2: PG/InfluxDB/Oracle have no equivalent function.
+      if (dialect == EXT_SQL_DIALECT_POSTGRES || dialect == EXT_SQL_DIALECT_INFLUXQL ||
+          dialect == EXT_SQL_DIALECT_ORACLE) {
         qError("FQ-SQL: FIND_IN_SET not supported by %s; deferring to local", dialectName(dialect));
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
@@ -4189,6 +5629,13 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         }
         return dynRenderNamedFunc(s, "CHR",  pFunc, dialect, pExtMeta, pCtx);
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 char row: Oracle's CHR() takes a single argument (and
+        // CHR(n USING NCHAR_CS) only covers the BMP), while TDengine's CHAR()
+        // is variadic, skips NULLs and accepts every code point.
+        qError("FQ-SQL: CHAR not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       return dynRenderNamedFunc(s, "CHAR", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_POSITION: {
       /* POSITION(needle IN haystack) - TDengine stores as POSITION(needle, haystack) */
@@ -4210,6 +5657,21 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         if (dialect == EXT_SQL_DIALECT_INFLUXQL) {
           // DS section5.3.4.1.2: DataFusion uses STRPOS(haystack, needle) - reversed args.
           dynSQLAppendStr(s, "STRPOS(");
+          int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1),
+                                       dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, ", ");
+          code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 0),
+                               dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendChar(s, ')');
+          return s->err ? s->err : TSDB_CODE_SUCCESS;
+        }
+        if (dialect == EXT_SQL_DIALECT_ORACLE) {
+          // DS 5.3.13 position row: Oracle has INSTR(haystack, needle) - the
+          // argument order is the reverse of TDengine's POSITION(needle, haystack).
+          // INSTR returns a 1-based position and 0 when not found, same as TDengine.
+          dynSQLAppendStr(s, "INSTR(");
           int32_t code = dynAppendExpr(s, nodesListGetNode(pFunc->pParameterList, 1),
                                        dialect, pExtMeta, pCtx);
           if (code) return code;
@@ -4269,6 +5731,13 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       if (dialect == EXT_SQL_DIALECT_POSTGRES && nParams >= 1 && castResultIsInt && castArgIsTimestamp) {
         return dynRenderPgTimestampEpochCast(s, pFunc, pArg0, pExtMeta, pCtx);
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 1 && castResultIsInt && castArgIsTimestamp) {
+        // DS 5.3.13 cast row: Oracle rejects CAST(timestamp AS NUMBER) with
+        // ORA-00932, so this sub-capability is not pushable (the planner gate
+        // keeps it local as well).
+        qError("FQ-SQL: CAST(timestamp AS integer) not supported by Oracle; deferring to local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       if (dialect == EXT_SQL_DIALECT_POSTGRES && nParams >= 1 && castResultIsTimestamp && castArgIsInt) {
         const SNode* pEpochTsArg = NULL;
         int8_t precision = fqNormalizeTimePrecision((int8_t)pFunc->node.resType.precision,
@@ -4291,7 +5760,11 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       if (pArg0 != NULL &&
           dynIsFloatingType(((const SExprNode*)pArg0)->resType.type) &&
           dynIsIntegerType(pFunc->node.resType.type) &&
-          (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_POSTGRES)) {
+          (dialect == EXT_SQL_DIALECT_MYSQL || dialect == EXT_SQL_DIALECT_POSTGRES ||
+           dialect == EXT_SQL_DIALECT_ORACLE)) {
+        // TDengine truncates float->integer casts toward zero.  Both MySQL and
+        // PG TRUNC and Oracle TRUNC(number) do the same, while a bare
+        // CAST(1.5 AS NUMBER(19)) would round half up (2).
         qDebug("FQ-SQL: CAST float->int uses truncation semantics dialect=%s srcType=%d dstType=%d",
                dialectName(dialect), ((const SExprNode*)pArg0)->resType.type, pFunc->node.resType.type);
         dynSQLAppendStr(s, "CAST(");
@@ -4307,7 +5780,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
           dynSQLAppendChar(s, ')');
         }
       dynSQLAppendStr(s, " AS ");
-      dynSQLAppendStr(s, dynSqlCastType(dialect, pFunc->node.resType.type));
+      dynAppendSqlCastType(s, dialect, &pFunc->node.resType);
       dynSQLAppendChar(s, ')');
       return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
@@ -4318,7 +5791,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         if (code) return code;
       }
       dynSQLAppendStr(s, " AS ");
-      dynSQLAppendStr(s, dynSqlCastType(dialect, pFunc->node.resType.type));
+      dynAppendSqlCastType(s, dialect, &pFunc->node.resType);
       dynSQLAppendChar(s, ')');
       return TSDB_CODE_SUCCESS;
     }
@@ -4346,6 +5819,21 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
              pExtColName ? pExtColName : "(expr)",
              pExtTypeName ? pExtTypeName : "(unknown)",
              (s->tzName != NULL && s->tzName[0] != '\0') ? s->tzName : "(global)");
+
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 to_unixtimestamp row: Oracle has no numeric timestamp
+        // difference, so the epoch template is scaled by the DATABASE
+        // precision factor (ms -> 13 digits, us -> 16, ns -> 19).
+        if (argType != TSDB_DATA_TYPE_TIMESTAMP) {
+          qError("FQ-SQL: TO_UNIXTIMESTAMP non-timestamp argument not supported by Oracle");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        dynSQLAppendStr(s, "CAST(ROUND(");
+        int32_t code = dynAppendOracleEpochSec(s, NULL, pArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendf(s, " * %" PRId64 ") AS NUMBER(19))", dynOracleEpochUnitFactor(pCtx));
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
 
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
         // DS 5.3.13 to_unixtimestamp row: DATEDIFF_BIG at the database
@@ -4449,9 +5937,27 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // connector maps it back to an absolute epoch instant.
       if (dialect == EXT_SQL_DIALECT_SQLSERVER)
         return dynRenderNamedFunc(s, "SYSDATETIMEOFFSET", pFunc, dialect, pExtMeta, pCtx);
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 now row: SYSTIMESTAMP is TIMESTAMP WITH TIME ZONE, i.e. an
+        // absolute instant, so the connector maps it to an epoch without
+        // depending on the server's session timezone.
+        dynSQLAppendStr(s, "SYSTIMESTAMP");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       return dynRenderNamedFunc(s, "NOW", pFunc, dialect, pExtMeta, pCtx);
     case FUNCTION_TYPE_TODAY:
       // DS section5.3.4.1.9: MySQL uses CURDATE(); PG uses CURRENT_DATE; InfluxDB uses CURRENT_DATE.
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 today row: today's date in the client zone.
+        if (s->tzName == NULL || s->tzName[0] == '\0') {
+          qError("FQ-SQL: no client timezone; keeping TODAY local");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        dynSQLAppendStr(s, "TRUNC(SYSTIMESTAMP AT TIME ZONE '");
+        dynSQLAppendStr(s, s->tzName);
+        dynSQLAppendStr(s, "')");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
         // DS 5.3.13 today row: the client's today from the offset-aware clock.
         const char* pWinTz = (s->tzName != NULL && s->tzName[0] != '\0')
@@ -4476,6 +5982,31 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // DATE() returns a formatted date string in TDengine.
       // Render string-producing dialect forms to avoid provider-specific
       // binary DATE decoding paths.
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 1) {
+        // DS 5.3.13 date row: TO_CHAR(expr, 'YYYY-MM-DD').  A tz-aware column
+        // is an absolute instant, so it is first mapped to the client's wall
+        // clock; a tz-naive column already stores that wall clock.
+        SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+        EExtTimestampTzClass tsClass = dynOracleExprTzClass(pArg, dialect, pExtMeta, pCtx);
+        dynSQLAppendStr(s, "TO_CHAR(");
+        if (tsClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+          if (s->tzName == NULL || s->tzName[0] == '\0') {
+            qError("FQ-SQL: no client timezone; keeping DATE local");
+            return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+          }
+          dynSQLAppendStr(s, "SYS_EXTRACT_UTC(");
+          int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, ") AT TIME ZONE '");
+          dynSQLAppendStr(s, s->tzName);
+          dynSQLAppendStr(s, "'");
+        } else {
+          int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+        }
+        dynSQLAppendStr(s, ", 'YYYY-MM-DD')");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
         // DS 5.3.13 date row: CONVERT(VARCHAR(10), expr, 23) = yyyy-mm-dd.
         SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
@@ -4538,6 +6069,21 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       // PG / InfluxDB only expose ISO-week semantics (equivalent to
       // TDengine WEEK(..., 3) / WEEKOFYEAR). Default WEEK(expr) and other
       // modes must stay local to preserve TDengine semantics.
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 1) {
+        // DS 5.3.13 week row: only WEEK(expr, 3) (ISO) maps to the 'IW'
+        // format element; 'WW'/'W' follow different rules for the other modes.
+        bool isoWeek = (nParams >= 3) && dynFuncArgInt64Equals(pFunc, 1, 3);
+        if (!isoWeek) {
+          qError("FQ-SQL: WEEK non-ISO mode not supported by Oracle; keep local (nParams=%d)", nParams);
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        dynSQLAppendStr(s, "TO_NUMBER(TO_CHAR(");
+        int32_t code = dynAppendOracleCalendarArg(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                  dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 'IW'))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
         // DS 5.3.13 week row: only WEEK(expr, 3) (ISO) maps to
         // DATEPART(ISO_WEEK, ...); every other mode stays local.
@@ -4574,6 +6120,21 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         qError("FQ-SQL: WEEKDAY() not supported by InfluxDB; deferring to local");
         return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 1) {
+        // DS 5.3.13 weekday row: TRUNC(x) - TRUNC(x, 'IW') is the number of
+        // days since the Monday of the ISO week (Monday = 0).  TRUNC(x,'IW')
+        // does not depend on any session parameter.
+        dynSQLAppendStr(s, "(TRUNC(");
+        int32_t code = dynAppendOracleCalendarArg(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                  dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") - TRUNC(");
+        code = dynAppendOracleCalendarArg(s, nodesListGetNode(pFunc->pParameterList, 0), dialect,
+                                          pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 'IW'))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
         // DS 5.3.13 weekday row: (DATEPART(WEEKDAY, x) + @@DATEFIRST + 5) % 7
         // with Monday = 0, independent of the session's SET DATEFIRST.
@@ -4595,6 +6156,15 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     }
     case FUNCTION_TYPE_WEEKOFYEAR: {
       // DS section5.3.4.1.9: PG/InfluxDB -> EXTRACT(WEEK FROM expr)
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 1) {
+        // DS 5.3.13 weekofyear row: WEEKOFYEAR always equals the ISO week.
+        dynSQLAppendStr(s, "TO_NUMBER(TO_CHAR(");
+        int32_t code = dynAppendOracleCalendarArg(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                  dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 'IW'))");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
         // DS 5.3.13 weekofyear row: WEEKOFYEAR always equals ISO WEEK(x, 3).
         dynSQLAppendStr(s, "DATEPART(ISO_WEEK, ");
@@ -4615,6 +6185,20 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
     }
     case FUNCTION_TYPE_DAYOFWEEK: {
       // DS section5.3.4.1.9: PG/InfluxDB -> EXTRACT(DOW FROM expr) + 1  [TDengine/MySQL: 1=Sunday]
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 1) {
+        // DS 5.3.13 dayofweek row:
+        //   MOD(TRUNC(x) - TRUNC(x, 'IW') + 1, 7) + 1   (Sunday = 1)
+        dynSQLAppendStr(s, "(MOD(TRUNC(");
+        int32_t code = dynAppendOracleCalendarArg(s, nodesListGetNode(pFunc->pParameterList, 0),
+                                                  dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ") - TRUNC(");
+        code = dynAppendOracleCalendarArg(s, nodesListGetNode(pFunc->pParameterList, 0), dialect,
+                                          pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", 'IW') + 1, 7) + 1)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       if (dialect == EXT_SQL_DIALECT_SQLSERVER && nParams >= 1) {
         // DS 5.3.13 dayofweek row: (DATEPART(WEEKDAY, x) + @@DATEFIRST - 1) % 7 + 1
         // with Sunday = 1, independent of the session's SET DATEFIRST.
@@ -4663,6 +6247,29 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         // changes AM/PM designators (and the calendar for some cultures), while
         // TDengine's format tokens produce a fixed English/ASCII result.
         dynSQLAppendStr(s, ", 'en-US')");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 2) {
+        // DS 5.3.13 to_char row: TO_CHAR(expr, '<Oracle format model>').  The
+        // third parameter is TDengine's timezone name and is not forwarded; a
+        // tz-aware column is mapped into the client's wall clock instead.
+        SNode* pTsArg  = nodesListGetNode(pFunc->pParameterList, 0);
+        SNode* pFmtArg = nodesListGetNode(pFunc->pParameterList, 1);
+        if (pFmtArg == NULL || nodeType(pFmtArg) != QUERY_NODE_VALUE) {
+          qError("FQ-SQL: TO_CHAR non-literal format not supported by Oracle; keeping local");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        const SValueNode* pFmtVal = (const SValueNode*)pFmtArg;
+        const char* fmtStr = (pFmtVal->datum.p != NULL) ? varDataVal(pFmtVal->datum.p)
+                                                        : (pFmtVal->literal != NULL ? pFmtVal->literal : "");
+        qDebug("FQ-SQL: TO_CHAR Oracle fmt_in='%s'", fmtStr);
+        dynSQLAppendStr(s, "TO_CHAR(");
+        int32_t code = dynAppendOracleCalendarArg(s, pTsArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", ");
+        code = dynAppendFmtStrOracle(s, fmtStr, false);
+        if (code) return code;
+        dynSQLAppendChar(s, ')');
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       if (dialect == EXT_SQL_DIALECT_MYSQL && nParams >= 2) {
@@ -4732,6 +6339,28 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
         dynSQLAppendChar(s, ')');
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
+      if (dialect == EXT_SQL_DIALECT_ORACLE && nParams >= 2) {
+        // DS 5.3.13 to_timestamp row: same format-model rules as TO_CHAR; the
+        // input is text, so no timezone normalization applies.
+        SNode* pStrArg = nodesListGetNode(pFunc->pParameterList, 0);
+        SNode* pFmtArg = nodesListGetNode(pFunc->pParameterList, 1);
+        if (pFmtArg == NULL || nodeType(pFmtArg) != QUERY_NODE_VALUE) {
+          qError("FQ-SQL: TO_TIMESTAMP non-literal format not supported by Oracle; keeping local");
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        const SValueNode* pFmtVal = (const SValueNode*)pFmtArg;
+        const char* fmtStr = (pFmtVal->datum.p != NULL) ? varDataVal(pFmtVal->datum.p)
+                                                        : (pFmtVal->literal != NULL ? pFmtVal->literal : "");
+        qDebug("FQ-SQL: TO_TIMESTAMP Oracle fmt_in='%s'", fmtStr);
+        dynSQLAppendStr(s, "TO_TIMESTAMP(");
+        int32_t code = dynAppendExpr(s, pStrArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, ", ");
+        code = dynAppendFmtStrOracle(s, fmtStr, true);
+        if (code) return code;
+        dynSQLAppendChar(s, ')');
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
       // PG/Influx: TO_TIMESTAMP(expr, fmt).  PG accepts the Oracle-style format
       // (yyyy-mm-dd) verbatim; InfluxDB v3 (DataFusion) requires chrono strftime
       // specifiers, so translate the format string.
@@ -4789,6 +6418,17 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       const int64_t NS_SEC = 1000000000LL, NS_MIN = 60LL*1000000000LL,
                     NS_HOUR = 3600LL*1000000000LL, NS_DAY = 86400LL*1000000000LL,
                     NS_WEEK = 7LL*86400LL*1000000000LL;
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 timetruncate row and judged item 2 keep this local: the
+        // scalar function truncates the local wall clock in the session
+        // timezone (sclfunc.c timeTruncateFunction), so an absolute-epoch
+        // bucket would be off by the zone offset for every non-UTC client,
+        // and the use_current_timezone=0 form truncates toward zero rather
+        // than flooring.  The capability bit is clear, so this is a guard
+        // against a direct renderer call rather than a live path.
+        qError("FQ-SQL: TIMETRUNCATE is not pushed to Oracle; defer local");
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
       const char* unit = NULL;
       if      (ns == NS_SEC)  unit = "second";
       else if (ns == NS_MIN)  unit = "minute";
@@ -5077,6 +6717,37 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
           dynSQLAppendStr(s, ")) / 1000000.0) * ");
           dynSQLAppendf(s, "%" PRId64, ticksPerSecond);
           dynSQLAppendChar(s, ')');
+        } else if (dialect == EXT_SQL_DIALECT_ORACLE) {
+          // DS 5.3.13 spread row + 5.3.6: Oracle has no numeric timestamp
+          // difference, so both aggregates go through the EPOCH_SEC template.
+          // EPOCH_SEC is monotone in the instant, so EPOCH_SEC(MAX(x)) -
+          // EPOCH_SEC(MIN(x)) equals the tick count TDengine computes.  The
+          // result is scaled to the DATABASE precision, as TO_UNIXTIMESTAMP is.
+          dynSQLAppendStr(s, "CAST(ROUND((");
+          int32_t code = dynAppendOracleEpochSec(s, "MAX", pArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, " - ");
+          code = dynAppendOracleEpochSec(s, "MIN", pArg, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendf(s, ") * %" PRId64 ") AS NUMBER(19))", dynOracleEpochUnitFactor(pCtx));
+        } else if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+          // DS 5.3.13 spread row: the difference is a DATEDIFF_BIG at the
+          // finest available unit so that boundary counting cannot lose a
+          // partial tick (the TIMEDIFF precedent).
+          const char* pUnitPart = dynTsqlEpochDatepartByPrecision(precision);
+          EExtTimestampTzClass tsClass = EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+          if (pArg != NULL && nodesIsExprNode((SNode*)pArg)) {
+            tsClass = fqResolveExprTimestampClass(pArg, dialect, pExtMeta, pCtx, NULL, NULL);
+          }
+          qDebug("FQ-SQL: SPREAD T-SQL render unit=%s tsClass=%s",
+                 pUnitPart, fqExtTimestampClassName(tsClass));
+          dynSQLAppendf(s, "CAST(DATEDIFF_BIG(%s, ", pUnitPart);
+          int32_t code = dynAppendTsqlAggDiffOperand(s, "MIN", pArg, tsClass, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, ", ");
+          code = dynAppendTsqlAggDiffOperand(s, "MAX", pArg, tsClass, dialect, pExtMeta, pCtx);
+          if (code) return code;
+          dynSQLAppendStr(s, ") AS BIGINT)");
         } else {
           dynSQLAppendStr(s, "(EXTRACT(EPOCH FROM (MAX(");
           int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
@@ -5088,7 +6759,7 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
           dynSQLAppendf(s, "%" PRId64, ticksPerSecond);
           dynSQLAppendChar(s, ')');
         }
-        return TSDB_CODE_SUCCESS;
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       dynSQLAppendStr(s, "(MAX(");
       int32_t code = dynAppendExpr(s, pArg, dialect, pExtMeta, pCtx);
@@ -5203,6 +6874,26 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
           dynSQLAppendf(s, "%" PRId64, unitValue);
         }
         dynSQLAppendStr(s, " AS BIGINT)");
+      } else if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 timediff row: Oracle has no numeric timestamp difference,
+        // so both operands go through the EPOCH_SEC template and the result is
+        // scaled to the database precision.  The optional unit argument
+        // divides further, exactly as in the PG branch.
+        int64_t ticksPerSecond = fqTimestampTicksPerSecond(precision);
+        qDebug("FQ-SQL: TIMEDIFF Oracle render ticksPerSecond=%" PRId64 " unitValue=%" PRId64,
+               ticksPerSecond, unitValue);
+        dynSQLAppendStr(s, "CAST(ROUND((");
+        int32_t code = dynAppendOracleEpochSec(s, NULL, pE1, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendStr(s, " - ");
+        code = dynAppendOracleEpochSec(s, NULL, pE2, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendf(s, ") * %" PRId64, ticksPerSecond);
+        if (unitValue > 1) {
+          dynSQLAppendStr(s, " / ");
+          dynSQLAppendf(s, "%" PRId64, unitValue);
+        }
+        dynSQLAppendStr(s, ") AS NUMBER(19))");
       } else {
         if (dialect == EXT_SQL_DIALECT_POSTGRES) {
           int64_t ticksPerSecond = fqTimestampTicksPerSecond(precision);
@@ -5443,6 +7134,30 @@ static int32_t dynAppendFunctionExpr(SDynSQL* s, const SFunctionNode* pFunc,
       char tickBuf[32];
       char offsetBuf[32];
 
+      if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // DS 5.3.13 / 5.3.14: tumbling bucket through the epoch template
+        //   TIMESTAMP '1970-01-01 00:00:00'
+        //     + NUMTODSINTERVAL(FLOOR(EPOCH_SEC(ts) / N) * N, 'SECOND')
+        // FLOOR (not truncation) keeps pre-1970 timestamps aligned.  Only
+        // sub-day, whole-second granularities without an origin offset are
+        // pushed: day/week windows are calendar-based in TDengine and an
+        // offset shifts the anchor, which this form cannot express.
+        int64_t ticksPerSec = fqTimestampTicksPerSecond(prec);
+        if (offsetTicks != 0 || ticksPerSec <= 0 || ticks % ticksPerSec != 0 ||
+            ticks / ticksPerSec >= 86400) {
+          qError("FQ-SQL: FQ_TIME_BUCKET Oracle bucket ticks=%" PRId64 " prec=%d offset=%" PRId64
+                 " not an epoch-aligned sub-day unit; keep local",
+                 ticks, (int)prec, offsetTicks);
+          return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        }
+        int64_t nSec = ticks / ticksPerSec;
+        dynSQLAppendStr(s, "(TIMESTAMP '1970-01-01 00:00:00' + NUMTODSINTERVAL(FLOOR(");
+        int32_t code = dynAppendOracleEpochSec(s, NULL, pTsArg, dialect, pExtMeta, pCtx);
+        if (code) return code;
+        dynSQLAppendf(s, " / %" PRId64 ") * %" PRId64 ", 'SECOND'))", nSec, nSec);
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+
       if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
         // DS 5.3.13 / 5.3.5.1.2: T-SQL has no DATE_BIN, so a tumbling window
         // becomes the remainder form
@@ -5655,19 +7370,29 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
     }
   }
 
-  // T-SQL R1 (DS 5.3.12): T-SQL has no boolean scalar type.  Consume the
-  // pending condition flag first so operand positions default back to value
-  // context; only the exact append marked by a clause/logic/CASE caller is a
-  // condition.
+  // T-SQL R1 (DS 5.3.12) / Oracle R2 (DS 5.3.6): neither dialect has a boolean
+  // scalar type that TDengine can use in every position.  T-SQL has none at
+  // all; Oracle 19c (the minimum supported version, DS 4.2 principle 5) has
+  // none either, even though 26ai added one.  Consume the pending condition
+  // flag first so operand positions default back to value context; only the
+  // exact append marked by a clause/logic/CASE caller is a condition.
+  const bool boolNeedsNumericForm =
+      (EXT_SQL_DIALECT_SQLSERVER == dialect || EXT_SQL_DIALECT_ORACLE == dialect);
   int8_t      wasPredicate = s->predicateCtx;
   s->predicateCtx = 0;
   // Only real expression nodes carry a valid SExprNode::resType.  A
   // QUERY_NODE_GROUPING_SET shell has groupingSetType at the same offset
   // (GP_TYPE_NORMAL == 1 == TSDB_DATA_TYPE_BOOL), so reading resType.type on
   // it would misclassify the wrapper as a boolean and wrap the key in a CASE.
-  if (EXT_SQL_DIALECT_SQLSERVER == dialect && NULL != pExpr &&
+  if (boolNeedsNumericForm && NULL != pExpr &&
       nodesIsExprNode((const SNode*)pExpr) &&
       ((const SExprNode*)pExpr)->resType.type == TSDB_DATA_TYPE_BOOL) {
+    // The IS [NOT] TRUE/FALSE/UNKNOWN family is a native predicate on T-SQL but
+    // does not exist in Oracle 19c (ORA-00920); the operator renderer rewrites
+    // it, so it never counts as a predicate form there.
+    const bool isPredicateForm =
+        (EXT_SQL_DIALECT_ORACLE == dialect) ? dynIsOraclePredicateForm(pExpr)
+                                            : dynIsTsqlPredicateForm(pExpr);
     if (QUERY_NODE_VALUE == nodeType((SNode*)pExpr)) {
       const SValueNode* pVal = (const SValueNode*)pExpr;
       bool              b = (!pVal->isNull) && pVal->datum.b;
@@ -5679,29 +7404,34 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
     if (wasPredicate) {
-      if (!dynIsTsqlPredicateForm(pExpr)) {
-        // Bare boolean value used as a condition: `<expr> = 1`.
+      if (!isPredicateForm) {
+        // Bare boolean value used as a condition: `<expr> <> 0` on Oracle
+        // (DS 5.3.12 IS TRUE row: TDengine's IS TRUE is `<> 0`, not `= 1`),
+        // `<expr> = 1` on T-SQL.  Both leave a NULL operand UNKNOWN, which is
+        // the TDengine behaviour in a condition.
         ++s->exprDepth;
         int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
         --s->exprDepth;
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
-        dynSQLAppendStr(s, " = 1");
+        dynSQLAppendStr(s, (EXT_SQL_DIALECT_ORACLE == dialect) ? " <> 0" : " = 1");
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       // Predicate forms render natively in a condition position.
     } else {
-      // Value position: wrap the whole predicate.  T-SQL has no boolean
-      // scalar type, so a bare boolean value (e.g. a BIT column) must be
-      // compared explicitly -- a naked bit column is rejected (native error
-      // 4145).  TDengine's BOOL keeps three-valued NULL semantics (NULL
-      // propagates), while a plain `<expr> = 1` condition would fall into the
-      // CASE ELSE branch and collapse NULL to 0.  For a bare boolean operand,
-      // compare against both 1 and 0 so a NULL operand lands in the NULL arm;
-      // a node that is already a predicate form yields a definite result
-      // (never NULL), so the plain wrap is exact for it.
-      if (!dynIsTsqlPredicateForm(pExpr)) {
+      // Value position: wrap the whole predicate.  A bare boolean value must
+      // be compared explicitly -- Oracle rejects a numeric column used as a
+      // value in a boolean context, and T-SQL rejects a naked bit column
+      // (native error 4145).  TDengine's BOOL keeps three-valued NULL
+      // semantics (NULL propagates), while a plain comparison followed by a
+      // CASE ELSE branch would collapse NULL to 0.  For a bare boolean
+      // operand, compare against both the true and the false value so a NULL
+      // operand lands in the NULL arm; a node that is already a predicate form
+      // yields a definite result (never NULL), so the plain wrap is exact.
+      const char* pTrueCmp = (EXT_SQL_DIALECT_ORACLE == dialect) ? " <> 0 THEN 1 WHEN " : " = 1 THEN 1 WHEN ";
+      const char* pFalseCmp = (EXT_SQL_DIALECT_ORACLE == dialect) ? " = 0 THEN 0 ELSE NULL END)" : " = 0 THEN 0 ELSE NULL END)";
+      if (!isPredicateForm) {
         dynSQLAppendStr(s, "(CASE WHEN ");
         ++s->exprDepth;
         int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
@@ -5709,14 +7439,14 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
-        dynSQLAppendStr(s, " = 1 THEN 1 WHEN ");
+        dynSQLAppendStr(s, pTrueCmp);
         ++s->exprDepth;
         code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
         --s->exprDepth;
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
-        dynSQLAppendStr(s, " = 0 THEN 0 ELSE NULL END)");
+        dynSQLAppendStr(s, pFalseCmp);
         return s->err ? s->err : TSDB_CODE_SUCCESS;
       }
       dynSQLAppendStr(s, "(CASE WHEN ");
@@ -5734,6 +7464,21 @@ static int32_t dynAppendExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dial
   ++s->exprDepth;
   int32_t code = dynAppendExprImpl(s, pExpr, dialect, pExtMeta, pCtx);
   --s->exprDepth;
+  return code;
+}
+
+// Render one value-producing arm of a CASE/COALESCE for Oracle.  When the
+// expression result is NCHAR, string literals in the arm must be national
+// literals (N'...'), otherwise Oracle raises ORA-12704 as soon as the arm is
+// combined with an NVARCHAR2 column.  Scoped: the flag is restored after the
+// arm so predicates and comparisons keep their plain literals.
+static int32_t dynAppendValueArmExpr(SDynSQL* s, const SNode* pExpr, EExtSQLDialect dialect,
+                                     const SExtTableMeta* pExtMeta, const SNodesRemoteSQLCtx* pCtx,
+                                     bool nationalLiterals) {
+  int8_t saved = s->ncharValueCtx;
+  s->ncharValueCtx = nationalLiterals ? 1 : 0;
+  int32_t code = dynAppendExpr(s, pExpr, dialect, pExtMeta, pCtx);
+  s->ncharValueCtx = saved;
   return code;
 }
 
@@ -5806,7 +7551,8 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
           dynAppendQuotedId(s, pOutputAlias, dialect);
           return s->err ? s->err : TSDB_CODE_SUCCESS;
         }
-        if (pCol->hasRef && pCol->refColName[0] != '\0') {
+        if (pCol->refColName[0] != '\0' &&
+            (pCol->hasRef || 0 != strcmp(pCol->refColName, pCol->colName))) {
           qDebug("FQ-SQL-REF: fallback to ref column col=%s alias=%s userAlias=%s -> refCol=%s dialect=%s",
                  pCol->colName, pCol->node.aliasName, pCol->node.userAlias, pCol->refColName,
                  dialectName(dialect));
@@ -5814,8 +7560,25 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
           return s->err ? s->err : TSDB_CODE_SUCCESS;
         }
       }
-      dynAppendQuotedId(s, pCol->colName, dialect);
-      return TSDB_CODE_SUCCESS;
+      // An XMLTYPE column has no fetchable form of its own (see
+      // fqColumnIsXmlType): reference it through the server-side serializer
+      // so the value that arrives is the NCHAR text the type map promises.
+      if (EXT_SQL_DIALECT_ORACLE == dialect && fqColumnIsXmlType(pCtx, pCol->colName)) {
+        dynSQLAppendStr(s, "XMLSERIALIZE(CONTENT ");
+        dynAppendQuotedId(s, pCol->colName, dialect);
+        dynSQLAppendStr(s, " AS CLOB)");
+        return s->err ? s->err : TSDB_CODE_SUCCESS;
+      }
+      // A scan column can carry the source's own spelling separately when the
+      // TDengine-side reference differs from it (Oracle upper-cases unquoted
+      // names while TDengine lower-cases the reference).  Emit the spelling the
+      // remote catalog reported, otherwise the quoted identifier names nothing.
+      const char* pEmitName =
+          (pCol->refColName[0] != '\0' && 0 != strcmp(pCol->refColName, pCol->colName))
+              ? pCol->refColName
+              : pCol->colName;
+      dynAppendQuotedId(s, pEmitName, dialect);
+      return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
     case QUERY_NODE_VALUE:
       dynAppendValueLiteral(s, (const SValueNode*)pExpr, dialect);
@@ -5867,6 +7630,11 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
     case QUERY_NODE_CASE_WHEN: {
       // CASE [expr] WHEN cond THEN result [...] [ELSE result] END
       const SCaseWhenNode* pCW = (const SCaseWhenNode*)pExpr;
+      // Oracle value arms whose result is NCHAR need national string
+      // literals; the WHEN conditions themselves stay plain.
+      const bool oracleNationalArm =
+          (dialect == EXT_SQL_DIALECT_ORACLE) &&
+          (pCW->node.resType.type == TSDB_DATA_TYPE_NCHAR);
 
       // Detect COALESCE(a, b, ...) pattern:
       //   CASE WHEN a IS NOT NULL THEN a [WHEN b IS NOT NULL THEN b...] END (no pElse)
@@ -5894,7 +7662,8 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
             if (!first2) dynSQLAppendStr(s, ", ");
             first2 = false;
             const SWhenThenNode* pWT2 = (const SWhenThenNode*)pItem2;
-            int32_t code = dynAppendExpr(s, pWT2->pThen, dialect, pExtMeta, pCtx);
+            int32_t code = dynAppendValueArmExpr(s, pWT2->pThen, dialect, pExtMeta, pCtx,
+                                                 oracleNationalArm);
             if (code != TSDB_CODE_SUCCESS) return code;
           }
           dynSQLAppendChar(s, ')');
@@ -5917,10 +7686,12 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
             const char* funcName = (dialect == EXT_SQL_DIALECT_MYSQL) ? "IFNULL" : "COALESCE";
             dynSQLAppendStr(s, funcName);
             dynSQLAppendChar(s, '(');
-            int32_t code = dynAppendExpr(s, pWT2->pThen, dialect, pExtMeta, pCtx);
+            int32_t code = dynAppendValueArmExpr(s, pWT2->pThen, dialect, pExtMeta, pCtx,
+                                                 oracleNationalArm);
             if (code != TSDB_CODE_SUCCESS) return code;
             dynSQLAppendStr(s, ", ");
-            code = dynAppendExpr(s, pCW->pElse, dialect, pExtMeta, pCtx);
+            code = dynAppendValueArmExpr(s, pCW->pElse, dialect, pExtMeta, pCtx,
+                                         oracleNationalArm);
             if (code != TSDB_CODE_SUCCESS) return code;
             dynSQLAppendChar(s, ')');
             return TSDB_CODE_SUCCESS;
@@ -5942,11 +7713,17 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
                            ((const SValueNode*)pWT2->pThen)->isNull);
         if (whenIsEq && thenIsNull) {
           const SOperatorNode* pEqOp = (const SOperatorNode*)pWT2->pWhen;
+          // Oracle converts the second argument to the first one's character
+          // set inside NULLIF, so an NCHAR first argument needs the national
+          // literal there as well (ORA-12704 otherwise).  The comparison
+          // itself is what makes this a value context, not a predicate one.
           dynSQLAppendStr(s, "NULLIF(");
-          int32_t code = dynAppendExpr(s, pEqOp->pLeft, dialect, pExtMeta, pCtx);
+          int32_t code = dynAppendValueArmExpr(s, pEqOp->pLeft, dialect, pExtMeta, pCtx,
+                                               oracleNationalArm);
           if (code != TSDB_CODE_SUCCESS) return code;
           dynSQLAppendStr(s, ", ");
-          code = dynAppendExpr(s, pEqOp->pRight, dialect, pExtMeta, pCtx);
+          code = dynAppendValueArmExpr(s, pEqOp->pRight, dialect, pExtMeta, pCtx,
+                                       oracleNationalArm);
           if (code != TSDB_CODE_SUCCESS) return code;
           dynSQLAppendChar(s, ')');
           return TSDB_CODE_SUCCESS;
@@ -5990,12 +7767,13 @@ static int32_t dynAppendExprImpl(SDynSQL* s, const SNode* pExpr, EExtSQLDialect 
         int32_t code = dynAppendExpr(s, pWT->pWhen, dialect, pExtMeta, pCtx);
         if (code != TSDB_CODE_SUCCESS) return code;
         dynSQLAppendStr(s, " THEN ");
-        code = dynAppendExpr(s, pWT->pThen, dialect, pExtMeta, pCtx);
+        code = dynAppendValueArmExpr(s, pWT->pThen, dialect, pExtMeta, pCtx, oracleNationalArm);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
       if (pCW->pElse) {
         dynSQLAppendStr(s, " ELSE ");
-        int32_t code = dynAppendExpr(s, pCW->pElse, dialect, pExtMeta, pCtx);
+        int32_t code = dynAppendValueArmExpr(s, pCW->pElse, dialect, pExtMeta, pCtx,
+                                             oracleNationalArm);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
       dynSQLAppendStr(s, " END");
@@ -6563,6 +8341,23 @@ static int32_t fqTryRenderCurrentScopePseudoColumn(SDynSQL* s, const SColumnNode
     dynSQLAppendStr(s, " + INTERVAL '");
     dynSQLAppendf(s, "%" PRId64, stepNanos);
     dynSQLAppendStr(s, " nanoseconds')");
+  } else if (dialect == EXT_SQL_DIALECT_ORACLE) {
+    // _wend = bucket start + step.  The bucket reference is a TIMESTAMP and
+    // Oracle adds an interval to it: NUMTODSINTERVAL takes a NUMBER of
+    // seconds, so a sub-second step becomes a decimal fraction (DS 5.3.14).
+    int8_t normPrec = fqNormalizeTimePrecision(precision, TSDB_TIME_PRECISION_MICRO);
+    int64_t ticksPerSecond = (normPrec == TSDB_TIME_PRECISION_NANO)
+                                 ? 1000000000LL
+                                 : (normPrec == TSDB_TIME_PRECISION_MILLI ? 1000LL : 1000000LL);
+    dynSQLAppendChar(s, '(');
+    dynAppendQuotedId(s, pBucketRefName, dialect);
+    dynSQLAppendStr(s, " + NUMTODSINTERVAL(");
+    if (stepTicks % ticksPerSecond == 0) {
+      dynSQLAppendf(s, "%" PRId64, stepTicks / ticksPerSecond);
+    } else {
+      dynSQLAppendf(s, "%.9f", (double)stepTicks / (double)ticksPerSecond);
+    }
+    dynSQLAppendStr(s, ", 'SECOND'))");
   } else if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
     // _wend = bucket start + step.  T-SQL has no timestamp arithmetic; add the
     // step with DATEADD in the coarsest unit that keeps the count integral and
@@ -7537,6 +9332,13 @@ static void renderOrderBy(SDynSQL* s, const SNodeList* pSortKeys, const SNodeLis
         dynSQLAppendStr(s, " NULLS FIRST");
       else if (pOrd->nullOrder == NULL_ORDER_LAST)
         dynSQLAppendStr(s, " NULLS LAST");
+      else if (dialect == EXT_SQL_DIALECT_ORACLE) {
+        // Oracle's defaults are ASC -> NULLS LAST and DESC -> NULLS FIRST,
+        // the opposite of TDengine's.  A key without an explicit null order
+        // must therefore still emit a clause, otherwise the row order would
+        // silently follow the target's default and only differ on NULL rows.
+        dynSQLAppendStr(s, (pOrd->order == ORDER_DESC) ? " NULLS LAST" : " NULLS FIRST");
+      }
     }
     ++keyIdx;
   }
@@ -7557,6 +9359,28 @@ static void renderLimit(SDynSQL* s, const SLimitNode* pLimit) {
     dynSQLAppendf(s, " OFFSET %" PRId64, pLimit->offset->datum.i);
 }
 
+// Render the Oracle row-limiting clause (DS 5.3.6).  Oracle has no LIMIT
+// syntax: a bare row count becomes FETCH FIRST, and any offset forces the
+// OFFSET ... FETCH NEXT form.  OFFSET requires an ORDER BY; the planner keeps
+// an unordered OFFSET local (EXT_CLAUSE_OFFSET), so a limit that reaches the
+// renderer with a non-zero offset always carries a sort.
+static void renderOracleFetchRows(SDynSQL* s, const SLimitNode* pLimit) {
+  if (!pLimit || !pLimit->limit) {
+    qDebug("FQ-SQL-LIMIT: skip empty Oracle FETCH node=%p", pLimit);
+    return;
+  }
+  int64_t offset = (pLimit->offset != NULL) ? pLimit->offset->datum.i : 0;
+  if (offset < 0) offset = 0;
+  qDebug("FQ-SQL-LIMIT: render Oracle offset=%" PRId64 " fetch=%" PRId64 " node=%p",
+         offset, pLimit->limit->datum.i, pLimit);
+  if (offset > 0) {
+    dynSQLAppendf(s, " OFFSET %" PRId64 " ROWS FETCH NEXT %" PRId64 " ROWS ONLY", offset,
+                  pLimit->limit->datum.i);
+  } else {
+    dynSQLAppendf(s, " FETCH FIRST %" PRId64 " ROWS ONLY", pLimit->limit->datum.i);
+  }
+}
+
 // Render the T-SQL OFFSET ... FETCH NEXT form (DS 5.3.6).  Requires an
 // ORDER BY in the same SELECT, which the planner guarantees for every
 // SQL Server limit that reaches the renderer without TOP injection.
@@ -7571,6 +9395,24 @@ static void renderTsqlFetchNext(SDynSQL* s, const SLimitNode* pLimit) {
          offset, pLimit->limit->datum.i, pLimit);
   dynSQLAppendf(s, " OFFSET %" PRId64 " ROWS FETCH NEXT %" PRId64 " ROWS ONLY",
                 offset, pLimit->limit->datum.i);
+}
+
+// Dialect dispatch for the row-limiting clause when it is emitted at a
+// statement tail that is not the main SELECT builder (set-op statements and the
+// SEMI/ANTI join statement).  Oracle has no LIMIT at all, so every site that
+// emits a row limit has to go through the FETCH FIRST form; T-SQL uses the
+// trailing OFFSET ... FETCH NEXT form (the planner keeps a TOP-style limit -
+// one without an ORDER BY - local on these shapes, so an ORDER BY is present
+// whenever this path is reached).
+static void renderDialectRowLimit(SDynSQL* s, const SLimitNode* pLimit,
+                                  EExtSQLDialect dialect, bool topInjected) {
+  if (dialect == EXT_SQL_DIALECT_ORACLE) {
+    renderOracleFetchRows(s, pLimit);
+  } else if (dialect == EXT_SQL_DIALECT_SQLSERVER) {
+    if (!topInjected) renderTsqlFetchNext(s, pLimit);
+  } else {
+    renderLimit(s, pLimit);
+  }
 }
 
 // Get first child of a physi node.
@@ -10184,7 +12026,7 @@ static int32_t renderSetOpStatement(const SProjectLogicNode* pUnion, EExtSQLDial
     }
     if (pUnion->node.pLimit != NULL) {
       qDebug("FQ-SQL: render setop root LIMIT directly union=%p", pUnion);
-      renderLimit(s, (const SLimitNode*)pUnion->node.pLimit);
+      renderDialectRowLimit(s, (const SLimitNode*)pUnion->node.pLimit, dialect, false);
     }
     return s->err ? s->err : TSDB_CODE_SUCCESS;
   }
@@ -10200,13 +12042,14 @@ static int32_t renderSetOpStatement(const SProjectLogicNode* pUnion, EExtSQLDial
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  dynSQLAppendStr(s, ") _sq");
+  dynSQLAppendStr(s, ") ");
+  dynAppendDerivedAlias(s, "_sq", dialect);
 
   qDebug("FQ-SQL: render setop outer WHERE union=%p hasCond=%d", pUnion, NULL != pUnion->node.pConditions);
   renderWhere(s, pUnion->node.pConditions, dialect, NULL, stmtCtx);
   if (pUnion->node.pLimit != NULL) {
     qDebug("FQ-SQL: render setop outer LIMIT union=%p", pUnion);
-    renderLimit(s, (const SLimitNode*)pUnion->node.pLimit);
+    renderDialectRowLimit(s, (const SLimitNode*)pUnion->node.pLimit, dialect, false);
   }
 
   return s->err ? s->err : TSDB_CODE_SUCCESS;
@@ -10315,7 +12158,8 @@ static int32_t renderNodeWithOuterWhereWrapper(const SLogicNode* pNode, EExtSQLD
   if (TSDB_CODE_SUCCESS != code) {
     goto _return;
   }
-  dynSQLAppendStr(s, ") _sq");
+  dynSQLAppendStr(s, ") ");
+  dynAppendDerivedAlias(s, "_sq", dialect);
 
   renderWhere(s, pNode->pConditions, dialect, NULL, wrapperCtx);
   if (s->err) {
@@ -10443,6 +12287,8 @@ static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
       }
 
       dynSQLAppendStr(s, wroteInnerWhere ? " AND (" : " WHERE (");
+      // Each EXISTS body condition is a truth value, like the outer WHERE.
+      s->predicateCtx = 1;  // SEMI/ANTI inner condition (T-SQL R1)
       code = dynAppendExpr(s, pInnerConds[i], dialect, pInnerMetas[i], &semiCtx);
       if (code != TSDB_CODE_SUCCESS) {
         nodesDestroyRemoteSelectOutputs(&outputs);
@@ -10532,6 +12378,10 @@ static int32_t renderJoin(const SJoinLogicNode* pJoin, EExtSQLDialect dialect,
       if (combineOnConditions) {
         dynSQLAppendChar(s, '(');
       }
+      // The forced leg filter is a truth value in the ON clause.  Without this
+      // the Oracle renderer wraps it as a value (CASE ... THEN 1 ELSE 0 END),
+      // which Oracle rejects as a condition with ORA-00920.
+      s->predicateCtx = 1;  // JOIN ON pushed condition (T-SQL R1)
       code = dynAppendExpr(s, pPushedOnCond, dialect, NULL, &joinCtx);
       if (TSDB_CODE_SUCCESS != code) {
         qError("FQ-SQL: render JOIN pushed ON failed join=%p code=0x%x", pJoin, code);
@@ -10574,7 +12424,7 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
              nodesNodeName(nodeType(pNode)), (int)pJoin->subType);
       int32_t code = renderJoin(pJoin, dialect, pCtx, s);
       if (code) return code;
-      if (pNode->pLimit) renderLimit(s, (const SLimitNode*)pNode->pLimit);
+      if (pNode->pLimit) renderDialectRowLimit(s, (const SLimitNode*)pNode->pLimit, dialect, false);
       return s->err ? s->err : TSDB_CODE_SUCCESS;
     }
     qDebug("FQ-SQL-RENDER: node=%s joinSubType=%d -> standard JOIN uses shared collector path",
@@ -10808,7 +12658,8 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
       nodesDestroyRemoteSelectOutputs(&outputs);
       return code;
     }
-    dynSQLAppendStr(s, ") _sq");
+    dynSQLAppendStr(s, ") ");
+  dynAppendDerivedAlias(s, "_sq", dialect);
   } else if (joinInlineFrom) {
     // Inline JOIN FROM clause (no subquery).
     code = renderJoin((const SJoinLogicNode*)g.pFromSource, dialect, pCtx, s);
@@ -10826,7 +12677,8 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
       nodesDestroyRemoteSelectOutputs(&outputs);
       return code;
     }
-    dynSQLAppendStr(s, ") _sq");
+    dynSQLAppendStr(s, ") ");
+  dynAppendDerivedAlias(s, "_sq", dialect);
   } else if (g.pFromSource != NULL && fqIsFromSource(g.pFromSource) &&
              nodeType(g.pFromSource) == QUERY_NODE_LOGIC_PLAN_PROJECT) {
     // A set-op used as a FROM source is an internal derived table. Timestamp
@@ -10843,7 +12695,8 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
       nodesDestroyRemoteSelectOutputs(&outputs);
       return code;
     }
-    dynSQLAppendStr(s, ") _sq");
+    dynSQLAppendStr(s, ") ");
+  dynAppendDerivedAlias(s, "_sq", dialect);
   } else if (g.pScanWhere != NULL) {
     dynAppendTablePath(s, (const SExtTableNode*)g.pScanWhere->pExtTableNode, dialect);
   } else {
@@ -10973,6 +12826,8 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
       if (!ssTopInjected) {
         renderTsqlFetchNext(s, (const SLimitNode*)g.pLimit);
       }
+    } else if (dialect == EXT_SQL_DIALECT_ORACLE) {
+      renderOracleFetchRows(s, (const SLimitNode*)g.pLimit);
     } else {
       renderLimit(s, (const SLimitNode*)g.pLimit);
     }
@@ -10988,12 +12843,13 @@ static int32_t renderNode(const SLogicNode* pNode, EExtSQLDialect dialect,
 // nodesRenderInSubqueryBody - public API
 // ---------------------------------------------------------------------------
 // Renders the SELECT SQL of an uncorrelated IN (subquery) for same-source
-// MySQL/PG pushdown.  The result is stored in pRemoteValueListNode->inSubquerySql
+// relational pushdown.  The result is stored in pRemoteValueListNode->inSubquerySql
 // by the parser so that nodesRemotePlanToSQL can emit col IN (SELECT ...) without
 // needing a runtime resolve context.
 //
 // pInnerSelect : the inner SSelectStmt (single projection, FROM ext table).
-// sourceType   : EExtSourceType (MySQL or PostgreSQL only; others not pushed).
+// sourceType   : EExtSourceType (MySQL / PostgreSQL / SQL Server / Oracle;
+//                InfluxDB is not pushed).
 // ppSQL        : OUT - heap-allocated SQL string; caller must taosMemoryFree().
 int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
                                   int8_t             sourceType,
@@ -11007,6 +12863,8 @@ int32_t nodesRenderInSubqueryBody(const SSelectStmt* pInnerSelect,
   switch ((EExtSourceType)sourceType) {
     case EXT_SOURCE_MYSQL:      dialect = EXT_SQL_DIALECT_MYSQL;    break;
     case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
+    case EXT_SOURCE_SQLSERVER:  dialect = EXT_SQL_DIALECT_SQLSERVER; break;
+    case EXT_SOURCE_ORACLE:     dialect = EXT_SQL_DIALECT_ORACLE;    break;
     default:
       // InfluxDB does not support IN (subquery); other sources unsupported.
       qError("FQ-SQL: nodesRenderInSubqueryBody unsupported sourceType=%d", (int)sourceType);
@@ -11120,7 +12978,12 @@ int32_t nodesRenderCorrelatedExistsBody(const SSelectStmt* pInnerSelect,
     case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
     case EXT_SOURCE_INFLUXDB:   dialect = EXT_SQL_DIALECT_INFLUXQL; break;
     case EXT_SOURCE_SQLSERVER:  dialect = EXT_SQL_DIALECT_SQLSERVER; break;
-    default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
+    case EXT_SOURCE_ORACLE:     dialect = EXT_SQL_DIALECT_ORACLE;    break;
+    default:
+      // Same rule as nodesRemotePlanToSQL: an unknown source type is not
+      // MySQL.  Refuse to render so the caller keeps the subquery local.
+      qError("FQ-SQL: nodesRenderCorrelatedExistsBody unsupported sourceType=%d", (int)sourceType);
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
   qDebug("FQ-SQL-SUBQ: nodesRenderCorrelatedExistsBody begin sourceType=%d dialect=%s projections=%d hasWhere=%d fromType=%s",
@@ -11238,7 +13101,16 @@ int32_t nodesRemotePlanToSQL(const SLogicNode* pRemotePlan, int8_t sourceType,
     case EXT_SOURCE_POSTGRESQL: dialect = EXT_SQL_DIALECT_POSTGRES; break;
     case EXT_SOURCE_INFLUXDB:   dialect = EXT_SQL_DIALECT_INFLUXQL; break;
     case EXT_SOURCE_SQLSERVER:  dialect = EXT_SQL_DIALECT_SQLSERVER; break;
-    default:                    dialect = EXT_SQL_DIALECT_MYSQL;    break;
+    case EXT_SOURCE_ORACLE:     dialect = EXT_SQL_DIALECT_ORACLE;    break;
+    default:
+      // An unknown source type must NOT be rendered as some other dialect:
+      // MySQL quoting and function names would be sent to a server that does
+      // not speak them, and the resulting error would look like a data
+      // problem rather than an unsupported source.  Fail closed instead so the
+      // caller demotes to local execution (Oracle DS 9.1.2: a source-type
+      // switch must fall back to a neutral "unknown", never to MySQL or PG).
+      qError("FQ-SQL: nodesRemotePlanToSQL unknown sourceType=%d", (int)sourceType);
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 
   // Dump the FULL remotePlan tree FIRST via the planner's own serializer

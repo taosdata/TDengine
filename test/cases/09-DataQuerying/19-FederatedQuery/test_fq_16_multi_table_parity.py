@@ -43,9 +43,15 @@ Data:
   ref_t (2 rows, local only): (00:00, 1), (00:01, 3)
   empty_t (0 rows, local only): intentionally empty
 
+  Oracle has no per-test database: the login schema is the namespace (DS
+  5.3.2), so its ta/tb live in ORACLE_USER's own schema.  NUMBER(10,0) maps to
+  BIGINT, NVARCHAR2 maps to NCHAR and TIMESTAMP(3) keeps the transport at
+  MICRO precision, so every column keeps the same TDengine type as the other
+  providers.
+
 Environment:
   Enterprise edition, federatedQueryEnable=1
-  MySQL 8.0+, PostgreSQL 14+, InfluxDB v3
+  MySQL 8.0+, PostgreSQL 14+, InfluxDB v3, Oracle 19c+
 """
 from typing import Dict, List, Tuple
 
@@ -53,7 +59,6 @@ from typing import Dict, List, Tuple
 import os
 import shutil
 import time
-import pytest
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -109,7 +114,7 @@ _REF_ROWS = [
     (_TS_BASE_MS + 1 * _M, 3),
 ]
 
-# Datetime strings for MySQL/PG.
+# Datetime strings for MySQL/PG/SQL Server/Oracle.
 # These columns are timezone-naive on the remote side, so the string literal is
 # interpreted in the session timezone (Asia/Shanghai in the FQ test env).  Use
 # CST local strings that map to the same absolute instants as _TS_BASE_MS /
@@ -249,8 +254,9 @@ _PARITY_CASES: List[Tuple[str, str, dict]] = [
 # ==============================================================================
 #
 # SQL templates use:
-#   {M} = MySQL external source   {P} = PG external source
-#   {I} = InfluxDB external source {L} = local TDengine database
+#   {M} = MySQL external source    {P} = PG external source
+#   {I} = InfluxDB external source {S} = SQL Server external source
+#   {O} = Oracle external source   {L} = local TDengine database
 #
 # Each entry: (case_id, sql_template, opts)
 #   opts["rows"]   : expected row count (positive cases)
@@ -629,6 +635,185 @@ _CROSS_CASES: List[Tuple[str, str, dict]] = [
      "UNION ALL SELECT id, val FROM {S}.ta "
      "ORDER BY 1, 2",
      {"rows": 30}),
+
+    # --- Oracle cross-source / same-source combinations -------------------
+    # Oracle carries the same fixture rows as the other providers, so every
+    # combination below has the same expected row set as its MySQL/PG twin.
+    # xsrc-37: Oracle + MySQL UNION ALL -> 12 rows (6+6, identical data)
+    ("xsrc-37",
+     "SELECT id, val FROM {O}.ta "
+     "UNION ALL SELECT id, val FROM {M}.ta ORDER BY 1, 2",
+     {"rows": 12}),
+    # xsrc-38: Oracle + PG UNION (dedup) -> 6 rows
+    ("xsrc-38",
+     "SELECT id, val FROM {O}.ta "
+     "UNION SELECT id, val FROM {P}.ta ORDER BY 1, 2",
+     {"rows": 6}),
+    # xsrc-39: Oracle + InfluxDB UNION ALL -> 12 rows
+    ("xsrc-39",
+     "SELECT id, val FROM {O}.ta "
+     "UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2",
+     {"rows": 12}),
+    # xsrc-40: Oracle + SQL Server UNION (dedup) -> 6 rows
+    ("xsrc-40",
+     "SELECT id, val FROM {O}.ta "
+     "UNION SELECT id, val FROM {S}.ta ORDER BY 1, 2",
+     {"rows": 6}),
+    # xsrc-41: Oracle + local UNION ALL -> 12 rows
+    ("xsrc-41",
+     "SELECT id, val FROM {O}.ta "
+     "UNION ALL SELECT id, val FROM {L}.ta ORDER BY 1, 2",
+     {"rows": 12}),
+    # xsrc-42: 6-source UNION ALL (M+P+I+L+S+O) -> 36 rows (6x6)
+    ("xsrc-42",
+     "SELECT id, val FROM {M}.ta "
+     "UNION ALL SELECT id, val FROM {P}.ta "
+     "UNION ALL SELECT id, val FROM {I}.ta "
+     "UNION ALL SELECT id, val FROM {L}.ta "
+     "UNION ALL SELECT id, val FROM {S}.ta "
+     "UNION ALL SELECT id, val FROM {O}.ta "
+     "ORDER BY 1, 2",
+     {"rows": 36}),
+
+    # ── Oracle cross-source TS-PK JOINs ───────────────────────────────────
+    # xsrc-43: Oracle.ta JOIN MySQL.tb ON ts -> 4 rows
+    ("xsrc-43",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {O}.ta a INNER JOIN {M}.tb b ON a.time = b.time "
+     "ORDER BY a.time",
+     {"rows": 4}),
+    # xsrc-44: InfluxDB.ta JOIN Oracle.tb ON ts -> 4 rows
+    ("xsrc-44",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {I}.ta a INNER JOIN {O}.tb b ON a.time = b.time "
+     "ORDER BY a.time",
+     {"rows": 4}),
+    # xsrc-45: Oracle.ta JOIN SQL Server.tb ON ts -> 4 rows
+    ("xsrc-45",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {O}.ta a INNER JOIN {S}.tb b ON a.time = b.time "
+     "ORDER BY a.time",
+     {"rows": 4}),
+    # xsrc-46: Oracle.ta JOIN local tb ON ts -> 4 rows
+    ("xsrc-46",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {O}.ta a INNER JOIN {L}.tb b ON a.time = b.time "
+     "ORDER BY a.time",
+     {"rows": 4}),
+    # xsrc-47: Oracle.ta JOIN PG.tb ON ts -> 4 rows
+    ("xsrc-47",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {O}.ta a INNER JOIN {P}.tb b ON a.time = b.time "
+     "ORDER BY a.time",
+     {"rows": 4}),
+
+    # ── Oracle cross-source ASOF / WINDOW / FULL JOINs ────────────────────
+    # xsrc-48: LEFT ASOF JOIN (Oracle.ta × MySQL.tb) -> 6 rows
+    ("xsrc-48",
+     "SELECT a.id, a.val, b.val2 "
+     "FROM {O}.ta a LEFT ASOF JOIN {M}.tb b ON a.time >= b.time "
+     "ORDER BY a.time",
+     {"rows": 6,
+      "data": [(0, 0, 1), (0, 1, 10), (0, 2, 15),
+               (5, 0, 6), (5, 1, 10), (5, 2, 45)]}),
+    # xsrc-49: RIGHT ASOF JOIN (Oracle.ta × SQL Server.tb) -> 5 rows
+    ("xsrc-49",
+     "SELECT a.val, b.bid, b.val2 "
+     "FROM {O}.ta a RIGHT ASOF JOIN {S}.tb b ON b.time >= a.time "
+     "ORDER BY b.time",
+     {"rows": 5,
+      "data": [(0, 0, 10), (0, 1, 1), (0, 2, 15)]}),
+    # xsrc-50: LEFT WINDOW JOIN (Oracle.ta × InfluxDB.tb, ±1m) -> 11 rows
+    ("xsrc-50",
+     "SELECT a.id, a.val, b.val2 "
+     "FROM {O}.ta a LEFT WINDOW JOIN {I}.tb b WINDOW_OFFSET(-1m, 1m) "
+     "ORDER BY a.time, b.time",
+     {"rows": 11}),
+    # xsrc-51: FULL OUTER JOIN (Oracle.ta × PG.tb ON ts) -> 7 rows
+    ("xsrc-51",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {O}.ta a FULL JOIN {P}.tb b ON a.time = b.time",
+     {"rows": 7, "ordered": False}),
+
+    # ── Oracle cross-source subqueries ────────────────────────────────────
+    # xsrc-52: Oracle outer WHERE id IN (MySQL.tb) -> 4 rows
+    ("xsrc-52",
+     "SELECT id, val FROM {O}.ta "
+     "WHERE id IN (SELECT ref_id FROM {M}.tb) "
+     "ORDER BY id",
+     {"rows": 4}),
+    # xsrc-53: PG outer WHERE val > (Oracle.tb MAX scalar, flag=1) -> 1 row
+    ("xsrc-53",
+     "SELECT id, val FROM {P}.ta "
+     "WHERE val > (SELECT MAX(val2) FROM {O}.tb WHERE flag = 1) "
+     "ORDER BY id",
+     {"rows": 1,
+      "data": [(0, 0, 5), (0, 1, 50)]}),
+    # xsrc-54: Oracle outer WHERE val > ALL (local ref_t) -> 6 rows
+    ("xsrc-54",
+     "SELECT id, val FROM {O}.ta "
+     "WHERE val > ALL (SELECT val FROM {L}.ref_t) "
+     "ORDER BY id",
+     {"rows": 6}),
+    # xsrc-55: MySQL outer + EXISTS over Oracle.tb -> 6 rows
+    ("xsrc-55",
+     "SELECT id FROM {M}.ta "
+     "WHERE EXISTS (SELECT 1 FROM {O}.tb WHERE flag = 1) "
+     "ORDER BY id",
+     {"rows": 6}),
+    # xsrc-56: Oracle outer + NOT EXISTS (local empty_t) -> 6 rows
+    ("xsrc-56",
+     "SELECT id FROM {O}.ta "
+     "WHERE NOT EXISTS (SELECT 1 FROM {L}.empty_t) "
+     "ORDER BY id",
+     {"rows": 6}),
+
+    # Negative: InfluxDB exposes its timestamp as time, not as a ts column
+    # xsrc-57-neg: Oracle outer + FULL JOIN on InfluxDB.ts -> invalid column
+    ("xsrc-57-neg",
+     "SELECT a.id, a.val, b.bid, b.val2 "
+     "FROM {O}.ta a FULL JOIN {I}.tb b ON a.time = b.ts",
+     {"error": TSDB_CODE_PAR_INVALID_COLUMN}),
+
+    # Same-source ordinary-column Hash JOINs on Oracle
+    ("join-o-01",
+     "SELECT a.id, b.bid FROM {O}.ta a "
+     "JOIN {O}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 5}),
+    ("join-o-02",
+     "SELECT a.id, b.bid FROM {O}.ta a "
+     "FULL JOIN {O}.tb b ON a.id = b.bid",
+     {"rows": 6, "ordered": False}),
+    ("join-o-03",
+     "SELECT a.id FROM {O}.ta a "
+     "LEFT SEMI JOIN {O}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 5}),
+    ("join-o-04",
+     "SELECT a.id FROM {O}.ta a "
+     "LEFT ANTI JOIN {O}.tb b ON a.id = b.bid ORDER BY a.id",
+     {"rows": 1}),
+    ("join-o-05",
+     "SELECT b.bid FROM {O}.ta a "
+     "RIGHT SEMI JOIN {O}.tb b ON a.id = b.bid ORDER BY b.bid",
+     {"rows": 5}),
+    ("join-o-06",
+     "SELECT b.bid FROM {O}.ta a "
+     "RIGHT ANTI JOIN {O}.tb b ON a.id = b.bid ORDER BY b.bid",
+     {"rows": 0}),
+
+    # Negative: correlated subqueries on Oracle sources
+    ("neg-csub-o-01",
+     "SELECT id FROM {O}.ta a "
+     "WHERE EXISTS "
+     "(SELECT 1 FROM {O}.tb b WHERE b.ref_id = a.id) "
+     "ORDER BY id",
+     {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
+    ("neg-csub-o-02",
+     "SELECT id FROM {O}.ta a "
+     "WHERE NOT EXISTS "
+     "(SELECT 1 FROM {O}.tb b WHERE b.ref_id = a.id) "
+     "ORDER BY id",
+     {"error": TSDB_CODE_PAR_INVALID_EXPR_SUBQ}),
 ]
 
 
@@ -706,6 +891,64 @@ def _build_sqlserver_disorder():
         sqls.append(
             f"INSERT INTO dbo.tb VALUES ('{dt}', {bid}, {ref_id}, {val2}, {flag})")
     return sqls
+
+
+# -- Oracle --------------------------------------------------------------------
+# Oracle has no per-test database: the login schema is the namespace (DS
+# 5.3.2), so the tables keep the bare names the parity templates use.  Types
+# are chosen so the TDengine mapping matches the other providers:
+#   NUMBER(10,0)  -> BIGINT   (id / val / bid / ref_id / val2 / flag)
+#   NVARCHAR2     -> NCHAR    (label; VARCHAR2 would map to VARCHAR)
+#   TIMESTAMP(3)  -> TIMESTAMP with MICRO transport precision (DS 5.3.7: no
+#                               TIMESTAMP(7-9) column in the tables)
+_ORACLE_TABLE_TA = "TA"
+_ORACLE_TABLE_TB = "TB"
+
+
+def _oracle_ts_literal(dt_str):
+    """Render a 'YYYY-MM-DD HH:MM:SS.mmm' string as a TIMESTAMP(3) literal.
+
+    The format model is explicit: a bare string is parsed with the session's
+    NLS_TIMESTAMP_FORMAT, which differs between the sqlplus client and the
+    server.
+    """
+    return f"TO_TIMESTAMP('{dt_str}', 'YYYY-MM-DD HH24:MI:SS.FF3')"
+
+
+def _oracle_insert_all(table, rows_dt):
+    """Build one INSERT ALL statement (Oracle 19c has no multi-row VALUES)."""
+    branches = []
+    for dt, *rest in rows_dt:
+        values = ", ".join(
+            [_oracle_ts_literal(dt)] + [parity_sql_val(x) for x in rest])
+        branches.append(f'INTO "{table}" VALUES ({values})')
+    return "INSERT ALL " + " ".join(branches) + " SELECT 1 FROM DUAL"
+
+
+def _build_oracle_setup():
+    return [
+        (f'CREATE TABLE "{_ORACLE_TABLE_TA}" ('
+         '"TIME" TIMESTAMP(3) PRIMARY KEY, "ID" NUMBER(10,0),'
+         ' "VAL" NUMBER(10,0), "LABEL" NVARCHAR2(16))'),
+        (f'CREATE TABLE "{_ORACLE_TABLE_TB}" ('
+         '"TIME" TIMESTAMP(3) PRIMARY KEY, "BID" NUMBER(10,0),'
+         ' "REF_ID" NUMBER(10,0), "VAL2" NUMBER(10,0), "FLAG" NUMBER(10,0))'),
+        _oracle_insert_all(_ORACLE_TABLE_TA, _TA_ROWS_DT),
+        _oracle_insert_all(_ORACLE_TABLE_TB, _TB_ROWS_DT),
+        "COMMIT",
+    ]
+
+
+def _build_oracle_disorder():
+    return [
+        f'DELETE FROM "{_ORACLE_TABLE_TA}"',
+        f'DELETE FROM "{_ORACLE_TABLE_TB}"',
+        _oracle_insert_all(_ORACLE_TABLE_TA,
+                           [_TA_ROWS_DT[i] for i in _TA_DISORDER_IDX]),
+        _oracle_insert_all(_ORACLE_TABLE_TB,
+                           [_TB_ROWS_DT[i] for i in _TB_DISORDER_IDX]),
+        "COMMIT",
+    ]
 
 
 def _build_influx_lines():
@@ -829,7 +1072,8 @@ class TestFq16MultiTableParity(ParityTestBase):
     """Multi-table result-parity and cross-source query tests.
 
     Exercises cross-table operations (JOINs, subqueries, UNIONs, aggregation)
-    across all four data sources, plus cross-source and negative test cases.
+    across all five external sources (MySQL, PostgreSQL, InfluxDB, SQL Server,
+    Oracle), plus cross-source and negative test cases.
 
     Migrated from:
       - test_fq_04: UNION cross-source, cross-source subquery, JOIN types,
@@ -843,6 +1087,7 @@ class TestFq16MultiTableParity(ParityTestBase):
     _SRC_PG     = "fq_mt_parity_src_p"
     _SRC_INFLUX = "fq_mt_parity_src_i"
     _SRC_SQLSERVER = "fq_mt_parity_src_s"
+    _SRC_ORACLE = "fq_mt_parity_src_o"
     _class_setup_done = False
     _FLOAT_TOL = _FLOAT_TOL
     _BASELINE_FILE = os.path.join(
@@ -861,11 +1106,14 @@ class TestFq16MultiTableParity(ParityTestBase):
             ("PG",        self._SRC_PG),
             ("InfluxDB",  self._SRC_INFLUX),
             ("SQLServer", self._SRC_SQLSERVER),
+            ("Oracle",    self._SRC_ORACLE),
         ]
 
     def _ensure_session_timezone(self):
-        # fq16 inserts MySQL/PG naive timestamps as CST local strings so they
-        # represent the same absolute instants as Influx UTC epochs.
+        # fq16 inserts MySQL/PG/SQL Server/Oracle naive timestamps as CST local
+        # strings so they represent the same absolute instants as Influx UTC
+        # epochs; Oracle additionally interprets unzoned TIMESTAMP values at
+        # this client timezone on read.
         tdSql.execute(f'ALTER LOCAL "timezone" "{_SESSION_TZ}"')
 
     def setup_method(self, method):
@@ -907,12 +1155,22 @@ class TestFq16MultiTableParity(ParityTestBase):
         self._mk_sqlserver_real(
             self._SRC_SQLSERVER, database=_SQLSERVER_DB, schema="dbo")
 
+        # --- Oracle ---
+        oracle_cfg = self._oracle_cfg()
+        ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, _ORACLE_TABLE_TA)
+        ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, _ORACLE_TABLE_TB)
+        ExtSrcEnv.oracle_exec_cfg(oracle_cfg, _build_oracle_setup())
+        self._cleanup_src(self._SRC_ORACLE)
+        self._mk_oracle_real(
+            self._SRC_ORACLE, database=oracle_cfg.service,
+            schema=ExtSrcEnv.ORACLE_USER.upper())
+
         TestFq16MultiTableParity._class_setup_done = True
 
     def teardown_class(self):
         tmp = TestFq16MultiTableParity()
         tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX,
-                         tmp._SRC_SQLSERVER)
+                         tmp._SRC_SQLSERVER, tmp._SRC_ORACLE)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         for drop in [
             lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
@@ -920,6 +1178,10 @@ class TestFq16MultiTableParity(ParityTestBase):
             lambda: ExtSrcEnv.influx_drop_db_cfg(
                 tmp._influx_cfg(), _INFLUX_BUCKET),
             lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
+            lambda: ExtSrcEnv.oracle_drop_table_cfg(
+                tmp._oracle_cfg(), _ORACLE_TABLE_TA),
+            lambda: ExtSrcEnv.oracle_drop_table_cfg(
+                tmp._oracle_cfg(), _ORACLE_TABLE_TB),
         ]:
             try:
                 drop()
@@ -943,13 +1205,14 @@ class TestFq16MultiTableParity(ParityTestBase):
         P = self._SRC_PG
         I = self._SRC_INFLUX
         S = self._SRC_SQLSERVER
+        O = self._SRC_ORACLE
         L = _LOCAL_DB
 
         failed: List[Tuple[str, str, str]] = []
         serialized_blocks: List[str] = []
 
         for case_id, sql_tmpl, opts in cross_cases:
-            sql = sql_tmpl.format(M=M, P=P, I=I, S=S, L=L)
+            sql = sql_tmpl.format(M=M, P=P, I=I, S=S, O=O, L=L)
             expected_error = opts.get("error")
             positive = expected_error is None
             ordered = opts.get("ordered", True)
@@ -1086,6 +1349,8 @@ class TestFq16MultiTableParity(ParityTestBase):
                 _build_influx_disorder_lines())
             ExtSrcEnv.sqlserver_exec(
                 _SQLSERVER_DB, _build_sqlserver_disorder())
+            ExtSrcEnv.oracle_exec_cfg(
+                self._oracle_cfg(), _build_oracle_disorder())
             tdSql.executes(_build_local_disorder())
         else:
             restore_m = ["DELETE FROM ta", "DELETE FROM tb"]
@@ -1104,6 +1369,10 @@ class TestFq16MultiTableParity(ParityTestBase):
             restore_s = ["DELETE FROM dbo.ta", "DELETE FROM dbo.tb"]
             restore_s += _build_sqlserver_setup()[-2:]
             ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, restore_s)
+            restore_o = [f'DELETE FROM "{_ORACLE_TABLE_TA}"',
+                         f'DELETE FROM "{_ORACLE_TABLE_TB}"']
+            restore_o += _build_oracle_setup()[2:]
+            ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), restore_o)
             ta_vals = " ".join(
                 f"({ts}, {id_}, {val}, '{label}')"
                 for ts, id_, val, label in _TA_ROWS)
@@ -1122,13 +1391,15 @@ class TestFq16MultiTableParity(ParityTestBase):
     def test_fq_mt_parity_all_cases(self):
         """All multi-table parity and cross-source cases.
 
-        Part 1: Same-source multi-table parity (local == MySQL == PG == InfluxDB).
-        Tests INNER/LEFT/FULL JOIN, ASOF/WINDOW JOIN, IN/NOT IN/ANY/ALL/SOME
-        subqueries, scalar subquery, UNION, and JOIN aggregation.
+        Part 1: Same-source multi-table parity (local == MySQL == PG ==
+        InfluxDB == SQL Server == Oracle).  Tests INNER/LEFT/FULL JOIN,
+        ASOF/WINDOW JOIN, IN/NOT IN/ANY/ALL/SOME subqueries, scalar subquery,
+        UNION, and JOIN aggregation.
 
         Part 2: Cross-source queries (mixing different external sources in one
         statement). UNION, IN/NOT IN, EXISTS/NOT EXISTS, ANY/ALL, scalar subquery,
-        TS-PK JOIN, ASOF JOIN, WINDOW JOIN, FULL OUTER JOIN.
+        TS-PK JOIN, ASOF JOIN, WINDOW JOIN, FULL OUTER JOIN, including Oracle
+        against every other source and the local database.
 
         Part 3: Negative tests — unsupported expressions and correlated subqueries.
 
@@ -1144,9 +1415,10 @@ class TestFq16MultiTableParity(ParityTestBase):
 
         History:
             - 2026-06-03 wpan Consolidated multi-table parity from fq_04/05/06
+            - 2026-10-26 wpan Add the Oracle equivalence leg and cross-source cases
         """
         self._ensure_session_timezone()
-        # Part 1: same-source parity (4-source comparison + baseline file)
+        # Part 1: same-source parity (5-source comparison + baseline file)
         self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
 
         # Part 2 + 3: cross-source and negative (baseline file comparison)
@@ -1208,8 +1480,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         pos_cross = [(cid, sql, opts) for cid, sql, opts in _CROSS_CASES
                      if "error" not in opts]
 
-        if not pos_parity and not pos_cross:
-            pytest.skip("no positive cases to test")
+        assert pos_parity or pos_cross, "no positive parity cases are configured"
 
         try:
             self._rewrite_all_data(disorder=True)

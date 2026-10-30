@@ -10555,6 +10555,11 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         code = pIdentityRsp->code;
         QUERY_CHECK_CODE(code, lino, _end);
       }
+      // Range check covers the external source types stream processing
+      // supports: MySQL, PostgreSQL, InfluxDB and SQL Server.  Oracle (=5) is
+      // deliberately outside it - streams do not support Oracle external
+      // tables in this release, so an identity response for one is rejected
+      // fail-closed instead of being carried into a trigger task.
       if (pIdentityRsp->sourceType < EXT_SOURCE_MYSQL || pIdentityRsp->sourceType > EXT_SOURCE_SQLSERVER) {
         ST_TASK_ELOG("unsupported external source identity, reqId:%" PRId64 ", source:%s, type:%d", pRsp->reqId,
                      pIdentityRsp->req.sourceName, pIdentityRsp->sourceType);

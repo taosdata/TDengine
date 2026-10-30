@@ -183,6 +183,15 @@ if(TD_ENTERPRISE)
     option(BUILD_WITH_ARROW   "If build with Apache Arrow Flight SQL (ext source: InfluxDB)" ON)
     option(BUILD_WITH_ODBC    "If build with unixODBC (ext source: SQL Server)" ON)
     option(INSTALL_FQ_RUNTIME_LIBS "Install optional federated-query runtime libraries" OFF)
+    # SHA256 of the Oracle Instant Client artifact published on the dependency
+    # mirror.  The Instant Client is binary-only and cannot be built, so the
+    # driver is staged from a prebuilt tarball; the hash pins it.  external.cmake
+    # already carries the hash of the published artifact for each architecture,
+    # so this only overrides it (e.g. a locally repacked bundle); empty keeps
+    # that default, and an architecture without a published artifact is skipped
+    # with a status message.
+    set(EXT_ORACLE_ARTIFACT_SHA256 "" CACHE STRING
+        "SHA256 of the Oracle Instant Client artifact (empty = use the pinned default)")
     if(TD_WINDOWS)
         # Arrow Flight SQL has no Windows build here (gRPC/Arrow Flight is not
         # built), so BUILD_WITH_ARROW on Windows only controls the InfluxDB

@@ -27,14 +27,22 @@ _DDL_EXT_DIR = os.path.abspath(
 if _DDL_EXT_DIR not in sys.path:
     sys.path.insert(0, _DDL_EXT_DIR)
 
+_FQ_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__),
+                 "..", "..", "..", "09-DataQuerying", "19-FederatedQuery"))
+if _FQ_DIR not in sys.path:
+    sys.path.insert(0, _FQ_DIR)
+
 from ext_source_helpers import (  # noqa: E402
     ExtSrcEnv,
     create_ext_source,
     create_influx_measurement,
+    create_oracle_table,
     create_pg_table,
     create_remote_db,
     create_sqlserver_table,
 )
+from federated_query_common import _code  # noqa: E402
 
 _LOCAL_DB = "vq_resilience_local"
 _PG_DB = "vq_resilience_pg"
@@ -43,7 +51,20 @@ _INF_DB = "vq_resilience_inf"
 _INF_SRC = "vq_resilience_inf_src"
 _SS_DB = "vq_resilience_ss"
 _SS_SRC = "vq_resilience_ss_src"
+_ORACLE_SRC = "vq_resilience_oracle_src"
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+# Oracle tables live in the shared login schema; prefixing their names keeps
+# them apart from the fixtures of the other ext-source test files.
+_ORACLE_TABLE_PREFIX = "vq_resilience_"
 _T0 = 1700000000000000000
+
+# A stopped listener (ORA-12541) maps to the connectivity failure code; while
+# the instance is still shutting down the driver can also report ORA-12514
+# (service no longer registered), classified as EXT_DB_NOT_EXIST.
+TSDB_CODE_EXT_CONNECT_FAILED = _code("TSDB_CODE_EXT_CONNECT_FAILED")
+TSDB_CODE_EXT_DB_NOT_EXIST = _code("TSDB_CODE_EXT_DB_NOT_EXIST")
 
 
 def _pg_ver():
@@ -58,9 +79,20 @@ def _sqlserver_ver():
     return ExtSrcEnv.SQLSERVER_VERSIONS[0]
 
 
+def _oracle_ver():
+    return ExtSrcEnv.ORACLE_VERSIONS[0]
+
+
 def _check_count(sql, expected):
     tdSql.query(sql)
     tdSql.checkData(0, 0, expected)
+
+
+def _check_values(sql, expected):
+    tdSql.query(sql)
+    tdSql.checkRows(len(expected))
+    for index, value in enumerate(expected):
+        tdSql.checkData(index, 0, value)
 
 
 def _prepare_remote_data():
@@ -106,6 +138,21 @@ def _prepare_remote_data():
             "('2024-01-01 00:00:01.000', 302)",
         ])
 
+    create_oracle_table(
+        f"{_ORACLE_TABLE_PREFIX}r_oracle",
+        "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+        [
+            "(TIMESTAMP '2024-01-01 00:00:00.000', 41)",
+            "(TIMESTAMP '2024-01-01 00:00:01.000', 42)",
+        ])
+    create_oracle_table(
+        f"{_ORACLE_TABLE_PREFIX}r_oracle_child",
+        "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+        [
+            "(TIMESTAMP '2024-01-01 00:00:00.000', 401)",
+            "(TIMESTAMP '2024-01-01 00:00:01.000', 402)",
+        ])
+
 
 class TestVtableQueryExtSourceResilience:
 
@@ -117,6 +164,7 @@ class TestVtableQueryExtSourceResilience:
         create_ext_source(_PG_SRC, "postgresql", _PG_DB)
         create_ext_source(_INF_SRC, "influxdb", _INF_DB)
         create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
+        create_ext_source(_ORACLE_SRC, "oracle", ExtSrcEnv.ORACLE_SERVICE)
 
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
@@ -148,6 +196,18 @@ class TestVtableQueryExtSourceResilience:
             f"CREATE VTABLE vctb_ss ("
             f"v FROM {_SS_SRC}.{_SS_DB}.dbo.r_ss_child.v) "
             "USING vstb_ss_runtime TAGS ('sqlserver')")
+        tdSql.execute(
+            f"CREATE VTABLE v_oracle_normal (ts timestamp, "
+            f"v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA}."
+            f"{_ORACLE_TABLE_PREFIX}r_oracle.v)")
+        tdSql.execute(
+            "CREATE STABLE vstb_oracle_runtime (ts timestamp, v bigint) "
+            "TAGS (backend nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_oracle ("
+            f"v FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA}."
+            f"{_ORACLE_TABLE_PREFIX}r_oracle_child.v) "
+            "USING vstb_oracle_runtime TAGS ('oracle')")
 
     @classmethod
     def teardown_class(cls):
@@ -155,6 +215,13 @@ class TestVtableQueryExtSourceResilience:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_PG_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_ORACLE_SRC}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a run that
+        # visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INF_DB)
 
     def setup_method(self, method):
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -260,3 +327,60 @@ class TestVtableQueryExtSourceResilience:
             ExtSrcEnv.start_sqlserver_instance(_sqlserver_ver())
 
         _check_count("SELECT count(*) FROM vstb_ss_runtime", 2)
+
+    def test_oracle_normal_vtable_query_fails_when_backend_down_and_recovers(self):
+        """Oracle-backed normal vtable query fails while backend is down and recovers after restart.
+
+        Oracle-backed normal vtable query fails while backend is down and recovers after restart.
+
+        Since: v3.5.0.0
+
+        """
+        _check_values("SELECT v FROM v_oracle_normal ORDER BY v", [41, 42])
+        ExtSrcEnv.stop_oracle_instance(_oracle_ver())
+        try:
+            # A stopped listener maps to the connectivity failure code
+            # (ORA-12541); while the instance is still shutting down the driver
+            # can instead report ORA-12514 (service no longer registered),
+            # which is classified as EXT_DB_NOT_EXIST.  Both mean the backend
+            # cannot serve the query.
+            tdSql.error("SELECT count(*) FROM v_oracle_normal",
+                        expectedErrno=[TSDB_CODE_EXT_CONNECT_FAILED,
+                                       TSDB_CODE_EXT_DB_NOT_EXIST])
+            tdSql.query("DESCRIBE v_oracle_normal")
+            # The persisted column source keeps source/schema/table/column; the
+            # middle segment is the schema, not a database.
+            col_source = str(tdSql.getData(1, 4))
+            assert col_source.startswith(f"{_ORACLE_SRC}.{_ORACLE_SCHEMA}."), col_source
+            assert col_source.endswith(f".{_ORACLE_TABLE_PREFIX}r_oracle.v"), col_source
+        finally:
+            recovered = ExtSrcEnv.start_oracle_instance(_oracle_ver())
+        assert recovered, "Oracle instance did not accept probes again"
+        _check_values("SELECT v FROM v_oracle_normal ORDER BY v", [41, 42])
+
+    def test_oracle_stable_query_fails_when_child_backend_down_and_recovers(self):
+        """Virtual stable query fails if the Oracle child backend is down and recovers after restart.
+
+        Virtual stable query fails if the Oracle child backend is down and recovers after restart.
+
+        Since: v3.5.0.0
+
+        """
+        _check_count("SELECT count(*) FROM vstb_oracle_runtime", 2)
+        _check_values("SELECT v FROM vctb_oracle ORDER BY v", [401, 402])
+
+        ExtSrcEnv.stop_oracle_instance(_oracle_ver())
+        try:
+            tdSql.error("SELECT count(*) FROM vstb_oracle_runtime",
+                        expectedErrno=[TSDB_CODE_EXT_CONNECT_FAILED,
+                                       TSDB_CODE_EXT_DB_NOT_EXIST])
+            # An unrelated child backend stays queryable while Oracle is down.
+            _check_values("SELECT v FROM vctb_pg ORDER BY v", [101, 102])
+            tdSql.query("DESCRIBE vstb_oracle_runtime")
+            tdSql.checkData(1, 0, "v")
+        finally:
+            recovered = ExtSrcEnv.start_oracle_instance(_oracle_ver())
+        assert recovered, "Oracle instance did not accept probes again"
+
+        _check_count("SELECT count(*) FROM vstb_oracle_runtime", 2)
+        _check_values("SELECT v FROM vstb_oracle_runtime ORDER BY v", [401, 402])

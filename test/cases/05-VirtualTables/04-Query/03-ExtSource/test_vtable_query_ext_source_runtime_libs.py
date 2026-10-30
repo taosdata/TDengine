@@ -41,6 +41,7 @@ from ext_source_helpers import (  # noqa: E402
     create_ext_source,
     create_influx_measurement,
     create_mysql_table,
+    create_oracle_table,
     create_pg_table,
     create_remote_db,
     create_sqlserver_table,
@@ -60,6 +61,13 @@ _INFLUX_SRC = "vt_runtime_libs_influx_src"
 _INFLUX_HTTP_SRC = "vt_runtime_libs_influx_http_src"
 _SQLSERVER_DB = "vt_runtime_libs_sqlserver_db"
 _SQLSERVER_SRC = "vt_runtime_libs_sqlserver_src"
+_ORACLE_SRC = "vt_runtime_libs_oracle_src"
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+# Oracle tables live in the shared login schema; prefixing their names keeps
+# them apart from the fixtures of the other ext-source test files.
+_ORACLE_TABLE_PREFIX = "vt_runtime_libs_"
 _T0 = 1704067200000000000
 
 _PROVIDER_RUNTIME_PATTERNS = {
@@ -70,6 +78,11 @@ _PROVIDER_RUNTIME_PATTERNS = {
     # Driver 18 from the same runtime dir (both are staged like the other
     # providers' client libraries, DS 3.3).
     "sqlserver": ("libodbc*", "libmsodbcsql*"),
+    # Oracle likewise goes through unixODBC and loads the Instant Client base
+    # libraries (OCI, NLS, network, ODM and the time-zone/character-set data
+    # modules) from the runtime dir.
+    "oracle": ("libodbc*", "libsqora*", "libclntsh*", "libnnz*", "libons*",
+               "libnfsodm*", "liborazt*", "libociei*"),
 }
 # Windows stages the provider client libraries next to the executables as
 # DLLs (build\bin) instead of build\lib, so both the location and the file
@@ -78,6 +91,12 @@ _PROVIDER_RUNTIME_PATTERNS_WINDOWS = {
     "mysql": ("libmariadb*.dll", "libmysqlclient*.dll"),
     "postgresql": ("libpq*.dll",),
     "influxdb": ("taos_ext_influx_arrow*.dll", "libtaos_ext_influx_arrow*.dll"),
+    # Oracle on Windows resolves the registered ODBC driver name; the driver
+    # itself (SQORA32.DLL) and the Instant Client DLLs it loads live in
+    # build\bin, so they are the files this check moves aside.
+    "oracle": ("sqora*.dll", "oci*.dll", "oraociei*.dll", "oraons*.dll",
+               "orannz*.dll", "orasql*.dll", "oraocci*.dll", "legacy*.dll",
+               "extks*.dll", "pkcs11*.dll", "sqres*.dll", "fips*.dll"),
 }
 _PROVIDER_PLUGIN_PATTERNS = {
     "influxdb": ("libtaos_ext_influx_arrow*",),
@@ -380,6 +399,14 @@ class TestVtableQueryExtSourceRuntimeLibs:
         )
         create_ext_source(_SQLSERVER_SRC, "sqlserver", _SQLSERVER_DB)
 
+        create_oracle_table(
+            f"{_ORACLE_TABLE_PREFIX}r_oracle",
+            "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+            ["(TIMESTAMP '2024-01-01 00:00:00.000', 51)",
+             "(TIMESTAMP '2024-01-01 00:00:01.000', 52)"],
+        )
+        create_ext_source(_ORACLE_SRC, "oracle", ExtSrcEnv.ORACLE_SERVICE)
+
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         tdSql.execute(f"CREATE DATABASE {_LOCAL_DB} PRECISION 'ns'")
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -400,6 +427,11 @@ class TestVtableQueryExtSourceRuntimeLibs:
             "CREATE VTABLE v_sqlserver "
             f"(ts timestamp, v int FROM {_SQLSERVER_SRC}.{_SQLSERVER_DB}.dbo.r_sqlserver.v)"
         )
+        tdSql.execute(
+            "CREATE VTABLE v_oracle "
+            f"(ts timestamp, v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA}."
+            f"{_ORACLE_TABLE_PREFIX}r_oracle.v)"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -409,6 +441,13 @@ class TestVtableQueryExtSourceRuntimeLibs:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INFLUX_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INFLUX_HTTP_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SQLSERVER_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_ORACLE_SRC}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a run that
+        # visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INFLUX_DB)
 
     def setup_method(self, method):
         tdSql.execute(f"USE {_LOCAL_DB}")
@@ -464,12 +503,13 @@ class TestVtableQueryExtSourceRuntimeLibs:
             # System32) on Windows; it is not staged in the runtime directory
             # and therefore cannot be hidden by this check.
             self._check_vtable_fails_without_runtime_libs("sqlserver", "v_sqlserver")
+        self._check_vtable_fails_without_runtime_libs("oracle", "v_oracle")
         print("missing runtime libraries fail vtable queries ......................... [ passed ]")
 
     def test_missing_runtime_libs_fail_vtable_queries(self):
         """Check ext-source virtual table queries fail when provider runtime libraries are missing
 
-        1. Create MySQL, PostgreSQL, and InfluxDB flight_sql/HTTP external-source virtual tables
+        1. Create MySQL, PostgreSQL, InfluxDB, SQL Server and Oracle external-source virtual tables
         2. Verify each virtual table query succeeds while runtime libraries exist
         3. Hide the provider runtime libraries and restart taosd
         4. Verify each virtual table query fails with provider-not-initialized error
