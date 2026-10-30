@@ -1150,6 +1150,8 @@ typedef struct {
   int64_t        xnodeRetrieveFilterValue;
   bool           xnodeProtectionFailed;
   void*          pXnodeBatch;
+  bool           colMaskSet;
+  uint8_t        colMask[TSDB_RETRIEVE_COL_MASK_BYTES];
 } SShowObj;
 
 typedef struct {
