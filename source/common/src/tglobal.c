@@ -1161,12 +1161,12 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptAlgorithm", tsEncryptAlgorithm, CFG_SCOPE_SERVER, CFG_DYN_NONE, CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "encryptScope", tsEncryptScope, CFG_SCOPE_SERVER, CFG_DYN_NONE,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
-  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "xnodeDsnProtection", 0, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_NONE,
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "xnodeDsnProtection", 0, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER_LAZY,
                                 CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "xnodeDsnPublicKeyFile", tsXnodeDsnPublicKeyFile, CFG_SCOPE_SERVER,
-                                 CFG_DYN_NONE, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
+                                 CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddString(pCfg, "xnodedDsnPrivateKeyFile", tsXnodedDsnPrivateKeyFile, CFG_SCOPE_SERVER,
-                                 CFG_DYN_NONE, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
+                                 CFG_DYN_SERVER_LAZY, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddDir(pCfg, "encryptExtDir", tsEncryptExtDir, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableStrongPassword", tsEnableStrongPassword, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "enableAdvancedSecurity", tsEnableAdvancedSecurity, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SECURITY));

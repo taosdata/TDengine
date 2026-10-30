@@ -3538,16 +3538,17 @@ end:
   return code;
 }
 
-static int32_t prepareIndexData(SWalReader* pWalReader, SStreamTriggerReaderInfo* sStreamReaderInfo, 
-  SArray* versions, SSHashObj* ranges, SSTriggerWalNewRsp* rsp){
+static int32_t prepareIndexData(SWalReader* pWalReader, SStreamTriggerReaderInfo* sStreamReaderInfo, SArray* versions,
+                                SSHashObj* ranges, SSTriggerWalNewRsp* rsp, int64_t firstVer, int64_t* pReadVer) {
   int32_t      code = 0;
   int32_t      lino = 0;
   void* pTask = sStreamReaderInfo->pTask;
 
   for(int32_t i = 0; i < taosArrayGetSize(versions); i++) {
     int64_t *ver = taosArrayGet(versions, i);
-    if (ver == NULL) continue;
+    if (ver == NULL || *ver < firstVer) continue;
 
+    *pReadVer = *ver;
     STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, *ver));
     if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
       TAOS_CHECK_RETURN(walSkipFetchBody(pWalReader));
@@ -3630,6 +3631,8 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
                                     SArray* versions, SSHashObj* ranges, SSTriggerWalNewRsp* rsp) {
   int32_t      code = 0;
   int32_t      lino = 0;
+  int64_t      firstVer = walGetFirstVer(pVnode->pWal);
+  int64_t      readVer = firstVer;
 
   void* pTask = sStreamReaderInfo->pTask;
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
@@ -3638,8 +3641,10 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
   if (taosArrayGetSize(versions) > 0) {
     rsp->ver = *(int64_t*)taosArrayGetLast(versions);
   }
-  
-  STREAM_CHECK_RET_GOTO(prepareIndexData(pWalReader, sStreamReaderInfo, versions, ranges, rsp));
+
+retry:
+  // Use one retention boundary for both passes so the slice sizes match the rows.
+  STREAM_CHECK_RET_GOTO(prepareIndexData(pWalReader, sStreamReaderInfo, versions, ranges, rsp, firstVer, &readVer));
   STREAM_CHECK_CONDITION_GOTO(rsp->totalRows == 0, TDB_CODE_SUCCESS);
 
   ST_TASK_TLOG("%s index hash:%p %d", __func__, rsp->indexHash, tSimpleHashGetSize(rsp->indexHash));
@@ -3650,9 +3655,10 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
 
   for(int32_t i = 0; i < taosArrayGetSize(versions); i++) {
     int64_t *ver = taosArrayGet(versions, i);
-    if (ver == NULL) continue;
+    if (ver == NULL || *ver < firstVer) continue;
     ST_TASK_TLOG("vgId:%d %s scan wal process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, *ver, walGetAppliedVer(pWalReader->pWal));
 
+    readVer = *ver;
     STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, *ver));
     if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
       TAOS_CHECK_RETURN(walSkipFetchBody(pWalReader));
@@ -3670,8 +3676,26 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
   rsp->totalRows = ((SSDataBlock*)rsp->dataBlock)->info.rows;
 
 end:
-  ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, 
-            rsp->totalRows, rsp->ver, walGetAppliedVer(pWalReader->pWal));
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST || code == TSDB_CODE_WAL_INVALID_VER || code == TAOS_SYSTEM_ERROR(ENOENT)) {
+    int64_t retainedVer = walGetFirstVer(pVnode->pWal);
+    if (pWalReader != NULL && retainedVer > firstVer && readVer < retainedVer) {
+      // Retention can remove a segment during either pass. Discard the partial
+      // result and rebuild it from the remaining requested versions.
+      ST_TASK_DLOG("vgId:%d WAL retention advanced from:%" PRId64 " to:%" PRId64 ", restart data read at:%" PRId64,
+                   TD_VID(pVnode), firstVer, retainedVer, readVer);
+      firstVer = retainedVer;
+      walReadReset(pWalReader);
+      tSimpleHashClear(rsp->indexHash);
+      tSimpleHashClear(rsp->uidHash);
+      blockDataEmpty(rsp->dataBlock);
+      rsp->totalRows = 0;
+      rsp->totalDataRows = 0;
+      code = TSDB_CODE_SUCCESS;
+      goto retry;
+    }
+  }
+  ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%" PRId64 "/%" PRId64, TD_VID(pVnode), __func__,
+               rsp->totalRows, rsp->ver, walGetAppliedVer(pVnode->pWal));
   walCloseReader(pWalReader);
   return code;
 }

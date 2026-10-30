@@ -73,7 +73,7 @@ static int64_t smlParseInfluxTime(SSmlHandle *info, const char *data, int32_t le
 
   int64_t ts = smlGetTimeValue(data, len, fromPrecision, toPrecision);
   if (unlikely(ts == -1)) {
-    smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid timestamp", data);
+    smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid timestamp", data, len);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   return ts;
@@ -229,7 +229,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
 
     while (*sql < sqlEnd) {
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
+        smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid data", *sql, sqlEnd - *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(IS_EQUAL(*sql,escapeChar))) {
@@ -246,7 +246,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     }
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen - keyLenEscaped))) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "invalid key or key is too long than 64", key);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid key or key is too long than 64", key, keyLen);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
@@ -260,7 +260,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
         break;
       } else if (unlikely(IS_EQUAL(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", *sql);
+        smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid data", *sql, sqlEnd - *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
 
@@ -275,7 +275,7 @@ static int32_t smlProcessTagLine(SSmlHandle *info, char **sql, char *sqlEnd){
     valueLen = *sql - value;
 
     if (unlikely(valueLen == 0)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", value);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "invalid value", value, valueLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -361,7 +361,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     const char *escapeChar = NULL;
     while (*sql < sqlEnd) {
       if (unlikely(IS_SPACE(*sql,escapeChar) || IS_COMMA(*sql,escapeChar))) {
-        smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid data", *sql);
+        smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid data", *sql, sqlEnd - *sql);
         return TSDB_CODE_SML_INVALID_DATA;
       }
       if (unlikely(IS_EQUAL(*sql,escapeChar))) {
@@ -378,7 +378,7 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     }
 
     if (unlikely(IS_INVALID_COL_LEN(keyLen - keyLenEscaped))) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid key or key is too long than 64", key);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid key or key is too long than 64", key, keyLen);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
 
@@ -412,11 +412,11 @@ static int32_t smlParseColLine(SSmlHandle *info, char **sql, char *sqlEnd, SSmlL
     valueLen = *sql - value;
 
     if (unlikely(quoteNum != 0 && quoteNum != 2)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "SML line unbalanced quotes", value);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line unbalanced quotes", value, valueLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
     if (unlikely(valueLen == 0)) {
-      smlBuildInvalidDataMsg(&info->msgBuf, "SML line invalid value", value);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "SML line invalid value", value, valueLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -495,6 +495,9 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
   if (unlikely(*sql == COMMA)) return TSDB_CODE_SML_INVALID_DATA;
   elements->measure = sql;
   // parse measure
+  // an escape is a backslash directly followed by ',', ' ' or '\'; count pairs,
+  // not individual bytes, so the unescaped length matches
+  // PROCESS_SLASH_IN_MEASUREMENT (a run of k backslashes must not shrink to ~1)
   size_t measureLenEscaped = 0;
   const char *escapeChar = NULL;
   while (sql < sqlEnd) {
@@ -502,11 +505,12 @@ int32_t smlParseInfluxString(SSmlHandle *info, char *sql, char *sqlEnd, SSmlLine
       break;
     }
 
-    if (unlikely((sql != elements->measure) && IS_SLASH_LETTER_IN_MEASUREMENT(sql))) {
+    if (unlikely(*sql == SLASH && sql + 1 < sqlEnd &&
+                 (*(sql + 1) == COMMA || *(sql + 1) == SPACE || *(sql + 1) == SLASH))) {
       elements->measureEscaped = true;
-      escapeChar = sql;
+      escapeChar = sql + 1;
       measureLenEscaped++;
-      sql++;
+      sql += 2;
       continue;
     }
     sql++;

@@ -39,6 +39,9 @@ _MULTI_RESULT_TAG_QUERIES = {
 }
 
 
+# Oracle coverage map (Oracle TS 5.7.2): TestVTableQueryExtSourceOracleVtbRefStb
+# covers FQOR-VTBL-012 for a virtual table that references another virtual
+# stable backed by Oracle.
 class _ExtSourceVtbRefStbQueryBase:
     @classmethod
     def setup_class(cls):
@@ -56,7 +59,9 @@ class _ExtSourceVtbRefStbQueryBase:
         sql_file = os.path.join(case_dir, "in", f"{test_case}.in")
         ans_file = os.path.join(case_dir, "ans", f"{test_case}.ans")
         VtableQueryUtil.compare_ext_source_testcase_result(
-            sql_file, ans_file, test_case, float_tolerance=1e-1
+            sql_file, ans_file, test_case, float_tolerance=1e-1,
+            bool_text_columns=getattr(self, "NORMALIZE_BOOL_TEXT", False),
+            relative_tolerance=getattr(self, "RELATIVE_TOLERANCE", 0.0)
         )
 
     def test_projection(self):
@@ -229,3 +234,22 @@ class TestVTableQueryExtSourceSqlserverVtbRefStb(_ExtSourceVtbRefStbQueryBase):
     def _prepare_vtables(cls):
         vtb_util = VtableQueryUtil()
         vtb_util.prepare_ext_source_virtual_ref_vtables("sqlserver")
+
+
+# Oracle is also a step-1 (zero pushdown) source: predicates and aggregations
+# stay local and the remote SQL is a plain base scan, so the shared golden
+# files apply unchanged. Its external timestamps are millisecond-precision
+# (TIMESTAMP(3)), matching the shared millisecond baselines.
+class TestVTableQueryExtSourceOracleVtbRefStb(_ExtSourceVtbRefStbQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_ext_source_virtual_ref_vtables("oracle")

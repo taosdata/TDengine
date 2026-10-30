@@ -77,7 +77,17 @@ from federated_query_common import (
     TSDB_CODE_EXT_STREAM_NOT_SUPPORTED,
     TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED,
     TSDB_CODE_EXT_FEATURE_DISABLED,
+    TSDB_CODE_INVALID_PARA,
+    _code,
 )
+
+# Concrete codes the Oracle-only rows below need that the shared module does
+# not re-export.  Both names exist in taoserror.h; resolving them here keeps
+# the assertion concrete instead of accepting any error the way some of the
+# generic rows below do.
+TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED = _code(
+    'TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED')
+TSDB_CODE_TXN_NOT_IN_PROGRESS = _code('TSDB_CODE_TXN_NOT_IN_PROGRESS')
 
 # ---------------------------------------------------------------------------
 # Case array 1: unsupported query statements (SELECT-like, must fail)
@@ -118,6 +128,15 @@ _QUERY_CASES = [
      TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
     ("uq-03-s", "SELECT COUNT(*) FROM {S}.orders WHERE tbname = 'orders'",
      TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    # Same three on Oracle (FQOR-UNSUP-001).  Oracle has no pseudo-columns
+    # with these names, so the rejection must come from the federation layer
+    # and must not be turned into a remote "invalid identifier" error.
+    ("uq-01-o", "SELECT tbname FROM {O}.orders ORDER BY ts",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    ("uq-02-o", "SELECT tbname, COUNT(*) FROM {O}.orders GROUP BY tbname",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    ("uq-03-o", "SELECT COUNT(*) FROM {O}.orders WHERE tbname = 'orders'",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
 
     # -- TAGS keyword on relational sources (FQ-LOCAL-s03) ------------------
     # TAGS is a TDengine super-table concept; MySQL/PG/InfluxDB have no
@@ -129,6 +148,8 @@ _QUERY_CASES = [
     ("uq-04-i", "SELECT tags FROM {I}.orders",
      TSDB_CODE_PAR_SYNTAX_ERROR),
     ("uq-04-s", "SELECT tags FROM {S}.orders",
+     TSDB_CODE_PAR_SYNTAX_ERROR),
+    ("uq-04-o", "SELECT tags FROM {O}.orders",
      TSDB_CODE_PAR_SYNTAX_ERROR),
 
     # -- Correlated subquery (planner-level, no table lookup needed) --------
@@ -154,6 +175,14 @@ _QUERY_CASES = [
      "SELECT id FROM {S}.orders o WHERE NOT EXISTS "
      "(SELECT 1 FROM {S}.orders b WHERE b.id = o.id)",
      TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
+    ("uq-07-o",
+     "SELECT id FROM {O}.orders o WHERE EXISTS "
+     "(SELECT 1 FROM {O}.orders b WHERE b.id = o.id)",
+     TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
+    ("uq-08-o",
+     "SELECT id FROM {O}.orders o WHERE NOT EXISTS "
+     "(SELECT 1 FROM {O}.orders b WHERE b.id = o.id)",
+     TSDB_CODE_PAR_INVALID_EXPR_SUBQ),
 ]
 
 # Ordinary-column equi-joins are supported for external sources. Keep these
@@ -168,6 +197,10 @@ _JOIN_CASES = [
     ("uq-06-ms", "SELECT a.ts FROM {M}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
     ("uq-06-ps", "SELECT a.ts FROM {P}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
     ("uq-06-is", "SELECT a.time FROM {I}.orders a JOIN {S}.orders b ON a.id = b.id", 3),
+    ("uq-05-o", "SELECT a.ts FROM {O}.orders a JOIN {O}.orders b ON a.id = b.id", 3),
+    ("uq-06-mo", "SELECT a.ts FROM {M}.orders a JOIN {O}.orders b ON a.id = b.id", 3),
+    ("uq-06-po", "SELECT a.ts FROM {P}.orders a JOIN {O}.orders b ON a.id = b.id", 3),
+    ("uq-06-so", "SELECT a.ts FROM {S}.orders a JOIN {O}.orders b ON a.id = b.id", 3),
 ]
 
 # ---------------------------------------------------------------------------
@@ -193,6 +226,11 @@ _STMT_CASES = [
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-02-s", "INSERT INTO {S}.orders VALUES (1704067200000, 99, 999.0)",
      TSDB_CODE_EXT_WRITE_DENIED),
+    # Oracle: read-only guard fires the same way (FQOR-UNSUP-002).
+    ("us-01-o", "INSERT INTO {O}.orders VALUES (1704067200000, 1, 100.0)",
+     TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-02-o", "INSERT INTO {O}.orders VALUES (1704067200000, 99, 999.0)",
+     TSDB_CODE_EXT_WRITE_DENIED),
 
     # -- DELETE denied (FQ-LOCAL-026) ---------------------------------------
     ("us-03-m", "DELETE FROM {M}.orders WHERE id = 1",
@@ -202,6 +240,8 @@ _STMT_CASES = [
     ("us-03-i", "DELETE FROM {I}.orders WHERE id = 1",
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-03-s", "DELETE FROM {S}.orders WHERE id = 1",
+     TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-03-o", "DELETE FROM {O}.orders WHERE id = 1",
      TSDB_CODE_EXT_WRITE_DENIED),
 
     # -- CREATE TABLE denied (FQ-LOCAL-027) ---------------------------------
@@ -213,6 +253,8 @@ _STMT_CASES = [
     ("us-04-i", "CREATE TABLE {I}.new_table (ts TIMESTAMP, v INT)",
      TSDB_CODE_EXT_WRITE_DENIED),
     ("us-04-s", "CREATE TABLE {S}.new_table (ts TIMESTAMP, v INT)",
+     TSDB_CODE_EXT_WRITE_DENIED),
+    ("us-04-o", "CREATE TABLE {O}.new_table (ts TIMESTAMP, v INT)",
      TSDB_CODE_EXT_WRITE_DENIED),
 
     # -- CREATE STREAM denied (FQ-LOCAL-022) --------------------------------
@@ -232,6 +274,10 @@ _STMT_CASES = [
      "CREATE STREAM fq17_s05s TRIGGER AT_ONCE INTO fq17_o05s "
      "AS SELECT COUNT(*) FROM {S}.orders INTERVAL(1m)",
      TSDB_CODE_EXT_STREAM_NOT_SUPPORTED),
+    ("us-05-o",
+     "CREATE STREAM fq17_s05o TRIGGER AT_ONCE INTO fq17_o05o "
+     "AS SELECT COUNT(*) FROM {O}.orders INTERVAL(1m)",
+     TSDB_CODE_EXT_STREAM_NOT_SUPPORTED),
 
     # -- CREATE TOPIC denied (FQ-LOCAL-023) ---------------------------------
     ("us-06-m", "CREATE TOPIC fq17_t06m AS SELECT * FROM {M}.orders",
@@ -242,6 +288,8 @@ _STMT_CASES = [
      TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED),
     ("us-06-s", "CREATE TOPIC fq17_t06s AS SELECT * FROM {S}.orders",
      TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED),
+    ("us-06-o", "CREATE TOPIC fq17_t06o AS SELECT * FROM {O}.orders",
+     TSDB_CODE_EXT_SUBSCRIBE_NOT_SUPPORTED),
 
     # -- Reserved source type (FQ-LOCAL-032) --------------------------------
     # TYPE='tdengine' is reserved and not yet delivered → feature disabled
@@ -249,6 +297,56 @@ _STMT_CASES = [
      "CREATE EXTERNAL SOURCE fq17_td_src TYPE='tdengine' "
      "HOST='192.0.2.1' PORT=6030 USER='root' PASSWORD='taosdata'",
      TSDB_CODE_EXT_FEATURE_DISABLED),
+]
+
+# ---------------------------------------------------------------------------
+# Case array 3: Oracle-only unsupported statements (FQOR-UNSUP-003/004)
+# ---------------------------------------------------------------------------
+# Unlike most rows above, these pin the exact engine decision instead of
+# accepting any error.  Every code below is produced locally, so it does not
+# depend on how Oracle happens to phrase a message.
+_ORACLE_PLSQL_CASES = [
+    # CALL is not part of the TDengine grammar -- the only CALL* token is the
+    # user option CALL_PER_SESSION -- so a stored-procedure call dies in the
+    # parser before an external source is even resolved.
+    ("uo-03-1", "CALL FQ17_SIDE_EFFECT_PROC()", TSDB_CODE_PAR_SYNTAX_ERROR),
+    # An anonymous PL/SQL block fails at its first PL/SQL-only keyword for the
+    # same reason: nothing is translated and nothing is forwarded.
+    ("uo-03-2",
+     "BEGIN EXECUTE IMMEDIATE "
+     "'INSERT INTO FQ17_SIDE_EFFECT_LOG VALUES (1)'; END;",
+     TSDB_CODE_PAR_SYNTAX_ERROR),
+    # COMMIT / ROLLBACK without BEGIN are stopped by the client-side
+    # transaction state check (parTranslater.c translateTransStmt), so
+    # transaction control never reaches the remote session either.
+    ("uo-03-3", "COMMIT", TSDB_CODE_TXN_NOT_IN_PROGRESS),
+    ("uo-03-4", "ROLLBACK", TSDB_CODE_TXN_NOT_IN_PROGRESS),
+]
+
+_ORACLE_STREAM_TOPIC_CASES = [
+    # A single-window external stream is a supported shape in this branch, so
+    # the rejected form is the nested (multi-layer) window plan: mnode cannot
+    # give an external trigger the local vgroup / trigger-task identity the
+    # multi-layer runtime needs, and tValidateStreamWindowPlan() rejects every
+    # external trigger with TSDB_CODE_INVALID_PARA (streamWindowPlan.c, called
+    # from mndStreamRejectAuthoritativeExtTrigger).
+    ("uo-04-1",
+     "CREATE STREAM fq17_uo04o WINDOW ("
+     "INTERVAL(1m) SLIDING(1m) AS w_outer, COUNT_WINDOW(2,1)) "
+     "FROM {O}.ORDERS "
+     "INTO {DB}.fq17_uo04_sink AS SELECT _twstart, count(*) FROM %%trows",
+     TSDB_CODE_INVALID_PARA),
+    # A topic is a subscription over local vnodes; the external table
+    # translator rejects the reference before any remote SQL is built.
+    ("uo-04-2", "CREATE TOPIC fq17_uo04_t AS SELECT * FROM {O}.ORDERS",
+     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+    # INSERT ... SELECT is rejected only when the *written* table is the
+    # external one: the write guard runs while the target is resolved
+    # (translateInsertTable), before the query part is translated.
+    ("uo-04-3",
+     "INSERT INTO {O}.ORDERS SELECT 1704067200000, 9, 900.0 "
+     "FROM {DB}.fq17_uo04_local",
+     TSDB_CODE_EXT_SOURCE_WRITE_NOT_SUPPORTED),
 ]
 
 
@@ -264,6 +362,7 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
     _SRC_P         = "fq17_src_p"
     _SRC_I         = "fq17_src_i"
     _SRC_S         = "fq17_src_s"
+    _SRC_O         = "fq17_src_o"
     _MYSQL_DB      = "fq17_m"
     _PG_DB         = "fq17_p"
     _INFLUX_BUCKET = "fq17_i"
@@ -374,7 +473,8 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
-        self._cleanup_src(self._SRC_M, self._SRC_P, self._SRC_I, self._SRC_S)
+        self._cleanup_src(self._SRC_M, self._SRC_P, self._SRC_I, self._SRC_S,
+                          self._SRC_O)
         try:
             ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._MYSQL_DB)
         except Exception:
@@ -391,13 +491,19 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
             ExtSrcEnv.sqlserver_drop_db(self._SQLSERVER_DB)
         except Exception:
             pass
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), "ORDERS")
+        except Exception:
+            pass
         # Clean up any stray stream/topic objects left by failed assertions
-        for s in ["fq17_s05m", "fq17_s05p", "fq17_s05i", "fq17_s05s"]:
+        for s in ["fq17_s05m", "fq17_s05p", "fq17_s05i", "fq17_s05s",
+                  "fq17_s05o"]:
             try:
                 tdSql.execute(f"DROP STREAM IF EXISTS {s}")
             except Exception:
                 pass
-        for t in ["fq17_t06m", "fq17_t06p", "fq17_t06i", "fq17_t06s"]:
+        for t in ["fq17_t06m", "fq17_t06p", "fq17_t06i", "fq17_t06s",
+                  "fq17_t06o"]:
             try:
                 tdSql.execute(f"DROP TOPIC IF EXISTS {t}")
             except Exception:
@@ -478,18 +584,44 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         ])
         self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
 
+        # -- Oracle ----------------------------------------------------------
+        # Same three-row `orders` shape; the table name is unquoted in the
+        # remote DDL so it lands upper-cased in the data dictionary.
+        o_src = self._SRC_O
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        ExtSrcEnv.oracle_exec_cfg(o_cfg, [
+            "BEGIN EXECUTE IMMEDIATE 'DROP TABLE ORDERS'; "
+            "EXCEPTION WHEN OTHERS THEN NULL; END;",
+            "CREATE TABLE ORDERS ("
+            " TS TIMESTAMP(3) PRIMARY KEY, ID NUMBER(10,0), AMOUNT BINARY_DOUBLE)",
+            "INSERT INTO ORDERS VALUES "
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1, 100.0)",
+            "INSERT INTO ORDERS VALUES "
+            " (TIMESTAMP '2024-01-01 00:01:00.000', 2, 200.0)",
+            "INSERT INTO ORDERS VALUES "
+            " (TIMESTAMP '2024-01-01 00:02:00.000', 3, 300.0)",
+            "COMMIT",
+        ])
+        self._mk_oracle_real(o_src, database=o_cfg.service,
+                             schema=ExtSrcEnv.ORACLE_USER.upper())
+
         TestFq17UnsupportedOps._class_setup_done = True
 
     # -------------------------------------------------------------------
     # Helper: substitute {M}, {P}, {I} in an SQL template
     # -------------------------------------------------------------------
 
-    def _expand(self, sql_template):
-        return (sql_template
-                .replace("{M}", self._SRC_M)
-                .replace("{P}", self._SRC_P)
-                .replace("{I}", self._SRC_I)
-                .replace("{S}", self._SRC_S))
+    def _expand(self, sql_template, local_db=None):
+        sql = (sql_template
+               .replace("{M}", self._SRC_M)
+               .replace("{P}", self._SRC_P)
+               .replace("{I}", self._SRC_I)
+               .replace("{S}", self._SRC_S)
+               .replace("{O}", self._SRC_O))
+        if local_db is not None:
+            sql = sql.replace("{DB}", local_db)
+        return sql
 
     # -------------------------------------------------------------------
     # Test 1: unsupported query statements
@@ -533,6 +665,50 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
             tdSql.checkRows(expected_rows)
 
     # -------------------------------------------------------------------
+    # Test 1b: rejected writes leave the remote object untouched
+    # -------------------------------------------------------------------
+
+    def test_fq_uns_oracle_no_side_effects(self):
+        """FQOR-UNSUP-002/003: a rejected write never reaches the remote object.
+
+        TDengine must reject INSERT / UPDATE / DELETE against an Oracle
+        external table *locally*; Oracle is never sent the statement, so the
+        row count and the stored values are unchanged afterwards.  This is the
+        property the error code alone cannot prove.
+
+        Catalog: - Query:FederatedLocal
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        src = self._SRC_O
+
+        def remote_rows():
+            return ExtSrcEnv.oracle_query_cfg(
+                self._oracle_cfg(), "SELECT COUNT(*) FROM ORDERS").strip()
+
+        before = remote_rows()
+        assert before == "3", f"unexpected ORDERS row count: {before}"
+
+        for sql in [
+            f"INSERT INTO {src}.ORDERS VALUES (1704067200000, 9, 900.0)",
+            f"DELETE FROM {src}.ORDERS WHERE ID = 1",
+            f"UPDATE {src}.ORDERS SET AMOUNT = 1.0 WHERE ID = 1",
+        ]:
+            tdSql.error(sql)
+
+        # The rejection is local, so three rows with the original values remain.
+        assert remote_rows() == "3", "a rejected write reached the remote table"
+        tdSql.query(f"SELECT ID, AMOUNT FROM {src}.ORDERS ORDER BY ID")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 100.0)
+        tdSql.checkData(2, 0, 3)
+        tdSql.checkData(2, 1, 300.0)
+
+    # -------------------------------------------------------------------
     # Test 2: unsupported non-query statements
     # -------------------------------------------------------------------
 
@@ -553,3 +729,147 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
             sql = self._expand(sql_tpl)
             tdLog.debug(f"[{case_id}] {sql}")
             tdSql.error(sql, expectedErrno=errno)
+
+    # -------------------------------------------------------------------
+    # Test 3: Oracle PL/SQL and transaction control (FQOR-UNSUP-003)
+    # -------------------------------------------------------------------
+
+    def test_fq_uns_oracle_plsql_and_transaction(self):
+        """FQOR-UNSUP-003: PL/SQL and transaction control never reach Oracle.
+
+        ``CALL`` and PL/SQL blocks are not part of the TDengine grammar, and
+        COMMIT/ROLLBACK without BEGIN trip the client-side transaction state
+        check, so each statement is rejected with a concrete parser-level
+        code and nothing is forwarded to the remote instance.  The procedure
+        below really exists and would append a row if the call leaked
+        through, so an empty side-effect log is the property the code alone
+        cannot prove.
+
+        Catalog: - Query:FederatedLocal
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        src = self._SRC_O
+        cfg = self._oracle_cfg()
+        log_tbl = "FQ17_SIDE_EFFECT_LOG"
+        proc = "FQ17_SIDE_EFFECT_PROC"
+        login_schema = ExtSrcEnv.ORACLE_USER.upper()
+
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE {log_tbl}'; "
+            "EXCEPTION WHEN OTHERS THEN NULL; END;",
+            f"CREATE TABLE {log_tbl} (ID NUMBER(10,0))",
+        ])
+        try:
+            # The login schema may not create procedures, so SYSTEM owns the
+            # procedure while the log table stays in the login schema (SYSTEM
+            # may write there); EXECUTE is granted to the login account so a
+            # leaked call would be accepted remotely instead of failing.
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                f"CREATE OR REPLACE PROCEDURE {proc} AS\n"
+                "BEGIN\n"
+                f"  INSERT INTO {login_schema}.{log_tbl} VALUES (1);\n"
+                "END;",
+                f"GRANT EXECUTE ON {proc} TO {login_schema}",
+            ])
+
+            for case_id, sql_tpl, errno in _ORACLE_PLSQL_CASES:
+                tdLog.debug(f"[{case_id}] {sql_tpl}")
+                tdSql.error(sql_tpl, expectedErrno=errno)
+
+            # No remote side effect: the log is still empty and the external
+            # table the block tried to write still holds its three rows.
+            count = ExtSrcEnv.oracle_query_cfg(
+                cfg, f"SELECT COUNT(*) FROM {log_tbl}").strip()
+            assert count == "0", \
+                f"a rejected PL/SQL statement reached Oracle ({count} log rows)"
+            tdSql.query(f"SELECT ID, AMOUNT FROM {src}.ORDERS ORDER BY ID")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 300.0)
+        finally:
+            try:
+                ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+                    f"BEGIN EXECUTE IMMEDIATE 'DROP PROCEDURE {proc}'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                ])
+            except Exception:
+                pass
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, log_tbl)
+
+    # -------------------------------------------------------------------
+    # Test 4: Oracle stream / topic / INSERT ... SELECT (FQOR-UNSUP-004)
+    # -------------------------------------------------------------------
+
+    def test_fq_uns_oracle_stream_topic_insert(self):
+        """FQOR-UNSUP-004: stream and topic rejected, local tables unaffected.
+
+        A stream (nested-window form, see the array comment), a topic and an
+        INSERT whose written table is the Oracle source are all rejected with
+        a concrete engine code, and ordinary local DDL/DML keeps working.
+
+        The Oracle TS also lists ``INSERT INTO <local> SELECT ... FROM
+        <oracle>`` as rejected.  That is not what this branch implements: the
+        write guard fires only when the *written* table resolves to an
+        external source, and the read-remote/write-local ETL direction is the
+        supported shape for every provider (test_fq_04's ins-* cases assert it
+        positively).  That direction is therefore asserted with exact rows
+        here rather than against an invented error.
+
+        Catalog: - Query:FederatedLocal
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        src = self._SRC_O
+        db = "fq17_local"
+        sink = f"{db}.fq17_uo04_local"
+
+        tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
+        tdSql.execute(f"CREATE DATABASE {db}")
+        tdSql.execute(f"USE {db}")
+        try:
+            tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
+            # Oracle NUMBER(10,0) arrives as BIGINT, so the local sink uses
+            # BIGINT too: INSERT ... SELECT is type-checked, not cast.
+            tdSql.execute(f"CREATE TABLE {sink} (ts TIMESTAMP, id BIGINT, amount DOUBLE)")
+
+            for case_id, sql_tpl, errno in _ORACLE_STREAM_TOPIC_CASES:
+                sql = self._expand(sql_tpl, local_db=db)
+                tdLog.debug(f"[{case_id}] {sql}")
+                tdSql.error(sql, expectedErrno=errno)
+
+            # Supported direction: the remote rows land in the local table.
+            tdSql.execute(
+                f"INSERT INTO {sink} SELECT TS, ID, AMOUNT FROM {src}.ORDERS")
+            tdSql.query(f"SELECT id, amount FROM {sink} ORDER BY ts")
+            tdSql.checkRows(3)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 100.0)
+            tdSql.checkData(1, 0, 2)
+            tdSql.checkData(1, 1, 200.0)
+            tdSql.checkData(2, 0, 3)
+            tdSql.checkData(2, 1, 300.0)
+
+            # Local tables are unaffected by the rejections above.
+            tdSql.execute(f"INSERT INTO {sink} VALUES (1704067800000, 9, 900.0)")
+            tdSql.query(f"SELECT id FROM {sink} WHERE id = 9")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 9)
+        finally:
+            try:
+                tdSql.execute("DROP STREAM IF EXISTS fq17_uo04o")
+            except Exception:
+                pass
+            try:
+                tdSql.execute("DROP TOPIC IF EXISTS fq17_uo04_t")
+            except Exception:
+                pass
+            tdSql.execute(f"DROP DATABASE IF EXISTS {db}")

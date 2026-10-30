@@ -5426,6 +5426,7 @@ TEST(stmt2ColumnCase, exec_retry_columnar) {
 
   taos_stmt2_close(stmt);
   do_query(taos, "drop database if exists stmt2_testdb_21");
+  taos_close(taos);
 }
 
 void stmtAsyncQueryCb4(void* param, TAOS_RES* pRes, int code) { ASSERT_EQ(code, TSDB_CODE_SUCCESS); }

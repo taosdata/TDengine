@@ -72,3 +72,83 @@ SQL: SELECT val, name FROM {S_PUSH}.push_t WHERE name = 'alpha' ORDER BY val
 RESULT
 1|alpha
 ---
+### oid-01 POS
+SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val
+RESULT
+1|upper
+---
+### oid-02 POS
+SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.EMP ORDER BY val
+RESULT
+1|upper
+---
+### oid-03 POS
+SQL: SELECT val, name FROM {O_OID}.emp ORDER BY val
+RESULT
+1|upper
+---
+### oid-04 POS
+SQL: SELECT val, name FROM {O_OID}.`emp` ORDER BY val
+RESULT
+1|upper
+---
+### oid-05 POS
+SQL: SELECT val, name FROM {O_OID}.`"emp"` ORDER BY val
+RESULT
+2|lower
+---
+### oid-06 POS
+SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.`"emp"` ORDER BY val
+RESULT
+2|lower
+---
+### oid-07 POS
+SQL: SELECT val, name FROM {O_OID}.`"EMP"` ORDER BY val
+RESULT
+1|upper
+---
+### oid-08 POS
+SQL: SELECT val, `MiXeDCol` FROM {O_OID}.`"LC"`
+RESULT
+9|mix
+---
+### oid-09 POS
+SQL: SELECT val, `LEVEL`, `NUMBER` FROM {O_OID}.DATE ORDER BY val
+RESULT
+3|reserved|30
+---
+### oid-10 POS
+SQL: SELECT val, level, number FROM {O_OID}.date ORDER BY val
+RESULT
+3|reserved|30
+---
+### oid-11 POS
+SQL: SELECT val, "LEVEL" FROM {O_OID}.DATE ORDER BY val
+RESULT
+3|LEVEL
+---
+### oid-12 POS
+SQL: SELECT name FROM {O_OID}.emp ORDER BY val
+RESULT
+upper
+---
+### oid-13 POS
+SQL: SELECT name FROM {O_OID}.`"emp"` ORDER BY val
+RESULT
+lower
+---
+### oid-14 POS
+SQL: SELECT `MiXeDCol` FROM {O_OID}.`"LC"`
+RESULT
+mix
+---
+### oid-16 POS
+SQL: SELECT COUNT(*) FROM {O_OID}.DATE
+RESULT
+1
+---
+### oid-17 POS
+SQL: SELECT COUNT(*) FROM {O_OID}.emp
+RESULT
+1
+---

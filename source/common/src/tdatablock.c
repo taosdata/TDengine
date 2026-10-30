@@ -4821,6 +4821,10 @@ int32_t blockEncode(const SSDataBlock* pBlock, char* data, size_t dataBuflen, in
   return blockEncodeImpl(pBlock, data, dataBuflen, numOfCols, false);
 }
 
+static uint32_t blockDecodeColumnLength(int32_t version, int32_t encodedColLen) {
+  return version == BLOCK_VERSION_2 ? (uint32_t)encodedColLen : ntohl((uint32_t)encodedColLen);
+}
+
 // Does not validate its input: untrusted data is checked by blockValidateEncoding in the *Bounded wrappers before it
 // gets here. Add new format checks there, not here, so that there is a single validator to maintain.
 static int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const char** pEndPos, bool internal) {
@@ -4902,7 +4906,7 @@ static int32_t blockDecodeImpl(SSDataBlock* pBlock, const char* pData, const cha
   pStart += sizeof(int32_t) * numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int oneColsLen = htonl(colLen[i]);
+    int32_t oneColsLen = blockDecodeColumnLength(version, colLen[i]);
     if (oneColsLen < 0) {
       uError("block decode colLen:%d error, colIdx:%d", oneColsLen, i);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -5155,7 +5159,7 @@ static bool blockValidateJsonValue(const char* pData, size_t remaining, size_t* 
   return true;
 }
 
-static bool blockValidateVariableValue(int8_t type, const char* pData, size_t remaining, size_t* pValueLen) {
+bool blockDataValidateVariableValue(int8_t type, const char* pData, size_t remaining, size_t* pValueLen) {
   if (pData == NULL || pValueLen == NULL) return false;
   if (type == TSDB_DATA_TYPE_JSON) return blockValidateJsonValue(pData, remaining, pValueLen);
 
@@ -5188,8 +5192,8 @@ static bool blockValidateVariableColumn(const char* pData, size_t dataLen, size_
     size_t remaining = (size_t)decodedColLen - (size_t)valueOffset;
     size_t valueLen = 0;
     // Virtual columns can carry full source values wider than their declared width.
-    if (!blockValidateVariableValue(type, pData + columnDataOffset + valueOffset, remaining, &valueLen) ||
-        valueLen > remaining) {
+    if (!blockDataValidateVariableValue(type, pData + columnDataOffset + valueOffset, remaining, &valueLen) ||
+        valueLen > remaining || (IS_STR_DATA_BLOB(type) && valueLen > TSDB_MAX_BLOB_LEN)) {
       return false;
     }
   }
@@ -5202,6 +5206,7 @@ typedef struct {
   size_t  schemaOffset;
   size_t  colLenOffset;
   size_t  columnDataOffset;
+  int32_t version;
   int32_t numOfRows;
   int32_t numOfCols;
 } SBlockDecodeEncodingInfo;
@@ -5215,10 +5220,10 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
   int32_t encodedLen = 0;
   if (!blockDecodeReadBounded(pData, dataLen, &offset, &version, sizeof(version)) ||
       !blockDecodeReadBounded(pData, dataLen, &offset, &encodedLen, sizeof(encodedLen)) || encodedLen <= 0 ||
-      (size_t)encodedLen > dataLen || (exactLength && (size_t)encodedLen != dataLen)) {
+      (size_t)encodedLen > dataLen || (exactLength && (size_t)encodedLen != dataLen) ||
+      (version != BLOCK_VERSION_1 && version != BLOCK_VERSION_2)) {
     return blockDecodeInvalidMessage();
   }
-  (void)version;
 
   const size_t blockLen = (size_t)encodedLen;
   int32_t      numOfRows = 0;
@@ -5278,11 +5283,15 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
       }
     }
 
-    uint32_t decodedColLen = ntohl((uint32_t)encodedColLen);
+    uint32_t decodedColLen = blockDecodeColumnLength(version, encodedColLen);
     if (decodedColLen > INT32_MAX) return blockDecodeInvalidMessage();
 
     size_t columnMetaLen = 0;
     if (IS_VAR_DATA_TYPE(type)) {
+      int32_t headerSize = IS_STR_DATA_BLOB(type) ? BLOBSTR_HEADER_SIZE : VARSTR_HEADER_SIZE;
+      if (bytes < headerSize && !(IS_VAR_NULL_TYPE(type, bytes) && decodedColLen == 0)) {
+        return blockDecodeInvalidMessage();
+      }
       if (!blockDecodeMultiplyBounded((size_t)numOfRows, sizeof(int32_t), &columnMetaLen)) {
         return blockDecodeInvalidMessage();
       }
@@ -5330,9 +5339,16 @@ static int32_t blockValidateEncoding(const SSDataBlock* pBlock, const char* pDat
                                       .schemaOffset = schemaOffset - schemaLen,
                                       .colLenOffset = colLenOffset - colLenSegmentLen,
                                       .columnDataOffset = columnDataOffset,
+                                      .version = version,
                                       .numOfRows = numOfRows,
                                       .numOfCols = numOfCols};
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t blockDataValidateEncoding(const char* pData, size_t dataLen) {
+  SSDataBlock              block = {0};
+  SBlockDecodeEncodingInfo info = {0};
+  return blockValidateEncoding(&block, pData, dataLen, false, false, &info);
 }
 
 static bool blockValidateTimestampColumn(const char* pData, const SBlockDecodeEncodingInfo* pInfo,
@@ -5370,7 +5386,8 @@ static bool blockValidateTimestampColumn(const char* pData, const SBlockDecodeEn
       return true;
     }
     if (!blockDecodeSkipBounded(pInfo->encodedLen, &columnOffset, columnMetaLen) ||
-        !blockDecodeSkipBounded(pInfo->encodedLen, &columnOffset, ntohl((uint32_t)encodedColLen))) {
+        !blockDecodeSkipBounded(pInfo->encodedLen, &columnOffset,
+                                blockDecodeColumnLength(pInfo->version, encodedColLen))) {
       return false;
     }
   }
@@ -6236,10 +6253,11 @@ _exit:
   return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
 }
 
-int32_t getTsColDataOffset(SSDataBlock* pBlock, int32_t* colLen, int32_t numOfRows, int32_t tsColSlotId, int32_t* pOffset) {
+static int32_t getTsColDataOffset(SSDataBlock* pBlock, int32_t* colLen, int32_t version, int32_t numOfRows,
+                                  int32_t tsColSlotId, int32_t* pOffset) {
   *pOffset = 0;
   for (int32_t i = 0; i <= tsColSlotId; ++i) {
-    int oneColsLen = htonl(colLen[i]);
+    int32_t oneColsLen = blockDecodeColumnLength(version, colLen[i]);
     if (oneColsLen < 0) {
       uError("block decode colLen:%d error, colIdx:%d", oneColsLen, i);
       terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -6279,8 +6297,8 @@ static int32_t blockSpecialDecodeVariableColumn(SColumnInfoData* pColumn, const 
     if (valueOffset < 0 || (size_t)valueOffset >= (size_t)payloadLen) return blockDecodeInvalidMessage();
 
     size_t valueLen = 0;
-    if (!blockValidateVariableValue(pColumn->info.type, pPayload + valueOffset,
-                                    (size_t)payloadLen - (size_t)valueOffset, &valueLen)) {
+    if (!blockDataValidateVariableValue(pColumn->info.type, pPayload + valueOffset,
+                                        (size_t)payloadLen - (size_t)valueOffset, &valueLen)) {
       return blockDecodeInvalidMessage();
     }
     if (valueLen > INT32_MAX - selectedLen) return blockDecodeInvalidMessage();
@@ -6304,8 +6322,8 @@ static int32_t blockSpecialDecodeVariableColumn(SColumnInfoData* pColumn, const 
     }
 
     size_t valueLen = 0;
-    if (!blockValidateVariableValue(pColumn->info.type, pPayload + valueOffset,
-                                    (size_t)payloadLen - (size_t)valueOffset, &valueLen)) {
+    if (!blockDataValidateVariableValue(pColumn->info.type, pPayload + valueOffset,
+                                        (size_t)payloadLen - (size_t)valueOffset, &valueLen)) {
       return blockDecodeInvalidMessage();
     }
     pColumn->varmeta.offset[row - firstRowNum] = destinationOffset;
@@ -6393,9 +6411,8 @@ static int32_t blockSpecialDecodeLaterPartImpl(SSDataBlock* pBlock, const char* 
   int32_t* colLen = (int32_t*)pStart;
   pStart += sizeof(int32_t) * numOfCols;
 
-  int32_t tsLen = htonl(colLen[tsColSlotId]);
   int32_t tsColOffset;
-  code = getTsColDataOffset(pBlock, colLen, numOfRows, tsColSlotId, &tsColOffset);
+  code = getTsColDataOffset(pBlock, colLen, version, numOfRows, tsColSlotId, &tsColOffset);
   if (code) {
     return code;
   }
@@ -6426,7 +6443,7 @@ static int32_t blockSpecialDecodeLaterPartImpl(SSDataBlock* pBlock, const char* 
   }
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t oneColsLen = htonl(colLen[i]);
+    int32_t oneColsLen = blockDecodeColumnLength(version, colLen[i]);
     int32_t offset = 0;
     int32_t leftlen = 0;
     if (oneColsLen < 0) {

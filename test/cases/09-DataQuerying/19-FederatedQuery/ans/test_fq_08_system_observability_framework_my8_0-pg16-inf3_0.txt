@@ -1801,3 +1801,423 @@ OK
 CASE END: CASE-override009m[MYS]
 DESC: Per-source OPTIONS override global: global=600000ms, per-source=500ms -> stopped MySQL -> fast UNAVAILABLE proves per-source wins (covers FQ-SYS-009/028 behavioral)
 ================================================================================================
+================================================================================================
+CASE START: CASE-sys001o[ORA]
+DESC: Oracle source: type='oracle' filter finds it; host/port/database/schema match the DDL and the password is masked (covers FQOR-SYS-001)
+================================================================================================
+### CASE-sys001o[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq08_s001_o
+RESULT:
+OK
+---
+### CASE-sys001o[ORA] STEP-002 EXEC
+SQL: create external source fq08_s001_o type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys001o[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s001_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys001o[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq08_s001_o
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s001_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys001o[ORA] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema`, `options` from information_schema.ins_ext_sources where `type`='oracle' and source_name='fq08_s001_o'
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s001_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys001o[ORA] STEP-004 ASSERT
+SQL: select source_name, `type`, `host`, `port`, `user`, `password`, `database`, `schema` from information_schema.ins_ext_sources where source_name='fq08_s001_o'
+RESULT:
+fq08_s001_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA
+---
+### CASE-sys001o[ORA] STEP-005 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq08_s001_o' and create_time is not null
+RESULT:
+count(*)
+1
+---
+### CASE-sys001o[ORA] STEP-006 CLEANUP
+SQL: drop external source if exists fq08_s001_o
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys001o[ORA]
+DESC: Oracle source: type='oracle' filter finds it; host/port/database/schema match the DDL and the password is masked (covers FQOR-SYS-001)
+================================================================================================
+================================================================================================
+CASE START: CASE-sys002o[ORA]
+DESC: Oracle EXPLAIN names source, schema and table; the 3-segment and the 2-segment path agree on the resolved schema and return the same rows (covers FQOR-SYS-002)
+================================================================================================
+### CASE-sys002o[ORA] STEP-001 ORACLE-SETUP
+SQL: -- oracle fixtures profile=s002
+RESULT:
+OK
+---
+### CASE-sys002o[ORA] STEP-002 EXEC
+SQL: drop external source if exists fq08_s002_o
+RESULT:
+OK
+---
+### CASE-sys002o[ORA] STEP-003 EXEC
+SQL: create external source fq08_s002_o type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys002o[ORA] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s002_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys002o[ORA] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_s002_o
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s002_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys002o[ORA] STEP-004 ASSERT
+SQL: explain select val from fq08_s002_o.TAOSDATA.fq08_s002_t order by val
+RESULT:
+-> Federated Scan on fq08_s002_o.TAOSDATA.fq08_s002_t (oracle) (width=8)
+---
+### CASE-sys002o[ORA] STEP-005 ASSERT
+SQL: select val from fq08_s002_o.TAOSDATA.fq08_s002_t order by val
+RESULT:
+10
+20
+---
+### CASE-sys002o[ORA] STEP-006 ASSERT
+SQL: explain select val from fq08_s002_o.fq08_s002_t order by val
+RESULT:
+-> Federated Scan on fq08_s002_o.TAOSDATA.fq08_s002_t (oracle) (width=8)
+---
+### CASE-sys002o[ORA] STEP-007 ASSERT
+SQL: select val from fq08_s002_o.fq08_s002_t order by val
+RESULT:
+10
+20
+---
+### CASE-sys002o[ORA] STEP-008 CLEANUP
+SQL: drop external source if exists fq08_s002_o
+RESULT:
+OK
+---
+### CASE-sys002o[ORA] STEP-009 ORACLE-CLEANUP
+SQL: -- oracle fixture cleanup profile=s002
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys002o[ORA]
+DESC: Oracle EXPLAIN names source, schema and table; the 3-segment and the 2-segment path agree on the resolved schema and return the same rows (covers FQOR-SYS-002)
+================================================================================================
+================================================================================================
+CASE START: CASE-sys003o[ORA]
+DESC: Oracle USE: 'USE source' selects the configured schema, 'USE source.<schema>' switches the effective schema, and each context reads its own same-named table (covers FQOR-SYS-003)
+================================================================================================
+### CASE-sys003o[ORA] STEP-001 ORACLE-SETUP
+SQL: -- oracle fixtures profile=s003
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-002 EXEC
+SQL: drop external source if exists fq08_s003_o
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-003 EXEC
+SQL: create database if not exists fq08_local016
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-004 EXEC
+SQL: create external source fq08_s003_o type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s003_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys003o[ORA] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq08_s003_o
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s003_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys003o[ORA] STEP-005 EXEC
+SQL: use fq08_s003_o
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-006 ASSERT
+SQL: select val from fq08_s003_t
+RESULT:
+100
+---
+### CASE-sys003o[ORA] STEP-007 ASSERT
+SQL: explain select val from fq08_s003_t
+RESULT:
+-> Federated Scan on fq08_s003_o.TAOSDATA.fq08_s003_t (oracle) (width=8)
+---
+### CASE-sys003o[ORA] STEP-008 EXEC
+SQL: use fq08_s003_o.FQ_ALT_SCHEMA
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-009 ASSERT
+SQL: select val from fq08_s003_t
+RESULT:
+200
+---
+### CASE-sys003o[ORA] STEP-010 ASSERT
+SQL: explain select val from fq08_s003_t
+RESULT:
+-> Federated Scan on fq08_s003_o.FQ_ALT_SCHEMA.fq08_s003_t (oracle) (width=8)
+---
+### CASE-sys003o[ORA] STEP-011 EXEC
+SQL: use fq08_local016
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-012 CLEANUP
+SQL: drop external source if exists fq08_s003_o
+RESULT:
+OK
+---
+### CASE-sys003o[ORA] STEP-013 ORACLE-CLEANUP
+SQL: -- oracle fixture cleanup profile=s003
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys003o[ORA]
+DESC: Oracle USE: 'USE source' selects the configured schema, 'USE source.<schema>' switches the effective schema, and each context reads its own same-named table (covers FQOR-SYS-003)
+================================================================================================
+================================================================================================
+CASE START: CASE-sys004o[ORA]
+DESC: Oracle connect failure is logged with the source name and the raw ORA text, and the log never carries the DSN password (covers FQOR-SYS-004)
+================================================================================================
+### CASE-sys004o[ORA] STEP-001 ORACLE-SETUP
+SQL: -- oracle fixtures profile=s004
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-002 EXEC
+SQL: drop external source if exists fq08_s004_o
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-003 EXEC
+SQL: create external source fq08_s004_o type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys004o[ORA] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_s004_o
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys004o[ORA] STEP-004 ASSERT
+SQL: select val from fq08_s004_o.fq08_s004_t
+RESULT:
+10
+---
+### CASE-sys004o[ORA] STEP-005 EXEC
+SQL: drop external source if exists fq08_s004_o_auth
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-006 EXEC
+SQL: create external source fq08_s004_o_auth type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='fq08_wrong_password_9d31' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-006 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_o_auth|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys004o[ORA] STEP-006 AUTO-DESCRIBE
+SQL: describe external source fq08_s004_o_auth
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s004_o_auth|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys004o[ORA] STEP-007 ERROR
+SQL: select count(*) from fq08_s004_o_auth.fq08_s004_t
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys004o[ORA] STEP-008 LOG-ASSERT
+SQL: -- scan taosd and client logs under /local/tsdb/sim/dnode1/log
+RESULT:
+LOG-OK
+---
+### CASE-sys004o[ORA] STEP-009 CLEANUP
+SQL: drop external source if exists fq08_s004_o
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-009 CLEANUP
+SQL: drop external source if exists fq08_s004_o_auth
+RESULT:
+OK
+---
+### CASE-sys004o[ORA] STEP-010 ORACLE-CLEANUP
+SQL: -- oracle fixture cleanup profile=s004
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys004o[ORA]
+DESC: Oracle connect failure is logged with the source name and the raw ORA text, and the log never carries the DSN password (covers FQOR-SYS-004)
+================================================================================================
+================================================================================================
+CASE START: CASE-sys005o[ORA]
+DESC: Oracle error classes stay distinguishable (namespace vs object vs privilege vs auth vs connect) and a scan-time ORA-00942 keeps its raw text (covers FQOR-SYS-005)
+================================================================================================
+### CASE-sys005o[ORA] STEP-001 ORACLE-SETUP
+SQL: -- oracle fixtures profile=s005
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-002 EXEC
+SQL: drop external source if exists fq08_s005_o
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-003 EXEC
+SQL: create external source fq08_s005_o type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys005o[ORA] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq08_s005_o
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys005o[ORA] STEP-004 ERROR
+SQL: use fq08_s005_o.NO_SUCH_SCHEMA
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys005o[ORA] STEP-005 ERROR
+SQL: select count(*) from fq08_s005_o.TAOSDATA.FQ08_S005_MISSING
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys005o[ORA] STEP-006 ERROR
+SQL: select * from fq08_s005_o.fq08_e942_v limit 1
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys005o[ORA] STEP-007 ERROR
+SQL: select * from fq08_s005_o.fq08_deny_v limit 1
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys005o[ORA] STEP-008 EXEC
+SQL: drop external source if exists fq08_s005_o_auth
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-009 EXEC
+SQL: create external source fq08_s005_o_auth type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='fq08_wrong_password_9d31' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-009 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_o_auth|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys005o[ORA] STEP-009 AUTO-DESCRIBE
+SQL: describe external source fq08_s005_o_auth
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_o_auth|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-sys005o[ORA] STEP-010 ERROR
+SQL: select count(*) from fq08_s005_o_auth.fq08_s005_t
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys005o[ORA] STEP-011 EXEC
+SQL: drop external source if exists fq08_s005_o_conn
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-012 EXEC
+SQL: create external source fq08_s005_o_conn type='oracle' host='127.0.0.1' port=1 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('connect_timeout_ms'='500')
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-012 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_o_conn|oracle|127.0.0.1|1|taosdata|******|FREEPDB1|TAOSDATA|{"connect_timeout_ms":"500"}
+---
+### CASE-sys005o[ORA] STEP-012 AUTO-DESCRIBE
+SQL: describe external source fq08_s005_o_conn
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq08_s005_o_conn|oracle|127.0.0.1|1|taosdata|******|FREEPDB1|TAOSDATA|{"connect_timeout_ms":"500"}
+---
+### CASE-sys005o[ORA] STEP-013 ERROR
+SQL: select count(*) from fq08_s005_o_conn.fq08_s005_t
+RESULT:
+ERROR_OK; TEXT-OK
+---
+### CASE-sys005o[ORA] STEP-014 CLEANUP
+SQL: drop external source if exists fq08_s005_o
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-014 CLEANUP
+SQL: drop external source if exists fq08_s005_o_auth
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-014 CLEANUP
+SQL: drop external source if exists fq08_s005_o_conn
+RESULT:
+OK
+---
+### CASE-sys005o[ORA] STEP-015 ORACLE-CLEANUP
+SQL: -- oracle fixture cleanup profile=s005
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-sys005o[ORA]
+DESC: Oracle error classes stay distinguishable (namespace vs object vs privilege vs auth vs connect) and a scan-time ORA-00942 keeps its raw text (covers FQOR-SYS-005)
+================================================================================================

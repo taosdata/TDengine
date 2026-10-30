@@ -257,8 +257,8 @@ An event window trigger partitions the incoming data of the trigger table into w
     - `TRUE_FOR(COUNT n)`: The window row count must be greater than or equal to `n`.
     - `TRUE_FOR(duration_time AND COUNT n)`: Both conditions must be satisfied.
     - `TRUE_FOR(duration_time OR COUNT n)`: Either condition must be satisfied.
-  - **Open-condition streak threshold (`start(limit_expr)`)**: The `START WITH` expression must be continuously satisfied for `limit_expr` before the window actually opens. `_wstart` is set to the first row of the streak. Streak interruption resets the counter.
-  - **Close-condition streak threshold (`end(limit_expr)`)**: The `END WITH` expression must be continuously satisfied for `limit_expr` before the window actually closes. `_wend` is set to the first row of the close streak. Streak interruption resets the counter; the window stays open.
+  - **Open-condition streak threshold (`start(limit_expr)`)**: The `START WITH` expression must be continuously satisfied for the duration or row count specified by `limit_expr` before the window opens. `_twstart` is the timestamp of the first row in that streak, and the rows used to confirm opening are included in the window. A row that fails the start condition resets both the duration and row count.
+  - **Close-condition streak threshold (`end(limit_expr)`)**: The `END WITH` expression must be continuously satisfied for the duration or row count specified by `limit_expr` before the window closes. `_twend` is the timestamp of the first row in that streak. That row is included in the window; subsequent rows used to confirm closing are excluded. A row that fails the end condition resets both the duration and row count, and the window remains open.
 
   Where `duration_time` is a positive time value. Supported time units are listed in [Time Units](../05-tdengine-sql/01-datatype.md#time-units) (milliseconds through weeks only). Examples: `TRUE_FOR(10m)`, `TRUE_FOR(COUNT 100)`, `TRUE_FOR(start(COUNT 2))`, `TRUE_FOR(end(3s))`, `TRUE_FOR(5s, start(COUNT 2), end(COUNT 3))`. `start(...)` and `end(...)` are only supported for single-condition `EVENT_WINDOW`.
 
@@ -279,6 +279,70 @@ Usage Notes:
 - The start/end condition expressions can reference tag columns visible in the trigger-table context. For example:
 
 Applicable Scenarios: Suitable for use cases where computations and/or notifications need to be driven by event windows.
+
+###### TRUE_FOR Configuration Examples
+
+The window-level filter and the limits inside `START(...)` and `END(...)` all support duration, `COUNT`, `AND COUNT`, and `OR COUNT`:
+
+| Configuration | Meaning |
+| --- | --- |
+| `TRUE_FOR(1m)` | Filters out windows shorter than 1 minute; the start condition need not remain true throughout the window. |
+| `TRUE_FOR(START(1m))` | Confirms opening after the start condition remains true for at least 1 minute. |
+| `TRUE_FOR(END(1m))` | Confirms closing after the end condition remains true for at least 1 minute. |
+| `TRUE_FOR(START(COUNT 3))` | Confirms opening after 3 consecutive rows satisfy the start condition. |
+| `TRUE_FOR(START(1m AND COUNT 3))` | Requires the start condition to remain true for at least 1 minute and at least 3 consecutive rows. |
+| `TRUE_FOR(END(10s OR COUNT 3))` | Confirms closing when the end condition remains true for at least 10 seconds or at least 3 consecutive rows. |
+| `TRUE_FOR(2m, START(1m), END(COUNT 2))` | Sets separate opening and closing thresholds, and filters out windows whose final duration is less than 2 minutes. |
+
+- Duration is measured using the timestamps of the data evaluated by the window, not elapsed system time. For example, if the first matching row is timestamped `10:00:00`, a later matching row timestamped at least `10:01:00` is needed to satisfy `START(1m)`. Without new data, waiting 1 minute does not confirm opening.
+- Consecutive rows must all satisfy the corresponding condition; a fixed sampling interval is not required. An interruption resets both duration and row count, which restart at the next matching row.
+- If `START(...)` or `END(...)` is omitted, the first row satisfying the corresponding condition opens or closes the window. Omitting the window-level `limit_expr` adds no filter on the whole window's duration or row count. Commas separate the three parameters; they do not mean logical `OR`.
+- `START(...)` / `END(...)` do not apply to `STATE_WINDOW` or to start event trees with multiple conditions described in the next section. A single Boolean start expression containing `AND` / `OR` is still a single start condition.
+
+This temperature alarm confirms opening after the temperature stays at or above 80 for at least 1 minute, confirms closing after 2 consecutive rows below 80, and outputs statistics only on closing:
+
+```sql
+CREATE DATABASE true_for_demo;
+USE true_for_demo;
+CREATE TABLE sensor (ts TIMESTAMP, temperature INT);
+
+CREATE STREAM temperature_alarm
+  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80)
+  TRUE_FOR(START(1m), END(COUNT 2))
+  STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
+  FROM sensor
+  INTO temperature_alarm_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+After the stream is ready, insert the following data in timestamp order:
+
+```sql
+INSERT INTO sensor VALUES
+  ('2026-01-01 10:00:00', 85)
+  ('2026-01-01 10:00:30', 70)
+  ('2026-01-01 10:01:00', 85)
+  ('2026-01-01 10:01:30', 86)
+  ('2026-01-01 10:02:00', 87)
+  ('2026-01-01 10:02:10', 70)
+  ('2026-01-01 10:02:20', 69);
+
+SELECT ts, te, cnt FROM temperature_alarm_out;
+```
+
+The window is evaluated as follows:
+
+| Data timestamp | Temperature | Window evaluation |
+| --- | --- | --- |
+| `10:00:00` | 85 | Starts tracking the duration of the start condition. |
+| `10:00:30` | 70 | Interrupts the start condition and resets the accumulated values; no window forms. |
+| `10:01:00` | 85 | Starts tracking the start condition again. |
+| `10:01:30` | 86 | The condition has held for 30 seconds; opening is not yet confirmed. |
+| `10:02:00` | 87 | The condition has held for 1 minute; opening is confirmed with `_twstart = 10:01:00`. |
+| `10:02:10` | 70 | The first row satisfies the end condition; closing is not yet confirmed. |
+| `10:02:20` | 69 | The second consecutive row satisfies the end condition; closing is confirmed with `_twend = 10:02:10`. |
+
+After the stream finishes computing, the expected result is one row: `ts = 2026-01-01 10:01:00.000`, `te = 2026-01-01 10:02:10.000`, and `cnt = 4`. The window includes the four rows from `10:01:00` through `10:02:10`; the `10:02:20` row only confirms closing. Adding a window-level filter with `TRUE_FOR(2m, START(1m), END(COUNT 2))` suppresses this result because the window lasts only 70 seconds.
 
 ##### Event Window Trigger with a Start Event Tree
 

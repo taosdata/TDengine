@@ -55,7 +55,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 }
 
 #define RETURN_FALSE                                 \
-  smlBuildInvalidDataMsg(msg, "invalid data", pVal); \
+  smlBuildInvalidDataMsgLen(msg, "invalid data", pVal, len); \
   return false;
 
 #define SET_DOUBLE                     \
@@ -64,7 +64,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_FLOAT                                                                              \
   if (!IS_VALID_FLOAT(result)) {                                                               \
-    smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal, len); \
     return false;                                                                              \
   }                                                                                            \
   kvVal->type = TSDB_DATA_TYPE_FLOAT;                                                          \
@@ -74,7 +74,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
   SET_ERRNO(0);                                                                                          \
   int64_t tmp = taosStr2Int64(pVal, &endptr, 10);                                                        \
   if (ERRNO == ERANGE) {                                                                                 \
-    smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal, len); \
     return false;                                                                                        \
   }                                                                                                      \
   kvVal->type = TSDB_DATA_TYPE_BIGINT;                                                                   \
@@ -82,7 +82,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_INT                                                                    \
   if (!IS_VALID_INT(result)) {                                                     \
-    smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "int out of range[-2147483648,2147483647]", pVal, len); \
     return false;                                                                  \
   }                                                                                \
   kvVal->type = TSDB_DATA_TYPE_INT;                                                \
@@ -90,7 +90,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_SMALL_INT                                                          \
   if (!IS_VALID_SMALLINT(result)) {                                            \
-    smlBuildInvalidDataMsg(msg, "small int our of range[-32768,32767]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "small int our of range[-32768,32767]", pVal, len); \
     return false;                                                              \
   }                                                                            \
   kvVal->type = TSDB_DATA_TYPE_SMALLINT;                                       \
@@ -100,7 +100,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
   SET_ERRNO(0);                                                                                 \
   uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);                                             \
   if (ERRNO == ERANGE || result < 0) {                                                          \
-    smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned big int out of range[0,18446744073709551615]", pVal, len); \
     return false;                                                                               \
   }                                                                                             \
   kvVal->type = TSDB_DATA_TYPE_UBIGINT;                                                         \
@@ -108,7 +108,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_UINT                                                                  \
   if (!IS_VALID_UINT(result)) {                                                   \
-    smlBuildInvalidDataMsg(msg, "unsigned int out of range[0,4294967295]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned int out of range[0,4294967295]", pVal, len); \
     return false;                                                                 \
   }                                                                               \
   kvVal->type = TSDB_DATA_TYPE_UINT;                                              \
@@ -116,7 +116,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_USMALL_INT                                                            \
   if (!IS_VALID_USMALLINT(result)) {                                              \
-    smlBuildInvalidDataMsg(msg, "unsigned small int out of rang[0,65535]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned small int out of rang[0,65535]", pVal, len); \
     return false;                                                                 \
   }                                                                               \
   kvVal->type = TSDB_DATA_TYPE_USMALLINT;                                         \
@@ -124,7 +124,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_TINYINT                                                       \
   if (!IS_VALID_TINYINT(result)) {                                        \
-    smlBuildInvalidDataMsg(msg, "tiny int out of range[-128,127]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "tiny int out of range[-128,127]", pVal, len); \
     return false;                                                         \
   }                                                                       \
   kvVal->type = TSDB_DATA_TYPE_TINYINT;                                   \
@@ -132,7 +132,7 @@ static inline uint32_t smlComputeBackoffMs(uint32_t retryIdx) {
 
 #define SET_UTINYINT                                                            \
   if (!IS_VALID_UTINYINT(result)) {                                             \
-    smlBuildInvalidDataMsg(msg, "unsigned tiny int out of range[0,255]", pVal); \
+    smlBuildInvalidDataMsgLen(msg, "unsigned tiny int out of range[0,255]", pVal, len); \
     return false;                                                               \
   }                                                                             \
   kvVal->type = TSDB_DATA_TYPE_UTINYINT;                                        \
@@ -172,7 +172,7 @@ static int32_t smlCheckAuth(SSmlHandle *info, SRequestConnInfo *conn, const char
              : code;
 }
 
-void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2) {
+void smlBuildInvalidDataMsgLen(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2, size_t msg2Len) {
   if (pBuf->buf == NULL) {
     return;
   }
@@ -181,10 +181,20 @@ void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2
     (void)strncat(pBuf->buf, msg1, pBuf->len - 1);
   }
   int32_t left = pBuf->len - strlen(pBuf->buf);
-  if (left > 2 && msg2) {
+  if (left > 2 && msg2 && msg2Len > 0) {
     (void)strncat(pBuf->buf, ":", left - 1);
-    (void)strncat(pBuf->buf, msg2, left - 2);
+    // msg2 usually points into the (possibly unterminated) payload; never read
+    // past its declared end
+    (void)strncat(pBuf->buf, msg2, TMIN(msg2Len, (size_t)(left - 2)));
   }
+}
+
+void smlBuildInvalidDataMsg(SSmlMsgBuf *pBuf, const char *msg1, const char *msg2) {
+  if (pBuf->buf == NULL) {
+    return;
+  }
+  // msg2 from this entry point is a literal or otherwise NUL-terminated
+  smlBuildInvalidDataMsgLen(pBuf, msg1, msg2, msg2 ? strnlen(msg2, pBuf->len) : 0);
 }
 
 int64_t smlGetTimeValue(const char *value, int32_t len, uint8_t fromPrecision, uint8_t toPrecision) {
@@ -419,8 +429,6 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
   SSmlTableInfo *tinfo = NULL;
   if (unlikely(oneTable == NULL)) {
     SML_CHECK_CODE(smlBuildTableInfo(1, elements->measure, elements->measureLen, &tinfo));
-    SML_CHECK_CODE(
-        taosHashPut(info->childTables, elements->measureTag, elements->measureTagsLen, &tinfo, POINTER_BYTES));
 
     tinfo->tags = taosArrayDup(info->preLineTagKV, NULL);
     SML_CHECK_NULL(tinfo->tags);
@@ -437,6 +445,9 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
       info->currSTableMeta->uid = tinfo->uid;
       SML_CHECK_CODE(smlInitTableDataCtx(info->pQuery, info->currSTableMeta, &tinfo->tableDataCtx));
     }
+    // Publish only fully initialized tables; the hash owns them after this succeeds.
+    SML_CHECK_CODE(
+        taosHashPut(info->childTables, elements->measureTag, elements->measureTagsLen, &tinfo, POINTER_BYTES));
   } else {
     tinfo = *oneTable;
   }
@@ -444,7 +455,7 @@ int32_t smlProcessChildTable(SSmlHandle *info, SSmlLineInfo *elements) {
   return TSDB_CODE_SUCCESS;
 
 END:
-  smlDestroyTableInfo(&tinfo);
+  if (tinfo != NULL) smlDestroyTableInfo(&tinfo);
   RETURN
 }
 
@@ -523,6 +534,11 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
     for (int i = 0; i < taosArrayGetSize(tags); i++) {
       SSmlKv *tag = (SSmlKv *)taosArrayGet(tags, i);
       SML_CHECK_NULL(tag);
+      // SSmlKv.value aliases the numeric union members for non-var types; only
+      // string-like tags may be read as char*
+      if (!IS_VAR_DATA_TYPE(tag->type)) {
+        SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+      }
       (void)strncat(childTableName, tag->value, TMIN(tag->length, TSDB_TABLE_NAME_LEN - 1 - strlen(childTableName)));
       if (i != taosArrayGetSize(tags) - 1) {
         (void)strncat(childTableName, tsSmlAutoChildTableNameDelimiter,
@@ -544,6 +560,11 @@ static int32_t smlParseTableName(SArray *tags, char *childTableName, char *tbnam
       SML_CHECK_NULL(tag);
       // handle child table name
       if (childTableNameLen == tag->keyLen && strncmp(tag->key, tbnameKey, tag->keyLen) == 0) {
+        // same union restriction as the auto-name path: a numeric/bool tag must
+        // not be dereferenced as the name string
+        if (!IS_VAR_DATA_TYPE(tag->type)) {
+          SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
+        }
         tstrncpy(childTableName, tag->value, TMIN(TSDB_TABLE_NAME_LEN, tag->length + 1));
         if (tsSmlDot2Underline) {
           smlStrReplace(childTableName, strlen(childTableName));
@@ -591,6 +612,10 @@ END:
 int32_t getTableUid(SSmlHandle *info, SSmlLineInfo *currElement, SSmlTableInfo *tinfo) {
   char   key[TSDB_TABLE_NAME_LEN * 2 + 1] = {0};
   size_t nLen = strlen(tinfo->childTableName);
+  // The hash key is length-delimited: it needs the separator, but no trailing NUL.
+  if (currElement->measureLen < 0 || (size_t)currElement->measureLen + 1 + nLen > sizeof(key)) {
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
   (void)memcpy(key, currElement->measure, currElement->measureLen);
   if (tsSmlDot2Underline) {
     smlStrReplace(key, currElement->measureLen);
@@ -720,7 +745,7 @@ int32_t smlGetMeta(SSmlHandle *info, const void *measure, int32_t measureLen, ST
   conn.requestObjRefId = info->pRequest->self;
   conn.mgmtEps = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
   int32_t len = TMIN(measureLen, TSDB_TABLE_NAME_LEN - 1);
-  (void)memcpy(pName.tname, measure, measureLen);
+  (void)memcpy(pName.tname, measure, len);
   pName.tname[len] = 0;
 
   return catalogGetSTableMeta(info->pCatalog, &conn, &pName, pTableMeta);
@@ -1288,7 +1313,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
         continue;
       }
       if (kv->type != value->type) {
-        smlBuildInvalidDataMsg(msg, "the type is not the same like before", kv->key);
+        smlBuildInvalidDataMsgLen(msg, "the type is not the same like before", kv->key, kv->keyLen);
         SML_CHECK_CODE(TSDB_CODE_SML_NOT_SAME_TYPE);
       }
 
@@ -1298,7 +1323,7 @@ static int32_t smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols
     } else {
       size_t tmp = taosArrayGetSize(metaArray);
       if (tmp > INT16_MAX) {
-        smlBuildInvalidDataMsg(msg, "too many cols or tags", kv->key);
+        smlBuildInvalidDataMsgLen(msg, "too many cols or tags", kv->key, kv->keyLen);
         SML_CHECK_CODE(TSDB_CODE_SML_INVALID_DATA);
       }
       int16_t size = tmp;
@@ -1463,7 +1488,7 @@ static int32_t smlParseEnd(SSmlHandle *info) {
 
     if (tinfo == NULL) {
       uError("SML:0x%" PRIx64 ", get oneTable failed, line num:%d", info->id, i);
-      smlBuildInvalidDataMsg(&info->msgBuf, "get oneTable failed", elements->measure);
+      smlBuildInvalidDataMsgLen(&info->msgBuf, "get oneTable failed", elements->measure, elements->measureLen);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
@@ -1537,8 +1562,9 @@ static int32_t smlInsertData(SSmlHandle *info) {
       PROCESS_SLASH_IN_MEASUREMENT(measure, measureLen);
     }
     smlStrReplace(measure, measureLen);
-    (void)memcpy(pName.tname, measure, measureLen);
-    pName.tname[measureLen] = '\0';
+    int len = TMIN(measureLen, TSDB_TABLE_NAME_LEN - 1);
+    (void)memcpy(pName.tname, measure, len);
+    pName.tname[len] = '\0';
 
     if (info->pRequest->tableList == NULL) {
       info->pRequest->tableList = taosArrayInit(1, sizeof(SName));

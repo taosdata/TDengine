@@ -1109,8 +1109,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False)
+                               skip_pg=False, skip_influx=False, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (two-phase verify)
@@ -1166,8 +1169,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False)
+                               skip_pg=False, skip_influx=False, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1207,8 +1213,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False)
+                               skip_pg=False, skip_influx=False, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1249,8 +1258,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False)
+                               skip_pg=False, skip_influx=False, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1291,8 +1303,11 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False)
+                               skip_pg=False, skip_influx=False, skip_oracle=True)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Explicit namespace without a source-level default

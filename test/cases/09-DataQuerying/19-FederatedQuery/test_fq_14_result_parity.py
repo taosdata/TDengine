@@ -18,11 +18,12 @@ test_fq_14_result_parity.py
 
 Result-parity test framework for federated query.
 
-ALL features are tested against ALL four database types:
+ALL features are tested against ALL five database types:
   1. Local TDengine (reference)
   2. MySQL external source
   3. PostgreSQL external source
   4. InfluxDB external source
+  5. Oracle external source
 
 For each SQL statement, the same logical query is executed against all
 sources and results are compared row-by-row against the local TDengine
@@ -33,7 +34,7 @@ All other features — including functions, operators, window queries,
 JOINs, UNION, subqueries, NULLS FIRST/LAST, etc. — are tested on every
 supported source.
 
-Logical schema (all four sources identical):
+Logical schema (all five sources identical):
   Local TDengine:  time TIMESTAMP PK, id INT, val INT, Mapped_Val INT,
                    score DOUBLE, label NCHAR(32),
                    nullable_val INT, lat DOUBLE, lon DOUBLE,
@@ -42,13 +43,16 @@ Logical schema (all four sources identical):
   PostgreSQL:      time TIMESTAMP NOT NULL PK
   InfluxDB:        time (built-in timestamp); label tag; Mapped_Val field;
                    remaining values are fields
+  Oracle:          time TIMESTAMP(3) PRIMARY KEY; numbers are NUMBER(10,0)
+                   (BIGINT) / BINARY_DOUBLE; text is NVARCHAR2 so that it maps
+                   to NCHAR like the other providers
 
 Parity cases use provider-independent lowercase columns.  The dedicated
 mixed-case test verifies provider-specific metadata and binding rules.
 
 Environment:
   Enterprise edition, federatedQueryEnable=1
-  MySQL 8.0+, PostgreSQL 14+, InfluxDB v3
+  MySQL 8.0+, PostgreSQL 14+, InfluxDB v3, Oracle 19c+
   Python: pymysql, psycopg2, requests
 """
 from typing import Dict, List, Tuple
@@ -64,6 +68,7 @@ import pytest
 from new_test_framework.utils import tdLog, tdSql
 
 
+import federated_query_common
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
@@ -72,6 +77,13 @@ from federated_query_common import (
     parity_sql_val,
     parity_make_insert_sqls,
 )
+
+# Oracle's transport precision is MICRO (DS 5.3.7: the fixture has no
+# TIMESTAMP(7-9) column), so epoch counts read through an Oracle scan differ
+# from the local millisecond reference by the same 1000 factor as MySQL/PG.
+# The factor table is owned by the shared module; register the entry here
+# instead of duplicating the scaling rule in this file.
+federated_query_common._EXT_PRECISION_FACTOR.setdefault("Oracle", 1000)
 
 # ── Process-timezone helpers ─────────────────────────────────────────
 # The parity case requires UTC for both its epoch conversions and the taospy
@@ -170,6 +182,26 @@ _W5M  = f"WHERE time >= '{_TS0}' AND time < '{_TS5M}'"   # 5-minute window
 _R4M  = f"RANGE('{_TS0}', '{_TS4M}')"                     # INTERP range
 
 # ── Case registry ────────────────────────────────────────────────────────────────
+# FQOR-LOCAL-001 … FQOR-LOCAL-016 (TS §5.7.1) are carried by the existing
+# groups and by the dedicated methods below; no separate file is added.
+#   001  basic query + column pruning   sort-23 (all columns) and
+#                                       test_fq_oracle_projection_pruning
+#   002  filter / sort                  whr-*, sort-*
+#   003  aggregate                      agg-*
+#   004  time windows                   win-*, _WIN_EPOCH_CASES
+#   005  local-table JOIN               join-*
+#   006  cross-source JOIN              _JOIN_TS_EXT_SORT_MATRIX oracle/* legs
+#                                       and test_fq_oracle_cross_source_join
+#   007  subquery incl. NULL 3VL        sub-34 … sub-39
+#   008  window functions               lag-03 … lag-10
+#   009  zero pushdown                  test_fq_oracle_zero_pushdown
+#   010  three-path consistency         test_fq_oracle_three_paths
+#   011  repeat execution               test_fq_oracle_repeat_execution
+#   012  view / materialized view       test_fq_oracle_views
+#   013  large result set               test_fq_oracle_large_result_set
+#   014  derived-table projections      join-39 … join-41
+#   015  expression projection          arith-13
+#   016  zero-pushdown JOIN shape       test_fq_oracle_zero_pushdown
 # Every entry: (sql_template,) or (sql_template, opts_dict)
 # opts keys: positive (bool, default True), reason (str),
 #             float_cols (set of col indices), ordered (bool, default True),
@@ -279,6 +311,10 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT val, val * 2 AS doubled FROM {tbl} ORDER BY val",),
         ("SELECT val, val & 3 FROM {tbl} WHERE val = 50 ORDER BY time",),
         ("SELECT val, val | 8 FROM {tbl} WHERE val = 50 ORDER BY time",),
+        # Expression projection (FQOR-LOCAL-015): a constant, a division by a
+        # NULL divisor and a bigint cast are all evaluated locally on the
+        # external scan; the remote SQL stays a bare scan.
+        ("SELECT id, val + 1, val / NULLIF(0, 0), CAST(val AS BIGINT) FROM {tbl} ORDER BY time",),
     ],
     # ── math: 数学函数（ABS CEIL FLOOR ROUND SQRT POW MOD SIGN GREATEST LEAST
     #                    PI TRUNCATE DEGREES RADIANS EXP LN LOG）────────────────
@@ -531,6 +567,20 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT id FROM (SELECT id, val FROM {tbl} WHERE val IN (SELECT val FROM {tbl} WHERE label = 'north')) sub ORDER BY id",),
         # EXISTS in CASE WHEN — non-correlated EXISTS subquery evaluated TDengine-side
         ("SELECT id, CASE WHEN EXISTS (SELECT 1 FROM {tbl} WHERE val > 40) THEN 'yes' ELSE 'no' END AS flag FROM {tbl} ORDER BY time",),
+        # NULL three-valued logic (FQOR-LOCAL-007).  nullable_val is NULL for
+        # id=2 and id=4, and label 'south' selects exactly those two rows, so
+        # the subquery below is the single-element set {NULL}: every IN / NOT
+        # IN / = ANY / > ALL comparison against it is UNKNOWN and matches no
+        # row on any source.
+        ("SELECT id FROM {tbl} WHERE nullable_val IN (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE nullable_val NOT IN (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE nullable_val = ANY (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time",),
+        ("SELECT id FROM {tbl} WHERE nullable_val > ALL (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time",),
+        # A NULL in the value list must not create a spurious match.
+        ("SELECT id FROM {tbl} WHERE id IN (SELECT nullable_val FROM {tbl}) ORDER BY time",),
+        # Control: the 'north' list is NULL-free yet the two NULL rows still
+        # never qualify, so only id 5 (50) survives.
+        ("SELECT id, nullable_val FROM {tbl} WHERE nullable_val NOT IN (SELECT nullable_val FROM {tbl} WHERE label = 'north') ORDER BY time",),
     ],
     # ── union: UNION / UNION ALL ──────────────────────────────────────────────
     "union": [
@@ -618,6 +668,17 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT a.id, b.id FROM (SELECT time, id, val FROM {tbl} ORDER BY TIMETRUNCATE(time, 1m)) a "
          "JOIN (SELECT time, id, val FROM {tbl} ORDER BY val DESC) b "
          "ON TIMETRUNCATE(a.time, 1m) = TIMETRUNCATE(b.time, 1m) ORDER BY a.id, b.id LIMIT 3",),
+        # Derived-table projection shapes (FQOR-LOCAL-014): partial columns,
+        # SELECT * and an expression projection on both join inputs.  The outer
+        # query projects named columns, so the star never depends on a source's
+        # own column-discovery order.
+        ("SELECT a.id, b.val FROM (SELECT id FROM {tbl}) a "
+         "INNER JOIN (SELECT id, val FROM {tbl}) b ON a.id = b.id ORDER BY a.id",),
+        ("SELECT a.id, b.val FROM (SELECT * FROM {tbl}) a "
+         "INNER JOIN (SELECT * FROM {tbl}) b ON a.id = b.id ORDER BY a.id",),
+        ("SELECT a.id, b.doubled FROM (SELECT id FROM {tbl}) a "
+         "INNER JOIN (SELECT id, val * 2 AS doubled FROM {tbl}) b "
+         "ON a.id = b.id ORDER BY a.id",),
     ],
     # ── asof: ASOF JOIN（源自 fq_04 asof_join）───────────────────────────────
     "asof": [
@@ -779,10 +840,23 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT MODE(val) FROM {tbl}", dict(validate_in={10, 20, 30, 40, 50})),
         ("SELECT SAMPLE(val, 3) FROM {tbl}", dict(validate_in={10, 20, 30, 40, 50})),
     ],
-    # ── lag: LAG/LEAD 窗口函数
+    # ── lag: 窗口函数（LAG/LEAD 与 ROW_NUMBER/RANK/DENSE_RANK/聚合窗口）──────
+    # Window functions are evaluated by TDengine on top of the external scan
+    # (FQOR-LOCAL-008), so partitioning, ordering and the NULL position must
+    # match the local reference exactly.
     "lag": [
         ("SELECT val, LAG(val, 1) FROM {tbl} ORDER BY time",),
         ("SELECT val, LEAD(val, 1) FROM {tbl} ORDER BY time",),
+        ("SELECT id, ROW_NUMBER() OVER (PARTITION BY label ORDER BY time) AS rn FROM {tbl} ORDER BY id",),
+        ("SELECT id, RANK() OVER (PARTITION BY label ORDER BY val) AS rk FROM {tbl} ORDER BY id",),
+        ("SELECT id, DENSE_RANK() OVER (ORDER BY label) AS dr FROM {tbl} ORDER BY id",),
+        ("SELECT id, SUM(val) OVER (PARTITION BY label ORDER BY time) AS running FROM {tbl} ORDER BY id",),
+        ("SELECT id, COUNT(*) OVER (PARTITION BY label) AS cnt FROM {tbl} ORDER BY id",),
+        # NULL ordering inside OVER(): NULLS LAST is explicit so the rank of
+        # the two NULL rows does not depend on a provider default.
+        ("SELECT id, RANK() OVER (PARTITION BY label ORDER BY nullable_val NULLS LAST) AS rk FROM {tbl} ORDER BY id",),
+        ("SELECT id, LAG(nullable_val, 1) OVER (PARTITION BY label ORDER BY time) AS prev FROM {tbl} ORDER BY id",),
+        ("SELECT id, FIRST_VALUE(val) OVER (PARTITION BY label ORDER BY time) AS fv FROM {tbl} ORDER BY id",),
     ],
     # ── pscol: 伪列测试（_C0 / TAGS / TBNAME）
     # Note: tbname-based queries succeed on local TDengine but fail on external sources
@@ -818,9 +892,10 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT id, IF(nullable_val > 0, 'positive', 'other') FROM {tbl} ORDER BY time",),
         ("SELECT id, ISNOTNULL(nullable_val) FROM {tbl} ORDER BY time",),
         ("SELECT FILL_FORWARD(nullable_val) FROM {tbl} ORDER BY time",),
-        ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST",),
         # The two NULL rows tie on nullable_val; the id key keeps the order
-        # deterministic across sources (a tie order is not specified).
+        # deterministic across sources (a tie order is not specified, and
+        # Oracle's sort puts the tie in a different order than a table scan).
+        ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST, id",),
         ("SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS LAST, id",),
     ],
     # ── corr: CORR 相关系数（val/score 完全线性相关 → CORR = 1.0）
@@ -1024,10 +1099,12 @@ _WIN_EPOCH_CASES: List[Tuple[str, str, dict]] = [
 # Each entry: (case_id, sql_template, opts).  The local reference SQL is built
 # by replacing every source placeholder with the local TDengine table.
 #
-# Keep this matrix on same-precision sources (MySQL/PG are both us).  InfluxDB
-# is still covered by _PARITY_GROUPS single-source parity cases; mixing it with
-# MySQL/PG/local under TIMETRUNCATE produces cross-precision join semantics that
-# are outside this sort-compatibility regression.
+# Keep this matrix on same-precision sources (MySQL/PG/Oracle are all us).
+# InfluxDB is still covered by _PARITY_GROUPS single-source parity cases;
+# mixing it with MySQL/PG/local under TIMETRUNCATE produces cross-precision
+# join semantics that are outside this sort-compatibility regression.
+# Oracle × InfluxDB is covered by test_fq_oracle_cross_source_join, which joins
+# on the timestamp column instead of a TIMETRUNCATE key.
 _JOIN_TS_EXT_SORT_MATRIX: list[tuple[str, str, dict]] = [
     ("mx-01",
      "SELECT a.id, b.val FROM (SELECT time, id, val FROM {mysql}) a "
@@ -1217,15 +1294,171 @@ _LOCAL_US_SETUP = [
     for ts, i, v, s, l, nv, lat, lon, wp, wy, tss in _ROWS_DT
 ]
 
+# ── Oracle fixtures ─────────────────────────────────────────────────
+# Oracle has no per-test database: the login schema is the namespace
+# (DS 5.3.2), so every fixture is a table in ORACLE_USER's own schema.  The
+# names carry this file's own prefix so the fixtures never collide with the
+# identifiers other FQ files create on the same instance.
+_ORACLE_TABLE      = "PARITY14_T"
+_ORACLE_SEM_TABLE  = "PARITY14_SEM"
+_ORACLE_BULK_TABLE = "PARITY14_BULK"
+_ORACLE_VIEW_SUM   = "PARITY14_V_SUM"
+_ORACLE_VIEW_FILT  = "PARITY14_V_FILT"
+
+# Types are picked so the TDengine mapping matches the other providers:
+#   NUMBER(10,0)  -> BIGINT        (id / val / Mapped_Val / nullable_val)
+#   BINARY_DOUBLE -> DOUBLE        (score / lat / lon)
+#   NVARCHAR2     -> NCHAR         (text; VARCHAR2 would map to VARCHAR and
+#                                   change the '->' / CONTAINS / AES_ENCRYPT
+#                                   behaviour that the NCHAR negative cases pin)
+#   TIMESTAMP(3)  -> TIMESTAMP with MICRO transport precision (DS 5.3.7: no
+#                                   TIMESTAMP(7-9) column in the table)
+_ORACLE_COLUMNS = (
+    '"TIME" TIMESTAMP(3) PRIMARY KEY,'
+    ' "ID" NUMBER(10,0), "VAL" NUMBER(10,0), "MAPPED_VAL" NUMBER(10,0),'
+    ' "SCORE" BINARY_DOUBLE, "LABEL" NVARCHAR2(32), "NULLABLE_VAL" NUMBER(10,0),'
+    ' "LAT" BINARY_DOUBLE, "LON" BINARY_DOUBLE,'
+    ' "WKT_POINT" NVARCHAR2(64), "WKT_POLY" NVARCHAR2(256), "TS_STR" NVARCHAR2(32)'
+)
+
+
+def _oracle_ts_literal(dt_str):
+    """Render a 'YYYY-MM-DD HH:MM:SS.mmm' string as a TIMESTAMP(3) literal.
+
+    The format model is explicit: a bare string is parsed with the session's
+    NLS_TIMESTAMP_FORMAT, which differs between the sqlplus client and the
+    server.
+    """
+    return f"TO_TIMESTAMP('{dt_str}', 'YYYY-MM-DD HH24:MI:SS.FF3')"
+
+
+def _oracle_insert_all(table, rows_dt):
+    """Build one INSERT ALL statement (Oracle 19c has no multi-row VALUES).
+
+    Mapped_Val is derived (100 + id) when the caller passes the source rows,
+    and already present when the disorder rewrite hands over the expanded
+    rows, so the Oracle table always carries the same 12 columns.
+    """
+    branches = []
+    for row in rows_dt:
+        if len(row) == 11:
+            ts, i, v, score, label, nv, lat, lon, wp, wy, tss = row
+            mapped = 100 + i
+        else:
+            ts, i, v, mapped, score, label, nv, lat, lon, wp, wy, tss = row
+        values = ", ".join(
+            [_oracle_ts_literal(ts)] +
+            [parity_sql_val(x) for x in (i, v, mapped, score, label, nv,
+                                         lat, lon, wp, wy, tss)]
+        )
+        branches.append(f'INTO "{table}" VALUES ({values})')
+    # Newline-separated: SQL*Plus silently ignores input lines longer than
+    # 4999 characters (SP2-0027) while still exiting 0.
+    return "INSERT ALL\n" + "\n".join(branches) + "\nSELECT 1 FROM DUAL"
+
+
+_ORACLE_SETUP = [
+    f'CREATE TABLE "{_ORACLE_TABLE}" ({_ORACLE_COLUMNS})',
+    _oracle_insert_all(_ORACLE_TABLE, _ROWS_DT),
+    "COMMIT",
+]
+
+# Oracle semantics fixtures (FQOR-LOCAL-010 / -012 / -015), with a local
+# mirror that already encodes Oracle's storage rules:
+#   D_STR   empty string: Oracle stores '' as NULL, so the mirror row is NULL
+#   D_DATE  DATE: second precision, padded to the table's MICRO transport
+#   D_DEC   NUMBER(10,2) -> DECIMAL(10,2), compared as exact decimal strings
+#   D_NUM1  NUMBER(1,0): numeric, never BOOL; the value 2 must survive
+_ORACLE_SEM_ROWS = [
+    ("2024-01-01 00:00:05", "12345678.91", 1, "alpha"),
+    ("2024-01-01 00:00:06", "-0.25", 0, ""),
+    ("2024-01-01 00:00:07", "0.75", 2, "beta"),
+]
+_ORACLE_SEM_SETUP = [
+    f'CREATE TABLE "{_ORACLE_SEM_TABLE}" ('
+    f' "D_DATE" DATE, "D_DEC" NUMBER(10,2), "D_NUM1" NUMBER(1,0),'
+    f' "D_STR" NVARCHAR2(16))',
+] + [
+    # DATE is a second-precision timestamp in Oracle; the ANSI DATE literal
+    # only takes YYYY-MM-DD and raises ORA-01861 for a time component, so
+    # the value goes through TO_DATE with an explicit format model.
+    f'INSERT INTO "{_ORACLE_SEM_TABLE}" VALUES '
+    f"(TO_DATE('{d_date}', 'YYYY-MM-DD HH24:MI:SS'), "
+    f"{d_dec}, {d_num1}, {parity_sql_val(d_str)})"
+    for d_date, d_dec, d_num1, d_str in _ORACLE_SEM_ROWS
+] + ["COMMIT"]
+
+_LOCAL_SEM_TABLE = "parity_sem"
+_LOCAL_SEM_SETUP = [
+    f"DROP TABLE IF EXISTS {_LOCAL_SEM_TABLE}",
+    f"CREATE TABLE {_LOCAL_SEM_TABLE} ("
+    f"  d_date TIMESTAMP, d_dec DECIMAL(10, 2), d_num1 TINYINT, d_str NCHAR(16))",
+] + [
+    "INSERT INTO {} VALUES ('{}.000', {}, {}, {})".format(
+        _LOCAL_SEM_TABLE, d_date, d_dec, d_num1,
+        "NULL" if d_str == "" else parity_sql_val(d_str))
+    for d_date, d_dec, d_num1, d_str in _ORACLE_SEM_ROWS
+]
+
+# Views (FQOR-LOCAL-012).  Oracle views carry no primary key, so TDengine
+# exposes them as ordinary non-timestamp tables: the projection-only queries
+# below never need a time axis.
+_ORACLE_VIEWS = [
+    # A bare COUNT(*)/SUM() column is an unconstrained NUMBER, which the type
+    # map rejects (DS 5.3.2.1: 未声明精度的 NUMBER 不支持), so the view casts
+    # its aggregate columns to the precision the values really need.
+    f'CREATE OR REPLACE VIEW "{_ORACLE_VIEW_SUM}" AS '
+    f'SELECT "LABEL", CAST(COUNT(*) AS NUMBER(18,0)) AS "CNT", '
+    f'CAST(SUM("VAL") AS NUMBER(19,0)) AS "SV" '
+    f'FROM "{_ORACLE_TABLE}" GROUP BY "LABEL"',
+    f'CREATE OR REPLACE VIEW "{_ORACLE_VIEW_FILT}" AS '
+    f'SELECT "ID", "VAL" FROM "{_ORACLE_TABLE}" WHERE "VAL" > 20',
+]
+
+# Large result set (FQOR-LOCAL-013): one row per second, K = 1..5000, V = 2*K.
+# CONNECT BY LEVEL generates the rows on the Oracle side in a single statement.
+_ORACLE_BULK_ROWS = 5000
+_ORACLE_BULK_SETUP = [
+    f'CREATE TABLE "{_ORACLE_BULK_TABLE}" ('
+    f' "TS" TIMESTAMP(3) PRIMARY KEY, "K" NUMBER(10,0), "V" NUMBER(10,0))',
+    f'INSERT INTO "{_ORACLE_BULK_TABLE}" ("TS", "K", "V") '
+    f"SELECT TIMESTAMP '2024-02-01 00:00:00' + NUMTODSINTERVAL(LEVEL - 1, 'SECOND'),"
+    f" LEVEL, LEVEL * 2 FROM DUAL CONNECT BY LEVEL <= {_ORACLE_BULK_ROWS}",
+    "COMMIT",
+]
+
+_ORACLE_DROP_OBJECTS = (
+    ("VIEW", _ORACLE_VIEW_SUM),
+    ("VIEW", _ORACLE_VIEW_FILT),
+    ("TABLE", _ORACLE_BULK_TABLE),
+    ("TABLE", _ORACLE_SEM_TABLE),
+    ("TABLE", _ORACLE_TABLE),
+)
+
+
+def _oracle_drop_fixture(cfg):
+    """Drop the Oracle fixtures, ignoring the ones that are not there.
+
+    Oracle has no ``DROP ... IF EXISTS``, so a first run raises ORA-00942 for
+    every object; that is the expected state, not a failure.
+    """
+    for kind, name in _ORACLE_DROP_OBJECTS:
+        try:
+            ExtSrcEnv._oracle_sql(cfg, f'DROP {kind} "{name}"')
+        except RuntimeError as e:
+            if "ORA-00942" not in str(e):
+                raise
+
+
 # 乱序写入：刻意打乱插入顺序（row-3, row-1, row-5, row-2, row-4），
 # 验证无论插入顺序如何，查询结果都与顺序写入一致。
 _DISORDER_IDX = [2, 0, 4, 1, 3]
 
 
 class TestFq14ResultParity(ParityTestBase):
-    """Result-parity: local TDengine == MySQL == PostgreSQL == InfluxDB.
+    """Result-parity: local TDengine == MySQL == PostgreSQL == InfluxDB == Oracle.
 
-    Every test executes the same logical query against all four sources
+    Every test executes the same logical query against all five sources
     and asserts row-by-row equality.  A source is only omitted when its
     SQL dialect physically lacks the required syntax.
     """
@@ -1234,6 +1467,7 @@ class TestFq14ResultParity(ParityTestBase):
     _SRC_PG     = "fq_parity_src_p"
     _SRC_INFLUX = "fq_parity_src_i"
     _SRC_SQLSERVER = "fq_parity_src_s"
+    _SRC_ORACLE = "fq_parity_src_o"
     _class_setup_done = False
     _FLOAT_TOL = _FLOAT_TOL
     _BASELINE_FILE = os.path.join(os.path.dirname(__file__), "ans", "test_fq_14_result_parity.txt")
@@ -1243,6 +1477,9 @@ class TestFq14ResultParity(ParityTestBase):
     )
     _PARITY_CASES = _PARITY_CASES
     _PARITY_TZ = _FIXED_TZ  # Pin epoch→datetime to UTC (matches ALTER LOCAL below)
+    # Capability clauses demoted to reach the zero-pushdown baseline:
+    # extCapShouldUseBaseline() is true only when all six are disabled.
+    _COARSE_CLAUSES = ("FILTER", "PROJECTION", "AGG", "ORDER", "LIMIT", "JOIN")
 
     @property
     def _local_tbl(self):
@@ -1254,6 +1491,9 @@ class TestFq14ResultParity(ParityTestBase):
             ("PG",        f"{self._SRC_PG}.parity_t"),
             ("InfluxDB",  f"{self._SRC_INFLUX}.parity_t"),
             ("SQLServer", f"{self._SRC_SQLSERVER}.parity_t"),
+            # Oracle folds unquoted identifiers to upper case, so the lowercase
+            # reference resolves to PARITY14_T.
+            ("Oracle",    f"{self._SRC_ORACLE}.parity14_t"),
         ]
 
     def _join_ts_source_map(self, *, local_ref=False):
@@ -1267,6 +1507,7 @@ class TestFq14ResultParity(ParityTestBase):
                 "pg": local_us_tbl,
                 "influx": local_us_tbl,
                 "sqlserver": local_us_tbl,
+                "oracle": local_us_tbl,
             }
         return {
             "local": local_tbl,
@@ -1275,20 +1516,24 @@ class TestFq14ResultParity(ParityTestBase):
             "pg": f"{self._SRC_PG}.parity_t",
             "influx": f"{self._SRC_INFLUX}.parity_t",
             "sqlserver": f"{self._SRC_SQLSERVER}.parity_t",
+            "oracle": f"{self._SRC_ORACLE}.parity14_t",
         }
 
     def _run_join_ts_external_sort_matrix(self):
         failed = []
         # The matrix was authored for the MySQL/PG pair.  Execute it once per
-        # external pair so SQL Server is covered with the identical sort /
-        # TIMETRUNCATE shapes: first with SQL Server substituting the MySQL
-        # leg, then with SQL Server substituting the PG leg.  Cases that do
-        # not use the leg being substituted are skipped (the other pass
-        # covers them).
+        # external pair so every same-precision provider is covered with the
+        # identical sort / TIMETRUNCATE shapes: substitute SQL Server and
+        # Oracle for the MySQL leg, and SQL Server / Oracle for the PG leg.
+        # Cases that do not use the leg being substituted are skipped (the
+        # other pass covers them).
         leg_bindings = [
             ("mysql/pg", {}),
             ("sqlserver/pg", {"mysql": "sqlserver"}),
             ("mysql/sqlserver", {"pg": "sqlserver"}),
+            ("oracle/pg", {"mysql": "oracle"}),
+            ("mysql/oracle", {"pg": "oracle"}),
+            ("oracle/sqlserver", {"mysql": "oracle", "pg": "sqlserver"}),
         ]
         total = 0
         for pair_label, remap in leg_bindings:
@@ -1342,6 +1587,9 @@ class TestFq14ResultParity(ParityTestBase):
         tdSql.executes(_LOCAL_SETUP)
         tdSql.executes(_LOCAL_US_SETUP)
         tdSql.execute(f"USE {_LOCAL_DB}")
+        # Local mirror of the Oracle semantics fixture (empty string -> NULL,
+        # DATE second precision, NUMBER(10,2) -> DECIMAL(10,2)).
+        tdSql.executes(_LOCAL_SEM_SETUP)
 
         ExtSrcEnv.mysql_create_db_cfg(self._mysql_cfg(), _MYSQL_DB)
         ExtSrcEnv.mysql_exec_cfg(self._mysql_cfg(), _MYSQL_DB, _MYSQL_SETUP)
@@ -1370,11 +1618,29 @@ class TestFq14ResultParity(ParityTestBase):
         self._cleanup_src(self._SRC_SQLSERVER)
         self._mk_sqlserver_real(self._SRC_SQLSERVER, database=_SQLSERVER_DB, schema="dbo")
 
+        # Oracle has no per-test database (DS 5.3.2): the login schema is the
+        # namespace, so the fixtures are rebuilt in place.  Every statement is
+        # idempotent against a first run that has no objects yet.
+        oracle_cfg = self._oracle_cfg()
+        _oracle_drop_fixture(oracle_cfg)
+        ExtSrcEnv.oracle_exec_cfg(
+            oracle_cfg,
+            _ORACLE_SETUP + _ORACLE_SEM_SETUP + _ORACLE_VIEWS + _ORACLE_BULK_SETUP,
+        )
+        self._cleanup_src(self._SRC_ORACLE)
+        self._mk_oracle_real(self._SRC_ORACLE, database=oracle_cfg.service,
+                             schema=ExtSrcEnv.ORACLE_USER.upper())
+
         TestFq14ResultParity._class_setup_done = True
 
     def teardown_class(self):
         tmp = TestFq14ResultParity()
-        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX, tmp._SRC_SQLSERVER)
+        tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX,
+                         tmp._SRC_SQLSERVER, tmp._SRC_ORACLE)
+        try:
+            _oracle_drop_fixture(tmp._oracle_cfg())
+        except Exception:
+            pass
         try:
             ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB)
         except Exception:
@@ -1745,7 +2011,10 @@ class TestFq14ResultParity(ParityTestBase):
         Mapped_Val as mapped_val. PostgreSQL and InfluxDB preserve the
         original case, so unquoted mapped_val is rejected and quoted
         Mapped_Val is required for metadata and binding. SQL Server keeps the
-        stored case but matches names case-insensitively, like MySQL.
+        stored case but matches names case-insensitively, like MySQL. Oracle
+        folds the unquoted declaration to upper case, so the stored column is
+        MAPPED_VAL; an unquoted or all-lowercase reference folds onto it, while
+        a quoted reference is matched exactly (DS 5.3.6 R1).
 
         Catalog: - Query:FederatedResultParity
 
@@ -1756,6 +2025,7 @@ class TestFq14ResultParity(ParityTestBase):
         History:
             - 2026-09-01 xsren Mixed-case identifier parity for MySQL/PG/InfluxDB
             - 2026-10-16 wpan Add the SQL Server identifier leg
+            - 2026-10-26 wpan Add the Oracle identifier-folding leg
         """
         tables = dict(self._ext_sources())
 
@@ -1798,6 +2068,30 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 105)
 
+        # Oracle folds the unquoted column declaration to upper case (DS
+        # 5.3.6 R1): the metadata reports MAPPED_VAL.  An unquoted reference
+        # is lower-cased by TDengine and then folds onto it, and the quoted
+        # all-lower-case form is indistinguishable from an unquoted one, so
+        # all of those spellings resolve.
+        tdSql.query(f"DESC {tables['Oracle']}")
+        oracle_fields = [str(row[0]) for row in tdSql.queryResult]
+        assert "MAPPED_VAL" in oracle_fields and "Mapped_Val" not in oracle_fields
+        for name in ("MAPPED_VAL", "mapped_val", "Mapped_Val",
+                     "`MAPPED_VAL`", "`mapped_val`"):
+            tdSql.query(
+                f"SELECT id, {name} FROM {tables['Oracle']} "
+                f"WHERE {name} > 103 ORDER BY id")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, 4)
+            tdSql.checkData(0, 1, 104)
+            tdSql.checkData(1, 0, 5)
+            tdSql.checkData(1, 1, 105)
+
+        # A quoted reference keeps its spelling and is matched exactly, so the
+        # quoted mixed-case form names a column that does not exist: the
+        # table declares MAPPED_VAL, not "Mapped_Val".
+        tdSql.error(f"SELECT id, `Mapped_Val` FROM {tables['Oracle']}")
+
     def test_fq_join_timetruncate_external_sort_matrix(self):
         """JOIN TIMETRUNCATE sort compatibility with explicit external sources.
 
@@ -1820,6 +2114,449 @@ class TestFq14ResultParity(ParityTestBase):
             - 2026-07-20 Codex Add explicit external-source JOIN TIMETRUNCATE sort matrix
         """
         self._run_join_ts_external_sort_matrix()
+
+    # ── FQOR-LOCAL dedicated Oracle coverage ─────────────────────────────
+    @property
+    def _oracle_tbl(self):
+        return f"{self._SRC_ORACLE}.parity14_t"
+
+    @property
+    def _oracle_sem_tbl(self):
+        return f"{self._SRC_ORACLE}.{_ORACLE_SEM_TABLE.lower()}"
+
+    @property
+    def _oracle_bulk_tbl(self):
+        return f"{self._SRC_ORACLE}.{_ORACLE_BULK_TABLE.lower()}"
+
+    @property
+    def _oracle_view_sum(self):
+        return f"{self._SRC_ORACLE}.{_ORACLE_VIEW_SUM.lower()}"
+
+    @property
+    def _oracle_view_filt(self):
+        return f"{self._SRC_ORACLE}.{_ORACLE_VIEW_FILT.lower()}"
+
+    @property
+    def _local_sem_tbl(self):
+        return f"{_LOCAL_DB}.{_LOCAL_SEM_TABLE}"
+
+    @staticmethod
+    def _plan_text(rows):
+        return [str(cell) for row in (rows or []) for cell in row if cell is not None]
+
+    def _explain(self, sql):
+        """Return ``(plan_lines, remote_lines)`` for one EXPLAIN VERBOSE."""
+        tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+        plan_lines = self._plan_text(tdSql.queryResult)
+        remote_lines = [line for line in plan_lines if "remote sql:" in line.lower()]
+        return plan_lines, remote_lines
+
+    @staticmethod
+    def _set_clause_pushdown(src, clause, enable):
+        """Force one clause local (or restore it) for an external source.
+
+        The demotion is catalog state, so callers restore it in a ``finally``
+        block.
+        """
+        action = "ENABLE" if enable else "DISABLE"
+        tdSql.execute(f"alter external source {src} {action} clause '{clause}'")
+
+    def test_fq_oracle_projection_pruning(self):
+        """Oracle basic query and column pruning (FQOR-LOCAL-001).
+
+        1. A partial projection returns the same rows as the local mirror.
+        2. The remote SQL carries only the projected columns.
+        3. A full-column projection matches the local mirror column by column.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        src = self._oracle_tbl
+        local = self._local_tbl
+
+        partial_sql = f"SELECT id, val FROM {src} ORDER BY time"
+        ref_sql = f"SELECT id, val FROM {local} ORDER BY time"
+        ref = self._get_rows(ref_sql)
+        rows = self._get_rows(partial_sql)
+        self._compare_rows(ref, rows, ref_sql, partial_sql, "Oracle", set())
+
+        _, remote_lines = self._explain(partial_sql)
+        assert len(remote_lines) == 1, (
+            f"[oracle-prune] expected one remote scan: {remote_lines!r}"
+        )
+        remote_sql = " ".join(remote_lines).lower()
+        assert " select " in remote_sql and " from " in remote_sql, (
+            f"[oracle-prune] malformed Remote SQL: {remote_sql}"
+        )
+        for pruned in ("label", "score", "wkt_poly", "wkt_point", "ts_str"):
+            assert pruned not in remote_sql, (
+                f"[oracle-prune] unprojected column '{pruned}' reached the remote "
+                f"scan: {remote_sql}"
+            )
+
+        # The local mirror declares the mixed-case column quoted, while the
+        # Oracle source reports it folded to MAPPED_VAL.  A quoted reference is
+        # matched exactly (DS 5.3.6 R1), so each side keeps its own spelling:
+        # the local side reads `Mapped_Val`, the Oracle side MAPPED_VAL.
+        local_cols = ("time, id, val, `Mapped_Val`, score, label, nullable_val, lat,"
+                      " lon, wkt_point, wkt_poly, ts_str")
+        remote_cols = ("time, id, val, MAPPED_VAL, score, label, nullable_val, lat,"
+                       " lon, wkt_point, wkt_poly, ts_str")
+        full_sql = f"SELECT {remote_cols} FROM {src} ORDER BY time"
+        ref_full_sql = f"SELECT {local_cols} FROM {local} ORDER BY time"
+        ref_full = self._get_rows(ref_full_sql)
+        rows_full = self._get_rows(full_sql)
+        # score / lat / lon are columns 4 / 7 / 8 in this projection (Mapped_Val
+        # is the fourth column and shifts them by one against the sort-* case).
+        self._compare_rows(ref_full, rows_full, ref_full_sql, full_sql, "Oracle",
+                           {4, 7, 8})
+
+    def test_fq_oracle_zero_pushdown(self):
+        """Oracle zero-pushdown plan shape (FQOR-LOCAL-009 and FQOR-LOCAL-016).
+
+        With FILTER / PROJECTION / AGG / ORDER / LIMIT / JOIN all demoted the
+        planner builds the baseline plan, which is what "every pushdown flag
+        is false" means observably: EXPLAIN does not print the flags
+        themselves, so the assertion is made on their consequence.
+
+        1. Single-table query: one Remote SQL line, no WHERE / JOIN / GROUP BY.
+        2. Local-table JOIN: two Remote SQL lines, no JOIN in either, and a
+           local Filter node.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        src = self._oracle_tbl
+        single_sql = f"SELECT id, val FROM {src} WHERE val > 20"
+        join_sql = (f"SELECT a.id, b.val FROM {src} a INNER JOIN {src} b "
+                    f"ON a.id = b.id WHERE a.val > 20")
+        try:
+            for clause in self._COARSE_CLAUSES:
+                self._set_clause_pushdown(self._SRC_ORACLE, clause, False)
+
+            plan_lines, remote_lines = self._explain(single_sql)
+            assert len(remote_lines) == 1, (
+                f"[oracle-zero] expected one baseline remote scan: {remote_lines!r}"
+            )
+            remote_sql = " ".join(remote_lines).lower()
+            for clause in (" where ", " join ", " group by ", " having "):
+                assert clause not in remote_sql, (
+                    f"[oracle-zero] '{clause.strip()}' leaked into the baseline "
+                    f"Remote SQL: {remote_sql}"
+                )
+            local_plan = "\n".join(
+                line for line in plan_lines if "remote sql:" not in line.lower()
+            )
+            assert "filter" in local_plan.lower(), (
+                f"[oracle-zero] predicate is not a local Filter node: {local_plan}"
+            )
+
+            # A user-forced demotion is client-side catalog state; a catalog
+            # refresh that lands between the two plans silently reinstates the
+            # server capability (observed as a JOIN pushdown flake on CI).
+            # Re-assert immediately before the second plan so the assertion
+            # measures the demoted plan rather than the refresh timing.
+            for clause in self._COARSE_CLAUSES:
+                self._set_clause_pushdown(self._SRC_ORACLE, clause, False)
+
+            plan_lines, remote_lines = self._explain(join_sql)
+            assert len(remote_lines) == 2, (
+                f"[oracle-zero] expected two baseline remote scans for the JOIN: "
+                f"{remote_lines!r}"
+            )
+            for line in remote_lines:
+                assert " join " not in line.lower(), (
+                    f"[oracle-zero] JOIN leaked into a baseline remote scan: {line}"
+                )
+            local_plan = "\n".join(
+                line for line in plan_lines if "remote sql:" not in line.lower()
+            )
+            assert "filter" in local_plan.lower(), (
+                f"[oracle-zero] JOIN predicate is not a local Filter node: {local_plan}"
+            )
+
+            # The baseline plan must still return the same rows as the local
+            # mirror (FQOR-LOCAL-010 path 3).
+            ref_sql = f"SELECT id, val FROM {self._local_tbl} WHERE val > 20"
+            ref = self._get_rows(ref_sql)
+            rows = self._get_rows(single_sql)
+            self._compare_rows(ref, rows, ref_sql, single_sql, "Oracle", set())
+        finally:
+            for clause in self._COARSE_CLAUSES:
+                self._set_clause_pushdown(self._SRC_ORACLE, clause, True)
+
+    def test_fq_oracle_three_paths(self):
+        """Oracle pushdown / local mirror / forced-local agreement (FQOR-LOCAL-010).
+
+        The same SQL runs on the Oracle external table, on the local TDengine
+        mirror and on the external table with every capability clause demoted;
+        all three result sets must agree row by row.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        src = self._oracle_tbl
+        local = self._local_tbl
+        cases = [
+            ("filter+projection",
+             "SELECT id, val, label FROM {tbl} WHERE val >= 20 ORDER BY val, id",
+             set()),
+            ("aggregate",
+             "SELECT COUNT(*), SUM(val), AVG(val) FROM {tbl} WHERE val > 20",
+             {2}),
+        ]
+        for label, template, float_cols in cases:
+            ref_sql = template.format(tbl=local)
+            ref = self._get_rows(ref_sql)
+            pushed_sql = template.format(tbl=src)
+            pushed = self._get_rows(pushed_sql)
+            self._compare_rows(ref, pushed, ref_sql, pushed_sql,
+                               f"Oracle-push[{label}]", float_cols)
+            try:
+                for clause in self._COARSE_CLAUSES:
+                    self._set_clause_pushdown(self._SRC_ORACLE, clause, False)
+                baseline = self._get_rows(pushed_sql)
+            finally:
+                for clause in self._COARSE_CLAUSES:
+                    self._set_clause_pushdown(self._SRC_ORACLE, clause, True)
+            self._compare_rows(ref, baseline, ref_sql, pushed_sql,
+                               f"Oracle-local[{label}]", float_cols)
+
+    def test_fq_oracle_repeat_execution(self):
+        """Oracle repeated execution returns identical results (FQOR-LOCAL-011).
+
+        The same aggregate query runs ten times; every result must equal the
+        first one and the local mirror.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        src = self._oracle_tbl
+        template = ("SELECT label, COUNT(*) AS cnt, SUM(val) AS sv, AVG(val) AS av "
+                    "FROM {tbl} WHERE val > 0 GROUP BY label ORDER BY label")
+        ref_sql = template.format(tbl=self._local_tbl)
+        ref = self._get_rows(ref_sql)
+        sql = template.format(tbl=src)
+        first = self._get_rows(sql)
+        self._compare_rows(ref, first, ref_sql, sql, "Oracle", {3})
+        for i in range(1, 10):
+            rows = self._get_rows(sql)
+            assert rows == first, (
+                f"[oracle-repeat] execution {i + 1} differs from the first:\n"
+                f"  first={first!r}\n  now  ={rows!r}"
+            )
+
+    def test_fq_oracle_views(self):
+        """Oracle view results match the base-table queries (FQOR-LOCAL-012).
+
+        1. An aggregate view versus the equivalent GROUP BY query.
+        2. A filtering view versus the equivalent WHERE query.
+
+        A materialized view is not covered: the provisioned test account only
+        holds CREATE SESSION / CREATE TABLE / CREATE VIEW / CREATE SEQUENCE /
+        UNLIMITED TABLESPACE (ensure_ext_env.sh), so CREATE MATERIALIZED VIEW
+        is not permitted.  No skip is registered for it; the plain view legs
+        exercise the same remote metadata path (ALL_OBJECTS has no PK).
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        base = self._oracle_tbl
+        cases = [
+            (f"SELECT label, cnt, sv FROM {self._oracle_view_sum} ORDER BY label",
+             f"SELECT label, COUNT(*) AS cnt, SUM(val) AS sv FROM {base} "
+             f"GROUP BY label ORDER BY label"),
+            (f"SELECT id, val FROM {self._oracle_view_filt} ORDER BY id",
+             f"SELECT id, val FROM {base} WHERE val > 20 ORDER BY id"),
+        ]
+        for view_sql, base_sql in cases:
+            expected = self._get_rows(base_sql)
+            rows = self._get_rows(view_sql)
+            self._compare_rows(expected, rows, base_sql, view_sql, "Oracle-view",
+                               set())
+
+    def test_fq_oracle_large_result_set(self):
+        """Oracle large result set is neither duplicated nor truncated (FQOR-LOCAL-013).
+
+        The fixture holds 5000 rows (K = 1..5000, V = 2*K).  Both the row-by-row
+        fetch and a pushed aggregate are checked against explicit expected
+        values.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        src = self._oracle_bulk_tbl
+        rows = self._get_rows(f"SELECT k, v FROM {src} ORDER BY k")
+        assert len(rows) == _ORACLE_BULK_ROWS, (
+            f"[oracle-bulk] expected {_ORACLE_BULK_ROWS} rows, got {len(rows)}"
+        )
+        actual = [tuple(int(x) for x in row) for row in rows]
+        expected = [(i, 2 * i) for i in range(1, _ORACLE_BULK_ROWS + 1)]
+        assert actual == expected, (
+            f"[oracle-bulk] row set differs: first mismatch at "
+            f"{next((i for i, (a, e) in enumerate(zip(actual, expected)) if a != e), -1)}"
+        )
+        assert len({k for k, _ in actual}) == _ORACLE_BULK_ROWS, (
+            "[oracle-bulk] duplicate K values in the result"
+        )
+
+        agg = self._get_rows(
+            f"SELECT COUNT(*), MIN(k), MAX(k), SUM(v) FROM {src}")
+        expected_agg = (len(expected), expected[0][0], expected[-1][0],
+                        sum(v for _, v in expected))
+        assert tuple(int(x) for x in agg[0]) == expected_agg, (
+            f"[oracle-bulk] aggregate mismatch: {agg[0]!r} != {expected_agg!r}"
+        )
+
+    def test_fq_oracle_type_semantics(self):
+        """Oracle storage semantics match the local mirror.
+
+        1. Metadata: DATE -> TIMESTAMP, NUMBER(10,2) -> DECIMAL(10,2),
+           NUMBER(1,0) stays numeric (never BOOL), NVARCHAR2 -> NCHAR.
+        2. Values: DECIMAL compares as an exact decimal string, DATE keeps
+           second precision, and the numeric value 2 survives NUMBER(1,0).
+        3. An empty string is stored as NULL and reads back as NULL.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        src = self._oracle_sem_tbl
+        tdSql.query(f"DESC {src}")
+        desc = {str(row[0]).upper(): str(row[1]).upper()
+                for row in tdSql.queryResult}
+        assert desc["D_DATE"].startswith("TIMESTAMP"), desc
+        assert desc["D_DEC"].startswith("DECIMAL(10") and "2" in desc["D_DEC"], desc
+        assert "BOOL" not in desc["D_NUM1"], desc
+        assert desc["D_NUM1"] in ("TINYINT", "SMALLINT", "INT", "BIGINT") or \
+            desc["D_NUM1"].startswith("DECIMAL"), desc
+        assert desc["D_STR"].startswith("NCHAR"), desc
+
+        sql = f"SELECT d_date, d_dec, d_num1, d_str FROM {src} ORDER BY d_date"
+        ref_sql = (f"SELECT d_date, d_dec, d_num1, d_str FROM {self._local_sem_tbl} "
+                   f"ORDER BY d_date")
+        ref = self._get_rows(ref_sql)
+        rows = self._get_rows(sql)
+        self._compare_rows(ref, rows, ref_sql, sql, "Oracle-sem", set())
+        assert [str(row[1]) for row in rows] == [r[1] for r in _ORACLE_SEM_ROWS], (
+            f"[oracle-sem] DECIMAL values are not exact: {[str(r[1]) for r in rows]!r}"
+        )
+        assert [int(row[2]) for row in rows] == [r[2] for r in _ORACLE_SEM_ROWS], (
+            f"[oracle-sem] NUMBER(1,0) values changed: {[r[2] for r in rows]!r}"
+        )
+        # Row 2 was inserted with '' and must read back as NULL, exactly like
+        # the local mirror row that stores NULL.
+        assert rows[1][3] is None and ref[1][3] is None, (
+            f"[oracle-sem] empty string did not become NULL: oracle={rows[1][3]!r} "
+            f"local={ref[1][3]!r}"
+        )
+
+    def test_fq_oracle_cross_source_join(self):
+        """Oracle JOINs every other source and the local table (FQOR-LOCAL-006).
+
+        Each leg joins the Oracle table with one other source on the timestamp
+        column; the reference is the same join over the local microsecond
+        table.  A three-way Oracle x MySQL x PostgreSQL join and an aggregate
+        over it complete the matrix.
+
+        Catalog: - Query:FederatedResultParity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 wpan Add the Oracle parity leg
+        """
+        oracle = self._oracle_tbl
+        local_us = f"{_LOCAL_US_DB}.{_LOCAL_TBL}"
+        mysql = f"{self._SRC_MYSQL}.parity_t"
+        pg = f"{self._SRC_PG}.parity_t"
+        others = [
+            ("MySQL", mysql),
+            ("PG", pg),
+            ("InfluxDB", f"{self._SRC_INFLUX}.parity_t"),
+            ("SQLServer", f"{self._SRC_SQLSERVER}.parity_t"),
+            ("local", local_us),
+        ]
+        ref_sql = (f"SELECT a.id, b.val FROM {local_us} a JOIN {local_us} b "
+                   f"ON a.time = b.time ORDER BY a.id")
+        ref = self._get_rows(ref_sql)
+        for label, other in others:
+            sql = (f"SELECT a.id, b.val FROM {oracle} a JOIN {other} b "
+                   f"ON a.time = b.time ORDER BY a.id")
+            rows = self._get_rows(sql)
+            self._compare_rows(ref, rows, ref_sql, sql, f"Oracle×{label}", set())
+
+        three_ref_sql = (
+            f"SELECT COUNT(*) AS cnt, SUM(a.val + b.val + c.val) AS sv "
+            f"FROM {local_us} a JOIN {local_us} b ON a.time = b.time "
+            f"JOIN {local_us} c ON b.time = c.time")
+        three_sql = (
+            f"SELECT COUNT(*) AS cnt, SUM(a.val + b.val + c.val) AS sv "
+            f"FROM {oracle} a JOIN {mysql} b ON a.time = b.time "
+            f"JOIN {pg} c ON b.time = c.time")
+        three_ref = self._get_rows(three_ref_sql)
+        three = self._get_rows(three_sql)
+        self._compare_rows(three_ref, three, three_ref_sql, three_sql,
+                           "Oracle×MySQL×PG", set())
 
     def _run_ext_op_with_recover(self, op_name, fn):
         """Run one external-source operation — no retry, failures surface immediately."""
@@ -1866,6 +2603,17 @@ class TestFq14ResultParity(ParityTestBase):
         self._run_ext_op_with_recover(
             "sqlserver rewrite",
             lambda: ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, ss_sqls),
+        )
+
+        # --- Oracle ---
+        oracle_sqls = [
+            f'DELETE FROM "{_ORACLE_TABLE}"',
+            _oracle_insert_all(_ORACLE_TABLE, mapped_rows_dt),
+            "COMMIT",
+        ]
+        self._run_ext_op_with_recover(
+            "oracle rewrite",
+            lambda: ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), oracle_sqls),
         )
 
         # --- InfluxDB (no DELETE; drop + recreate bucket) ---
