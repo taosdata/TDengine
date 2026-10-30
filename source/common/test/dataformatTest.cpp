@@ -19,6 +19,7 @@
 #include <chrono>
 #include <iostream>
 #include <random>
+#include <utility>
 #include <vector>
 
 #include <taoserror.h>
@@ -695,6 +696,31 @@ TEST(testCase, RawBlockNcharValidation) {
   }
 }
 
+TEST(BlockDataVariableValueValidationTest, ValidatesJsonScalarLayouts) {
+  size_t valueLen = 0;
+
+  char nullValue[] = {TSDB_DATA_TYPE_NULL};
+  EXPECT_TRUE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, nullValue, sizeof(nullValue), &valueLen));
+  EXPECT_EQ(valueLen, sizeof(nullValue));
+  EXPECT_FALSE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, nullValue, 0, &valueLen));
+
+  char boolValue[] = {TSDB_DATA_TYPE_BOOL, 1};
+  EXPECT_TRUE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, boolValue, sizeof(boolValue), &valueLen));
+  EXPECT_EQ(valueLen, sizeof(boolValue));
+  EXPECT_FALSE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, boolValue, sizeof(boolValue) - 1, &valueLen));
+
+  char doubleValue[CHAR_BYTES + DOUBLE_BYTES] = {TSDB_DATA_TYPE_DOUBLE};
+  EXPECT_TRUE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, doubleValue, sizeof(doubleValue), &valueLen));
+  EXPECT_EQ(valueLen, sizeof(doubleValue));
+  EXPECT_FALSE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, doubleValue, sizeof(doubleValue) - 1, &valueLen));
+
+  char ncharValue[CHAR_BYTES + VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE] = {TSDB_DATA_TYPE_NCHAR};
+  varDataSetLen(ncharValue + CHAR_BYTES, TSDB_NCHAR_SIZE);
+  EXPECT_TRUE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, ncharValue, sizeof(ncharValue), &valueLen));
+  EXPECT_EQ(valueLen, sizeof(ncharValue));
+  EXPECT_FALSE(blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, ncharValue, sizeof(ncharValue) - 1, &valueLen));
+}
+
 class BoundedBlockDecoderTest : public ::testing::Test {
  protected:
   enum { kRows = 3, kColumns = 3 };
@@ -762,6 +788,24 @@ class BoundedBlockDecoderTest : public ::testing::Test {
     result->resize(length);
   }
 
+  void encodeVersion(int32_t version, bool internal, std::vector<char> *result) {
+    result->resize(blockGetEncodeSize(source) + 64);
+    int32_t length = internal ? blockEncodeInternal(source, result->data(), result->size(), kColumns)
+                              : blockEncode(source, result->data(), result->size(), kColumns);
+    ASSERT_GT(length, 0);
+    result->resize(length);
+    memcpy(result->data(), &version, sizeof(version));
+    if (version == BLOCK_VERSION_2) {
+      for (int32_t col = 0; col < kColumns; ++col) {
+        size_t offset = kHeaderSize + kColumns * kSchemaSize + col * sizeof(int32_t);
+        int32_t columnLength = 0;
+        memcpy(&columnLength, result->data() + offset, sizeof(columnLength));
+        columnLength = ntohl(columnLength);
+        memcpy(result->data() + offset, &columnLength, sizeof(columnLength));
+      }
+    }
+  }
+
   SSDataBlock      *source = nullptr;
   SSDataBlock      *decoded = nullptr;
   SSDataBlock      *fourRowSource = nullptr;
@@ -811,6 +855,72 @@ TEST_F(BoundedBlockDecoderTest, RejectsTruncatedMalformedSchemaAndColumnLength) 
          sizeof(columnLength));
   EXPECT_EQ(blockDecodeBounded(decoded, malformedColumnLength.data(), malformedColumnLength.size(), nullptr),
             TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(BoundedBlockDecoderTest, DecodesBothVersionsThroughBoundedEntrypoints) {
+  const char *values[kRows] = {"one", "two", "six"};
+  for (int32_t version : {BLOCK_VERSION_1, BLOCK_VERSION_2}) {
+    for (bool internal : {false, true}) {
+      SCOPED_TRACE(::testing::Message() << "version=" << version << ", internal=" << internal);
+      std::vector<char> block;
+      ASSERT_NO_FATAL_FAILURE(encodeVersion(version, internal, &block));
+      const char *end = nullptr;
+      int32_t code = internal ? blockDecodeInternalBounded(decoded, block.data(), block.size(), &end)
+                              : blockDecodeBounded(decoded, block.data(), block.size(), &end);
+      ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+      EXPECT_EQ(end, block.data() + block.size());
+      ASSERT_EQ(decoded->info.rows, kRows);
+      auto *timestamp = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 0));
+      auto *fixed = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1));
+      auto *variable = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2));
+      for (int32_t row = 0; row < kRows; ++row) {
+        EXPECT_EQ(*reinterpret_cast<TSKEY *>(colDataGetData(timestamp, row)), 10 + row);
+        EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(fixed, row)), 100 + row);
+        const char *value = colDataGetData(variable, row);
+        ASSERT_EQ(varDataLen(value), strlen(values[row]));
+        EXPECT_EQ(memcmp(varDataVal(value), values[row], varDataLen(value)), 0);
+      }
+    }
+  }
+}
+
+TEST_F(BoundedBlockDecoderTest, SelectsBothVersionsWithTimestampAfterFixedColumn) {
+  std::swap(*column(0), *column(1));
+  for (int32_t version : {BLOCK_VERSION_1, BLOCK_VERSION_2}) {
+    SCOPED_TRACE(version);
+    std::vector<char> block;
+    ASSERT_NO_FATAL_FAILURE(encodeVersion(version, false, &block));
+    const char *end = nullptr;
+    ASSERT_EQ(blockSpecialDecodeLaterPartBounded(decoded, block.data(), block.size(), 1, 11, 11, &end),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(end, block.data() + block.size());
+    ASSERT_EQ(decoded->info.rows, 1);
+    auto *fixed = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 0));
+    auto *timestamp = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 1));
+    auto *variable = static_cast<SColumnInfoData *>(taosArrayGet(decoded->pDataBlock, 2));
+    EXPECT_EQ(*reinterpret_cast<int32_t *>(colDataGetData(fixed, 0)), 101);
+    EXPECT_EQ(*reinterpret_cast<TSKEY *>(colDataGetData(timestamp, 0)), 11);
+    const char *value = colDataGetData(variable, 0);
+    ASSERT_EQ(varDataLen(value), 3);
+    EXPECT_EQ(memcmp(varDataVal(value), "two", 3), 0);
+  }
+}
+
+TEST_F(BoundedBlockDecoderTest, RejectsMalformedVersionTwoColumnLengths) {
+  for (bool internal : {false, true}) {
+    std::vector<char> block;
+    ASSERT_NO_FATAL_FAILURE(encodeVersion(BLOCK_VERSION_2, internal, &block));
+    int32_t columnLength = INT32_MAX;
+    memcpy(block.data() + kHeaderSize + kColumns * kSchemaSize + sizeof(int32_t), &columnLength,
+           sizeof(columnLength));
+    int32_t code = internal ? blockDecodeInternalBounded(decoded, block.data(), block.size(), nullptr)
+                            : blockDecodeBounded(decoded, block.data(), block.size(), nullptr);
+    EXPECT_EQ(code, TSDB_CODE_INVALID_MSG);
+    if (!internal) {
+      EXPECT_EQ(blockSpecialDecodeLaterPartBounded(decoded, block.data(), block.size(), 0, 11, 11, nullptr),
+                TSDB_CODE_INVALID_MSG);
+    }
+  }
 }
 
 TEST_F(BoundedBlockDecoderTest, AcceptsProductionReassignedVariableOffsets) {

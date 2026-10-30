@@ -28,7 +28,12 @@ TARGET_LINK_LIBRARIES(
         clientTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function totp
 )
-
+# Keep service-independent result decoding regressions runnable without the
+# live-server cases in clientTest.
+add_test(
+        NAME clientResultBlockTest
+        COMMAND clientTest --gtest_filter=ResultBlockValidationTest.*:ClientDeleteReplayTest.*
+)
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
 DEP_ext_gtest(connectOptionsTest)
 TARGET_LINK_LIBRARIES(
