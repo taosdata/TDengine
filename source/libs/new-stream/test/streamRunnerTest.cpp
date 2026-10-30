@@ -840,7 +840,10 @@ bool appendRunnerGroupCalcInfo(SSTriggerCalcRequest *request, int64_t gid) {
   if (info.pParams == nullptr) return false;
 
   const SSTriggerCalcParam noContext = {.notifyType = STRIGGER_EVENT_WINDOW_NONE};
-  const SSTriggerCalcParam target = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam target = {};
+  target.wstart = 100;
+  target.wend = 199;
+  target.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   if (taosArrayPush(info.pParams, &noContext) == nullptr || taosArrayPush(info.pParams, &noContext) == nullptr ||
       taosArrayPush(info.pParams, &target) == nullptr) {
     taosArrayDestroyEx(info.pParams, tDestroySSTriggerCalcParam);
@@ -1175,7 +1178,10 @@ void addRunnerGroupCalcInfo(SSTriggerCalcRequest *request, int64_t gid) {
   SSTriggerGroupCalcInfo info = {};
   info.pParams = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(info.pParams, nullptr);
-  const SSTriggerCalcParam window = {.wstart = gid, .wend = gid + 99, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = gid;
+  window.wend = gid + 99;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(info.pParams, &window), nullptr);
   ASSERT_EQ(tSimpleHashPut(request->pGroupCalcInfos, &gid, sizeof(gid), &info, sizeof(info)), TSDB_CODE_SUCCESS);
 }
@@ -1295,7 +1301,9 @@ class StreamRunnerTest : public ::testing::Test {
     tstrncpy(pExec->tbname, "out_zero_window", sizeof(pExec->tbname));
     pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
     ASSERT_NE(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, nullptr);
-    SSTriggerCalcParam staleWindow = {.wstart = 1000, .wend = 2000};
+    SSTriggerCalcParam staleWindow = {};
+    staleWindow.wstart = 1000;
+    staleWindow.wend = 2000;
     ASSERT_NE(taosArrayPush(pExec->runtimeInfo.funcInfo.pStreamPesudoFuncVals, &staleWindow), nullptr);
 
     task_.topTask = true;
@@ -1498,7 +1506,9 @@ class StreamRunnerTest : public ::testing::Test {
     request_.params = taosArrayInit(count, sizeof(SSTriggerCalcParam));
     ASSERT_NE(request_.params, nullptr);
     for (int32_t i = 0; i < count; ++i) {
-      SSTriggerCalcParam param = {.wstart = i * 1000, .wend = (i + 1) * 1000};
+      SSTriggerCalcParam param = {};
+      param.wstart = i * 1000;
+      param.wend = (i + 1) * 1000;
       param.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
       ASSERT_NE(taosArrayPush(request_.params, &param), nullptr);
     }
@@ -5697,7 +5707,10 @@ TEST_F(StreamRunnerTest, AncestorContextRejectsMissingNestedMapping) {
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
 
@@ -5733,7 +5746,10 @@ TEST_F(StreamRunnerTest, AncestorContextRejectsMalformedLineageBeforeExecution) 
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
   request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
@@ -5755,8 +5771,14 @@ TEST_F(StreamRunnerTest, AncestorContextAcceptsMixedBatchWindowMapping) {
   request_.createTable = 0;
   request_.params = taosArrayInit(2, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam resume = {.idlestart = 100, .idleend = 200, .notifyType = STRIGGER_EVENT_WINDOW_NONE};
-  const SSTriggerCalcParam window = {.wstart = 201, .wend = 299, .notifyType = STRIGGER_EVENT_WINDOW_NONE};
+  SSTriggerCalcParam resume = {};
+  resume.idlestart = 100;
+  resume.idleend = 200;
+  resume.notifyType = STRIGGER_EVENT_WINDOW_NONE;
+  SSTriggerCalcParam window = {};
+  window.wstart = 201;
+  window.wend = 299;
+  window.notifyType = STRIGGER_EVENT_WINDOW_NONE;
   ASSERT_NE(taosArrayPush(request_.params, &resume), nullptr);
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   request_.pContextPolicy = makeRunnerContextPolicy({
@@ -5774,8 +5796,14 @@ TEST_F(StreamRunnerTest, AncestorContextRejectsMixedBatchGroupMapping) {
   request_.createTable = 0;
   request_.params = taosArrayInit(2, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam idle = {.idlestart = 100, .idleend = 200, .notifyType = STRIGGER_EVENT_IDLE};
-  const SSTriggerCalcParam window = {.wstart = 201, .wend = 299, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 100;
+  idle.idleend = 200;
+  idle.notifyType = STRIGGER_EVENT_IDLE;
+  SSTriggerCalcParam window = {};
+  window.wstart = 201;
+  window.wend = 299;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &idle), nullptr);
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   request_.pContextPolicy = makeRunnerContextPolicy({
@@ -5793,7 +5821,10 @@ TEST_F(StreamRunnerTest, AncestorContextClearsPreviousIdleOnlyBatch) {
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
   request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
@@ -5806,7 +5837,10 @@ TEST_F(StreamRunnerTest, AncestorContextClearsPreviousIdleOnlyBatch) {
   taosArrayDestroyEx(request_.params, tDestroySSTriggerCalcParam);
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam idle = {.idlestart = 200, .idleend = 300, .notifyType = STRIGGER_EVENT_WINDOW_NONE};
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 200;
+  idle.idleend = 300;
+  idle.notifyType = STRIGGER_EVENT_WINDOW_NONE;
   ASSERT_NE(taosArrayPush(request_.params, &idle), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_NONE);
   request_.brandNew = false;
@@ -5829,7 +5863,10 @@ TEST_F(StreamRunnerTest, AncestorContextRejectsContextForNonNestedRunner) {
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
   request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
@@ -5843,7 +5880,10 @@ TEST_F(StreamRunnerTest, RuntimeContextTransfersAncestorContextOnce) {
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
   request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
@@ -5868,7 +5908,10 @@ TEST_F(StreamRunnerTest, RuntimeContextClearsBeforeIdleOnlyBatch) {
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
   request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
@@ -5881,7 +5924,10 @@ TEST_F(StreamRunnerTest, RuntimeContextClearsBeforeIdleOnlyBatch) {
   taosArrayDestroyEx(request_.params, tDestroySSTriggerCalcParam);
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam idle = {.idlestart = 200, .idleend = 300, .notifyType = STRIGGER_EVENT_WINDOW_NONE};
+  SSTriggerCalcParam idle = {};
+  idle.idlestart = 200;
+  idle.idleend = 300;
+  idle.notifyType = STRIGGER_EVENT_WINDOW_NONE;
   ASSERT_NE(taosArrayPush(request_.params, &idle), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_NONE);
   request_.brandNew = false;
@@ -5937,7 +5983,10 @@ TEST_F(StreamRunnerTest, SnodePublicEntryTransfersAndRollsBackNestedContextPair)
   request_.createTable = 0;
   request_.params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   ASSERT_NE(request_.params, nullptr);
-  const SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   ASSERT_NE(taosArrayPush(request_.params, &window), nullptr);
   setRunnerPolicy(&request_, 0, STREAM_CONTEXT_POLICY_ANCESTOR);
   request_.pAncestorContext = makeRunnerAncestorContext(request_.gid, 0);
@@ -6051,7 +6100,10 @@ bool prepareRunnerOutputRequest(SSTriggerCalcRequest *request) {
   request->createTable = 0;
   request->params = taosArrayInit(1, sizeof(SSTriggerCalcParam));
   if (request->params == nullptr) return false;
-  const SSTriggerCalcParam window = {.wstart = 100, .wend = 199, .notifyType = STRIGGER_EVENT_WINDOW_CLOSE};
+  SSTriggerCalcParam window = {};
+  window.wstart = 100;
+  window.wend = 199;
+  window.notifyType = STRIGGER_EVENT_WINDOW_CLOSE;
   if (taosArrayPush(request->params, &window) == nullptr) return false;
   gRunnerResultBlock = makeCacheBlock(100, 7);
   return gRunnerResultBlock != nullptr;

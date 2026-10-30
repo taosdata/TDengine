@@ -4962,6 +4962,9 @@ int stmt2BindParamImpl(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_id
         }
         return terrno;
       }
+    } else if (pCreateTbReq != NULL) {
+      tdDestroySVCreateTbReq(pCreateTbReq);
+      taosMemoryFree(pCreateTbReq);
     }
   }
 
@@ -5019,9 +5022,10 @@ static int stmtBindParamAImpl(TAOS_STMT2 *stmt, void *bindv, int32_t col_idx,
   if (code_s != TSDB_CODE_SUCCESS) {
     terrno = code_s;
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
-    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+    taosMemoryFree(args);
     tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   } else if (wlrToken->callId != 0 && wlrArgsOut != NULL) {
     *wlrArgsOut = args;
