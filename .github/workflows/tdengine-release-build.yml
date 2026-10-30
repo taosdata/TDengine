@@ -121,17 +121,77 @@ jobs:
           find ${{ github.workspace }}/debug/build/bin -type f -print0 | xargs -0 ls -lhrS
 
       - name: Start taosd
+        timeout-minutes: 2
         run: |
-          sudo bash -c 'echo "fqdn localhost" >> /etc/taos/taos.cfg'
-          sudo bash -c 'echo "supportVnodes 256" >> /etc/taos/taos.cfg'
-          nohup sudo taosd -c  /etc/taos &
+          # Keep server and clients under the same user, away from root-owned
+          # installation state. The runner temp directory is unique to this job.
+          smoke_dir=$(mktemp -d "$RUNNER_TEMP/tdengine-release-smoke.XXXXXX")
+          echo "TDENGINE_SMOKE_DIR=$smoke_dir" >> "$GITHUB_ENV"
+          mkdir -p "$smoke_dir/cfg" "$smoke_dir/data" "$smoke_dir/log" "$smoke_dir/tmp"
+          cat > "$smoke_dir/cfg/taos.cfg" <<EOF
+          fqdn localhost
+          firstEp localhost:6030
+          supportVnodes 256
+          dataDir $smoke_dir/data
+          logDir $smoke_dir/log
+          tempDir $smoke_dir/tmp
+          EOF
+          nohup taosd -c "$smoke_dir/cfg" > "$smoke_dir/taosd.out" 2>&1 &
+          taosd_pid=$!
+          echo "$taosd_pid" > "$smoke_dir/taosd.pid"
+          # A running process does not yet mean SQL connections are ready.
+          for attempt in {1..60}; do
+            echo "Waiting for SQL readiness ($attempt/60)"
+            if ! kill -0 "$taosd_pid" 2>/dev/null; then
+              echo "taosd exited before becoming ready"
+              cat "$smoke_dir/taosd.out"
+              exit 1
+            fi
+            # The CLI can exit zero after a SQL error, so also require its
+            # successful result marker from a query handled by the server.
+            if taos -c "$smoke_dir/cfg" -h localhost -s "show databases" > "$smoke_dir/ready.out" 2>&1 &&
+               grep -Eq '^Query OK, [0-9]+ row\(s\) in set ' "$smoke_dir/ready.out"; then
+              cat "$smoke_dir/ready.out"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "taosd did not become ready within 60 attempts"
+          cat "$smoke_dir/taosd.out" "$smoke_dir/ready.out"
+          exit 1
 
       - name: Run tests with taosBenchmark
         run: |
-          taosBenchmark -t 10 -n 10 -y 
-          taos -s "select count(*) from test.meters"
+          taosBenchmark -c "$TDENGINE_SMOKE_DIR/cfg" -h localhost -t 10 -n 10 -y
+          taos -c "$TDENGINE_SMOKE_DIR/cfg" -h localhost -s "select count(*) from test.meters"
+
+      - name: Upload smoke test diagnostics
+        if: failure() && env.TDENGINE_SMOKE_DIR != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-${{ matrix.os }}
+          path: |
+            ${{ env.TDENGINE_SMOKE_DIR }}/cfg
+            ${{ env.TDENGINE_SMOKE_DIR }}/log
+            ${{ env.TDENGINE_SMOKE_DIR }}/*.out
+          retention-days: 7
 
       - name: Clean up
         if: always()
         run: |
-          if pgrep taosd; then sudo pkill taosd; fi
+          if [ -n "${TDENGINE_SMOKE_DIR:-}" ] && [ -f "$TDENGINE_SMOKE_DIR/taosd.pid" ]; then
+            taosd_pid=$(cat "$TDENGINE_SMOKE_DIR/taosd.pid")
+            if kill -0 "$taosd_pid" 2>/dev/null; then
+              kill "$taosd_pid"
+              for attempt in {1..10}; do
+                if ! kill -0 "$taosd_pid" 2>/dev/null; then
+                  break
+                fi
+                echo "Waiting for taosd to stop ($attempt/10)"
+                sleep 1
+              done
+              if kill -0 "$taosd_pid" 2>/dev/null; then
+                kill -KILL "$taosd_pid"
+              fi
+            fi
+          fi
