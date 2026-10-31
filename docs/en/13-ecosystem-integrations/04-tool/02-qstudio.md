@@ -9,7 +9,7 @@ qStudio is a free multi-platform SQL data analysis tool that allows easy browsin
 Using qStudio to connect to TDengine requires the following preparations.
 
 - Install qStudio. qStudio supports mainstream operating systems including Windows, macOS, and Linux. Please make sure to [download](https://www.timestored.com/qstudio/download/) the correct platform package.
-- Install a TDengine instance, ensure that TDengine is running properly, and that taosAdapter is installed and running smoothly. For more details, please refer to [the taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- Install a TDengine instance, ensure that TDengine is running properly, and that taosAdapter is installed and running smoothly. For more details, please refer to [the taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 
 ## Using qStudio to Connect to TDengine
 

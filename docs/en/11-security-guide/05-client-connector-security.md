@@ -108,6 +108,8 @@ The recommended TDengine connector security baseline is:
 - Prefer **Option B (direct connector access)**.
 - Choose **Option A (Nginx forwarding)** only when you need centralized ingress/governance or strict integration with existing infrastructure.
 
+When you choose Nginx/HAProxy forwarding, see [taosAdapter High Availability](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md) for multi-instance deployment, `/-/ping` health checks, TLS/mTLS, and failover.
+
 #### 3. Dynamic Token Rotation for Continuity
 
 Tokens have TTL (typically 24 hours). After expiration, connections fail. Dynamic token rotation ensures:

@@ -60,7 +60,7 @@ TDengine 数据源插件已提交至 Grafana 官网，如何安装 TDengine 数�
 TDinsight dashboard 数据来源于 `log` 库（存放监控数据的默认数据库，可以在 taoskeeper 配置文件中修改）。“TDinsight for 3.x”仪表盘查询了 taosd 和 taosAdapter 的监控指标。
 
 - taosd 的监控指标请参考 [taosd 监控指标](../03-components/01-taosd.md#taosd-监控指标)
-- taosAdapter 的监控指标请参考 [taosAdapter 监控指标](../03-components/03-taosadapter.md#taosadapter-监控指标)
+- taosAdapter 的监控指标请参考 [taosAdapter 监控指标](../03-components/03-taosadapter/03-operations.md#taosadapter-监控指标)
 
 ## 监控 taosX
 

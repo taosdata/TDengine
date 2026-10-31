@@ -10,7 +10,7 @@ description: TDengine 与数据采集、可视化、BI、数据库管理及物�
 
 本章包含：
 
-- [数据采集](./01-collection/index.md)：Prometheus、Telegraf、collectd、StatsD、Icinga2、Kafka、Flink、EMQX / HiveMQ 等。
+- [数据采集](./01-collection/index.md)：Prometheus、Telegraf、Neuron、collectd、StatsD、Icinga2、Kafka、Flink、EMQX / HiveMQ 等。
 - [可视化](./02-visual/index.md)：Grafana、Perspective 等。
 - [数据分析](./03-bi/index.md)：Power BI、Tableau、Superset、Spark、Pandas 等。
 - [数据库管理](./04-tool/index.md)：DBeaver、qStudio、JetBrains 等。

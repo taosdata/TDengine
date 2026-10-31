@@ -169,51 +169,7 @@ usessl = false
 
 ### 负载均衡
 
-使用负载均衡对外提供 `taosAdapter` 服务。
-
-以 Nginx 为例，配置多节点负载均衡：
-
-```nginx
-http {
-    server {
-        listen 6041;
-
-        location / {
-            proxy_pass http://websocket;
-            # Headers for websocket compatible
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $connection_upgrade;
-            # Forwarded headers
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-Host $host;
-            proxy_set_header X-Forwarded-Port $server_port;
-            proxy_set_header X-Forwarded-Server $hostname;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-    }
-
-    upstream websocket {
-        server 192.168.11.61:6041;
-        server 192.168.11.62:6041;
-        server 192.168.11.63:6041;
-   }
-}
-```
-
-如果 `taosAdapter` 组件未配置 SSL 安全连接，还需要配置 SSL 才能保证安全访问。SSL 可以配置在更上层的 API Gateway，也可以配置在 Nginx 中；如果对各组件之间的安全性有更强的要求，你可以在所有组件中都配置 SSL。Nginx 配置如下：
-
-```nginx
-http {
-    server {
-        listen 443 ssl;
-
-        ssl_certificate /path/to/your/certificate.crt;
-        ssl_certificate_key /path/to/your/private.key;
-    }
-}
-```
+使用负载均衡对外提供 `taosAdapter` 服务。多实例部署、Nginx/HAProxy、`/-/ping` 健康检查、TLS/mTLS 和故障切换的完整配置见 [taosAdapter 高可用](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md)。
 
 ### 安全网关
 

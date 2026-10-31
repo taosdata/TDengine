@@ -1,6 +1,10 @@
-## Data Mapping and Collection Configuration Guidelines
-
 Before onboarding, understand how Neuron objects map to TDengine objects and what kind of collection configuration onboards smoothly.
+
+:::note
+
+With install-time onboarding, the installer handles object mapping and table structure automatically, so you can skip the object mapping section. The device naming and grouping guidelines apply to all three methods; read them before configuring devices in NeuronEX.
+
+:::
 
 ### Object Mapping
 
@@ -11,7 +15,7 @@ Before onboarding, understand how Neuron objects map to TDengine objects and wha
 | Tag `values.*` | Measurement column | Each tag maps to one measurement column |
 | Report timestamp `timestamp` | Timestamp column `_ts` | Millisecond precision |
 
-One-click onboarding performs this mapping automatically and additionally attaches fixed tags: `device` (device name), `group_name` (collection group name), `protocol` (the plugin protocol used by the device), and `gateway` (the Neuron gateway address, used to distinguish multiple gateways writing to the same database). The subtable name defaults to "prefix + device name"; when a device name cannot be written as-is or a device belongs to multiple collection groups, TDengine generates a name from the tag set. Manual onboarding lets you define tags and subtable naming yourself. Attributes such as location, unit, and business hierarchy are not part of collection configuration; one-click onboarding does not infer them — use manual onboarding to define them when needed.
+Install-time onboarding and one-click onboarding perform this mapping automatically and additionally attach fixed tags: `device` (device name), `group_name` (collection group name), `protocol` (the plugin protocol used by the device), and `gateway` (the Neuron gateway address, used to distinguish multiple gateways writing to the same database). The subtable name defaults to "prefix + device name"; when a device name cannot be written as-is or a device belongs to multiple collection groups, TDengine generates a name from the tag set. Manual onboarding lets you define tags and subtable naming yourself. Attributes such as location, unit, and business hierarchy are not part of collection configuration; install-time and one-click onboarding do not infer them — use manual onboarding to define them when needed.
 
 ### Naming and Grouping Guidelines
 
@@ -26,7 +30,7 @@ The following guidelines apply to the collection configuration in Neuron itself,
 
 ### Type Mapping
 
-Neuron tag types map to TDengine column types as follows. One-click onboarding applies this table automatically and creates tables on first write; for manual onboarding, use this table as a reference when writing your own rules:
+Neuron tag types map to TDengine column types as follows. Install-time onboarding and one-click onboarding apply this table automatically and create tables on first write; for manual onboarding, use this table as a reference when writing your own rules:
 
 | Neuron tag type | TDengine column type | Description |
 | --- | --- | --- |
