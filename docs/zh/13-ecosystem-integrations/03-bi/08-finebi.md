@@ -12,7 +12,7 @@ title: 与 FineBI 集成
 准备以下环境：
 
 - TDengine `v3.3.4.0` 以上版本集群已部署并正常运行（企业及社区版均可）。
-- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
+- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)。
 - FineBI 安装（如未安装，请下载并安装 [FineBI 下载](https://www.finebi.com/product/download)）。
 - 下载 `fine_conf_entity` 插件用于支持允许添加 JDBC 驱动，[下载地址](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d)。
 - 安装 JDBC 驱动。从 `maven.org` 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.9.1-dist.jar`）。

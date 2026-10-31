@@ -10,7 +10,7 @@ FanRuan develops business intelligence and data analytics products including Fin
 Prepare the following environment:
 
 - Deploy and start TDengine v3.3.4.0 or later (Enterprise or Community Edition).
-- Start taosAdapter. For details, see the [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- Start taosAdapter. For details, see the [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 - [Download and install FineBI](https://www.finebi.com/product/download).
 - Download the [`fine_conf_entity` plugin](https://market.fanruan.com/plugin/1052a471-0239-4cd8-b832-045d53182c5d), which enables JDBC driver uploads.
 - Download a recent TDengine JDBC connector from Maven Central. This example uses `taos-jdbcdriver-3.9.1-dist.jar`.

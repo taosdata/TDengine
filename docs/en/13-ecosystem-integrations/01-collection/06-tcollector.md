@@ -13,7 +13,7 @@ Simply modify the TCollector configuration to point to the server domain name (o
 To write TCollector data into TDengine, the following preparations are needed:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - TCollector is installed. For TCollector installation, please refer to the [official documentation](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
 ## Configuration Steps

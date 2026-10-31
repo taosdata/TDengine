@@ -11,7 +11,7 @@ toc_max_heading_level: 4
 Prepare the following environment:
 
 - TDengine 3.3.5.8 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 - Install and run Excel. If not installed, please download and install it. For specific instructions, please refer to Microsoft's official documentation.
 - Download the latest Windows operating system X64 client driver from the TDengine official website and install it, refer to [Install ODBC Driver](../../10-developer-guide/08-connectors-reference/09-odbc.mdx#installation).
 

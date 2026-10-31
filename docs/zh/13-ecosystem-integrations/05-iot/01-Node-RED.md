@@ -19,7 +19,7 @@ toc_max_heading_level: 5
 准备以下环境：
 
 - TDengine `v3.3.2.0` 及以上版本集群已部署并正常运行（企业/社区/云服务版均可）。
-- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
+- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)。
 - Node-RED 3.0.0 及以上版本，见 [Node-RED 安装](https://nodered.org/docs/getting-started/)。
 - Node.js 连接器 `@tdengine/websocket` 建议使用较新版本（文档示例基于 3.1.8 及以上），可从 [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket) 安装；能力说明见 [Node.js 连接器](../../10-developer-guide/08-connectors-reference/06-node.mdx)。
 - `node-red-node-tdengine` 插件最新版本，可从 [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine) 安装。

@@ -9,7 +9,7 @@ DBeaver is a popular cross-platform database management tool that facilitates de
 Using DBeaver to manage TDengine requires the following preparations.
 
 - Install DBeaver. DBeaver supports mainstream operating systems including Windows, macOS, and Linux. Please make sure to [download](https://dbeaver.io/download/) the correct platform and version (23.1.1+) of the installer. For detailed installation steps, refer to the [DBeaver official documentation](https://github.com/dbeaver/dbeaver/wiki/Installation).
-- If using a standalone deployed TDengine cluster, ensure that TDengine is running normally, and that taosAdapter has been installed and is running properly. For specific details, refer to the [taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- If using a standalone deployed TDengine cluster, ensure that TDengine is running normally, and that taosAdapter has been installed and is running properly. For specific details, refer to the [taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 
 ## Using DBeaver to Access Internally Deployed TDengine
 

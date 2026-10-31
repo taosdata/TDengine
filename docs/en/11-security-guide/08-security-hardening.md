@@ -169,51 +169,7 @@ If you must provide access outside the local area network, consider the followin
 
 ### Load Balancing
 
-Use load balancing to provide `taosAdapter` services externally.
-
-Take Nginx as an example to configure multi-node load balancing:
-
-```nginx
-http {
-    server {
-        listen 6041;
-        
-        location / {
-            proxy_pass http://websocket;
-            # Headers for websocket compatible
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $connection_upgrade;
-            # Forwarded headers
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header X-Forwarded-Host $host;
-            proxy_set_header X-Forwarded-Port $server_port;
-            proxy_set_header X-Forwarded-Server $hostname;
-            proxy_set_header X-Real-IP $remote_addr;
-        }
-    }
- 
-    upstream websocket {
-        server 192.168.11.61:6041;
-        server 192.168.11.62:6041;
-        server 192.168.11.63:6041;
-   }
-}
-```
-
-If the `taosAdapter` component is not configured with SSL secure connections, SSL needs to be configured to ensure secure access. SSL can be configured at a higher-level API Gateway or in Nginx; if you have stronger security requirements for the connections between components, you can configure SSL in all components. The Nginx configuration is as follows:
-
-```nginx
-http {
-    server {
-        listen 443 ssl;
-
-        ssl_certificate /path/to/your/certificate.crt;
-        ssl_certificate_key /path/to/your/private.key;
-    }
-}
-```
+Use load balancing to provide `taosAdapter` services externally. For multi-instance deployment, Nginx/HAProxy, `/-/ping` health checks, TLS/mTLS, and failover configuration, see [taosAdapter High Availability](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md).
 
 ### Security Gateway
 

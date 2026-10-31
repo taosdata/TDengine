@@ -135,7 +135,7 @@ This may happen because `taosAdapter` was not started correctly. Run `systemctl 
 
 Note: The `taosAdapter` log path (`path`) must be configured separately; the default is `/var/log/taos`. There are 8 `logLevel` levels; the default is `info`, and `panic` disables log output. Watch disk space on the OS root directory `/`. You can change settings via command-line parameters, environment variables, or the configuration file. The default configuration file is `/etc/taos/taosadapter.toml`.
 
-For details on `taosAdapter`, see [taosAdapter Reference](../12-operations-and-tooling/03-components/03-taosadapter.md).
+For details on `taosAdapter`, see [taosAdapter Reference](../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 
 ### 2.4 How can a client connection string ensure high availability?
 
@@ -288,6 +288,8 @@ Increase the timeout values in the Nginx configuration:
 proxy_send_timeout 3600s;
 proxy_read_timeout 3600s;
 ```
+
+For the complete multi-instance, health check, HAProxy, and failover configuration, see [taosAdapter High Availability](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md).
 
 ### 2.16 How should I configure a JDBC connection pool (HikariCP example)?
 

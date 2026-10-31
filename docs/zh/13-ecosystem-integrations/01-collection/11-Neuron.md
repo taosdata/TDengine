@@ -1,7 +1,7 @@
 ---
 sidebar_label: Neuron
 title: 与 Neuron 集成
-description: 通过 Explorer 一键接入，或手工配置 eKuiper 的 InfluxDB v1 sink，将 Neuron 采集的工业设备数据写入 TDengine，支持批量发送、HTTPS 和高可用部署
+description: 安装 NeuronEX 时自动完成 TDengine 接入，或通过 taosExplorer 一键接入、手工配置 eKuiper 的 InfluxDB v1 sink，将 Neuron 采集的工业设备数据写入 TDengine，支持批量发送、HTTPS 和高可用部署
 toc_max_heading_level: 5
 ---
 
@@ -11,33 +11,146 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 
 [Neuron](https://github.com/emqx/neuron) 是 EMQ 开发的工业物联网连接平台，支持 Modbus、OPC UA、BACnet 等多种工业协议。[eKuiper](https://github.com/lf-edge/ekuiper) 是开源的轻量级边缘流处理引擎，使用 SQL 处理数据，并通过输出动作（sink）转发。[NeuronEX](https://docs.emqx.com/zh/neuronex/latest/) 是 EMQ 的工业边缘数据采集与处理软件，集成 Neuron 的协议采集和 eKuiper 的流处理能力，提供统一的 Web 界面配置设备采集、数据处理及转发。
 
-本文介绍两种将 Neuron 采集数据写入 TDengine 的方式：
+本文介绍三种将 Neuron 采集数据写入 TDengine 的方式：
 
-- **一键接入**：在 TDengine Explorer 的边缘网关页面填写 Neuron 地址和凭据，Explorer 自动完成数据流、处理规则和采集订阅的配置，适合绝大多数场景。
-- **手工接入**：在 NeuronEX 页面手工配置数据流、处理规则和 InfluxDB v1 写入动作，适合需要自定义标签、业务属性或数据转换的场景。
+- **安装时接入**：适用于尚未安装 NeuronEX 企业版的环境。执行安装命令时，自动完成 NeuronEX 安装、注册到 taosExplorer、创建 `neuron` 业务数据库、`neuron_demo` 示例数据库和四个示例设备，并配置写入链路，安装后无需在 taosExplorer 页面操作。
+- **一键接入**：适用于已部署 Neuron 或 NeuronEX 的环境。在 taosExplorer 的「数据写入 → 数据采集代理 → Neuron」页面填写 Neuron 地址和凭据，taosExplorer 自动完成数据流、处理规则和采集订阅的配置。
+- **手工接入**：适用于已部署 Neuron 或 NeuronEX、需要自定义标签、业务属性或数据转换的场景。在 NeuronEX 页面手工配置数据流、处理规则和 InfluxDB v1 写入动作。
 
-两种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的 70 多种工业协议，具体以版本及授权为准。
+| 方式 | Neuron 是否需预装 | 适用场景 | taosExplorer 操作 |
+| --- | --- | --- | --- |
+| 安装时接入 | 不需要 | 尚未安装 NeuronEX 企业版 | 不需要 |
+| 一键接入 | 需要 | 已部署 Neuron 或 NeuronEX | 需要向导 |
+| 手工接入 | 需要 | 已部署，需要自定义标签或转换 | 需要手工配置 |
+
+三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的 70 多种工业协议，具体以版本及授权为准。
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
-![Neuron 与 TDengine 集成架构](../../assets/iot-neuron-architecture.webp)<br/>
+![Neuron 与 TDengine 集成架构](../../assets/iot-neuron-architecture.svg)<br/>
 *Neuron 与 TDengine 集成架构*
 
 </figure>
 
-如下图所示，实线表示数据流向，虚线框表示可选的 nginx 节点。Neuron 将设备数据转为 JSON 采集报告，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量发送到 taosAdapter，通过无模式写入自动创建超级表和子表。需要双向 TLS 认证（mTLS）或 taosAdapter 故障切换时，按后文部署 nginx。
+如上图所示，Neuron 将设备数据转为 JSON 采集报告，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。需要双向 TLS 认证（mTLS）或高可用部署时，按后文[加密传输与高可用](#加密传输与高可用可选)配置。
 
 <NeuronPrerequisites />
 
-<NeuronMapping />
+## 安装时接入
+
+:::note
+
+安装时接入依赖的 `apex` 工具尚未发布，计划于 2026 年 11 月上旬发布，敬请期待。
+
+:::
+
+本节适用于尚未安装 NeuronEX 企业版的环境。安装过程会自动创建业务数据库 `neuron`、示例数据库 `neuron_demo`、四个示例设备和采集组 `meters`，完成后可直接在 taosExplorer 查看对接效果，无需在 taosExplorer 页面创建接入。接入真实设备时，继续在 NeuronEX 添加设备、采集组和点位；设备命名和分组建议先参考[数据映射与采集配置规范](#附录数据映射与采集配置规范)。
+
+安装命令由 TDengine 企业版安装包提供的 `apex` 工具执行，无需单独安装 NeuronEX。
+
+安装完成后，taosExplorer 默认每 5 分钟轮询一次 NeuronEX 的设备列表；发现新设备且该设备已配置点位后，会自动创建或更新接入规则，无需在 taosExplorer 页面操作。自动发现仅针对新增设备名；已有设备新增采集组或点位时，请在 taosExplorer 详情页点击「刷新配置」重新扫描。轮询间隔可通过 taosExplorer 环境变量 `NEURON_POLL_INTERVAL_SECS` 调整，默认 `300` 秒；设为 `0` 可关闭。
+
+由 taosExplorer 创建的规则和订阅由 taosExplorer 管理。请勿在 eKuiper 中手动修改这些规则；刷新时会按当前映射重新同步并覆盖手动修改。请先在 Neuron 或 NeuronEX 中配置设备、采集组和点位，再点击「刷新配置」。
+
+:::tip
+
+同机安装可不填写任何连接参数；跨机安装必须指定 TDengine 所在主机的地址。其他参数可参考[跨机安装](#跨机安装)内容。
+
+:::
+
+### 同机安装
+
+TDengine 和 NeuronEX 部署在同一台主机时，执行下面命令：
+
+```bash
+sudo apex install all
+```
+
+安装过程会自动完成以下工作：
+
+- 安装并启动 NeuronEX，默认 Web 端口为 `8085`；
+- 将 NeuronEX 注册到本机 taosExplorer；
+- 创建业务数据库 `neuron`（`--database`，默认 `neuron`），已存在时复用；
+- 创建示例数据库 `neuron_demo`（`--database-demo`，默认 `neuron_demo`），已存在时复用；
+- 创建四个 Modbus 模拟设备 `demo_meter01` 至 `demo_meter04`，采集组均为 `meters`，写入 `neuron_demo`；
+- 配置 TDengine 写入参数，并生成带 `location` 标签的示例规则；
+- 生成 NeuronEX 管理员密码，保存到 `/var/lib/apex/neuronex-admin-password`（仅 root 可读）。
+
+安装完成后，NeuronEX 已与本机 TDengine 对接，无需再填写 Neuron 地址、数据库或接入配置。典型输出如下：
+
+```text
+[apex] Installing TDengine All-in-One...
+[apex] NeuronEX installed and started: http://127.0.0.1:8085
+[apex] NeuronEX registered with taosExplorer: http://127.0.0.1:6060
+[apex] Database neuron created.
+[apex] Demo database neuron_demo created.
+[apex] Demo devices created: demo_meter01, demo_meter02, demo_meter03, demo_meter04
+[apex] NeuronEX admin password saved to /var/lib/apex/neuronex-admin-password
+[apex] NeuronEX is connected to TDengine.
+```
+
+### 跨机安装
+
+TDengine 在另一台主机时，在 NeuronEX 所在主机执行：
+
+```bash
+sudo apex install neuronex --tdengine-host 192.168.1.100
+```
+
+将 `192.168.1.100` 替换为目标 TDengine 的主机 IP 或域名。其余参数使用默认值；如需自定义 TDengine 用户名、密码或其他参数，参考下表在命令中追加：
+
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `--tdengine-host` | 本机 | TDengine 主机 IP 或域名，跨机安装时必填 |
+| `--tdengine-port` | `6041` | taosAdapter REST 端口 |
+| `--tdengine-user` | `root` | TDengine 用户名，需有创建数据库和目标库写入权限 |
+| `--tdengine-password` | `taosdata` | TDengine 用户密码 |
+| `--explorer-port` | `6060` | taosExplorer 端口 |
+| `--database` | `neuron` | 业务数据库，不存在时自动创建 |
+| `--database-demo` | `neuron_demo` | 示例数据库，不存在时自动创建；四个示例设备写入此库 |
+
+跨机安装同样会创建业务数据库 `neuron`、示例数据库 `neuron_demo` 和四个示例设备。安装完成后，NeuronEX 会自动注册到该 TDengine 的 taosExplorer，并完成写入链路配置。输出与同机安装类似，其中注册地址为 `http://<TDengine_IP>:6060`，TDengine 目标为 `http://<TDengine_IP>:6041`。如果 TDengine 已单独安装在同一台主机，可省略 `--tdengine-host`。
+
+:::note
+
+安装时自动生成 NeuronEX 管理员密码，保存在 `/var/lib/apex/neuronex-admin-password`。首次登录 NeuronEX 或添加真实设备时使用：
+
+```bash
+sudo cat /var/lib/apex/neuronex-admin-password
+```
+
+如需使用自定义密码，可在安装命令中追加 `--neuron-password-file <path>`。
+
+:::
+
+### 在 taosExplorer 查看对接结果
+
+同机安装和跨机安装都会在 taosExplorer 中自动创建接入记录，登录 taosExplorer，进入「数据写入 → 数据采集代理 → Neuron」，可以看到自动创建的 NeuronEX 接入记录。示例设备每秒写入数据，状态会自动变为「已验收」。在 `neuron_demo` 数据库中可以看到 `meters` 超级表，以及 `demo_meter01` 至 `demo_meter04` 四个子表，`location` 标签分别为 `Factory01.Workshop01`、`Factory01.Workshop02`、`Factory02.Workshop01` 和 `Factory02.Workshop02`。**这里只用于查看，不需要创建接入或填写任何配置。**
+
+<figure style={{width: 'fit-content', margin: '0 auto'}}>
+
+![taosExplorer 中自动创建的 NeuronEX 接入](../../assets/neuron-auto-integration.webp)<br/>
+*taosExplorer 中自动创建的 NeuronEX 接入*
+
+</figure>
+
+入库验证方法见后文[验证结果](#验证结果)。
 
 <NeuronOneClick />
 
 ## 手工接入
 
+:::note
+
+本节适用于已部署 Neuron 或 NeuronEX、需要自定义标签、业务属性或数据转换的场景。全新安装 NeuronEX 时，推荐使用前文的「安装时接入」。
+
+:::
+
 本节以四台 Modbus TCP 智能电表为例，演示在 NeuronEX 页面手工完成接入的完整过程，供需要自定义标签、业务属性或数据转换的用户参考。**电表只是示例，你的设备不是电表也能照做**：只需把第 3 步换成你自己设备的采集配置（选择对应的协议插件、创建采集组、添加点位），其余步骤（创建数据库、数据流、处理规则、写入动作）与设备类型无关，操作完全相同。
 
 ### 示例数据模型
+
+通用的对象映射、命名分组和类型映射见[数据映射与采集配置规范](#附录数据映射与采集配置规范)；本节示例只展示一种具体配置。
 
 示例在同一工厂的两个车间各部署两台电表，每秒采集电流、电压和相位。四台设备共用 `meters` 超级表，各写一个子表，采集组均命名为 `electrical_readings`。
 
@@ -279,7 +392,7 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
 
 ## 验证结果
 
-无论通过哪种方式接入，都以查询结果确认入库——规则运行状态和 ping 响应不能代替入库检查。以下 SQL 使用手工接入示例的库名和表名；一键接入的用户把库名换成目标数据库、超级表名换成映射的超级表即可。
+无论通过哪种方式接入，都以查询结果确认入库——规则运行状态和 ping 响应不能代替入库检查。以下 SQL 使用手工接入示例的库名和表名；安装时接入的用户把库名换成 `neuron_demo`（示例）或 `neuron`（真实设备）、超级表名换成采集组名；一键接入的用户把库名换成目标数据库、超级表名换成映射的超级表即可。
 
 1. 在 TDengine SQL 客户端检查自动生成的结构和设备标签。
 
@@ -307,16 +420,30 @@ NeuronEX 页面默认设置 `sendSingle=true`，用于逐行计算动态标签�
    FROM neuron_meters_demo.meters PARTITION BY TBNAME;
    ```
 
-## 运行监控
+## 查看监控
 
-规则运行指标在 Neuron 侧查看：进入 NeuronEX 的「数据处理 → 规则」，找到对应规则（手工接入示例为 `meters_to_tdengine`；一键接入创建的规则也在此列出），点击「更多 → 数据统计」，查看各阶段的统计卡片。重点关注以下指标：
+在 taosExplorer 中查看规则运行指标，无需登录 NeuronEX。进入「数据写入 → 数据采集代理 → Neuron」，打开接入记录，在「监控信息」区域查看。页面打开时每 5 秒刷新一次，关闭页面后停止请求。
 
 | 指标 | 正常状态或处理方式 |
 | --- | --- |
-| `connection_status` | sink 连接状态为 `Connected` |
-| 输入、输出计数 | 持续增加；批量发送前后计数单位可能不同，批次数不等于数据库行数 |
-| `buffer_length` | 缓存长度可短时波动，但应能回落 |
-| `exceptions_total`、`last_exception` | 正常时无异常；发生异常时查看次数及最近报错 |
+| 规则状态 | 运行中；显示已停止时，检查 NeuronEX 是否重启、规则被手工停止，或试用版规则达到运行时限 |
+| Sink 连接 | 已连接；断开时检查 NeuronEX 到 taosAdapter 的网络及 TDengine 服务 |
+| 采集条数、发送批次 | 持续增加；发送批次是 eKuiper 的批次计数，不等于数据库行数 |
+| 缓存 | 可短时波动，但应能回落；持续积压时参见[缓存与转发](#缓存与转发store-and-forward) |
+| 异常、最近异常 | 正常时为 0；非 0 时查看最近异常，并检查数据转换、账号或网络 |
+
+<figure style={{width: 'fit-content', margin: '0 auto'}}>
+
+![taosExplorer 中的 Neuron 监控信息](../../assets/neuron-monitor.webp)<br/>
+*taosExplorer 中的 Neuron 监控信息*
+
+</figure>
+
+:::note
+
+Sink 连接正常和规则运行中不能替代入库检查，仍应通过[验证结果](#验证结果)确认数据已写入 TDengine。如需查看各阶段明细，可在 NeuronEX 的「数据处理 → 规则」中点击「更多 → 数据统计」。
+
+:::
 
 ## 在 IDMP 中展示数据（可选）
 
@@ -340,7 +467,7 @@ Factory01
 
 ## 缓存与转发（Store and Forward）
 
-本方案由 eKuiper 的 InfluxDB v1 sink 提供缓存与转发。下游暂时不可用时，在容量允许且错误可重试的前提下缓存数据；连接恢复后，保留原有的子表名和报告时间戳重新发送。一键接入创建的规则已启用缓存（按 1000 行或 100 ms 合批），无需额外配置。
+本方案由 eKuiper 的 InfluxDB v1 sink 提供缓存与转发。下游暂时不可用时，在容量允许且错误可重试的前提下缓存数据；连接恢复后，保留原有的子表名和报告时间戳重新发送。安装时接入和一键接入创建的规则已启用缓存（按 1000 行或 100 ms 合批），无需额外配置。
 
 使用此功能须满足以下要求：
 
@@ -360,59 +487,26 @@ Factory01
 
 ## 加密传输与高可用（可选）
 
-需要 mTLS 或 taosAdapter 故障切换时，部署 nginx，并将 sink 地址改为 nginx 地址。基础 HTTP 直连接入无需此配置。一键接入的用户把向导中的「TDengine 地址」填为 nginx 地址即可。
+需要 mTLS 或 taosAdapter 故障切换时，按 [taosAdapter 高可用](../../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md) 部署 Nginx/HAProxy，并把 Neuron 的 sink 地址改为负载均衡地址。基础 HTTP 直连接入无需此配置；一键接入的用户把向导中的「TDengine 地址」填为负载均衡地址即可。
 
-### 配置 mTLS 和多 taosAdapter 转发
+### Neuron 侧配置
 
-以下以三节点 TDengine 集群为例，在三个节点上各部署一个 taosAdapter，均连接同一集群。nginx 验证客户端证书，将请求分发至三个实例，并在上游故障时切换至其他实例。
+Neuron 写入使用 InfluxDB v1 路径。按 [taosAdapter 高可用](../../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md#nginx-负载均衡与故障切换) 中的 Nginx/HAProxy 配置、`location /influxdb/v1/` 重试配置和健康检查部署负载均衡；TLS/mTLS 配置见同页的 [TLS 与 mTLS](../../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md#tls-与-mtls) 一节。示例仍使用 `ingest.example.com:8443` 作为负载均衡入口。
 
-1. 安装 nginx，将以下配置添加到 `http` 上下文。修改域名、上游地址及证书路径，服务端证书 SAN 须匹配 `ingest.example.com`。
+在规则的 InfluxDB v1 动作中，将地址改为 `https://ingest.example.com:8443/influxdb/v1?table_name_key=tbname`。在动作「连接信息」中上传客户端证书、私钥及服务端 CA 证书，将「跳过证书验证」设为 `False`。文件配置使用以下参数；证书路径须对 eKuiper 可读，容器部署时须挂载证书。
 
-   ```nginx
-   upstream taosadapter {
-       least_conn;
-       server adapter-a.internal:6041 max_fails=2 fail_timeout=10s;
-       server adapter-b.internal:6041 max_fails=2 fail_timeout=10s;
-       server adapter-c.internal:6041 max_fails=2 fail_timeout=10s;
-   }
+```json
+{
+  "rootCaPath": "/etc/ekuiper/certs/server-ca.crt",
+  "certificationPath": "/etc/ekuiper/certs/client.crt",
+  "privateKeyPath": "/etc/ekuiper/certs/client.key",
+  "insecureSkipVerify": false
+}
+```
 
-   server {
-       listen 8443 ssl;
-       client_max_body_size 32m;
-       server_name ingest.example.com;
-       ssl_certificate /etc/nginx/certs/server.crt;
-       ssl_certificate_key /etc/nginx/certs/server.key;
-       ssl_client_certificate /etc/nginx/certs/client-ca.crt;
-       ssl_verify_client on;
-       ssl_protocols TLSv1.2 TLSv1.3;
+保存动作并启动规则，按[验证结果](#验证结果)检查数据持续写入。生产环境关闭临时明文入口。
 
-       location /influxdb/v1/ {
-           proxy_pass http://taosadapter;
-           proxy_connect_timeout 3s;
-           proxy_read_timeout 60s;
-           proxy_next_upstream error timeout http_502 http_503 http_504 non_idempotent;
-           proxy_next_upstream_tries 3;
-       }
-   }
-   ```
-
-2. 执行 `nginx -t` 检查配置，启动或重新加载 nginx。在规则的 InfluxDB v1 动作中，将地址改为 `https://ingest.example.com:8443/influxdb/v1?table_name_key=tbname`。nginx 将 ping 和写入请求一并转发至 taosAdapter。
-3. 在动作「连接信息」中上传客户端证书、私钥及服务端 CA 证书，将「跳过证书验证」设为 `False`。文件配置使用以下参数；证书路径须对 eKuiper 可读，容器部署时须挂载证书。
-
-   ```json
-   {
-     "rootCaPath": "/etc/ekuiper/certs/server-ca.crt",
-     "certificationPath": "/etc/ekuiper/certs/client.crt",
-     "privateKeyPath": "/etc/ekuiper/certs/client.key",
-     "insecureSkipVerify": false
-   }
-   ```
-
-4. 保存动作并启动规则，按[验证结果](#验证结果)检查数据持续写入。生产环境关闭临时明文入口。
-
-仅用 HTTPS 服务端认证时，删除 nginx 的 `ssl_client_certificate`、`ssl_verify_client` 及 sink 客户端证书、私钥配置，保留 CA 校验。nginx 到 taosAdapter 使用 HTTP，须位于受控网络；需加密时另配上游 HTTPS。
-
-`proxy_next_upstream_tries 3` 表示单个请求最多尝试三次（含首次请求）。`non_idempotent` 允许失败的 POST 改投另一实例。重试保留子表名、时间戳和测量值，利用同键写入处理重复；失败批次依赖 sink 缓存重发。
+仅使用 HTTPS 服务端认证时，按 taosAdapter 高可用页的 [TLS 与 mTLS](../../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md#tls-与-mtls) 关闭客户端证书校验，eKuiper 侧保留 CA 校验。重试保留子表名、时间戳和测量值，利用同键写入处理重复；失败批次依赖 sink 缓存重发。通用的重试和 `non_idempotent` 语义见 [健康检查与重试语义](../../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md#健康检查与重试语义)。
 
 ### 配置各层高可用
 
@@ -469,15 +563,24 @@ Neuron 与 eKuiper 平均各使用约 6.6 个逻辑核；Neuron 驻留内存约 
 
 | 现象 | 检查与处理 |
 | --- | --- |
+| 安装时接入后 taosExplorer 中没有接入记录 | 确认安装命令执行成功；同机安装检查本机 taosExplorer，跨机安装检查 `--tdengine-host` 对应的 taosExplorer，并查看安装输出和 taosExplorer 日志 |
+| 安装时接入后状态一直是「配置已保留，待验收」 | 确认四个示例设备运行中、已连接；查看 NeuronEX「数据监控」是否有数据，并检查 taosExplorer 日志 |
+| 忘记 NeuronEX 管理员密码 | 执行 `sudo cat /var/lib/apex/neuronex-admin-password` 查看安装时自动生成的密码 |
+| 修改 NeuronEX 密码后数据停止写入 | 重新执行安装命令并通过 `--neuron-password-file` 传入新密码，更新 taosExplorer 中的凭据 |
 | 一键接入提示「没有找到含可读点位的采集组」 | 先在 Neuron 完成设备采集配置，确认设备运行中、已连接，且「数据监控」中有点位值 |
 | 一键接入创建失败，提示子表重名或冲突 | 子表名与库中现有表冲突，为接入设置「子表名前缀」区分；同时确认同名测量列类型兼容 |
 | 修改 TDengine 密码后数据停止写入 | 在接入详情页点击「刷新配置」，用当前登录凭据更新规则 |
 | 详情页状态为「配置已保留，待验收」 | 确认 Neuron 正在采集、规则在 eKuiper 中运行，然后点击「检查数据」重新验收 |
+| 删除设备或采集组后同步失败 | 当前版本不会自动清理旧规则；在 eKuiper 中删除对应规则后，再点击「刷新配置」重试 |
 | 采集数值异常 | 检查站号、寄存器地址、字节序及浮点地址是否重叠 |
 | 规则启动后自动停止 | 检查许可是否包含数据处理功能；仅测试使用的规则可能运行 60 分钟后自动停止 |
 | HTTPS 连接失败 | 检查 CA、服务端 SAN、客户端证书及容器内证书路径 |
-| 数据统计中的缓存长度持续增长 | 调整采集周期、批量发送参数或采集组分配，避免长期发送慢于采集 |
+| taosExplorer 详情页中的缓存长度持续增长 | 调整采集周期、批量发送参数或采集组分配，避免长期发送慢于采集 |
 | 缓存开启后仍无法重发 | 按[缓存与转发](#缓存与转发store-and-forward)确认版本已包含重试修复，并检查错误分类、磁盘空间及缓存容量 |
+
+## 附录：数据映射与采集配置规范
+
+<NeuronMapping />
 
 ## 参考文档
 

@@ -5,7 +5,7 @@ description: "Get started with TDengine: install, model, write, query, and more"
 toc_max_heading_level: 4
 ---
 
-The full TDengine TSDB package includes the server `taosd`, `taosAdapter` for third-party integration and RESTful access, the application driver `taosc`, the command-line tool `taos` shell, and related utilities. Besides multi-language connectors, TDengine also provides a [RESTful interface](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) through [taosAdapter](../12-operations-and-tooling/03-components/03-taosadapter.md).
+The full TDengine TSDB package includes the server `taosd`, `taosAdapter` for third-party integration and RESTful access, the application driver `taosc`, the command-line tool `taos` shell, and related utilities. Besides multi-language connectors, TDengine also provides a [RESTful interface](../10-developer-guide/08-connectors-reference/10-rest-api.mdx) through [taosAdapter](../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 
 Install your environment first, then follow the sidebar order to try basic concepts, data modeling, writing, querying, and more.
 
