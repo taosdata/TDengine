@@ -386,7 +386,7 @@ Trade-offs between connector-side HA and a load balancer:
 | You need a unified TLS/mTLS entry point or want to hide backend topology | Use Nginx or HAProxy; connectors can still target the LB |
 | Both connectors and a load balancer are used | Retry writes at only one layer to avoid amplification |
 
-See the [connector reference](../../../10-developer-guide/08-connectors-reference/01-cpp.mdx) for connector parameters and version requirements. For Neuron ingestion, see [Neuron integration](../../../13-ecosystem-integrations/01-collection/11-Neuron.md#encrypted-transport-and-high-availability-optional).
+See the [connector reference](../../../10-developer-guide/08-connectors-reference/01-cpp.mdx) for connector parameters and version requirements. For Neuron ingestion, see [Neuron integration](../../../13-ecosystem-integrations/01-collection/11-neuron.md#encrypted-transport-and-high-availability-optional).
 
 ## References
 

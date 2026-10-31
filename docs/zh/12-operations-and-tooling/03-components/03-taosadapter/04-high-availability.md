@@ -384,7 +384,7 @@ TDengine 的 C/C++、Go、Python、Node.js、JDBC、Rust、C# 等连接器支持
 | 需要统一 TLS/mTLS 入口或隐藏后端拓扑 | 使用 Nginx/HAProxy，连接器可继续指向 LB |
 | 同时使用连接器和 LB | 只在其中一层重试写请求，避免重复放大 |
 
-连接器的具体参数和版本要求见 [连接器参考](../../../10-developer-guide/08-connectors-reference/01-cpp.mdx)；Neuron 接入场景见 [Neuron 接入](../../../13-ecosystem-integrations/01-collection/11-Neuron.md#加密传输与高可用可选)。
+连接器的具体参数和版本要求见 [连接器参考](../../../10-developer-guide/08-connectors-reference/01-cpp.mdx)；Neuron 接入场景见 [Neuron 接入](../../../13-ecosystem-integrations/01-collection/11-neuron.md#加密传输与高可用可选)。
 
 ## 参考
 
