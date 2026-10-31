@@ -33,10 +33,12 @@ class TestCompactDbConflict:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-11-01 Alex Duan Migrated from uncatalog/system-test/6-cluster/test_compact_db_conflict.py
+            - 2026-10-30 Observe active DDL transactions and propagate worker failures
 
         """
         tdLog.debug(f"start to excute {__file__}")
@@ -45,129 +47,115 @@ class TestCompactDbConflict:
 
         tdSql.execute('use db;')
 
-        tdLog.debug("start test1")
-        event = threading.Event()
-        newTdSql=tdCom.newTdSql()
-        t0 = threading.Thread(target=self.compactDBThread, args=('', event, newTdSql))
-        t0.start()
-        tdLog.info("t0 threading started,wait compact db tran start")
-        event.wait()
-        tdSql.error('ALTER DATABASE db REPLICA 3;', expectErrInfo="Transaction not completed due to conflict with compact")
-        tdLog.info("wait compact db finish")
-        t0.join()
-        
-        tdLog.debug("start test2")
-        event1 = threading.Event()
-        newTdSql1=tdCom.newTdSql()
-        t1 = threading.Thread(target=self.compactDBThread, args=('', event1, newTdSql1))
-        t1.start()
-        tdLog.info("t1 threading started,wait compact db tran start")
-        event1.wait()
-        tdSql.error('REDISTRIBUTE VGROUP 5 DNODE 1;', expectErrInfo="Transaction not completed due to conflict with compact")
-        tdLog.info("wait compact db finish")
-        t1.join()
+        for sql in (
+            'ALTER DATABASE db REPLICA 3;',
+            'REDISTRIBUTE VGROUP 5 DNODE 1;',
+            None,
+            'BALANCE VGROUP;',
+        ):
+            event = threading.Event()
+            worker_sql = tdCom.newTdSql()
+            thread, errors = self.start_worker(self.compactDBThread, '', event, worker_sql)
+            try:
+                assert event.wait(60), "compact worker did not start within 60s"
+                self.check_worker_errors(errors)
+                if sql is None:
+                    tdSql.query('show vgroups')
+                    assert tdSql.queryRows > 0, "get vgroupId failed"
+                    conflict_sql = f"split vgroup {tdSql.getData(0, 0)}"
+                else:
+                    conflict_sql = sql
+                tdSql.error(conflict_sql, expectErrInfo="Transaction not completed due to conflict with compact")
+            finally:
+                self.join_worker(thread, errors)
+            assert self.wait_transactions_zero(tdSql), "compact transaction did not finish"
 
-        tdLog.debug("start test3")
-        event2 = threading.Event()
-        newTdSql2=tdCom.newTdSql()
-        t2 = threading.Thread(target=self.compactDBThread, args=('', event2, newTdSql2))
-        t2.start()
-        tdLog.info("t2 threading started,wait compact db tran start")
-        event2.wait()
-        rowLen = tdSql.query('show vgroups')
-        if rowLen > 0:
-            vgroupId = tdSql.getData(0, 0)
-            tdLog.info(f"split Vgroup vgroupId:{vgroupId} start")
-            tdSql.error(f"split vgroup {vgroupId}", expectErrInfo="Transaction not completed due to conflict with compact")
-        else:
-            tdLog.exit("get vgroupId fail!")
-        tdLog.info("wait compact db finish")
-        t2.join()
+        for target, operation in (
+            (self.splitVgroupThread, 'split-vgroup'),
+            (self.RedistributeVGroups, 'red-vgroup'),
+            (self.balanceVGROUPThread, 'balance-vgroup'),
+            (self.alterDBThread, 'alter-db'),
+        ):
+            assert self.wait_transactions_zero(tdSql), "previous DDL transaction did not finish"
+            worker_sql = tdCom.newTdSql()
+            thread, errors = self.start_worker(target, '', worker_sql)
+            try:
+                # Starting a thread does not establish transaction overlap.
+                self.wait_transaction_started(operation, errors)
+                tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
+            finally:
+                self.join_worker(thread, errors)
+            assert self.wait_transactions_zero(tdSql), f"{operation} transaction did not finish"
 
-        tdLog.debug("start test4")
-        event3 = threading.Event()
-        newTdSql3=tdCom.newTdSql()
-        t3 = threading.Thread(target=self.compactDBThread, args=('', event3, newTdSql3))
-        t3.start()
-        tdLog.info("t3 threading started!!!!!")
-        event3.wait()
-        tdSql.error('BALANCE VGROUP;', expectErrInfo="Transaction not completed due to conflict with compact")
-        t3.join()
+    def start_worker(self, target, *args):
+        errors = []
 
-        tdLog.debug("start test5")
-        newTdSql4=tdCom.newTdSql()
-        t4 = threading.Thread(target=self.splitVgroupThread, args=('', newTdSql4))
-        t4.start()
-        tdLog.info("t4 threading started!!!!!")
-        time.sleep(1)
-        tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
-        t4.join()
-        
-        tdLog.debug("start test6")
-        newTdSql5=tdCom.newTdSql()
-        t5 = threading.Thread(target=self.RedistributeVGroups, args=('', newTdSql5))
-        t5.start()
-        tdLog.info("t5 threading started!!!!!")
-        time.sleep(1)
-        tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
-        t5.join()
+        def run():
+            try:
+                target(*args)
+            except BaseException as exc:
+                errors.append(exc)
 
-        tdLog.debug("start test7")
-        newTdSql6=tdCom.newTdSql()
-        t6 = threading.Thread(target=self.balanceVGROUPThread, args=('', newTdSql6))
-        t6.start()
-        tdLog.info("t6 threading started!!!!!")
-        time.sleep(1)
-        tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
-        t6.join()
+        thread = threading.Thread(target=run)
+        thread.start()
+        return thread, errors
 
-        tdLog.debug("start test8")
-        newTdSql7=tdCom.newTdSql()
-        t7 = threading.Thread(target=self.alterDBThread, args=('', newTdSql7))
-        t7.start()
-        tdLog.info("t7 threading started!!!!!")
-        time.sleep(1)
-        tdSql.error('compact database db;', expectErrInfo="Conflict transaction not completed")
-        t7.join()
-     
+    def check_worker_errors(self, errors):
+        if errors:
+            raise errors[0]
 
+    def join_worker(self, thread, errors):
+        thread.join(timeout=330)
+        assert not thread.is_alive(), "DDL worker did not finish within 330s"
+        self.check_worker_errors(errors)
+
+    def wait_transaction_started(self, operation, errors, timeout=60):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            self.check_worker_errors(errors)
+            tdSql.query('show transactions')
+            if any(row[3] == operation for row in tdSql.queryResult):
+                tdLog.info(f"observed active {operation} transaction")
+                return
+            time.sleep(0.05)
+        raise AssertionError(f"{operation} transaction did not become visible within {timeout}s")
 
     def compactDBThread(self, p, event, newtdSql):
         tdLog.info("compact db start")
         newtdSql.execute('compact DATABASE db')
         event.set()
         if self.wait_compacts_zero(atdSql=newtdSql) is False:
-                tdLog.info(f"compact not finished")
+            raise AssertionError("compact did not finish within 300s")
 
     def alterDBThread(self, p, newtdSql):
         tdLog.info("alter db start")
         newtdSql.execute('ALTER DATABASE db REPLICA 3')
-        if self.waitTransactionZero(atdSql=newtdSql) is False:
-            tdLog.info(f"transaction not finished")
+        if self.wait_transactions_zero(atdSql=newtdSql) is False:
+            raise AssertionError("DDL transaction did not finish within 300s")
 
     def balanceVGROUPThread(self, p, newtdSql):
         tdLog.info("balance VGROUP start")
         newtdSql.execute('BALANCE VGROUP')
-        if self.waitTransactionZero(atdSql=newtdSql) is False:
-            tdLog.info(f"transaction not finished")
+        if self.wait_transactions_zero(atdSql=newtdSql) is False:
+            raise AssertionError("DDL transaction did not finish within 300s")
 
     def RedistributeVGroups(self, p, newtdSql):
         tdLog.info("REDISTRIBUTE VGROUP start")
         sql = f"REDISTRIBUTE VGROUP 5 DNODE 1"
         newtdSql.execute(sql, show=True)
-        if self.waitTransactionZero(atdSql=newtdSql) is False:
+        if self.wait_transactions_zero(atdSql=newtdSql) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
 
         sql = f"REDISTRIBUTE VGROUP 4 DNODE 1"
         newtdSql.execute(sql, show=True)
-        if self.waitTransactionZero(atdSql=newtdSql) is False:
+        if self.wait_transactions_zero(atdSql=newtdSql) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
         
         sql = f"REDISTRIBUTE VGROUP 3 DNODE 1"
         newtdSql.execute(sql, show=True)
-        if self.waitTransactionZero(atdSql=newtdSql) is False:
+        if self.wait_transactions_zero(atdSql=newtdSql) is False:
             tdLog.exit(f"{sql} transaction not finished")
             return False
         
@@ -182,10 +170,10 @@ class TestCompactDbConflict:
             newtdSql.execute(f"split vgroup {vgroupId}")
         else:
             tdLog.exit("get vgroupId fail!")
-        if self.waitTransactionZero(atdSql=newtdSql) is False:
-            tdLog.info(f"transaction not finished")
+        if self.wait_transactions_zero(atdSql=newtdSql) is False:
+            raise AssertionError("DDL transaction did not finish within 300s")
     
-    def waitTransactionZero(self, atdSql, seconds = 300, interval = 1):
+    def wait_transactions_zero(self, atdSql, seconds = 300, interval = 1):
         # wait end
         for i in range(seconds):
             sql ="show transactions;"

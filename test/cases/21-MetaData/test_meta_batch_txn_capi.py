@@ -23,12 +23,18 @@ implementation and that the pTxnTableMeta cleanup bug is fixed.
 """
 
 import ctypes
+import os
+import platform
 from ctypes import c_void_p, c_int, c_char_p, c_uint16, cast
 from new_test_framework.utils import tdLog, tdSql, tdCom
 import time
 
-# Load libtaos and set up C function signatures
-_lib = ctypes.CDLL("libtaos.so")
+# Load the native client from the current build on Windows; Linux keeps the
+# conventional loader lookup.
+if platform.system().lower() == "windows":
+    _lib = ctypes.CDLL(os.path.join(tdCom.getBuildPath(), "build", "bin", "taos.dll"))
+else:
+    _lib = ctypes.CDLL("libtaos.so")
 
 _lib.taos_connect.restype = c_void_p
 _lib.taos_connect.argtypes = [c_char_p, c_char_p, c_char_p, c_char_p, c_uint16]
@@ -404,7 +410,9 @@ class TestBatchMetaTxnCApi:
         12. drop table via C API txn
 
         Since: v3.3.6.0
+
         Labels: common,ci
+
         Jira: TD-XXXXX
 
         History:

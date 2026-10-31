@@ -84,7 +84,14 @@ def _setup_windows_taos_dll_dir():
     candidates = []
     env_bin = os.getenv("TAOS_BIN_PATH")
     if env_bin:
-        candidates.append(Path(env_bin))
+        candidate = Path(env_bin).resolve()
+        missing = [name for name in ("taosd.exe", "taos.dll") if not (candidate / name).is_file()]
+        if missing:
+            raise pytest.UsageError(
+                f"TAOS_BIN_PATH={candidate} is missing Windows test artifacts: "
+                f"{', '.join(missing)}. Build the selected revision before running tests."
+            )
+        candidates.append(candidate)
 
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "debug" / "build" / "bin"

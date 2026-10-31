@@ -19,18 +19,29 @@ import glob
 import os
 import json
 import subprocess
+from new_test_framework.utils.eutil import start_test_process, signal_test_process
 
 
 class TestBenchmarkQueryMain:
 
-    def runSeconds(self, command, timeout = 180):
+    def runSeconds(self, command, timeout=None):
+        if timeout is None:
+            timeout = 1800 if os.name == "nt" else 180
         tdLog.info(f"runSeconds {command} ...")
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        process.wait(timeout)
-
-        # get output
-        output = process.stdout.read().decode(encoding="gbk")
-        error  = process.stderr.read().decode(encoding="gbk")
+        process = start_test_process(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            stdout, stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            signal_test_process(process)
+            stdout, stderr = process.communicate(timeout=10)
+            tdLog.exit(f"benchmark timed out after {timeout}s: {command} "
+                       f"stdout={stdout!r} stderr={stderr!r}")
+        output = stdout.decode(encoding="gbk", errors="replace")
+        error = stderr.decode(encoding="gbk", errors="replace")
+        if process.returncode:
+            tdLog.exit(f"benchmark failed: rc={process.returncode} "
+                       f"(0x{process.returncode & 0xffffffff:08X}), "
+                       f"command={command}, stdout={output}, stderr={error}")
         return output, error
 
     def getKeyValue(self, content, key, end):
@@ -283,6 +294,7 @@ class TestBenchmarkQueryMain:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

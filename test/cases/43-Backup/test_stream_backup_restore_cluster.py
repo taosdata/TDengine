@@ -17,6 +17,7 @@
 import os
 import shutil
 import time
+import tempfile
 
 from new_test_framework.utils import tdLog, tdSql, cluster
 from backup_restore_base import BackupRestoreTestBase
@@ -58,7 +59,7 @@ class TestStreamBackupRestoreCluster(BackupRestoreTestBase):
         cls.dnode_id = 1
         cls.dnode_nums = len(cluster.dnodes)
         cls.backup_dnode = 1            # backup agent runs on dnode 1
-        cls.backup_root = f"/tmp/backup_stream_cluster_{int(time.time() * 1000)}"
+        cls.backup_root = os.path.join(tempfile.gettempdir(), f"backup_stream_cluster_{int(time.time() * 1000)}").replace("\\", "/")
 
     def teardown_class(cls):
         # remove the backup chains

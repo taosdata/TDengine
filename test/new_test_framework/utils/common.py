@@ -3231,6 +3231,11 @@ class TDCom:
                     # connection failure is reported.
                     tdLog.info(f"[PIPELINE] {self._taos_cli_path()} stderr: "
                                f"{err.strip()[:2000]}")
+                if rc != 0:
+                    raise subprocess.CalledProcessError(
+                        rc, [self._taos_cli_path(), "-c", cfgPath, "-f", inputfile],
+                        output=text, stderr=err,
+                    )
             else:
                 pipeline = (
                     f"{shlex.quote(self._taos_cli_path())} "
@@ -3241,6 +3246,43 @@ class TDCom:
                 )
                 self._run_result_pipeline(pipeline)
             return self.query_result_file
+
+    @staticmethod
+    def _normalize_windows_query_output(output):
+        """Apply the existing grep/sed output rules without a POSIX shell."""
+        patterns = [
+            (r"[ \t]*\([0-9]+\.[0-9]+s\)", " "),
+            (r"cost=[0-9]+\.[0-9]+\.\.[0-9]+\.[0-9]+", ""),
+            (r"cost=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)\.\.[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+        ]
+        for field in ("file_load_elapsed", "stt_load_elapsed", "mem_load_elapsed",
+                      "sma_load_elapsed", "composed_elapsed", "fetch_cost"):
+            patterns.extend([
+                (rf"{field}=[0-9]+\.[0-9]+\([0-9]+\.[0-9]+\)", ""),
+                (rf"{field}=[0-9]+\.[0-9]+", ""),
+            ])
+        patterns.extend([
+            (r"slowest_vgroup_id=[0-9]+", ""),
+            (r"fetch_times=[0-9]+\.[0-9]+\([0-9]+\)", ""),
+            (r"fetch_times=[0-9]+", ""),
+            (r"slow_deviation=[0-9]+\.[0-9]+%", ""),
+            (r"cost_ratio=[0-9]+\.[0-9]+", ""),
+            (r"data_deviation=-?[0-9]+\.[0-9]+%", ""),
+            (r"Planning Time: [0-9]+\.[0-9]+ ms", ""),
+            (r"Execution Time: [0-9]+\.[0-9]+ ms", ""),
+            (r"max_row_task=[0-9]+, ", ""),
+        ])
+        lines = []
+        for line in output.splitlines():
+            if (any(marker in line for marker in ("Query OK", "Copyright", "Exec cost:"))
+                    or re.search(r"Welcome to the TDengine (TSDB )?Command", line)):
+                continue
+            for pattern, replacement in patterns:
+                line = re.sub(pattern, replacement, line)
+            if re.match(r"^taos>\s*$", line):
+                continue
+            lines.append(line.rstrip() if line.startswith("taos>") else line)
+        return "".join(line + "\n" for line in lines)
 
     # Reports a sanitizer runtime (preloaded libasan/LSan, or an ASan build)
     # prints on the stderr of the CLI that produced a result file.
@@ -3347,7 +3389,7 @@ class TDCom:
         normalized = re.sub(r"Planning Time: [0-9]+\.[0-9]+ ms", "", normalized)
         normalized = re.sub(r"Execution Time: [0-9]+\.[0-9]+ ms", "", normalized)
         normalized = re.sub(
-            r"(Input Rows: [0-9]+, Calls: [0-9]+, Time:) [0-9]+\.[0-9]+ ms",
+            r"(Input Rows: [0-9]+, Calls: [0-9]+, Time:) [0-9]+(?:\.[0-9]+)? ms",
             r"\1 ms",
             normalized,
         )
@@ -3415,6 +3457,11 @@ class TDCom:
             lines1 = f1.read().splitlines()
         with open(file2, "r", encoding="utf-8", errors="ignore") as f2:
             lines2 = f2.read().splitlines()
+
+        if platform.system().lower() == "windows":
+            # Match the empty-line filtering used by the Windows fc path.
+            lines1 = [line for line in lines1 if line.strip()]
+            lines2 = [line for line in lines2 if line.strip()]
 
         if len(lines1) != len(lines2):
             return False, (f"Line count mismatch: expected {len(lines1)} lines, "
@@ -3681,6 +3728,24 @@ class TDCom:
             tdLog.exit(
                 f"{caller.lineno}(line:{caller.lineno}) failed: expect_file:{resultFile}  != reult_file:{self.query_result_file} "
             )
+
+    @staticmethod
+    def normalize_windows_shanghai_explain(result):
+        """Normalize the Windows spelling of the pinned Shanghai plan timezone.
+
+        These snapshots use modern dates, when Shanghai is UTC+8. Windows
+        renders its POSIX timezone as -0800. Only EXPLAIN's hidden timezone
+        argument is normalized; SQL text, query rows and other arguments stay
+        unchanged. Callers must pin Asia/Shanghai and firstDayOfWeek=0.
+        """
+        if os.name != "nt":
+            return result
+        return "".join(
+            re.sub(r"'-0800'(?=, 0, (?:100|115)\))", "'Asia/Shanghai'", line)
+            if line.lstrip().startswith("QUERY_PLAN:") and "timetruncate(" in line
+            else line
+            for line in result.splitlines(keepends=True)
+        )
 
     def compare_testcase_result(
         self, inputfile, expected_file, test_case, float_tolerance=0.0,

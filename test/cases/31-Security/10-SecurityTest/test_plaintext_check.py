@@ -15,10 +15,25 @@
 
 from new_test_framework.utils import tdLog, tdSql, epath, sc, etool, AutoGen, tdDnodes
 import os
-import subprocess
 
 
 class TestBasic:
+    @staticmethod
+    def _contains_plaintext(path, secret):
+        needle = secret.encode('utf-8')
+        if not needle:
+            raise ValueError('Secret must not be empty')
+        overlap = b''
+        with open(path, 'rb') as data:
+            while True:
+                chunk = data.read(1024 * 1024)
+                if not chunk:
+                    return False
+                chunk = overlap + chunk
+                if needle in chunk:
+                    return True
+                overlap = chunk[-(len(needle) - 1):] if len(needle) > 1 else b''
+
     updatecfgDict = {'dDebugFlag': 131}
     
     # Pre-generate encryption keys
@@ -50,6 +65,7 @@ class TestBasic:
         Since: v3.4.0.0
 
         Labels: common,ci,integration,functional,security
+
         Jira: TS-7230
 
         History:
@@ -81,6 +97,12 @@ class TestBasic:
         assert tdSql.queryRows == 2, "Should have 2 rows"
         tdLog.info("Secret data verified in database")
 
+        if os.name == "nt":
+            # Scan a flushed, closed store: RocksDB keeps its LOCK file
+            # exclusively open while taosd runs on Windows.
+            tdSql.execute(f"FLUSH DATABASE {self.db}")
+            sc.dnodeStop(1)
+
         # Test 1: Check WAL files
         tdLog.info("=" * 80)
         tdLog.info("Test 1: Checking WAL files for plaintext")
@@ -97,10 +119,7 @@ class TestBasic:
                     for wal_file in os.listdir(wal_dir):
                         wal_path = os.path.join(wal_dir, wal_file)
                         if os.path.isfile(wal_path):
-                            # Use grep to search for secret string
-                            result = subprocess.run(['grep', '-a', self.secret_string, wal_path], 
-                                                  capture_output=True, text=True)
-                            if result.returncode == 0:
+                            if self._contains_plaintext(wal_path, self.secret_string):
                                 plaintext_found = True
                                 tdLog.info(f"WARNING: Plaintext found in {wal_path}")
                             wal_files_checked += 1
@@ -124,9 +143,7 @@ class TestBasic:
                     for root, dirs, files in os.walk(tsdb_dir):
                         for file in files:
                             file_path = os.path.join(root, file)
-                            result = subprocess.run(['grep', '-a', self.secret_string, file_path], 
-                                                  capture_output=True, text=True)
-                            if result.returncode == 0:
+                            if self._contains_plaintext(file_path, self.secret_string):
                                 plaintext_found = True
                                 tdLog.info(f"WARNING: Plaintext found in {file_path}")
                             tsdb_files_checked += 1
@@ -193,6 +210,8 @@ class TestBasic:
                 tdLog.info("derived.bin passed plaintext check")
 
         # Clean up
+        if os.name == "nt":
+            sc.dnodeStart(1)
         tdSql.execute(f"DROP DATABASE IF EXISTS {self.db}")
 
         tdLog.success(f"{__file__} successfully executed")

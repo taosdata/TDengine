@@ -308,12 +308,20 @@ class TestStreamSubqueryMixedNestedJoin:
         normal_expected.append(expected[-3])
         self.check_normal_results(normal_expected)
 
+        # Result reads can finish before the last sink write is acknowledged.
+        # Stop both producers before checking that their output tables are empty.
+        tdSql.execute("stop stream mixed_join_stream")
+        tdSql.execute("stop stream normal_join_stream")
         tdSql.execute("delete from mixed_join_result")
         tdSql.execute("delete from normal_join_result")
         tdSql.query("select * from mixed_join_result")
         tdSql.checkRows(0)
         tdSql.query("select * from normal_join_result")
         tdSql.checkRows(0)
+        tdSql.execute("start stream mixed_join_stream")
+        tdSql.execute("start stream normal_join_stream")
+        tdStream.checkStreamStatus("mixed_join_stream")
+        tdStream.checkStreamStatus("normal_join_stream")
         tdSql.execute(
             "recalculate stream mixed_join_stream "
             "from '2025-01-01 00:00:00' to '2025-01-01 00:00:40'"

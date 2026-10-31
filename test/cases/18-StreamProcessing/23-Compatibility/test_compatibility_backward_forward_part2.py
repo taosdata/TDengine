@@ -103,8 +103,7 @@ class TestStreamCompatibility:
             tdLog.info("Cannot import distro module, skipping distro check")
 
         if platform.system().lower() == 'windows':
-            tdLog.info(f"Windows skip compatibility test")
-            return True
+            pytest.skip("Historical stream upgrade lifecycle is not implemented on Windows")
 
         bPath = tdCom.getBuildPath()
         cPath = self.getCfgPath()

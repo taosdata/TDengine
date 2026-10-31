@@ -16,6 +16,7 @@
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
 import sys
 import time
+import platform
 from math import inf
 
 class TestShowCreateDb:
@@ -35,6 +36,9 @@ class TestShowCreateDb:
         tdSql.execute(f"use scd")
 
     def showCreateDbCheck(self, dbname, expectShowCreateDb, maxRetry=30, dropDbAndRecheck=False, dropDbAfterCheck=False):
+        # tdef.h defines the Windows default as 2, versus 1 on Linux.
+        if platform.system().lower() == "windows":
+            expectShowCreateDb = expectShowCreateDb.replace(" WAL_LEVEL 1 ", " WAL_LEVEL 2 ")
         retry_count = 0
         success = False
         while retry_count < maxRetry and not success:
@@ -72,6 +76,7 @@ class TestShowCreateDb:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

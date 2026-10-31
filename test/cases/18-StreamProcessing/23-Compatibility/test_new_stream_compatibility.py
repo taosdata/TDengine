@@ -15,17 +15,22 @@
 
 import importlib.util
 import os
-import platform
 import re
 import shutil
 import subprocess
 import time
+import urllib.error
+import pytest
 from pathlib import Path
 
 from new_test_framework.utils import StreamItem, tdCb, tdCom, tdLog, tdSql, tdStream
 
 
 BASE_VERSIONS = ["3.3.7.9", "3.3.8.5", "3.3.8.6", "3.4.1.0"]
+# The first three releases have no published Windows enterprise installer.
+# Keep their upgrade coverage on Linux; Windows starts with the available baseline.
+if os.name == "nt":
+    BASE_VERSIONS = ["3.4.1.0"]
 DATABASE = "test_stream_compatibility"
 
 current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -33,8 +38,6 @@ enterprise_downloader_path = os.path.abspath(
     os.path.join(current_dir, "../../../../../taos-internal/utils/download_enterprise_package.py")
 )
 if not os.path.exists(enterprise_downloader_path):
-    import pytest
-
     pytest.skip("Enterprise package downloader not available (community-only CI)", allow_module_level=True)
 
 spec = importlib.util.spec_from_file_location("download_enterprise_package", enterprise_downloader_path)
@@ -50,8 +53,14 @@ class TestNewStreamCompatibility:
         tdLog.info(f"start to execute {__file__}")
         self.old_bin_dir = None
         self.old_lib_dir = None
+        self.config_path = None
 
-    def test_stream_compatibility(self):
+    def teardown_method(self):
+        if os.name == "nt" and self.config_path:
+            self.stop_version_servers()
+
+    @pytest.mark.parametrize("base_version", BASE_VERSIONS)
+    def test_stream_compatibility(self, base_version):
         """Upgrade streams and data written by supported old releases.
 
         1. Start each old release, create streams, and verify its output.
@@ -70,6 +79,8 @@ class TestNewStreamCompatibility:
         History:
             - 2025-11-17 Tony Zhang created this case
             - 2026-08-12 Codex isolated old-version client execution and diagnostics
+            - 2026-10-28 Codex added Windows process and client isolation per baseline
+            - 2026-10-30 Codex retained startup diagnostics and graceful Windows shutdown
 
         """
         if self._is_unsupported_platform():
@@ -77,23 +88,19 @@ class TestNewStreamCompatibility:
 
         build_path = tdCom.getBuildPath()
         config_path = self.get_cfg_path()
-        for base_version in BASE_VERSIONS:
-            tdLog.printNoPrefix(f"========== Stream upgrade: {base_version} -> current ==========")
-            self.start_old_version(config_path, base_version)
-            self.prepare_old_version_data(base_version)
+        tdLog.printNoPrefix(f"========== Stream upgrade: {base_version} -> current ==========")
+        self.start_old_version(config_path, base_version)
+        self.prepare_old_version_data(base_version)
 
-            tdCb.stopTaosdCompletely()
-            tdCb.updateNewVersion(build_path, cPaths=[config_path], upgrade=2)
-            self.start_streams_on_current_version()
-            self.verify_current_version_data()
-            tdCb.stopTaosdCompletely()
+        self.stop_version_servers()
+        self.start_current_version(build_path, config_path)
+        self.start_streams_on_current_version()
+        self.verify_current_version_data()
+        self.stop_version_servers()
 
         tdLog.printNoPrefix("stream compatibility ......................... [ passed ]")
 
     def _is_unsupported_platform(self):
-        if platform.system().lower() == "windows":
-            tdLog.info("Windows skips stream compatibility test")
-            return True
         try:
             import distro
 
@@ -105,24 +112,36 @@ class TestNewStreamCompatibility:
         return False
 
     def get_cfg_path(self):
+        if os.environ.get("WORK_DIR"):
+            return os.path.join(os.environ["WORK_DIR"], "dnode1", "cfg")
         return os.path.join(tdCom.getBuildPath(), "../sim/dnode1/cfg/")
+
+    def old_program(self, name):
+        return os.path.join(self.old_bin_dir, name + (".exe" if os.name == "nt" else ""))
 
     def old_client_env(self):
         if not self.old_bin_dir or not self.old_lib_dir:
             raise RuntimeError("Old version is not initialized")
         env = os.environ.copy()
+        if os.name == "nt":
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = self.old_bin_dir + os.pathsep + env.get("PATH", "")
+            return env
         env["LD_LIBRARY_PATH"] = self.old_lib_dir
         env["LD_PRELOAD"] = os.path.join(self.old_lib_dir, "libtaos.so")
         return env
 
     def old_server_env(self):
+        if os.name == "nt":
+            return self.old_client_env()
         env = os.environ.copy()
         env["LD_LIBRARY_PATH"] = self.old_lib_dir
         env.pop("LD_PRELOAD", None)
         return env
 
-    def run_old_taos(self, sql=None, database=None, timeout=15):
-        command = [os.path.join(self.old_bin_dir, "taos")]
+    def run_old_taos(self, sql=None, database=None, timeout=180):
+        command = [self.old_program("taos"), "-c", self.config_path]
         if database:
             command.extend(["-d", database])
         if sql is not None:
@@ -136,7 +155,7 @@ class TestNewStreamCompatibility:
             )
         except subprocess.TimeoutExpired as error:
             raise RuntimeError(f"Old taos timed out: {command}; output: {error.output!r}") from error
-        if result.returncode:
+        if result.returncode or re.search(r"\bDB error:", result.stdout + result.stderr, re.IGNORECASE):
             raise RuntimeError(
                 f"Old taos failed ({result.returncode}): {sql}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
             )
@@ -144,7 +163,7 @@ class TestNewStreamCompatibility:
 
     def verify_old_client_version(self, base_version):
         result = subprocess.run(
-            [os.path.join(self.old_bin_dir, "taos"), "-V"],
+            [self.old_program("taos"), "-V"],
             env=self.old_client_env(), text=True, capture_output=True, timeout=10
         )
         if result.returncode:
@@ -164,17 +183,82 @@ class TestNewStreamCompatibility:
         tdLog.info(f"Verified old client version: {actual_version}")
 
     def start_old_version(self, config_path, base_version):
-        self.old_bin_dir, self.old_lib_dir = downloader.download_and_extract(base_version, "enterprise")
+        self.config_path = config_path
+        try:
+            self.old_bin_dir, self.old_lib_dir = downloader.download_and_extract(base_version, "enterprise")
+        except urllib.error.HTTPError as error:
+            if os.name == "nt" and error.code == 404:
+                pytest.skip(f"Windows enterprise server baseline {base_version} is unavailable: {error.url}")
+            raise
         self.verify_old_client_version(base_version)
-        tdCb.stopTaosdCompletely()
+        if os.name == "nt":
+            tdSql.close()
+        self.stop_version_servers()
         self.clean_data_directory(config_path)
 
-        taosd = os.path.join(self.old_bin_dir, "taosd")
+        taosd = self.old_program("taosd")
         tdLog.info(f"Starting old taosd {base_version}: {taosd}")
-        with open(os.devnull, "w") as devnull:
-            subprocess.Popen([taosd, "-c", config_path], env=self.old_server_env(), stdout=devnull, stderr=devnull)
+        if os.name == "nt":
+            self.start_windows_server(taosd, config_path, self.old_server_env(), "old-version")
+        else:
+            with open(os.devnull, "w") as devnull:
+                subprocess.Popen([taosd, "-c", config_path], env=self.old_server_env(), stdout=devnull, stderr=devnull)
         time.sleep(5)
-        self.wait_for_old_server()
+        try:
+            self.wait_for_old_server()
+        except BaseException:
+            if os.name == "nt":
+                self.log_windows_startup()
+            raise
+
+    def start_windows_server(self, program, config_path, environment, label):
+        log_dir = Path(config_path).parent / "log"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        self.version_startup_log = log_dir / f"{label}-startup.log"
+        with self.version_startup_log.open("ab") as output:
+            self.version_process = subprocess.Popen(
+                [program, "-c", config_path], env=environment,
+                stdout=output, stderr=subprocess.STDOUT,
+                creationflags=subprocess.CREATE_NEW_CONSOLE,
+            )
+        tdLog.info(f"Started {label} pid={self.version_process.pid}; log={self.version_startup_log}")
+
+    def log_windows_startup(self):
+        tdLog.info(f"Version server pid={self.version_process.pid}, exit={self.version_process.poll()}; "
+                   f"startup log={self.version_startup_log}")
+        try:
+            with self.version_startup_log.open(encoding="utf-8", errors="replace") as output:
+                tdLog.info("".join(output.readlines()[-80:]))
+        except OSError as error:
+            tdLog.info(f"Cannot read version startup log: {error}")
+
+    def stop_version_servers(self):
+        if os.name != "nt":
+            tdCb.stopTaosdCompletely()
+            return
+        from new_test_framework.utils.server.win_process import stop_taosd_windows, _find_taosd_pid
+        if (_find_taosd_pid(config_dir=self.config_path) and
+                not stop_taosd_windows(config_dir=self.config_path, timeout=60, log=tdLog)):
+            raise RuntimeError(f"Compatibility server did not stop gracefully: {self.config_path}")
+
+    def start_current_version(self, build_path, config_path):
+        if os.name != "nt":
+            tdCb.updateNewVersion(build_path, cPaths=[config_path], upgrade=2)
+            return
+        taosd = os.path.join(build_path, "build", "bin", "taosd.exe")
+        environment = os.environ.copy()
+        environment.pop("LD_PRELOAD", None)
+        environment.pop("LD_LIBRARY_PATH", None)
+        environment["PATH"] = os.path.dirname(taosd) + os.pathsep + environment.get("PATH", "")
+        self.start_windows_server(taosd, config_path, environment, "current-version")
+        try:
+            tdCb.checkstatus()
+        except BaseException:
+            self.log_windows_startup()
+            raise
+        # The fixture connection belongs to the cluster removed before the old
+        # server was started. Reconnect to refresh account and catalog state.
+        tdSql.init(tdCom.newcur(), False)
 
     def clean_data_directory(self, config_path):
         data_path = Path(config_path).parent / "data"
@@ -236,6 +320,9 @@ class TestNewStreamCompatibility:
         for table in ("res_count", "res_state", "res_inter"):
             self.wait_for_old_row_count(table, 3)
         self.stop_old_streams()
+        # Persist the prepared tables and stream output before changing binaries.
+        if os.name == "nt":
+            self.run_old_taos(f"flush database {DATABASE}", timeout=120)
 
     def wait_for_old_streams(self, timeout_seconds=300):
         deadline = time.monotonic() + timeout_seconds
@@ -274,17 +361,32 @@ class TestNewStreamCompatibility:
             f"Old stream result {DATABASE}.{table} did not reach {expected_rows} rows:\n{output}"
         )
 
+    def old_stream_states(self):
+        output = self.run_old_taos("select stream_name, status from information_schema.ins_streams", timeout=10)
+        states = {}
+        for line in output.splitlines():
+            fields = [field.strip() for field in line.split("|")]
+            if len(fields) == 3 and not fields[-1] and fields[0] != "stream_name":
+                if fields[0] in states:
+                    raise RuntimeError(f"Duplicate old stream metadata: {output!r}")
+                states[fields[0]] = fields[1]
+        expected = {"s_count", "s_state", "s_inter"}
+        if set(states) != expected:
+            raise RuntimeError(f"Expected old streams {sorted(expected)}, got {states}: {output!r}")
+        return states
+
     def stop_old_streams(self):
-        output = self.run_old_taos("select stream_name from information_schema.ins_streams")
-        names = [name for name in re.findall(r"^\s*(\S+)\s*\|", output, re.MULTILINE) if name != "stream_name"]
-        for name in names:
+        states = self.old_stream_states()
+        for name in states:
             self.run_old_taos(f"stop stream {name}", database=DATABASE)
-        time.sleep(5)
-        output = self.run_old_taos("select stream_name, status from information_schema.ins_streams")
-        not_stopped = re.findall(r"^\s*(\S+)\s*\|\s*(?!Stopped\s*\|)(\S+)", output, re.MULTILINE)
-        not_stopped = [(name, status) for name, status in not_stopped if name != "stream_name"]
-        if not_stopped:
-            raise RuntimeError(f"Old streams did not stop: {not_stopped}")
+        deadline = time.monotonic() + 30
+        while True:
+            states = self.old_stream_states()
+            if all(status == "Stopped" for status in states.values()):
+                return
+            if time.monotonic() >= deadline:
+                raise RuntimeError(f"Old streams did not stop: {states}")
+            time.sleep(1)
 
     def start_streams_on_current_version(self):
         tdSql.execute(f"use {DATABASE}")

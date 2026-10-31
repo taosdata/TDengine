@@ -17,6 +17,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+import shutil
 import string
 import random
 import subprocess
@@ -48,12 +49,13 @@ class TestTaosBackupBasic:
         """Run taosBackup command and return output list."""
         return etool.taosdump(command)
 
+    def removeDir(self, path):
+        if os.path.exists(path):
+            shutil.rmtree(path)
+
     def makeDir(self, path):
-        if not os.path.exists(path):
-            os.makedirs(path)
-        else:
-            os.system("rm -rf %s" % path)
-            os.makedirs(path)
+        self.removeDir(path)
+        os.makedirs(path)
 
     def dbFound(self, dbname):
         tdSql.query("show databases")
@@ -388,7 +390,7 @@ class TestTaosBackupBasic:
         tdSql.checkData(0, 0, 5)
 
         tdSql.execute("drop database if exists cmdb")
-        os.system("rm -rf %s" % tmproot)
+        self.removeDir(tmproot)
         tdLog.info("do_taosbackup_connmode .................... [passed]")
 
     #
@@ -484,8 +486,8 @@ class TestTaosBackupBasic:
         # cleanup
         tdSql.execute("drop database newdb")
         tdSql.execute("drop database newdb1")
-        os.system("rm -rf %s" % tmpdir1)
-        os.system("rm -rf %s" % tmpdir2)
+        self.removeDir(tmpdir1)
+        self.removeDir(tmpdir2)
 
         tdLog.info("do_taosbackup_rename_db ..................... [passed]")
 
@@ -826,7 +828,7 @@ class TestTaosBackupBasic:
             )
         )
 
-        os.system("rm -rf %s" % tmpdir)
+        self.removeDir(tmpdir)
         os.makedirs(tmpdir)
         etool.taosdump("-D test -o %s" % (tmpdir))
 
@@ -1313,7 +1315,7 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
         # Backup only 2022 data
         etool.taosdump(
-            "-D db -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            "-D db -o %s -T 1 -S \"2022-01-01 00:00:00.000\" -E \"2022-12-31 23:59:59.999\""
             % tmpdir
         )
 
@@ -1513,7 +1515,7 @@ class TestTaosBackupBasic:
 
         self.makeDir(tmpdir)
         etool.taosdump(
-            "-D db -o %s -T 2 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            "-D db -o %s -T 2 -S \"2022-01-01 00:00:00.000\" -E \"2022-12-31 23:59:59.999\""
             % tmpdir
         )
 
@@ -1600,7 +1602,7 @@ class TestTaosBackupBasic:
         self.makeDir(tmpdir)
         # Specify t1 and t2 explicitly (spec-tables path), plus time filter
         etool.taosdump(
-            "db t1 t2 -o %s -T 1 -S '2022-01-01 00:00:00.000' -E '2022-12-31 23:59:59.999'"
+            "db t1 t2 -o %s -T 1 -S \"2022-01-01 00:00:00.000\" -E \"2022-12-31 23:59:59.999\""
             % tmpdir
         )
 
@@ -1696,8 +1698,10 @@ class TestTaosBackupBasic:
         bck_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bck")
 
         # --- backup.log: created, mirrors console, truncated on rerun ---
-        os.system(f"rm -rf {bck_dir}")
-        console1 = os.popen(f"{binPath} -M all -o {bck_dir} -D dblog 2>&1").read()
+        self.removeDir(bck_dir)
+        console1 = subprocess.run([binPath, "-M", "all", "-o", bck_dir, "-D", "dblog"],
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                      text=True).stdout
         logPath = os.path.join(bck_dir, "backup.log")
         assert os.path.exists(logPath), "backup.log was not created under the backup root dir"
 
@@ -1708,18 +1712,20 @@ class TestTaosBackupBasic:
             "backup.log is missing the server version / start / end time banner fields"
 
         # rerun into the same dir - backup.log must be overwritten, not appended
-        os.system(f"{binPath} -M all -o {bck_dir} -D dblog > /dev/null 2>&1")
+        subprocess.run([binPath, "-M", "all", "-o", bck_dir, "-D", "dblog"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT, check=True)
         with open(logPath) as f:
             fileContent2 = f.read()
         assert fileContent2.count("taosDump version") == 1, "backup.log was appended instead of truncated on rerun"
 
         # --- log-open failure must only warn, never fail the backup ---
         bad_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bad")
-        os.system(f"mkdir -p {bad_dir}/backup.log")  # path collision forces open() to fail
-        ret = os.system(f"{binPath} -M all -o {bad_dir} -D dblog > /tmp/taosbackup_log_badrun.txt 2>&1")
-        with open("/tmp/taosbackup_log_badrun.txt") as f:
-            badRunOut = f.read()
-        os.system("rm -f /tmp/taosbackup_log_badrun.txt")
+        os.makedirs(os.path.join(bad_dir, "backup.log"))
+        result = subprocess.run(
+            [binPath, "-M", "all", "-o", bad_dir, "-D", "dblog"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        )
+        ret, badRunOut = result.returncode, result.stdout
         assert ret == 0, "backup must still succeed even if the on-disk log can't be opened"
         assert "open log file failed" in badRunOut, "expected a warning about the log file failing to open"
         assert "Result       : SUCCESS" in badRunOut, "backup did not report SUCCESS despite the log-open failure"
@@ -1730,7 +1736,9 @@ class TestTaosBackupBasic:
         os.chdir(restore_dir)
         try:
             tdSql.execute("drop database if exists dblog")
-            console2 = os.popen(f"{binPath} -M all -i {bck_dir} 2>&1").read()
+            console2 = subprocess.run([binPath, "-M", "all", "-i", bck_dir],
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                      text=True).stdout
             restoreLogPath = os.path.join(restore_dir, "restore.log")
             assert os.path.exists(restoreLogPath), "restore.log was not created under cwd"
             with open(restoreLogPath) as f:
@@ -1740,7 +1748,9 @@ class TestTaosBackupBasic:
             # second restore in the same cwd: the stream already exists, and its
             # (long) create-stream SQL must show up in full - not truncated -
             # both on the console and in restore.log
-            console3 = os.popen(f"{binPath} -M all -i {bck_dir} 2>&1").read()
+            console3 = subprocess.run([binPath, "-M", "all", "-i", bck_dir],
+                                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                      text=True).stdout
             with open(restoreLogPath) as f:
                 restoreContent2 = f.read()
 
@@ -1758,7 +1768,8 @@ class TestTaosBackupBasic:
         # cleanup
         tdSql.execute("drop database if exists dblog")
         tdSql.execute("drop snode on dnode 1")
-        os.system(f"rm -rf {bck_dir} {bad_dir} {restore_dir}")
+        for directory in (bck_dir, bad_dir, restore_dir):
+            self.removeDir(directory)
         tdLog.info("do_taosbackup_log ........................... [passed]")
 
     # -----------------------------------------------------------------------

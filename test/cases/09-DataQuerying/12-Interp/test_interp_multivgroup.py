@@ -422,7 +422,7 @@ class TestInterpMultiVgroup:
                 stored_re = re.compile(
                     re.escape(task_id)
                     + r" Exchange stored notify exchange:"
-                    + r"(0x[0-9a-f]+) target:table_merge "
+                    + r"((?:0x)?[0-9a-fA-F]+) target:table_merge "
                     + rf"outerEpoch:{outer_epoch} "
                     + rf"phase:{notify_phase} scanGroupId:0 pending:1"
                 )
@@ -450,7 +450,7 @@ class TestInterpMultiVgroup:
                 attached_re = re.compile(
                     re.escape(task_id)
                     + r" Exchange attached notify exchange:"
-                    + r"(0x[0-9a-f]+) target:table_merge "
+                    + r"((?:0x)?[0-9a-fA-F]+) target:table_merge "
                     + rf"outerEpoch:{outer_epoch} "
                     + rf"phase:{notify_phase} scanGroupId:0 "
                     + r"pending:0 source:0 remoteTask:(0x[0-9a-f]+)"

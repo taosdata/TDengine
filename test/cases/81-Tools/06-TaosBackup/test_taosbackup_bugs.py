@@ -17,6 +17,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+import shutil
 
 
 class TestTaosBackupBugs:
@@ -46,7 +47,7 @@ class TestTaosBackupBugs:
 
     def _reset_tmpdir(self):
         if os.path.exists(self.tmpdir):
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
         os.makedirs(self.tmpdir)
 
     # -----------------------------------------------------------------------

@@ -34,3 +34,4 @@ tzlocal==5.3.1
 wexpect
 setuptools
 pyotp
+pywinpty==3.1.0; sys_platform == "win32"

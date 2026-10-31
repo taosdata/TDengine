@@ -161,7 +161,7 @@ class TestCase:
         # use taosBenchmark to subscribe  
         binPath = etool.benchMarkFile()
         jsonfile = os.path.join(os.path.dirname(__file__), "tmqMaxGroupIds.json")
-        tmqCom.startProcess(binPath, f"-f {jsonfile}")
+        tmqCom.startProcess(binPath, ['-f', jsonfile])
                 
         expectTopicNum = 1
         expectConsumerNUm = 99
@@ -226,6 +226,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

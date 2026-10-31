@@ -305,7 +305,7 @@ class TestTaosBackupCommandline:
             [f"-m 2 -T 2 -D {db} -o {tmpdir}", [RESULT_SUCCESS]],
             # time range
             [
-                f"-S '2022-10-01 00:00:50.000' -E '2022-10-01 00:00:60.000' {db} meters -o {tmpdir}",
+                f"-S \"2022-10-01 00:00:50.000\" -E \"2022-10-01 00:00:60.000\" {db} meters -o {tmpdir}",
                 [RESULT_SUCCESS],
             ],
             # native connection

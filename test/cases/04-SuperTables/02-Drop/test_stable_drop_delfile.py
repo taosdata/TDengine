@@ -16,8 +16,7 @@
 # -*- coding: utf-8 -*-
 
 
-from new_test_framework.utils import tdLog, tdSql, AutoGen
-from new_test_framework.utils.pathFinding import find_proj_path
+from new_test_framework.utils import tdLog, tdSql, AutoGen, tdDnodes
 
 import random
 import time
@@ -33,9 +32,7 @@ class TestDeleteCheck:
         # autoGen
         cls.autoGen = AutoGen()
         # init cluster path
-        cls.selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = find_proj_path(cls.selfPath)
-        cls.projDir = os.path.join(projPath, "sim") + os.sep
+        cls.projDir = os.path.join(tdDnodes.path, "")
         tdLog.info(f" init projPath={cls.projDir}")
 
     def compactDatbase(self):
