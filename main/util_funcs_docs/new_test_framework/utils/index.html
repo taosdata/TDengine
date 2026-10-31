@@ -6404,7 +6404,40 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
               
   
     
+    <nav class="md-nav" aria-label="benchmark_write">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="benchmark_write_log">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
     <nav class="md-nav" aria-label="curFile">
+      <ul class="md-nav__list">
+        
+      </ul>
+    </nav>
+  
+
+            
+              
+  
+    
+    <nav class="md-nav" aria-label="data_write_log">
       <ul class="md-nav__list">
         
       </ul>
@@ -25111,7 +25144,7 @@ None</p>
   
   
 <h3 id="etool.benchMark" class="doc doc-heading">
-                  benchMark(command='', json='')
+                  benchMark(command='', json='', low_log=False)
 <a href="#etool.benchMark" class="headerlink" title="Permanent link">&para;</a></h3>  
         <div class="doc doc-contents ">
 
@@ -25159,6 +25192,22 @@ None</p>
             </td>
             <td>
                   <code>&#39;&#39;</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>low_log</code>
+            </td>
+            <td>
+                  <code><span title="bool">bool</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Use 131 only during this data load; restore server logs to 135.</p>
+              </div>
+            </td>
+            <td>
+                  <code>False</code>
             </td>
           </tr>
       </tbody>
@@ -25223,6 +25272,39 @@ None</p>
           </tr>
       </tbody>
     </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="etool.benchmark_write" class="doc doc-heading">
+                  benchmark_write(command)
+<a href="#etool.benchmark_write" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Run a synchronous shell benchmark command at 131; return os.system status.</p>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="etool.benchmark_write_log" class="doc doc-heading">
+                  benchmark_write_log()
+<a href="#etool.benchmark_write_log" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Load data at 131 using a private benchmark client configuration.</p>
+<p>Yields a directory for taosBenchmark's <code>-c</code>. The test client's logging
+stays unchanged. Wait for background writers (terminate them on failure)
+before leaving this scope. Server logging is restored to 135 on exit.</p>
         </div>
 
   </div>
@@ -25307,6 +25389,24 @@ None</p>
           </tr>
       </tbody>
     </table>
+        </div>
+
+  </div>
+  
+<div class="doc doc-object doc-function">
+  
+  
+  
+  
+<h3 id="etool.data_write_log" class="doc doc-heading">
+                  data_write_log()
+<a href="#etool.data_write_log" class="headerlink" title="Permanent link">&para;</a></h3>  
+        <div class="doc doc-contents ">
+
+        <p>Use 131 for server modules during data loading, then restore 135.</p>
+<p>This affects the whole test cluster, so do not overlap logging scopes or
+include operations whose DEBUG/TRACE output is asserted. The guard detects
+overlap within this Python process. Python client logging stays unchanged.</p>
         </div>
 
   </div>
