@@ -227,7 +227,7 @@ class TestTaosBackupExcept:
             tdSql.checkRows(0)
 
     def insertData(self, benchmark, jsonFile, db):
-        self.exec(f"{benchmark} -f {jsonFile}")
+        etool.benchmark_write(f"{benchmark} -f {jsonFile}")
 
     def dumpOut(self, taosbackup, db, outdir, websocket=False):
         command = f"{taosbackup} -T 2 -k 2 -z 800 -D {db} -o {outdir}"
@@ -328,7 +328,7 @@ class TestTaosBackupExcept:
             f" -t {self._SRV_CHILD_TABLES} -n {self._SRV_INSERT_ROWS} -y"
         )
         tdLog.info(f"insert data: {cmd}")
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -444,7 +444,7 @@ class TestTaosBackupExcept:
             os.path.dirname(os.path.abspath(__file__)), "json", "except_small.json"
         )
         tdLog.info(f"insert data via json: {jsonFile}")
-        ret = os.system(f"{benchmark} -f {jsonFile}")
+        ret = etool.benchmark_write(f"{benchmark} -f {jsonFile}")
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
         return jsonFile
@@ -485,7 +485,7 @@ class TestTaosBackupExcept:
     def _tf_insert_small_data(self, benchmark):
         cmd = f"{benchmark} -d {self._TF_DB_SRC} -t 4 -n 1000 -y"
         tdLog.info(f"insert data: {cmd}")
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 

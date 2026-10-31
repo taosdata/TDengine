@@ -211,7 +211,7 @@ class TestTaosBackupCheckpoint:
         """
         cmd = f"{benchmark} -d {DB_SRC} -t 100 -n 200000 -y"
         tdLog.info(f"insert data: {cmd}")
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed, return code {ret}")
 
@@ -598,7 +598,7 @@ class TestTaosBackupCheckpoint:
         taosbackup, benchmark, tmpdir = self.find_programs()
 
         tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
-        ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+        ret = etool.benchmark_write(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -689,7 +689,7 @@ class TestTaosBackupCheckpoint:
             taosbackup, benchmark, tmpdir = self.find_programs()
 
             tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
-            ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+            ret = etool.benchmark_write(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -806,7 +806,7 @@ class TestTaosBackupCheckpoint:
             tdLog.info(f"=== step 1: insert {TABLES} × {ROWS} rows ===")
             cmd = f"{benchmark} -d {DB_LARGE} -t {TABLES} -n {ROWS} -y"
             tdLog.info(f"  exec: {cmd}")
-            ret = os.system(cmd)
+            ret = etool.benchmark_write(cmd)
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -975,7 +975,7 @@ class TestTaosBackupCheckpoint:
                 tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
                 cmd = f"{benchmark} -d {DB_NORM} -t {TABLES} -n {ROWS} -y"
                 tdLog.info(f"  exec: {cmd}")
-                ret = os.system(cmd)
+                ret = etool.benchmark_write(cmd)
                 if ret != 0:
                     tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -1157,7 +1157,7 @@ class TestTaosBackupCheckpoint:
             tdSql.execute(f"drop database if exists {DB}")
             cmd = f"{benchmark} -d {DB} -t {TABLES} -n {ROWS} -y"
             tdLog.info(f"  exec: {cmd}")
-            ret = os.system(cmd)
+            ret = etool.benchmark_write(cmd)
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -1258,7 +1258,7 @@ class TestTaosBackupCheckpoint:
             tdSql.execute(f"drop database if exists {db}")
 
             tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
-            ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+            ret = etool.benchmark_write(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 

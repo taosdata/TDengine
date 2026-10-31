@@ -16,7 +16,7 @@
 import threading
 from enum import Enum
 
-from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
+from new_test_framework.utils import etool, tdLog, tdSql, tdCom, tmqCom
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -64,12 +64,13 @@ class TestCase:
         tmqCom.create_ctable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=paraDict['ctbPrefix'],
                              ctbNum=paraDict["ctbNum"],ctbStartIdx=paraDict['ctbStartIdx'])
         tdLog.info("insert data")
-        tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
-                                               ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-                                               startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=self.autoCtbPrefix,
-                                              ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
-                                              startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+        with etool.data_write_log():
+            tmqCom.insert_data_interlaceByMultiTbl(tsql=tdSql,dbName=paraDict["dbName"],ctbPrefix=paraDict["ctbPrefix"],
+                                                   ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                                   startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
+            tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix=self.autoCtbPrefix,
+                                                  ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
+                                                  startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
 
         # tdLog.info("restart taosd to ensure that the data falls into the disk")
         # tdSql.query("flush database %s"%(paraDict['dbName']))
@@ -265,6 +266,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

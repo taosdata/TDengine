@@ -16,7 +16,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
+from new_test_framework.utils import etool, tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster,tdCom
 from random import randint
 import os
 import subprocess
@@ -59,6 +59,7 @@ class Test_ThreeGorges:
         Since: v3.3.3.7
 
         Labels: common,ci,skip,integration,functional
+
         Jira: None
 
         History:
@@ -241,7 +242,7 @@ class Test_ThreeGorges:
         tdLog.info('config file ready')
         cmd = f"taosBenchmark -f insert_config.json "
         # output = subprocess.check_output(cmd, shell=True).decode().strip()
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             raise Exception("taosBenchmark run failed")
         time.sleep(5)
