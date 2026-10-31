@@ -22,6 +22,7 @@ import time
 import sys
 import subprocess
 import importlib.util
+import pytest
 from pathlib import Path
 from new_test_framework.utils import tdLog, tdSql, tdStream, tdCb, cluster, tdCom
 
@@ -31,7 +32,6 @@ enterprise_downloader_path = os.path.abspath(os.path.join(current_dir, "../../..
 
 # Check if enterprise downloader exists
 if not os.path.exists(enterprise_downloader_path):
-    import pytest
     pytest.skip("Enterprise package downloader not available (community-only CI)", allow_module_level=True)
 
 # Load the module
@@ -141,6 +141,7 @@ class TestStreamCompatibility:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional,compatibility
+
         Jira: None
 
         History:
@@ -158,8 +159,7 @@ class TestStreamCompatibility:
             tdLog.info("Cannot import distro module, skipping distro check")
 
         if platform.system().lower() == 'windows':
-            tdLog.info(f"Windows skip stream compatibility test")
-            return
+            pytest.skip("Historical stream upgrade lifecycle is not implemented on Windows")
 
         bPath = os.path.join(tdCom.getBuildPath(), "build")
         cPath = self.getCfgPath()

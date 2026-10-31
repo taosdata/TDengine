@@ -100,7 +100,10 @@ class TestBenchmarkWebsite:
     def checkAfterRun(self, benchmark, jsonFile, specMode, tbCnt):
         # run
         cmd = f"{benchmark} -f {jsonFile}"
-        output, error = etool.run(cmd)
+        output, error, code = etool.run(cmd, ret_code=True)
+        if code:
+            tdLog.exit(f"benchmark failed: rc={code} (0x{code & 0xffffffff:08X}), "
+                       f"command={cmd}, stdout={output}, stderr={error}")
         if specMode :
             label = "specified_table_query"
         else:
@@ -224,6 +227,7 @@ class TestBenchmarkWebsite:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -143,31 +143,43 @@ class TestBatchMetaTxnCrashRecovery:
 
         tdSql.execute("create table stb (ts timestamp, v int) tags (t1 int)")
 
-        # Open txn and create tables, but do NOT commit
-        tdSql.execute("BEGIN")
-        for i in range(10):
-            tdSql.execute(f"create table ct81_{i} using stb tags({i})")
-        # Intentionally skip COMMIT — kill the VNode leader now
+        # Keep the observer outside the transaction. A live transaction is
+        # allowed to read its own uncommitted tables after a VNode restart.
+        connection = tdCom.newcon(database=db)
+        cursor = connection.cursor()
+        try:
+            cursor.execute("BEGIN")
+            for i in range(10):
+                cursor.execute(f"create table ct81_{i} using stb tags({i})")
 
-        tdSql.query(f"show {db}.vgroups")
-        vgId = tdSql.queryResult[0][0]
-        leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
-        tdLog.info(f"Killing VNode leader (dnode {leader_dnode}) WITHOUT COMMIT")
-        sc.dnodeForceStop(leader_dnode)
+            tdSql.query(f"show {db}.vgroups")
+            vgId = tdSql.queryResult[0][0]
+            leader_dnode = self._get_vgroup_leader_dnode(db, vgId)
+            tdLog.info(f"Killing VNode leader (dnode {leader_dnode}) WITHOUT COMMIT")
+            sc.dnodeForceStop(leader_dnode)
+        finally:
+            # Actually disconnect the transaction owner. Killing a VNode
+            # alone does not stop the client's MNode transaction heartbeat.
+            cursor.close()
+            connection.close()
 
-        # Wait for new leader
         new_leader = self._get_vgroup_leader_dnode(db, vgId, timeout=30)
         assert new_leader is not None, "No new VNode leader elected"
-
-        # Restart
         sc.dnodeStart(leader_dnode)
         clusterComCheck.checkDnodes(3)
 
-        # Wait and verify: tables must NOT be visible (uncommitted txn → PRE_CREATE)
-        time.sleep(5)
+        # The independent observer must never see the uncommitted tables.
+        self._poll_table_absent("ct81_", db, 10)
+        for attempt in range(120):
+            tdSql.query("select count(*) from information_schema.ins_transactions where type='user'")
+            if tdSql.queryResult[0][0] == 0:
+                break
+            time.sleep(1)
+        else:
+            tdLog.exit("Disconnected transaction did not finish rollback within 120s")
         self._poll_table_absent("ct81_", db, 10)
 
-        # New txn should work fine (connection was lost, server-side txn timed out)
+        # A new transaction must work after the abandoned one was rolled back.
         tdSql.execute(f"use {db}")
         tdSql.execute("BEGIN")
         tdSql.execute("create table ct81_new using stb tags(99)")
@@ -261,8 +273,11 @@ class TestBatchMetaTxnCrashRecovery:
 
         # Verify data integrity (no duplicates)
         tdSql.execute(f"use {db}")
-        tdSql.query("select tbname from stb")
-        assert tdSql.queryRows == 10, f"Expected 10 child tables, got {tdSql.queryRows}"
+        tdSql.query("show tables")
+        child_tables = [tdSql.queryResult[i][0] for i in range(tdSql.queryRows)]
+        assert sorted(child_tables) == sorted(f"ct83_{i}" for i in range(10)), (
+            f"Expected 10 child tables, got {child_tables}"
+        )
 
         # Verify new txns still work
         tdSql.execute("BEGIN")
@@ -274,7 +289,21 @@ class TestBatchMetaTxnCrashRecovery:
         tdLog.info("s83 PASSED")
 
     def test_crash_recovery(self):
-        """Run all crash recovery tests."""
+        """Batch metadata transaction crash recovery
+
+        Verify committed tables survive VNode/MNode restarts, abandoned
+        transactions roll back, and repeated WAL replay remains idempotent.
+
+        Catalog:
+            - MetaData
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        """
         self.s80_kill_after_commit_tables_visible()
         self.s81_kill_before_commit_tables_invisible()
         self.s82_kill_mnode_and_vnode_simultaneously()

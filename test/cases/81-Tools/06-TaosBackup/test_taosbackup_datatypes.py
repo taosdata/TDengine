@@ -20,6 +20,7 @@ import copy
 import json
 import math
 import os
+import shutil
 
 
 class TestTaosBackupDataTypes:
@@ -44,7 +45,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -102,7 +103,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s" % self.tmpdir)
@@ -159,7 +160,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s" % self.tmpdir)
@@ -213,7 +214,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -270,7 +271,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -334,7 +335,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -391,7 +392,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s" % self.tmpdir)
@@ -443,7 +444,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -500,7 +501,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -555,7 +556,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -605,7 +606,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -655,7 +656,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -705,7 +706,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
         else:
-            os.system("rm -rf %s" % self.tmpdir)
+            shutil.rmtree(self.tmpdir)
             os.makedirs(self.tmpdir)
 
         etool.taosdump(f"{mode} -D db -o %s -T 1" % self.tmpdir)
@@ -755,7 +756,8 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
         else:
-            os.system("rm -rf %s/*" % tmpdir)
+            shutil.rmtree(tmpdir)
+            os.makedirs(tmpdir)
 
         return taosbackup, benchmark, tmpdir
 
@@ -1121,7 +1123,7 @@ class TestTaosBackupDataTypes:
         if not os.path.exists(tmpdir):
             os.makedirs(tmpdir)
         else:
-            os.system(f"rm -rf {tmpdir}")
+            shutil.rmtree(tmpdir)
             os.makedirs(tmpdir)
         etool.taosdump(f"-D {db} -o {tmpdir} -T 1")
         tdSql.execute(f"drop database {db}")

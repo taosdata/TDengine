@@ -15,7 +15,10 @@
 
 import os
 import re
-from loguru import logger
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 # List of source directories to search
 

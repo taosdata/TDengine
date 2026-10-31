@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
+from udf_utils import find_udf_lib
 from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
@@ -52,10 +53,10 @@ class TestUdfCreate:
         print(projPath)
 
         if platform.system().lower() == 'windows':
-            self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf1_dup = subprocess.Popen('(for /r %s %%i in ("udf1_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf2_dup = subprocess.Popen('(for /r %s %%i in ("udf2_dup.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf1 = find_udf_lib("udf1", projPath).replace("\\", "/")
+            self.libudf1_dup = find_udf_lib("udf1_dup", projPath).replace("\\", "/")
+            self.libudf2 = find_udf_lib("udf2", projPath).replace("\\", "/")
+            self.libudf2_dup = find_udf_lib("udf2_dup", projPath).replace("\\", "/")
             if (not tdDnodes.dnodes[0].remoteIP == ""):
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1_dup.so',projPath+"\\debug\\build\\lib\\")

@@ -48,6 +48,7 @@ import subprocess
 import time
 
 from new_test_framework.utils import tdLog, tdSql, etool, sc
+from new_test_framework.utils.eutil import start_test_process, signal_test_process
 
 
 # ---------------------------------------------------------------------------
@@ -57,16 +58,14 @@ from new_test_framework.utils import tdLog, tdSql, etool, sc
 def _run(cmd, timeout=300):
     """Run *cmd*, return (returncode, stdout_lines)."""
     tdLog.info(f"  run: {cmd}")
-    proc = subprocess.Popen(
-        cmd, shell=True,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        preexec_fn=os.setsid,
+    proc = start_test_process(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
     )
     try:
         out, _ = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
         except ProcessLookupError:
             pass
         out, _ = proc.communicate()
@@ -81,13 +80,13 @@ def _run_kill(cmd, kill_after_secs):
     Returns (rc, killed: bool).
     """
     tdLog.info(f"  run_kill({kill_after_secs}s): {cmd}")
-    proc = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
+    proc = start_test_process(cmd)
     try:
         proc.wait(timeout=kill_after_secs)
         return proc.returncode, False
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
         except ProcessLookupError:
             pass
         proc.wait()
@@ -105,7 +104,7 @@ def _run_sigint(cmd, interrupt_after_secs, graceful_timeout=15):
     the process finished on its own before *interrupt_after_secs* elapsed.
     """
     tdLog.info(f"  run_sigint({interrupt_after_secs}s): {cmd}")
-    proc = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
+    proc = start_test_process(cmd)
     try:
         proc.wait(timeout=interrupt_after_secs)
         return proc.returncode, False
@@ -113,7 +112,7 @@ def _run_sigint(cmd, interrupt_after_secs, graceful_timeout=15):
         pass
 
     try:
-        os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+        signal_test_process(proc, interrupt=True)
         tdLog.info(f"  [SIGINT sent after {interrupt_after_secs}s, waiting for graceful exit]")
     except ProcessLookupError:
         proc.wait()
@@ -124,7 +123,7 @@ def _run_sigint(cmd, interrupt_after_secs, graceful_timeout=15):
     except subprocess.TimeoutExpired:
         tdLog.info("  [graceful exit timed out, sending SIGKILL]")
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
         except ProcessLookupError:
             pass
         proc.wait()
@@ -285,7 +284,7 @@ class TestTaosBackupCoverage:
         tdLog.info("=== step 3: restore via STMT2 to new database ===")
         tdSql.execute(f"drop database if exists {dst}")
         rlist = etool.taosdump(
-            f"-Z native -W '{src}={dst}' -v 2 -i {tmpdir}"
+            f"-Z native -W {src}={dst} -v 2 -i {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "restore")
 
@@ -348,7 +347,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -v 2 -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -v 2 -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(c_empty) from {dst}.stb")
@@ -409,7 +408,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -458,7 +457,7 @@ class TestTaosBackupCoverage:
         assert rc != 0, "--stmt-version with -o should fail"
         tdLog.info("  case 2 (--stmt-version + backup) correctly rejected")
 
-        rc, lines = _run(f"{taosbackup} -D testdb -W 'a=b' -o {tmpdir}")
+        rc, lines = _run(f"{taosbackup} -D testdb -W a=b -o {tmpdir}")
         assert rc != 0, "--rename with -o should fail"
         tdLog.info("  case 3 (--rename + backup) correctly rejected")
 
@@ -517,22 +516,20 @@ class TestTaosBackupCoverage:
 
         tdLog.info("=== sending SIGINT 2s after backup starts ===")
         cmd = f"{taosbackup} -Z native -D {src} -T 4 -o {tmpdir}"
-        proc = subprocess.Popen(
-            cmd, shell=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            preexec_fn=os.setsid,
+        proc = start_test_process(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
         time.sleep(2)
 
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+            signal_test_process(proc, interrupt=True)
         except ProcessLookupError:
             pass
 
         try:
             proc.wait(timeout=15)
         except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
             proc.wait()
             tdLog.exit("taosBackup did not exit after SIGINT — hang detected")
 
@@ -596,7 +593,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         for idx, (data_str, tag_str) in enumerate(test_strings):
@@ -668,7 +665,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select c_big, c_v from {dst}.t0 where c_v = 5")
@@ -726,7 +723,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -783,7 +780,7 @@ class TestTaosBackupCoverage:
 
         tdSql.execute(f"drop database if exists {dst}")
         rlist = etool.taosdump(
-            f"-Z native -W '{src}={dst}' -v 1 -i {tmpdir}"
+            f"-Z native -W {src}={dst} -v 1 -i {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "restore")
 
@@ -829,13 +826,13 @@ class TestTaosBackupCoverage:
         tdSql.execute(f"insert into {src}.t0 values " + " ".join(vals))
 
         rlist = etool.taosdump(
-            f"-Z native --dsn 'taos://localhost:6030' "
+            f"-Z native --dsn taos://localhost:6030 "
             f"-D {src} -T 1 -o {tmpdir}"
         )
         _checkstr(rlist, "SUCCESS", "backup_dsn")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*), sum(v) from {dst}.stb")
@@ -878,10 +875,8 @@ class TestTaosBackupCoverage:
             tdSql.execute(f"insert into {src}.ct{i} values " + " ".join(vals))
 
         cmd = f"{taosbackup} -Z native -D {src} -T 2 -o {tmpdir}"
-        proc = subprocess.Popen(
-            cmd, shell=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            preexec_fn=os.setsid,
+        proc = start_test_process(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         )
         time.sleep(1)
 
@@ -894,7 +889,7 @@ class TestTaosBackupCoverage:
         try:
             proc.wait(timeout=120)
         except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
             proc.wait()
             tdLog.exit("backup hung after taosd resume")
 
@@ -962,7 +957,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -1019,7 +1014,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         for i in range(5):
@@ -1079,7 +1074,7 @@ class TestTaosBackupCoverage:
         _checkstr(rlist, "SUCCESS", "backup")
 
         tdSql.execute(f"drop database if exists {dst}")
-        rlist = etool.taosdump(f"-Z native -W '{src}={dst}' -i {tmpdir}")
+        rlist = etool.taosdump(f"-Z native -W {src}={dst} -i {tmpdir}")
         _checkstr(rlist, "SUCCESS", "restore")
 
         tdSql.query(f"select count(*) from {dst}.stb")
@@ -1875,8 +1870,10 @@ class TestTaosBackupCoverage:
         ckpt_file = os.path.join(tmpdir, src_db, "restore_checkpoint.txt")
         with open(ckpt_file, "w") as f:
             for path in skipped_files:
-                f.write(path + "\n")
-                tdLog.info(f"  checkpoint entry: {path}")
+                # Match the normalized paths written by taosdump itself.
+                checkpoint_path = path.replace(os.sep, "/")
+                f.write(checkpoint_path + "\n")
+                tdLog.info(f"  checkpoint entry: {checkpoint_path}")
 
         tdLog.info("== step 5: restore with -C (2 files must be skipped) ==")
         tdSql.execute(f"drop database if exists {dst_db}")
@@ -2243,12 +2240,15 @@ class TestTaosBackupCoverage:
         tdLog.info("=== step 4: attempt restore — expect non-zero exit ===")
         tdSql.execute(f"drop database if exists {dst}")
         taosbackup_bin = etool.taosDumpFile()
+        env = os.environ.copy()
+        env.pop("LD_PRELOAD", None)
         proc = subprocess.Popen(
-            f"unset LD_PRELOAD; {taosbackup_bin}"
+            f"{taosbackup_bin}"
             f' -Z native -W "{db}={dst}" -i {tmpdir}',
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            env=env,
         )
         try:
             stdout, stderr = proc.communicate(timeout=120)

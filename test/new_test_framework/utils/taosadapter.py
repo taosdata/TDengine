@@ -14,6 +14,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import requests
+import glob
+import subprocess
 from fabric2 import Connection
 from .log import *
 from .common import *
@@ -151,9 +153,9 @@ class TAdapter:
         self.cfg_dir = os.path.join(self.path,"sim","dnode1","cfg")
         self.cfg_path = os.path.join(self.cfg_dir,"taosadapter.toml")
 
-        cmd = f"touch {self.cfg_path}"
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        os.makedirs(self.cfg_dir, exist_ok=True)
+        with open(self.cfg_path, "a", encoding="utf-8"):
+            pass
 
         self.taosadapter_cfg_dict["log"]["path"] = self.log_dir
         if bool(update_cfg_dict):
@@ -177,7 +179,7 @@ class TAdapter:
             tdLog.info(f"taosadapter found: {bin_path}")
 
         if platform.system().lower() == 'windows':
-            cmd = f"mintty -h never {bin_path} -c {self.cfg_path}"
+            cmd = [bin_path, "-c", self.cfg_path]
         else:
             cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
@@ -185,9 +187,15 @@ class TAdapter:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
             self.running = 1
         else:
-            os.system(f"rm -rf {self.log_dir}{os.sep}taosadapter*")
-            if os.system(cmd) != 0:
-                tdLog.exit(cmd)
+            if platform.system().lower() == "windows":
+                for path in glob.glob(os.path.join(self.log_dir, "taosadapter*")):
+                    if os.path.isfile(path):
+                        os.remove(path)
+                self._process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                os.system(f"rm -rf {self.log_dir}{os.sep}taosadapter*")
+                if os.system(cmd) != 0:
+                    tdLog.exit(cmd)
             self.running = 1
             tdLog.debug(f"taosadapter is running with {cmd} " )
 
@@ -223,7 +231,7 @@ class TAdapter:
             tdLog.exit("taosadapter is not deployed")
 
         if platform.system().lower() == 'windows':
-            cmd = f"mintty -h never {bin_path} -c {self.cfg_dir}"
+            cmd = [bin_path, "-c", self.cfg_path]
         else:
             cmd = f"nohup {bin_path} -c {self.cfg_path} > /dev/null & "
 
@@ -231,7 +239,9 @@ class TAdapter:
             self.remote_exec(self.taosadapter_cfg_dict, f"tAdapter.deployed=1\ntAdapter.log_dir={self.log_dir}\ntAdapter.cfg_dir={self.cfg_dir}\ntAdapter.start()")
             self.running = 1
         else:
-            if os.system(cmd) != 0:
+            if platform.system().lower() == "windows":
+                self._process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
             tdLog.debug(f"taosadapter is running with {cmd} " )
@@ -246,15 +256,12 @@ class TAdapter:
             return
         toBeKilled = "taosadapter"
         if platform.system().lower() == 'windows':
-            psCmd = f"ps -ef|grep -w {toBeKilled}| grep -v grep | awk '{{print $2}}'"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
-            while(processID):
-                killCmd = "kill %s %s > nul 2>&1" % (signal, processID)
-                os.system(killCmd)
-                time.sleep(1)
-                processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
+            process = getattr(self, "_process", None)
+            if process is not None and process.poll() is None:
+                process.kill() if force_kill else process.terminate()
+                process.wait(timeout=30)
             self.running = 0
-            tdLog.debug(f"taosadapter is stopped by kill {signal}")
+            tdLog.debug("taosadapter child process stopped")
 
         else:
             if self.running != 0:

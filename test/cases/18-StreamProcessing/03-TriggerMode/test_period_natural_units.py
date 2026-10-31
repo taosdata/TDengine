@@ -13,6 +13,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import pytest
+
 from new_test_framework.utils import clusterComCheck, sc, tdLog, tdSql, tdStream
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
@@ -25,7 +28,7 @@ class TestPeriodNaturalUnits:
         """Prepare test environment"""
         tdLog.info("=== Prepare test environment ===")
         tdStream.dropAllStreamsAndDbs()
-        tdStream.createSnode()
+        tdStream.ensureSnode()
         tdStream.init_database("test_period_natural")
         tdSql.execute("use test_period_natural")
         tdSql.execute("create table meters (ts timestamp, current float, voltage int)")
@@ -414,8 +417,26 @@ class TestPeriodNaturalUnits:
         self._test_offset_month_overflow()
         self._test_offset_natural_units()
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
+    def test_period_quarter_lifecycle(self):
+        """Verify quarter-period metadata survives a stream restart.
+
+        1. Compare PERIOD(1q) with PERIOD(3n).
+        2. Verify timezone metadata survives stop/start and dnode restart.
+
+        Since: 3.4.1.0
+
+        Labels: common,ci,stream,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-28: Separate Windows-unsupported SET TIMEZONE coverage
+        """
+        self.prepare_env()
         # Runtime boundary equivalence is covered deterministically by
-        # StreamTriggerTaskTest.
-        # PeriodQuarterMatchesThreeMonthsAndKeepsClosedBoundaries. The system
-        # layer verifies both public forms persist and redeploy identically.
+        # StreamTriggerTaskTest. The system layer verifies that both public
+        # forms persist and redeploy identically.
         self._test_quarter_lifecycle()

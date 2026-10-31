@@ -139,7 +139,9 @@ class TestCase:
         # tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        tmqCom.redistributeVgroups()
+        # Background retention needs more than one progress poll to release
+        # its transaction conflict before vgroup redistribution can proceed.
+        tmqCom.redistributeVgroups(queryTimes=60)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
@@ -218,7 +220,7 @@ class TestCase:
         # tmqCom.restartAndRemoveWal(True)
 
         # redistribute vgroup
-        tmqCom.redistributeVgroups()
+        tmqCom.redistributeVgroups(queryTimes=60)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
@@ -245,6 +247,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

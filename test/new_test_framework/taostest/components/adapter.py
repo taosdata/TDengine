@@ -20,6 +20,8 @@ from threading import Thread
 import platform
 import subprocess
 import psutil
+import time
+from concurrent.futures import ThreadPoolExecutor
 from ..util.file import dict2toml, dict2file
 from ..util.remote import Remote
 from ..util.common import TDCom
@@ -30,6 +32,7 @@ class TaosAdapter:
         self._tmp_dir = "/tmp"
         self.logger = remote._logger
         self._local_host = platform.node()
+        self._processes = {}
     def install(self, host, version):
         installFlag = False
         result = self._remote.cmd(host, ["which taosadapter"])
@@ -63,7 +66,16 @@ class TaosAdapter:
         self._remote.mkdir(node, config_dir)
         self._remote.put(node, os.path.join(tmp_dir, config_file), config_dir)
         taosadapter_path = nodeDict["spec"]["taosadapterPath"] if "taosadapterPath" in nodeDict["spec"] else "/usr/bin/taosadapter"
-        if platform.system().lower() == "windows":
+        if platform.system().lower() == "windows" and node in ("localhost", self._local_host):
+            process = subprocess.Popen(
+                [taosadapter_path, "-c", nodeDict['spec']['config_file']],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
+            self._processes[node] = process
+            time.sleep(5)
+            if process.poll() is not None:
+                raise RuntimeError(f"taosadapter exited during startup: {process.returncode}")
+        elif platform.system().lower() == "windows":
             start_cmd = f"mintty -h never {taosadapter_path} -c  {nodeDict['spec']['config_file']}"
             self._remote.cmd_windows(node, [start_cmd, "sleep 5s"])
         else:
@@ -76,17 +88,18 @@ class TaosAdapter:
         self.logger.debug(f"nodeDict['spec']['adapter_config']: {nodeDict['spec']['adapter_config']}")
         self.logger.debug(f"nodeDict['spec']: {nodeDict['spec']}")
         # dict2file(tmp_dir, "taos.cfg", nodeDict["spec"]["taos_config"])
-        threads = []
-        for i in nodeDict["fqdn"]:
-            if "system" in nodeDict["spec"] and nodeDict["spec"]["system"].lower() == "windows":
-                t = Thread(target = self._configure_and_start_windows, args = (i, tmp_dir, nodeDict, config_dir, config_file))
-                pass
-            else:
-                t = Thread(target = self._configure_and_start, args = (i, tmp_dir, nodeDict, config_dir, config_file))
-            t.start()
-            threads.append(t)
-        for thread in threads:
-            thread.join()
+        with ThreadPoolExecutor(max_workers=max(1, len(nodeDict["fqdn"]))) as executor:
+            futures = []
+            for node in nodeDict["fqdn"]:
+                configure = self._configure_and_start
+                if ("system" in nodeDict["spec"]
+                        and nodeDict["spec"]["system"].lower() == "windows"
+                        and not (platform.system().lower() == "windows"
+                                 and node in ("localhost", self._local_host))):
+                    configure = self._configure_and_start_windows
+                futures.append(executor.submit(configure, node, tmp_dir, nodeDict, config_dir, config_file))
+            for future in futures:
+                future.result()
 
     def uninstall(self):
         pass
@@ -103,6 +116,16 @@ class TaosAdapter:
     def destroy(self, nodeDict):
         tmpDict = nodeDict["spec"]
         for i in nodeDict["fqdn"]:
+            if platform.system().lower() == "windows" and i in ("localhost", self._local_host):
+                process = self._processes.pop(i, None)
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=30)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                continue
             if platform.system().lower() == "windows":
                 if "asanDir" in i:
                     self.logger.info("Windows not support asan test yet")

@@ -17,6 +17,7 @@
 import os
 import shutil
 import time
+import tempfile
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -53,7 +54,7 @@ class TestBackupPrivilege:
                 shutil.rmtree(d, ignore_errors=True)
 
     def _unique_backup_dir(self, tag):
-        d = f"/tmp/backup_priv_{tag}_{int(time.time() * 1000)}"
+        d = os.path.join(tempfile.gettempdir(), f"backup_priv_{tag}_{int(time.time() * 1000)}").replace("\\", "/")
         self.backup_dirs.append(d)
         return d
 

@@ -660,10 +660,7 @@ class BeforeTest:
                 path = os.path.realpath(taos_bin_path)
                 while path and path != os.path.dirname(path):
                     if os.path.basename(path) == 'debug':
-                        if sys.platform == "win32":
-                            workdir = os.path.join(path, "sim")
-                        else:
-                            workdir = os.path.join(os.path.dirname(path), "sim")
+                        workdir = os.path.join(os.path.dirname(path), "sim")
                         break
                     path = os.path.dirname(path)
             if workdir is None:

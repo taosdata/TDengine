@@ -28,6 +28,8 @@ Covers:
     - session timezone switches between write-time and read-time
 """
 
+import os
+
 import pytest
 
 from new_test_framework.utils import tdLog, tdSql
@@ -65,7 +67,8 @@ class TestQuarterInterval:
 
     def setup_method(self, method):
         _ensure_quarter_db()
-        self._set_timezone(self.DEFAULT_TZ)
+        if os.name != "nt":
+            self._set_timezone(self.DEFAULT_TZ)
         self._case_name = method.__name__.removeprefix("test_")
 
     def _table_name(self, suffix="data"):
@@ -749,6 +752,9 @@ class TestQuarterInterval:
             f"actual:   {actual_dates}"
         )
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_no_dst_shanghai(self):
         """Quarter interval under Asia/Shanghai (no DST).
 
@@ -805,6 +811,9 @@ class TestQuarterInterval:
     #     reason=SESSION_TZ_BOUNDARY_XFAIL,
     #     strict=True,
     # )
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_session_timezone_controls_quarter_boundary_utc(self):
         """Known-bug regression: UTC query should show local quarter starts.
 
@@ -850,6 +859,9 @@ class TestQuarterInterval:
             ],
         )
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_dst_berlin(self):
         """Quarter interval under Europe/Berlin (has DST).
 
@@ -880,6 +892,9 @@ class TestQuarterInterval:
     #     reason=SESSION_TZ_BOUNDARY_XFAIL,
     #     strict=True,
     # )
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_session_timezone_controls_quarter_boundary_berlin(self):
         """Known-bug regression: Europe/Berlin should use Berlin quarter starts.
 
@@ -919,6 +934,9 @@ class TestQuarterInterval:
             ],
         )
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_dst_spring_transition_berlin(self):
         """Data around spring DST transition (March 31, 2024) in Europe/Berlin.
 
@@ -952,6 +970,9 @@ class TestQuarterInterval:
 
         self._assert_1q_equals_3n(table_name, "Berlin-spring-DST")
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_dst_autumn_transition_berlin(self):
         """Data around autumn DST transition (October 27, 2024) in Europe/Berlin.
 
@@ -985,6 +1006,9 @@ class TestQuarterInterval:
 
         self._assert_1q_equals_3n(table_name, "Berlin-autumn-DST")
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_write_shanghai_read_berlin(self):
         """Write under Asia/Shanghai, then query under Europe/Berlin in one session.
 
@@ -1012,6 +1036,9 @@ class TestQuarterInterval:
         self._set_timezone("Europe/Berlin")
         self._assert_1q_equals_3n(table_name, "Shanghai-write/Berlin-read")
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_write_berlin_read_shanghai(self):
         """Write under Europe/Berlin, then query under Asia/Shanghai in one session.
 
@@ -1039,6 +1066,9 @@ class TestQuarterInterval:
         self._set_timezone("Asia/Shanghai")
         self._assert_1q_equals_3n(table_name, "Berlin-write/Shanghai-read")
 
+    @pytest.mark.skipif(
+        os.name == "nt", reason="Windows does not support SET TIMEZONE"
+    )
     def test_cross_dst_boundary_data(self):
         """Client in summer time, data spans winter-summer transition.
 

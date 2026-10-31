@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import platform
 from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck, clusterComCheck
 
 
@@ -35,6 +36,7 @@ class TestDatabaseCreateAllOptions:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -98,7 +100,7 @@ class TestDatabaseCreateAllOptions:
         tdSql.checkKeyData("db", 13, 2)
         tdSql.checkKeyData("db", 14, "ms")
         tdSql.checkKeyData("db", 18, "none")
-        tdSql.checkKeyData("db", 21, 1)
+        tdSql.checkKeyData("db", 21, 2 if platform.system() == "Windows" else 1)
         tdSql.checkKeyData("db", 22, 3000)
         tdSql.checkKeyData("db", 31, "525600m")
         tdSql.checkKeyData("db", 32, 1)

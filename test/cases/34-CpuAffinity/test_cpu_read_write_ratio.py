@@ -114,10 +114,11 @@ class TestMinReadCores:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_min_read_cores(self):
-        """US3-T011: Minimum read cores — read gets 1, write gets the rest
+        """US3-T011: Minimum read cores with the default write allocation
 
         Deploy with readCpuCores=1, rely on dynamic default for otherCpuCores.
-        Verify read row shows cores=1. Verify write gets remaining - 1.
+        Verify read row shows cores=1. Verify write keeps its documented
+        dynamic default, the upper half of total CPUs minus management.
 
         Since: v3.3.0.0
 
@@ -128,6 +129,7 @@ class TestMinReadCores:
         History:
             - 2026-04-16 Initial creation
             - 2026-04-22 Rewritten for readCpuCores/otherCpuCores
+            - 2026-10-27 Check the documented independent dynamic default
         """
         total_cpus = get_system_cpu_count()
         if total_cpus < 3:
@@ -149,10 +151,11 @@ class TestMinReadCores:
         assert alloc["read"] == 1, \
             f"Expected read cores=1, got {alloc['read']}"
 
-        # Write should get the remaining cores
+        # An explicit read limit does not change the default write formula.
         remaining = total_cpus - alloc["management"]
-        assert alloc["write"] == remaining - 1, \
-            f"Expected write={remaining - 1}, got {alloc['write']}"
+        expected_write = remaining - remaining // 2
+        assert alloc["write"] == expected_write, \
+            f"Expected default write={expected_write}, got {alloc['write']}"
 
         tdLog.info("T011: PASS — readCpuCores=1 allocation correct")
 
@@ -166,10 +169,11 @@ class TestMinWriteCores:
         tdLog.debug(f"start to execute {__file__}")
 
     def test_min_write_cores(self):
-        """US3-T012: Minimum write cores — write gets 1, read gets the rest
+        """US3-T012: Minimum write cores with the default read allocation
 
         Deploy with otherCpuCores=1, rely on dynamic default for readCpuCores.
-        Verify write row shows cores=1. Verify read gets remaining - 1.
+        Verify write row shows cores=1. Verify read keeps its documented
+        dynamic default, half of total CPUs minus management.
 
         Since: v3.3.0.0
 
@@ -180,6 +184,7 @@ class TestMinWriteCores:
         History:
             - 2026-04-16 Initial creation
             - 2026-04-22 Rewritten for readCpuCores/otherCpuCores
+            - 2026-10-27 Check the documented independent dynamic default
         """
         total_cpus = get_system_cpu_count()
         if total_cpus < 3:
@@ -201,10 +206,11 @@ class TestMinWriteCores:
         assert alloc["write"] == 1, \
             f"Expected write cores=1, got {alloc['write']}"
 
-        # Read should get the remaining cores
+        # An explicit write limit does not change the default read formula.
         remaining = total_cpus - alloc["management"]
-        assert alloc["read"] == remaining - 1, \
-            f"Expected read={remaining - 1}, got {alloc['read']}"
+        expected_read = remaining // 2
+        assert alloc["read"] == expected_read, \
+            f"Expected default read={expected_read}, got {alloc['read']}"
 
         tdLog.info("T012: PASS — otherCpuCores=1 allocation correct")
 

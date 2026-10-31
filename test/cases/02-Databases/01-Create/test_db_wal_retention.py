@@ -19,8 +19,7 @@
 #  The option for wal_retetion_period and wal_retention_size is work well
 #
 
-from new_test_framework.utils import tdLog, tdSql, TDSetSql
-from new_test_framework.utils.pathFinding import find_proj_path
+from new_test_framework.utils import tdLog, tdSql, TDSetSql, tdDnodes
 import taos
 from taos.tmq import Consumer
 import os
@@ -237,9 +236,7 @@ class TestWalRetention:
         cls.setsql = TDSetSql()
 
         # init cluster path
-        selfPath = os.path.dirname(os.path.realpath(__file__))
-        projPath = find_proj_path(selfPath)
-        cls.projDir = os.path.join(projPath, "sim") + os.sep
+        cls.projDir = os.path.join(tdDnodes.path, "")
         tdLog.info(f" init projPath={cls.projDir}")
 
         cls.column_dict = {
@@ -461,6 +458,7 @@ class TestWalRetention:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
