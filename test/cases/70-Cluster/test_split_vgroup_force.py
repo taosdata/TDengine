@@ -79,6 +79,8 @@ import pytest
 from new_test_framework.utils import tdLog, tdSql, tdStream
 from split_concurrent_util import (
     get_vgroups,
+    new_connection,
+    transactions_pending,
     try_split_first_vgroup,
     wait_transactions_clear,
 )
@@ -504,6 +506,82 @@ class TestSplitVgroupForce:
             f"stream is dropped, but it was rejected: {err}"
         )
         self._assert_split_done(db, before)
+
+    # ------------------------------------------------------------------
+    # scenario 4 -- regression: SPLIT VGROUP on a non-existent vgroupId
+    # ------------------------------------------------------------------
+    def test_04_split_nonexistent_vgroup(self):
+        """SPLIT VGROUP 对不存在的 vgroupId 必须报错而非返回成功（回归用例）
+
+        修复前 `mndProcessSplitVgroupMsgImp()`（taos-internal/.../mndVgroup.c）
+        在 vgroup 不存在时存在两个叠加缺陷：
+
+        1. 权限检查以 ``code = mndCheckOperPrivilege(...)`` 的形式写在 ``if``
+           条件里，检查通过返回 0，把初始化时的 ``-1`` 哨兵值静默覆盖；
+        2. ``mndAcquireVgroup()`` 返回 NULL 的分支只 ``goto _OVER``，既不设
+           ``code`` 也不打日志。
+
+        于是最终 ``TAOS_RETURN(0)``，把"vgroup 不存在"误报成成功。
+        修复后该分支显式设置 ``TSDB_CODE_MND_VGROUP_NOT_EXIST``
+        （0x80000332, ``Vgroup does not exist or is not in the database``）
+        并返回错误，普通和 FORCE 两种写法都应被拒绝。
+
+        该路径在获取 vgroup 对象之后、流计算检查之前就返回，因此无论集群中
+        是否残留流计算都不影响本用例（放在 scenario 3 之后也安全）。
+
+        Since: v3.4.0.0
+
+        Labels: cluster,split,negative,regression
+
+        Jira: None
+
+        History:
+            - 2026-10-22 Created
+        """
+        # Pick a vgroupId that is guaranteed not present in the cluster so the
+        # assertion targets the "vgroup not exist" branch, not a coincidence.
+        tdSql.query("select vgroup_id from information_schema.ins_vgroups")
+        existing = {row[0] for row in (tdSql.queryResult or [])}
+        target = (max(existing) + 1000) if existing else 999999
+        tdLog.info(f"[force-04] chosen non-existent vgroupId={target} "
+                   f"(existing={sorted(existing)[:20]}{'...' if len(existing) > 20 else ''})")
+
+        for force in (False, True):
+            stmt = f"split vgroup {target} force" if force else f"split vgroup {target}"
+            # Use a raw connection + cursor so a rejection surfaces immediately
+            # as an exception instead of being retried by the framework wrapper.
+            try:
+                conn = new_connection()
+                cur = conn.cursor()
+                tdLog.info(f"[force-04] >>> {stmt}")
+                cur.execute(stmt)
+                ok = True
+                err = ""
+            except Exception as e:  # noqa: BLE001 - keep the raw error for the report
+                tdLog.info(f"[force-04] '{stmt}' was REJECTED: {e}")
+                ok = False
+                err = str(e)
+            finally:
+                cur.close()
+                conn.close()
+
+            # Core regression assertion: a non-existent vgroupId must NOT be
+            # reported as success. Before the fix this assertion failed because
+            # the mnode returned 0 (Query OK).
+            assert not ok, (
+                f"[force-04] '{stmt}' on non-existent vgroupId {target} MUST be "
+                f"rejected, but it was accepted (err={err!r})"
+            )
+            # And the error must be the specific "vgroup not exist" code, not
+            # some unrelated or meaningless -1.
+            low = err.lower()
+            assert ("0x80000332" in low or "vgroup does not exist" in low), (
+                f"[force-04] expected 0x80000332 'Vgroup does not exist', got: {err}"
+            )
+            # A rejected split must not leave any in-flight mnode transaction.
+            assert transactions_pending() == 0, (
+                f"[force-04] rejected split '{stmt}' must not start a transaction"
+            )
 
     def teardown_class(cls):
         """Best-effort cleanup so a failed run does not poison the next one."""

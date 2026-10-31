@@ -821,13 +821,22 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   rowP = (SArray**)tSimpleHashGet(pTableNameHash, tbname, strlen(tbname));
 
   if (rowP != NULL && *rowP != NULL) {
+    // Blob sorting needs the source rows before their ownership is transferred.
+    if (pTbCtx->hasBlob) {
+      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
+      TAOS_CHECK_RETURN(code);
+
+      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
+      TAOS_CHECK_RETURN(code);
+    }
     int32_t aRowPSize = taosArrayGetSize(pTbCtx->pData->aRowP);
     for (int32_t j = 0; j < aRowPSize; ++j) {
-      SRow* pRow = (SRow*)taosArrayGetP(pTbCtx->pData->aRowP, j);
-      if (pRow) {
-        if (NULL == taosArrayPush(*rowP, &pRow)) {
+      SRow** ppRow = (SRow**)taosArrayGet(pTbCtx->pData->aRowP, j);
+      if (*ppRow) {
+        if (NULL == taosArrayPush(*rowP, ppRow)) {
           return terrno;
         }
+        *ppRow = NULL;
       }
     }
 
@@ -836,12 +845,6 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
       TAOS_CHECK_RETURN(code);
 
       code = tRowMerge(*rowP, pTbCtx->pSchema, 0);
-      TAOS_CHECK_RETURN(code);
-    } else {
-      code = tRowSortWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet);
-      TAOS_CHECK_RETURN(code);
-
-      code = tRowMergeWithBlob(pTbCtx->pData->aRowP, pTbCtx->pSchema, pTbCtx->pData->pBlobSet, 0);
       TAOS_CHECK_RETURN(code);
     }
   
@@ -864,22 +867,25 @@ int32_t checkAndMergeSVgroupDataCxtByTbname(STableDataCxt* pTbCtx, SVgroupDataCx
   if (NULL == taosArrayPush(pVgCxt->pData->aSubmitTbData, pTbCtx->pData)) {
     return terrno;
   }
+  SArray* pRows = pTbCtx->pData->aRowP;
+  // The submit request owns these resources even if a later hash update fails.
+  pTbCtx->pData->aRowP = NULL;
+  pTbCtx->pData->pCreateTbReq = NULL;
 
   if (pTbCtx->hasBlob) {
     parserDebug("blob row transfer %p, pData %p, %s", pTbCtx->pData->pBlobSet, pTbCtx->pData, __func__);
-    if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pTbCtx->pData->pBlobSet)) {
+    SBlobSet* pBlobSet = pTbCtx->pData->pBlobSet;
+    pTbCtx->pData->pBlobSet = NULL;
+    if (NULL == taosArrayPush(pVgCxt->pData->aSubmitBlobData, &pBlobSet)) {
       return terrno;
     }
-    pTbCtx->pData->pBlobSet = NULL;  // reset blob row to NULL, so that it will not be freed in destroy
   }
 
-  code = tSimpleHashPut(pTableNameHash, tbname, strlen(tbname), &pTbCtx->pData->aRowP, sizeof(SArray*));
+  code = tSimpleHashPut(pTableNameHash, tbname, strlen(tbname), &pRows, sizeof(SArray*));
 
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  pTbCtx->pData->aRowP = NULL;
-
   parserDebug("uid:%" PRId64 ", add table data context to vgId:%d", pTbCtx->pMeta->uid, pVgCxt->vgId);
 
   return TSDB_CODE_SUCCESS;
@@ -981,9 +987,17 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
     code = TSDB_CODE_SUCCESS;
   } else {
     if (TSDB_CODE_SUCCESS != code) {
+      if (ctbReq != NULL) {
+        tdDestroySVCreateTbReq(ctbReq);
+        taosMemoryFree(ctbReq);
+      }
       return code;
     }
     if (pTbCtx->pData->suid != suid) {
+      if (ctbReq != NULL) {
+        tdDestroySVCreateTbReq(ctbReq);
+        taosMemoryFree(ctbReq);
+      }
       return TSDB_CODE_TDB_TABLE_IN_OTHER_STABLE;
     }
 
@@ -1034,12 +1048,20 @@ int32_t insAppendStmt2TableDataCxt(SHashObj* pAllVgHash, STableColsData* pTbData
 
   if (code == TSDB_CODE_SUCCESS) {
     code = checkAndMergeSVgroupDataCxtByTbname(pTbCtx, pVgCxt, pBuildInfo->pTableRowDataHash, pTbData->tbName);
+    if (pTbCtx->pData->aRowP == NULL) {
+      pTbData->aCol = NULL;
+    }
   }
 
-  if (taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
+  if (code == TSDB_CODE_SUCCESS && taosArrayGetSize(pVgCxt->pData->aSubmitTbData) >= 20000) {
     code = qBuildStmtFinOutput1((SQuery*)pBuildInfo->pQuery, pAllVgHash, pBuildInfo->pVgroupList);
     // taosArrayClear(pVgCxt->pData->aSubmitTbData);
     tDestroySubmitReq(pVgCxt->pData, TSDB_MSG_FLG_ENCODE);
+    // The row arrays referenced by this hash have just been destroyed with the submit request.
+    // Drop both the stale pointers and their hash nodes before accepting the next sub-batch.
+    if (pBuildInfo->pTableRowDataHash != NULL) {
+      tSimpleHashClear(pBuildInfo->pTableRowDataHash);
+    }
     // insDestroyVgroupDataCxt(pVgCxt);
   }
 

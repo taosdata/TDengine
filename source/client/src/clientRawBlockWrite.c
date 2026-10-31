@@ -172,6 +172,12 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
     goto end;
   }
   // decode and process req
+  if (metaLen < sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaLen:%u", __func__, metaLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -212,7 +218,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, uint32_t metaLen) {
     SFieldWithOptions field = {.type = pSchema->type, .flags = pSchema->flags, .bytes = pSchema->bytes};
     tstrncpy(field.name, pSchema->name, TSDB_COL_NAME_LEN);
 
-    if (createDefaultCompress) {
+    if (createDefaultCompress || i >= req.colCmpr.nCols) {
       field.compress = createDefaultColCmprByType(pSchema->type);
     } else {
       SColCmpr* pCmp = &req.colCmpr.pColCmpr[i];
@@ -338,6 +344,12 @@ static int32_t taosDropStb(TAOS* taos, void* meta, uint32_t metaLen) {
     goto end;
   }
   // decode and process req
+  if (metaLen < sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaLen:%u", __func__, metaLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -667,6 +679,12 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, uint32_t metaLen) {
     goto end;
   }
   // decode and process req
+  if (metaLen < sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaLen:%u", __func__, metaLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -828,6 +846,12 @@ static int32_t taosDropTable(TAOS* taos, void* meta, uint32_t metaLen) {
     goto end;
   }
   // decode and process req
+  if (metaLen < sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaLen:%u", __func__, metaLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
@@ -927,18 +951,23 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, uint32_t metaLen) {
   }
   SDeleteRes req = {0};
   SDecoder   coder = {0};
-  char       sql[256] = {0};
+  char       sql[RAW_BLOCK_DELETE_SQL_LEN] = {0};
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   uDebug("connId:0x%" PRIx64 " delete data, meta:%p, len:%d", *(int64_t*)taos, meta, metaLen);
 
   // decode and process req
+  if (metaLen < sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaLen:%u", __func__, metaLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&coder, data, len);
   RAW_RETURN_CHECK(tDecodeDeleteRes(&coder, &req));
-  (void)snprintf(sql, sizeof(sql), "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName,
-                 req.tsColName, req.skey, req.tsColName, req.ekey);
+  RAW_RETURN_CHECK(rawBlockBuildDeleteSql(sql, sizeof(sql), &req));
 
   TAOS_RES* res = taosQueryImpl(taos, sql, false, TD_REQ_FROM_TAOX);
   RAW_NULL_CHECK(res);
@@ -982,6 +1011,12 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, uint32_t metaLen) {
     goto end;
   }
   // decode and process req
+  if (metaLen < sizeof(SMsgHead)) {
+    uError("%s meta payload too short, metaLen:%u", __func__, metaLen);
+    code = TSDB_CODE_INVALID_MSG;
+    lino = __LINE__;
+    goto end;
+  }
   void*    data = POINTER_SHIFT(meta, sizeof(SMsgHead));
   uint32_t len = metaLen - sizeof(SMsgHead);
   tDecoderInit(&dcoder, data, len);
@@ -2317,6 +2352,12 @@ static int32_t tmqWriteBatchMetaDataImpl(TAOS* taos, void* meta, uint32_t metaLe
       goto end;
     }
     SMqMetaRsp metaRsp = {0};
+    if (*len < (int32_t)sizeof(SMqRspHead)) {
+      uError("%s batch meta item too short, len:%d", __func__, *len);
+      code = TSDB_CODE_INVALID_MSG;
+      lino = __LINE__;
+      goto end;
+    }
     tDecoderInit(&metaCoder, POINTER_SHIFT(tmpBuf, sizeof(SMqRspHead)), *len - sizeof(SMqRspHead));
     RAW_RETURN_CHECK(tDecodeMqMetaRsp(&metaCoder, &metaRsp));
     uDebug("%s processing batch item %d/%d, resMsgType:%d, metaRspLen:%d", __func__, i, num,

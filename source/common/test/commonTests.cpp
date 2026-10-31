@@ -555,15 +555,41 @@ TEST(XnodeDsnConfigTest, RegistersServerOnlyDisabledByDefault) {
   ASSERT_NE(private_key, nullptr);
   EXPECT_EQ(protection->i32, 0);
   EXPECT_EQ(protection->scope, CFG_SCOPE_SERVER);
-  EXPECT_EQ(protection->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(protection->dynScope, CFG_DYN_SERVER_LAZY);
+  EXPECT_TRUE(isConifgItemLazyMode(protection));
   EXPECT_EQ(public_key->scope, CFG_SCOPE_SERVER);
-  EXPECT_EQ(public_key->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(public_key->dynScope, CFG_DYN_SERVER_LAZY);
+  EXPECT_TRUE(isConifgItemLazyMode(public_key));
   EXPECT_EQ(public_key->category, CFG_CATEGORY_LOCAL);
   EXPECT_EQ(private_key->scope, CFG_SCOPE_SERVER);
-  EXPECT_EQ(private_key->dynScope, CFG_DYN_NONE);
+  EXPECT_EQ(private_key->dynScope, CFG_DYN_SERVER_LAZY);
+  EXPECT_TRUE(isConifgItemLazyMode(private_key));
   EXPECT_EQ(private_key->category, CFG_CATEGORY_LOCAL);
   EXPECT_STREQ(public_key->str, "");
   EXPECT_STREQ(private_key->str, "");
+  taosArrayDestroy(args);
+  taosCleanupCfg();
+}
+
+TEST(XnodeDsnConfigTest, AllowsLazyDynamicUpdates) {
+  taosCleanupCfg();
+  SArray *args = createServerConfigArgs();
+  ASSERT_NE(args, nullptr);
+  ASSERT_EQ(taosPreLoadCfg("", nullptr, nullptr, nullptr, args, false), TSDB_CODE_SUCCESS);
+  SConfig *config = taosGetCfg();
+  ASSERT_NE(config, nullptr);
+
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(config, "xnodeDsnProtection", "1", true, CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(config, "xnodeDsnProtection", "2", true, CFG_ALTER_ALL_DNODES),
+            TSDB_CODE_OUT_OF_RANGE);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(config, "xnodeDsnPublicKeyFile", "/tmp/xnode-dsn-public.pem", true,
+                                      CFG_ALTER_DNODE),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(cfgCheckRangeForDynUpdate(config, "xnodedDsnPrivateKeyFile", "/tmp/xnode-dsn-private.pem", true,
+                                      CFG_ALTER_DNODE),
+            TSDB_CODE_SUCCESS);
+
   taosArrayDestroy(args);
   taosCleanupCfg();
 }

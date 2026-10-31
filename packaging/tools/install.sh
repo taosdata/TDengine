@@ -75,6 +75,11 @@ taos_dir_set=0
 initd_mod=0
 service_mod=2
 silent_mode=0
+# Oracle dependency-package selection (extension role only): the server
+# version family (11g/12c/18c/19c/21c/23ai/26ai) and, optionally, an explicit
+# client (19c/23ai) for 19c-and-later servers.
+oracleServerVersion=""
+oracleClient=""
 
 # User mode variables (will be initialized in setup_env)
 user_mode=0
@@ -201,11 +206,29 @@ EOF
 while getopts "hv:e:d:sq:m:-:" arg; do
   case $arg in
   -)
-    if [ "$OPTARG" != "image-build" ]; then
-      echo "Unknown option: --$OPTARG"
-      exit 1
-    fi
-    imageBuild=1
+    case "$OPTARG" in
+      image-build)
+        imageBuild=1
+        ;;
+      oracle-server-version=*)
+        oracleServerVersion="${OPTARG#*=}"
+        if [ -z "$oracleServerVersion" ]; then
+          echo "Oracle server version family must not be empty" >&2
+          exit 1
+        fi
+        ;;
+      oracle-client=*)
+        oracleClient="${OPTARG#*=}"
+        if [ -z "$oracleClient" ]; then
+          echo "Oracle client must not be empty" >&2
+          exit 1
+        fi
+        ;;
+      *)
+        echo "Unknown option: --$OPTARG"
+        exit 1
+        ;;
+    esac
     ;;
   e)
     interactiveFqdn=$(echo $OPTARG)
@@ -486,6 +509,135 @@ function setup_env() {
   fi
 }
 
+# Oracle dependency-package selection (FS 7.1).  The installer accepts only
+# the fixed server-version families; it never parses arbitrary version
+# strings.  Below 19 uses the 19c client, 19 and above defaults to 23ai.
+function oracle_client_for_version() {
+  local ver client
+  ver=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  client=$(echo "$2" | tr '[:upper:]' '[:lower:]')
+  case "$ver" in
+    11g|12c|18c)
+      if [ -n "$client" ] && [ "$client" != "19c" ]; then
+        echo "Oracle client $client does not support server family $ver" >&2
+        return 1
+      fi
+      echo 19c
+      ;;
+    19c|21c|23ai|26ai)
+      if [ -z "$client" ]; then client=23ai; fi
+      case "$client" in
+        19c|23ai) echo "$client" ;;
+        *) echo "Invalid Oracle client: $client (expected 19c or 23ai)" >&2; return 1 ;;
+      esac
+      ;;
+    *)
+      echo "Unsupported Oracle server version family: $1" >&2
+      return 1
+      ;;
+  esac
+}
+
+function oracle_prompt_server_version() {
+  local answer
+  cat >&2 <<'EOF'
+请选择目标 Oracle 服务端版本族：
+  11g   11g Release 2（11.2.0.3 / 11.2.0.4）
+  12c   12c（12.1 / 12.2）
+  18c   18c
+  19c   19c
+  21c   21c
+  23ai  23ai
+  26ai  26ai
+  none  不使用 Oracle（回车或输入 none，自动选择最新客户端）
+EOF
+  read -r answer || return 1
+  echo "$answer"
+}
+
+oracleResolvedClient=""
+oracleSkipRequested=0
+
+# The newest Instant Client generation the package carries.  "Not using
+# Oracle" selects it, so the tree is left in the same state a default install
+# produces; the choice only matters once an Oracle source is created.
+function oracle_latest_client() {
+  local pkg_dir="$1"
+  if [ -d "$pkg_dir/23ai" ]; then
+    echo 23ai
+  elif [ -d "$pkg_dir/19c" ]; then
+    echo 19c
+  fi
+}
+
+# Resolve and validate the selection against the *package* tree before any
+# file is copied, so an invalid input leaves the installation untouched.
+function oracle_resolve_selection() {
+  local pkg_dir="${script_dir}/driver/oracle"
+  local attempt answer client latest
+  [ -d "$pkg_dir" ] || return 0
+  [ -d "$pkg_dir/19c" ] || [ -d "$pkg_dir/23ai" ] || return 0
+  latest=$(oracle_latest_client "$pkg_dir")
+  # An explicit "not using Oracle" may arrive non-interactively as well;
+  # normalise it before the family validation below.
+  case "$(echo "$oracleServerVersion" | tr '[:upper:]' '[:lower:]')" in
+    none|skip)
+      oracleServerVersion=""
+      oracleSkipRequested=1
+      ;;
+  esac
+  if [ -z "$oracleServerVersion" ] && [ -z "$oracleClient" ]; then
+    # Interactive: keep asking until a valid family (or 5 attempts) so a typo
+    # does not abort a terminal session.  A silent run without any selection
+    # keeps the package default; an explicit "none" selects the newest client.
+    if [ "$silent_mode" -ne 0 ] || [ ! -t 0 ]; then
+      [ "$oracleSkipRequested" -eq 1 ] && oracleResolvedClient="$latest"
+      return 0
+    fi
+    for attempt in 1 2 3 4 5; do
+      answer=$(oracle_prompt_server_version) || return 1
+      case "$(echo "$answer" | tr '[:upper:]' '[:lower:]')" in
+        "")
+          oracleResolvedClient="$latest"
+          echo "未使用 Oracle：已选择最新客户端 $oracleResolvedClient" >&2
+          break
+          ;;
+        none|skip)
+          oracleResolvedClient="$latest"
+          echo "未使用 Oracle：已选择最新客户端 $oracleResolvedClient" >&2
+          break
+          ;;
+      esac
+      if client=$(oracle_client_for_version "$answer" "" 2>/dev/null); then
+        oracleServerVersion="$answer"
+        oracleResolvedClient="$client"
+        break
+      fi
+      echo "无效的版本族：${answer}（请输入 11g/12c/18c/19c/21c/23ai/26ai，或回车跳过）" >&2
+    done
+    [ -n "$oracleResolvedClient" ] || return 1
+  elif [ -z "$oracleServerVersion" ]; then
+    # Only a client was requested (or a "none" family with a client): use it.
+    oracleResolvedClient=$(oracle_client_for_version "${oracleClient}" "$oracleClient") || return 1
+  else
+    oracleResolvedClient=$(oracle_client_for_version "${oracleServerVersion:-26ai}" "$oracleClient") || return 1
+  fi
+  [ -d "$pkg_dir/$oracleResolvedClient" ] || {
+    echo "Oracle client directory is missing from the package: $oracleResolvedClient" >&2
+    return 1
+  }
+  return 0
+}
+
+function oracle_write_active_client() {
+  local oracle_dir="${installDir}/driver/oracle"
+  [ -d "$oracle_dir" ] || return 0
+  [ -d "$oracle_dir/19c" ] || [ -d "$oracle_dir/23ai" ] || return 0
+  [ -n "$oracleResolvedClient" ] || return 0
+  printf '%s\n' "$oracleResolvedClient" > "${oracle_dir}/active"
+  echo "Oracle: active Instant Client: $oracleResolvedClient"
+}
+
 function install_extension_package() {
   local manifest="${script_dir}/.extension-files"
   local extension_info="${script_dir}/.package-info"
@@ -562,12 +714,14 @@ function install_extension_package() {
       exit 1
     fi
   done < "$manifest"
+  oracle_resolve_selection || exit 1
   while IFS= read -r path || [ -n "$path" ]; do
     [ -z "$path" ] && continue
     [[ "$path" == \#* ]] && continue
     mkdir -p "${installDir}/$(dirname "$path")"
     cp -a "${script_dir}/${path}" "${installDir}/${path}"
   done < "$manifest"
+  oracle_write_active_client || exit 1
   if [ "$osType" != "Darwin" ]; then
     install_fq_runtime_links "${installDir}/driver"
   fi
@@ -710,10 +864,52 @@ libmariadb.so libmariadb.so.3
 libpq.so.5 libpq.so.5.16
 libpq.so libpq.so.5
 libodbc.so libodbc.so.2
+# Oracle Instant Client: make_package ships the real library only, so the
+# aliases the driver and the preloader look up by bare soname are recreated
+# here.  libclntshcore is a different library from libclntsh whose name shares
+# a prefix; both are needed and neither alias may point at the other.
+libclntsh.so libclntsh.so.23.1
+libclntshcore.so libclntshcore.so.23.1
 libssl.so libssl.so.3
 libcrypto.so libcrypto.so.3
 libz.so libz.so.1
 LINKS
+
+  # Versioned Instant Client directories: recreate the bare-soname aliases
+  # from the real file in each directory.  The version is discovered, never
+  # hardcoded, so the 19c and 23ai trees keep their own libclntsh/libclntshcore.
+  local ver_dir stem target
+  for ver_dir in "${runtime_dir}/oracle/19c" "${runtime_dir}/oracle/23ai"; do
+    [ -d "${ver_dir}" ] || continue
+    for stem in libclntsh libclntshcore; do
+      target=$(find "${ver_dir}" -maxdepth 1 -type f -name "${stem}.so.*" 2>/dev/null | sort -V | tail -1)
+      [ -n "${target}" ] || continue
+      ln -sfn "$(basename "${target}")" "${ver_dir}/${stem}.so"
+    done
+  done
+
+  # The installed taosd resolves the Instant Client's own libraries through
+  # its RPATH ($ORIGIN/../lib).  The 19c libnnz19.so carries no SONAME, so the
+  # provider's preload cannot satisfy libclntsh's DT_NEEDED from the versioned
+  # directory alone; keep the active client flattened in <install>/lib and
+  # replace the other generation's copies.  The same step runs again on a
+  # switch, so the flat set always matches driver/oracle/active.
+  if [ -n "${oracleResolvedClient:-}" ] && \
+     [ -d "${runtime_dir}/oracle/${oracleResolvedClient}" ]; then
+    local oracle_src="${runtime_dir}/oracle/${oracleResolvedClient}"
+    local oracle_lib="${installDir}/lib"
+    local pattern src
+    mkdir -p "${oracle_lib}"
+    for pattern in 'libsqora*.so*' 'libclntsh*.so*' 'libnnz*.so*' 'libociei*.so*' \
+                   'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'legacy.so*' \
+                   'fips*.so*' 'libaio*.so*'; do
+      find "${oracle_lib}" -maxdepth 1 -name "${pattern}" -delete 2>/dev/null || true
+      for src in "${oracle_src}"/${pattern}; do
+        [ -e "${src}" ] || continue
+        cp -Lf "${src}" "${oracle_lib}/"
+      done
+    done
+  fi
 }
 
 function get_config_file() {
@@ -957,6 +1153,7 @@ function install_lib() {
 
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
+    oracle_write_active_client || exit 1
     install_fq_runtime_links "${driver_dir}"
     # Linux specific linking
     link_driver_library 'libtaos.so.*' 'libtaos.so.3'
@@ -2022,6 +2219,11 @@ if [ "$packageRole" == "extension" ]; then
   install_fq_runtime_links
   exit 0
 fi
+
+# Validate the Oracle client selection against the package before replacing
+# any installed file; the active marker is written after install_lib copies
+# the driver tree.
+oracle_resolve_selection || exit 1
 
 # Determine installation type: server or client
 if [ "$verType" == "client" ] && [ -e "${bin_dir}/${serverName}" ]; then

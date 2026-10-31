@@ -480,6 +480,10 @@ SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c
 
 **关窗连续满足条件（`end(limit_expr)`）**：指定关窗条件（`END WITH` 表达式）必须连续满足 `limit_expr` 指定的行数或时长后，窗口才真正关闭。`_wend` 取关窗 streak 第一行的时间戳（streak 期间的后续行不计入窗口）。streak 中途中断（出现不满足关窗条件的行）则重新计数，窗口保持开启。仅支持单开窗条件的 `EVENT_WINDOW`。
 
+`START(...)` 和 `END(...)` 内部也支持上述四种 `limit_expr`，例如 `TRUE_FOR(START(1m))`、`TRUE_FOR(START(1m AND COUNT 3))`、`TRUE_FOR(END(10s OR COUNT 3))`。时长取这段连续满足条件的数据的首尾时间戳之差；中途出现不满足相应条件的行，时长和行数都重新累计。不要求固定采样间隔，也不会因没有新数据时现实时间流逝而满足时长条件。
+
+`TRUE_FOR(1m)` 与 `TRUE_FOR(START(1m))` 的含义不同：前者过滤整个窗口的持续时长，不要求开始条件在整个窗口内一直成立；后者要求开窗前的开始条件连续成立至少 1 分钟。省略 `START(...)` 或 `END(...)` 时，相应条件首次成立即可开窗或关窗；省略窗口整体过滤条件时，不额外过滤整个窗口的时长或行数。三类参数用逗号分隔，不表示逻辑 `OR`。
+
 例如，设置最短持续时长为 3s：
 
 ```sql
@@ -515,6 +519,19 @@ SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c
 ```sql
 SELECT _wstart, _wend, COUNT(*) FROM t EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR (5s, START(COUNT 2), END(COUNT 3));
 ```
+
+**按时长开窗的完整数据示例**
+
+使用[流计算 TRUE_FOR 配置示例](../../07-stream-processing/01-syntax.md#true_for-配置示例)中的 `true_for_demo.sensor` 表及七行输入数据，可以直接查询：
+
+```sql
+SELECT _wstart AS window_start, _wend AS window_end, COUNT(*) AS cnt
+FROM true_for_demo.sensor
+EVENT_WINDOW START WITH temperature >= 80 END WITH temperature < 80
+TRUE_FOR(START(1m), END(COUNT 2));
+```
+
+预期返回一行：`window_start = 2026-01-01 10:01:00.000`、`window_end = 2026-01-01 10:02:10.000`、`cnt = 4`。`10:00:00` 开始的连续段在 `10:00:30` 中断；下一段从 `10:01:00` 开始，在 `10:02:00` 满足 1 分钟的开窗门限。`10:02:10` 和 `10:02:20` 两行确认关窗，但窗口结束时间取第一行的时间戳，第二行不计入窗口。流计算中对应的占位符为 `_twstart` / `_twend`，普通窗口查询中使用 `_wstart` / `_wend`。
 
 ### 计数窗口
 

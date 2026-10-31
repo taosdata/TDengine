@@ -245,7 +245,9 @@ class Remote:
         if host == platform.node() or host == "localhost":
             if not os.path.exists(path):
                 self.mkdir(host, path)
-            os.system("cp -rf {0} {1}".format(file, path))
+            # One copy command per platform: cmd.exe has no cp, so running both
+            # unconditionally printed "'cp' is not recognized" on every Windows
+            # deploy before xcopy did the actual work.
             if platform.system().lower() == "windows":
                 os.system(f'xcopy /E /Y "{file}" "{path}\\"')
             else:

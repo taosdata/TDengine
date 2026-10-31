@@ -40,7 +40,8 @@ third-party service is always restarted, even on assertion failure.
 
 Environment requirements:
     - Enterprise edition with federatedQueryEnable = 1.
-    - MySQL, PostgreSQL, InfluxDB, and SQL Server instances reachable.
+    - MySQL, PostgreSQL, InfluxDB, SQL Server, and Oracle instances
+      reachable.
     - Root / CAP_NET_ADMIN for network delay tests (s08).
 
 SQL Server runs as the fourth provider in the same per-scenario form (s01,
@@ -48,11 +49,28 @@ s02, s03, s04, s05, s07, s08) on top of the step-1 zero-pushdown contract:
 the remote side only ever executes a base scan, so a stopped/killed instance
 must surface a bounded connection error and a restarted instance must serve
 the same rows again via start_sqlserver_instance()'s readiness probe.
+
+Oracle is the fifth provider and repeats the same seven scenarios, so the
+matrix grows 29 → 36 (s06 stays Influx-only).  Oracle's DATABASE is the Easy
+Connect service name and is mandatory; there is no database level, so the
+test tables live in the login user's schema and are addressed as
+``<source>.<table>`` through the source's default schema.  Connection-layer
+failures are asserted exactly as TSDB_CODE_EXT_CONNECT_FAILED (Oracle's
+08xxx and ORA-12541 / 12545 / 12170 / 12560 / 03113 / 03114 / 03135
+diagnostics, DS 5.3.8).  The black-hole case is a login timeout instead; it
+accepts exactly the two documented classifications of that diagnostic -
+TSDB_CODE_EXT_QUERY_TIMEOUT (SQLSTATE HYT00) and
+TSDB_CODE_EXT_CONNECT_FAILED (ORA-12170) - so a syntax-class or catalog-class
+error still fails the case.  Oracle start-up takes minutes, not seconds, so
+every restart goes through start_oracle_instance()'s readiness probe and a
+failed start fails the case instead of surfacing later as a recovery
+mismatch.
 """
 
 import os
 import socket
 import subprocess
+import sys
 import threading
 import time
 
@@ -67,6 +85,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_CONNECT_FAILED,
+    TSDB_CODE_EXT_QUERY_TIMEOUT,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
 )
 
@@ -79,9 +98,22 @@ _BASE_TS = 1_704_067_200_000  # 2024-01-01 00:00:00 UTC in ms
 # With conn_timeout_ms=5000 the RPC must complete within ~5-7s;
 # we allow 15s headroom for scheduling jitter, retries, and slow CI.
 _QUERY_WALL_LIMIT_S = 15.0
+# A SIGKILL leaves the client with an established socket whose peer is gone.
+# The Oracle ODBC driver only gives up on that dead connection after its own
+# network timeout (~55 s observed), which it applies regardless of
+# SQL_ATTR_LOGIN_TIMEOUT / SQL_ATTR_QUERY_TIMEOUT because the TCP connection
+# itself succeeded.  The bound still proves the query terminates instead of
+# hanging forever.
+_ORACLE_KILL_WALL_LIMIT_S = 90.0
 
 # Short connect timeout for test sources (milliseconds).
 _SHORT_CONN_TIMEOUT_MS = 2000
+
+# Oracle statement timeout for test sources (milliseconds).  The connect
+# timeout stays short so a downed instance fails fast; the statement timeout
+# is larger because a cold Oracle instance can need more than two seconds for
+# the first scan, while the wall bound below still holds.
+_ORACLE_READ_TIMEOUT_MS = 5000
 
 # MySQL 5-row test table
 _MYSQL_TABLE_SQLS = [
@@ -118,6 +150,17 @@ _INFLUX_LINES = [
     f'svc_t,host=b val=30i,name="gamma" {_BASE_TS + 120000}000000',
     f'svc_t,host=b val=40i,name="delta" {_BASE_TS + 180000}000000',
     f'svc_t,host=b val=50i,name="epsilon" {_BASE_TS + 240000}000000',
+]
+
+# Oracle 5-row test table contents.  Oracle has a single namespace level (the
+# login user's schema) and every external table needs a timestamp-mappable
+# column, so all Oracle fixtures use a TS TIMESTAMP(3) first column.
+_ORACLE_EXPECTED_ROWS = [
+    (1, 10, "alpha"),
+    (2, 20, "beta"),
+    (3, 30, "gamma"),
+    (4, 40, "delta"),
+    (5, 50, "epsilon"),
 ]
 
 
@@ -182,6 +225,101 @@ class _BlackHoleListener:
         self.close()
 
 
+class _SynDropPort:
+    """TCP port on 127.0.0.1 whose incoming SYNs are silently dropped.
+
+    Reproduces a service that is unreachable at the packet level - a
+    stopped container behind a published port, or a firewall DROP rule -
+    without iptables, root or kernel modules.  A listener with a backlog
+    of zero holds one connection that is never accepted, which fills its
+    accept queue; once the queue is full the kernel discards further
+    SYNs instead of answering them (``tcp_conn_request`` drops whenever
+    ``sk_acceptq_is_full()``), so a client stays in SYN_SENT through the
+    whole SYN retransmission backoff (~60 s) exactly as it does against a
+    black-holed port.
+
+    The constructor waits until the kernel reports the accept queue full
+    and then probes the port once; a platform that answers that probe
+    does not drop SYNs and raises ``RuntimeError`` instead of pretending
+    the scenario is reproducible.  Linux-only in practice (the queue
+    depth is read from /proc/net/tcp).
+
+    Use as a context manager; ``port`` listens on 127.0.0.1::
+
+        with _SynDropPort() as syn:
+            # connect to syn.port hangs in SYN_SENT
+            ...
+    """
+
+    _PROBE_TIMEOUT_S = 1.5
+
+    def __init__(self):
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen(0)  # accept queue capacity: a single connection
+        self.port = self._sock.getsockname()[1]
+        self._filler = socket.create_connection(
+            ("127.0.0.1", self.port), timeout=2)
+        self._wait_until_queue_full()
+        self._verify_syn_dropped()
+
+    def _wait_until_queue_full(self):
+        # For a LISTEN socket /proc/net/tcp reports sk_ack_backlog as the
+        # rx_queue column; waiting for it removes the race between the
+        # filler's final ACK and the query's first SYN.  Where the file
+        # does not exist the probe below still tells us the truth.
+        deadline = time.time() + 2
+        while time.time() < deadline:
+            try:
+                with open("/proc/net/tcp") as fh:
+                    backlog = None
+                    for line in fh:
+                        fields = line.split()
+                        if len(fields) < 5 or fields[0] == "sl":
+                            continue
+                        _, port_hex = fields[1].split(":")
+                        if (fields[3] == "0A"
+                                and int(port_hex, 16) == self.port):
+                            backlog = int(fields[4].split(":")[1], 16)
+                            break
+            except OSError:
+                time.sleep(0.1)
+                return
+            if backlog is not None and backlog >= 1:
+                return
+            time.sleep(0.01)
+        time.sleep(0.05)
+
+    def _verify_syn_dropped(self):
+        probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        probe.settimeout(self._PROBE_TIMEOUT_S)
+        try:
+            try:
+                probe.connect(("127.0.0.1", self.port))
+            except socket.timeout:
+                return
+            raise RuntimeError(
+                "this platform answers SYNs on a saturated accept queue; "
+                "the SYN-drop scenario cannot be reproduced")
+        finally:
+            probe.close()
+
+    def close(self):
+        for s in (self._filler, self._sock):
+            try:
+                s.close()
+            except OSError:
+                pass
+        self._filler = self._sock = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
 # ---------------------------------------------------------------------------
 # Test class
 # ---------------------------------------------------------------------------
@@ -197,7 +335,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def setup_method(self, method):
-        """Pre-test safety net: if a previous test left MySQL/PG/InfluxDB/SQL Server down, restart them."""
+        """Pre-test safety net: if a previous test left MySQL/PG/InfluxDB/SQL Server/Oracle down, restart them."""
         import pymysql, psycopg2, requests
         mysql_cfg  = self._mysql_cfg()
         pg_cfg     = self._pg_cfg()
@@ -245,6 +383,13 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                 tdLog.info("[fq15 setup_method] SQL Server is down — restarting ...")
                 ExtSrcEnv.start_sqlserver_instance(self._sqlserver_ver())
 
+        if "oracle" in ExtSrcEnv.required_services():
+            try:
+                ExtSrcEnv.oracle_query_cfg(self._oracle_cfg(), "SELECT 1 FROM DUAL")
+            except Exception:
+                tdLog.info("[fq15 setup_method] Oracle is down — restarting ...")
+                ExtSrcEnv.start_oracle_instance(self._oracle_ver())
+
 
     def teardown_class(self):
         # ---- Timing summary ----
@@ -289,6 +434,19 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                 ExtSrcEnv.influx_drop_db(_INFLUX_BUCKET)
             except Exception:
                 pass
+        if "oracle" in services:
+            # Oracle has no database level to drop, so each scenario owns a
+            # table in the login user's schema instead of its own database.
+            # teardown_class receives the class rather than an instance, so
+            # the version configs are taken directly instead of through the
+            # instance helper _oracle_cfg().
+            for cfg_o in ExtSrcEnv.oracle_version_configs():
+                for table in ("SVC_S01_T", "SVC_S02_T", "SVC_S03_T",
+                              "SVC_S04_T", "SVC_S05_T", "SVC_S07_T"):
+                    try:
+                        ExtSrcEnv.oracle_drop_table_cfg(cfg_o, table)
+                    except Exception:
+                        pass
 
     # ==================================================================
     # Internal helpers
@@ -353,6 +511,32 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             extra_options=extra_options,
         )
 
+    def _mk_oracle_src(self, name, extra_options=None, database=None,
+                       schema=None):
+        """Create Oracle external source with optional extra options.
+
+        Oracle's DATABASE field is the Easy Connect service name and is
+        mandatory; there is no database level, so ``schema`` (the login user
+        that owns the test tables) is the only namespace.  A two-segment
+        ``<source>.<table>`` path resolves against that default schema, so
+        both values default to the active instance.  As with the other
+        providers the disruption cases set short deadlines, otherwise they
+        would exercise the connector's production defaults instead of the
+        bounded-failure contract asserted by this suite.
+        """
+        if extra_options is None:
+            extra_options = (
+                f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                f"'read_timeout_ms'='{_ORACLE_READ_TIMEOUT_MS}'"
+            )
+        cfg = self._oracle_cfg()
+        self._mk_oracle_real(
+            name,
+            database=database if database is not None else cfg.service,
+            schema=schema if schema is not None else cfg.user.upper(),
+            extra_options=extra_options,
+        )
+
     def _setup_mysql_data(self, db):
         cfg = self._mysql_cfg()
         ExtSrcEnv.mysql_create_db_cfg(cfg, db)
@@ -374,6 +558,33 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         ExtSrcEnv.sqlserver_create_db_cfg(cfg, db)
         ExtSrcEnv.sqlserver_exec_cfg(cfg, db, _SQLSERVER_TABLE_SQLS)
 
+    def _setup_oracle_data(self, table):
+        """(Re)create the 5-row Oracle test table in the login user's schema.
+
+        Oracle has no database level and no per-scenario database to isolate
+        the fixtures, so each scenario passes its own table name instead.
+        The table carries a TIMESTAMP column, which every external table
+        needs as its time key, and is created unquoted so the name folds to
+        upper case exactly like the paths the tests use.
+        """
+        cfg = self._oracle_cfg()
+        ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            f"CREATE TABLE {table} (TS TIMESTAMP(3), ID NUMBER(10) NOT NULL, "
+            "VAL NUMBER(10), NAME VARCHAR2(32))",
+            f"INSERT INTO {table} VALUES "
+            "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 10, 'alpha')",
+            f"INSERT INTO {table} VALUES "
+            "(TIMESTAMP '2024-01-01 00:01:00.000', 2, 20, 'beta')",
+            f"INSERT INTO {table} VALUES "
+            "(TIMESTAMP '2024-01-01 00:02:00.000', 3, 30, 'gamma')",
+            f"INSERT INTO {table} VALUES "
+            "(TIMESTAMP '2024-01-01 00:03:00.000', 4, 40, 'delta')",
+            f"INSERT INTO {table} VALUES "
+            "(TIMESTAMP '2024-01-01 00:04:00.000', 5, 50, 'epsilon')",
+            "COMMIT",
+        ])
+
     def _mysql_ver(self):
         return (getattr(self, "_active_mysql_ver", None)
                 or ExtSrcEnv.MYSQL_VERSIONS[0])
@@ -391,6 +602,33 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         # is deliberately not a fourth axis); fall back to the primary version.
         return (getattr(self, "_active_sqlserver_ver", None)
                 or ExtSrcEnv.SQLSERVER_VERSIONS[0])
+
+    def _oracle_ver(self):
+        # Oracle follows SQL Server as a fixed provider: not part of the
+        # versioned fixture, so select the primary configured version.
+        return (getattr(self, "_active_oracle_ver", None)
+                or ExtSrcEnv.ORACLE_VERSIONS[0])
+
+    def _assert_oracle_catalog(self, src):
+        """Assert the Oracle source survives in the catalog with its address.
+
+        Called while the instance is down: the catalog is local metadata, so
+        a stopped/killed Oracle must not remove or rewrite the source.
+        """
+        cfg = self._oracle_cfg()
+        # Reserved-looking column names are quoted, as in fq_07/fq_08.
+        tdSql.query(
+            "select source_name, `type`, host, `port`, `user`, `database`, "
+            "`schema` from information_schema.ins_ext_sources "
+            f"where source_name = '{src}'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, src)
+        tdSql.checkData(0, 1, "oracle")
+        tdSql.checkData(0, 2, cfg.host)
+        tdSql.checkData(0, 3, cfg.port)
+        tdSql.checkData(0, 4, cfg.user)
+        tdSql.checkData(0, 5, cfg.service)
+        tdSql.checkData(0, 6, cfg.user.upper())
 
     def _assert_query_bounded(self, sql, wall_limit=_QUERY_WALL_LIMIT_S,
                               expected_errno=None):
@@ -1842,5 +2080,482 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
                     wall_limit=_QUERY_WALL_LIMIT_S,
                 )
                 self._record_timing("S08-SQLServer black-hole timeout", elapsed)
+            finally:
+                self._cleanup_src(src)
+
+    # ==================================================================
+    # Oracle additions (5th provider)
+    #
+    # Same per-scenario form as the SQL Server block above: s01 stop,
+    # s02 kill, s03 restart recovery, s04 burst, s05 schema-down,
+    # s07 repeated cycles, s08 black-hole.  s06 (isAlive probe) stays
+    # Influx-only by design, so the matrix grows 29 → 36.
+    #
+    # Oracle timeout plumbing: connect_timeout_ms → SQL_ATTR_LOGIN_TIMEOUT
+    # and read_timeout_ms → SQL_ATTR_QUERY_TIMEOUT.  Queries follow the
+    # step-1 zero-pushdown contract (remote side runs a base scan only),
+    # so a downed instance must surface a bounded connection error and a
+    # restarted one must serve the same rows again.
+    #
+    # Oracle has no database level: DATABASE carries the Easy Connect
+    # service name and the tables live in the login user's schema, which a
+    # two-segment <source>.<table> path resolves against the source's
+    # default schema.  Each scenario therefore owns a table name instead of
+    # a database name, and the fixtures always set database=<service> and
+    # schema=<login user>.
+    # ==================================================================
+
+    def test_svc_s01_oracle_stop_query_bounded(self):
+        """S01-Oracle: stop Oracle → query fails within wall-clock bound.
+
+        Verifies that ``connect_timeout_ms`` / ``read_timeout_ms`` (mapped to
+        the ODBC login/query timeouts) cause the query to fail quickly rather
+        than blocking indefinitely.  A stopped instance is a connection-layer
+        failure: the 08xxx / ORA-12541 / ORA-12560 diagnostics map to
+        TSDB_CODE_EXT_CONNECT_FAILED (DS 5.3.8).
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        src, table = "svc_s01_or", "SVC_S01_T"
+        ver = self._oracle_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_oracle_data(table)
+            self._mk_oracle_src(src)
+
+            # Verify healthy
+            tdSql.query(f"select count(*) from {src}.svc_s01_t")
+            tdSql.checkData(0, 0, 5)
+
+            # Stop and verify fast failure
+            ExtSrcEnv.stop_oracle_instance(ver)
+            try:
+                for i in range(3):
+                    elapsed = self._assert_query_bounded(
+                        f"select * from {src}.svc_s01_t limit 1",
+                        expected_errno=TSDB_CODE_EXT_CONNECT_FAILED,
+                    )
+                    self._record_timing(f"S01-Oracle stop #{i+1}", elapsed)
+
+                # The source must survive in the catalog while it is down.
+                self._assert_oracle_catalog(src)
+
+                # taosd itself must keep serving local queries.
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+        finally:
+            self._cleanup_src(src)
+
+    def test_svc_s02_oracle_kill_query_bounded(self):
+        """S02-Oracle: SIGKILL Oracle → query fails within wall-clock bound.
+
+        A hard kill leaves the client with a broken connection and no clean
+        disconnect; the ODBC timeout must still fire so the federated query
+        stays bounded.  ORA-03113 / ORA-03114 / ORA-03135 (or a fresh
+        ORA-12541) all classify as TSDB_CODE_EXT_CONNECT_FAILED.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        src, table = "svc_s02_or", "SVC_S02_T"
+        ver = self._oracle_ver()
+
+        self._cleanup_src(src)
+        try:
+            self._setup_oracle_data(table)
+            self._mk_oracle_src(src)
+
+            tdSql.query(f"select count(*) from {src}.svc_s02_t")
+            tdSql.checkData(0, 0, 5)
+
+            ExtSrcEnv.kill_oracle_instance(ver)
+            try:
+                # The platform kill does not wait for the listener socket to
+                # close; wait for it deterministically before asserting the
+                # failure mode, then let the kernel finish the teardown.
+                cfg = self._oracle_cfg()
+                deadline = time.time() + 30
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        cfg.host, cfg.port):
+                    time.sleep(0.5)
+                time.sleep(0.5)
+                for i in range(3):
+                    elapsed = self._assert_query_bounded(
+                        f"select * from {src}.svc_s02_t limit 1",
+                        wall_limit=_ORACLE_KILL_WALL_LIMIT_S,
+                        expected_errno=TSDB_CODE_EXT_CONNECT_FAILED,
+                    )
+                    self._record_timing(f"S02-Oracle kill #{i+1}", elapsed)
+
+                self._assert_oracle_catalog(src)
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+        finally:
+            self._cleanup_src(src)
+
+    def test_svc_s03_oracle_restart_recovery(self):
+        """S03-Oracle: stop → errors → restart → reconnect + identical rows.
+
+        start_oracle_instance() already waits for a probe query on DUAL, so
+        after it returns the source must transparently serve exactly the
+        rows read before the outage through a fresh connection.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        src, table = "svc_s03_or", "SVC_S03_T"
+        ver = self._oracle_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_oracle_data(table)
+            self._mk_oracle_src(src)
+
+            # Healthy: capture the exact pre-outage rows
+            tdSql.query(
+                f"select id, val, name from {src}.svc_s03_t order by id")
+            tdSql.checkRows(5)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 10)
+            tdSql.checkData(0, 2, "alpha")
+            before = [tuple(row) for row in tdSql.queryResult]
+            assert before == _ORACLE_EXPECTED_ROWS, (
+                f"unexpected pre-outage rows: {before!r}")
+
+            # Stop → errors
+            ExtSrcEnv.stop_oracle_instance(ver)
+            try:
+                for i in range(3):
+                    t0 = time.monotonic()
+                    tdSql.error(f"select * from {src}.svc_s03_t",
+                                expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                    self._record_timing(
+                        f"S03-Oracle stop error #{i+1}",
+                        time.monotonic() - t0)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+                if started:
+                    # A quick restart reuses the managed instance's data
+                    # directory, but recreate the fixture so the recovery
+                    # assertion does not depend on what a stop path left
+                    # behind.
+                    self._setup_oracle_data(table)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+
+            time.sleep(2)
+
+            # Recovery — must succeed with exactly the same rows
+            tdSql.query(
+                f"select id, val, name from {src}.svc_s03_t order by id")
+            tdSql.checkRows(5)
+            after = [tuple(row) for row in tdSql.queryResult]
+            assert after == before, (
+                f"rows changed across restart: before={before!r}, "
+                f"after={after!r}")
+        finally:
+            self._cleanup_src(src)
+
+    def test_svc_s04_oracle_burst_all_bounded(self):
+        """S04-Oracle: stop mid-burst → all queries complete within wall-clock bound.
+
+        Issues N queries against a stopped Oracle.  Each individual query
+        must complete within the wall-clock bound (no accumulation), proving
+        the ODBC timeout fires per query, not just the first.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        N = 5
+        src, table = "svc_s04_or", "SVC_S04_T"
+        ver = self._oracle_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_oracle_data(table)
+            self._mk_oracle_src(src)
+
+            tdSql.query(f"select count(*) from {src}.svc_s04_t")
+            tdSql.checkData(0, 0, 5)
+
+            ExtSrcEnv.stop_oracle_instance(ver)
+            try:
+                total_start = time.monotonic()
+                for i in range(N):
+                    elapsed = self._assert_query_bounded(
+                        f"select * from {src}.svc_s04_t",
+                        expected_errno=TSDB_CODE_EXT_CONNECT_FAILED,
+                    )
+                    self._record_timing(f"S04-Oracle burst #{i+1}", elapsed)
+                total_elapsed = time.monotonic() - total_start
+                tdLog.info(
+                    f"  [TIMING] S04-Oracle total {N} queries: "
+                    f"{total_elapsed:.2f}s")
+                tdSql.query("select server_version()")
+                tdSql.checkRows(1)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+        finally:
+            self._cleanup_src(src)
+
+    def test_svc_s05_oracle_schema_down_bounded(self):
+        """S05-Oracle: schema access while Oracle is down → fails fast.
+
+        Resolving the remote table (the connector's pre-query schema step)
+        needs a connection, so with the instance down it must fail within the
+        wall-clock bound and with the connection-layer code, not with a
+        syntax-class or table-not-exist code.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        src, table = "svc_s05_or", "SVC_S05_T"
+        ver = self._oracle_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_oracle_data(table)
+            self._mk_oracle_src(src)
+
+            # Verify schema/data access works while healthy
+            tdSql.query(f"select count(*) from {src}.svc_s05_t")
+            tdSql.checkData(0, 0, 5)
+
+            ExtSrcEnv.stop_oracle_instance(ver)
+            try:
+                elapsed = self._assert_query_bounded(
+                    f"select * from {src}.svc_s05_t",
+                    expected_errno=TSDB_CODE_EXT_CONNECT_FAILED,
+                )
+                self._record_timing(
+                    "S05-Oracle schema-down (SELECT)", elapsed)
+            finally:
+                started = ExtSrcEnv.start_oracle_instance(ver)
+                if started:
+                    self._setup_oracle_data(table)
+            if not started:
+                raise AssertionError(
+                    f"Oracle {ver} did not become ready after restart")
+        finally:
+            self._cleanup_src(src)
+
+    def test_svc_s07_oracle_repeated_cycles(self):
+        """S07-Oracle: 3× stop/start cycles → query always succeeds after restart.
+
+        Verifies that repeated disruptions don't accumulate stale ODBC
+        handles or corrupt internal state, and that the source, the catalog
+        entry and the data all survive the cycles.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        CYCLES = 3
+        src, table = "svc_s07_or", "SVC_S07_T"
+        ver = self._oracle_ver()
+        self._cleanup_src(src)
+        try:
+            self._setup_oracle_data(table)
+            self._mk_oracle_src(src)
+
+            for cycle in range(CYCLES):
+                tdLog.debug(f"  S07-Oracle cycle {cycle+1}/{CYCLES}")
+
+                # Healthy
+                tdSql.query(f"select count(*) from {src}.svc_s07_t")
+                tdSql.checkData(0, 0, 5)
+
+                # Disrupt
+                ExtSrcEnv.stop_oracle_instance(ver)
+                try:
+                    t0 = time.monotonic()
+                    tdSql.error(f"select * from {src}.svc_s07_t",
+                                expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                    self._record_timing(
+                        f"S07-Oracle cycle-{cycle+1} error",
+                        time.monotonic() - t0)
+                finally:
+                    started = ExtSrcEnv.start_oracle_instance(ver)
+                    if started:
+                        # Re-create test data so the next cycle's healthy
+                        # check works regardless of the stop path.
+                        self._setup_oracle_data(table)
+                if not started:
+                    raise AssertionError(
+                        f"Oracle {ver} did not become ready in cycle "
+                        f"{cycle+1}")
+
+                time.sleep(2)
+
+            # Final verification: catalog entry, taosd liveness, exact rows
+            self._assert_oracle_catalog(src)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+            tdSql.query(
+                f"select id, val, name from {src}.svc_s07_t order by id")
+            tdSql.checkRows(5)
+            after = [tuple(row) for row in tdSql.queryResult]
+            assert after == _ORACLE_EXPECTED_ROWS, (
+                f"rows changed across {CYCLES} cycles: {after!r}")
+        finally:
+            self._cleanup_src(src)
+
+    def test_svc_s08_oracle_black_hole_timeout(self):
+        """S08-Oracle: black-hole listener → login timeout fires within wall-clock bound.
+
+        A TCP listener that accepts connections but never answers the Oracle
+        Net handshake.  ``connect_timeout_ms`` → SQL_ATTR_LOGIN_TIMEOUT must
+        make the query fail quickly.  The expired login is classified as a
+        timeout by both documented routes (DS 5.3.8): SQLSTATE HYT00 →
+        TSDB_CODE_EXT_QUERY_TIMEOUT, ORA-12170 → TSDB_CODE_EXT_CONNECT_FAILED.
+        Any other code (syntax / catalog / type) fails the case.
+
+        Cross-platform: works on Linux, macOS, and Windows without root
+        privileges or kernel modules.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-26 wpan Add Oracle to the per-provider matrix
+
+        """
+        src = "svc_s08_or"
+        self._cleanup_src(src)
+        with _BlackHoleListener() as bh:
+            try:
+                cfg = self._oracle_cfg()
+                opts = (
+                    f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                    f"'read_timeout_ms'='{_ORACLE_READ_TIMEOUT_MS}'"
+                )
+                tdSql.execute(
+                    f"create external source {src} type='oracle' "
+                    f"host='127.0.0.1' port={bh.port} "
+                    f"user='{cfg.user}' password='{cfg.password}' "
+                    f"database={cfg.service} schema={cfg.user.upper()} "
+                    f"options({opts})"
+                )
+                elapsed = self._assert_query_bounded(
+                    f"select * from {src}.svc_s08_t limit 1",
+                    wall_limit=_QUERY_WALL_LIMIT_S,
+                    expected_errno=[TSDB_CODE_EXT_QUERY_TIMEOUT,
+                                    TSDB_CODE_EXT_CONNECT_FAILED],
+                )
+                self._record_timing("S08-Oracle black-hole timeout", elapsed)
+            finally:
+                self._cleanup_src(src)
+
+    def test_svc_s08_oracle_syn_drop_bounded(self):
+        """S08-Oracle (SYN drop): a black-holed connect is deadline-bounded.
+
+        When the Oracle container is stopped but its published port stays
+        behind the docker proxy, new SYNs to that port are dropped instead
+        of refused: the kernel retries for the full SYN backoff (~60 s) and
+        SQL_ATTR_LOGIN_TIMEOUT never fires.  The provider must enforce
+        connect_timeout_ms itself, or one query blocks for a minute.
+        _SynDropPort reproduces the black hole by saturating a local accept
+        queue, so the case needs neither iptables nor root and really runs
+        in CI instead of skipping for lack of privileges.
+
+        Catalog: - Query:FederatedServiceDisruption
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        History:
+            - 2026-10-30 dapan1121 Add the SYN-drop connect bound
+            - 2026-10-30 dapan1121 Drop the iptables dependency: saturate
+              the accept queue so the check runs in every CI job
+
+        """
+        if sys.platform != "linux":
+            pytest.skip("the SYN-drop check needs the Linux accept queue")
+        src = "svc_s08s_or"
+        self._cleanup_src(src)
+        with _SynDropPort() as syn:
+            try:
+                cfg = self._oracle_cfg()
+                opts = (
+                    f"'connect_timeout_ms'='{_SHORT_CONN_TIMEOUT_MS}',"
+                    f"'read_timeout_ms'='{_ORACLE_READ_TIMEOUT_MS}'"
+                )
+                tdSql.execute(
+                    f"create external source {src} type='oracle' "
+                    f"host='127.0.0.1' port={syn.port} "
+                    f"user='{cfg.user}' password='{cfg.password}' "
+                    f"database={cfg.service} schema={cfg.user.upper()} "
+                    f"options({opts})"
+                )
+                elapsed = self._assert_query_bounded(
+                    f"select * from {src}.svc_s08s_t limit 1",
+                    wall_limit=_QUERY_WALL_LIMIT_S,
+                    expected_errno=TSDB_CODE_EXT_CONNECT_FAILED,
+                )
+                # A dropped SYN cannot fail before the first retransmit;
+                # require most of the connect deadline to have passed so a
+                # fast unrelated error cannot masquerade as the bound.
+                assert elapsed >= _SHORT_CONN_TIMEOUT_MS / 1000.0 * 0.75, (
+                    f"query failed in {elapsed:.2f}s, before the "
+                    f"{_SHORT_CONN_TIMEOUT_MS} ms connect deadline could "
+                    "fire - the port did not behave like a SYN black hole")
+                self._record_timing("S08-Oracle SYN-drop bound", elapsed)
             finally:
                 self._cleanup_src(src)

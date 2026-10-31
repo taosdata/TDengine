@@ -80,6 +80,12 @@ class TestVtableSeriesMeta:
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {DB_NAME}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {EXT_SOURCE}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The InfluxDB
+        # bucket outlives it and keeps occupying one of the five database slots
+        # InfluxDB 3 Core allows per instance, so a full run that visits several
+        # ext-source suites eventually makes every later influx_create_db()
+        # fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(INFLUX_DB)
 
     # ------------------------------------------------------------------
     # Test 1: Create vtable with single series, verify meta round-trip

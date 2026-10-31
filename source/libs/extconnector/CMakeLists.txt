@@ -24,6 +24,7 @@ if(TD_ENTERPRISE)
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorMySQL.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorPG.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorSQLServer.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorOracle.c
   )
 endif()
 
@@ -106,11 +107,14 @@ if(TD_ENTERPRISE)
 endif()
 
 if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
-  function(_stage_fq_provider_runtime src_dir)
+  # $1 = copy mode: "copy-glob" dereferences vendor symlinks, "copy-glob-links"
+  # recreates them.  The second is for vendors that ship one physical library
+  # under many versioned aliases (Oracle Instant Client).
+  function(_stage_fq_provider_runtime_mode mode src_dir)
     add_custom_command(TARGET extconnector POST_BUILD
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_td_runtime_lib_dir}"
       COMMAND /bin/bash "${_stage_runtime_libs_script}"
-        copy-glob
+        ${mode}
         "${src_dir}"
         "${_td_runtime_lib_dir}"
         ${ARGN}
@@ -128,6 +132,41 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       COMMENT "Staging federated-query provider runtime libraries -> build/lib/"
       VERBATIM
     )
+  endfunction()
+
+  function(_stage_fq_provider_runtime src_dir)
+    _stage_fq_provider_runtime_mode(copy-glob "${src_dir}" ${ARGN})
+  endfunction()
+
+  # Oracle Instant Client: each server generation has its own directory so
+  # the provider can select one by the install-time marker (Oracle DS 3.3 /
+  # 9.1.7).  Links are preserved: the bundle ships libclntsh and
+  # libclntshcore once each under many versioned aliases.
+  function(_stage_fq_oracle_runtime src_dir version)
+    # src_dir may carry a $<CONFIG> generator expression (ext_oracle_install);
+    # it is only resolved when the POST_BUILD command runs, so no configure-time
+    # IS_DIRECTORY check here.
+    set(_oracle_dst "${CMAKE_BINARY_DIR}/build/driver/oracle/${version}")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_oracle_dst}"
+      COMMAND /bin/bash "${_stage_runtime_libs_script}"
+        copy-glob-links
+        "${src_dir}"
+        "${_oracle_dst}"
+        "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*"
+        "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
+        "legacy.so*" "fips*.so*" "libaio*.so*"
+        "libsqora*.dylib*" "libclntsh*.dylib*"
+      COMMAND /bin/bash "${_stage_runtime_libs_script}"
+        copy-ldd-glob
+        "${src_dir}"
+        "${_oracle_dst}"
+        "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*"
+        "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
+        "legacy.so*" "fips*.so*" "libaio*.so*"
+        "libsqora*.dylib*" "libclntsh*.dylib*"
+      COMMENT "Staging Oracle Instant Client ${version} -> build/driver/oracle/${version}"
+      VERBATIM)
   endfunction()
 
   if(BUILD_WITH_MARIADB)
@@ -188,6 +227,86 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       _stage_fq_provider_runtime("${_msodbc_runtime_dir}"
         "libmsodbcsql*.so*" "libmsodbcsql*.dylib*")
     endif()
+
+    # Oracle Instant Client ODBC driver: the driver (libsqora) and the Instant
+    # Client base libraries it resolves by soname (libclntsh and friends) are
+    # staged together, so the provider can preload them with RTLD_LOCAL
+    # without ORACLE_HOME or ld.so.conf (Oracle DS 3.3 / 9.1.7).
+    # Staged with the link-preserving mode: the bundle ships libclntsh and
+    # libclntshcore once each under eight versioned aliases, and dereferencing
+    # them would put ~1.2 GB of duplicate copies into build/lib (and from there
+    # into the package).
+    if(TARGET ext_oracle)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_oracle)
+      endif()
+      set(_oracle_runtime_dir "${ext_oracle_install}/lib")
+    elseif(DEFINED EXT_ORACLE_SO_SRCPATH AND NOT "${EXT_ORACLE_SO_SRCPATH}" STREQUAL "")
+      # No ExternalProject target: EXT_ORACLE_SO_SRCPATH is a user-supplied
+      # path, either the driver directory or the driver .so itself.
+      if(IS_DIRECTORY "${EXT_ORACLE_SO_SRCPATH}")
+        set(_oracle_runtime_dir "${EXT_ORACLE_SO_SRCPATH}")
+      else()
+        get_filename_component(_oracle_runtime_dir "${EXT_ORACLE_SO_SRCPATH}" DIRECTORY)
+      endif()
+    endif()
+
+    # A bundle root may carry the two generations as subdirectories; explicit
+    # EXT_ORACLE_19C_SRCPATH / EXT_ORACLE_23AI_SRCPATH win over it.
+    if(TARGET ext_oracle_19c)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_oracle_19c)
+      endif()
+      set(_oracle_19c_dir "${ext_oracle_19c_install}/lib")
+    endif()
+    if(DEFINED _oracle_runtime_dir AND IS_DIRECTORY "${_oracle_runtime_dir}/19c")
+      set(_oracle_19c_dir "${_oracle_runtime_dir}/19c")
+    endif()
+    if(DEFINED _oracle_runtime_dir AND IS_DIRECTORY "${_oracle_runtime_dir}/23ai")
+      set(_oracle_23ai_dir "${_oracle_runtime_dir}/23ai")
+    endif()
+    if(DEFINED EXT_ORACLE_19C_SRCPATH AND NOT "${EXT_ORACLE_19C_SRCPATH}" STREQUAL "")
+      if(IS_DIRECTORY "${EXT_ORACLE_19C_SRCPATH}")
+        set(_oracle_19c_dir "${EXT_ORACLE_19C_SRCPATH}")
+      else()
+        get_filename_component(_oracle_19c_dir "${EXT_ORACLE_19C_SRCPATH}" DIRECTORY)
+      endif()
+    endif()
+    if(DEFINED EXT_ORACLE_23AI_SRCPATH AND NOT "${EXT_ORACLE_23AI_SRCPATH}" STREQUAL "")
+      if(IS_DIRECTORY "${EXT_ORACLE_23AI_SRCPATH}")
+        set(_oracle_23ai_dir "${EXT_ORACLE_23AI_SRCPATH}")
+      else()
+        get_filename_component(_oracle_23ai_dir "${EXT_ORACLE_23AI_SRCPATH}" DIRECTORY)
+      endif()
+    endif()
+    if(NOT DEFINED _oracle_23ai_dir AND DEFINED _oracle_runtime_dir)
+      set(_oracle_23ai_dir "${_oracle_runtime_dir}")
+    endif()
+
+    if(DEFINED _oracle_19c_dir OR DEFINED _oracle_23ai_dir)
+      if(DEFINED _oracle_19c_dir)
+        _stage_fq_oracle_runtime("${_oracle_19c_dir}" 19c)
+      endif()
+      if(DEFINED _oracle_23ai_dir)
+        _stage_fq_oracle_runtime("${_oracle_23ai_dir}" 23ai)
+      endif()
+      if(DEFINED _oracle_23ai_dir)
+        set(_oracle_active 23ai)
+      else()
+        set(_oracle_active 19c)
+      endif()
+      file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/build/driver/oracle")
+      file(WRITE "${CMAKE_BINARY_DIR}/build/driver/oracle/active" "${_oracle_active}\n")
+    elseif(DEFINED _oracle_runtime_dir)
+      # Legacy single-client layout: keep the flat staging so an existing
+      # dependency package and build tree continue to work.
+      _stage_fq_provider_runtime_mode(copy-glob-links "${_oracle_runtime_dir}"
+        "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*"
+        "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
+        "legacy.so*" "fips*.so*" "libaio*.so*"
+        "libsqora*.dylib*" "libclntsh*.dylib*")
+    endif()
+
     if(TARGET ext_msodbc)
       set(_msodbc_resource_libdir "${ext_msodbc_install}/lib")
     elseif(DEFINED _msodbc_runtime_dir)
@@ -228,15 +347,51 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       list(APPEND _fq_dll_dirs "${ext_libpq_install}/bin" "${ext_libpq_install}/lib")
     endif()
   endif()
+  # Oracle Instant Client for Windows: the ODBC driver (sqora32) and the base
+  # DLLs it loads (oraociei, orannz, orasql, oci, ...) must sit in the same
+  # directory.  The provider finds that directory through the registry
+  # registration written by the setup script, then preloads the base DLLs from
+  # it before the driver manager loads the driver.  odbc_install.exe is copied
+  # too: the dependency package documents it as the official way to register
+  # the packaged driver/ directory.
+  if(BUILD_WITH_ODBC)
+    set(_oracle_windows_dir "")
+    if(TARGET ext_oracle)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_oracle)
+      endif()
+      set(_oracle_windows_dir "${ext_oracle_install}/lib")
+    elseif(DEFINED EXT_ORACLE_SO_SRCPATH AND NOT "${EXT_ORACLE_SO_SRCPATH}" STREQUAL "")
+      if(IS_DIRECTORY "${EXT_ORACLE_SO_SRCPATH}")
+        set(_oracle_windows_dir "${EXT_ORACLE_SO_SRCPATH}")
+      else()
+        get_filename_component(_oracle_windows_dir "${EXT_ORACLE_SO_SRCPATH}" DIRECTORY)
+      endif()
+    endif()
+    if(_oracle_windows_dir)
+      list(APPEND _fq_dll_dirs "${_oracle_windows_dir}")
+    endif()
+  endif()
   if(_fq_dll_dirs)
     string(JOIN ";" _fq_dll_dirs_str ${_fq_dll_dirs})
     add_custom_command(TARGET extconnector POST_BUILD
       COMMAND "${CMAKE_COMMAND}"
         "-DOUT_DIR=${_td_runtime_lib_dir}"
         "-DSEARCH_DIRS=${_fq_dll_dirs_str}"
-        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread;^caching_sha2_password[.]dll$;^sha256_password[.]dll$;^client_ed25519[.]dll$;^dialog[.]dll$;^mysql_clear_password[.]dll$;^pvio_shmem[.]dll$"
+        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread;^caching_sha2_password[.]dll$;^sha256_password[.]dll$;^client_ed25519[.]dll$;^dialog[.]dll$;^mysql_clear_password[.]dll$;^pvio_shmem[.]dll$;^sqora;^sqres;^oraociei;^orannz[.]dll$;^orasql[.]dll$;^oraocci;^oci[.]dll$;^ociw32[.]dll$;^legacy[.]dll$;^fips;^extks[.]dll$;^pkcs11[.]dll$"
         -P "${TD_SOURCE_DIR}/cmake/stage_fq_runtime_windows.cmake"
       COMMENT "Staging federated-query provider runtime DLLs -> build/bin/"
+      VERBATIM
+    )
+  endif()
+  if(BUILD_WITH_ODBC AND _oracle_windows_dir AND
+     (TARGET ext_oracle OR EXISTS "${_oracle_windows_dir}/odbc_install.exe"))
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_td_runtime_lib_dir}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${_oracle_windows_dir}/odbc_install.exe"
+        "${_td_runtime_lib_dir}/odbc_install.exe"
+      COMMENT "Staging the Oracle Instant Client ODBC registration helper -> build/bin/"
       VERBATIM
     )
   endif()

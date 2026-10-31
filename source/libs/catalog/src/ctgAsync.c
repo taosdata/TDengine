@@ -6680,18 +6680,22 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
     //   3-segment path  src.schema.table      ->  rawMidSegs[0]=schema, rawMidSegs[1]=""
     //   2-segment path  src.table             ->  rawMidSegs[0]="",     rawMidSegs[1]=""
     //                   Both: use the source's configured database (pSrcInfo->database).
-    if (pReq->rawMidSegs[1][0] != '\0') {
+    // PostgreSQL, SQL Server and Oracle all carry a schema (not a database) in the
+    // middle segment, so they always connect to the source-configured database;
+    // Oracle's "database" is the service name and must never be replaced by a schema.
+    if (pReq->rawMidSegs[1][0] != '\0' && pSrcInfo->type != EXT_SOURCE_ORACLE) {
       // 4-segment path (src.db.schema.table): rawMidSegs[0] is the database.
       tstrncpy(cfg.default_database, pReq->rawMidSegs[0], TSDB_EXT_SOURCE_DATABASE_LEN);
     } else if (pReq->rawMidSegs[0][0] != '\0' && pSrcInfo->type != EXT_SOURCE_POSTGRESQL &&
-               pSrcInfo->type != EXT_SOURCE_SQLSERVER) {
+               pSrcInfo->type != EXT_SOURCE_SQLSERVER && pSrcInfo->type != EXT_SOURCE_ORACLE) {
       // 3-segment non-PG path (src.db.table) or a USE-ns keyed reservation
       // (rawMidSegs[0] = USE namespace = database).
       // For PostgreSQL rawMidSegs[0] is the schema, not the database, so PG is
       // excluded and always uses pSrcInfo->database for the connection.
       tstrncpy(cfg.default_database, pReq->rawMidSegs[0], TSDB_EXT_SOURCE_DATABASE_LEN);
     } else {
-      // 2-segment path or PG: use the source-configured default database.
+      // 2-segment path or a schema-carrying source (PG / SQL Server / Oracle):
+      // use the source-configured default database.
       tstrncpy(cfg.default_database, pSrcInfo->database, TSDB_EXT_SOURCE_DATABASE_LEN);
     }
     tstrncpy(cfg.default_schema,    pSrcInfo->schema_name, TSDB_EXT_SOURCE_SCHEMA_LEN);
@@ -6751,25 +6755,34 @@ int32_t ctgFetchExtTableMetas(SCtgJob* pJob) {
         // rawMidSegs[1] set and is handled by the generic branch below.
         tstrncpy(tblNode.table.dbName, cfg.default_database, TSDB_DB_NAME_LEN);
         tstrncpy(tblNode.schemaName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
+      } else if (pSrcInfo->type == EXT_SOURCE_ORACLE) {
+        // Oracle has a single namespace level: the middle segment is the schema.
+        // table.dbName must stay empty - it would otherwise be forwarded as a
+        // database (the service name) by the provider.
+        tstrncpy(tblNode.schemaName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
       } else {
         tstrncpy(tblNode.table.dbName, pReq->rawMidSegs[0], TSDB_DB_NAME_LEN);
       }
-    } else if (cfg.default_database[0] != '\0') {
+    } else if (cfg.default_database[0] != '\0' && pSrcInfo->type != EXT_SOURCE_ORACLE) {
       // 2-segment path (src.table): propagate the effective database so that
       // provider getTableSchema can filter by TABLE_SCHEMA correctly.
       // Without this, e.g. MySQL's mysqlGetTableSchema has no TABLE_SCHEMA filter
       // and may match system tables (e.g. performance_schema.users) that share
       // the same table name.
+      // Oracle is excluded: its only namespace level is the schema, filled from
+      // the default-schema block below; dbName must stay empty.
       tstrncpy(tblNode.table.dbName, cfg.default_database, TSDB_DB_NAME_LEN);
     }
     if (pReq->rawMidSegs[1][0] != '\0') {
       tstrncpy(tblNode.schemaName, pReq->rawMidSegs[1], TSDB_DB_NAME_LEN);
     }
 
-    // Sources with a two-level namespace (PG, SQL Server) fill the configured
-    // default schema for 2-segment paths; the lookup cannot proceed without it.
+    // Sources whose namespace is schema-first (PG, SQL Server, Oracle) fill the
+    // configured default schema for 2-segment paths; the lookup cannot proceed
+    // without it.
     if (tblNode.schemaName[0] == '\0' &&
-        (pSrcInfo->type == EXT_SOURCE_POSTGRESQL || pSrcInfo->type == EXT_SOURCE_SQLSERVER)) {
+        (pSrcInfo->type == EXT_SOURCE_POSTGRESQL || pSrcInfo->type == EXT_SOURCE_SQLSERVER ||
+         pSrcInfo->type == EXT_SOURCE_ORACLE)) {
       if (pSrcInfo->schema_name[0] == '\0') {
         qError("ctgAsync: source '%s' (type %d) has no default schema configured", pReq->sourceName,
                (int)pSrcInfo->type);

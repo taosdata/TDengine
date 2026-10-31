@@ -57,6 +57,14 @@ Coverage matrix:
     FQSS-SEC-005  Identifier injection protection (table/column/db/schema)
     FQSS-SEC-006  Missing dependency/option support never silently downgrades
 
+    Oracle (联邦查询支持 Oracle TS §10, same per-dialect matrix):
+    FQOR-SEC-001  Password masking in SHOW/DESCRIBE/EXPLAIN (no wallet path)
+    FQOR-SEC-002  TLS options rejected at DDL time; no temporary cert files
+    FQOR-SEC-003  Least-privilege account: granted SELECT works, rest denied
+    FQOR-SEC-004  Cross-schema visible range matches the granted range
+    FQOR-SEC-005  Identifier injection protection (double-quote escaping)
+    FQOR-SEC-006  No client-side Oracle Net config is read or invented
+
 Design notes:
     - Tests validate masking/security at the interface level where possible.
     - For tests requiring live external databases or audit subsystems, the
@@ -107,6 +115,8 @@ from federated_query_common import (
     FQ_PG_CLIENT_KEY,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
+    TSDB_CODE_EXT_DB_NOT_EXIST,
+    TSDB_CODE_EXT_CONNECT_FAILED,
     TSDB_CODE_MND_DB_NOT_EXIST,
 )
 
@@ -196,7 +206,17 @@ class TestFq11Security(FederatedQueryVersionedMixin):
             tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
             tdSql.query("show external sources")
             source_row = next(row for row in tdSql.queryResult if row[0] == src)
-            namespace = "public" if str(source_row[1]).lower() == "postgresql" else source_row[6]
+            source_type = str(source_row[1]).lower()
+            # The middle path segment names the source's namespace level:
+            # PostgreSQL's schema, Oracle's schema (= the login user), and the
+            # database/bucket for MySQL and InfluxDB.  Oracle keeps the service
+            # name in DATABASE, so column 6 is not a namespace there.
+            if source_type == "postgresql":
+                namespace = "public"
+            elif source_type == "oracle":
+                namespace = str(source_row[7])
+            else:
+                namespace = str(source_row[6])
             conn, sql = self._normal_user_sql(user)
             try:
                 paths = [f"{src}.{namespace}.src_t", f"{src}.src_t"]
@@ -267,6 +287,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
         History:
             - 2026-10-09 wpan 补齐普通用户外部查询权限回归
+            - 2026-10-27 wpan 中间路径段按源类型取（Oracle 用 schema，不用服务名）
         """
         self.do_normal_user_external_queries()
 
@@ -275,7 +296,37 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         tdSql.execute(f"drop user if exists {user}")
         tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
 
-        def check_source(src):
+        oracle_alt_user = "FQ_SEC029_ALT"
+        oracle_alt_pass = "FqSec029Alt26"
+
+        def prepare_namespace(src):
+            """Create the alternate namespace the source is switched to.
+
+            PostgreSQL: a schema inside the source database.  Oracle has no
+            per-test database - a schema is an account (DS 5.3.2) - so the
+            equivalent is a scratch account holding the same SRC_T with the
+            post-switch data and a SELECT grant for the source's login user.
+            """
+            tdSql.query("show external sources")
+            source_row = next(row for row in tdSql.queryResult if row[0] == src)
+            if str(source_row[1]).lower() == "oracle":
+                cfg = self._oracle_cfg()
+                self._oracle_kill_user_sessions(cfg, oracle_alt_user)
+                self._oracle_admin_ddl(cfg, f'DROP USER "{oracle_alt_user}" CASCADE',
+                                       ignore_ora=("ORA-01918", "ORA-01940"))
+                self._oracle_admin_ddl(
+                    cfg, f'CREATE USER "{oracle_alt_user}" IDENTIFIED BY "{oracle_alt_pass}"')
+                self._oracle_admin_ddl(
+                    cfg, f'GRANT CREATE SESSION, CREATE TABLE, UNLIMITED TABLESPACE '
+                         f'TO "{oracle_alt_user}"')
+                ExtSrcEnv._oracle_sql(cfg, [
+                    'CREATE TABLE "SRC_T" ("TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+                    "INSERT INTO \"SRC_T\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 77)",
+                    "COMMIT",
+                ], user=oracle_alt_user, password=oracle_alt_pass)
+                self._oracle_admin_ddl(
+                    cfg, f'GRANT SELECT ON "{oracle_alt_user}"."SRC_T" TO "{cfg.user.upper()}"')
+                return oracle_alt_user
             cfg = self._pg_cfg()
             database = "sec029_pdb"
             ExtSrcEnv.pg_exec_cfg(cfg, database, [
@@ -283,6 +334,10 @@ class TestFq11Security(FederatedQueryVersionedMixin):
                 "create table auth_changed.src_t (ts timestamp, val int)",
                 "insert into auth_changed.src_t values ('2024-01-01', 77)",
             ])
+            return "auth_changed"
+
+        def check_source(src):
+            new_namespace = prepare_namespace(src)
             with tempfile.TemporaryDirectory(prefix="fq-normal-credentials-") as temp_dir:
                 cfg_dir = Path(temp_dir) / "cfg"
                 log_dir = Path(temp_dir) / "log"
@@ -370,7 +425,7 @@ finally:
                                 break
                             _time.sleep(0.2)
                         assert needle in client_logs
-                        tdSql.execute(f"alter external source {src} set schema='auth_changed'")
+                        tdSql.execute(f"alter external source {src} set schema='{new_namespace}'")
                         proc.communicate("updated\n", timeout=30)
                         assert proc.returncode == 0, output.read_text()
                         assert "HEARTBEAT_OK" in output.read_text()
@@ -384,6 +439,10 @@ finally:
                                    skip_sqlserver=True)
         finally:
             tdSql.execute(f"drop user if exists {user}")
+            cfg_or = self._oracle_cfg()
+            self._oracle_kill_user_sessions(cfg_or, oracle_alt_user)
+            self._oracle_admin_ddl(cfg_or, f'DROP USER "{oracle_alt_user}" CASCADE',
+                                   ignore_ora=("ORA-01918", "ORA-01940"))
         print("普通用户 GET 与心跳外部源凭据下发 [passed]")
 
     def test_normal_user_credential_delivery(self):
@@ -402,6 +461,7 @@ finally:
 
         History:
             - 2026-10-09 wpan 补齐普通用户凭据下发通道回归
+            - 2026-10-27 wpan 增补 Oracle 切换 schema 的凭据下发 leg（第二账号即命名空间）
         """
         self.do_normal_user_credential_delivery()
 
@@ -2165,6 +2225,7 @@ finally:
         cfg_pg = self._pg_cfg()
         cfg_influx = self._influx_cfg()
         cfg_ss = self._sqlserver_cfg()
+        cfg_or = self._oracle_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
 
         cases = [
@@ -2240,6 +2301,16 @@ finally:
                 f"create external source sec020_ss_timeout_{run_tag} type='sqlserver' "
                 f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
                 f"database='master' schema='dbo' "
+                f"options('connect_timeout_ms'='1000', 'read_timeout_ms'='1000')",
+            ),
+            # Oracle has no type-specific option key (its OPTIONS row is empty),
+            # so only the common timeout keys are accepted.
+            (
+                f"sec020_or_timeout_{run_tag}",
+                f"create external source sec020_or_timeout_{run_tag} type='oracle' "
+                f"host='{cfg_or.host}' port={cfg_or.port} user='{cfg_or.user}' "
+                f"password='{cfg_or.password}' database='{cfg_or.service}' "
+                f"schema='{cfg_or.user.upper()}' "
                 f"options('connect_timeout_ms'='1000', 'read_timeout_ms'='1000')",
             ),
         ]
@@ -3448,3 +3519,774 @@ finally:
                 "empty option value should remove the key"
         finally:
             self._cleanup(*names)
+
+
+    # ==================================================================
+    # Oracle security matrix (FQOR-SEC-001 ~ 006)
+    #
+    # Parallel to the MySQL / PG / InfluxDB / SQL Server blocks above: same
+    # helpers, same SHOW/DESCRIBE column indices, same assertion idioms.  The
+    # Oracle dialect has no per-test database (a schema is a login account) and
+    # no TLS surface at all (DS 4.1: TLS options are rejected at DDL time), so
+    # the certificate half of the other dialects' masking matrix becomes a
+    # rejection matrix here.
+    # ==================================================================
+
+    def _oracle_admin_ddl(self, cfg, stmt, ignore_ora=()):
+        """Run one provisioning statement as SYSTEM, tolerating listed ORA codes.
+
+        ``ExtSrcEnv.oracle_admin_exec_cfg`` raises on any remote error, which is
+        what we want for real failures; the tolerated codes are the ones a
+        repeated run legitimately produces (ORA-01918 for a user that is already
+        gone).
+        """
+        try:
+            ExtSrcEnv.oracle_admin_exec_cfg(cfg, [stmt])
+        except RuntimeError as e:
+            if any(code in str(e) for code in ignore_ora):
+                return
+            raise
+
+    def _oracle_drop_table_as(self, cfg, table, user=None, password=None):
+        """Drop a table in a given schema, ignoring "does not exist".
+
+        ``table`` is the exact Oracle spelling, so an embedded double quote is
+        doubled the way Oracle reads a quoted identifier back.  ORA-25716 means
+        the server rejects identifiers containing a double quote outright
+        (23ai+), so such an object cannot exist and the drop is a no-op.
+        """
+        quoted = '"' + table.replace('"', '""') + '"'
+        try:
+            ExtSrcEnv._oracle_sql(
+                cfg, f'DROP TABLE {quoted} CASCADE CONSTRAINTS PURGE',
+                user=user, password=password)
+        except RuntimeError as e:
+            # 23ai+ rejects identifiers containing a double quote (ORA-25716)
+            # and 11g raises ORA-03001 for the same DDL, so in both cases the
+            # object cannot exist and the drop is a no-op.
+            if ("ORA-00942" not in str(e) and "ORA-25716" not in str(e)
+                    and "ORA-03001" not in str(e) and "ORA-00972" not in str(e)):
+                raise
+
+    def _oracle_kill_user_sessions(self, cfg, user):
+        """Terminate every session the account still holds.
+
+        Dropping a source releases its pooled connections asynchronously; while
+        one is still alive DROP USER fails with ORA-01940 and a fresh fixture
+        cannot be created.  The admin side terminates them explicitly.
+        """
+        output = ExtSrcEnv._oracle_sql(
+            cfg,
+            "SELECT SID || ',' || SERIAL# FROM V$SESSION WHERE USERNAME = "
+            f"'{user.upper()}' ORDER BY SID",
+            user=ExtSrcEnv.ORACLE_ADMIN_USER,
+            password=ExtSrcEnv.ORACLE_ADMIN_PASS)
+        for line in output.splitlines():
+            pair = line.strip()
+            if "," not in pair or not pair.split(",", 1)[0].isdigit():
+                continue
+            self._oracle_admin_ddl(
+                cfg, f"ALTER SYSTEM KILL SESSION '{pair}' IMMEDIATE",
+                ignore_ora=("ORA-00030", "ORA-00031"))
+
+    def _oracle_scratch_user(self, cfg, user, password):
+        """(Re)create a bare Oracle account that may only open a session."""
+        self._oracle_kill_user_sessions(cfg, user)
+        self._oracle_admin_ddl(cfg, f'DROP USER "{user}" CASCADE',
+                               ignore_ora=("ORA-01918",))
+        self._oracle_admin_ddl(cfg, f'CREATE USER "{user}" IDENTIFIED BY "{password}"')
+        self._oracle_admin_ddl(cfg, f'GRANT CREATE SESSION TO "{user}"')
+
+    def _oracle_drop_scratch_user(self, cfg, user):
+        self._oracle_kill_user_sessions(cfg, user)
+        self._oracle_admin_ddl(cfg, f'DROP USER "{user}" CASCADE',
+                               ignore_ora=("ORA-01918",))
+
+    def test_fq_sec_o_001_password_masking(self):
+        """FQOR-SEC-001: Oracle password masking in SHOW / DESCRIBE / EXPLAIN
+
+        TS §10 FQOR-SEC-001: none of SHOW, DESCRIBE, the error text or EXPLAIN
+        may carry the plaintext password, the connection descriptor or a wallet
+        path.
+
+        Coverage:
+        1. Source created with a known password → masked as '******', plaintext
+           absent from every SHOW column.
+        2. The user column stays visible (it is not sensitive) and the source
+           stays listed.
+        3. DESCRIBE carries neither the password nor a wallet path.
+        4. EXPLAIN of a query against the source (or the error it raises)
+           carries neither either.
+        5. ALTER password → the new value is masked and the old one is gone.
+        6. Negative: the accepted OPTIONS keys stay listed while no TLS key is
+           present (Oracle rejects those outright, see FQOR-SEC-002).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect masking matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco001_src_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+
+        secret_pwd = "OrSecret_001!"
+        altered_pwd = "OrAltered_002!"
+        wallet_marker = f"FQOR-SEC001-WALLET-{run_tag}"
+
+        try:
+            tdSql.execute(
+                f"create external source {src} type='oracle' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{secret_pwd}' database='{cfg.service}' "
+                f"schema='{cfg.user.upper()}' "
+                f"options('connect_timeout_ms'='3000')"
+            )
+
+            idx = self._find_row(src)
+            assert idx >= 0, f"{src} not found in SHOW EXTERNAL SOURCES"
+            row_text = self._row_text(idx)
+            assert secret_pwd not in row_text, "Oracle plaintext password leaked in SHOW"
+            assert _MASKED in row_text, "Oracle password not masked in SHOW"
+            assert wallet_marker not in row_text, "wallet path leaked in SHOW"
+
+            user_val = str(tdSql.queryResult[idx][_COL_USER])
+            assert cfg.user in user_val, \
+                "user column should stay visible, it is not sensitive"
+            options_col = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "connect_timeout_ms" in options_col, \
+                "accepted option keys should stay listed"
+            assert "tls_" not in options_col, \
+                "Oracle must not store TLS options"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert secret_pwd not in desc_text, "password leaked in DESCRIBE"
+            assert wallet_marker not in desc_text, "wallet path leaked in DESCRIBE"
+
+            # EXPLAIN (or the error it raises) must not echo the secret.  The
+            # password here is a placeholder, so a plan-time metadata fetch may
+            # legitimately fail — the observation is the text, not the outcome.
+            try:
+                tdSql.cursor.execute(
+                    f"explain select count(*) from {src}.sec_o_mask_t")
+                explain_text = "\n".join(
+                    str(c) for row in (tdSql.cursor.fetchall() or []) for c in row)
+            except BaseException as e:  # noqa: BLE001 - error text is the observation
+                explain_text = str(e)
+            assert secret_pwd not in explain_text, "password leaked in EXPLAIN"
+
+            # ALTER password → new value masked, old value gone.
+            tdSql.execute(f"alter external source {src} set password='{altered_pwd}'")
+            idx = self._find_row(src)
+            assert idx >= 0
+            row_text = self._row_text(idx)
+            assert altered_pwd not in row_text, "altered password leaked in SHOW"
+            assert secret_pwd not in row_text, "old password leaked in SHOW"
+
+            tdSql.query(f"describe external source {src}")
+            desc_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+            assert altered_pwd not in desc_text and secret_pwd not in desc_text, \
+                "password leaked in DESCRIBE after ALTER"
+        finally:
+            self._cleanup(*names)
+
+    def test_fq_sec_o_002_tls_options_rejected(self):
+        """FQOR-SEC-002: Oracle TLS options are rejected, never materialized
+
+        TS §10 FQOR-SEC-002: each of the four TLS options must make CREATE
+        EXTERNAL SOURCE fail with the "Oracle does not support TLS options"
+        semantics, and no certificate material may be written to disk.
+
+        Oracle Net negotiates its own encryption (DS 4.1), so the connector has
+        no TLS surface: tls_ca_cert / tls_client_cert / tls_client_key are
+        rejected for any non-empty value, and tls_enabled is rejected unless it
+        says "off".  Accepting them silently would let a user believe encryption
+        had been switched on.
+
+        Coverage:
+        1. tls_enabled='true' → TSDB_CODE_PAR_SYNTAX_ERROR naming tls_enabled.
+        2. tls_ca_cert / tls_client_cert / tls_client_key with a tagged PEM body
+           → TSDB_CODE_PAR_SYNTAX_ERROR naming the key.
+        3. tls_enabled='false' / '0' is accepted (it only says "do not ask").
+        4. No /tmp/tdext_* file carries the tagged PEM payload, before or after
+           the rejected statements.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect TLS matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src_ok = f"seco002_ok_{run_tag}"
+        names = [src_ok]
+        self._cleanup(*names)
+
+        marker = f"FQOR-SEC002-{run_tag}"
+        pem = f"-----BEGIN CERTIFICATE-----{marker}-----END CERTIFICATE-----"
+
+        def _leftover_temp_files():
+            hits = []
+            for path in glob.glob("/tmp/tdext_*"):
+                if not os.path.isfile(path):
+                    continue
+                try:
+                    with open(path, "r", errors="ignore") as fh:
+                        if marker in fh.read():
+                            hits.append(path)
+                except OSError:
+                    continue
+            return hits
+
+        def _create(name, options):
+            return (
+                f"create external source {name} type='oracle' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{cfg.password}' database='{cfg.service}' "
+                f"schema='{cfg.user.upper()}' options({options})"
+            )
+
+        assert not _leftover_temp_files(), \
+            f"certificate material present before the test: {_leftover_temp_files()}"
+
+        try:
+            for key, value in (("tls_enabled", "true"),
+                               ("tls_ca_cert", pem),
+                               ("tls_client_cert", pem),
+                               ("tls_client_key", pem)):
+                rejected = f"seco002_{key}_{run_tag}"
+                names.append(rejected)
+                tdSql.error(
+                    _create(rejected, f"'{key}'='{value}'"),
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                    expectErrInfo="not supported for Oracle external sources",
+                    fullMatched=False,
+                )
+
+            assert not _leftover_temp_files(), (
+                "rejected TLS options still produced certificate material: "
+                f"{_leftover_temp_files()}")
+
+            # "Off" is not a request for TLS, so it is accepted and stored.
+            tdSql.execute(_create(src_ok, "'tls_enabled'='false'"))
+            idx = self._find_row(src_ok)
+            assert idx >= 0, f"{src_ok} not found in SHOW EXTERNAL SOURCES"
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            assert "tls_enabled" in opts, "accepted tls_enabled=false should be stored"
+            assert pem not in self._row_text(idx), "certificate payload leaked in SHOW"
+        finally:
+            self._cleanup(*names)
+            assert not _leftover_temp_files(), (
+                "certificate material survived DROP EXTERNAL SOURCE: "
+                f"{_leftover_temp_files()}")
+
+    def test_fq_sec_o_003_least_privilege_account(self):
+        """FQOR-SEC-003: Oracle least-privilege account
+
+        TS §10 FQOR-SEC-003: an account granted SELECT only on the target
+        objects must query them normally, while out-of-scope access must fail
+        with the mapped error instead of silently succeeding or falling back to
+        another schema.
+
+        Coverage:
+        1. A scratch account with CREATE SESSION only, plus GRANT SELECT on
+           SEC_O_GRANTED_T — an external source using these credentials reads it.
+        2. SEC_O_DENIED_T (same schema, no grant) → TSDB_CODE_EXT_TABLE_NOT_EXIST.
+           Oracle's dictionary lookup hides ungranted objects, so the error is
+           the same code ORA-00942 maps to (DS 5.3.8) without needing a failed
+           remote statement.
+        3. Negative: the source stays registered after the denied query and the
+           granted table still answers correctly (no schema fallback).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect privilege matrix
+            - 2026-10-27 wpan Terminate the scratch account's sessions before DROP USER (ORA-01940)
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco003_src_{run_tag}"
+        schema = ExtSrcEnv.ORACLE_USER.upper()
+        user = f"FQ_SEC003_{run_tag}".upper()
+        user_pwd = "FqSec0032026"
+        names = [src]
+        self._cleanup(*names)
+
+        self._oracle_drop_table_as(cfg, "SEC_O_GRANTED_T")
+        self._oracle_drop_table_as(cfg, "SEC_O_DENIED_T")
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            'CREATE TABLE "SEC_O_GRANTED_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_GRANTED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            'INSERT INTO "SEC_O_GRANTED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+            'INSERT INTO "SEC_O_GRANTED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:02.000', 3)",
+            'CREATE TABLE "SEC_O_DENIED_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_DENIED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 9)",
+            "COMMIT",
+        ])
+        self._oracle_scratch_user(cfg, user, user_pwd)
+        self._oracle_admin_ddl(
+            cfg, f'GRANT SELECT ON "{schema}"."SEC_O_GRANTED_T" TO "{user}"')
+
+        try:
+            self._mk_oracle_real(src, database=cfg.service, schema=schema,
+                                 user=user, password=user_pwd,
+                                 extra_options="'connect_timeout_ms'='3000'")
+
+            # Granted object → normal read with the expected values.
+            tdSql.query(f"select count(*), sum(val) from {src}.sec_o_granted_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 6)
+
+            # Same schema, no grant → the object is outside the visible range.
+            tdSql.error(f"select count(*) from {src}.sec_o_denied_t",
+                        expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+
+            # The source survives the denied query and keeps answering.
+            assert self._find_row(src) >= 0, \
+                "source should stay registered after a permission error"
+            tdSql.query(f"select sum(val) from {src}.sec_o_granted_t")
+            tdSql.checkData(0, 0, 6)
+        finally:
+            self._cleanup(*names)
+            self._oracle_drop_scratch_user(cfg, user)
+            self._oracle_drop_table_as(cfg, "SEC_O_GRANTED_T")
+            self._oracle_drop_table_as(cfg, "SEC_O_DENIED_T")
+
+    def test_fq_sec_o_004_cross_schema_visibility(self):
+        """FQOR-SEC-004: Oracle cross-schema visible range matches the grants
+
+        TS §10 FQOR-SEC-004: the three-segment path reaches another schema, and
+        the visible range equals the granted range.
+
+        Coverage:
+        1. The login schema holds SEC_O_MAIN_T; the alternate provisioned schema
+           (ensure_ext_env.sh ORACLE_ALT_USER) holds SEC_O_ALT_T and
+           SEC_O_ALT_DENIED_T.
+        2. Only SEC_O_ALT_T is granted to the login account.
+        3. Two-segment path reads the login schema.
+        4. Three-segment path `<src>.<ALT_SCHEMA>.sec_o_alt_t` reads the other
+           schema through the same source (cross-schema visible range).
+        5. The ungranted alt table → TSDB_CODE_EXT_TABLE_NOT_EXIST (visible
+           range == grants).
+        6. Negative: the granted paths still answer after the denial.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect visible-range matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco004_src_{run_tag}"
+        main_schema = ExtSrcEnv.ORACLE_USER.upper()
+        alt_schema = ExtSrcEnv.ORACLE_ALT_USER.upper()
+        alt_user = ExtSrcEnv.ORACLE_ALT_USER
+        alt_pwd = ExtSrcEnv.ORACLE_ALT_PASS
+        names = [src]
+        self._cleanup(*names)
+
+        self._oracle_drop_table_as(cfg, "SEC_O_MAIN_T")
+        self._oracle_drop_table_as(cfg, "SEC_O_ALT_T", user=alt_user, password=alt_pwd)
+        self._oracle_drop_table_as(cfg, "SEC_O_ALT_DENIED_T",
+                                   user=alt_user, password=alt_pwd)
+
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            'CREATE TABLE "SEC_O_MAIN_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_MAIN_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            'INSERT INTO "SEC_O_MAIN_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+            "COMMIT",
+        ])
+        ExtSrcEnv._oracle_sql(cfg, [
+            'CREATE TABLE "SEC_O_ALT_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_ALT_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 101)",
+            'INSERT INTO "SEC_O_ALT_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 102)",
+            'INSERT INTO "SEC_O_ALT_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:02.000', 103)",
+            'CREATE TABLE "SEC_O_ALT_DENIED_T" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            'INSERT INTO "SEC_O_ALT_DENIED_T" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 999)",
+            "COMMIT",
+        ], user=alt_user, password=alt_pwd)
+        self._oracle_admin_ddl(
+            cfg, f'GRANT SELECT ON "{alt_schema}"."SEC_O_ALT_T" TO "{main_schema}"')
+
+        try:
+            self._mk_oracle_real(src, database=cfg.service, schema=main_schema)
+
+            # Default schema of the source (2-segment path).
+            tdSql.query(f"select count(*), sum(val) from {src}.sec_o_main_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2)
+            tdSql.checkData(0, 1, 3)
+
+            # Cross-schema read through the 3-segment path.
+            tdSql.query(
+                f"select count(*), sum(val) from {src}.{alt_schema}.sec_o_alt_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3)
+            tdSql.checkData(0, 1, 306)
+
+            # Ungranted object in the same schema → outside the visible range.
+            tdSql.error(
+                f"select count(*) from {src}.{alt_schema}.sec_o_alt_denied_t",
+                expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+
+            # Negative: the granted paths still answer.
+            tdSql.query(f"select min(val) from {src}.sec_o_main_t")
+            tdSql.checkData(0, 0, 1)
+            tdSql.query(
+                f"select min(val) from {src}.{alt_schema}.sec_o_alt_t")
+            tdSql.checkData(0, 0, 101)
+        finally:
+            self._cleanup(*names)
+            self._oracle_drop_table_as(cfg, "SEC_O_MAIN_T")
+            self._oracle_drop_table_as(cfg, "SEC_O_ALT_T", user=alt_user, password=alt_pwd)
+            self._oracle_drop_table_as(cfg, "SEC_O_ALT_DENIED_T",
+                                       user=alt_user, password=alt_pwd)
+
+    def test_fq_sec_o_005_identifier_injection_protection(self):
+        """FQOR-SEC-005: Oracle identifier injection protection
+
+        TS §10 FQOR-SEC-005: table / column / schema names carrying double
+        quotes, semicolons or comment markers are double-quoted when rendered
+        and cannot escape; no additional statement runs.
+
+        Oracle quoting is semantic (DS 5.3.6 R1): an unquoted segment folds to
+        upper case, a double-quoted one keeps its case.  A path segment written
+        inside TDengine backticks with surrounding double quotes is carried
+        through as an exact-case identifier and re-escaped when emitted.
+
+        Coverage:
+        1. Local source-name injection attempts → syntax error, and an unrelated
+           local database is untouched.
+        2. A remote table whose name contains a double quote is referenced
+           through such a segment and resolves as a literal identifier.
+        3. `select *` on it also exercises a double-quote-bearing column name.
+        4. A table named with an injection payload (semicolon + DROP) stays a
+           literal identifier; the remote sentinel table and the injection-named
+           table both survive (no injected statement executed).
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect injection matrix
+            - 2026-10-27 wpan Gate the quote-identifier legs on server support (ORA-25716 on 23ai+)
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco005_src_{run_tag}"
+        sentinel_db = f"seco005_sentinel_{run_tag}"
+        names = [src]
+        self._cleanup(*names)
+        tdSql.execute(f"drop database if exists {sentinel_db}")
+        tdSql.execute(f"create database {sentinel_db}")
+
+        # Remote object names.  The quote-bearing table is spelled in Oracle as
+        # "fqseco005""brk"; the reference segment carries the same spelling with
+        # a single inner quote, which is what the renderer re-escapes.
+        brk_tbl = 'fqseco005"brk'
+        # 11g caps identifiers at 30 characters (ORA-00972), so the
+        # injection-shaped table name has to stay short there; it still
+        # spells a DROP of the real sentinel and must remain a literal name.
+        if cfg.version.startswith("11g"):
+            inj_tbl = "fq; DROP TABLE SEC_O_SENTINEL"
+        else:
+            inj_tbl = "fqseco005_inj; DROP TABLE SEC_O_SENTINEL--"
+        sentinel_tbl = "SEC_O_SENTINEL"
+
+        self._oracle_drop_table_as(cfg, sentinel_tbl)
+        self._oracle_drop_table_as(cfg, 'fqseco005"brk')
+        self._oracle_drop_table_as(cfg, inj_tbl)
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            'CREATE TABLE "SEC_O_SENTINEL" ("ID" NUMBER(10,0) PRIMARY KEY)',
+            'INSERT INTO "SEC_O_SENTINEL" VALUES (1)',
+            f'CREATE TABLE "{inj_tbl}" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            f'INSERT INTO "{inj_tbl}" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            f'INSERT INTO "{inj_tbl}" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
+            "COMMIT",
+        ])
+        # Oracle 23ai+ rejects any identifier containing a double quote with
+        # ORA-25716, so the quote-bearing fixture is only created where the
+        # server can represent it; the remaining legs stay version-independent.
+        quote_identifier_supported = True
+        try:
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                'CREATE TABLE "fqseco005""brk" ('
+                ' "TS" TIMESTAMP(3) PRIMARY KEY, "V""1" NUMBER(10,0))',
+                'INSERT INTO "fqseco005""brk" VALUES'
+                " (TIMESTAMP '2024-01-01 00:00:00.000', 7)",
+                "COMMIT",
+            ])
+        except RuntimeError as e:
+            # 23ai+ reports ORA-25716; 11g reports ORA-03001 for the same
+            # identifiers.  Both mean the server cannot hold such a name.
+            if "ORA-25716" not in str(e) and "ORA-03001" not in str(e):
+                raise
+            quote_identifier_supported = False
+            tdLog.info(
+                "[seco005] server rejects identifiers containing '\"'; "
+                "the quote-bearing table/column legs are skipped on this version")
+
+        try:
+            # 1. Source-name injection attempts → syntax errors, no side effect.
+            for inj in ["'; DROP DATABASE --", f"{run_tag}; SELECT 1; --",
+                        "sec' OR '1'='1"]:
+                tdSql.error(
+                    f"create external source {inj} type='oracle' "
+                    f"host='{cfg.host}' port={cfg.port} user='u' password='p' "
+                    f"database='{cfg.service}' schema='{cfg.user.upper()}'",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                )
+            tdSql.query("show databases")
+            assert any(str(r[0]) == sentinel_db for r in tdSql.queryResult), \
+                "injection attempt touched an unrelated local database"
+
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            # 2/3. A quote-bearing table and column name resolve as literal
+            # identifiers (skipped when the server cannot hold such names).
+            if quote_identifier_supported:
+                tdSql.query(f'select count(*) from {src}.`"{brk_tbl}"`')
+                assert int(tdSql.queryResult[0][0]) == 1, \
+                    "table name containing a double quote was not resolved as a literal identifier"
+
+                tdSql.query(f'select * from {src}.`"{brk_tbl}"`')
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 1, 7)
+
+            # 4. Injection-shaped table name stays a literal identifier.
+            tdSql.query(f'select count(*) from {src}.`"{inj_tbl}"`')
+            assert int(tdSql.queryResult[0][0]) == 2, \
+                "injection-shaped table name was not treated as a literal identifier"
+
+            # No injected statement reached the remote instance.
+            assert int(ExtSrcEnv.oracle_query_cfg(
+                cfg, f'SELECT COUNT(*) FROM "{sentinel_tbl}"')) == 1, \
+                "injected statement was executed on the remote instance"
+            assert int(ExtSrcEnv.oracle_query_cfg(
+                cfg, f'SELECT COUNT(*) FROM "{inj_tbl}"')) == 2, \
+                "injection-shaped table disappeared from the remote instance"
+        finally:
+            self._cleanup(*names)
+            tdSql.execute(f"drop database if exists {sentinel_db}")
+            self._oracle_drop_table_as(cfg, sentinel_tbl)
+            self._oracle_drop_table_as(cfg, 'fqseco005"brk')
+            self._oracle_drop_table_as(cfg, inj_tbl)
+
+    def test_fq_sec_o_006_no_client_net_config(self):
+        """FQOR-SEC-006: Oracle Net client configuration is neither read nor invented
+
+        TS §10 FQOR-SEC-006: the connector must not depend on (nor silently
+        substitute) a client-side Oracle Net configuration.
+
+        Oracle DS 4.1: the connector sets neither TNS_ADMIN nor ORACLE_HOME and
+        requires no tnsnames.ora / ldap.ora / wallet — the endpoint is a plain
+        Easy Connect `//host:port/service`.  The one documented exception is the
+        DS 3.3 ORACLE_HOME fallback, which is a process-level library-path hint,
+        not a connection parameter.
+
+        Coverage:
+        1. The OPTIONS surface has no client-config key: tns_admin,
+           wallet_location and oracle_home are rejected as unknown keys.
+        2. A source with no options at all connects and answers correctly, i.e.
+           the service name alone is enough.
+        3. SHOW's options column holds no client-config key.
+        4. An unknown service name resolves through Easy Connect and fails as
+           "database does not exist" (ORA-12514), not as a TNS lookup failure
+           (ORA-12154) — proof that no tnsnames.ora is consulted.
+        5. The taosd process environment carries no TNS_ADMIN after the
+           connector has run (it must not invent one).  ORACLE_HOME, if present,
+           is the documented fallback and is only logged.
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-23 wpan Add Oracle to the per-dialect config matrix
+
+        """
+        cfg = self._oracle_cfg()
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"seco006_src_{run_tag}"
+        table = "SEC_O_NETCFG_T"
+        names = [src]
+        self._cleanup(*names)
+
+        self._oracle_drop_table_as(cfg, table)
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            f'CREATE TABLE "{table}" ('
+            ' "TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
+            f'INSERT INTO "{table}" VALUES'
+            " (TIMESTAMP '2024-01-01 00:00:00.000', 42)",
+            "COMMIT",
+        ])
+
+        def _create(name, options):
+            return (
+                f"create external source {name} type='oracle' "
+                f"host='{cfg.host}' port={cfg.port} user='{cfg.user}' "
+                f"password='{cfg.password}' database='{cfg.service}' "
+                f"schema='{cfg.user.upper()}' options({options})"
+            )
+
+        def _taosd_environ():
+            """Environment of the running taosd process, or None if not found."""
+            # Windows has no /proc, so the scan is unavailable there; that is
+            # the documented "cannot inspect a local taosd" path below, not a
+            # silent pass of the assertion.
+            if not os.path.isdir("/proc"):
+                return None
+            for proc in os.scandir("/proc"):
+                if not proc.name.isdigit():
+                    continue
+                try:
+                    with open(os.path.join(proc.path, "cmdline"), "rb") as fh:
+                        argv = fh.read().split(b"\0")
+                    if not argv or os.path.basename(argv[0].decode(errors="ignore")) != "taosd":
+                        continue
+                    with open(os.path.join(proc.path, "environ"), "rb") as fh:
+                        raw = fh.read().split(b"\0")
+                except OSError:
+                    continue
+                env = {}
+                for item in raw:
+                    if b"=" not in item:
+                        continue
+                    key, _, value = item.partition(b"=")
+                    env[key.decode(errors="ignore")] = value.decode(errors="ignore")
+                return env
+            return None
+
+        try:
+            # 1. No client-config key is part of the OPTIONS surface.
+            for key in ("tns_admin", "wallet_location", "oracle_home"):
+                rejected = f"seco006_{key}_{run_tag}"
+                names.append(rejected)
+                tdSql.error(
+                    _create(rejected, f"'{key}'='/tmp/fq'"),
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                    expectErrInfo="Unknown OPTIONS key",
+                    fullMatched=False,
+                )
+
+            # 2. Easy Connect alone is enough — no options, no tnsnames.ora.
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+            tdSql.query(f"select count(*), sum(val) from {src}.sec_o_netcfg_t")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 1)
+            tdSql.checkData(0, 1, 42)
+
+            # 3. Nothing client-side is recorded on the source.
+            idx = self._find_row(src)
+            assert idx >= 0
+            opts = str(tdSql.queryResult[idx][_COL_OPTIONS])
+            for key in ("tns_admin", "wallet_location", "oracle_home"):
+                assert key not in opts.lower(), f"{key} must not be stored for Oracle"
+
+            # 4. An unknown service name fails as "the listener does not know this
+            #    service" (ORA-12514), which maps to "database does not exist".
+            #    It must never fail as "could not resolve the connect identifier"
+            #    (ORA-12154): the latter would mean a TNS alias was being looked
+            #    up somewhere, and Easy Connect exists precisely so that no
+            #    tnsnames.ora is consulted.  The reported code may be the connect
+            #    failure itself, so both are accepted — the wording is the check.
+            tdSql.execute(f"alter external source {src} set database='NOSUCHSERVICE'")
+            tdSql.error(
+                f"select count(*) from {src}.sec_o_netcfg_t",
+                expectedErrno=[TSDB_CODE_EXT_DB_NOT_EXIST,
+                               TSDB_CODE_EXT_CONNECT_FAILED],
+            )
+            assert "ORA-12154" not in tdSql.error_info, (
+                "the connector resolved the service name through a TNS alias: "
+                f"{tdSql.error_info}")
+            tdSql.execute(f"alter external source {src} set database='{cfg.service}'")
+            tdSql.query(f"select sum(val) from {src}.sec_o_netcfg_t")
+            tdSql.checkData(0, 0, 42)
+
+            # 5. The connector did not invent TNS_ADMIN in taosd's environment.
+            #    The scan only applies when taosd runs in this process tree; a
+            #    remote/containerised taosd has no /proc entry here, and its
+            #    environment is not something this test can inspect.
+            env = _taosd_environ()
+            if env is None:
+                tdLog.info("taosd is not a local process; skipping the "
+                           "environment scan for TNS_ADMIN")
+            else:
+                assert "TNS_ADMIN" not in env, (
+                    "the connector set TNS_ADMIN in the taosd process environment")
+                if env.get("ORACLE_HOME"):
+                    tdLog.info(
+                        "taosd ORACLE_HOME is set (DS 3.3 fallback): "
+                        f"{env['ORACLE_HOME']}")
+        finally:
+            self._cleanup(*names)
+            self._oracle_drop_table_as(cfg, table)

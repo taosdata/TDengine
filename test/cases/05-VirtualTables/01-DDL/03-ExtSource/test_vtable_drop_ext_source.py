@@ -32,7 +32,7 @@ if _FQ_DIR not in sys.path:
 from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table, create_mysql_table,
-    create_sqlserver_table)
+    create_sqlserver_table, create_oracle_table)
 
 
 _LOCAL_DB = "vdrop_local"
@@ -42,6 +42,11 @@ _SS_DB    = "vdrop_ss"
 _PG_SRC   = "vdrop_pg_src"
 _MY_SRC   = "vdrop_my_src"
 _SS_SRC   = "vdrop_ss_src"
+_OR_SRC   = "vdrop_or_src"
+# Oracle has one namespace level: the source carries the Easy Connect service
+# name and the schema is the upper-case login user.
+_OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 
 
 def _ensure_env():
@@ -57,9 +62,15 @@ def _ensure_env():
     create_sqlserver_table(_SS_DB, "r",
                            "ts datetime2(3) NOT NULL PRIMARY KEY, v INT",
                            ["('2024-01-01 00:00:00.000', 1000)"])
+    # Oracle has no per-source database, so the remote object lives in the
+    # login schema; NUMBER(10,0) maps to BIGINT.
+    create_oracle_table(
+        "r", "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)",
+        rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 2000)"])
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
     create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
+    create_ext_source(_OR_SRC, "oracle", _OR_SVC)
 
 
 # ===========================================================================
@@ -78,7 +89,7 @@ class TestVtableDropExtSource:
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
-        for n in (_PG_SRC, _MY_SRC, _SS_SRC):
+        for n in (_PG_SRC, _MY_SRC, _SS_SRC, _OR_SRC):
             tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {n}")
 
     def setup_method(self, method):
@@ -171,6 +182,9 @@ class TestVtableDropExtSource:
     def test_drop_vstable_heterogeneous_children(self):
         # Same as above but the children come from different ext sources —
         # ensures the drop cleans up references in both source bookkeepings.
+        # A child inherits the super table's column type, and this super table
+        # is int-typed; Oracle has no INT mapping (NUMBER(10,0) is BIGINT), so
+        # its reference lives on its own bigint-typed super table below.
         """Drop vstable heterogeneous children
 
         Same as above but the children come from different ext sources — ensures the drop cleans up references in both source bookkeepings.
@@ -232,6 +246,46 @@ class TestVtableDropExtSource:
         tdSql.execute("DROP STABLE stb_drop_ss")
 
         tdSql.execute(f"DROP EXTERNAL SOURCE {_SS_SRC}")
+        _ensure_env()
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+    def test_drop_oracle_referencing_vtables(self):
+        """Drop vtable / vstable that reference Oracle
+
+        DROP VTABLE and DROP STABLE remove Oracle-referencing virtual tables;
+        afterwards the source is still droppable, which proves the reference
+        bookkeeping was cleaned up.
+
+        Since: v3.5.0.0
+
+        """
+        tdSql.execute(
+            "CREATE VTABLE v_drop_or (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r.v)")
+        tdSql.query("SELECT count(*) FROM v_drop_or")
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("DROP VTABLE v_drop_or")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_drop_or'")
+        tdSql.checkData(0, 0, 0)
+
+        # A child inherits the super table's type, so the Oracle reference
+        # needs a bigint-typed column.
+        tdSql.execute(
+            "CREATE STABLE stb_drop_or (ts timestamp, v bigint) "
+            "TAGS (s nchar(8)) VIRTUAL 1")
+        tdSql.execute(
+            "CREATE VTABLE vctb_drop_or ("
+            f"v FROM {_OR_SRC}.{_OR_SCHEMA}.r.v) USING stb_drop_or TAGS ('a')")
+        tdSql.query("SELECT count(*) FROM vctb_drop_or")
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("DROP VTABLE vctb_drop_or")
+        tdSql.query("SELECT count(*) FROM information_schema.ins_tables "
+                    f"WHERE db_name='{_LOCAL_DB}' AND stable_name='stb_drop_or'")
+        tdSql.checkData(0, 0, 0)
+        tdSql.execute("DROP STABLE stb_drop_or")
+
+        tdSql.execute(f"DROP EXTERNAL SOURCE {_OR_SRC}")
         _ensure_env()
         tdSql.execute(f"USE {_LOCAL_DB}")
 

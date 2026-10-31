@@ -851,6 +851,7 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
   code = tjsonGetDoubleValue(pJson, "version", &tmp);
   pObj->version = (int32_t)(tmp * 1000);
+
 #if 0
   if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
   if (pObj->version <= 0) return TSDB_CODE_MND_ANODE_INVALID_VERSION;
@@ -875,10 +876,11 @@ static int32_t mndDecodeAlgoList(SJson *pJson, SAnodeObj *pObj) {
 
     code = tjsonGetStringValue2(detail, "type", buf, tListLen(buf));
     if (code < 0) return TSDB_CODE_INVALID_JSON_FORMAT;
-    EAnalyAlgoType type = taosAnalyAlgoInt(buf);
 
+    EAnalyAlgoType type = taosAnalyAlgoInt(buf);
     if (type < ANALY_ALGO_TYPE_ANOMALY_DETECT || type >= ANALY_ALGO_TYPE_END) {
-      return TSDB_CODE_MND_ANODE_INVALID_ALGO_TYPE;
+      mError("invalid algo type:%s for detail index:%d, discard and continue", buf, d);
+      continue;
     }
 
     SJson *algos = tjsonGetObjectItem(detail, "algo");

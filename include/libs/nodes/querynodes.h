@@ -156,6 +156,12 @@ typedef struct STargetNode {
 // When set on a TSDB_DATA_TYPE_BINARY SValueNode, datum.p is a raw SQL fragment
 // (unquoted, unescaped) to be emitted verbatim into the remote SQL string.
 #define VALUE_FLAG_RAW_SQL_FRAG   (1 << 4)
+// A restored declared-filter timestamp literal.  The node stays a string so
+// the value can be compared locally and replayed through DDL, but its text is
+// the remote wall clock: Oracle renders it as an ANSI TIMESTAMP literal
+// because a bare string compared with DATE/TIMESTAMP goes through
+// NLS_TIMESTAMP_FORMAT (ORA-01843 on a database with another NLS setting).
+#define VALUE_FLAG_STORED_TS_TEXT (1 << 8)
 #define VALUE_FLAG_DEFERRED_QSTART    (1 << 5)
 #define VALUE_FLAG_DEFERRED_QEND      (1 << 6)
 #define VALUE_FLAG_DEFERRED_QDURATION (1 << 7)

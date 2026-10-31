@@ -537,6 +537,16 @@ class BeforeTest:
         tdDnodes.sim.logDir = os.path.join(tdDnodes.sim.path,"psim","log")
         tdDnodes.sim.cfgDir = os.path.join(tdDnodes.sim.path,"psim","cfg")
         tdDnodes.sim.cfgPath = os.path.join(tdDnodes.sim.path,"psim","cfg","taos.cfg")
+        # The client config has to point at the dnode that was actually
+        # deployed.  Without it the CLI falls back to the default 6030, so any
+        # environment that moves the dnode off the default port (env
+        # taos_config.yaml "port") leaves every expected-result case unable to
+        # connect while the tests themselves query fine over the connector.
+        # deploy() applies a class-level "clientCfg" override afterwards, so
+        # this only establishes the default.
+        servers = getattr(request.session, "servers", None)
+        if servers:
+            tdDnodes.sim.cfgDict["firstEP"] = servers[0]["endpoint"]
         tdDnodes.sim.deploy(request.cls.updatecfgDict if hasattr(request.cls, "updatecfgDict") else {})
         tdDnodes.simDeployed = True
         tdDnodes.setLevelDisk(request.session.level, request.session.disk)

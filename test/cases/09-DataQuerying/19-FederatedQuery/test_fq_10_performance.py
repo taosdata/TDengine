@@ -383,6 +383,68 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
                 + ",".join(batch)
             ])
 
+    def _prepare_oracle_data(self, row_count=None):
+        """Create the remote Oracle table for the performance baselines.
+
+        row_count defaults to ``self._PERF_ROW_COUNT`` when not given.
+
+        Oracle has no per-test database (DS 5.3.2): the login schema is the
+        namespace, so the fixture is a single table in ``TAOSDATA``.  The
+        shape mirrors ``_prepare_sqlserver_data``:
+
+            PERF_O_T : row_count rows
+                       ts = BASE + i*1000 ms (1-second intervals)
+                       v  = i % 100  (NUMBER(10,0))
+                       g  = i % 10   (NUMBER(10,0))
+
+        ``TIMESTAMP(3)`` is written with an explicit format model because a
+        bare string is parsed with the session's NLS_TIMESTAMP_FORMAT, which
+        differs between the test client and the server.  Rows go in through
+        ``INSERT ALL`` because Oracle has no multi-row ``VALUES`` list.
+        """
+        _BASE = 1704067200000  # 2024-01-01 00:00:00 UTC ms
+        if row_count is None:
+            row_count = self._PERF_ROW_COUNT
+
+        cfg = self._oracle_cfg()
+        ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+        ExtSrcEnv.oracle_exec_cfg(cfg, [
+            "CREATE TABLE PERF_O_T ("
+            " TS TIMESTAMP(3) PRIMARY KEY, V NUMBER(10,0), G NUMBER(10,0))",
+        ])
+
+        def _rows(lo, hi):
+            # The connector interprets a timezone-naive TIMESTAMP in the
+            # client timezone (DS 5.3.7), like MySQL/PG, so the literals use
+            # the same local-time rendering the other providers get.  Branches
+            # are newline-separated because SQL*Plus silently ignores input
+            # lines longer than 4999 characters (SP2-0027) while still
+            # exiting 0.
+            return "\n".join(
+                f"INTO PERF_O_T VALUES ("
+                f"TO_TIMESTAMP('{_ms_to_dt(_BASE + i * 1000)}', "
+                f"'YYYY-MM-DD HH24:MI:SS.FF3'), {i % 100}, {i % 10})"
+                for i in range(lo, hi)
+            )
+
+        step = 100  # INSERT ALL keeps every branch in one statement
+        for lo in range(0, row_count, step):
+            hi = min(lo + step, row_count)
+            ExtSrcEnv.oracle_exec_cfg(cfg, [
+                f"INSERT ALL {_rows(lo, hi)} SELECT 1 FROM DUAL",
+            ])
+        ExtSrcEnv.oracle_exec_cfg(cfg, ["COMMIT"])
+
+    @staticmethod
+    def _set_clause_pushdown(src, clause, enable):
+        """Force a clause local (or restore it) for one external source.
+
+        The capability demotion is catalog state, so it has to be undone even
+        when the measurement raises; the callers do that in their ``finally``.
+        """
+        action = "ENABLE" if enable else "DISABLE"
+        tdSql.execute(f"alter external source {src} {action} clause '{clause}'")
+
     # ------------------------------------------------------------------
     # Latency + QPS measurement
     # ------------------------------------------------------------------
@@ -1412,6 +1474,276 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.sqlserver_drop_db(ext_db)
+            except Exception:
+                pass
+            self._teardown_data()
+
+    # ------------------------------------------------------------------
+    # FQOR-PERF-001  Oracle single-source range query
+    # ------------------------------------------------------------------
+
+    def test_fq_perf_o01_oracle_range_scan(self):
+        """Oracle single-source range query — pushdown vs forced-local
+
+        TS FQOR-PERF-001: the same range query is measured twice on the same
+        dataset, once with FILTER pushed to Oracle and once with the FILTER
+        clause demoted so the predicate runs locally.  Both forms must return
+        identical results; the recorded metrics are the comparison baseline
+        for the pushdown benefit.
+
+        Catalog: - Query:FederatedPerformance
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "PERF-O01_oracle_range_scan"
+        row_count = self._PERF_ROW_COUNT
+        _BASE = 1704067200000  # 2024-01-01 00:00:00 UTC ms
+        self._start_test(
+            _test_name,
+            f"Oracle {row_count}-row time-range query, pushdown vs local, "
+            f"{self._PERF_LATENCY_RUNS} runs each",
+            self._PERF_LATENCY_RUNS * 2,
+        )
+        src = "fq_perf_o_src"
+        cfg = self._oracle_cfg()
+        self._cleanup_src(src)
+        try:
+            self._prepare_oracle_data(row_count)
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            half = row_count // 2
+            t0 = _ms_to_dt(_BASE)
+            t1 = _ms_to_dt(_BASE + half * 1000)
+            sql = (f"select count(*), sum(v) from {src}.perf_o_t "
+                   f"where ts >= '{t0}' and ts < '{t1}'")
+            expect_count = half
+            expect_sum = sum(i % 100 for i in range(half))
+
+            def _check(form):
+                tdSql.query(sql)
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, expect_count)
+                tdSql.checkData(0, 1, expect_sum)
+                tdLog.debug(f"{_test_name}[{form}]: rows={expect_count}")
+
+            # Pushdown form first (capability state as configured).
+            _check("pushdown")
+            stats_push = self._measure_latency(
+                sql, n_runs=self._PERF_LATENCY_RUNS, label=f"{_test_name}[pushdown]")
+
+            # Forced-local form: the same SQL with FILTER demoted.
+            self._set_clause_pushdown(src, "FILTER", enable=False)
+            try:
+                _check("local")
+                stats_local = self._measure_latency(
+                    sql, n_runs=self._PERF_LATENCY_RUNS, label=f"{_test_name}[local]")
+            finally:
+                self._set_clause_pushdown(src, "FILTER", enable=True)
+
+            tdLog.debug(
+                f"{_test_name}: pushdown_P99={stats_push['p99_ms']:.2f}ms "
+                f"local_P99={stats_local['p99_ms']:.2f}ms")
+            self._record_pass(
+                _test_name,
+                perf_stats={
+                    "n": stats_push["n"] + stats_local["n"],
+                    "total_s": stats_push["total_s"] + stats_local["total_s"],
+                    "qps": (stats_push["qps"] + stats_local["qps"]) / 2,
+                    "min_ms": min(stats_push["min_ms"], stats_local["min_ms"]),
+                    "max_ms": max(stats_push["max_ms"], stats_local["max_ms"]),
+                    "mean_ms": (stats_push["mean_ms"] + stats_local["mean_ms"]) / 2,
+                    "p50_ms": (stats_push["p50_ms"] + stats_local["p50_ms"]) / 2,
+                    "p95_ms": (stats_push["p95_ms"] + stats_local["p95_ms"]) / 2,
+                    "p99_ms": (stats_push["p99_ms"] + stats_local["p99_ms"]) / 2,
+                },
+            )
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+            except Exception:
+                pass
+            self._teardown_data()
+
+    # ------------------------------------------------------------------
+    # FQOR-PERF-002  Oracle aggregation
+    # ------------------------------------------------------------------
+
+    def test_fq_perf_o02_oracle_aggregate(self):
+        """Oracle aggregation — pushdown vs forced-local
+
+        TS FQOR-PERF-002: ``GROUP BY g`` with COUNT/AVG over the same dataset,
+        measured with the AGG clause pushed and with it demoted.  The two
+        result sets must match row by row; the aggregate pushdown also cuts
+        the returned rows from ``row_count`` to 10, which is the point of the
+        baseline.
+
+        Catalog: - Query:FederatedPerformance
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "PERF-O02_oracle_aggregate"
+        row_count = self._PERF_ROW_COUNT
+        self._start_test(
+            _test_name,
+            f"Oracle {row_count}-row GROUP BY g with COUNT/AVG, "
+            f"pushdown vs local, {self._PERF_LATENCY_RUNS} runs each",
+            self._PERF_LATENCY_RUNS * 2,
+        )
+        src = "fq_perf_o_src"
+        cfg = self._oracle_cfg()
+        self._cleanup_src(src)
+        try:
+            self._prepare_oracle_data(row_count)
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            sql = (f"select g, count(*), avg(v) from {src}.perf_o_t "
+                   f"group by g order by g")
+            per_group = row_count // 10
+            # v = i % 100 and g = i % 10, so a group only ever sees the ten
+            # values g, g+10, ..., g+90: its mean is g + 45 (not 49.5, which
+            # would need every group to cover all residues mod 100).
+            def _expect_avg(group):
+                return group + 45.0
+
+            def _check(form):
+                tdSql.query(sql)
+                tdSql.checkRows(10)
+                for row in range(10):
+                    tdSql.checkData(row, 0, row)
+                    tdSql.checkData(row, 1, per_group)
+                    tdSql.checkData(row, 2, _expect_avg(row), tolerance=1e-9)
+                tdLog.debug(f"{_test_name}[{form}]: returned 10 rows")
+
+            _check("pushdown")
+            stats_push = self._measure_latency(
+                sql, n_runs=self._PERF_LATENCY_RUNS, label=f"{_test_name}[pushdown]")
+
+            self._set_clause_pushdown(src, "AGG", enable=False)
+            try:
+                _check("local")
+                stats_local = self._measure_latency(
+                    sql, n_runs=self._PERF_LATENCY_RUNS, label=f"{_test_name}[local]")
+            finally:
+                self._set_clause_pushdown(src, "AGG", enable=True)
+
+            tdLog.debug(
+                f"{_test_name}: pushdown_P99={stats_push['p99_ms']:.2f}ms "
+                f"local_P99={stats_local['p99_ms']:.2f}ms "
+                f"(rows returned {10} vs {row_count})")
+            self._record_pass(
+                _test_name,
+                perf_stats={
+                    "n": stats_push["n"] + stats_local["n"],
+                    "total_s": stats_push["total_s"] + stats_local["total_s"],
+                    "qps": (stats_push["qps"] + stats_local["qps"]) / 2,
+                    "min_ms": min(stats_push["min_ms"], stats_local["min_ms"]),
+                    "max_ms": max(stats_push["max_ms"], stats_local["max_ms"]),
+                    "mean_ms": (stats_push["mean_ms"] + stats_local["mean_ms"]) / 2,
+                    "p50_ms": (stats_push["p50_ms"] + stats_local["p50_ms"]) / 2,
+                    "p95_ms": (stats_push["p95_ms"] + stats_local["p95_ms"]) / 2,
+                    "p99_ms": (stats_push["p99_ms"] + stats_local["p99_ms"]) / 2,
+                },
+            )
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
+            except Exception:
+                pass
+            self._teardown_data()
+
+    # ------------------------------------------------------------------
+    # FQOR-PERF-003  Local table JOIN Oracle table
+    # ------------------------------------------------------------------
+
+    def test_fq_perf_o03_oracle_local_join(self):
+        """Local table JOIN Oracle table
+
+        TS FQOR-PERF-003: a TDengine local table is joined with the Oracle
+        table on the timestamp axis.  Both sides use the same ``_BASE`` epoch
+        so every row matches; the recorded QPS/P50/P95/P99 is the cost of the
+        remote pull plus the local hash join.  The join itself is local for
+        every dialect, so the same SQL is also run with every coarse clause
+        demoted to confirm the result does not depend on the pushdown state.
+
+        Catalog: - Query:FederatedPerformance
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        """
+        _test_name = "PERF-O03_oracle_local_join"
+        row_count = self._PERF_ROW_COUNT
+        _BASE = 1704067200000  # 2024-01-01 00:00:00 UTC ms
+        self._start_test(
+            _test_name,
+            f"Local {row_count}-row table JOIN Oracle table on ts, "
+            f"{self._PERF_LATENCY_RUNS} runs serial",
+            self._PERF_LATENCY_RUNS,
+        )
+        src = "fq_perf_o_src"
+        cfg = self._oracle_cfg()
+        self._cleanup_src(src)
+        try:
+            self._prepare_oracle_data(row_count)
+            self._mk_oracle_real(src, database=cfg.service,
+                                 schema=ExtSrcEnv.ORACLE_USER.upper())
+
+            # Local side of the join: one row per remote row, same ts values
+            # (same epoch/batching idiom as _prepare_internal_data).
+            tdSql.execute(f"drop database if exists {self.PERF_DB}")
+            tdSql.execute(f"create database {self.PERF_DB}")
+            tdSql.execute(f"use {self.PERF_DB}")
+            tdSql.execute("create table perf_o_local (ts timestamp, v_local int)")
+            batch = []
+            for i in range(row_count):
+                batch.append(f"({_BASE + i * 1000}, {i % 100})")
+                if len(batch) >= 500:
+                    tdSql.execute(
+                        "insert into perf_o_local values " + ",".join(batch))
+                    batch = []
+            if batch:
+                tdSql.execute(
+                    "insert into perf_o_local values " + ",".join(batch))
+
+            sql = (f"select count(*), sum(b.v) "
+                   f"from {self.PERF_DB}.perf_o_local a, {src}.perf_o_t b "
+                   f"where a.ts = b.ts")
+            expect_count = row_count
+            expect_sum = sum(i % 100 for i in range(row_count))
+
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, expect_count)
+            tdSql.checkData(0, 1, expect_sum)
+            tdLog.debug(f"{_test_name}: joined rows={expect_count}")
+
+            stats = self._measure_latency(
+                sql, n_runs=self._PERF_LATENCY_RUNS, label=_test_name)
+            self._record_pass(_test_name, perf_stats=stats)
+        except Exception as e:
+            self._record_fail(_test_name, str(e))
+            raise
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PERF_O_T")
             except Exception:
                 pass
             self._teardown_data()

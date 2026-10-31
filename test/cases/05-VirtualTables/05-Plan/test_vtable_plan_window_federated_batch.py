@@ -30,12 +30,21 @@ _MYSQL_SOURCE_A = "vt_window_batch_mysql_a"
 _MYSQL_SOURCE_B = "vt_window_batch_mysql_b"
 _POSTGRES_SOURCE = "vt_window_batch_pg"
 _SQLSERVER_SOURCE = "vt_window_batch_ss"
+_ORACLE_SOURCE = "vt_window_batch_oracle"
 _EXTERNAL_SOURCES = (
     _MYSQL_SOURCE_A,
     _MYSQL_SOURCE_B,
     _POSTGRES_SOURCE,
     _SQLSERVER_SOURCE,
+    _ORACLE_SOURCE,
 )
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.  The
+# table names carry the file prefix because every Oracle fixture of this suite
+# lives in the same shared schema.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_PRIMARY = "VT_WINDOW_BATCH_ORA_PRIMARY"
+_ORACLE_AUX = "VT_WINDOW_BATCH_ORA_AUX"
 
 
 class TestVTablePlanWindowFederatedBatch:
@@ -45,7 +54,7 @@ class TestVTablePlanWindowFederatedBatch:
         ExtSrcEnv.ensure_qnode()
         cls.adapters = {
             backend: VtableQueryUtil._EXT_SOURCE_ADAPTERS[backend]()
-            for backend in ("mysql", "postgres", "sqlserver")
+            for backend in ("mysql", "postgres", "sqlserver", "oracle")
         }
         for adapter in cls.adapters.values():
             adapter.ensure_running()
@@ -118,6 +127,45 @@ class TestVTablePlanWindowFederatedBatch:
             ],
         )
 
+        cfg = next(ExtSrcEnv.oracle_version_configs())
+        for table in (_ORACLE_PRIMARY, _ORACLE_AUX):
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
+        # Oracle row values continue the decimal ladder one order above
+        # SQL Server's so the merged window results stay distinguishable
+        # between sources.  Oracle has no multi-row VALUES clause and a bare
+        # string date would go through NLS_TIMESTAMP_FORMAT (ORA-01861).
+        ExtSrcEnv._oracle_sql(
+            cfg,
+            [
+                f"CREATE TABLE {_ORACLE_PRIMARY} "
+                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
+                "state_col NUMBER(10,0), v NUMBER(10,0))",
+                f"INSERT ALL "
+                f"INTO {_ORACLE_PRIMARY} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 100000) "
+                f"INTO {_ORACLE_PRIMARY} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:01.000', 1, 200000) "
+                f"INTO {_ORACLE_PRIMARY} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:02.000', 2, 300000) "
+                f"INTO {_ORACLE_PRIMARY} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:03.000', 2, 400000) "
+                "SELECT 1 FROM dual",
+                f"CREATE TABLE {_ORACLE_AUX} "
+                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0))",
+                f"INSERT ALL "
+                f"INTO {_ORACLE_AUX} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 1000000) "
+                f"INTO {_ORACLE_AUX} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:01.000', 2000000) "
+                f"INTO {_ORACLE_AUX} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:02.000', 3000000) "
+                f"INTO {_ORACLE_AUX} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:03.000', 4000000) "
+                "SELECT 1 FROM dual",
+                "COMMIT",
+            ],
+        )
+
     @classmethod
     def create_external_sources(cls):
         for source in _EXTERNAL_SOURCES:
@@ -147,6 +195,16 @@ class TestVTablePlanWindowFederatedBatch:
             f"database={_EXTERNAL_DB} schema=dbo"
         )
 
+        # Oracle carries the Easy Connect service name in DATABASE and the
+        # schema (the only namespace level) in SCHEMA.
+        oracle = cls.adapters["oracle"]
+        tdSql.execute(
+            f"create external source {_ORACLE_SOURCE} type='oracle' "
+            f"host='{oracle.host}' port={oracle.port} "
+            f"user='{oracle.user}' password='{oracle.password}' "
+            f"database={ExtSrcEnv.ORACLE_SERVICE} schema={_ORACLE_SCHEMA}"
+        )
+
     @classmethod
     def create_virtual_stables(cls):
         mysql_primary_a = (
@@ -167,6 +225,10 @@ class TestVTablePlanWindowFederatedBatch:
         sqlserver_aux = (
             f"{_SQLSERVER_SOURCE}.{_EXTERNAL_DB}.dbo.remote_aux"
         )
+        # Oracle: one namespace level only, so the middle segment is the
+        # schema and the service name never appears in a path.
+        oracle_primary = f"{_ORACLE_SOURCE}.{_ORACLE_SCHEMA}.{_ORACLE_PRIMARY}"
+        oracle_aux = f"{_ORACLE_SOURCE}.{_ORACLE_SCHEMA}.{_ORACLE_AUX}"
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
         tdSql.execute(f"create database {_LOCAL_DB} precision 'ns'")
@@ -267,6 +329,32 @@ class TestVTablePlanWindowFederatedBatch:
             "using vst_local_ss tags (8)"
         )
 
+        tdSql.execute(
+            "create stable vst_oracle_sources "
+            "(ts timestamp, state_col bigint, primary_v bigint, aux_v bigint) "
+            "tags (scenario int) virtual 1"
+        )
+        tdSql.execute(
+            "create vtable vct_oracle_sources ("
+            f"state_col from {oracle_primary}.state_col, "
+            f"primary_v from {oracle_primary}.v, "
+            f"aux_v from {oracle_aux}.v) "
+            "using vst_oracle_sources tags (9)"
+        )
+
+        tdSql.execute(
+            "create stable vst_local_oracle "
+            "(ts timestamp, state_col int, local_v int, oracle_v bigint) "
+            "tags (scenario int) virtual 1"
+        )
+        tdSql.execute(
+            "create vtable vct_local_oracle ("
+            "state_col from local_values.state_col, "
+            "local_v from local_values.v, "
+            f"oracle_v from {oracle_aux}.v) "
+            "using vst_local_oracle tags (10)"
+        )
+
     @classmethod
     def teardown_class(cls):
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -275,6 +363,9 @@ class TestVTablePlanWindowFederatedBatch:
         ExtSrcEnv.mysql_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.pg_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
+        cfg = next(ExtSrcEnv.oracle_version_configs())
+        for table in (_ORACLE_PRIMARY, _ORACLE_AUX):
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
 
     @staticmethod
     def compare_plan_and_results():
@@ -339,6 +430,18 @@ class TestVTablePlanWindowFederatedBatch:
                 "state_window(state_col, 0) order by _wstart",
                 ((1, 3, 300000), (2, 7, 700000)),
             ),
+            (
+                "select _wstart, _wend, state_col, sum(primary_v), "
+                f"sum(aux_v) from {_LOCAL_DB}.vst_oracle_sources "
+                "state_window(state_col, 0) order by _wstart",
+                ((1, 300000, 3000000), (2, 700000, 7000000)),
+            ),
+            (
+                "select _wstart, _wend, state_col, sum(local_v), "
+                f"sum(oracle_v) from {_LOCAL_DB}.vst_local_oracle "
+                "state_window(state_col, 0) order by _wstart",
+                ((1, 3, 3000000), (2, 7, 7000000)),
+            ),
         )
 
         session_cases = (
@@ -369,6 +472,12 @@ class TestVTablePlanWindowFederatedBatch:
                 "session(ts, 1500a) order by _wstart",
                 ((100, 1000, 10000, 100000),),
             ),
+            (
+                "select _wstart, _wend, sum(primary_v), sum(aux_v) "
+                f"from {_LOCAL_DB}.vst_oracle_sources "
+                "session(ts, 1500a) order by _wstart",
+                ((1000000, 10000000),),
+            ),
         )
 
         event_cases = (
@@ -395,6 +504,13 @@ class TestVTablePlanWindowFederatedBatch:
                 "event_window start with state_col = 1 "
                 "end with state_col = 2 order by _wstart",
                 ((60, 200.0, 2000.0, 20000.0),),
+            ),
+            (
+                "select _wstart, _wend, sum(primary_v), avg(aux_v) "
+                f"from {_LOCAL_DB}.vst_oracle_sources "
+                "event_window start with state_col = 1 "
+                "end with state_col = 2 order by _wstart",
+                ((600000, 2000000.0),),
             ),
         )
 
@@ -439,6 +555,15 @@ class TestVTablePlanWindowFederatedBatch:
                     (70, 700, 7000, 70000),
                 ),
             ),
+            (
+                "select _wstart, _wend, sum(primary_v), avg(aux_v) "
+                f"from {_LOCAL_DB}.vst_oracle_sources "
+                "interval(2s) order by _wstart",
+                (
+                    (300000, 1500000.0),
+                    (700000, 3500000.0),
+                ),
+            ),
         )
 
         window_cases = state_cases + session_cases + event_cases + interval_cases
@@ -474,6 +599,8 @@ class TestVTablePlanWindowFederatedBatch:
         5. Verify state, session, event, and interval plans with separate in/ans.
         6. Verify plans that must not enter the VStableWindow optimization.
         7. Verify state, session, event, and interval results across sources.
+        8. Verify the Oracle-only and local-plus-Oracle window results and
+           compare their EXPLAIN VERBOSE plans from the shared goldens.
 
         Catalog:
             - VirtualTable
@@ -491,6 +618,8 @@ class TestVTablePlanWindowFederatedBatch:
             - 2026-07-31 Codex Added federated cost and batch-safety fallback coverage
             - 2026-08-04 Codex Added partial/merge AVG coverage for state, session, and event windows
             - 2026-08-25 Codex Added unordered federated interval batch coverage
+            - 2026-10-26 Add Oracle window result coverage
+            - 2026-10-27 Record the Oracle plan blocks in the shared goldens
 
         """
         self.check_window_results()

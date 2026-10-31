@@ -30,6 +30,21 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
+# Third-party database drivers are loaded here, at import time, instead of
+# inside the first ensure_env call.  psycopg2's binary wheel brings its own
+# libpq/OpenSSL stack; importing it after the Oracle 19c Instant Client has
+# been loaded in the same process aborts the loader with SIGBUS (seen on the
+# 11g pool-disconnect case).  Loading it before any Oracle connection keeps
+# the two stacks apart.
+try:
+    import pymysql  # noqa: F401
+except Exception:  # pragma: no cover - ensure_env reports the missing driver
+    pymysql = None
+try:
+    import psycopg2  # noqa: F401
+except Exception:  # pragma: no cover - ensure_env reports the missing driver
+    psycopg2 = None
+
 
 # =====================================================================
 # Dynamic error code loader — parses taoserror.h at import time
@@ -168,7 +183,7 @@ def _fmt_result_table(actual_rows, expected_rows):
         for c in range(max_cols):
             av = arow[c]   if c < len(arow) else "<missing>"
             ev = erow[c]   if c < len(erow) else "<missing>"
-            mark = "" if av == ev else " ✗"
+            mark = "" if av == ev else " X"
             cells.append(f"col{c}={av!r}(exp={ev!r}){mark}")
         lines.append(f"  row{r}: " + ", ".join(cells))
     return "\n".join(lines)
@@ -207,7 +222,7 @@ def _fmt_result_table(actual_rows, expected_rows):
         for c in range(max_cols):
             av = arow[c]   if c < len(arow) else "<missing>"
             ev = erow[c]   if c < len(erow) else "<missing>"
-            mark = "" if av == ev else " ✗"
+            mark = "" if av == ev else " X"
             cells.append(f"col{c}={av!r}(exp={ev!r}){mark}")
         lines.append(f"  row{r}: " + ", ".join(cells))
     return "\n".join(lines)
@@ -387,6 +402,10 @@ _PGVerCfg     = namedtuple("_PGVerCfg",     ["version", "host", "port", "user", 
 _InfluxVerCfg = namedtuple("_InfluxVerCfg", ["version", "host", "port", "token", "org"])
 _SqlserverVerCfg = namedtuple("_SqlserverVerCfg",
                               ["version", "host", "port", "user", "password", "schema"])
+# Oracle has no per-source database to pick: the Easy Connect service name is
+# the "database" of the DDL, and the schema is the login user (DS 5.3.2).
+_OracleVerCfg = namedtuple("_OracleVerCfg",
+                           ["version", "host", "port", "user", "password", "service"])
 
 
 # =====================================================================
@@ -522,6 +541,14 @@ class ExtSrcEnv:
     SQLSERVER_VERSIONS = [v.strip() for v in
                           os.getenv("FQ_SQLSERVER_VERSIONS", "2022").split(",")
                           if v.strip()]
+    # Oracle version axis ("11g" / "19c" / "26ai").  Like SQL Server it is not
+    # merged into _version_combos(); Oracle scenarios select their version
+    # explicitly.  Linux defaults to 11g (11.2.0.4); Windows keeps 26ai until
+    # an 11g Windows instance is part of that platform's test set.
+    _DEFAULT_ORACLE_VERSION = "26ai" if os.name == "nt" else "11g"
+    ORACLE_VERSIONS = [v.strip() for v in
+                       os.getenv("FQ_ORACLE_VERSIONS", _DEFAULT_ORACLE_VERSION).split(",")
+                       if v.strip()]
 
     # Per-version port assignments — non-default, test-dedicated ports so
     # multiple versions can run simultaneously alongside any production instance.
@@ -545,6 +572,28 @@ class ExtSrcEnv:
     _SQLSERVER_VERSION_PORTS = {
         "2019": int(os.getenv("FQ_SQLSERVER_PORT_2019", "1434")),
         "2022": int(os.getenv("FQ_SQLSERVER_PORT_2022", "1433")),
+    }
+    # Oracle's version tag is spelled out (19C / 26AI) because "19c" is not a
+    # dotted number, matching FQ_ORACLE_PORT_19C / FQ_ORACLE_PORT_26AI (TS 4).
+    _ORACLE_VERSION_PORTS = {
+        "11g":  int(os.getenv("FQ_ORACLE_PORT_11G", "18320")),
+        "19c":  int(os.getenv("FQ_ORACLE_PORT_19C", "18321")),
+        "26ai": int(os.getenv("FQ_ORACLE_PORT_26AI", "18322")),
+    }
+    # Service name carried in the source's DATABASE field.  11g is a
+    # non-multitenant instance, so its service is the SID (ORCL); 19c/26ai
+    # expose a PDB service.
+    _ORACLE_VERSION_SERVICES = {
+        "11g":  os.getenv("FQ_ORACLE_SERVICE_11G", "ORCL"),
+        "19c":  os.getenv("FQ_ORACLE_SERVICE_19C", "ORCLPDB1"),
+        "26ai": os.getenv("FQ_ORACLE_SERVICE_26AI", "FREEPDB1"),
+    }
+    # Effective Instant Client per server generation (FS 7.1): below 19 uses
+    # the 19c client, 19 and above uses 23ai.  The deployment can override it
+    # with FQ_ORACLE_ACTIVE_CLIENT (19c on a 19c+ server is allowed).
+    _ORACLE_VERSION_CLIENTS = {
+        "11g": "19c", "12c": "19c", "18c": "19c",
+        "19c": "23ai", "21c": "23ai", "23ai": "23ai", "26ai": "23ai",
     }
 
     # ------------------------------------------------------------------
@@ -589,6 +638,28 @@ class ExtSrcEnv:
     # (the same provisioning model as MySQL / PostgreSQL / InfluxDB).
     SQLSERVER_PKG_VERSION = os.getenv("FQ_SQLSERVER_PKG_VERSION", "16.0.4295.3")
 
+    ORACLE_HOST    = os.getenv("FQ_ORACLE_HOST", "127.0.0.1")
+    ORACLE_PORT    = _ORACLE_VERSION_PORTS.get(
+        ORACLE_VERSIONS[0], int(os.getenv("FQ_ORACLE_PORT", "18320")))
+    ORACLE_USER    = os.getenv("FQ_ORACLE_USER", "taosdata")
+    ORACLE_PASS    = os.getenv("FQ_ORACLE_PASS", "taosdata")
+    # The service name is the source's DATABASE (DS 5.3.3); there is no
+    # separate schema namespace — a schema is a login user.
+    ORACLE_SERVICE = _ORACLE_VERSION_SERVICES.get(
+        ORACLE_VERSIONS[0], os.getenv("FQ_ORACLE_SERVICE", "ORCL"))
+    # Effective client of the deployment under test.  Defaults to the client
+    # implied by the configured server version; a deployment that explicitly
+    # selected 19c on a 19c+ server sets FQ_ORACLE_ACTIVE_CLIENT=19c.
+    ORACLE_ACTIVE_CLIENT = os.getenv(
+        "FQ_ORACLE_ACTIVE_CLIENT", _ORACLE_VERSION_CLIENTS.get(ORACLE_VERSIONS[0], "19c"))
+    # Managed by ensure_ext_env.sh: one native engine instance per configured
+    # version, from the vendor RPM extracted under FQ_BASE_DIR/oracle/<ver> —
+    # the same provisioning model as MySQL / PostgreSQL / InfluxDB / SQL Server.
+    ORACLE_PKG_URL = os.getenv(
+        "FQ_ORACLE_PKG_URL",
+        "https://download.oracle.com/otn-pub/otn_software/db-free/"
+        "oracle-database-free-23ai-1.0-1.el8.x86_64.rpm")
+
     # Pool-exhaustion test user — created by ensure_ext_env.sh with
     # MAX_USER_CONNECTIONS limited to FQ_POOL_TEST_MAX_CONN (default 1).
     # Tests use this user to saturate the per-user connection limit and
@@ -596,6 +667,20 @@ class ExtSrcEnv:
     POOL_TEST_USER     = os.getenv("FQ_POOL_TEST_USER",     "fq_pool_test")
     POOL_TEST_PASS     = os.getenv("FQ_POOL_TEST_PASS",     "taosdata")
     POOL_TEST_MAX_CONN = int(os.getenv("FQ_POOL_TEST_MAX_CONN", "1"))
+    # Oracle users are instance-global, so the pool-exhaustion schema gets its
+    # own name instead of reusing MySQL's; ensure_ext_env.sh gives it a profile
+    # whose SESSIONS_PER_USER is POOL_TEST_MAX_CONN.
+    ORACLE_POOL_TEST_USER = os.getenv("FQ_ORACLE_POOL_TEST_USER", "fq_pool_test_oracle")
+    ORACLE_POOL_TEST_PASS = os.getenv("FQ_ORACLE_POOL_TEST_PASS", POOL_TEST_PASS)
+    # A second schema for the namespace tests.  Oracle has no "create schema"
+    # the way the other engines do — a schema is a user — so the alternate
+    # namespace the path-resolution suite needs is a provisioned account, just
+    # as PostgreSQL gets an "analytics" schema and SQL Server a second database.
+    ORACLE_ALT_USER = os.getenv("FQ_ORACLE_ALT_USER", "fq_alt_schema")
+    ORACLE_ALT_PASS = os.getenv("FQ_ORACLE_ALT_PASS", POOL_TEST_PASS)
+    # Provisioning account (ensure_ext_env.sh ORACLE_ADMIN_USER / _PASS).
+    ORACLE_ADMIN_USER = os.getenv("FQ_ORACLE_ADMIN_USER", "system")
+    ORACLE_ADMIN_PASS = os.getenv("FQ_ORACLE_ADMIN_PASS", "Tdengine_123")
 
     @classmethod
     def _env_mode(cls):
@@ -608,24 +693,41 @@ class ExtSrcEnv:
     def baseline_environment(cls, text):
         """Canonicalize configured connection parameters, never query results.
 
-        Existing baselines describe local endpoints. Match only the actual
-        configured values so incorrect hosts/ports/passwords still differ.
+        Existing baselines describe local endpoints.  In a lease the endpoint
+        of every provider is rewritten to the local default the baseline was
+        captured with, so a slot on another host or port still matches.  A
+        local run only rewrites Oracle: the two supported server generations
+        (11.2.0.4 on 18320/ORCL, 26ai on 18322/FREEPDB1) run side by side and
+        share one baseline wherever plan and rows agree — the per-version
+        overlay selected by ``oracle_versioned_path`` covers the cases where
+        they do not (``FETCH FIRST`` fallback on 11g).
         """
-        if cls._env_mode() != "external":
-            return text
+        external = cls._env_mode() == "external"
         sources = (("mysql", cls.MYSQL_HOST, cls.MYSQL_PORT, cls.MYSQL_PASS, 13306, "taosdata"),
                    ("postgresql", cls.PG_HOST, cls.PG_PORT, cls.PG_PASS, 15434, "taosdata"),
                    ("influxdb", cls.INFLUX_HOST, cls.INFLUX_PORT, None, 18086, None),
                    ("sqlserver", cls.SQLSERVER_HOST, cls.SQLSERVER_PORT, cls.SQLSERVER_PASS,
-                    1433, "TaosFq!2026"))
+                    1433, "TaosFq!2026"),
+                   ("oracle", cls.ORACLE_HOST, cls.ORACLE_PORT, cls.ORACLE_PASS,
+                    18322, "taosdata"))
         lines = []
         metadata = None
         source_query = False
         for line in text.splitlines(keepends=True):
+            # The Oracle service name also rides inside ordinary query text:
+            # the three-part table path (source.service.table) and the source
+            # DDL.  It names the server generation, not the deployment, so it
+            # is normalised on every line and in both modes.
+            if cls.ORACLE_SERVICE and cls.ORACLE_SERVICE != "FREEPDB1":
+                line = line.replace(f".{cls.ORACLE_SERVICE}.", ".FREEPDB1.")
+                line = line.replace(f"database='{cls.ORACLE_SERVICE}'",
+                                    "database='FREEPDB1'")
             if line.startswith("ERROR:") or (line.startswith("SQL:") and (
                     "external source" in line.lower() or
                     "information_schema.ins_ext_sources" in line.lower())):
                 for provider, host, port, password, canonical_port, canonical_password in sources:
+                    if not external and provider != "oracle":
+                        continue
                     for host_key in ("host", "`host`"):
                         line = line.replace(f"{host_key}='{host}'", f"{host_key}='127.0.0.1'")
                     line = re.sub(rf"\bport={port}\b", f"port={canonical_port}", line)
@@ -633,6 +735,8 @@ class ExtSrcEnv:
                         line = line.replace(f"password='{password}'", f"password='{canonical_password}'")
             if line.lstrip().startswith("Source:"):
                 for provider, host, port, password, canonical_port, canonical_password in sources:
+                    if not external and provider != "oracle":
+                        continue
                     line = line.replace(f"Source: {host}:{port} ",
                                         f"Source: 127.0.0.1:{canonical_port} ")
             # Source metadata rows have a declared header, not arbitrary SQL rows.
@@ -648,12 +752,34 @@ class ExtSrcEnv:
                 columns = line.rstrip("\n").split("|")
                 if len(columns) == len(metadata):
                     for provider, host, port, password, canonical_port, canonical_password in sources:
+                        if not external and provider != "oracle":
+                            continue
                         if "type" not in metadata or columns[metadata["type"]] == provider:
                             if columns[metadata["host"]] == host:
                                 columns[metadata["host"]] = "127.0.0.1"
                             if "port" in metadata and columns[metadata["port"]] == str(port):
                                 columns[metadata["port"]] = str(canonical_port)
+                            if (provider == "oracle" and "database" in metadata
+                                    and columns[metadata["database"]] == cls.ORACLE_SERVICE):
+                                columns[metadata["database"]] = "FREEPDB1"
                     line = "|".join(columns) + ("\n" if line.endswith("\n") else "")
+            elif source_query:
+                # An ASSERT block records rows without repeating the header.
+                # ins_ext_sources always projects the source_name first and
+                # keeps the declared column order, so the provider token
+                # anchors the host/port/database cells safely.
+                columns = line.rstrip("\n").split("|")
+                for provider, host, port, password, canonical_port, canonical_password in sources:
+                    if not external and provider != "oracle":
+                        continue
+                    if (len(columns) >= 4 and columns[1] == provider
+                            and columns[2] == host and columns[3] == str(port)):
+                        columns[2] = "127.0.0.1"
+                        columns[3] = str(canonical_port)
+                        if (provider == "oracle" and len(columns) > 6
+                                and columns[6] == cls.ORACLE_SERVICE):
+                            columns[6] = "FREEPDB1"
+                line = "|".join(columns) + ("\n" if line.endswith("\n") else "")
             lines.append(line)
         return "".join(lines)
 
@@ -685,6 +811,12 @@ class ExtSrcEnv:
         """
         if cls._env_mode() == "local":
             return False
+        # The client budget must exceed the controller's readiness budget
+        # (FQ_SERVICE_START_TIMEOUT_S, 120s by default) plus diagnostics;
+        # otherwise a slow but recoverable SQL Server start looks like a
+        # transport timeout.
+        action_timeout = (int(os.getenv("FQ_SERVICE_START_TIMEOUT_S", "120")) + 120
+                          if action == "start" else 120)
         endpoint = os.getenv("FQ_SERVICE_SOCKET")
         if endpoint:
             import json
@@ -710,9 +842,13 @@ class ExtSrcEnv:
 
     @classmethod
     def required_services(cls):
-        value = os.getenv("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver")
+        # Every configured provider is required by default: the shared source
+        # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
+        # of them, so a provider missing from this list would only be detected
+        # later, as an unreachable host inside a case (Oracle TS 5.5).
+        value = os.getenv("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
         services = set() if value == "none" else set(value.split(","))
-        if services - {"mysql", "pg", "influx", "sqlserver"}:
+        if services - {"mysql", "pg", "influx", "sqlserver", "oracle"}:
             raise ValueError("invalid FQ_REQUIRED_SERVICES")
         return services
 
@@ -756,6 +892,15 @@ class ExtSrcEnv:
         env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
         env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
         cls._sqlserver_lib_env(env)
+        env["FQ_ORACLE_VERSIONS"] = ",".join(cls.ORACLE_VERSIONS) if "oracle" in services else ""
+        env["FQ_ORACLE_USER"]     = cls.ORACLE_USER
+        env["FQ_ORACLE_PASS"]     = cls.ORACLE_PASS
+        env["FQ_ORACLE_POOL_TEST_USER"] = cls.ORACLE_POOL_TEST_USER
+        env["FQ_ORACLE_POOL_TEST_PASS"] = cls.ORACLE_POOL_TEST_PASS
+        env["FQ_ORACLE_ALT_USER"] = cls.ORACLE_ALT_USER
+        env["FQ_ORACLE_ALT_PASS"] = cls.ORACLE_ALT_PASS
+        env["FQ_ORACLE_ADMIN_USER"] = cls.ORACLE_ADMIN_USER
+        env["FQ_ORACLE_ADMIN_PASS"] = cls.ORACLE_ADMIN_PASS
 
         if services and cls._env_mode() == "local":
             if sys.platform == "win32":
@@ -797,7 +942,7 @@ class ExtSrcEnv:
                                 pass
                         raise RuntimeError(
                             f"ensure_ext_env.ps1 failed (exit={proc.returncode}). "
-                            f"Check that MySQL/PG/InfluxDB/SQL Server test instances can start."
+                            f"Check that MySQL/PG/InfluxDB/SQL Server/Oracle test instances can start."
                             f"\n---- ensure_ext_env.ps1 output (tail) ----\n{tail}")
             else:
                 sh = os.path.join(here, "ensure_ext_env.sh")
@@ -815,8 +960,10 @@ class ExtSrcEnv:
         errors = []
 
         # --- MySQL (all configured versions) ---
-        import pymysql
-        for cfg in (cls.mysql_version_configs() if "mysql" in services else []):
+        if "mysql" in services and pymysql is None:
+            errors.append("  MySQL: pymysql is not installed")
+        for cfg in (cls.mysql_version_configs()
+                    if "mysql" in services and pymysql is not None else []):
             try:
                 conn = pymysql.connect(
                     host=cfg.host, port=cfg.port,
@@ -830,8 +977,10 @@ class ExtSrcEnv:
                     f"  MySQL {cfg.version} @ {cfg.host}:{cfg.port} — {e}")
 
         # --- PostgreSQL (all configured versions) ---
-        import psycopg2
-        for cfg in (cls.pg_version_configs() if "pg" in services else []):
+        if "pg" in services and psycopg2 is None:
+            errors.append("  PostgreSQL: psycopg2 is not installed")
+        for cfg in (cls.pg_version_configs()
+                    if "pg" in services and psycopg2 is not None else []):
             try:
                 conn = psycopg2.connect(
                     host=cfg.host, port=cfg.port,
@@ -905,11 +1054,37 @@ class ExtSrcEnv:
                         f"engine not reachable (run ensure_ext_env.sh; log: {log_path})"
                         f"\n      processes: {procs}{detail}")
 
+        # --- Oracle (all configured versions; managed container instance) ---
+        # The listener accepting connections is not enough: the PDB must accept
+        # a login and run a query, which is exactly what the tests need.  Probe
+        # with a real statement so a database still opening cannot pass.
+        for cfg in (cls.oracle_version_configs() if "oracle" in services else []):
+            try:
+                cls.oracle_query_cfg(cfg, "SELECT 1 FROM DUAL")
+            except Exception as e:
+                if sys.platform == "win32":
+                    # The Windows setup script logs its whole run to one file.
+                    log_path = os.path.join(_fq_base_dir(), "setup.log")
+                else:
+                    log_path = os.path.join(cls.oracle_base_dir(cfg.version),
+                                            "log", "docker.log")
+                detail = ""
+                try:
+                    with open(log_path, encoding="utf-8", errors="replace") as fh:
+                        tail = [ln.rstrip() for ln in fh.readlines()[-12:]]
+                    detail = "".join(f"\n      {ln}" for ln in tail)
+                except OSError as log_err:
+                    detail = f"\n      <cannot read log: {log_err}>"
+                errors.append(
+                    f"  Oracle {cfg.version} @ {cfg.host}:{cfg.port} "
+                    f"(service {cfg.service}) — {e}"
+                    f"\n      run ensure_ext_env.sh; log: {log_path}{detail}")
+
         if errors:
             raise RuntimeError(
                 "External test databases not reachable after environment preparation.\n"
                 "(Override hosts/ports via FQ_MYSQL_HOST/FQ_PG_HOST/"
-                "FQ_INFLUX_HOST/FQ_SQLSERVER_HOST env vars)\n"
+                "FQ_INFLUX_HOST/FQ_SQLSERVER_HOST/FQ_ORACLE_HOST env vars)\n"
                 + "\n".join(errors))
 
         # ------------------------------------------------------------------
@@ -1019,6 +1194,7 @@ class ExtSrcEnv:
             "pg": list(cls.pg_version_configs()) if "pg" in services else [],
             "influx": list(cls.influx_version_configs()) if "influx" in services else [],
             "sqlserver": list(cls.sqlserver_version_configs()) if "sqlserver" in services else [],
+            "oracle": list(cls.oracle_version_configs()) if "oracle" in services else [],
         }
         dead = []
         dead_versions = {service: [] for service in configs_by_service}
@@ -1062,6 +1238,16 @@ class ExtSrcEnv:
         env["FQ_SQLSERVER_PASS"]  = cls.SQLSERVER_PASS
         env["FQ_SQLSERVER_USER"]  = cls.SQLSERVER_USER
         cls._sqlserver_lib_env(env)
+        env["FQ_ORACLE_VERSIONS"] = ",".join(dead_versions["oracle"])
+        env["FQ_ORACLE_USER"]     = cls.ORACLE_USER
+        env["FQ_ORACLE_PASS"]     = cls.ORACLE_PASS
+        env["FQ_ORACLE_POOL_TEST_USER"] = cls.ORACLE_POOL_TEST_USER
+        env["FQ_ORACLE_POOL_TEST_PASS"] = cls.ORACLE_POOL_TEST_PASS
+        env["FQ_ORACLE_ALT_USER"] = cls.ORACLE_ALT_USER
+        env["FQ_ORACLE_ALT_PASS"] = cls.ORACLE_ALT_PASS
+        # Same rule as SQL Server: mid-test recovery restarts the existing
+        # instance so the data prepared at file start survives.
+        env["FQ_ORACLE_QUICK_RESTART"] = "1"
         # revive_if_dead runs mid-test: start the existing SQL Server
         # container so the data prepared at file start survives.
         env["FQ_SQLSERVER_QUICK_RESTART"] = "1"
@@ -1136,6 +1322,7 @@ class ExtSrcEnv:
         env["FQ_PG_VERSIONS"]     = ",".join(cls.PG_VERSIONS)
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS)
         env["FQ_SQLSERVER_VERSIONS"] = ",".join(cls.SQLSERVER_VERSIONS)
+        env["FQ_ORACLE_VERSIONS"] = ",".join(cls.ORACLE_VERSIONS)
 
         if sys.platform != "win32":
             sh = os.path.join(here, "ensure_ext_env.sh")
@@ -1197,6 +1384,50 @@ class ExtSrcEnv:
             yield _SqlserverVerCfg(ver, cls.SQLSERVER_HOST, port,
                                    cls.SQLSERVER_USER, cls.SQLSERVER_PASS,
                                    cls.SQLSERVER_SCHEMA)
+
+    @classmethod
+    def oracle_version_configs(cls):
+        """Yield one _OracleVerCfg per configured Oracle version."""
+        for ver in cls.ORACLE_VERSIONS:
+            port = cls._ORACLE_VERSION_PORTS.get(ver, cls.ORACLE_PORT)
+            service = cls._ORACLE_VERSION_SERVICES.get(ver, cls.ORACLE_SERVICE)
+            yield _OracleVerCfg(ver, cls.ORACLE_HOST, port,
+                                cls.ORACLE_USER, cls.ORACLE_PASS, service)
+
+    @classmethod
+    def oracle_client(cls, ver=None):
+        """Effective Instant Client for a server version.
+
+        11g / 12c / 18c use 19c; 19c and later use 23ai.  A deployment that
+        selected 19c explicitly on a 19c+ server sets FQ_ORACLE_ACTIVE_CLIENT.
+        """
+        return os.getenv("FQ_ORACLE_ACTIVE_CLIENT") or cls._ORACLE_VERSION_CLIENTS.get(
+            ver or cls.ORACLE_VERSIONS[0], "19c")
+
+    @classmethod
+    def oracle_versioned_path(cls, path):
+        """Prefer <stem>.<oracle-version><suffix> for a baseline when present.
+
+        11g and 26ai can produce different plans/answer files (LIMIT pushdown,
+        BOOLEAN); keeping a versioned file next to the shared one lets each
+        generation keep its own golden without renaming existing baselines.
+        """
+        if len(cls.ORACLE_VERSIONS) != 1:
+            return path
+        stem, ext = os.path.splitext(str(path))
+        candidate = f"{stem}.{cls.ORACLE_VERSIONS[0]}{ext}"
+        return candidate if os.path.exists(candidate) else path
+
+    @classmethod
+    def oracle_base_dir(cls, ver=None):
+        """Base directory of the Oracle instance for a version."""
+        return os.path.join(_fq_base_dir(), "oracle",
+                            str(ver or cls.ORACLE_VERSIONS[0]))
+
+    @classmethod
+    def oracle_easy_connect(cls, cfg):
+        """Easy Connect string the provider puts in DBQ (DS 5.3.3)."""
+        return f"//{cfg.host}:{cfg.port}/{cfg.service}"
 
     @classmethod
     def sqlserver_base_dir(cls, ver=None):
@@ -1916,6 +2147,106 @@ class ExtSrcEnv:
             time.sleep(1)
         return False
 
+    # ------------------------------------------------------------------
+    # Oracle lifecycle.
+    #
+    # Oracle Free publishes no native install, so the instance is a managed
+    # container even in local mode.  The three entry points keep the same
+    # contract as the native engines': after stop/kill the port is
+    # unreachable, and start returns only when a probe query succeeds.
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def stop_oracle_instance(cls, ver, wait_s=120):
+        """Stop the Oracle instance; the port becomes unreachable."""
+        if cls._external_service_action("stop", "oracle", ver):
+            return
+        import subprocess
+        import time
+        env = _fq_subprocess_env()
+        env["FQ_SERVICES_TO_RESET"] = "oracle"
+        env["FQ_ORACLE_VERSIONS"] = str(ver)
+        env["FQ_ORACLE_QUICK_RESTART"] = "1"
+        if sys.platform == "win32":
+            subprocess.run(cls._ext_env_script_cmd() + ["--oracle-stop", str(ver)],
+                           env=env, capture_output=True, encoding="utf-8",
+                           errors="replace", timeout=300)
+        else:
+            # Slow hosts take minutes to flush an 11g instance; the tests
+            # assert query behaviour, not how long the stop itself takes.
+            subprocess.run(["bash", cls._fq_env_script(), "--oracle-stop", str(ver)],
+                           env=env, capture_output=True, text=True, timeout=300)
+        cfg = next((c for c in cls.oracle_version_configs() if c.version == ver), None)
+        if cfg is None:
+            return
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            if not cls._tcp_probe(cfg.host, cfg.port):
+                return
+            time.sleep(1)
+
+    @classmethod
+    def kill_oracle_instance(cls, ver):
+        """Hard-stop the Oracle instance (kill -9 equivalent)."""
+        if cls._external_service_action("kill", "oracle", ver):
+            return
+        import subprocess
+        env = _fq_subprocess_env()
+        env["FQ_SERVICES_TO_RESET"] = "oracle"
+        env["FQ_ORACLE_VERSIONS"] = str(ver)
+        env["FQ_ORACLE_QUICK_RESTART"] = "1"
+        if sys.platform == "win32":
+            subprocess.run(cls._ext_env_script_cmd() + ["--oracle-kill", str(ver)],
+                           env=env, capture_output=True, encoding="utf-8",
+                           errors="replace", timeout=300)
+        else:
+            subprocess.run(["bash", cls._fq_env_script(), "--oracle-kill", str(ver)],
+                           env=env, capture_output=True, text=True, timeout=300)
+
+    @classmethod
+    def start_oracle_instance(cls, ver, wait_s=300):
+        """Start the Oracle instance and wait until a probe query succeeds.
+
+        Startup is measured in minutes: a cold instance creates its database
+        on first start, and an existing one still has to open the PDB.
+        """
+        if cls._external_service_action("start", "oracle", ver):
+            return True
+        import subprocess
+        import time
+        env = _fq_subprocess_env()
+        env["FQ_SERVICES_TO_RESET"] = "oracle"
+        env["FQ_ORACLE_VERSIONS"] = str(ver)
+        # Quick restart reuses the container and its data, which is what the
+        # disruption scenarios need: the tables created at file start must
+        # still be there once the instance is back.
+        env["FQ_ORACLE_QUICK_RESTART"] = "1"
+        if sys.platform == "win32":
+            subprocess.run(cls._ext_env_script_cmd(), env=env,
+                           capture_output=True, encoding="utf-8",
+                           errors="replace", timeout=900)
+        else:
+            subprocess.run(["bash", cls._fq_env_script()], env=env,
+                           capture_output=True, text=True, timeout=900)
+        cfg = next((c for c in cls.oracle_version_configs() if c.version == ver), None)
+        if cfg is None:
+            return False
+        deadline = time.time() + wait_s
+        while time.time() < deadline:
+            if cls._tcp_probe(cfg.host, cfg.port):
+                try:
+                    cls.oracle_query_cfg(cfg, "SELECT 1 FROM DUAL")
+                    return True
+                except Exception:
+                    pass
+            time.sleep(2)
+        return False
+
+    @staticmethod
+    def _fq_env_script():
+        return os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "ensure_ext_env.sh")
+
     @classmethod
     def start_influx_instance(cls, ver, wait_s=10):
         """Start the InfluxDB instance for the given version and wait until ready."""
@@ -2421,6 +2752,35 @@ class ExtSrcEnv:
         r_create = cls._influx_request("POST", url, ver=cfg.version, headers=headers,
                                        json={"db": bucket}, timeout=5)
         if r_create.status_code not in (200, 201):
+            # InfluxDB 3 Core caps an instance at five databases.  The raw
+            # 422 ("Adding a new database would exceed limit of 5 databases")
+            # names neither the bucket being created nor the ones holding the
+            # slots, and it fires in whichever suite happens to run sixth —
+            # which looks like an unrelated setup failure.  Say what is
+            # actually going on and which suites are not cleaning up.
+            try:
+                body = r_create.json()
+            except ValueError:
+                body = {}
+            if "exceed limit" in str(body.get("error", "")):
+                listing = cls._influx_request(
+                    "GET", url, ver=cfg.version, headers=headers,
+                    params={"format": "json"}, timeout=5)
+                existing = ""
+                if listing.status_code == 200:
+                    try:
+                        existing = ", ".join(
+                            str(d.get("iox::database")) for d in listing.json())
+                    except ValueError:
+                        pass
+                raise RuntimeError(
+                    f"InfluxDB at {cfg.host}:{cfg.port} is out of database "
+                    f"slots, so '{bucket}' could not be created: "
+                    f"{body.get('error')}.  Databases present: [{existing}].  "
+                    f"InfluxDB 3 Core allows five per instance, so a suite "
+                    f"that creates a bucket and never drops it leaks one slot "
+                    f"for the rest of the run; drop the stale buckets or "
+                    f"restart the instance with a clean data directory.")
             r_create.raise_for_status()
 
     @classmethod
@@ -2721,6 +3081,259 @@ class ExtSrcEnv:
                 f"ALTER DATABASE [{db}] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; "
                 f"DROP DATABASE [{db}]; END"])
 
+    # ------------------------------------------------------------------
+    # Oracle direct-connection helpers.
+    #
+    # Statements run inside the managed instance through sqlplus, driven by
+    # ensure_ext_env.sh — the same arrangement as SQL Server's sqlcmd path, so
+    # the test host needs no Oracle client of its own (Oracle TS 4).  There is
+    # no "create database": a schema is a login user and every test file
+    # creates and drops its own tables inside it (DS 5.3.2).
+    # ------------------------------------------------------------------
+
+    @classmethod
+    def _oracle_sql(cls, cfg, sql, user=None, password=None):
+        """Run one SQL batch against an Oracle instance; return its stdout.
+
+        A non-zero exit is raised with sqlplus' own error text: ORA-xxxxx is
+        what the retry/classification tests assert on, so it must not be
+        swallowed here.
+        """
+        import subprocess
+        if isinstance(sql, (list, tuple)):
+            # A batch is one sqlplus session, so statements that must share it
+            # (ALTER SESSION followed by its queries) arrive as a list.  Every
+            # statement keeps its own ';' on its own line: a PL/SQL block ends
+            # with END; and stripping that semicolon — or gluing a second one
+            # onto it — leaves the block unterminated (ORA-06550 line 1).
+            statements = []
+            for stmt in sql:
+                text = str(stmt).rstrip()
+                head = text.lstrip().lower()
+                if head.startswith(("begin", "declare")):
+                    statements.append(text if text.endswith(";") else text + ";")
+                else:
+                    statements.append(text.rstrip(";") + ";")
+            sql = "\n".join(statements)
+        _user = user if user is not None else cfg.user
+        _pass = password if password is not None else cfg.password
+        if cls._env_mode() == "external":
+            # The lease owns the instance; ask its controller to run the batch
+            # in the same shape SQL Server's exec uses.
+            import json
+            import socket
+            endpoint = os.getenv("FQ_SERVICE_SOCKET")
+            if not endpoint:
+                raise RuntimeError(
+                    "External Oracle statement needs FQ_SERVICE_SOCKET, "
+                    "but it is not configured for this exclusive lease")
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+                conn.settimeout(300)
+                conn.connect(endpoint)
+                conn.sendall(json.dumps(["exec", "oracle", cfg.version, cfg.service,
+                                         sql, _user, _pass]).encode() + b"\n")
+                with conn.makefile("rb") as reply:
+                    result = json.loads(reply.readline(1048576))
+            if not result.get("ok"):
+                raise RuntimeError(f"Oracle lease statement failed: {result.get('error')}")
+            return result["output"]
+        if sys.platform == "win32":
+            # The setup script runs sqlplus.  The batch goes through a temp
+            # file and the credentials through the environment: PowerShell
+            # re-parses command-line arguments, so a password containing $,
+            # ; or & would be mangled there, and a large batch would hit the
+            # Windows command-line length limit.
+            sql_path = cls._oracle_write_sql_file(sql)
+            try:
+                env = _fq_subprocess_env()
+                env["FQ_ORACLE_EXEC_USER"] = _user
+                env["FQ_ORACLE_EXEC_PASS"] = _pass
+                env["FQ_ORACLE_EXEC_SQL_FILE"] = sql_path
+                proc = subprocess.run(
+                    cls._ext_env_script_cmd() + ["--oracle-exec", cfg.version],
+                    capture_output=True, encoding="utf-8", errors="replace",
+                    env=env, timeout=300, stdin=subprocess.DEVNULL)
+            finally:
+                cls._oracle_remove_sql_file(sql_path)
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"[FQ] Oracle {cfg.version} statement failed "
+                    f"(service {cfg.service}): "
+                    f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+        else:
+            env_sh = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  "ensure_ext_env.sh")
+            if not os.path.exists(env_sh):
+                raise RuntimeError(
+                    "[FQ] Oracle statements need ensure_ext_env.sh, which is missing")
+            proc = subprocess.run(
+                ["bash", env_sh, "--oracle-exec", cfg.version, _user, _pass, sql],
+                capture_output=True, text=True, env=_fq_subprocess_env(), timeout=300,
+                stdin=subprocess.DEVNULL)
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"[FQ] Oracle {cfg.version} statement failed "
+                    f"(service {cfg.service}): "
+                    f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+        # SQL*Plus rejects input lines longer than 4999 characters with
+        # SP2-0027 but still exits 0, so a too-long statement looks like a
+        # successful no-op (an empty table).  Surface it instead.
+        if "SP2-0027" in proc.stdout:
+            raise RuntimeError(
+                f"[FQ] Oracle {cfg.version} statement exceeded SQL*Plus's "
+                f"input-line limit (SP2-0027); split it across lines: "
+                f"{proc.stdout.strip()[:400]}")
+        return proc.stdout
+
+    @staticmethod
+    def _oracle_write_sql_file(sql):
+        """Write an Oracle SQL batch to a UTF-8 temp file for ensure_ext_env.ps1."""
+        import tempfile
+        fd, path = tempfile.mkstemp(prefix="fq-oracle-", suffix=".sql")
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(sql)
+        return path
+
+    @staticmethod
+    def _oracle_remove_sql_file(path):
+        import os as _os
+        try:
+            _os.unlink(path)
+        except OSError:
+            pass
+
+    @classmethod
+    def oracle_exec_cfg(cls, cfg, sqls):
+        """Execute SQL statements on a specific Oracle instance."""
+        for sql in sqls:
+            cls._oracle_sql(cfg, sql)
+
+    @staticmethod
+    def oracle_sleep_function_sql(name, seconds, schema="SYSTEM"):
+        """CREATE FUNCTION + GRANT pair for a sleeping fixture.
+
+        ``DBMS_SESSION.SLEEP`` only exists from 12c on; 11g compiles the same
+        function into an INVALID state (PLS-00302), and the later call then
+        fails with ORA-06575.  A DBMS_UTILITY.GET_TIME loop works on every
+        supported server generation and keeps one fixture definition.
+        """
+        ticks = int(seconds) * 100
+        return [
+            f"CREATE OR REPLACE FUNCTION {schema}.{name} RETURN NUMBER IS\n"
+            "  t0 NUMBER := DBMS_UTILITY.GET_TIME;\n"
+            "BEGIN\n"
+            f"  WHILE DBMS_UTILITY.GET_TIME - t0 < {ticks} LOOP\n"
+            "    NULL;\n"
+            "  END LOOP;\n"
+            "  RETURN 1;\n"
+            "END;",
+            f"GRANT EXECUTE ON {schema}.{name} TO PUBLIC",
+        ]
+
+    @classmethod
+    def oracle_exec(cls, sqls):
+        """Execute SQL statements on the primary Oracle instance."""
+        cls.oracle_exec_cfg(next(cls.oracle_version_configs()), sqls)
+
+    @classmethod
+    def oracle_query_cfg(cls, cfg, sql):
+        """Return the first value of the first row of a query."""
+        out = cls._oracle_sql(cfg, sql)
+        # sqlplus is invoked with SET HEADING/FEEDBACK OFF and PAGESIZE 0, so
+        # every output line is a value row; blank lines are trailing padding.
+        for line in out.splitlines():
+            stripped = line.strip()
+            if stripped:
+                return stripped
+        return None
+
+    @classmethod
+    def oracle_query(cls, sql):
+        """Query the primary Oracle instance (first value of first row)."""
+        return cls.oracle_query_cfg(next(cls.oracle_version_configs()), sql)
+
+    @classmethod
+    def oracle_exec_as_pool_user(cls, cfg, sqls):
+        """Execute statements as the pool-exhaustion schema.
+
+        Oracle users are instance-global and each one owns its schema, so this
+        account has its own namespace — no per-test database to create.
+        """
+        for sql in sqls:
+            cls._oracle_sql(cfg, sql, user=cls.ORACLE_POOL_TEST_USER,
+                            password=cls.ORACLE_POOL_TEST_PASS)
+
+    @classmethod
+    def oracle_drop_table_cfg(cls, cfg, table):
+        """Drop a table in the login schema (idempotent).
+
+        Oracle has no IF EXISTS for DROP TABLE, so a missing table raises
+        ORA-00942; that is the expected state on the first run.
+        """
+        try:
+            cls._oracle_sql(cfg, f'DROP TABLE "{table}" CASCADE CONSTRAINTS PURGE')
+        except RuntimeError as e:
+            if "ORA-00942" not in str(e):
+                raise
+
+    @classmethod
+    def oracle_exec_in_schema_cfg(cls, cfg, schema, sqls):
+        """Run statements inside another schema.
+
+        Oracle has no search_path, so a schema other than the login user's own
+        has to be selected explicitly.  ``ALTER SESSION SET CURRENT_SCHEMA`` is
+        the equivalent of PostgreSQL's ``SET search_path`` and is a session
+        setting, so it lasts for the one sqlplus invocation only.
+        """
+        alias = schema.upper()
+        cls._oracle_sql(cfg, [f'ALTER SESSION SET CURRENT_SCHEMA = "{alias}"'] + list(sqls))
+
+    @classmethod
+    def oracle_admin_exec_cfg(cls, cfg, sqls):
+        """Run provisioning DDL as the instance's SYSTEM account.
+
+        Only DDL the test accounts may not run needs this — in practice the
+        grants that let one test schema read another's tables.  In an external
+        lease the instance is owned by the controller, so the same batch goes
+        through its exec channel with the admin credentials.
+        """
+        import subprocess
+        if cls._env_mode() == "external":
+            for sql in sqls:
+                cls._oracle_sql(cfg, sql, user=cls.ORACLE_ADMIN_USER,
+                                password=cls.ORACLE_ADMIN_PASS)
+            return ""
+        if sys.platform == "win32":
+            for sql in sqls:
+                sql_path = cls._oracle_write_sql_file(sql)
+                try:
+                    env = _fq_subprocess_env()
+                    env["FQ_ORACLE_ADMIN_USER"] = cls.ORACLE_ADMIN_USER
+                    env["FQ_ORACLE_ADMIN_PASS"] = cls.ORACLE_ADMIN_PASS
+                    env["FQ_ORACLE_ADMIN_SQL_FILE"] = sql_path
+                    proc = subprocess.run(
+                        cls._ext_env_script_cmd() + ["--oracle-admin-exec", cfg.version],
+                        capture_output=True, encoding="utf-8", errors="replace",
+                        env=env, timeout=300)
+                finally:
+                    cls._oracle_remove_sql_file(sql_path)
+                if proc.returncode != 0:
+                    raise RuntimeError(
+                        f"[FQ] Oracle admin statement failed: "
+                        f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+            return ""
+        env_sh = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "ensure_ext_env.sh")
+        for sql in sqls:
+            proc = subprocess.run(
+                ["bash", env_sh, "--oracle-admin-exec", cfg.version, sql],
+                capture_output=True, text=True, env=_fq_subprocess_env(), timeout=300)
+            if proc.returncode != 0:
+                raise RuntimeError(
+                    f"[FQ] Oracle admin statement failed: "
+                    f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+        return ""
+
 
 # =====================================================================
 # Shared test mixin — eliminates duplicated helpers across test files
@@ -2846,6 +3459,36 @@ class FederatedQueryTestMixin:
             sql += f" database={database}"
         if schema:
             sql += f" schema={schema}"
+        if extra_options:
+            sql += f" options({extra_options})"
+        tdSql.execute(sql)
+
+    def _mk_oracle_real(self, name, database=None, schema=None,
+                        extra_options=None, user=None, password=None):
+        """Create an Oracle external source against the primary test instance.
+
+        ``database`` is the Easy Connect service name (DS 5.3.3) and defaults
+        to the active version's service; ``schema`` is optional and, unlike the
+        other engines, doubles as the login user.  Pass empty strings to
+        exercise the "not configured" namespace cases.
+        """
+        tdSql.execute(f"drop database if exists {name}")
+        tdSql.execute(f"drop external source if exists {name}")
+        cfg = self._oracle_cfg()
+        _user = user if user is not None else cfg.user
+        _pass = password if password is not None else cfg.password
+        sql = (f"create external source {name} "
+               f"type='oracle' host='{cfg.host}' "
+               f"port={cfg.port} "
+               f"user='{_user}' "
+               f"password='{_pass}'")
+        # Quote both values: they name things on the Oracle side (the Easy
+        # Connect service and the schema), and an unquoted token is folded to
+        # lower case by the DDL parser, which silently changes the namespace.
+        if database:
+            sql += f" database='{database}'"
+        if schema:
+            sql += f" schema='{schema}'"
         if extra_options:
             sql += f" options({extra_options})"
         tdSql.execute(sql)
@@ -2986,11 +3629,25 @@ class FederatedQueryTestMixin:
                 return cfg
         return next(ExtSrcEnv.influx_version_configs())
 
+    def _oracle_cfg(self):
+        """Return the Oracle config for the active (or primary) version."""
+        ver = getattr(self, '_active_oracle_ver', None)
+        if ver is None:
+            return next(ExtSrcEnv.oracle_version_configs())
+        for cfg in ExtSrcEnv.oracle_version_configs():
+            if cfg.version == ver:
+                return cfg
+        return next(ExtSrcEnv.oracle_version_configs())
+
     def _with_std_sources(self, prefix, body_fn, *,
                           table="src_t",
                           skip_mysql=False, skip_pg=False, skip_influx=False,
-                          skip_sqlserver=False):
-        """Create standard 5-row test data in MySQL / PG / InfluxDB; call body_fn(src) for each.
+                          skip_sqlserver=False, skip_oracle=False):
+        """Create standard 5-row test data in every relational source; call body_fn(src) for each.
+
+        Both the standard and the custom source matrices walk all configured
+        providers unless a caller opts one out, so a file that lists sources
+        explicitly must include Oracle to keep the coverage contract.
 
         Standard table schema (``src_t`` by default):
             MySQL  : ts DATETIME(3) PK, val INT, score DOUBLE, name VARCHAR(32), flag TINYINT(1)
@@ -3001,13 +3658,20 @@ class FederatedQueryTestMixin:
         execute the same SQL/assertions against ``{src_name}.{table}``.
 
         SQL Server: ts datetime2(3), val INT, score FLOAT, name nvarchar(32), flag BIT.
+        Oracle    : ts TIMESTAMP(3) PK, val NUMBER(10), score BINARY_DOUBLE,
+                    name VARCHAR2(32), flag NUMBER(1) — the schema is the login
+                    user, so there is no per-test database to create.
 
-        Each source is created, tested, and cleaned up sequentially.
+        Each source is created, tested, and cleaned up sequentially.  A
+        provider the task did not declare in FQ_REQUIRED_SERVICES is skipped:
+        the lease only provisions the declared ones, so a leg for the others
+        has no server behind it.
         """
         m_src = f"{prefix}_m"
         p_src = f"{prefix}_p"
         i_src = f"{prefix}_i"
         s_src = f"{prefix}_s"
+        o_src = f"{prefix}_o"
         m_db  = f"{prefix}_mdb"
         p_db  = f"{prefix}_pdb"
         i_db  = f"{prefix}_idb"
@@ -3017,6 +3681,19 @@ class FederatedQueryTestMixin:
             for ts, val, score, name, flag in _STD_ROWS
         )
         enabled = ExtSrcEnv.required_services()
+        # Oracle parses a bare string with NLS_TIMESTAMP_FORMAT (session
+        # dependent), so the literal format is pinned explicitly.
+        # Oracle has no multi-row VALUES list (23ai added one; 11g rejects it
+        # with ORA-00933), so the shared fixture uses INSERT ALL, which every
+        # supported generation accepts.
+        oracle_insert_sql = (
+            "INSERT ALL "
+            + " ".join(
+                f"INTO {table.upper()} (ts, val, score, name, flag) VALUES"
+                f"(TO_TIMESTAMP('{_ms_to_dt(ts)}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
+                f" {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in _STD_ROWS)
+            + " SELECT 1 FROM DUAL")
 
         # ----- MySQL -----
         if not skip_mysql and "mysql" in enabled:
@@ -3102,12 +3779,38 @@ class FederatedQueryTestMixin:
                 except Exception:
                     pass
 
+        # ----- Oracle -----
+        if not skip_oracle and "oracle" in enabled:
+            self._cleanup_src(o_src)
+            o_cfg = self._oracle_cfg()
+            try:
+                # Unquoted identifiers fold to upper case (Oracle R1), so the
+                # table is created and referenced without quotes.  There is no
+                # per-test database: the login schema is the namespace.
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, table.upper())
+                ExtSrcEnv.oracle_exec_cfg(o_cfg, [
+                    f"CREATE TABLE {table.upper()} ("
+                    f"  ts TIMESTAMP(3) PRIMARY KEY, val NUMBER(10),"
+                    f"  score BINARY_DOUBLE, name VARCHAR2(32), flag NUMBER(1))",
+                    oracle_insert_sql,
+                    "COMMIT",
+                ])
+                self._mk_oracle_real(o_src, database=o_cfg.service,
+                                     schema=o_cfg.user.upper())
+                body_fn(o_src)
+            finally:
+                self._cleanup_src(o_src)
+                try:
+                    ExtSrcEnv.oracle_drop_table_cfg(o_cfg, table.upper())
+                except Exception:
+                    pass
+
     def _with_custom_sources(self, prefix, body_fn, *,
                              mysql_setup=None, pg_setup=None, influx_lines=None,
-                             sqlserver_setup=None,
+                             sqlserver_setup=None, oracle_setup=None,
                              mysql_table=None, pg_table=None, influx_table=None,
                              skip_mysql=False, skip_pg=False, skip_influx=False,
-                             skip_sqlserver=False):
+                             skip_sqlserver=False, skip_oracle=False):
         """Create custom data in MySQL / PG / InfluxDB; call body_fn(src, db_type) for each.
 
         Unlike ``_with_std_sources`` which writes a fixed 5-row ``src_t`` table,
@@ -3116,22 +3819,28 @@ class FederatedQueryTestMixin:
         Args:
             prefix:       Unique name prefix for external sources and databases.
             body_fn:      ``body_fn(src_name: str, db_type: str) -> None``.
-                          *db_type* is ``'mysql'``, ``'pg'``, ``'influx'``, or
-                          ``'sqlserver'``.
+                          *db_type* is ``'mysql'``, ``'pg'``, ``'influx'``,
+                          ``'sqlserver'`` or ``'oracle'``.
             mysql_setup:  List of SQL strings to execute in MySQL (DDL + INSERT).
             pg_setup:     List of SQL strings to execute in PostgreSQL.
             influx_lines: List of InfluxDB line-protocol strings.
             sqlserver_setup: List of T-SQL strings executed on the SQL Server
                              instance (DDL + INSERT).
+            oracle_setup: List of Oracle SQL strings executed in the login
+                          schema (DDL + INSERT); commit is appended for you.
             mysql_table:  Table name used when querying MySQL (for docs only).
             pg_table:     Table name used when querying PG.
             influx_table: Measurement name used when querying InfluxDB.
-            skip_mysql / skip_pg / skip_influx: Skip specific sources.
+            skip_mysql / skip_pg / skip_influx / skip_sqlserver / skip_oracle:
+                          Skip specific sources.  A provider the task did not
+                          declare in FQ_REQUIRED_SERVICES is skipped as well:
+                          the lease only provisions the declared ones.
         """
         m_src = f"{prefix}_m"
         p_src = f"{prefix}_p"
         i_src = f"{prefix}_i"
         s_src = f"{prefix}_s"
+        o_src = f"{prefix}_o"
         m_db  = f"{prefix}_mdb"
         p_db  = f"{prefix}_pdb"
         i_db  = f"{prefix}_idb"
@@ -3198,6 +3907,22 @@ class FederatedQueryTestMixin:
                     ExtSrcEnv.sqlserver_drop_db(s_db)
                 except Exception:
                     pass
+
+        # ----- Oracle -----
+        if not skip_oracle and "oracle" in enabled and oracle_setup:
+            self._cleanup_src(o_src)
+            o_cfg = self._oracle_cfg()
+            try:
+                # No per-test database: the login schema is the namespace, and
+                # the session commits explicitly (autocommit is off).
+                ExtSrcEnv.oracle_exec_cfg(o_cfg, list(oracle_setup) + ["COMMIT"])
+                self._mk_oracle_real(o_src, database=o_cfg.service,
+                                     schema=o_cfg.user.upper())
+                body_fn(o_src, "oracle")
+            finally:
+                self._cleanup_src(o_src)
+                # Objects created by oracle_setup stay in the schema; the
+                # environment reset drops them between test files.
 
     def _for_each_mysql_version(self, body_fn):
         """Call body_fn(ver_cfg) once for each configured MySQL version."""

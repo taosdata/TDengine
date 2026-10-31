@@ -60,6 +60,46 @@ def _wipe_core_metadata():
             tdLog.info(f"skip (absent) {path}")
 
 
+def _wait_default_objects(timeout=90):
+    """Wait until ensure-default has recreated every core object and the dnode is online.
+
+    After the wipe, ensure-default runs asynchronously on the mnode write queue after the
+    restore finishes and recreates the default sdb objects one raft trans at a time
+    (cluster is the last one). A dnode that already reports ready / alive therefore does
+    not prove the cluster, users and dnode rows exist yet; on a loaded (ASan, concurrent CI)
+    host this window stretches to many seconds, during which queries see 'Invalid user',
+    'Dnode does not exist', 'Out of dnodes' or an empty ins_cluster.
+    """
+    checks = [
+        ("cluster", "select id from information_schema.ins_cluster"),
+        ("mnodes", "select id from information_schema.ins_mnodes"),
+        ("dnodes", "select id from information_schema.ins_dnodes where status = 'ready'"),
+        ("users", "select name from information_schema.ins_users"),
+    ]
+    pending = [name for name, _ in checks]
+    last_pending = None
+    start = time.time()
+    while time.time() - start < timeout:
+        pending = []
+        for name, sql in checks:
+            try:
+                tdSql.query(sql, queryTimes=1)
+                if tdSql.queryRows == 0:
+                    pending.append(name)
+            except Exception as e:
+                tdLog.info(f"{name} not queryable yet: {e}")
+                pending.append(name)
+        if not pending:
+            tdLog.info(f"default objects ready within {time.time() - start:.1f}s")
+            return
+        # log only when progress changes, so the log shows whether ensure-default is advancing or stuck
+        if pending != last_pending:
+            tdLog.info(f"[{time.time() - start:.1f}s] default objects still missing: {pending}")
+            last_pending = pending
+        time.sleep(1)
+    assert False, f"default objects still missing after {timeout}s: {pending}"
+
+
 def _get_cluster_id():
     tdSql.query("select id from information_schema.ins_cluster")
     assert tdSql.queryRows == 1, f"ins_cluster should have 1 row, got {tdSql.queryRows}"
@@ -139,6 +179,7 @@ class TestMnodeRedeployAfterMetadataWiped:
         Since: v3.3.6.x
 
         Labels: ci,cluster,integration,functional
+
         Jira: None
 
         History:
@@ -154,6 +195,7 @@ class TestMnodeRedeployAfterMetadataWiped:
         _wipe_core_metadata()
         sc.dnodeStart(DNODE)
 
+        _wait_default_objects()
         clusterComCheck.checkDnodes(1)
         clusterComCheck.checkClusterAlive(1)
 
@@ -170,6 +212,7 @@ class TestMnodeRedeployAfterMetadataWiped:
         # --- restart again: everything stable, clusterId unchanged now ---
         sc.dnodeStop(DNODE)
         sc.dnodeStart(DNODE)
+        _wait_default_objects()
         clusterComCheck.checkDnodes(1)
         clusterComCheck.checkClusterAlive(1)
 

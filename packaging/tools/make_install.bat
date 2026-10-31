@@ -146,7 +146,7 @@ rem //   client DLLs and the SQL Server ODBC driver MSI in build\bin.  Copy
 rem //   them into the installation tree so the installer carries them.
 if /I "%install_fq_runtime_libs%"=="ON" (
     if exist "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" (
-        call "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" "%binary_dir%\\build\\bin" "%target_dir%" "%build_with_odbc%"
+        call "%source_dir%\\packaging\\tools\\stage_fq_runtime.bat" "%binary_dir%\\build\\bin" "%target_dir%" "%build_with_odbc%" "%build_with_odbc%"
         if errorlevel 1 (
             echo Failed to stage the federated-query runtime dependencies
             exit /b 1

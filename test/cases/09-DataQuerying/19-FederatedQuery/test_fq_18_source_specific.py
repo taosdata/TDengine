@@ -73,9 +73,11 @@ from federated_query_common import (
     FederatedQueryVersionedMixin,
     QueryError,
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+    TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_OPS_NOT_SUPPORT,
     TSDB_CODE_PAR_INVALID_COLUMN,
     TSDB_CODE_PAR_INVALID_TAGS_PC,
+    TSDB_CODE_PAR_SYNTAX_ERROR,
     parity_serialize_case,
     parity_serialize_cell,
 )
@@ -201,6 +203,30 @@ _SQLSERVER_VIEW_SQLS = [
 ]
 
 
+# ── Oracle identifier fixtures (oid group) ───────────────────────────────────
+# Five objects that pin down DS 5.3.6 R1 from the TDengine side:
+#   EMP          unquoted name; every unquoted TDengine spelling folds onto it
+#   "emp"        quoted name, a *different* object that only a quoted segment reaches
+#   "DATE"       reserved-word table name holding reserved-word column names
+#   "LC"         quoted table with a mixed-case column, reachable only by exact case
+#   "only_lower" quoted name that no folded reference can reach
+# Oracle has no DROP ... IF EXISTS, so the fixture is dropped through the
+# existing idempotent helper before it is rebuilt.
+_O_OID_TABLES = ("EMP", "emp", "DATE", "LC", "only_lower")
+_O_OID_SQLS = [
+    "CREATE TABLE EMP (val NUMBER(10), name VARCHAR2(32))",
+    "INSERT INTO EMP VALUES (1, 'upper')",
+    'CREATE TABLE "emp" (val NUMBER(10), name VARCHAR2(32))',
+    "INSERT INTO \"emp\" VALUES (2, 'lower')",
+    'CREATE TABLE "DATE" (val NUMBER(10), "LEVEL" VARCHAR2(32), "NUMBER" NUMBER(10))',
+    "INSERT INTO \"DATE\" VALUES (3, 'reserved', 30)",
+    'CREATE TABLE "LC" ("val" NUMBER(10), "MiXeDCol" VARCHAR2(32))',
+    "INSERT INTO \"LC\" VALUES (9, 'mix')",
+    'CREATE TABLE "only_lower" (val NUMBER(10))',
+    "INSERT INTO \"only_lower\" VALUES (4)",
+    "COMMIT",
+]
+
 # ---------------------------------------------------------------------------
 # Unified case array  (case_id, sql_template, positive, expected_errno, opts)
 # ---------------------------------------------------------------------------
@@ -216,6 +242,8 @@ _SQLSERVER_VIEW_SQLS = [
 #   {S_PUSH}    — SQL Server push_t source
 #   {S_VIEW}    — SQL Server view source
 #   {S_VIEW_DB} — SQL Server view database name
+#   {O_OID}     — Oracle identifier-folding source
+#   {O_OID_SCHEMA} — Oracle schema owning the identifier fixtures
 #
 # opts keys:
 #   float_cols  — set of column indices compared as float (default empty)
@@ -361,6 +389,98 @@ _CASES = [
     ("i-neg-02",
      "SELECT usage_idle FROM {I_CPU}.cpu ORDER BY ts LIMIT 1",
      False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
+
+    # ── Oracle: identifier folding and quoting (oid group) ──────────────────
+    # Oracle folds an unquoted identifier to upper case and matches the data
+    # dictionary exactly (DS 5.3.6 R1), while a double-quoted one keeps its
+    # case and names a different object.  TDengine's own quoting character is
+    # the backtick, and the parser strips it before the path segment reaches
+    # the connector, so the double-quoted Oracle spelling is written
+    # ``src.`"emp"` ``: the backticks satisfy TDengine's identifier grammar and
+    # the inner quotes are what tells the provider the case is exact.
+    #
+    # FQOR-PATH-009: src.scott.emp → SCOTT.EMP.  Every unquoted spelling of the
+    # same table must return the same single row (1 | upper), including the
+    # backticked and upper-cased variants, because they all fold to EMP.
+    ("oid-01",
+     "SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val",
+     True, None, {}),
+    ("oid-02",
+     "SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.EMP ORDER BY val",
+     True, None, {}),
+    ("oid-03",
+     "SELECT val, name FROM {O_OID}.emp ORDER BY val",
+     True, None, {}),
+    ("oid-04",
+     "SELECT val, name FROM {O_OID}.`emp` ORDER BY val",
+     True, None, {}),
+    # FQOR-PATH-010: the quoted object is a distinct table, and the quoted
+    # spelling reaches it - 2 | lower, not EMP's 1 | upper.  Both the two- and
+    # three-segment forms resolve through the same folded/exact split.
+    ("oid-05",
+     'SELECT val, name FROM {O_OID}.`"emp"` ORDER BY val',
+     True, None, {}),
+    ("oid-06",
+     'SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.`"emp"` ORDER BY val',
+     True, None, {}),
+    # The upper-cased quoted spelling is the same object as the unquoted EMP:
+    # quoting "EMP" and writing EMP both name the upper-case entry, so the two
+    # cases must agree with oid-01.
+    ("oid-07",
+     'SELECT val, name FROM {O_OID}.`"EMP"` ORDER BY val',
+     True, None, {}),
+    # A quoted name that exists only in mixed case is reachable and distinct
+    # from the folded one: "LC" is not LC (LC folds to LC and does not exist).
+    ("oid-08",
+     'SELECT val, `MiXeDCol` FROM {O_OID}.`"LC"`',
+     True, None, {}),
+    # FQOR-PATH-011: reserved word as table name and as column names.  The
+    # renderer folds and then double-quotes them (DATE / LEVEL / NUMBER are all
+    # Oracle reserved words), so both the table and its columns are addressable.
+    ("oid-09",
+     "SELECT val, `LEVEL`, `NUMBER` FROM {O_OID}.DATE ORDER BY val",
+     True, None, {}),
+    ("oid-10",
+     "SELECT val, level, number FROM {O_OID}.date ORDER BY val",
+     True, None, {}),
+    # A double-quoted column segment is a string literal, not a column: the
+    # result carries the literal text 'LEVEL' instead of the column value.
+    # This is TDengine's grammar (sql.y: '"' starts a string literal), and a
+    # local table answers the same way, so the behavior is consistent.
+    ("oid-11",
+     'SELECT val, "LEVEL" FROM {O_OID}.DATE ORDER BY val',
+     True, None, {}),
+    # FQOR-PATH-016: EMP and "emp" both exist, and the two spellings resolve
+    # deterministically to different objects - the unquoted form to EMP, the
+    # quoted form to "emp".  Neither is a guess: the fold decides.
+    ("oid-12",
+     "SELECT name FROM {O_OID}.emp ORDER BY val",
+     True, None, {}),
+    ("oid-13",
+     'SELECT name FROM {O_OID}.`"emp"` ORDER BY val',
+     True, None, {}),
+    # A mixed-case column is only reachable by its exact spelling, exactly as
+    # for a local table with a backticked mixed-case column: the unquoted
+    # reference folds to MIXEDCOL and names nothing on either side.
+    ("oid-14",
+     "SELECT `MiXeDCol` FROM {O_OID}.`\"LC\"`",
+     True, None, {}),
+    ("oid-15",
+     "SELECT MiXeDCol FROM {O_OID}.`\"LC\"`",
+     False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
+    # Reserved-word table name without TDengine quoting still parses (DATE is a
+    # non-reserved keyword in TDengine's grammar) and resolves remotely.
+    ("oid-16",
+     "SELECT COUNT(*) FROM {O_OID}.DATE",
+     True, None, {}),
+    ("oid-17",
+     "SELECT COUNT(*) FROM {O_OID}.emp",
+     True, None, {}),
+    # An object that exists only in the quoted spelling is unreachable from the
+    # folded path, and the failure names the object the fold asked for.
+    ("oid-18",
+     "SELECT val FROM {O_OID}.{O_OID_SCHEMA}.only_lower",
+     False, TSDB_CODE_EXT_TABLE_NOT_EXIST, {}),
 ]
 
 
@@ -393,6 +513,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
     _SRC_S_PUSH = "fq18_s04_s"
     _SRC_S_VIEW = "fq18_view_s"
     _SRC_I18    = "fq18_influx18"
+    _SRC_O_IDENT = "fq18_oid_o"
 
     # ── Remote databases / buckets ───────────────────────────────────────────
     _I_TAG_DB   = _INFLUX_ITAG_DB    # "fq18_itag_db"
@@ -430,6 +551,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             self._SRC_M_VIEW, self._SRC_P_VIEW,
             self._SRC_S_PUSH, self._SRC_S_VIEW,
             self._SRC_I18,
+            self._SRC_O_IDENT,
         )
         for fn in [
             lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), self._I_TAG_DB),
@@ -519,6 +641,19 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         ExtSrcEnv.sqlserver_exec(_SQLSERVER_VIEW_DB, _SQLSERVER_VIEW_SQLS)
         self._mk_sqlserver_real(self._SRC_S_VIEW, database=_SQLSERVER_VIEW_DB, schema="dbo")
 
+        # ── Oracle identifier source (oid group) ─────────────────────────────
+        # The default schema of the source is the test account's own schema,
+        # which is also the owner of the identifier fixtures (Oracle has one
+        # namespace level, DS 5.3.3).
+        self._cleanup_src(self._SRC_O_IDENT)
+        oracle_cfg = self._oracle_cfg()
+        for table in _O_OID_TABLES:
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
+        ExtSrcEnv.oracle_exec_cfg(oracle_cfg, _O_OID_SQLS)
+        self._mk_oracle_real(self._SRC_O_IDENT,
+                             database=oracle_cfg.service,
+                             schema=ExtSrcEnv.ORACLE_USER.upper())
+
         # ── InfluxDB 1.8 source (i18 group, conditional) ─────────────────────
         # Only created when "1.8" is listed in FQ_INFLUX_VERSIONS.
         # Uses protocol='http' so the HTTP connector probes /api/v3/query_sql
@@ -564,6 +699,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             S_VIEW=self._SRC_S_VIEW,
             S_VIEW_DB=_SQLSERVER_VIEW_DB,
             I18=self._SRC_I18,
+            O_OID=self._SRC_O_IDENT,
+            O_OID_SCHEMA=ExtSrcEnv.ORACLE_USER.upper(),
         )
 
     # -----------------------------------------------------------------------
@@ -745,6 +882,16 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
           vw-m-02   MySQL v_users JOIN orders with grouped totals
           vw-p-01   PostgreSQL VIEW v_summary → 2 rows
           vw-p-02   PostgreSQL v_users JOIN orders with grouped totals
+          vw-s-01   SQL Server VIEW v_summary → 2 rows
+          vw-s-02   SQL Server v_users JOIN orders with grouped totals
+          s-coll-01 SQL Server name = 'ALPHA' → no rows (binary-collated push)
+          s-coll-02 SQL Server name = 'alpha' → 1 row
+          oid-01..04 Oracle unquoted/upper/backticked emp → all reach EMP
+          oid-05..07 Oracle `"emp"` / `"EMP"` quoted segments
+          oid-08    Oracle quoted table with a mixed-case column
+          oid-09..11 Oracle reserved words as table and column names
+          oid-12..14 Oracle EMP vs "emp" split, mixed-case column
+          oid-16..17 Oracle COUNT(*) on a reserved-word table / EMP
 
         Catalog: - Query:FederatedSourceSpecific
 
@@ -787,6 +934,10 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
           i04-03   InfluxDB SELECT TBNAME    → TSDB_CODE_EXT_SYNTAX_UNSUPPORTED
           i18-01   InfluxDB 1.8 query        → TSDB_CODE_OPS_NOT_SUPPORT
                    (skipped when "1.8" is not in FQ_INFLUX_VERSIONS)
+          oid-15   Oracle mixed-case column referenced unquoted
+                                              → TSDB_CODE_PAR_INVALID_COLUMN
+          oid-18   Oracle object that only exists quoted
+                                              → TSDB_CODE_EXT_TABLE_NOT_EXIST
 
         Catalog: - Query:FederatedSourceSpecific
 
