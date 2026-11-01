@@ -35,6 +35,16 @@ _SQLSERVER_SOURCE = "vt_window_batch_ss"
 _SQLSERVER_AGG_TABLE = (
     f"{_SQLSERVER_SOURCE}.vt_window_federated_batch_ext.dbo.remote_agg_values"
 )
+# Oracle source created by the federated batch environment (see
+# test_vtable_plan_window_federated_batch._ORACLE_SOURCE).  Oracle has one
+# namespace level - the login schema - and no per-source database, so its
+# column path is source.schema.table.column and the table name carries the
+# file prefix because every Oracle fixture lives in the same shared schema.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_AGG_TABLE_NAME = "VT_AGG_FED_ORA_VALUES"
+_ORACLE_AGG_TABLE = (
+    f"vt_window_batch_oracle.{_ORACLE_SCHEMA}.{_ORACLE_AGG_TABLE_NAME}"
+)
 
 
 class TestVTablePlanAggFederated:
@@ -107,6 +117,30 @@ class TestVTablePlanAggFederated:
                 "('2024-01-01 00:00:01', 200000), "
                 "('2024-01-01 00:00:02', 300000), "
                 "('2024-01-01 00:00:03', 400000)",
+            ],
+        )
+        # Oracle rows continue the decimal ladder one order above SQL Server's
+        # so the merged aggregate results stay distinguishable between sources.
+        # Oracle has no multi-row VALUES clause and a bare string date would go
+        # through NLS_TIMESTAMP_FORMAT (ORA-01861).
+        oracle_cfg = next(ExtSrcEnv.oracle_version_configs())
+        ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, _ORACLE_AGG_TABLE_NAME)
+        ExtSrcEnv._oracle_sql(
+            oracle_cfg,
+            [
+                f"CREATE TABLE {_ORACLE_AGG_TABLE_NAME} "
+                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0))",
+                f"INSERT ALL "
+                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 1000000) "
+                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:01.000', 2000000) "
+                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:02.000', 3000000) "
+                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:03.000', 4000000) "
+                "SELECT 1 FROM dual",
+                "COMMIT",
             ],
         )
         tdSql.execute("use vt_window_federated_batch")
@@ -241,13 +275,32 @@ class TestVTablePlanAggFederated:
                 f"sqlserver_v from {_SQLSERVER_AGG_TABLE}.v) "
                 f"using vst_ss_federated tags ({scenario})"
             )
+        tdSql.execute(
+            "create stable vst_oracle_federated "
+            "(ts timestamp, local_v int, mysql_v int, postgres_v int, "
+            "oracle_v bigint) tags (scenario int) virtual 1"
+        )
+        for suffix, scenario in (("a", 50), ("b", 51)):
+            tdSql.execute(
+                f"create vtable vct_oracle_federated_{suffix} ("
+                "local_v from local_values.v, "
+                "mysql_v from "
+                "vt_window_batch_mysql_b.vt_window_federated_batch_ext.remote_primary.v, "
+                "postgres_v from "
+                "vt_window_batch_pg.vt_window_federated_batch_ext.remote_values.v, "
+                f"oracle_v from {_ORACLE_AGG_TABLE}.v) "
+                f"using vst_oracle_federated tags ({scenario})"
+            )
 
     @classmethod
     def teardown_class(cls):
         _FederatedEnv.teardown_class()
         # Idempotent: the delegated teardown already drops the shared SQL Server
-        # database, this also covers the SQL Server fixture added in this file.
+        # database and the Oracle tables of the batch environment, this also
+        # covers the fixtures added in this file.
         ExtSrcEnv.sqlserver_drop_db("vt_window_federated_batch_ext")
+        ExtSrcEnv.oracle_drop_table_cfg(
+            next(ExtSrcEnv.oracle_version_configs()), _ORACLE_AGG_TABLE_NAME)
 
     @staticmethod
     def check_row(sql, expected):
@@ -659,6 +712,29 @@ class TestVTablePlanAggFederated:
             tdSql.checkData(row, 2, 1000000)
         print("federated VStableAgg SQL Server aggregates .... [ passed ]")
 
+    def do_oracle_aggregate(self):
+        db = "vt_window_federated_batch.vst_oracle_federated"
+        self.check_row(
+            "select sum(local_v), sum(mysql_v), sum(postgres_v), "
+            f"sum(oracle_v) from {db}",
+            (20, 200, 20000, 20000000),
+        )
+        self.check_row(
+            "select count(local_v), avg(oracle_v), min(oracle_v), "
+            f"max(oracle_v) from {db}",
+            (8, 2500000, 1000000, 4000000),
+        )
+        tdSql.query(
+            "select max(scenario), sum(mysql_v), sum(oracle_v) from "
+            f"{db} partition by scenario order by 1"
+        )
+        tdSql.checkRows(2)
+        for row, scenario in enumerate((50, 51)):
+            tdSql.checkData(row, 0, scenario)
+            tdSql.checkData(row, 1, 100)
+            tdSql.checkData(row, 2, 10000000)
+        print("federated VStableAgg Oracle aggregates ........ [ passed ]")
+
     def do_plan_golden(self):
         test_case = "test_vstable_plan_test_agg_federated"
         tdCom.compare_testcase_result(
@@ -677,6 +753,8 @@ class TestVTablePlanAggFederated:
         3. Cover distributable aggregate functions and child-scope switching.
         4. Cover selection, multi-row, approximate, and multi-parameter functions.
         5. Keep unsupported cross-source expressions on the fallback path.
+        6. Cover the local-plus-Oracle aggregate branches and compare their
+           EXPLAIN VERBOSE plans from the shared golden.
 
         Catalog:
             - VirtualTable
@@ -690,6 +768,8 @@ class TestVTablePlanAggFederated:
         History:
             - 2026-07-24 Codex Added federated VStableAgg coverage
             - 2026-08-12 Codex Aligned federated distributable function coverage
+            - 2026-10-26 Add Oracle aggregate coverage
+            - 2026-10-27 Record the Oracle plan blocks in the shared golden
 
         """
         self.do_global_aggregate()
@@ -698,4 +778,5 @@ class TestVTablePlanAggFederated:
         self.do_extended_distributable_functions()
         self.do_tag_aggregate_and_expression_fallback()
         self.do_sqlserver_aggregate()
+        self.do_oracle_aggregate()
         self.do_plan_golden()

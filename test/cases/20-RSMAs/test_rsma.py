@@ -20,6 +20,7 @@ from new_test_framework.utils.sqlset import TDSetSql
 from decimal import Decimal
 import os
 import random
+import re
 import string
 import taos
 import threading
@@ -28,14 +29,15 @@ import shutil
 from new_test_framework.utils.pathFinding import find_proj_root
 
 class TestCase:
-    TDinternal = find_proj_root()
-    dnode1Path = os.path.join(TDinternal, "sim", "dnode1")
+    # Keep custom storage directories inside this run, including Windows CI.
+    simPath = os.environ.get("WORK_DIR") or os.path.join(find_proj_root(), "sim")
+    dnode1Path = os.path.join(simPath, "dnode1")
     configFile = os.path.join(dnode1Path, "cfg", "taos.cfg")
     hostPath = os.path.join(dnode1Path, "multi")
     hostPrimary = os.path.join(hostPath, "taos01")
     mountPath = os.path.join(dnode1Path, "mnt")
     mountPrimary = os.path.join(mountPath, "taos01")
-    localSSPath = os.path.join(TDinternal, "sim", "localSS") # shared storage path for local test
+    localSSPath = os.path.join(simPath, "localSS") # shared storage path for local test
     clientCfgDict = {'debugFlag': 135}
     updatecfgDict = {
         "debugFlag"        : 135,
@@ -789,7 +791,7 @@ class TestCase:
             cursor.execute(f"use {db_name}")
             # every row uses its own payload, do NOT reuse a small cache of values here: the data
             # file is compressed (zstd through TSZ) and 'ssmigrate' only migrates a data file
-            # bigger than ss_chunkpages * page_size (16MB by default). A redundant payload is
+            # bigger than ss_chunkpages * tsdb_page_size. A redundant payload is
             # deduplicated by the compressor, and the file size then depends on the compressor
             # implementation instead of the number of rows, which can silently turn the migration
             # into a no-op and break the s10/s11 assertions.
@@ -818,6 +820,18 @@ class TestCase:
             raise Exception(f"directory {path} size {total_size} bytes is less than the required minimum of {min_size_mb}MB ({min_size} bytes)")
         tdLog.info(f"directory {path} size: {total_size} bytes ({total_size / (1024 * 1024):.2f} MB)")
 
+    def ssmigrate_row_count(self):
+        tdSql.query("show create database d0")
+        ddl = tdSql.queryResult[0][1]
+        chunk_pages = int(re.search(r"\bSS_CHUNKPAGES\s+(\d+)", ddl, re.IGNORECASE)[1])
+        page_kb = int(re.search(r"\bTSDB_PAGESIZE\s+(\d+)", ddl, re.IGNORECASE)[1])
+        # Debug/non-core builds can use 512 MiB chunks instead of 16 MiB.
+        # Allow for compression and keep an even number of rows for 2s rollup.
+        rows = max(1000, (2 * chunk_pages * page_kb * 1024 + 40959) // 40960)
+        rows = ((rows + 19) // 20) * 20
+        tdLog.info(f"ssmigrate fixture: chunk={chunk_pages * page_kb * 1024} bytes, rows={rows}")
+        return rows
+
     def s10_ssmigrate_without_rsma(self):
         tdLog.info("check ssmigrate without rsma")
         tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
@@ -826,11 +840,12 @@ class TestCase:
         tdSql.execute("use d0")
         tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
         tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
-        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=1000, binary_len=40960, num_threads=20)
+        n_rows = self.ssmigrate_row_count()
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=n_rows, binary_len=40960, num_threads=20)
         tdSql.execute("flush database d0")
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, n_rows)
         if os.path.exists(self.localSSPath):
             shutil.rmtree(self.localSSPath)
         os.makedirs(self.localSSPath, exist_ok=True)
@@ -842,7 +857,7 @@ class TestCase:
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=16)
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, n_rows)
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")
@@ -857,11 +872,12 @@ class TestCase:
         tdSql.execute("use d0")
         tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
         tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
-        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=1000, binary_len=40960, num_threads=20)
+        n_rows = self.ssmigrate_row_count()
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000, n_rows=n_rows, binary_len=40960, num_threads=20)
         tdSql.execute("flush database d0")
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1000)
+        tdSql.checkData(0, 0, n_rows)
         if os.path.exists(self.localSSPath):
             shutil.rmtree(self.localSSPath)
         os.makedirs(self.localSSPath, exist_ok=True)
@@ -875,17 +891,17 @@ class TestCase:
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=0) # not upload to localSS since compacted data size is too small
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 500) # the data insert interval is 1s, and rsma downsampling interval is 2s
+        tdSql.checkData(0, 0, n_rows // 2) # the data insert interval is 1s, and rsma downsampling interval is 2s
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")
         tdSql.checkRows(1)
         tdLog.info("insert more data to trigger ssmigrate upload to localSS")
-        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601520400000, n_rows=1000, binary_len=40960, num_threads=20)
+        self.parallel_insert(db_name="d0", table_name="ctb0", ts_start=1601510400000 + (n_rows + 2) * 1000, n_rows=n_rows, binary_len=40960, num_threads=20)
         tdSql.execute("flush database d0")
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1500)
+        tdSql.checkData(0, 0, n_rows * 3 // 2)
         time.sleep(10) # wait for upload delay take effect
         tdLog.info("execute ssmigrate again after more data inserted")
         tdSql.execute("ssmigrate database d0")
@@ -895,10 +911,10 @@ class TestCase:
         self.s10_check_localSS_content(self.localSSPath, min_size_mb=16) # uploaded to localSS since more data inserted
         tdSql.query("select count(*) from stb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1500) # 2nd ssmigrate database d0 doesn't trigger the rollup compact since the lcn is 0. In the real world, if ss is configured to migrate data from the highest storage level and the data at highest level has no out-of-order issues, this problem is less likely to occur.
+        tdSql.checkData(0, 0, n_rows * 3 // 2) # 2nd ssmigrate database d0 doesn't trigger the rollup compact since the lcn is 0. In the real world, if ss is configured to migrate data from the highest storage level and the data at highest level has no out-of-order issues, this problem is less likely to occur.
         tdSql.query("select count(*) from d0.ctb0")
         tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1500)
+        tdSql.checkData(0, 0, n_rows * 3 // 2)
         tdSql.query("select * from d0.ctb0 limit 1")
         tdSql.checkRows(1)
         tdSql.query("select * from d0.stb0 limit 1")

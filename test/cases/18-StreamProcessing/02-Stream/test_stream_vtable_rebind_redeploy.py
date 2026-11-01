@@ -200,6 +200,15 @@ class TestStreamVtableRebindRedeploy:
                         f"stream:{self.db}.{self.period_stream} not Running -> "
                         f"need redeploy loop reproduced"
                     )
+                # The first period result creates the output table asynchronously.
+                # Keep waiting within this check's budget until it is published.
+                tdSql.query(
+                    f"select table_name from information_schema.ins_tables "
+                    f"where db_name='{self.db}' and table_name='{self.outtb}'"
+                )
+                if tdSql.getRows() == 0:
+                    time.sleep(1)
+                    continue
                 tdSql.query(
                     f"select ws, n1, n2, n3 from {self.db}.{self.outtb} "
                     f"order by ws desc limit 1"

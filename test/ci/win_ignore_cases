@@ -1,25 +1,3 @@
-#failed cases
-cases/17-DataSubscription/02-Consume/test_tmq_raw_block_interface.py
-cases/70-Cluster/test_cluster_kill_restore_dnode.py
-
-# udf not supported in Windows CI
-cases/12-UDFs/test_udf_test.py
-cases/12-UDFs/test_udf_create.py
-cases/12-UDFs/test_udf_restart_taosd.py
-cases/12-UDFs/test_udf_cfg1.py
-cases/12-UDFs/test_udf_cfg2.py
-cases/uncatalog/system-test/0-others/test_udfpy_main.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot0.py
-cases/uncatalog/system-test/7-tmq/test_tmqUdf_multCtb_snapshot1.py
-
-# MQTT bnode not supported in Windows CI
-cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
-cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py
-cases/17-DataSubscription/03-MQTT/test_mqtt_qos.py
-cases/17-DataSubscription/03-MQTT/test_mqtt_special.py
-cases/17-DataSubscription/03-MQTT/test_mqtt_rb.py
-
 # Unit Test
 82-UnitTest/test.sh
 
@@ -49,19 +27,22 @@ cases/81-Tools/05-Valgrind/test_valgrind_checkerror8.py
 cases/81-Tools/05-Valgrind/test_valgrind_udf.py
 
 
-# aes not supported in Windows CI
-cases/31-Security/06-EncryptionStatus/test_encryption_status.py
-
-#totp not supported in Windows CI
-cases/24-Users/test_user_totp.py
-
-# tsma rsma
-cases/19-TSMAs/test_tsma.py
-cases/20-RSMAs/test_rsma.py
-
-# timeout
-cases/81-Tools/02-Taos/test_tool_taos_cli.py
-
 # copy-mode repair not supported in Windows
 cases/50-Others/02-Repair/test_copy_repair.py
 
+# Federated queries and xnode are unavailable on Windows.
+# Patterns also match pytest node IDs (file.py::Class::test).
+FQ_REQUIRED_SERVICES=*
+cases/09-DataQuerying/19-FederatedQuery/
+cases/42-Xnode/
+cases/05-VirtualTables/01-DDL/03-ExtSource/
+cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
+cases/05-VirtualTables/04-Query/03-ExtSource/
+cases/05-VirtualTables/05-Plan/*ext_source*.py
+cases/05-VirtualTables/05-Plan/*federated*.py
+cases/05-VirtualTables/06-Meta/02-Series/
+cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
+cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
+cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py
+cases/18-StreamProcessing/99-Others/test_fs_*.py
+cases/21-MetaData/test_meta_batch_txn_series.py

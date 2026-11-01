@@ -153,7 +153,7 @@ TDengine TSDB-Enterprise 通过 `taosExplorer` 创建 InfluxDB 数据源任务�
 4. 对失败批次保留原始文件，修复数据后仅重试失败批次；
 5. 历史回灌期间持续运行增量保护链路。
 
-无模式写入的导入参数和限制请参阅 [taosAdapter](../../12-operations-and-tooling/03-components/03-taosadapter.md) 与 [无模式写入](../../10-developer-guide/04-schemaless.md)。
+无模式写入的导入参数和限制请参阅 [taosAdapter](../../12-operations-and-tooling/03-components/03-taosadapter/01-data-ingestion.md#influxdb-v1-数据写入) 与 [无模式写入](../../10-developer-guide/04-schemaless.md)。
 
 ## 切换实时写入
 

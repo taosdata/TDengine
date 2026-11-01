@@ -16,7 +16,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-import shlex
 import shutil
 import subprocess
 import time
@@ -52,7 +51,7 @@ class TestFmnodeOfflineWalSurvival:
 
         taos_bin_path = os.getenv("TAOS_BIN_PATH")
         if taos_bin_path:
-            candidates.append(os.path.join(taos_bin_path, "taosd"))
+            candidates.append(os.path.join(taos_bin_path, "taosd.exe" if os.name == "nt" else "taosd"))
 
         for bin_path in candidates:
             if os.path.isfile(bin_path) and os.access(bin_path, os.X_OK):
@@ -75,7 +74,7 @@ class TestFmnodeOfflineWalSurvival:
 
     def _run_taosd(self, args, cwd=None, timeout_sec=30):
         bin_path = self._get_taosd_bin()
-        cmd = [bin_path] + shlex.split(args)
+        cmd = [bin_path] + list(args)
         tdLog.info("run cmd: %s (cwd=%s)" % (" ".join(cmd), cwd))
         env = os.environ.copy()
         asan_options = env.get("ASAN_OPTIONS", "")
@@ -133,7 +132,7 @@ class TestFmnodeOfflineWalSurvival:
         tdLog.info("gracefully stopping taosd to run -fMnode offline flush")
         tdDnodes.stop(self.index)
 
-        code, output = self._run_taosd(f"-fMnode -c {cfg_dir}", cwd=cfg_dir)
+        code, output = self._run_taosd(["-fMnode", "-c", cfg_dir], cwd=cfg_dir)
         tdSql.checkEqual(code, 0)
         tdLog.info("-fMnode output: %s" % output[:500].replace("\n", "\\n"))
 

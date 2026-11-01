@@ -412,6 +412,15 @@ static void walFsyncAll() {
     if (walNeedFsync(pWal)) {
       wTrace("vgId:%d, do fsync, level:%d seq:%d rseq:%d", pWal->cfg.vgId, pWal->cfg.level, pWal->fsyncSeq,
              atomic_load_32((volatile int32_t *)&tsWal.seq));
+      // Every path that replaces or closes the .log/.idx/.txn handles -- walClose,
+      // walRollback (via walChangeWrite), walRollImpl (via the writers and
+      // walBeginSnapshot) and walRestoreFromSnapshot -- does so under the write lock.
+      // This thread used to walk the same handles without any lock, so a roll or a close
+      // landing between the read of pLogFile/txnWriteFd and the fflush() inside
+      // taosFsyncFile() handed fflush() a FILE* that had already been freed.  Hold the
+      // read lock for the whole Step A -> fsync -> Step C+D sequence; no callee below
+      // takes pWal->mutex, so this cannot deadlock.
+      TAOS_UNUSED(taosThreadRwlockRdlock(&pWal->mutex));
       walTxnPreFsync(pWal);  // Step A
       int32_t code = taosFsyncFile(pWal->pLogFile);
       if (code != 0) {
@@ -419,6 +428,7 @@ static void walFsyncAll() {
                strerror(ERRNO));
       }
       walTxnPostFsync(pWal);  // Steps C+D
+      TAOS_UNUSED(taosThreadRwlockUnlock(&pWal->mutex));
     }
     pWal = taosIterateRef(tsWal.refSetId, pWal->refId);
   }

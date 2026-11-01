@@ -20,7 +20,7 @@ import string
 from random import randrange
 import time
 import secrets
-from new_test_framework.utils import tdLog, tdSql, tdCom, List
+from new_test_framework.utils import etool, tdLog, tdSql, tdCom, List
 
 
 ROUND = 1000
@@ -626,7 +626,7 @@ class TSMATestSQLGenerator:
 
 
 class TestTsma:
-    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 10, 'debugFlag': 143}
+    updatecfgDict = {'asynclog': 0, 'ttlUnit': 1, 'ttlPushInterval': 5, 'ratioOfVnodeStreamThrea': 4, 'maxTsmaNum': 10, 'debugFlag': 135}
 
     def setup_class(cls):
         cls.vgroups = 4
@@ -1739,7 +1739,7 @@ class TestTsma:
         tdLog.info(f'-----{function_name}------')
         json_file = os.path.join(os.path.dirname(__file__), "compa4096_tsma.json")
         tdCom.update_json_file_replica(json_file, self.replicaVar)
-        os.system(f"taosBenchmark -f {json_file} -y ")
+        etool.benchmark_write(f"taosBenchmark -f {json_file} -y ")
         # max number of list is 4093: 4096 - 3 - 2(原始表tag个数) - 1(tbname)
         tdSql.execute('use db4096')
 

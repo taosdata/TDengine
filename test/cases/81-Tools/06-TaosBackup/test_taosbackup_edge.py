@@ -19,6 +19,8 @@ from new_test_framework.utils import tdLog, tdSql, etool
 import os
 import shutil
 import subprocess
+import sys
+import tempfile
 import time
 
 
@@ -59,9 +61,13 @@ class TestTaosBackupEdge:
           DB name  : 64 characters
           Table name: 192 characters
         """
-        tmpdir = "./taosbackuptest/tmpdir_names"
-        self.makeDir(tmpdir)
+        # Keep the identifier boundary separate from Windows MAX_PATH. The
+        # checkout path must not consume the filename budget of this scenario.
+        parent = os.path.dirname(os.path.abspath(self.work_dir)) if os.name == "nt" else None
+        with tempfile.TemporaryDirectory(prefix="tdb-", dir=parent) as tmpdir:
+            self._check_long_names(tmpdir)
 
+    def _check_long_names(self, tmpdir):
         # --- Case A: 63-character database name (just within the 64-char limit) ---
         long_db = "a" * 63
         tdSql.execute(f"drop database if exists {long_db}")
@@ -94,12 +100,12 @@ class TestTaosBackupEdge:
             f"insert into {digit_db}.{digit_tbl} values(1640000000000, 99)"
         )
 
-        etool.taosdump(f"--databases {long_db},{short_db},{digit_db} -o {tmpdir}")
+        etool.taosdump(f'--databases {long_db},{short_db},{digit_db} -o "{tmpdir}"')
 
         for db in (long_db, short_db, digit_db):
             tdSql.execute(f"drop database {db}")
 
-        etool.taosdump(f"-i {tmpdir}")
+        etool.taosdump(f'-i "{tmpdir}"')
 
         # Case A: long DB name
         assert self.isDbFound(long_db), f"Long DB name '{long_db}' not found after restore"
@@ -158,7 +164,7 @@ class TestTaosBackupEdge:
         etool.taosdump(f"-i {abs_path} -T 1")
         tdSql.query("select count(*) from pathdb.nt")
         tdSql.checkData(0, 0, 3)
-        os.system(f"rm -rf {abs_path}")
+        shutil.rmtree(abs_path)
         tdLog.info("  absolute output path ........................ [passed]")
 
         tdLog.info("do_outpath_edges ............................. [passed]")
@@ -309,29 +315,59 @@ class TestTaosBackupEdge:
             sql += f"({1640000000000 + i * 1000}, {i})"
         tdSql.execute(sql)
 
-        # Build a writer script: inserts rows using the taos CLI in a tight loop.
-        # Each row uses now() for the timestamp to avoid collisions with pre-rows.
-        writer_script = (
-            "for i in $(seq 1 500); do "
-            "taos -s 'insert into hotdb.nt values(now(), '\"$i\"');' "
-            ">/dev/null 2>&1; "
-            "sleep 0.02; "
-            "done"
-        )
-        writer_proc = subprocess.Popen(writer_script, shell=True)
+        writer_script = """
+import ctypes, os, sys, time
+if os.name == 'nt':
+    dll_dir = os.add_dll_directory(os.path.dirname(sys.argv[1]))
+    ctypes.CDLL(os.path.join(os.path.dirname(sys.argv[1]), 'taos.dll'))
+import taos
+conn = taos.connect(host=sys.argv[3], port=int(sys.argv[4]), user='root',
+                    password='taosdata', config=sys.argv[2])
+cursor = conn.cursor()
+i = 300
+while True:
+    cursor.execute(f'insert into hotdb.nt values({1640000000000 + i * 1000}, {i})')
+    print(f'inserted {time.monotonic()}', flush=True)
+    i += 1
+    time.sleep(0.02)
+"""
+        with tempfile.TemporaryFile() as writer_log:
+            writer_proc = subprocess.Popen(
+                [sys.executable, "-c", writer_script, etool.taosFile(),
+                 self.cfg_path, str(self.host), str(self.port)],
+                stdout=writer_log, stderr=subprocess.STDOUT,
+            )
+            try:
+                deadline = time.monotonic() + 30
+                while True:
+                    assert writer_proc.poll() is None, "background writer exited before backup"
+                    tdSql.query("select count(*) from hotdb.nt")
+                    if tdSql.getData(0, 0) > pre_rows:
+                        break
+                    assert time.monotonic() < deadline, "background writer did not insert rows"
+                    time.sleep(0.1)
 
-        # Give the writer a brief head-start before backup begins
-        time.sleep(0.3)
+                backup_start = time.monotonic()
+                etool.taosdump(f"-D hotdb -o {tmpdir} -T 2")
+                backup_end = time.monotonic()
+                assert writer_proc.poll() is None, "background writer failed during backup"
+            finally:
+                if writer_proc.poll() is None:
+                    writer_proc.terminate()
+                try:
+                    writer_proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    writer_proc.kill()
+                    writer_proc.wait(timeout=5)
+                writer_log.seek(0)
+                writer_output = writer_log.read().decode(errors="replace")
+                tdLog.info(f"background writer: {writer_output[-2000:]}")
 
-        # Run the backup while the writer is active
-        etool.taosdump(f"-D hotdb -o {tmpdir} -T 2")
-
-        # Stop the writer (if still running)
-        writer_proc.terminate()
-        try:
-            writer_proc.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            writer_proc.kill()
+        inserts = [float(line.split()[1]) for line in writer_output.splitlines()
+                   if line.startswith("inserted ")]
+        concurrent_inserts = sum(backup_start <= stamp <= backup_end for stamp in inserts)
+        assert concurrent_inserts > 0, "no successful insert overlapped the backup"
+        tdLog.info(f"successful inserts during backup: {concurrent_inserts}")
 
         # Record the total rows in the source now (used only for logging)
         tdSql.query("select count(*) from hotdb.nt")
@@ -414,5 +450,5 @@ class TestTaosBackupEdge:
         self.do_hot_backup()
         self.do_error_cases()
 
-        os.system("rm -rf ./taosbackuptest/")
+        shutil.rmtree("./taosbackuptest/")
         tdLog.info("test_taosbackup_edge ......................... [passed]")

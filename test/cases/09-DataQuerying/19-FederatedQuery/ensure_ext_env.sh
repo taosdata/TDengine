@@ -33,11 +33,23 @@
 #   FQ_POOL_TEST_USER      pool-exhaustion test MySQL user   default fq_pool_test
 #   FQ_POOL_TEST_PASS      pool-exhaustion test user password default taosdata
 #   FQ_POOL_TEST_MAX_CONN  MAX_USER_CONNECTIONS for pool test user  default 1
+#   FQ_SQLSERVER_VERSIONS  comma list             default "2022"
+#   FQ_SQLSERVER_USER/PASS credentials            default sa / TaosFq!2026
+#   FQ_ORACLE_VERSIONS     comma list of 11g/19c/26ai default "11g"
+#   FQ_ORACLE_PORT_<TAG>   listener port          default 18320 (11G) / 18321 (19C) / 18322 (26AI)
+#   FQ_ORACLE_SERVICE_<TAG> Easy Connect service  default ORCL / ORCLPDB1 / FREEPDB1
+#   FQ_ORACLE_USER/PASS    login schema           default taosdata / taosdata
+#   FQ_ORACLE_PKG_URL      vendor RPM (26ai/19c)  default Oracle Free 23ai (26ai line)
+#   FQ_ORACLE_PKG_URL_11G  11g home archive        default mirror 11.2.0.4 bundle
+#   FQ_ORACLE_POOL_TEST_USER/PASS
+#                          pool-exhaustion schema (SESSIONS_PER_USER =
+#                          FQ_POOL_TEST_MAX_CONN) default fq_pool_test_oracle
 #
 # SERVICE-SELECTION VARIABLES (for in-test restarts; do NOT export in CI setup)
-#   FQ_SERVICES_TO_RESET   space-separated subset of "mysql pg influx"
+#   FQ_SERVICES_TO_RESET   space-separated subset of
+#                          "mysql pg influx sqlserver oracle"
 #                          When set, only the listed services are touched.
-#                          Default: all three services.
+#                          Default: all of them.
 #   FQ_PG_QUICK_RESTART    Set to "1" to skip data-dir wipe and re-init when
 #                          resetting PG.  Only starts an already-initialised
 #                          instance.  Used by start_pg_instance() so that PG
@@ -47,6 +59,9 @@
 #                          Used by start_influx_instance() so that InfluxDB
 #                          data survives stop/start test cycles without the
 #                          double-restart caused by ensure_influx's hard reset.
+#   FQ_SQLSERVER_QUICK_RESTART / FQ_ORACLE_QUICK_RESTART
+#                          Set to "1" to start the existing instance without
+#                          resetting it (data survives stop/start cycles).
 #
 # EXIT CODES
 #   0 = all requested engines ready
@@ -175,6 +190,11 @@ if [[ -n "${FQ_SQLSERVER_VERSIONS+x}" && -z "${FQ_SQLSERVER_VERSIONS}" ]]; then
 else
     IFS=',' read -ra SQLSERVER_VERSIONS <<< "${FQ_SQLSERVER_VERSIONS:-2022}"
 fi
+if [[ -n "${FQ_ORACLE_VERSIONS+x}" && -z "${FQ_ORACLE_VERSIONS}" ]]; then
+    ORACLE_VERSIONS=()
+else
+    IFS=',' read -ra ORACLE_VERSIONS <<< "${FQ_ORACLE_VERSIONS:-11g}"
+fi
 
 MYSQL_USER="${FQ_MYSQL_USER:-root}"
 MYSQL_PASS="${FQ_MYSQL_PASS:-taosdata}"
@@ -193,6 +213,28 @@ SQLSERVER_PASS="${FQ_SQLSERVER_PASS:-TaosFq!2026}"
 
 INFLUX_TOKEN="${FQ_INFLUX_TOKEN:-test-token}"
 INFLUX_ORG="${FQ_INFLUX_ORG:-test-org}"
+
+# Oracle Database Free.  The engine ships as an RPM, so — like SQL Server,
+# which ships deb/rpm only — it is extracted under FQ_BASE_DIR/oracle/<ver> and
+# run as an ordinary local process.  Everything around it follows the native
+# engines' model: one instance per configured version, a test-dedicated port, a
+# readiness probe, a hard reset between files, and an --oracle-exec helper for
+# the Python fixtures.  CI provisions Oracle from the vendor container image via
+# the compose lease; this script is the local (non-container) path.
+# Database accounts.  SYSTEM owns the provisioning (CREATE USER) statements;
+# the two test accounts are schemas in Oracle terms (schema == user).
+ORACLE_ADMIN_USER="${FQ_ORACLE_ADMIN_USER:-system}"
+ORACLE_ADMIN_PASS="${FQ_ORACLE_ADMIN_PASS:-Tdengine_123}"
+ORACLE_USER="${FQ_ORACLE_USER:-taosdata}"
+ORACLE_PASS="${FQ_ORACLE_PASS:-taosdata}"
+ORACLE_POOL_TEST_USER="${FQ_ORACLE_POOL_TEST_USER:-fq_pool_test_oracle}"
+ORACLE_POOL_TEST_PASS="${FQ_ORACLE_POOL_TEST_PASS:-taosdata}"
+# A second schema for the namespace tests.  Oracle has no "create schema" the
+# way the other engines do — a schema is a user — so the alternate namespace
+# the path-resolution suite needs is a provisioned account of its own, just as
+# PostgreSQL gets an "analytics" schema and SQL Server a second database.
+ORACLE_ALT_USER="${FQ_ORACLE_ALT_USER:-fq_alt_schema}"
+ORACLE_ALT_PASS="${FQ_ORACLE_ALT_PASS:-taosdata}"
 
 CURRENT_USER="$(id -un)"   # portable alternative to whoami
 
@@ -341,8 +383,13 @@ _list_matching_pids() {
             # engine: the "hard reset" then started a SECOND instance which
             # failed bootstrap against the still-held /var/opt/mssql ("Access is
             # denied") while the probe passed against the old one.
+            # Oracle renames every server process to ora_<role>_<lower(sid)> and
+            # gives it a cmdline of db_<role>_<SID>; the original `oracle`
+            # binary only shows up as comm before the instance comes up.  Both
+            # spellings have to pass the whitelist or the stop/kill silently
+            # does nothing (the leftover instance then blocks the next start).
             case "$comm" in
-                postgres|initdb|mysqld|influxdb3|influxd|sqlservr) ;;
+                postgres|initdb|mysqld|influxdb3|influxd|sqlservr|tnslsnr|oracle|ora_*|db_*) ;;
                 *) continue ;;
             esac
 
@@ -360,7 +407,13 @@ _list_matching_pids() {
                 [[ -n "$exe" ]] && cmdline+=" ${exe}"
             fi
 
-            [[ -n "$cmdline" && "$cmdline" =~ $pattern ]] && printf '%s\n' "$pid"
+            # Match the process name as well as the command line.  Oracle
+            # rewrites argv (db_pmon_FREE) while `comm` carries the ora_-prefixed
+            # spelling, so a cmdline-only match never sees its background
+            # processes.
+            if [[ -n "$cmdline" && "$cmdline" =~ $pattern ]] || [[ "$comm" =~ $pattern ]]; then
+                printf '%s\n' "$pid"
+            fi
         done
         return 0
     fi
@@ -1612,6 +1665,50 @@ influx_port() {
         30) echo 18086 ;;
         35) echo 18087 ;;
         *)  echo 18086 ;;
+    esac
+}
+
+# Oracle versions are named "11g" / "19c" / "26ai", so the tag is spelled out
+# instead of being derived from the version (Oracle TS 4: FQ_ORACLE_PORT_11G /
+# FQ_ORACLE_PORT_19C / FQ_ORACLE_PORT_26AI).  The ports are test-dedicated
+# like the other engines' so a production listener on the Oracle default 1521
+# is never touched.
+oracle_port() {
+    local ver="$1" tag envvar envval
+    case "$ver" in
+        11g)  tag=11G ;;
+        19c)  tag=19C ;;
+        26ai) tag=26AI ;;
+        *)    tag="${ver//[^[:alnum:]]/}" ;;
+    esac
+    envvar="FQ_ORACLE_PORT_${tag}"
+    envval="${!envvar:-}"
+    if [[ -n "$envval" ]]; then echo "$envval"; return; fi
+    case "$ver" in
+        11g) echo 18320 ;;
+        19c) echo 18321 ;;
+        26ai) echo 18322 ;;
+        *)   echo 18322 ;;
+    esac
+}
+
+# Service name an Easy Connect string resolves to.  11g is a non-CDB, so the
+# service is the SID (ORCL) rather than a PDB service.
+oracle_service() {
+    local ver="$1" tag envvar envval
+    case "$ver" in
+        11g)  tag=11G ;;
+        19c)  tag=19C ;;
+        26ai) tag=26AI ;;
+        *)    tag="${ver//[^[:alnum:]]/}" ;;
+    esac
+    envvar="FQ_ORACLE_SERVICE_${tag}"
+    envval="${!envvar:-}"
+    if [[ -n "$envval" ]]; then echo "$envval"; return; fi
+    case "$ver" in
+        11g) echo ORCL ;;
+        19c) echo ORCLPDB1 ;;
+        *)   echo FREEPDB1 ;;
     esac
 }
 
@@ -3854,6 +3951,905 @@ _influx_reset_env() {
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
+# 11.5 Oracle Database Free
+#      Native install per configured version, under FQ_BASE_DIR/oracle/<ver>.
+#      Oracle ships the engine as an RPM only, so — exactly like SQL Server,
+#      which ships deb/rpm only — the package is extracted under
+#      ${base}/server and the engine runs as an ordinary local process owned by
+#      a dedicated "oracle" OS user.  The lifecycle around it (port, probe,
+#      reset, teardown, exec helper) matches the other four engines: one
+#      instance per version, a test-dedicated port, and a hard reset between
+#      files.  CI still provisions Oracle from the vendor container image;
+#      that path is the compose lease, not this script.
+#      Easy Connect is the only connection form: no tnsnames.ora, no
+#      sqlnet.ora, no wallet, no odbcinst registration (Oracle TS 4).
+# ──────────────────────────────────────────────────────────────────────────────
+oracle_base() {
+    echo "${FQ_BASE_DIR}/oracle/$1"
+}
+
+# Connection string handed to sqlplus and to the provider's Easy Connect DBQ.
+oracle_easy_connect() {
+    local ver="$1"
+    echo "//127.0.0.1:$(oracle_port "${ver}")/$(oracle_service "${ver}")"
+}
+
+# Oracle refuses to run as root, so every engine and client invocation runs as
+# this account.  Same shape as PostgreSQL's dedicated OS user.
+ORACLE_OS_USER="${FQ_ORACLE_OS_USER:-oracle}"
+ORACLE_OS_GROUP="${FQ_ORACLE_OS_GROUP:-oinstall}"
+# The privileged group the vendor root.sh expects (OSDBA).  A host without it
+# cannot authenticate "/ as sysdba" at all — ORA-27271 comes from the missing
+# group, not from the password.
+ORACLE_OSDBA_GROUP="${FQ_ORACLE_OSDBA_GROUP:-dba}"
+
+# Vendor package.  Only the 23ai/26ai code line publishes a Free RPM; 19c has
+# no redistributable native install, so a host that configures 19c must point
+# FQ_ORACLE_PKG_URL_19C at its own package.  Resolution order matches SQL
+# Server's: package cache → staged bundle/dir → internal mirror → upstream.
+ORACLE_PKG_URL="${FQ_ORACLE_PKG_URL:-https://download.oracle.com/otn-pub/otn_software/db-free/oracle-database-free-23ai-1.0-1.el8.x86_64.rpm}"
+FQ_ORACLE_MIRROR_URL="${FQ_ORACLE_MIRROR_URL:-${FQ_MIRROR_URL:-https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest}}"
+
+_oracle_pkg_cache() {
+    echo "${FQ_ORACLE_PKG_CACHE:-${FQ_BASE_DIR}/oracle/packages}"
+}
+
+# The package for one version: FQ_ORACLE_PKG_URL_<TAG> wins, else the shared
+# URL.  11g has no public Free RPM; its default is the mirror bundle of an
+# installable ORACLE_HOME (the same "packaged home + dbca" model as 26ai).
+_oracle_pkg_url() {
+    local ver="$1" tag envvar envval
+    case "$ver" in
+        11g)  tag=11G ;;
+        19c)  tag=19C ;;
+        26ai) tag=26AI ;;
+        *)    tag="${ver//[^[:alnum:]]/}" ;;
+    esac
+    envvar="FQ_ORACLE_PKG_URL_${tag}"
+    envval="${!envvar:-}"
+    if [[ -n "$envval" ]]; then echo "$envval"; return; fi
+    if [[ "$ver" == "11g" ]]; then
+        echo "${FQ_ORACLE_MIRROR_URL}/oracle-database-11.2.0.4-linux-x86-64.tar.gz"
+        return
+    fi
+    echo "${ORACLE_PKG_URL}"
+}
+
+# Staged copy → internal mirror → upstream.  The public host stays last for the
+# same reason it does for SQL Server: it is the one CI cannot reach.
+_oracle_resolve_pkg() {
+    local dest="$1" url="$2" base d f
+    [[ -s "${dest}" ]] && return 0
+    base="$(basename "${url}")"
+    while IFS= read -r d; do
+        for f in "${d}/${base}" "${d}"/oracle-database-free-*.rpm \
+                 "${d}"/oracle-database-11*.tar.gz "${d}"/oracle-database-11*.zip \
+                 "${d}"/*11.2.0.4*.tar.gz "${d}"/*11.2.0.4*.zip; do
+            [[ -s "${f}" ]] || continue
+            if cp -f "${f}" "${dest}" 2>/dev/null || ln -sf "${f}" "${dest}" 2>/dev/null; then
+                info "Oracle: using staged ${base}"
+                return 0
+            fi
+        done
+    done < <(_fq_staging_dirs)
+    if [[ "${FQ_ORACLE_USE_MIRROR:-1}" == "1" ]] \
+            && curl -fsI --connect-timeout 8 --max-time 20 "${FQ_ORACLE_MIRROR_URL}/${base}" >/dev/null 2>&1; then
+        _download_with_retry "${FQ_ORACLE_MIRROR_URL}/${base}" "${dest}" 2 && return 0
+        warn "Oracle: mirror fetch of ${base} failed; falling back to upstream."
+    fi
+    _download_with_retry "${url}" "${dest}"
+}
+
+# The vendor package is an archive: RPM (26ai/19c Free) or a tar/zip bundle
+# carrying an ORACLE_HOME (11g has no public Free RPM).  Fail with the exact
+# install command instead of a bare "not found".
+_oracle_require_extractor() {
+    local pkg="${1:-}"
+    case "${pkg}" in
+        *.rpm)
+            command -v rpm2cpio >/dev/null 2>&1 && command -v cpio >/dev/null 2>&1 && return 0
+            err "Oracle: extracting the vendor RPM needs rpm2cpio and cpio:"
+            err "  sudo apt-get install -y rpm2cpio cpio   # Debian/Ubuntu"
+            err "  sudo dnf install -y rpm cpio            # RHEL/Fedora"
+            ;;
+        *.tar.gz|*.tgz)
+            command -v tar >/dev/null 2>&1 && return 0
+            err "Oracle: extracting ${pkg##*/} needs tar."
+            ;;
+        *.zip)
+            command -v unzip >/dev/null 2>&1 && return 0
+            err "Oracle: extracting ${pkg##*/} needs unzip."
+            ;;
+        *)
+            err "Oracle: unsupported package type: ${pkg##*/} (expected .rpm/.tar.gz/.tgz/.zip)"
+            ;;
+    esac
+    return 1
+}
+
+_oracle_extract_pkg() {
+    local pkg="$1" dir="$2"
+    mkdir -p "${dir}"
+    case "${pkg}" in
+        *.rpm)
+            ( cd "${dir}" && rpm2cpio "${pkg}" | cpio -idmu --quiet )
+            ;;
+        *.tar.gz|*.tgz)
+            tar -xzf "${pkg}" -C "${dir}"
+            ;;
+        *.zip)
+            unzip -q "${pkg}" -d "${dir}"
+            ;;
+        *)
+            err "Oracle: unsupported package type: ${pkg}"
+            return 1
+            ;;
+    esac
+}
+
+# Locate ORACLE_HOME inside an extracted RPM tree (…/product/<ver>/dbhomeFree).
+_oracle_home_dir() {
+    local ver="$1"
+    local base; base="$(oracle_base "${ver}")"
+    local found
+    # …/server/opt/oracle/product/<line>/dbhomeFree/bin/sqlplus is depth 7;
+    # an 11g home (…/product/11.2.0/dbhome_1/bin/sqlplus) can be one deeper.
+    found="$(find "${base}/server" -maxdepth 12 -type f -name sqlplus -path '*/bin/*' 2>/dev/null | head -1)"
+    [[ -n "${found}" ]] || return 1
+    dirname "$(dirname "${found}")"
+}
+
+# The vendor scripts shipped inside the RPM — dbca, root.sh, lsnrctl's config
+# and the init script — all carry the home path they were built with
+# ("/opt/oracle/product/<line>/dbhomeFree") baked in.  Extracting the archive
+# somewhere else therefore is not enough: the canonical path has to point at
+# the extracted home, which is what a normal rpm install produces anyway.  One
+# symlink per home; the parent chain is created here and removed on teardown.
+_oracle_link_home() {
+    local ver="$1" home="${2:-}"
+    [[ -n "${home}" ]] || home="$(_oracle_home_dir "${ver}" 2>/dev/null)" || return 1
+    # The canonical path is the tail of the extracted one: <base>/server + it.
+    local canon="${home#*/server}"
+    [[ "${canon}" != "${home}" ]] || return 0      # already canonical
+    # The vendor home is <top>/<vendor>/..., e.g. /opt/oracle/product/...
+    # Take the first TWO components: a bare field 2 turns "/opt/oracle/..."
+    # into "/opt" and the recursive chown below would then re-own every other
+    # engine's data directory (PostgreSQL cannot start after that).
+    local top; top="/$(printf '%s' "${canon}" | cut -d/ -f2,3)"   # /opt/oracle
+    mkdir -p "$(dirname "${canon}")"
+    # dbca and the engine put their diagnostics under $ORACLE_BASE, which the
+    # vendor scripts derive from the canonical home (not from the environment),
+    # so the base tree has to exist and be writable by the owner — exactly the
+    # state the RPM's postinstall leaves behind.
+    mkdir -p "${top}/cfgtoollogs" "${top}/diag"
+    if [[ "$(id -u)" -eq 0 ]]; then
+        chown -R "${ORACLE_OS_USER}:${ORACLE_OS_GROUP}" "${top}" 2>/dev/null || true
+    fi
+    if [[ -L "${canon}" && "$(readlink -f "${canon}")" == "$(readlink -f "${home}")" ]]; then
+        return 0
+    fi
+    ln -sfn "${home}" "${canon}"
+}
+
+# OS account, install metadata and the extracted home.  Mirrors what the RPM's
+# postinstall does (user/group, /etc/oraInst.loc, root.sh) without requiring a
+# system-wide rpm install, so nothing outside FQ_BASE_DIR is modified beyond
+# the account and the two Oracle-standard metadata files.
+_oracle_install() {
+    local ver="$1"
+    local base; base="$(oracle_base "${ver}")"
+    local cache; cache="$(_oracle_pkg_cache)"
+    mkdir -p "${cache}" "${base}"
+
+    local url rpm
+    url="$(_oracle_pkg_url "${ver}")"
+    rpm="${cache}/$(basename "${url}")"
+    [[ -s "${rpm}" ]] || _oracle_resolve_pkg "${rpm}" "${url}" || return 1
+    _oracle_require_extractor "${rpm}" || return 1
+
+    info "Oracle ${ver}: extracting $(basename "${rpm}") ..."
+    _oracle_extract_pkg "${rpm}" "${base}/server" || {
+        err "Oracle ${ver}: package extraction failed."
+        return 1
+    }
+
+    local home
+    home="$(_oracle_home_dir "${ver}")" || {
+        err "Oracle ${ver}: extracted package has no sqlplus under ${base}/server."
+        return 1
+    }
+    info "Oracle ${ver}: ORACLE_HOME=${home}"
+
+    _oracle_link_home "${ver}" "${home}" || return 1
+    _oracle_ensure_owner "${ver}" "${home}" || return 1
+
+    # root.sh records the home in /etc/oraInst.loc and hardens the binaries.
+    # It is idempotent; run it once per extracted home.
+    if [[ ! -f "${base}/.root_sh_done" ]]; then
+        if [[ "$(id -u)" -eq 0 && -x "${home}/root.sh" ]]; then
+            info "Oracle ${ver}: running root.sh (one-off) ..."
+            ( cd "${home}" && ./root.sh ) >>"${base}/log/install.log" 2>&1 || {
+                warn "Oracle ${ver}: root.sh reported a failure; see ${base}/log/install.log"
+            }
+        fi
+        : > "${base}/.root_sh_done"
+    fi
+
+    mkdir -p "${base}/oradata" "${base}/log" "${base}/cfg"
+    chown -R "${ORACLE_OS_USER}:${ORACLE_OS_GROUP}" "${base}" 2>/dev/null || true
+    return 0
+}
+
+# Dedicated OS account, exactly as the RPM's postinstall creates it.  Kept
+# separate from the extraction step because the two are reached independently:
+# an already extracted home still needs the account on a host that has never
+# had it (the extraction is cached across runs, the account is not).
+_oracle_ensure_owner() {
+    local ver="$1" home="${2:-}"
+    local base; base="$(oracle_base "${ver}")"
+    if ! id "${ORACLE_OS_USER}" >/dev/null 2>&1; then
+        if [[ "$(id -u)" -ne 0 ]]; then
+            err "Oracle ${ver}: OS user ${ORACLE_OS_USER} is missing; create it once as root:"
+            err "  sudo useradd -r -m -s /bin/bash -g ${ORACLE_OS_GROUP} ${ORACLE_OS_USER}"
+            return 1
+        fi
+        getent group "${ORACLE_OS_GROUP}" >/dev/null 2>&1 || groupadd -r "${ORACLE_OS_GROUP}" 2>/dev/null || true
+        useradd -r -m -s /bin/bash -g "${ORACLE_OS_GROUP}" "${ORACLE_OS_USER}" 2>/dev/null || true
+    fi
+    id "${ORACLE_OS_USER}" >/dev/null 2>&1 || {
+        err "Oracle ${ver}: could not create the ${ORACLE_OS_USER} OS account."
+        return 1
+    }
+    # The OSASM/OSDBA group is the engine's privileged group: without it
+    # sqlplus / as sysdba fails with ORA-27271 and dbca cannot connect at all.
+    getent group "${ORACLE_OSDBA_GROUP}" >/dev/null 2>&1 \
+        || groupadd -r "${ORACLE_OSDBA_GROUP}" 2>/dev/null || true
+    getent group "${ORACLE_OSDBA_GROUP}" >/dev/null 2>&1 \
+        && usermod -aG "${ORACLE_OSDBA_GROUP}" "${ORACLE_OS_USER}" 2>/dev/null || true
+    mkdir -p "${base}/oradata" "${base}/log" "${base}/cfg"
+    [[ -n "${home}" ]] || home="$(_oracle_home_dir "${ver}" 2>/dev/null)" || true
+    # /etc/oratab is the instance registry dbca appends to at the end of
+    # creation; when it is root-owned and not group-writable dbca finishes the
+    # database and then exits non-zero on "Unable to copy /tmp/oratab".
+    if [[ "$(id -u)" -eq 0 && -f /etc/oratab ]]; then
+        chown "root:${ORACLE_OS_GROUP}" /etc/oratab 2>/dev/null || true
+        chmod 664 /etc/oratab 2>/dev/null || true
+    fi
+    chown -R "${ORACLE_OS_USER}:${ORACLE_OS_GROUP}" "${base}" 2>/dev/null || true
+    [[ -z "${home}" ]] || chown -R "${ORACLE_OS_USER}:${ORACLE_OS_GROUP}" "${home}" 2>/dev/null || true
+    # The recursive chown above is what makes the instance directories
+    # writable, but it also takes root away from the one binary that must keep
+    # it: oradism is a setuid-root helper, and dbca refuses to run (DBT-10011)
+    # when its owner or setuid bit is off.  Restore exactly what root.sh left.
+    _oracle_fix_setuid "${home}"
+    return 0
+}
+
+# Re-apply root ownership and the setuid bit on the home's privileged helpers.
+_oracle_fix_setuid() {
+    local home="${1:-}"
+    [[ -n "${home}" && -f "${home}/bin/oradism" ]] || return 0
+    [[ "$(id -u)" -eq 0 ]] || return 0
+    chown "root:${ORACLE_OS_GROUP}" "${home}/bin/oradism" 2>/dev/null || true
+    chmod 4750 "${home}/bin/oradism" 2>/dev/null || true
+    # The main engine binary must stay owned by the Oracle account and must
+    # NOT be setuid: a setuid-root server process makes every bequeath
+    # connection fail with ORA-12753 ("Oracle home user ID does not match the
+    # effective user ID"), which sqlplus reports as ORA-12547.
+    if [[ -f "${home}/bin/oracle" ]]; then
+        chown "${ORACLE_OS_USER}:${ORACLE_OS_GROUP}" "${home}/bin/oracle" 2>/dev/null || true
+        chmod 0751 "${home}/bin/oracle" 2>/dev/null || true
+    fi
+    return 0
+}
+
+# One-time database creation.  The seed database the vendor image ships is not
+# part of the RPM, so the first start runs DBCA exactly once and the datafiles
+# then persist under ${base}/oradata like any other engine's data directory.
+_oracle_create_database() {
+    local ver="$1"
+    local base; base="$(oracle_base "${ver}")"
+    local home; home="$(_oracle_home_dir "${ver}")" || return 1
+    local sid; sid="$(_oracle_sid "${ver}")"
+    local pdb; pdb="$(oracle_service "${ver}")"
+    local marker="${base}/oradata/.db_created"
+    [[ -f "${marker}" ]] && return 0
+
+    # A database is only created from a clean slate: an instance left over from
+    # an earlier run, or the spfile/lock that point it at datafiles that were
+    # since removed, makes dbca reuse a control file whose files are gone
+    # (ORA-01081 then ORA-01116).  Both are cleared before dbca is invoked.
+    _oracle_stop "${ver}" || true
+    local hdir="${home}/dbs"
+    [[ -d "${hdir}" ]] && rm -f "${hdir}/spfile${sid}.ora" "${hdir}/lk${sid}" \
+        "${hdir}/hc_${sid}.dat" 2>/dev/null || true
+    # dbca refuses to create a SID the instance registry already lists
+    # (DBT-10317); the stale entry from a removed database has to go first.
+    if [[ -f /etc/oratab && "$(id -u)" -eq 0 ]]; then
+        sed -i "/^${sid}:/d" /etc/oratab 2>/dev/null || true
+    fi
+
+    info "Oracle ${ver}: creating the database once (dbca, several minutes) ..."
+    # 11g has no PDB and no Free template: create a non-CDB from the standard
+    # General_Purpose template.  Its dbca takes the passwords as switches
+    # (the stdin order below is Free-build specific), so the two generations
+    # cannot share the same argument list.
+    local args=()
+    local use_stdin=0
+    if [[ "$ver" == "11g" ]]; then
+        # 11.2's dbca has no -ignorePrereqs switch (it arrived with 12c); the
+        # rest of the list is accepted by both generations.
+        args=(
+            -silent -createDatabase
+            -gdbName "${sid}"
+            -templateName General_Purpose.dbc
+            -sid "${sid}"
+            -sysPassword "${ORACLE_ADMIN_PASS}"
+            -systemPassword "${ORACLE_ADMIN_PASS}"
+            -dbsnmpPassword "${ORACLE_ADMIN_PASS}"
+            -datafileDestination "${base}/oradata"
+            -storageType FS
+            -characterSet AL32UTF8
+            -nationalCharacterSet AL16UTF16
+            -emConfiguration NONE
+            -recoveryAreaDestination "${base}/reco"
+        )
+    else
+        # The Free template is a file inside the home, not a bare name: dbca
+        # looks a bare name up in $ORACLE_HOME/assistants/dbca/templates, and
+        # the only entry there is FREE_Database.dbc.
+        args=(
+            -silent -createDatabase
+            -gdbName "${sid}"
+            -templateName FREE_Database.dbc
+            -sid "${sid}"
+            -createAsContainerDatabase true
+            -numberOfPDBs 1
+            -pdbName "${pdb}"
+            -datafileDestination "${base}/oradata"
+            -useOMF true
+            -characterSet AL32UTF8
+            -nationalCharacterSet AL16UTF16
+            -emConfiguration NONE
+            -recoveryAreaDestination "${base}/reco"
+            -ignorePrereqs
+            -J-Doracle.assistants.dbca.validate.DBCredentials=false
+            -J-Doracle.assistants.skipAvailableSharedMemoryCheck=true
+            -skipDatapatch true
+        )
+        use_stdin=1
+    fi
+    # ORACLE_BASE is pinned to the instance directory so the engine's own
+    # diagnostics land inside it; dbca still writes its logs under the
+    # ORACLE_BASE it derives from the canonical home, which _oracle_link_home
+    # has already prepared.
+    if [[ ${use_stdin} -eq 1 ]]; then
+        # Free build: SYS / SYSTEM / PDBADMIN passwords on stdin, in that order.
+        local pwd_in
+        pwd_in="$(printf '%s\n%s\n%s\n' "${ORACLE_ADMIN_PASS}" "${ORACLE_ADMIN_PASS}" "${ORACLE_ADMIN_PASS}")"
+        printf '%s\n' "${pwd_in}" | _oracle_as_owner "${ver}" \
+            "export ORACLE_HOME='${home}'; export ORACLE_SID='${sid}'; \
+            export ORACLE_BASE='${base}'; export PATH=\"\$ORACLE_HOME/bin:\$PATH\"; \
+            '${home}/bin/dbca' ${args[*]}" >>"${base}/log/dbca.log" 2>&1
+    else
+        _oracle_as_owner "${ver}" \
+            "export ORACLE_HOME='${home}'; export ORACLE_SID='${sid}'; \
+            export ORACLE_BASE='${base}'; export PATH=\"\$ORACLE_HOME/bin:\$PATH\"; \
+            '${home}/bin/dbca' ${args[*]}" >>"${base}/log/dbca.log" 2>&1
+    fi
+    local rc=$?
+    if [[ $rc -ne 0 ]]; then
+        # dbca's exit status covers its post-creation bookkeeping as well as
+        # the database itself.  A non-zero code with datafiles on disk means
+        # the database exists; the only failures worth retrying are the ones
+        # that left no datafiles behind.
+        if [[ -d "${base}/oradata/${sid}" ]]; then
+            warn "Oracle ${ver}: dbca exited ${rc} but the database exists; continuing."
+        else
+            err "Oracle ${ver}: dbca failed (exit=${rc}); see ${base}/log/dbca.log"
+            return 1
+        fi
+    fi
+    # dbca leaves no instance behind; the engine processes it started are
+    # children of the dbca session and are torn down with it.  Anything still
+    # in the process table now is a leftover that would block the real start.
+    _oracle_kill "${ver}" || true
+    : > "${marker}"
+    return 0
+}
+
+# Is the instance itself open — not merely the processes present?  Asked over
+# SYSDBA so a legitimately closed PDB does not read as "down".
+_oracle_instance_open() {
+    local ver="$1"
+    _oracle_admin_sql "${ver}" "SELECT 1 FROM DUAL;" >/dev/null 2>&1
+}
+
+# SID of the instance for a version.  Free uses FREE for both the 23ai and the
+# 26ai code line; 19c keeps ORCL as the CDB with ORCLPDB1 inside it.
+_oracle_sid() {
+    local ver="$1"
+    case "$ver" in
+        11g) echo "${FQ_ORACLE_SID_11G:-ORCL}" ;;
+        19c) echo "${FQ_ORACLE_SID_19C:-ORCL}" ;;
+        *)   echo "${FQ_ORACLE_SID:-FREE}" ;;
+    esac
+}
+
+# Run a command as the engine's OS account, with TDengine's ASAN/loader
+# overrides stripped (same reason the other engines are sanitized).
+_oracle_as_owner() {
+    local ver="$1" cmd="$2"
+    local base; base="$(oracle_base "${ver}")"
+    if [[ "$(id -un)" == "${ORACLE_OS_USER}" ]]; then
+        _fq_env_clean bash -lc "${cmd}"
+    else
+        _fq_env_clean su -s /bin/bash "${ORACLE_OS_USER}" -c "${cmd}"
+    fi
+}
+
+# Is the instance process for this version alive?  Only the engine counts:
+# the listener is a separate process with its own lifecycle, so checking for it
+# here would report "up" while the database is down.
+_oracle_running() {
+    local ver="$1"
+    local sid; sid="$(_oracle_sid "${ver}")"
+    local base; base="$(oracle_base "${ver}")"
+    local home; home="$(_oracle_home_dir "${ver}" 2>/dev/null)" || return 1
+    local dir exe
+    for dir in /proc/[0-9]*; do
+        exe="$(readlink -f "${dir}/exe" 2>/dev/null)" || continue
+        exe="${exe% (deleted)}"
+        [[ "${exe}" == "${home}/bin/oracle"* ]] && return 0
+        [[ "${exe}" == "${home}/bin/tnslsnr"* ]] && continue
+    done
+    # Fall back to the process table: the oracle binary renames its processes.
+    pgrep -f "ora_pmon_${sid}\$" >/dev/null 2>&1 \
+        || pgrep -f "ora_pmon_${sid,,}\$" >/dev/null 2>&1
+}
+
+# Remove anything else already holding the port (a hand-started instance, an
+# instance of another version), matching the MySQL/PG resets.
+_oracle_kill_foreign() {
+    local ver="$1" port; port="$(oracle_port "${ver}")"
+    local pid
+    for pid in $(_list_matching_pids "tnslsnr.*${port}"); do
+        warn "Oracle ${ver}: another listener is holding port ${port} (pid ${pid}); terminating it."
+        kill -TERM "${pid}" 2>/dev/null || true
+    done
+    sleep 1
+}
+
+_oracle_start() {
+    local ver="$1"
+    local base; base="$(oracle_base "${ver}")"
+    local port; port="$(oracle_port "${ver}")"
+    local sid; sid="$(_oracle_sid "${ver}")"
+    local log="${base}/log"
+    mkdir -p "${log}"
+
+    local home
+    home="$(_oracle_home_dir "${ver}" 2>/dev/null)" || {
+        err "Oracle ${ver}: ORACLE_HOME not found under ${base}/server; run --setup first."
+        return 1
+    }
+
+    _oracle_kill_foreign "${ver}"
+
+    # The database is created before anything is started: dbca runs its own
+    # startup/shutdown cycle and leaves no instance behind.
+    _oracle_create_database "${ver}" || return 1
+
+    # The listener configuration is generated per instance so the test port is
+    # the only one Oracle listens on (the vendor default 1521 is never touched).
+    local cfg="${base}/cfg"
+    cat > "${cfg}/listener.ora" <<EOF
+LISTENER =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 127.0.0.1)(PORT = ${port}))
+    )
+  )
+EOF
+    cat > "${cfg}/tnsnames.ora" <<EOF
+${sid} =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = 127.0.0.1)(PORT = ${port}))
+    (CONNECT_DATA = (SERVER = DEDICATED)(SERVICE_NAME = $(oracle_service "${ver}")))
+  )
+EOF
+    chown -R "${ORACLE_OS_USER}:${ORACLE_OS_GROUP}" "${cfg}" 2>/dev/null || true
+
+    local env_str="export ORACLE_HOME='${home}'; export ORACLE_SID='${sid}'; \
+        export NLS_LANG='AMERICAN_AMERICA.AL32UTF8'; \
+        export TNS_ADMIN='${cfg}'; export PATH=\"\$ORACLE_HOME/bin:\$PATH\"; \
+        export ORACLE_BASE='${base}';"
+
+    # Listener and instance are started independently: the instance may still
+    # be up from an earlier run while the listener is gone, and vice versa.
+    if ! port_open "${port}"; then
+        info "Oracle ${ver}: starting listener on ${port} ..."
+        _oracle_as_owner "${ver}" "${env_str} lsnrctl start LISTENER" >>"${log}/listener.log" 2>&1 || {
+            err "Oracle ${ver}: listener start failed; see ${log}/listener.log"
+            return 1
+        }
+    fi
+
+    if _oracle_running "${ver}"; then
+        # Processes being present is not the same as an open instance: a dbca
+        # run that failed midway leaves background processes behind with no
+        # mountable instance (ORA-01034).  Ask the instance itself — over
+        # SYSDBA, because the PDB may legitimately still be closed here.
+        if ! _oracle_instance_open "${ver}"; then
+            # A shutdown started by the previous test may still be finishing.
+            # Wait for the processes to leave on their own first: SIGKILLing a
+            # half-closed instance and immediately starting again can leave a
+            # server that accepts the listener connection but fails process
+            # creation (ORA-12547 on every later connect).
+            local _w=0
+            while [[ ${_w} -lt 60 ]] && _oracle_running "${ver}" && ! _oracle_instance_open "${ver}"; do
+                sleep 2
+                _w=$((_w + 2))
+            done
+            if _oracle_running "${ver}" && ! _oracle_instance_open "${ver}"; then
+                warn "Oracle ${ver}: processes present but the instance is not open; killing them."
+                _oracle_kill "${ver}" || true
+            fi
+        fi
+    fi
+
+    if _oracle_running "${ver}"; then
+        # Already up: only the PDB may be closed (a restart, or a first start
+        # that died between mounting and opening it).
+        info "Oracle ${ver}: instance ${sid} already running; opening the PDB ..."
+    else
+        info "Oracle ${ver}: starting instance ${sid} ..."
+        _oracle_as_owner "${ver}" "${env_str} sqlplus -S -L / as sysdba <<'SQLEOF'
+startup;
+exit;
+SQLEOF" >>"${log}/startup.log" 2>&1 || {
+            err "Oracle ${ver}: instance start failed; see ${log}/startup.log"
+            return 1
+        }
+    fi
+
+    # The instance registers its services with the listener named by
+    # LOCAL_LISTENER, which defaults to port 1521.  On the test port the PDB is
+    # therefore invisible to the listener (ORA-12514 on every Easy Connect
+    # attempt) until it is pointed here.  The setting is persistent, so it is
+    # only re-applied when it does not already match.
+    local want_ll="(ADDRESS=(PROTOCOL=TCP)(HOST=127.0.0.1)(PORT=${port}))"
+    local have_ll
+    have_ll="$(_oracle_admin_sql "${ver}" \
+        "SELECT value FROM v\$parameter WHERE name = 'local_listener';" 2>/dev/null | head -1)"
+    if [[ "${have_ll}" != "${want_ll}" ]]; then
+        _oracle_as_owner "${ver}" "${env_str} sqlplus -S -L / as sysdba <<SQLEOF
+alter system set local_listener='${want_ll}' scope=both;
+alter system register;
+exit;
+SQLEOF" >>"${log}/startup.log" 2>&1 || {
+            warn "Oracle ${ver}: could not set local_listener to ${want_ll}"
+        }
+    fi
+
+    _oracle_as_owner "${ver}" "${env_str} sqlplus -S -L / as sysdba <<SQLEOF
+alter pluggable database $(oracle_service "${ver}") open;
+alter pluggable database $(oracle_service "${ver}") save state;
+exit;
+SQLEOF" >>"${log}/startup.log" 2>&1 || {
+        err "Oracle ${ver}: could not open PDB $(oracle_service "${ver}"); see ${log}/startup.log"
+        return 1
+    }
+    # The listener learns about the PDB through a dynamic registration; ask for
+    # one now instead of waiting for the engine's next heartbeat.
+    printf 'alter system register;\nexit;\n' | _oracle_as_owner "${ver}" \
+        "${env_str} sqlplus -S -L / as sysdba" >>"${log}/startup.log" 2>&1 || true
+    return 0
+}
+
+_oracle_stop() {
+    local ver="$1"
+    local base; base="$(oracle_base "${ver}")"
+    local sid; sid="$(_oracle_sid "${ver}")"
+    local home; home="$(_oracle_home_dir "${ver}" 2>/dev/null)" || return 0
+    # ORACLE_BASE must be exported like in _oracle_start: without it the
+    # bequeath connection ("/ as sysdba") cannot initialise the server process
+    # and sqlplus reports ORA-12547, so the instance kept running while only
+    # the listener stopped - existing pooled sessions then answered the
+    # disruption tests' queries.
+    local env_str="export ORACLE_HOME='${home}'; export ORACLE_SID='${sid}'; \
+        export NLS_LANG='AMERICAN_AMERICA.AL32UTF8'; \
+        export TNS_ADMIN='${base}/cfg'; export PATH=\"\$ORACLE_HOME/bin:\$PATH\"; \
+        export ORACLE_BASE='${base}';"
+    if _oracle_running "${ver}"; then
+        _oracle_as_owner "${ver}" "${env_str} sqlplus -S -L / as sysdba <<'SQLEOF'
+shutdown immediate;
+exit;
+SQLEOF" >>"${base}/log/stop.log" 2>&1 || true
+    fi
+    # The listener has its own lifecycle; stop it even when the instance was
+    # already down, otherwise the next start finds the port taken by a listener
+    # whose configuration may not match.
+    _oracle_as_owner "${ver}" "${env_str} lsnrctl stop LISTENER" >>"${base}/log/stop.log" 2>&1 || true
+}
+
+# Hard stop: no shutdown checkpoint.  The data directory keeps the committed
+# tables, so a following start recovers them — which is what the disruption
+# scenarios assert.
+_oracle_kill() {
+    local ver="$1"
+    local sid; sid="$(_oracle_sid "${ver}")"
+    _oracle_running "${ver}" || return 0
+    # The engine renames its processes to the lower-cased SID (ora_pmon_free
+    # for FREE), so both spellings have to be matched.
+    # Every server process has to die: SIGKILLing PMON alone leaves the
+    # shared-memory instance alive long enough for a pooled connection to
+    # answer the next query, which the disruption test reads as "the query
+    # did not fail".  Match the whole ora_* family in both SID spellings.
+    _kill_matching "ora_.*_${sid}\$" KILL
+    _kill_matching "ora_.*_${sid,,}\$" KILL
+    _kill_matching "db_.*_${sid}\$" KILL
+    _kill_matching "db_.*_${sid,,}\$" KILL
+    # Dedicated server processes (one per client connection) keep the binary
+    # name with the SID appended -- "oracleORCL (DESCRIPTION=...)" -- and are
+    # not part of the ora_*/db_* families.  They keep a pooled connection
+    # answering after PMON is gone, which is exactly what the disruption case
+    # reads as "the query did not fail"; kill them too.
+    _kill_matching "oracle${sid}( |\$)" KILL
+    _kill_matching "oracle${sid,,}( |\$)" KILL
+    _kill_matching "tnslsnr" KILL
+    sleep 3
+}
+
+# Run one SQL batch as the admin account.  Used by the readiness probe and by
+# --oracle-admin-exec, so the Python fixtures never rebuild a client invocation.
+_oracle_admin_sql() {
+    local ver="$1" sql="$2"
+    _oracle_sqlplus "${ver}" "${ORACLE_ADMIN_USER}" "${ORACLE_ADMIN_PASS}" "${sql}"
+}
+
+# Run one SQL batch as an arbitrary test account (the fixtures' data setup and
+# assertions).  Output is unheaded and undecorated so a caller reads plain
+# rows, exactly like sqlcmd/psql in the other engines' helpers.
+_oracle_user_sql() {
+    local ver="$1" user="$2" pass="$3" sql="$4"
+    _oracle_sqlplus "${ver}" "${user}" "${pass}" "${sql}"
+}
+
+# The one place a sqlplus invocation is built.  Keep the settings in a single
+# string so probes, resets and fixtures cannot drift apart.
+_oracle_sqlplus() {
+    local ver="$1" user="$2" pass="$3" sql="$4"
+    local base; base="$(oracle_base "${ver}")"
+    local sid; sid="$(_oracle_sid "${ver}")"
+    local home; home="$(_oracle_home_dir "${ver}" 2>/dev/null)" || {
+        err "Oracle ${ver}: ORACLE_HOME not found."
+        return 1
+    }
+    local _sql="${sql}" _last
+    # SQL*Plus only executes a statement terminated by ';' or '/'.  A batch
+    # that arrives without a terminator is left in the buffer and discarded by
+    # EXIT, which reports success while doing nothing — so terminate it here.
+    _last="$(printf '%s\n' "${_sql}" | awk 'NF { line = $0 } END { print line }')"
+    case "${_last}" in
+        *';'|'/') ;;
+        *) _sql="${_sql}"$'\n;' ;;
+    esac
+    # A PL/SQL block is the one statement a ';' does not submit: its closing
+    # "END;" belongs to the block, so SQL*Plus keeps buffering until the '/'
+    # line that terminates it.  Without it the block is discarded by EXIT and
+    # the rest of the batch is swallowed into the same buffer: the run reports
+    # success while nothing was executed, which is how a "drop this table if it
+    # exists" preamble silently stops dropping anything.  The terminator is
+    # inserted after the line that closes the outermost block, wherever that
+    # falls in the batch; a stray one after a plain statement would re-run
+    # whatever the buffer last held.
+    _sql="$(printf '%s\n' "${_sql}" | awk '
+        { line = $0; t = line
+          sub(/^[ \t]+/, "", t); sub(/[ \t]+$/, "", t)
+          low = tolower(t)
+          if (depth == 0) {
+            if (low ~ /^(begin|declare)([ \t(]|$)/) {
+              print line
+              if (low ~ /end[ \t]*;$/) print "/"
+              else { depth = 1; declared = (low ~ /^declare/) }
+            } else {
+              print line
+            }
+            next
+          }
+          print line
+          # The BEGIN that opens a DECLARE block sits at the same level as the
+          # DECLARE itself; counting it again would leave the block open and
+          # SQL*Plus would silently discard it at EXIT.
+          if (declared && low ~ /^begin([ \t(]|$)/) { declared = 0; next }
+          if (low ~ /^(begin|declare)([ \t(]|$)/) depth++
+          else if (low ~ /^end[ \t]*;$/) { depth--; if (depth == 0) { print "/"; declared = 0 } }
+        }
+        # A block whose closing END sits on the same line as BEGIN never hits
+        # the line-based rule above; submit the still-buffered block with the
+        # '/' terminator instead of letting SQL*Plus discard it at EXIT.
+        END { if (depth > 0) print "/" }')"
+    local _script
+    _script="$(printf 'SET DEFINE OFF\nSET HEADING OFF\nSET FEEDBACK OFF\nSET PAGESIZE 0\nSET LINESIZE 32767\nSET LONG 100000\nSET TRIMSPOOL ON\nSET TAB OFF\nWHENEVER SQLERROR EXIT SQL.SQLCODE\n%s\nEXIT\n' "${_sql}")"
+    # NLS_LANG must name the database character set explicitly.  Without it
+    # sqlplus derives the client charset from the locale and every character
+    # that does not survive that guess is silently stored as U+FFFD (the
+    # national-charset columns showed ff,fd per character), which would poison
+    # the assertions rather than fail them.
+    local _env="export ORACLE_HOME='${home}'; export ORACLE_SID='${sid}'; \
+        export NLS_LANG='AMERICAN_AMERICA.AL32UTF8'; \
+        export TNS_ADMIN='${base}/cfg'; export PATH=\"\$ORACLE_HOME/bin:\$PATH\";"
+    # Credentials travel on stdin, never in the process listing.
+    printf '%s\n' "${_script}" | _oracle_as_owner "${ver}" \
+        "${_env} sqlplus -S -L '${user}/${pass}@127.0.0.1:$(oracle_port "${ver}")/$(oracle_service "${ver}")'"
+}
+
+
+# Readiness: the listener answering is not enough — the PDB must accept a
+# login and run a query, which is what the tests actually need.
+_oracle_probe() {
+    local ver="$1"
+    local port; port="$(oracle_port "${ver}")"
+    local i=0 err=""
+    while [[ ${i} -lt 180 ]]; do
+        if port_open "${port}" && _oracle_running "${ver}"; then
+            if err="$(_oracle_admin_sql "${ver}" "SELECT 1 FROM DUAL;" 2>&1 >/dev/null)"; then
+                return 0
+            fi
+        fi
+        i=$((i + 1))
+        sleep 1
+    done
+    [[ -z "${err}" ]] || warn "Oracle ${ver}: probe failed: ${err}"
+    return 1
+}
+
+# Create the schemas the suite logs in as.  Oracle has no "create database"
+# per test: a schema (user) is the namespace, and every test file creates and
+# drops its own tables inside it (Oracle TS 4 / DS 5.3.2).
+_oracle_provision_users() {
+    local ver="$1"
+    # Two logins are always live for a federated source: the client-side
+    # catalog connection and the dnode executor connection.  A profile cap of
+    # one makes the second one fail with ORA-02391 before the connector's own
+    # pool limit (federatedQueryMaxPoolSizePerSource) can apply, so the
+    # profile only acts as a backstop above that pair.
+    local pool_max_conn="${FQ_POOL_TEST_MAX_CONN:-2}"
+    # Oracle's per-user connection cap is a profile attribute, so the
+    # pool-exhaustion account gets its own profile instead of the default one.
+    # Creating the profile separately keeps the DDL idempotent: an existing
+    # profile is just re-limited, which is also how a changed
+    # FQ_POOL_TEST_MAX_CONN takes effect on an already provisioned instance.
+    _oracle_admin_sql "${ver}" "
+DECLARE
+  n NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO n FROM dba_profiles
+   WHERE profile = 'FQ_POOL_TEST' AND resource_name = 'SESSIONS_PER_USER';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE PROFILE FQ_POOL_TEST LIMIT SESSIONS_PER_USER ${pool_max_conn}';
+  ELSE
+    EXECUTE IMMEDIATE 'ALTER PROFILE FQ_POOL_TEST LIMIT SESSIONS_PER_USER ${pool_max_conn}';
+  END IF;
+END;
+/
+" >/dev/null || return 1
+    # One DECLARE block per account: _oracle_sqlplus terminates PL/SQL blocks
+    # with a '/' inserted after the line that closes the outermost block, and a
+    # nested PROCEDURE (whose body begins with its own BEGIN) makes that
+    # nesting ambiguous - the block was cut at the procedure's END and nothing
+    # was provisioned.
+    local _acct _acct_pass _acct_profile
+    for _acct_profile in "${ORACLE_USER}:${ORACLE_PASS}:DEFAULT" \
+                        "${ORACLE_POOL_TEST_USER}:${ORACLE_POOL_TEST_PASS}:FQ_POOL_TEST" \
+                        "${ORACLE_ALT_USER}:${ORACLE_ALT_PASS}:DEFAULT"; do
+        _acct="${_acct_profile%%:*}"
+        _acct_pass="${_acct_profile#*:}"
+        _acct_pass="${_acct_pass%%:*}"
+        _acct_profile="${_acct_profile##*:}"
+        _oracle_admin_sql "${ver}" "
+DECLARE
+  n NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO n FROM dba_users WHERE username = UPPER('${_acct}');
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER ${_acct} IDENTIFIED BY \"${_acct_pass}\"';
+  END IF;
+  EXECUTE IMMEDIATE 'ALTER USER ${_acct} IDENTIFIED BY \"${_acct_pass}\" PROFILE ${_acct_profile}';
+  EXECUTE IMMEDIATE 'GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE, CREATE SYNONYM, UNLIMITED TABLESPACE TO ${_acct}';
+END;
+/
+" >/dev/null || return 1
+    done
+    return 0
+}
+
+# Drop every object the test accounts own so the next file starts clean.  This
+# is the Oracle equivalent of the other engines' data-directory wipe; recreating
+# the schemas themselves would need a reconnect, so objects are dropped instead.
+_oracle_drop_user_objects() {
+    local ver="$1" owner
+    for owner in "${ORACLE_USER}" "${ORACLE_POOL_TEST_USER}" "${ORACLE_ALT_USER}"; do
+        _oracle_admin_sql "${ver}" "
+BEGIN
+  FOR o IN (SELECT object_name, object_type FROM dba_objects
+             WHERE owner = UPPER('${owner}')
+               AND object_type IN ('TABLE','VIEW','MATERIALIZED VIEW','SEQUENCE','SYNONYM','TYPE','PROCEDURE','FUNCTION')) LOOP
+    BEGIN
+      IF o.object_type = 'TABLE' THEN
+        EXECUTE IMMEDIATE 'DROP TABLE \"${owner}\".\"' || o.object_name || '\" CASCADE CONSTRAINTS PURGE';
+      ELSE
+        EXECUTE IMMEDIATE 'DROP ' || o.object_type || ' \"${owner}\".\"' || o.object_name || '\"';
+      END IF;
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+END;
+/
+" >/dev/null 2>&1 || true
+    done
+}
+
+_oracle_reset_env() {
+    local ver="$1"
+    info "Oracle ${ver}: hard reset (restart instance → drop test objects) ..."
+    _oracle_start "${ver}" || return 1
+    if ! _oracle_probe "${ver}"; then
+        # An instance whose datafiles never finished opening cannot be repaired
+        # in place; recreate the database once so a dirty host cannot wedge
+        # every subsequent run.
+        warn "Oracle ${ver}: not query-ready; recreating the database once."
+        _oracle_stop "${ver}" || true
+        rm -f "$(oracle_base "${ver}")/oradata/.db_created"
+        rm -rf "$(oracle_base "${ver}")/oradata"
+        _oracle_start "${ver}" || return 1
+        _oracle_probe "${ver}" || return 1
+    fi
+    _oracle_provision_users "${ver}" || warn "Oracle ${ver}: could not provision test schemas"
+    _oracle_drop_user_objects "${ver}"
+    info "Oracle ${ver}: reset complete."
+    return 0
+}
+
+ensure_oracle() {
+    local ver="$1"
+    local port; port="$(oracle_port "${ver}")"
+    local base; base="$(oracle_base "${ver}")"
+
+    info "Oracle ${ver}: port=${port}, service=$(oracle_service "${ver}"), base=${base}"
+
+    # ── install binary if not present ────────────────────────────────────────
+    if ! _oracle_home_dir "${ver}" >/dev/null 2>&1; then
+        _oracle_install "${ver}" || return 1
+    fi
+    # The account and the data/log directories are required whether or not the
+    # package had to be extracted this time.
+    _oracle_link_home "${ver}" || return 1
+    _oracle_ensure_owner "${ver}" || return 1
+
+    if [[ "${FQ_ORACLE_QUICK_RESTART:-0}" == "1" ]]; then
+        # In-test stop/start cycles must keep the data prepared at file start.
+        info "Oracle ${ver}: quick restart (existing data preserved) ..."
+        _oracle_start "${ver}" || return 1
+        _oracle_probe "${ver}" || return 1
+        info "Oracle ${ver}: quick restart complete."
+        return 0
+    fi
+
+    _oracle_reset_env "${ver}"
+}
+
+_teardown_oracle() {
+    local ver="$1"
+    _oracle_stop "${ver}"
+    # Logs are rotated on every start; clear them at teardown like the other
+    # engines do so a green run does not accumulate container output.
+    find "$(oracle_base "${ver}")/log" -maxdepth 1 -type f -delete 2>/dev/null || true
+    info "Oracle ${ver}: stopped and logs cleared."
+}
+
+# ──────────────────────────────────────────────────────────────────────────────
 # 12.  Teardown: stop all external DBs and rotate oversized log files.
 #      Called at the END of each FQ test class (not at init time).
 # ──────────────────────────────────────────────────────────────────────────────
@@ -3926,6 +4922,7 @@ teardown_all() {
     for ver in "${PG_VERSIONS[@]}";     do _teardown_pg     "$ver" || true; done
     for ver in "${INFLUX_VERSIONS[@]}"; do _teardown_influx "$ver" || true; done
     for ver in "${SQLSERVER_VERSIONS[@]}"; do _teardown_sqlserver "$ver" || true; done
+    for ver in "${ORACLE_VERSIONS[@]}";    do _teardown_oracle    "$ver" || true; done
     log "Teardown complete."
 }
 
@@ -4004,6 +5001,16 @@ _verify_and_recover_once() {
                 FQ_INFLUX_QUICK_RESTART=1 ensure_influx "$ver" || OVERALL_OK=1
             fi
             _probe_influx_ready "$ver" || { err "InfluxDB ${ver}: still unreachable after recovery."; OVERALL_OK=1; }
+        done
+    fi
+
+    if [[ "$_services" == *oracle* ]]; then
+        for ver in "${ORACLE_VERSIONS[@]}"; do
+            if ! _oracle_probe "$ver"; then
+                warn "Oracle ${ver}: probe failed after setup, trying quick restart once ..."
+                FQ_ORACLE_QUICK_RESTART=1 ensure_oracle "$ver" || OVERALL_OK=1
+            fi
+            _oracle_probe "$ver" || { err "Oracle ${ver}: still unreachable after recovery."; OVERALL_OK=1; }
         done
     fi
 }
@@ -4152,6 +5159,10 @@ final_probe_selected_services() {
         _sqlserver_probe "${ver}" \
             || err "SQL Server ${ver}: readiness probe failed (non-fatal)"
     done
+    [[ "$services" == *oracle* ]] && for ver in "${ORACLE_VERSIONS[@]}"; do
+        _oracle_probe "${ver}" \
+            || err "Oracle ${ver}: readiness probe failed (non-fatal)"
+    done
 
     log "Final cross-engine readiness probe passed."
     return 0
@@ -4174,6 +5185,7 @@ _is_single_service_quick_restart() {
         pg)     [[ "${FQ_PG_QUICK_RESTART:-0}" == "1" ]] ;;
         influx) [[ "${FQ_INFLUX_QUICK_RESTART:-0}" == "1" ]] ;;
         sqlserver) [[ "${FQ_SQLSERVER_QUICK_RESTART:-0}" == "1" ]] ;;
+        oracle) [[ "${FQ_ORACLE_QUICK_RESTART:-0}" == "1" ]] ;;
         *)      return 1 ;;
     esac
 }
@@ -4188,8 +5200,8 @@ main() {
     sanitize_foreign_engine_env
 
     # FQ_SERVICES_TO_RESET controls which services are processed.
-    # Default: all three. In-test restarts set this to a single service.
-    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx sqlserver}"
+    # Default: all of them. In-test restarts set this to a single service.
+    local _services="${FQ_SERVICES_TO_RESET:-mysql pg influx sqlserver oracle}"
 
     log "========================================================"
     log "FederatedQuery external-source setup"
@@ -4201,6 +5213,7 @@ main() {
     log "  PG       : ${PG_VERSIONS[*]}"
     log "  InfluxDB : ${INFLUX_VERSIONS[*]}"
     log "  SQLServer: ${SQLSERVER_VERSIONS[*]}"
+    log "  Oracle   : ${ORACLE_VERSIONS[*]}"
     log "========================================================"
 
     if [[ "$_services" == *mysql* ]]; then
@@ -4231,6 +5244,16 @@ main() {
         # Non-fatal: SQL Server scenarios fail on their own when the instance is
         # unavailable; MySQL/PG/Influx coverage must not be reduced by it.
         [[ "${_sqlserver_env_failed:-0}" -eq 0 ]] || err "SQL Server environment not ready; SQL Server scenarios will fail."
+    fi
+    if [[ "$_services" == *oracle* ]]; then
+        # One container per configured version, each on its own port, so the
+        # 19c / 26ai axis runs side by side like the MySQL/PG version axes.
+        for ver in "${ORACLE_VERSIONS[@]}"; do
+            ensure_oracle "$ver" || _oracle_env_failed=1
+        done
+        # Non-fatal for the same reason as SQL Server: an Oracle outage must
+        # not remove the other engines' coverage.
+        [[ "${_oracle_env_failed:-0}" -eq 0 ]] || err "Oracle environment not ready; Oracle scenarios will fail."
     fi
 
     if _is_single_service_quick_restart "$_services"; then
@@ -4279,6 +5302,38 @@ if [[ "${FQ_SOURCE_ONLY:-0}" != "1" && "${BASH_SOURCE[0]}" == "$0" ]]; then
             [[ $# -eq 4 ]] || { echo "usage: $0 --sqlserver-exec <version> <database> <sql>" >&2; exit 2; }
             _sqlserver_run_sql "$2" "$3" "$4"
             exit $?
+            ;;
+        --oracle-exec)
+            # Internal helper: run one SQL batch through the same sqlplus
+            # invocation the readiness probe uses.  The Python fixtures call
+            # this instead of assembling their own client call, so the test
+            # host needs no Oracle client of its own.
+            #   --oracle-exec <version> <user> <password> <sql>
+            [[ $# -eq 5 ]] || { echo "usage: $0 --oracle-exec <version> <user> <password> <sql>" >&2; exit 2; }
+            _oracle_user_sql "$2" "$3" "$4" "$5"
+            exit $?
+            ;;
+        --oracle-admin-exec)
+            # Same, as the provisioning account (DDL that the test accounts
+            # are not allowed to run).
+            [[ $# -eq 3 ]] || { echo "usage: $0 --oracle-admin-exec <version> <sql>" >&2; exit 2; }
+            _oracle_admin_sql "$2" "$3"
+            exit $?
+            ;;
+        --oracle-stop)
+            # Disruption scenarios need the instance down without waiting for
+            # a graceful database shutdown: the test asserts the query fails
+            # while it is away, not how long Oracle takes to flush.
+            [[ $# -eq 2 ]] || { echo "usage: $0 --oracle-stop <version>" >&2; exit 2; }
+            _oracle_stop "$2"
+            exit 0
+            ;;
+        --oracle-kill)
+            # SIGKILL equivalent: the container's init process is signalled
+            # without a shutdown checkpoint.
+            [[ $# -eq 2 ]] || { echo "usage: $0 --oracle-kill <version>" >&2; exit 2; }
+            _oracle_kill "$2"
+            exit 0
             ;;
         *)          main "$@"    ;;
     esac

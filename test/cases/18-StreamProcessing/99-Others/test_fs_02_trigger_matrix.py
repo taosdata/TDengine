@@ -183,8 +183,12 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
 
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
         self._with_std_sources(
-            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True
+            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True,
+            skip_oracle=True
         )
 
     # ------------------------------------------------------------------
@@ -264,7 +268,10 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM {stream}")
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        self._with_std_sources(prefix, body)
+        # Streams reject Oracle external tables (streamTriggerTask's identity
+        # check is fail-closed for types past SQL Server), so the stream
+        # matrices never provision an Oracle leg.
+        self._with_std_sources(prefix, body, skip_oracle=True)
 
     # FS-TM-001 PERIOD ----------------------------------------------------
     def test_tm_001_period(self):

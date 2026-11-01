@@ -257,8 +257,8 @@ EVENT_WINDOW(START WITH start_condition END WITH end_condition) [TRUE_FOR(true_f
     - `TRUE_FOR(COUNT n)`：仅基于数据行数过滤，窗口数据行数必须大于等于 `n`。
     - `TRUE_FOR(duration_time AND COUNT n)`：同时满足持续时长和数据行数条件。
     - `TRUE_FOR(duration_time OR COUNT n)`：满足持续时长或数据行数条件之一即可。
-  - **开窗连续满足条件（`start(limit_expr)`）**：`START WITH` 条件连续满足 `limit_expr` 指定的行数或时长后，窗口才真正打开。`_wstart` 取 streak 第一行时间戳。streak 中断则重新计数。
-  - **关窗连续满足条件（`end(limit_expr)`）**：`END WITH` 条件连续满足 `limit_expr` 指定的行数或时长后，窗口才真正关闭。`_wend` 取关窗 streak 第一行时间戳，streak 后续行不计入窗口。streak 中断则重新计数，窗口保持开启。
+  - **开窗连续满足条件（`start(limit_expr)`）**：`START WITH` 条件连续满足 `limit_expr` 指定的行数或时长后，窗口才真正打开。`_twstart` 取这段连续数据的第一行时间戳，确认开窗前的这些行也包含在窗口内。中途出现不满足开始条件的行，则重新累计时长和行数。
+  - **关窗连续满足条件（`end(limit_expr)`）**：`END WITH` 条件连续满足 `limit_expr` 指定的行数或时长后，窗口才真正关闭。`_twend` 取这段连续数据的第一行时间戳，该行包含在窗口内，后续用于确认关窗的行不计入窗口。中途出现不满足结束条件的行，则重新累计时长和行数，窗口保持开启。
 
   其中 `duration_time` 为时间范围正值，时间单位参见[时间单位](../05-tdengine-sql/01-datatype.md#时间单位)（仅支持毫秒至周），如 `TRUE_FOR(10m)`、`TRUE_FOR(COUNT 100)`、`TRUE_FOR(10m AND COUNT 100)`、`TRUE_FOR(10m OR COUNT 100)`、`TRUE_FOR(start(COUNT 2))`、`TRUE_FOR(end(3s))`、`TRUE_FOR(5s, start(COUNT 2), end(COUNT 3))`。`start(...)` 和 `end(...)` 仅支持单开窗条件的 `EVENT_WINDOW`。
 
@@ -279,6 +279,70 @@ CREATE STREAM s_tag_event
 ```
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
+
+###### TRUE_FOR 配置示例
+
+窗口整体、`START(...)` 和 `END(...)` 中的 `limit_expr` 都支持时长、`COUNT`、`AND COUNT` 和 `OR COUNT` 四种形式：
+
+| 配置 | 含义 |
+| --- | --- |
+| `TRUE_FOR(1m)` | 过滤持续时长不足 1 分钟的窗口；不要求开始条件在窗口内一直成立。 |
+| `TRUE_FOR(START(1m))` | 开始条件连续成立至少 1 分钟后确认开窗。 |
+| `TRUE_FOR(END(1m))` | 结束条件连续成立至少 1 分钟后确认关窗。 |
+| `TRUE_FOR(START(COUNT 3))` | 连续 3 行满足开始条件后确认开窗。 |
+| `TRUE_FOR(START(1m AND COUNT 3))` | 开始条件连续成立，且时长至少 1 分钟、行数至少 3 行。 |
+| `TRUE_FOR(END(10s OR COUNT 3))` | 结束条件连续成立，时长达到 10 秒或行数达到 3 行即可确认关窗。 |
+| `TRUE_FOR(2m, START(1m), END(COUNT 2))` | 分别设置开窗和关窗条件，并过滤最终持续时长不足 2 分钟的窗口。 |
+
+- 时长按参与窗口判断的数据的时间戳计算，不是等待相同长度的系统时间。例如，第一条满足开始条件的数据时间戳为 `10:00:00`，需要后续仍满足条件、时间戳至少为 `10:01:00` 的数据才能满足 `START(1m)`。没有新数据时，不会仅因现实时间过去了 1 分钟而确认开窗。
+- “连续”指中间没有不满足相应条件的数据行，不要求固定采样间隔；条件中断后，时长和行数都从下一段连续满足条件的数据重新累计。
+- 省略 `START(...)` 或 `END(...)` 时，相应条件首次成立即可开窗或关窗；省略窗口整体 `limit_expr` 时，不额外按整个窗口的时长或行数过滤。三种参数用逗号分隔，不表示逻辑 `OR`。
+- `START(...)` / `END(...)` 不用于 `STATE_WINDOW`，也不支持本节之后介绍的多条件开始事件树。单个开始条件中使用 `AND` / `OR` 连接的布尔表达式仍属于单开窗条件。
+
+下面以温度告警为例：温度连续至少 1 分钟不低于 80 后确认开窗，连续 2 行低于 80 后确认关窗，仅在关窗时输出统计结果。
+
+```sql
+CREATE DATABASE true_for_demo;
+USE true_for_demo;
+CREATE TABLE sensor (ts TIMESTAMP, temperature INT);
+
+CREATE STREAM temperature_alarm
+  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80)
+  TRUE_FOR(START(1m), END(COUNT 2))
+  STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
+  FROM sensor
+  INTO temperature_alarm_out
+  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+```
+
+等待流就绪后，按时间顺序写入以下数据：
+
+```sql
+INSERT INTO sensor VALUES
+  ('2026-01-01 10:00:00', 85)
+  ('2026-01-01 10:00:30', 70)
+  ('2026-01-01 10:01:00', 85)
+  ('2026-01-01 10:01:30', 86)
+  ('2026-01-01 10:02:00', 87)
+  ('2026-01-01 10:02:10', 70)
+  ('2026-01-01 10:02:20', 69);
+
+SELECT ts, te, cnt FROM temperature_alarm_out;
+```
+
+窗口判断过程如下：
+
+| 数据时间 | 温度 | 窗口判断 |
+| --- | --- | --- |
+| `10:00:00` | 85 | 开始累计开窗条件的持续时长。 |
+| `10:00:30` | 70 | 开窗条件中断，清空累计值，不形成窗口。 |
+| `10:01:00` | 85 | 重新累计开窗条件的持续时长。 |
+| `10:01:30` | 86 | 持续 30 秒，尚未确认开窗。 |
+| `10:02:00` | 87 | 持续 1 分钟，确认开窗，`_twstart` 为 `10:01:00`。 |
+| `10:02:10` | 70 | 第一行满足关窗条件，尚未确认关窗。 |
+| `10:02:20` | 69 | 连续第二行满足关窗条件，确认关窗，`_twend` 为 `10:02:10`。 |
+
+等待流完成计算后，预期输出一行：`ts = 2026-01-01 10:01:00.000`、`te = 2026-01-01 10:02:10.000`、`cnt = 4`。窗口包含从 `10:01:00` 到 `10:02:10` 的四行，`10:02:20` 这一行仅用于确认关窗。如果再增加窗口整体过滤，改为 `TRUE_FOR(2m, START(1m), END(COUNT 2))`，该窗口的持续时长仅为 70 秒，因此不会输出。
 
 ##### 事件窗口触发（支持开始事件树）
 

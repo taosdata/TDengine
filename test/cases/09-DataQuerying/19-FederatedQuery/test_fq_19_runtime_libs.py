@@ -17,9 +17,11 @@ import glob
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
+import time
 
 import pytest
 from contextlib import contextmanager
@@ -41,6 +43,11 @@ _PROVIDER_RUNTIME_PATTERNS = {
     # Driver 18 from the same runtime dir (both are staged like the other
     # providers' client libraries, DS 3.3).
     "sqlserver": ("libodbc*", "libmsodbcsql*"),
+    # Oracle has the same shape: unixODBC plus the Oracle ODBC driver, which in
+    # turn resolves the Instant Client base libraries by soname from that same
+    # directory (Oracle DS 3.3 / 9.1.7).
+    "oracle": ("libodbc*", "libsqora*", "libclntsh*", "libnnz*", "libons*",
+               "libnfsodm*", "liborazt*", "libociei*"),
 }
 _PROVIDER_PLUGIN_PATTERNS = {
     "influxdb": ("libtaos_ext_influx_arrow*",),
@@ -124,6 +131,75 @@ def _check_provider_missing(src, sql):
     tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
 
 
+_ODBCINST_REGISTRY_ROOTS = (
+    r"SOFTWARE\ODBC\ODBCINST.INI",
+    r"SOFTWARE\WOW6432Node\ODBC\ODBCINST.INI",
+)
+
+
+def _windows_oracle_driver_registrations():
+    """(name, driver_path) of every Oracle Instant Client registered on Windows.
+
+    The driver manager resolves ``Driver={...}`` only through these entries,
+    and the provider reads the same list back to learn the driver name and its
+    directory, so this is the Windows equivalent of odbcinst.ini.
+    """
+    try:
+        import winreg
+    except ImportError:
+        return []
+    registrations = []
+    for root_path in _ODBCINST_REGISTRY_ROOTS:
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, root_path, 0,
+                                winreg.KEY_READ) as root:
+                index = 0
+                while True:
+                    try:
+                        name = winreg.EnumKey(root, index)
+                    except OSError:
+                        break
+                    index += 1
+                    try:
+                        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                            root_path + "\\" + name, 0,
+                                            winreg.KEY_READ) as key:
+                            driver, _ = winreg.QueryValueEx(key, "Driver")
+                    except OSError:
+                        continue
+                    base = os.path.basename(str(driver).replace("\\", "/")).lower()
+                    if base.startswith("sqora") and base.endswith(".dll"):
+                        registrations.append((name, str(driver)))
+        except OSError:
+            continue
+    return registrations
+
+
+def _odbcinst_registers_oracle_driver():
+    """True when the host registers the Oracle ODBC driver in odbcinst.
+
+    Mirrors ``_odbcinst_registers_driver18``: the provider resolves the driver
+    by absolute path first and deliberately does not require a registration,
+    but an existing one is used as the fallback driver name, so hiding the
+    driver library alone does not make Oracle unreachable on such hosts.
+    """
+    if sys.platform == "win32":
+        # Windows keeps the registrations in the registry, and there the
+        # provider resolves the driver *only* through them.
+        return bool(_windows_oracle_driver_registrations())
+    for path in ("/etc/odbcinst.ini",
+                 "/usr/local/etc/odbcinst.ini",
+                 os.path.expanduser("~/.odbcinst.ini")):
+        try:
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        if re.search(r"^\s*\[Oracle", text, re.M):
+            return True
+    return False
+
+
 def _odbcinst_registers_driver18():
     """True when the host registers 'ODBC Driver 18 for SQL Server' in odbcinst.
 
@@ -170,7 +246,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
 
     @pytest.mark.parametrize("action", ["start", "stop", "kill"])
     @pytest.mark.parametrize("service,version", [("mysql", "8.0"), ("pg", "16"),
-                                                ("influx", "3.0"), ("sqlserver", "2022")])
+                                                ("influx", "3.0"), ("sqlserver", "2022"),
+                                                ("oracle", "26ai")])
     def test_external_lifecycle_requires_lease_controller(self, monkeypatch, action,
                                                         service, version):
         """External fault operations fail explicitly without a lease owner.
@@ -231,6 +308,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         monkeypatch.setattr(pymysql, "connect", MagicMock())
         monkeypatch.setattr(psycopg2, "connect", MagicMock())
         monkeypatch.setattr(requests, "get", lambda *args, **kwargs: MagicMock(status_code=200))
+        # Oracle has no Python driver here: the probe runs a statement through
+        # the lease controller, which this test deliberately does not configure.
+        monkeypatch.setattr(ExtSrcEnv, "oracle_query_cfg", lambda *args, **kwargs: "1")
+        # SQL Server is probed with a raw TCP connect. A leased environment is
+        # not guaranteed to be reachable from this worker (and a previous case
+        # may have stopped the local engine), while this test only exercises
+        # the external-mode guards, never connectivity.
+        monkeypatch.setattr(ExtSrcEnv, "_tcp_probe", lambda *args, **kwargs: True)
         monkeypatch.setattr(ExtSrcEnv, "ensure_qnode", lambda: None)
         monkeypatch.setattr(ExtSrcEnv, "purge_all_external_sources", lambda: None)
         def reject_local_script(*args, **kwargs):
@@ -689,7 +774,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             disable_leak_detection("LSAN_OPTIONS")
         return env
 
-    def _query_count_with_taos(self, sql):
+    def _run_taos_cli(self, sql):
+        """Run one statement through a throw-away taos client; return stdout."""
         taos_bin = os.path.join(
             os.environ.get("TAOS_BIN_PATH", os.path.join(tdCom.getBuildPath(), "build", "bin")),
             "taos",
@@ -704,6 +790,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         output = proc.stdout + proc.stderr
         if proc.returncode != 0 or "DB error:" in output:
             raise AssertionError(output)
+        return output
+
+    def _query_count_with_taos(self, sql):
+        output = self._run_taos_cli(sql)
         for line in output.splitlines():
             if "|" not in line or line.lstrip().startswith("="):
                 continue
@@ -713,23 +803,63 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                     return int(cell)
         raise AssertionError(output)
 
+    def _query_ints_with_taos(self, sql):
+        """All integer cells of a result, in row order."""
+        output = self._run_taos_cli(sql)
+        values = []
+        for line in output.splitlines():
+            if "|" not in line or line.lstrip().startswith("="):
+                continue
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            for cell in cells:
+                if cell.isdigit():
+                    values.append(int(cell))
+        if not values:
+            raise AssertionError(output)
+        return values
+
     def _check_remote_count(self, src):
         assert self._query_count_with_taos(f"select count(*) from {src}.src_t") == 5
 
-    def _runtime_lib_dir(self):
-        override = getattr(self, "_runtime_lib_dir_override", None)
-        if override:
-            return override
+    def _runtime_lib_dir_base(self):
         taos_bin_path = os.environ.get("TAOS_BIN_PATH")
         if taos_bin_path:
             return os.path.abspath(os.path.join(taos_bin_path, "..", "lib"))
         return os.path.abspath(os.path.join(tdCom.getBuildPath(), "build", "lib"))
 
+    def _runtime_lib_dir(self):
+        override = getattr(self, "_runtime_lib_dir_override", None)
+        if override:
+            return override
+        return self._runtime_lib_dir_base()
+
+    def _hidden_runtime_roots(self):
+        """Directories a provider library can still be loaded from.
+
+        The isolated copy only replaces LD_LIBRARY_PATH; taosd's RUNPATH still
+        points at the original build lib directory (the path it was linked
+        with), and the active client is also staged under the build tree's
+        driver/ directory.  A hide that only touches the copy is therefore
+        bypassed by those two, so the same files are hidden in every root.
+        """
+        roots = [self._runtime_lib_dir()]
+        base = self._runtime_lib_dir_base()
+        if os.path.realpath(base) not in {os.path.realpath(root) for root in roots}:
+            roots.append(base)
+        driver_root = os.path.join(os.path.dirname(base), "driver")
+        if os.path.isdir(driver_root):
+            roots.append(driver_root)
+        return roots
+
     def _path_is_under(self, path, root):
+        # Resolve symlinks as well: a search-path entry that is a link (or is
+        # spelled through a linked directory) still reaches the original
+        # runtime tree, and leaving it in LD_LIBRARY_PATH lets the isolated
+        # taosd load the library the check just hid.
         try:
-            return os.path.commonpath(
-                [os.path.abspath(path), os.path.abspath(root)]
-            ) == os.path.abspath(root)
+            real_path = os.path.realpath(path)
+            real_root = os.path.realpath(root)
+            return os.path.commonpath([real_path, real_root]) == real_root
         except ValueError:
             return False
 
@@ -752,22 +882,44 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         copy_bin_dir = os.path.join(copy_build, "bin")
         copy_lib_dir = os.path.join(copy_build, "lib")
         old_runtime_override = getattr(self, "_runtime_lib_dir_override", None)
+        # The dnode start command prepends the copy's lib dir and appends the
+        # inherited search path, so anything hidden in the copy stays reachable
+        # by soname through the original build tree.  Repoint the inherited
+        # entries at the copy: it holds everything the original did except what
+        # the check hides, which is exactly the state the check needs.
+        lib_env = "DYLD_LIBRARY_PATH" if sys.platform == "darwin" else "LD_LIBRARY_PATH"
+        original_lib_path = os.environ.get(lib_env)
         try:
             os.makedirs(copy_bin_dir)
             copy_taosd = os.path.join(copy_bin_dir, os.path.basename(original_taosd))
             self._link_or_copy_file(original_taosd, copy_taosd)
+            # Dereference symlinks: a lib entry that is a link keeps the
+            # original file's directory as its $ORIGIN (and RUNPATH), so a
+            # copy that merely preserves the link still loads the Instant
+            # Client next to the original file, not the (possibly hidden)
+            # libraries in this copy.
             shutil.copytree(
                 runtime_dir,
                 copy_lib_dir,
-                symlinks=True,
+                symlinks=False,
                 copy_function=self._link_or_copy_file,
             )
             self._runtime_lib_dir_override = copy_lib_dir
             tdDnodes.binPath = copy_taosd
             for dnode in tdDnodes.dnodes:
                 dnode.binPath = tdDnodes.binPath
+            if original_lib_path is not None:
+                inherited = [
+                    entry for entry in original_lib_path.split(os.pathsep)
+                    if entry and not self._path_is_under(entry, runtime_dir)
+                ]
+                os.environ[lib_env] = os.pathsep.join([copy_lib_dir] + inherited)
             yield
         finally:
+            if original_lib_path is None:
+                os.environ.pop(lib_env, None)
+            else:
+                os.environ[lib_env] = original_lib_path
             if old_runtime_override is None:
                 if hasattr(self, "_runtime_lib_dir_override"):
                     delattr(self, "_runtime_lib_dir_override")
@@ -885,15 +1037,53 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             files.extend(self._parse_ldd_resolved_files(proc.stdout, prefixes))
         return files
 
+    @staticmethod
+    def _dir_is_readonly(path):
+        """True when the directory lives on a read-only filesystem.
+
+        The CI test artifact mounts build/lib read-only; root can still open
+        files for writing on some read-only mounts, so ask statvfs for the
+        mount flag instead of relying on os.access().
+        """
+        try:
+            flags = os.statvfs(path).f_flag
+        except OSError:
+            return True
+        return bool(flags & getattr(os, "ST_RDONLY", 1))
+
     @contextmanager
     def _without_provider_runtime_libs(self, providers, require_present=True, patterns=None):
+        roots = self._hidden_runtime_roots()
+        if patterns is None:
+            patterns = [pattern
+                        for provider in providers
+                        for pattern in _PROVIDER_RUNTIME_PATTERNS.get(provider, ())]
+        candidates = []
+        for root in roots:
+            for pattern in patterns:
+                candidates.extend(glob.glob(os.path.join(root, pattern)))
+                candidates.extend(glob.glob(os.path.join(root, "**", pattern),
+                                            recursive=True))
+        for provider in providers:
+            candidates.extend(self._resolved_runtime_dep_files(provider))
+        candidates = self._existing_runtime_files(
+            path for path in candidates
+            if any(self._path_is_under(path, root) for root in roots))
+        # Hiding the libraries means moving them out of every resolution root.
+        # A read-only root cannot be cleaned (EROFS/EXDEV), and a partial hide
+        # would leave the provider resolvable, making the gate assertion
+        # meaningless: skip those deployments instead of failing the case.
+        probe_dirs = {os.path.dirname(path) for path in candidates}
+        probe_dirs.add(self._runtime_lib_dir())
+        readonly = sorted(dir_path for dir_path in probe_dirs
+                          if self._dir_is_readonly(dir_path))
+        if readonly:
+            pytest.skip(
+                "provider runtime libraries live on a read-only filesystem "
+                f"({readonly[0]}); the hide/restore check needs a writable tree")
         hidden_dir = tempfile.mkdtemp(prefix=".fq-runtime-hidden.", dir=self._runtime_lib_dir())
         moved = []
         try:
-            if patterns is None:
-                candidates = self._provider_runtime_files(providers)
-            else:
-                candidates = self._runtime_files_for_patterns(patterns)
             for path in candidates:
                 hidden_path = os.path.join(hidden_dir, f"{len(moved)}-{os.path.basename(path)}")
                 shutil.move(path, hidden_path)
@@ -912,7 +1102,34 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             except OSError:
                 pass
 
+    def _stop_direct_taosd(self):
+        """Terminate the copy's taosd before the framework restarts dnode 1.
+
+        The isolated start bypasses tdDnodes, so the framework's stop only
+        knows the screen-managed process: the copy would keep listening on
+        6030, the restart would wait for it to leave, and the case would run
+        into its budget (CI: "wait too long for taosd start").
+        """
+        proc = getattr(self, "_direct_taosd", None)
+        self._direct_taosd = None
+        odbc_dir = getattr(self, "_isolated_odbc_dir", None)
+        self._isolated_odbc_dir = None
+        if odbc_dir:
+            shutil.rmtree(odbc_dir, ignore_errors=True)
+        if proc is None or proc.poll() is not None:
+            return
+        proc.terminate()
+        try:
+            proc.wait(timeout=20)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                pass
+
     def _restart_taosd(self):
+        self._stop_direct_taosd()
         tdDnodes.stop(1)
         for attempt in range(2):
             try:
@@ -925,6 +1142,93 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                     "taosd restart timed out after runtime-lib swap; retrying once"
                 )
                 tdDnodes.stop(1)
+
+    def _restart_taosd_with_isolated_copy(self, isolate_odbc=False):
+        """Start the copied taosd directly so it really runs from the copy.
+
+        For a remote dnode (the CI sim) the framework's restart re-enters the
+        start command in a fresh process whose binary and library directories
+        are the ORIGINAL build tree; the engine would then load the driver from
+        the original directory no matter what the isolated copy hides.  POSIX
+        starts the copy's own binary here, with the isolated LD_LIBRARY_PATH
+        already installed in the environment, so the hidden state is the state
+        the engine sees.  Windows keeps the framework restart, which already
+        launches the copied taosd.
+        """
+        if sys.platform == "win32":
+            self._restart_taosd()
+            return
+        tdDnodes.stop(1)
+        dnode = tdDnodes.dnodes[0]
+        stderr = subprocess.DEVNULL
+        if getattr(dnode, "asan", False):
+            asan_dir = os.path.join(dnode.path, "asan")
+            os.makedirs(asan_dir, exist_ok=True)
+            stderr = open(os.path.join(asan_dir, "dnode%d.asan" % dnode.index), "ab")
+        # unixODBC falls back to the host's driver registrations when the
+        # path-based lookup fails.  Point the isolated engine at an empty
+        # configuration so the missing-driver case is deterministic instead
+        # of being skipped on hosts whose odbcinst.ini registers Oracle.
+        engine_env = os.environ.copy()
+        if isolate_odbc:
+            odbc_dir = tempfile.mkdtemp(prefix="fq-odbc-isolated.")
+            self._isolated_odbc_dir = odbc_dir
+            open(os.path.join(odbc_dir, "odbcinst.ini"), "w").close()
+            open(os.path.join(odbc_dir, "odbc.ini"), "w").close()
+            engine_env["ODBCSYSINI"] = odbc_dir
+            engine_env["ODBCINI"] = os.path.join(odbc_dir, "odbc.ini")
+        try:
+            self._direct_taosd = subprocess.Popen(
+                [dnode.binPath, "-c", dnode.cfgDir],
+                stdout=subprocess.DEVNULL, stderr=stderr,
+                env=engine_env, start_new_session=True,
+            )
+        finally:
+            if stderr is not subprocess.DEVNULL:
+                stderr.close()
+        port = 6030
+        cfg_path = os.path.join(dnode.cfgDir, "taos.cfg")
+        try:
+            with open(cfg_path, encoding="utf-8", errors="ignore") as fh:
+                for line in fh:
+                    fields = line.split()
+                    if len(fields) >= 2 and fields[0] == "serverPort":
+                        port = int(fields[1])
+                        break
+        except (OSError, ValueError):
+            pass
+        deadline = time.time() + 120
+        while time.time() < deadline:
+            if self._direct_taosd.poll() is not None:
+                raise AssertionError(
+                    "isolated taosd exited before it accepted connections")
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=1):
+                    return
+            except OSError:
+                time.sleep(0.5)
+        raise AssertionError(
+            "isolated taosd did not listen on port %d in time" % port)
+
+    def _isolated_taosd_driver_log(self):
+        """Driver-resolution lines from the isolated taosd, for diagnostics.
+
+        The restart in the caller's finally block truncates the dnode log, so
+        the only chance to see where the isolated engine resolved its driver
+        (or why it still reached the Instant Client) is at the assertion.
+        """
+        try:
+            dnode = tdDnodes.dnodes[0]
+            path = os.path.join(dnode.path, "log", "taosdlog.0")
+            with open(path, encoding="utf-8", errors="ignore") as fh:
+                lines = fh.readlines()[-4000:]
+        except (OSError, IndexError, AttributeError) as err:
+            return f"[fq19-diag] taosd log unavailable: {err}"
+        needles = ("Oracle", "sqora", "clntsh", "odbc", "driver")
+        tail = [ln.rstrip() for ln in lines if any(n in ln for n in needles)]
+        if not tail:
+            return "[fq19-diag] no driver lines in the isolated taosd log"
+        return "[fq19-diag] isolated taosd driver log:\n" + "\n".join(tail[-25:])
 
     def _missing_create_sql_for_src(self, src):
         missing_src = f"{src}_missing_create"
@@ -948,6 +1252,16 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 missing_src,
                 f"create external source {missing_src} type='sqlserver' "
                 "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='dbo'",
+            )
+        if src.endswith("_o"):
+            # Oracle's DATABASE is the Easy Connect service name and its SCHEMA
+            # is the login schema (DS 5.3.3).
+            return (
+                "oracle",
+                missing_src,
+                f"create external source {missing_src} type='oracle' "
+                "host='127.0.0.1' port=9 user='u' password='p' database='FREEPDB1' "
+                "schema='TAOSDATA'",
             )
         return (
             "influxdb",
@@ -1058,6 +1372,13 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             "create external source fq19_runtime_sqlserver type='sqlserver' "
             "host='127.0.0.1' port=9 user='u' password='p' database='db' schema='dbo'",
         )
+        self._check_create_missing_with_runtime_hidden(
+            "oracle",
+            "fq19_runtime_oracle",
+            "create external source fq19_runtime_oracle type='oracle' "
+            "host='127.0.0.1' port=9 user='u' password='p' database='FREEPDB1' "
+            "schema='TAOSDATA'",
+        )
         for protocol in ("http", "flight_sql"):
             self._check_create_missing_with_runtime_hidden(
                 "influxdb",
@@ -1127,6 +1448,405 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             self._with_influx_http_source(self._check_influx_http_missing_runtime)
         self._check_create_all_missing()
 
+    def test_oracle_missing_driver_uses_provider_error(self):
+        """Check Oracle reports the missing-driver gate without losing unixODBC
+
+        1. Build an Oracle external source with all dependencies staged
+        2. Hide only the Oracle driver and its Instant Client libraries, keep libodbc
+        3. Expect the driver-not-found error, not a crash or silent fallback
+
+        The provider resolves ``libsqora.so.<ver>`` by path and only then falls
+        back to the odbcinst driver name.  The isolated engine runs with an
+        empty ODBC configuration, so a host that registers the Oracle driver
+        cannot satisfy the fallback and the check stays deterministic
+        (FQOR-LIB-004, Oracle DS 3.3).
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-21 wpan Add FQOR-LIB-004 driver-missing coverage
+
+        """
+        if sys.platform == "win32":
+            pytest.skip("Windows hides the driver through its ODBC registration; "
+                        "test_fq_23_runtime_missing_windows.py covers that path")
+        _prepare_runtime_libs()
+        ExtSrcEnv.ensure_env()
+        self._with_std_sources(
+            "fq19_runtime_oradrv", self._check_oracle_driver_missing,
+            skip_mysql=True, skip_pg=True, skip_influx=True, skip_sqlserver=True)
+
+    def _check_oracle_driver_missing(self, src):
+        """Hide the Oracle driver and its Instant Client libraries, keep libodbc.
+
+        The driver manager survives but the provider's path resolution finds no
+        driver, so the query must fail with TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT
+        instead of crashing or falling back to a local scan (FQOR-LIB-004)."""
+        self._check_remote_count(src)
+        with self._isolated_runtime_copy():
+            try:
+                with self._without_provider_runtime_libs(
+                        {"oracle"}, require_present=False,
+                        patterns=["libsqora*"]):
+                    self._restart_taosd_with_isolated_copy(isolate_odbc=True)
+                    tdSql.error(
+                        f"select count(*) from {src}.src_t",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                    )
+            finally:
+                self._restart_taosd()
+
+    # ------------------------------------------------------------------
+    # Oracle runtime dependency chain (FQOR-LIB-001/002/003) and pooling
+    # (FQOR-LIB-005).  LIB-004 is the driver-missing case above.
+    # ------------------------------------------------------------------
+
+    def test_oracle_runtime_libs_available(self):
+        """Check Oracle works when unixODBC, the driver and Instant Client are present
+
+        1. Stage the provider runtime libraries before taosd starts
+        2. Query an Oracle external table through the full dependency chain
+        3. Assert every row exactly, not just the row count
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 dapan1121 Add FQOR-LIB-001 dependency-chain coverage
+            - 2026-10-28 Wei Pan Check the Windows Instant Client and its registration
+
+        """
+        _prepare_runtime_libs()
+        ExtSrcEnv.ensure_env()
+        self._with_std_sources(
+            "fq19_runtime_oraok", self._check_oracle_runtime_available,
+            skip_mysql=True, skip_pg=True, skip_influx=True, skip_sqlserver=True)
+
+    def _check_oracle_windows_runtime_layout(self):
+        """Assert the staged Instant Client and its ODBC registration.
+
+        Windows resolves the driver only through HKLM\\SOFTWARE\\ODBC\\
+        ODBCINST.INI and the Driver keyword cannot carry a DLL path, so the
+        provider needs both halves: the Instant Client DLLs next to taosd (or
+        in the package's driver\\oracle) and a registration whose Driver value
+        points at an existing sqora DLL in a directory that also carries the
+        base libraries.
+        """
+        bin_dir = os.path.abspath(os.environ.get(
+            "TAOS_BIN_PATH", os.path.join(tdCom.getBuildPath(), "build", "bin")))
+        for pattern in ("sqora32.dll", "oraociei*.dll", "oci.dll", "odbc_install.exe"):
+            matches = glob.glob(os.path.join(bin_dir, pattern))
+            assert matches, (
+                f"the Windows build did not stage {pattern} in {bin_dir}; "
+                "FQ_ORACLE_DRIVER_DIR or INSTALL_FQ_RUNTIME_LIBS=ON is required")
+        registrations = _windows_oracle_driver_registrations()
+        assert registrations, (
+            "no Oracle Instant Client driver is registered under "
+            "HKLM\\SOFTWARE\\ODBC\\ODBCINST.INI; run odbc_install.exe from the "
+            "Instant Client directory or the FQ setup script")
+        loadable = []
+        for name, driver in registrations:
+            directory = os.path.dirname(driver)
+            if not os.path.isfile(driver):
+                continue
+            if not glob.glob(os.path.join(directory, "oraociei*.dll")):
+                continue
+            loadable.append((name, driver))
+        assert loadable, (
+            "the registered Oracle drivers do not point at a loadable Instant "
+            "Client: " + ", ".join(f"{name} -> {driver}"
+                                   for name, driver in registrations))
+        tdLog.info("Oracle ODBC registrations: "
+                   + ", ".join(f"{name} -> {driver}" for name, driver in loadable))
+
+    def _check_oracle_runtime_available(self, src):
+        """FQOR-LIB-001: the staged chain (libodbc -> libsqora -> libclntsh)
+        resolves, and the query returns the remote rows unchanged."""
+        if sys.platform == "win32":
+            self._check_oracle_windows_runtime_layout()
+        self._check_remote_count(src)
+        tdSql.query(f"select val, score, name from {src}.src_t order by val")
+        tdSql.checkRows(5)
+        expected = [
+            (1, 1.5, "alpha"),
+            (2, 2.5, "beta"),
+            (3, 3.5, "gamma"),
+            (4, 4.5, "delta"),
+            (5, 5.5, "epsilon"),
+        ]
+        for idx, (val, score, name) in enumerate(expected):
+            tdSql.checkData(idx, 0, val)
+            tdSql.checkData(idx, 1, score)
+            tdSql.checkData(idx, 2, name)
+
+    def test_oracle_missing_unixodbc_uses_provider_error(self):
+        """Check Oracle reports the missing driver-manager gate
+
+        1. Build an Oracle external source with the full chain staged
+        2. Hide only libodbc (keep the Oracle driver and Instant Client)
+        3. Expect the provider gate on both CREATE and SELECT, never a crash
+
+        Hiding the driver manager is what separates the "no unixODBC" state
+        (FQOR-LIB-002) from the "no driver" state: with the driver and the
+        Instant Client still present, the only component missing is the
+        manager the provider links against.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 dapan1121 Add FQOR-LIB-002 unixODBC-missing coverage
+
+        """
+        if sys.platform == "win32":
+            pytest.skip("odbc32.dll ships with Windows and cannot be hidden; "
+                        "test_fq_23_runtime_missing_windows.py covers the "
+                        "driver-registration path")
+        _prepare_runtime_libs()
+        ExtSrcEnv.ensure_env()
+        self._with_std_sources(
+            "fq19_runtime_oraodbc", self._check_oracle_unixodbc_missing,
+            skip_mysql=True, skip_pg=True, skip_influx=True, skip_sqlserver=True)
+
+    def _check_oracle_unixodbc_missing(self, src):
+        self._check_oracle_dependency_missing(src, ["libodbc*"])
+
+    def test_oracle_missing_instant_client_uses_provider_error(self):
+        """Check Oracle reports the missing Instant Client gate
+
+        1. Build an Oracle external source with the full chain staged
+        2. Hide only libclntsh* (keep unixODBC and the Oracle driver)
+        3. Expect the provider gate on the first data read, never a crash
+
+        The driver library itself stays in place, so this is the "driver
+        loads but its Instant Client dependency does not" state
+        (FQOR-LIB-003).  The odbcinst fallback cannot mask it: the fallback
+        driver needs the same Instant Client sonames.
+
+        Only the qnode side sees the hidden bundle here: the client library
+        that runs inside the test process keeps its own already-loaded copy.
+        A missing Instant Client therefore surfaces on SELECT, while CREATE
+        EXTERNAL SOURCE (metadata only, no connection) still succeeds.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 dapan1121 Add FQOR-LIB-003 Instant-Client-missing coverage
+
+        """
+        if sys.platform == "win32":
+            pytest.skip("Windows resolves the Instant Client from the driver's "
+                        "own directory while other copies stay on PATH, so the "
+                        "hide is not deterministic")
+        _prepare_runtime_libs()
+        ExtSrcEnv.ensure_env()
+        self._with_std_sources(
+            "fq19_runtime_oraic", self._check_oracle_instant_client_missing,
+            skip_mysql=True, skip_pg=True, skip_influx=True, skip_sqlserver=True)
+
+    def _check_oracle_instant_client_missing(self, src):
+        # The Instant Client is not needed to register a source, and the
+        # client half of the engine already holds its copy, so only the data
+        # path can report the gate.
+        self._check_oracle_dependency_missing(src, ["libclntsh*"], create_gate=False)
+
+    def _check_oracle_dependency_missing(self, src, patterns, create_gate=True):
+        """Hide one layer of the Oracle runtime chain and assert the gate.
+
+        ``require_present`` stays on: a host that does not actually stage the
+        hidden library must fail the test instead of silently checking
+        nothing.  ``create_gate`` is False for libraries that a qnode needs
+        only when it connects (the Instant Client): CREATE is metadata-only
+        there, so the gate must appear on SELECT instead.
+        """
+        self._check_remote_count(src)
+        provider, missing_src, missing_sql = self._missing_create_sql_for_src(src)
+        assert provider == "oracle"
+        with self._isolated_runtime_copy():
+            try:
+                with self._without_provider_runtime_libs(
+                        {provider}, patterns=patterns):
+                    self._restart_taosd_with_isolated_copy(
+                        isolate_odbc=provider in ("oracle", "sqlserver"))
+                    if create_gate:
+                        _check_provider_missing(missing_src, missing_sql)
+                    else:
+                        # CREATE must stay usable; it must also not steal the
+                        # assertion from SELECT by failing first.
+                        tdSql.execute(f"drop external source if exists {missing_src}")
+                        tdSql.execute(missing_sql)
+                    try:
+                        tdSql.error(
+                            f"select count(*) from {src}.src_t",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                        )
+                    except AssertionError as err:
+                        # The isolated taosd still reached the provider: record
+                        # which driver it resolved, before the restart below
+                        # truncates this process's log.
+                        raise AssertionError(
+                            f"{err}\n{self._isolated_taosd_driver_log()}"
+                        ) from err
+                    # The rest of the engine is unaffected by the broken chain.
+                    tdSql.query("select server_version()")
+                    tdSql.checkRows(1)
+                    tdSql.execute(f"drop external source if exists {missing_src}")
+            finally:
+                self._restart_taosd()
+
+    def test_oracle_pool_disconnect_reconnects(self):
+        """FQOR-LIB-005: Oracle pooling is SQL_CP_OFF, so a drop really disconnects
+
+        1. Query an Oracle source that logs in as the pool-exhaustion account
+        2. Confirm the physical Oracle session appears in V$SESSION
+        3. DROP the source and confirm the session goes away
+        4. Recreate the source and get the same rows back
+
+        The Oracle provider sets ``SQL_ATTR_CONNECTION_POOLING = SQL_CP_OFF``
+        (extConnectorOracle.c) precisely so its own pool owns the physical
+        connections: if the driver manager pooled them, SQLDisconnect would
+        only return the connection to that pool and the Oracle session would
+        survive the DROP.  V$SESSION is the observable difference, and the
+        recreated source proves the state is recoverable.
+
+        The rows are read through a one-shot CLI process on purpose: the
+        Python test process runs the same client library, which pools its own
+        metadata connection for 600 idle seconds, and that session would
+        outlive the DROP no matter what the engine did.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 dapan1121 Add FQOR-LIB-005 pooling-disconnect coverage
+
+        """
+        _prepare_runtime_libs()
+        ExtSrcEnv.ensure_env()
+        cfg = self._oracle_cfg()
+        src = "fq19_pool_o"
+        table = "FQ19_POOL_T"
+        schema = ExtSrcEnv.ORACLE_POOL_TEST_USER.upper()
+
+        self._cleanup_src(src)
+        ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
+            f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE {table}'; "
+            "EXCEPTION WHEN OTHERS THEN NULL; END;",
+            f"CREATE TABLE {table} (TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
+            f"INSERT INTO {table} VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
+            f"INSERT INTO {table} VALUES (TIMESTAMP '2024-01-01 00:01:00.000', 2)",
+            f"INSERT INTO {table} VALUES (TIMESTAMP '2024-01-01 00:02:00.000', 3)",
+            f"INSERT INTO {table} VALUES (TIMESTAMP '2024-01-01 00:03:00.000', 4)",
+            f"INSERT INTO {table} VALUES (TIMESTAMP '2024-01-01 00:04:00.000', 5)",
+            "COMMIT",
+        ])
+
+        def open_source():
+            self._mk_oracle_real(
+                src, database=cfg.service, schema=schema,
+                user=ExtSrcEnv.ORACLE_POOL_TEST_USER,
+                password=ExtSrcEnv.ORACLE_POOL_TEST_PASS)
+
+        def check_rows():
+            # Read through a one-shot CLI: the test process itself keeps a
+            # client-side pool (idle TTL 600 s) that would hold an Oracle
+            # session of its own and make V$SESSION say the engine leaked one.
+            values = self._query_ints_with_taos(
+                f"select val from {src}.{table.lower()} order by val")
+            assert values == [1, 2, 3, 4, 5], values
+
+        try:
+            # Another FQ case in a parallel shard may use this same Oracle
+            # account, so the assertions are relative to the count seen before
+            # this source was created.  An isolated run starts at 0, which
+            # makes "back to baseline" mean "our session really went away".
+            baseline = self._oracle_pool_session_count()
+            open_source()
+            check_rows()
+
+            sessions = self._oracle_pool_session_count()
+            assert sessions > baseline, (
+                "the pooled Oracle connection is not visible in V$SESSION")
+            tdSql.execute(f"drop external source {src}")
+
+            # The disconnect is asynchronous on the Oracle side, so poll.
+            deadline = time.monotonic() + 60
+            while sessions > baseline and time.monotonic() < deadline:
+                time.sleep(1)
+                sessions = self._oracle_pool_session_count()
+            assert sessions <= baseline, (
+                f"DROP EXTERNAL SOURCE left {sessions - baseline} Oracle "
+                "session(s) open; driver-manager connection pooling must "
+                "stay off")
+
+            # A recreated source connects afresh and answers with the same rows.
+            open_source()
+            check_rows()
+        finally:
+            self._cleanup_src(src)
+            try:
+                ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
+                    f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE {table}'; "
+                    "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                ])
+            except Exception:
+                pass
+
+    def _oracle_pool_session_count(self):
+        """Number of live Oracle sessions for the pool-exhaustion account."""
+        return self._oracle_admin_scalar(
+            "SELECT COUNT(*) FROM V$SESSION WHERE USERNAME = "
+            f"'{ExtSrcEnv.ORACLE_POOL_TEST_USER.upper()}'")
+
+    def _oracle_admin_scalar(self, sql):
+        """Return the first numeric cell of an admin query's output.
+
+        ``oracle_admin_exec_cfg`` discards output, so a read-only query goes
+        through the same statement channel with the admin credentials the
+        provisioning path uses.
+        """
+        output = ExtSrcEnv._oracle_sql(
+            self._oracle_cfg(), sql,
+            user=ExtSrcEnv.ORACLE_ADMIN_USER,
+            password=ExtSrcEnv.ORACLE_ADMIN_PASS)
+        for line in output.splitlines():
+            value = line.strip()
+            if value.isdigit():
+                return int(value)
+        raise AssertionError(f"no numeric value in Oracle admin output: {output!r}")
+
     def test_sqlserver_missing_driver_uses_provider_error(self):
         """Check SQL Server reports the missing-driver gate without unixODBC loss
 
@@ -1135,8 +1855,9 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         3. Expect the IM002-mapped error, not a crash or silent fallback
 
         The provider resolves the driver by path and only then falls back to
-        the odbcinst driver name; hosts that register 'ODBC Driver 18 for SQL
-        Server' make the fallback reachable, so those hosts skip this check.
+        the odbcinst driver name.  The isolated engine runs with an empty ODBC
+        configuration, so a host that registers 'ODBC Driver 18 for SQL
+        Server' cannot satisfy the fallback and the check stays deterministic.
 
         Catalog:
             - FederatedQuery
@@ -1151,8 +1872,6 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             - 2026-10-10 Claude Add FQSS-LIB-003 driver-missing coverage
 
         """
-        if _odbcinst_registers_driver18():
-            pytest.skip("host odbcinst registers 'ODBC Driver 18 for SQL Server'")
         ExtSrcEnv.ensure_env()
         self._with_std_sources(
             "fq19_runtime_ssdrv", self._check_sqlserver_driver_missing,

@@ -1102,6 +1102,212 @@ static int32_t influxTypeMap(const char *typeName, SDataType *pTd) {
 }
 
 // ---------------------------------------------------------------------------
+// Oracle type map  (DS section 5.3.2.1  -  Oracle  ->  TDengine)
+// ---------------------------------------------------------------------------
+/* Copy the base type name of an Oracle type, lowercased, stopping at '(' or at
+ * a space: the temporal types append a qualifier after the modifier
+ * ("TIMESTAMP(6) WITH TIME ZONE"), and INTERVAL types carry two words before
+ * their modifier. */
+static void oracleBaseTypeName(const char *typeName, char *buf, int32_t bufLen) {
+  int32_t n = 0;
+  for (const char *p = typeName; *p != '\0' && *p != '(' && n < bufLen - 1; ++p) {
+    buf[n++] = (char)tolower((unsigned char)*p);
+  }
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) {
+    --n;
+  }
+  buf[n] = '\0';
+}
+
+/* Parse the precision and scale of NUMBER(p) / NUMBER(p,s).
+ * *pHasScale distinguishes "NUMBER(p)" from "NUMBER(p,0)"; both are integer
+ * forms but only the explicit form states a scale. */
+static bool oracleParseNumberModifier(const char *typeName, int32_t *pPrec, int32_t *pScale,
+                                      bool *pHasScale) {
+  const char *p = strchr(typeName, '(');
+  if (NULL == p) {
+    return false;
+  }
+  const char *endp = NULL;
+  int32_t     prec = parseBoundedTypeModifier(p + 1, &endp);
+  if (endp == p + 1) {
+    return false;
+  }
+  int32_t scale = 0;
+  bool    hasScale = false;
+  if (*endp == ',') {
+    scale = parseBoundedTypeModifier(endp + 1, NULL);
+    hasScale = true;
+  }
+  *pPrec = prec;
+  *pScale = scale;
+  *pHasScale = hasScale;
+  return true;
+}
+
+// Oracle type map (DS 5.3.2.1).  Type names come from ALL_TAB_COLUMNS.DATA_TYPE,
+// re-composed by the provider so the numeric modifier is part of the text
+// ("NUMBER(10,2)", "FLOAT(126)", "VARCHAR2(50)", "TIMESTAMP(6) WITH TIME ZONE").
+// Only lossless mappings are produced: an unrepresentable declaration returns
+// TSDB_CODE_EXT_TYPE_NOT_MAPPABLE and is never silently widened or truncated.
+static int32_t oracleTypeMap(const char *typeName, const char *charset, SDataType *pTd) {
+  (void)charset;  // text always arrives as UTF-8 and is converted by the connector
+
+  char base[64] = {0};
+  oracleBaseTypeName(typeName, base, sizeof(base));
+  if ('\0' == base[0]) {
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+
+  /* NUMBER family.  Oracle has no machine integer in DDL: every numeric column
+   * is a NUMBER with a declared precision, so the mapping is driven entirely by
+   * that declaration. */
+  if (strcmp(base, "number") == 0 || strcmp(base, "numeric") == 0 ||
+      strcmp(base, "decimal") == 0) {
+    int32_t prec = 0, scale = 0;
+    bool    hasScale = false;
+    if (!oracleParseNumberModifier(typeName, &prec, &scale, &hasScale)) {
+      /* An unqualified NUMBER holds 38 digits with an arbitrary exponent; there
+       * is no lossless TDengine representation (DS 5.3.2.1). */
+      qError("oracleTypeMap: unqualified NUMBER has no lossless mapping: '%s'", typeName);
+      return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+    }
+    if (scale != 0) {
+      if (prec > TSDB_DECIMAL_MAX_PRECISION) {
+        return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+      }
+      setDecimalMapping(typeName, pTd);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (prec == 1) {
+      /* NUMBER(1,0) is a numeric column, never a boolean: mapping it to BOOL
+       * would reject values 2..9 that the column can legitimately hold. */
+      SET_TD(pTd, TSDB_DATA_TYPE_TINYINT, 1);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (prec <= 18) {
+      SET_TD(pTd, TSDB_DATA_TYPE_BIGINT, 8);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (prec <= TSDB_DECIMAL_MAX_PRECISION) {
+      setDecimalMapping(typeName, pTd);
+      return TSDB_CODE_SUCCESS;
+    }
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+
+  /* INTEGER / INT are aliases of NUMBER(38,0), not machine integers: mapping
+   * them to INT would silently overflow. */
+  if (strcmp(base, "integer") == 0 || strcmp(base, "int") == 0 ||
+      strcmp(base, "smallint") == 0) {
+    setDecimalMapping("NUMBER(38,0)", pTd);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* FLOAT(b) carries a BINARY precision in DATA_PRECISION. */
+  if (strcmp(base, "float") == 0) {
+    int32_t binaryPrec = 0;
+    int32_t dummy = 0;
+    bool    hasScale = false;
+    if (oracleParseNumberModifier(typeName, &binaryPrec, &dummy, &hasScale)) {
+      if (binaryPrec <= 24) {
+        SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
+        return TSDB_CODE_SUCCESS;
+      }
+      if (binaryPrec <= 53) {
+        SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+        return TSDB_CODE_SUCCESS;
+      }
+      /* 54..126 exceeds IEEE double precision: no lossless mapping. */
+      qError("oracleTypeMap: FLOAT(%d) exceeds IEEE double precision: '%s'", binaryPrec, typeName);
+      return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+    }
+    /* Unqualified FLOAT is FLOAT(126). */
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+  if (strcmp(base, "real") == 0 || strncmp(base, "double", 6) == 0) {
+    /* REAL is FLOAT(63) and DOUBLE PRECISION is FLOAT(126); both exceed IEEE
+     * double precision. */
+    return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+  }
+  if (strcmp(base, "binary_float") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_FLOAT, 4);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "binary_double") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_DOUBLE, 8);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Character family */
+  if (strcmp(base, "char") == 0 || strcmp(base, "varchar2") == 0 ||
+      strcmp(base, "varchar") == 0) {
+    int32_t len = parseTypeLength(typeName);
+    if (len <= 0) {
+      len = EXT_DEFAULT_VARCHAR_LEN;
+    }
+    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, len + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  /* LONG RAW is binary; test it before the character family, whose base name for
+   * it would be the bare word "long". */
+  if (strncasecmp(typeName, "long raw", 8) == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, EXT_DEFAULT_VARCHAR_LEN + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "nchar") == 0 || strcmp(base, "nvarchar2") == 0 ||
+      strcmp(base, "clob") == 0 || strcmp(base, "nclob") == 0 || strcmp(base, "long") == 0 ||
+      strcmp(base, "xmltype") == 0) {
+    int32_t len = parseTypeLength(typeName);
+    if (len <= 0) {
+      len = EXT_DEFAULT_VARCHAR_LEN / TSDB_NCHAR_SIZE;
+    }
+    SET_TD(pTd, TSDB_DATA_TYPE_NCHAR, len * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "rowid") == 0 || strcmp(base, "urowid") == 0) {
+    /* ROWID is an 18-character base-64 identifier; read as text. */
+    SET_TD(pTd, TSDB_DATA_TYPE_VARCHAR, 40 + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Binary family.  RAW is limited to 2000 bytes in Oracle itself. */
+  if (strcmp(base, "raw") == 0) {
+    int32_t len = parseTypeLength(typeName);
+    if (len <= 0) {
+      len = 2000;
+    }
+    SET_TD(pTd, TSDB_DATA_TYPE_VARBINARY, len + VARSTR_HEADER_SIZE);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (strcmp(base, "blob") == 0 || strcmp(base, "bfile") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_BLOB, TSDB_MAX_BLOB_LEN);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Temporal family.  DATE carries a time of day at second precision, and both
+   * the WITH TIME ZONE and the WITH LOCAL TIME ZONE forms are aware types; the
+   * connector distinguishes them by the full type name (DS 5.3.7). */
+  if (strcmp(base, "date") == 0 || strcmp(base, "timestamp") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_TIMESTAMP, 8);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* 26ai native boolean.  19c has no SQL-level boolean, so no existing column
+   * can be affected by this mapping. */
+  if (strcmp(base, "boolean") == 0) {
+    SET_TD(pTd, TSDB_DATA_TYPE_BOOL, 1);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  /* Deliberately unsupported: intervals, object types, collections, REFs,
+   * ANYDATA and spatial types.  ODBC cannot return them as column values, so
+   * they are not mappable rather than serialised (DS 5.3.2.1). */
+  qError("oracleTypeMap: type not mappable to TDengine: '%s'", typeName);
+  return TSDB_CODE_EXT_TYPE_NOT_MAPPABLE;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeName,
@@ -1123,6 +1329,9 @@ int32_t extTypeNameToTDengineType(EExtSourceType srcType, const char *extTypeNam
       break;
     case EXT_SOURCE_SQLSERVER:
       code = sqlserverTypeMap(extTypeName, extCharsetName, pTdType);
+      break;
+    case EXT_SOURCE_ORACLE:
+      code = oracleTypeMap(extTypeName, extCharsetName, pTdType);
       break;
     default:
       qError("extTypeNameToTDengineType: unknown source type %d for type '%s'", srcType, extTypeName);
@@ -1173,6 +1382,29 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
         }
       }
       return TSDB_TIME_PRECISION_MICRO;
+    case EXT_SOURCE_ORACLE:
+      // TIMESTAMP(p) declares its own fractional-second precision (0..9, 6
+      // when the modifier is omitted), so the column - not the table's
+      // transport precision - decides what a virtual table may declare.  A
+      // declaration with at most 3 fractional digits is millisecond aligned
+      // and can back a millisecond virtual table; 4..6 stays microsecond and
+      // 7..9 nanosecond.  DATE holds whole seconds and is therefore
+      // millisecond safe as well.  Returning microsecond for everything made
+      // a millisecond virtual table over DATE / TIMESTAMP(p <= 3) fail the
+      // precision check with 0x268f, the same defect the SQL Server branch
+      // had and fixed in the same way.
+      if (extTypeName != NULL && typeHasTokenPrefix(extTypeName, "timestamp")) {
+        const char* pParen = strchr(extTypeName, '(');
+        int32_t     fracDigits = (pParen != NULL) ? parseTypeLength(extTypeName) : 6;
+        if (fracDigits >= 7) {
+          return TSDB_TIME_PRECISION_NANO;
+        }
+        return fracDigits <= 3 ? TSDB_TIME_PRECISION_MILLI : TSDB_TIME_PRECISION_MICRO;
+      }
+      if (extTypeName != NULL && typeHasTokenPrefix(extTypeName, "date")) {
+        return TSDB_TIME_PRECISION_MILLI;
+      }
+      break;
     default:
       break;
   }
@@ -1182,12 +1414,51 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
              : TSDB_TIME_PRECISION_MILLI;
 }
 
+/* Oracle's SQL parser folds an unquoted identifier to upper case before it
+ * looks the name up, while a name written in double quotes is looked up
+ * exactly and can therefore be a different object (DS 5.3.6 R1).
+ *
+ * TDengine has already applied its own rule by the time a reference gets here:
+ * an unquoted identifier was lower-cased, a quoted one keeps the spelling the
+ * user wrote.  An upper-case letter in refName therefore proves the reference
+ * was quoted, and only the all-lower-case form can be an unquoted reference -
+ * the one form Oracle folds to upper case.  Folding every reference would make
+ * the quoted "Val" resolve onto the column VAL, so a filter that names both
+ * VAL and "Val" would look like one column named twice, and a stored filter
+ * over "Val" would silently follow a rename of VAL.  Callers that can see both
+ * a folded and an exact candidate still try the exact spelling first -
+ * findExternalFilterColumn() does. */
+static bool oracleIdentMatches(const char *storedName, const char *refName) {
+  if (NULL == storedName || NULL == refName) {
+    return false;
+  }
+  if (0 == strcmp(storedName, refName)) {
+    return true;
+  }
+  char    folded[TSDB_COL_NAME_LEN];
+  int32_t i = 0;
+  for (; refName[i] != '\0' && i < (int32_t)sizeof(folded) - 1; ++i) {
+    char c = refName[i];
+    if (c >= 'A' && c <= 'Z') {
+      return false;
+    }
+    folded[i] = (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
+  }
+  folded[i] = '\0';
+  return 0 == strcmp(storedName, folded);
+}
+
 bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs) {
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
   // stored case; PostgreSQL and InfluxDB compare identifiers literally.
+  // Oracle folds an unquoted reference to upper case and then compares exactly,
+  // so a stored "VAL" matches "val" and "VAL" but not "Val".
   if (lhs == NULL || rhs == NULL) {
     return lhs == rhs;
+  }
+  if (srcType == EXT_SOURCE_ORACLE) {
+    return oracleIdentMatches(lhs, rhs);
   }
   bool caseInsensitive = (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_SQLSERVER);
   return caseInsensitive ? strcasecmp(lhs, rhs) == 0 : strcmp(lhs, rhs) == 0;
@@ -1196,8 +1467,9 @@ bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs
 bool extTimestampTypeHasSubMicroFraction(EExtSourceType srcType, const char *extTypeName) {
   // Only SQL Server can declare a timestamp finer than the microsecond the
   // connectors transport (DS 5.3.7): MySQL/PostgreSQL stop at 6 fractional
-  // digits and InfluxDB is read at its native nanosecond resolution, which the
-  // InfluxDB reader keeps.
+  // digits, Oracle reads TIMESTAMP(7..9) at its native nanosecond resolution
+  // and InfluxDB is read at its native nanosecond resolution too, so none of
+  // them loses the sub-microsecond digits.
   if (srcType != EXT_SOURCE_SQLSERVER || extTypeName == NULL) {
     return false;
   }
@@ -1245,6 +1517,19 @@ int8_t extTimestampTypeTzClass(EExtSourceType srcType, const char *extTypeName) 
       }
       if (typeFamilyStartsWith(extTypeName, "datetime") || typeFamilyStartsWith(extTypeName, "smalldatetime") ||
           typeFamilyStartsWith(extTypeName, "date")) {
+        return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+      }
+      break;
+    case EXT_SOURCE_ORACLE:
+      // DS 5.3.7: the WITH [LOCAL] TIME ZONE forms carry an absolute instant;
+      // DATE and the bare TIMESTAMP(n) hold the client wall clock.  The aware
+      // forms must be tested first - "timestamp(6) with time zone" also starts
+      // with "timestamp".
+      if (taosStrCaseStr(extTypeName, "with local time zone") != NULL ||
+          taosStrCaseStr(extTypeName, "with time zone") != NULL) {
+        return EXT_TIMESTAMP_TZ_CLASS_AWARE;
+      }
+      if (typeFamilyStartsWith(extTypeName, "timestamp") || typeFamilyStartsWith(extTypeName, "date")) {
         return EXT_TIMESTAMP_TZ_CLASS_NAIVE;
       }
       break;

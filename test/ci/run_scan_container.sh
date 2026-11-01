@@ -99,7 +99,7 @@ docker run \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
     -v $scan_log_temp_path:$docker_scan_log_temp_path \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 EOF
 docker run \
     -v /root/.cos-local.1:/root/.cos-local.2 \
@@ -107,7 +107,7 @@ docker run \
     -v $REP_MOUNT_DEBUG \
     -v $scan_changefile_temp_path:$docker_can_changefile_temp_path \
     -v $scan_log_temp_path:$docker_scan_log_temp_path \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} python3  $scan_scripts -b "${branch_name_id}"  -f "${scan_file_name}" -w ${web_server}
 
 
 ret=$?

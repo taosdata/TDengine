@@ -333,7 +333,7 @@ docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} bash -c "$composite_cmd"
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} bash -c "$composite_cmd"
 
 ret=$?
 

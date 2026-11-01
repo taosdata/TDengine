@@ -19,7 +19,7 @@ TDengine 通过 **Flink 连接器** 与 Flink 集成：连接器既可将 Flink 
 准备以下环境：
 
 - TDengine 服务已部署并正常运行（企业及社区版均可）
-- taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter 能够正常运行。详细参考 [taosAdapter 使用手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - Apache Flink 1.19.0 或以上版本已安装。安装 Apache Flink 请参考 [官方文档](https://flink.apache.org/)
 
 ## 支持的平台

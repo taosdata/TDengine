@@ -33,3 +33,7 @@ TARGET_LINK_LIBRARIES(
         commandTest
         PUBLIC command os util common nodes parser catalog transport function qcom
 )
+add_test(
+        NAME describeResultSchemaTest
+        COMMAND commandTest --gtest_filter=DescribeResultSchemaTest.*
+)

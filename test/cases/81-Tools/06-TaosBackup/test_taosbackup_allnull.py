@@ -61,6 +61,7 @@ the source DB and the restored DB.  COUNT(*) total is also verified.
 """
 
 import os
+import shutil
 import random
 
 from new_test_framework.utils import tdLog, tdSql, etool
@@ -118,12 +119,12 @@ class TestTaosBackupAllNull:
 
     def mkdir(self, path: str):
         if os.path.exists(path):
-            os.system(f"rm -rf {path}")
+            shutil.rmtree(path)
         os.makedirs(path)
 
     def rmdir(self, path: str):
         if os.path.exists(path):
-            os.system(f"rm -rf {path}")
+            shutil.rmtree(path)
 
     # ──────────────────────────────────────────────────────────────────────────
     # Value generators  (return SQL literal strings, never NULL)

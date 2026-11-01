@@ -33,7 +33,7 @@ toc_max_heading_level: 4
 | UDF | `/var/log/taos` | `taosudfdlog.*`；`taospyudf.log` | `taos.cfg` 中的 `logDir`，见 [UDF 开发](../../10-developer-guide/06-udf.md) |
 | MQTT 订阅 | `/var/log/taos` | `taosmqttdlog.*` | `taos.cfg` 中的 `logDir`，见 [MQTT 数据订阅](../../06-data-subscription/03-mqtt.md) |
 | Xnode 守护进程 | `/var/log/taos` | `taosxnoded_<实例 ID>_<日期>.log` | `taos.cfg` 中的 `logDir`；见 [数据接入（Xnode）](../../05-tdengine-sql/08-cluster-management/02-xnode.md) |
-| taosAdapter | `/var/log/taos` | `taosadapter_<实例 ID>_<日期>.log` | `taosadapter.toml` 中的 `log.path`，见 [taosAdapter 日志配置](../03-components/03-taosadapter.md#日志配置) |
+| taosAdapter | `/var/log/taos` | `taosadapter_<实例 ID>_<日期>.log` | `taosadapter.toml` 中的 `log.path`，见 [taosAdapter 日志配置](../03-components/03-taosadapter/02-configuration.md#日志配置) |
 | taosKeeper | `/var/log/taos` | `taoskeeper_<实例 ID>_<日期>.log` | `taoskeeper.toml` 中的 `log.path`，见 [taosKeeper 参考手册](../03-components/05-taoskeeper.md) |
 | taosExplorer | `/var/log/taos` | `taosexplorer_<实例 ID>_<日期>.log` | `explorer.toml` 中的 `log.path`，见 [taosExplorer 参考手册](../03-components/04-explorer.md) |
 | taosX | `/var/log/taos` | `taosx_<实例 ID>_<日期>.log` | `taosx.toml` 中的 `log.path`，见 [taosX 参考手册](../03-components/06-taosx.md) |

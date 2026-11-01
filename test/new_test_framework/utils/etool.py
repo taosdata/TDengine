@@ -19,10 +19,16 @@
 # about system funciton extension
 #
 
+import atexit
 import sys
 import os
 import time
 import datetime
+import subprocess
+import shutil
+import tempfile
+import threading
+from contextlib import contextmanager, nullcontext
 from .epath import *
 from .eos import *
 from .log import *
@@ -34,6 +40,99 @@ TAOSDUMP = "taosdump"
 TAOSBENCHMARK = "taosBenchmark"
 TAOSADAPTER = "taosadapter"
 TAOSK = "taosk"
+
+_background_binaries = []
+
+
+def stop_background_binaries(fname=None):
+    for name, proc in list(_background_binaries):
+        if fname is not None and name != fname:
+            continue
+        if proc.poll() is None:
+            proc.kill()
+        proc.wait(timeout=10)
+        _background_binaries.remove((name, proc))
+
+
+atexit.register(stop_background_binaries)
+
+
+# This changes cluster-wide logging. Overlapping scopes could restore it too early.
+_benchmark_log_lock = threading.Lock()
+_BENCHMARK_DEBUG_FLAGS = (
+    "debugFlag", "cDebugFlag", "dDebugFlag", "jniDebugFlag", "mDebugFlag",
+    "qDebugFlag", "rpcDebugFlag", "sDebugFlag", "smaDebugFlag", "stDebugFlag",
+    "tmrDebugFlag", "tqDebugFlag", "uDebugFlag", "vDebugFlag", "wDebugFlag",
+)
+
+# Keep unrelated server modules at their existing levels; c/jni are client-only.
+_BENCHMARK_SERVER_DEBUG_FLAGS = tuple(
+    name for name in _BENCHMARK_DEBUG_FLAGS
+    if name not in ("debugFlag", "cDebugFlag", "jniDebugFlag")
+)
+
+
+@contextmanager
+def data_write_log():
+    """Use 131 for server modules during data loading, then restore 135.
+
+    This affects the whole test cluster, so do not overlap logging scopes or
+    include operations whose DEBUG/TRACE output is asserted. The guard detects
+    overlap within this Python process. Python client logging stays unchanged.
+    """
+    if not _benchmark_log_lock.acquire(blocking=False):
+        raise RuntimeError("data write logging scopes must not overlap")
+    try:
+        try:
+            for name in _BENCHMARK_SERVER_DEBUG_FLAGS:
+                tdSql.execute(f"alter all dnodes '{name} 131'")
+            yield
+        finally:
+            failures = []
+            for name in _BENCHMARK_SERVER_DEBUG_FLAGS:
+                try:
+                    tdSql.execute(f"alter all dnodes '{name} 135'")
+                except BaseException as exc:
+                    failures.append(exc)
+            if failures:
+                raise RuntimeError("failed to restore data write logging to 135") from failures[0]
+    finally:
+        _benchmark_log_lock.release()
+
+
+@contextmanager
+def benchmark_write_log():
+    """Load data at 131 using a private benchmark client configuration.
+
+    Yields a directory for taosBenchmark's ``-c``. The test client's logging
+    stays unchanged. Wait for background writers (terminate them on failure)
+    before leaving this scope. Server logging is restored to 135 on exit.
+    """
+    from .srvCtl import sc
+
+    with tempfile.TemporaryDirectory(prefix="benchmark-log131-") as cfg_dir:
+        cfg_file = os.path.join(cfg_dir, "taos.cfg")
+        source_cfg = sc.dnodeCfgPath(1)
+        if os.path.isdir(source_cfg):
+            source_cfg = os.path.join(source_cfg, "taos.cfg")
+        shutil.copyfile(source_cfg, cfg_file)
+        # Remove existing entries rather than depending on duplicate-key order.
+        with open(cfg_file, encoding="utf-8") as f:
+            lines = f.readlines()
+        flags = {name.lower() for name in _BENCHMARK_DEBUG_FLAGS}
+        with open(cfg_file, "w", encoding="utf-8") as f:
+            f.writelines(line for line in lines
+                         if not line.split() or line.split()[0].lower() not in flags)
+            f.write("\n" + "\n".join(f"{name} 131" for name in _BENCHMARK_DEBUG_FLAGS) + "\n")
+        with data_write_log():
+            yield cfg_dir
+
+
+def benchmark_write(command):
+    """Run a synchronous shell benchmark command at 131; return os.system status."""
+    with benchmark_write_log() as cfg_dir:
+        return os.system(f'{command} -c "{cfg_dir}"')
+
 
 # taos
 def taosFile():
@@ -103,31 +202,35 @@ def taoskFile():
     return bmFile
 
 # run taosBenchmark with command or json file mode
-def benchMark(command = "", json = "") :
+def benchMark(command = "", json = "", low_log=False) :
     """Run the `taosBenchmark` binary with a command or JSON file.
 
     Args:
         command (str, optional): The command to execute. Defaults to an empty string.
         json (str, optional): The path to a JSON file for execution. Defaults to an empty string.
+        low_log (bool): Use 131 only during this data load; restore server logs to 135.
 
     Raises:
         SystemExit: If the execution of the JSON file fails.
     """
-    # get taosBenchmark path
-    bmFile = benchMarkFile()
+    with benchmark_write_log() if low_log else nullcontext(None) as cfg_dir:
+        # get taosBenchmark path
+        bmFile = benchMarkFile()
+        if cfg_dir:
+            bmFile += f' -c "{cfg_dir}"'
 
-    # run
-    if command != "":
-        if "-a" in command or "--replica" in command:
-            exe(bmFile + " " + command + " -y")
-        else:
-            exe(bmFile + " " + command + f" -y -a {tdSql.replica}")
-    if json != "":
-        cmd = f"{bmFile} -f {json}"
-        print(cmd)
-        status = exe(cmd)
-        if status !=0:
-            tdLog.exit(f"run failed {cmd} status={status}")
+        # run
+        if command != "":
+            if "-a" in command or "--replica" in command:
+                exe(bmFile + " " + command + " -y")
+            else:
+                exe(bmFile + " " + command + f" -y -a {tdSql.replica}")
+        if json != "":
+            cmd = f"{bmFile} -f {json}"
+            print(cmd)
+            status = exe(cmd)
+            if status !=0:
+                tdLog.exit(f"run failed {cmd} status={status}")
 
 
 # get current directory file name
@@ -184,7 +287,8 @@ def exeBinFile(fname, command, wait=True, show=True):
     Returns:
         int: The exit status of the command execution. A return value of `0` indicates success, 
              while a non-zero value indicates failure.
-             - If `wait` is False, the return value is the exit status of the `nohup` or `mintty` command.
+             - If `wait` is False, Windows returns 0 after launching an owned
+               process; POSIX returns the status of the background launcher.
     """
     bin_file = binFile(fname)
     if isWin():
@@ -198,6 +302,15 @@ def exeBinFile(fname, command, wait=True, show=True):
     else:
         if show:
             tdLog.info("no wait exe:" + cmd)
+        if isWin():
+            from .eutil import start_test_process
+            proc = start_test_process(
+                subprocess.list2cmdline([bin_file]) + " " + command,
+                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            _background_binaries.append((fname, proc))
+            return 0
         return exeNoWait(cmd)
 
 #

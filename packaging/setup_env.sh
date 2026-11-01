@@ -1048,7 +1048,7 @@ install_python_via_pyenv() {
     if [ -n "$1" ]; then
         DEFAULT_PYTHON_VERSION="$1"
     else
-        DEFAULT_PYTHON_VERSION="3.10.12"
+        DEFAULT_PYTHON_VERSION="3.12.12"
     fi
     install_pyenv
     enable_pyenv
@@ -1996,7 +1996,7 @@ clone_repos() {
 
 new_funcs() {
     echo "Adding test..."
-    install_python_via_pyenv 3.10.12
+    install_python_via_pyenv 3.12.12
     install_java_via_sdkman 21.0.2
     install_node 16.20.2
     install_maven_via_sdkman 3.2.5
@@ -2019,7 +2019,7 @@ TDinternal() {
     install_java_via_sdkman 17
     install_maven_via_sdkman 3.9.9
     install_node_via_nvm 16.20.2
-    install_python_via_pyenv 3.10.12
+    install_python_via_pyenv 3.12.12
     install_via_pip pandas psutil fabric2 requests faker simplejson toml pexpect tzlocal distro decorator loguru hyperloglog toml taospy taos-ws-py
 }
 

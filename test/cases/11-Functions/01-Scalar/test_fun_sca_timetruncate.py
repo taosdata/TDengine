@@ -15,6 +15,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, gettime
 
+import os
 import time
 import datetime
 import pytest
@@ -276,6 +277,7 @@ class TestFunTimetruncate:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -293,7 +295,10 @@ class TestFunTimetruncate:
 
         #tdSql.close()
 
-    @pytest.mark.skipif(not _is_utc8, reason="requires UTC+8 (Asia/Shanghai) timezone")
+    @pytest.mark.skipif(
+        os.name == "nt" or not _is_utc8,
+        reason="requires UTC+8 and SET TIMEZONE support",
+    )
     def test_fun_sca_timetruncate_dst_fallback(self):
         """summary: TIMETRUNCATE during DST fall-back hour yields stable, non-NULL results.
 
@@ -348,7 +353,10 @@ class TestFunTimetruncate:
         finally:
             tdSql.connect()
 
-    @pytest.mark.skipif(not _is_utc8, reason="requires UTC+8 (Asia/Shanghai) timezone")
+    @pytest.mark.skipif(
+        os.name == "nt" or not _is_utc8,
+        reason="requires UTC+8 and SET TIMEZONE support",
+    )
     def test_fun_sca_timetruncate_quarter_dst(self):
         """summary: TIMETRUNCATE('1q') correctly computes the quarter boundary under DST.
 

@@ -21,6 +21,11 @@ class TestJoinTsSort:
        (section M)
     """
 
+    # Snapshot plans embed firstDayOfWeek; pin it instead of inheriting the
+    # runner's locale. The checked plans use Sunday (0).
+    updatecfgDict = {"clientCfg": {"timezone": "Asia/Shanghai", "firstDayOfWeek": 0}}
+
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
@@ -1456,7 +1461,10 @@ class TestJoinTsSort:
         self._prepare_sort_data()
         sql_file = etool.curFile(__file__, "in/test_join_ts_sort_explain.in")
         ans_file = etool.curFile(__file__, "ans/test_join_ts_sort_explain.ans")
-        tdCom.compare_testcase_result(sql_file, ans_file, "test_join_ts_sort_explain")
+        tdCom.compare_testcase_result(
+            sql_file, ans_file, "test_join_ts_sort_explain",
+            result_transform=tdCom.normalize_windows_shanghai_explain,
+        )
 
     def test_6_5_stable_sort_results_ans(self):
         """Stable TIMETRUNCATE JOIN sort results are covered by ans file

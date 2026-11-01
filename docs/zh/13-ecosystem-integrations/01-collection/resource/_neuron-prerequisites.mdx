@@ -1,0 +1,23 @@
+## 前置条件
+
+### Neuron 和 eKuiper 的准备方式
+
+**尚未安装**
+
+- 使用 TDengine 企业版安装包提供的 `apex` 工具。
+- **无需预先安装 Neuron 或 eKuiper**：安装过程会自动安装 NeuronEX（内置 eKuiper），并注册到 taosExplorer。
+- 同机安装无需额外网络配置；跨机安装时，NeuronEX 所在主机需能访问 TDengine 的 `6041`（taosAdapter）和 `6060`（taosExplorer），taosExplorer 需能访问 NeuronEX 的 `8085`（管理端口）。
+- 安装时自动创建业务数据库 `neuron`（`--database`）、示例数据库 `neuron_demo`（`--database-demo`）、四个示例设备（采集组 `meters`）和示例规则；安装后可直接在 taosExplorer 查看。接入真实设备时，继续在 NeuronEX 添加设备、采集组和点位。
+
+**已经安装**
+
+- 已部署 Neuron 和 eKuiper：可以是 NeuronEX 4.0.0 及以上版本（已集成两者，参见 [NeuronEX 安装文档](https://docs.emqx.com/zh/neuronex/latest/installation/introduction.html)），也可以是开源组合的 Neuron 2.15.0 及以上版本与 eKuiper（须包含 InfluxDB v1 sink）。
+- 已在 Neuron（或 NeuronEX）中完成设备采集配置：设备已添加、采集组已创建、点位已配置，设备处于运行中、已连接状态，且在「数据监控」中能看到点位值持续更新。设备使用的协议没有限制——Modbus、OPC UA、Siemens S7 等 Neuron 支持的协议均可。
+- Neuron 所在主机能够访问 taosAdapter 的 HTTP 端口，默认为 `6041`。
+- 已创建用于写入的数据库。一键接入不会自动创建数据库；手工接入示例中会创建示例数据库。
+- 已安装并完成采集配置后，可选择「一键接入」或「手工接入」。
+
+### 通用
+
+- TDengine TSDB 3.4.3.6 及以上版本。
+- 需要断链缓存与恢复补发时，需确认 eKuiper 已包含[缓存与转发](../11-neuron.md#缓存与转发store-and-forward)一节所述的错误重试修复。

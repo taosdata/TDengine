@@ -17,6 +17,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+import shutil
 
 
 class TestTaosBackupIntegrity:
@@ -33,7 +34,7 @@ class TestTaosBackupIntegrity:
         if not os.path.exists(path):
             os.makedirs(path)
         else:
-            os.system("rm -rf %s" % path)
+            shutil.rmtree(path)
             os.makedirs(path)
 
     def taosbackup(self, cmd, checkRun=True):
@@ -477,5 +478,6 @@ class TestTaosBackupIntegrity:
         self.do_incremental_backup()
         self.do_empty_db()
 
-        os.system("rm -rf ./taosbackuptest/")
+        if os.path.exists("./taosbackuptest"):
+            shutil.rmtree("./taosbackuptest")
         tdLog.info("test_taosbackup_integrity .................... [passed]")

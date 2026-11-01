@@ -85,9 +85,19 @@ class TestCase:
         tdSql.execute(f'alter vtable v_n_t1 alter column c3 set null')
 
     def run_cmd(self, topic, snapshot, json, writeData):
-        buildPath = tdCom.getBuildPath()
-        cmdStr = f'{buildPath}/build/bin/tmq_vtable'
-        subprocess.run([cmdStr, topic, snapshot, json, self.simClientCfg, writeData])
+        subprocess.run([self.tmq_program(), topic, snapshot, json, self.simClientCfg, writeData],
+                       check=True, timeout=600)
+
+    def tmq_program(self):
+        suffix = '.exe' if os.name == 'nt' else ''
+        program = os.path.join(tdCom.getBuildPath(), 'build', 'bin', 'tmq_vtable' + suffix)
+        if not os.path.isfile(program):
+            tdLog.exit(f'TMQ virtual table helper not found: {program}')
+        return program
+
+    def append_client_config(self, database, check_ref):
+        with open(self.simClientCfg, 'a', encoding='utf-8') as config:
+            config.write(f'\ntmqWriteRefDB {database}\ntmqWriteCheckRef {check_ref}\n')
 
     def case_snapshot_db_topic(self, snapshot_db_topic_json):
         tdLog.info("case_snapshot_db_topic start ...")
@@ -95,8 +105,7 @@ class TestCase:
         tdSql.execute(f"create topic {topicName} with meta as database db_src")
         tdSql.execute(f"create database {topicName} vgroups 1")
 
-        os.system(f"echo '\ntmqWriteRefDB {topicName}' >> {self.simClientCfg}")
-        os.system(f"echo '\ntmqWriteCheckRef true' >> {self.simClientCfg}")
+        self.append_client_config(topicName, 'true')
 
         self.run_cmd(topicName, "true", snapshot_db_topic_json, "true")
         self.checkDataVChildTable(topicName)
@@ -112,8 +121,7 @@ class TestCase:
         tdSql.execute(f"create topic {topicName} with meta as stable v_stb")
         tdSql.execute(f"create database {topicName} vgroups 1")
 
-        os.system(f"echo '\ntmqWriteRefDB db_src' >> {self.simClientCfg}")
-        os.system(f"echo '\ntmqWriteCheckRef true' >> {self.simClientCfg}")
+        self.append_client_config('db_src', 'true')
 
         self.run_cmd(topicName, "true", snapshot_stb_topic_json, "true")
         self.checkDataVChildTable(topicName)
@@ -126,8 +134,7 @@ class TestCase:
         tdSql.execute(f"create topic {topicName} with meta as database db_src")
         tdSql.execute(f"create database {topicName} vgroups 1")
 
-        os.system(f"echo '\ntmqWriteRefDB {topicName}' >> {self.simClientCfg}")
-        os.system(f"echo '\ntmqWriteCheckRef false' >> {self.simClientCfg}")
+        self.append_client_config(topicName, 'false')
 
         self.run_cmd(topicName, "false", non_snapshot_db_topic_json, "true")
         self.checkDataVChildTable(topicName)
@@ -140,12 +147,11 @@ class TestCase:
         tdSql.execute(f"create topic {topicName} with meta as stable v_stb")
         tdSql.execute(f"create database {topicName} vgroups 1")
 
-        os.system(f"echo '\ntmqWriteRefDB {topicName}' >> {self.simClientCfg}")
-        os.system(f"echo '\ntmqWriteCheckRef true' >> {self.simClientCfg}")
+        self.append_client_config(topicName, 'true')
 
-        buildPath = tdCom.getBuildPath()
-        cmdStr = f'{buildPath}/build/bin/tmq_vtable'
-        ret = os.system(f"{cmdStr} {topicName} 'false' '' {self.simClientCfg} 'true'")
+        cmdStr = self.tmq_program()
+        ret = subprocess.run([cmdStr, topicName, 'false', '', self.simClientCfg, 'true'],
+                             timeout=600).returncode
         if ret == 0 :
             tdLog.exit(cmdStr)
 
@@ -158,8 +164,7 @@ class TestCase:
         tdSql.execute(f"create topic {topicName} with meta as stable v_stb")
         tdSql.execute(f"create database {topicName} vgroups 1")
 
-        os.system(f"echo '\ntmqWriteRefDB db_src' >> {self.simClientCfg}")
-        os.system(f"echo '\ntmqWriteCheckRef true' >> {self.simClientCfg}")
+        self.append_client_config('db_src', 'true')
 
         self.run_cmd(topicName, "false", non_snapshot_stb_topic_json, "true")
         self.checkDataVChildTable(topicName)
@@ -172,7 +177,8 @@ class TestCase:
         tdSql.execute(f"create topic {topicName} as stable v_stb")
         tdSql.execute(f"create database {topicName} vgroups 1")
 
-        os.system(f"echo '\ntmqWriteRefDB db_src' >> {self.simClientCfg}")
+        with open(self.simClientCfg, 'a', encoding='utf-8') as config:
+            config.write('\ntmqWriteRefDB db_src\n')
 
         self.run_cmd(topicName, "false", non_snapshot_no_meta_stb_json, "false")
         tdLog.info("case_non_snapshot_no_meta_stb_topic end ...")
@@ -240,6 +246,7 @@ class TestCase:
         Since: 3.4.1.0
 
         Labels: tmq,vtable,integration,functional
+
         Jira: https://project.feishu.cn/taosdata_td/feature/detail/6593807450
 
         Catalog:

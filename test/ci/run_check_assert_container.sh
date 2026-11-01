@@ -57,11 +57,11 @@ ulimit -c unlimited
 cat << EOF
 docker run \
     -v $REP_MOUNT_PARAM \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} python3  $check_assert_scripts
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} python3  $check_assert_scripts
 EOF
 docker run \
     -v "$REP_MOUNT_PARAM" \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} python3  $check_assert_scripts
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} python3  $check_assert_scripts
 
 ret=$?
 exit $ret

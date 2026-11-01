@@ -191,6 +191,16 @@ class TestVTableQueryExtSourceSeries:
         tdSql.execute(f"DROP DATABASE IF EXISTS {TDENGINE_DB}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {EXT_SOURCE_NAME}")
 
+    @classmethod
+    def teardown_class(cls):
+        # _setup_influx_data() drops and recreates the bucket before every
+        # test, so the suite never accumulates buckets, but the last one
+        # outlives the class.  InfluxDB 3 Core allows only five databases per
+        # instance, so leaving it behind costs a slot for the rest of the run
+        # and eventually makes every later influx_create_db() fail with HTTP
+        # 422 in some unrelated suite.
+        ExtSrcEnv.influx_drop_db(INFLUX_DB)
+
     # === Test methods ===
 
     def test_describe_shows_filter(self):

@@ -35,3 +35,10 @@ select _wstart, _wend, sum(remote_v) from vt_window_plan.vt_window_local_sqlserv
 
 explain verbose true select _wstart, _wend, _wduration, state_col, sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v), sum(sqlserver_v) from vt_window_plan.vt_window_all_mixed_ss state_window(state_col, 1) order by _wstart;
 select _wstart, _wend, _wduration, state_col, sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v), sum(sqlserver_v) from vt_window_plan.vt_window_all_mixed_ss state_window(state_col, 1) order by _wstart;
+
+explain verbose true select _wstart, _wend, state_col, sum(remote_v) from vt_window_plan.vt_window_oracle state_window(state_col, 1) order by _wstart;
+select _wstart, _wend, state_col, sum(remote_v) from vt_window_plan.vt_window_oracle state_window(state_col, 1) order by _wstart;
+explain verbose true select _wstart, _wend, sum(remote_v) from vt_window_plan.vt_window_local_oracle state_window(state_col, 1) order by _wstart;
+select _wstart, _wend, sum(remote_v) from vt_window_plan.vt_window_local_oracle state_window(state_col, 1) order by _wstart;
+explain verbose true select _wstart, _wend, _wduration, state_col, sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v), sum(oracle_v) from vt_window_plan.vt_window_all_mixed_oracle state_window(state_col, 1) order by _wstart;
+select _wstart, _wend, _wduration, state_col, sum(local_v), sum(mysql_v), sum(postgres_v), sum(influx_v), sum(oracle_v) from vt_window_plan.vt_window_all_mixed_oracle state_window(state_col, 1) order by _wstart;

@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes
 import concurrent.futures
 import os
 import os.path
@@ -21,6 +21,7 @@ import platform
 import subprocess
 import time
 import shutil
+import shlex
 
 class TestTaosdlog:
 
@@ -31,14 +32,22 @@ class TestTaosdlog:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % cls.buildPath)
-        cls.taosdPath = cls.buildPath + "/build/bin/taosd"
-        cls.taosPath = cls.buildPath + "/build/bin/taos"
-        cls.logPath = cls.buildPath + "/../sim/dnode1/log"
+        cls.simRoot = tdDnodes.dnodes[0].path.replace("\\", "/")
+        cls.ownedProcesses = []
+        suffix = ".exe" if os.name == "nt" else ""
+        cls.taosdPath = cls.buildPath + "/build/bin/taosd" + suffix
+        cls.taosPath = cls.buildPath + "/build/bin/taos" + suffix
+        cls.logPath = tdDnodes.dnodes[0].logDir
         tdLog.info("taosd path: %s" % cls.taosdPath)
         tdLog.info("taos path: %s" % cls.taosPath)
         tdLog.info("log path: %s" % cls.logPath)
         cls.commonCfgDict = {}
 
+
+    def teardown_class(cls):
+        if os.name == "nt":
+            cls().closeTaosd()
+            cls().closeTaos()
 
     def checkLogBak(self, logPath, expectLogBak):
         if platform.system().lower() == 'windows':
@@ -81,7 +90,7 @@ class TestTaosdlog:
                 continue
         return result
 
-    def logRotateOccurred(self, logFiles, targetStr, maxRetry=20):
+    def logRotateOccurred(self, logFiles, targetStr, maxRetry=60):
         result = False
         for i in range(maxRetry):
             if self.checkTargetStrInFiles(logFiles, targetStr):
@@ -93,9 +102,11 @@ class TestTaosdlog:
 
     def checkLogCompress(self):
         tdLog.info("Running check log compress")
-        dnodePath = self.buildPath + "/../sim/dnode1"
+        dnodePath = self.simRoot + "/dnode1"
         logPath = f"{dnodePath}/log"
         taosdLogFiles = [f"{logPath}/taosdlog.0", f"{logPath}/taosdlog.1"]
+        # Debug/ASSERT_NOT_CORE builds delay startup rotation up to 30 minutes.
+        tdSql.execute("alter dnode 1 'resetlog'")
         logRotateStr="process log rotation"
         logRotateResult = self.logRotateOccurred(taosdLogFiles, logRotateStr)
         tdSql.checkEqual(True, logRotateResult)
@@ -130,35 +141,19 @@ class TestTaosdlog:
 
     def closeBin(self, binName):
         tdLog.info("Closing %s" % binName)
-        if platform.system().lower() == 'windows':
-            binExe = f"{binName}.exe"
-            psCmd = f'tasklist /FI "IMAGENAME eq {binExe}" /FO CSV /NH'
-            killCmd = f"taskkill /F /T /IM {binExe} > nul 2>&1"
-            tdLog.info(f"psCmd:{psCmd}")
-            tdLog.info(f"killCmd:{killCmd}")
-            maxRetry = 10
-            for i in range(maxRetry):
-                try:
-                    rem = subprocess.run(psCmd, shell=True, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    processInfo = rem.stdout.decode(encoding="utf-8", errors="ignore").strip()
-                except Exception as e:
-                    tdLog.info(f"closeBin query error:{e}")
-                    processInfo = ""
-                if binExe.lower() not in processInfo.lower():
-                    tdLog.info(f"{binExe} has been closed")
-                    return
-                tdLog.info(f"{binExe} still running, retry {i + 1}/{maxRetry}")
-                subprocess.run(killCmd, shell=True, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                time.sleep(1)
-
-            try:
-                rem = subprocess.run(psCmd, shell=True, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                processInfo = rem.stdout.decode(encoding="utf-8", errors="ignore").strip()
-            except Exception as e:
-                tdLog.info(f"closeBin query error:{e}")
-                processInfo = ""
-            if binExe.lower() in processInfo.lower():
-                tdLog.info(f"Failed to close all {binExe} processes: {processInfo}")
+        if os.name == "nt":
+            if binName == "taosd":
+                tdDnodes.stopAll()
+            from new_test_framework.utils.server.win_process import stop_taosd_windows
+            for proc, name, cfg in self.ownedProcesses:
+                if name != binName or proc.poll() is not None:
+                    continue
+                if name == "taosd":
+                    if not stop_taosd_windows(config_dir=cfg, log=tdLog):
+                        tdLog.exit(f"Failed to stop owned daemon {cfg}")
+                else:
+                    proc.terminate()
+                proc.wait(timeout=30)
             return
 
         psCmd = "ps -ef | grep -w %s | grep -v grep | awk '{print $2}'" % binName
@@ -203,15 +198,33 @@ class TestTaosdlog:
             raise Exception(f"Failed to start {binPath}: %s" % repr(e))
 
     def openTaosd(self, args="", waitSec=8):
+        if os.name == "nt":
+            from new_test_framework.utils.server.win_process import start_taosd_windows
+            arguments = shlex.split(args)
+            cfg = arguments[arguments.index("-c") + 1]
+            proc = start_taosd_windows(self.taosdPath, cfg, log=tdLog)
+            self.ownedProcesses.append((proc, "taosd", cfg))
+            time.sleep(waitSec)
+            if proc.poll() is not None:
+                tdLog.exit(f"Owned daemon exited: {proc.returncode}")
+            return
         self.openBin(f'{self.taosdPath} {args}', waitSec)
 
     def openTaos(self, args="", waitSec=5):
+        if os.name == "nt":
+            arguments = shlex.split(args)
+            cfg = arguments[arguments.index("-c") + 1]
+            result = subprocess.run([self.taosPath, *arguments, "-s", "select server_version()"],
+                                    capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+            if result.returncode or "DB error:" in result.stdout + result.stderr:
+                tdLog.exit(f"CLI log probe failed: {result.stdout} {result.stderr}")
+            return
         self.openBin(f'{self.taosPath} {args}', waitSec)
 
 
     def prepare_logoutput(self, desc, port, logOutput, skipOpenBin=False):
         tdLog.info("Preparing %s, port:%s" % (desc, port))
-        dnodePath = self.buildPath + "/../sim/dnode%s" % port
+        dnodePath = self.simRoot + "/dnode%s" % port
         tdLog.info("remove dnodePath:%s" % dnodePath)
         try:
             if os.path.exists(dnodePath):
@@ -220,7 +233,7 @@ class TestTaosdlog:
             raise Exception(f"Failed to remove directory {dnodePath}: {e}")
         try:
             self.prepareCfg(dnodePath, {"serverPort": port,
-                "dataDir": dnodePath + os.sep + "data",
+                "dataDir": dnodePath + "/data",
                 "logDir": dnodePath + os.sep + "log"})
         except Exception as e:
             raise Exception(f"Failed to prepare configuration for {dnodePath}: {e}")
@@ -240,7 +253,7 @@ class TestTaosdlog:
 
     def check_stdout(self):
         tdLog.info("Running check stdout")
-        dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[0][1]
+        dnodePath = self.simRoot + "/dnode%s" % self.prepare_list[0][1]
         tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taosdlog.0"))
         tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taoslog0.0"))
 
@@ -250,7 +263,7 @@ class TestTaosdlog:
 
     def check_stderr(self):
         tdLog.info("Running check stderr")
-        dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[1][1]
+        dnodePath = self.simRoot + "/dnode%s" % self.prepare_list[1][1]
         tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taosdlog.0"))
         tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taoslog0.0"))
 
@@ -260,30 +273,30 @@ class TestTaosdlog:
 
     def check_dev_null(self):
         tdLog.info("Running check /dev/null")
-        # dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[2][1]
+        # dnodePath = self.simRoot + "/dnode%s" % self.prepare_list[2][1]
         # tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taosdlog.0"))
         # tdSql.checkEqual(False, os.path.isfile(f"{dnodePath}/log/taoslog0.0"))
 
     def prepare_fullpath(self):
         list = self.prepare_list[3]
-        dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[3][1]
+        dnodePath = self.simRoot + "/dnode%s" % self.prepare_list[3][1]
         self.prepare_logoutput(list[0], list[1], "-o " + dnodePath + "/log0/" )
 
     def check_fullpath(self):
         tdLog.info("Running check fullpath")
-        logPath = self.buildPath + "/../sim/dnode%s/log0/" % self.prepare_list[3][1]
+        logPath = self.simRoot + "/dnode%s/log0/" % self.prepare_list[3][1]
         tdSql.checkEqual(True, os.path.exists(f"{logPath}taosdlog.0"))
         tdSql.checkEqual(True, os.path.exists(f"{logPath}taoslog0.0"))
 
     def prepare_fullname(self):
         list = self.prepare_list[4]
-        dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[4][1]
+        dnodePath = self.simRoot + "/dnode%s" % self.prepare_list[4][1]
         self.prepare_logoutput(list[0], list[1], "--log-output " + dnodePath + "/log0/" + list[0])
-        dnodePath = self.buildPath + "/../sim/dnode%s" % self.prepare_list[4][1]
+        dnodePath = self.simRoot + "/dnode%s" % self.prepare_list[4][1]
 
     def check_fullname(self):
         tdLog.info("Running check fullname")
-        logPath = self.buildPath + "/../sim/dnode%s/log0/" % self.prepare_list[4][1]
+        logPath = self.simRoot + "/dnode%s/log0/" % self.prepare_list[4][1]
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[4][0] + ".0"))
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[4][0] + "0.0"))
 
@@ -293,7 +306,7 @@ class TestTaosdlog:
 
     def check_relativepath(self):
         tdLog.info("Running check relativepath")
-        logPath = self.buildPath + "/../sim/dnode%s/log/log0/" % self.prepare_list[5][1]
+        logPath = self.simRoot + "/dnode%s/log/log0/" % self.prepare_list[5][1]
         tdSql.checkEqual(True, os.path.exists(logPath + "taosdlog.0"))
         tdSql.checkEqual(True, os.path.exists(logPath + "taoslog0.0"))
 
@@ -302,7 +315,7 @@ class TestTaosdlog:
         self.prepare_logoutput(list[0], list[1], "-o " + "log0/" + list[0])
     def check_relativename(self):
         tdLog.info("Running check relativename")
-        logPath = self.buildPath + "/../sim/dnode%s/log/log0/" % self.prepare_list[6][1]
+        logPath = self.simRoot + "/dnode%s/log/log0/" % self.prepare_list[6][1]
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[6][0] + ".0"))
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[6][0] + "0.0"))
 
@@ -311,7 +324,7 @@ class TestTaosdlog:
         self.prepare_logoutput(list[0], list[1], "--log-output " + list[0])
     def check_filename(self):
         tdLog.info("Running check filename")
-        logPath = self.buildPath + "/../sim/dnode%s/log/" % self.prepare_list[7][1]
+        logPath = self.simRoot + "/dnode%s/log/" % self.prepare_list[7][1]
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[7][0] + ".0"))
         tdSql.checkEqual(True, os.path.exists(logPath + self.prepare_list[7][0] + "0.0"))
 
@@ -320,7 +333,7 @@ class TestTaosdlog:
         self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0], True)
     def check_empty(self):
         tdLog.info("Running check empty")
-        logPath = self.buildPath + "/../sim/dnode%s/log" % self.prepare_list[8][1]
+        logPath = self.simRoot + "/dnode%s/log" % self.prepare_list[8][1]
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taosdlog.0"))
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taoslog.0"))
 
@@ -329,7 +342,7 @@ class TestTaosdlog:
         self.prepare_logoutput(list[0], list[1], "--log-output=" + list[0], True)
     def check_illegal(self):
         tdLog.info("Running check illegal")
-        logPath = self.buildPath + "/../sim/dnode%s/log" % self.prepare_list[9][1]
+        logPath = self.simRoot + "/dnode%s/log" % self.prepare_list[9][1]
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taosdlog.0"))
         tdSql.checkEqual(False, os.path.exists(f"{logPath}/taoslog.0"))
 
@@ -371,16 +384,16 @@ class TestTaosdlog:
 
     def checkLogRotate(self):
         tdLog.info("Running check log rotate")
-        dnodePath = self.buildPath + "/../sim/dnode10050"
-        logRotateAfterBoot = 6 # LOG_ROTATE_BOOT
+        dnodePath = self.simRoot + "/dnode10050"
+        logRotateAfterBoot = 60 # Reset triggers old-file close and rotation after 20s.
         self.closeTaosd()
         self.closeTaos()
         try:
             if os.path.exists(dnodePath):
                 shutil.rmtree(dnodePath)
-            self.prepareCfg(dnodePath, {"serverPort": 10050,
-                "dataDir": dnodePath + os.sep + "data",
-                "logDir": dnodePath + os.sep + "log",
+            self.prepareCfg(dnodePath, {"serverPort": 10050, "firstEp": "localhost:10050", "fqdn": "localhost",
+                "dataDir": dnodePath + "/data",
+                "logDir": dnodePath + "/log",
                 "logKeepDays": "-3" })
         except Exception as e:
              raise Exception(f"Failed to prepare configuration for {dnodePath}: {e}")
@@ -411,6 +424,14 @@ class TestTaosdlog:
 
         self.openTaosd(f"-c {dnodePath}")
         self.openTaos(f"-c {dnodePath}")
+        if os.name == "nt":
+            # Reset before the inactivity threshold would skip the new stubs;
+            # the next automatic scan can be 30 minutes away in Debug builds.
+            time.sleep(32)
+            result = subprocess.run([self.taosPath, "-c", dnodePath, "-s", "alter dnode 1 'resetlog'"],
+                                    capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+            if result.returncode or "DB error:" in result.stdout + result.stderr:
+                tdLog.exit(f"Cannot trigger rotation: {result.stdout} {result.stderr}")
 
         tdLog.info("wait %d seconds for log rotate" % (logRotateAfterBoot + 2))
         time.sleep(logRotateAfterBoot + 2)
@@ -439,6 +460,7 @@ class TestTaosdlog:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

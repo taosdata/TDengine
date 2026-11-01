@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from new_test_framework.utils import tdLog, tdSql
+from taos.error import ProgrammingError
 import re
 import time
 
@@ -34,6 +35,23 @@ class TestDbAlterMaxrowsCompact:
                 return
             time.sleep(1)
         raise Exception("compact did not finish within timeout")
+
+    def alter_maxrows(self, maxrows, timeout=1800):
+        sql = f"alter database {self.db} minrows 10 maxrows {maxrows}"
+        deadline = time.monotonic() + timeout
+        waiting = False
+        while True:
+            try:
+                tdSql.cursor.execute(sql)
+                return
+            except ProgrammingError as error:
+                # Retention may outlive SHOW COMPACTS and temporarily block ALTER.
+                if (error.errno & 0xFFFFFFFF) != 0x800003DC or time.monotonic() >= deadline:
+                    raise
+                if not waiting:
+                    tdLog.info(f"Waiting for retention before {sql}")
+                    waiting = True
+                time.sleep(1)
 
     def get_block_dist(self, tbname):
         """Parse `show table distributed` text output into (total_blocks, block_max_rows)."""
@@ -99,7 +117,7 @@ class TestDbAlterMaxrowsCompact:
         print("do baseline ............................ [ passed ]")
 
     def do_shrink_maxrows_and_compact(self):
-        tdSql.execute(f"alter database {self.db} minrows 10 maxrows 200")
+        self.alter_maxrows(200)
         tdSql.query(f"select * from information_schema.ins_databases where name='{self.db}'")
         tdSql.checkData(0, 12, '200')
 
@@ -126,7 +144,7 @@ class TestDbAlterMaxrowsCompact:
         print("do shrink maxrows and compact .......... [ passed ]")
 
     def do_grow_maxrows_and_compact(self):
-        tdSql.execute(f"alter database {self.db} minrows 10 maxrows 800")
+        self.alter_maxrows(800)
         tdSql.query(f"select * from information_schema.ins_databases where name='{self.db}'")
         tdSql.checkData(0, 12, '800')
 
@@ -178,6 +196,7 @@ class TestDbAlterMaxrowsCompact:
 
         History:
             - 2026-08-24 Claude Added to verify ALTER DATABASE MAXROWS + COMPACT FORCE
+            - 2026-11-01 Wait for transient retention conflicts before ALTER DATABASE
 
         """
         self.prepare()

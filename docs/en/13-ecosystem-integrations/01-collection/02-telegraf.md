@@ -13,7 +13,7 @@ Simply add the output configuration of Telegraf to point to the corresponding UR
 The following preparations are needed to write Telegraf data into TDengine:
 
 - TDengine cluster has been deployed and is running normally
-- taosAdapter has been installed and is running normally. For specific details, please refer to [taosAdapter User Manual](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter has been installed and is running normally. For specific details, please refer to [taosAdapter User Manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - Telegraf has been installed. To install Telegraf, please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/)
 - Telegraf by default collects system operational status data. By enabling [input plugins](https://docs.influxdata.com/telegraf/v1.22/plugins/), data in [other formats](https://docs.influxdata.com/telegraf/v1.24/data_formats/input/) can be output to Telegraf and then written into TDengine.
 

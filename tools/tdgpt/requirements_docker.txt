@@ -28,6 +28,7 @@ cmdstanpy==1.2.0
 fastdtw==0.3.4
 prophet==1.1.7
 numpy==1.26.4
+pycatch22==1.0.1
 mlxtend>=0.23.0
 pyod==2.0.5
 numba==0.66.0

@@ -67,6 +67,9 @@ class TestComCmdLine:
     def _assert_taosd_case(self, name, args, expected_code, expected_text):
         code, output = self._run_taosd(args)
         tdLog.info("verify case=%s" % name)
+        if os.name == 'nt':
+            # Windows preserves the full TSDB status; POSIX keeps its low byte.
+            expected_code = {24: 0x80000118, 25: 0x80000119}.get(expected_code, expected_code)
         tdSql.checkEqual(code, expected_code)
         tdSql.checkEqual(expected_text in output, True)
 
@@ -82,6 +85,7 @@ class TestComCmdLine:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

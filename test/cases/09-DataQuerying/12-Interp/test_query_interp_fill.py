@@ -123,9 +123,10 @@ class TestInterpFill:
 
         cmd = f"taosBenchmark -f {os.path.dirname(os.path.realpath(__file__))}/in/insert_config.json"
         tdLog.info(f"Running command: {cmd}")
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        _, err = process.communicate()
-        assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
+        with etool.benchmark_write_log() as cfg_dir:
+            process = subprocess.Popen(f'{cmd} -c "{cfg_dir}"', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            _, err = process.communicate()
+            assert process.returncode == 0, f"taosBenchmark failed: {err.decode()}"
 
         # insert data for surrounding time test
         tdSql.execute("create database test_surround keep 36500")
@@ -2072,7 +2073,21 @@ class TestInterpFill:
     ## select_all_results must be sorted by ts in ascending order
     def check_result_for_near(self, interp_results, select_all_results, sql, sql_select_all):
         #tdLog.info(f"check_result_for_near for sql: {sql}, sql_select_all: {sql_select_all}, interp_results: {interp_results}")
+        point_range = re.search(r"range\((\d+),\s*1h\)\s*fill\(near,\s*1,\s*2\)", sql)
+        if point_range:
+            assert len(interp_results) == (1 if select_all_results else 0), (sql, interp_results)
         for row in interp_results:
+            irowts = self.datetime_add_tz(row[1])
+            if point_range:
+                assert round(irowts.timestamp() * 1000) == int(point_range.group(1)), (sql, row)
+                # WHERE bounds need not coincide with actual source timestamps.
+                # The nearest surviving row can lie beyond the one-hour limit.
+                has_near_source = any(self.distance(source[0], irowts) <= timedelta(hours=1)
+                                      for source in select_all_results)
+                if not has_near_source:
+                    assert row[0] is None and tuple(row[2:]) == (1, 2, True), (sql, row)
+                    continue
+            assert row[0] is not None, (sql, row, sql_select_all)
             #tdLog.info(f"row: {row}")
             if row[0].tzinfo is None or row[0].tzinfo.utcoffset(row[0]) is None:
                 irowts_origin = row[0].replace(tzinfo=get_localzone())

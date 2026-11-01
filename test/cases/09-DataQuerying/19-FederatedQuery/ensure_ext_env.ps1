@@ -19,10 +19,17 @@
 
 .DESCRIPTION
     Windows counterpart of ensure_ext_env.sh.
-    Downloads, installs, and starts MySQL, PostgreSQL, InfluxDB and SQL Server
-    on non-default ports so they run alongside any locally installed instances.
-    All operations are idempotent: re-running the script while services
-    are already up resets test databases instead of restarting them.
+    Downloads, installs, and starts MySQL, PostgreSQL, InfluxDB, SQL Server and
+    Oracle AI Database Free on non-default ports so they run alongside any
+    locally installed instances.  All operations are idempotent: re-running
+    the script while services are already up resets test databases instead of
+    restarting them.
+
+    Oracle on Windows has no portable build, so the script installs the
+    vendor package silently (administrator required), creates the FREE
+    container database with the FREEPDB1 service, provisions the test
+    schemas, and registers the Instant Client ODBC driver that the provider
+    resolves through ODBCINST.INI.  Only the 26ai version key exists here.
 
     SQL Server on Windows: the engine is used where it already runs (local
     service or FQ_SQLSERVER_HOST); if the host is local and nothing is
@@ -36,7 +43,10 @@
       PowerShell 5.1 or PowerShell 7+
       Internet access (or mirrors set via FQ_*_MIRROR env vars)
       Administrator rights  – only needed if WinSW service registration fails
-                               and --user workaround is required for MySQL.
+                               and --user workaround is required for MySQL;
+                               always required to install Oracle Free, to
+                               start/stop its services, and to register the
+                               ODBC driver in HKLM.
 
     WHAT IT DOES (idempotent per-engine-version)
       1. Port open?         → reset test DBs (already running)
@@ -61,6 +71,16 @@
       FQ_MYSQL_TARBALL_<VV>  full URL override (VV = 57/80/84)
       FQ_PG_TARBALL_<VV>     full URL override (VV = 14/15/16/17)
       FQ_INFLUX_TARBALL_<VV> full URL override (VV = 30/35)
+      FQ_ORACLE_VERSIONS     comma list          default "26ai"
+      FQ_ORACLE_HOST         engine host         default 127.0.0.1
+      FQ_ORACLE_PORT_26AI    listener port       default 18322
+      FQ_ORACLE_SERVICE_26AI PDB service name    default FREEPDB1
+      FQ_ORACLE_FREE_URL     package URL/path    default Oracle Free 26ai 23.26.3 zip
+      FQ_ORACLE_FREE_SHA256  package SHA256      pinned to that zip
+      FQ_ORACLE_PKG_DIR      package cache       default <FQ_BASE_DIR>\oracle\packages
+      FQ_ORACLE_DRIVER_DIR   Instant Client dir  default build\bin / <install>\driver\oracle
+      FQ_ORACLE_USER/PASS    test schema         default taosdata / taosdata
+      FQ_ORACLE_ADMIN_USER/PASS provisioning acct default system / Tdengine_123
       FQ_CERT_DIR            cert source dir     default <script_dir>\certs
       FQ_MYSQL_USER/PASS     credentials         default root / taosdata
       FQ_PG_USER/PASS        credentials         default postgres / taosdata
@@ -73,7 +93,14 @@
 
 #Requires -Version 5.1
 [CmdletBinding()]
-param()
+param(
+    # Action flags from the test framework (--oracle-exec, --oracle-admin-exec,
+    # --oracle-stop, --oracle-kill).  Without this parameter a leading "--"
+    # argument is treated as a parameter name and binding fails before the
+    # script runs.
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$RemainingArgs
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -118,6 +145,11 @@ $PgPass     = Get-EnvOr 'FQ_PG_PASS'    'taosdata'
 
 $OverallOk  = $true
 
+# Command-line actions must keep stdout byte-clean for the caller: the test
+# framework parses sqlplus' output from it.  Diagnostics still go to the log
+# file and to stderr.
+$script:SuppressConsoleLog = $false
+
 # ── 1. Logging ────────────────────────────────────────────────────────────────
 
 # Mirror every line into a file as well: when the script runs under a service
@@ -134,9 +166,9 @@ function Write-FqLogFile {
     }
 }
 
-function Log   { param($Msg) Write-Host "[fq-env] $Msg"; Write-FqLogFile $Msg }
-function Info  { param($Msg) Write-Host "[fq-env] INFO  $Msg"; Write-FqLogFile ("INFO  " + $Msg) }
-function Warn  { param($Msg) Write-Warning "[fq-env] WARN  $Msg"; Write-FqLogFile ("WARN  " + $Msg) }
+function Log   { param($Msg) if (-not $script:SuppressConsoleLog) { Write-Host "[fq-env] $Msg" }; Write-FqLogFile $Msg }
+function Info  { param($Msg) if (-not $script:SuppressConsoleLog) { Write-Host "[fq-env] INFO  $Msg" }; Write-FqLogFile ("INFO  " + $Msg) }
+function Warn  { param($Msg) if (-not $script:SuppressConsoleLog) { Write-Warning "[fq-env] WARN  $Msg" }; Write-FqLogFile ("WARN  " + $Msg) }
 function Err   { param($Msg) Write-Error   "[fq-env] ERROR $Msg" -ErrorAction Continue; Write-FqLogFile ("ERROR " + $Msg) }
 
 # ── 2. Port helpers ───────────────────────────────────────────────────────────
@@ -241,15 +273,37 @@ function Start-BackgroundProcess {
     $null = New-Item -ItemType Directory -Force (Split-Path $LogFile)
     $null = New-Item -ItemType Directory -Force (Split-Path $PidFile)
 
-    # Build environment for the child process
+    # Hand the log FILE to the engine itself instead of pumping its stdout
+    # through this process.  Redirecting into PowerShell pipes fails in two
+    # ways on Windows:
+    #   * powershell.exe 5.1 crashes with PSInvalidOperationException in
+    #     ScriptBlock.GetContextFromTLS while the Process.OutputDataReceived
+    #     handlers fire from thread-pool threads during engine startup (WER
+    #     report 2026-10-29 08:46:45, right after "InfluxDB 3.0: starting on
+    #     port 18086 ..."; the batch case failed with exit code 2);
+    #   * once this script exits nothing drains those pipes any more, so the
+    #     engine blocks on the next 64 KiB of log output and stops answering
+    #     requests while its port stays open.
+    # cmd.exe's >> redirection gives the child a real file handle that stays
+    # valid after both this script and pytest have exited.
+    # Quote arguments that contain spaces, but leave arguments that already
+    # carry their own quotes intact: cmd.exe forwards the command line to the
+    # child verbatim, and nesting one pair of quotes inside another would
+    # corrupt the value (e.g. MySQL's --defaults-file="<path with spaces>").
+    $argLine = ($ArgList | ForEach-Object {
+        if (($_ -match '\s') -and ($_ -notmatch '"')) { '"' + $_ + '"' } else { $_ }
+    }) -join ' '
+    # /d skips AutoRun entries; /s strips exactly one outer pair of quotes and
+    # runs the remainder verbatim, so the quoted paths survive intact.
+    $inner = '"' + $Exe + '" ' + $argLine + ' >> "' + $LogFile + '" 2>&1'
+    $comspec = if ($env:ComSpec) { $env:ComSpec }
+               else { Join-Path $env:SystemRoot 'System32\cmd.exe' }
+
     $procInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $procInfo.FileName               = $Exe
-    $procInfo.Arguments              = ($ArgList | ForEach-Object { `
-        if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
-    $procInfo.UseShellExecute        = $false
-    $procInfo.RedirectStandardOutput = $true
-    $procInfo.RedirectStandardError  = $true
-    $procInfo.CreateNoWindow         = $true
+    $procInfo.FileName        = $comspec
+    $procInfo.Arguments       = '/d /s /c "' + $inner + '"'
+    $procInfo.UseShellExecute = $false
+    $procInfo.CreateNoWindow  = $true
 
     foreach ($ep in $EnvPairs) {
         $kv = $ep -split '=', 2
@@ -260,18 +314,35 @@ function Start-BackgroundProcess {
 
     $proc = [System.Diagnostics.Process]::new()
     $proc.StartInfo = $procInfo
-
-    # Async log capture to avoid deadlocks on full pipe buffers
-    $logStream = [System.IO.StreamWriter]::new($LogFile, $true)
-    $logStream.AutoFlush = $true
-    $proc.add_OutputDataReceived({ param($s, $e); if ($e.Data) { $logStream.WriteLine($e.Data) } })
-    $proc.add_ErrorDataReceived(  { param($s, $e); if ($e.Data) { $logStream.WriteLine($e.Data) } })
-
     $null = $proc.Start()
-    $proc.BeginOutputReadLine()
-    $proc.BeginErrorReadLine()
 
-    Set-Content -Path $PidFile -Value $proc.Id
+    # The pid worth recording is the engine's, not cmd.exe's: Stop-ByPidFile
+    # must terminate something whose death the engine notices.  cmd.exe also
+    # parents a conhost.exe console host, so match the child by executable
+    # name rather than taking the first child.  Fall back to the wrapper pid
+    # when no match appears (a .bat child runs inside cmd, or WMI is
+    # unresponsive); Stop-ByPidFile then kills the whole tree instead.
+    $exeName = Split-Path -Leaf $Exe
+    $engineId = $null
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+    while ((-not $engineId) -and (-not $proc.HasExited) -and
+           ([DateTimeOffset]::UtcNow -lt $deadline)) {
+        try {
+            $children = @(Get-CimInstance -ClassName Win32_Process `
+                -Filter "ParentProcessId=$($proc.Id)" -ErrorAction Stop)
+            $engine = $children | Where-Object {
+                ($_.Name -eq $exeName) -or
+                ($_.ExecutablePath -and ($_.ExecutablePath -eq $Exe))
+            } | Select-Object -First 1
+            if ($engine) { $engineId = [int]$engine.ProcessId }
+        } catch {
+            break
+        }
+        if (-not $engineId) { Start-Sleep -Milliseconds 100 }
+    }
+    if (-not $engineId) { $engineId = $proc.Id }
+
+    Set-Content -Path $PidFile -Value $engineId
     return $proc
 }
 
@@ -281,10 +352,22 @@ function Stop-ByPidFile {
     # $PID is a read-only automatic variable in PowerShell, so the decoded PID
     # needs its own name.
     $procId = [int](Get-Content $PidFile -Raw).Trim()
-    $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
-    if ($proc) {
-        $proc.Kill()
-        $proc.WaitForExit($WaitSec * 1000) | Out-Null
+    # Kill the whole tree: engines are launched through cmd.exe (see
+    # Start-BackgroundProcess), and the pid file may hold the wrapper's pid
+    # when the WMI child lookup was unavailable.
+    $killed = $false
+    try {
+        $null = & taskkill.exe /f /t /pid $procId 2>&1
+        $killed = ($LASTEXITCODE -eq 0)
+    } catch {
+        $killed = $false
+    }
+    if (-not $killed) {
+        $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
+        if ($proc) {
+            $proc.Kill()
+            $proc.WaitForExit($WaitSec * 1000) | Out-Null
+        }
     }
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
 }
@@ -1367,9 +1450,32 @@ function Test-MsOdbcDriver {
     return [bool]$drv
 }
 
+# Re-register an existing driver whose driver-list value went missing.  The
+# driver key and its DLLs survive that damage, so re-add the value instead of
+# reinstalling the driver.
+function Repair-MsOdbcRegistration {
+    if (-not (Test-Admin)) { return $false }
+    $key = "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\$MsOdbcName"
+    if (-not (Test-Path -LiteralPath $key)) { return $false }
+    $driver = [string](Get-ItemProperty -Path $key -ErrorAction SilentlyContinue).Driver
+    if (-not $driver -or -not (Test-Path -LiteralPath $driver)) { return $false }
+    try {
+        $driversKey = 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers'
+        if (-not (Test-Path $driversKey)) { $null = New-Item -Path $driversKey }
+        $null = New-ItemProperty -Path $driversKey -Name $MsOdbcName -Value 'Installed' -PropertyType String -Force
+    } catch {
+        return $false
+    }
+    return (Test-MsOdbcDriver)
+}
+
 function Ensure-MsOdbcDriver {
     if (Test-MsOdbcDriver) {
         Info "ODBC: '$MsOdbcName' (64-bit) is installed."
+        return
+    }
+    if (Repair-MsOdbcRegistration) {
+        Info "ODBC: restored the 64-bit registration of '$MsOdbcName'."
         return
     }
     if (-not (Test-Admin)) {
@@ -1389,7 +1495,7 @@ function Ensure-MsOdbcDriver {
     if ($p.ExitCode -ne 0) {
         throw "msodbcsql18.msi failed (exit=$($p.ExitCode)); see $log"
     }
-    if (-not (Test-MsOdbcDriver)) {
+    if (-not (Test-MsOdbcDriver) -and -not (Repair-MsOdbcRegistration)) {
         throw "ODBC driver installed but '$MsOdbcName' (64-bit) is still not registered"
     }
     Info "ODBC: '$MsOdbcName' installed."
@@ -1820,9 +1926,980 @@ function Ensure-SqlServer {
     $script:OverallOk = $false
 }
 
+# ==============================================================================
+# 9b. Oracle AI Database Free 26ai
+# ==============================================================================
+#
+# Oracle publishes no portable Windows build: the vendor package is a zip that
+# runs setup.exe, which installs an Oracle Home, creates the container
+# database FREE with the FREEPDB1 pluggable database, and registers the
+# database and listener services.  This is the Windows counterpart of the
+# vendor container the Linux script starts: one instance on the version's
+# port, with the suite's schemas provisioned inside it.
+#
+# Only the 26ai key exists on this platform - 19c has no Free Windows build -
+# but the version axis stays the same because the port and service keys the
+# Python side uses (FQ_ORACLE_PORT_26AI, FQ_ORACLE_SERVICE_26AI) apply either
+# way.
+#
+# setup.exe is asynchronous: it returns while msiexec keeps installing, so
+# completion is read from the /L*v log ("Installation success or error
+# status: 0"), never from setup.exe's exit code.
+#
+# FQ_ORACLE_FREE_URL may point at a pre-staged copy of the package (http(s),
+# file:/// or a plain path).  The pinned SHA256 is always verified before
+# setup.exe runs, so a truncated or substituted download is never installed.
+
+$OracleVersions    = Get-EnvList 'FQ_ORACLE_VERSIONS' '26ai'
+$OracleHost        = Get-EnvOr 'FQ_ORACLE_HOST' '127.0.0.1'
+$OracleAdminUser   = Get-EnvOr 'FQ_ORACLE_ADMIN_USER' 'system'
+$OracleAdminPass   = Get-EnvOr 'FQ_ORACLE_ADMIN_PASS' 'Tdengine_123'
+$OracleUser        = Get-EnvOr 'FQ_ORACLE_USER' 'taosdata'
+$OraclePass        = Get-EnvOr 'FQ_ORACLE_PASS' 'taosdata'
+$OraclePoolUser    = Get-EnvOr 'FQ_ORACLE_POOL_TEST_USER' 'fq_pool_test_oracle'
+$OraclePoolPass    = Get-EnvOr 'FQ_ORACLE_POOL_TEST_PASS' 'taosdata'
+$OracleAltUser     = Get-EnvOr 'FQ_ORACLE_ALT_USER' 'fq_alt_schema'
+$OracleAltPass     = Get-EnvOr 'FQ_ORACLE_ALT_PASS' 'taosdata'
+$OraclePoolMaxConn = [int](Get-EnvOr 'FQ_POOL_TEST_MAX_CONN' '2')
+# Oracle AI Database Free 26ai (23.26.3) for Windows x64.  Pinning both the
+# URL and the hash keeps the engine version stable: the download page is
+# evergreen and a newer build would silently change the engine the suite
+# runs against.
+$OracleFreeUrl     = Get-EnvOr 'FQ_ORACLE_FREE_URL' `
+    'https://download.oracle.com/otn-pub/otn_software/db-free/oracle-ai-database-free-26ai-23.26.3.windows.x64.zip'
+$OracleFreeSha256  = (Get-EnvOr 'FQ_ORACLE_FREE_SHA256' `
+    '178d6cfd5a8109ea9d26894a597116db4d95320cd8861d16ca10d4d8c384dab3').ToLowerInvariant()
+$OracleCache       = Get-EnvOr 'FQ_ORACLE_PKG_DIR' (Join-Path $FqBase 'oracle\packages')
+$OracleDriverName  = 'Oracle in instantclient_23_26'
+# Resolved lazily: probing the instance costs a sqlplus login, so the answer
+# is reused for the whole run (a stop/start does not invalidate it).
+$script:OracleAdminConnect = $null
+
+function Get-OraclePort {
+    param([string]$Ver)
+    $tag = ($Ver -replace '\.', '').ToUpperInvariant()
+    $value = Get-EnvOr "FQ_ORACLE_PORT_$tag" ''
+    if ($value) { return [int]$value }
+    if ($Ver -eq '26ai') { return 18322 }
+    return [int](Get-EnvOr 'FQ_ORACLE_PORT' 18322)
+}
+
+function Get-OracleService {
+    param([string]$Ver)
+    $tag = ($Ver -replace '\.', '').ToUpperInvariant()
+    $value = Get-EnvOr "FQ_ORACLE_SERVICE_$tag" ''
+    if ($value) { return $value }
+    if ($Ver -eq '26ai') { return 'FREEPDB1' }
+    return (Get-EnvOr 'FQ_ORACLE_SERVICE' 'FREEPDB1')
+}
+
+function Get-OracleBaseDir {
+    param([string]$Ver)
+    return (Join-Path $FqBase "oracle\$Ver")
+}
+
+# Oracle Home of the registered database service.  ImagePath is
+# "<home>\bin\ORACLE.EXE <SID>"; a quoted path is accepted too.
+function Get-OracleServiceHome {
+    $svc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
+    if ($null -eq $svc) { return $null }
+    $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$($svc.Name)"
+    $props = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
+    if ($null -eq $props) { return $null }
+    if (-not ($props.PSObject.Properties.Name -contains 'ImagePath')) { return $null }
+    $image = [string]$props.ImagePath
+    if ($image -match '^\s*"([^"]+)"') {
+        $exe = $Matches[1]
+    } else {
+        $exe = ($image -split '\s+')[0]
+    }
+    if (-not $exe) { return $null }
+    $bin = Split-Path -Path $exe -Parent
+    if ((Split-Path -Path $bin -Leaf) -ieq 'bin') {
+        return (Split-Path -Path $bin -Parent)
+    }
+    return $bin
+}
+
+function Get-OracleHome {
+    param([string]$Ver)
+    $baseDir = Get-OracleBaseDir $Ver
+    # The Free installer puts the home one level below INSTALLDIR; an existing
+    # vendor installation may use a different layout, which the service
+    # registry entry answers authoritatively.
+    foreach ($candidate in @((Join-Path $baseDir 'dbhomeFree'), $baseDir)) {
+        if (Test-Path (Join-Path $candidate 'bin\sqlplus.exe')) { return $candidate }
+    }
+    $svcHome = Get-OracleServiceHome
+    if ($svcHome -and (Test-Path (Join-Path $svcHome 'bin\sqlplus.exe'))) { return $svcHome }
+    return (Join-Path $baseDir 'dbhomeFree')
+}
+
+function Get-OracleListenerServiceName {
+    $svc = Get-Service -Name 'OracleOraDB*TNSListener*' -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ($null -eq $svc) { return $null }
+    return $svc.Name
+}
+
+# Passwords and account names are interpolated into DDL that runs inside a
+# PL/SQL string literal, so anything that would need quoting there is
+# rejected instead of escaped: the suite's values are all simple and a wrong
+# one should fail loudly rather than halfway through provisioning.
+function Assert-OraclePassword {
+    param([string]$Password, [string]$Label)
+    if ($Password -notmatch '^[A-Za-z0-9_!#$%^&*()+=.,@?~-]+$') {
+        throw "Oracle $Label contains characters the provisioning path cannot quote safely"
+    }
+}
+
+function Assert-OracleName {
+    param([string]$Name)
+    if ($Name -notmatch '^[A-Za-z][A-Za-z0-9_$#]*$') {
+        throw "invalid Oracle account name: $Name"
+    }
+}
+
+# Terminate every statement for SQL*Plus and insert "/" after a PL/SQL block.
+# Without the terminator SQL*Plus discards the trailing buffer at EXIT and
+# still exits 0, so the statement would silently do nothing.  The depth
+# counter mirrors the shell helper: BEGIN/DECLARE open a block and a line
+# that is exactly "END;" closes one (END IF; / END LOOP; do not).
+function ConvertTo-OracleSqlScript {
+    param([string]$Sql)
+    $normalized = $Sql -replace "`r`n", "`n"
+    $lines = @($normalized -split "`n")
+    $result = New-Object System.Collections.Generic.List[string]
+    $depth = 0
+    $declared = $false
+    foreach ($line in $lines) {
+        $t = $line.Trim()
+        $low = $t.ToLowerInvariant()
+        if ($depth -eq 0) {
+            if ($low -match '^(begin|declare)([ \t(]|$)') {
+                $result.Add($line)
+                if ($low -match 'end[ \t]*;$') {
+                    $result.Add('/')
+                } else {
+                    $depth = 1
+                    $declared = $low.StartsWith('declare')
+                }
+            } else {
+                $result.Add($line)
+            }
+            continue
+        }
+        $result.Add($line)
+        if ($declared -and ($low -match '^begin([ \t(]|$)')) {
+            $declared = $false
+            continue
+        }
+        if ($low -match '^(begin|declare)([ \t(]|$)') {
+            $depth++
+        } elseif ($low -match '^end[ \t]*;$') {
+            $depth--
+            if ($depth -eq 0) {
+                $result.Add('/')
+                $declared = $false
+            }
+        }
+    }
+    # A block whose closing END sits on the same line as BEGIN never matches
+    # the line-based "END;" rule above, so it would still be buffered when the
+    # script ends: SQL*Plus then drops it at EXIT (silent no-op) or, when the
+    # caller's stdin stays open, waits for more input forever.  Submit whatever
+    # is still buffered with the '/' terminator.
+    if ($depth -gt 0) {
+        $result.Add('/')
+        $depth = 0
+    }
+    $last = $null
+    for ($i = $result.Count - 1; $i -ge 0; $i--) {
+        if ($result[$i].Trim() -ne '') { $last = $result[$i].Trim(); break }
+    }
+    if ($last -and -not ($last.EndsWith(';') -or $last -eq '/')) {
+        $result.Add(';')
+    }
+    return ,$result.ToArray()
+}
+
+# Run one SQL batch through sqlplus.  Output is not captured: sqlplus writes
+# UTF-8 (NLS_LANG below) straight to the inherited stdout, which keeps the
+# bytes intact and lets the Python helpers parse them.  A failing statement
+# exits non-zero because of WHENEVER SQLERROR.
+function Invoke-OracleSqlplus {
+    param(
+        [string]$Ver,
+        [string]$Connect,
+        [string]$Sql,
+        [switch]$Quiet
+    )
+    $oracleHome = Get-OracleHome $Ver
+    $sqlplus = Join-Path $oracleHome 'bin\sqlplus.exe'
+    if (-not (Test-Path $sqlplus)) {
+        Err "Oracle ${Ver}: sqlplus.exe not found under $oracleHome"
+        return $false
+    }
+    $scriptText = ConvertTo-OracleSqlScript $Sql
+    $header = "SET DEFINE OFF`r`n" +
+              "SET HEADING OFF`r`n" +
+              "SET FEEDBACK OFF`r`n" +
+              "SET PAGESIZE 0`r`n" +
+              "SET LINESIZE 32767`r`n" +
+              "SET LONG 100000`r`n" +
+              "SET TRIMSPOOL ON`r`n" +
+              "SET TAB OFF`r`n" +
+              "SET SQLBLANKLINES ON`r`n" +
+              "WHENEVER SQLERROR EXIT SQL.SQLCODE`r`n"
+    $content = $header + ($scriptText -join "`r`n") + "`r`nEXIT`r`n"
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("fq-oracle-" + [guid]::NewGuid().ToString('N') + ".sql")
+    [System.IO.File]::WriteAllText($tmp, $content, (New-Object System.Text.UTF8Encoding($false)))
+    $savedHome = $env:ORACLE_HOME
+    $savedSid  = $env:ORACLE_SID
+    $savedNls  = $env:NLS_LANG
+    # sqlplus must write to this process's own stdout: invoking it with "&"
+    # would make its output part of the function's return value instead of
+    # reaching the caller.  A child started with UseShellExecute=false
+    # inherits the handle, so its bytes arrive unchanged (no re-encoding).
+    $argLine = '-S -L ' + $Connect + ' "@' + $tmp + '"'
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $sqlplus
+    $psi.Arguments = $argLine
+    $psi.UseShellExecute = $false
+    $psi.WorkingDirectory = $oracleHome
+    if ($Quiet) { $psi.RedirectStandardOutput = $true }
+    $code = 1
+    try {
+        $env:ORACLE_HOME = $oracleHome
+        $env:ORACLE_SID  = 'FREE'
+        $env:NLS_LANG    = 'AMERICAN_AMERICA.AL32UTF8'
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        if ($Quiet) {
+            # Drain the pipe before waiting: a full buffer would block the
+            # child forever.
+            $null = $proc.StandardOutput.ReadToEnd()
+        }
+        $proc.WaitForExit()
+        $code = $proc.ExitCode
+    } finally {
+        $env:ORACLE_HOME = $savedHome
+        $env:ORACLE_SID  = $savedSid
+        $env:NLS_LANG    = $savedNls
+        Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    }
+    return ($code -eq 0)
+}
+
+function Test-OracleConnect {
+    param([string]$Ver, [string]$Connect)
+    return (Invoke-OracleSqlplus -Ver $Ver -Connect $Connect -Sql 'SELECT 1 FROM DUAL' -Quiet)
+}
+
+# Admin connection.  SYSTEM with the installer password is the documented
+# account; OS authentication (bequeath "/ as sysdba") is the fallback for an
+# instance whose password was changed.  When only SYSDBA works, SYSTEM's
+# password is reset to the configured one so every later admin batch uses the
+# same credentials.
+function Resolve-OracleAdminConnect {
+    param([string]$Ver)
+    if ($null -ne $script:OracleAdminConnect) { return $script:OracleAdminConnect }
+    $port = Get-OraclePort $Ver
+    $service = Get-OracleService $Ver
+    $passwordConnect = "$OracleAdminUser/$OracleAdminPass@//127.0.0.1:$port/$service"
+    if (Test-OracleConnect $Ver $passwordConnect) {
+        $script:OracleAdminConnect = @{ Connect = $passwordConnect; Sysdba = $false }
+        return $script:OracleAdminConnect
+    }
+    if (Test-OracleConnect $Ver '/ as sysdba') {
+        $escaped = $OracleAdminPass.Replace('"', '""')
+        $reset = "ALTER USER $OracleAdminUser IDENTIFIED BY `"$escaped`" CONTAINER = ALL;"
+        if ((Invoke-OracleSqlplus -Ver $Ver -Connect '/ as sysdba' -Sql $reset -Quiet) -and
+                (Test-OracleConnect $Ver $passwordConnect)) {
+            $script:OracleAdminConnect = @{ Connect = $passwordConnect; Sysdba = $false }
+            return $script:OracleAdminConnect
+        }
+        $script:OracleAdminConnect = @{ Connect = '/ as sysdba'; Sysdba = $true }
+        return $script:OracleAdminConnect
+    }
+    return $null
+}
+
+function Invoke-OracleAdminSql {
+    param([string]$Ver, [string]$Sql)
+    $connect = Resolve-OracleAdminConnect $Ver
+    if ($null -eq $connect) {
+        Err "Oracle ${Ver}: cannot log in as $OracleAdminUser or SYSDBA"
+        return $false
+    }
+    return (Invoke-OracleSqlplus -Ver $Ver -Connect $connect.Connect -Sql $Sql)
+}
+
+# Read the tail of a log written by msiexec.  Windows Installer verbose logs
+# are UTF-16LE with a BOM; a plain ANSI/UTF-8 log is handled too.  Only the
+# tail is read because the log of a full installation is large and the
+# completion marker is written at its end.
+function Read-OracleLogTail {
+    param([string]$Path, [int]$Bytes = 262144)
+    if (-not (Test-Path $Path)) { return '' }
+    $fs = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+    try {
+        $length = $fs.Length
+        if ($length -le 0) { return '' }
+        $head = New-Object byte[] 3
+        $fs.Position = 0
+        $headRead = $fs.Read($head, 0, 3)
+        $encoding = [System.Text.Encoding]::Default
+        $isUnicode = $false
+        if ($headRead -ge 2 -and $head[0] -eq 0xFF -and $head[1] -eq 0xFE) {
+            $encoding = [System.Text.Encoding]::Unicode
+            $isUnicode = $true
+        } elseif ($headRead -ge 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF) {
+            $encoding = New-Object System.Text.UTF8Encoding($false)
+        }
+        $start = [Math]::Max(0, $length - $Bytes)
+        if ($isUnicode) { $start = $start - ($start % 2) }
+        $fs.Position = $start
+        $buffer = New-Object byte[] ($length - $start)
+        $total = 0
+        while ($total -lt $buffer.Length) {
+            $n = $fs.Read($buffer, $total, $buffer.Length - $total)
+            if ($n -le 0) { break }
+            $total += $n
+        }
+        return $encoding.GetString($buffer, 0, $total)
+    } finally {
+        $fs.Dispose()
+    }
+}
+
+# Return the package zip, verifying its SHA256.  A pre-staged file (CI) and a
+# cached download are both accepted; a bad copy is deleted and fetched once
+# more before giving up.
+function Get-OracleMedia {
+    param([string]$Url, [string]$Sha256)
+    $name = [System.IO.Path]::GetFileName(($Url -split '\?')[0])
+    if (-not $name) {
+        $name = 'oracle-ai-database-free-26ai.windows.x64.zip'
+    }
+    $dest = Join-Path $OracleCache $name
+    if (Test-Path $dest) {
+        $have = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($have -eq $Sha256) {
+            Info "Oracle: using cached media $dest"
+            return $dest
+        }
+        Warn "Oracle: cached media $dest has SHA256 $have, expected $Sha256; discarding it"
+        Remove-Item -LiteralPath $dest -Force
+    }
+    $null = New-Item -ItemType Directory -Force $OracleCache
+    $remote = $true
+    if ($Url -match '^file:///') {
+        $localPath = ([System.Uri]::new($Url)).LocalPath
+        Info "Oracle: copying media from $localPath"
+        Copy-Item -LiteralPath $localPath -Destination $dest -Force
+        $remote = $false
+    } elseif ($Url -notmatch '^[A-Za-z][A-Za-z0-9+.-]*://') {
+        Info "Oracle: copying media from $Url"
+        Copy-Item -LiteralPath $Url -Destination $dest -Force
+        $remote = $false
+    } else {
+        Invoke-Download $Url $dest
+    }
+    if (-not (Test-Path $dest)) {
+        throw "Oracle media not found after download: $dest"
+    }
+    $have = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($have -ne $Sha256 -and $remote) {
+        Warn "Oracle: media SHA256 mismatch ($have); downloading once more"
+        Remove-Item -LiteralPath $dest -Force
+        Invoke-Download $Url $dest
+        $have = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    if ($have -ne $Sha256) {
+        Remove-Item -LiteralPath $dest -Force -ErrorAction SilentlyContinue
+        throw "Oracle media SHA256 mismatch: $have (expected $Sha256) for $Url"
+    }
+    Info ("Oracle: media {0} bytes, SHA256 verified" -f (Get-Item $dest).Length)
+    return $dest
+}
+
+function Expand-OracleMedia {
+    param([string]$Zip, [string]$Destination)
+    if (Test-Path $Destination) { Remove-Item -LiteralPath $Destination -Recurse -Force }
+    $null = New-Item -ItemType Directory -Force $Destination
+    $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
+    if (Test-Path $tar) {
+        & $tar -xf $Zip -C $Destination
+        if ($LASTEXITCODE -ne 0) {
+            throw "failed to unpack $Zip (tar exit $LASTEXITCODE)"
+        }
+    } else {
+        Expand-Archive -LiteralPath $Zip -DestinationPath $Destination -Force
+    }
+    return $Destination
+}
+
+# Replace "KEY=value" in a response file, appending the key when the template
+# does not carry it.  Commented-out defaults ("# KEY=...") are left alone.
+function Set-ResponseFileValue {
+    param([string[]]$Lines, [string]$Key, [string]$Value)
+    $pattern = '^\s*' + [regex]::Escape($Key) + '\s*='
+    $out = New-Object System.Collections.Generic.List[string]
+    $found = $false
+    foreach ($line in $Lines) {
+        if ($line -match $pattern) {
+            $out.Add("$Key=$Value")
+            $found = $true
+        } else {
+            $out.Add($line)
+        }
+    }
+    if (-not $found) { $out.Add("$Key=$Value") }
+    return ,$out.ToArray()
+}
+
+function Find-OracleSetupFile {
+    param([string]$Media, [string]$Leaf)
+    $direct = Join-Path $Media $Leaf
+    if (Test-Path $direct) { return $direct }
+    $hit = Get-ChildItem -LiteralPath $Media -Recurse -File -Filter $Leaf -ErrorAction SilentlyContinue |
+        Sort-Object FullName | Select-Object -First 1
+    if ($null -eq $hit) { return $null }
+    return $hit.FullName
+}
+
+# Silent install of Oracle AI Database Free 26ai.  The package creates the
+# container database FREE and the FREEPDB1 service itself; the response file
+# only selects the install directory, the port, and the admin password.
+function Install-OracleFree {
+    param([string]$Ver, [int]$Port, [string]$BaseDir)
+    if (-not (Test-Admin)) {
+        Err "Oracle ${Ver}: installing Oracle Free needs administrator rights."
+        Err "      Re-run elevated, or point FQ_ORACLE_HOST at an existing Oracle instance."
+        throw "Oracle Free installation requires administrator rights"
+    }
+    # The Free home cannot coexist with XE, and the installer aborts late (after
+    # several minutes) when it finds one; refuse immediately instead.
+    if ($null -ne (Get-Service -Name 'OracleServiceXE' -ErrorAction SilentlyContinue)) {
+        throw "Oracle Database XE is installed; Oracle AI Database Free cannot coexist with XE"
+    }
+    # A space in INSTALLDIR breaks the argument protocol of the vendor
+    # launcher (it splits the path when it forwards it to msiexec).
+    if ($BaseDir -match '\s') {
+        throw "Oracle's installer does not accept spaces in INSTALLDIR ($BaseDir); set FQ_BASE_DIR to a space-free path"
+    }
+    # ORACLE_HOME / TNS_ADMIN make the installer's prerequisite check see the
+    # wrong home; remove them from this process only.
+    foreach ($name in @('ORACLE_HOME', 'TNS_ADMIN')) {
+        if ([System.Environment]::GetEnvironmentVariable($name)) {
+            Warn "Oracle ${Ver}: clearing $name for the installer"
+            [System.Environment]::SetEnvironmentVariable($name, $null, 'Process')
+        }
+    }
+
+    $zip = Get-OracleMedia $OracleFreeUrl $OracleFreeSha256
+    $media = Join-Path $BaseDir 'media'
+    Info "Oracle ${Ver}: unpacking $zip ..."
+    $null = Expand-OracleMedia $zip $media
+
+    $setup = Find-OracleSetupFile $media 'setup.exe'
+    if (-not $setup) { throw "setup.exe not found under $media" }
+    $rsp = Find-OracleSetupFile $media 'FREEInstall.rsp'
+    if (-not $rsp) { $rsp = Find-OracleSetupFile $media '*.rsp' }
+    if (-not $rsp) { throw "the Oracle response file (*.rsp) not found under $media" }
+
+    # INSTALLDIR must end with a backslash; the vendor template documents it
+    # and the launcher concatenates it with the home directory name.
+    $installDir = $BaseDir.TrimEnd('\') + '\'
+    $lines = [System.IO.File]::ReadAllLines($rsp, [System.Text.Encoding]::UTF8)
+    $lines = Set-ResponseFileValue $lines 'INSTALLDIR' $installDir
+    $lines = Set-ResponseFileValue $lines 'PASSWORD' $OracleAdminPass
+    $lines = Set-ResponseFileValue $lines 'LISTENER_PORT' "$Port"
+    $lines = Set-ResponseFileValue $lines 'CHAR_SET' 'AL32UTF8'
+    $lines = Set-ResponseFileValue $lines 'DB_DOMAIN' ''
+    $lines = Set-ResponseFileValue $lines 'MODIFY_DIRECTORY_PERMISSIONS' 'TRUE'
+    # Creating the database is the whole point of the package; an image that
+    # ships SOFTWARE_ONLY=TRUE would only install the binaries.
+    $lines = Set-ResponseFileValue $lines 'SOFTWARE_ONLY' 'FALSE'
+    [System.IO.File]::WriteAllLines($rsp, $lines, (New-Object System.Text.UTF8Encoding($false)))
+
+    $log = Join-Path $BaseDir 'setup.log'
+    Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+    Info "Oracle ${Ver}: running setup.exe silently (this takes 20-60 minutes) ..."
+    $setupArgs = '/s /v"RSP_FILE=' + $rsp + '" /v"/L*v ' + $log + '" /v"/qn"'
+    $started = Get-Date
+    $proc = Start-Process -FilePath $setup -WorkingDirectory $media `
+        -ArgumentList $setupArgs -PassThru
+
+    # setup.exe is only a launcher: poll the MSI log for the completion
+    # marker, which is written when the database creation has finished too.
+    $deadline = (Get-Date).AddMinutes(90)
+    $status = -1
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 10
+        if (Test-Path $log) {
+            $tail = Read-OracleLogTail $log
+            if ($tail -match 'Installation success or error status:\s*(-?\d+)') {
+                $status = [int]$Matches[1]
+                break
+            }
+        }
+        if ($proc.HasExited -and $proc.ExitCode -ne 0) {
+            # The launcher only fails early (bad arguments, missing media);
+            # the MSI state is still the authority, so keep waiting for the
+            # log until the deadline unless it is clearly absent.
+            if (-not (Test-Path $log)) {
+                throw "Oracle setup.exe exited with $($proc.ExitCode) and wrote no log at $log"
+            }
+        }
+    }
+    # The response file carries the admin password in clear text.
+    Remove-Item -LiteralPath $rsp -Force -ErrorAction SilentlyContinue
+
+    if ($status -gt 0) {
+        $tail = Read-OracleLogTail $log 65536
+        throw "Oracle setup failed with status $status; see $log`n$tail"
+    }
+    if ($status -lt 0) {
+        throw "Oracle setup did not report completion within 90 minutes; see $log"
+    }
+    $elapsed = ((Get-Date) - $started).TotalMinutes
+    Info ("Oracle {0}: installation finished in {1:N1} minutes" -f $Ver, $elapsed)
+
+    # The success marker can precede the service registration by a few
+    # seconds.
+    $svcDeadline = (Get-Date).AddSeconds(300)
+    while ((Get-Date) -lt $svcDeadline) {
+        if ($null -ne (Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue)) { break }
+        Start-Sleep -Seconds 5
+    }
+    if ($null -eq (Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue)) {
+        throw "Oracle setup reported success but OracleServiceFREE is not registered; see $log"
+    }
+    # The unpacked media is only needed during setup and takes several GB.
+    Remove-Item -LiteralPath $media -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+function Start-OracleServices {
+    param([string]$Ver)
+    $dbSvc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
+    if ($null -eq $dbSvc) {
+        throw "OracleServiceFREE is not registered"
+    }
+    if ($dbSvc.Status -ne 'Running') {
+        Info "Oracle ${Ver}: starting $($dbSvc.Name) ..."
+        Start-Service -Name $dbSvc.Name
+    }
+    $lsnName = Get-OracleListenerServiceName
+    if ($lsnName) {
+        $lsn = Get-Service -Name $lsnName -ErrorAction SilentlyContinue
+        if ($lsn -and $lsn.Status -ne 'Running') {
+            Info "Oracle ${Ver}: starting $lsnName ..."
+            Start-Service -Name $lsnName
+        }
+    } else {
+        Warn "Oracle ${Ver}: no TNS listener service found; local connections may still work"
+    }
+}
+
+function Wait-OracleReady {
+    param([string]$Ver, [int]$MaxSec = 900)
+    $port = Get-OraclePort $Ver
+    $deadline = (Get-Date).AddSeconds($MaxSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-PortOpen $port) {
+            if ($null -ne (Resolve-OracleAdminConnect $Ver)) { return $true }
+        }
+        Start-Sleep -Seconds 5
+    }
+    return $false
+}
+
+# Directory holding sqora32.dll plus the Instant Client base libraries.  The
+# provider scores a registration that points into taosd's own directory
+# highest, so the build tree (or the package's driver\oracle) wins over a
+# database home's own driver.
+function Get-OracleDriverDir {
+    $candidates = New-Object System.Collections.Generic.List[string]
+    $explicit = Get-EnvOr 'FQ_ORACLE_DRIVER_DIR' ''
+    if ($explicit) { $candidates.Add($explicit) }
+    if ($env:TAOS_BIN_PATH) {
+        $candidates.Add($env:TAOS_BIN_PATH)
+        $parent = Split-Path -Path $env:TAOS_BIN_PATH -Parent
+        if ($parent) { $candidates.Add((Join-Path $parent 'driver\oracle')) }
+    }
+    # Source tree: <repo>\debug*\build\bin; package tree: any ancestor that
+    # carries driver\oracle.
+    $dir = $ScriptDir
+    while ($dir) {
+        $candidates.Add((Join-Path $dir 'driver\oracle'))
+        $candidates.Add((Join-Path $dir 'bin'))
+        if (Test-Path (Join-Path $dir '.git')) {
+            foreach ($buildDir in (Get-ChildItem -Path $dir -Directory -Filter 'debug*' -ErrorAction SilentlyContinue)) {
+                $candidates.Add((Join-Path $buildDir.FullName 'build\bin'))
+            }
+        }
+        $parent = Split-Path -Path $dir -Parent
+        if (-not $parent -or $parent -eq $dir) { break }
+        $dir = $parent
+    }
+    $candidates.Add('C:\TDengine')
+    $candidates.Add('C:\TDengine\driver\oracle')
+    foreach ($candidate in $candidates) {
+        if (-not $candidate) { continue }
+        if (-not (Test-Path (Join-Path $candidate 'sqora32.dll'))) { continue }
+        $base = Get-ChildItem -Path $candidate -Filter 'oraociei*.dll' -ErrorAction SilentlyContinue
+        if ($null -eq $base) { continue }
+        return (Resolve-Path -Path $candidate).Path
+    }
+    return $null
+}
+
+# Register the Instant Client ODBC driver in the 64-bit ODBCINST.INI view.
+# Windows has no per-application ODBC registration and the Driver keyword
+# cannot carry a DLL path, so the provider resolves the driver through this
+# entry (see extConnectorOracle.c).
+function Register-OracleOdbcDriver {
+    param([string]$Ver)
+    $driverDir = Get-OracleDriverDir
+    if (-not $driverDir) {
+        Err "Oracle ${Ver}: no Instant Client (sqora32.dll + oraociei*.dll) found."
+        Err "      Build with BUILD_WITH_ODBC=ON so the driver is staged into build\bin,"
+        Err "      or set FQ_ORACLE_DRIVER_DIR to the directory that holds it."
+        return $false
+    }
+    $driverDll = Join-Path $driverDir 'sqora32.dll'
+    $setupDll = Join-Path $driverDir 'sqoras32.dll'
+    try {
+        $key = "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\$OracleDriverName"
+        if (-not (Test-Path $key)) { $null = New-Item -Path $key }
+        $null = New-ItemProperty -Path $key -Name 'Driver' -Value $driverDll -PropertyType String -Force
+        if (Test-Path $setupDll) {
+            $null = New-ItemProperty -Path $key -Name 'Setup' -Value $setupDll -PropertyType String -Force
+        }
+        $driversKey = 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers'
+        # New-Item -Force on an existing registry key drops all of its values,
+        # which would unregister every other ODBC driver on the machine.
+        if (-not (Test-Path $driversKey)) { $null = New-Item -Path $driversKey }
+        $null = New-ItemProperty -Path $driversKey -Name $OracleDriverName -Value 'Installed' -PropertyType String -Force
+    } catch {
+        Err "Oracle ${Ver}: registering the ODBC driver failed: $_"
+        return $false
+    }
+    Info "Oracle ${Ver}: registered ODBC driver '$OracleDriverName' -> $driverDll"
+    return $true
+}
+
+# Create the suite's accounts (schema == user in Oracle).  The pool account
+# gets its own profile so the pool-exhaustion tests can cap its sessions
+# without touching the other schemas.
+function Invoke-OracleProvision {
+    param([string]$Ver)
+    $profileSql = @"
+DECLARE
+  n NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO n FROM dba_profiles
+   WHERE profile = 'FQ_POOL_TEST' AND resource_name = 'SESSIONS_PER_USER';
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE PROFILE FQ_POOL_TEST LIMIT SESSIONS_PER_USER $OraclePoolMaxConn';
+  ELSE
+    EXECUTE IMMEDIATE 'ALTER PROFILE FQ_POOL_TEST LIMIT SESSIONS_PER_USER $OraclePoolMaxConn';
+  END IF;
+END;
+/
+"@
+    if (-not (Invoke-OracleAdminSql $Ver $profileSql)) {
+        Err "Oracle ${Ver}: creating profile FQ_POOL_TEST failed"
+        return $false
+    }
+    $accounts = @(
+        @{ User = $OracleUser; Pass = $OraclePass; Profile = 'DEFAULT' },
+        @{ User = $OraclePoolUser; Pass = $OraclePoolPass; Profile = 'FQ_POOL_TEST' },
+        @{ User = $OracleAltUser; Pass = $OracleAltPass; Profile = 'DEFAULT' }
+    )
+    foreach ($account in $accounts) {
+        $name = [string]$account.User
+        $pass = [string]$account.Pass
+        $profile = [string]$account.Profile
+        Assert-OracleName $name
+        Assert-OraclePassword $pass "password for $name"
+        $sql = @"
+DECLARE
+  n NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO n FROM dba_users WHERE username = UPPER('$name');
+  IF n = 0 THEN
+    EXECUTE IMMEDIATE 'CREATE USER $name IDENTIFIED BY "$pass" PROFILE $profile';
+  ELSE
+    EXECUTE IMMEDIATE 'ALTER USER $name IDENTIFIED BY "$pass" PROFILE $profile';
+  END IF;
+  EXECUTE IMMEDIATE 'GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE SEQUENCE, CREATE SYNONYM, UNLIMITED TABLESPACE TO $name';
+END;
+/
+"@
+        if (-not (Invoke-OracleAdminSql $Ver $sql)) {
+            Err "Oracle ${Ver}: provisioning account $name failed"
+            return $false
+        }
+    }
+    return $true
+}
+
+# Drop every object owned by the three accounts so each test file starts from
+# an empty schema, matching the other engines' clean-data reset.
+function Invoke-OracleDropUserObjects {
+    param([string]$Ver)
+    foreach ($owner in @($OracleUser, $OraclePoolUser, $OracleAltUser)) {
+        Assert-OracleName $owner
+        $sql = @"
+BEGIN
+  FOR o IN (SELECT object_name, object_type FROM dba_objects
+             WHERE owner = UPPER('$owner')
+               AND object_type IN ('TABLE','VIEW','MATERIALIZED VIEW','SEQUENCE','SYNONYM','TYPE','PROCEDURE','FUNCTION')) LOOP
+    BEGIN
+      IF o.object_type = 'TABLE' THEN
+        EXECUTE IMMEDIATE 'DROP TABLE "$owner"."' || o.object_name || '" CASCADE CONSTRAINTS PURGE';
+      ELSE
+        EXECUTE IMMEDIATE 'DROP ' || o.object_type || ' "$owner"."' || o.object_name || '"';
+      END IF;
+    EXCEPTION
+      WHEN OTHERS THEN NULL;
+    END;
+  END LOOP;
+END;
+/
+"@
+        if (-not (Invoke-OracleAdminSql $Ver $sql)) {
+            Warn "Oracle ${Ver}: could not drop objects owned by $owner"
+        }
+    }
+}
+
+function Ensure-Oracle {
+    param([string]$Ver)
+    if ($Ver -ne '26ai') {
+        Err "Oracle ${Ver}: only the 26ai Free instance exists on Windows"
+        $script:OverallOk = $false
+        return
+    }
+    $port = Get-OraclePort $Ver
+    $service = Get-OracleService $Ver
+    $baseDir = Get-OracleBaseDir $Ver
+    Info "Oracle ${Ver}: host=$OracleHost, port=$port, service=$service"
+
+    if (-not (Test-LocalHost $OracleHost)) {
+        if (Test-PortOpen $port) {
+            Info "Oracle ${Ver}: remote instance at ${OracleHost}:${port} is reachable (no install or reset on a shared host)."
+            return
+        }
+        Err "Oracle ${Ver}: ${OracleHost}:${port} is not reachable."
+        $script:OverallOk = $false
+        return
+    }
+
+    $quick = (Get-EnvOr 'FQ_ORACLE_QUICK_RESTART' '0') -eq '1'
+    $svc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
+    $oracleHome = Get-OracleHome $Ver
+    $installed = ($null -ne $svc) -and (Test-Path (Join-Path $oracleHome 'bin\sqlplus.exe'))
+    if (-not $installed) {
+        if ($null -ne $svc) {
+            Err "Oracle ${Ver}: OracleServiceFREE is registered but $oracleHome\bin\sqlplus.exe is missing."
+            Err "      A partially removed installation cannot be reused; remove the service and reinstall."
+            $script:OverallOk = $false
+            return
+        }
+        if ($quick) {
+            Err "Oracle ${Ver}: quick restart requested but Oracle Free is not installed."
+            $script:OverallOk = $false
+            return
+        }
+        try {
+            Install-OracleFree $Ver $port $baseDir
+        } catch {
+            Err "Oracle ${Ver}: installation failed: $_"
+            $script:OverallOk = $false
+            return
+        }
+        $oracleHome = Get-OracleHome $Ver
+    }
+
+    try {
+        Start-OracleServices $Ver
+    } catch {
+        Err "Oracle ${Ver}: starting the services failed: $_"
+        $script:OverallOk = $false
+        return
+    }
+    if (-not (Wait-OracleReady $Ver 900)) {
+        Err "Oracle ${Ver}: the instance did not become ready on port $port (log: $(Join-Path $baseDir 'setup.log'))."
+        $script:OverallOk = $false
+        return
+    }
+    if (-not (Register-OracleOdbcDriver $Ver)) {
+        $script:OverallOk = $false
+        return
+    }
+
+    if ($quick) {
+        Info "Oracle ${Ver}: quick restart complete (data preserved)."
+        return
+    }
+    if (-not (Invoke-OracleProvision $Ver)) {
+        $script:OverallOk = $false
+        return
+    }
+    Invoke-OracleDropUserObjects $Ver
+    Info "Oracle ${Ver}: ready."
+}
+
+function Stop-OracleInstance {
+    param([string]$Ver)
+    $svc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
+    if ($svc -and $svc.Status -ne 'Stopped') {
+        Info "Oracle ${Ver}: stopping $($svc.Name) ..."
+        Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+    }
+    $lsnName = Get-OracleListenerServiceName
+    if ($lsnName) {
+        $lsn = Get-Service -Name $lsnName -ErrorAction SilentlyContinue
+        if ($lsn -and $lsn.Status -ne 'Stopped') {
+            Stop-Service -Name $lsnName -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $port = Get-OraclePort $Ver
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Test-PortOpen $port)) { return }
+        Start-Sleep -Seconds 1
+    }
+    Warn "Oracle ${Ver}: port $port still accepts connections after the stop request"
+}
+
+# TerminateProcess is the Windows equivalent of SIGKILL.  Only processes that
+# belong to this instance's home are signalled, so an unrelated Oracle
+# installation on the same host is never touched.
+function Kill-OracleInstance {
+    param([string]$Ver)
+    $oracleHome = Get-OracleHome $Ver
+    $oracleHomePrefix = $oracleHome.TrimEnd('\') + '\'
+    foreach ($name in @('oracle', 'tnslsnr')) {
+        Get-Process -Name $name -ErrorAction SilentlyContinue | ForEach-Object {
+            $path = $null
+            try { $path = $_.Path } catch { $path = $null }
+            if ($path -and $path.StartsWith($oracleHomePrefix, 'OrdinalIgnoreCase')) {
+                Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    # A killed database process leaves the SCM entry to transition on its own;
+    # refresh the service state before the port probe.
+    $port = Get-OraclePort $Ver
+    $deadline = (Get-Date).AddSeconds(60)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Test-PortOpen $port)) { return }
+        Start-Sleep -Seconds 1
+    }
+    Warn "Oracle ${Ver}: port $port still accepts connections after the kill"
+}
+
+# --oracle-exec: run the batch file named by FQ_ORACLE_EXEC_SQL_FILE as
+# FQ_ORACLE_EXEC_USER/FQ_ORACLE_EXEC_PASS.  Credentials travel through the
+# environment because a password containing $, ; or & would be re-parsed by
+# PowerShell if it were a command-line argument.
+function Invoke-OracleExecAction {
+    param([string]$Ver)
+    $user = Get-EnvOr 'FQ_ORACLE_EXEC_USER' (Get-EnvOr 'FQ_ORACLE_USER' 'taosdata')
+    $pass = Get-EnvOr 'FQ_ORACLE_EXEC_PASS' (Get-EnvOr 'FQ_ORACLE_PASS' 'taosdata')
+    $file = Get-EnvOr 'FQ_ORACLE_EXEC_SQL_FILE' ''
+    if (-not $file) {
+        Err "FQ_ORACLE_EXEC_SQL_FILE is not set"
+        return $false
+    }
+    if (-not (Test-Path $file)) {
+        Err "Oracle ${Ver}: SQL file not found: $file"
+        return $false
+    }
+    $hostName = $OracleHost
+    if ($hostName -eq 'localhost' -or $hostName -eq '.') { $hostName = '127.0.0.1' }
+    $connect = "$user/$pass@//${hostName}:$(Get-OraclePort $Ver)/$(Get-OracleService $Ver)"
+    $sql = [System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8)
+    return (Invoke-OracleSqlplus -Ver $Ver -Connect $connect -Sql $sql)
+}
+
+function Invoke-OracleAdminExecAction {
+    param([string]$Ver)
+    $file = Get-EnvOr 'FQ_ORACLE_ADMIN_SQL_FILE' ''
+    if (-not $file) {
+        Err "FQ_ORACLE_ADMIN_SQL_FILE is not set"
+        return $false
+    }
+    if (-not (Test-Path $file)) {
+        Err "Oracle ${Ver}: admin SQL file not found: $file"
+        return $false
+    }
+    $sql = [System.IO.File]::ReadAllText($file, [System.Text.Encoding]::UTF8)
+    return (Invoke-OracleAdminSql $Ver $sql)
+}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # 10. Main
 # ══════════════════════════════════════════════════════════════════════════════
+
+# --- Command-line actions -----------------------------------------------------
+#   ensure_ext_env.ps1 --oracle-exec <version>
+#   ensure_ext_env.ps1 --oracle-admin-exec <version>
+#   ensure_ext_env.ps1 --oracle-stop <version>
+#   ensure_ext_env.ps1 --oracle-kill <version>
+# The action flags are used by the Python fixtures for the Oracle disruption
+# and SQL-helper paths.  Payload (credentials, SQL batch) arrives through
+# FQ_ORACLE_EXEC_* / FQ_ORACLE_ADMIN_SQL_FILE so no value is ever re-parsed
+# from the command line.  These paths print nothing but sqlplus' own output.
+# The script is normally started without any argument, and @($null) still
+# yields a one-element array on Windows PowerShell, which would then be
+# taken for an unknown action.  Drop null and empty elements.
+$CliArgs = @($RemainingArgs | Where-Object { $null -ne $_ -and '' -ne $_ })
+if ($CliArgs.Count -gt 0) {
+    $script:SuppressConsoleLog = $true
+    $action = [string]$CliArgs[0]
+    $actionVer = ''
+    if ($CliArgs.Count -ge 2) { $actionVer = [string]$CliArgs[1] }
+    switch ($action) {
+        '--oracle-exec' {
+            if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-exec <version>"; exit 2 }
+            if (Invoke-OracleExecAction $actionVer) { exit 0 } else { exit 1 }
+        }
+        '--oracle-admin-exec' {
+            if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-admin-exec <version>"; exit 2 }
+            if (Invoke-OracleAdminExecAction $actionVer) { exit 0 } else { exit 1 }
+        }
+        '--oracle-stop' {
+            if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-stop <version>"; exit 2 }
+            Stop-OracleInstance $actionVer
+            exit 0
+        }
+        '--oracle-kill' {
+            if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-kill <version>"; exit 2 }
+            Kill-OracleInstance $actionVer
+            exit 0
+        }
+        default {
+            Err "unknown argument: $action"
+            exit 2
+        }
+    }
+}
+
+# FQ_SERVICES_TO_RESET limits the run to the named engines, matching the
+# shell script: a mid-test restart sets it to one service while leaving the
+# version lists at their defaults.
+$ServicesToReset = Get-EnvOr 'FQ_SERVICES_TO_RESET' ''
+function Test-EngineRequested {
+    param([string]$Name)
+    if (-not $ServicesToReset) { return $true }
+    $names = @($ServicesToReset -split '[, ]+' | Where-Object { $_ })
+    return ($names -contains $Name)
+}
 
 Log "========================================================"
 Log "FederatedQuery external environment setup (Windows)"
@@ -1831,14 +2908,16 @@ Log "  MySQL      : $($MysqlVersions -join ', ')"
 Log "  PG         : $($PgVersions -join ', ')"
 Log "  InfluxDB   : $($InfluxVersions -join ', ')"
 Log "  SQL Server : $($SqlServerVersions -join ', ')"
+Log "  Oracle     : $($OracleVersions -join ', ')"
 Log "========================================================"
 
 $null = New-Item -ItemType Directory -Force $FqBase
 
-foreach ($ver in $MysqlVersions)  { Ensure-Mysql  $ver }
-foreach ($ver in $PgVersions)     { Ensure-Pg     $ver }
-foreach ($ver in $InfluxVersions) { Ensure-Influx $ver }
-foreach ($ver in $SqlServerVersions) { Ensure-SqlServer $ver }
+if (Test-EngineRequested 'mysql')     { foreach ($ver in $MysqlVersions)  { Ensure-Mysql  $ver } }
+if (Test-EngineRequested 'pg')        { foreach ($ver in $PgVersions)     { Ensure-Pg     $ver } }
+if (Test-EngineRequested 'influx')    { foreach ($ver in $InfluxVersions) { Ensure-Influx $ver } }
+if (Test-EngineRequested 'sqlserver') { foreach ($ver in $SqlServerVersions) { Ensure-SqlServer $ver } }
+if (Test-EngineRequested 'oracle')    { foreach ($ver in $OracleVersions) { Ensure-Oracle $ver } }
 
 if (-not $OverallOk) {
     Err "One or more engines failed to start. See messages above."

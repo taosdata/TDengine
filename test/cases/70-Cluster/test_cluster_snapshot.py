@@ -34,7 +34,7 @@ class TestSnapshot:
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, "snapshot.json")
-        etool.benchMark(json=jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
         tdSql.execute(f"use {self.db}")
         # set insert data information
@@ -152,6 +152,7 @@ class TestSnapshot:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

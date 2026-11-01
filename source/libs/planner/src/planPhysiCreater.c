@@ -1108,6 +1108,18 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
             pIndex = taosHashGet(pSecondHash, ((SExprNode*)pCol)->aliasName, aliasLen);
           }
         }
+        // The user's own spelling is the last resort.  External tables keep the
+        // source's folded column names, so a column referenced as "id" over an
+        // Oracle table reports colName "ID" while the producing layer (window,
+        // partition) publishes the SQL-spelling alias "id".  The slot really is
+        // the same column; only the spelling differs.
+        if (NULL == pIndex && ((SExprNode*)pCol)->userAlias[0] != '\0') {
+          int32_t userAliasLen = (int32_t)strlen(((SExprNode*)pCol)->userAlias);
+          pIndex = taosHashGet(pFirstHash, ((SExprNode*)pCol)->userAlias, userAliasLen);
+          if (NULL == pIndex) {
+            pIndex = taosHashGet(pSecondHash, ((SExprNode*)pCol)->userAlias, userAliasLen);
+          }
+        }
       }
     }
     if (NULL == pIndex) {
@@ -2726,6 +2738,52 @@ static int32_t fqBuildTimestampTypeHints(SFederatedScanPhysiNode* pScan, const S
   return TSDB_CODE_SUCCESS;
 }
 
+// Mark the remote columns whose value only becomes readable through a
+// server-side rewrite.  Oracle maps XMLTYPE to NCHAR (DS 5.3.2.1), but the ODBC
+// driver cannot define a buffer for the object type, so the executor has to
+// select XMLSERIALIZE(CONTENT <col> AS CLOB) for it.  The renderer runs in
+// taosd without the table metadata, so the columns travel with the plan.
+static int32_t fqBuildColumnRenderHints(SFederatedScanPhysiNode* pScan, const SExtTableNode* pExtNode) {
+  if (pScan == NULL || pExtNode == NULL || pExtNode->sourceType != EXT_SOURCE_ORACLE ||
+      pExtNode->pExtMeta == NULL || pExtNode->pExtMeta->pCols == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t hintCount = 0;
+  for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
+    if (0 == strncasecmp(pCol->extTypeName, "XMLTYPE", 7)) {
+      ++hintCount;
+    }
+  }
+  if (hintCount == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pScan->pColumnRenderHints =
+      (SExtColumnRenderHint*)taosMemoryCalloc(hintCount, sizeof(SExtColumnRenderHint));
+  if (pScan->pColumnRenderHints == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t hintIdx = 0;
+  for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
+    if (0 != strncasecmp(pCol->extTypeName, "XMLTYPE", 7)) {
+      continue;
+    }
+    tstrncpy(pScan->pColumnRenderHints[hintIdx].colName, pCol->colName,
+             sizeof(pScan->pColumnRenderHints[hintIdx].colName));
+    pScan->pColumnRenderHints[hintIdx].rewrite = EXT_RENDER_REWRITE_XMLTYPE;
+    planDebug("FQ-ColRenderHints[%d]: source=%s col=%s extType=%s rewrite=XMLTYPE",
+              hintIdx, pExtNode->sourceName, pCol->colName, pCol->extTypeName);
+    ++hintIdx;
+  }
+
+  pScan->numColumnRenderHints = hintIdx;
+  return TSDB_CODE_SUCCESS;
+}
+
 // PostgreSQL federated scans require an explicit schema at both the planner
 // node and connector-config levels. Keep them aligned before executor handoff.
 static int32_t fqEnsurePgExtSchemaNode(SExtTableNode* pExtNode) {
@@ -3021,6 +3079,17 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
                   (int)((SExprNode*)pExpr)->resType.type, (int)((SExprNode*)pExpr)->resType.precision,
                   (int)((SExprNode*)pExpr)->resType.scale, (int)((SExprNode*)pExpr)->resType.bytes);
         pScan->pColTypeMappings[colIdx].tdType = ((SExprNode*)pExpr)->resType;
+        // Timestamp values are read at the SOURCE (transport) precision, the
+        // maximum over the remote table's time columns (DS 5.3.7), not at the
+        // column's declared precision.  The provider converts the epoch with
+        // this precision and declares the returned block with it; a table that
+        // holds a TIMESTAMP(7..9) column must hand NANO here, otherwise the
+        // microsecond epoch is later reinterpreted as nanoseconds (1000x off).
+        if (pScan->pColTypeMappings[colIdx].tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+          int8_t tsPrec = (NULL != pExtNode->pExtMeta) ? pExtNode->pExtMeta->tsPrecision : 0;
+          pScan->pColTypeMappings[colIdx].tsPrecision =
+              (tsPrec == TSDB_TIME_PRECISION_NANO) ? TSDB_TIME_PRECISION_NANO : TSDB_TIME_PRECISION_MICRO;
+        }
         const char* pOutputName = fqResolveRemoteOutputName(pExprNode);
         if (NULL != pOutputName && '\0' != pOutputName[0]) {
           tstrncpy(pScan->pColTypeMappings[colIdx].colName, pOutputName,
@@ -3043,6 +3112,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   }
 
   PLAN_ERR_JRET(fqBuildTimestampTypeHints(pScan, pExtNode));
+  PLAN_ERR_JRET(fqBuildColumnRenderHints(pScan, pExtNode));
   // Propagate two-pass mode only when the repeat-scan aggregate still runs locally.
   // If the remote subtree already contains the repeat-scan AGG, FederatedScan must
   // return the final remote rows once, not PRE_SCAN + MAIN_SCAN duplicates.

@@ -20,37 +20,55 @@ import copy
 import glob
 import json
 import os
-import resource
 import shutil
 import signal
 import subprocess
 import time
 from threading import Event, Thread
 
+import psutil
+
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
 
-def _killTask(stopEvent, taosadapter, presleep, sleep, count):
+def _killTask(stopEvent, taosadapter, presleep, sleep, count, errors):
     """Background task that repeatedly kills and restarts taosadapter."""
     tdLog.info(f"kill task: pre-sleep {presleep}s")
-    time.sleep(presleep)
-    stopcmd = "kill -9 $(pidof taosadapter)"
-    startcmd = (
-        f"nohup {taosadapter} --logLevel=error --opentsdb_telnet.enable=true "
-        f"> ~/taosa.log 2>&1 &"
-    )
-    for i in range(count):
-        tdLog.info(f"  i={i}: killing taosadapter, then sleeping {sleep}s")
-        os.system(stopcmd)
-        time.sleep(sleep)
-        tdLog.info(f"  starting taosadapter")
-        os.system(startcmd)
-        if stopEvent.is_set():
-            tdLog.info("  received stop event, exiting killTask")
-            break
-        time.sleep(sleep)
+    if stopEvent.wait(presleep):
+        return
+    expected = os.path.normcase(os.path.realpath(taosadapter))
+    try:
+        for i in range(count):
+            tdLog.info(f"  i={i}: killing taosadapter, then sleeping {sleep}s")
+            targets = []
+            for proc in psutil.process_iter(["name", "exe"]):
+                try:
+                    if (proc.info["name"] or "").lower() not in {"taosadapter", "taosadapter.exe"}:
+                        continue
+                    if os.path.normcase(os.path.realpath(proc.info["exe"] or "")) == expected:
+                        proc.kill()
+                        targets.append(proc)
+                except psutil.NoSuchProcess:
+                    continue
+            if not targets:
+                raise RuntimeError(f"No running taosadapter found at {taosadapter}")
+            _, alive = psutil.wait_procs(targets, timeout=10)
+            if alive:
+                raise RuntimeError(f"taosadapter did not exit: {[proc.pid for proc in alive]}")
+            # Always restart after fault injection, even if the caller finishes meanwhile.
+            stopEvent.wait(sleep)
+            tdLog.info("  starting taosadapter")
+            with open("taosa.log", "ab") as log:
+                subprocess.Popen(
+                    [taosadapter, "--logLevel=error", "--opentsdb_telnet.enable=true"],
+                    stdout=log, stderr=subprocess.STDOUT,
+                )
+            if stopEvent.wait(sleep):
+                break
+    except Exception as error:
+        errors.append(error)
     tdLog.info("killTask exited.")
 
 
@@ -198,7 +216,8 @@ class TestTaosBackupExcept:
             os.makedirs(tmpdir)
         else:
             tdLog.info(f"{tmpdir} exists, clearing data.")
-            os.system("rm -rf %s/*" % tmpdir)
+            shutil.rmtree(tmpdir)
+            os.makedirs(tmpdir)
 
         return taosbackup, benchmark, taosadapter, tmpdir
 
@@ -227,7 +246,7 @@ class TestTaosBackupExcept:
             tdSql.checkRows(0)
 
     def insertData(self, benchmark, jsonFile, db):
-        self.exec(f"{benchmark} -f {jsonFile}")
+        etool.benchmark_write(f"{benchmark} -f {jsonFile}")
 
     def dumpOut(self, taosbackup, db, outdir, websocket=False):
         command = f"{taosbackup} -T 2 -k 2 -z 800 -D {db} -o {outdir}"
@@ -277,9 +296,10 @@ class TestTaosBackupExcept:
     def startKillThread(self, taosadapter, presleep, sleep, count):
         tdLog.info("startKillThread called")
         self.stopEvent = Event()
+        self._kill_errors = []
         self.thread = Thread(
             target=_killTask,
-            args=(self.stopEvent, taosadapter, presleep, sleep, count),
+            args=(self.stopEvent, taosadapter, presleep, sleep, count, self._kill_errors),
         )
         self.thread.start()
 
@@ -287,6 +307,8 @@ class TestTaosBackupExcept:
         tdLog.info("stopKillThread called")
         self.stopEvent.set()
         self.thread.join()
+        if self._kill_errors:
+            raise RuntimeError("taosadapter fault-injection thread failed") from self._kill_errors[0]
         tdLog.info("stopKillThread done")
 
     def _run_retry_test(self, newdb, websocket=False):
@@ -297,8 +319,10 @@ class TestTaosBackupExcept:
 
         self.insertData(benchmark, jsonFile, db)
         self.startKillThread(taosadapter, presleep=2, sleep=5, count=3)
-        self.dumpOut(taosbackup, db, tmpdir, websocket=websocket)
-        self.stopKillThread()
+        try:
+            self.dumpOut(taosbackup, db, tmpdir, websocket=websocket)
+        finally:
+            self.stopKillThread()
         self.dumpIn(taosbackup, db, newdb, tmpdir)
         self.verifyResult(db, newdb, jsonFile)
 
@@ -317,7 +341,8 @@ class TestTaosBackupExcept:
             os.path.dirname(os.path.abspath(__file__)), "tmp_srvrestart"
         )
         if os.path.exists(tmpdir):
-            os.system(f"rm -rf {tmpdir}/*")
+            shutil.rmtree(tmpdir)
+            os.makedirs(tmpdir)
         else:
             os.makedirs(tmpdir)
         return taosbackup, benchmark, tmpdir
@@ -328,7 +353,7 @@ class TestTaosBackupExcept:
             f" -t {self._SRV_CHILD_TABLES} -n {self._SRV_INSERT_ROWS} -y"
         )
         tdLog.info(f"insert data: {cmd}")
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -434,7 +459,8 @@ class TestTaosBackupExcept:
             os.path.dirname(os.path.abspath(__file__)), "tmp_rr"
         )
         if os.path.exists(tmpdir):
-            os.system(f"rm -rf {tmpdir}/*")
+            shutil.rmtree(tmpdir)
+            os.makedirs(tmpdir)
         else:
             os.makedirs(tmpdir)
         return taosbackup, benchmark, taosadapter, tmpdir
@@ -444,23 +470,16 @@ class TestTaosBackupExcept:
             os.path.dirname(os.path.abspath(__file__)), "json", "except_small.json"
         )
         tdLog.info(f"insert data via json: {jsonFile}")
-        ret = os.system(f"{benchmark} -f {jsonFile}")
+        ret = etool.benchmark_write(f"{benchmark} -f {jsonFile}")
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
         return jsonFile
 
     def _start_kill_thread(self, taosadapter, presleep, sleep, count):
-        self._kill_stop_evt = Event()
-        self._kill_thread = Thread(
-            target=_killTask,
-            args=(self._kill_stop_evt, taosadapter, presleep, sleep, count),
-            daemon=True,
-        )
-        self._kill_thread.start()
+        self.startKillThread(taosadapter, presleep, sleep, count)
 
     def _stop_kill_thread(self):
-        self._kill_stop_evt.set()
-        self._kill_thread.join()
+        self.stopKillThread()
 
     # =========================================================================
     # Helpers for thread-fail test
@@ -477,7 +496,8 @@ class TestTaosBackupExcept:
             os.path.dirname(os.path.abspath(__file__)), "tmp_threadfail"
         )
         if os.path.exists(tmpdir):
-            os.system(f"rm -rf {tmpdir}/*")
+            shutil.rmtree(tmpdir)
+            os.makedirs(tmpdir)
         else:
             os.makedirs(tmpdir)
         return taosbackup, benchmark, tmpdir
@@ -485,7 +505,7 @@ class TestTaosBackupExcept:
     def _tf_insert_small_data(self, benchmark):
         cmd = f"{benchmark} -d {self._TF_DB_SRC} -t 4 -n 1000 -y"
         tdLog.info(f"insert data: {cmd}")
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -606,7 +626,11 @@ class TestTaosBackupExcept:
 
     def do_thread_creation_failure(self):
         """Clean exit when pthread_create fails mid-launch."""
+        if os.name == "nt":
+            tdLog.info("RLIMIT_NPROC fault injection requires POSIX; backup/restart scenarios still run")
+            return
         import pwd
+        import resource
 
         # Root bypasses RLIMIT_NPROC - skip gracefully
         if os.getuid() == 0:

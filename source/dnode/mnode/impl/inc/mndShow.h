@@ -106,6 +106,7 @@ int32_t mndInitShow(SMnode *pMnode);
 void    mndCleanupShow(SMnode *pMnode);
 void    mndAddShowRetrieveHandle(SMnode *pMnode, EShowType showType, ShowRetrieveFp fp);
 void    mndAddShowFreeIterHandle(SMnode *pMnode, EShowType msgType, ShowFreeIterFp fp);
+bool    mndShowColRequested(const SShowObj *pShow, int32_t colIdx);
 
 #ifdef __cplusplus
 }

@@ -3299,6 +3299,8 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
   return isReady;
 }
 
+#define MND_DB_NTABLES_COL_IDX 3  // position of `ntables` in userDBSchema
+
 static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, int32_t rows,
                               int64_t numOfTables, bool sysDb, ESdbStatus objStatus, bool sysinfo,
                               SSHashObj **ppUidNames) {
@@ -3591,14 +3593,42 @@ static void setPerfSchemaDbCfg(SMnode *pMnode, SDbObj *pDbObj) {
   pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
 }
 
-static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
-  SVgObj  *pVgroup = pObj;
-  int32_t *numOfTables = p1;
-  int64_t  uid = *(int64_t *)p2;
-  if (pVgroup->dbUid == uid) {
-    *numOfTables += pVgroup->numOfTables;
+static bool mndSumTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SVgObj    *pVgroup = pObj;
+  SSHashObj *pTables = p1;
+  int32_t   *pCode = p2;
+
+  int64_t *pNum = tSimpleHashGet(pTables, &pVgroup->dbUid, sizeof(pVgroup->dbUid));
+  if (pNum != NULL) {
+    *pNum += pVgroup->numOfTables;
+    return true;
+  }
+
+  int32_t code = tSimpleHashPut(pTables, &pVgroup->dbUid, sizeof(pVgroup->dbUid), &pVgroup->numOfTables,
+                                sizeof(pVgroup->numOfTables));
+  if (code != 0) {
+    *pCode = code;
+    return false;
   }
   return true;
+}
+
+static int32_t mndBuildDbTablesHash(SMnode *pMnode, SSHashObj **ppTables) {
+  SSHashObj *pTables =
+      tSimpleHashInit(sdbGetSize(pMnode->pSdb, SDB_DB), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pTables == NULL) {
+    TAOS_RETURN(terrno);
+  }
+
+  int32_t code = 0;
+  sdbTraverse(pMnode->pSdb, SDB_VGROUP, mndSumTablesOfDbFp, pTables, &code, NULL);
+  if (code != 0) {
+    tSimpleHashCleanup(pTables);
+    TAOS_RETURN(code);
+  }
+
+  *ppTables = pTables;
+  TAOS_RETURN(code);
 }
 
 static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
@@ -3609,6 +3639,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   SUserObj  *pOperUser = NULL;
   ESdbStatus objStatus = 0;
   SSHashObj *pUidNames = NULL;
+  SSHashObj *pDbTables = NULL;
 
   (void)mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOperUser);
   if (pOperUser == NULL) return 0;
@@ -3638,12 +3669,25 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pShow->sysDbRsp = true;
   }
 
+  bool needTables = mndShowColRequested(pShow, MND_DB_NTABLES_COL_IDX);
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus, true);
     if (pShow->pIter == NULL) break;
     if (showAnyDb || mndCheckDbPrivilege(pMnode, RPC_MSG_USER(pReq), RPC_MSG_TOKEN(pReq), MND_OPER_SHOW_DATABASES, pDb) == 0) {
-      int32_t numOfTables = 0;
-      sdbTraverse(pSdb, SDB_VGROUP, mndGetTablesOfDbFp, &numOfTables, &pDb->uid, NULL);
+      if (needTables && pDbTables == NULL) {
+        int32_t code = mndBuildDbTablesHash(pMnode, &pDbTables);
+        if (code != 0) {
+          mError("failed to build db tables hash since %s", tstrerror(code));
+          sdbRelease(pSdb, pDb);
+          sdbCancelFetchByType(pSdb, pShow->pIter, SDB_DB);
+          pShow->pIter = NULL;
+          mndReleaseUser(pMnode, pOperUser);
+          tSimpleHashCleanup(pUidNames);
+          return code;
+        }
+      }
+      int64_t *pNum = pDbTables != NULL ? tSimpleHashGet(pDbTables, &pDb->uid, sizeof(pDb->uid)) : NULL;
+      int64_t  numOfTables = pNum != NULL ? *pNum : 0;
       mndDumpDbInfoData(pMnode, pBlock, pDb, pShow, numOfRows, numOfTables, false, objStatus, sysinfo, &pUidNames);
       numOfRows++;
     }
@@ -3654,6 +3698,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   pShow->numOfRows += numOfRows;
   mndReleaseUser(pMnode, pOperUser);
   tSimpleHashCleanup(pUidNames);
+  tSimpleHashCleanup(pDbTables);
   return numOfRows;
 }
 

@@ -15,7 +15,7 @@ toc_max_heading_level: 5
 Ontop 通过 [TDengine Java Connector](../../10-developer-guide/08-connectors-reference/02-java.mdx) 连接 TDengine 数据源，需准备以下环境：
 
 - TDengine `v3.3.6.0` 及以上版本集群已部署并正常运行（企业及社区版均可）。
-- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
+- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)。
 - JDBC 驱动 3.6.0 及以上版本，[下载](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)。
 - Ontop 支持 TDengine 功能已合入 `version5` 分支但未发布，请 [下载源码](https://github.com/ontop/ontop) 并参照 README 构建。
 

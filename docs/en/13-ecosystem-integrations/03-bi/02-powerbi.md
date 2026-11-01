@@ -7,7 +7,7 @@ Power BI is a business analytics tool provided by Microsoft. By configuring the 
 ## Prerequisites
 
 - TDengine 3.3.4.0 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 - Install and run Power BI Desktop software (if not installed, please download the latest version for Windows OS 32/64 bit from its official address).
 - Download the latest Windows OS X64 client driver from the TDengine official website and install it on the machine running Power BI. After successful installation, the TDengine driver can be seen in the "ODBC Data Sources (32-bit)" or "ODBC Data Sources (64-bit)" management tool.
 

@@ -1,0 +1,23 @@
+## Prerequisites
+
+### Preparing Neuron and eKuiper
+
+**Not installed**
+
+- Use the `apex` tool provided by the TDengine Enterprise installation package.
+- **You do not need to install Neuron or eKuiper beforehand**: the installation automatically installs NeuronEX (which bundles eKuiper) and registers it with taosExplorer.
+- Same-host installation requires no additional network configuration. For cross-host installation, the NeuronEX host must be able to reach ports `6041` (taosAdapter) and `6060` (taosExplorer) on the TDengine host, and taosExplorer must be able to reach port `8085` (management) on the NeuronEX host.
+- The installation automatically creates the business database `neuron` (`--database`), the demo database `neuron_demo` (`--database-demo`), four demo devices (collection group `meters`), and demo rules. After installation, you can view the result directly in taosExplorer. To connect real devices, continue adding devices, collection groups, and tags in NeuronEX.
+
+**Already installed**
+
+- Neuron and eKuiper are deployed: either NeuronEX 4.0.0 or later (which bundles both; see [Install NeuronEX](https://docs.emqx.com/en/neuronex/latest/installation/introduction.html)), or the open-source combination of Neuron 2.15.0 or later and eKuiper (which must include the InfluxDB v1 sink).
+- Device collection is configured in Neuron (or NeuronEX): devices are added, collection groups are created, and tags are configured; devices are running and connected, and tag values are continuously updating in **Data Monitoring**. Any protocol supported by Neuron can be used — Modbus, OPC UA, Siemens S7, and so on.
+- The Neuron host can reach the taosAdapter HTTP port, which is `6041` by default.
+- A database for writing has been created. One-click onboarding does not create a database automatically; the manual onboarding example creates a demo database.
+- After installation and collection configuration, choose **One-Click Onboarding** or **Manual Onboarding**.
+
+### General
+
+- TDengine TSDB 3.4.3.6 or later.
+- To buffer data during outages and resend after recovery, confirm that eKuiper includes the retry fix described in [Store and Forward](../11-neuron.md#store-and-forward).

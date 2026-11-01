@@ -96,7 +96,7 @@ class TestClusterSplitVgroupByLearner:
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, configFile)
-        etool.benchMark(json=jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
     # run
     def test_split_vgroup_by_learner(self):
@@ -114,6 +114,7 @@ class TestClusterSplitVgroupByLearner:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

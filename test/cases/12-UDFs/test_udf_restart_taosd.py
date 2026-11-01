@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom
+from udf_utils import find_udf_lib
 from new_test_framework.utils.pathFinding import find_proj_path
 import taos
 import sys
@@ -64,11 +65,13 @@ class TestUdfRestartTaosd:
             projPath = selfPath[:selfPath.find("community")]
         else:
             projPath = selfPath[:selfPath.find("tests")]
+        if platform.system().lower() == "windows":
+            projPath = find_proj_path(selfPath)
         print(projPath)
 
         if platform.system().lower() == 'windows':
-            self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            self.libudf2 = subprocess.Popen('(for /r %s %%i in ("udf2.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
+            self.libudf1 = find_udf_lib("udf1", projPath).replace("\\", "/")
+            self.libudf2 = find_udf_lib("udf2", projPath).replace("\\", "/")
             if (not tdDnodes.dnodes[0].remoteIP == ""):
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
                 tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf2.so',projPath+"\\debug\\build\\lib\\")
@@ -85,10 +88,7 @@ class TestUdfRestartTaosd:
         selfPath = os.path.dirname(os.path.realpath(__file__))
         projPath = find_proj_path(selfPath)
         if platform.system().lower() == 'windows':
-            self.libperm_entropy = subprocess.Popen(
-                '(for /r %s %%i in ("perm_entropy.d*") do @echo %%i)|grep lib|head -n1' % projPath,
-                shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-            ).stdout.read().decode("utf-8")
+            self.libperm_entropy = find_udf_lib("perm_entropy", projPath).replace("\\", "/")
             if not tdDnodes.dnodes[0].remoteIP == "":
                 tdDnodes.dnodes[0].remote_conn.get(
                     tdDnodes.dnodes[0].config["path"] + '/debug/build/lib/libperm_entropy.so',
@@ -695,6 +695,7 @@ class TestUdfRestartTaosd:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -735,6 +736,7 @@ class TestUdfRestartTaosd:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -856,6 +858,7 @@ class TestUdfRestartTaosd:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

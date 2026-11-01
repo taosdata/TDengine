@@ -70,13 +70,24 @@ static SFedScanQuote fedScanQuoteFor(EExtSourceType srcType) {
 }
 
 // SQL dialect of a source type, for the renderers embedded in this file.
-static EExtSQLDialect fedScanDialectFor(EExtSourceType srcType) {
+// Returns TSDB_CODE_EXT_SYNTAX_UNSUPPORTED for an unknown source type rather
+// than falling back to MySQL: a MySQL-shaped statement sent to a server that
+// does not speak it produces a confusing syntax error instead of an honest
+// demotion (Oracle DS 9.1.2 - a source-type switch must fall back to a neutral
+// "unknown", never to MySQL or PG).
+static int32_t fedScanDialectFor(EExtSourceType srcType, EExtSQLDialect* pDialect) {
+  if (NULL == pDialect) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   switch (srcType) {
-    case EXT_SOURCE_MYSQL:      return EXT_SQL_DIALECT_MYSQL;
-    case EXT_SOURCE_POSTGRESQL: return EXT_SQL_DIALECT_POSTGRES;
-    case EXT_SOURCE_INFLUXDB:   return EXT_SQL_DIALECT_INFLUXQL;
-    case EXT_SOURCE_SQLSERVER:  return EXT_SQL_DIALECT_SQLSERVER;
-    default:                    return EXT_SQL_DIALECT_MYSQL;
+    case EXT_SOURCE_MYSQL:      *pDialect = EXT_SQL_DIALECT_MYSQL;     return TSDB_CODE_SUCCESS;
+    case EXT_SOURCE_POSTGRESQL: *pDialect = EXT_SQL_DIALECT_POSTGRES;  return TSDB_CODE_SUCCESS;
+    case EXT_SOURCE_INFLUXDB:   *pDialect = EXT_SQL_DIALECT_INFLUXQL;  return TSDB_CODE_SUCCESS;
+    case EXT_SOURCE_SQLSERVER:  *pDialect = EXT_SQL_DIALECT_SQLSERVER; return TSDB_CODE_SUCCESS;
+    case EXT_SOURCE_ORACLE:     *pDialect = EXT_SQL_DIALECT_ORACLE;    return TSDB_CODE_SUCCESS;
+    default:
+      qError("FQ-SQL: fedScanDialectFor unknown sourceType=%d", (int)srcType);
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
   }
 }
 
@@ -86,6 +97,7 @@ static const char* fedScanSourceTypeName(int8_t srcType) {
     case EXT_SOURCE_POSTGRESQL: return "postgresql";
     case EXT_SOURCE_INFLUXDB:   return "influxdb";
     case EXT_SOURCE_SQLSERVER:  return "sqlserver";
+    case EXT_SOURCE_ORACLE:     return "oracle";
     default:                    return "unknown";
   }
 }
@@ -582,6 +594,65 @@ static int32_t fedScanRenderPushedCondValue(SVStbPushedCondSql* pSql, SValueNode
     return fedScanCondSqlAppend(pSql, buf);
   }
 
+  if (pSql->dialect == EXT_SQL_DIALECT_ORACLE) {
+    // Oracle 19c has no SQL-level boolean (a bare `true` / `false` is
+    // ORA-00904), so a boolean literal must be 1 / 0 - the main renderer
+    // emits the same form (DS 5.3.6 R2).
+    if (pVal->node.resType.type == TSDB_DATA_TYPE_BOOL) {
+      return fedScanCondSqlAppend(pSql, pVal->datum.b ? "1" : "0");
+    }
+    // A bare epoch integer compared with DATE / TIMESTAMP(n) is ORA-00932
+    // (inconsistent datatypes).  The declared-filter renderer has no client
+    // timezone to build the TIMESTAMP '...' literal from, and guessing one
+    // would silently shift the filter, so this fragment stays local instead
+    // (DS 5.3.10 keeps the declared filter local unless it is provably
+    // equivalent).
+    if (pVal->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    }
+    // Strings: nodesGetStrValueFromNode() interpolates the value between
+    // quotes with no escaping, so a value containing a quote would end the
+    // literal early and change the filter.  Oracle escapes a quote by
+    // doubling it; an empty string is NULL on Oracle (DS 5.3.6 R5), so a
+    // comparison against one can never match a remote value and must stay
+    // local - the caller strips the fragment from the pushed WHERE.
+    if (pVal->node.resType.type == TSDB_DATA_TYPE_NCHAR ||
+        pVal->node.resType.type == TSDB_DATA_TYPE_VARCHAR ||
+        pVal->node.resType.type == TSDB_DATA_TYPE_VARBINARY) {
+      const char* pText = NULL;
+      int32_t     textLen = 0;
+      if (pVal->datum.p != NULL) {
+        pText = varDataVal(pVal->datum.p);
+        textLen = (int32_t)varDataLen(pVal->datum.p);
+      } else if (pVal->literal != NULL) {
+        pText = pVal->literal;
+        textLen = (int32_t)strlen(pText);
+      } else {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      if (textLen == 0) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      int32_t code = fedScanCondSqlAppendChar(pSql, '\'');
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+      for (int32_t i = 0; i < textLen; ++i) {
+        if (pText[i] == '\'') {
+          code = fedScanCondSqlAppendChar(pSql, '\'');
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+        }
+        code = fedScanCondSqlAppendChar(pSql, pText[i]);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      }
+      return fedScanCondSqlAppendChar(pSql, '\'');
+    }
+  }
+
   if (pSql->dialect == EXT_SQL_DIALECT_SQLSERVER) {
     // T-SQL renderings that nodesGetStrValueFromNode cannot express: the
     // boolean literals must be 1 / 0 (DS 5.3.12 R2) and a bare epoch integer
@@ -926,6 +997,13 @@ static int32_t fedScanBuildVStbStoredFilterSql(const SForeignScanOperatorParam* 
       // DS 5.3.9 / TS FQSS-VTBLP-001: the declared filter renders through the
       // shared renderer, so SQL Server reuses the T-SQL dialect branch there.
       dialect = EXT_SQL_DIALECT_SQLSERVER;
+      break;
+    case EXT_SOURCE_ORACLE:
+      // Oracle DS 5.3.10: the declared filter is rendered by the shared
+      // renderer with the Oracle dialect.  When the expression cannot be
+      // rendered or proven equivalent the caller keeps it local instead of
+      // rejecting the virtual table.
+      dialect = EXT_SQL_DIALECT_ORACLE;
       break;
     default:
       code = TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED;
@@ -1610,6 +1688,13 @@ static bool fedScanValidTimePrecision(int8_t precision) {
   return precision >= TSDB_TIME_PRECISION_MILLI && precision <= TSDB_TIME_PRECISION_NANO;
 }
 
+// Prefix of a timestamp comparison literal.  Oracle parses a bare quoted
+// string with NLS_TIMESTAMP_FORMAT, which the connector does not pin, so the
+// bound must be an ANSI TIMESTAMP literal (DS 5.3.6 R4).
+static const char* fedScanTsLiteralPrefix(EExtSourceType srcType) {
+  return srcType == EXT_SOURCE_ORACLE ? "TIMESTAMP '" : "'";
+}
+
 static int8_t fedScanGetCondPrecision(EExtSourceType srcType, const SExtTableMeta* pMeta, int32_t tsIdx) {
   if (pMeta == NULL || tsIdx < 0 || tsIdx >= pMeta->numOfCols) {
     return TSDB_TIME_PRECISION_MILLI;
@@ -1664,6 +1749,17 @@ static bool fedScanHasNaiveTimestampHint(
     }
   }
   return false;
+}
+
+static int32_t fedScanAppendXmlTypeProjection(char* sql, int32_t sqlCapacity, int32_t* pOffset,
+                                              SFedScanQuote q, const char* colName) {
+  int32_t written = snprintf(sql + *pOffset, sqlCapacity - *pOffset, "XMLSERIALIZE(CONTENT %c%s%c AS CLOB)",
+                             q.open, colName, q.close);
+  if (written < 0 || written >= sqlCapacity - *pOffset) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  *pOffset += written;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t fedScanAppendTimestampProjection(
@@ -1769,6 +1865,19 @@ static void fedScanFormatError(SFederatedScanOperatorInfo* pInfo, int32_t code,
     /* SQL Server carries both: the T-SQL native error number drives the
      * precise pushdown-demote classification (DS 5.3.8.1), the SQLSTATE
      * drives the coarse 42xxx fallback. */
+    if (pErr->remoteCode != 0) {
+      offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
+                         ", remote_code=%d", pErr->remoteCode);
+    }
+    if (pErr->remoteSqlstate[0] != '\0') {
+      offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
+                         ", remote_sqlstate=%s", pErr->remoteSqlstate);
+    }
+  }
+  if (NULL != pErr && (EExtSourceType)pErr->sourceType == EXT_SOURCE_ORACLE) {
+    /* Oracle reports ORA-nnnnn as the native error number; the ORA code drives
+     * the precise pushdown-demote classification (DS 5.3.8), the SQLSTATE the
+     * coarse 42xxx fallback. */
     if (pErr->remoteCode != 0) {
       offset += snprintf(pInfo->extErrMsg + offset, bufLen - offset,
                          ", remote_code=%d", pErr->remoteCode);
@@ -1889,11 +1998,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   SFederatedScanPhysiNode* pFedNode = pInfo->pFedScanNode;
   SExtTableNode*           pExtTable = (SExtTableNode*)pFedNode->pExtTable;
   EExtSourceType           srcType = (EExtSourceType)pFedNode->sourceType;
-  // SQL Server is a relational source with a real schema: schema drift must be
-  // reported as EXT_SCHEMA_CHANGED (DS 9.1.2) and tz-naive timestamp columns
-  // take the client-timezone comparison path, exactly like MySQL / PostgreSQL.
+  // SQL Server and Oracle are relational sources with a real schema: schema
+  // drift must be reported as EXT_SCHEMA_CHANGED (DS 9.1.2) and tz-naive
+  // timestamp columns take the client-timezone comparison path, exactly like
+  // MySQL / PostgreSQL.
   bool                     isRelationalSource = EXT_SOURCE_MYSQL == srcType || EXT_SOURCE_POSTGRESQL == srcType ||
-                                               EXT_SOURCE_SQLSERVER == srcType;
+                                               EXT_SOURCE_SQLSERVER == srcType || EXT_SOURCE_ORACLE == srcType;
 
   // Determine SQL dialect: quote characters and table path format
   SFedScanQuote q = fedScanQuoteFor(srcType);
@@ -1920,6 +2030,14 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     if (pFsParam->dbName[0] != '\0') {
       tstrncpy(tempExtTable.table.dbName, pFsParam->dbName, sizeof(tempExtTable.table.dbName));
     }
+    if (pFsParam->schemaName[0] != '\0') {
+      tstrncpy(tempExtTable.schemaName, pFsParam->schemaName, sizeof(tempExtTable.schemaName));
+    } else if (pFedNode->srcSchema[0] != '\0') {
+      tstrncpy(tempExtTable.schemaName, pFedNode->srcSchema, sizeof(tempExtTable.schemaName));
+    }
+  } else if (srcType == EXT_SOURCE_ORACLE) {
+    // Oracle has a single namespace level: the schema goes into schemaName and
+    // table.dbName stays empty (the service name lives in default_database).
     if (pFsParam->schemaName[0] != '\0') {
       tstrncpy(tempExtTable.schemaName, pFsParam->schemaName, sizeof(tempExtTable.schemaName));
     } else if (pFedNode->srcSchema[0] != '\0') {
@@ -2034,7 +2152,10 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   int32_t pushedCondSqlLen = 0;
   bool    pushedCondFullyRendered = false;
-  code = fedScanBuildVStbPushedCondSql(pFsParam, pMeta, q, fedScanDialectFor(srcType), &pushedCondSql,
+  EExtSQLDialect pushedCondDialect = EXT_SQL_DIALECT_MYSQL;
+  code = fedScanDialectFor(srcType, &pushedCondDialect);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = fedScanBuildVStbPushedCondSql(pFsParam, pMeta, q, pushedCondDialect, &pushedCondSql,
                                        &pushedCondSqlLen, &pushedCondFullyRendered);
   QUERY_CHECK_CODE(code, lino, _return);
 
@@ -2044,6 +2165,10 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   int32_t projectionBytes = TSDB_COL_NAME_LEN + 4;
   if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
     projectionBytes = TSDB_COL_NAME_LEN * 2 + TD_TIMEZONE_LEN + 192;
+  } else if (srcType == EXT_SOURCE_ORACLE) {
+    // An XMLTYPE column is projected as XMLSERIALIZE(CONTENT "name" AS CLOB),
+    // which is longer than the bare quoted name by the wrapper's 29 bytes.
+    projectionBytes = TSDB_COL_NAME_LEN + 64;
   }
   int32_t sqlBufLen = 1024 + totalCols * projectionBytes + tagCondSqlLen +
                       pushedCondSqlLen + 96;
@@ -2168,6 +2293,14 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
                 sqlBuf, sqlBufLen, &offset, srcType, pCol->colName,
                 pCol->extTypeName, remoteTimezone,
                 timezoneConversionSupported);
+          } else if (srcType == EXT_SOURCE_ORACLE &&
+                     0 == strncasecmp(pCol->extTypeName, "XMLTYPE", 7)) {
+            // XMLTYPE maps to NCHAR (DS 5.3.2.1) but the ODBC driver cannot
+            // bind the object type, so the value is only readable once the
+            // server serializes it.  The main renderer rewrites the same way
+            // from the planner's render hints; this second (hand-built) SQL
+            // path has the metadata in hand and can test the type directly.
+            code = fedScanAppendXmlTypeProjection(sqlBuf, sqlBufLen, &offset, q, pCol->colName);
           } else {
             written = snprintf(sqlBuf + offset, sqlBufLen - offset,
                                "%c%s%c", q.open, pCol->colName, q.close);
@@ -2237,6 +2370,21 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       }
       break;
     }
+    case EXT_SOURCE_ORACLE: {
+      // Oracle: "schema"."table".  A single namespace level, so there is no
+      // database segment; the service name never appears in the path (DS
+      // 5.3.6 R1).  The runtime reference namespace wins over the plan-time
+      // default when present.
+      const char* schema = pFsParam->schemaName[0]
+                               ? pFsParam->schemaName
+                               : (pFedNode->srcSchema[0] ? pFedNode->srcSchema : NULL);
+      if (schema != NULL) {
+        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\".\"%s\"", schema, remoteTable);
+      } else {
+        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\"", remoteTable);
+      }
+      break;
+    }
     case EXT_SOURCE_INFLUXDB:
     default: {
       // InfluxDB / others: "measurement"
@@ -2286,10 +2434,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     // Server a tz-aware column (datetimeoffset) holds an absolute instant, so
     // its literal is rendered as UTC while a tz-naive column
     // (datetime2/datetime/...) keeps the client's wall clock (DS 5.3.7).
+    // Oracle follows the same split: TIMESTAMP [WITH [LOCAL] TIME ZONE] holds
+    // an absolute instant, DATE / bare TIMESTAMP the client's wall clock.
     EExtTimestampTzClass tsTzClass =
         fedScanClassifyTimestampType(srcType, pMeta->pCols[tsIdx].extTypeName);
     bool boundAsUtc = (srcType == EXT_SOURCE_INFLUXDB) ||
-                      (srcType == EXT_SOURCE_SQLSERVER &&
+                      ((srcType == EXT_SOURCE_SQLSERVER || srcType == EXT_SOURCE_ORACLE) &&
                        tsTzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE);
     int64_t skey = hasSkey ? fedScanConvertTimeBound(scanRange.skey, rangePrecision,
                                                      sourcePrecision, true)
@@ -2313,8 +2463,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       else
         pFormatted = formatTimestampTz(skeyBuf, sizeof(skeyBuf), skey, sourcePrecision, timezone);
       QUERY_CHECK_NULL(pFormatted, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c >= '%s'", q.open, tsRemoteNameBuf, q.close,
-                         skeyBuf);
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c >= %s%s'", q.open, tsRemoteNameBuf, q.close,
+                         fedScanTsLiteralPrefix(srcType), skeyBuf);
     }
     if (hasSkey && hasEkey) {
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " AND ");
@@ -2327,8 +2477,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       else
         pFormatted = formatTimestampTz(ekeyBuf, sizeof(ekeyBuf), ekey, sourcePrecision, timezone);
       QUERY_CHECK_NULL(pFormatted, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c <= '%s'", q.open, tsRemoteNameBuf, q.close,
-                         ekeyBuf);
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c <= %s%s'", q.open, tsRemoteNameBuf, q.close,
+                         fedScanTsLiteralPrefix(srcType), ekeyBuf);
     }
   }
 
@@ -2357,12 +2507,18 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   // ORDER BY ts ASC is required: the vstable sort-merge dedup assumes each
   // external source returns rows in ascending timestamp order.
   offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " ORDER BY %c%s%c ASC", q.open, tsRemoteNameBuf, q.close);
-  if (pFsParam->rowLimit > 0 && (pFsParam->pPushedCond == NULL || pushedCondFullyRendered)) {
+  if (!pInfo->vstbLimitDemoted && pFsParam->rowLimit > 0 &&
+      (pFsParam->pPushedCond == NULL || pushedCondFullyRendered)) {
     if (EXT_SOURCE_SQLSERVER == srcType) {
       // T-SQL has no LIMIT clause.  The statement always carries ORDER BY ts ASC
       // here, so render the equivalent OFFSET/FETCH form (DS 5.3.6).
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset,
                          " OFFSET 0 ROWS FETCH NEXT %" PRId64 " ROWS ONLY", pFsParam->rowLimit);
+    } else if (EXT_SOURCE_ORACLE == srcType) {
+      // Oracle has no LIMIT clause either; the statement always carries
+      // ORDER BY ts ASC, so FETCH FIRST is the row-limiting form (DS 5.3.6).
+      offset += snprintf(sqlBuf + offset, sqlBufLen - offset,
+                         " FETCH FIRST %" PRId64 " ROWS ONLY", pFsParam->rowLimit);
     } else {
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " LIMIT %" PRId64, pFsParam->rowLimit);
     }
@@ -2421,10 +2577,58 @@ static bool fedScanHasStoredFilter(const SFederatedScanOperatorInfo* pInfo) {
          (pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->filterCondLen > 0);
 }
 
+/* The dynamic virtual-stable path carries its own pushdown state: a row limit,
+ * pushed conditions, an external-column filter or a tag filter.  When one of
+ * them is present a remote syntax error can still be fixed by demoting that
+ * pushdown, so the error must be mapped to the demote code the client retries
+ * on.  Without this, an unsupported rendering (e.g. FETCH FIRST on Oracle 11g)
+ * surfaced to the user on the first execution even though the session overlay
+ * would have made the retry succeed. */
+static bool fedScanHasVStbPushdown(const SFederatedScanOperatorInfo* pInfo) {
+  const SForeignScanOperatorParam* pParam = pInfo->pActiveVStbParam;
+  if (NULL == pParam) {
+    return false;
+  }
+  return pParam->rowLimit > 0 || pParam->pPushedCond != NULL || pParam->filterCondLen > 0 ||
+         pParam->tagCondLen > 0;
+}
+
+/* Oracle 11g and any server without the 12c+ LIMIT syntax rejects the pushed
+ * top-N rendering with ORA-00933.  The local Limit operator above this scan
+ * still enforces the limit, so the scan retries once without the remote row
+ * limit instead of surfacing the syntax error (DS 5.3.2.3). */
+static bool fedScanRetryWithoutRemoteLimit(SFederatedScanOperatorInfo* pInfo, int32_t code) {
+  if (pInfo->vstbLimitDemoted || NULL == pInfo->pActiveVStbParam ||
+      pInfo->pActiveVStbParam->rowLimit <= 0) {
+    return false;
+  }
+  switch (code) {
+    case TSDB_CODE_EXT_PUSHDOWN_FAILED:
+    case TSDB_CODE_EXT_SYNTAX_UNSUPPORTED:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE:
+    case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY:
+      break;
+    default:
+      return false;
+  }
+  pInfo->vstbLimitDemoted = true;
+  if (pInfo->pQueryHandle != NULL) {
+    extConnectorCloseQuery(pInfo->pQueryHandle);
+    pInfo->pQueryHandle = NULL;
+  }
+  qInfo("FederatedScan: remote row limit unsupported (0x%x %s); retrying without it", code,
+        tstrerror(code));
+  return true;
+}
+
 static int32_t fedScanMapQueryError(const SFederatedScanOperatorInfo* pInfo, int32_t code,
                                     const SExtPushdownDiagnostic* pDiag) {
   bool hasStoredFilter = fedScanHasStoredFilter(pInfo);
-  if (pInfo->pFedScanNode->pRemotePlan == NULL && !hasStoredFilter) {
+  if (pInfo->pFedScanNode->pRemotePlan == NULL && !hasStoredFilter &&
+      !fedScanHasVStbPushdown(pInfo)) {
     return code;
   }
 
@@ -2569,6 +2773,8 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
         .fp     = (FResolveRemoteForSQL)gTaskScalarExtra.fp,
         .pTimestampTypeHints = pFedNode->pTimestampTypeHints,
         .numTimestampTypeHints = pFedNode->numTimestampTypeHints,
+        .pColumnRenderHints = pFedNode->pColumnRenderHints,
+        .numColumnRenderHints = pFedNode->numColumnRenderHints,
         // DS section5.2.6: pass client timezone so timestamp filter values in WHERE
         // are formatted using the client TZ instead of the server-side global TZ.
         .tzName = remoteTimezone,
@@ -2578,6 +2784,10 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
         .timezoneConversionSupported =
             timezoneConversionSupported,
         .pRuntimeTimeRange = pInfo->hasRuntimeTimeRange ? &pInfo->runtimeTimeRange : NULL,
+        .dbPrecision =
+            pFedNode->node.pOutputDataBlockDesc != NULL
+                ? (int8_t)pFedNode->node.pOutputDataBlockDesc->precision
+                : 0,
       };
       code = nodesRemotePlanToSQL((const SLogicNode*)pFedNode->pRemotePlan, pFedNode->sourceType,
                                   &sqlCtx, &remoteSql);
@@ -2611,6 +2821,23 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
       if (!pInfo->parallelPrefetch) {
         pTaskInfo->hasExtPushdownDiag = true;
         pTaskInfo->extPushdownDiag = diag;
+      }
+      // Retry before mapping: a stored binding filter maps every error to
+      // VTABLE_EXT_FILTER_SQL_FAILED, but dropping only the remote row limit
+      // may be enough to make the statement run.
+      if (fedScanRetryWithoutRemoteLimit(pInfo, code)) {
+        taosMemoryFree(remoteSql);
+        remoteSql = NULL;
+        if (pInfo->pDynColMappings != NULL) {
+          taosMemoryFree(pInfo->pDynColMappings);
+          pInfo->pDynColMappings = NULL;
+          pInfo->numDynColMappings = 0;
+        }
+        if (pInfo->pConnHandle != NULL) {
+          extConnectorClose(pInfo->pConnHandle);
+          pInfo->pConnHandle = NULL;
+        }
+        goto _restart;
       }
       code = fedScanMapQueryError(pInfo, code, &diag);
       fedScanFormatError(pInfo, code, &extErr, &diag);

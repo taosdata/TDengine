@@ -141,6 +141,31 @@ VTABLE_COLUMN_TYPES_SQLSERVER = _override_column_types({
     "nchar_32_col": "nchar(32)",
 })
 
+# Oracle: NUMBER(p,0) maps to BIGINT for 2 <= p <= 18, to TINYINT for p == 1
+# and to DECIMAL(p,0) for 19 <= p <= 38, so every integer column except
+# bigint_col is declared BIGINT.  bigint_col holds INT64_MIN, which needs the
+# full 19 digits NUMBER(19,0) and therefore maps to DECIMAL(19,0).
+# BINARY_FLOAT/BINARY_DOUBLE are the IEEE types (→ float/double); VARCHAR2 →
+# VARCHAR and NVARCHAR2 → NCHAR.  BOOLEAN does not exist before 26ai, so
+# bool_col is NUMBER(1,0) (→ tinyint) to keep the fixture usable on 19c too.
+VTABLE_COLUMN_TYPES_ORACLE = _override_column_types({
+    "u_tinyint_col": "bigint",
+    "u_smallint_col": "bigint",
+    "u_int_col": "bigint",
+    "u_bigint_col": "bigint",
+    "tinyint_col": "bigint",
+    "smallint_col": "bigint",
+    "int_col": "bigint",
+    "bigint_col": "decimal(19,0)",
+    "float_col": "float",
+    "double_col": "double",
+    "bool_col": "tinyint",
+    "binary_16_col": "varchar(16)",
+    "binary_32_col": "varchar(32)",
+    "nchar_16_col": "nchar(16)",
+    "nchar_32_col": "nchar(32)",
+})
+
 # InfluxDB: every integer is i64 (→ bigint); every float is f64 (→ double).
 # Strings only exist as Utf8 (→ nchar).
 VTABLE_COLUMN_TYPES_INFLUX = _override_column_types({
@@ -254,14 +279,15 @@ def _build_ext_virtual_ref_column_types(ext_types):
     return tuple(out)
 
 
-# --- All-sources (9-way) mode --------------------------------------------
+# --- All-sources (11-way) mode -------------------------------------------
 #
-# A single virtual table whose columns are split across 9 sources at once:
+# A single virtual table whose columns are split across 11 sources at once:
 #   bucket 0 → internal TDengine
 #   buckets 1,2 → PG sources       (pg_test_1, pg_test_2)
 #   buckets 3,4 → MySQL sources    (mysql_test_1, mysql_test_2)
 #   buckets 5,6 → Influx sources   (influx_test_1, influx_test_2)
 #   buckets 7,8 → SQL Server sources (ss_test_1, ss_test_2)
+#   buckets 9,10 → Oracle sources  (oracle_test_1, oracle_test_2)
 #
 # Bucket assignment is by each column's POSITION in VTABLE_COLUMN_TYPES,
 # so the same column always lands in the same source across every vtable.
@@ -277,11 +303,13 @@ _ALL_SOURCE_CYCLE = (
     ('influx',    1),
     ('sqlserver', 0),
     ('sqlserver', 1),
+    ('oracle',    0),
+    ('oracle',    1),
 )
 
 
 def _build_all_column_buckets():
-    """Return {col_name: (backend, src_idx)} using 9-way positional cycle."""
+    """Return {col_name: (backend, src_idx)} using 11-way positional cycle."""
     buckets = {}
     data_idx = 0
     for col, _ in VTABLE_COLUMN_TYPES:
@@ -303,6 +331,7 @@ def _build_all_column_types():
         'mysql':     dict(VTABLE_COLUMN_TYPES_MYSQL),
         'influx':    dict(VTABLE_COLUMN_TYPES_INFLUX),
         'sqlserver': dict(VTABLE_COLUMN_TYPES_SQLSERVER),
+        'oracle':    dict(VTABLE_COLUMN_TYPES_ORACLE),
     }
     out = []
     for col, base_type in VTABLE_COLUMN_TYPES:
@@ -377,6 +406,26 @@ SQLSERVER_TABLE_COLUMNS = (
     'binary_16_col VARCHAR(16)', 'binary_32_col VARCHAR(32)',
     'nchar_16_col NVARCHAR(16)', 'nchar_32_col NVARCHAR(32)',
     'groupid INT', 'location NVARCHAR(64)',
+)
+
+# Oracle table columns.  NUMBER(p,0) is the exact-integer declaration: p <= 18
+# maps to BIGINT, so the CSV's 10-digit columns need at most NUMBER(18,0);
+# bigint_col carries INT64_MIN and therefore needs NUMBER(19,0) (→ DECIMAL(19,0)).
+# BINARY_FLOAT/BINARY_DOUBLE keep the CSV's float32/float64 widths, VARCHAR2 →
+# VARCHAR and NVARCHAR2 → NCHAR.  bool_col is NUMBER(1,0) rather than BOOLEAN so
+# the fixture also loads on 19c, which has no SQL BOOLEAN type.  TIMESTAMP(3) is
+# the millisecond time axis.
+ORACLE_TABLE_COLUMNS = (
+    'ts TIMESTAMP(3) NOT NULL PRIMARY KEY',
+    'u_tinyint_col NUMBER(3,0)', 'u_smallint_col NUMBER(5,0)',
+    'u_int_col NUMBER(10,0)', 'u_bigint_col NUMBER(18,0)',
+    'tinyint_col NUMBER(4,0)', 'smallint_col NUMBER(5,0)',
+    'int_col NUMBER(10,0)', 'bigint_col NUMBER(19,0)',
+    'float_col BINARY_FLOAT', 'double_col BINARY_DOUBLE',
+    'bool_col NUMBER(1,0)',
+    'binary_16_col VARCHAR2(16)', 'binary_32_col VARCHAR2(32)',
+    'nchar_16_col NVARCHAR2(16)', 'nchar_32_col NVARCHAR2(32)',
+    'groupid NUMBER(10,0)', 'location VARCHAR2(64)',
 )
 
 # InfluxDB field columns: every vtable data column is a field — the 11 numeric
@@ -698,7 +747,7 @@ def _prepare_one_origin_database(
 # ============================================================================
 #
 # Each adapter owns the lifecycle of one external backend (PG / MySQL /
-# Influx / SQL Server). It exposes a uniform interface used by the
+# Influx / SQL Server / Oracle). It exposes a uniform interface used by the
 # orchestrator:
 #
 #     adapter.column_types         — VTABLE column types for ext-source mode
@@ -710,7 +759,7 @@ def _prepare_one_origin_database(
 #     adapter.ref_short(table, col)
 #
 # Connection params, exec helpers (mysql_exec / pg_exec / influx_write /
-# influx_query_sql / sqlserver_exec), TCP probe and selective
+# influx_query_sql / sqlserver_exec / _oracle_sql), TCP probe and selective
 # start_*_instance are delegated to ExtSrcEnv to avoid duplication.
 
 
@@ -1087,6 +1136,173 @@ class _SqlserverAdapter:
                 datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
                 self._load_csv(db, f"vtb_org_tb_{i}", datafile)
             ExtSrcEnv.sqlserver_exec(db, offset_stmts)
+
+
+# --- Oracle adapter --------------------------------------------------------
+class _OracleAdapter:
+    BACKEND      = "oracle"
+    SOURCE_NAMES = ("oracle_test_1", "oracle_test_2")
+    # Oracle has a single namespace level — the schema — and no per-source
+    # database: the service name only travels on the connection (DS 5.3.10).
+    # Both EXTERNAL SOURCEs therefore log in as the test user and read the
+    # same physical tables in that user's schema.
+    SCHEMA_NAME  = ExtSrcEnv.ORACLE_USER.upper()
+    SERVICE      = ExtSrcEnv.ORACLE_SERVICE
+    DB_NAMES     = (SERVICE, SERVICE)
+
+    column_types       = VTABLE_COLUMN_TYPES_ORACLE
+    mixed_column_types = _build_mixed_column_types(VTABLE_COLUMN_TYPES_ORACLE)
+
+    # CSV columns that hold string literals (all others are numeric).  The
+    # nchar_*/location values are emitted as National (N'…') literals so the
+    # non-ASCII text survives the sqlplus round-trip.
+    STRING_COLUMNS   = ('ts', 'binary_16_col', 'binary_32_col',
+                        'nchar_16_col', 'nchar_32_col', 'location')
+    NATIONAL_COLUMNS = ('nchar_16_col', 'nchar_32_col', 'location')
+    # One INSERT ALL statement carries a bounded number of row constructors:
+    # sqlplus receives the whole statement as a single argv entry (128 KiB
+    # per-argument limit), so rows are shipped in bounded batches.
+    INSERT_BATCH_ROWS = 200
+
+    @property
+    def host(self):    return ExtSrcEnv.ORACLE_HOST
+    @property
+    def port(self):    return ExtSrcEnv.ORACLE_PORT
+    @property
+    def user(self):    return ExtSrcEnv.ORACLE_USER
+    @property
+    def password(self):return ExtSrcEnv.ORACLE_PASS
+    @property
+    def version(self): return ExtSrcEnv.ORACLE_VERSIONS[0]
+
+    @property
+    def cfg(self):
+        """Primary Oracle instance config (host/port/user/service)."""
+        return next(ExtSrcEnv.oracle_version_configs())
+
+    def ensure_running(self):
+        if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
+            return
+        if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
+            raise RuntimeError(
+                f"FQ_SKIP_ENV_RESET=1 but Oracle {self.version} not "
+                f"reachable at {self.host}:{self.port}")
+        tdLog.info(f"Starting Oracle {self.version} via "
+                   f"ExtSrcEnv.start_oracle_instance ...")
+        ExtSrcEnv.start_oracle_instance(self.version)
+        if not ExtSrcEnv._tcp_probe(self.host, self.port, timeout=10):
+            raise RuntimeError(
+                f"Oracle {self.version} not reachable at "
+                f"{self.host}:{self.port}")
+
+    def ref(self, table, col, idx):
+        # Oracle references are 4-segment: source.schema.table.column.  The
+        # service name is a connection property and never part of a path.
+        s = self.SOURCE_NAMES[idx % 2]
+        return f"{s}.{self.SCHEMA_NAME}.{table}.{col}"
+
+    def ref_short(self, table, col, idx):
+        # Child vtables keep the schema-qualified form: the schema is Oracle's
+        # only qualifier and naming it keeps the saved reference self-contained
+        # (the 3-segment source.table.column form resolves through the same
+        # effective schema).
+        return self.ref(table, col, idx)
+
+    def create_external_source(self):
+        ExtSrcEnv.ensure_qnode()
+        for src in self.SOURCE_NAMES:
+            tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {src}")
+            tdSql.execute(
+                f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='oracle' "
+                f"HOST='{self.host}' PORT={self.port} "
+                f"USER='{self.user}' PASSWORD='{self.password}' "
+                f"DATABASE={self.SERVICE} SCHEMA={self.SCHEMA_NAME}")
+
+    @classmethod
+    def _value_literal(cls, column, value):
+        """Render one CSV cell as an Oracle literal; empty / `null` → NULL."""
+        v = value.strip()
+        if v == "" or v.lower() == "null":
+            return "NULL"
+        if column == "ts":
+            return f"TIMESTAMP '{v}'"
+        if column not in cls.STRING_COLUMNS:
+            return v
+        escaped = v.replace("'", "''")
+        prefix = "N" if column in cls.NATIONAL_COLUMNS else ""
+        return f"{prefix}'{escaped}'"
+
+    @classmethod
+    def _row_literal(cls, row):
+        """Render one CSV row as an INSERT ALL row constructor."""
+        values = [cls._value_literal(col, row.get(col, ""))
+                  for col in PG_COPY_COLUMN_LIST]
+        return f"({', '.join(values)})"
+
+    @classmethod
+    def _insert_all_sql(cls, table_name, col_str, batch):
+        """Render rows as one Oracle multi-row INSERT ALL statement.
+
+        Oracle has no multi-row VALUES clause; INSERT ALL is the supported
+        form and executes as a single statement.
+        """
+        # SQL*Plus reads one command line at a time and cannot take a
+        # multi-kilobyte line: a 200-row INSERT ALL on one line makes it
+        # split the statement and fail.  One row per line keeps every line
+        # short while the statement still spans lines until its semicolon.
+        into_rows = "\n".join(f"INTO {table_name} ({col_str}) VALUES {row}"
+                              for row in batch)
+        return f"INSERT ALL\n{into_rows}\nSELECT 1 FROM dual"
+
+    def _load_csv(self, table_name, csv_path):
+        """Bulk-load a CSV into an Oracle table via batched INSERT ALLs.
+
+        Data preparation runs through sqlplus (see ExtSrcEnv._oracle_sql), so
+        rows are rendered as Oracle literals; empty cells become NULL, exactly
+        as the other adapters' CSV loaders.
+        """
+        import csv
+        col_str = ", ".join(PG_COPY_COLUMN_LIST)
+        with open(csv_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            batch = []
+            for row in reader:
+                batch.append(self._row_literal(row))
+                if len(batch) >= self.INSERT_BATCH_ROWS:
+                    ExtSrcEnv._oracle_sql(
+                        self.cfg, self._insert_all_sql(table_name, col_str, batch))
+                    batch = []
+            if batch:
+                ExtSrcEnv._oracle_sql(
+                    self.cfg, self._insert_all_sql(table_name, col_str, batch))
+
+    def prepare_origin_tables(self):
+        """Build and load the 18 origin tables in the shared login schema.
+
+        Oracle has no per-source database, so the fixture is built once and
+        both EXTERNAL SOURCEs read it.
+        """
+        tdLog.info(
+            f"prepare Oracle origin tables in schema {self.SCHEMA_NAME}.")
+        cfg = self.cfg
+        cols_sql = ", ".join(ORACLE_TABLE_COLUMNS)
+        for i in range(18):
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, f"VTB_ORG_TB_{i}")
+        ExtSrcEnv._oracle_sql(
+            cfg, [f"CREATE TABLE VTB_ORG_TB_{i} ({cols_sql})"
+                  for i in range(18)])
+        for i in range(9):
+            datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
+            self._load_csv(f"VTB_ORG_TB_{i}", datafile)
+        insert_cols = ", ".join(PG_COPY_COLUMN_LIST)
+        select_cols = ", ".join(PG_COPY_COLUMN_LIST[1:])
+        # Tables 9..17 = 0..8 shifted +3 days; INTERVAL keeps the ms scale.
+        offset_stmts = [
+            f"INSERT INTO VTB_ORG_TB_{i} ({insert_cols}) "
+            f"SELECT ts + INTERVAL '3' DAY, {select_cols} "
+            f"FROM VTB_ORG_TB_{i-9}"
+            for i in range(9, 18)]
+        ExtSrcEnv._oracle_sql(cfg, offset_stmts + ["COMMIT"])
 
 
 # --- InfluxDB adapter ------------------------------------------------------
@@ -1865,6 +2081,50 @@ class VtableQueryUtil:
         with open(result_file, "w", encoding="utf-8", newline="") as output_file:
             output_file.writelines(normalized_lines)
 
+    @staticmethod
+    def _normalize_bool_text_columns(result_file):
+        """Print 1/0 of a ``bool_col`` field as true/false.
+
+        Oracle 19c has no SQL-level BOOLEAN: ``bool_col`` is NUMBER(1,0), which
+        the type map turns into TINYINT (DS 5.3.2), and the vtable has to
+        declare exactly that type.  The shared goldens were written against
+        backends whose BOOLEAN prints as true/false, so the single boolean
+        column is rewritten to the textual form before the comparison; every
+        value is still compared row by row.
+        """
+        with open(result_file, "r", encoding="utf-8", errors="ignore") as f:
+            lines = f.read().splitlines()
+        header = None
+        out = []
+        changed = False
+        for idx, line in enumerate(lines):
+            nxt = lines[idx + 1] if idx + 1 < len(lines) else ""
+            if "|" in line and nxt.strip() and set(nxt.strip()) == {"="}:
+                header = [field.strip() for field in line.split("|")]
+                out.append(line)
+                continue
+            if (header and "|" in line and not line.startswith("taos>")
+                    and set(line.strip()) != {"="}):
+                fields = line.split("|")
+                for pos, value in enumerate(fields):
+                    if pos >= len(header):
+                        break
+                    # Only boolean-valued outputs are rewritten: the bare
+                    # column, or first()/last() over it.  count(bool_col) and
+                    # other aggregates return numbers and must stay numeric.
+                    if header[pos] not in ("bool_col", "first(bool_col)", "last(bool_col)"):
+                        continue
+                    text = value.strip()
+                    if text in ("0", "1"):
+                        fields[pos] = value.replace(
+                            text, "true" if text == "1" else "false")
+                        changed = True
+                line = "|".join(fields)
+            out.append(line)
+        if changed:
+            with open(result_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(out) + "\n")
+
     # An external engine can exit while a long query file is running (InfluxDB 3
     # has been observed to die under this workload on Windows).  Every query
     # after that point returns an empty result and the CLI records
@@ -1903,13 +2163,17 @@ class VtableQueryUtil:
                 tdLog.error(f"failed to restart {name} external backend: {exc}")
 
     @classmethod
-    def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0):
+    def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0,
+                                           bool_text_columns=False, relative_tolerance=0.0):
         """Compare an external-source case against answers shared with millisecond fixtures."""
         result_file = tdCom.generate_query_result(input_file, test_case)
         cls._normalize_window_duration_to_milliseconds(
             result_file, cls._db_duration_divisor())
+        if bool_text_columns:
+            cls._normalize_bool_text_columns(result_file)
         matched = tdCom.compare_result_files(
-            expected_file, result_file, float_tolerance=float_tolerance)
+            expected_file, result_file, float_tolerance=float_tolerance,
+            relative_tolerance=relative_tolerance)
         if not matched:
             conn_failures = cls._result_reports_ext_conn_failure(result_file)
             if conn_failures:
@@ -1922,8 +2186,11 @@ class VtableQueryUtil:
                 result_file = tdCom.generate_query_result(input_file, test_case)
                 cls._normalize_window_duration_to_milliseconds(
                     result_file, cls._db_duration_divisor())
+                if bool_text_columns:
+                    cls._normalize_bool_text_columns(result_file)
                 matched = tdCom.compare_result_files(
-                    expected_file, result_file, float_tolerance=float_tolerance)
+                    expected_file, result_file, float_tolerance=float_tolerance,
+                    relative_tolerance=relative_tolerance)
                 if matched:
                     tdLog.info(
                         "Test passed after the external backends recovered.")
@@ -2021,8 +2288,8 @@ class VtableQueryUtil:
         return raw_ref_map, direct_ref_map
 
     def _all_map(self, table_map, adapters_by_backend):
-        """Build the 9-way source map (internal + 2*pg + 2*mysql + 2*influx
-        + 2*sqlserver).
+        """Build the 11-way source map (internal + 2*pg + 2*mysql + 2*influx
+        + 2*sqlserver + 2*oracle).
 
         Each column's (backend, src_idx) is fixed by _ALL_COLUMN_BUCKETS, so
         the same column always reads from the same physical source across
@@ -2218,7 +2485,7 @@ class VtableQueryUtil:
                 f"2, true, 2, 2, 'empty', 'child{i}'"))
 
     # ==================================================================
-    # External-source vtables  (PG / MySQL / Influx)
+    # External-source vtables  (PG / MySQL / Influx / SQL Server / Oracle)
     # ==================================================================
 
     def _prepare_ext_source_vtables(self, adapter, mode):
@@ -2275,17 +2542,19 @@ class VtableQueryUtil:
         """Shared body for prepare_all_ext_source_vtables.
 
         Builds a single TDengine database that hosts both internal origin
-        tables AND virtual tables whose columns are split 9-ways across:
-        internal + 2*PG + 2*MySQL + 2*Influx + 2*SQL Server. All four external
-        backends plus a 2-source-per-backend EXTERNAL SOURCE setup are created.
+        tables AND virtual tables whose columns are split 11-ways across:
+        internal + 2*PG + 2*MySQL + 2*Influx + 2*SQL Server + 2*Oracle. All
+        five external backends plus a 2-source-per-backend EXTERNAL SOURCE
+        setup are created.
         """
         pg        = _PgAdapter()
         mysql     = _MysqlAdapter()
         influx    = _InfluxAdapter()
         sqlserver = _SqlserverAdapter()
-        adapters = (pg, mysql, influx, sqlserver)
+        oracle    = _OracleAdapter()
+        adapters = (pg, mysql, influx, sqlserver, oracle)
         adapters_by_backend = {'pg': pg, 'mysql': mysql, 'influx': influx,
-                               'sqlserver': sqlserver}
+                               'sqlserver': sqlserver, 'oracle': oracle}
 
         for a in adapters:
             a.ensure_running()
@@ -2465,6 +2734,7 @@ class VtableQueryUtil:
         "mysql": _MysqlAdapter,
         "influx": _InfluxAdapter,
         "sqlserver": _SqlserverAdapter,
+        "oracle": _OracleAdapter,
     }
 
     def prepare_ext_source_vtables(self, source, mode=1):
@@ -2484,6 +2754,7 @@ class VtableQueryUtil:
         "mysql": _MysqlAdapter,
         "influx": _InfluxAdapter,
         "sqlserver": _SqlserverAdapter,
+        "oracle": _OracleAdapter,
     }
 
     def prepare_mixed_source_vtables(self, source, mode=1):
@@ -2493,10 +2764,10 @@ class VtableQueryUtil:
         self._prepare_mixed_source_vtables(adapter_cls(), mode)
 
     def prepare_all_ext_source_vtables(self, mode=1):
-        """Build vtables whose columns are split across all five sources
-        (internal TDengine + PG + MySQL + Influx + SQL Server), with two
-        EXTERNAL SOURCE instances per external backend (9 distinct sources
-        total).
+        """Build vtables whose columns are split across all six sources
+        (internal TDengine + PG + MySQL + Influx + SQL Server + Oracle), with
+        two EXTERNAL SOURCE instances per external backend (11 distinct
+        sources total).
         """
         self._prepare_all_ext_source_vtables(mode)
 

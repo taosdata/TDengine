@@ -15,7 +15,7 @@ icinga2 是一款开源主机、网络监控软件，最初由 Nagios 网络监�
 要将 icinga2 数据写入 TDengine 需要以下几方面的准备工作。
 
 - TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - icinga2 已经安装。安装 icinga2 请参考 [官方文档](https://icinga.com/docs/icinga-2/latest/doc/02-installation/)
 
 ## 配置步骤

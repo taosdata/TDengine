@@ -99,7 +99,8 @@ class TestTaosBackupChinese:
         tdLog.info(command)
         result = subprocess.run(
             command, shell=True, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            encoding="utf-8", errors="replace"
         )
         if result.stdout:
             for line in result.stdout.splitlines():
@@ -123,7 +124,8 @@ class TestTaosBackupChinese:
         tdLog.info(" ".join(argv))
         result = subprocess.run(
             argv, shell=False, text=True,
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            encoding="utf-8", errors="replace"
         )
         if result.stdout:
             for line in result.stdout.splitlines():

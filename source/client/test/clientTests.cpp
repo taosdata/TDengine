@@ -19,7 +19,11 @@
 
 #include "gtest/gtest.h"
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 #include "clientInt.h"
+#include "clientRawBlockWrite.h"
 #include "clientTmq.h"
 #include "osSemaphore.h"
 #include "tglobal.h"
@@ -27,6 +31,9 @@
 #include "tarray.h"
 #include "thash.h"
 #include "totp.h"
+#include "tdatablock.h"
+#include "tcompression.h"
+#include "tconv.h"
 #if defined(LINUX) || defined(WINDOWS)
 #include "stub.h"
 #endif
@@ -643,6 +650,7 @@ TEST(clientMetaRefresh, asyncInsertParseRoutingRetryIsBounded) {
   }
   asyncParseRetry = nullptr;
 }
+
 #endif
 
 TEST(clientCase, connect_Test) {
@@ -2547,6 +2555,265 @@ void testSessionCtrl() {
   testSessionConnIdleTime();
   testSessionConncurentCall();
   testSessionMaxVnodeCall();
+}
+
+class ResultBlockValidationTest : public ::testing::Test {
+ protected:
+  void TearDown() override { doFreeReqResultInfo(&result_); }
+
+  void setField(int8_t type, int32_t bytes, bool isStmt = false) {
+    SSchema schema = {};
+    schema.type = type;
+    schema.bytes = bytes;
+    ASSERT_EQ(setResSchemaInfo(&result_, &schema, 1, nullptr, isStmt), TSDB_CODE_SUCCESS);
+  }
+
+  void encode(int8_t type, int32_t bytes, const char* value, uint8_t precision = 0, uint8_t scale = 0) {
+    SSDataBlock* block = nullptr;
+    ASSERT_EQ(createDataBlock(&block), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> owner(block, blockDataDestroy);
+    SColumnInfoData col = createColumnInfoData(type, bytes, 1);
+    col.info.precision = precision;
+    col.info.scale = scale;
+    ASSERT_EQ(blockDataAppendColInfo(block, &col), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(blockDataEnsureCapacity(block, 1), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0)), 0, value,
+                            value == nullptr), TSDB_CODE_SUCCESS);
+    block->info.rows = 1;
+    encoded_.resize(blockGetEncodeSize(block));
+    int32_t len = blockEncode(block, encoded_.data(), encoded_.size(), 1);
+    ASSERT_GT(len, 0);
+    encoded_.resize(len);
+    result_.pData = encoded_.data();
+    result_.payloadLen = len;
+    result_.numOfRows = 1;
+    result_.current = 0;
+  }
+
+  SReqResultInfo result_ = {};
+  std::vector<char> encoded_;
+};
+
+TEST_F(ResultBlockValidationTest, PreservesVariableValuesAcrossDifferentSchemaWidths) {
+  for (int8_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_VARBINARY}) {
+    for (int32_t fieldBytes : {8, 200}) {
+      SCOPED_TRACE(::testing::Message() << "type=" << static_cast<int>(type) << ", fieldBytes=" << fieldBytes);
+      ASSERT_NO_FATAL_FAILURE(setField(type, fieldBytes));
+      char value[80] = {};
+      std::string payload(60, 'x');
+      STR_TO_VARSTR(value, payload.c_str());
+      ASSERT_NO_FATAL_FAILURE(encode(type, sizeof(value), value));
+      ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+      doSetOneRowPtr(&result_);
+      ASSERT_EQ(result_.length[0], static_cast<int32_t>(payload.size()));
+      EXPECT_EQ(std::string(static_cast<const char*>(result_.row[0]), result_.length[0]), payload);
+    }
+  }
+}
+
+TEST_F(ResultBlockValidationTest, ConvertsNcharWiderThanVirtualFieldWithoutTruncation) {
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_NCHAR, VARSTR_HEADER_SIZE + 4));
+  TdUcs4 characters[] = {0x4e2d, 0x6587, 0x1f600};
+  char value[VARSTR_HEADER_SIZE + sizeof(characters)] = {};
+  varDataSetLen(value, sizeof(characters));
+  memcpy(varDataVal(value), characters, sizeof(characters));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_NCHAR, sizeof(value), value));
+  result_.charsetCxt = taosConvInit("UTF-8");
+  ASSERT_NE(result_.charsetCxt, nullptr);
+  ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+  doSetOneRowPtr(&result_);
+  EXPECT_EQ(std::string(static_cast<const char*>(result_.row[0]), result_.length[0]),
+            "\xe4\xb8\xad\xe6\x96\x87\xf0\x9f\x98\x80");
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsDecimalBlocksAfterStringConversion) {
+  for (int8_t type : {TSDB_DATA_TYPE_DECIMAL64, TSDB_DATA_TYPE_DECIMAL}) {
+    ASSERT_NO_FATAL_FAILURE(setField(type, tDataTypes[type].bytes));
+    char value[16] = {};
+    for (int32_t block = 0; block < 2; ++block) {
+      SCOPED_TRACE(::testing::Message() << "type=" << static_cast<int>(type) << ", block=" << block);
+      ASSERT_NO_FATAL_FAILURE(encode(type, tDataTypes[type].bytes, value, 10, 2));
+      ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(result_.fields[0].bytes, 64);
+      doSetOneRowPtr(&result_);
+      EXPECT_STREQ(static_cast<const char*>(result_.row[0]), "0");
+      EXPECT_EQ(result_.fields[0].precision, 10);
+      EXPECT_EQ(result_.fields[0].scale, 2);
+    }
+  }
+}
+
+TEST_F(ResultBlockValidationTest, UsesResultMetadataWhenDecimalBlockMetadataIsAbsent) {
+  for (int8_t type : {TSDB_DATA_TYPE_DECIMAL64, TSDB_DATA_TYPE_DECIMAL}) {
+    SCOPED_TRACE(static_cast<int>(type));
+    SSchema schema = {};
+    schema.type = type;
+    schema.bytes = tDataTypes[type].bytes;
+    SExtSchema ext = {};
+    uint8_t precision = type == TSDB_DATA_TYPE_DECIMAL64 ? 18 : 20;
+    ext.typeMod = decimalCalcTypeMod(precision, 2);
+    ASSERT_EQ(setResSchemaInfo(&result_, &schema, 1, &ext, false), TSDB_CODE_SUCCESS);
+    DecimalWord value[2] = {125, 0};
+    for (int32_t batch = 0; batch < 2; ++batch) {
+      ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value)));
+      ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+      doSetOneRowPtr(&result_);
+      EXPECT_STREQ(static_cast<const char*>(result_.row[0]), "1.25");
+      EXPECT_EQ(result_.fields[0].precision, precision);
+      EXPECT_EQ(result_.fields[0].scale, 2);
+    }
+
+    // Supplied block metadata must still agree with the SQL result metadata.
+    ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value), precision - 1, 2));
+    EXPECT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_INVALID_MSG);
+    ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value), precision, 1));
+    EXPECT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_INVALID_MSG);
+    ASSERT_NO_FATAL_FAILURE(encode(type, schema.bytes, reinterpret_cast<const char*>(value), 0, 2));
+    EXPECT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_INVALID_MSG);
+  }
+}
+
+TEST_F(ResultBlockValidationTest, RejectsMalformedBlocksAndIncompatibleTypes) {
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_VARCHAR, 32));
+  char value[32] = {};
+  STR_TO_VARSTR(value, "valid");
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+  --result_.payloadLen;
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+  int32_t invalidOffset = INT32_MAX;
+  size_t offsets = sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(int8_t) + sizeof(int32_t) * 2;
+  memcpy(encoded_.data() + offsets, &invalidOffset, sizeof(invalidOffset));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+  VarDataLenT invalidLength = UINT16_MAX;
+  memcpy(encoded_.data() + offsets + sizeof(int32_t), &invalidLength, sizeof(invalidLength));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+
+  int64_t number = 1;
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_BIGINT, sizeof(number)));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(int32_t), reinterpret_cast<char*>(&number)));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_INT, sizeof(number)));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(int32_t), reinterpret_cast<char*>(&number)));
+  EXPECT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_INVALID_MSG);
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsEmptyVariableColumnsAndLegacyNullOffsets) {
+  const int8_t types[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_VARBINARY,
+                          TSDB_DATA_TYPE_JSON, TSDB_DATA_TYPE_BLOB};
+  for (int8_t type : types) {
+    SCOPED_TRACE(static_cast<int>(type));
+    int32_t bytes = type == TSDB_DATA_TYPE_BLOB ? BLOBSTR_HEADER_SIZE : 16;
+    ASSERT_NO_FATAL_FAILURE(setField(type, bytes));
+    ASSERT_NO_FATAL_FAILURE(encode(type, bytes, nullptr));
+    int32_t zero = 0;
+    size_t offsets = sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(int8_t) + sizeof(int32_t) * 2;
+    memcpy(encoded_.data() + offsets, &zero, sizeof(zero));
+    ASSERT_EQ(setResultDataPtr(&result_, true, false), TSDB_CODE_SUCCESS);
+    doSetOneRowPtr(&result_);
+    EXPECT_EQ(result_.row[0], nullptr);
+    EXPECT_EQ(result_.length[0], 0);
+  }
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_VARCHAR, 0));
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, 0, nullptr));
+  ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+  doSetOneRowPtr(&result_);
+  EXPECT_EQ(result_.row[0], nullptr);
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsCompressedAndUncompressedResponses) {
+  for (bool compressed : {false, true}) {
+    ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_VARCHAR, 8));
+    char value[80] = {};
+    STR_TO_VARSTR(value, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_VARCHAR, sizeof(value), value));
+    std::vector<char> wire(encoded_.size() + 1);
+    int32_t rawLen = static_cast<int32_t>(encoded_.size());
+    int32_t wireLen = rawLen;
+    if (compressed) {
+      wireLen = tsCompressString(encoded_.data(), rawLen, 1, wire.data(), wire.size(), ONE_STAGE_COMP, nullptr, 0);
+      ASSERT_GT(wireLen, 0);
+      ASSERT_LT(wireLen, rawLen);
+    } else {
+      memcpy(wire.data(), encoded_.data(), rawLen);
+    }
+    auto* rsp = static_cast<SRetrieveTableRsp*>(
+        taosMemoryCalloc(1, sizeof(SRetrieveTableRsp) + PAYLOAD_PREFIX_LEN + wireLen));
+    ASSERT_NE(rsp, nullptr);
+    rsp->numOfRows = htobe64(1);
+    rsp->completed = 1;
+    rsp->compressed = compressed;
+    rsp->payloadLen = htonl(PAYLOAD_PREFIX_LEN + rawLen);
+    rsp->compLen = htonl(PAYLOAD_PREFIX_LEN + wireLen);
+    SET_PAYLOAD_LEN(rsp->data, wireLen, rawLen);
+    memcpy(rsp->data + PAYLOAD_PREFIX_LEN, wire.data(), wireLen);
+    ASSERT_EQ(setQueryResultFromRsp(&result_, rsp, false, false), TSDB_CODE_SUCCESS);
+    doSetOneRowPtr(&result_);
+    EXPECT_EQ(result_.length[0], varDataLen(value));
+    EXPECT_EQ(memcmp(result_.row[0], varDataVal(value), result_.length[0]), 0);
+  }
+}
+
+TEST_F(ResultBlockValidationTest, AcceptsBothNullWidthsAndVersionTwoBlocks) {
+  const int32_t nullWidths[] = {CHAR_BYTES, TYPE_BYTES[TSDB_DATA_TYPE_NULL]};
+  for (int32_t width : nullWidths) {
+    int32_t fieldWidth = width == CHAR_BYTES ? TYPE_BYTES[TSDB_DATA_TYPE_NULL] : CHAR_BYTES;
+    ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_NULL, fieldWidth));
+    ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(int32_t), nullptr));
+    size_t schemaType = sizeof(int32_t) * 5 + sizeof(uint64_t);
+    encoded_[schemaType] = TSDB_DATA_TYPE_NULL;
+    size_t schemaBytes = schemaType + sizeof(int8_t);
+    memcpy(encoded_.data() + schemaBytes, &width, sizeof(width));
+    int32_t zero = 0;
+    memcpy(encoded_.data() + schemaBytes + sizeof(int32_t), &zero, sizeof(zero));
+    // NULL columns carry a bitmap and no fixed-width values in either layout.
+    size_t values = schemaBytes + sizeof(int32_t) * 2 + BitmapLen(1);
+    encoded_.erase(encoded_.begin() + values, encoded_.begin() + values + sizeof(int32_t));
+    result_.payloadLen = static_cast<int32_t>(encoded_.size());
+    memcpy(encoded_.data() + sizeof(int32_t), &result_.payloadLen, sizeof(result_.payloadLen));
+    ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+    doSetOneRowPtr(&result_);
+    EXPECT_EQ(result_.row[0], nullptr);
+  }
+  ASSERT_NO_FATAL_FAILURE(setField(TSDB_DATA_TYPE_INT, sizeof(int32_t)));
+  int32_t value = 42;
+  ASSERT_NO_FATAL_FAILURE(encode(TSDB_DATA_TYPE_INT, sizeof(value), reinterpret_cast<char*>(&value)));
+  int32_t version = BLOCK_VERSION_2;
+  memcpy(encoded_.data(), &version, sizeof(version));
+  size_t colLengths = sizeof(int32_t) * 5 + sizeof(uint64_t) + sizeof(int8_t) + sizeof(int32_t);
+  int32_t columnLength = sizeof(value);
+  memcpy(encoded_.data() + colLengths, &columnLength, sizeof(columnLength));
+  ASSERT_EQ(setResultDataPtr(&result_, false, false), TSDB_CODE_SUCCESS);
+  doSetOneRowPtr(&result_);
+  ASSERT_NE(result_.row[0], nullptr);
+  EXPECT_EQ(memcmp(result_.row[0], &value, sizeof(value)), 0);
+}
+
+TEST(ClientDeleteReplayTest, QuotesLegalIdentifiersAndChecksOutputCapacity) {
+  SDeleteRes req = {};
+  char table[] = "table`name";
+  char column[] = "ts`name";
+  tstrncpy(req.tableFName, table, sizeof(req.tableFName));
+  tstrncpy(req.tsColName, column, sizeof(req.tsColName));
+  req.skey = INT64_MIN;
+  req.ekey = INT64_MAX;
+  char sql[RAW_BLOCK_DELETE_SQL_LEN] = {};
+  ASSERT_EQ(rawBlockBuildDeleteSql(sql, sizeof(sql), &req), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(sql, "delete from `table``name` where `ts``name` >= -9223372036854775808 "
+                   "and `ts``name` <= 9223372036854775807");
+  EXPECT_EQ(rawBlockBuildDeleteSql(sql, 8, &req), TSDB_CODE_OUT_OF_BUFFER);
+
+  std::string longTable(TSDB_TABLE_NAME_LEN - 1, '`');
+  std::string longColumn(TSDB_COL_NAME_LEN - 1, '`');
+  tstrncpy(req.tableFName, longTable.c_str(), sizeof(req.tableFName));
+  tstrncpy(req.tsColName, longColumn.c_str(), sizeof(req.tsColName));
+  EXPECT_EQ(rawBlockBuildDeleteSql(sql, sizeof(sql), &req), TSDB_CODE_SUCCESS);
+  EXPECT_GT(strlen(sql), static_cast<size_t>(256));
+  req.tableFName[0] = '\0';
+  EXPECT_EQ(rawBlockBuildDeleteSql(sql, sizeof(sql), &req), TSDB_CODE_INVALID_MSG);
 }
 
 // Security tests for SMqMetaRsp integer underflow prevention

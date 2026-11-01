@@ -21,7 +21,8 @@ import signal
 import subprocess
 import time
 
-from new_test_framework.utils import tdLog, tdSql, etool, sc
+from new_test_framework.utils import tdLog, tdSql, etool, sc, clusterComCheck
+from new_test_framework.utils.eutil import start_test_process, signal_test_process
 
 
 class TestTaosBackupErrors:
@@ -47,7 +48,7 @@ class TestTaosBackupErrors:
     def _make_tmpdir(self, name):
         path = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
         if os.path.exists(path):
-            os.system(f"rm -rf {path}")
+            shutil.rmtree(path)
         os.makedirs(path)
         return path
 
@@ -104,25 +105,28 @@ class TestTaosBackupErrors:
 
         cmd = f"{taosbackup} -Z native -T 1 -D {db} -o {tmpdir}"
         tdLog.info(f"=== step 3: start backup in background: {cmd} ===")
-        proc = subprocess.Popen(cmd, shell=True, preexec_fn=os.setsid)
+        proc = start_test_process(cmd)
 
+        restarted = False
         try:
             tdLog.info("=== step 4: wait 7 s for back-off intervals to execute ===")
             time.sleep(7)
 
             tdLog.info("=== step 5: sc.dnodeStart(1): restart taosd ===")
             sc.dnodeStart(1)
+            restarted = True
 
             tdLog.info("=== waiting for backup to finish (timeout 120 s) ===")
             try:
                 proc.wait(timeout=120)
             except subprocess.TimeoutExpired:
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                signal_test_process(proc)
                 proc.wait()
                 tdLog.exit("backup timed out (>120 s) after sc.dnodeStart")
         finally:
             # Always ensure taosd is running even if test errors out
-            sc.dnodeStart(1)
+            if not restarted:
+                sc.dnodeStart(1)
 
         if proc.returncode != 0:
             tdLog.exit(
@@ -130,6 +134,7 @@ class TestTaosBackupErrors:
             )
 
         tdLog.info("=== step 6: restore and verify ===")
+        clusterComCheck.checkDnodes(1, timeout=60)
         tdSql.execute(f"drop database if exists {dst_db}")
         rlist = etool.taosdump(f'-Z native -W "{db}={dst_db}" -i {tmpdir}')
         out = "\n".join(rlist) if rlist else ""
@@ -266,10 +271,9 @@ class TestTaosBackupErrors:
 
         tdLog.info("=== step 4: attempt restore - expect failure ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        proc = subprocess.Popen(
+        proc = start_test_process(
             f"{etool.taosDumpFile()}"
             f' -Z native -W "{db}={dst_db}" -i {tmpdir}',
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -408,17 +412,15 @@ class TestTaosBackupErrors:
             tdLog.exit("source table is empty after benchmark insert")
 
         tdLog.info("=== step 2: start single-thread backup ===")
-        proc = subprocess.Popen(
+        proc = start_test_process(
             f"{taosbackup} -Z native -T 1 -D {db} -o {tmpdir}",
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            preexec_fn=os.setsid,
         )
 
         time.sleep(2)
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+            signal_test_process(proc, interrupt=True)
             tdLog.info("SIGINT sent to backup process group")
         except ProcessLookupError:
             tdLog.info("backup already finished before SIGINT (timing window)")
@@ -426,7 +428,7 @@ class TestTaosBackupErrors:
         try:
             stdout, stderr = proc.communicate(timeout=120)
         except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
             proc.communicate()
             tdLog.exit("backup did not finish within 120 s after SIGINT")
 
@@ -536,18 +538,16 @@ class TestTaosBackupErrors:
 
         tdLog.info("=== step 3: start single-thread STMT1 restore ===")
         tdSql.execute(f"drop database if exists {dst_db}")
-        proc = subprocess.Popen(
+        proc = start_test_process(
             f"{taosbackup} -Z native -T 1 -v 1"
             f' -W "{db}={dst_db}" -i {bckdir}',
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            preexec_fn=os.setsid,
         )
 
         time.sleep(2)
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGINT)
+            signal_test_process(proc, interrupt=True)
             tdLog.info("SIGINT sent to restore process group")
         except ProcessLookupError:
             tdLog.info("restore already finished before SIGINT (timing window)")
@@ -555,7 +555,7 @@ class TestTaosBackupErrors:
         try:
             stdout, stderr = proc.communicate(timeout=120)
         except subprocess.TimeoutExpired:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            signal_test_process(proc)
             proc.communicate()
             tdLog.exit("restore did not finish within 120 s after SIGINT")
 
@@ -663,9 +663,8 @@ class TestTaosBackupErrors:
         tf = _tempfile.NamedTemporaryFile(delete=False, suffix="_notadir")
         tf.close()
         fake_outdir = tf.name + "/subdir"
-        proc = subprocess.Popen(
+        proc = start_test_process(
             f"{taosbackup} -Z native -D {db} -o {fake_outdir}",
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )
@@ -790,9 +789,8 @@ class TestTaosBackupErrors:
         os.makedirs(os.path.join(tmpdir, db, "stb.sql"))   # directory, not file
 
         tdLog.info("=== step 3: run backup - must fail at stb.sql ===")
-        proc = subprocess.Popen(
+        proc = start_test_process(
             f"{taosbackup} -Z native -D {db} -o {tmpdir}",
-            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         )

@@ -288,7 +288,7 @@ TLS / compression for the two paths are configured independently, but the taosc 
 
 #### 2.1.1 Server-Side HTTPS/WSS {#211-server-side-httpswss}
 
-**taosAdapter server side** (`/etc/taos/taosadapter.toml`). `[ssl]` is an Enterprise Edition capability. The sample configuration comments mark it as `Applicable for the Enterprise Edition`. For parameter descriptions, see [taosAdapter: SSL](../12-operations-and-tooling/03-components/03-taosadapter.md#ssl). You can generate a self-signed certificate with the [appendix](#11-appendix-generate-a-self-signed-certificate).
+**taosAdapter server side** (`/etc/taos/taosadapter.toml`). `[ssl]` is an Enterprise Edition capability. The sample configuration comments mark it as `Applicable for the Enterprise Edition`. For parameter descriptions, see [taosAdapter: SSL](../12-operations-and-tooling/03-components/03-taosadapter/02-configuration.md#ssl). You can generate a self-signed certificate with the [appendix](#11-appendix-generate-a-self-signed-certificate).
 
 ```toml
 [ssl]
@@ -345,6 +345,8 @@ server {
     }
 }
 ```
+
+For the complete WebSocket long-connection, health check, failover, and HAProxy configuration, see [taosAdapter High Availability](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md).
 
 ### 2.2 Path B: taosc to taosd Private Protocol (TLS + SASL + zlib)
 

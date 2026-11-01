@@ -33,7 +33,7 @@ The table uses the default Linux directory. On Windows, replace `/var/log/taos` 
 | UDF | `/var/log/taos` | `taosudfdlog.*`; `taospyudf.log` | `logDir` in `taos.cfg`. See [User-Defined Functions (UDF)](../../10-developer-guide/06-udf.md) |
 | MQTT subscription | `/var/log/taos` | `taosmqttdlog.*` | `logDir` in `taos.cfg`. See [MQTT Data Subscription](../../06-data-subscription/03-mqtt.md) |
 | Xnode daemon | `/var/log/taos` | `taosxnoded_<instance ID>_<date>.log` | `logDir` in `taos.cfg`. See [Data Ingestion (Xnode)](../../05-tdengine-sql/08-cluster-management/02-xnode.md) |
-| taosAdapter | `/var/log/taos` | `taosadapter_<instance ID>_<date>.log` | `log.path` in `taosadapter.toml`. See [taosAdapter Reference](../03-components/03-taosadapter.md#log-configuration) |
+| taosAdapter | `/var/log/taos` | `taosadapter_<instance ID>_<date>.log` | `log.path` in `taosadapter.toml`. See [taosAdapter log configuration](../03-components/03-taosadapter/02-configuration.md#log-configuration) |
 | taosKeeper | `/var/log/taos` | `taoskeeper_<instance ID>_<date>.log` | `log.path` in `taoskeeper.toml`. See [taosKeeper Reference](../03-components/05-taoskeeper.md) |
 | taosExplorer | `/var/log/taos` | `taosexplorer_<instance ID>_<date>.log` | `log.path` in `explorer.toml`. See [taosExplorer Reference](../03-components/04-explorer.md) |
 | taosX | `/var/log/taos` | `taosx_<instance ID>_<date>.log` | `log.path` in `taosx.toml`. See [taosX Reference](../03-components/06-taosx.md) |

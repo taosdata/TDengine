@@ -18,6 +18,7 @@ import os
 import json
 import subprocess
 import time
+from pathlib import Path
 from faker import Faker
 from new_test_framework.utils import tdLog, tdSql, etool, eutil, sc
 
@@ -34,7 +35,7 @@ class TestBugs:
     def benchmarkQuery(self, benchmark, jsonFile,  keys, options=""):
         # exe insert 
         result = "query.log"
-        os.system(f"rm -f {result}")
+        Path(result).unlink(missing_ok=True)
         cmd = f"{benchmark} {options} -f {jsonFile} >> {result}"
         os.system(cmd)
         tdLog.info(cmd)

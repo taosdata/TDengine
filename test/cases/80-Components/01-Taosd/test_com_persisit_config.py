@@ -87,9 +87,10 @@ class TestPersisitConfig:
             tdLog.debug("Get {} value: {} Expect value: {}".format(name, actValue,expValue))
             assert str(actValue) == str(expValue)
 
-        # tdLog.info("rm -rf {0}".format(cfgPath))
-        # os.system("rm -rf {0}/*".format(cfgPath))
-        shutil.rmtree(cfgPath, ignore_errors=True)
+        # Windows keeps the console log open in cfg while taosd is running.
+        tdDnodes.stop(1)
+        time.sleep(1)
+        shutil.rmtree(cfgPath)
         os.mkdir(cfgPath)
 
         tdLog.info("rebuilt cfg file {0}".format(cfgPath))
@@ -103,8 +104,6 @@ class TestPersisitConfig:
             f.write(f"dataDir {dataPath}\n")
             f.write(f"logDir {logPath}\n")
 
-        tdDnodes.stop(1)
-        time.sleep(1)
         tdLog.info("restart taosd")
         tdDnodes.start(1)
 

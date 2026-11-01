@@ -67,7 +67,8 @@ class TestStreamTmqClientCharset:
 
     def _setup_cli(self):
         build = tdCom.getBuildPath()
-        self.taos = os.path.join(build, "build", "bin", "taos")
+        executable = "taos.exe" if os.name == "nt" else "taos"
+        self.taos = os.path.join(build, "build", "bin", executable)
         self.workdir = tempfile.mkdtemp(prefix="cs_stream_tmq_cli_")
         srccfg = os.path.join(tdDnodes.dnodes[0].cfgDir, "taos.cfg")
         with open(srccfg) as f:

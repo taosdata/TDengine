@@ -15,7 +15,6 @@
 
 import threading
 import time
-from distutils.log import error
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, cluster, clusterComCheck, tmqCom
 import sys

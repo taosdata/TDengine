@@ -256,7 +256,8 @@ class TestBenchmarkStmt:
 
     def restartTaosdThread(self):
         time.sleep(5)
-        sc.dnodeStopAll()
+        # Stop only the server; stopAll also terminates the benchmark on Windows.
+        sc.dnodeStop(1)
         time.sleep(3)
         sc.dnodeStart(1)    
 
@@ -501,6 +502,7 @@ class TestBenchmarkStmt:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

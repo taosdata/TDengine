@@ -108,6 +108,12 @@ class TestBatchMetaTxnSeries:
         tdSql.execute_ignore_error("ROLLBACK")
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
         tdSql.execute(f"drop external source if exists {_INF_SRC}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a full run
+        # that visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INF_DB)
         tdLog.debug("%s teardown done" % __file__)
 
     # ---------------------------------------------------------------- helpers

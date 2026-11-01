@@ -294,17 +294,11 @@ fi
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
-SOURCEDIR=$WORKDIR/src
 MOUNT_DIR=""
-# packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
-# 若宿主机预置了兼容性测试安装包缓存目录，则将 SOURCEDIR 指向它，
-# 避免测试时从公网重复下载（兼容 large-mem runner 预置包场景）。
-if [ -d "/data0/compat-packages" ]; then
-    ln -sfn /data0/compat-packages "$SOURCEDIR"
-else
-    mkdir -p "$SOURCEDIR"
-fi
+source "$REPDIR/test/ci/compat_package_cache.sh" || exit 1
+# Bind the cache directly: never replace or mutate an existing job/src directory.
+SOURCEDIR=$(compat_package_cache_dir "${CI_BASE_DIR:-$(dirname "$WORKDIR")}") || exit 1
 
 source "$REPDIR/test/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
 
@@ -621,7 +615,7 @@ echo "docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v \"$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}\" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 _ci_exit_marker="${TMP_DIR}/thread_volume/${thread_no}/.ci-container-exit"
 rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-command-exit"
 _ci_docker_start_ms=$(date +%s%3N)
@@ -643,7 +637,7 @@ echo "[ci-timing] stage=docker-run event=start"
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 _ci_docker_end_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run elapsed_ms=$(( _ci_docker_end_ms - _ci_docker_start_ms )) rc=${ret}"

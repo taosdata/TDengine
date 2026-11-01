@@ -333,8 +333,10 @@ class TestBatchMetaTxnBatchOps:
         # stale leftover from a previous aborted run.
         fd, csv_path = tempfile.mkstemp(prefix="txn_b7_subtables_", suffix=".csv")
         os.close(fd)
+        # SQL string literals interpret backslashes as escapes.
+        csv_path = csv_path.replace(os.sep, '/')
         rows = [("f1", 101), ("f2", 102), ("f3", 103), ("f4", 104)]
-        with open(csv_path, "w") as f:
+        with open(csv_path, "w", encoding='utf-8') as f:
             for name, tag in rows:
                 f.write(f"'{name}',{tag}\n")
         names = [n for n, _ in rows]

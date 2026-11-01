@@ -16,13 +16,60 @@
 # -*- coding: utf-8 -*-
 
 import os
-import pty
+if os.name != "nt":
+    import pty
 import select
 import shutil
 import subprocess
 import time
+import psutil
 
 from new_test_framework.utils import tdLog, tdSql, etool
+
+
+def _tool_prefix(binary):
+    quoted = subprocess.list2cmdline([binary]) if os.name == "nt" else binary
+    return quoted if os.name == "nt" else f"unset LD_PRELOAD; {quoted}"
+
+
+def _run_windows_tty(arguments, timeout=180):
+    from winpty import PTY, WinptyError
+    from winpty.enums import Backend
+
+    terminal = PTY(200, 30, backend=Backend.ConPTY)
+    env = os.environ.copy()
+    env.pop("LD_PRELOAD", None)
+    environment = "\0".join(f"{key}={value}" for key, value in env.items()) + "\0"
+    terminal.spawn(arguments[0], cmdline=" " + subprocess.list2cmdline(arguments[1:]),
+                   cwd=os.getcwd(), env=environment)
+    output = []
+    deadline = time.monotonic() + timeout
+    try:
+        while True:
+            try:
+                chunk = terminal.read(blocking=False)
+            except EOFError:
+                break
+            except WinptyError as error:
+                if not terminal.isalive():
+                    break
+                if str(error):
+                    raise
+                chunk = ""
+            if chunk:
+                output.append(chunk)
+            if not terminal.isalive() and terminal.iseof():
+                break
+            if time.monotonic() >= deadline:
+                raise subprocess.TimeoutExpired(arguments, timeout)
+            time.sleep(0.02)
+        return terminal.get_exitstatus(), "".join(output)
+    finally:
+        if terminal.isalive():
+            process = psutil.Process(terminal.pid)
+            process.kill()
+            process.wait(timeout=10)
+
 
 
 class TestTaosBackupProgress:
@@ -104,61 +151,66 @@ class TestTaosBackupProgress:
         tdLog.info("=== step 1: insert 10 tables × 10 000 rows ===")
         self._insert_data(benchmark, db, tables=10, rows=10000)
 
-        tdLog.info("=== step 2: open pty pair ===")
-        master_fd, slave_fd = pty.openpty()
+        if os.name == "nt":
+            arguments = [taosbackup, "-Z", "native", "-T", "1", "-D", db, "-o", tmpdir]
+            returncode, output = _run_windows_tty(arguments)
+        else:
+            tdLog.info("=== step 2: open pty pair ===")
+            master_fd, slave_fd = pty.openpty()
 
-        cmd = (
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 1"
-            f" -D {db} -o {tmpdir}"
-        )
-        tdLog.info(f"=== step 3: launch backup with slave as stdout: {cmd} ===")
-        proc = subprocess.Popen(
-            cmd,
-            shell=True,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            close_fds=True,
-        )
-        os.close(slave_fd)
+            cmd = (
+                f"{_tool_prefix(taosbackup)} -Z native -T 1"
+                f" -D {db} -o {tmpdir}"
+            )
+            tdLog.info(f"=== step 3: launch backup with slave as stdout: {cmd} ===")
+            proc = subprocess.Popen(
+                cmd,
+                shell=True,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                close_fds=True,
+            )
+            os.close(slave_fd)
 
-        tdLog.info("=== step 4: drain output from master fd ===")
-        output_bytes = bytearray()
-        deadline = time.time() + 180  # hard timeout
-        try:
-            while time.time() < deadline:
-                rlist, _, _ = select.select([master_fd], [], [], 0.5)
-                if rlist:
-                    try:
-                        chunk = os.read(master_fd, 4096)
-                        output_bytes.extend(chunk)
-                    except OSError:
-                        break  # slave closed (process exited)
-                if proc.poll() is not None:
-                    # drain any remaining bytes
-                    while True:
-                        rlist, _, _ = select.select([master_fd], [], [], 0.1)
-                        if not rlist:
-                            break
+            tdLog.info("=== step 4: drain output from master fd ===")
+            output_bytes = bytearray()
+            deadline = time.time() + 180  # hard timeout
+            try:
+                while time.time() < deadline:
+                    rlist, _, _ = select.select([master_fd], [], [], 0.5)
+                    if rlist:
                         try:
                             chunk = os.read(master_fd, 4096)
                             output_bytes.extend(chunk)
                         except OSError:
-                            break
-                    break
-        finally:
-            os.close(master_fd)
-            if proc.poll() is None:
-                proc.kill()
-            proc.wait()
+                            break  # slave closed (process exited)
+                    if proc.poll() is not None:
+                        # drain any remaining bytes
+                        while True:
+                            rlist, _, _ = select.select([master_fd], [], [], 0.1)
+                            if not rlist:
+                                break
+                            try:
+                                chunk = os.read(master_fd, 4096)
+                                output_bytes.extend(chunk)
+                            except OSError:
+                                break
+                        break
+            finally:
+                os.close(master_fd)
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait()
 
-        output = output_bytes.decode(errors="replace")
-        tdLog.info(f"  backup exit code: {proc.returncode}")
+            output = output_bytes.decode(errors="replace")
+            returncode = proc.returncode
+        tdLog.info(f"  backup exit code: {returncode}")
         tdLog.info(f"  output length: {len(output)} chars")
         tdLog.info(f"  output snippet: {output[:200]!r}")
 
-        if proc.returncode != 0:
-            tdLog.exit(f"backup FAILED (ret={proc.returncode})")
+        if returncode != 0:
+            tdLog.exit(f"backup FAILED (ret={returncode})")
 
         # TTY mode produces \\r carriage-returns for the rolling progress line
         if "\r" not in output:
@@ -214,7 +266,7 @@ class TestTaosBackupProgress:
 
         tdLog.info("=== step 2: run backup with -T 1, capture stdout ===")
         cmd = (
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 1"
+            f"{_tool_prefix(taosbackup)} -Z native -T 1"
             f" -D {db} -o {tmpdir}"
         )
         tdLog.info(f"  exec: {cmd}")
@@ -300,64 +352,69 @@ class TestTaosBackupProgress:
         if os.system(cmd) != 0:
             tdLog.exit("taosBenchmark failed")
         ret = os.system(
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 2 -D {src_db} -o {backupdir}"
+            f"{_tool_prefix(taosbackup)} -Z native -T 2 -D {src_db} -o {backupdir}"
         )
         if ret != 0:
             tdLog.exit(f"backup failed (ret={ret})")
 
-        tdLog.info("=== step 2: open pty pair ===")
-        master_fd, slave_fd = pty.openpty()
+        if os.name == "nt":
+            arguments = [taosbackup, "-Z", "native", "-T", "1", "-W", f"{src_db}={dst_db}", "-i", backupdir]
+            returncode, output = _run_windows_tty(arguments)
+        else:
+            tdLog.info("=== step 2: open pty pair ===")
+            master_fd, slave_fd = pty.openpty()
 
-        cmd = (
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 1"
-            f" -W '{src_db}={dst_db}' -i {backupdir}"
-        )
-        tdLog.info(f"=== step 3: launch restore with slave as stdout: {cmd} ===")
-        proc = subprocess.Popen(
-            cmd,
-            shell=True,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            close_fds=True,
-        )
-        os.close(slave_fd)
+            cmd = (
+                f"{_tool_prefix(taosbackup)} -Z native -T 1"
+                f" -W {src_db}={dst_db} -i {backupdir}"
+            )
+            tdLog.info(f"=== step 3: launch restore with slave as stdout: {cmd} ===")
+            proc = subprocess.Popen(
+                cmd,
+                shell=True,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                close_fds=True,
+            )
+            os.close(slave_fd)
 
-        tdLog.info("=== step 4: drain output from master fd ===")
-        output_bytes = bytearray()
-        deadline = time.time() + 180
-        try:
-            while time.time() < deadline:
-                rlist, _, _ = select.select([master_fd], [], [], 0.5)
-                if rlist:
-                    try:
-                        chunk = os.read(master_fd, 4096)
-                        output_bytes.extend(chunk)
-                    except OSError:
-                        break
-                if proc.poll() is not None:
-                    while True:
-                        rlist, _, _ = select.select([master_fd], [], [], 0.1)
-                        if not rlist:
-                            break
+            tdLog.info("=== step 4: drain output from master fd ===")
+            output_bytes = bytearray()
+            deadline = time.time() + 180
+            try:
+                while time.time() < deadline:
+                    rlist, _, _ = select.select([master_fd], [], [], 0.5)
+                    if rlist:
                         try:
                             chunk = os.read(master_fd, 4096)
                             output_bytes.extend(chunk)
                         except OSError:
                             break
-                    break
-        finally:
-            os.close(master_fd)
-            if proc.poll() is None:
-                proc.kill()
-            proc.wait()
+                    if proc.poll() is not None:
+                        while True:
+                            rlist, _, _ = select.select([master_fd], [], [], 0.1)
+                            if not rlist:
+                                break
+                            try:
+                                chunk = os.read(master_fd, 4096)
+                                output_bytes.extend(chunk)
+                            except OSError:
+                                break
+                        break
+            finally:
+                os.close(master_fd)
+                if proc.poll() is None:
+                    proc.kill()
+                proc.wait()
 
-        output = output_bytes.decode(errors="replace")
-        tdLog.info(f"  restore exit code: {proc.returncode}")
+            output = output_bytes.decode(errors="replace")
+            returncode = proc.returncode
+        tdLog.info(f"  restore exit code: {returncode}")
         tdLog.info(f"  output snippet: {output[:200]!r}")
 
-        if proc.returncode != 0:
-            tdLog.exit(f"restore FAILED (ret={proc.returncode})")
+        if returncode != 0:
+            tdLog.exit(f"restore FAILED (ret={returncode})")
 
         if "\r" not in output:
             tdLog.info(
@@ -411,15 +468,15 @@ class TestTaosBackupProgress:
         if os.system(cmd) != 0:
             tdLog.exit("taosBenchmark failed")
         ret = os.system(
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 4 -D {src_db} -o {backupdir}"
+            f"{_tool_prefix(taosbackup)} -Z native -T 4 -D {src_db} -o {backupdir}"
         )
         if ret != 0:
             tdLog.exit(f"backup failed (ret={ret})")
 
         tdLog.info("=== step 2: run restore with -T 1, capture stdout ===")
         cmd = (
-            f"unset LD_PRELOAD; {taosbackup} -Z native -T 1"
-            f" -W '{src_db}={dst_db}' -i {backupdir}"
+            f"{_tool_prefix(taosbackup)} -Z native -T 1"
+            f" -W {src_db}={dst_db} -i {backupdir}"
         )
         tdLog.info(f"  exec: {cmd}")
         proc = subprocess.Popen(

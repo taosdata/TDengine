@@ -13,7 +13,7 @@ TDengine 通过 taosKeeper 将服务器的 CPU、内存、硬盘空间、带宽�
 首先检查下面服务：
 
 - TDengine 已经安装并正常运行，此仪表盘需要 TDengine `v3.0.0.0` 及以上，并开启监控上报配置，具体配置请参考：[taosd 监控相关](../01-taosd.md#监控相关)。
-- taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 参考手册](../03-taosadapter.md)
+- taosAdapter 已经安装并正常运行。具体细节请参考：[taosAdapter 参考手册](../03-taosadapter/index.md)
 - taosKeeper 已安装并正常运行。具体细节请参考：[taosKeeper 参考手册](../05-taoskeeper.md)
 - Grafana 服务已安装并正常运行。建议使用最新的 Grafana 版本，TDinsight 支持 Grafana 8.0 及以上版本。
   :::info

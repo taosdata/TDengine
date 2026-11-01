@@ -135,7 +135,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./lib -DincludeScope=compile
 
 说明：`taosAdapter` 的日志路径 `path` 需单独配置，默认路径为 `/var/log/taos`；日志等级 `logLevel` 共 8 级，默认 `info`，配置为 `panic` 可关闭日志输出。请注意操作系统根目录 `/` 的磁盘空间。可通过命令行参数、环境变量或配置文件修改，默认配置文件为 `/etc/taos/taosadapter.toml`。
 
-有关 `taosAdapter` 的详细说明，详见 [taosAdapter 参考手册](../12-operations-and-tooling/03-components/03-taosadapter.md)
+有关 `taosAdapter` 的详细说明，详见 [taosAdapter 参考手册](../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 
 ### 2.4 客户端连接串如何保证高可用？
 
@@ -288,6 +288,8 @@ Nginx 的 `proxy_send_timeout` 和 `proxy_read_timeout` 设置过短，导致长
 proxy_send_timeout 3600s;
 proxy_read_timeout 3600s;
 ```
+
+完整的多实例、健康检查、HAProxy 和故障切换配置见 [taosAdapter 高可用](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md)。
 
 ### 2.16 JDBC 连接池应该如何配置（以 HikariCP 为例）？
 

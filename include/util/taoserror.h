@@ -1494,6 +1494,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_IDENTIFIER_TOO_LONG         TAOS_DEF_ERROR_CODE(0, 0x641D)  // Parser/Connector: external object identifier exceeds TDengine limit
 #define TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY   TAOS_DEF_ERROR_CODE(0, 0x641E)  // Parser: current external query needs too many columns
 #define TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY      TAOS_DEF_ERROR_CODE(0, 0x641F)  // Parser: current external query needs too many tags
+#define TSDB_CODE_EXT_ORACLE_VERSION_MISMATCH     TAOS_DEF_ERROR_CODE(0, 0x6420)  // Connector: Oracle client/server version combination not supported
 #define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC       TAOS_DEF_ERROR_CODE(0, 0x6425)  // Internal: demote function-level pushdown and retry
 #define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP         TAOS_DEF_ERROR_CODE(0, 0x6426)  // Internal: demote operator-level pushdown and retry
 #define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE     TAOS_DEF_ERROR_CODE(0, 0x6427)  // Internal: demote clause-level pushdown and retry

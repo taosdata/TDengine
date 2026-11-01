@@ -381,8 +381,8 @@ class TestTagIndexAdvance:
 
     def drop_tables(self, tbname, count):
         # table d1 and d20 have verify data , so can not drop
-        start = random.randint(21, count/2)
-        end = random.randint(count/2 + 1, count - 1)
+        start = random.randint(21, count // 2)
+        end = random.randint(count // 2 + 1, count - 1)
         for i in range(start, end):
             sql = f'drop table {tbname}{i}'
             tdSql.execute(sql)

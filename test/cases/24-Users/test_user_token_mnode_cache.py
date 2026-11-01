@@ -16,6 +16,7 @@
 import os
 import shlex
 import time
+import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, etool, clusterComCheck, tdCom, sc
 
@@ -91,7 +92,16 @@ class TestUserTokenMnodeCache:
         deadline = time.time() + TOKEN_LOGIN_TIMEOUT
 
         while True:
-            rlist = etool.runRetList(command, checkRun=False, retFail=True, show=False)
+            if os.name == 'nt':
+                result = subprocess.run(
+                    [taos_file, '-c', self.token_client_cfg_dir, '-h', host,
+                     '-P', str(port), '-q', '-s', 'show tokens;'],
+                    input=token + '\n', capture_output=True, text=True,
+                    errors='replace', timeout=TOKEN_LOGIN_TIMEOUT,
+                )
+                rlist = (result.stdout + result.stderr).splitlines()
+            else:
+                rlist = etool.runRetList(command, checkRun=False, retFail=True, show=False)
             output = "\n".join(rlist)
             if expect_success:
                 if all(item in output for item in success):
@@ -179,6 +189,7 @@ class TestUserTokenMnodeCache:
         Since: v3.4.0.0
 
         Labels: common,ci,user,integration,functional,security
+
         Jira: None
 
         History:

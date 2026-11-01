@@ -3203,6 +3203,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pFedNode->pTimeRange);
       taosMemoryFreeClear(pFedNode->pColTypeMappings);
       taosMemoryFreeClear(pFedNode->pTimestampTypeHints);
+      taosMemoryFreeClear(pFedNode->pColumnRenderHints);
       break;
     }
     case QUERY_NODE_EXTERNAL_TABLE: {
@@ -4178,7 +4179,11 @@ static bool isExternalFilterOperator(EOperatorType opType) {
 }
 
 static bool isExternalFilterLiteral(const SValueNode* pValue) {
-  if (NULL == pValue || NULL == pValue->literal || pValue->isNull || pValue->placeholderNo > 0 || 0 != pValue->flag) {
+  // VALUE_FLAG_STORED_TS_TEXT is set by the executor's literal restore and
+  // says nothing about the value itself: the node is still a plain string
+  // literal, so the stored-filter revalidation must accept it.
+  if (NULL == pValue || NULL == pValue->literal || pValue->isNull || pValue->placeholderNo > 0 ||
+      0 != (pValue->flag & ~VALUE_FLAG_STORED_TS_TEXT)) {
     return false;
   }
 
@@ -4193,14 +4198,25 @@ static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
 }
 
 static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
-  // MySQL and SQL Server fold filter-column names case-insensitively (matching
-  // the parser-side contract externalColumnNamesEqual()); PostgreSQL compares
-  // names literally.
-  bool caseInsensitive = EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType;
+  // The per-dialect rule (MySQL / SQL Server fold case, Oracle folds an
+  // unquoted reference to upper case then compares exactly, PostgreSQL /
+  // InfluxDB compare literally) is shared with the parser-side contract
+  // externalColumnNamesEqual() through extColumnNameEqual().
+  //
+  // The exact spelling wins over the folded one.  Oracle keeps a quoted
+  // "Device" apart from a folded DEVICE, and TDengine has already dropped the
+  // quoting by the time the reference gets here, so a single folding pass would
+  // map both spellings onto DEVICE and turn a filter that pins both columns
+  // into a duplicate-column error (DS 5.3.6 R1).  For MySQL / SQL Server /
+  // PostgreSQL / InfluxDB the first pass is a subset of the second and only
+  // changes which of several equally valid candidates is picked.
   for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    bool equal = caseInsensitive ? 0 == strcasecmp(pExtMeta->pCols[i].colName, colName)
-                                 : 0 == strcmp(pExtMeta->pCols[i].colName, colName);
-    if (equal) {
+    if (0 == strcmp(pExtMeta->pCols[i].colName, colName)) {
+      return i;
+    }
+  }
+  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+    if (extColumnNameEqual(sourceType, pExtMeta->pCols[i].colName, colName)) {
       return i;
     }
   }
@@ -4227,6 +4243,9 @@ static EDealRes restoreExternalFilterLiteral(SNode** ppNode, void* pContext) {
   int32_t     lino = 0;
   SValueNode* pLiteral = NULL;
   char*       literal = pValue->literal;
+  // A stored timestamp keeps its wall-clock text; remember the declared
+  // precision so the Oracle renderer can emit an ANSI TIMESTAMP literal.
+  const int8_t storedTsPrecision = pValue->node.resType.precision;
   // The JSON decoder omits the literal for an empty string.
   if (NULL == literal && pValue->translate && IS_VAR_DATA_TYPE(pValue->node.resType.type) && NULL != pValue->datum.p &&
       0 == varDataLen(pValue->datum.p)) {
@@ -4237,6 +4256,10 @@ static EDealRes restoreExternalFilterLiteral(SNode** ppNode, void* pContext) {
   // SHOW CREATE also restores other literals for replay through DDL type conversion.
   code = nodesMakeValueNodeFromString(literal, &pLiteral);
   QUERY_CHECK_CODE(code, lino, _return);
+  if (!pCxt->forDdl && TSDB_DATA_TYPE_TIMESTAMP == pValue->node.resType.type) {
+    pLiteral->flag |= VALUE_FLAG_STORED_TS_TEXT;
+    pLiteral->node.resType.precision = storedTsPrecision;
+  }
   nodesDestroyNode(*ppNode);
   *ppNode = (SNode*)pLiteral;
 
@@ -4258,8 +4281,9 @@ static int32_t resetStoredExternalFilterValue(SExternalFilterCxt* pCxt, SValueNo
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   QUERY_CHECK_NULL(pValue, code, lino, _return, TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
-  QUERY_CHECK_CONDITION(!pValue->isNull && pValue->placeholderNo <= 0 && 0 == pValue->flag, code, lino, _return,
-                        TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
+  QUERY_CHECK_CONDITION(!pValue->isNull && pValue->placeholderNo <= 0 &&
+                            (pValue->flag & ~VALUE_FLAG_STORED_TS_TEXT) == 0,
+                        code, lino, _return, TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
   // The node JSON decoder omits literal when LiteralSize is zero.
   if (NULL == pValue->literal && pValue->translate && IS_VAR_DATA_TYPE(pValue->node.resType.type) &&
       NULL != pValue->datum.p && 0 == varDataLen(pValue->datum.p)) {
@@ -4337,7 +4361,9 @@ static int32_t validateExternalFilterOperator(SExternalFilterCxt* pCxt, SOperato
   // ODBC SQL path.  Neither rejects the DDL: the planner keeps every predicate
   // the dialect cannot render exactly in the local FederatedScan filter
   // (fqSplitStoredFilterForLocal), so the declared filter still returns
-  // TDengine-equivalent rows without a silent result difference.
+  // TDengine-equivalent rows without a silent result difference.  DDL
+  // validation therefore checks only the expression shape and the value type
+  // (SQL Server DS 5.3.11, judged items 13 and 14).
 
   const SExtColumnDef* pExtCol = &pCxt->pExtMeta->pCols[colIdx];
   SDataType            mappedType = {0};
@@ -4447,14 +4473,14 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
   QUERY_CHECK_CONDITION(pExtMeta->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
   if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType &&
-      EXT_SOURCE_SQLSERVER != pCxt->sourceType) {
+      EXT_SOURCE_SQLSERVER != pCxt->sourceType && EXT_SOURCE_ORACLE != pCxt->sourceType) {
     // Non-relational sources (InfluxDB) have no remote primary key, so a
-    // declared filter cannot be bound; SQL Server is relational and follows
-    // the same primary-key coverage rules as MySQL / PostgreSQL.
+    // declared filter cannot be bound; SQL Server and Oracle are relational
+    // and follow the same primary-key coverage rules as MySQL / PostgreSQL.
     if (NULL != pFilterCond) {
       code =
           externalFilterError(pCxt, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
-                              "external column filters are supported only for direct MySQL or PostgreSQL references");
+                              "external column filters are supported only for direct MySQL, PostgreSQL, SQL Server or Oracle references");
       QUERY_CHECK_CODE(code, lino, _return);
     }
     goto _return;
@@ -4827,7 +4853,40 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
       snprintf(buf, MAX_NUM_STR_SIZE, "%e", pNode->datum.d);
       return buf;
     }
-    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_NCHAR: {
+      if (NULL == pNode->datum.p) {
+        return NULL;
+      }
+      // An NCHAR payload is UCS-4, so printing it as a C string stops at the
+      // first zero byte inside the first character and the text collapses to a
+      // single character.  Convert to UTF-8 first, the way every other reader
+      // of an NCHAR datum does.
+      int32_t ucs4Len = varDataLen(pNode->datum.p);
+      if (ucs4Len < 0 || (ucs4Len % TSDB_NCHAR_SIZE) != 0) {
+        return NULL;
+      }
+      // calloc, not malloc: taosUcs4ToMbs() does not terminate the output and
+      // '%s' below reads up to a NUL.
+      char* mbs = taosMemoryCalloc(1, (size_t)ucs4Len + 1);
+      if (NULL == mbs) {
+        return NULL;
+      }
+      int32_t mbsLen = taosUcs4ToMbs((TdUcs4*)varDataVal(pNode->datum.p), ucs4Len, mbs, pNode->charsetCxt);
+      if (mbsLen < 0) {
+        taosMemoryFree(mbs);
+        return NULL;
+      }
+      int32_t bufSize = mbsLen + 2 + 1;
+      void*   buf = taosMemoryMalloc(bufSize);
+      if (NULL == buf) {
+        taosMemoryFree(mbs);
+        return NULL;
+      }
+
+      snprintf(buf, bufSize, "'%s'", mbs);
+      taosMemoryFree(mbs);
+      return buf;
+    }
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_GEOMETRY: {

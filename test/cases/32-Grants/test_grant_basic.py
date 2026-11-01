@@ -26,6 +26,7 @@ import taos
 import threading
 import time
 import shutil
+import tempfile
 
 class TestCase:
     _proj_root = find_proj_root(os.path.dirname(os.path.realpath(__file__)))
@@ -234,6 +235,22 @@ class TestCase:
             if infoFile:
                 infoFile.close()
 
+    def _run_grant_test(self, *args):
+        command = [os.path.join(self.workPath, "grantTest"), *args]
+        if os.name != "nt":
+            return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        # The current Windows stub locates .clusterInfo by truncating cwd at
+        # "tsdb" and appending debug/build/bin. Give it a private matching
+        # layout while keeping the actual cluster and its generated metadata.
+        with tempfile.TemporaryDirectory(prefix="td-grant-") as temporary:
+            legacy_root = os.path.join(temporary, "tsdb")
+            legacy_bin = os.path.join(legacy_root, "debug", "build", "bin")
+            os.makedirs(legacy_bin)
+            shutil.copy2(self.infoPath, os.path.join(legacy_bin, ".clusterInfo"))
+            return subprocess.run(command, cwd=legacy_root,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
     def s2_check_show_grants_ungranted(self):
         tdLog.printNoPrefix("======== test show grants ungranted: ")
         self.infoPath = os.path.join(self.workPath, ".clusterInfo")
@@ -241,8 +258,8 @@ class TestCase:
             self.genClusterInfo(check=True)
             files_and_dirs = os.listdir(f'{self.workPath}')
             print(f"files_and_dirs: {files_and_dirs}")
-            process = subprocess.Popen([f'{self.workPath}{os.sep}grantTest'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate() 
+            process = self._run_grant_test()
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")
@@ -261,8 +278,8 @@ class TestCase:
     def s3_check_show_grants_granted(self):
         tdLog.printNoPrefix("======== test show grants granted: ")
         try:
-            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 1', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
+            process = self._run_grant_test('1')
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")
@@ -284,8 +301,8 @@ class TestCase:
             tdSql.checkRows(3)
 
             self.genClusterInfo(check=False)
-            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 2', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
+            process = self._run_grant_test('2')
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")
@@ -321,9 +338,8 @@ class TestCase:
         tdLog.info("registerEmail defaults to empty")
 
         try:
-            process = subprocess.Popen(f'{self.workPath}{os.sep}grantTest 3', shell=True,
-                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            output, error = process.communicate()
+            process = self._run_grant_test('3')
+            output, error = process.stdout, process.stderr
             output = output.decode(encoding="utf-8")
             error = error.decode(encoding="utf-8")
             print(f"code: {process.returncode}")

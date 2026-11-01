@@ -58,7 +58,7 @@ import tempfile
 
 import pytest
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, etool
 
 
 DB = "test_vtable_percentile"
@@ -547,13 +547,16 @@ class TestVtablePercentile:
         cannot distinguish real local execution from a silently ignored cfg
         (both return the same numbers).
         """
-        cli = tdDnodes.dnodes[0].getPath("taos")
+        cli = etool.taosFile()
         assert os.path.isfile(cli) and os.access(cli, os.X_OK), f"taos CLI not found: {cli}"
         with tempfile.TemporaryDirectory(prefix="taos_qp4_") as cfg_dir:
             log_dir = os.path.join(cfg_dir, "log")
             os.makedirs(log_dir)
             with open(os.path.join(cfg_dir, "taos.cfg"), "w") as f:
-                f.write("queryPolicy 4\nlogDir %s\ndebugFlag 137\n" % log_dir)
+                # Placement assertions read the log as soon as this short-lived
+                # CLI exits. Write synchronously so they do not depend on the
+                # asynchronous logger's flush interval or DLL shutdown order.
+                f.write("queryPolicy 4\nlogDir %s\ndebugFlag 137\nasyncLog 0\n" % log_dir)
             sql_file = os.path.join(cfg_dir, "run.sql")
             with open(sql_file, "w") as f:
                 f.write("\n".join(s.rstrip(";") + ";" for s in sqls) + "\n")

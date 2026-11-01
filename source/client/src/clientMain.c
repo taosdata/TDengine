@@ -1242,7 +1242,6 @@ int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg,
   TAOS                        *taos = &pInfo->connId;
 
   if (code != TSDB_CODE_SUCCESS) {
-    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
     TAOS_CHECK_GOTO(code, &lino, _error);
   }
 
@@ -1259,6 +1258,13 @@ int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg,
   int32_t numWhiteLists = 0;
   for (int32_t i = 0; i < wlRsp.numWhiteLists; i++) {
     SDateTimeWhiteListItem *item = &wlRsp.pWhiteLists[i];
+
+    // start comes from the server reply; a weekly item must land inside one
+    // week before it can index the weekday table
+    if (!item->absolute && (item->start < 0 || item->start >= 7 * INT64_C(86400))) {
+      code = TSDB_CODE_INVALID_MSG;
+      TAOS_CHECK_GOTO(code, &lino, _error);
+    }
 
     char *p = taosMemCalloc(1, 128);
     if (p == NULL) {
@@ -1284,6 +1290,9 @@ int32_t            fetchDateTimeWhiteListCallbackFn(void *param, SDataBuf *pMsg,
 
   pInfo->userCbFn(pInfo->userParam, code, taos, numWhiteLists, pWhiteLists);
 _error:
+  if (code != TSDB_CODE_SUCCESS) {
+    pInfo->userCbFn(pInfo->userParam, code, taos, 0, NULL);
+  }
   if (pWhiteLists != NULL) {
     for (int32_t i = 0; i < numWhiteLists; i++) {
       taosMemFree(pWhiteLists[i]);
@@ -4953,6 +4962,9 @@ int stmt2BindParamImpl(TAOS_STMT2 *stmt, TAOS_STMT2_BINDV *bindv, int32_t col_id
         }
         return terrno;
       }
+    } else if (pCreateTbReq != NULL) {
+      tdDestroySVCreateTbReq(pCreateTbReq);
+      taosMemoryFree(pCreateTbReq);
     }
   }
 
@@ -5010,9 +5022,10 @@ static int stmtBindParamAImpl(TAOS_STMT2 *stmt, void *bindv, int32_t col_idx,
   if (code_s != TSDB_CODE_SUCCESS) {
     terrno = code_s;
     (void)taosThreadMutexLock(&(pStmt->asyncBindParam.mutex));
-    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)atomic_sub_fetch_8(&pStmt->asyncBindParam.asyncBindNum, 1);
+    (void)taosThreadCondSignal(&(pStmt->asyncBindParam.waitCond));
     (void)taosThreadMutexUnlock(&(pStmt->asyncBindParam.mutex));
+    taosMemoryFree(args);
     tscError("async bind failed, code:%d , %s", code_s, tstrerror(code_s));
   } else if (wlrToken->callId != 0 && wlrArgsOut != NULL) {
     *wlrArgsOut = args;

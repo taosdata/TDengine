@@ -16,7 +16,7 @@
 import time
 import math
 import random
-from new_test_framework.utils import tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
+from new_test_framework.utils import etool, tdLog, tdSql, tdStream, streamUtil,StreamTableType, StreamTable, cluster
 from random import randint
 import os
 import subprocess
@@ -56,7 +56,6 @@ class TestStreamFetch:
         tdLog.info(f"prepare data")
 
         sqls = [
-            "alter dnode 1 'debugflag 135';",
             "create snode on dnode 1;",
             "create database db vgroups 4;",
             "create table db.meters (ts timestamp, current int) tags(`groupid` int);"
@@ -68,7 +67,9 @@ class TestStreamFetch:
             for i in range(0, 12000000, 1000):
                 sqls.append(f"insert into db.d{t} values({ts+i},{i})")
 
-        tdSql.executes(sqls)
+        tdSql.execute("alter dnode 1 'debugflag 135';")
+        with etool.data_write_log():
+            tdSql.executes(sqls)
         tdLog.info(f"create successfully.")
 
     def createIntervalStream(self):
@@ -115,7 +116,6 @@ class TestStreamFetch:
         tdLog.info(f"prepare count data")
 
         sqls = [
-            "alter dnode 1 'debugflag 135';",
             "drop database db",
             "create database db vgroups 4;",
             "create table db.meters (ts timestamp, current int) tags(`groupid` int);"
@@ -127,7 +127,9 @@ class TestStreamFetch:
             for i in range(0, 4000000, 1000):
                 sqls.append(f"insert into db.d{t} values({ts+i},{i})")
 
-        tdSql.executes(sqls)
+        tdSql.execute("alter dnode 1 'debugflag 135';")
+        with etool.data_write_log():
+            tdSql.executes(sqls)
         tdLog.info(f"create tables successfully.")
 
     def createCountStream(self):

@@ -306,13 +306,9 @@ class TestAlterConfig:
         # global cfg use values from cluster
         tdSql.query("show dnode 1 variables like 'timezone'")
 
-        # It is hard to get the abbr. of the timezone on Windows, so TDengine behaves differently
-        # on Windows, it is better to not include the abbr. of the timezone and always return
-        # something like 'Asia/Shanghai (UTC+0800)' in the future, this could make things easier.
-        if platform.system().lower() == 'windows':
-            tdSql.checkData(0, 2, "Asia/Shanghai (UTC, +0800)")
-        else:
-            tdSql.checkData(0, 2, "Asia/Shanghai (CST, +0800)")
+        # The persisted cluster timezone overrides the local UTC setting.
+        # Windows also reports the configured zone's own abbreviation.
+        tdSql.checkData(0, 2, "Asia/Shanghai (CST, +0800)")
 
         tdSql.query("show dnode 1 variables like 'arbSetAssignedTimeoutSec'")
         tdSql.checkData(0, 2, "10")

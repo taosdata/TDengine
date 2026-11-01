@@ -36,7 +36,35 @@ Design notes:
     - FQ-06-006 stays MySQL-only: SQL Server native error 916 maps to
       EXT_ACCESS_DENIED, but a table-level permission error (native 229) falls
       through to EXT_REMOTE_INTERNAL, which FQ-06-009 covers.
+    - Oracle (5th external source) adds a parallel path to tests 001-005 and
+      007-009 plus the FQOR-ERR-xxx methods at the end of the class.  FQ-06-006
+      stays MySQL-only for Oracle too: ORA-00942 is raised both for a missing
+      object and for a missing privilege, so it cannot carry the table-level
+      denial the test needs (its ORA-01031 case is FQOR-ERR-007).  Oracle
+      has no SELECT-embedded SLEEP(), so a SYSTEM-owned wrapper around
+      DBMS_SESSION.SLEEP is exposed through a view (see
+      _oracle_sleep_fixtures); scan-stage errors are injected through
+      SYSTEM-owned AUTHID CURRENT_USER helpers, which raise the ORA error under
+      the caller's privileges.  Oracle error classification has two shapes that
+      the assertions must respect:
+        * errors raised while connecting/authenticating surface only the TSDB
+          error code to the client — the ORA number never reaches the client
+          message, so those cases assert the code (and that the catalog entry
+          survives), not the text;
+        * errors raised while scanning carry remote_code / remote_sqlstate /
+          remote_message (the ORA text is preserved verbatim) and the demotion
+          classification tags, so those cases assert both.
+      FQOR-ERR-005 (ORA-03113/03114/03135) is not injectable here: the only
+      inducible link loss is ORA-00028 from ALTER SYSTEM KILL SESSION, which
+      maps to EXT_REMOTE_INTERNAL, and real link-loss recovery is covered by
+      test_fq_09 and test_fq_15.  FQOR-ERR-009 (ORA-01795) is not covered: the
+      renderer splits IN lists into 1000-item chunks (FQOR-PUSH-012) and 23ai+
+      lifts the limit altogether, so the pre-split form cannot be produced.
+      FQOR-ERR-011 (IM002 / 01000 / ORA-12557 → EXT_SOURCE_TYPE_NOT_SUPPORT)
+      belongs to the dependency-matrix suite test_fq_19_runtime_libs.
 """
+
+import time
 
 import pytest
 
@@ -58,8 +86,16 @@ from federated_query_common import (
     TSDB_CODE_EXT_ACCESS_DENIED,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_SOURCE_CHANGED,
+    TSDB_CODE_EXT_DB_NOT_EXIST,
+    TSDB_CODE_EXT_QUERY_TIMEOUT,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
+    _code,
 )
+
+
+# The connector's row-level conversion code is defined in taoserror.h but has
+# no exported constant in federated_query_common, so resolve it here.
+TSDB_CODE_EXT_TYPE_CONVERT_FAILED = _code("TSDB_CODE_EXT_TYPE_CONVERT_FAILED")
 
 
 # ---------------------------------------------------------------------------
@@ -161,6 +197,243 @@ def _sqlserver_hold_table_lock(database, seconds):
         f"WAITFOR DELAY '{int(seconds) // 3600:02d}:{(int(seconds) % 3600) // 60:02d}:{int(seconds) % 60:02d}'; "
         "COMMIT TRANSACTION",
     ])
+
+
+def _wait_dnode_var(param, value, timeout=30.0):
+    """Poll SHOW DNODE 1 VARIABLES until the dnode reports ``value``.
+
+    ALTER ALL DNODES is acknowledged by the mnode before the dnode has
+    applied the change: it is carried by a transaction redo action and lands
+    on the dnode a few hundred milliseconds after the client ack (measured
+    on Windows: mnode appended the redo action at 51.990, the dnode applied
+    the value at 52.592).  A fixed sleep therefore races the propagation.
+    When the sleep loses, the source's pool is created from the previous
+    module config and the pool-cap dimensions below test the old size
+    instead of the configured one.  ins_dnode_variables is served by the
+    dnode itself, so a matching row proves the new value is live in the
+    dnode's config and in the ext-connector module config derived from it.
+    """
+    pattern = param if len(param) <= 30 else param[:28] + '%'
+    deadline = time.monotonic() + timeout
+    while True:
+        tdSql.query(f"SHOW DNODE 1 VARIABLES LIKE '{pattern}'", queryTimes=1)
+        tdSql.checkRows(1)
+        got = str(tdSql.getData(0, 2))
+        if got == str(value):
+            return
+        if time.monotonic() >= deadline:
+            tdLog.exit(f"dnode 1 did not apply {param}={value} within "
+                       f"{timeout:.0f}s (still {got})")
+        time.sleep(0.2)
+
+
+def _alter_max_pool_size(value):
+    """Set federatedQueryMaxPoolSizePerSource and wait for the dnode to apply it."""
+    tdSql.execute(f"ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '{value}'")
+    _wait_dnode_var("federatedQueryMaxPoolSizePerSource", value)
+
+
+# ---------------------------------------------------------------------------
+# Oracle test data — the same 5 rows as the MySQL/SQL Server push_t fixture,
+# with the Oracle type mapping.  19c has no BOOLEAN, so the bit-like column is
+# NUMBER(1); rows are inserted one statement at a time because a multi-row
+# VALUES list is not accepted before 23ai.
+# ---------------------------------------------------------------------------
+_ORACLE_PUSH_T_SQLS = [
+    "CREATE TABLE PUSH_T "
+    "(VAL NUMBER(10,0), SCORE BINARY_DOUBLE, NAME VARCHAR2(32), "
+    "FLAG NUMBER(1), STATUS VARCHAR2(16))",
+    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    "VALUES (1,1.5,'alpha',1,'active')",
+    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    "VALUES (2,2.5,'beta',0,'idle')",
+    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    "VALUES (3,3.5,'gamma',1,'active')",
+    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    "VALUES (4,4.5,'delta',0,'idle')",
+    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    "VALUES (5,5.5,'epsilon',1,'active')",
+    "COMMIT",
+]
+
+# Dedicated account for FQOR-ERR-002 (account lock / password expiry).  It is
+# created by the instance's SYSTEM account and has no privileges beyond
+# CREATE SESSION and SELECT on the fixture table.
+_FQOR_LOCK_USER = "FQOR_LOCK_U"
+_FQOR_LOCK_PASS = "FqorLock1"
+_FQOR_LOCK_PASS2 = "FqorLock2"
+
+
+def _oracle_sleep_fixtures(cfg, table="PUSH_T"):
+    """Make one Oracle base scan take a known number of seconds.
+
+    Oracle has no SELECT-embedded SLEEP(): DBMS_SESSION.SLEEP is a
+    definer-rights call a plain test schema may not execute, so SYSTEM owns a
+    one-line wrapper and grants EXECUTE to PUBLIC.  The wrapper is exposed
+    through a view, the same shape as the MySQL SLEEP() view and the SQL Server
+    TABLOCKX window.
+
+    FQ06_SLOW_V sleeps 2 s (long enough to exceed a 1 s read timeout);
+    FQ06_SLOW10_V sleeps 10 s, which outlasts the pool-acquire wait so the
+    pool-exhaustion case deterministically sees EXT_RESOURCE_EXHAUSTED instead
+    of queueing for the single slot.  The cast to NUMBER(10,0) is required: a
+    bare NUMBER return has no precision and the column would be rejected as
+    unmappable.
+    """
+    ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+        *ExtSrcEnv.oracle_sleep_function_sql("FQ06_SLEEP", 2),
+        *ExtSrcEnv.oracle_sleep_function_sql("FQ06_SLEEP10", 10),
+    ])
+    ExtSrcEnv._oracle_sql(cfg, [
+        f"CREATE OR REPLACE VIEW FQ06_SLOW_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_SLEEP AS NUMBER(10,0)) AS BOOM "
+        f"FROM {table} WHERE ROWNUM <= 1",
+        f"CREATE OR REPLACE VIEW FQ06_SLOW10_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_SLEEP10 AS NUMBER(10,0)) AS BOOM "
+        f"FROM {table} WHERE ROWNUM <= 1",
+    ])
+
+
+def _oracle_drop_sleep_fixtures(cfg):
+    """Drop the sleep views (idempotent; the helpers may not exist)."""
+    for view in ("FQ06_SLOW_V", "FQ06_SLOW10_V"):
+        try:
+            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+        except Exception:
+            pass
+
+
+def _oracle_error_fixtures(cfg, table="PUSH_T"):
+    """Install the ORA-error injection helpers and the views that raise them.
+
+    Oracle raises a compile-time error for a broken statement inside a view,
+    so a plain view cannot carry an invalid query.  The indirection used here
+    is a SYSTEM-owned AUTHID CURRENT_USER function that opens a cursor over a
+    SQL string passed at run time: the string is only parsed when the function
+    executes, at scan time, and the raised ORA error reaches the connector like
+    any other remote error.  AUTHID CURRENT_USER means the privileges are the
+    caller's, which is what makes ORA-01031 (no ALTER SYSTEM privilege)
+    reproducible for the test schema.
+
+    Views installed (all over *table*, one row):
+      * FQ06_E904_V — ORA-00904 invalid identifier (vague demotion class)
+      * FQ06_E937_V — ORA-00937 not a single-group group function (precise)
+      * FQ06_E979_V — ORA-00979 not a GROUP BY expression (precise)
+      * FQ06_E900_V — ORA-00900 invalid SQL statement (vague)
+      * FQ06_DENY_V — ORA-01031 insufficient privileges (access denied)
+      * FQ06_DIV0_V — ORA-01476 divisor is equal to zero (conversion failure)
+      * FQ06_1722_V — ORA-01722 invalid number (conversion failure)
+      * FQ06_1858_V — ORA-01858 non-numeric character (conversion failure)
+      * FQ06_E1426_V — ORA-01426 numeric overflow (default mapping)
+    """
+    ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
+        "CREATE OR REPLACE FUNCTION SYSTEM.FQ06_RAISE(p_sql VARCHAR2) "
+        "RETURN NUMBER AUTHID CURRENT_USER IS\n"
+        "  c SYS_REFCURSOR;\n"
+        "  x NUMBER;\n"
+        "BEGIN\n"
+        "  OPEN c FOR p_sql;\n"
+        "  FETCH c INTO x;\n"
+        "  CLOSE c;\n"
+        "  RETURN NVL(x, 0);\n"
+        "END;",
+        "GRANT EXECUTE ON SYSTEM.FQ06_RAISE TO PUBLIC",
+        "CREATE OR REPLACE FUNCTION SYSTEM.FQ06_BOOM "
+        "RETURN NUMBER AUTHID CURRENT_USER IS\n"
+        "BEGIN\n"
+        "  EXECUTE IMMEDIATE 'SELEKT 1 FROM DUAL';\n"
+        "  RETURN 1;\n"
+        "END;",
+        "GRANT EXECUTE ON SYSTEM.FQ06_BOOM TO PUBLIC",
+        "CREATE OR REPLACE FUNCTION SYSTEM.FQ06_DENY_FN "
+        "RETURN NUMBER AUTHID CURRENT_USER IS\n"
+        "BEGIN\n"
+        "  EXECUTE IMMEDIATE 'ALTER SYSTEM FLUSH SHARED_POOL';\n"
+        "  RETURN 1;\n"
+        "END;",
+        "GRANT EXECUTE ON SYSTEM.FQ06_DENY_FN TO PUBLIC",
+    ])
+    ExtSrcEnv._oracle_sql(cfg, [
+        f"CREATE OR REPLACE VIEW FQ06_E904_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_RAISE('SELECT NO_SUCH_COL_ZZ FROM DUAL') "
+        f"AS NUMBER(10,0)) AS BOOM FROM {table} WHERE ROWNUM <= 1",
+        f"CREATE OR REPLACE VIEW FQ06_E937_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_RAISE('SELECT COUNT(*), DUMMY FROM DUAL') "
+        f"AS NUMBER(10,0)) AS BOOM FROM {table} WHERE ROWNUM <= 1",
+        f"CREATE OR REPLACE VIEW FQ06_E979_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_RAISE('SELECT DUMMY, COUNT(*) FROM DUAL "
+        f"GROUP BY SYSDATE') AS NUMBER(10,0)) AS BOOM "
+        f"FROM {table} WHERE ROWNUM <= 1",
+        f"CREATE OR REPLACE VIEW FQ06_E900_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_BOOM AS NUMBER(10,0)) AS BOOM "
+        f"FROM {table} WHERE ROWNUM <= 1",
+        f"CREATE OR REPLACE VIEW FQ06_DENY_V AS SELECT VAL, "
+        f"CAST(SYSTEM.FQ06_DENY_FN AS NUMBER(10,0)) AS BOOM "
+        f"FROM {table} WHERE ROWNUM <= 1",
+        f"CREATE OR REPLACE VIEW FQ06_DIV0_V AS SELECT VAL, "
+        f"CAST(VAL / 0 AS NUMBER(10,0)) AS BOOM FROM {table}",
+        f"CREATE OR REPLACE VIEW FQ06_1722_V AS SELECT VAL, "
+        f"CAST(DUMMY + 1 AS NUMBER(10,0)) AS BOOM FROM {table}, DUAL",
+        f"CREATE OR REPLACE VIEW FQ06_1858_V AS SELECT VAL, "
+        f"TO_DATE('2024-' || NAME || '-01','YYYY-MM-DD') AS BOOM "
+        f"FROM {table}",
+        f"CREATE OR REPLACE VIEW FQ06_E1426_V AS SELECT VAL, "
+        f"CAST(POWER(10, VAL * 400) AS NUMBER(10,0)) AS BOOM "
+        f"FROM {table} WHERE ROWNUM <= 1",
+    ])
+
+
+def _oracle_drop_error_fixtures(cfg):
+    """Drop the error-injection views (idempotent)."""
+    for view in ("FQ06_E904_V", "FQ06_E937_V", "FQ06_E979_V", "FQ06_E900_V",
+                 "FQ06_DENY_V", "FQ06_DIV0_V", "FQ06_1722_V", "FQ06_1858_V",
+                 "FQ06_E1426_V"):
+        try:
+            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+        except Exception:
+            pass
+
+
+def _plan_text(sql):
+    """Return the full ``EXPLAIN VERBOSE TRUE`` output for *sql* as one string."""
+    tdSql.query(f"explain verbose true {sql}")
+    return "\n".join(
+        str(col) for row in tdSql.queryResult for col in row if col is not None
+    )
+
+
+def _fresh_execute(sql):
+    """Run *sql* on a brand-new connection, i.e. in a fresh session.
+
+    Demotion state is attached to the session, so the cases need a second
+    connection that does not share the planner state of ``tdSql``.  Returns
+    ``(rows, None)`` on success and ``(None, exception)`` on failure.
+    """
+    import taos  # noqa: PLC0415  (local import: the client may be absent)
+
+    try:
+        conn = taos.connect()
+    except Exception as exc:
+        return None, exc
+    try:
+        cur = conn.cursor()
+        try:
+            cur.execute(sql)
+            return cur.fetchall(), None
+        except Exception as exc:
+            return None, exc
+        finally:
+            cur.close()
+    finally:
+        conn.close()
+
+
+def _oracle_drop_user(cfg, user):
+    """DROP USER ... CASCADE, tolerating an account that never existed."""
+    try:
+        ExtSrcEnv.oracle_admin_exec_cfg(cfg, [f"DROP USER {user} CASCADE"])
+    except Exception:
+        pass
 
 
 # InfluxDB line-protocol data for push tests
@@ -356,6 +629,56 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 ExtSrcEnv.sqlserver_drop_db(s_db)
             except Exception:
                 pass
+        # --- Oracle path ---
+        o_src = "fq_06_001_o"
+        o_cfg = self._oracle_cfg()
+        o_ver = o_cfg.version
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            # connect_timeout_ms=500 keeps the unreachable-instance window short;
+            # the value is a per-source OPTIONS entry only Oracle exposes.
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 extra_options="'connect_timeout_ms'='500'")
+            # Same pushdown expectation as the legs above.
+            self._verify_pushdown_explain(
+                f"select count(*) from {o_src}.push_t", "COUNT")
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension a/b) Stop the instance → the listener is gone, so the
+            # source fails with the connection-error code (a stopped instance
+            # means a refused connection, so the class is EXT_CONNECT_FAILED).
+            # Wait for the TCP port to close before querying so the failure is
+            # not a race against the shutdown.
+            ExtSrcEnv.stop_oracle_instance(o_ver)
+            try:
+                deadline = time.time() + 60
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        o_cfg.host, o_cfg.port):
+                    time.sleep(0.5)
+                tdSql.error(f"select * from {o_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                # Dimension c) Source still in catalog after failed query
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{o_src}'")
+                tdSql.checkRows(1)
+            finally:
+                o_started = ExtSrcEnv.start_oracle_instance(o_ver)
+            if not o_started:
+                raise AssertionError(
+                    f"Oracle {o_ver} did not become ready after restart")
+            # Dimension d) Recovery: query succeeds again after service restart
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
 
     def test_fq_06_002(self):
         """FQ-06-002: Auth error fast-fail — wrong credentials produce EXT_AUTH_FAILED
@@ -514,6 +837,47 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 ExtSrcEnv.sqlserver_drop_db(s_db)
             except Exception:
                 pass
+        # --- Oracle path ---
+        o_src = "fq_06_002_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            # Dimension a/b) Wrong password → ORA-01017 → EXT_AUTH_FAILED.
+            # The login error is raised by the driver before any statement runs,
+            # so only the TSDB code reaches the client; the ORA text stays in
+            # the taosd log (the client message is "authentication failed").
+            t0 = time.time()
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 password="WRONG_PW_FQ06_b3k9x")
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            elapsed = time.time() - t0
+            # Auth failures are non-retryable: a retry chain would multiply the
+            # per-attempt cost, so a single digit-second bound proves fast-fail.
+            assert elapsed < 15, (
+                f"[FQ-06-002-O] wrong password was not fast-failed: "
+                f"{elapsed:.1f}s")
+            tdLog.info(f"[FQ-06-002-O] wrong password → EXT_AUTH_FAILED "
+                       f"after {elapsed:.1f}s")
+            # Dimension c) Source still in catalog despite auth failure
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(1)
+            # Dimension d) Recovery: recreate with correct password → query succeeds
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
 
     def test_fq_06_003(self):
         """FQ-06-003: Resource exhaustion — EXT_RESOURCE_EXHAUSTED (real verification)
@@ -584,8 +948,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
 
             # Set pool size = 1 dynamically; extConnectorUpdateModuleCfg() ensures
             # the next pool created by extConnectorOpen picks up maxPoolSize=1.
-            tdSql.execute("ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '1'")
-            time.sleep(0.5)  # wait for config propagation across the dnode
+            _alter_max_pool_size("1")
 
             # Create source AFTER the ALTER so the first extConnectorOpen call
             # creates a new pool with maxPoolSize=1.
@@ -659,9 +1022,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 pass
             # Restore original pool size regardless of test outcome
             try:
-                tdSql.execute(
-                    "ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '64'"
-                )
+                _alter_max_pool_size("64")
             except Exception:
                 pass
 
@@ -729,8 +1090,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             ExtSrcEnv.sqlserver_create_db(s_db)
             ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
 
-            tdSql.execute("ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '1'")
-            time.sleep(0.5)  # wait for config propagation across the dnode
+            _alter_max_pool_size("1")
             self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
 
             # Normal query works (pool created with maxPoolSize=1)
@@ -807,9 +1167,102 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 pass
             # Restore original pool size regardless of test outcome
             try:
-                tdSql.execute(
-                    "ALTER ALL DNODES 'federatedQueryMaxPoolSizePerSource' '64'"
-                )
+                _alter_max_pool_size("64")
+            except Exception:
+                pass
+
+        # ----------------------------------------------------------------
+        # Oracle path — real RESOURCE_EXHAUSTED verification
+        #
+        # Oracle has no SELECT-embedded SLEEP(): the single pool slot is held
+        # by a federated base scan over a view that calls DBMS_SESSION.SLEEP
+        # through a SYSTEM-owned wrapper.  The 10 s sleep outlasts the client's
+        # retry loop for the retryable EXT_RESOURCE_EXHAUSTED error, as with
+        # the MySQL SLEEP(10) and the SQL Server 12 s lock above.  The pool
+        # acquire itself waits about the connect timeout (5 s) before giving
+        # up, so the exhausted error arrives well inside the sleep window.
+        # ----------------------------------------------------------------
+        o_src = "fq_06_003_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_sleep_fixtures(o_cfg)
+
+            _alter_max_pool_size("1")
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+
+            # Normal query works (pool created with maxPoolSize=1)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            bg_errors: list = []
+
+            def _run_slow_oracle():
+                import taos  # noqa: PLC0415  (local import for thread safety)
+                try:
+                    conn = taos.connect()
+                    try:
+                        cur = conn.cursor()
+                        try:
+                            cur.execute(
+                                f"select val, boom from {o_src}.fq06_slow10_v"
+                            )
+                            cur.fetchall()
+                        except Exception as exc:
+                            bg_errors.append(exc)
+                        finally:
+                            cur.close()
+                    finally:
+                        conn.close()
+                except Exception as exc:
+                    bg_errors.append(exc)
+
+            ot = threading.Thread(target=_run_slow_oracle, daemon=True)
+            ot.start()
+            time.sleep(1.5)  # slow scan now occupies the single pool slot
+
+            # Dimension a) Second query hits pool cap → RESOURCE_EXHAUSTED
+            t0 = time.time()
+            tdSql.error(
+                f"select count(*) from {o_src}.push_t",
+                expectedErrno=TSDB_CODE_EXT_RESOURCE_EXHAUSTED,
+            )
+            elapsed = time.time() - t0
+            assert elapsed < 60, (
+                f"[FQ-06-003-O] pool cap not enforced: error took {elapsed:.1f}s")
+
+            # Dimension b) Source still in catalog after the resource error
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'"
+            )
+            tdSql.checkRows(1)
+
+            # Wait for the 10 s sleep to finish and the slot to be released
+            ot.join(timeout=60)
+            if ot.is_alive():
+                tdLog.warning("Background Oracle slow-query thread did not finish")
+            if bg_errors:
+                tdLog.warning(
+                    f"Background Oracle slow-query thread error: {bg_errors[0]}")
+
+            # Dimension c) Recovery: slot freed → next query succeeds
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_sleep_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+            # Restore original pool size regardless of test outcome
+            try:
+                _alter_max_pool_size("64")
             except Exception:
                 pass
 
@@ -1001,6 +1454,63 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             f"select source_name from information_schema.ins_ext_sources "
             f"where source_name = '{s_src}'")
         tdSql.checkRows(0)
+        # --- Oracle path ---
+        o_src = "fq_06_004_o"
+        o_cfg = self._oracle_cfg()
+        o_ver = o_cfg.version
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 extra_options="'connect_timeout_ms'='500'")
+            # Dimension a) Source available → in catalog
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(1)
+            # Dimension b) Verify query works (available state); same pushdown
+            # expectation as the legs above.
+            self._verify_pushdown_explain(
+                f"select count(*) from {o_src}.push_t", "COUNT")
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension c) Stop the instance → degraded/unavailable.  The
+            # listener is gone, so the connection is refused: the documented
+            # code for that class is EXT_CONNECT_FAILED.
+            ExtSrcEnv.stop_oracle_instance(o_ver)
+            try:
+                deadline = time.time() + 60
+                while time.time() < deadline and ExtSrcEnv._tcp_probe(
+                        o_cfg.host, o_cfg.port):
+                    time.sleep(0.5)
+                tdSql.error(f"select * from {o_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                # Source still in catalog despite failed state
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{o_src}'")
+                tdSql.checkRows(1)
+            finally:
+                o_started = ExtSrcEnv.start_oracle_instance(o_ver)
+            if not o_started:
+                raise AssertionError(
+                    f"Oracle {o_ver} did not become ready after restart")
+            # Dimension e) Recovery: source transitions back to available
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+        # Dimension d) After DROP: source removed from catalog
+        tdSql.query(
+            f"select source_name from information_schema.ins_ext_sources "
+            f"where source_name = '{o_src}'")
+        tdSql.checkRows(0)
 
     def test_fq_06_005(self):
         """FQ-06-005: EXT_TABLE_NOT_EXIST — remote table dropped while cached, triggers REFRESH path (catalogRemoveExtSource + restartAsyncQuery), exhausts retries, returns EXT_TABLE_NOT_EXIST to user.
@@ -1129,6 +1639,50 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ----------------------------------------------------------------
+        # Oracle path
+        #
+        # Oracle reports every "cannot see the object" condition as
+        # ORA-00942 (table or view does not exist), whether the table is gone
+        # or the schema lacks the privilege on it.  The connector maps 942 to
+        # EXT_TABLE_NOT_EXIST without trying to tell the two apart — the TS
+        # requires that ambiguity to be preserved rather than guessed.  The
+        # client message is the generic "external table not found" text; the
+        # ORA number is retained on the taosd side.
+        # ----------------------------------------------------------------
+        o_src = "fq_06_005_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            # Verify normal query works — schema gets cached
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Drop the remote table directly — TDengine cache still has the schema
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            # Dimension c) EXT_TABLE_NOT_EXIST after REFRESH exhausted
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            # Source remains in catalog
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(1)
+            # Recovery: recreate the table → the next query re-fetches the
+            # schema and succeeds (the REFRESH path only cleared the cache).
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
     def test_fq_06_006(self):
         """FQ-06-006: EXT_ACCESS_DENIED — insufficient table-level privileges, non-retryable.
 
@@ -1150,6 +1704,11 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
           permission error (native 229) falls through to EXT_REMOTE_INTERNAL.
           EXT_ACCESS_DENIED is therefore not covered for SQL Server here; the
           default-mapping behaviour is covered by FQ-06-009.
+
+        Oracle note: Oracle reports a missing object and a missing privilege on
+          an existing object with the same ORA-00942, so this test cannot
+          separate a table-level denial from a dropped table (FQ-06-005).  A
+          genuine ORA-01031 raised while scanning is covered by FQOR-ERR-007.
 
         Dimensions:
           a) MySQL user with SELECT denied on specific table → EXT_ACCESS_DENIED
@@ -1334,6 +1893,41 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+        # ----------------------------------------------------------------
+        # Oracle path
+        # ----------------------------------------------------------------
+        o_src = "fq_06_007_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            # Populate catalog cache
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # DROP the external source
+            tdSql.execute(f"drop external source if exists {o_src}")
+            # Dimension c) Catalog entry removed
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(0)
+            # Dimension a) Query deleted source → EXT_SOURCE_NOT_FOUND
+            # (0x6407; the mnode/catalog path for a source that no longer
+            # exists — the "MND_EXTERNAL_SOURCE_NOT_EXIST" name used by the
+            # legs above does not exist in taoserror.h).
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_SOURCE_NOT_FOUND)
+        finally:
+            # Source already dropped; just guard against partial cleanup
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
     def test_fq_06_008(self):
         """FQ-06-008: EXT_SOURCE_CHANGED — ALTER EXTERNAL SOURCE triggers REFRESH path; client clears catalog cache and re-plans; query succeeds with updated metadata.
 
@@ -1454,6 +2048,52 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(s_src)
             try:
                 ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+
+        # ----------------------------------------------------------------
+        # Oracle path
+        #
+        # The ALTER carries the per-source OPTIONS pair Oracle exposes
+        # (connect_timeout_ms / read_timeout_ms); the DDL bumps the mnode
+        # version, which invalidates the client catalog cache, and the next
+        # query re-fetches metadata and succeeds.
+        # ----------------------------------------------------------------
+        o_src = "fq_06_008_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            # Baseline query (populates cache)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # ALTER the external source to bump the mnode version → cache invalidated
+            tdSql.execute(
+                f"alter external source {o_src} "
+                f"set options('connect_timeout_ms'='5000',"
+                f"'read_timeout_ms'='10000')")
+            # Query after ALTER → REFRESH + re-plan → success
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Source still in catalog, with the new OPTIONS persisted
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(1)
+            tdSql.query(f"describe external source {o_src}")
+            describe_text = "\n".join(
+                str(col) for row in tdSql.queryResult
+                for col in row if col is not None)
+            assert "10000" in describe_text, (
+                "[FQ-06-008-O] read_timeout_ms not persisted after ALTER:\n"
+                f"{describe_text}")
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
             except Exception:
                 pass
 
@@ -1583,5 +2223,693 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(s_src)
             try:
                 ExtSrcEnv.sqlserver_drop_db(s_db)
+            except Exception:
+                pass
+
+        # ----------------------------------------------------------------
+        # Oracle path
+        #
+        # Injection mechanism: a view whose projection evaluates
+        # POWER(10, VAL * 400).  The expression depends on a column, so it
+        # cannot be constant-folded and view creation succeeds; at SELECT time
+        # Oracle raises ORA-01426 (numeric overflow, SQLSTATE 22003), which is
+        # not in the extConnectorOracle switch → EXT_REMOTE_INTERNAL.  Because
+        # the error happens while scanning, the client message keeps
+        # remote_code / remote_sqlstate / remote_message.
+        # ----------------------------------------------------------------
+        o_src = "fq_06_009_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            # Dimension a) Normal push_t query succeeds
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            # Dimension b) Query error-injected view → ORA-01426
+            # → not in the connector switch → EXT_REMOTE_INTERNAL
+            tdSql.error(f"select * from {o_src}.fq06_e1426_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL,
+                        expectErrInfo="remote_code=1426",
+                        fullMatched=False)
+            # taosd must still serve local queries (no crash)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_error_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    # ==================================================================
+    # FQOR-ERR-xxx — Oracle error classification and demotion
+    #
+    # These cases exercise the Oracle-specific mapping documented in the
+    # Oracle TS §6.8.  Two observable shapes are used:
+    #
+    #   * connect/auth-stage failures (wrong password, locked or expired
+    #     account, wrong service name, closed port) surface only the TSDB
+    #     error code to the client — the ORA number stays in the taosd log,
+    #     so the assertion is the exact code plus the catalog/engine state;
+    #   * scan-stage failures carry remote_code / remote_sqlstate /
+    #     remote_message and the demotion tags, so those cases assert the
+    #     code, the ORA number and the classification wording.
+    #
+    # A connection is a "session" for demotion purposes: the session overlay
+    # of a vague error is dropped on the next connection, while the precise
+    # (clause-level) demotion is visible to every connection of the client
+    # process.  Both directions are asserted below.
+    # ==================================================================
+
+    def test_fq_06_fqor_err_001_002(self):
+        """FQOR-ERR-001/002: Oracle auth failures — wrong password, locked and expired accounts.
+
+        ORA-01017 (invalid username/password), ORA-28000 (account locked) and
+        ORA-28001 (password expired) all map to EXT_AUTH_FAILED and are not
+        retried.  The login error happens before any statement is sent, so the
+        client sees only the TSDB code ("External source authentication
+        failed"); the ORA number is preserved in the taosd log.
+
+        Dimensions:
+          a) Wrong password → EXT_AUTH_FAILED, fast-fail (no retry chain),
+             source stays in the catalog
+          b) Recovery with the correct password → correct results
+          c) ACCOUNT LOCK → EXT_AUTH_FAILED; UNLOCK → recovery
+          d) PASSWORD EXPIRE → EXT_AUTH_FAILED; password reset → recovery
+
+        Oracle resolves credentials at login only, so a pooled connection
+        would keep working across a lock.  Every credential change therefore
+        recreates the source, which forces a fresh login.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err1_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        _oracle_drop_user(o_cfg, _FQOR_LOCK_USER)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+
+            # --- FQOR-ERR-001: wrong password ---
+            t0 = time.time()
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 password="WRONG_PW_FQOR_ERR1_x7")
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            elapsed = time.time() - t0
+            assert elapsed < 15, (
+                f"[FQOR-ERR-001] wrong password was not fast-failed: "
+                f"{elapsed:.1f}s")
+            tdLog.info(f"[FQOR-ERR-001] wrong password → EXT_AUTH_FAILED "
+                       f"after {elapsed:.1f}s")
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(1)
+            # Recovery with the correct password
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # --- FQOR-ERR-002: account lock / password expiry ---
+            try:
+                ExtSrcEnv.oracle_admin_exec_cfg(o_cfg, [
+                    f'CREATE USER {_FQOR_LOCK_USER} '
+                    f'IDENTIFIED BY "{_FQOR_LOCK_PASS}"',
+                ])
+            except Exception:
+                # A previous run may have left the account behind: DROP USER
+                # fails while a pooled session is still attached.  Reusing it
+                # is equivalent because the first assertion below sets the
+                # password and clears any lock anyway.
+                pass
+            ExtSrcEnv.oracle_admin_exec_cfg(o_cfg, [
+                f'ALTER USER {_FQOR_LOCK_USER} IDENTIFIED BY '
+                f'"{_FQOR_LOCK_PASS}" ACCOUNT UNLOCK',
+                f"GRANT CREATE SESSION TO {_FQOR_LOCK_USER}",
+                f"GRANT SELECT ON TAOSDATA.PUSH_T TO {_FQOR_LOCK_USER}",
+            ])
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 user=_FQOR_LOCK_USER,
+                                 password=_FQOR_LOCK_PASS)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # ACCOUNT LOCK → ORA-28000 → EXT_AUTH_FAILED
+            ExtSrcEnv.oracle_admin_exec_cfg(
+                o_cfg, [f"ALTER USER {_FQOR_LOCK_USER} ACCOUNT LOCK"])
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 user=_FQOR_LOCK_USER,
+                                 password=_FQOR_LOCK_PASS)
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            tdLog.info("[FQOR-ERR-002] locked account → EXT_AUTH_FAILED  OK")
+            # UNLOCK → recovery
+            ExtSrcEnv.oracle_admin_exec_cfg(
+                o_cfg, [f"ALTER USER {_FQOR_LOCK_USER} ACCOUNT UNLOCK"])
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 user=_FQOR_LOCK_USER,
+                                 password=_FQOR_LOCK_PASS)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # PASSWORD EXPIRE → ORA-28001 → EXT_AUTH_FAILED
+            ExtSrcEnv.oracle_admin_exec_cfg(
+                o_cfg, [f"ALTER USER {_FQOR_LOCK_USER} PASSWORD EXPIRE"])
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 user=_FQOR_LOCK_USER,
+                                 password=_FQOR_LOCK_PASS)
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            tdLog.info("[FQOR-ERR-002] expired password → EXT_AUTH_FAILED  OK")
+            # Resetting the password also clears the expiry → recovery
+            ExtSrcEnv.oracle_admin_exec_cfg(
+                o_cfg, [f'ALTER USER {_FQOR_LOCK_USER} '
+                        f'IDENTIFIED BY "{_FQOR_LOCK_PASS2}"'])
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper(),
+                                 user=_FQOR_LOCK_USER,
+                                 password=_FQOR_LOCK_PASS2)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # taosd stayed alive throughout
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            _oracle_drop_user(o_cfg, _FQOR_LOCK_USER)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_003_004(self):
+        """FQOR-ERR-003/004: Oracle service-name error vs listener failure.
+
+        ORA-12514 (service not registered with the listener) maps to
+        EXT_DB_NOT_EXIST, while a refused connection (SQLSTATE 08001 on a
+        closed port) maps to EXT_CONNECT_FAILED.  The two classes must be
+        distinguishable, and both must recover once a valid endpoint is used
+        again.  Both errors are raised while connecting, so the client sees
+        the TSDB code only.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err3_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+
+            # --- FQOR-ERR-003: DATABASE names a service the listener does not
+            # serve → ORA-12514 → EXT_DB_NOT_EXIST ---
+            tdSql.execute(
+                f"create external source {o_src} type='oracle' "
+                f"host='{o_cfg.host}' port={o_cfg.port} "
+                f"user='{o_cfg.user}' password='{o_cfg.password}' "
+                f"database=NOSUCHSVC schema='{o_cfg.user.upper()}'")
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_DB_NOT_EXIST)
+            tdLog.info("[FQOR-ERR-003] unknown service → EXT_DB_NOT_EXIST  OK")
+            # Recovery: the same source pointed at the real service
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # --- FQOR-ERR-004: closed port → connection refused →
+            # EXT_CONNECT_FAILED (a different class from ERR-003) ---
+            self._cleanup_src(o_src)
+            tdSql.execute(
+                f"create external source {o_src} type='oracle' "
+                f"host='127.0.0.1' port=1 "
+                f"user='{o_cfg.user}' password='{o_cfg.password}' "
+                f"database={o_cfg.service} schema='{o_cfg.user.upper()}' "
+                f"options('connect_timeout_ms'='500')")
+            t0 = time.time()
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+            elapsed = time.time() - t0
+            assert elapsed < 60, (
+                f"[FQOR-ERR-004] connection refusal took too long to "
+                f"surface: {elapsed:.1f}s")
+            tdLog.info(f"[FQOR-ERR-004] closed port → EXT_CONNECT_FAILED "
+                       f"after {elapsed:.1f}s  OK")
+            # Recovery with the real endpoint
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # taosd stayed alive
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_006_007(self):
+        """FQOR-ERR-006/007: Oracle object-visibility vs privilege errors.
+
+        Oracle reports a missing object and a missing privilege on an existing
+        object with the same ORA-00942, so the connector maps both to
+        EXT_TABLE_NOT_EXIST and keeps the raw text; it must not claim more
+        than Oracle said.  A genuine privilege violation raised inside an
+        executed statement is ORA-01031 and maps to EXT_ACCESS_DENIED — the two
+        codes have to stay distinguishable.
+
+        Dimensions:
+          a) Cached schema, remote table dropped → EXT_TABLE_NOT_EXIST, source
+             stays in the catalog; recreating the table recovers
+          b) ORA-01031 at scan time → EXT_ACCESS_DENIED with remote_code=1031
+          c) The two codes differ (00942 is not reported as access denied)
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err6_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            # Cache the schema first
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # --- FQOR-ERR-006: remote table gone → ORA-00942 ---
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            tdSql.error(f"select * from {o_src}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{o_src}'")
+            tdSql.checkRows(1)
+            # Recovery: recreate the table and the fixture views over it
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # --- FQOR-ERR-007: ORA-01031 at scan time → EXT_ACCESS_DENIED ---
+            tdSql.error(f"select * from {o_src}.fq06_deny_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_ACCESS_DENIED)
+            msg = tdSql.error_info
+            assert "remote_code=1031" in msg, msg
+            assert "ORA-01031" in msg, msg
+            tdLog.info(f"[FQOR-ERR-007] ORA-01031 → EXT_ACCESS_DENIED: {msg}")
+            # The codes of (a) and (b) are distinct — 00942 must not be
+            # reported as an access-denied error.
+            assert TSDB_CODE_EXT_ACCESS_DENIED != TSDB_CODE_EXT_TABLE_NOT_EXIST
+
+            # Results still correct afterwards
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_error_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_008(self):
+        """FQOR-ERR-008: Oracle syntax/identifier errors are demotion classes.
+
+        ORA-00904 / ORA-00900 are in the connector's syntax switch, so they do
+        not reach the client as a raw failure: the planner classifies them as
+        SYNTAX_UNSUPPORTED, demotes the pushdown and reports the demotion.
+        ORA-00904 is deliberately in the *vague* class (session overlay), so a
+        column-rendering mistake cannot be persisted as a permanent capability
+        change.  The client-visible code for a demoted statement is
+        EXT_REMOTE_INTERNAL with "demoted with session overlay" and
+        diag_kind=0 / reason=10; the ORA number is still in remote_code.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err8_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # ORA-00904 → vague demotion
+            tdSql.error(f"select * from {o_src}.fq06_e904_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+            msg = tdSql.error_info
+            assert "External pushdown demoted with session overlay" in msg, msg
+            assert "remote_code=904" in msg, msg
+            assert "diag_kind=0" in msg and "reason=10" in msg, msg
+            tdLog.info(f"[FQOR-ERR-008] ORA-00904 demoted (vague): {msg}")
+
+            # ORA-00900 → vague demotion as well
+            tdSql.error(f"select * from {o_src}.fq06_e900_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+            msg = tdSql.error_info
+            assert "External pushdown demoted with session overlay" in msg, msg
+            assert "remote_code=900" in msg, msg
+            assert "diag_kind=0" in msg and "reason=10" in msg, msg
+            tdLog.info(f"[FQOR-ERR-008] ORA-00900 demoted (vague): {msg}")
+
+            # taosd kept serving and the source still answers
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_error_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_010(self):
+        """FQOR-ERR-010: Oracle type-conversion failures — no truncation, no silent NULL.
+
+        ORA-01476 (divisor is zero), ORA-01722 (invalid number) and ORA-01858
+        (non-numeric character) map to EXT_TYPE_CONVERT_FAILED.  The statement
+        must fail — a conversion error must never be swallowed into a NULL or a
+        truncated value — and the client message must keep the ORA number.
+        ORA-00932 cannot be produced inside a view on
+        this release (Oracle rejects the view definition itself), so 00932 is
+        covered only by the connector mapping.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err10_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            for view, ora in (
+                ("fq06_div0_v", "1476"),
+                ("fq06_1722_v", "1722"),
+                ("fq06_1858_v", "1858"),
+            ):
+                tdSql.error(f"select * from {o_src}.{view} limit 1",
+                            expectedErrno=TSDB_CODE_EXT_TYPE_CONVERT_FAILED)
+                msg = tdSql.error_info
+                assert f"remote_code={ora}" in msg, (view, msg)
+                assert f"ORA-0{ora}" in msg, (view, msg)
+                # The failing rows must not come back as NULL: reaching
+                # tdSql.error at all proves the statement failed.
+                tdLog.info(f"[FQOR-ERR-010] {view} → "
+                           f"EXT_TYPE_CONVERT_FAILED ({ora}): {msg}")
+
+            # Normal rows are unaffected and taosd stayed alive
+            tdSql.query(f"select count(*), sum(val) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.checkData(0, 1, 15)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_error_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_012(self):
+        """FQOR-ERR-012: Oracle read timeout — HYT00 → EXT_QUERY_TIMEOUT, connection recovers.
+
+        The per-source OPTIONS('read_timeout_ms') is the only timeout knob
+        Oracle exposes beyond the global setting; the driver reports the
+        cancelled statement as ORA-01013 / SQLSTATE HYT00, which the connector
+        maps to EXT_QUERY_TIMEOUT.  A fast query immediately afterwards proves
+        the pool connection was replaced rather than poisoned.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err12_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_sleep_fixtures(o_cfg)
+            self._mk_oracle_real(
+                o_src, database=o_cfg.service, schema=o_cfg.user.upper(),
+                extra_options="'connect_timeout_ms'='5000',"
+                              "'read_timeout_ms'='1000'")
+            # The fast path still works under the 1 s timeout
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # The 2 s sleep exceeds the 1 s read timeout
+            t0 = time.time()
+            tdSql.error(f"select val, boom from {o_src}.fq06_slow_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_QUERY_TIMEOUT)
+            elapsed = time.time() - t0
+            assert elapsed < 60, (
+                f"[FQOR-ERR-012] read timeout not effective: {elapsed:.1f}s")
+            msg = tdSql.error_info
+            assert "remote_code=1013" in msg, msg
+            assert "HYT00" in msg, msg
+            tdLog.info(f"[FQOR-ERR-012] read_timeout_ms=1000 → "
+                       f"EXT_QUERY_TIMEOUT in {elapsed:.1f}s: {msg}")
+
+            # Recovery: the timed-out connection is replaced
+            tdSql.query(f"select count(*), sum(val) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.checkData(0, 1, 15)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_sleep_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_013(self):
+        """FQOR-ERR-013: Oracle precise demotion — clause-level, catalog-scoped.
+
+        ORA-00937 (not a single-group group function) and ORA-00979 (not a
+        GROUP BY expression) are precise: they implicate one clause, so the
+        planner demotes that clause (AGG) instead of the whole statement.  The
+        demotion is recorded in the client catalog, which means every
+        connection of the process sees the local Aggregate over a base-scan
+        Remote SQL, and the results stay correct.  The failing view itself is
+        permanently broken (its definition calls a helper that raises), so the
+        correctness assertion uses the real table: the aggregate is computed
+        locally from the raw VALUES.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err13_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            # Baseline: COUNT is pushed down in this session
+            plan = _plan_text(f"select count(*) from {o_src}.push_t")
+            assert "COUNT(VAL)" in plan, plan
+
+            # ORA-00937 → precise demotion, AGG clause
+            tdSql.error(f"select * from {o_src}.fq06_e937_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+            msg = tdSql.error_info
+            assert "External pushdown demoted at clause level" in msg, msg
+            assert "remote_code=937" in msg, msg
+            assert "diag_kind=3" in msg and "reason=2" in msg, msg
+            assert "clause=2" in msg, msg
+            tdLog.info(f"[FQOR-ERR-013] ORA-00937 demoted (precise): {msg}")
+
+            # Same session: the AGG clause is no longer pushed
+            plan = _plan_text(f"select count(*) from {o_src}.push_t")
+            assert "Aggregate" in plan, plan
+            assert "COUNT(VAL)" not in plan, plan
+            assert "Remote SQL: SELECT VAL" in plan, plan
+            tdSql.query(f"select count(*) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query(f"select max(val) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+
+            # ORA-00979 → same precise class
+            tdSql.error(f"select * from {o_src}.fq06_e979_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+            msg = tdSql.error_info
+            assert "External pushdown demoted at clause level" in msg, msg
+            assert "remote_code=979" in msg, msg
+            assert "diag_kind=3" in msg and "reason=2" in msg, msg
+            tdLog.info(f"[FQOR-ERR-013] ORA-00979 demoted (precise): {msg}")
+
+            # Catalog-scoped: a new connection inherits the demoted plan and
+            # still returns correct aggregate results.
+            rows, err = _fresh_execute(
+                f"explain verbose true select count(*) from {o_src}.push_t")
+            assert err is None, err
+            fresh_plan = "\n".join(
+                str(col) for row in rows for col in row if col is not None)
+            assert "Aggregate" in fresh_plan, fresh_plan
+            assert "COUNT(VAL)" not in fresh_plan, fresh_plan
+            rows, err = _fresh_execute(
+                f"select count(*), sum(val) from {o_src}.push_t")
+            assert err is None, err
+            assert rows[0][0] == 5 and rows[0][1] == 15, rows
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_error_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            except Exception:
+                pass
+
+    def test_fq_06_fqor_err_014(self):
+        """FQOR-ERR-014: Oracle vague demotion — session overlay only.
+
+        ORA-00904 is vague: an invalid identifier can come from a rendering
+        mistake anywhere in the statement, so the demotion is applied only as
+        a session overlay and is never written into the persistent capability
+        state.  Two consequences are asserted:
+
+          a) the plan of an unrelated aggregate in the same session is
+             unchanged (COUNT still pushed down), unlike the precise class;
+          b) a new connection re-attempts the pushdown — it raises the same
+             demotion error again rather than silently running a local plan.
+
+        Results of normal queries stay correct in both sessions.
+
+        Catalog: - Query:FederatedPushdown
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        o_src = "fq_06_err14_o"
+        o_cfg = self._oracle_cfg()
+        self._cleanup_src(o_src)
+        try:
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
+            _oracle_error_fixtures(o_cfg)
+            self._mk_oracle_real(o_src, database=o_cfg.service,
+                                 schema=o_cfg.user.upper())
+            plan = _plan_text(f"select count(*) from {o_src}.push_t")
+            assert "COUNT(VAL)" in plan, plan
+
+            # ORA-00904 → vague demotion
+            tdSql.error(f"select * from {o_src}.fq06_e904_v limit 1",
+                        expectedErrno=TSDB_CODE_EXT_REMOTE_INTERNAL)
+            msg = tdSql.error_info
+            assert "External pushdown demoted with session overlay" in msg, msg
+            assert "remote_code=904" in msg, msg
+            assert "diag_kind=0" in msg and "reason=10" in msg, msg
+            tdLog.info(f"[FQOR-ERR-014] ORA-00904 demoted (vague): {msg}")
+
+            # (a) The same session's plan is unchanged: COUNT is still pushed.
+            plan = _plan_text(f"select count(*) from {o_src}.push_t")
+            assert "COUNT(VAL)" in plan, plan
+            assert "Aggregate" not in plan, plan
+            tdSql.query(f"select count(*), sum(val) from {o_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.checkData(0, 1, 15)
+
+            # (b) A new connection re-attempts the pushdown: the overlay is
+            # not persisted, so the same statement raises the same error.
+            rows, err = _fresh_execute(
+                f"select * from {o_src}.fq06_e904_v limit 1")
+            assert err is not None, (
+                "[FQOR-ERR-014] a new session reused the old overlay instead "
+                "of re-attempting the pushdown")
+            text = str(err)
+            assert "demoted with session overlay" in text, text
+            assert "remote_code=904" in text, text
+            # And its plan still pushes COUNT down.
+            rows, err = _fresh_execute(
+                f"explain verbose true select count(*) from {o_src}.push_t")
+            assert err is None, err
+            fresh_plan = "\n".join(
+                str(col) for row in rows for col in row if col is not None)
+            assert "COUNT(VAL)" in fresh_plan, fresh_plan
+            rows, err = _fresh_execute(f"select count(*) from {o_src}.push_t")
+            assert err is None, err
+            assert rows[0][0] == 5, rows
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(o_src)
+            try:
+                _oracle_drop_error_fixtures(o_cfg)
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
             except Exception:
                 pass

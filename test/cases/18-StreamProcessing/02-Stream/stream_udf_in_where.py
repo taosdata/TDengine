@@ -18,7 +18,7 @@ import time
 import platform
 import subprocess
 
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import tdLog, tdSql, tdStream, tdCom
 from new_test_framework.utils.pathFinding import find_proj_path
 
 
@@ -72,17 +72,11 @@ class TestStreamUdfInWhere:
         projPath = find_proj_path(selfPath)
 
         if platform.system().lower() == "windows":
-            cmd = (
-                '(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'
-                % projPath
-            )
+            self.libudf1 = os.path.join(tdCom.getBuildPath(), "build", "bin", "udf1.dll").replace("\\", "/")
         else:
             cmd = 'find %s -name "libudf1.so" | grep lib | head -n1' % projPath
-
-        result = subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        ).stdout.read().decode("utf-8")
-        self.libudf1 = result.replace("\r", "").replace("\n", "")
+            result = subprocess.check_output(cmd, shell=True).decode("utf-8")
+            self.libudf1 = result.strip()
         if not self.libudf1 or not os.path.isfile(self.libudf1):
             raise Exception(f"libudf1.so not found under {projPath}")
         tdLog.info(f"using udf lib: {self.libudf1}")

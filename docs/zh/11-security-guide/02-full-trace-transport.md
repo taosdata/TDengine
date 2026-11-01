@@ -289,7 +289,7 @@ taosdump -h host -P 6030 -u tduser -p -D mydb -o /backup/mydb
 
 #### 2.1.1 服务端 HTTPS/WSS {#211-server-httpswss}
 
-**taosAdapter 服务端**（`/etc/taos/taosadapter.toml`）。`[ssl]` 为企业版能力（示例配置注释中为 `Applicable for the Enterprise Edition`）。参数说明见 [taosAdapter · SSL](../12-operations-and-tooling/03-components/03-taosadapter.md#ssl)。自签名证书可用文末 [附录](#11-appendix-self-signed-cert) 生成。
+**taosAdapter 服务端**（`/etc/taos/taosadapter.toml`）。`[ssl]` 为企业版能力（示例配置注释中为 `Applicable for the Enterprise Edition`）。参数说明见 [taosAdapter · SSL](../12-operations-and-tooling/03-components/03-taosadapter/02-configuration.md#ssl)。自签名证书可用文末 [附录](#11-appendix-self-signed-cert) 生成。
 
 ```toml
 [ssl]
@@ -346,6 +346,8 @@ server {
     }
 }
 ```
+
+WebSocket 长连接、健康检查、故障切换和 HAProxy 的完整配置见 [taosAdapter 高可用](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md)。
 
 ### 2.2 路径 B：taosc → taosd 私有协议（TLS + SASL + zlib）
 

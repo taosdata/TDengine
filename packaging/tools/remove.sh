@@ -545,6 +545,9 @@ function clean_fq_runtime_links() {
     for name in "$dir"/libmariadb.so* "$dir"/libmysqlclient.so* "$dir"/libpq.so* \
                 "$dir"/libarrow*.so* "$dir"/libparquet.so* "$dir"/libtaos_ext_influx_arrow.so* \
                 "$dir"/libodbc.so* "$dir"/libodbcinst.so* "$dir"/libmsodbcsql*.so* \
+                "$dir"/libsqora*.so* "$dir"/libclntsh*.so* "$dir"/libclntshcore*.so* \
+                "$dir"/libnnz*.so* "$dir"/libociei*.so* "$dir"/libons*.so* \
+                "$dir"/libnfsodm*.so* "$dir"/liborazt*.so* "$dir"/legacy.so* "$dir"/fips*.so* \
                 "$dir"/libssl.so* "$dir"/libcrypto.so* "$dir"/libz.so*; do
       [ -L "$name" ] || continue
       target=$(readlink "$name")
@@ -570,6 +573,8 @@ libmariadb.so libmariadb.so.3
 libpq.so.5 libpq.so.5.16
 libpq.so libpq.so.5
 libodbc.so libodbc.so.2
+libclntsh.so libclntsh.so.23.1
+libclntshcore.so libclntshcore.so.23.1
 libssl.so libssl.so.3
 libcrypto.so libcrypto.so.3
 libz.so libz.so.1

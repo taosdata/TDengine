@@ -17,6 +17,7 @@
 import os
 import shutil
 import time
+import tempfile
 
 from new_test_framework.utils import tdLog, tdSql, cluster
 from backup_restore_base import BackupRestoreTestBase
@@ -49,7 +50,7 @@ class TestClusterBackupRestore3Mnode(BackupRestoreTestBase):
         cls.dnode_nums = len(cluster.dnodes)
         cls.mnode_nums = 3              # run with -M 3
         cls.backup_dnode = 1            # backup agent runs on dnode 1
-        cls.backup_root = f"/tmp/backup_cluster_3m_{int(time.time() * 1000)}"
+        cls.backup_root = os.path.join(tempfile.gettempdir(), f"backup_cluster_3m_{int(time.time() * 1000)}").replace("\\", "/")
 
     def teardown_class(cls):
         # remove the backup chains

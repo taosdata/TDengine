@@ -18,7 +18,7 @@ node-red-node-tdengine is the official plugin developed by TDengine for Node-RED
 Prepare the following environment components:
 
 - TDengine cluster version 3.3.2.0 or higher installed and running (Enterprise/Community/Cloud editions all supported).
-- taosAdapter running (refer to [taosAdapter Reference Manual](../../12-operations-and-tooling/03-components/03-taosadapter.md)).
+- taosAdapter running (refer to [taosAdapter Reference Manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)).
 - Node-RED version 3.0.0 or higher ([Node-RED Installation](https://nodered.org/docs/getting-started/)).
 - Node.js connector version 3.1.8 or higher (download from [npmjs.com](https://www.npmjs.com/package/@tdengine/websocket)).
 - node-red-node-tdengine plugin latest version (download from [npmjs.com](https://www.npmjs.com/package/node-red-node-tdengine)).

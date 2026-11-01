@@ -142,13 +142,18 @@ class TestVtableTagRefRollingUpgrade:
     def _shell_env(self):
         """Shared env for build-tree taos invocations (no shell string, list-args only)."""
         bPath = tdCom.getBuildPath()
-        return bPath, dict(os.environ, LD_LIBRARY_PATH=f"{bPath}/build/lib")
+        env = dict(os.environ, LD_LIBRARY_PATH=f"{bPath}/build/lib")
+        if os.name == "nt":
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = os.path.join(bPath, "build", "bin") + os.pathsep + env.get("PATH", "")
+        return bPath, env
 
     def _server_version_via_shell(self, port):
         """SERVER_VERSION() reported by the dnode at `port`, probed with the build-tree shell."""
         bPath, env = self._shell_env()
         # list-args invocation: no shell interpolation of the SQL, stderr kept for diagnosis
-        r = subprocess.run([f"{bPath}/build/bin/taos", "-h", self.host, "-P", str(port),
+        r = subprocess.run([f"{bPath}/build/bin/taos" + (".exe" if os.name == "nt" else ""), "-h", self.host, "-P", str(port),
                             "-s", "SELECT SERVER_VERSION();"],
                            capture_output=True, text=True, env=env, timeout=60)
         output = r.stdout + r.stderr
@@ -166,7 +171,7 @@ class TestVtableTagRefRollingUpgrade:
                f"TAGS (t NCHAR(20) FROM {DB}.b0.loc);")
         # list-args invocation: the SQL (quotes, identifiers) is never shell-interpreted,
         # and stderr is folded into the returned output instead of discarded
-        r = subprocess.run([f"{bPath}/build/bin/taos", "-h", self.host, "-P", str(port),
+        r = subprocess.run([f"{bPath}/build/bin/taos" + (".exe" if os.name == "nt" else ""), "-h", self.host, "-P", str(port),
                             "-s", sql],
                            capture_output=True, text=True, env=env, timeout=60)
         output = (r.stdout + r.stderr).strip()
@@ -189,11 +194,11 @@ class TestVtableTagRefRollingUpgrade:
             1.2 Create physical child tables, a virtual stable and a virtual child
                 with a tag-ref (all supported by the old build)
 
-        2. Test [Mixed-version window after upgrading dnode1 only]
-            2.1 vctb tag-ref SELECT / WHERE / COUNT / PARTITION BY stay correct with
-                a NEW coordinator and OLD executors
-            2.2 The new capability (vntb as tag-ref source) is rejected with
-                VERSION_NOT_COMPATIBLE when the client translates against an OLD server
+        2. Test [Mixed-version windows]
+            2.1 Upgrade dnode2 and retain the old mnode on dnode1; verify that
+                the new capability is rejected with VERSION_NOT_COMPATIBLE
+            2.2 Upgrade dnode1; verify existing vctb queries with a NEW
+                coordinator and the remaining OLD executor on dnode3
 
         3. Test [After all dnodes upgraded]
             3.1 vctb tag-ref queries still correct
@@ -259,8 +264,8 @@ class TestVtableTagRefRollingUpgrade:
                       f"TAGS ('local0', ref_city FROM {DB}.c1.city);")
         self._check_vctb_ref_queries("old version")
 
-        # ---- phase 2: rolling upgrade dnode1 only -> mixed-version window
-        tdCb.updateNewVersion(tdCom.getBuildPath(), self.getDnodePath(), 0)
+        # ---- phase 2: new executor with the OLD mnode retained for version gating
+        tdCb.updateNewVersion(tdCom.getBuildPath(), self.getDnodePath()[1:2], 0)
         time.sleep(10)
         self._wait_cluster_ready()
         self._check_vctb_ref_queries("mixed window")
@@ -268,39 +273,31 @@ class TestVtableTagRefRollingUpgrade:
         # The new capability must fail loudly (never silently mis-execute) when the
         # translating client is connected to an OLD server. The gate lives in the
         # client-side translate path and keys off the CONNECTED server's version.
-        # Port/version mapping this relies on: firstEp is 6030 (dnode1, the mode-0
-        # upgrade target, NEW); 6130/6230 are dnode2/dnode3 added via CREATE DNODE,
-        # still OLD in the window. updateNewVersion(mode=0) picks the first taosd pid,
-        # so VERIFY the mapping explicitly instead of assuming it — a wrong premise
-        # must fail the case, never silently skip the gate assertion built on it.
+        # CONNECT is handled by the mnode, so -P 6130 still redirects to the
+        # sole mnode on 6030. SERVER_VERSION() describes that connection, not
+        # the binary listening at the initially requested dnode port. Keep the
+        # mnode OLD until the real version-gate assertion has run.
         ver6030 = self._server_version_via_shell(6030)
         ver6130 = self._server_version_via_shell(6130)
-        mapping_ok = (ver6030 == self.newServerVersion and
-                      ver6130 is not None and ver6130 != self.newServerVersion)
-        tdLog.info(f"mixed window port/version mapping: 6030={ver6030}, 6130={ver6130}, "
+        mapping_ok = (ver6030 is not None and
+                      ver6030.startswith(lastBigVersion + ".") and
+                      ver6030 != self.newServerVersion and ver6130 == ver6030)
+        tdLog.info(f"old-mnode mixed window: 6030={ver6030}, 6130={ver6130}, "
                    f"new={self.newServerVersion}, mapping_ok={mapping_ok}")
-        # mapping_ok is the PREMISE of the version-gate assertion below — this test's
-        # unique value over the other vtable cases. If it does not hold, the environment
-        # deviates from the documented upgrade mapping (updateNewVersion mode-0 picked a
-        # different dnode, or 6130 failed to come up), and the gate would silently
-        # degenerate into a no-op pass. Fail loudly instead of skipping: a vacuous pass
-        # here is strictly worse than a red CI signal.
-        assert mapping_ok, (f"mixed window port/version mapping unexpected: 6030={ver6030}, "
-                            f"6130={ver6130}, new={self.newServerVersion}; "
-                            f"cannot validate version gate on a wrong premise")
+        assert mapping_ok, (f"old-mnode mixed window unexpected: 6030={ver6030}, "
+                            f"6130={ver6130}, baseline={lastBigVersion}, "
+                            f"new={self.newServerVersion}; cannot validate version gate")
         # Gate source for a_gate below: a BARE vntb (no tag-ref -- old builds support bare
         # vntbs too, and parCheckConstRefSourceSupported only gates tag-refs whose source
-        # is an ntb/vntb). It is created via tdSql -> firstEp 6030, the UPGRADED dnode,
-        # so a version-gate rejection is impossible here: any failure is a real
-        # environment/regression signal and must fail the test -- no skip branch.
+        # is an ntb/vntb). Creating this bare source is supported by the old
+        # mnode; any failure must still fail the case.
         tdSql.execute(f"CREATE VTABLE {DB}.b0 (ts TIMESTAMP, val INT FROM {DB}.c1.val) "
                       f"TAGS (loc NCHAR(20) = 'oldtown');")
-        created, out = self._create_gate_table_via_shell(6130)
-        # mapping_ok above already asserted ver6130 is not None, i.e. 6130 was reachable
-        # moments ago -- an unreachable old dnode here is a torn-down race, not a state
-        # to silently skip the gate assertion on (same fail-loudly contract as mapping_ok)
+        created, out = self._create_gate_table_via_shell(6030)
+        # The old mnode was reachable moments ago; a connection failure is
+        # an environment error, never evidence of a version-gate rejection.
         assert "Unable to establish connection" not in out, \
-            f"old dnode 6130 unreachable though mapping_ok confirmed it reachable: {out}"
+            f"old mnode 6030 unreachable though mapping_ok confirmed it reachable: {out}"
         # reject REASON check kept on wording, not an exact string: the gate message
         # ("mixed-version cluster" / "Version not compatible") may be rephrased -- accept
         # either family case-insensitively so a text tweak upstream does not false-red
@@ -318,7 +315,17 @@ class TestVtableTagRefRollingUpgrade:
         except Exception as e:
             tdLog.info(f"drop a_gate skipped (rejected DDL created nothing): {e}")
 
-        # ---- phase 3: upgrade ALL dnodes; the feature then works end to end
+        # ---- phase 3: NEW coordinator with dnode3 still on the OLD binary
+        tdCb.updateNewVersion(tdCom.getBuildPath(), self.getDnodePath()[:1], 0)
+        time.sleep(10)
+        self._wait_cluster_ready()
+        new_mnode_version = self._server_version_via_shell(6030)
+        assert new_mnode_version == self.newServerVersion, (
+            f"mnode upgrade did not take effect: {new_mnode_version}, "
+            f"expected {self.newServerVersion}")
+        self._check_vctb_ref_queries("new coordinator, old executor")
+
+        # ---- phase 4: upgrade ALL dnodes; the feature then works end to end
         tdCb.updateNewVersion(tdCom.getBuildPath(), self.getDnodePath(), 1)
         time.sleep(10)
         self._wait_cluster_ready()

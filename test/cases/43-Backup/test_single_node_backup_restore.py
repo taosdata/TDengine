@@ -17,6 +17,7 @@
 import os
 import shutil
 import time
+import tempfile
 
 from new_test_framework.utils import tdLog, tdSql
 
@@ -44,7 +45,7 @@ class TestSingleNodeBackupRestore(BackupRestoreTestBase):
         cls.dnode_id = 1
         cls.dnode_nums = 1
         cls.backup_dnode = 1
-        cls.backup_root = f"/tmp/backup_restore_{int(time.time() * 1000)}"
+        cls.backup_root = os.path.join(tempfile.gettempdir(), f"backup_restore_{int(time.time() * 1000)}").replace("\\", "/")
 
     def teardown_class(cls):
         # remove the backup chains

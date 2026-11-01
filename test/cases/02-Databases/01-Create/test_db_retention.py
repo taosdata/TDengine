@@ -43,8 +43,8 @@ class TestDbRetention:
         cfg = {
             level_0_path: 'dataDir',
         }
-        tdSql.createDir(level_0_path)
         tdDnodes.stop(1)
+        tdSql.createDir(level_0_path)
         tdDnodes.deploy(1, cfg)
         tdDnodes.start(1)
 
@@ -57,8 +57,8 @@ class TestDbRetention:
             f'{level_0_path}': 'dataDir',
             f'{level_1_path} 1 0': 'dataDir',
         }
-        tdSql.createDir(level_1_path)
         tdDnodes.stop(1)
+        tdSql.createDir(level_1_path)
         tdDnodes.deploy(1, cfg)
         tdDnodes.start(1)
 
@@ -202,9 +202,9 @@ class TestDbRetention:
             # f"{level0_paths[2]} 0 0": 'dataDir',
         }
 
+        tdDnodes.stop(1)
         for path in level0_paths:
             tdSql.createDir(path)
-        tdDnodes.stop(1)
         tdDnodes.deploy(1, cfg)
         tdDnodes.start(1)
 
@@ -258,6 +258,7 @@ class TestDbRetention:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

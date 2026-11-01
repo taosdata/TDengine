@@ -22,9 +22,12 @@ import re
 import time
 import platform
 import subprocess
+import psutil
+import shutil
 
 import importlib
 from pathlib import Path
+from .compatibility_package import prepare_oss_package
 from .log import *
 from .sql import *
 from .server.dnodes import *
@@ -47,43 +50,6 @@ else:
     _downloader = None
 
 
-def _create_so_symlinks(lib_dir: str) -> None:
-    """为 lib_dir 内所有 libXXX.so.VER 创建不带版本号的符号链接 libXXX.so。
-
-    包里只提供 libtaos.so.3.3.7.9 这类带版本号的文件，但 taos 二进制链接的是
-    不带版本号的 libtaos.so 或 SONAME（如 libtaos.so.1）。若没有对应符号链接，
-    LD_LIBRARY_PATH 指向该目录时动态链接器无法找到库，会回退到系统路径。
-    """
-    import re as _re
-    import subprocess as _sp
-    p = Path(lib_dir)
-    for versioned in p.glob("lib*.so.*"):
-        if not versioned.is_file():
-            continue
-        name = versioned.name
-        dot_so = name.find(".so.")
-        if dot_so == -1:
-            continue
-        # 1. 不带版本号链接：libtaos.so -> libtaos.so.3.3.7.9
-        unversioned = p / (name[: dot_so + 3])
-        if not unversioned.exists():
-            unversioned.symlink_to(versioned.name)
-        # 2. SONAME 链接：libtaos.so.1 -> libtaos.so.3.3.5.0（旧版本 soname）
-        try:
-            out = _sp.run(
-                ["readelf", "-d", str(versioned)],
-                capture_output=True, text=True, timeout=10
-            ).stdout
-            for line in out.splitlines():
-                if "SONAME" in line:
-                    m = _re.search(r'\[([^\]]+)\]', line)
-                    if m:
-                        soname_link = p / m.group(1)
-                        if not soname_link.exists():
-                            soname_link.symlink_to(versioned.name)
-                    break
-        except Exception:
-            pass
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -190,6 +156,9 @@ class CompatibilityBase:
         extract_dir = os.path.dirname(bin_dir)
         tdLog.info(f"Extracted: bin={bin_dir}, lib={lib_dir}")
 
+        if os.name == "nt":
+            return self._start_windows_rolling_baseline(dnodePaths)
+
         for dnodePath in dnodePaths:
             tdLog.info(f"start taosd: rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {dnodePath}cfg/ > /dev/null 2>&1 &")
             os.system(f"rm -rf {dnodePath}data/* && LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosd -c {dnodePath}cfg/ > /dev/null 2>&1 &")
@@ -211,6 +180,79 @@ class CompatibilityBase:
             time.sleep(5)
         
         return True
+
+    def _start_windows_rolling_baseline(self, dnode_paths):
+        if not dnode_paths:
+            raise ValueError("No dnode paths provided for rolling baseline")
+        env = os.environ.copy()
+        env.pop("LD_PRELOAD", None)
+        env.pop("LD_LIBRARY_PATH", None)
+        env["PATH"] = self.old_bin_dir + os.pathsep + env.get("PATH", "")
+        processes = []
+        try:
+            for directory in dnode_paths:
+                node = Path(directory)
+                cfg = node / "cfg"
+                if not (cfg / "taos.cfg").is_file():
+                    raise FileNotFoundError(f"Missing baseline configuration: {cfg}")
+                # Only this node's data is reset; no global process-name kills.
+                data = node / "data"
+                if data.exists():
+                    shutil.rmtree(data)
+                data.mkdir()
+                (node / "log").mkdir(exist_ok=True)
+                with (node / "log" / "baseline-startup.log").open("ab") as output:
+                    process = subprocess.Popen(
+                        [os.path.join(self.old_bin_dir, "taosd.exe"), "-c", str(cfg)],
+                        env=env, stdout=output, stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    )
+                processes.append(process)
+                tdLog.info(f"Started Windows baseline pid={process.pid}, cfg={cfg}")
+            self._wait_old_server_ready(str(Path(dnode_paths[0]) / "cfg"))
+            for process in processes:
+                if process.poll() is not None:
+                    raise RuntimeError(f"Baseline taosd pid={process.pid} exited: {process.returncode}")
+        except BaseException:
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=60)
+            raise
+        return True
+
+    def _wait_old_server_ready(self, cPath, timeout=120):
+        """Wait for the extracted server before starting compatibility data setup."""
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = self.old_lib_dir
+        program = "taos"
+        if os.name == "nt":
+            program += ".exe"
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = self.old_bin_dir + os.pathsep + env.get("PATH", "")
+        deadline = time.monotonic() + timeout
+        last_output = ""
+        while time.monotonic() < deadline:
+            try:
+                result = subprocess.run(
+                    [os.path.join(self.old_bin_dir, program), "-c", cPath,
+                     "-s", "show dnodes"],
+                    env=env, capture_output=True, text=True,
+                    timeout=min(10, max(0.1, deadline - time.monotonic())),
+                )
+                last_output = result.stdout + result.stderr
+                if result.returncode == 0 and re.search(
+                    r"\|\s*ready\s*\|", result.stdout, re.IGNORECASE
+                ):
+                    tdLog.info("Old-version dnode is ready")
+                    return
+            except subprocess.TimeoutExpired as exc:
+                last_output = str(exc)
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
+        raise RuntimeError(
+            f"Old-version dnode did not become ready in {timeout}s: {last_output}"
+        )
 
     def installTaosd(self, bPath, cPath, base_version):
         packagePath = "/usr/local/src/"
@@ -236,37 +278,10 @@ class CompatibilityBase:
             # Determine download URL
             download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
             
-        tdLog.info(f"wget {download_url}")
-        
-        my_file = Path(f"{packagePath}/{packageName}")
-        if not my_file.exists():
-            tdLog.info(f"{packageName} does not exist")
-            tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
-        else: 
-            tdLog.info(f"{packageName} has been exists")
-
-        # Compute extracted directory name and extract without running install.sh
-        packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
-        extract_dir = os.path.join(packagePath, packageTPath)
-        if not Path(extract_dir).exists():
-            os.system(f"cd {packagePath} && tar xf {packageName} > /dev/null 2>&1")
-
-        # The outer archive contains package.tar.gz with the actual bin/ tree.
-        # Extract it if bin/ is not yet present.
-        bin_dir = os.path.join(extract_dir, "bin")
-        if not Path(bin_dir).exists():
-            inner_pkg = os.path.join(extract_dir, "package.tar.gz")
-            if Path(inner_pkg).exists():
-                os.system(f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1")
-
-        self.old_bin_dir = bin_dir
-        # Libraries are in driver/ (not lib/) for this package layout.
-        lib_dir = os.path.join(extract_dir, "driver")
-        if not Path(lib_dir).exists():
-            lib_dir = os.path.join(extract_dir, "lib")
-        self.old_lib_dir = lib_dir
-        _create_so_symlinks(lib_dir)
+        self.old_bin_dir, self.old_lib_dir = prepare_oss_package(
+            packagePath, packageName, download_url
+        )
+        extract_dir = os.path.dirname(self.old_bin_dir)
 
         os.system(f"pkill -9 taosd")
         self.checkProcessPid("taosd")
@@ -290,7 +305,7 @@ class CompatibilityBase:
             os.system(f"LD_LIBRARY_PATH={self.old_lib_dir} {self.old_bin_dir}/taosadapter -c {taosadapter_cfg} > /dev/null 2>&1 &")
         else:
             tdLog.info(f"taosadapter.toml not found at {taosadapter_toml_src}, skipping taosadapter startup")
-        time.sleep(5)
+        self._wait_old_server_ready(cPath)
 
 
     def buildTaosd(self,bPath):
@@ -360,7 +375,10 @@ class CompatibilityBase:
         _old_adapter_bin = f"{self.old_bin_dir}/taosadapter"
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{base_version}")
         tdLog.info(f" {_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y ")
-        os.system(f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5  -y > /dev/null 2>&1")
+        subprocess.run(
+            f"{_old_bench} -t {tableNumbers} -n {recordNumbers1} -v 1 -O 5 -y",
+            shell=True, check=True,
+        )
         os.system(f"{_old_taos} -s 'alter database test   keep 365000 '")
         os.system(f"{_old_taos} -s 'alter database test  cachemodel \"both\" '")
         os.system(f"{_old_taos} -s 'select last(*) from test.meters '")
@@ -370,7 +388,10 @@ class CompatibilityBase:
         os.system(f"{_old_taos} -s 'flush database test '")
 
         os.system(f"{_old_taos} -s \"insert into test.d1 values (now+11s, 11, 190, 0.21), (now+12s, 11, 190, 0.21), (now+13s, 11, 190, 0.21), (now+14s, 11, 190, 0.21), (now+15s, 11, 190, 0.21) test.d3  values  (now+16s, 11, 190, 0.21), (now+17s, 11, 190, 0.21), (now+18s, 11, 190, 0.21), (now+19s, 119, 191, 0.25) test.d3  (ts) values (now+20s);\"")
-        os.system(f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y > /dev/null 2>&1")
+        subprocess.run(
+            f"{_old_bench} -f cases/18-StreamProcessing/30-OldPyCases/json/com_alltypedata.json -y",
+            shell=True, check=True,
+        )
         os.system(f"{_old_taos} -s 'flush database curdb '")
         os.system(f"{_old_taos} -s 'alter database curdb  cachemodel \"both\" '")
         os.system(f"{_old_taos} -s 'select count(*) from curdb.meters '")
@@ -444,67 +465,68 @@ class CompatibilityBase:
             if os.system(cmd) == 0:
                 raise Exception("failed to execute system command. cmd: %s" % cmd)
         
+    def _upgrade_dnode(self, bPath, dnode_path):
+        cfg = os.path.normcase(os.path.realpath(os.path.join(dnode_path, "cfg")))
+        matches = []
+        for process in psutil.process_iter(["name", "cmdline"]):
+            try:
+                if process.info["name"] not in {"taosd", "taosd.exe"}:
+                    continue
+                arguments = process.info["cmdline"] or []
+                if "-c" not in arguments:
+                    continue
+                index = arguments.index("-c") + 1
+                if index < len(arguments) and os.path.normcase(os.path.realpath(arguments[index])) == cfg:
+                    matches.append(process)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+        if len(matches) != 1:
+            raise RuntimeError(f"Expected one old taosd for {cfg}, found {len(matches)}")
+        old_process = matches[0]
+        tdLog.info(f"Stopping old taosd pid={old_process.pid}, cfg={cfg}")
+        old_process.kill()
+        old_process.wait(timeout=60)
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = os.path.join(bPath, "build", "lib")
+        program = "taosd"
+        if os.name == "nt":
+            program += ".exe"
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = os.path.join(bPath, "build", "bin") + os.pathsep + env.get("PATH", "")
+        startup_log = os.path.join(dnode_path, "log", "upgrade-startup.log")
+        # start_new_session only isolates POSIX processes. Windows teardown
+        # broadcasts CTRL_BREAK within the target console, so the upgraded
+        # server must never inherit the CI runner's console.
+        launch_options = ({"creationflags": subprocess.CREATE_NEW_CONSOLE}
+                          if os.name == "nt" else {"start_new_session": True})
+        with open(startup_log, "ab") as output:
+            process = subprocess.Popen(
+                [os.path.join(bPath, "build", "bin", program), "-c", cfg],
+                env=env, stdout=output, stderr=subprocess.STDOUT, **launch_options,
+            )
+        tdLog.info(f"Started upgraded taosd pid={process.pid}, cfg={cfg}, log={startup_log}")
+        return process
+
     def updateNewVersion(self, bPath, cPaths, upgrade, retry_times=300):
         tdLog.printNoPrefix("==========step2:update new version ")
-        # upgrade only one dnode
-        if upgrade == 0:
-            tdLog.info("upgrade all dnodes")
-            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
-            if status != 0:
-                tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
-                return 
-            found_pids = []
-            if output:
-                found_pids = [pid for pid in output.strip().split('\n') if pid] 
-            tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
-            if len(found_pids) == 0:
-                tdLog.info("No taosd process found keep going")
-            else: 
-                pid_to_kill_for_this_dnode = found_pids[0]
-                tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{0}])")
-                os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-                self.checkProcessPid(pid_to_kill_for_this_dnode)
-
-            tdLog.info(f"Starting taosd using cPath: {cPaths[0]}")
-            tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
-            os.system(f"{bPath}/build/bin/taosd -c {cPaths[0]}cfg/ > /dev/null 2>&1 &")
-        # upgrade all dnodes
-        elif upgrade == 1:
-            tdLog.info("upgrade all dnodes")
-            status, output = subprocess.getstatusoutput(f'ps aux|grep taosd |grep -v "grep"|awk \'{{print $2}}\'')
-            if status != 0:
-                tdLog.error(f"Command to get PIDs failed with status {status}: {output}")
-                return 
-            found_pids = []
-            if output:
-                found_pids = [pid for pid in output.strip().split('\n') if pid] 
-            tdLog.info(f"Found PIDs: {found_pids} for 'upgrade all dnodes' scenario.")
-            # Determine the number of dnodes to manage, based on cPaths or a max like 3 (original implication)
-            # Let's use the length of cPaths as the primary guide for how many dnodes to manage.
-            num_dnodes_to_manage = len(cPaths) if cPaths else 0
-            if num_dnodes_to_manage == 0:
-                tdLog.warning("cPaths is empty or not provided. Cannot upgrade all dnodes.")
-                return
-            for i in range(num_dnodes_to_manage):
-                pid_to_kill_for_this_dnode = None
-                if i < len(found_pids):
-                    pid_to_kill_for_this_dnode = found_pids[i]
-                if pid_to_kill_for_this_dnode:
-                    tdLog.info(f"Killing taosd process, pid:{pid_to_kill_for_this_dnode} (for cPaths[{i}])")
-                    os.system(f"kill -9 {pid_to_kill_for_this_dnode}")
-                else:
-                    tdLog.info(f"No running taosd PID found to kill for cPaths[{i}] (or fewer PIDs found than cPaths entries).")
-                self.checkProcessPid(pid_to_kill_for_this_dnode)
-                tdLog.info(f"Starting taosd using cPath: {cPaths[i]}")
-                tdLog.info(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
-                os.system(f"{bPath}/build/bin/taosd -c {cPaths[i]}cfg/ > /dev/null 2>&1 &")
-        # no rolling upgrade
+        upgraded_processes = []
+        if upgrade in (0, 1):
+            paths = cPaths[:1] if upgrade == 0 else cPaths
+            if not paths:
+                raise RuntimeError("No dnode paths provided for upgrade")
+            for path in paths:
+                upgraded_processes.append(self._upgrade_dnode(bPath, path))
         elif upgrade == 2:
             tdLog.info("no upgrade mode")
             self.buildTaosd(bPath)
-            tdLog.info(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
             os.system(f"nohup {bPath}/build/bin/taosd -c {cPaths[0]} > /dev/null 2>&1 &")
+        else:
+            raise ValueError(f"Unknown upgrade mode: {upgrade}")
         self.checkstatus(retry_times=retry_times)
+        for process in upgraded_processes:
+            if process.poll() is not None:
+                raise RuntimeError(f"Upgraded taosd pid={process.pid} exited: {process.returncode}")
 
     def checkTagSizeAndAlterStb(self,tdsql):
         tdsql.query("select * from information_schema.ins_tags where db_name = 'db_all_insert_mode'")

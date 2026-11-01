@@ -389,7 +389,7 @@ class ServiceTest(unittest.TestCase):
 
     def test_get_all_algos(self):
         service_list = loader.get_service_list()
-        self.assertEqual(len(service_list["details"]), 7)
+        self.assertEqual(len(service_list["details"]), 8)
 
         for item in service_list["details"]:
             if item["type"] == "anomaly-detection":
@@ -407,13 +407,18 @@ class ServiceTest(unittest.TestCase):
             elif item["type"] == "correlation":
                 self.assertEqual(len(item["algo"]), 2)
             elif item["type"] == "regression":
-                self.assertEqual(len(item["algo"]), 0)
+                builtins = [i for i in item["algo"] if i.get("builtins") is True]
+                self.assertEqual(len(builtins), 0)
             elif item["type"] == "imputation":
                 self.assertEqual(len(item["algo"]), 1)
             elif item["type"] == "classification":
-                self.assertEqual(len(item["algo"]), 0)
+                builtins = [i for i in item["algo"] if i.get("builtins") is True]
+                self.assertEqual(len(builtins), 0)
             elif item["type"] == "clustering":
                 self.assertEqual(len(item["algo"]), 3)
+            elif item["type"] == "series_diagnosis":
+                builtins = [i for i in item["algo"] if i.get("builtins") is True]
+                self.assertEqual(len(builtins), 0)
 
     def test_dynamic_load_service(self):
         """test dynamic load service by name"""

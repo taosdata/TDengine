@@ -32,7 +32,14 @@ _EXTERNAL_SOURCES = {
     "postgres": "vt_window_plan_pg_src",
     "influx": "vt_window_plan_influx_src",
     "sqlserver": "vt_window_plan_ss_src",
+    "oracle": "vt_window_plan_oracle_src",
 }
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.  The
+# table name carries the file prefix because every Oracle fixture of this suite
+# lives in the same shared schema.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_TABLE = "VT_WINDOW_PLAN_ORA_VALUES"
 
 
 class TestVTablePlanWindowExtSource:
@@ -123,6 +130,33 @@ class TestVTablePlanWindowExtSource:
             ],
         )
 
+        cfg = next(ExtSrcEnv.oracle_version_configs())
+        ExtSrcEnv.oracle_drop_table_cfg(cfg, _ORACLE_TABLE)
+        # Oracle values differ from the other sources' rows for the same reason
+        # SQL Server's do: the Remote SQL text and the merged window results
+        # stay distinguishable between sources.
+        ExtSrcEnv._oracle_sql(
+            cfg,
+            [
+                f"CREATE TABLE {_ORACLE_TABLE} "
+                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
+                "state_col NUMBER(10,0), v NUMBER(10,0))",
+                # Oracle has no multi-row VALUES clause and a bare string date
+                # would go through NLS_TIMESTAMP_FORMAT (ORA-01861).
+                f"INSERT ALL "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 100000) "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:01.000', 1, 200000) "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:02.000', 2, 300000) "
+                f"INTO {_ORACLE_TABLE} VALUES "
+                "(TIMESTAMP '2024-01-01 00:00:03.000', 2, 400000) "
+                "SELECT 1 FROM dual",
+                "COMMIT",
+            ],
+        )
+
     @classmethod
     def create_external_sources(cls):
         for source in _EXTERNAL_SOURCES.values():
@@ -159,6 +193,16 @@ class TestVTablePlanWindowExtSource:
             f"database={_EXTERNAL_DB} schema=dbo"
         )
 
+        # Oracle carries the Easy Connect service name in DATABASE and the
+        # schema (the only namespace level) in SCHEMA.
+        oracle = cls.adapters["oracle"]
+        tdSql.execute(
+            f"create external source {_EXTERNAL_SOURCES['oracle']} "
+            f"type='oracle' host='{oracle.host}' port={oracle.port} "
+            f"user='{oracle.user}' password='{oracle.password}' "
+            f"database={ExtSrcEnv.ORACLE_SERVICE} schema={_ORACLE_SCHEMA}"
+        )
+
     @classmethod
     def create_virtual_tables(cls):
         mysql_prefix = (
@@ -179,6 +223,12 @@ class TestVTablePlanWindowExtSource:
         sqlserver_prefix = (
             f"{_EXTERNAL_SOURCES['sqlserver']}."
             f"{_EXTERNAL_DB}.dbo.remote_values"
+        )
+        # Oracle: one namespace level only, so the middle segment is the
+        # schema and the service name never appears in a path.
+        oracle_prefix = (
+            f"{_EXTERNAL_SOURCES['oracle']}."
+            f"{_ORACLE_SCHEMA}.{_ORACLE_TABLE}"
         )
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
@@ -236,6 +286,16 @@ class TestVTablePlanWindowExtSource:
             f"remote_v int from {sqlserver_prefix}.v)"
         )
         tdSql.execute(
+            "create vtable vt_window_oracle (ts timestamp, "
+            f"state_col bigint from {oracle_prefix}.state_col, "
+            f"remote_v bigint from {oracle_prefix}.v)"
+        )
+        tdSql.execute(
+            "create vtable vt_window_local_oracle (ts timestamp, "
+            "state_col int from local_values.state_col, "
+            f"remote_v bigint from {oracle_prefix}.v)"
+        )
+        tdSql.execute(
             "create vtable vt_window_external_mixed (ts timestamp, "
             f"state_col int from {mysql_prefix}.state_col, "
             "local_v int from local_values.v, "
@@ -266,6 +326,15 @@ class TestVTablePlanWindowExtSource:
             f"influx_v bigint from {influx_prefix}.v, "
             f"sqlserver_v int from {sqlserver_prefix}.v)"
         )
+        tdSql.execute(
+            "create vtable vt_window_all_mixed_oracle (ts timestamp, "
+            "state_col int from local_values.state_col, "
+            "local_v int from local_values.v, "
+            f"mysql_v int from {mysql_prefix}.v, "
+            f"postgres_v int from {postgres_prefix}.v, "
+            f"influx_v bigint from {influx_prefix}.v, "
+            f"oracle_v bigint from {oracle_prefix}.v)"
+        )
 
     @classmethod
     def teardown_class(cls):
@@ -276,6 +345,47 @@ class TestVTablePlanWindowExtSource:
         ExtSrcEnv.pg_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.influx_drop_db(_EXTERNAL_DB)
         ExtSrcEnv.sqlserver_drop_db(_EXTERNAL_DB)
+        ExtSrcEnv.oracle_drop_table_cfg(
+            next(ExtSrcEnv.oracle_version_configs()), _ORACLE_TABLE)
+
+    @staticmethod
+    def do_oracle_window():
+        """Run the state window over the Oracle-backed virtual tables.
+
+        Oracle is a step-1 (zero pushdown) source, so the window is computed
+        locally over a plain base scan.  The window boundaries are compared
+        with the virtual table's own converted timestamp instead of a fixed
+        epoch: an Oracle TIMESTAMP is tz-naive, so its epoch follows the
+        client timezone (DS 5.3.7) and would otherwise pin the assertion to
+        the timezone this test happens to run under.
+        """
+        for table in ("vt_window_oracle", "vt_window_local_oracle"):
+            tdSql.query(
+                f"select cast(ts as bigint) from {_LOCAL_DB}.{table} "
+                "order by ts limit 1")
+            tdSql.checkRows(1)
+            first_ts = int(tdSql.queryResult[0][0])
+            tdSql.query(
+                "select cast(_wstart as bigint), state_col, "
+                f"sum(remote_v), count(*) from {_LOCAL_DB}.{table} "
+                "state_window(state_col, 1) order by _wstart"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, first_ts)
+            tdSql.checkData(0, 1, 1)
+            tdSql.checkData(0, 2, 300000)
+            tdSql.checkData(0, 3, 2)
+            # The second state starts two seconds after the first row.
+            tdSql.checkData(1, 0, first_ts + 2_000_000_000)
+            tdSql.checkData(1, 1, 2)
+            tdSql.checkData(1, 2, 700000)
+            tdSql.checkData(1, 3, 2)
+        tdSql.query(
+            "select sum(local_v), sum(mysql_v), sum(postgres_v), "
+            f"sum(influx_v), sum(oracle_v) from {_LOCAL_DB}.vt_window_all_mixed_oracle")
+        tdSql.checkRows(1)
+        actual = tuple(tdSql.queryResult[0])
+        assert actual == (10, 100, 1000, 10000, 1000000), actual
 
     @staticmethod
     def compare_plan_and_results():
@@ -299,6 +409,8 @@ class TestVTablePlanWindowExtSource:
         2. Cover each external backend mixed with an internal table source.
         3. Cover internal and federated StateWindow origins with mixed sources.
         4. Verify explain plans and state-window query results with in/ans.
+        5. Run the Oracle, local-plus-Oracle and all-source state windows,
+           and compare their EXPLAIN VERBOSE plans from the shared golden.
 
         Catalog:
             - VirtualTable
@@ -312,6 +424,9 @@ class TestVTablePlanWindowExtSource:
         History:
             - 2026-07-16 Codex Added federated VtableWindow plan coverage
             - 2026-07-31 Codex Added single-external-origin cost fallback coverage
+            - 2026-10-26 Add Oracle state-window coverage
+            - 2026-10-27 Record the Oracle plan blocks in the shared golden
 
         """
         self.compare_plan_and_results()
+        self.do_oracle_window()

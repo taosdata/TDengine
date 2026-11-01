@@ -13,6 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import os
+import re
 import time
 import math
 import random
@@ -384,22 +386,25 @@ class Test_IDMP_Meters:
     #
     def findNotifyKey(self, key):
         url = f"ws://idmp:6042/recv/?key={key}"
+        url_pattern = re.escape(url)
         patterns = [
             f"failed to send stream notify msg to .*key={key}",
-            f"\\[notify_worker\\].*{url}.*failed",
-            f"\\[notify_worker\\].*failed.*{url}",
-            f"failed to send notify msg to {url}",
-            f"failed to connect notify URL {url}",
+            f"\\[notify_worker\\].*{url_pattern}.*failed",
+            f"\\[notify_worker\\].*failed.*{url_pattern}",
+            f"failed to send notify msg to {url_pattern}",
+            f"failed to connect notify URL {url_pattern}",
         ]
         log_file = sc.dnodeLogPath(1) + "/taosdlog.0"
         for i in range(60):
+            try:
+                with open(log_file, encoding="utf-8", errors="replace") as source:
+                    # Bound the scan even while the daemon appends messages.
+                    limit = os.fstat(source.fileno()).st_size
+                    content = source.read(limit)
+            except FileNotFoundError:
+                content = ""
             for pat in patterns:
-                cmd = f"grep '{pat}' {log_file} 2>/dev/null | wc -l"
-                output, _ = eos.run(cmd, show=False)
-                try:
-                    cnt = int(output.strip()) if output and output.strip() else 0
-                except ValueError:
-                    cnt = 0
+                cnt = len(re.findall(pat, content))
                 if cnt >= 1:
                     print(
                         f"check taosd log success, notify failure key={key}, "

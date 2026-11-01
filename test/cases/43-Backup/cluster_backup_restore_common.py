@@ -20,9 +20,11 @@ import shutil
 import subprocess
 import sys
 import time
+import tempfile
 
 from new_test_framework.utils import tdLog, tdSql, sc, cluster
 from new_test_framework.utils import epath
+from new_test_framework.utils.eutil import start_test_process, signal_test_process
 
 from backup_restore_base import BackupRestoreTestBase
 
@@ -48,7 +50,7 @@ class ClusterBackupRestoreCase(BackupRestoreTestBase):
         cls.dnode_id = 1
         cls.dnode_nums = len(cluster.dnodes)
         cls.backup_dnode = 1            # backup agent runs on dnode 1
-        cls.backup_root = f"/tmp/backup_cluster_{int(time.time() * 1000)}"
+        cls.backup_root = os.path.join(tempfile.gettempdir(), f"backup_cluster_{int(time.time() * 1000)}").replace("\\", "/")
         cls._extra_dnode_proc = None    # handle of the extra dnode subprocess
 
 
@@ -124,7 +126,10 @@ class ClusterBackupRestoreCase(BackupRestoreTestBase):
             return
         tdLog.info(f"terminating extra dnode subprocess pid {proc.pid}")
         try:
-            proc.terminate()        # SIGTERM -> graceful taosd shutdown
+            if os.name == "nt":
+                signal_test_process(proc, interrupt=True)
+            else:
+                proc.terminate()        # SIGTERM -> graceful taosd shutdown
             proc.wait(timeout=10)
         except Exception:
             try:
@@ -145,10 +150,14 @@ class ClusterBackupRestoreCase(BackupRestoreTestBase):
         dnodes.
         """
         cfg_marker = os.path.join(sc.clusterRootPath(), f"dnode{dnode_id}", "cfg")
-        subprocess.run(
-            ["pkill", "-9", "-f", cfg_marker],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+        if os.name == "nt":
+            from new_test_framework.utils.server.win_process import force_stop_taosd_windows
+            force_stop_taosd_windows(config_dir=cfg_marker)
+        else:
+            subprocess.run(
+                ["pkill", "-9", "-f", cfg_marker],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            )
         time.sleep(2)
 
 
@@ -165,12 +174,13 @@ class ClusterBackupRestoreCase(BackupRestoreTestBase):
         Ctrl-C (SIGINT to the whole foreground group) would no longer reach it
         and it would be MORE likely to survive as an orphan. Keeping it in the
         group plus an explicit handle gives us both signal delivery and a
-        reliable direct cleanup path.
+        reliable direct cleanup path. On Windows the process gets a private
+        console and cleanup sends Ctrl-Break to that console.
         """
         base = os.path.join(sc.clusterRootPath(), f"dnode{dnode_id}")
         cfg_dir = os.path.join(base, "cfg")
-        data_dir = os.path.join(base, "data")
-        log_dir = os.path.join(base, "log")
+        data_dir = os.path.join(base, "data").replace("\\", "/")
+        log_dir = os.path.join(base, "log").replace("\\", "/")
         for d in (data_dir, log_dir, cfg_dir):
             os.makedirs(d, exist_ok=True)
 
@@ -188,13 +198,14 @@ class ClusterBackupRestoreCase(BackupRestoreTestBase):
         with open(os.path.join(self._dnode_cfg_path(1), "taos.cfg")) as f:
             content = f.read()
         content = re.sub(r"(serverPort\s+)\d+", rf"\g<1>{port}", content)
-        content = re.sub(r"dataDir\s+\S+", f"dataDir\t{data_dir}", content)
-        content = re.sub(r"logDir\s+\S+", f"logDir\t{log_dir}", content)
+        content = re.sub(r"dataDir\s+\S+", lambda _: f"dataDir\t{data_dir}", content)
+        content = re.sub(r"logDir\s+\S+", lambda _: f"logDir\t{log_dir}", content)
         with open(os.path.join(cfg_dir, "taos.cfg"), "w") as f:
             f.write(content)
 
         # start the extra dnode and keep its handle for direct cleanup
-        proc = subprocess.Popen(
+        launch = start_test_process if os.name == "nt" else subprocess.Popen
+        proc = launch(
             [epath.binFile("taosd"), "-c", cfg_dir],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )

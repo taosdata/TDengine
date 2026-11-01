@@ -278,6 +278,24 @@ TEST_P(ExternalFilterTest, RejectsDuplicateColumnsAndOr) {
   EXPECT_EQ(validateSaved(save(disjunction.get())), TSDB_CODE_VTABLE_INVALID_EXT_FILTER);
 }
 
+TEST_P(ExternalFilterTest, AcceptsCharacterOrderingComparison) {
+  // The DDL validates the expression shape and the value type only.  A
+  // predicate the dialect cannot render exactly (SQL Server character
+  // ordering, supplementary-plane literals) is split to the local
+  // FederatedScan filter by the planner, so CREATE/ALTER VTABLE must accept
+  // it (SQL Server DS 5.3.11, judged items 13 and 14).
+  // `device` is an ordinary character column here; as a primary key it may
+  // only take `=`, which is covered by the other cases.
+  columns_[1].isRemotePrimaryKey = false;
+  for (EOperatorType op : {OP_TYPE_GREATER_THAN, OP_TYPE_GREATER_EQUAL, OP_TYPE_LOWER_THAN, OP_TYPE_LOWER_EQUAL}) {
+    auto filter = makeComparison("device", "d1", op);
+    ASSERT_NE(filter, nullptr);
+    EXPECT_EQ(validate(filter.get()), TSDB_CODE_SUCCESS) << message_;
+    EXPECT_EQ(validateSaved(save(filter.get())), TSDB_CODE_SUCCESS) << message_;
+    EXPECT_EQ(tsIndex_, 0);
+  }
+}
+
 TEST_P(ExternalFilterTest, RejectsQualifiedColumnsAndNonLiteralValues) {
   auto qualified = makeComparison("device", "d1");
   ASSERT_NE(qualified, nullptr);

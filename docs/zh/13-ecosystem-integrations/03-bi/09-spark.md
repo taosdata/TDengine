@@ -13,7 +13,7 @@ toc_max_heading_level: 5
 准备以下环境：
 
 - TDengine `v3.3.6.0` 及以上版本集群已部署并正常运行（企业及社区版均可）。
-- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
+- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)。
 - Spark 3.3.x 版本（[Spark 下载](https://spark.apache.org/downloads.html)），方言 v1.0.0 基于 Spark 3.3.2 / Scala 2.13 构建并验证。
 - JDBC 驱动建议使用较新版本（文档示例基于 3.9.2 及以上）。可从 [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver) 下载。
 - Spark 方言 `tdengine-spark-dialect` `v1.0.0` 及以上版本，已发布至 [maven.org](https://central.sonatype.com/artifact/com.taosdata.spark/tdengine-spark-dialect)，源码见 [GitHub](https://github.com/taosdata/tdengine-spark-dialect)。在项目的 `pom.xml` 中添加以下依赖（JDBC 驱动不会随方言传递引入，需显式声明）：

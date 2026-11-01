@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import pytest, os, time, shutil, sys, importlib.util
+import subprocess
 from new_test_framework.utils import (
     tdLog,
     tdSql,
@@ -21,28 +22,6 @@ from new_test_framework.utils import (
     tdCb,
     tdCom
 )
-
-# Force cleanup at module import time, before any fixture runs
-print("\n" + "="*80)
-print("RBAC Upgrade Regression Test (3.4.2.0-3.4.2.4 bug): Cleaning environment...")
-print("="*80)
-sys.stdout.flush()
-
-try:
-    build_path = tdCom.getBuildPath()
-    for i in [1, 2, 3]:
-        for subdir in ['data', 'log']:
-            path = f"{build_path}/../sim/dnode{i}/{subdir}"
-            if os.path.exists(path):
-                shutil.rmtree(path, ignore_errors=True)
-                os.makedirs(path, exist_ok=True)
-                print(f"  Cleaned: {path}")
-                sys.stdout.flush()
-    print("  Environment cleaned successfully!")
-    sys.stdout.flush()
-except Exception as e:
-    print(f"  Warning: cleanup failed: {e}")
-    sys.stdout.flush()
 
 class TestRBACUpgrade3424Regression:
     """
@@ -87,15 +66,7 @@ class TestRBACUpgrade3424Regression:
         empty cell stays in the list as '' so callers can tell "column is empty"
         apart from "no row returned".
         """
-        out_file = f"/tmp/cli_{tag}.txt"
-        ret = os.system(f"{cli_prefix} -s '{sql}' > {out_file} 2>&1")
-        if ret != 0:
-            with open(out_file) as f:
-                tdLog.info(f"  CLI output:\n{f.read()}")
-            tdLog.exit(f"Query failed (ret={ret}): {sql}")
-
-        with open(out_file) as f:
-            raw = f.read()
+        raw = self.runCli(cli_prefix, sql)
 
         rows = []
         in_data = False
@@ -113,6 +84,32 @@ class TestRBACUpgrade3424Regression:
 
         tdLog.info(f"  {tag}: parsed {len(rows)} data row(s) from CLI")
         return rows
+
+    def runCli(self, cli_prefix, sql, check=True):
+        bin_dir, lib_dir = cli_prefix
+        env = self.versionEnvironment(bin_dir, lib_dir)
+        executable = os.path.join(bin_dir, "taos.exe" if os.name == "nt" else "taos")
+        proc = subprocess.run(
+            [executable, "-h", "localhost", "-P", "6030", "-s", sql],
+            env=env, capture_output=True, encoding="utf-8", errors="replace",
+            timeout=120 if os.name == "nt" else 30,
+        )
+        output = proc.stdout + proc.stderr
+        if check and (proc.returncode or "DB error:" in output):
+            tdLog.exit(f"CLI failed ({proc.returncode}): {sql}\n{output}")
+        return output
+
+    def versionEnvironment(self, bin_dir, lib_dir):
+        env = os.environ.copy()
+        if os.name == "nt":
+            env["PATH"] = os.pathsep.join([bin_dir, lib_dir, env.get("PATH", "")])
+        else:
+            env["LD_LIBRARY_PATH"] = lib_dir
+        return env
+
+    def teardown_class(cls):
+        if os.name == "nt":
+            cls().stop_all_taosd()
 
     def scalarViaCli(self, cli_prefix, sql, tag):
         """Run a single-value query (e.g. COUNT(*)) and return it as int."""
@@ -161,6 +158,7 @@ class TestRBACUpgrade3424Regression:
         downloader_path = os.path.abspath(
             os.path.join(current_dir, "../../../../taos-internal/utils/download_enterprise_package.py")
         )
+        downloader_path = os.environ.get("TAOS_ENTERPRISE_PACKAGE_DOWNLOADER", downloader_path)
         if not os.path.exists(downloader_path):
             tdLog.exit(f"Enterprise package downloader not found at {downloader_path}")
 
@@ -194,14 +192,14 @@ class TestRBACUpgrade3424Regression:
         for d in (cfg_dir, data_dir, log_dir):
             os.makedirs(d, exist_ok=True)
         cfg_path = cfg_dir + "taos.cfg"
-        if not os.path.exists(cfg_path):
+        if os.name == "nt" or not os.path.exists(cfg_path):
             port = 6030 + (index - 1) * 100
             with open(cfg_path, "w") as f:
                 f.write("fqdn localhost\n")
                 f.write(f"serverPort {port}\n")
                 f.write("firstEp localhost:6030\n")
-                f.write(f"dataDir {data_dir}\n")
-                f.write(f"logDir {log_dir}\n")
+                f.write(f"dataDir {data_dir.replace(chr(92), chr(47))}\n")
+                f.write(f"logDir {log_dir.replace(chr(92), chr(47))}\n")
             tdLog.info(f"  Created cfg for dnode{index}: {cfg_path} (port {port})")
 
     def start_cluster_with_version(self, dnode_paths, bin_dir, lib_dir):
@@ -209,6 +207,15 @@ class TestRBACUpgrade3424Regression:
         tdLog.info(f"Starting {len(dnode_paths)} dnodes with bin:{bin_dir}")
         for i, dnode_path in enumerate(dnode_paths, start=1):
             cfg_path = dnode_path + "cfg/"
+            if os.name == "nt":
+                proc = subprocess.Popen(
+                    [os.path.join(bin_dir, "taosd.exe"), "-c", cfg_path],
+                    env=self.versionEnvironment(bin_dir, lib_dir),
+                    creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                type(self)._owned_processes.append((proc, cfg_path))
+                continue
             cmd = f"LD_LIBRARY_PATH={lib_dir} {bin_dir}/taosd -c {cfg_path} > /dev/null 2>&1 &"
             tdLog.info(f"  Starting dnode{i}: {cmd}")
             os.system(cmd)
@@ -229,6 +236,15 @@ class TestRBACUpgrade3424Regression:
         """
         tdLog.info("Stopping all taosd processes...")
         tdDnodes.stopAll()
+        if os.name == "nt":
+            from new_test_framework.utils.server.win_process import stop_taosd_windows
+            for proc, cfg in getattr(type(self), "_owned_processes", []):
+                if proc.poll() is None:
+                    if not stop_taosd_windows(config_dir=cfg, timeout=60, log=tdLog):
+                        tdLog.exit(f"Version-upgrade dnode did not stop gracefully: {cfg}")
+                    proc.wait(timeout=10)
+            type(self)._owned_processes = []
+            return
         os.system("pkill -x taosd >/dev/null 2>&1")
         for retry in range(10):
             ret = os.system("pgrep -x taosd >/dev/null 2>&1")
@@ -245,20 +261,16 @@ class TestRBACUpgrade3424Regression:
     def wait_cluster_ready_via_cli(self, cli_path, lib_path, expected_dnodes=3, timeout=120):
         """Wait for cluster via CLI (avoids client/server version mismatch)."""
         tdLog.info(f"Waiting for cluster with {expected_dnodes} dnodes via CLI (timeout {timeout}s)...")
-        for retry in range(timeout):
-            ret = os.system(f"LD_LIBRARY_PATH={lib_path} {cli_path}/taos -h localhost -P 6030 -s 'SHOW DNODES' > /tmp/check_dnodes_cli.txt 2>&1")
-            if ret == 0:
-                with open('/tmp/check_dnodes_cli.txt') as f:
-                    output = f.read()
-                    ready_count = output.lower().count('ready')
-                    if ready_count >= expected_dnodes:
-                        tdLog.info(f"  Cluster ready with {ready_count}/{expected_dnodes} dnodes after {retry+1}s")
-                        return True
-                    if retry % 10 == 9:
-                        tdLog.info(f"  {ready_count}/{expected_dnodes} dnodes ready, retrying...")
-            else:
-                if retry % 10 == 9:
-                    tdLog.info(f"  CLI connection failed (ret={ret}), retrying...")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            try:
+                output = self.runCli((cli_path, lib_path), "SHOW DNODES", check=False)
+            except subprocess.TimeoutExpired:
+                continue
+            ready_count = output.lower().count("ready")
+            if ready_count >= expected_dnodes:
+                tdLog.info(f"Cluster ready: {ready_count}/{expected_dnodes}")
+                return True
             time.sleep(1)
         tdLog.exit(f"Cluster not ready within {timeout}s")
         return False
@@ -346,6 +358,11 @@ class TestRBACUpgrade3424Regression:
         tdLog.info(f"  {buggyVersion} ready: bin={buggy_bin}, lib={buggy_lib}")
 
         tdLog.info("Step 1: Stopping all dnodes...")
+        # The current client must not keep heartbeats against an old server.
+        tdSql.close()
+        if os.name == "nt":
+            # Closing the cursor leaves the fixture's native connection alive.
+            self.conn.close()
         self.stop_all_taosd()
 
         # Step 1: Install old version and create cluster
@@ -353,61 +370,60 @@ class TestRBACUpgrade3424Regression:
         dnode_paths = self.getDnodePath()[:dnode_count]
         for i in range(2, dnode_count + 1):
             self.ensureDnodeConfig(dnode_paths[i - 1], i)
-        baseVersionExist = tdCb.installTaosdForRollingUpgrade(dnode_paths, baseVersion)
+        if os.name == "nt":
+            old_bin_dir, old_lib_dir = self.getPackage(baseVersion)
+            type(self)._owned_processes = []
+            for index, path in enumerate(dnode_paths, 1):
+                self.ensureDnodeConfig(path, index)
+                for name in ("data", "log"):
+                    directory = os.path.join(path, name)
+                    shutil.rmtree(directory, ignore_errors=True)
+                    os.makedirs(directory, exist_ok=True)
+            self.start_cluster_with_version(dnode_paths, old_bin_dir, old_lib_dir)
+            self.wait_cluster_ready_via_cli(old_bin_dir, old_lib_dir, expected_dnodes=1)
+            baseVersionExist = True
+        else:
+            baseVersionExist = tdCb.installTaosdForRollingUpgrade(dnode_paths, baseVersion)
+            old_bin_dir, old_lib_dir = tdCb.old_bin_dir, tdCb.old_lib_dir
         if not baseVersionExist:
             tdLog.info(f"Base version {baseVersion} does not exist, skipping test")
             pytest.skip(f"Base version {baseVersion} not available")
             return
 
-        old_bin_dir = tdCb.old_bin_dir
-        old_lib_dir = tdCb.old_lib_dir
-        _old_taos = f"LD_LIBRARY_PATH={old_lib_dir} {old_bin_dir}/taos"
+        _old_taos = (old_bin_dir, old_lib_dir)
 
         # Create 3-node cluster
         tdLog.info(f"Step 3: Creating {dnode_count}-node cluster...")
         for i in range(2, dnode_count + 1):
             port = 6030 + (i - 1) * 100
             tdLog.info(f"  Creating dnode {i} on port {port}...")
-            ret = os.system(f"{_old_taos} -s \"CREATE DNODE 'localhost:{port}'\" 2>&1 | grep -q 'Create OK'")
-            if ret != 0:
-                tdLog.exit(f"Failed to create dnode {i}")
+            self.runCli(_old_taos, f"CREATE DNODE 'localhost:{port}'")
         time.sleep(5)
 
         # Create 3-replica mnode
         tdLog.info(f"Step 4: Creating {mnode_replica}-replica mnode...")
         for i in range(2, mnode_replica + 1):
             tdLog.info(f"  Creating mnode on dnode {i}...")
-            ret = os.system(f"{_old_taos} -s 'CREATE MNODE ON DNODE {i}' 2>&1 | grep -q 'Create OK'")
-            if ret != 0:
-                tdLog.exit(f"Failed to create mnode on dnode {i}")
+            self.runCli(_old_taos, f"CREATE MNODE ON DNODE {i}")
         time.sleep(5)
 
         # Verify mnodes
         tdLog.info("  Verifying mnodes...")
-        ret = os.system(f"{_old_taos} -s 'SHOW MNODES' > /tmp/old_mnodes.txt 2>&1")
-        if ret == 0:
-            with open('/tmp/old_mnodes.txt') as f:
-                mnodes_output = f.read()
-                tdLog.info(f"  Current mnodes:\n{mnodes_output}")
-
-        # Step 2: Prepare test data and user
+        self.wait_cluster_ready_via_cli(old_bin_dir, old_lib_dir, dnode_count)
+        tdLog.info(self.runCli(_old_taos, "SHOW MNODES"))
         tdLog.info("Step 5: Creating test database and user...")
-        os.system(f"{_old_taos} -s 'CREATE DATABASE IF NOT EXISTS test_rbac_regress REPLICA {mnode_replica}' >/dev/null 2>&1")
-        os.system(f"{_old_taos} -s 'CREATE TABLE IF NOT EXISTS test_rbac_regress.meters (ts TIMESTAMP, current FLOAT) TAGS (location BINARY(64))' >/dev/null 2>&1")
-        os.system(f"{_old_taos} -s 'DROP USER IF EXISTS test_user_regress' >/dev/null 2>&1")
-        os.system(f"{_old_taos} -s \"CREATE USER test_user_regress PASS 'Test@9999'\" >/dev/null 2>&1")
-        os.system(f"{_old_taos} -s 'GRANT READ ON test_rbac_regress.* TO test_user_regress' >/dev/null 2>&1")
-        os.system(f"{_old_taos} -s 'GRANT WRITE ON test_rbac_regress.* TO test_user_regress' >/dev/null 2>&1")
-        os.system(f"{_old_taos} -s 'FLUSH DATABASE test_rbac_regress' >/dev/null 2>&1")
-        tdLog.info("  Test database and user created")
-
-        # Capture baseline state
-        tdLog.info("Step 6: Capturing baseline state on 3.3.6.0...")
-        ret = os.system(f"{_old_taos} -s 'SELECT COUNT(*) FROM information_schema.ins_user_privileges WHERE user_name=\"test_user_regress\"' > /tmp/baseline_priv.txt 2>&1")
-        if ret == 0:
-            with open('/tmp/baseline_priv.txt') as f:
-                baseline_output = f.read()
-                tdLog.info(f"  Baseline privileges:\n{baseline_output}")
+        self.runCli(_old_taos, "DROP USER test_user_regress", check=False)
+        for sql in [
+            f"CREATE DATABASE IF NOT EXISTS test_rbac_regress REPLICA {mnode_replica}",
+            "CREATE TABLE IF NOT EXISTS test_rbac_regress.meters (ts TIMESTAMP, current FLOAT) TAGS (location BINARY(64))",
+            "CREATE USER test_user_regress PASS 'Test@9999'",
+            "GRANT READ ON test_rbac_regress.* TO test_user_regress",
+            "GRANT WRITE ON test_rbac_regress.* TO test_user_regress",
+            "FLUSH DATABASE test_rbac_regress",
+        ]:
+            self.runCli(_old_taos, sql)
+        tdLog.info(self.runCli(_old_taos,
+            "SELECT COUNT(*) FROM information_schema.ins_user_privileges WHERE user_name='test_user_regress'"))
 
         # Record the running version and the cluster's identity (id + create_time,
         # both assigned once at cluster creation and stable across upgrades). Every
@@ -430,7 +446,7 @@ class TestRBACUpgrade3424Regression:
 
         # Verify bug: roles and privileges lost (use 3.4.2.4 CLI)
         tdLog.info(f"Step 8: Verifying bug on {buggyVersion} (roles/privileges should be lost)...")
-        _buggy_taos = f"LD_LIBRARY_PATH={buggy_lib} {buggy_bin}/taos"
+        _buggy_taos = (buggy_bin, buggy_lib)
 
         # Prove this dnode is actually answering as buggyVersion and not a leftover
         # process from the previous version (dnode "ready" alone doesn't guarantee
@@ -518,7 +534,7 @@ class TestRBACUpgrade3424Regression:
         # buggyVersion/baseVersion process) on the very same cluster/data as before,
         # so the recovery checks below can't be explained by a fresh cluster or by
         # 3.4.2.4 never actually having run.
-        _latest_taos = f"LD_LIBRARY_PATH={latest_lib} {latest_bin}/taos"
+        _latest_taos = (latest_bin, latest_lib)
         latest_server_version = self.getServerVersion(_latest_taos, "latest_version")
         if baseVersion in latest_server_version or buggyVersion in latest_server_version:
             tdLog.exit(
@@ -603,9 +619,5 @@ class TestRBACUpgrade3424Regression:
         tdLog.printNoPrefix(f"{'='*80}\n")
 
     def getDnodePath(self):
-        buildPath = tdCom.getBuildPath()
-        return [
-            buildPath + "/../sim/dnode1/",
-            buildPath + "/../sim/dnode2/",
-            buildPath + "/../sim/dnode3/"
-        ]
+        sim_root = tdDnodes.dnodes[0].path
+        return [os.path.join(sim_root, f"dnode{i}") + os.sep for i in (1, 2, 3)]

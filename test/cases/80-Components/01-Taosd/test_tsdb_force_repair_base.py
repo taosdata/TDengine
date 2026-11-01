@@ -125,9 +125,18 @@ class TsdbForceRepairBase:
             args += f" {extra_args}"
         return args
 
+    def _repair_arguments(self, args):
+        arguments = shlex.split(args)
+        if os.name == "nt":
+            # Log routing is a Linux CLI option; these tests exercise repair.
+            while "--log-output" in arguments:
+                index = arguments.index("--log-output")
+                del arguments[index:index + 2]
+        return arguments
+
     def _start_repair_process(self, args, extra_env=None):
         bin_path = self._get_taosd_bin()
-        cmd = [bin_path, "-c", self._get_cfg_dir()] + shlex.split(args)
+        cmd = [bin_path, "-c", self._get_cfg_dir()] + self._repair_arguments(args)
         tdLog.info("run repair cmd: %s" % " ".join(cmd))
         env = os.environ.copy()
         asan_options = env.get("ASAN_OPTIONS", "")
@@ -171,7 +180,7 @@ class TsdbForceRepairBase:
 
     def _run_taosd_with_cfg(self, args, timeout_sec=None, extra_env=None):
         bin_path = self._get_taosd_bin()
-        cmd = [bin_path, "-c", self._get_cfg_dir()] + shlex.split(args)
+        cmd = [bin_path, "-c", self._get_cfg_dir()] + self._repair_arguments(args)
         tdLog.info("run cmd: %s" % " ".join(cmd))
         env = os.environ.copy()
         asan_options = env.get("ASAN_OPTIONS", "")

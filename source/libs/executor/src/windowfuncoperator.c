@@ -731,6 +731,47 @@ static bool winFuncSlotDescEqual(const SSlotDescNode *pLeft, const SSlotDescNode
          0 == strcmp(pLeft->name, pRight->name);
 }
 
+static bool winFuncSlotTypeEqual(const SSlotDescNode *pLeft, const SSlotDescNode *pRight) {
+  return pLeft->dataType.type == pRight->dataType.type && pLeft->dataType.bytes == pRight->dataType.bytes &&
+         pLeft->dataType.precision == pRight->dataType.precision && pLeft->dataType.scale == pRight->dataType.scale;
+}
+
+// The child descriptor is not always the exact list the window targets were
+// built from: the federated scan rebuilds its descriptor as the remote-result
+// columns followed by reserve slots, so the same column can appear at a
+// different position than in the window's pass-through list (the local scan
+// keeps both lists in the operator's positional order).  Fall back to the
+// column type when the positional slot does not match, preferring reserve
+// slots past the visible child prefix because those are the pushed-down
+// dependency columns.  An unresolved slot is an error: leaving it unmapped
+// makes colDataSetVal read the wrong column's bytes, which is an out-of-bounds
+// read whenever the widths differ.
+static int32_t winFuncFindSourceSlotByType(const SDataBlockDescNode *pInputDesc, const SSlotDescNode *pOutputSlot,
+                                           bool preferReserve) {
+  SListCell *pCell = NULL != pInputDesc->pSlots ? pInputDesc->pSlots->pHead : NULL;
+  int32_t    visibleMatch = -1;
+  int32_t    reserveMatch = -1;
+  for (int32_t srcSlot = 0; srcSlot < LIST_LENGTH(pInputDesc->pSlots);
+       ++srcSlot, pCell = (NULL != pCell ? pCell->pNext : NULL)) {
+    SSlotDescNode *pInputSlot = (SSlotDescNode *)(NULL != pCell ? pCell->pNode : NULL);
+    if (pInputSlot == NULL || !winFuncSlotTypeEqual(pOutputSlot, pInputSlot)) {
+      continue;
+    }
+    if (pInputSlot->reserve) {
+      if (reserveMatch < 0) {
+        reserveMatch = srcSlot;
+      }
+    } else if (visibleMatch < 0) {
+      visibleMatch = srcSlot;
+    }
+    if (preferReserve ? reserveMatch >= 0 : visibleMatch >= 0) {
+      break;
+    }
+  }
+  return preferReserve ? (reserveMatch >= 0 ? reserveMatch : visibleMatch)
+                       : (visibleMatch >= 0 ? visibleMatch : reserveMatch);
+}
+
 static int32_t winFuncInitOutputSrcSlots(SWindowFuncOperatorInfo *pInfo, const SDataBlockDescNode *pOutputDesc,
                                          const SDataBlockDescNode *pInputDesc) {
   if (pInfo == NULL || pOutputDesc == NULL || pInputDesc == NULL) {
@@ -757,32 +798,61 @@ static int32_t winFuncInitOutputSrcSlots(SWindowFuncOperatorInfo *pInfo, const S
       continue;
     }
 
-    if (dstSlot < inputCols) {
-      pInfo->pOutputSrcSlots[dstSlot] = dstSlot;
-      continue;
-    }
-
     SSlotDescNode *pOutputSlot = (SSlotDescNode *)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
     if (pOutputSlot == NULL) {
       return terrno;
     }
 
-    SListCell* pSlotCell2 = NULL != pInputDesc->pSlots ? pInputDesc->pSlots->pHead : NULL;
-    for (int32_t srcSlot = 0; srcSlot < inputCols;
-         ++srcSlot, pSlotCell2 = (NULL != pSlotCell2 ? pSlotCell2->pNext : NULL)) {
-      SSlotDescNode *pInputSlot = (SSlotDescNode *)(NULL != pSlotCell2 ? pSlotCell2->pNode : NULL);
+    int32_t srcSlotId = -1;
+    if (dstSlot < inputCols) {
+      SSlotDescNode *pInputSlot = (SSlotDescNode *)nodesListGetNode(pInputDesc->pSlots, dstSlot);
       if (pInputSlot == NULL) {
         return terrno;
       }
-      if (winFuncSlotDescEqual(pOutputSlot, pInputSlot)) {
-        pInfo->pOutputSrcSlots[dstSlot] = srcSlot;
-        break;
+      // The positional slot is only valid when the child lists the same
+      // column there; a reserve slot is a pushed-down dependency, not the
+      // next pass-through column, and a type mismatch would make
+      // colDataSetVal read past the source column's buffer.
+      if (!pInputSlot->reserve && winFuncSlotTypeEqual(pOutputSlot, pInputSlot)) {
+        srcSlotId = dstSlot;
       }
     }
 
-    if (pInfo->pOutputSrcSlots[dstSlot] < 0) {
+    if (srcSlotId < 0 && '\0' != pOutputSlot->name[0]) {
+      SListCell* pSlotCell2 = NULL != pInputDesc->pSlots ? pInputDesc->pSlots->pHead : NULL;
+      for (int32_t srcSlot = 0; srcSlot < inputCols;
+           ++srcSlot, pSlotCell2 = (NULL != pSlotCell2 ? pSlotCell2->pNext : NULL)) {
+        SSlotDescNode *pInputSlot = (SSlotDescNode *)(NULL != pSlotCell2 ? pSlotCell2->pNode : NULL);
+        if (pInputSlot == NULL) {
+          return terrno;
+        }
+        if (winFuncSlotDescEqual(pOutputSlot, pInputSlot)) {
+          srcSlotId = srcSlot;
+          break;
+        }
+      }
+    }
+
+    if (srcSlotId < 0) {
+      int32_t visibleInputCols = 0;
+      SListCell* pSlotCell2 = NULL != pInputDesc->pSlots ? pInputDesc->pSlots->pHead : NULL;
+      for (int32_t srcSlot = 0; srcSlot < inputCols;
+           ++srcSlot, pSlotCell2 = (NULL != pSlotCell2 ? pSlotCell2->pNext : NULL)) {
+        SSlotDescNode *pInputSlot = (SSlotDescNode *)(NULL != pSlotCell2 ? pSlotCell2->pNode : NULL);
+        if (pInputSlot == NULL) {
+          return terrno;
+        }
+        if (pInputSlot->output && !pInputSlot->reserve) {
+          ++visibleInputCols;
+        }
+      }
+      srcSlotId = winFuncFindSourceSlotByType(pInputDesc, pOutputSlot, dstSlot >= visibleInputCols);
+    }
+
+    if (srcSlotId < 0) {
       return TSDB_CODE_OUT_OF_RANGE;
     }
+    pInfo->pOutputSrcSlots[dstSlot] = srcSlotId;
   }
 
   return TSDB_CODE_SUCCESS;

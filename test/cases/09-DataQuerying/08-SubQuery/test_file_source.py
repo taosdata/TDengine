@@ -242,7 +242,7 @@ class TestFileSource:
         # --- Q2: BIGINT and FLOAT column types ---
         tdLog.info("file_source_coverage Q2: BIGINT and FLOAT column type coverage")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-05-01 00:00:01,9876543210,3.14\n")
             fh.write("2026-05-01 00:00:02,1234567890,2.71\n")
         try:
@@ -376,7 +376,7 @@ class TestFileSource:
         import tempfile as _tmpfile
 
         fd, ts2_path = _tmpfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2,2026-01-01 00:00:02\n")
             fh.write("1,2026-01-01 00:00:01\n")
         ts2_schema = "'id INT, ts TIMESTAMP'"
@@ -525,7 +525,7 @@ class TestFileSource:
         # --- N1: JSON column_list should be rejected ---
         tdLog.info("file_source_schema_types N1: JSON in column_list should be rejected")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write('2026-01-01 00:00:01,{"k":1}\n')
         try:
             tdSql.error(
@@ -537,7 +537,7 @@ class TestFileSource:
         # --- N2: GEOMETRY column_list should be rejected ---
         tdLog.info("file_source_schema_types N2: GEOMETRY in column_list should be rejected")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,POINT(1 2)\n")
         try:
             tdSql.error(
@@ -549,7 +549,7 @@ class TestFileSource:
         # --- N3: BLOB column_list should be rejected ---
         tdLog.info("file_source_schema_types N3: BLOB in column_list should be rejected")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,data\n")
         try:
             tdSql.error(
@@ -561,7 +561,7 @@ class TestFileSource:
         # --- N4: MEDIUMBLOB column_list should be rejected ---
         tdLog.info("file_source_schema_types N4: MEDIUMBLOB in column_list should be rejected")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,data\n")
         try:
             tdSql.error(
@@ -581,7 +581,7 @@ class TestFileSource:
         # --- P10: DECIMAL(10,2) from CSV ---
         tdLog.info("file_source_schema_types P10: DECIMAL(10,2) from CSV")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,3.14\n")
             fh.write("2026-01-01 00:00:02,NULL\n")
             fh.write("2026-01-01 00:00:03,99.99\n")
@@ -599,7 +599,7 @@ class TestFileSource:
         # --- P11: DECIMAL(38,10) from CSV ---
         tdLog.info("file_source_schema_types P11: DECIMAL(38,10) from CSV")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,12345.6789\n")
             fh.write("2026-01-01 00:00:02,NULL\n")
         try:
@@ -615,7 +615,7 @@ class TestFileSource:
         # --- P1: VARBINARY column round-trip (plain string and hex literal) ---
         tdLog.info("file_source_schema_types P1: VARBINARY column reads plain strings")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,hello\n")
             fh.write("2026-01-01 00:00:02,world\n")
         try:
@@ -632,7 +632,7 @@ class TestFileSource:
         # --- P2: NCHAR column with Chinese characters ---
         tdLog.info("file_source_schema_types P2: NCHAR column with Chinese text")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,你好\n")
             fh.write("2026-01-01 00:00:02,世界\n")
         try:
@@ -648,7 +648,7 @@ class TestFileSource:
         # --- P3: SMALLINT, TINYINT, unsigned integer types ---
         tdLog.info("file_source_schema_types P3: small/unsigned integer types")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,127,32767,255,65535,4294967295,18446744073709551615\n")
         try:
             tdSql.query(
@@ -669,7 +669,7 @@ class TestFileSource:
         # --- P4: CSV NULL representations ---
         tdLog.info("file_source_schema_types P4: CSV NULL field representations")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             # empty field → NULL
             fh.write("2026-01-01 00:00:01,,\n")
             # 'NULL' text → NULL
@@ -702,7 +702,7 @@ class TestFileSource:
         # --- P5: CSV backslash-N is NOT treated as NULL ---
         tdLog.info("file_source_schema_types P5: backslash-N is literal, not NULL")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,\\N,\\N\n")
         try:
             tdSql.query(
@@ -722,7 +722,7 @@ class TestFileSource:
         # --- P6: CSV quoted empty string → NULL for VARCHAR ---
         tdLog.info("file_source_schema_types P6: quoted empty string")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write('2026-01-01 00:00:01,"",""\n')
         try:
             tdSql.query(
@@ -738,7 +738,7 @@ class TestFileSource:
         # --- P7: BOOL with NULL and various representations ---
         tdLog.info("file_source_schema_types P7: BOOL values from CSV")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,true\n")
             fh.write("2026-01-01 00:00:02,false\n")
             fh.write("2026-01-01 00:00:03,NULL\n")
@@ -759,7 +759,7 @@ class TestFileSource:
         # --- P8: FLOAT/DOUBLE precision from CSV ---
         tdLog.info("file_source_schema_types P8: FLOAT/DOUBLE from CSV")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write("2026-01-01 00:00:01,3.14,2.718281828459045\n")
             fh.write("2026-01-01 00:00:02,NULL,NULL\n")
         try:
@@ -780,7 +780,7 @@ class TestFileSource:
         # --- P9: CSV partial columns — column_list has fewer cols than CSV ---
         tdLog.info("file_source_schema_types P9: CSV has more columns than column_list")
         fd, path = tempfile.mkstemp(suffix=".csv")
-        with os.fdopen(fd, "w") as fh:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
             # CSV has 5 columns but column_list declares only 3; FILE reads first 3 by position
             fh.write("2026-01-01 00:00:01,10,skip1,hello,skip2\n")
             fh.write("2026-01-01 00:00:02,20,skip3,world,skip4\n")

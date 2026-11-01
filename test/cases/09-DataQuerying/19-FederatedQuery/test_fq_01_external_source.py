@@ -66,6 +66,15 @@ _I_PORT  = ExtSrcEnv.INFLUX_PORT
 _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 _I_DB    = "fq01_fw_idb"
 
+_O_HOST    = ExtSrcEnv.ORACLE_HOST
+_O_PORT    = ExtSrcEnv.ORACLE_PORT
+_O_USER    = ExtSrcEnv.ORACLE_USER
+_O_PASS    = ExtSrcEnv.ORACLE_PASS
+_O_SERVICE = ExtSrcEnv.ORACLE_SERVICE
+# A schema is a login user in Oracle, so the default namespace is the test
+# account's own schema (DS 5.3.2).
+_O_SCHEMA  = ExtSrcEnv.ORACLE_USER.upper()
+
 _FW_TABLE = "src_t"
 _sqlserver = "sqlserver"
 _MASKED   = "******"
@@ -158,6 +167,25 @@ def _sqlserver_exec_step(database: Optional[str], sqls: Union[str, Sequence[str]
     return _step
 
 
+def _oracle_exec_step(sqls: Union[str, Sequence[str]], marker_sql: str = "select 1"):
+    """Run side-effect SQL directly on Oracle and return a marker query step.
+
+    Used by the REFRESH scenario, where the remote DDL has to run between two
+    federated queries.
+    """
+    if isinstance(sqls, str):
+        statements = [sqls]
+    else:
+        statements = [str(s) for s in sqls]
+
+    def _step(src_type: str):
+        if src_type == _oracle:
+            ExtSrcEnv.oracle_exec(statements)
+        return marker_sql
+
+    return _step
+
+
 def _connect(user: str, password: str) -> _ConnectStep:
     return _ConnectStep(user, password)
 
@@ -204,6 +232,7 @@ def _pg_exec_step(database: Optional[str], sqls: Union[str, Sequence[str]], mark
 _mysql    = "mysql"
 _pg       = "postgresql"
 _influxdb = "influxdb"
+_oracle   = "oracle"
 # ── Case list ──────────────────────────────────────────────────────────────
 # Format: [types, source_names, desc, steps]
 #
@@ -3251,8 +3280,162 @@ _CASES = [
     ]],
 
 
-]
 
+    ## FQOR-EXT-001: full parameters
+    ["OREXT001", [_oracle], ["fq01_or001"], "FQOR-EXT-001 create with HOST/PORT/DATABASE/SCHEMA; SHOW, DESCRIBE, query, drop", [
+            "drop external source if exists fq01_or001",
+            f"create external source fq01_or001 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            "select source_name, `type`, `host`, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_or001'",
+            f"describe fq01_or001.{_O_SCHEMA}.{_FW_TABLE}",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-002: DATABASE only — the schema default is missing
+    ["OREXT002", [_oracle], ["fq01_or002"], "FQOR-EXT-002 DATABASE only: short path reports the missing schema, 3-segment path works", [
+            "drop external source if exists fq01_or002",
+            f"create external source fq01_or002 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}'",
+            f"select count(*) from fq01_or002.{_FW_TABLE}",
+            f"select count(*) from fq01_or002.{_O_SCHEMA}.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-003: DATABASE is mandatory
+    ["OREXT003", [_oracle], ["fq01_or003"], "FQOR-EXT-003 create without DATABASE is a syntax error and creates nothing", [
+            "drop external source if exists fq01_or003",
+            f"create external source fq01_or003 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' schema='{_O_SCHEMA}'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_or003'",
+    ]],
+
+    ## FQOR-EXT-004: unknown TYPE values are not aliases
+    ["OREXT004", [_oracle], ["fq01_or004"], "FQOR-EXT-004 type='ora' and type='oracledb' are unknown types", [
+            "drop external source if exists fq01_or004",
+            f"create external source fq01_or004 type='ora' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            f"create external source fq01_or004 type='oracledb' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_or004'",
+    ]],
+
+    ## FQOR-EXT-005: OPTIONS timeouts, including invalid values
+    ["OREXT005", [_oracle], ["fq01_or005"], "FQOR-EXT-005 connect/read timeout options persist; invalid values are rejected", [
+            "drop external source if exists fq01_or005",
+            f"create external source fq01_or005 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' "
+            f"options('connect_timeout_ms'='5000', 'read_timeout_ms'='7000')",
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_or005'",
+            "alter external source fq01_or005 set options('connect_timeout_ms'='-1')",
+            "alter external source fq01_or005 set options('read_timeout_ms'='abc')",
+            "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_or005'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-006: unknown OPTIONS key
+    ["OREXT006", [_oracle], ["fq01_or006"], "FQOR-EXT-006 unknown option key is rejected and not persisted", [
+            "drop external source if exists fq01_or006",
+            f"create external source fq01_or006 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' options('unknown_fw_opt'='1')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_or006'",
+    ]],
+
+    ## FQOR-EXT-007: TLS options are rejected at DDL time
+    ["OREXT007", [_oracle], ["fq01_or007"], "FQOR-EXT-007 tls_enabled/tls_ca_cert/tls_client_cert/tls_client_key are rejected", [
+            "drop external source if exists fq01_or007",
+            f"create external source fq01_or007 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' options('tls_enabled'='true')",
+            f"create external source fq01_or007 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' options('tls_ca_cert'='/tmp/ca.pem')",
+            f"create external source fq01_or007 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' options('tls_client_cert'='/tmp/c.pem')",
+            f"create external source fq01_or007 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' options('tls_client_key'='/tmp/k.pem')",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_or007'",
+            # tls_enabled='false' stays accepted, so the key can be cleared later.
+            f"create external source fq01_or007 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}' options('tls_enabled'='false')",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-008: SHOW reports type='oracle'
+    ["OREXT008", [_oracle], ["fq01_or008"], "FQOR-EXT-008 SHOW reports type='oracle' and can filter on it", [
+            "drop external source if exists fq01_or008",
+            f"create external source fq01_or008 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            "select source_name, `type` from information_schema.ins_ext_sources where `type`='oracle'",
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-009: DESCRIBE masks the password
+    ["OREXT009", [_oracle], ["fq01_or009"], "FQOR-EXT-009 DESCRIBE shows the definition with the masked password", [
+            "drop external source if exists fq01_or009",
+            f"create external source fq01_or009 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            f"describe fq01_or009.{_O_SCHEMA}.{_FW_TABLE}",
+            "describe external source fq01_or009",
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-010: ALTER DATABASE (service name)
+    ["OREXT010", [_oracle], ["fq01_or010"], "FQOR-EXT-010 ALTER DATABASE to an unknown service fails at query time; restore recovers", [
+            "drop external source if exists fq01_or010",
+            f"create external source fq01_or010 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_or010 set database='NOSUCHSERVICE'",
+            _q_count_step(negative=True),
+            f"alter external source fq01_or010 set database='{_O_SERVICE}'",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-011: ALTER SCHEMA re-resolves the short path
+    ["OREXT011", [_oracle], ["fq01_or011"], "FQOR-EXT-011 ALTER SCHEMA re-resolves the short path", [
+            "drop external source if exists fq01_or011",
+            f"create external source fq01_or011 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            f"select count(*) from fq01_or011.{_FW_TABLE}",
+            "alter external source fq01_or011 set schema='NOSUCHSCHEMA'",
+            f"select count(*) from fq01_or011.{_FW_TABLE}",
+            f"alter external source fq01_or011 set schema='{_O_SCHEMA}'",
+            f"select count(*) from fq01_or011.{_FW_TABLE}",
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-012: unreachable host fails only at query time
+    ["OREXT012", [_oracle], ["fq01_or012"], "FQOR-EXT-012 ALTER HOST to an unreachable address fails only at query time", [
+            "drop external source if exists fq01_or012",
+            f"create external source fq01_or012 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            _q_count_step(),
+            "alter external source fq01_or012 set host='127.0.0.1', port=18330",
+            "select source_name, `type`, `host`, `port` from information_schema.ins_ext_sources where source_name='fq01_or012'",
+            _q_count_step(negative=True),
+            f"alter external source fq01_or012 set host='{_O_HOST}', port={_O_PORT}",
+            _q_count_step(),
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-013: REFRESH picks up the remote schema change
+    ["OREXT013", [_oracle], ["fq01_or013"], "FQOR-EXT-013 ADD COLUMN without REFRESH keeps the cached columns; REFRESH exposes the new column (Oracle)", [
+            "drop external source if exists fq01_or013",
+            f"create external source fq01_or013 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            f"select * from fq01_or013.{_FW_TABLE} where val=1",
+            _oracle_exec_step([
+                f"ALTER TABLE {_FW_TABLE.upper()} ADD extra_col NUMBER(10)",
+                f"UPDATE {_FW_TABLE.upper()} SET extra_col = 7 WHERE val = 1",
+                "COMMIT",
+            ]),
+            f"select * from fq01_or013.{_FW_TABLE} where val=1",
+            "refresh external source fq01_or013",
+            f"select * from fq01_or013.{_FW_TABLE} where val=1",
+            _oracle_exec_step([
+                f"ALTER TABLE {_FW_TABLE.upper()} DROP COLUMN extra_col",
+            ]),
+            "refresh external source fq01_or013",
+            f"select extra_col from fq01_or013.{_FW_TABLE} where val=1",
+            f"select * from fq01_or013.{_FW_TABLE} where val=1",
+            _clear_source_step(),
+    ]],
+
+    ## FQOR-EXT-014: DROP and IF EXISTS semantics
+    ["OREXT014", [_oracle], ["fq01_or014"], "FQOR-EXT-014 DROP removes the source; IF EXISTS is idempotent", [
+            "drop external source if exists fq01_or014",
+            f"create external source fq01_or014 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
+            "drop external source fq01_or014",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_or014'",
+            "drop external source if exists fq01_or014",
+            "select count(*) from information_schema.ins_ext_sources where source_name='fq01_or014'",
+    ]],
+
+]
 
 # ── Test class ─────────────────────────────────────────────────────────────
 
@@ -3302,6 +3485,20 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
     def teardown_class(self):
         tdLog.debug(f"teardown {__file__}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a full run
+        # that visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        # The bucket is created once per configured version combo, and
+        # _influx_cfg() reads per-test state that teardown_class no longer has,
+        # so drop on every configured version: dropping an absent bucket is a
+        # no-op.
+        for _cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(_cfg, _I_DB)
+            except Exception as exc:  # noqa: BLE001 - teardown must not fail the test
+                tdLog.info(f"influx bucket {_I_DB} left in place on {_cfg.version}: {exc}")
         TestFq01ExternalSource._fw_data_prepared = False
 
     # ──────────────────────────────────────────────────────────────────────
@@ -3362,6 +3559,29 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         ]
         ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, influx_lines)
 
+        # ── Oracle ──
+        # The login schema is the default namespace; there is no per-test
+        # database to create (DS 5.3.2).  The timestamp literal is written with
+        # an explicit format because a bare string would be parsed with the
+        # session's NLS_TIMESTAMP_FORMAT.
+        # One INSERT per row: the multi-row VALUES constructor is 23ai-only
+        # and 11g rejects it with ORA-00933.
+        oracle_inserts = [
+            f"INSERT INTO {_FW_TABLE.upper()} (ts, val, score, name, flag) VALUES "
+            f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}', {flag})"
+            for ts, val, score, name, flag in _FW_ROWS_DT
+        ]
+        ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE.upper())
+        ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [
+            (
+                f"CREATE TABLE {_FW_TABLE.upper()} ("
+                "ts TIMESTAMP(3), val NUMBER(10), score BINARY_DOUBLE, "
+                "name VARCHAR2(32), flag NUMBER(1))"
+            ),
+            *oracle_inserts,
+            "COMMIT",
+        ])
+
     # ──────────────────────────────────────────────────────────────────────
     # Framework helpers
     # ──────────────────────────────────────────────────────────────────────
@@ -3375,6 +3595,8 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             return f"{src_name}.{_P_SCHEMA}.{_FW_TABLE}"
         elif src_type == _sqlserver:
             return f"{src_name}.{_S_SCHEMA}.{_FW_TABLE}"
+        elif src_type == _oracle:
+            return f"{src_name}.{_O_SCHEMA}.{_FW_TABLE}"
         else:  # influxdb
             return f"{src_name}.{_FW_TABLE}"
 

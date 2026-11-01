@@ -60,7 +60,8 @@ def test_private_runpath_resolves_transitive_dependencies_after_relocation(tmp_p
 def test_installer_copies_driver_resources_only_inside_installation(tmp_path):
     script = (COMMUNITY / "packaging/tools/install.sh").read_text()
     helper = script.split("function cleanup_legacy_fq_runtime() {", 1)[1].split("function get_config_file()", 1)[0]
-    helper = "function cleanup_legacy_fq_runtime() {" + helper
+    copy_helper = script.split("function copy_package_files() {", 1)[1].split("\n}\n", 1)[0]
+    helper = "function copy_package_files() {" + copy_helper + "\n}\n" + "function cleanup_legacy_fq_runtime() {" + helper
     package = tmp_path / "package"
     resource = package / "share/resources/en_US/msodbcsqlr18.rll"
     resource.parent.mkdir(parents=True)

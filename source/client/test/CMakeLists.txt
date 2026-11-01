@@ -28,7 +28,12 @@ TARGET_LINK_LIBRARIES(
         clientTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function totp
 )
-
+# Keep service-independent result decoding regressions runnable without the
+# live-server cases in clientTest.
+add_test(
+        NAME clientResultBlockTest
+        COMMAND clientTest --gtest_filter=ResultBlockValidationTest.*:ClientDeleteReplayTest.*
+)
 ADD_EXECUTABLE(connectOptionsTest connectOptionsTest.cpp)
 DEP_ext_gtest(connectOptionsTest)
 TARGET_LINK_LIBRARIES(
@@ -209,6 +214,10 @@ IF(TD_LINUX)
         add_test(
                 NAME stmt2Test
                 COMMAND stmt2Test
+        )
+        set_tests_properties(stmt2Test stmt2ErrorTest PROPERTIES
+                ENVIRONMENT "ASAN_OPTIONS=detect_odr_violation=0:detect_leaks=1:halt_on_error=1:exitcode=1;LSAN_OPTIONS=exitcode=1"
+                FAIL_REGULAR_EXPRESSION "ERROR: AddressSanitizer;ERROR: LeakSanitizer;AddressSanitizer:DEADLYSIGNAL;SUMMARY: AddressSanitizer"
         )
         add_test(
                 NAME stmtTest

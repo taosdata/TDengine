@@ -28,7 +28,7 @@ Covers:
 - P6 Task 6.1: TIMEZONE() returns session timezone (L2 -> L3 -> L5)
 """
 
-from new_test_framework.utils import tdLog, tdSql, tdCom
+from new_test_framework.utils import tdLog, tdSql, tdCom, etool
 import datetime
 import os
 import pytest
@@ -506,7 +506,7 @@ class _DisplayTimezoneMixin:
         """SELECT ts display should differ across session timezones in taos CLI output."""
         self._prepare_display_timezone_data()
 
-        taos_bin = os.path.join(tdCom.getBuildPath(), "build", "bin", "taos")
+        taos_bin = etool.taosFile()
         cfg_path = tdCom.getClientCfgPath()
         assert os.path.exists(taos_bin), f"taos binary not found: {taos_bin}"
 

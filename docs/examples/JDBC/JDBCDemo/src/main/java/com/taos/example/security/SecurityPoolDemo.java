@@ -35,7 +35,7 @@ import java.sql.Statement;
  * Run (set env var first):
  *   export TDENGINE_TOKEN=your_token
  *   export TDENGINE_HOST=localhost
- *   cd docs/examples/JDBC/JDBCDemo
+ *   cd examples/JDBC/JDBCDemo
  *   mvn compile exec:java -Dexec.mainClass=com.taos.example.security.SecurityPoolDemo
  *
  * IMPORTANT:

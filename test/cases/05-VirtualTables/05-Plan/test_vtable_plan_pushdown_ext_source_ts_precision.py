@@ -37,6 +37,13 @@ _LAST_VALUE = _ROW_COUNT - 1
 _VTABLE_PRECISIONS = ("ms", "us", "ns")
 _PRECISION_RANK = {"ms": 0, "us": 1, "ns": 2}
 _TICKS_PER_MILLISECOND = {"ms": 1, "us": 1_000, "ns": 1_000_000}
+# Oracle tables live in the shared login schema; prefixing their names keeps
+# them apart from the fixtures of the other ext-source test files.
+_ORACLE_TABLE_NAME = "VTP_ORACLE_MS_DENSE_TS"
+# sqlplus receives each statement as one argv entry and truncates a single
+# input line past ~5000 characters, so the INSERT ALL rows are bounded and one
+# INTO branch goes on each line.
+_ORACLE_INSERT_BATCH_ROWS = 200
 _EXTERNAL_CASES = (
     {
         "backend": "mysql",
@@ -103,6 +110,22 @@ _EXTERNAL_CASES = (
         "value_type": "int",
         "expected_rows": {"ms": 3, "us": 2001, "ns": 2001},
     },
+    {
+        "backend": "oracle",
+        "source_precision": "ms",
+        "source_name": "vtp_oracle_ms_src",
+        # Oracle has no per-source database: the external source carries the
+        # Easy Connect service name and this value is its only namespace
+        # level, the schema, which is what a column path names.
+        "external_db": ExtSrcEnv.ORACLE_USER.upper(),
+        "table": _ORACLE_TABLE_NAME,
+        "timestamp_type": "TIMESTAMP(3)",
+        # NUMBER(10, 0) maps to BIGINT.
+        "value_type": "bigint",
+        # TIMESTAMP(3) declares millisecond precision, so it is legal in every
+        # virtual-table database and every row stays distinct.
+        "expected_rows": {"ms": 2001, "us": 2001, "ns": 2001},
+    },
 )
 _MIXED_CASES = (
     {
@@ -128,6 +151,11 @@ _MIXED_CASES = (
     {
         "name": "mixed_us_external",
         "sources": (("mysql", "us"), ("postgres", "us"), ("sqlserver", "us")),
+        "include_native": False,
+    },
+    {
+        "name": "mixed_oracle_mysql",
+        "sources": (("oracle", "ms"), ("mysql", "us")),
         "include_native": False,
     },
 )
@@ -167,9 +195,10 @@ def _source_is_legal(source, vtable_precision):
     """Whether one (backend, source_precision) source fits a vtable database.
 
     Every backend now declares the precision of the timestamp primary key
-    column: MySQL/PG from the type modifier and SQL Server from the
-    datetime2/datetimeoffset modifier (datetime2(<=3) is millisecond aligned).
-    The shared rank rule therefore applies uniformly.
+    column: MySQL/PG from the type modifier, SQL Server from the
+    datetime2/datetimeoffset modifier (datetime2(<=3) is millisecond aligned)
+    and Oracle from the TIMESTAMP(p) modifier.  The shared rank rule therefore
+    applies uniformly.
     """
     _, source_precision = source
     return _precision_is_legal(source_precision, vtable_precision)
@@ -180,12 +209,14 @@ def _external_table_path(case):
 
     SQL Server: the middle segment of a three-part path is the schema
     (DS §5.3.4), so the database is qualified explicitly (five-part column
-    path source.database.schema.table.column).
+    path source.database.schema.table.column).  Oracle has a single namespace
+    level, so it is a four-part path source.schema.table.column.
     """
     path = f"{case['source_name']}.{case['external_db']}"
+    table = case.get("table", "dense_ts")
     if case["backend"] == "sqlserver":
-        return f"{path}.dbo.dense_ts"
-    return f"{path}.dense_ts"
+        return f"{path}.dbo.{table}"
+    return f"{path}.{table}"
 
 
 def _source_timestamps(source_precision, vtable_precision):
@@ -257,6 +288,18 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         cls._create_mixed_source_vtables()
 
     @classmethod
+    def teardown_class(cls):
+        # _prepare_influx_data() drops and recreates the bucket before the
+        # class runs, so the suite never accumulates buckets, but the last one
+        # outlives it.  InfluxDB 3 Core allows only five databases per
+        # instance, so leaving it behind costs a slot for the rest of the run
+        # and eventually makes every later influx_create_db() fail with HTTP
+        # 422 in some unrelated suite.
+        for case in _EXTERNAL_CASES:
+            if case["backend"] == "influx":
+                ExtSrcEnv.influx_drop_db(case["external_db"])
+
+    @classmethod
     def _prepare_external_data(cls, case):
         if case["backend"] == "mysql":
             cls._prepare_mysql_data(case)
@@ -264,6 +307,8 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
             cls._prepare_postgres_data(case)
         elif case["backend"] == "sqlserver":
             cls._prepare_sqlserver_data(case)
+        elif case["backend"] == "oracle":
+            cls._prepare_oracle_data(case)
         else:
             cls._prepare_influx_data(case)
 
@@ -354,6 +399,38 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
             )
 
     @staticmethod
+    def _prepare_oracle_data(case):
+        table = case["table"]
+        cfg = next(ExtSrcEnv.oracle_version_configs())
+        ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
+        ExtSrcEnv._oracle_sql(
+            cfg,
+            [
+                f"CREATE TABLE {table} "
+                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
+                "v NUMBER(10,0) NOT NULL)",
+            ],
+        )
+
+        values = []
+        for value in range(_ROW_COUNT):
+            timestamp = _BASE_TIME + timedelta(milliseconds=value)
+            # A bare string date would go through NLS_TIMESTAMP_FORMAT and
+            # raise ORA-01861.
+            timestamp_text = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+            values.append(f"(TIMESTAMP '{timestamp_text}', {value})")
+
+        for start in range(0, _ROW_COUNT, _ORACLE_INSERT_BATCH_ROWS):
+            batch = values[start : start + _ORACLE_INSERT_BATCH_ROWS]
+            # One INTO branch per line: SQL*Plus silently truncates an input
+            # line past ~5000 characters (SP2-0027) and would load only part
+            # of the batch.
+            into = "\n".join(f"INTO {table} VALUES {row}" for row in batch)
+            ExtSrcEnv._oracle_sql(
+                cfg, f"INSERT ALL\n{into}\nSELECT 1 FROM dual")
+        ExtSrcEnv._oracle_sql(cfg, "COMMIT")
+
+    @staticmethod
     def _prepare_influx_data(case):
         external_db = case["external_db"]
         ExtSrcEnv.influx_drop_db(external_db)
@@ -403,6 +480,15 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
                 f"host='{adapter.host}' port={adapter.port} "
                 f"user='{adapter.user}' password='{adapter.password}' "
                 f"database={external_db} schema=dbo"
+            )
+        elif case["backend"] == "oracle":
+            # The Easy Connect service name travels in DATABASE; the schema is
+            # Oracle's only namespace level and never a database.
+            tdSql.execute(
+                f"create external source {source_name} type='oracle' "
+                f"host='{adapter.host}' port={adapter.port} "
+                f"user='{adapter.user}' password='{adapter.password}' "
+                f"database={ExtSrcEnv.ORACLE_SERVICE} schema={external_db}"
             )
         else:
             tdSql.execute(
@@ -733,10 +819,11 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
     def test_timestamp_precision_matrix(self):
         """Validate timestamp pushdown for single and mixed sources.
 
-        1. Check dense results for 16 legal single-source precision combinations.
-        2. Check six legal mixed-precision, mixed-database and native/external cases.
+        1. Check dense results for every legal single-source precision combination.
+        2. Check every legal mixed-precision, mixed-database and native/external case.
         3. Check that virtual scans retain their own precision in cross-precision joins.
-        4. Compare EXPLAIN plans and matching query results.
+        4. Compare EXPLAIN plans and matching query results for the shared sources,
+           Oracle included (single source and the Oracle-plus-MySQL mix).
 
         Catalog:
             - VirtualTable
@@ -750,6 +837,10 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         History:
             - 2026-07-14 Codex Added external timestamp precision matrix
             - 2026-07-15 Codex Added matching query-result comparisons
+            - 2026-10-26 Add Oracle to the timestamp precision matrix
+            - 2026-10-27 Record the Oracle plan blocks and load the Oracle
+              fixture one INTO branch per line (SQL*Plus truncates long
+              input lines)
 
         """
         self.do_validate_dense_timestamp_results()
@@ -760,8 +851,9 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
     def test_vstable_timestamp_filter_plan(self):
         """Validate federated timestamp pushdown plans for virtual super tables.
 
-        1. Check timestamp-filter results for all 16 legal precision combinations.
-        2. Compare timestamp ranges and FederatedScan nodes in each plan.
+        1. Check timestamp-filter results for every legal precision combination.
+        2. Compare timestamp ranges and FederatedScan nodes in each plan,
+           Oracle included.
 
         Catalog:
             - VirtualTable
@@ -774,6 +866,7 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
 
         History:
             - 2026-07-14 Codex Added virtual super table timestamp checks
+            - 2026-10-26 Add Oracle to the timestamp filter matrix
 
         """
         self.do_validate_vstable_timestamp_filter_results()

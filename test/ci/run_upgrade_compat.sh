@@ -360,7 +360,7 @@ docker run \
     -v "${GREEN_CACHE_DIR}:/green_versions:ro" \
     -v "${LOG_DIR}:/upgrade_logs" \
     --rm --ulimit core=-1 \
-    ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} \
+    ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} \
     ${CONTAINER_SCRIPT} &
 DOCKER_RUN_PID=$!
 wait "${DOCKER_RUN_PID}"

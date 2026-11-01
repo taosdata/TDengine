@@ -58,7 +58,7 @@ After filling in the above Dashboard ID or Dashboard URL, click the "Load" butto
 TDinsight dashboard data comes from the `log` database (the default database for storing monitoring data, which can be modified in the taoskeeper configuration file). The "TDinsight for 3.x" dashboard queries monitoring metrics for taosd and TaosAdapter.
 
 - For taosd monitoring metrics, refer to [taosd monitoring metrics](../03-components/01-taosd.md)
-- For taosAdapter monitoring metrics, refer to [taosAdapter monitoring metrics](../03-components/03-taosadapter.md)
+- For taosAdapter monitoring metrics, refer to [taosAdapter monitoring metrics](../03-components/03-taosadapter/03-operations.md#monitoring-metrics)
 
 ## Monitoring taosX
 

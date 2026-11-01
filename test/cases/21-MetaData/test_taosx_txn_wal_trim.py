@@ -59,6 +59,10 @@ def _find_binary():
     src = os.path.normpath(src)
     if not os.path.isfile(src):
         raise RuntimeError("Cannot find tmq_taosx_txn.c source: %s" % src)
+    if os.name == 'nt':
+        from new_test_framework.utils.eutil import build_windows_test_program
+        TMQ_TAOSX_TXN_BIN = build_windows_test_program(src, 'tmq_taosx_txn', tdCom.getBuildPath())
+        return TMQ_TAOSX_TXN_BIN
     dst = "/tmp/tmq_taosx_txn"
     cmd = [
         "gcc", "-o", dst, src,
@@ -135,7 +139,9 @@ class TestTaosxTxnWalTrim:
         2. never_consumed_txn_wal_trimmed
 
         Since: v3.3.6.0
+
         Labels: common,ci
+
         Jira: TD-XXXXX
         """
         self.s44_trim_already_consumed_wal_then_new_commit()

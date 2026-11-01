@@ -20,6 +20,7 @@ import shutil
 import subprocess
 import threading
 import time
+import tempfile
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, cluster
 from backup_restore_base import BackupRestoreTestBase
@@ -118,7 +119,7 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         cls.dnode_id = 1
         cls.dnode_nums = len(cluster.dnodes)
         cls.backup_dnode = 1            # backup agent runs on dnode 1
-        cls.backup_root = f"/tmp/backup_big_cluster_{int(time.time() * 1000)}"
+        cls.backup_root = os.path.join(tempfile.gettempdir(), f"backup_big_cluster_{int(time.time() * 1000)}").replace("\\", "/")
 
     def teardown_class(cls):
         # remove the backup chains
@@ -191,7 +192,7 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         from new_test_framework.utils import sc, epath
         template = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "json", "insert_meters.json")
-        with open(template) as f:
+        with open(template, encoding="utf-8") as f:
             config = json.load(f)
         config["cfgdir"] = os.path.join(sc.clusterRootPath(), "dnode1", "cfg")
         # Six writers preserve the 50M-row workload while limiting concurrent I/O.
@@ -199,7 +200,7 @@ class TestClusterBackupConcurrentWrite(BackupRestoreTestBase):
         config["connection_pool_size"] = 6
         json_path = os.path.join(self.backup_root, "bench.json")
         os.makedirs(self.backup_root, exist_ok=True)
-        with open(json_path, "w") as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(config, f)
         taosbenchmark_bin = epath.binFile("taosBenchmark")
         env = os.environ.copy()

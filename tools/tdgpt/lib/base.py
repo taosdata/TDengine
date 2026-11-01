@@ -463,3 +463,29 @@ class AbstractClusteringService(AbstractAnalyticsService, ABC):
             - ts_list: list (optional) — preserved timestamps if provided
         """
 
+
+class AbstractSeriesDiagnosisService(AbstractAnalyticsService, ABC):
+    """Abstract service for whole-series diagnosis (one score per series).
+
+    The score convention is: higher = more anomalous. Callers own the
+    threshold decision; this service only produces the raw score.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.type = "series_diagnosis"
+        self.series = None  # flat list[float]
+
+    def set_input_data(self, series: list):
+        self.series = series
+
+    def set_params(self, params: dict) -> None:
+        pass
+
+    def get_params(self):
+        return {"dummy": "dummy"}
+
+    @abstractmethod
+    def execute(self) -> float:
+        """Score the series. Returns a float; higher = more anomalous."""
+

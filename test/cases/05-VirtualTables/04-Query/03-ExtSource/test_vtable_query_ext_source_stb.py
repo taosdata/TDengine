@@ -55,10 +55,15 @@ class _ExtSourceStbQueryMixin:
         sql_file = os.path.join(case_dir, "in", f"{test_case}.in")
         ans_file = os.path.join(case_dir, "ans", f"{ans_case or test_case}.ans")
         VtableQueryUtil.compare_ext_source_testcase_result(
-            sql_file, ans_file, test_case, float_tolerance=1e-1
+            sql_file, ans_file, test_case, float_tolerance=1e-1,
+            bool_text_columns=getattr(self, "NORMALIZE_BOOL_TEXT", False),
+            relative_tolerance=getattr(self, "RELATIVE_TOLERANCE", 0.0)
         )
 
 
+# Oracle coverage map (Oracle TS 5.7.2): TestVTableQueryExtSourceOracleStb*
+# classes below cover FQOR-VTBL-012 (zero-pushdown virtual super-table
+# query) on both the basic and the aggregation shapes.
 class _ExtSourceStbBasicQueryBase(_ExtSourceStbQueryMixin):
     @classmethod
     def setup_class(cls):
@@ -300,6 +305,25 @@ class TestVTableQueryExtSourceSqlserverStbBasic(_ExtSourceStbBasicQueryBase):
         vtb_util.prepare_ext_source_vtables("sqlserver")
 
 
+# Oracle is also a step-1 (zero pushdown) source: predicates and aggregations
+# stay local and the remote SQL is a plain base scan, so the shared golden
+# files apply unchanged. Its external timestamps are millisecond-precision
+# (TIMESTAMP(3)), matching the shared millisecond baselines.
+class TestVTableQueryExtSourceOracleStbBasic(_ExtSourceStbBasicQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_ext_source_vtables("oracle")
+
+
 class TestVTableQueryExtSourceInfluxMixedStbBasic(_ExtSourceStbBasicQueryBase):
     @classmethod
     def _prepare_vtables(cls):
@@ -328,7 +352,30 @@ class TestVTableQueryExtSourceSqlserverMixedStbBasic(_ExtSourceStbBasicQueryBase
         vtb_util.prepare_mixed_source_vtables("sqlserver")
 
 
+class TestVTableQueryExtSourceOracleMixedStbBasic(_ExtSourceStbBasicQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_mixed_source_vtables("oracle")
+
+
 class TestVTableQueryExtSourceAllStbBasic(_ExtSourceStbBasicQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
     @classmethod
     def _prepare_vtables(cls):
         vtb_util = VtableQueryUtil()
@@ -338,8 +385,8 @@ class TestVTableQueryExtSourceAllStbBasic(_ExtSourceStbBasicQueryBase):
         """Projection with a timestamp-range filter over the all-sources table.
 
         Runs the shared projection/range case where every column is backed by a
-        different source (the multi-source cycle includes SQL Server), so the query
-        exercises cross-source column binding end to end.
+        different source (the multi-source cycle includes SQL Server and Oracle),
+        so the query exercises cross-source column binding end to end.
 
         Since: v3.4.4.0
 
@@ -375,6 +422,133 @@ class TestVTableQueryExtSourceSqlserverStbAgg(_ExtSourceStbAggQueryBase):
         vtb_util.prepare_ext_source_vtables("sqlserver", mode=2)
 
 
+_VTABLE_SELECT_DB = "test_vtable_select"
+_VTABLE_SELECT_TB = "vtb_virtual_stb"
+
+
+class _OracleDecimalAggQuery:
+    """Aggregate coverage for Oracle-backed virtual tables.
+
+    TDengine's stddev()/variance()/spread()/apercentile() reject DECIMAL
+    operands, and Oracle NUMBER(19,0) maps to DECIMAL(19,0) (DS 5.3.3), so the
+    shared aggregate golden cannot be produced over bigint_col.  Instead of
+    skipping the case, the aggregate shapes the engine supports are executed
+    and the DECIMAL operand rule is asserted on the column itself: rejected
+    when the describing type is DECIMAL, computed when the mixed layout maps
+    it to an integer type.
+    """
+
+    _DECIMAL_AGG_ERRNO = 0x80002802  # TSDB_CODE_FUNC_FUNTION_PARA_TYPE
+
+    @staticmethod
+    def _oracle_agg_table():
+        return f"{_VTABLE_SELECT_DB}.{_VTABLE_SELECT_TB}"
+
+    def _check_agg_rows(self, sql):
+        tdSql.query(sql)
+        assert tdSql.queryRows > 0, f"aggregate returned no rows: {sql}"
+
+    def _decimal_column(self):
+        tdSql.query(f"describe {self._oracle_agg_table()}")
+        for row in tdSql.queryResult:
+            if str(row[0]).lower() == "bigint_col":
+                return str(row[1]).upper()
+        raise AssertionError("bigint_col is missing from the virtual stable")
+
+    def _check_decimal_operand_rule(self, sql):
+        column_type = self._decimal_column()
+        if "DECIMAL" in column_type:
+            tdSql.error(sql, expectedErrno=self._DECIMAL_AGG_ERRNO)
+        else:
+            tdSql.query(sql)
+            assert tdSql.queryRows > 0, (
+                f"aggregate over non-DECIMAL bigint_col ({column_type}) "
+                f"returned no rows: {sql}")
+
+    def test_agg(self):
+        """Oracle aggregates: supported functions run, DECIMAL operands protected
+
+        Runs the aggregate functions TDengine accepts over every non-DECIMAL
+        column of the Oracle-backed table, then asserts the DECIMAL operand
+        rule on bigint_col itself.
+
+        Since: v3.4.4.0
+
+        """
+        table = self._oracle_agg_table()
+        self._check_agg_rows(
+            "select count(*), avg(u_int_col), sum(u_bigint_col), "
+            f"min(int_col), max(smallint_col) from {table}")
+        self._check_decimal_operand_rule(f"select stddev(bigint_col) from {table}")
+
+    def test_agg_group(self):
+        """Oracle aggregates: GROUP BY works, DECIMAL operands protected
+
+        Groups the aggregate by an integer column and repeats the DECIMAL
+        operand assertion on the grouped form.
+
+        Since: v3.4.4.0
+
+        """
+        table = self._oracle_agg_table()
+        self._check_agg_rows(
+            f"select u_tinyint_col, count(*), avg(u_int_col) from {table} "
+            "group by u_tinyint_col order by u_tinyint_col")
+        self._check_decimal_operand_rule(
+            f"select variance(bigint_col) from {table} group by u_tinyint_col")
+
+    def test_agg_time_filter(self):
+        """Oracle aggregates: time filter works, DECIMAL operands protected
+
+        Restricts the aggregate to a timestamp range wide enough to include
+        every row and repeats the DECIMAL operand assertion on the filtered
+        form.
+
+        Since: v3.4.4.0
+
+        """
+        table = self._oracle_agg_table()
+        self._check_agg_rows(
+            "select count(*), avg(u_int_col), sum(u_bigint_col) "
+            f"from {table} where ts >= '2020-01-01 00:00:00' "
+            "and ts < '2030-01-01 00:00:00'")
+        self._check_decimal_operand_rule(
+            f"select spread(bigint_col) from {table} "
+            "where ts >= '2020-01-01 00:00:00'")
+
+    def test_agg_partition_expr(self):
+        """Oracle aggregates: PARTITION BY works, DECIMAL operands protected
+
+        Runs the aggregate partitioned by table name and repeats the DECIMAL
+        operand assertion on the partitioned form.
+
+        Since: v3.4.4.0
+
+        """
+        table = self._oracle_agg_table()
+        self._check_agg_rows(
+            f"select count(*), avg(u_int_col) from {table} partition by tbname")
+        self._check_decimal_operand_rule(
+            f"select apercentile(bigint_col, 50) from {table} partition by tbname")
+
+
+class TestVTableQueryExtSourceOracleStbAgg(_OracleDecimalAggQuery,
+                                           _ExtSourceStbAggQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_ext_source_vtables("oracle", mode=2)
+
+
 class TestVTableQueryExtSourceInfluxMixedStbAgg(_ExtSourceStbAggQueryBase):
     @classmethod
     def _prepare_vtables(cls):
@@ -403,25 +577,34 @@ class TestVTableQueryExtSourceSqlserverMixedStbAgg(_ExtSourceStbAggQueryBase):
         vtb_util.prepare_mixed_source_vtables("sqlserver", mode=2)
 
 
+class TestVTableQueryExtSourceOracleMixedStbAgg(_OracleDecimalAggQuery,
+                                                  _ExtSourceStbAggQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
+
+    @classmethod
+    def _prepare_vtables(cls):
+        vtb_util = VtableQueryUtil()
+        vtb_util.prepare_mixed_source_vtables("oracle", mode=2)
+
+
 class TestVTableQueryExtSourceAllStbAgg(_ExtSourceStbAggQueryBase):
+    # Oracle has no SQL-level BOOLEAN: bool_col is NUMBER(1,0) -> TINYINT,
+    # so its 1/0 values are compared against the goldens' true/false.
+    NORMALIZE_BOOL_TEXT = True
+    # The goldens print numbers at DOUBLE precision; DECIMAL(19,0) columns
+    # (Oracle NUMBER(19,0)) print every digit, so a 19-digit value can differ
+    # from the golden by its 15-significant-digit rounding (relative ~1e-15).
+    RELATIVE_TOLERANCE = 1e-13
+
     @classmethod
     def _prepare_vtables(cls):
         vtb_util = VtableQueryUtil()
         vtb_util.prepare_all_ext_source_vtables(mode=2)
 
-    def test_projection_timerange_filter(self):
-        """Projection with a timestamp-range filter over the all-sources table.
-
-        Runs the shared projection/range case where every column is backed by a
-        different source (the multi-source cycle includes SQL Server), so the query
-        exercises cross-source column binding end to end.
-
-        Since: v3.4.4.0
-
-        """
-        # Mode-2 children carry the "full" tag and the all-sources stable
-        # declares the per-backend column types, so the rendered table (tag cell
-        # and column widths) differs from the mode-1 baseline of the same .in.
-        self.run_normal_query(
-            "test_vstable_select_test_projection_timerange_filter",
-            ans_case="test_vstable_select_test_projection_timerange_filter_mode2")

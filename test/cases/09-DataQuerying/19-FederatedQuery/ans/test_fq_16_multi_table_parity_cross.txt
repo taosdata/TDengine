@@ -572,3 +572,297 @@ RESULT
 6|10
 6|10
 ---
+### xsrc-37 POS
+SQL: SELECT id, val FROM {O}.ta UNION ALL SELECT id, val FROM {M}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-38 POS
+SQL: SELECT id, val FROM {O}.ta UNION SELECT id, val FROM {P}.ta ORDER BY 1, 2
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-39 POS
+SQL: SELECT id, val FROM {O}.ta UNION ALL SELECT id, val FROM {I}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-40 POS
+SQL: SELECT id, val FROM {O}.ta UNION SELECT id, val FROM {S}.ta ORDER BY 1, 2
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-41 POS
+SQL: SELECT id, val FROM {O}.ta UNION ALL SELECT id, val FROM {L}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+2|20
+2|20
+3|30
+3|30
+4|40
+4|40
+5|50
+5|50
+6|10
+6|10
+---
+### xsrc-42 POS
+SQL: SELECT id, val FROM {M}.ta UNION ALL SELECT id, val FROM {P}.ta UNION ALL SELECT id, val FROM {I}.ta UNION ALL SELECT id, val FROM {L}.ta UNION ALL SELECT id, val FROM {S}.ta UNION ALL SELECT id, val FROM {O}.ta ORDER BY 1, 2
+RESULT
+1|10
+1|10
+1|10
+1|10
+1|10
+1|10
+2|20
+2|20
+2|20
+2|20
+2|20
+2|20
+3|30
+3|30
+3|30
+3|30
+3|30
+3|30
+4|40
+4|40
+4|40
+4|40
+4|40
+4|40
+5|50
+5|50
+5|50
+5|50
+5|50
+5|50
+6|10
+6|10
+6|10
+6|10
+6|10
+6|10
+---
+### xsrc-43 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {O}.ta a INNER JOIN {M}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-44 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {I}.ta a INNER JOIN {O}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-45 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {O}.ta a INNER JOIN {S}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-46 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {O}.ta a INNER JOIN {L}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-47 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {O}.ta a INNER JOIN {P}.tb b ON a.time = b.time ORDER BY a.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+6|10|4|45
+---
+### xsrc-48 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {O}.ta a LEFT ASOF JOIN {M}.tb b ON a.time >= b.time ORDER BY a.time
+RESULT
+1|10|15
+2|20|25
+3|30|30
+4|40|30
+5|50|30
+6|10|45
+---
+### xsrc-49 POS
+SQL: SELECT a.val, b.bid, b.val2 FROM {O}.ta a RIGHT ASOF JOIN {S}.tb b ON b.time >= a.time ORDER BY b.time
+RESULT
+10|1|15
+20|2|25
+30|3|30
+10|4|45
+10|5|50
+---
+### xsrc-50 POS
+SQL: SELECT a.id, a.val, b.val2 FROM {O}.ta a LEFT WINDOW JOIN {I}.tb b WINDOW_OFFSET(-1m, 1m) ORDER BY a.time, b.time
+RESULT
+1|10|15
+1|10|25
+2|20|15
+2|20|25
+2|20|30
+3|30|25
+3|30|30
+4|40|30
+5|50|45
+6|10|45
+6|10|50
+---
+### xsrc-51 POS
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {O}.ta a FULL JOIN {P}.tb b ON a.time = b.time
+RESULT
+1|10|1|15
+2|20|2|25
+3|30|3|30
+4|40|NULL|NULL
+5|50|NULL|NULL
+6|10|4|45
+NULL|NULL|5|50
+---
+### xsrc-52 POS
+SQL: SELECT id, val FROM {O}.ta WHERE id IN (SELECT ref_id FROM {M}.tb) ORDER BY id
+RESULT
+1|10
+2|20
+3|30
+5|50
+---
+### xsrc-53 POS
+SQL: SELECT id, val FROM {P}.ta WHERE val > (SELECT MAX(val2) FROM {O}.tb WHERE flag = 1) ORDER BY id
+RESULT
+5|50
+---
+### xsrc-54 POS
+SQL: SELECT id, val FROM {O}.ta WHERE val > ALL (SELECT val FROM {L}.ref_t) ORDER BY id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+6|10
+---
+### xsrc-55 POS
+SQL: SELECT id FROM {M}.ta WHERE EXISTS (SELECT 1 FROM {O}.tb WHERE flag = 1) ORDER BY id
+RESULT
+1
+2
+3
+4
+5
+6
+---
+### xsrc-56 POS
+SQL: SELECT id FROM {O}.ta WHERE NOT EXISTS (SELECT 1 FROM {L}.empty_t) ORDER BY id
+RESULT
+1
+2
+3
+4
+5
+6
+---
+### xsrc-57-neg NEG
+SQL: SELECT a.id, a.val, b.bid, b.val2 FROM {O}.ta a FULL JOIN {I}.tb b ON a.time = b.ts
+ERROR -0x7fffd9fe: Invalid column name: ts
+---
+### join-o-01 POS
+SQL: SELECT a.id, b.bid FROM {O}.ta a JOIN {O}.tb b ON a.id = b.bid ORDER BY a.id
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+---
+### join-o-02 POS
+SQL: SELECT a.id, b.bid FROM {O}.ta a FULL JOIN {O}.tb b ON a.id = b.bid
+RESULT
+1|1
+2|2
+3|3
+4|4
+5|5
+6|NULL
+---
+### join-o-03 POS
+SQL: SELECT a.id FROM {O}.ta a LEFT SEMI JOIN {O}.tb b ON a.id = b.bid ORDER BY a.id
+RESULT
+1
+2
+3
+4
+5
+---
+### join-o-04 POS
+SQL: SELECT a.id FROM {O}.ta a LEFT ANTI JOIN {O}.tb b ON a.id = b.bid ORDER BY a.id
+RESULT
+6
+---
+### join-o-05 POS
+SQL: SELECT b.bid FROM {O}.ta a RIGHT SEMI JOIN {O}.tb b ON a.id = b.bid ORDER BY b.bid
+RESULT
+1
+2
+3
+4
+5
+---
+### join-o-06 POS
+SQL: SELECT b.bid FROM {O}.ta a RIGHT ANTI JOIN {O}.tb b ON a.id = b.bid ORDER BY b.bid
+RESULT
+---
+### neg-csub-o-01 NEG
+SQL: SELECT id FROM {O}.ta a WHERE EXISTS (SELECT 1 FROM {O}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---
+### neg-csub-o-02 NEG
+SQL: SELECT id FROM {O}.ta a WHERE NOT EXISTS (SELECT 1 FROM {O}.tb b WHERE b.ref_id = a.id) ORDER BY id
+ERROR -0x7fffd95a: Not supported subquery as expr
+---

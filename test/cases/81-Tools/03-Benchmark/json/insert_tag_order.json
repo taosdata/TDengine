@@ -62,7 +62,10 @@
                     "tags": [
                         {
                             "type": "INT",
-                            "name": "groupid"
+                            "name": "groupid",
+                            "gen": "order",
+                            "min": 0,
+                            "max": 1000
                         },
                         {
                             "type": "BINARY",
@@ -181,7 +184,10 @@
                     "tags": [
                         {
                             "type": "INT",
-                            "name": "groupid"
+                            "name": "groupid",
+                            "gen": "order",
+                            "min": 0,
+                            "max": 1000
                         },
                         {
                             "type": "BINARY",

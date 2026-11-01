@@ -15,7 +15,8 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, TDSql
+from contextlib import closing
 import os
 import platform
 import tempfile
@@ -96,9 +97,15 @@ class TestCreateCtbUsingCsvFile:
         datafile = etool.getFilePath(__file__, "data", "create_ctb_127.csv")
         bom_csv = _write_bom_csv(datafile, b"\xef\xbb\xbf")  # UTF-8 BOM
         try:
-            tdSql.execute(
-                f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) "
-                f"file '{bom_csv}';")
+            # taospy retains the last native result until the cursor is reset
+            # or closed. Release that result (and its CSV input handle) before
+            # deleting the temporary input, which Windows otherwise rejects.
+            with closing(self.conn.cursor()) as cursor:
+                file_sql = TDSql()
+                file_sql.init(cursor)
+                file_sql.execute(
+                    f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) "
+                    f"file '{bom_csv}';")
         finally:
             os.remove(bom_csv)
 
@@ -109,10 +116,13 @@ class TestCreateCtbUsingCsvFile:
         datafile = etool.getFilePath(__file__, "data", "create_ctb_127.csv")
         bom_csv = _write_bom_csv(datafile, b"\xff\xfe")  # UTF-16 LE BOM
         try:
-            tdSql.error(
-                f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) "
-                f"file '{bom_csv}';",
-                expectErrInfo="unsupported BOM", fullMatched=False)
+            with closing(self.conn.cursor()) as cursor:
+                file_sql = TDSql()
+                file_sql.init(cursor)
+                file_sql.error(
+                    f"create table if not exists using qxjtest.gdcdata(tbname,element,height,validtime,latitude) "
+                    f"file '{bom_csv}';",
+                    expectErrInfo="unsupported BOM", fullMatched=False)
         finally:
             os.remove(bom_csv)
         # nothing is created after the failure

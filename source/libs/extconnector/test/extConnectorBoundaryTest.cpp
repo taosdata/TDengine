@@ -416,10 +416,12 @@ class ColumnDataGuard {
   SColumnInfoData data_;
 };
 
-const std::array<EExtSourceType, 3> kProviders = {
+const std::array<EExtSourceType, 5> kProviders = {
     EXT_SOURCE_MYSQL,
     EXT_SOURCE_POSTGRESQL,
     EXT_SOURCE_INFLUXDB,
+    EXT_SOURCE_SQLSERVER,
+    EXT_SOURCE_ORACLE,
 };
 
 std::string getVarData(const SColumnInfoData* column, int32_t row) {

@@ -161,6 +161,6 @@ If the dashboard has no data, check the following:
 This chapter covers only a minimal Grafana integration. For plugin install options, variables, dashboard tips, and performance guidance, continue with:
 
 - [Integrate with Grafana](../13-ecosystem-integrations/02-visual/01-grafana.mdx): Full plugin install, data source setup, and dashboard guide.
-- [taosAdapter Reference](../12-operations-and-tooling/03-components/03-taosadapter.md): WebSocket/REST ports and configuration.
+- [taosAdapter Reference](../12-operations-and-tooling/03-components/03-taosadapter/index.md): WebSocket/REST ports and configuration.
 - [Data Querying](./05-query-and-aggregate.md): `INTERVAL`, `FILL`, `GROUP BY`, and time-range queries.
 - [Visual Management](./08-visual-management.md): Query and manage data in Explorer.

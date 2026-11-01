@@ -3321,6 +3321,13 @@ enum {
   PHY_FEDERATED_SCAN_CODE_SCAN_RANGE_EKEY,
   PHY_FEDERATED_SCAN_CODE_UNDER_VTABLE_SCAN,
   PHY_FEDERATED_SCAN_CODE_TIME_RANGE,
+  // Appended at the end, never inserted: a new tag must not shift the numeric
+  // value of an existing one (DS 9.6.1 principle 2), because an older qnode
+  // would then decode a known tag as an unknown one.
+  // Appended at the end, never inserted: a new tag must not shift the numeric
+  // value of an existing one (DS 9.6.1 principle 2), because an older qnode
+  // would then decode a known tag as an unknown one.
+  PHY_FEDERATED_SCAN_CODE_COL_RENDER_HINTS,   // SExtColumnRenderHint[] blob
 };
 
 static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3389,6 +3396,11 @@ static int32_t federatedScanPhysiNodeToMsg(const void* pObj, STlvEncoder* pEncod
   }
   if (TSDB_CODE_SUCCESS == code && pNode->pTimeRange != NULL) {
     code = tlvEncodeObj(pEncoder, PHY_FEDERATED_SCAN_CODE_TIME_RANGE, nodeToMsg, pNode->pTimeRange);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numColumnRenderHints > 0 && pNode->pColumnRenderHints) {
+    code = tlvEncodeBinary(pEncoder, PHY_FEDERATED_SCAN_CODE_COL_RENDER_HINTS,
+                           pNode->pColumnRenderHints,
+                           (int32_t)(pNode->numColumnRenderHints * sizeof(SExtColumnRenderHint)));
   }
   return code;
 }
@@ -3469,6 +3481,20 @@ static int32_t msgToFederatedScanPhysiNode(STlvDecoder* pDecoder, void* pObj) {
             code = terrno;
           } else {
             code = tlvDecodeBinary(pTlv, pNode->pTimestampTypeHints);
+          }
+        }
+        break;
+      }
+      case PHY_FEDERATED_SCAN_CODE_COL_RENDER_HINTS: {
+        int32_t nBytes = (int32_t)pTlv->len;
+        if (nBytes > 0 && (int32_t)sizeof(SExtColumnRenderHint) > 0 &&
+            nBytes % (int32_t)sizeof(SExtColumnRenderHint) == 0) {
+          pNode->numColumnRenderHints = nBytes / (int32_t)sizeof(SExtColumnRenderHint);
+          pNode->pColumnRenderHints   = (SExtColumnRenderHint*)taosMemoryMalloc(nBytes);
+          if (!pNode->pColumnRenderHints) {
+            code = terrno;
+          } else {
+            code = tlvDecodeBinary(pTlv, pNode->pColumnRenderHints);
           }
         }
         break;

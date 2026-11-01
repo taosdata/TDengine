@@ -1075,7 +1075,20 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
         case EXT_SOURCE_POSTGRESQL: srcType = "postgresql"; break;
         case EXT_SOURCE_INFLUXDB:   srcType = "influxdb";   break;
         case EXT_SOURCE_SQLSERVER:  srcType = "sqlserver";  break;
+        case EXT_SOURCE_ORACLE:     srcType = "oracle";     break;
         default: break;
+      }
+      // Oracle has a single namespace level, so the table slot shows the
+      // two-segment SCHEMA.TABLE and never a database segment (Oracle DS 5.5).
+      // The schema follows the same precedence the renderer uses: the
+      // reference's resolved namespace, then the source default.
+      char        oracleQualified[TSDB_TABLE_NAME_LEN + TSDB_DB_NAME_LEN + 2] = {0};
+      if (EXT_SOURCE_ORACLE == (EExtSourceType)pFedScanNode->sourceType && NULL != pExtTable) {
+        const char *schema = pExtTable->schemaName[0] ? pExtTable->schemaName : pExtTable->srcSchema;
+        if (NULL != schema && '\0' != schema[0]) {
+          (void)snprintf(oracleQualified, sizeof(oracleQualified), "%s.%s", schema, extTblName);
+          extTblName = oracleQualified;
+        }
       }
       EXPLAIN_ROW_NEW(level, EXPLAIN_FEDERATED_SCAN_FORMAT, extSrcName, extTblName, srcType);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
@@ -1152,7 +1165,13 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           SNodesRemoteSQLCtx sqlCtx = {
               .pTimestampTypeHints = pFedScanNode->pTimestampTypeHints,
               .numTimestampTypeHints = pFedScanNode->numTimestampTypeHints,
+              .pColumnRenderHints = pFedScanNode->pColumnRenderHints,
+              .numColumnRenderHints = pFedScanNode->numColumnRenderHints,
               .tzName = (pFedScanNode->timezone[0] != '\0') ? pFedScanNode->timezone : NULL,
+              .dbPrecision =
+                  pFedScanNode->node.pOutputDataBlockDesc != NULL
+                      ? (int8_t)pFedScanNode->node.pOutputDataBlockDesc->precision
+                      : 0,
           };
           int32_t sqlCode   = nodesRemotePlanToSQL(
               (const SLogicNode*)pFedScanNode->pRemotePlan, pFedScanNode->sourceType,
@@ -3335,8 +3354,8 @@ static int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
     QRY_ERR_JRET(terrno);
   }
 
-  rsp->compLen = htonl(len);
-  rsp->payloadLen = htonl(len);
+  rsp->compLen = htonl(len + PAYLOAD_PREFIX_LEN);
+  rsp->payloadLen = htonl(len + PAYLOAD_PREFIX_LEN);
   rsp->compressed = 0;
 
   SET_PAYLOAD_LEN(rsp->data, len, len);

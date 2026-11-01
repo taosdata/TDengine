@@ -15,12 +15,13 @@
 
 # -*- coding: utf-8 -*-
 
-from new_test_framework.utils import tdLog, tdSql, etool, AutoGen
+from new_test_framework.utils import tdLog, tdSql, tdCom, etool, AutoGen
 import os
 import time
 import datetime 
 import platform
 import pyotp
+import subprocess
 
 class TestTaosCli:
     updatecfgDict = {
@@ -515,11 +516,21 @@ class TestTaosCli:
 
     def pipe_taos(self, command, show=True, checkRun=False):
         taosFile = etool.taosFile()
-        if platform.system().lower() == "windows":
-            cmdstr = f'echo {command};q; | {taosFile} -r '
-        else:
-            cmdstr = f"echo '{command};q;' | {taosFile} -r "
-        return etool.runRetList(cmdstr, checkRun=checkRun, show=show)
+        # Send SQL and quit on separate lines. cmd.exe echo pipelines can
+        # leave the Windows interactive client waiting for more input.
+        result = subprocess.run(
+            [taosFile, "-c", tdCom.getClientCfgPath(), "-r"],
+            input=f"{command};\nq;\n", text=True, encoding="utf-8",
+            errors="replace", stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            timeout=120,
+        )
+        if show:
+            tdLog.info(result.stdout)
+        if checkRun and result.returncode != 0:
+            raise Exception(
+                f"interactive taos failed: {result.returncode}: {result.stderr}"
+            )
+        return result.stdout.splitlines()
         
     def checkIsShowWhole(self):
         # insert data
@@ -574,6 +585,7 @@ class TestTaosCli:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -975,31 +975,7 @@ REVOKE WRITE ON db_name.* FROM user2;
 
 #### 7.3.1 Nginx 负载均衡 + SSL
 
-```nginx
-http {
-    upstream tdengine_adapter {
-        server 192.168.11.61:6041;
-        server 192.168.11.62:6041;
-        server 192.168.11.63:6041;
-    }
-
-    server {
-        listen 443 ssl;
-        ssl_certificate     /path/to/certificate.crt;
-        ssl_certificate_key /path/to/private.key;
-
-        location / {
-            proxy_pass http://tdengine_adapter;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $connection_upgrade;
-            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto  $scheme;
-            proxy_set_header X-Real-IP          $remote_addr;
-        }
-    }
-}
-```
+Nginx/HAProxy 的负载均衡、TLS/mTLS、健康检查和故障切换配置统一维护在 [taosAdapter 高可用](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md)。API 网关的认证、限流和 IP 白名单等能力见下文的 Traefik 安全网关。
 
 #### 7.3.2 Traefik 安全网关
 

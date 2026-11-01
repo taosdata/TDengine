@@ -64,7 +64,7 @@ class BackupRestoreTestBase:
         When parallel is not None, appends " PARALLEL <n>" to the statement to
         exercise the vgroup backup parallelism (1 = serial, >1 = parallel).
         """
-        backup_dir = os.path.join(self.backup_root, tag)
+        backup_dir = os.path.join(self.backup_root, tag).replace("\\", "/")
         os.makedirs(self.backup_root, exist_ok=True)
         tdSql.query("SHOW BACKUPS")
         baseline = max((tdSql.getData(r, 0) for r in range(tdSql.queryRows)), default=0)
@@ -112,8 +112,15 @@ class BackupRestoreTestBase:
         while time.time() < deadline:
             tdSql.query("SHOW BACKUPS")
             for r in range(tdSql.queryRows):
-                if tdSql.getData(r, 0) == backup_id and tdSql.getData(r, 1) != "running":
-                    return
+                if tdSql.getData(r, 0) == backup_id:
+                    status = tdSql.getData(r, 1)
+                    if status == "succeeded":
+                        return
+                    if status != "running":
+                        tdLog.exit(
+                            f"backup {backup_id} expected succeeded, got {status}; "
+                            f"SHOW BACKUPS row: {tdSql.queryResult[r]}"
+                        )
             time.sleep(1)
         tdLog.exit("backup did not finish within %ds" % timeout)
 

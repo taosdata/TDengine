@@ -51,8 +51,10 @@ from federated_query_common import ExtSrcEnv  # noqa: E402
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db,
     create_pg_table, create_mysql_table, create_influx_measurement,
-    create_sqlserver_table,
-    create_pg_view, create_mysql_view)
+    create_sqlserver_table, create_oracle_table,
+    create_pg_view, create_mysql_view, create_oracle_view,
+    create_oracle_materialized_view,
+    extract_show_create_sql as _extract_show_create_sql)
 
 
 _P = "vtcreate_"
@@ -66,6 +68,13 @@ _PG_SRC     = "vtcreate_pg_src"
 _MY_SRC     = "vtcreate_my_src"
 _INF_SRC    = "vtcreate_inf_src"
 _SS_SRC     = "vtcreate_ss_src"
+# Oracle has no per-source database: the source names the Easy Connect service
+# and the schema is the login user (DS 5.3.10).
+_OR_SVC        = ExtSrcEnv.ORACLE_SERVICE
+_OR_SCHEMA     = ExtSrcEnv.ORACLE_USER.upper()
+_OR_ALT_SCHEMA = ExtSrcEnv.ORACLE_ALT_USER.upper()
+_OR_SRC        = "vtcreate_or_src"
+_OR_ALT_SRC    = "vtcreate_or_alt_src"
 
 # Local TDengine database that hosts the virtual tables under test.
 _LOCAL_DB   = "vtcreate_local"
@@ -236,6 +245,63 @@ _SS_TYPE_MATRIX = [
     ("c_datetimeoffset", "DATETIMEOFFSET(6)",   "timestamp"),
 ]
 
+# Oracle declarations are re-composed from ALL_TAB_COLUMNS: INTEGER and
+# SMALLINT arrive as NUMBER(38,0), REAL as FLOAT(63), and the character types
+# carry their character length.  A table may contain only one LONG-family
+# column (ORA-01754), so LONG and LONG RAW live in their own tables.
+_ORACLE_TYPE_MATRIX = [
+    # --- NUMBER families (extTypeMap.c oracleTypeMap) ---
+    ("c_num_dec",      "NUMBER(10,2)",      "decimal(10,2)"),
+    ("c_num_bigint",   "NUMBER(18,0)",      "bigint"),
+    ("c_num_wide",     "NUMBER(19,0)",      "decimal(19,0)"),   # not in _TDS_ALL
+    ("c_num_38",       "NUMBER(38,0)",      "decimal(38,0)"),   # not in _TDS_ALL
+    ("c_num_one",      "NUMBER(1,0)",       "tinyint"),
+    # A bare NUMBER carries up to 38 digits and an arbitrary exponent; it has
+    # no lossless TDengine representation (EXT_TYPE_NOT_MAPPABLE).
+    ("c_number_bare",  "NUMBER",            "decimal(38,0)"),   # not in _TDS_ALL
+    # INTEGER / SMALLINT are aliases of NUMBER(38,0), not machine integers.
+    ("c_integer",      "INTEGER",           "decimal(38,0)"),   # not in _TDS_ALL
+    ("c_smallint",     "SMALLINT",          "decimal(38,0)"),   # not in _TDS_ALL
+    # --- binary floating point ---
+    ("c_float24",      "FLOAT(24)",         "float"),
+    ("c_float53",      "FLOAT(53)",         "double"),
+    ("c_float126",     "FLOAT(126)",        "double"),          # not mappable >53
+    ("c_real",         "REAL",              "double"),          # REAL == FLOAT(63)
+    ("c_bin_float",    "BINARY_FLOAT",      "float"),
+    ("c_bin_double",   "BINARY_DOUBLE",     "double"),
+    # --- character / national character ---
+    ("c_char",         "CHAR(8)",           "varchar(8)"),
+    ("c_varchar2",     "VARCHAR2(32)",      "varchar(32)"),
+    ("c_nchar",        "NCHAR(8)",          "nchar(8)"),
+    ("c_nvarchar2",    "NVARCHAR2(32)",     "nchar(32)"),
+    ("c_clob",         "CLOB",              "nchar(64)"),
+    ("c_nclob",        "NCLOB",             "nchar(64)"),
+    # --- binary ---
+    ("c_raw",          "RAW(16)",           "varbinary(16)"),
+    ("c_blob",         "BLOB",              "blob"),            # not in _TDS_ALL
+    # --- identifiers / object types ---
+    ("c_rowid",        "ROWID",             "varchar(40)"),
+    ("c_urowid",       "UROWID",            "varchar(40)"),
+    ("c_xmltype",      "XMLTYPE",           "nchar(64)"),
+    # --- temporal (non-axis columns; DATE / TIMESTAMP are the only axes) ---
+    ("c_date",         "DATE",              "timestamp"),
+    ("c_ts6",          "TIMESTAMP(6)",      "timestamp"),
+    ("c_ts9",          "TIMESTAMP(9)",      "timestamp"),
+    ("c_ts_tz",        "TIMESTAMP(6) WITH TIME ZONE",       "timestamp"),
+    ("c_ts_ltz",       "TIMESTAMP(6) WITH LOCAL TIME ZONE", "timestamp"),
+]
+
+# LONG and LONG RAW are the only columns of their table: Oracle permits one
+# LONG-family column per table (ORA-01754), which also excludes putting both
+# in the wide table above.
+_ORACLE_LONG_TYPE_MATRIX = [
+    ("c_long",         "LONG",              "nchar(64)"),
+]
+
+_ORACLE_LRAW_TYPE_MATRIX = [
+    ("c_long_raw",     "LONG RAW",          "varbinary(64)"),
+]
+
 _INF_TYPE_MATRIX = [
     # Influx 3 line-protocol types: integer (i64), unsigned (u64), float (f64),
     # string (Utf8), boolean. All numerics widen to TDengine's largest signed.
@@ -397,11 +463,51 @@ _SS_COMPAT = {
     "c_datetimeoffset": {"timestamp"},
 }
 
+# Oracle: NUMBER targets are exact (precision and scale must match), while
+# CHAR/VARCHAR2 and the national character family are VAR types whose width is
+# not compared at CREATE time.  Bare NUMBER, INTEGER/SMALLINT (NUMBER(38,0)),
+# FLOAT(54..126), REAL and DOUBLE PRECISION have no lossless target, and BLOB
+# is outside _TDS_ALL, so those entries have empty compatible sets.
+_ORACLE_COMPAT = {
+    "c_num_dec":       {"decimal(10,2)"},
+    "c_num_bigint":    {"bigint"},
+    "c_num_wide":      set(),                   # → decimal(19,0)
+    "c_num_38":        set(),                   # → decimal(38,0)
+    "c_num_one":       {"tinyint"},
+    "c_number_bare":   set(),                   # → EXT_TYPE_NOT_MAPPABLE
+    "c_integer":       set(),                   # → decimal(38,0)
+    "c_smallint":      set(),                   # → decimal(38,0)
+    "c_float24":       {"float"},
+    "c_float53":       {"double"},
+    "c_float126":      set(),                   # → EXT_TYPE_NOT_MAPPABLE
+    "c_real":          set(),                   # REAL == FLOAT(63)
+    "c_bin_float":     {"float"},
+    "c_bin_double":    {"double"},
+    "c_char":          {"varchar(32)"},         # VAR type, bytes ignored
+    "c_varchar2":      {"varchar(32)"},
+    "c_nchar":         {"nchar(32)"},           # VAR type, bytes ignored
+    "c_nvarchar2":     {"nchar(32)"},
+    "c_clob":          {"nchar(32)"},
+    "c_nclob":         {"nchar(32)"},
+    "c_long":          {"nchar(32)"},
+    "c_raw":           {"varbinary(64)"},       # VAR type, bytes ignored
+    "c_long_raw":      {"varbinary(64)"},
+    "c_blob":          set(),                   # → BLOB
+    "c_rowid":         {"varchar(32)"},         # → varchar(40)
+    "c_urowid":        {"varchar(32)"},         # → varchar(40)
+    "c_xmltype":       {"nchar(32)"},
+    "c_date":          {"timestamp"},
+    "c_ts6":           {"timestamp"},
+    "c_ts9":           {"timestamp"},
+    "c_ts_tz":         {"timestamp"},
+    "c_ts_ltz":        {"timestamp"},
+}
+
 def _check_compat_consistency():
     """Sanity: every compatible local decl listed in the matrices is one of
     the canonical TDengine type strings in _TDS_ALL."""
     for name, m in (("PG", _PG_COMPAT), ("MY", _MY_COMPAT), ("INF", _INF_COMPAT),
-                    ("SS", _SS_COMPAT)):
+                    ("SS", _SS_COMPAT), ("ORA", _ORACLE_COMPAT)):
         for col, ok in m.items():
             unknown = ok - set(_TDS_ALL)
             assert not unknown, (
@@ -451,15 +557,26 @@ def create_influx_remote_table(meas):
         f"1700000000000000000"
     ])
 
+def create_oracle_remote_table(table, matrix, rows=None, ts_type="TIMESTAMP(3)",
+                               schema=None, user=None, password=None):
+    # The timestamp primary-key declaration drives the source precision
+    # (TIMESTAMP(3) -> ms, TIMESTAMP(6) -> us, TIMESTAMP(9) -> ns).
+    cols = f"ts {ts_type} NOT NULL PRIMARY KEY, " + ", ".join(
+        f"{n} {t}" for n, t, _ in matrix)
+    create_oracle_table(table, cols, rows=rows, schema=schema, user=user,
+                        password=password)
+
 def _provision_heterogeneous_remote_tables():
-    """Three remote backends, each holding a table whose schemas DIFFER but
+    """Four remote backends, each holding a table whose schemas DIFFER but
     share two columns: temperature (DOUBLE) and humidity (DOUBLE).
 
     This is the canonical patent scenario (used by §3 vstable tests):
 
-        PG.kpi_pg     (ts, temperature, humidity, pressure, voltage)
-        MySQL.kpi_my  (ts, temperature, humidity, fan_rpm)
-        Influx.kpi_in (time, temperature, humidity, battery)
+        PG.kpi_pg      (ts, temperature, humidity, pressure, voltage)
+        MySQL.kpi_my   (ts, temperature, humidity, fan_rpm)
+        Influx.kpi_in  (time, temperature, humidity, battery)
+        SQL Server.kpi_ss (ts, temperature, humidity, pressure, voltage)
+        Oracle.kpi_ora / kpi_ora_b (ts, temperature, humidity, ...)
     """
     create_pg_table(_PG_DB, "kpi_pg",
                     "ts TIMESTAMP PRIMARY KEY, "
@@ -486,12 +603,35 @@ def _provision_heterogeneous_remote_tables():
          ("voltage",     "REAL",         "float")],
         rows=["('2024-01-01 00:00:00.000', 30.5, 40.0, 1013.0, 3.30)",
               "('2024-01-01 00:01:00.000', 31.5, 41.0, 1013.1, 3.31)"])
+    # BINARY_DOUBLE keeps the two shared columns IEEE-double, matching the
+    # other backends; the fixed-point BINARY_FLOAT columns are deliberately
+    # not asserted value-by-value.
+    create_oracle_remote_table(
+        "kpi_ora",
+        [("temperature", "BINARY_DOUBLE", "double"),
+         ("humidity",    "BINARY_DOUBLE", "double"),
+         ("pressure",    "BINARY_FLOAT",  "float"),
+         ("voltage",     "BINARY_FLOAT",  "float")],
+        rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 30.5, 40.0, 1013.0, 3.3)",
+              "(TIMESTAMP '2024-01-01 00:01:00.000', 31.5, 41.0, 1013.1, 3.31)"])
+    create_oracle_remote_table(
+        "kpi_ora_b",
+        [("temperature", "BINARY_DOUBLE", "double"),
+         ("humidity",    "BINARY_DOUBLE", "double")],
+        rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 28.5, 50.0)",
+              "(TIMESTAMP '2024-01-01 00:02:00.000', 29.5, 51.0)"])
 
 def _ensure_sources():
     create_ext_source(_PG_SRC, "postgresql", _PG_DB)
     create_ext_source(_MY_SRC, "mysql", _MY_DB)
     create_ext_source(_INF_SRC, "influxdb", _INF_DB)
     create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
+    create_ext_source(_OR_SRC, "oracle", _OR_SVC)
+    # Oracle accounts own no cross-schema grants, so "same service, different
+    # schema" needs the second schema's own credentials (DS 5.3.10).
+    create_ext_source(_OR_ALT_SRC, "oracle", _OR_SVC,
+                      user=ExtSrcEnv.ORACLE_ALT_USER,
+                      password=ExtSrcEnv.ORACLE_ALT_PASS)
 
 
 
@@ -510,6 +650,9 @@ class TestVtableCreateExtSource:
         create_remote_db("mysql", _MY_DB)
         create_remote_db("influxdb", _INF_DB)
         create_remote_db("sqlserver", _SS_DB)
+        # Oracle has no per-source database: this is a no-op that documents
+        # that the service name already exists.
+        create_remote_db("oracle", _OR_SVC)
         _ensure_sources()
         _create_local_db("ns")
         # Provision the heterogeneous kpi_* remote tables once for §3 vstable
@@ -518,11 +661,16 @@ class TestVtableCreateExtSource:
         _provision_heterogeneous_remote_tables()
 
     @classmethod
-    #def teardown_class(cls):
-        #_drop_local_db()
-        #for n in (_PG_SRC, _MY_SRC, _INF_SRC):
-        #    try: tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {n}")
-        #    except Exception: pass
+    def teardown_class(cls):
+        # This class had no working teardown: the method was commented out and
+        # its @classmethod decorator was left dangling on the test that
+        # followed.  The InfluxDB bucket therefore survived for the lifetime of
+        # the node, and since InfluxDB 3 Core allows only five databases per
+        # instance, a full run eventually makes every later
+        # influx_create_db() fail with HTTP 422 in some unrelated suite.
+        # Release just the bucket: the local database and the EXTERNAL SOURCEs
+        # are recreated by setup_class anyway.
+        ExtSrcEnv.influx_drop_db(_INF_DB)
 
     # -------------------------------------------------------------------
     # 2.1 — Reference legal remote columns
@@ -683,19 +831,45 @@ class TestVtableCreateExtSource:
             "ss", _SS_COMPAT,
             lambda c: f"{_SS_SRC}.{_SS_DB}.dbo.t_typematrix_ss.{c}")
 
-        # (d) TIMESTAMP precision cross-product (5 sources × 3 local precisions).
+        # (c3) Oracle type matrix: 32 remote types × 17 TDengine local types.
+        # Oracle permits one LONG-family column per table (ORA-01754), so the
+        # matrix is spread over three remote tables. References use the
+        # 4-segment path source.schema.table.column (DS 5.3.3).
+        create_oracle_remote_table("t_typematrix_ora", _ORACLE_TYPE_MATRIX)
+        create_oracle_remote_table("t_typematrix_ora_long", _ORACLE_LONG_TYPE_MATRIX)
+        create_oracle_remote_table("t_typematrix_ora_lraw", _ORACLE_LRAW_TYPE_MATRIX)
+        oracle_ref_tables = {}
+        for matrix, table in ((_ORACLE_TYPE_MATRIX, "t_typematrix_ora"),
+                              (_ORACLE_LONG_TYPE_MATRIX, "t_typematrix_ora_long"),
+                              (_ORACLE_LRAW_TYPE_MATRIX, "t_typematrix_ora_lraw")):
+            for n, _, _ in matrix:
+                oracle_ref_tables[n] = table
+        self._check_type_compat_matrix(
+            "ora", _ORACLE_COMPAT,
+            lambda c: f"{_OR_SRC}.{_OR_SCHEMA}.{oracle_ref_tables[c]}.{c}")
+
+        # (d) TIMESTAMP precision cross-product (8 sources × 3 local precisions).
         create_pg_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_mysql_remote_table("ts_p", [("v", "INTEGER", "int")])
         create_influx_remote_table("ts_p_inf")
         create_sqlserver_remote_table("ts_p", [("v", "INT", "int")])
         create_sqlserver_remote_table("ts_p_us", [("v", "INT", "int")],
                                       ts_type="datetime2(6)")
+        create_oracle_remote_table("ts_p_ms", [("v", "NUMBER(10,0)", "bigint")],
+                                   ts_type="TIMESTAMP(3)")
+        create_oracle_remote_table("ts_p_us", [("v", "NUMBER(10,0)", "bigint")],
+                                   ts_type="TIMESTAMP(6)")
+        create_oracle_remote_table("ts_p_ns", [("v", "NUMBER(10,0)", "bigint")],
+                                   ts_type="TIMESTAMP(9)")
         backends = [
             ("pg",  "us", "int",    f"{_PG_SRC}.{_PG_DB}.ts_p.v"),
             ("my",  "ms", "int",    f"{_MY_SRC}.{_MY_DB}.ts_p.v"),
             ("inf", "ns", "bigint", f"{_INF_SRC}.{_INF_DB}.ts_p_inf.c_int"),
             ("ss",    "ms", "int", f"{_SS_SRC}.{_SS_DB}.dbo.ts_p.v"),
             ("ss_us", "us", "int", f"{_SS_SRC}.{_SS_DB}.dbo.ts_p_us.v"),
+            ("ora_ms", "ms", "bigint", f"{_OR_SRC}.{_OR_SCHEMA}.ts_p_ms.v"),
+            ("ora_us", "us", "bigint", f"{_OR_SRC}.{_OR_SCHEMA}.ts_p_us.v"),
+            ("ora_ns", "ns", "bigint", f"{_OR_SRC}.{_OR_SCHEMA}.ts_p_ns.v"),
         ]
         precision_rank = {"ms": 0, "us": 1, "ns": 2}
         for prec in ("ms", "us", "ns"):
@@ -1490,6 +1664,384 @@ class TestVtableCreateExtSource:
         tdSql.query("SELECT count(*) FROM vstb_ss_fan WHERE backend = 'sqlserver'")
         tdSql.checkData(0, 0, 2)
         tdSql.execute("DROP STABLE IF EXISTS vstb_ss_fan")
+
+    # -------------------------------------------------------------------
+    # Oracle references (FQOR-VTBL-001 .. 006, 008, 010)
+    #
+    # Oracle has one namespace level (the schema), so a column reference is
+    # either source.table.column (the source's schema) or
+    # source.schema.table.column; unquoted identifiers fold to upper case,
+    # which is why the persisted schema is the upper-case login user. The
+    # local database is 'ns', so DATE / TIMESTAMP(p) axes are legal.
+    # -------------------------------------------------------------------
+
+    def test_oracle_legal_references_and_schema(self):
+        """FQOR-VTBL-001/004/005: legal Oracle column references.
+
+        (a) mixed external + local placeholder columns through the 4-segment
+            path, with the persisted column source checked;
+        (b) the 3-segment and 4-segment paths persist the same full reference;
+        (c) the same service and table name in two schemas resolve to
+            distinct objects and values.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle as the fifth external source
+
+        """
+        # --- (a) 4-segment path, mixed ext + local columns ---
+        create_oracle_remote_table(
+            "r_mixed",
+            [("v", "NUMBER(10,0)", "bigint"), ("name", "VARCHAR2(32)", "varchar(32)")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 11, 'alpha')",
+                  "(TIMESTAMP '2024-01-01 00:01:00.000', 12, 'beta')"])
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_mixed")
+        tdSql.execute(
+            "CREATE VTABLE v_or_mixed ("
+            "ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_mixed.v, "
+            f"name varchar(32) FROM {_OR_SRC}.{_OR_SCHEMA}.r_mixed.name, "
+            "local_col int)")
+        tdSql.query("DESCRIBE v_or_mixed")
+        tdSql.checkData(0, 0, "ts")
+        tdSql.checkData(0, 1, "TIMESTAMP")
+        tdSql.checkData(1, 0, "v")
+        tdSql.checkData(1, 1, "BIGINT")
+        tdSql.checkData(2, 0, "name")
+        tdSql.checkData(2, 1, "VARCHAR")
+        tdSql.checkData(3, 0, "local_col")
+        tdSql.checkData(3, 1, "INT")
+
+        tdSql.query(
+            "SELECT col_name, col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_mixed' "
+            "AND col_name IN ('local_col', 'ts', 'v', 'name') "
+            "ORDER BY col_name")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "local_col")
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(1, 0, "name")
+        tdSql.checkData(1, 1, f"{_OR_SRC}.{_OR_SCHEMA}.r_mixed.name")
+        tdSql.checkData(2, 0, "ts")
+        tdSql.checkData(2, 1, None)
+        tdSql.checkData(3, 0, "v")
+        tdSql.checkData(3, 1, f"{_OR_SRC}.{_OR_SCHEMA}.r_mixed.v")
+
+        tdSql.query("SELECT v, name, local_col FROM v_or_mixed ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 11)
+        tdSql.checkData(0, 1, "alpha")
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 12)
+        tdSql.checkData(1, 1, "beta")
+        tdSql.execute("DROP VTABLE v_or_mixed")
+
+        # --- (b) 3-segment vs 4-segment references ---
+        create_oracle_remote_table(
+            "r_rel", [("v", "NUMBER(10,0)", "bigint")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 31)"])
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_rel3")
+        tdSql.execute(
+            "CREATE VTABLE v_or_rel3 (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.r_rel.v)")
+        tdSql.query("SELECT v FROM v_or_rel3")
+        tdSql.checkData(0, 0, 31)
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_rel3' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_OR_SRC}.{_OR_SCHEMA}.r_rel.v")
+        tdSql.execute("DROP VTABLE v_or_rel3")
+
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_rel4")
+        tdSql.execute(
+            "CREATE VTABLE v_or_rel4 (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_rel.v)")
+        tdSql.query("SELECT v FROM v_or_rel4")
+        tdSql.checkData(0, 0, 31)
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_rel4' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_OR_SRC}.{_OR_SCHEMA}.r_rel.v")
+        tdSql.execute("DROP VTABLE v_or_rel4")
+
+        # --- (c) same service, two schemas, same table name ---
+        create_oracle_remote_table(
+            "r_schema", [("v", "NUMBER(10,0)", "bigint")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 41)"])
+        create_oracle_remote_table(
+            "r_schema", [("v", "NUMBER(10,0)", "bigint")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 42)"],
+            schema=ExtSrcEnv.ORACLE_ALT_USER,
+            user=ExtSrcEnv.ORACLE_ALT_USER,
+            password=ExtSrcEnv.ORACLE_ALT_PASS)
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_schema_a")
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_schema_b")
+        tdSql.execute(
+            "CREATE VTABLE v_or_schema_a (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_schema.v)")
+        tdSql.execute(
+            "CREATE VTABLE v_or_schema_b (ts timestamp, "
+            f"v bigint FROM {_OR_ALT_SRC}.{_OR_ALT_SCHEMA}.r_schema.v)")
+        tdSql.query("SELECT v FROM v_or_schema_a")
+        tdSql.checkData(0, 0, 41)
+        tdSql.query("SELECT v FROM v_or_schema_b")
+        tdSql.checkData(0, 0, 42)
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_schema_b' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_OR_ALT_SRC}.{_OR_ALT_SCHEMA}.r_schema.v")
+        tdSql.execute("DROP VTABLE v_or_schema_a")
+        tdSql.execute("DROP VTABLE v_or_schema_b")
+
+    def test_oracle_show_create_roundtrip(self):
+        """FQOR-VTBL-006: Oracle schema survives SHOW CREATE and replay.
+
+        The persisted reference keeps the schema segment, so the rendered DDL
+        is self-contained: replaying it under a new vtable name resolves the
+        same remote object, and REFRESH does not rewrite either form.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle as the fifth external source
+
+        """
+        create_oracle_remote_table(
+            "r_rt",
+            [("v", "NUMBER(10,0)", "bigint"), ("w", "NUMBER(10,0)", "bigint")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 51, 510)"])
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_rt")
+        tdSql.execute(
+            "CREATE VTABLE v_or_rt (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_rt.v, "
+            "local_col int)")
+        sql = _extract_show_create_sql("SHOW CREATE VTABLE v_or_rt")
+        for expected in (_OR_SRC, _OR_SCHEMA, "r_rt", "local_col"):
+            if expected not in sql:
+                tdLog.exit(f"expected {expected} in {sql}")
+
+        # REFRESH re-reads the remote dictionary and must not change the frozen
+        # reference or its rendered DDL.
+        before = _extract_show_create_sql("SHOW CREATE VTABLE v_or_rt")
+        tdSql.execute(f"REFRESH EXTERNAL SOURCE {_OR_SRC}")
+        after = _extract_show_create_sql("SHOW CREATE VTABLE v_or_rt")
+        if before != after:
+            tdLog.exit(f"SHOW CREATE changed after REFRESH: before={before}, after={after}")
+
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_rt_copy")
+        tdSql.execute(sql.replace("v_or_rt", "v_or_rt_copy", 1))
+        tdSql.query("SELECT v FROM v_or_rt_copy")
+        tdSql.checkData(0, 0, 51)
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_rt_copy' "
+            "AND col_name='v'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_OR_SRC}.{_OR_SCHEMA}.r_rt.v")
+        tdSql.execute("DROP VTABLE v_or_rt_copy")
+        tdSql.execute("DROP VTABLE v_or_rt")
+
+    def test_oracle_missing_objects_and_ts_requirement(self):
+        """FQOR-VTBL-008/010: Oracle negative reference paths.
+
+        A remote table needs exactly one DATE / TIMESTAMP primary-key column
+        to back a virtual table; RAW, INTERVAL and keyless tables are
+        rejected, unknown objects and pseudo-columns are reported, and views
+        (plain or materialized) have no remote key at all.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle as the fifth external source
+
+        """
+        def _assert_no_vtable(name):
+            tdSql.query(
+                "SELECT count(*) FROM information_schema.ins_tables "
+                f"WHERE db_name='{_LOCAL_DB}' AND table_name='{name}'")
+            tdSql.checkData(0, 0, 0)
+
+        # (a) no primary key at all.
+        create_oracle_table(
+            "r_nopk", "ts TIMESTAMP(3), v NUMBER(10,0)",
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 61)"])
+        tdSql.error(
+            "CREATE VTABLE v_or_nopk_bad (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_nopk.v)",
+            expectedErrno=0x6406)
+        _assert_no_vtable("v_or_nopk_bad")
+
+        # (b) RAW primary key: mappable, but not a timestamp.
+        create_oracle_table("r_raw_axis", "ts RAW(16) PRIMARY KEY, v NUMBER(10,0)")
+        tdSql.error(
+            "CREATE VTABLE v_or_raw_bad (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_raw_axis.v)",
+            expectedErrno=0x6406)
+        _assert_no_vtable("v_or_raw_bad")
+
+        # (c) A BLOB column cannot be a time axis, so a table that only has one
+        # cannot back a virtual table (Oracle refuses a LOB primary key).
+        create_oracle_table("r_blob_axis", "b BLOB, v NUMBER(10,0)")
+        tdSql.error(
+            "CREATE VTABLE v_or_blob_bad (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_blob_axis.v)",
+            expectedErrno=0x6406)
+        _assert_no_vtable("v_or_blob_bad")
+
+        # (d) INTERVAL primary key: the key column itself has no TDengine
+        # mapping, so validating the key reports the unmappable type.
+        create_oracle_table(
+            "r_itv_axis", "ts INTERVAL DAY TO SECOND PRIMARY KEY, v NUMBER(10,0)")
+        tdSql.error(
+            "CREATE VTABLE v_or_itv_bad (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_itv_axis.v)",
+            expectedErrno=0x6405)
+        _assert_no_vtable("v_or_itv_bad")
+
+        # (e) Pseudo-columns are absent from the metadata, so they surface as
+        # an unknown column.
+        tdSql.error(
+            "CREATE VTABLE v_or_pseudo_bad (ts timestamp, "
+            f"x bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_raw_axis.ROWNUM)",
+            expectedErrno=0x641B)
+        _assert_no_vtable("v_or_pseudo_bad")
+
+        # (f) unknown table / column.
+        tdSql.error(
+            "CREATE VTABLE v_or_unk_tbl (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_no_such_tbl.v)",
+            expectedErrno=0x6410)
+        tdSql.error(
+            "CREATE VTABLE v_or_unk_col (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_raw_axis.no_such_col)",
+            expectedErrno=0x641B)
+
+        # (g) A view has no remote key, whether or not it exposes a time
+        # column, so it cannot be a column source; the same holds for a
+        # materialized view.
+        create_oracle_table(
+            "r_view_base", "ts TIMESTAMP(3) PRIMARY KEY, v NUMBER(10,0)",
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 71)"])
+        create_oracle_view("v_or_no_ts", "SELECT v FROM r_view_base")
+        create_oracle_view("v_or_with_ts", "SELECT ts, v FROM r_view_base")
+        # The materialized view is created by the admin account, so its body
+        # must name the owning schema explicitly.
+        create_oracle_materialized_view(
+            "mv_or_no_ts", f"SELECT v FROM {_OR_SCHEMA}.r_view_base")
+        tdSql.execute(f"REFRESH EXTERNAL SOURCE {_OR_SRC}")
+        for view in ("v_or_no_ts", "v_or_with_ts", "mv_or_no_ts"):
+            vname = f"v_or_view_bad_{view}".lower()
+            tdSql.error(
+                f"CREATE VTABLE {vname} (ts timestamp, "
+                f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.{view}.v)",
+                expectedErrno=0x6406)
+            _assert_no_vtable(vname)
+
+    def test_vstb_oracle_heterogeneous_child(self):
+        """FQOR-VTBL-002/003: virtual super table with Oracle children.
+
+        Two children over the same Oracle source contribute to super-table
+        aggregation; the persisted references keep the schema, and the
+        tag-filtered counts match the per-child rows.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle as the fifth external source
+
+        """
+        tdSql.execute("DROP STABLE IF EXISTS vstb_or_fan")
+        tdSql.execute(
+            "CREATE STABLE vstb_or_fan (ts timestamp, "
+            "temperature double, humidity double) "
+            "TAGS (site nchar(32), backend nchar(16)) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_or_fan_pg ("
+            f"temperature FROM {_PG_SRC}.{_PG_DB}.kpi_pg.temperature, "
+            f"humidity    FROM {_PG_SRC}.{_PG_DB}.kpi_pg.humidity) "
+            f"USING vstb_or_fan TAGS ('siteA', 'pg')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_or_fan_my ("
+            f"temperature FROM {_MY_SRC}.{_MY_DB}.kpi_my.temperature, "
+            f"humidity    FROM {_MY_SRC}.{_MY_DB}.kpi_my.humidity) "
+            f"USING vstb_or_fan TAGS ('siteB', 'mysql')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_or_fan_inf ("
+            f"temperature FROM {_INF_SRC}.{_INF_DB}.kpi_in.temperature, "
+            f"humidity    FROM {_INF_SRC}.{_INF_DB}.kpi_in.humidity) "
+            f"USING vstb_or_fan TAGS ('siteC', 'influx')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_or_fan_ss ("
+            f"temperature FROM {_SS_SRC}.{_SS_DB}.dbo.kpi_ss.temperature, "
+            f"humidity    FROM {_SS_SRC}.{_SS_DB}.dbo.kpi_ss.humidity) "
+            f"USING vstb_or_fan TAGS ('siteD', 'sqlserver')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_or_fan_a ("
+            f"temperature FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora.temperature, "
+            f"humidity    FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora.humidity) "
+            f"USING vstb_or_fan TAGS ('siteE', 'oracle')")
+        tdSql.execute(
+            f"CREATE VTABLE vctb_or_fan_b ("
+            f"temperature FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora_b.temperature, "
+            f"humidity    FROM {_OR_SRC}.{_OR_SCHEMA}.kpi_ora_b.humidity) "
+            f"USING vstb_or_fan TAGS ('siteF', 'oracle')")
+
+        tdSql.query(
+            "SELECT count(*) FROM information_schema.ins_tables "
+            f"WHERE db_name='{_LOCAL_DB}' AND stable_name='vstb_or_fan'")
+        tdSql.checkData(0, 0, 6)
+
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='vctb_or_fan_a' "
+            "AND col_name='temperature'")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, f"{_OR_SRC}.{_OR_SCHEMA}.kpi_ora.temperature")
+
+        tdSql.query("SELECT temperature, humidity FROM vctb_or_fan_a ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 30.5)
+        tdSql.checkData(0, 1, 40.0)
+        tdSql.checkData(1, 0, 31.5)
+        tdSql.checkData(1, 1, 41.0)
+
+        tdSql.query("SELECT temperature, humidity FROM vctb_or_fan_b ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 28.5)
+        tdSql.checkData(0, 1, 50.0)
+        tdSql.checkData(1, 0, 29.5)
+        tdSql.checkData(1, 1, 51.0)
+
+        tdSql.query("SELECT count(*) FROM vstb_or_fan")
+        tdSql.checkData(0, 0, 12)
+        tdSql.query("SELECT count(*) FROM vstb_or_fan WHERE backend = 'oracle'")
+        tdSql.checkData(0, 0, 4)
+        tdSql.query("SELECT count(*) FROM vstb_or_fan WHERE site = 'siteE'")
+        tdSql.checkData(0, 0, 2)
+        tdSql.execute("DROP STABLE IF EXISTS vstb_or_fan")
 
     # -------------------------------------------------------------------
     # §3 — CREATE STABLE … VIRTUAL 1 + CREATE VTABLE … USING (PATENT CORE)

@@ -15,7 +15,7 @@ TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给�
 要将 TCollector 数据写入 TDengine 需要以下几方面的准备工作。
 
 - TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - TCollector 已经安装。安装 TCollector 请参考 [官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
 
 ## 配置步骤

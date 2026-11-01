@@ -36,14 +36,51 @@ sys.path.insert(0, os.path.join(_VTABLE_DIR, "01-DDL", "03-ExtSource"))
 
 from vtable_util import ExtSrcEnv, VtableQueryUtil
 from ext_source_helpers import (
-    create_ext_source, create_mysql_table, create_pg_table, create_remote_db,
-    create_sqlserver_table, extract_show_create_sql,
+    create_ext_source, create_mysql_table, create_oracle_table,
+    create_pg_table, create_remote_db, create_sqlserver_table,
+    extract_show_create_sql,
 )
 
 
 _LOCAL_DB = "vfilter_query"
 _REMOTE_DB = "vfilter_query_ext"
 _COLUMNS = ("a", "b", "c", "bounded", "empty_v")
+# Oracle has one namespace level - the login schema - and no per-source
+# database, so its remote objects are qualified as source.schema.table.
+_ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+# Oracle tables live in the shared login schema; prefixing their names keeps
+# them apart from the fixtures of the other ext-source test files.
+_ORACLE_TABLE_PREFIX = "oracle_"
+
+
+def _oracle_create_table(remote_db, table, col_defs, rows=None):
+    """Adapter matching the create_<backend>_table signature for Oracle.
+
+    Oracle has no per-test database and no multi-row VALUES clause, so the
+    helper drops the table in the login schema first and inserts several rows
+    through INSERT ALL.  The database argument is unused.
+    """
+    create_oracle_table(f"{_ORACLE_TABLE_PREFIX}{table}", col_defs, rows)
+
+
+def _integer_type(backend):
+    """Local integer type matching the fixture's external integer column.
+
+    Oracle has no 4-byte integer: NUMBER(p, 0) maps to BIGINT for p in 2..18
+    (only NUMBER(1, 0) is TINYINT), and a virtual table must declare exactly
+    the mapped type, so Oracle references use bigint where the other backends
+    use int.
+    """
+    return "bigint" if backend == "oracle" else "int"
+
+
+def _source_database(backend):
+    """Remote database argument for CREATE EXTERNAL SOURCE.
+
+    Oracle carries the Easy Connect service name in DATABASE; every other
+    backend carries the per-test database name.
+    """
+    return ExtSrcEnv.ORACLE_SERVICE if backend == "oracle" else _REMOTE_DB
 
 
 class TestVTableQueryExtSourceFilter:
@@ -62,15 +99,15 @@ class TestVTableQueryExtSourceFilter:
             tdSql.execute('alter local "timezone" "UTC"')
             self.prepare_remote_table(backend)
             source_type = self.SOURCE_TYPES[backend]
-            create_ext_source(source, source_type, _REMOTE_DB)
+            create_ext_source(source, source_type, _source_database(backend))
             tdSql.execute(f"drop database if exists {_LOCAL_DB}")
             # SQL Server timestamps are microsecond-resolution (DS §5.3.7),
             # so its virtual tables require a precision 'us' database (TS §12).
             db_precision = "us" if backend == "sqlserver" else "ms"
             tdSql.execute(f"create database {_LOCAL_DB} precision '{db_precision}'")
             self.prepare_vtables(
-                source, ref_root=self.remote_table_ref(source, backend),
-                upper_ref=backend != "sqlserver")
+                backend, source, ref_root=self.remote_table_ref(source, backend),
+                upper_ref=backend not in ("sqlserver", "oracle"))
             yield
         finally:
             tdSql.execute(f'alter local "timezone" "{original_timezone}"')
@@ -80,12 +117,15 @@ class TestVTableQueryExtSourceFilter:
                 ExtSrcEnv.mysql_drop_db(_REMOTE_DB)
             elif backend == "sqlserver":
                 ExtSrcEnv.sqlserver_drop_db(_REMOTE_DB)
-            else:
+            elif backend == "postgres":
                 ExtSrcEnv.pg_drop_db(_REMOTE_DB)
+            # Oracle owns the tables in the login schema; the next fixture run
+            # drops them before recreating.
 
     # --- util ---
 
-    SOURCE_TYPES = {"mysql": "mysql", "postgres": "postgresql", "sqlserver": "sqlserver"}
+    SOURCE_TYPES = {"mysql": "mysql", "postgres": "postgresql",
+                    "sqlserver": "sqlserver", "oracle": "oracle"}
 
     @staticmethod
     def remote_table_ref(source, backend, table="readings"):
@@ -94,10 +134,14 @@ class TestVTableQueryExtSourceFilter:
         MySQL/PG use ``source.database.table``.  For SQL Server the middle
         segment of a three-part path is the *schema* (DS §5.3.4), so the
         database must be qualified explicitly:
-        ``source.database.schema.table``.
+        ``source.database.schema.table``.  Oracle has a single namespace level,
+        the schema, so the middle segment is likewise the schema and the
+        fixture table name carries the file prefix: ``source.schema.table``.
         """
         if backend == "sqlserver":
             return f"{source}.{_REMOTE_DB}.dbo.{table}"
+        if backend == "oracle":
+            return f"{source}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE_PREFIX}{table}"
         return f"{source}.{_REMOTE_DB}.{table}"
 
     @staticmethod
@@ -110,39 +154,64 @@ class TestVTableQueryExtSourceFilter:
             create_remote_db("sqlserver", _REMOTE_DB)
             create_table = create_sqlserver_table
             timestamp_type = "datetime2(3)"
+        elif backend == "oracle":
+            # Oracle has no CREATE DATABASE in this model; the namespace is the
+            # login user's schema.  TIMESTAMP(3) declares millisecond
+            # precision, so the shared millisecond answers apply unchanged.
+            create_remote_db("oracle", _REMOTE_DB)
+            create_table = _oracle_create_table
+            timestamp_type = "TIMESTAMP(3)"
         else:
             create_remote_db("postgresql", _REMOTE_DB)
             create_table = create_pg_table
             timestamp_type = "timestamp(3)"
         # Tenant 2 and device d3 are sentinels: no tested binding may read them.
-        rows = [
-            "('2024-01-01 00:00:00', 'd1', 1, 10, 100)",
-            "('2024-01-01 00:00:01', 'd1', 1, 11, 110)",
-            "('2024-01-01 00:00:03', 'd1', 1, 13, 130)",
-            "('2024-01-01 00:00:05', 'd1', 1, 15, null)",
-            "('2024-01-01 00:00:00', 'd2', 1, 20, 200)",
-            "('2024-01-01 00:00:02', 'd2', 1, 22, 220)",
-            "('2024-01-01 00:00:03', 'd2', 1, 23, 230)",
-            "('2024-01-01 00:00:06', 'd2', 1, 26, 260)",
-            "('2024-01-01 00:00:00', 'd1', 2, 900, 9000)",
-            "('2024-01-01 00:00:04', 'd2', 2, 940, 9400)",
-            "('2024-01-01 00:00:04', 'd3', 1, 990, 9900)",
+        timestamps = (
+            "2024-01-01 00:00:00", "2024-01-01 00:00:01", "2024-01-01 00:00:03",
+            "2024-01-01 00:00:05", "2024-01-01 00:00:00", "2024-01-01 00:00:02",
+            "2024-01-01 00:00:03", "2024-01-01 00:00:06", "2024-01-01 00:00:00",
+            "2024-01-01 00:00:04", "2024-01-01 00:00:04",
+        )
+        values = [
+            ("d1", 1, 10, 100), ("d1", 1, 11, 110), ("d1", 1, 13, 130),
+            ("d1", 1, 15, "null"), ("d2", 1, 20, 200), ("d2", 1, 22, 220),
+            ("d2", 1, 23, 230), ("d2", 1, 26, 260), ("d1", 2, 900, 9000),
+            ("d2", 2, 940, 9400), ("d3", 1, 990, 9900),
         ]
-        create_table(_REMOTE_DB, "readings",
-                     f"ts {timestamp_type} not null, device varchar(8) not null, "
-                     "tenant int not null, v int, w int, primary key (ts, device, tenant)", rows)
+        if backend == "oracle":
+            # A bare string date would go through NLS_TIMESTAMP_FORMAT and
+            # raise ORA-01861, so timestamp literals are explicit.
+            rows = [
+                f"(TIMESTAMP '{timestamp}', '{device}', {tenant}, {v}, {w})"
+                for timestamp, (device, tenant, v, w) in zip(timestamps, values)
+            ]
+            column_defs = (
+                f"ts {timestamp_type} NOT NULL, device VARCHAR2(8) NOT NULL, "
+                "tenant NUMBER(10,0) NOT NULL, v NUMBER(10,0), w NUMBER(10,0), "
+                "PRIMARY KEY (ts, device, tenant)")
+        else:
+            rows = [
+                f"('{timestamp}', '{device}', {tenant}, {v}, {w})"
+                for timestamp, (device, tenant, v, w) in zip(timestamps, values)
+            ]
+            column_defs = (
+                f"ts {timestamp_type} not null, device varchar(8) not null, "
+                "tenant int not null, v int, w int, "
+                "primary key (ts, device, tenant)")
+        create_table(_REMOTE_DB, "readings", column_defs, rows)
 
-    @staticmethod
-    def references(source, reverse=False, with_types=False, ref_root=None,
-                   upper_ref=False):
-        ref = ref_root or f"{source}.{_REMOTE_DB}.readings"
+    @classmethod
+    def references(cls, source, backend, reverse=False, with_types=False,
+                   ref_root=None, upper_ref=False):
+        ref = ref_root or cls.remote_table_ref(source, backend)
         # The upper-cased variant exercises MySQL's case-insensitive remote
-        # resolution; SQL Server resolves the database/schema segments of a
-        # five-part path literally, so it keeps the exact-case form.
+        # resolution; SQL Server and Oracle resolve the database/schema
+        # segments of a multi-part path literally, so they keep the
+        # exact-case form.
         ref_b = ref.upper() if upper_ref else ref
         first, second = ("d2", "d1") if reverse else ("d1", "d2")
         first_filter = f"device = '{first}' and tenant = 1"
-        column_type = " int" if with_types else ""
+        column_type = f" {_integer_type(backend)}" if with_types else ""
         return ", ".join((
             f"a{column_type} from {ref}.v where {first_filter}",
             f"b{column_type} from {ref_b}.w where {first_filter}",
@@ -152,20 +221,21 @@ class TestVTableQueryExtSourceFilter:
         ))
 
     @classmethod
-    def prepare_vtables(cls, source, ref_root=None, upper_ref=False):
+    def prepare_vtables(cls, backend, source, ref_root=None, upper_ref=False):
+        integer_type = _integer_type(backend)
         tdSql.execute(f"create vtable {_LOCAL_DB}.filter_normal "
-                      f"(ts timestamp, {cls.references(source, with_types=True, ref_root=ref_root, upper_ref=upper_ref)})")
-        schema = "ts timestamp, " + ", ".join(f"{column} int" for column in _COLUMNS)
+                      f"(ts timestamp, {cls.references(source, backend, with_types=True, ref_root=ref_root, upper_ref=upper_ref)})")
+        schema = "ts timestamp, " + ", ".join(f"{column} {integer_type}" for column in _COLUMNS)
         tdSql.execute(f"create stable {_LOCAL_DB}.filter_stable ({schema}) tags (scenario int) virtual 1")
         for scenario in (1, 2):
             tdSql.execute(f"create vtable {_LOCAL_DB}.child_{scenario} "
-                          f"({cls.references(source, reverse=scenario == 2, ref_root=ref_root, upper_ref=upper_ref)}) "
+                          f"({cls.references(source, backend, reverse=scenario == 2, ref_root=ref_root, upper_ref=upper_ref)}) "
                           f"using {_LOCAL_DB}.filter_stable tags ({scenario})")
 
         # Different outer column IDs must still retrieve the leaf column's filter.
         for table, leaf, columns in (("middle", "child_1", ("c", "empty_v", "b", "a", "bounded")),
                                      ("chain", "middle", _COLUMNS)):
-            refs = ", ".join(f"{column} int from {_LOCAL_DB}.{leaf}.{column}" for column in columns)
+            refs = ", ".join(f"{column} {integer_type} from {_LOCAL_DB}.{leaf}.{column}" for column in columns)
             tdSql.execute(f"create vtable {_LOCAL_DB}.{table} (ts timestamp, {refs})")
         tdSql.execute(f"create stable {_LOCAL_DB}.chain_stable ({schema}) tags (scenario int) virtual 1")
         refs = ", ".join(f"{column} from {_LOCAL_DB}.chain.{column}" for column in _COLUMNS)
@@ -197,14 +267,17 @@ class TestVTableQueryExtSourceFilter:
     def do_filter_own_columns(self, backend):
         tdSql.execute(f"use {_LOCAL_DB}")
         ref = self.remote_table_ref(f"vfilter_query_{backend}", backend)
+        integer_type = _integer_type(backend)
         saved = "device = 'd1' and tenant = 1 and v >= 11"
         tdSql.execute(f"create vtable own_child (a from {ref}.v where device = 'd2' and tenant = 1, "
-                      f"own_v int from {ref}.v where {saved}) "
+                      f"own_v {integer_type} from {ref}.v where {saved}) "
                       f"using filter_stable (scenario, own_tag int) tags (3, 9)")
-        tdSql.execute(f"alter vtable own_child add column own_w int from {ref}.w where {saved}")
+        tdSql.execute(f"alter vtable own_child add column own_w {integer_type} from {ref}.w where {saved}")
         tdSql.execute("create vtable own_middle (ts timestamp, "
-                      f"w int from {_LOCAL_DB}.own_child.own_w, v int from {_LOCAL_DB}.own_child.own_v)")
-        tdSql.execute("create stable own_chain_stable (ts timestamp, v int, w int) tags (scenario int) virtual 1")
+                      f"w {integer_type} from {_LOCAL_DB}.own_child.own_w, "
+                      f"v {integer_type} from {_LOCAL_DB}.own_child.own_v)")
+        tdSql.execute(f"create stable own_chain_stable (ts timestamp, v {integer_type}, "
+                      f"w {integer_type}) tags (scenario int) virtual 1")
         tdSql.execute(f"create vtable own_chain_child (v from {_LOCAL_DB}.own_middle.v, "
                       f"w from {_LOCAL_DB}.own_middle.w) using own_chain_stable tags (1)")
         expected = [(11, 110), (13, 130), (15, None)]
@@ -229,13 +302,13 @@ class TestVTableQueryExtSourceFilter:
             self.check_optimizer_plan("select sum(v) from own_chain_stable", disabled=True)
 
         # Failed validation must not create an own column or disturb existing bindings.
-        tdSql.error(f"alter vtable own_child add column bad int from {ref}.v where device = 'd1'",
+        tdSql.error(f"alter vtable own_child add column bad {integer_type} from {ref}.v where device = 'd1'",
                     expectedErrno=0x6217)  # TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER
-        tdSql.error(f"create vtable own_bad (bad int from {ref}.v where device = 'd1') "
+        tdSql.error(f"create vtable own_bad (bad {integer_type} from {ref}.v where device = 'd1') "
                     "using filter_stable tags (4)",
                     expectedErrno=0x6217)
         tdSql.execute("alter vtable own_child drop column own_w")
-        tdSql.execute(f"alter vtable own_child add column own_w int from {ref}.w "
+        tdSql.execute(f"alter vtable own_child add column own_w {integer_type} from {ref}.w "
                       "where device = 'd2' and tenant = 1")
         tdSql.query("select own_w from own_child order by ts")
         assert list(tdSql.queryResult) == [(200,), (220,), (230,), (260,)]
@@ -254,9 +327,10 @@ class TestVTableQueryExtSourceFilter:
         case_dir = os.path.dirname(os.path.dirname(__file__))
         test_case = f"test_vtable_ext_filter_{scenario}"
         # The shared answers are written against the millisecond fixtures of
-        # MySQL/PostgreSQL; the SQL Server virtual tables use a precision 'us'
-        # database, so cast(ts as bigint) differs by 1000x and the answers are
-        # kept per backend.
+        # MySQL/PostgreSQL; Oracle's TIMESTAMP(3) is millisecond-precision too,
+        # so it reuses them.  The SQL Server virtual tables use a precision
+        # 'us' database, so cast(ts as bigint) differs by 1000x and the
+        # answers are kept per backend.
         ans_name = f"{test_case}{'_sqlserver' if backend == 'sqlserver' else ''}.ans"
         VtableQueryUtil.compare_ext_source_testcase_result(
             os.path.join(case_dir, "in", f"{test_case}.in"),
@@ -381,12 +455,13 @@ class TestVTableQueryExtSourceFilter:
         original_timezone = str(tdSql.queryResult[0][1]).split(" ")[0]
         try:
             tdSql.execute('alter local "timezone" "UTC"')
-            create_ext_source(second_source, source_type, _REMOTE_DB)
-            schema = "ts timestamp, " + ", ".join(f"{column} int" for column in _COLUMNS)
+            create_ext_source(second_source, source_type, _source_database(backend))
+            integer_type = _integer_type(backend)
+            schema = "ts timestamp, " + ", ".join(f"{column} {integer_type}" for column in _COLUMNS)
             tdSql.execute(f"create stable {_LOCAL_DB}.mixed_stable ({schema}) tags (scenario int) virtual 1")
             for scenario in (1, 2):
                 refs = self.references(
-                    source, reverse=scenario == 2,
+                    source, backend, reverse=scenario == 2,
                     ref_root=self.remote_table_ref(source, backend)).replace(
                     f"c from {source}.", f"c from {second_source}.")
                 tdSql.execute(f"create vtable {_LOCAL_DB}.mixed_{scenario} ({refs}) "
@@ -420,21 +495,37 @@ class TestVTableQueryExtSourceFilter:
             # A timestamp-only remote primary key permits both filtered and unfiltered bindings.
             if backend == "mysql":
                 create_table, timestamp_type = create_mysql_table, "datetime(3)"
+                plain_column_defs = f"ts {timestamp_type} primary key, v int, w int"
+                plain_rows = ["('2024-01-01 00:00:00', 10, 100)",
+                              "('2024-01-01 00:00:01', 11, 110)"]
             elif backend == "sqlserver":
                 create_table, timestamp_type = create_sqlserver_table, "datetime2(3)"
+                plain_column_defs = f"ts {timestamp_type} primary key, v int, w int"
+                plain_rows = ["('2024-01-01 00:00:00', 10, 100)",
+                              "('2024-01-01 00:00:01', 11, 110)"]
+            elif backend == "oracle":
+                create_table, timestamp_type = _oracle_create_table, "TIMESTAMP(3)"
+                plain_column_defs = (f"ts {timestamp_type} PRIMARY KEY, "
+                                     "v NUMBER(10,0), w NUMBER(10,0)")
+                plain_rows = ["(TIMESTAMP '2024-01-01 00:00:00', 10, 100)",
+                              "(TIMESTAMP '2024-01-01 00:00:01', 11, 110)"]
             else:
                 create_table, timestamp_type = create_pg_table, "timestamp(3)"
-            create_table(_REMOTE_DB, "plain_readings", f"ts {timestamp_type} primary key, v int, w int",
-                         ["('2024-01-01 00:00:00', 10, 100)", "('2024-01-01 00:00:01', 11, 110)"])
+                plain_column_defs = f"ts {timestamp_type} primary key, v int, w int"
+                plain_rows = ["('2024-01-01 00:00:00', 10, 100)",
+                              "('2024-01-01 00:00:01', 11, 110)"]
+            create_table(_REMOTE_DB, "plain_readings", plain_column_defs, plain_rows)
             ref = self.remote_table_ref(source, backend, table="plain_readings")
             tdSql.execute(f"create stable {_LOCAL_DB}.plain_stable "
-                          "(ts timestamp, a int, c int) tags (scenario int) virtual 1")
+                          f"(ts timestamp, a {integer_type}, c {integer_type}) "
+                          "tags (scenario int) virtual 1")
             for scenario in (1, 2):
                 tdSql.execute(f"create vtable {_LOCAL_DB}.plain_{scenario} "
                               f"(a from {ref}.v, c from {ref}.w) "
                               f"using {_LOCAL_DB}.plain_stable tags ({scenario})")
             tdSql.execute(f"create stable {_LOCAL_DB}.plain_chain_stable "
-                          "(ts timestamp, a int, c int) tags (scenario int) virtual 1")
+                          f"(ts timestamp, a {integer_type}, c {integer_type}) "
+                          "tags (scenario int) virtual 1")
             tdSql.execute(f"create vtable {_LOCAL_DB}.plain_chain "
                           f"(a from {_LOCAL_DB}.plain_2.a, c from {_LOCAL_DB}.plain_2.c) "
                           f"using {_LOCAL_DB}.plain_chain_stable tags (2)")
@@ -457,7 +548,7 @@ class TestVTableQueryExtSourceFilter:
     # --- main ---
 
     @pytest.mark.parametrize("backend", ("mysql", "postgres",
-                                  "sqlserver"))
+                                  "sqlserver", "oracle"))
     @pytest.mark.parametrize("scenario", ("projection", "query", "aggregate", "conflict"))
     def test_filter_query(self, backend, scenario):
         """Compare saved external-filter queries with shared in/ans answers
@@ -485,7 +576,7 @@ class TestVTableQueryExtSourceFilter:
         self.do_filter_query(backend, scenario)
 
     @pytest.mark.parametrize("backend", ("mysql", "postgres",
-                                  "sqlserver"))
+                                  "sqlserver", "oracle"))
     def test_filter_pseudo_columns(self, backend):
         """Preserve filtered data rows for virtual-table pseudo-column queries
 
@@ -509,7 +600,7 @@ class TestVTableQueryExtSourceFilter:
         self.do_filter_pseudo_columns(backend)
 
     @pytest.mark.parametrize("backend", ("mysql", "postgres",
-                                  "sqlserver"))
+                                  "sqlserver", "oracle"))
     @pytest.mark.parametrize("ddl_timezone", ("UTC", "Asia/Shanghai"))
     def test_filter_timezone(self, backend, ddl_timezone):
         """Keep saved remote timestamp predicates stable across session timezones
@@ -535,7 +626,7 @@ class TestVTableQueryExtSourceFilter:
         self.do_filter_timezone(backend, ddl_timezone)
 
     @pytest.mark.parametrize("backend", ("mysql", "postgres",
-                                  "sqlserver"))
+                                  "sqlserver", "oracle"))
     def test_filter_optimizer(self, backend):
         """Keep filtered super-table aggregation and windows above virtual-row merging
 
@@ -560,7 +651,7 @@ class TestVTableQueryExtSourceFilter:
         self.do_filter_optimizer(backend)
 
     @pytest.mark.parametrize("backend", ("mysql", "postgres",
-                                  "sqlserver"))
+                                  "sqlserver", "oracle"))
     def test_filter_own_columns(self, backend):
         """Preserve external filters on virtual-child own columns
 

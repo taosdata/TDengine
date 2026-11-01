@@ -14833,3 +14833,815 @@ count(*)
 CASE END: CASE-EXT014[SQL]
 DESC: FQSS-EXT-014 DROP removes the source; IF EXISTS is idempotent
 ================================================================================================
+================================================================================================
+CASE START: CASE-OREXT001[ORA]
+DESC: FQOR-EXT-001 create with HOST/PORT/DATABASE/SCHEMA; SHOW, DESCRIBE, query, drop
+================================================================================================
+### CASE-OREXT001[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or001
+RESULT:
+OK
+---
+### CASE-OREXT001[ORA] STEP-002 EXEC
+SQL: create external source fq01_or001 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT001[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or001|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT001[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or001
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or001|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT001[ORA] STEP-003 QUERY
+SQL: select source_name, `type`, `host`, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_or001'
+RESULT:
+source_name|type|host|port|user|database|schema|options
+fq01_or001|oracle|127.0.0.1|18322|taosdata|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT001[ORA] STEP-004 QUERY
+SQL: describe fq01_or001.TAOSDATA.src_t
+RESULT:
+field|type|length|note
+TS|TIMESTAMP|8|
+VAL|BIGINT|8|
+SCORE|DOUBLE|8|
+NAME|VARCHAR|32|
+FLAG|TINYINT|1|
+---
+### CASE-OREXT001[ORA] STEP-005 COUNT
+SQL: select count(*) from fq01_or001.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT001[ORA] STEP-006 CLEANUP
+SQL: drop external source if exists fq01_or001
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT001[ORA]
+DESC: FQOR-EXT-001 create with HOST/PORT/DATABASE/SCHEMA; SHOW, DESCRIBE, query, drop
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT002[ORA]
+DESC: FQOR-EXT-002 DATABASE only: short path reports the missing schema, 3-segment path works
+================================================================================================
+### CASE-OREXT002[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or002
+RESULT:
+OK
+---
+### CASE-OREXT002[ORA] STEP-002 EXEC
+SQL: create external source fq01_or002 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1'
+RESULT:
+OK
+---
+### CASE-OREXT002[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or002|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1||{}
+---
+### CASE-OREXT002[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or002
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or002|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1||{}
+---
+### CASE-OREXT002[ORA] STEP-003 QUERY
+SQL: select count(*) from fq01_or002.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-OREXT002[ORA] STEP-004 QUERY
+SQL: select count(*) from fq01_or002.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT002[ORA] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_or002
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT002[ORA]
+DESC: FQOR-EXT-002 DATABASE only: short path reports the missing schema, 3-segment path works
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT003[ORA]
+DESC: FQOR-EXT-003 create without DATABASE is a syntax error and creates nothing
+================================================================================================
+### CASE-OREXT003[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or003
+RESULT:
+OK
+---
+### CASE-OREXT003[ORA] STEP-002 EXEC
+SQL: create external source fq01_or003 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' schema='TAOSDATA'
+RESULT:
+ERROR: [0x2600]: DATABASE (service name) is required for Oracle external sources
+---
+### CASE-OREXT003[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT003[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or003
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT003[ORA] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_or003'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-OREXT003[ORA]
+DESC: FQOR-EXT-003 create without DATABASE is a syntax error and creates nothing
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT004[ORA]
+DESC: FQOR-EXT-004 type='ora' and type='oracledb' are unknown types
+================================================================================================
+### CASE-OREXT004[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or004
+RESULT:
+OK
+---
+### CASE-OREXT004[ORA] STEP-002 EXEC
+SQL: create external source fq01_or004 type='ora' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+ERROR: [0x2600]: Unknown external source TYPE
+---
+### CASE-OREXT004[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT004[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or004
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT004[ORA] STEP-003 EXEC
+SQL: create external source fq01_or004 type='oracledb' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+ERROR: [0x2600]: Unknown external source TYPE
+---
+### CASE-OREXT004[ORA] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT004[ORA] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq01_or004
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT004[ORA] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_or004'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-OREXT004[ORA]
+DESC: FQOR-EXT-004 type='ora' and type='oracledb' are unknown types
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT005[ORA]
+DESC: FQOR-EXT-005 connect/read timeout options persist; invalid values are rejected
+================================================================================================
+### CASE-OREXT005[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or005
+RESULT:
+OK
+---
+### CASE-OREXT005[ORA] STEP-002 EXEC
+SQL: create external source fq01_or005 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('connect_timeout_ms'='5000', 'read_timeout_ms'='7000')
+RESULT:
+OK
+---
+### CASE-OREXT005[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or005|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{"connect_timeout_ms":"5000","read_timeout_ms":"7000"}
+---
+### CASE-OREXT005[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or005
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or005|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{"connect_timeout_ms":"5000","read_timeout_ms":"7000"}
+---
+### CASE-OREXT005[ORA] STEP-003 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_or005'
+RESULT:
+source_name|options
+fq01_or005|{"connect_timeout_ms":"5000","read_timeout_ms":"7000"}
+---
+### CASE-OREXT005[ORA] STEP-004 EXEC
+SQL: alter external source fq01_or005 set options('connect_timeout_ms'='-1')
+RESULT:
+ERROR: [0x2600]: connect_timeout_ms must be 0 or in range [100, 600000]
+---
+### CASE-OREXT005[ORA] STEP-005 EXEC
+SQL: alter external source fq01_or005 set options('read_timeout_ms'='abc')
+RESULT:
+ERROR: [0x2600]: read_timeout_ms must be an integer in {0} U [100, 600000]
+---
+### CASE-OREXT005[ORA] STEP-006 QUERY
+SQL: select source_name, options from information_schema.ins_ext_sources where source_name='fq01_or005'
+RESULT:
+source_name|options
+fq01_or005|{"connect_timeout_ms":"5000","read_timeout_ms":"7000"}
+---
+### CASE-OREXT005[ORA] STEP-007 COUNT
+SQL: select count(*) from fq01_or005.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT005[ORA] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_or005
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT005[ORA]
+DESC: FQOR-EXT-005 connect/read timeout options persist; invalid values are rejected
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT006[ORA]
+DESC: FQOR-EXT-006 unknown option key is rejected and not persisted
+================================================================================================
+### CASE-OREXT006[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or006
+RESULT:
+OK
+---
+### CASE-OREXT006[ORA] STEP-002 EXEC
+SQL: create external source fq01_or006 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('unknown_fw_opt'='1')
+RESULT:
+ERROR: [0x2600]: Unknown OPTIONS key 'unknown_fw_opt' for source type
+---
+### CASE-OREXT006[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT006[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or006
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT006[ORA] STEP-003 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_or006'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-OREXT006[ORA]
+DESC: FQOR-EXT-006 unknown option key is rejected and not persisted
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT007[ORA]
+DESC: FQOR-EXT-007 tls_enabled/tls_ca_cert/tls_client_cert/tls_client_key are rejected
+================================================================================================
+### CASE-OREXT007[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or007
+RESULT:
+OK
+---
+### CASE-OREXT007[ORA] STEP-002 EXEC
+SQL: create external source fq01_or007 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('tls_enabled'='true')
+RESULT:
+ERROR: [0x2600]: tls_enabled is not supported for Oracle external sources
+---
+### CASE-OREXT007[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT007[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or007
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT007[ORA] STEP-003 EXEC
+SQL: create external source fq01_or007 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('tls_ca_cert'='/tmp/ca.pem')
+RESULT:
+ERROR: [0x2600]: tls_ca_cert is not supported for Oracle external sources
+---
+### CASE-OREXT007[ORA] STEP-003 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT007[ORA] STEP-003 AUTO-DESCRIBE
+SQL: describe external source fq01_or007
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT007[ORA] STEP-004 EXEC
+SQL: create external source fq01_or007 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('tls_client_cert'='/tmp/c.pem')
+RESULT:
+ERROR: [0x2600]: tls_client_cert is not supported for Oracle external sources
+---
+### CASE-OREXT007[ORA] STEP-004 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT007[ORA] STEP-004 AUTO-DESCRIBE
+SQL: describe external source fq01_or007
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT007[ORA] STEP-005 EXEC
+SQL: create external source fq01_or007 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('tls_client_key'='/tmp/k.pem')
+RESULT:
+ERROR: [0x2600]: tls_client_key is not supported for Oracle external sources
+---
+### CASE-OREXT007[ORA] STEP-005 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+---
+### CASE-OREXT007[ORA] STEP-005 AUTO-DESCRIBE
+SQL: describe external source fq01_or007
+RESULT:
+ERROR: describe external source failed
+---
+### CASE-OREXT007[ORA] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_or007'
+RESULT:
+count(*)
+0
+---
+### CASE-OREXT007[ORA] STEP-007 EXEC
+SQL: create external source fq01_or007 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA' options('tls_enabled'='false')
+RESULT:
+OK
+---
+### CASE-OREXT007[ORA] STEP-007 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or007|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{"tls_enabled":"false"}
+---
+### CASE-OREXT007[ORA] STEP-007 AUTO-DESCRIBE
+SQL: describe external source fq01_or007
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or007|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{"tls_enabled":"false"}
+---
+### CASE-OREXT007[ORA] STEP-008 COUNT
+SQL: select count(*) from fq01_or007.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT007[ORA] STEP-009 CLEANUP
+SQL: drop external source if exists fq01_or007
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT007[ORA]
+DESC: FQOR-EXT-007 tls_enabled/tls_ca_cert/tls_client_cert/tls_client_key are rejected
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT008[ORA]
+DESC: FQOR-EXT-008 SHOW reports type='oracle' and can filter on it
+================================================================================================
+### CASE-OREXT008[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or008
+RESULT:
+OK
+---
+### CASE-OREXT008[ORA] STEP-002 EXEC
+SQL: create external source fq01_or008 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT008[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or008|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT008[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or008
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or008|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT008[ORA] STEP-003 QUERY
+SQL: select source_name, `type` from information_schema.ins_ext_sources where `type`='oracle'
+RESULT:
+source_name|type
+fq01_or008|oracle
+---
+### CASE-OREXT008[ORA] STEP-004 CLEANUP
+SQL: drop external source if exists fq01_or008
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT008[ORA]
+DESC: FQOR-EXT-008 SHOW reports type='oracle' and can filter on it
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT009[ORA]
+DESC: FQOR-EXT-009 DESCRIBE shows the definition with the masked password
+================================================================================================
+### CASE-OREXT009[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or009
+RESULT:
+OK
+---
+### CASE-OREXT009[ORA] STEP-002 EXEC
+SQL: create external source fq01_or009 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT009[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or009|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT009[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or009
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or009|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT009[ORA] STEP-003 QUERY
+SQL: describe fq01_or009.TAOSDATA.src_t
+RESULT:
+field|type|length|note
+TS|TIMESTAMP|8|
+VAL|BIGINT|8|
+SCORE|DOUBLE|8|
+NAME|VARCHAR|32|
+FLAG|TINYINT|1|
+---
+### CASE-OREXT009[ORA] STEP-004 QUERY
+SQL: describe external source fq01_or009
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or009|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT009[ORA] STEP-005 CLEANUP
+SQL: drop external source if exists fq01_or009
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT009[ORA]
+DESC: FQOR-EXT-009 DESCRIBE shows the definition with the masked password
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT010[ORA]
+DESC: FQOR-EXT-010 ALTER DATABASE to an unknown service fails at query time; restore recovers
+================================================================================================
+### CASE-OREXT010[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or010
+RESULT:
+OK
+---
+### CASE-OREXT010[ORA] STEP-002 EXEC
+SQL: create external source fq01_or010 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT010[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or010|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT010[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or010
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or010|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT010[ORA] STEP-003 COUNT
+SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT010[ORA] STEP-004 EXEC
+SQL: alter external source fq01_or010 set database='NOSUCHSERVICE'
+RESULT:
+OK
+---
+### CASE-OREXT010[ORA] STEP-005 COUNT
+SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+RESULT:
+ERROR: count query failed (expected in negative case)
+---
+### CASE-OREXT010[ORA] STEP-006 EXEC
+SQL: alter external source fq01_or010 set database='FREEPDB1'
+RESULT:
+OK
+---
+### CASE-OREXT010[ORA] STEP-007 COUNT
+SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT010[ORA] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_or010
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT010[ORA]
+DESC: FQOR-EXT-010 ALTER DATABASE to an unknown service fails at query time; restore recovers
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT011[ORA]
+DESC: FQOR-EXT-011 ALTER SCHEMA re-resolves the short path
+================================================================================================
+### CASE-OREXT011[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or011
+RESULT:
+OK
+---
+### CASE-OREXT011[ORA] STEP-002 EXEC
+SQL: create external source fq01_or011 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT011[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or011|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT011[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or011
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or011|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT011[ORA] STEP-003 QUERY
+SQL: select count(*) from fq01_or011.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT011[ORA] STEP-004 EXEC
+SQL: alter external source fq01_or011 set schema='NOSUCHSCHEMA'
+RESULT:
+OK
+---
+### CASE-OREXT011[ORA] STEP-005 QUERY
+SQL: select count(*) from fq01_or011.src_t
+RESULT:
+ERROR: query failed
+---
+### CASE-OREXT011[ORA] STEP-006 EXEC
+SQL: alter external source fq01_or011 set schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT011[ORA] STEP-007 QUERY
+SQL: select count(*) from fq01_or011.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT011[ORA] STEP-008 CLEANUP
+SQL: drop external source if exists fq01_or011
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT011[ORA]
+DESC: FQOR-EXT-011 ALTER SCHEMA re-resolves the short path
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT012[ORA]
+DESC: FQOR-EXT-012 ALTER HOST to an unreachable address fails only at query time
+================================================================================================
+### CASE-OREXT012[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or012
+RESULT:
+OK
+---
+### CASE-OREXT012[ORA] STEP-002 EXEC
+SQL: create external source fq01_or012 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT012[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or012|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT012[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or012
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or012|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT012[ORA] STEP-003 COUNT
+SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT012[ORA] STEP-004 EXEC
+SQL: alter external source fq01_or012 set host='127.0.0.1', port=18330
+RESULT:
+OK
+---
+### CASE-OREXT012[ORA] STEP-005 QUERY
+SQL: select source_name, `type`, `host`, `port` from information_schema.ins_ext_sources where source_name='fq01_or012'
+RESULT:
+source_name|type|host|port
+fq01_or012|oracle|127.0.0.1|18330
+---
+### CASE-OREXT012[ORA] STEP-006 COUNT
+SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+RESULT:
+ERROR: count query failed (expected in negative case)
+---
+### CASE-OREXT012[ORA] STEP-007 EXEC
+SQL: alter external source fq01_or012 set host='127.0.0.1', port=18322
+RESULT:
+OK
+---
+### CASE-OREXT012[ORA] STEP-008 COUNT
+SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+RESULT:
+count(*)
+5
+---
+### CASE-OREXT012[ORA] STEP-009 CLEANUP
+SQL: drop external source if exists fq01_or012
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT012[ORA]
+DESC: FQOR-EXT-012 ALTER HOST to an unreachable address fails only at query time
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT013[ORA]
+DESC: FQOR-EXT-013 ADD COLUMN without REFRESH keeps the cached columns; REFRESH exposes the new column (Oracle)
+================================================================================================
+### CASE-OREXT013[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or013
+RESULT:
+OK
+---
+### CASE-OREXT013[ORA] STEP-002 EXEC
+SQL: create external source fq01_or013 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT013[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or013|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT013[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or013
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or013|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT013[ORA] STEP-003 QUERY
+SQL: select * from fq01_or013.src_t where val=1
+RESULT:
+TS|VAL|SCORE|NAME|FLAG
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
+---
+### CASE-OREXT013[ORA] STEP-004 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-OREXT013[ORA] STEP-005 QUERY
+SQL: select * from fq01_or013.src_t where val=1
+RESULT:
+TS|VAL|SCORE|NAME|FLAG
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
+---
+### CASE-OREXT013[ORA] STEP-006 EXEC
+SQL: refresh external source fq01_or013
+RESULT:
+OK
+---
+### CASE-OREXT013[ORA] STEP-007 QUERY
+SQL: select * from fq01_or013.src_t where val=1
+RESULT:
+TS|VAL|SCORE|NAME|FLAG|EXTRA_COL
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1|7
+---
+### CASE-OREXT013[ORA] STEP-008 QUERY
+SQL: select 1
+RESULT:
+1
+1
+---
+### CASE-OREXT013[ORA] STEP-009 EXEC
+SQL: refresh external source fq01_or013
+RESULT:
+OK
+---
+### CASE-OREXT013[ORA] STEP-010 QUERY
+SQL: select extra_col from fq01_or013.src_t where val=1
+RESULT:
+ERROR: query failed
+---
+### CASE-OREXT013[ORA] STEP-011 QUERY
+SQL: select * from fq01_or013.src_t where val=1
+RESULT:
+TS|VAL|SCORE|NAME|FLAG
+2024-01-01 00:00:00+08:00|1|1.5|alpha|1
+---
+### CASE-OREXT013[ORA] STEP-012 CLEANUP
+SQL: drop external source if exists fq01_or013
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-OREXT013[ORA]
+DESC: FQOR-EXT-013 ADD COLUMN without REFRESH keeps the cached columns; REFRESH exposes the new column (Oracle)
+================================================================================================
+================================================================================================
+CASE START: CASE-OREXT014[ORA]
+DESC: FQOR-EXT-014 DROP removes the source; IF EXISTS is idempotent
+================================================================================================
+### CASE-OREXT014[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq01_or014
+RESULT:
+OK
+---
+### CASE-OREXT014[ORA] STEP-002 EXEC
+SQL: create external source fq01_or014 type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-OREXT014[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or014|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT014[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq01_or014
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq01_or014|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-OREXT014[ORA] STEP-003 EXEC
+SQL: drop external source fq01_or014
+RESULT:
+OK
+---
+### CASE-OREXT014[ORA] STEP-004 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_or014'
+RESULT:
+count(*)
+0
+---
+### CASE-OREXT014[ORA] STEP-005 EXEC
+SQL: drop external source if exists fq01_or014
+RESULT:
+OK
+---
+### CASE-OREXT014[ORA] STEP-006 QUERY
+SQL: select count(*) from information_schema.ins_ext_sources where source_name='fq01_or014'
+RESULT:
+count(*)
+0
+---
+================================================================================================
+CASE END: CASE-OREXT014[ORA]
+DESC: FQOR-EXT-014 DROP removes the source; IF EXISTS is idempotent
+================================================================================================

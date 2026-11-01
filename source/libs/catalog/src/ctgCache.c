@@ -5075,6 +5075,50 @@ static int32_t ctgBuildNewExtSourceHash(SArray* pSources, SHashObj** ppNewHash) 
   return TSDB_CODE_SUCCESS;
 }
 
+// Two snapshots of the same external source describe the same remote namespace
+// only when every field the connector resolves names against is identical.  The
+// version is bumped on every ALTER / REFRESH, so a changed version always means
+// the remote schema really did change.
+static bool ctgExtSourceSameIdentity(const SGetExtSourceRsp* a, const SGetExtSourceRsp* b) {
+  return a->type == b->type && a->port == b->port && a->meta_version == b->meta_version &&
+         0 == strcmp(a->host, b->host) && 0 == strcmp(a->user, b->user) &&
+         0 == strcmp(a->database, b->database) && 0 == strcmp(a->schema_name, b->schema_name);
+}
+
+// Carry the cached table schemas of an unchanged source across a cache replace.
+//
+// The heartbeat push rebuilds pExtSourceHash from mnode's source list, which
+// carries no table metadata.  Without this, a push that lands right after a
+// source's first query - CREATE of any source triggers one - drops every cached
+// remote schema, so the next statement re-reads the remote catalog.  That is not
+// only a latency cost: an ADD/DROP COLUMN performed on the remote table between
+// the two reads then shows up in a SELECT * that must still answer from the
+// cached schema (the documented ADD COLUMN without REFRESH behaviour).
+//
+// Ownership of pDbHash moves to the new entry; the old one is left empty so the
+// old hash's freeFp only reclaims the entry itself.  Called with the
+// extHashLatch WRITE lock held, so no reader holds a reference to either hash.
+static void ctgCarryOverExtTableMeta(SHashObj* pOldHash, SHashObj* pNewHash) {
+  if (NULL == pOldHash || NULL == pNewHash) return;
+
+  void* p = taosHashIterate(pOldHash, NULL);
+  while (p) {
+    SExtSourceCacheEntry* pOld = *(SExtSourceCacheEntry**)p;
+    if (NULL != pOld && NULL != pOld->pDbHash) {
+      SExtSourceCacheEntry** ppNew =
+          (SExtSourceCacheEntry**)taosHashGet(pNewHash, pOld->source.source_name,
+                                              strlen(pOld->source.source_name));
+      if (NULL != ppNew && NULL != *ppNew && ctgExtSourceSameIdentity(&pOld->source, &(*ppNew)->source)) {
+        SExtSourceCacheEntry* pNew = *ppNew;
+        taosHashCleanup(pNew->pDbHash);  // freshly allocated by ctgBuildNewExtSourceHash, still empty
+        pNew->pDbHash = pOld->pDbHash;   // ownership moves to the new entry
+        pOld->pDbHash = NULL;
+      }
+    }
+    p = taosHashIterate(pOldHash, p);
+  }
+}
+
 int32_t ctgInitExtSourceCache(SCatalog* pCtg) {
   SHashObj* h = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == h) {
@@ -5418,6 +5462,9 @@ int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
     SHashObj* pOldHash = NULL;
     CTG_LOCK(CTG_WRITE, &pCtg->extHashLatch);
     pOldHash = pCtg->pExtSourceHash;
+    // Keep the remote table schemas of sources whose definition did not change;
+    // only a real ALTER / REFRESH (meta_version bump) invalidates them.
+    ctgCarryOverExtTableMeta(pOldHash, pNewHash);
     pCtg->pExtSourceHash = pNewHash;
     pNewHash = NULL;   // pCtg now owns the new hash
     CTG_UNLOCK(CTG_WRITE, &pCtg->extHashLatch);

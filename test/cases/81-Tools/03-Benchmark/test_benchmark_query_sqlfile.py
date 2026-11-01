@@ -16,9 +16,17 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+from pathlib import Path
 
 
 class TestQueryJsonWithSqlfile:
+    def clean_query_results(self):
+        for filename in (
+            "rest_query_specified-0", "rest_query_super-0",
+            "taosc_query_specified-0", "taosc_query_super-0",
+        ):
+            Path(filename).unlink(missing_ok=True)
+
     def caseDescription(self):
         """
         [TD-11510] taosBenchmark test cases
@@ -27,10 +35,7 @@ class TestQueryJsonWithSqlfile:
     # ------------------- test_query_json_with_sqlfile.py ----------------
     #
     def do_query_json_with_sqlfile(self):
-        binPath = etool.benchMarkFile()
-        os.system(
-            "rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0"
-        )
+        self.clean_query_results()
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
         tdSql.execute("use db")
@@ -38,8 +43,8 @@ class TestQueryJsonWithSqlfile:
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
-        cmd = "%s -f %s/json/taosc_query-sqlfile.json" % (binPath, os.path.dirname(__file__))
-        rlist = self.benchmark(f"-f {cmd}")
+        json_file = os.path.join(os.path.dirname(__file__), "json", "taosc_query-sqlfile.json")
+        rlist = self.benchmark(f'-f "{json_file}"')
         # check result
         self.checkListString(rlist, "completed total queries: 2")
 
@@ -49,10 +54,7 @@ class TestQueryJsonWithSqlfile:
     # ------------------- test_query_json_with_error_sqlfile.py ----------------
     #
     def do_query_json_with_error_sqlfile(self):
-        binPath = etool.benchMarkFile()
-        os.system(
-            "rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0"
-        )
+        self.clean_query_results()
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
         tdSql.execute("use db")
@@ -60,9 +62,8 @@ class TestQueryJsonWithSqlfile:
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
-        cmd = "%s -f %s/json/taosc_query-error-sqlfile.json" % (binPath, os.path.dirname(__file__))
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
+        json_file = os.path.join(os.path.dirname(__file__), "json", "taosc_query-error-sqlfile.json")
+        self.benchmark(f'-f "{json_file}"', checkRun=False)
 
         print("do query with error sqlfile ........... [passed]")
 
@@ -80,6 +81,7 @@ class TestQueryJsonWithSqlfile:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

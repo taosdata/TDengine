@@ -3297,6 +3297,22 @@ static void buildRefTableKey(char* buf, size_t bufSize, const char* dbName, cons
   }
 }
 
+// Namespace component of the external-table map key.
+//
+// MySQL / PostgreSQL / SQL Server name a database here; Oracle has a single
+// namespace level - the schema - and keeps table.dbName empty on the external
+// node (the service name must never become a path component), while the
+// persisted column reference stores that same schema in refDbName.  Picking
+// "database, else schema" on both sides makes the node built during
+// translation and the reference read from the vtable metadata land on the same
+// key.
+static const char* extRefKeyNamespace(const char* dbName, const char* schemaName) {
+  if (dbName != NULL && dbName[0] != '\0') {
+    return dbName;
+  }
+  return (schemaName != NULL) ? schemaName : "";
+}
+
 static void buildExtRefTableKey(char* buf, size_t bufSize, const char* sourceName, const char* dbName,
                                 const char* tableName) {
   size_t srcLen = strnlen(sourceName, TSDB_EXT_SOURCE_NAME_LEN);
@@ -3416,7 +3432,8 @@ static int32_t findRefColId(SNode *pRefTable, const char *colName, col_id_t *col
 }
 
 static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* pVirtualTableNode, const SSchema* pSchema,
-                          col_id_t colId, const SSchema* pRefSchema, bool isTagInRefTable) {
+                          const SSchemaExt* pVtbSchemaExt, col_id_t colId, const SSchema* pRefSchema,
+                          bool isTagInRefTable) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SColumnNode    *pRefTableScanCol = NULL;
   SScanLogicNode *pLogicScan = (SScanLogicNode*)pLogicNode;
@@ -3436,6 +3453,21 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   if (SCAN_TYPE_EXTERNAL == pLogicScan->scanType) {
     SExtTableNode* pExtTable = (SExtTableNode*)pLogicScan->pExtTableNode;
     tstrncpy(pRefTableScanCol->tableAlias, pExtTable->table.tableAlias, sizeof(pRefTableScanCol->tableAlias));
+    // Oracle stores an unquoted name in upper case while TDengine lower-cases
+    // the reference, and the renderer quotes every Oracle identifier.  Record
+    // the spelling the remote catalog reported so the rendered statement names
+    // the column that exists (the renderer prefers refColName when it differs
+    // from colName); the plan-time slot key keeps the original name.
+    if (EXT_SOURCE_ORACLE == pExtTable->sourceType && pExtTable->pExtMeta != NULL &&
+        pExtTable->pExtMeta->pCols != NULL) {
+      for (int32_t i = 0; i < pExtTable->pExtMeta->numOfCols; ++i) {
+        const char* pRemote = pExtTable->pExtMeta->pCols[i].colName;
+        if (pRemote[0] != '\0' && 0 == strcasecmp(pRemote, pRefTableScanCol->colName)) {
+          tstrncpy(pRefTableScanCol->refColName, pRemote, sizeof(pRefTableScanCol->refColName));
+          break;
+        }
+      }
+    }
   }
 
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -3461,13 +3493,16 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->colId = colId;
   pRefTableScanCol->tableId = pLogicScan->tableId;
   pRefTableScanCol->tableType = pLogicScan->tableType;
-  pRefTableScanCol->node.resType.type = pSchema->type;
+  // DECIMAL columns carry precision/scale outside the plain (type, bytes) pair:
+  // either packed into the schema bytes or in the column's typeMod.  Keep them
+  // on the scan column, otherwise the output slot advertises DECIMAL(?,0) and
+  // the connector rejects every fetched value ("cannot be represented").
+  schemaToRefDataType(pSchema, NULL != pVtbSchemaExt ? pVtbSchemaExt->typeMod : 0,
+                      &pRefTableScanCol->node.resType);
   if (pRefSchema && IS_VAR_DATA_TYPE(pSchema->type)) {
-    pRefTableScanCol->node.resType.bytes = TMAX(pSchema->bytes, pRefSchema->bytes);
+    pRefTableScanCol->node.resType.bytes = TMAX(pRefTableScanCol->node.resType.bytes, pRefSchema->bytes);
     planDebug("scanAddCol: col %s, vtb bytes=%d, ref bytes=%d, final bytes=%d",
               pRefTableScanCol->colName, pSchema->bytes, pRefSchema->bytes, pRefTableScanCol->node.resType.bytes);
-  } else {
-    pRefTableScanCol->node.resType.bytes = pSchema->bytes;
   }
   pRefTableScanCol->isPk = false;
   pRefTableScanCol->tableHasPk = false;
@@ -3822,12 +3857,17 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
   int32_t         groupKeyLen = 0;
 
   char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
-  buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pColRef->refSourceName, pColRef->refDbName,
+  buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pColRef->refSourceName,
+                      extRefKeyNamespace(pColRef->refDbName, pColRef->refSchemaName),
                       pColRef->refTableName);
   QUERY_CHECK_CONDITION(tableNameKey[0] != '\0', code, lino, _return, TSDB_CODE_INVALID_PARA);
   code = buildExtScanGroupKey(pColRef, &pGroupKey, &groupKeyLen);
   QUERY_CHECK_CODE(code, lino, _return);
 
+  const SSchemaExt* vtbSchemaExt =
+      (pVirtualTable->pMeta->schemaExt && schemaIndex < pVirtualTable->pMeta->tableInfo.numOfColumns)
+          ? pVirtualTable->pMeta->schemaExt + schemaIndex
+          : NULL;
   SScanLogicNode** ppRefScan = (SScanLogicNode**)taosHashGet(refTablesMap, pGroupKey, groupKeyLen);
   if (NULL == ppRefScan) {
     SNode** ppExtNode = (SNode**)taosHashGet(refTableNodeMap, tableNameKey, strlen(tableNameKey));
@@ -3844,7 +3884,7 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
     pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
     if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType ||
-        EXT_SOURCE_SQLSERVER == pExtTableNode->sourceType) {
+        EXT_SOURCE_SQLSERVER == pExtTableNode->sourceType || EXT_SOURCE_ORACLE == pExtTableNode->sourceType) {
       SExtTableNode* pScanTable = (SExtTableNode*)pExtScan->pExtTableNode;
       // Keep each condition group's slot identity distinct without changing the remote table name.
       snprintf(pScanTable->table.tableAlias, sizeof(pScanTable->table.tableAlias), "_vtb_ext_%d",
@@ -3869,7 +3909,7 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     QUERY_CHECK_CODE(code, lino, _return);
 
     code = scanAddCol((SLogicNode*)pExtScan, pColRef, &pVirtualTable->table,
-                      &pVirtualTable->pMeta->schema[schemaIndex], 0, NULL, false);
+                      &pVirtualTable->pMeta->schema[schemaIndex], vtbSchemaExt, 0, NULL, false);
     QUERY_CHECK_CODE(code, lino, _return);
     code = taosHashPut(refTablesMap, pGroupKey, groupKeyLen, &pExtScan, POINTER_BYTES);
     QUERY_CHECK_CODE(code, lino, _return);
@@ -3877,7 +3917,7 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
   } else {
     pExtScan = *ppRefScan;
     code = scanAddCol((SLogicNode*)pExtScan, pColRef, &pVirtualTable->table,
-                      &pVirtualTable->pMeta->schema[schemaIndex], 0, NULL, false);
+                      &pVirtualTable->pMeta->schema[schemaIndex], vtbSchemaExt, 0, NULL, false);
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
@@ -3956,13 +3996,13 @@ static int32_t addSubScanNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SVi
     PLAN_ERR_JRET(createRefScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
     PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, pRefColSchema,
                                   pRefSchemaExt));
-    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId, pRefColSchema, isTagInRefTable));
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, colId, pRefColSchema, isTagInRefTable));
     PLAN_ERR_JRET(taosHashPut(refTablesMap, &tableNameKey, strlen(tableNameKey), &pRefScan, POINTER_BYTES));
     put = true;
   } else {
     pRefScan = *ppRefScan;
     PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, pRefColSchema, pRefSchemaExt));
-    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId, pRefColSchema, isTagInRefTable));
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, colId, pRefColSchema, isTagInRefTable));
   }
 
   nodesDestroyNode((SNode*)pRefTable);
@@ -4029,14 +4069,14 @@ static int32_t addSubScanNodeByRef(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   if (NULL == ppRefScan) {
     PLAN_ERR_JRET(createRefScanLogicNode(pCxt, pSelect, (SRealTableNode*)pRefTable, &pRefScan));
     PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, pRefColSchema, pRefSchemaExt));
-    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId,
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, colId,
                              pRefColSchema, isTagInRefTable));
     PLAN_ERR_JRET(taosHashPut(refTablesMap, &tableNameKey, strlen(tableNameKey), &pRefScan, POINTER_BYTES));
     put = true;
   } else {
     pRefScan = *ppRefScan;
     PLAN_ERR_JRET(checkColRefType(&pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, pRefColSchema, pRefSchemaExt));
-    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], colId,
+    PLAN_ERR_JRET(scanAddCol(pRefScan, pColRef, &pVirtualTable->table, &pVirtualTable->pMeta->schema[schemaIndex], pVtbSchemaExt, colId,
                              pRefColSchema, isTagInRefTable));
   }
 
@@ -4312,7 +4352,13 @@ static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
       SExtTableNode* pScanTable = (SExtTableNode*)(*ppScan)->pExtTableNode;
       QUERY_CHECK_NULL(pScanTable, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
       tstrncpy(pCol->refSourceName, pScanTable->sourceName, sizeof(pCol->refSourceName));
-      tstrncpy(pCol->refDbName, pScanTable->table.dbName, sizeof(pCol->refDbName));
+      // The scan's namespace is what the scan-side slot key was built from, so
+      // the project-side key must use the same one.  Oracle keeps the middle
+      // path segment (the schema) in schemaName rather than table.dbName, so an
+      // empty dbName means "use the schema" instead of "no namespace".
+      tstrncpy(pCol->refDbName,
+               pScanTable->table.dbName[0] != '\0' ? pScanTable->table.dbName : pScanTable->schemaName,
+               sizeof(pCol->refDbName));
       tstrncpy(pCol->refTableName, pScanTable->table.tableAlias, sizeof(pCol->refTableName));
     }
   } else {
@@ -5733,7 +5779,11 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
       if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         continue;
       } else {
-        PLAN_ERR_JRET(scanAddCol(pRealTableScan, NULL, &pVirtualTable->table, &pVirtualTable->pMeta->schema[i], pVirtualTable->pMeta->schema[i].colId, NULL, false));
+        const SSchemaExt* pVtbSchemaExt =
+            (pVirtualTable->pMeta->schemaExt && i < pVirtualTable->pMeta->tableInfo.numOfColumns)
+                ? pVirtualTable->pMeta->schemaExt + i
+                : NULL;
+        PLAN_ERR_JRET(scanAddCol(pRealTableScan, NULL, &pVirtualTable->table, &pVirtualTable->pMeta->schema[i], pVtbSchemaExt, pVirtualTable->pMeta->schema[i].colId, NULL, false));
       }
     }
     PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pRealTableScan)->pScanCols, &((SScanLogicNode*)pRealTableScan)->node.pTargets));
@@ -5758,7 +5808,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
     if (nodeType(pRefNode) == QUERY_NODE_EXTERNAL_TABLE) {
       SExtTableNode* pExtTable = (SExtTableNode*)pRefNode;
-      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceName, pExtTable->table.dbName,
+      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceName,
+                          extRefKeyNamespace(pExtTable->table.dbName, pExtTable->schemaName),
                           pExtTable->table.tableName);
     } else {
       SRealTableNode* pRefTable = (SRealTableNode*)pRefNode;
@@ -6165,7 +6216,8 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
     char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
     if (nodeType(pRefNode) == QUERY_NODE_EXTERNAL_TABLE) {
       SExtTableNode* pExtTable = (SExtTableNode*)pRefNode;
-      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceName, pExtTable->table.dbName,
+      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceName,
+                          extRefKeyNamespace(pExtTable->table.dbName, pExtTable->schemaName),
                           pExtTable->table.tableName);
     } else {
       SRealTableNode* pRefTable = (SRealTableNode*)pRefNode;

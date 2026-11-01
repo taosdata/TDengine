@@ -349,6 +349,10 @@ static EExtSqlBoundForm extSqlBoundForm(const SStreamExtReaderInfo *pInfo) {
       return EXT_SQL_BOUND_UNIX_EPOCH;
     case EXT_SOURCE_SQLSERVER:
       return EXT_SQL_BOUND_UTC_WALL;
+    case EXT_SOURCE_ORACLE:
+      // The connector pins the session time zone to UTC (DS 5.3.5), so an
+      // offset-less ANSI literal is read as that absolute instant.
+      return EXT_SQL_BOUND_UTC_WALL;
     default:
       return EXT_SQL_BOUND_UTC_SUFFIX;
   }
@@ -357,10 +361,24 @@ static EExtSqlBoundForm extSqlBoundForm(const SStreamExtReaderInfo *pInfo) {
 /* Longest timestamp literal a remote bound can render:
  * 'YYYY-MM-DD HH:MM:SS.uuuuuu+00:00' (34 bytes incl. quotes) + NUL, or
  * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL. */
-#define EXT_SQL_TS_LITERAL_LEN 40
+/* The ANSI prefix Oracle needs ("TIMESTAMP ") adds 10 bytes on top of the
+ * 40-byte literal, so the buffers below are sized for the prefixed form. */
+#define EXT_SQL_TS_LITERAL_LEN 56
+
+/* Oracle needs the ANSI timestamp literal prefix (DS 5.3.6 R4): an offset-less
+ * quoted string compared against a TIMESTAMP column is converted through the
+ * session NLS_TIMESTAMP_FORMAT, so the bound would depend on server settings
+ * instead of being fixed by the statement.  Every other dialect takes the bare
+ * ISO text. */
+static const char *extSqlBoundPrefix(const SStreamExtReaderInfo *pInfo) {
+  return ((EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_ORACLE) ? "TIMESTAMP " : "";
+}
 
 static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *tzName,
-                                  EExtSqlBoundForm form, char *buf, int32_t bufLen) {
+                                  EExtSqlBoundForm form, const char *prefix, char *buf, int32_t bufLen) {
+  if (prefix == NULL) {
+    prefix = "";
+  }
   const char *suffix = (form == EXT_SQL_BOUND_UTC_SUFFIX) ? "+00:00'" : "'";
   /* Clamp INT64_MIN / negative to epoch origin. */
   bool clamped = (epoch == INT64_MIN || epoch < 0);
@@ -384,7 +402,7 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *
                     (int64_t)(epoch_us / 1000000LL), (int32_t)(epoch_us % 1000000LL));
   }
   if (clamped) {
-    return snprintf(buf, bufLen, "'1970-01-01 00:00:00.000000%s", suffix);
+    return snprintf(buf, bufLen, "%s'1970-01-01 00:00:00.000000%s", prefix, suffix);
   }
   time_t     sec     = (time_t)(epoch_us / 1000000LL);
   int        us      = (int)(epoch_us % 1000000LL);
@@ -397,7 +415,8 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *
     tzfree(tz);
   }
   return snprintf(buf, bufLen,
-                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
+                  "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
+                  prefix,
                   tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
                   tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us, suffix);
 }
@@ -413,7 +432,7 @@ int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_
     return TSDB_CODE_INVALID_PARA;
   }
   return epochToDatetimeStr(bound, precision, extSqlBoundTimezone(pInfo),
-                            extSqlBoundForm(pInfo), buf, bufLen);
+                            extSqlBoundForm(pInfo), extSqlBoundPrefix(pInfo), buf, bufLen);
 }
 
 /* Last instant a MySQL TIMESTAMP column can hold: 2038-01-19 03:14:07.999999
@@ -497,8 +516,12 @@ static int32_t extQuoteIdent(const SStreamExtTriggerSpec *pSpec, const char *ide
  * For MySQL/InfluxDB, the qualifier is the database name (extDb).
  * ============================================================ */
 static const char *extTableQualifier(const SStreamExtTriggerSpec *pSpec) {
+  // Oracle has one namespace level - the schema - and its "database" is the
+  // service name, which is connection state and not a namespace at all, so a
+  // "<service>.<table>" qualifier would name nothing (ORA-00942).
   if (((EExtSourceType)pSpec->sourceType == EXT_SOURCE_POSTGRESQL ||
-       (EExtSourceType)pSpec->sourceType == EXT_SOURCE_SQLSERVER) &&
+       (EExtSourceType)pSpec->sourceType == EXT_SOURCE_SQLSERVER ||
+       (EExtSourceType)pSpec->sourceType == EXT_SOURCE_ORACLE) &&
       pSpec->extSchema[0] != '\0') {
     return pSpec->extSchema;
   }

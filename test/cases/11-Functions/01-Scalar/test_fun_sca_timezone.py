@@ -18,8 +18,9 @@ from new_test_framework.utils.sqlset import TDSetSql
 
 import platform
 import os
-import time
+import pytest
 if platform.system().lower() == 'windows':
+    from datetime import datetime
     import tzlocal
 
 class TestFunTimezone:
@@ -62,7 +63,9 @@ class TestFunTimezone:
     def get_system_timezone(self):
         if platform.system().lower() == 'windows':
             time_zone_1 = tzlocal.get_localzone_name()
-            time_zone_2 = time.strftime('(UTC, %z)')
+            # Use IANA rules for both the abbreviation and offset. Windows CRT
+            # names differ from the timezone database used by TDengine.
+            time_zone_2 = datetime.now(tzlocal.get_localzone()).strftime('(%Z, %z)')
             time_zone = time_zone_1 + " " + time_zone_2
         else:
             time_zone_arr = os.popen('timedatectl | grep zone').read().strip().split(':')
@@ -249,6 +252,7 @@ class TestFunTimezone:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -257,7 +261,7 @@ class TestFunTimezone:
         timezone = self.get_system_timezone()
         # timezone = "Asia/Shanghai"
         self.charset_check("show local variables", "UTF-8")
-        self.timezone_check("show dnode 1 variables", "UTF-8")
+        self.charset_check("show dnode 1 variables", "UTF-8")
         self.timezone_check("show local variables", timezone)
         self.timezone_check("show dnode 1 variables", timezone)
 
@@ -267,6 +271,10 @@ class TestFunTimezone:
 
         #tdSql.close()
 
+    @pytest.mark.skipif(
+        platform.system().lower() == 'windows',
+        reason="Windows does not support SET TIMEZONE",
+    )
     def test_fun_sca_timezone_set_fixed_offset(self):
         """summary: SET TIMEZONE with a fixed offset → TIMEZONE() returns fixed-offset representation.
 

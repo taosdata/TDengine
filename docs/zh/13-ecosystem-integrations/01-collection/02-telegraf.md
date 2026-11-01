@@ -15,7 +15,7 @@ Telegraf 是一款十分流行的指标采集开源软件。在数据采集和�
 要将 Telegraf 数据写入 TDengine 需要以下几方面的准备工作。
 
 - TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - Telegraf 已经安装。安装 Telegraf 请参考 [官方文档](https://docs.influxdata.com/telegraf/v1.22/install/)
 - Telegraf 默认采集系统运行状态数据。通过使能 [输入插件](https://docs.influxdata.com/telegraf/v1.22/plugins/)方式可以输出 [其他格式](https://docs.influxdata.com/telegraf/v1.24/data_formats/input/) 的数据到 Telegraf 再写入到 TDengine 中。
 

@@ -17,7 +17,6 @@
 
 import json
 import os
-import shlex
 import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, tdDnodes
@@ -51,7 +50,7 @@ class TestSdbJsonModifyImport:
 
         taos_bin_path = os.getenv("TAOS_BIN_PATH")
         if taos_bin_path:
-            candidates.append(os.path.join(taos_bin_path, "taosd"))
+            candidates.append(os.path.join(taos_bin_path, "taosd.exe" if os.name == "nt" else "taosd"))
 
         for bin_path in candidates:
             if os.path.isfile(bin_path) and os.access(bin_path, os.X_OK):
@@ -68,7 +67,7 @@ class TestSdbJsonModifyImport:
 
     def _run_taosd(self, args, cwd=None, timeout_sec=30):
         bin_path = self._get_taosd_bin()
-        cmd = [bin_path] + shlex.split(args)
+        cmd = [bin_path] + list(args)
         tdLog.info("run cmd: %s (cwd=%s)" % (" ".join(cmd), cwd))
         env = os.environ.copy()
         asan_options = env.get("ASAN_OPTIONS", "")
@@ -93,7 +92,7 @@ class TestSdbJsonModifyImport:
     def _dump(self, cfg_dir, sdb_json_path):
         if os.path.exists(sdb_json_path):
             os.remove(sdb_json_path)
-        code, _ = self._run_taosd(f"-s -c {cfg_dir}", cwd=cfg_dir)
+        code, _ = self._run_taosd(["-s", "-c", cfg_dir], cwd=cfg_dir)
         tdSql.checkEqual(code, 0)
         tdSql.checkEqual(os.path.exists(sdb_json_path), True)
         with open(sdb_json_path, "r", encoding="utf-8") as fp:
@@ -132,7 +131,7 @@ class TestSdbJsonModifyImport:
         with open(sdb_json_path, "w", encoding="utf-8") as fp:
             json.dump(before, fp)
 
-        code, output = self._run_taosd(f"-mSdb {sdb_json_path} -c {cfg_dir}", cwd=cfg_dir)
+        code, output = self._run_taosd(["-mSdb", sdb_json_path, "-c", cfg_dir], cwd=cfg_dir)
         tdSql.checkEqual(code, 0)
         tdLog.info("-mSdb output: %s" % output[:500].replace("\n", "\\n"))
 
@@ -195,7 +194,7 @@ class TestSdbJsonModifyImport:
         with open(sdb_json_path, "w", encoding="utf-8") as fp:
             json.dump(before, fp)
 
-        code, output = self._run_taosd(f"-mSdb {sdb_json_path} -c {cfg_dir}", cwd=cfg_dir)
+        code, output = self._run_taosd(["-mSdb", sdb_json_path, "-c", cfg_dir], cwd=cfg_dir)
         tdLog.info("-mSdb output for immutable-field edit attempt: %s" % output[:800].replace("\n", "\\n"))
         # FS 4.4: fields outside a type's editable list (or a whole rawData
         # -only type) are ignored, not rejected -- -mSdb must still succeed.

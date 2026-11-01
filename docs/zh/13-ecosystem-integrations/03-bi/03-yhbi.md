@@ -15,7 +15,7 @@ toc_max_heading_level: 4
 准备以下环境：
 
 - TDengine `v3.3.2.0` 以上版本集群已部署并正常运行（企业及社区版均可）。
-- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter.md)。
+- taosAdapter 能够正常运行，详细参考 [taosAdapter 参考手册](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)。
 - 确保永洪 BI 已经安装并运行（如果未安装，请到永洪科技官方下载页面下载）。  
 - 安装 JDBC 驱动。从 maven.org 下载较新的 TDengine JDBC 连接器（文档示例基于 `taos-jdbcdriver-3.9.1-dist.jar`）。
 

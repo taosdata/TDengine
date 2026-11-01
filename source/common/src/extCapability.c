@@ -706,48 +706,56 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
   [0]                         = FQ_CAP_NONE,
 
   // Arithmetic operators - all dialects
-  // SQL Server bits are OR-ed per entry (DS 6.2.2: never widen the shared
-  // FQ_CAP_ALL macro; phase 2 turns the bits on entry by entry).
-  [OP_TYPE_ADD]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_SUB]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_MULTI]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_DIV]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_REM]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_MINUS]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
+  // SQL Server / Oracle bits are OR-ed per entry (DS 6.2.2: never widen the
+  // shared FQ_CAP_ALL macro; each phase turns its bits on entry by entry).
+  // Oracle rewrites are in DS 5.3.12: `/` and `%` get a zero-divisor CASE,
+  // `&`/`|` become BITAND / `a + b - BITAND(a, b)`.
+  [OP_TYPE_ADD]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_SUB]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_MULTI]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_DIV]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_REM]               = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_MINUS]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
-  // Bitwise operators - MySQL and PG support natively; InfluxDB v3 does not
-  [OP_TYPE_BIT_AND]           = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER,
-  [OP_TYPE_BIT_OR]            = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER,
+  // Bitwise operators - MySQL and PG support natively; InfluxDB v3 does not.
+  // Oracle has no operators, only BITAND(); `|` is the arithmetic identity.
+  [OP_TYPE_BIT_AND]           = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_BIT_OR]            = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
   // Comparison operators - all dialects
-  [OP_TYPE_GREATER_THAN]      = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_GREATER_EQUAL]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_LOWER_THAN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_LOWER_EQUAL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_EQUAL]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_NOT_EQUAL]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IN]                = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_NOT_IN]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_LIKE]              = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_NOT_LIKE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
+  [OP_TYPE_GREATER_THAN]      = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_GREATER_EQUAL]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_LOWER_THAN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_LOWER_EQUAL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_EQUAL]             = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_NOT_EQUAL]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IN]                = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_NOT_IN]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_LIKE]              = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_NOT_LIKE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
   // MATCH/NMATCH (regex): MySQL and PG support; InfluxDB DataFusion does not;
-  // SQL Server 2019/2022 has no regex operator (local).
-  [OP_TYPE_MATCH]             = FQ_CAP_MYSQL_PG,
-  [OP_TYPE_NMATCH]            = FQ_CAP_MYSQL_PG,
+  // SQL Server 2019/2022 has no regex operator (local).  Oracle has REGEXP_LIKE,
+  // but only the ERE constructs that glibc (TDengine's engine) and Oracle read
+  // alike are equivalent - the planner rejects every other construct
+  // (DS 5.3.6 R7 / 5.3.12 MATCH row).
+  [OP_TYPE_MATCH]             = FQ_CAP_MYSQL_PG | FQ_CAP_ORACLE,
+  [OP_TYPE_NMATCH]            = FQ_CAP_MYSQL_PG | FQ_CAP_ORACLE,
 
-  // Null/bool checks - all dialects
-  [OP_TYPE_IS_NULL]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_NOT_NULL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_TRUE]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_FALSE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_UNKNOWN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_NOT_TRUE]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_NOT_FALSE]      = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [OP_TYPE_IS_NOT_UNKNOWN]    = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
+  // Null/bool checks - all dialects.  Oracle 19c has no IS [NOT] TRUE/FALSE/
+  // UNKNOWN syntax; the operator renderer rewrites the family to CASE.
+  [OP_TYPE_IS_NULL]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_NOT_NULL]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_TRUE]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_FALSE]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_UNKNOWN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_NOT_TRUE]       = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_NOT_FALSE]      = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [OP_TYPE_IS_NOT_UNKNOWN]    = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
-  // EXISTS/NOT EXISTS: MySQL and PG support correlated subqueries; InfluxDB does not
-  [OP_TYPE_EXISTS]            = FQ_CAP_MYSQL_PG,
-  [OP_TYPE_NOT_EXISTS]        = FQ_CAP_MYSQL_PG,
+  // EXISTS/NOT EXISTS: MySQL and PG support correlated subqueries; InfluxDB
+  // does not; Oracle does (DS 5.3.7.1.5).
+  [OP_TYPE_EXISTS]            = FQ_CAP_MYSQL_PG | FQ_CAP_ORACLE,
+  [OP_TYPE_NOT_EXISTS]        = FQ_CAP_MYSQL_PG | FQ_CAP_ORACLE,
 
   // JSON operators: MySQL and PG support JSON path; InfluxDB local
   [OP_TYPE_JSON_GET_VALUE]    = FQ_CAP_MYSQL_PG,
@@ -761,51 +769,53 @@ static const uint16_t kFqOpCap[FQ_OP_CAP_TABLE_SIZE] = {
 // Indexed by EExtClauseKind.
 static const uint16_t kFqClauseCap[EXT_CLAUSE_MAX] = {
   // Core push-down gates - all dialects support these.
-  // SQL Server bits are OR-ed entry by entry (DS 6.2.2).  Phase 2 M1 opens
-  // FILTER + PROJECTION, M2 adds the aggregate clauses (AGG / HAVING /
+  // SQL Server / Oracle bits are OR-ed entry by entry (DS 6.2.2).  Phase 2 M1
+  // opens FILTER + PROJECTION, M2 adds the aggregate clauses (AGG / HAVING /
   // DISTINCT); the remaining clauses follow once their rendering exists
-  // (TOP/OFFSET-FETCH, NULLS rewriting, ...).
-  [EXT_CLAUSE_FILTER]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_PROJECTION]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_AGG]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_ORDER]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_LIMIT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER,   // SQL Server: TOP / OFFSET ... FETCH NEXT
-  [EXT_CLAUSE_JOIN]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER,   // All dialects support JOIN (InfluxDB v3 DataFusion included)
+  // (TOP/OFFSET-FETCH, NULLS rewriting, ...).  Oracle renders LIMIT as
+  // FETCH FIRST / OFFSET ... FETCH NEXT and always emits explicit NULLS
+  // FIRST/LAST (DS 5.3.6, 5.3.14).
+  [EXT_CLAUSE_FILTER]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_PROJECTION]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_AGG]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_ORDER]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_LIMIT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,   // SQL Server: TOP / OFFSET ... FETCH NEXT; Oracle: FETCH FIRST / OFFSET ... FETCH NEXT
+  [EXT_CLAUSE_JOIN]           = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,   // All dialects support JOIN (InfluxDB v3 DataFusion included)
 
   // Static feature flags
   [EXT_CLAUSE_GROUP_ROLLUP]      = FQ_CAP_NONE,   // no dialect supports ROLLUP push
-  [EXT_CLAUSE_HAVING]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_ORDER_NULLS_FIRST] = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // MySQL: ISNULL() workaround; PG/Influx: native; SQL Server: CASE prefix key
-  [EXT_CLAUSE_ORDER_NULLS_LAST]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_OFFSET]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
-  [EXT_CLAUSE_DISTINCT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
+  [EXT_CLAUSE_HAVING]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_ORDER_NULLS_FIRST] = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // MySQL: ISNULL() workaround; PG/Influx/Oracle: native; SQL Server: CASE prefix key
+  [EXT_CLAUSE_ORDER_NULLS_LAST]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_OFFSET]            = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
+  [EXT_CLAUSE_DISTINCT]          = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
   // JOIN subtypes
-  [EXT_CLAUSE_INNER_JOIN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // All dialects support INNER JOIN
-  [EXT_CLAUSE_LEFT_JOIN]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // All dialects support LEFT OUTER JOIN
-  [EXT_CLAUSE_RIGHT_JOIN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // All dialects support RIGHT OUTER JOIN
-  [EXT_CLAUSE_FULL_OUTER_JOIN]   = FQ_CAP_PG_INFLUX | FQ_CAP_SQLSERVER, // MySQL has no FULL OUTER JOIN; PG/InfluxDB v3 and T-SQL support it natively
-  [EXT_CLAUSE_SEMI_JOIN]         = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER, // DS section5.3.6.1.4: MySQL/PG via EXISTS; T-SQL EXISTS; InfluxDB: no correlated subquery
-  [EXT_CLAUSE_ANTI_JOIN]         = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER, // DS section5.3.6.1.5: MySQL/PG via NOT EXISTS; T-SQL NOT EXISTS; InfluxDB: no correlated subquery
+  [EXT_CLAUSE_INNER_JOIN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // All dialects support INNER JOIN
+  [EXT_CLAUSE_LEFT_JOIN]         = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // All dialects support LEFT OUTER JOIN
+  [EXT_CLAUSE_RIGHT_JOIN]        = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // All dialects support RIGHT OUTER JOIN
+  [EXT_CLAUSE_FULL_OUTER_JOIN]   = FQ_CAP_PG_INFLUX | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // MySQL has no FULL OUTER JOIN; PG/InfluxDB v3/T-SQL/Oracle support it natively
+  [EXT_CLAUSE_SEMI_JOIN]         = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // DS section5.3.6.1.4: MySQL/PG via EXISTS; T-SQL/Oracle EXISTS; InfluxDB: no correlated subquery
+  [EXT_CLAUSE_ANTI_JOIN]         = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // DS section5.3.6.1.5: MySQL/PG via NOT EXISTS; T-SQL/Oracle NOT EXISTS; InfluxDB: no correlated subquery
 
   // Subquery types
-  [EXT_CLAUSE_FROM_SUBQUERY]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // DS section5.3.7.1.1: all dialects support nested FROM subquery push; T-SQL derived table (alias required)
-  [EXT_CLAUSE_SCALAR_SUBQUERY]   = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // all dialects: resolved TDengine-side, emitted as literal; T-SQL scalar subquery
-  [EXT_CLAUSE_IN_SUBQUERY]       = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER, // InfluxDB: no IN (subquery); T-SQL native IN (subquery)
-  [EXT_CLAUSE_ALL_ANY_SUBQUERY]  = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER, // MySQL/PG: op ALL|ANY (subquery); InfluxDB: no correlated subquery; T-SQL SOME == ANY
-  [EXT_CLAUSE_EXISTS_SUBQUERY]   = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER, // MySQL/PG: [NOT] EXISTS (subquery); InfluxDB: no EXISTS subquery; T-SQL native
+  [EXT_CLAUSE_FROM_SUBQUERY]     = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // DS section5.3.7.1.1: all dialects support nested FROM subquery push; Oracle derived table does not require an alias
+  [EXT_CLAUSE_SCALAR_SUBQUERY]   = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // all dialects: resolved TDengine-side, emitted as literal; Oracle scalar subquery
+  [EXT_CLAUSE_IN_SUBQUERY]       = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // InfluxDB: no IN (subquery); T-SQL/Oracle native IN (subquery)
+  [EXT_CLAUSE_ALL_ANY_SUBQUERY]  = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // MySQL/PG: op ALL|ANY (subquery); InfluxDB: no correlated subquery; T-SQL SOME == ANY; Oracle native ALL/ANY
+  [EXT_CLAUSE_EXISTS_SUBQUERY]   = FQ_CAP_MYSQL_PG | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE, // MySQL/PG: [NOT] EXISTS (subquery); InfluxDB: no EXISTS subquery; T-SQL/Oracle native
 
   // INTERVAL
-  [EXT_CLAUSE_INTERVAL_TUMBLING] = FQ_CAP_ALL | FQ_CAP_SQLSERVER,  // MySQL: FROM_UNIXTIME(FLOOR(...)); PG: DATE_BIN; InfluxDB: DATE_BIN(INTERVAL); T-SQL: DATEADD+DATEDIFF_BIG
+  [EXT_CLAUSE_INTERVAL_TUMBLING] = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // MySQL: FROM_UNIXTIME(FLOOR(...)); PG: DATE_BIN; InfluxDB: DATE_BIN(INTERVAL); T-SQL: DATEADD+DATEDIFF_BIG; Oracle: epoch + NUMTODSINTERVAL
   [EXT_CLAUSE_INTERVAL_SLIDING]  = FQ_CAP_NONE,
 
   // PARTITION BY
-  [EXT_CLAUSE_PARTITION_TBNAME]  = FQ_CAP_INFLUX,  // InfluxDB: tag-based GROUP BY; MySQL/PG: no supertable concept
-  [EXT_CLAUSE_PARTITION_COLUMN]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER,
+  [EXT_CLAUSE_PARTITION_TBNAME]  = FQ_CAP_INFLUX,  // InfluxDB: tag-based GROUP BY; MySQL/PG/Oracle: no supertable concept
+  [EXT_CLAUSE_PARTITION_COLUMN]  = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,
 
   // Feature flags (connector-reported; default disabled)
   [EXT_CLAUSE_FEAT_CTE]              = FQ_CAP_NONE,
-  [EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS] = FQ_CAP_ALL | FQ_CAP_SQLSERVER,   // MySQL 8.0+/PG/InfluxDB v3/T-SQL: OVER() supported (e.g. LAG/LEAD)
+  [EXT_CLAUSE_FEAT_WINDOW_FUNCTIONS] = FQ_CAP_ALL | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,   // MySQL 8.0+/PG/InfluxDB v3/T-SQL/Oracle: OVER() supported (e.g. LAG/LEAD)
   [EXT_CLAUSE_FEAT_LARGE_IN_LIST]    = FQ_CAP_NONE,
 
   // JOIN subtypes always local

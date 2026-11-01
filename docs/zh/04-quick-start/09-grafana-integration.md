@@ -145,6 +145,6 @@ FILL(NULL);
 本章只介绍最小可用的 Grafana 集成流程。更多插件安装方式、变量、Dashboard 使用技巧和性能建议，请继续阅读以下文档：
 
 - [与 Grafana 集成](../13-ecosystem-integrations/02-visual/01-grafana.mdx)：完整插件安装、数据源配置和 Dashboard 使用指南。
-- [taosAdapter 参考手册](../12-operations-and-tooling/03-components/03-taosadapter.md)：确认 WebSocket/REST 服务端口和配置。
+- [taosAdapter 参考手册](../12-operations-and-tooling/03-components/03-taosadapter/index.md)：确认 WebSocket/REST 服务端口和配置。
 - [数据查询](./05-query-and-aggregate.md)：了解 `INTERVAL`、`FILL`、`GROUP BY` 和时间范围查询。
 - [可视化管理](./08-visual-management.md)：使用 taosExplorer 在浏览器中查询和管理数据。

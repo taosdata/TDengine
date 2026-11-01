@@ -32,3 +32,9 @@ explain verbose true select _wstart, _wend, state_col, sum(mysql_a_v), sum(mysql
 
 # optimized: SQL Server source mixed with the internal table
 explain verbose true select _wstart, _wend, state_col, sum(local_v), sum(sqlserver_v) from vt_window_federated_batch.vst_local_ss state_window(state_col, 0) order by _wstart;
+
+# Oracle source mixed across two tables of one source
+explain verbose true select _wstart, _wend, state_col, sum(primary_v), sum(aux_v) from vt_window_federated_batch.vst_oracle_sources state_window(state_col, 0) order by _wstart;
+
+# optimized: Oracle source mixed with the internal table
+explain verbose true select _wstart, _wend, state_col, sum(local_v), sum(oracle_v) from vt_window_federated_batch.vst_local_oracle state_window(state_col, 0) order by _wstart;
