@@ -75,9 +75,15 @@ def build_windows_test_program(source, name, build_dir):
                '-I' + str(community_dir / 'include' / 'client'),
                '-I' + str(community_dir / 'include' / 'util'),
                str(bin_dir / 'taos.dll')]
-    result = subprocess.run(command, capture_output=True, text=True, errors='replace', timeout=120)
+    compiler_env = os.environ.copy()
+    # GCC subprocesses must load their toolchain DLLs before application DLLs
+    # from build/bin, which the test runner puts first on PATH.
+    compiler_env['PATH'] = str(Path(compiler).parent) + os.pathsep + compiler_env.get('PATH', '')
+    result = subprocess.run(command, capture_output=True, text=True, errors='replace',
+                            timeout=120, env=compiler_env)
     if result.returncode:
-        raise RuntimeError(f'Failed to compile {name}: {result.stdout}\n{result.stderr}')
+        raise RuntimeError(f'Failed to compile {name} (exit {result.returncode}): '
+                           f'{subprocess.list2cmdline(command)}\n{result.stdout}\n{result.stderr}')
     return str(destination)
 
 # cpu frequent as random

@@ -360,6 +360,9 @@ class TestRBACUpgrade3424Regression:
         tdLog.info("Step 1: Stopping all dnodes...")
         # The current client must not keep heartbeats against an old server.
         tdSql.close()
+        if os.name == "nt":
+            # Closing the cursor leaves the fixture's native connection alive.
+            self.conn.close()
         self.stop_all_taosd()
 
         # Step 1: Install old version and create cluster
