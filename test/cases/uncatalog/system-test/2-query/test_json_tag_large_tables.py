@@ -15,7 +15,6 @@
 
 # -*- coding: utf-8 -*-
 
-import imp
 import sys
 import taos
 from new_test_framework.utils import tdLog, tdSql
