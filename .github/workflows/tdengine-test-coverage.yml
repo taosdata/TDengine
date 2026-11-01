@@ -47,7 +47,7 @@ permissions:
 
 jobs:
   run-tests-on-linux:
-    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@3d3ef6fe5c1694cb476969bb962c811a02d2c186 # test_coverage, pinned 2026-09-17
+    uses: taosdata/.github/.github/workflows/run-coverage-tests-on-linux.yml@2a74c302e3f701d03e22d7a896152f6cea0f4dbc # fix/coverage-setup-python, pinned 2026-11-01
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'}}
     with:
       specified_tdinternal_test_branch: ${{ github.event_name == 'schedule' && '3.0' || github.event.inputs.specified_tdinternal_test_branch || 'fix/tdinternal-sync-build' }}
