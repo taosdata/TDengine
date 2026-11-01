@@ -43,6 +43,7 @@ from lib.taosanalytics.handlers.model_mgmt import (
     do_undeploy_dynamic_model,
 )
 from lib.taosanalytics.handlers.regression import handle_regression
+from lib.taosanalytics.handlers.series_diagnosis import handle_series_diagnosis
 from lib.taosanalytics.model_cache import ModelFileManager
 from lib.tsfm.mgmt.foundation_model import (
     delete_foundation_model,
@@ -164,6 +165,13 @@ def handle_regression_req():
     """handle the regression request"""
     AppLogger.info("recv regression request from %s", request.remote_addr)
     return handle_regression(request)
+
+
+@app.route("/series-diagnosis", methods=["POST"])
+def handle_series_diagnosis_req():
+    """handle the sequence diagnosis request"""
+    AppLogger.info("recv sequence diagnosis request from %s", request.remote_addr)
+    return handle_series_diagnosis(request)
 
 
 @app.route("/clustering", methods=["POST"])
