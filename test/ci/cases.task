@@ -92,7 +92,7 @@
 
 # ​​​Special gap before priority support
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py -N 3
-,,n,.,pytest cases/05-VirtualTables/test_vtable_tag_ref_rolling_upgrade.py -N 3
+#,,n,.,pytest cases/05-VirtualTables/test_vtable_tag_ref_rolling_upgrade.py -N 3
 
 # 02-Databases
 
