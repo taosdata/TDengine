@@ -139,47 +139,6 @@ def test_shell_writer_preserves_failure_status(etool, monkeypatch):
 
 
 @pytest.mark.parametrize("failure", [False, True])
-def test_windows_background_writer_reaped_before_log_restore(etool, monkeypatch, failure):
-    module, sql, _ = etool
-    process = Mock()
-    process.poll.return_value = None
-    launch = Mock(return_value=process)
-    monkeypatch.setitem(sys.modules, "benchmark_log_test.eutil",
-                        types.SimpleNamespace(start_test_process=launch))
-    monkeypatch.setattr(module, "isWin", lambda: True, raising=False)
-    monkeypatch.setattr(module, "binFile", lambda _: r"C:\Program Files\TDengine\taosBenchmark",
-                        raising=False)
-
-    def execute(statement):
-        if "135" in statement:
-            process.kill.assert_called_once_with()
-            process.wait.assert_called_once_with(timeout=10)
-            assert not module._background_binaries
-
-    sql.execute.side_effect = execute
-
-    def run():
-        with module.benchmark_write_log() as cfg_dir:
-            assert module.exeBinFile("taosBenchmark", f'-c "{cfg_dir}"',
-                                     wait=False, show=False) == 0
-            assert launch.call_args.args[0].startswith(
-                '"C:\\Program Files\\TDengine\\taosBenchmark.exe" ')
-            try:
-                if failure:
-                    raise RuntimeError("writer failed")
-            finally:
-                module.stop_background_binaries("taosBenchmark")
-
-    if failure:
-        with pytest.raises(RuntimeError, match="writer failed"):
-            run()
-    else:
-        run()
-    assert "wDebugFlag 135" in sql.execute.call_args_list[-1].args[0]
-    assert not module._benchmark_log_lock.locked()
-
-
-@pytest.mark.parametrize("failure", [False, True])
 def test_python_data_load_restores_without_copying_client_config(etool, failure):
     module, sql, original = etool
     original.unlink()

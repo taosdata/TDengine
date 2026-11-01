@@ -19,12 +19,10 @@
 # about system funciton extension
 #
 
-import atexit
 import sys
 import os
 import time
 import datetime
-import subprocess
 import shutil
 import tempfile
 import threading
@@ -40,22 +38,6 @@ TAOSDUMP = "taosdump"
 TAOSBENCHMARK = "taosBenchmark"
 TAOSADAPTER = "taosadapter"
 TAOSK = "taosk"
-
-_background_binaries = []
-
-
-def stop_background_binaries(fname=None):
-    for name, proc in list(_background_binaries):
-        if fname is not None and name != fname:
-            continue
-        if proc.poll() is None:
-            proc.kill()
-        proc.wait(timeout=10)
-        _background_binaries.remove((name, proc))
-
-
-atexit.register(stop_background_binaries)
-
 
 # This changes cluster-wide logging. Overlapping scopes could restore it too early.
 _benchmark_log_lock = threading.Lock()
@@ -287,8 +269,7 @@ def exeBinFile(fname, command, wait=True, show=True):
     Returns:
         int: The exit status of the command execution. A return value of `0` indicates success, 
              while a non-zero value indicates failure.
-             - If `wait` is False, Windows returns 0 after launching an owned
-               process; POSIX returns the status of the background launcher.
+             - If `wait` is False, the return value is the exit status of the `nohup` or `mintty` command.
     """
     bin_file = binFile(fname)
     if isWin():
@@ -302,15 +283,6 @@ def exeBinFile(fname, command, wait=True, show=True):
     else:
         if show:
             tdLog.info("no wait exe:" + cmd)
-        if isWin():
-            from .eutil import start_test_process
-            proc = start_test_process(
-                subprocess.list2cmdline([bin_file]) + " " + command,
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            _background_binaries.append((fname, proc))
-            return 0
         return exeNoWait(cmd)
 
 #
