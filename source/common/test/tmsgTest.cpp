@@ -5089,6 +5089,25 @@ TEST(td_msg_test, retrieve_table_req_xnode_fields_roundtrip) {
   EXPECT_EQ(output.xnodeRetrieveFilterValue, 42);
 }
 
+TEST(td_msg_test, retrieve_table_req_col_mask_roundtrip) {
+  SRetrieveTableReq input = {0};
+  input.showId = 3;
+  tstrncpy(input.tb, TSDB_INS_TABLE_DATABASES, sizeof(input.tb));
+  input.colMaskSet = 1;
+  input.colMask[0] = 0x01;
+  input.colMask[1] = 0x40;
+
+  int32_t size = tSerializeSRetrieveTableReq(NULL, 0, &input);
+  ASSERT_GT(size, 0);
+  std::vector<uint8_t> buf(size);
+  ASSERT_EQ(tSerializeSRetrieveTableReq(buf.data(), size, &input), size);
+
+  SRetrieveTableReq output = {0};
+  ASSERT_EQ(tDeserializeSRetrieveTableReq(buf.data(), size, &output), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(output.colMaskSet, 1);
+  EXPECT_EQ(memcmp(output.colMask, input.colMask, sizeof(input.colMask)), 0);
+}
+
 static int32_t serializeRetrieveTableReqWire(const SRetrieveTableReq& req, void* buf, int32_t bufLen,
                                              bool includeOutputMode, bool includeFilterType, bool includeFilterValue) {
   SEncoder encoder = {0};

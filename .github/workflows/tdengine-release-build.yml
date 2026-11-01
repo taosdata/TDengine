@@ -139,18 +139,20 @@ jobs:
           nohup taosd -c "$smoke_dir/cfg" > "$smoke_dir/taosd.out" 2>&1 &
           taosd_pid=$!
           echo "$taosd_pid" > "$smoke_dir/taosd.pid"
-          # A running process does not yet mean SQL connections are ready.
+          # Metadata queries can succeed before the first dnode heartbeat.
+          # Require database creation to confirm vnode allocation is ready too.
           for attempt in {1..60}; do
-            echo "Waiting for SQL readiness ($attempt/60)"
+            echo "Waiting for database creation readiness ($attempt/60)"
             if ! kill -0 "$taosd_pid" 2>/dev/null; then
               echo "taosd exited before becoming ready"
               cat "$smoke_dir/taosd.out"
               exit 1
             fi
             # The CLI can exit zero after a SQL error, so also require its
-            # successful result marker from a query handled by the server.
-            if taos -c "$smoke_dir/cfg" -h localhost -s "show databases" > "$smoke_dir/ready.out" 2>&1 &&
-               grep -Eq '^Query OK, [0-9]+ row\(s\) in set ' "$smoke_dir/ready.out"; then
+            # successful CREATE marker, not merely a connection or query result.
+            # Benchmark recreates this database before inserting its test data.
+            if taos -c "$smoke_dir/cfg" -h localhost -s "create database if not exists test" > "$smoke_dir/ready.out" 2>&1 &&
+               grep -Eq '^Create OK, [0-9]+ row\(s\) affected ' "$smoke_dir/ready.out"; then
               cat "$smoke_dir/ready.out"
               exit 0
             fi

@@ -54,7 +54,7 @@ class TestQueryBasic:
         tdLog.info(f"insert data.")
         # taosBenchmark run
         jfile = etool.curFile(__file__, "select_exact.json")
-        etool.benchMark(json = jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
         tdSql.execute(f"use {self.db}")
         tdSql.execute("select database();")
@@ -70,7 +70,7 @@ class TestQueryBasic:
             tdLog.exit("transactions did not drain after flush before disorder write")
         self.waitDbVgroupsReady(self.db)
         jfile = etool.curFile(__file__, "cselect_exact.json")
-        etool.benchMark(json = jfile)
+        etool.benchMark(json=jfile, low_log=True)
 
 
     def genTime(self, preCnt, cnt):
@@ -462,6 +462,7 @@ class TestQueryBasic:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -12355,6 +12355,10 @@ int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->xnodeDsnOutputMode));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->xnodeRetrieveFilterType));
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->xnodeRetrieveFilterValue));
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->colMaskSet));
+  if (pReq->colMaskSet) {
+    TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->colMask, sizeof(pReq->colMask)));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -12411,6 +12415,14 @@ int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableR
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->xnodeRetrieveFilterValue));
   } else {
     pReq->xnodeRetrieveFilterValue = 0;
+  }
+  pReq->colMaskSet = 0;
+  (void)memset(pReq->colMask, 0, sizeof(pReq->colMask));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->colMaskSet));
+    if (pReq->colMaskSet) {
+      TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, pReq->colMask, sizeof(pReq->colMask)));
+    }
   }
   tEndDecode(&decoder);
 _exit:

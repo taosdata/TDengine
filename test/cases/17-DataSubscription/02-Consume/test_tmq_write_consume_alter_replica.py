@@ -48,9 +48,9 @@ class TestCase:
     # taosBenchmark creates the database automatically (-y auto-confirms).
     # -v 1 : 1 vgroup  -a 1 : replica=1  -B 1 : batch size 1
     # ------------------------------------------------------------------
-    def _startBenchmark(self, benchmarkPath):
+    def _startBenchmark(self, benchmarkPath, cfg_dir):
         cmd = (
-            f"{benchmarkPath} -y -d {self.dbName}"
+            f'{benchmarkPath} -c "{cfg_dir}" -y -d {self.dbName}'
             f" -t {_TABLE_COUNT} -n {_ROWS_PER_TBL} -v 1 -a 1 -B 1 -k 1000 -z 1000"
         )
         tdLog.info(f"starting taosBenchmark: {cmd}")
@@ -170,63 +170,74 @@ class TestCase:
 
         benchmarkPath = etool.benchMarkFile()
 
-        # 1. Start taosBenchmark in background; it creates the DB automatically
-        benchProc = self._startBenchmark(benchmarkPath)
-        tdLog.info("taosBenchmark started, waiting for table creation to complete")
-        # Wait for taosBenchmark to finish creating meters stb + d0~d9 child tables
-        time.sleep(10)
-
-        # 2. Create topic with earliest offset to cover all written data
-        tdSql.execute(f"drop topic if exists {self.topicName}")
-        tdSql.execute(
-            f"create topic {self.topicName} "
-            f"as select * from {self.dbName}.{self.stbName}"
-        )
-        tdLog.info(f"topic {self.topicName} created")
-
-        # 3. Shared state between threads
-        consumedCounter   = [0]               # mutable row counter
-        alterTriggerEvent = threading.Event() # fired when 30K rows consumed
-        consumeDoneEvent  = threading.Event() # fired when consumer exits
-        errorHolder       = []                # consumer thread errors
-
-        # 4. Start consumer thread
-        ct = threading.Thread(
-            target=self._consumerThread,
-            args=(alterTriggerEvent, consumeDoneEvent,
-                  consumedCounter, errorHolder),
-            daemon=True,
-        )
-        ct.start()
-        tdLog.info("consumer thread started")
-
-        # 5. Wait until 30K rows consumed, then alter replica 1 -> 3
-        tdLog.info("waiting for consumer to reach 30,000 rows...")
-        alterTriggerEvent.wait(timeout=3600)
-
-        if alterTriggerEvent.is_set():
-            tdLog.info("executing alter database replica 3")
-            # Use a dedicated connection to avoid sharing cursor with consumer thread
-            alterSql = tdCom.newTdSql()
+        with etool.benchmark_write_log() as cfg_dir:
+            benchProc = self._startBenchmark(benchmarkPath, cfg_dir)
             try:
-                alterSql.execute(f"flush database {self.dbName}")
-                alterSql.execute(f"alter database {self.dbName} replica 3")
-                tdLog.info("alter database replica 3 submitted, waiting for transaction")
-                tdCom.waitTransactionZeroWithTdsql(alterSql)
-                tdLog.info("alter replica 3 completed")
-            except Exception as e:
-                tdLog.info(f"alter replica exception (cluster may have insufficient nodes): {e}")
-        else:
-            tdLog.info("WARNING: timed out waiting for alter replica trigger")
+                # 1. Start taosBenchmark in background; it creates the DB automatically
+                tdLog.info("taosBenchmark started, waiting for table creation to complete")
+                # Wait for taosBenchmark to finish creating meters stb + d0~d9 child tables
+                time.sleep(10)
 
-        # 6. Wait for taosBenchmark to finish writing
-        tdLog.info("waiting for taosBenchmark to finish writing...")
-        try:
-            benchProc.wait(timeout=7200)
-            tdLog.info("taosBenchmark write finished")
-        except subprocess.TimeoutExpired:
-            tdLog.info("taosBenchmark timed out, terminating")
-            benchProc.terminate()
+                # 2. Create topic with earliest offset to cover all written data
+                tdSql.execute(f"drop topic if exists {self.topicName}")
+                tdSql.execute(
+                    f"create topic {self.topicName} "
+                    f"as select * from {self.dbName}.{self.stbName}"
+                )
+                tdLog.info(f"topic {self.topicName} created")
+
+                # 3. Shared state between threads
+                consumedCounter   = [0]               # mutable row counter
+                alterTriggerEvent = threading.Event() # fired when 30K rows consumed
+                consumeDoneEvent  = threading.Event() # fired when consumer exits
+                errorHolder       = []                # consumer thread errors
+
+                # 4. Start consumer thread
+                ct = threading.Thread(
+                    target=self._consumerThread,
+                    args=(alterTriggerEvent, consumeDoneEvent,
+                          consumedCounter, errorHolder),
+                    daemon=True,
+                )
+                ct.start()
+                tdLog.info("consumer thread started")
+
+                # 5. Wait until 30K rows consumed, then alter replica 1 -> 3
+                tdLog.info("waiting for consumer to reach 30,000 rows...")
+                alterTriggerEvent.wait(timeout=3600)
+
+                if alterTriggerEvent.is_set():
+                    tdLog.info("executing alter database replica 3")
+                    # Use a dedicated connection to avoid sharing cursor with consumer thread
+                    alterSql = tdCom.newTdSql()
+                    try:
+                        alterSql.execute(f"flush database {self.dbName}")
+                        alterSql.execute(f"alter database {self.dbName} replica 3")
+                        tdLog.info("alter database replica 3 submitted, waiting for transaction")
+                        tdCom.waitTransactionZeroWithTdsql(alterSql)
+                        tdLog.info("alter replica 3 completed")
+                    except Exception as e:
+                        tdLog.info(f"alter replica exception (cluster may have insufficient nodes): {e}")
+                else:
+                    tdLog.info("WARNING: timed out waiting for alter replica trigger")
+
+                # 6. Wait for taosBenchmark to finish writing
+                tdLog.info("waiting for taosBenchmark to finish writing...")
+                try:
+                    benchProc.wait(timeout=7200)
+                    tdLog.info("taosBenchmark write finished")
+                except subprocess.TimeoutExpired:
+                    tdLog.info("taosBenchmark timed out, terminating")
+                    benchProc.terminate()
+
+            finally:
+                if benchProc.poll() is None:
+                    benchProc.terminate()
+                    try:
+                        benchProc.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        benchProc.kill()
+                        benchProc.wait()
 
         # 7. Wait for consumer to finish consuming all data
         tdLog.info("waiting for consumer to finish consuming all 100,000 rows...")
