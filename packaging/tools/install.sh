@@ -183,6 +183,7 @@ function log() {
 
 # set parameters by default value
 imageBuild=0       # Preserve packaged address defaults when building an image
+cleanInstall=0     # Preserve optional extension payloads by default
 interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
@@ -199,6 +200,7 @@ Options:
   -e [yes | no]             Interactive FQDN setting
   -d [install dir]          Custom installation directory
   -s                        Silent mode installation
+  --clean-install           FULL/CORE only: remove previous package files (preserves cfg/data/log)
   --image-build             Image installation without host address rewrites or service/process operations
 EOF
 }
@@ -207,6 +209,9 @@ while getopts "hv:e:d:sq:m:-:" arg; do
   case $arg in
   -)
     case "$OPTARG" in
+      clean-install)
+        cleanInstall=1
+        ;;
       image-build)
         imageBuild=1
         ;;
@@ -284,6 +289,12 @@ if [ "$packageRoleExplicit" -eq 0 ]; then
 fi
 if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
   echo "Invalid package role marker: $packageRole"
+  exit 1
+fi
+
+# Reject unsupported option combinations before environment setup or file writes.
+if [ "$packageRole" = "extension" ] && [ "$cleanInstall" -eq 1 ]; then
+  echo "--clean-install is supported only for full/core packages, not extension packages" >&2
   exit 1
 fi
 
@@ -638,6 +649,18 @@ function oracle_write_active_client() {
   echo "Oracle: active Instant Client: $oracleResolvedClient"
 }
 
+# Replace only incoming payload files, leaving package-external files intact.
+# Unlink Linux destinations before copying so running executables and mapped
+# libraries keep their old inode rather than being overwritten in place.
+# GNU --remove-destination is not available in the macOS system cp.
+function copy_package_files() {
+  if [ "${ostype:-$(uname -s)}" = "Linux" ]; then
+    cp --remove-destination "$@"
+  else
+    cp "$@"
+  fi
+}
+
 function install_extension_package() {
   local manifest="${script_dir}/.extension-files"
   local extension_info="${script_dir}/.package-info"
@@ -719,7 +742,10 @@ function install_extension_package() {
     [ -z "$path" ] && continue
     [[ "$path" == \#* ]] && continue
     mkdir -p "${installDir}/$(dirname "$path")"
-    cp -a "${script_dir}/${path}" "${installDir}/${path}"
+    case "$path" in
+      cfg/*) cp -a "${script_dir}/${path}" "${installDir}/${path}" ;;
+      *) copy_package_files -a "${script_dir}/${path}" "${installDir}/${path}" ;;
+    esac
   done < "$manifest"
   oracle_write_active_client || exit 1
   if [ "$osType" != "Darwin" ]; then
@@ -845,7 +871,7 @@ function install_fq_runtime_links() {
   # Keep Microsoft driver resources relative to the private driver directory.
   if [ -d "${script_dir}/share/resources" ]; then
     mkdir -p "${installDir}/share/resources"
-    cp -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
+    copy_package_files -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
   fi
   local runtime_dir="${1:-${installDir}/driver}"
   local link_name target_name
@@ -906,7 +932,7 @@ LINKS
       find "${oracle_lib}" -maxdepth 1 -name "${pattern}" -delete 2>/dev/null || true
       for src in "${oracle_src}"/${pattern}; do
         [ -e "${src}" ] || continue
-        cp -Lf "${src}" "${oracle_lib}/"
+        copy_package_files -Lf "${src}" "${oracle_lib}/"
       done
     done
   fi
@@ -946,12 +972,10 @@ function kill_process() {
     fi
 }
 
-function install_main_path() {
-  #create install main dir and all sub dir
-  # Note: do NOT rm data/log/cfg link dirs here.
-  # - Real directories from old versions must be preserved (data loss risk)
-  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
-  # - data_link_dir is not recreated during upgrade (install_data not called)
+# Remove the previous package payload only for an explicitly clean install.
+# Keep this separate from directory setup so overlay installs preserve optional
+# resources while explicit cleanup continues to use the existing safety checks.
+function remove_previous_package_files() {
   if [ -f "${install_main_dir}/.extension-files" ]; then
     local extension_path
     local extension_paths=()
@@ -990,7 +1014,19 @@ function install_main_path() {
         "${install_main_dir}/.package-info" \
         "${install_main_dir}/.package-role" \
         "${install_main_dir}/.package-role.extension" || :
+}
 
+function install_main_path() {
+  #create install main dir and all sub dir
+  # Note: do NOT rm data/log/cfg link dirs here.
+  # - Real directories from old versions must be preserved (data loss risk)
+  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
+  # - data_link_dir is not recreated during upgrade (install_data not called)
+  # Preserve installed optional resources by default. Keep the previous cleanup
+  # policy available for an explicitly requested clean installation.
+  if [ "${cleanInstall:-0}" -eq 1 ]; then
+    remove_previous_package_files
+  fi
 
   #  mkdir -p ${install_main_dir}/connector
   mkdir -p ${install_main_dir}
@@ -1005,7 +1041,7 @@ function install_main_path() {
   fi
   if [ -d "${script_dir}/share" ]; then
     mkdir -p "${install_main_dir}/share"
-    cp -a "${script_dir}/share/." "${install_main_dir}/share/"
+    copy_package_files -a "${script_dir}/share/." "${install_main_dir}/share/"
   fi
   if [ -f "${script_dir}/.package-info" ]; then
     cp -f "${script_dir}/.package-info" "${install_main_dir}/.package-info"
@@ -1026,37 +1062,37 @@ function install_bin() {
   done
 
   if [ "${verType}" == "client" ]; then
-    cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin
   else
-    cp -r "${script_dir}/bin/"* "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
-      cp "${script_dir}/start-all.sh" "${install_main_dir}/bin"
+      copy_package_files "${script_dir}/start-all.sh" "${install_main_dir}/bin"
       sed -i.bak \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
         "${install_main_dir}/bin/start-all.sh"
       rm -f "${install_main_dir}/bin/start-all.sh.bak"
-      cp "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
+      copy_package_files "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
     fi
   fi
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
     if [ -d "${script_dir}/${xname}/bin" ]; then
-      cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
+      copy_package_files -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
     fi
   fi
 
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
-    cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
+    copy_package_files -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
   fi
 
   # set taos_malloc.sh as bin script
   if [ "${pkgMode}" != "lite" ]; then
     if [[ -f ${script_dir}/bin/${set_malloc_bin} && "${verType}" != "client" ]]; then
-      cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
+      copy_package_files -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
     else
       echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
     fi
@@ -1127,7 +1163,38 @@ function install_lib() {
     rm -f ${lib64_link_dir}/libtaospyudf.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
-  cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
+  copy_package_files -rf ${script_dir}/driver/* ${driver_dir}/
+  chmod 755 ${driver_dir}/*
+
+  # Core libraries are replaced across versions; optional extension libraries
+  # sharing driver/ are retained. Only clean a family supplied by this package,
+  # after the payload copy succeeds. Never use a broad libtaos* removal here.
+  local core_stem core_pattern incoming old_library library_name
+  local has_incoming
+  for core_stem in libtaos libtaosnative libtaosws libtaospyudf; do
+    if [ "$osType" = "Darwin" ]; then
+      core_pattern="${core_stem}.*.dylib"
+    else
+      core_pattern="${core_stem}.so.*"
+    fi
+    has_incoming=0
+    for incoming in "${script_dir}/driver"/${core_pattern}; do
+      if [ -f "$incoming" ] && [[ "$incoming" != *.debug ]]; then
+        has_incoming=1
+        break
+      fi
+    done
+    [ "$has_incoming" -eq 1 ] || continue
+    for old_library in "${driver_dir}"/${core_pattern} "${driver_dir}"/${core_pattern}.debug; do
+      [ -f "$old_library" ] || [ -L "$old_library" ] || continue
+      library_name=${old_library##*/}
+      # Keep current-version extension debug symbols even when CORE omits them.
+      if [ ! -e "${script_dir}/driver/${library_name%.debug}" ] &&
+         [ ! -L "${script_dir}/driver/${library_name%.debug}" ]; then
+        rm -f -- "$old_library"
+      fi
+    done
+  done
 
   # A package may contain more than one matching driver artifact during an
   # upgrade (for example, an existing unversioned alias and a versioned ELF).
@@ -1138,8 +1205,10 @@ function install_lib() {
     local link_name="$2"
     local link_dir="${3:-${lib_link_dir}}"
     local source
-    for source in "${driver_dir}"/${pattern}; do
+    # Select the incoming core payload, independently of retained extensions.
+    for source in "${script_dir}/driver"/${pattern}; do
       [ -f "$source" ] || continue
+      source="${driver_dir}/$(basename "$source")"
       ln -sf "$source" "${link_dir}/${link_name}"
       return 0
     done
@@ -1183,23 +1252,14 @@ function install_lib() {
       ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
     fi
   else
-    # macOS specific linking
-    ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
-    ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
-    # Match only versioned payloads, including when reinstalling local aliases.
-    for native_lib in "${driver_dir}"/libtaosnative.[0-9]*.dylib; do
-      [ -f "$native_lib" ] || continue
-      ln -sf "$(basename "$native_lib")" "${driver_dir}/libtaosnative.dylib"
-    done
-    ln -sf ${driver_dir}/libtaosnative.[0-9]*.dylib ${lib_link_dir}/libtaosnative.3.dylib
-    ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
-
-    for f in ${driver_dir}/libtaosws.dylib.*; do
-      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
-    done
-    for f in ${driver_dir}/libtaospyudf.dylib.*; do
-      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaospyudf.dylib"
-    done
+    # Build aliases from this package's core library versions.
+    link_driver_library 'libtaos.[0-9]*.dylib' 'libtaos.3.dylib'
+    ln -sf "${lib_link_dir}/libtaos.3.dylib" "${lib_link_dir}/libtaos.dylib"
+    link_driver_library 'libtaosnative.[0-9]*.dylib' 'libtaosnative.dylib' "${driver_dir}"
+    link_driver_library 'libtaosnative.[0-9]*.dylib' 'libtaosnative.3.dylib'
+    ln -sf "${lib_link_dir}/libtaosnative.3.dylib" "${lib_link_dir}/libtaosnative.dylib"
+    link_driver_library 'libtaosws.dylib.*' 'libtaosws.dylib'
+    link_driver_library 'libtaospyudf.dylib.*' 'libtaospyudf.dylib'
     # Update dyld shared cache
     if [[ $user_mode -eq 0 ]]; then
       update_dyld_shared_cache 2>/dev/null || log warn "Failed to update dyld shared cache"
@@ -1301,7 +1361,8 @@ function install_header() {
     rm -f "${inc_link_dir}/taosws.h"
   fi
 
-  cp -f ${script_dir}/inc/* ${install_main_dir}/include && chmod 644 ${install_main_dir}/include/*
+  copy_package_files -f ${script_dir}/inc/* ${install_main_dir}/include
+  chmod 644 ${install_main_dir}/include/*
   ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
@@ -1693,19 +1754,19 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
+    copy_package_files -rf ${script_dir}/connector/ ${install_main_dir}/
   fi
 }
 
 function install_examples() {
   if [ -d ${script_dir}/examples ]; then
-    cp -rf ${script_dir}/examples ${install_main_dir}/ || echo "failed to copy examples"
+    copy_package_files -rf ${script_dir}/examples ${install_main_dir}/
   fi
 }
 
 function install_plugins() {
   if [ -d ${script_dir}/${xname}/plugins ]; then
-    cp -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/ || echo "failed to copy ${PREFIX}x plugins"
+    copy_package_files -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/
   fi
 }
 
