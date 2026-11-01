@@ -294,17 +294,11 @@ fi
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
-SOURCEDIR=$WORKDIR/src
 MOUNT_DIR=""
-# packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
-# 若宿主机预置了兼容性测试安装包缓存目录，则将 SOURCEDIR 指向它，
-# 避免测试时从公网重复下载（兼容 large-mem runner 预置包场景）。
-if [ -d "/data0/compat-packages" ]; then
-    ln -sfn /data0/compat-packages "$SOURCEDIR"
-else
-    mkdir -p "$SOURCEDIR"
-fi
+source "$REPDIR/test/ci/compat_package_cache.sh" || exit 1
+# Bind the cache directly: never replace or mutate an existing job/src directory.
+SOURCEDIR=$(compat_package_cache_dir "${CI_BASE_DIR:-$(dirname "$WORKDIR")}") || exit 1
 
 source "$REPDIR/test/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
 

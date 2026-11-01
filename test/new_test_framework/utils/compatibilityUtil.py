@@ -27,6 +27,7 @@ import shutil
 
 import importlib
 from pathlib import Path
+from .compatibility_package import prepare_oss_package
 from .log import *
 from .sql import *
 from .server.dnodes import *
@@ -49,43 +50,6 @@ else:
     _downloader = None
 
 
-def _create_so_symlinks(lib_dir: str) -> None:
-    """为 lib_dir 内所有 libXXX.so.VER 创建不带版本号的符号链接 libXXX.so。
-
-    包里只提供 libtaos.so.3.3.7.9 这类带版本号的文件，但 taos 二进制链接的是
-    不带版本号的 libtaos.so 或 SONAME（如 libtaos.so.1）。若没有对应符号链接，
-    LD_LIBRARY_PATH 指向该目录时动态链接器无法找到库，会回退到系统路径。
-    """
-    import re as _re
-    import subprocess as _sp
-    p = Path(lib_dir)
-    for versioned in p.glob("lib*.so.*"):
-        if not versioned.is_file():
-            continue
-        name = versioned.name
-        dot_so = name.find(".so.")
-        if dot_so == -1:
-            continue
-        # 1. 不带版本号链接：libtaos.so -> libtaos.so.3.3.7.9
-        unversioned = p / (name[: dot_so + 3])
-        if not unversioned.exists():
-            unversioned.symlink_to(versioned.name)
-        # 2. SONAME 链接：libtaos.so.1 -> libtaos.so.3.3.5.0（旧版本 soname）
-        try:
-            out = _sp.run(
-                ["readelf", "-d", str(versioned)],
-                capture_output=True, text=True, timeout=10
-            ).stdout
-            for line in out.splitlines():
-                if "SONAME" in line:
-                    m = _re.search(r'\[([^\]]+)\]', line)
-                    if m:
-                        soname_link = p / m.group(1)
-                        if not soname_link.exists():
-                            soname_link.symlink_to(versioned.name)
-                    break
-        except Exception:
-            pass
 
 deletedDataSql = '''drop database if exists deldata;create database deldata duration 100 stt_trigger 1; ;use deldata;
                             create table deldata.stb1 (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int);
@@ -314,37 +278,10 @@ class CompatibilityBase:
             # Determine download URL
             download_url = f"https://www.taosdata.com/assets-download/3.0/{packageName}"
             
-        tdLog.info(f"wget {download_url}")
-        
-        my_file = Path(f"{packagePath}/{packageName}")
-        if not my_file.exists():
-            tdLog.info(f"{packageName} does not exist")
-            tdLog.info(f"cd {packagePath} && wget {download_url}")
-            os.system(f"cd {packagePath} && wget {download_url}")
-        else: 
-            tdLog.info(f"{packageName} has been exists")
-
-        # Compute extracted directory name and extract without running install.sh
-        packageTPath = re.sub(r"-linux-(x64|arm64)\.tar\.gz$", "", packageName, flags=re.IGNORECASE)
-        extract_dir = os.path.join(packagePath, packageTPath)
-        if not Path(extract_dir).exists():
-            os.system(f"cd {packagePath} && tar xf {packageName} > /dev/null 2>&1")
-
-        # The outer archive contains package.tar.gz with the actual bin/ tree.
-        # Extract it if bin/ is not yet present.
-        bin_dir = os.path.join(extract_dir, "bin")
-        if not Path(bin_dir).exists():
-            inner_pkg = os.path.join(extract_dir, "package.tar.gz")
-            if Path(inner_pkg).exists():
-                os.system(f"cd {extract_dir} && tar xf package.tar.gz > /dev/null 2>&1")
-
-        self.old_bin_dir = bin_dir
-        # Libraries are in driver/ (not lib/) for this package layout.
-        lib_dir = os.path.join(extract_dir, "driver")
-        if not Path(lib_dir).exists():
-            lib_dir = os.path.join(extract_dir, "lib")
-        self.old_lib_dir = lib_dir
-        _create_so_symlinks(lib_dir)
+        self.old_bin_dir, self.old_lib_dir = prepare_oss_package(
+            packagePath, packageName, download_url
+        )
+        extract_dir = os.path.dirname(self.old_bin_dir)
 
         os.system(f"pkill -9 taosd")
         self.checkProcessPid("taosd")
