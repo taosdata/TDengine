@@ -110,10 +110,10 @@ class OverlayInstallTests(unittest.TestCase):
             with self.subTest(version=version):
                 with tempfile.TemporaryDirectory() as tmp:
                     root = Path(tmp)
-                    for name in ("package/driver", "installed/driver"):
+                    for name in ("package space [x]/driver", "installed/driver"):
                         (root / name).mkdir(parents=True)
-                    (root / f"package/driver/libtaos.so.{version}").write_text("new")
-                    (root / "package/driver/libtaos.so.3").symlink_to(f"libtaos.so.{version}")
+                    (root / f"package space [x]/driver/libtaos.so.{version}").write_text("new")
+                    (root / "package space [x]/driver/libtaos.so.3").symlink_to(f"libtaos.so.{version}")
                     (root / "installed/driver/libtaos.so.3.1").write_text("old")
                     (root / "installed/driver/libtaos.so.3.1.debug").write_text("old symbols")
                     old_prereleases = ("3.0.alpha", "3.0.beta1", "3.0-rc.1", "legacy-build")
@@ -121,14 +121,14 @@ class OverlayInstallTests(unittest.TestCase):
                         (root / f"installed/driver/libtaos.so.{old_version}").write_text("old prerelease")
                     (root / f"installed/driver/libtaos.so.{version}.debug").write_text("current symbols")
                     for stem in ("libtaosnative", "libtaosws", "libtaospyudf"):
-                        (root / f"package/driver/{stem}.so.{version}").write_text("new")
+                        (root / f"package space [x]/driver/{stem}.so.{version}").write_text("new")
                         (root / f"installed/driver/{stem}.so.3.1").write_text("old")
                     extensions = ("libtaos_ext_influx_arrow.so", "libcrypto.so.10", "libtaos_custom.so")
                     for name in extensions:
                         (root / "installed/driver" / name).write_text("extension")
                     source = function(INSTALLER.read_text(), "install_lib")
                     script = "set -e\noracle_write_active_client() { :; }\ninstall_fq_runtime_links() { :; }\n" + function(INSTALLER.read_text(), "copy_package_files") + "\n" + source + "\ninstall_lib\n"
-                    env = dict(os.environ, script_dir=str(root / "package"), driver_dir=str(root / "installed/driver"),
+                    env = dict(os.environ, script_dir=str(root / "package space [x]"), driver_dir=str(root / "installed/driver"),
                                lib_link_dir=str(root / "links"), lib64_link_dir=str(root / "links64"),
                                osType="Linux", user_mode="1")
                     subprocess.run(["bash", "-c", script], env=env, check=True)
@@ -216,6 +216,42 @@ class OverlayInstallTests(unittest.TestCase):
             result = subprocess.run(["bash", "-c", script, "overlay", tmp], text=True, capture_output=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn("unexpected-success", result.stdout)
+
+    def test_optional_payload_copy_handles_spaces_and_glob_characters(self):
+        source = INSTALLER.read_text()
+        for directory, installer in (("connector", "install_connector"),
+                                     ("examples", "install_examples"),
+                                     ("taosx/plugins", "install_plugins")):
+            with self.subTest(directory=directory), tempfile.TemporaryDirectory() as tmp:
+                package = Path(tmp) / "package space [x]"
+                target = Path(tmp) / "target space [y]"
+                payload = package / directory
+                payload.mkdir(parents=True)
+                (payload / "file.txt").write_text("new payload")
+                installed = target / payload.name
+                installed.mkdir(parents=True)
+                (installed / "retained.txt").write_text("extension")
+                script = ("set -e\n" + function(source, "copy_package_files") + "\n" +
+                          function(source, installer) + "\n" + installer + "\n")
+                subprocess.run(["bash", "-c", script], check=True,
+                               env=dict(os.environ, script_dir=str(package),
+                                        install_main_dir=str(target), xname="taosx"))
+                self.assertEqual((installed / "file.txt").read_text(), "new payload")
+                self.assertEqual((installed / "retained.txt").read_text(), "extension")
+
+    def test_copy_failure_reports_paths_and_preserves_exit_status(self):
+        source = INSTALLER.read_text()
+        for os_name in ("Linux", "Darwin"):
+            with self.subTest(os_name=os_name):
+                script = ('cp() { echo "native copy error" >&2; return 23; }\n' +
+                          function(source, "copy_package_files") +
+                          '\ncopy_package_files -rf "package/driver/file" "installed/driver/"\n')
+                result = subprocess.run(["bash", "-c", script], capture_output=True,
+                                        text=True, env=dict(os.environ, ostype=os_name))
+                self.assertEqual(result.returncode, 23)
+                for text in ("native copy error", "Failed to copy package files (exit 23)",
+                             "package/driver/file", "installed/driver/"):
+                    self.assertIn(text, result.stderr)
 
     def test_darwin_copy_does_not_receive_gnu_option(self):
         script = 'cp() { printf "%s\\n" "$@"; }\n' + function(INSTALLER.read_text(), "copy_package_files") + '\ncopy_package_files -a source target\n'

@@ -654,11 +654,18 @@ function oracle_write_active_client() {
 # libraries keep their old inode rather than being overwritten in place.
 # GNU --remove-destination is not available in the macOS system cp.
 function copy_package_files() {
+  local copy_status=0
   if [ "${ostype:-$(uname -s)}" = "Linux" ]; then
-    cp --remove-destination "$@"
+    cp --remove-destination "$@" || copy_status=$?
   else
-    cp "$@"
+    cp "$@" || copy_status=$?
   fi
+  if [ "$copy_status" -ne 0 ]; then
+    printf 'Failed to copy package files (exit %s):' "$copy_status" >&2
+    printf ' %q' "$@" >&2
+    printf '\n' >&2
+  fi
+  return "$copy_status"
 }
 
 function install_extension_package() {
@@ -1062,12 +1069,12 @@ function install_bin() {
   done
 
   if [ "${verType}" == "client" ]; then
-    copy_package_files -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
-    copy_package_files -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
-    copy_package_files -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    copy_package_files -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
-    copy_package_files -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin
-    copy_package_files -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin
+    copy_package_files -r "${script_dir}/bin/${clientName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${benchmarkName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${dumpName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${inspect_name}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${taosgen_name}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${remove_name}" "${install_main_dir}/bin"
   else
     copy_package_files -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
@@ -1081,18 +1088,18 @@ function install_bin() {
   fi
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
     if [ -d "${script_dir}/${xname}/bin" ]; then
-      copy_package_files -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
+      copy_package_files -r "${script_dir}/${xname}/bin/"* "${install_main_dir}/bin"
     fi
   fi
 
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
-    copy_package_files -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
+    copy_package_files -r "${script_dir}/bin/quick_deploy.sh" "${install_main_dir}/bin"
   fi
 
   # set taos_malloc.sh as bin script
   if [ "${pkgMode}" != "lite" ]; then
     if [[ -f ${script_dir}/bin/${set_malloc_bin} && "${verType}" != "client" ]]; then
-      copy_package_files -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
+      copy_package_files -r "${script_dir}/bin/${set_malloc_bin}" "${install_main_dir}/bin"
     else
       echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
     fi
@@ -1163,8 +1170,8 @@ function install_lib() {
     rm -f ${lib64_link_dir}/libtaospyudf.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
-  copy_package_files -rf ${script_dir}/driver/* ${driver_dir}/
-  chmod 755 ${driver_dir}/*
+  copy_package_files -rf "${script_dir}/driver/"* "${driver_dir}/"
+  chmod 755 "${driver_dir}/"*
 
   # Core libraries are replaced across versions; optional extension libraries
   # sharing driver/ are retained. Only clean a family supplied by this package,
@@ -1361,7 +1368,7 @@ function install_header() {
     rm -f "${inc_link_dir}/taosws.h"
   fi
 
-  copy_package_files -f ${script_dir}/inc/* ${install_main_dir}/include
+  copy_package_files -f "${script_dir}/inc/"* "${install_main_dir}/include"
   chmod 644 ${install_main_dir}/include/*
   ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
@@ -1754,19 +1761,19 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    copy_package_files -rf ${script_dir}/connector/ ${install_main_dir}/
+    copy_package_files -rf "${script_dir}/connector" "${install_main_dir}/"
   fi
 }
 
 function install_examples() {
-  if [ -d ${script_dir}/examples ]; then
-    copy_package_files -rf ${script_dir}/examples ${install_main_dir}/
+  if [ -d "${script_dir}/examples" ]; then
+    copy_package_files -rf "${script_dir}/examples" "${install_main_dir}/"
   fi
 }
 
 function install_plugins() {
-  if [ -d ${script_dir}/${xname}/plugins ]; then
-    copy_package_files -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/
+  if [ -d "${script_dir}/${xname}/plugins" ]; then
+    copy_package_files -rf "${script_dir}/${xname}/plugins" "${install_main_dir}/"
   fi
 }
 
