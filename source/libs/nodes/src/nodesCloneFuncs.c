@@ -1397,6 +1397,7 @@ static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLog
   CLONE_NODE_LIST_FIELD(pInterpPreSplitGroupTags);
   COPY_SCALAR_FIELD(interpPreSplitGroupSort);
   COPY_SCALAR_FIELD(phasedMode);
+  COPY_SCALAR_FIELD(extWinGroupBatch);
   COPY_SCALAR_FIELD(needBlockOutputTsOrder);
   COPY_SCALAR_FIELD(pkTsColId);
   COPY_SCALAR_FIELD(pkTsColTbId);
@@ -1907,6 +1908,7 @@ static int32_t physiPartitionCopy(const SPartitionPhysiNode* pSrc, SPartitionPhy
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pTargets);
   COPY_SCALAR_FIELD(phasedMode);
+  COPY_SCALAR_FIELD(extWinGroupBatch);
   COPY_SCALAR_FIELD(needBlockOutputTsOrder);
   COPY_SCALAR_FIELD(tsSlotId);
   return TSDB_CODE_SUCCESS;

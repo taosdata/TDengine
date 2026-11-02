@@ -1666,6 +1666,7 @@ typedef struct SPartitionPhaseTestSource {
   int32_t                    nextBlock;
   SPartitionOperatorInfo*    pPartitionInfo;
   SPartitionPhaseTestResult* pResult;
+  int32_t                   failureCode;
 } SPartitionPhaseTestSource;
 
 typedef struct SPartitionPhaseTestContext {
@@ -1686,6 +1687,9 @@ static int32_t partitionPhaseTestSourceNext(SOperatorInfo* pOperator,
   SPartitionPhaseTestSource* pSource = pOperator->info;
   if (ppRes == NULL || pSource == NULL) {
     return TSDB_CODE_INVALID_PARA;
+  }
+  if (pSource->failureCode != TSDB_CODE_SUCCESS) {
+    return pSource->failureCode;
   }
 
   // Sample the spill state exactly at the side-batch boundary, before the
@@ -1780,7 +1784,8 @@ static int32_t partitionPhaseTestCreateBlock(
 static int32_t partitionPhaseTestInit(SPartitionPhaseTestContext* pCtx,
                                       int32_t numBlocks,
                                       SPartitionPhaseTestResult* pResult,
-                                      bool reserveColumn) {
+                                      bool reserveColumn,
+                                      bool extWinGroupBatch) {
   pCtx->pInfo = taosMemoryCalloc(1, sizeof(*pCtx->pInfo));
   if (pCtx->pInfo == NULL) {
     return terrno;
@@ -1789,7 +1794,9 @@ static int32_t partitionPhaseTestInit(SPartitionPhaseTestContext* pCtx,
   SPartitionOperatorInfo* pInfo = pCtx->pInfo;
   SOperatorInfo* pPartition = &pCtx->partition;
   pInfo->pTaskInfo = &pCtx->task;
-  pInfo->phasedMode = true;
+  // This harness runs either the existing phased path or the batch path.
+  pInfo->phasedMode = extWinGroupBatch ? false : true;
+  pInfo->extWinGroupBatch = extWinGroupBatch;
   pInfo->curPhase = SCAN_PHASE_MAIN;
   pInfo->phaseState = PARTITION_PHASE_READING;
 
@@ -2017,12 +2024,14 @@ int32_t partitionTestRunPhasedWithConfig(
 
   pCtx->task.id.str = "partitionPhaseTest";
   bool reserveColumn = pConfig != NULL && pConfig->reserveColumn;
+  bool extWinGroupBatch = pConfig != NULL && pConfig->extWinGroupBatch;
   int32_t code = partitionPhaseTestInit(pCtx, numBlocks, pResult,
-                                        reserveColumn);
+                                        reserveColumn, extWinGroupBatch);
   if (code != TSDB_CODE_SUCCESS) {
     goto _cleanup;
   }
   if (pConfig != NULL) {
+    pCtx->sourceInfo.failureCode = pConfig->downstreamFailureCode;
     if (pConfig->memBudgetBytes > 0) {
       pCtx->pInfo->memBudgetBytes = pConfig->memBudgetBytes;
     }
@@ -2052,7 +2061,9 @@ int32_t partitionTestRunPhasedWithConfig(
 
   while (true) {
     SSDataBlock* pOutput = NULL;
-    code = phasedHashPartitionNext(&pCtx->partition, &pOutput);
+    code = extWinGroupBatch
+               ? extWinGroupBatchPartitionNext(&pCtx->partition, &pOutput)
+               : phasedHashPartitionNext(&pCtx->partition, &pOutput);
     if (code != TSDB_CODE_SUCCESS || pOutput == NULL) {
       break;
     }
@@ -2098,9 +2109,65 @@ int32_t partitionTestRunPhased(
   return partitionTestRunPhasedWithConfig(pBlocks, numBlocks, NULL, pResult);
 }
 
-int32_t partitionTestHeldBlockLifecycle(
+int32_t partitionTestRunExtWinGroupBatch(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    SPartitionPhaseTestResult* pResult) {
+  SPartitionPhaseTestConfig config = {0};
+  config.extWinGroupBatch = true;
+  return partitionTestRunPhasedWithConfig(pBlocks, numBlocks, &config,
+                                          pResult);
+}
+
+int32_t partitionTestRunExtWinGroupBatchWithConfig(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    const SPartitionPhaseTestConfig* pConfig,
+    SPartitionPhaseTestResult* pResult) {
+  SPartitionPhaseTestConfig config = {0};
+  if (pConfig != NULL) {
+    config = *pConfig;
+  }
+  config.extWinGroupBatch = true;
+  return partitionTestRunPhasedWithConfig(pBlocks, numBlocks, &config,
+                                          pResult);
+}
+
+int32_t partitionTestExtWinGroupBatchRejectModes(void) {
+  SPartitionPhysiNode phyNode = {0};
+  SExecTaskInfo task = {0};
+  SOperatorInfo* pOperator = NULL;
+  phyNode.phasedMode = true;
+  phyNode.extWinGroupBatch = true;
+  task.id.str = "partitionModeTest";
+  int32_t code = createPartitionOperatorInfo(NULL, &phyNode, &task, &pOperator);
+  return pOperator == NULL ? code : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+}
+
+int32_t partitionTestExtWinGroupBatchRejectHeldBoundary(void) {
+  SPartitionOperatorInfo info = {0};
+  SOperatorInfo op = {0};
+  SExecTaskInfo task = {0};
+  task.id.str = "partitionHeldBoundaryTest";
+  info.pTaskInfo = &task;
+  info.phaseState = PARTITION_PHASE_DRAINED;
+  info.outerEpoch = 20;
+  op.info = &info;
+  int32_t code = createDataBlock(&info.pHeldBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  info.pHeldBlock->info.id.groupId = 10;
+  code = partitionFinishExtWinGroupDrain(&op);
+  if (code == TSDB_CODE_PLAN_INTERNAL_ERROR && info.pHeldBlock != NULL) {
+    blockDataDestroy(info.pHeldBlock);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  blockDataDestroy(info.pHeldBlock);
+  return code;
+}
+
+static int32_t partitionTestHeldBlockLifecycleWithMode(
     EPartitionPhaseTestLifecycleAction action,
-    SPartitionPhaseTestLifecycleResult* pResult) {
+    bool extWinGroupBatch, SPartitionPhaseTestLifecycleResult* pResult) {
   if ((action != PARTITION_PHASE_TEST_RESET &&
        action != PARTITION_PHASE_TEST_DESTROY) ||
       pResult == NULL) {
@@ -2109,8 +2176,9 @@ int32_t partitionTestHeldBlockLifecycle(
   memset(pResult, 0, sizeof(*pResult));
 
   const SPartitionPhaseTestBlock blocks[] = {
-      {SCAN_PHASE_MAIN, 1, 1, 10, 0, false},
-      {SCAN_PHASE_NEXT, 1, 1, 11, 0, false},
+      {SCAN_PHASE_MAIN, 1, 1, 10, 0, false, 10, 0},
+      {extWinGroupBatch ? SCAN_PHASE_MAIN : SCAN_PHASE_NEXT,
+       1, 1, 11, 0, false, extWinGroupBatch ? 20 : 10, 0},
   };
   SPartitionPhaseTestContext* pCtx =
       taosMemoryCalloc(1, sizeof(*pCtx));
@@ -2129,7 +2197,8 @@ int32_t partitionTestHeldBlockLifecycle(
   tstrncpy(savedTempDir, tsTempDir, sizeof(savedTempDir));
   tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
 
-  int32_t code = partitionPhaseTestInit(pCtx, 2, pPhaseResult, false);
+  int32_t code = partitionPhaseTestInit(pCtx, 2, pPhaseResult, false,
+                                        extWinGroupBatch);
   if (code != TSDB_CODE_SUCCESS) {
     goto _cleanup;
   }
@@ -2148,7 +2217,9 @@ int32_t partitionTestHeldBlockLifecycle(
   }
 
   SSDataBlock* pOutput = NULL;
-  code = phasedHashPartitionNext(&pCtx->partition, &pOutput);
+  code = extWinGroupBatch
+             ? extWinGroupBatchPartitionNext(&pCtx->partition, &pOutput)
+             : phasedHashPartitionNext(&pCtx->partition, &pOutput);
   if (code != TSDB_CODE_SUCCESS || pOutput == NULL ||
       pCtx->pInfo->pHeldBlock == NULL) {
     code = code != TSDB_CODE_SUCCESS
@@ -2166,6 +2237,7 @@ int32_t partitionTestHeldBlockLifecycle(
       pResult->readingAfterAction =
           pCtx->pInfo->phaseState == PARTITION_PHASE_READING;
       pResult->inputDoneAfterAction = pCtx->pInfo->inputDone;
+      pResult->outerEpochSetAfterAction = pCtx->pInfo->outerEpochSet;
     }
   } else {
     destroyPartitionOperatorInfo(pCtx->pInfo);
@@ -2180,6 +2252,18 @@ _cleanup:
   taosMemoryFree(pPhaseResult);
   tstrncpy(tsTempDir, savedTempDir, PATH_MAX);
   return code;
+}
+
+int32_t partitionTestHeldBlockLifecycle(
+    EPartitionPhaseTestLifecycleAction action,
+    SPartitionPhaseTestLifecycleResult* pResult) {
+  return partitionTestHeldBlockLifecycleWithMode(action, false, pResult);
+}
+
+int32_t partitionTestExtWinGroupBatchHeldBlockReset(
+    SPartitionPhaseTestLifecycleResult* pResult) {
+  return partitionTestHeldBlockLifecycleWithMode(PARTITION_PHASE_TEST_RESET,
+                                                 true, pResult);
 }
 
 #endif  // BUILD_TEST

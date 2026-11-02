@@ -1901,6 +1901,7 @@ static int32_t jsonToLogicWindowFuncNode(const SJson* pJson, void* pObj) {
 
 static const char* jkPartitionLogicPlanPartitionKeys = "PartitionKeys";
 static const char* jkPartitionLogicPlanPhasedMode = "PhasedMode";
+static const char* jkPartitionLogicPlanExtWinGroupBatch = "ExtWinGroupBatch";
 
 static int32_t logicPartitionNodeToJson(const void* pObj, SJson* pJson) {
   const SPartitionLogicNode* pNode = (const SPartitionLogicNode*)pObj;
@@ -1912,6 +1913,10 @@ static int32_t logicPartitionNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkPartitionLogicPlanPhasedMode,
                                 pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkPartitionLogicPlanExtWinGroupBatch,
+                                pNode->extWinGroupBatch);
   }
 
   return code;
@@ -1927,6 +1932,10 @@ static int32_t jsonToLogicPartitionNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkPartitionLogicPlanPhasedMode,
                              &pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkPartitionLogicPlanExtWinGroupBatch,
+                             &pNode->extWinGroupBatch);
   }
 
   return code;
@@ -5792,6 +5801,7 @@ static const char* jkPartitionPhysiPlanTargets = "Targets";
 static const char* jkPartitionPhysiPlanNeedBlockOutputTsOrder = "NeedBlockOutputTsOrder";
 static const char* jkPartitionPhysiPlanTsSlotId = "tsSlotId";
 static const char* jkPartitionPhysiPlanPhasedMode = "PhasedMode";
+static const char* jkPartitionPhysiPlanExtWinGroupBatch = "ExtWinGroupBatch";
 
 static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
   const SPartitionPhysiNode* pNode = (const SPartitionPhysiNode*)pObj;
@@ -5809,6 +5819,10 @@ static int32_t physiPartitionNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanPhasedMode,
                                 pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanExtWinGroupBatch,
+                                pNode->extWinGroupBatch);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, pNode->needBlockOutputTsOrder);
@@ -5836,6 +5850,10 @@ static int32_t jsonToPhysiPartitionNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkPartitionPhysiPlanPhasedMode,
                              &pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkPartitionPhysiPlanExtWinGroupBatch,
+                             &pNode->extWinGroupBatch);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkPartitionPhysiPlanNeedBlockOutputTsOrder, &pNode->needBlockOutputTsOrder);

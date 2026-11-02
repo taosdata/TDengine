@@ -646,6 +646,9 @@ typedef struct SPartitionLogicNode {
 
   bool     interpPreSplitGroupSort;
   bool     phasedMode;  // true for interp phase-aware partition execution
+  // Candidate until post-split installs a tbname group tag and groupSort on
+  // the TableMergeScan child; mutually exclusive with phasedMode when enabled.
+  bool     extWinGroupBatch;
   bool     needBlockOutputTsOrder;  // if true, partition output block will have ts order maintained
   int32_t  pkTsColId;
   uint64_t pkTsColTbId;
@@ -1370,6 +1373,7 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pTargets;
 
   bool    phasedMode;  // true for interp phase-aware partition execution
+  bool    extWinGroupBatch;  // batch external windows by outer group; mutually exclusive with phasedMode
   bool    needBlockOutputTsOrder;
   int32_t tsSlotId;
 } SPartitionPhysiNode;

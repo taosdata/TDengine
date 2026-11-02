@@ -25837,9 +25837,9 @@ static void postSplitDowngradeInterpProducers(SLogicNode* pNode) {
   }
 }
 
-static bool postSplitInterpScanExecutionReady(const SScanLogicNode* pScan) {
-  // MAIN_FIRST owns its per-phase reader directions. The physical scan must
-  // contribute exactly one static ASC pass.
+static bool postSplitSingleAscScanReady(const SScanLogicNode* pScan) {
+  // Both MAIN_FIRST and batch grouping need one static ASC outer pass;
+  // MAIN_FIRST owns its per-phase reader directions separately.
   return NULL != pScan && 1 == pScan->scanSeq[0] &&
          0 == pScan->scanSeq[1] && !pScan->node.dynamicOp;
 }
@@ -25859,7 +25859,7 @@ static bool postSplitInterpShapeReady(SInterpFuncLogicNode* pInterp,
     return false;
   }
 
-  bool scanReady = postSplitInterpScanExecutionReady(pScan) &&
+  bool scanReady = postSplitSingleAscScanReady(pScan) &&
                    (SCAN_TYPE_TABLE == pScan->scanType ||
                     SCAN_TYPE_TABLE_MERGE == pScan->scanType);
   if (!scanReady || !pdcInterpInputEligible(pInput)) {
@@ -25888,7 +25888,7 @@ static bool postSplitMultiGroupShapeReady(
   bool scanReady =
       partitionKeysAreOrdinaryColumns(
           ((SPartitionLogicNode*)pInput)->pPartitionKeys) &&
-      postSplitInterpScanExecutionReady(pScan) &&
+      postSplitSingleAscScanReady(pScan) &&
       (SCAN_TYPE_TABLE == pScan->scanType ||
        SCAN_TYPE_TABLE_MERGE == pScan->scanType) &&
       !pScan->paraTablesSort && !pScan->virtualStableScan &&
@@ -25990,7 +25990,7 @@ static bool postSplitDistributedInterpShapeReady(
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pSourceSubplan->pNode;
-  if (!postSplitInterpScanExecutionReady(pScan) ||
+  if (!postSplitSingleAscScanReady(pScan) ||
       pScan->scanType != SCAN_TYPE_TABLE_MERGE ||
       pScan->paraTablesSort || pScan->virtualStableScan ||
       (pScan->pExtScanRange == NULL && pScan->pExtTimeRange == NULL)) {
@@ -26050,7 +26050,7 @@ static bool postSplitDistributedMultiGroupShapeReady(
   }
 
   SScanLogicNode* pScan = (SScanLogicNode*)pSourceSubplan->pNode;
-  if (!postSplitInterpScanExecutionReady(pScan) ||
+  if (!postSplitSingleAscScanReady(pScan) ||
       SCAN_TYPE_TABLE_MERGE != pScan->scanType ||
       pScan->paraTablesSort || pScan->virtualStableScan ||
       pdcInterpScanFromVirtualTable(pScan) ||
@@ -26161,6 +26161,133 @@ static int32_t postSplitFinalizeInterpSubplans(SLogicSubplan* pSubplan) {
   return postSplitFinalizeInterpNodes(pSubplan, pSubplan->pNode);
 }
 
+static int32_t postSplitFinalizeExtWinGroupBatchNode(SLogicNode* pNode,
+                                                     SLogicNode* pParent) {
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
+    SPartitionLogicNode* pPart = (SPartitionLogicNode*)pNode;
+    if (pPart->extWinGroupBatch) {
+      // The logical flag is only a candidate. Enable it only when the final
+      // split plan still has Window -> Partition -> TableMergeScan adjacency.
+      pPart->extWinGroupBatch = false;
+      SLogicNode* pInput = LIST_LENGTH(pNode->pChildren) == 1
+                               ? (SLogicNode*)nodesListGetNode(pNode->pChildren, 0)
+                               : NULL;
+      bool ready = pParent != NULL && QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(pParent) &&
+                   ((SWindowLogicNode*)pParent)->winType == WINDOW_TYPE_EXTERNAL &&
+                   pInput != NULL && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pInput);
+      if (!ready) {
+        planDebug("external window group batch rejected: parentType:%d, winType:%d, childNum:%d, inputType:%d",
+                  pParent == NULL ? -1 : nodeType(pParent),
+                  pParent != NULL && nodeType(pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW
+                      ? ((SWindowLogicNode*)pParent)->winType : -1,
+                  LIST_LENGTH(pNode->pChildren), pInput == NULL ? -1 : nodeType(pInput));
+      }
+      if (ready) {
+        SScanLogicNode* pScan = (SScanLogicNode*)pInput;
+        SNodeList* pKeys = pPart->pPartitionKeys;
+        SNode* pOuterKey = pKeys == NULL ? NULL : nodesListGetNode(pKeys, 0);
+        // The first key must be a bare tbname; nested expressions cannot
+        // define the scan's complete table-group boundary.
+        bool hasTbname = pOuterKey != NULL &&
+            ((QUERY_NODE_FUNCTION == nodeType(pOuterKey) &&
+              ((SFunctionNode*)pOuterKey)->funcType == FUNCTION_TYPE_TBNAME) ||
+             (QUERY_NODE_COLUMN == nodeType(pOuterKey) &&
+              ((SColumnNode*)pOuterKey)->colType == COLUMN_TYPE_TBNAME));
+        bool validKeys = pKeys != NULL && LIST_LENGTH(pKeys) >= 2 &&
+                         hasTbname && !partitionKeyHasOrdinaryColumn(pOuterKey);
+        SNode* pKey = NULL;
+        int32_t keyIndex = 0;
+        FOREACH(pKey, pKeys) {
+          if (keyIndex++ == 0) {
+            continue;
+          }
+          // Only direct data columns are eligible. Expressions involving
+          // pseudo columns or functions need their original Partition path.
+          if (pKey == NULL || nodeType(pKey) != QUERY_NODE_COLUMN ||
+              ((SColumnNode*)pKey)->colType != COLUMN_TYPE_COLUMN) {
+            validKeys = false;
+            break;
+          }
+        }
+        // Other scan shapes cannot guarantee ordered, complete table groups.
+        // Clearing the candidate above leaves the original Partition path.
+        if (validKeys && !pPart->phasedMode &&
+            pScan->scanType == SCAN_TYPE_TABLE_MERGE &&
+            pScan->pGroupTags == NULL && !pScan->groupSort &&
+            !pScan->groupOrderScan &&
+            !pScan->paraTablesSort &&
+            !pScan->virtualStableScan &&
+            !pdcInterpScanFromVirtualTable(pScan) &&
+            pScan->interpMode == INTERP_MODE_LEGACY &&
+            pScan->dataRequired == FUNC_DATA_REQUIRED_DATA_LOAD &&
+            postSplitSingleAscScanReady(pScan)) {
+          // A tbname-only group tag makes the grouped scan assign each table
+          // its UID as groupId and emit complete groups in sorted UID order.
+          SNode* pGroupKey = NULL;
+          SNodeList* pGroupTags = NULL;
+          int32_t code = nodesCloneNode(pOuterKey, &pGroupKey);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+          code = nodesListMakeStrictAppend(&pGroupTags, pGroupKey);
+          if (code != TSDB_CODE_SUCCESS) {
+            // Strict append consumes pGroupKey even when allocation fails.
+            nodesDestroyList(pGroupTags);
+            return code;
+          }
+          code = partTagsOptRebuildTbanme(pGroupTags);
+          if (code != TSDB_CODE_SUCCESS) {
+            nodesDestroyList(pGroupTags);
+            return code;
+          }
+          pScan->pGroupTags = pGroupTags;
+          pScan->groupSort = true;
+          pPart->extWinGroupBatch = true;
+        } else {
+          planDebug("external window group batch rejected: validKeys:%d, phased:%d, scanType:%d, groupTags:%d, groupSort:%d, groupOrder:%d, paraSort:%d, virtual:%d, scanReady:%d",
+                    validKeys, pPart->phasedMode, pScan->scanType,
+                    pScan->pGroupTags != NULL, pScan->groupSort,
+                    pScan->groupOrderScan, pScan->paraTablesSort,
+                    pScan->virtualStableScan, postSplitSingleAscScanReady(pScan));
+        }
+      }
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    int32_t code = postSplitFinalizeExtWinGroupBatchNode((SLogicNode*)pChild,
+                                                          pNode);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t postSplitFinalizeExtWinGroupBatchSubplans(SLogicSubplan* pSubplan) {
+  if (pSubplan == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = postSplitFinalizeExtWinGroupBatchNode(pSubplan->pNode,
+                                                        NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pSubplan->pChildren) {
+    code = postSplitFinalizeExtWinGroupBatchSubplans((SLogicSubplan*)pChild);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (NULL == pLogicSubplan) {
     return TSDB_CODE_SUCCESS;
@@ -26173,6 +26300,9 @@ int32_t postSplitOptimize(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = postSplitFinalizeInterpSubplans(pLogicSubplan);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = postSplitFinalizeExtWinGroupBatchSubplans(pLogicSubplan);
   }
   return code;
 }

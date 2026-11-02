@@ -6111,6 +6111,7 @@ enum {
   PHY_PARTITION_CODE_HAS_OUTPUT_TS_ORDER,
   PHY_PARTITION_CODE_TS_SLOTID,
   PHY_PARTITION_CODE_PHASED_MODE,
+  PHY_PARTITION_CODE_EXTWIN_GROUP_BATCH,
 };
 
 static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -6135,6 +6136,10 @@ static int32_t physiPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_PARTITION_CODE_PHASED_MODE,
                          pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_PARTITION_CODE_EXTWIN_GROUP_BATCH,
+                         pNode->extWinGroupBatch);
   }
 
   return code;
@@ -6167,6 +6172,9 @@ static int32_t msgToPhysiPartitionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_PARTITION_CODE_PHASED_MODE:
         code = tlvDecodeBool(pTlv, &pNode->phasedMode);
+        break;
+      case PHY_PARTITION_CODE_EXTWIN_GROUP_BATCH:
+        code = tlvDecodeBool(pTlv, &pNode->extWinGroupBatch);
         break;
       default:
         break;
@@ -8591,6 +8599,7 @@ enum {
   LOGIC_PARTITION_CODE_PARTITION_KEYS,
   LOGIC_PARTITION_CODE_AGG_FUNCS,
   LOGIC_PARTITION_CODE_PHASED_MODE,
+  LOGIC_PARTITION_CODE_EXTWIN_GROUP_BATCH,
 };
 
 static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8605,6 +8614,10 @@ static int32_t logicPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, LOGIC_PARTITION_CODE_PHASED_MODE,
                          pNode->phasedMode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, LOGIC_PARTITION_CODE_EXTWIN_GROUP_BATCH,
+                         pNode->extWinGroupBatch);
   }
   return code;
 }
@@ -8626,6 +8639,9 @@ static int32_t msgToLogicPartitionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_PARTITION_CODE_PHASED_MODE:
         code = tlvDecodeBool(pTlv, &pNode->phasedMode);
+        break;
+      case LOGIC_PARTITION_CODE_EXTWIN_GROUP_BATCH:
+        code = tlvDecodeBool(pTlv, &pNode->extWinGroupBatch);
         break;
       default:
         break;
