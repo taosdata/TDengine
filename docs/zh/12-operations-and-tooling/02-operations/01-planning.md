@@ -207,6 +207,9 @@ TDengine 的多级存储功能在使用上还具备以下优点。
 | TSDB  | snode checkpoint 备份   | 873  | TCP  | rsync 协议（`rsyncPort` 可配） |
 | TSDB  | taosExplorer 备份计划 S3 转储 | 按 S3 endpoint 配置 | HTTPS | 将备份文件上传至 S3 或兼容对象存储；AWS S3 通常为 443，自建 MinIO 等按实际 endpoint 端口 |
 | taosX | 订阅外部 MQTT Broker    | 1883 | TCP  | `mqtt://` 数据源（如 Sparkplug B）；与 taosMqtt 的 6057（本机对外提供 MQTT 订阅服务）方向相反 |
+| taosX | Kepware OPC UA 数据源   | 49320 | TCP | 出站，Kepware OPC UA Server 默认端口（可配置） |
+| taosX | Kepware Config API（HTTP） | 57412 | TCP | 出站，读取 Kepware 项目与点位元数据（可配置） |
+| taosX | Kepware Config API（HTTPS） | 57512 | TCP | 出站，Config API HTTPS 端口（可配置） |
 | IDMP  | SMTP 邮件发送           | 465  | TCP  | 出站（`CAPABILITY_MAIL_SMTP_PORT` 可配） |
 | IDMP  | Redis 连接              | 6379 | TCP  | 出站。集群模式（`tda.redis.enabled=true`）必选：分布式锁、ID 生成、缓存与跨节点事件分发（Redis Stream / SSE 事件桥）；单机模式默认关闭，仅当显式启用时须放行（`IDMP_REDIS_URL` 可配） |
 | taosX | 数据源连接              | 按需 | TCP  | MySQL 3306、PostgreSQL 5432、MongoDB 27017、SQL Server 1433、Oracle 1521、OpenTSDB 4242 等，取决于所配置的数据源 |
