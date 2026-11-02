@@ -409,6 +409,35 @@ TEST_F(PlanJoinTest, basic) {
   run("SELECT t1.c1, t2.c1 FROM st1 t1 JOIN st2 t2 ON t1.ts = t2.ts");
 }
 
+TEST_F(PlanJoinTest, orderedInnerJoinKeepsMergeWithSecondaryKey) {
+  useDb("root", "test");
+  const string joinCond = " ON a.ts = b.ts AND a.c1 = b.c1";
+  const string tables = " FROM st1s1 a JOIN st1s2 b";
+
+  auto checkAlgo = [this](const string& sql, EJoinAlgorithm expected) {
+    setLogicPlanCheck([expected, sql](const SLogicNode* pRoot, bool optimized) {
+      if (!optimized) return;
+      SCOPED_TRACE(sql);
+      auto* pJoin = (const SJoinLogicNode*)findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+      ASSERT_NE(pJoin, nullptr);
+      EXPECT_EQ(pJoin->joinAlgo, expected);
+      EXPECT_EQ(countNodes(pRoot, QUERY_NODE_LOGIC_PLAN_PARTITION),
+                expected == JOIN_ALGO_HASH ? 2 : 0);
+    });
+    run(sql);
+  };
+
+  checkAlgo("SELECT a.ts, b.ts" + tables + joinCond, JOIN_ALGO_MERGE);
+  checkAlgo("SELECT /*+ JOIN_ALGO(HASH) */ a.ts, b.ts" + tables + joinCond, JOIN_ALGO_HASH);
+  checkAlgo("SELECT a.ts, b.ts FROM st1s1 a JOIN st1s2 b"
+            " ON a.ts = b.ts AND a.c1 + 1 = b.c1", JOIN_ALGO_HASH);
+  checkAlgo("SELECT a.ts, b.ts FROM st1s1 a LEFT JOIN st1s2 b" + joinCond, JOIN_ALGO_HASH);
+  checkAlgo("SELECT a.ts, b.ts FROM st1s1 a FULL JOIN st1s2 b" + joinCond, JOIN_ALGO_HASH);
+  checkAlgo("SELECT a.ts, b.ts FROM "
+            "(SELECT ts, c1 FROM st1s1 ORDER BY c1 LIMIT 10) a JOIN st1s2 b" + joinCond,
+            JOIN_ALGO_HASH);
+}
+
 TEST_F(PlanJoinTest, nestedOrdinaryRightDeepSlots) {
   useDb("root", "test");
   setPhysiPlanCheck([](const SQueryPlan* pPlan) {
