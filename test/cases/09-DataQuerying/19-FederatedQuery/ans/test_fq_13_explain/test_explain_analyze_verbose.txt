@@ -2778,34 +2778,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=65531)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
             Output: columns=3 width=65531
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=65531)
-               Output: columns=3 width=65531
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
-                  Output: columns=3 width=65531
-                  Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -2817,30 +2808,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65673 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65673 input_order=asc algo=Merge)
          Output: columns=5 width=65673
-         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=154)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -2852,30 +2838,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=131062 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=131062 input_order=asc algo=Merge)
          Output: columns=5 width=131062
-         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65543)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -8903,34 +8884,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Merge)
          Output: columns=4 width=65661
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=65531)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
             Output: columns=3 width=65531
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=65531)
-               Output: columns=3 width=65531
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
-                  Output: columns=3 width=65531
-                  Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -8942,30 +8914,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=65665 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=65665 input_order=asc algo=Merge)
          Output: columns=4 width=65665
-         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=154)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -8977,30 +8944,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=131054 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=131054 input_order=asc algo=Merge)
          Output: columns=4 width=131054
-         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65543)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -9010,34 +8972,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=65531)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
             Output: columns=3 width=65531
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=65531)
-               Output: columns=3 width=65531
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65531)
-                  Output: columns=3 width=65531
-                  Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" ORDER BY "time" ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -9047,30 +9000,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=16)
       Output: columns=2 width=16
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65673 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65673 input_order=asc algo=Merge)
          Output: columns=5 width=65673
-         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=154)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -9080,30 +9028,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=16)
       Output: columns=2 width=16
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=131062 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=131062 input_order=asc algo=Merge)
          Output: columns=5 width=131062
-         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65543)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -9115,35 +9058,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_pg`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
+         Filter: conditions=((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_pg`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_pg`.`p`.`time`)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_pg`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=4 width=65531)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=4 width=65531)
             Output: columns=3 width=65531
-            Network: mode=concurrent fetch_times=1 fetch_rows=4 fetch_cost=<COST>
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=4 width=65531)
-               Output: columns=3 width=65531
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=4 width=65531)
-                  Output: columns=3 width=65531
-                  Source: 127.0.0.1:15434 user=postgres
-                  Remote SQL: SELECT "time", "region", "current" FROM "public"."sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
-                  Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -9155,31 +9087,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=16 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=16 input_order=asc algo=Merge)
          Output: columns=2 width=16
-         Filter: ((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Filter: conditions=((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (__timestamp_scale(`fq_exp_mysql`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=154)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=4 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=4 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=4 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
-               Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -9191,31 +9116,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=16 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=16 input_order=asc algo=Merge)
          Output: columns=2 width=16
-         Filter: ((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
+         Filter: conditions=((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_influx`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (__timestamp_scale(`fq_exp_pg`.`m`.`time`, 2) = `fq_exp_influx`.`p`.`time`)
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_influx`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65543)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=4 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=4 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=4 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "current" FROM "sensor" WHERE ("current" > 1.0) ORDER BY "time" ASC
-               Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -46425,34 +46343,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Merge)
          Output: columns=5 width=280
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -46464,34 +46373,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -46503,30 +46403,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2))
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=150)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -46538,34 +46433,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Merge)
          Output: columns=5 width=280
-         Join Full Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48193,34 +48079,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=272 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=272 input_order=asc algo=Merge)
          Output: columns=4 width=272
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48232,34 +48109,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Merge)
          Output: columns=4 width=65661
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48271,30 +48139,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Merge)
          Output: columns=4 width=65661
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2))
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=150)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48306,34 +48169,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=272 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=272 input_order=asc algo=Merge)
          Output: columns=4 width=272
-         Join Full Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48343,34 +48197,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Merge)
          Output: columns=5 width=280
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48380,34 +48225,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48417,30 +48253,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2))
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`region`
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=150)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48450,34 +48281,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Merge)
          Output: columns=5 width=280
-         Join Full Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48489,35 +48311,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_sqlserver`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Filter: conditions=((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_sqlserver`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=4 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=4 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([current] > 1.0) ORDER BY [time] ASC
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=4 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([current] > 1.0) ORDER BY [time] ASC
-                  Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48529,35 +48340,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_sqlserver`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Filter: conditions=((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_sqlserver`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_sqlserver`.`p`.`time`)
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=4 width=142)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=4 fetch_cost=<COST>
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([current] > 1.0) ORDER BY [time] ASC
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=4 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:1433 user=sa
-                  Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([current] > 1.0) ORDER BY [time] ASC
-                  Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48569,31 +48369,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_influx`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_sqlserver`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
+         Filter: conditions=((`fq_exp_influx`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_sqlserver`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_sqlserver`.`p`.`time`, 2))
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_sqlserver`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=4 width=150)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([current] > 1.0) ORDER BY [time] ASC
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [current] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([current] > 1.0) ORDER BY [time] ASC
-               Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -48605,35 +48398,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_sqlserver`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Filter: conditions=((`fq_exp_sqlserver`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Join Full Cond: (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:1433 user=sa
+            Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([voltage] > 219.0) ORDER BY [time] ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:1433 user=sa
-               Remote SQL: SELECT [time], [region], [voltage] FROM [fq_exp_ssdb].[dbo].[sensor] WHERE ([voltage] > 219.0) ORDER BY [time] ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=4 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=4 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -55040,34 +54822,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Merge)
          Output: columns=5 width=280
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -55079,34 +54852,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -55118,30 +54882,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2))
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=150)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:18322 user=taosdata
-               Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57309,34 +57068,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=272 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=272 input_order=asc algo=Merge)
          Output: columns=4 width=272
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57348,34 +57098,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Merge)
          Output: columns=4 width=65661
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57387,30 +57128,25 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=4 width=65661 input_order=asc algo=Merge)
          Output: columns=4 width=65661
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2))
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=150)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:18322 user=taosdata
-               Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57420,34 +57156,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Merge)
          Output: columns=5 width=280
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57457,34 +57184,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=5 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=5 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57494,30 +57212,25 @@ RESULT
 -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=12)
       Output: columns=2 width=12
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=5 columns=5 width=65669 input_order=asc algo=Merge)
          Output: columns=5 width=65669
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2))
+         Left Equal Cond: `m`.`region`
+         Right Equal Cond: `p`.`REGION`
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=150)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:18322 user=taosdata
-               Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR ORDER BY TIME ASC NULLS FIRST
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57529,35 +57242,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Filter: conditions=((`fq_exp_mysql`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_mysql`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Join Full Cond: (`fq_exp_mysql`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` WHERE (`voltage` > 219.0) ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=4 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=4 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57569,35 +57271,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`) AND (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Filter: conditions=((`fq_exp_pg`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_pg`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
+         Join Full Cond: (`fq_exp_pg`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:15434 user=postgres
+            Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:15434 user=postgres
-               Remote SQL: SELECT "time", "region", "voltage" FROM "public"."sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=4 width=142)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=4 fetch_cost=<COST>
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:18322 user=taosdata
-                  Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
-                  Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -57609,31 +57300,24 @@ RESULT
       Output: Ignore Group Id: true
       Merge ResBlocks: True
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Hash)
+   -> Inner Join (cost=<COST> rows=4 columns=2 width=12 input_order=asc algo=Merge)
          Output: columns=2 width=12
-         Filter: ((`fq_exp_influx`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00))
-         Join Full Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2)) AND (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
+         Filter: conditions=((`fq_exp_influx`.`m`.`voltage` > 2.190000e+02) AND (`fq_exp_oracle`.`p`.`current` > 1.000000e+00)) efficiency=<NUM>%
+         Join Prim Cond: (`fq_exp_influx`.`m`.`time` = __timestamp_scale(`fq_exp_oracle`.`p`.`time`, 2))
+         Join Full Cond: (`fq_exp_influx`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=65535)
+      -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
             Output: columns=3 width=65535
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18086 user=u
+            Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-               Output: columns=3 width=65535
-               Source: 127.0.0.1:18086 user=u
-               Remote SQL: SELECT "time", "region", "voltage" FROM "sensor" WHERE ("voltage" > 219.0) ORDER BY "time" ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=4 width=150)
+      -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
             Output: columns=3 width=142
-            Partition Key: partitions=1
+            Source: 127.0.0.1:18322 user=taosdata
+            Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
+            Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=142)
-               Output: columns=3 width=142
-               Source: 127.0.0.1:18322 user=taosdata
-               Remote SQL: SELECT TIME AS "time", REGION AS "region", "CURRENT" AS "current" FROM TAOSDATA.SENSOR WHERE ("CURRENT" > 1.0) ORDER BY TIME ASC NULLS FIRST
-               Remote rows=4, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---

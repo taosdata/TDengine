@@ -143,6 +143,50 @@ class TestJoinHash:
         """
         self.run_case_file("test_join_hash_plan_selection")
 
+    def test_stable_join_unique_after_tag_rewrite(self):
+        """Keep stable tag joins valid under UNIQUE and post-join filters.
+
+        1. Check complete and paginated UNIQUE results over a timestamp/tag join.
+        2. Check a residual predicate referencing both joined tables.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-22 Add planner crash regression for stable join rewrite.
+
+        """
+        self.check_stable_join_unique_after_tag_rewrite()
+
+    def check_stable_join_unique_after_tag_rewrite(self):
+        join_sql = (
+            "FROM hj_l_stb a JOIN hj_r_stb b "
+            "ON a.ts = b.ts AND a.device = b.device"
+        )
+        rows = self.fetch_rows("SELECT UNIQUE(a.val) " + join_sql)
+        assert {row[0] for row in rows} == {10, 20, 30, 40}
+
+        limited = self.fetch_rows(
+            "SELECT UNIQUE(a.val) " + join_sql + " LIMIT 1 OFFSET 1"
+        )
+        assert len(limited) == 1 and limited[0][0] in {10, 20, 30, 40}
+
+        filter_sql = (
+            "SELECT UNIQUE(a.val) " + join_sql +
+            " WHERE (a.device NMATCH 'd1' OR b.device NMATCH 'd1')"
+        )
+        filtered = self.fetch_rows(filter_sql)
+        assert {row[0] for row in filtered} == {30, 40}
+
+        limited_filtered = self.fetch_rows(filter_sql + " LIMIT 1 OFFSET 1")
+        assert len(limited_filtered) == 1 and limited_filtered[0][0] in {30, 40}
+
     def test_join_merge_order_eligibility(self):
         """Validate Merge Join ordering eligibility and default Hash fallback.
 

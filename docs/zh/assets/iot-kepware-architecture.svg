@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="360" viewBox="0 0 1600 360">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6fb0"/>
+    </marker>
+    <style>
+      text { font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="360" fill="#ffffff"/>
+
+  <!-- Device layer -->
+  <rect x="30" y="95" width="220" height="170" rx="12" fill="#fffaf0" stroke="#d69e4b" stroke-width="2.5"/>
+  <text x="140" y="140" text-anchor="middle" font-size="28" font-weight="700" fill="#9a5b13">工业设备 / PLC</text>
+  <text x="140" y="184" text-anchor="middle" font-size="20" fill="#8a5a22">传感器 · 仪表</text>
+  <text x="140" y="218" text-anchor="middle" font-size="20" fill="#8a5a22">PLC · 控制器</text>
+
+  <!-- Field protocol -->
+  <line x1="250" y1="180" x2="340" y2="180" stroke="#2f6fb0" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="295" y="158" text-anchor="middle" font-size="17" fill="#4a6f9c">工业协议</text>
+
+  <!-- Kepware panel -->
+  <rect x="340" y="35" width="640" height="290" rx="16" fill="#f7fbff" stroke="#b8d4ef" stroke-width="2"/>
+  <text x="660" y="86" text-anchor="middle" font-size="34" font-weight="700" fill="#1d4e89">Kepware Server</text>
+  <text x="660" y="120" text-anchor="middle" font-size="20" fill="#4a6f9c">统一工业设备接入</text>
+
+  <text x="660" y="204" text-anchor="middle" font-size="64" font-weight="700" fill="#1d4e89">250+</text>
+  <text x="660" y="238" text-anchor="middle" font-size="22" fill="#355f8a">工业协议</text>
+  <text x="660" y="278" text-anchor="middle" font-size="18" fill="#4a6f9c">Modbus · Siemens S7 · OPC UA · BACnet · Allen-Bradley</text>
+
+  <!-- Data collection modes -->
+  <line x1="980" y1="186" x2="1150" y2="186" stroke="#2f6fb0" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="1065" y="152" text-anchor="middle" font-size="17" fill="#4a6f9c">OPC UA 订阅 / 轮询</text>
+
+  <!-- TDengine -->
+  <rect x="1160" y="105" width="390" height="150" rx="14" fill="#f2f9ff" stroke="#6fa8d2" stroke-width="2"/>
+  <text x="1355" y="156" text-anchor="middle" font-size="30" font-weight="700" fill="#1d4e89">TDengine</text>
+  <text x="1355" y="200" text-anchor="middle" font-size="21" fill="#355f8a">点位超级表 + 子表</text>
+  <text x="1355" y="234" text-anchor="middle" font-size="21" fill="#355f8a">Path 层级标签</text>
+</svg>

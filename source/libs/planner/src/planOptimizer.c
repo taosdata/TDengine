@@ -2714,6 +2714,35 @@ static bool pdcJoinHasHashEqualOnCond(SJoinLogicNode* pJoin, SNode* pCond) {
   return pdcJoinIsHashEqualOnCond(pJoin, pCond);
 }
 
+static bool pdcJoinHasHashExprKey(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (NULL == pCond) {
+    return false;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond) && LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pCond)->condType) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, ((SLogicConditionNode*)pCond)->pParameterList) {
+      if (pdcJoinHasHashExprKey(pJoin, pNode)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
+    return false;
+  }
+  // Reuse the complete hash-key predicate, including cross-table ownership,
+  // supported expression validation, and type compatibility.  Merge Join can
+  // consume ordinary column keys, but it cannot evaluate a scalar expression
+  // as a key, so any non-column operand must keep the Hash Join path.
+  if (!pdcJoinIsHashEqualOnCond(pJoin, pCond)) {
+    return false;
+  }
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
+  return QUERY_NODE_COLUMN != nodeType(pOper->pLeft) || QUERY_NODE_COLUMN != nodeType(pOper->pRight);
+}
+
 static bool pdcJoinIsCrossTableEqCond(SJoinLogicNode* pJoin, SNode* pCond) {
   if (NULL == pJoin || NULL == pCond) {
     return false;
@@ -10943,11 +10972,13 @@ static bool hashJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     return res;
   }
 
-  // Preserve Merge Join when the primary timestamp inputs are already
-  // globally ordered. A secondary column/tag equality is a real Hash key and
-  // must still select Hash Join even when the timestamp happens to be
-  // ordered, because Merge Join cannot consume that composite key here.
-  if (mergeIsReady && !hasSecondaryHashKey && JOIN_ALGO_HASH != pJoin->joinAlgoHint) {
+  // pColEqCond and pTagEqCond hold ordinary column/tag equalities that Merge
+  // can check within each timestamp group. Expression keys in full ON still
+  // need Hash Join's key normalization.
+  if (mergeIsReady && JOIN_ALGO_HASH != pJoin->joinAlgoHint &&
+      (!hasSecondaryHashKey ||
+       (JOIN_TYPE_INNER == pJoin->joinType && JOIN_STYPE_NONE == pJoin->subType &&
+        !pdcJoinHasHashExprKey(pJoin, pJoin->pFullOnCond)))) {
     goto _return;
   }
 
@@ -11730,11 +11761,10 @@ static int32_t stbJoinOptCreateTableScanNodes(SOptimizeContext* pCxt, SLogicNode
     //   break;
     // }
 
-    nodesDestroyNode(pScan->pTagCond);
-    pScan->pTagCond = NULL;
-    nodesDestroyNode(pScan->pTagIndexCond);
-    pScan->pTagIndexCond = NULL;
-
+    // Keep tag predicates on the dynamic table-scan copy. Physical plan
+    // creation stores them on the subplan, which can also contain the tag
+    // scan used to select table pairs. Clearing them here would overwrite
+    // that tag scan's predicates when the table scan is built.
     pScan->node.dynamicOp = true;
     *(srcScan + i++) = (pScan->pVgroupList->numOfVgroups <= 1 && !inStreamCalcClause(pCxt->pPlanCxt));
 

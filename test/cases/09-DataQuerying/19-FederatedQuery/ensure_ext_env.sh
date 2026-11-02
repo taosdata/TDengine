@@ -18,10 +18,10 @@
 # ENVIRONMENT VARIABLES (all optional, defaults match federated_query_common.py)
 #   FQ_BASE_DIR            install/data root      default /opt/taostest/fq
 #   FQ_MYSQL_VERSIONS      comma list             default "8.0"
-#   FQ_PG_VERSIONS         comma list             default "16"
+#   FQ_PG_VERSIONS         comma list             default "18.6" (16 remains selectable)
 #   FQ_INFLUX_VERSIONS     comma list             default "3.0"
 #   FQ_MYSQL_MIRROR        base URL for MySQL tarballs
-#   FQ_PG_TARBALL_<VV>     full URL for PG prebuilt tarball (fallback if no pkg)
+#   FQ_PG_TARBALL_<VV>     full URL for PG prebuilt tarball (fallback if no pkg; VV = 14/15/16/17/186)
 #   FQ_INFLUX_MIRROR       base URL for InfluxDB releases
 #   FQ_MYSQL_TARBALL_<VV>  full URL override per MySQL version (VV = 57/80/84)
 #   FQ_INFLUX_TARBALL_<VV> full URL override per InfluxDB version (VV = 30/35)
@@ -178,7 +178,7 @@ fi
 if [[ -n "${FQ_PG_VERSIONS+x}" && -z "${FQ_PG_VERSIONS}" ]]; then
     PG_VERSIONS=()
 else
-    IFS=',' read -ra PG_VERSIONS <<< "${FQ_PG_VERSIONS:-16}"
+    IFS=',' read -ra PG_VERSIONS <<< "${FQ_PG_VERSIONS:-18.6}"
 fi
 if [[ -n "${FQ_INFLUX_VERSIONS+x}" && -z "${FQ_INFLUX_VERSIONS}" ]]; then
     INFLUX_VERSIONS=()
@@ -1639,6 +1639,16 @@ mysql_port() {
     esac
 }
 
+# PostgreSQL package and installed-binary paths are keyed by the major
+# version ("postgresql-18", "/usr/lib/postgresql/18/bin").  The test version
+# axis may carry a minor (e.g. "18.6"), so strip it only where the package
+# manager / filesystem layout requires it; instance dirs and ports keep the
+# full tag.
+pg_major() {
+    local ver="$1"
+    printf '%s\n' "${ver%%.*}"
+}
+
 pg_port() {
     local ver="$1" tag
     tag="${ver//./}"
@@ -1646,11 +1656,12 @@ pg_port() {
     local envval="${!envvar:-}"
     if [[ -n "$envval" ]]; then echo "$envval"; return; fi
     case "$tag" in
-        14) echo 15433 ;;
-        15) echo 15435 ;;
-        16) echo 15434 ;;
-        17) echo 15436 ;;
-        *)  echo 15434 ;;
+        14)  echo 15433 ;;
+        15)  echo 15435 ;;
+        16)  echo 15434 ;;
+        17)  echo 15436 ;;
+        186) echo 15437 ;;
+        *)   echo 15434 ;;
     esac
 }
 
@@ -2972,15 +2983,16 @@ EOF
 
 _pg_install() {
     local ver="$1" base="$2"
+    local major; major="$(pg_major "$ver")"
     mkdir -p "$base"
 
     case "$OS" in
         Darwin)
             info "PostgreSQL ${ver}: installing via Homebrew ..."
-            brew install "postgresql@${ver}" 2>/dev/null \
+            brew install "postgresql@${major}" 2>/dev/null \
                 || { err "PostgreSQL ${ver}: brew install failed."; OVERALL_OK=1; return 1; }
             local brew_prefix; brew_prefix="$(brew --prefix)"
-            local brew_bin="${brew_prefix}/opt/postgresql@${ver}/bin"
+            local brew_bin="${brew_prefix}/opt/postgresql@${major}/bin"
             mkdir -p "${base}/bin"
             for f in pg_ctl initdb psql postgres createdb dropdb pg_config; do
                 [[ -x "${brew_bin}/${f}" ]] && ln -sf "${brew_bin}/${f}" "${base}/bin/${f}"
@@ -2989,12 +3001,15 @@ _pg_install() {
             ;;
         Linux)
             if command -v apt-get &>/dev/null; then
-                local _pg_cache_key="pg${ver//./}"
+                # Cache/verify keys use the PGDG package major ("pg18"), not the
+                # test tag ("pg186"): _apt_verify_cached_install parses the
+                # suffix as the /usr/lib/postgresql/<major> path component.
+                local _pg_cache_key="pg${major}"
                 local _pg_deb_cache=""
                 _pg_deb_cache="$(_apt_cache_file "$_pg_cache_key" || true)"
                 # Check if version available in default apt cache
                 if [[ -z "$_pg_deb_cache" ]] \
-                        && ! apt-cache show "postgresql-${ver}" &>/dev/null 2>&1; then
+                        && ! apt-cache show "postgresql-${major}" &>/dev/null 2>&1; then
                     info "PostgreSQL ${ver}: adding PGDG apt repository ..."
                     _pkg_install curl ca-certificates gnupg
                     local codename; codename="$(_apt_codename)"
@@ -3006,10 +3021,10 @@ _pg_install() {
                     apt-get update -qq
                 fi
                 info "PostgreSQL ${ver}: installing via apt ..."
-                _apt_install_cached "pg${ver//./}" "postgresql-${ver}" \
+                _apt_install_cached "$_pg_cache_key" "postgresql-${major}" \
                     || warn "PostgreSQL ${ver}: apt install failed; trying tarball fallback."
                 local sys_bin
-                sys_bin="$(_pg_system_bin_dir "$ver")"
+                sys_bin="$(_pg_system_bin_dir "$major")"
                 if [[ -d "$sys_bin" ]]; then
                     mkdir -p "${base}/bin"
                     # ln -sfn works on Linux; on macOS use individual links
@@ -3025,8 +3040,8 @@ _pg_install() {
                 local rpm_url="https://download.postgresql.org/pub/repos/yum/reporpms/EL-$(rpm -E %{rhel})-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
                 rpm -q pgdg-redhat-repo &>/dev/null || \
                     (command -v dnf &>/dev/null && dnf install -y "$rpm_url" || yum install -y "$rpm_url") 2>/dev/null || true
-                _pkg_install "postgresql${ver}-server" "postgresql${ver}"
-                local sys_bin="/usr/pgsql-${ver}/bin"
+                _pkg_install "postgresql${major}-server" "postgresql${major}"
+                local sys_bin="/usr/pgsql-${major}/bin"
                 if [[ -d "$sys_bin" ]]; then
                     mkdir -p "${base}/bin"
                     for f in pg_ctl initdb psql postgres createdb dropdb pg_config; do
@@ -3036,8 +3051,8 @@ _pg_install() {
                 fi
             elif command -v apk &>/dev/null; then
                 info "PostgreSQL ${ver}: installing via apk ..."
-                _pkg_install "postgresql${ver}" "postgresql${ver}-client"
-                local sys_bin="/usr/libexec/postgresql${ver}"
+                _pkg_install "postgresql${major}" "postgresql${major}-client"
+                local sys_bin="/usr/libexec/postgresql${major}"
                 [[ -d "$sys_bin" ]] || sys_bin="/usr/bin"
                 mkdir -p "${base}/bin"
                 for f in pg_ctl initdb psql postgres pg_config; do
@@ -3112,6 +3127,7 @@ _pg_init() {
 # Required by FQ-03 type-mapping tests (CASE-036: GEOMETRY type mapping).
 _pg_install_postgis() {
     local ver="$1"
+    local major; major="$(pg_major "$ver")"
 
     case "$OS" in
         Darwin)
@@ -3140,18 +3156,18 @@ _pg_install_postgis() {
 
     if command -v apt-get &>/dev/null; then
         info "PostgreSQL ${ver}: installing PostGIS via apt ..."
-        if ! _apt_install_cached "postgis-pg${ver}" \
-                "postgresql-${ver}-postgis-3" \
-                "postgresql-${ver}-postgis-3-scripts"; then
+        if ! _apt_install_cached "postgis-pg${major}" \
+                "postgresql-${major}-postgis-3" \
+                "postgresql-${major}-postgis-3-scripts"; then
             warn "PostgreSQL ${ver}: PostGIS apt install failed. Tests using PostGIS GEOMETRY type (e.g. CASE-036) will fail."
             return 1
         fi
         info "PostgreSQL ${ver}: PostGIS installed."
     elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
         local _pkgmgr; command -v dnf &>/dev/null && _pkgmgr="dnf" || _pkgmgr="yum"
-        # PGDG naming: postgis<postgis-major><postgis-minor>_<pg-ver>
+        # PGDG naming: postgis<postgis-major><postgis-minor>_<pg-major>
         # e.g. postgis34_16 (PostGIS 3.4 for PG 16)
-        local _pg_nodots="${ver//./}"
+        local _pg_nodots="${major}"
         local _installed=0
         for _pver in 34 33 32; do
             if "$_pkgmgr" install -y --quiet "postgis${_pver}_${_pg_nodots}" 2>/dev/null; then
@@ -3186,8 +3202,9 @@ _pg_config_path() {
     fi
     if command -v brew >/dev/null 2>&1; then
         local brew_prefix; brew_prefix="$(brew --prefix)"
-        if [[ -x "${brew_prefix}/opt/postgresql@${ver}/bin/pg_config" ]]; then
-            printf '%s\n' "${brew_prefix}/opt/postgresql@${ver}/bin/pg_config"
+        local major; major="$(pg_major "$ver")"
+        if [[ -x "${brew_prefix}/opt/postgresql@${major}/bin/pg_config" ]]; then
+            printf '%s\n' "${brew_prefix}/opt/postgresql@${major}/bin/pg_config"
             return 0
         fi
     fi
@@ -4503,6 +4520,20 @@ EOF
         # that died between mounting and opening it).
         info "Oracle ${ver}: instance ${sid} already running; opening the PDB ..."
     else
+        # A SIGKILLed instance (the S02 disruption cases) leaves the instance
+        # lock and its SysV SGA behind.  The next startup then reports an
+        # already-running instance (ORA-01081) and attaches to a dead SGA
+        # (ORA-03113/ORA-01034), so the quick restart never becomes ready.
+        # No ora_* process exists at this point, which makes the lock, the
+        # health-check file, and every unattached segment stale by definition;
+        # the data files are untouched and crash recovery still runs.
+        (ipcs -m | awk -v u="${ORACLE_OS_USER}" '$3 == u && $6 == 0 {print $2}' \
+            | while read -r _id; do ipcrm -m "${_id}" 2>/dev/null || true; done) || true
+        if ! pgrep -u "${ORACLE_OS_USER}" '^ora_' >/dev/null 2>&1; then
+            (ipcs -s | awk -v u="${ORACLE_OS_USER}" '$3 == u {print $2}' \
+                | while read -r _id; do ipcrm -s "${_id}" 2>/dev/null || true; done) || true
+        fi
+        rm -f "${home}/dbs/lk${sid}" "${home}/dbs/hc_${sid}.dat" 2>/dev/null || true
         info "Oracle ${ver}: starting instance ${sid} ..."
         _oracle_as_owner "${ver}" "${env_str} sqlplus -S -L / as sysdba <<'SQLEOF'
 startup;

@@ -3559,6 +3559,10 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         ]
         ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, influx_lines)
 
+        # Oracle on Windows is deferred; still prepare the other providers.
+        if os.name == "nt":
+            return
+
         # ── Oracle ──
         # The login schema is the default namespace; there is no per-test
         # database to create (DS 5.3.2).  The timestamp literal is written with
@@ -4058,6 +4062,8 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
         with open(baseline, "r", encoding="utf-8") as f:
             expected = f.read()
+        if os.name == "nt":
+            expected = self._fw_without_oracle_baseline(expected)
         # Apply the same syntax-error normalisation to the baseline so that
         # differences caused by TDengine error-message truncation are absorbed.
         expected = _norm_synerr(expected)
@@ -4103,6 +4109,13 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             "          deleting old ans and rebuilding is not allowed."
         )
 
+    @staticmethod
+    def _fw_without_oracle_baseline(text: str) -> str:
+        """Keep the committed non-Oracle case blocks for the Windows run."""
+        sections = re.split(r"(?m)(?=^={96}\nCASE START:)", text)
+        return "".join(section for section in sections
+                       if not re.match(r"={96}\nCASE START: [^\n]+\[ORA\]\n", section))
+
     # ──────────────────────────────────────────────────────────────────────
     # Main test entry point
     # ──────────────────────────────────────────────────────────────────────
@@ -4125,6 +4138,9 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
+                if os.name == "nt" and src_type == _oracle:
+                    tdLog.info(f"Skipping Oracle {case_id}: Windows FQ Oracle support is deferred")
+                    continue
                 label = f"CASE-{case_id}[{src_type[:3].upper()}]"
                 tdLog.info(f"Running {label}: {desc}")
                 self._fw_append_case_boundary(blocks, label, desc, is_start=True)

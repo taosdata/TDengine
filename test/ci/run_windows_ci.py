@@ -308,8 +308,8 @@ def ensure_libpq_runtime(environment):
         print(f"[windows-ci] EXT_LIBPQ_ROOT={root}", flush=True)
         return
 
-    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "16").split(",") if item.strip()]
-    version = versions[0] if versions else "16"
+    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "18.6").split(",") if item.strip()]
+    version = versions[0] if versions else "18.6"
     target = federated_query_base_dir() / "pg" / version
     if (target / "include" / "libpq-fe.h").exists():
         environment["EXT_LIBPQ_ROOT"] = str(target)
@@ -318,7 +318,8 @@ def ensure_libpq_runtime(environment):
 
     # Keep the package table in sync with ensure_ext_env.ps1: both stage the
     # identical EnterpriseDB ZIP so the build and the tests share one runtime.
-    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1"}
+    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1",
+                "18.6": "18.6-1"}
     tag = version.replace(".", "")
     url = environment.get(f"FQ_PG_TARBALL_{tag}")
     if not url:
@@ -568,7 +569,9 @@ def federated_query_services(environment):
     selection that way keeps the script's own defaults (Oracle 26ai included)
     from installing engines this run never uses.
     """
-    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
+    # Oracle provisioning under the Windows runner service is not supported
+    # yet. Keep the other four providers in the default smoke coverage.
+    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver")
     services = set() if value == "none" else set(value.split(","))
     unknown = services - set(FQ_ENGINE_VERSION_VARS)
     if unknown:
@@ -591,6 +594,7 @@ def provision_federated_query_env(source_dir, environment):
         return
     environment = dict(environment)
     services = federated_query_services(environment)
+    environment["FQ_SERVICES_TO_RESET"] = ",".join(sorted(services)) or "none"
     for engine, variable in FQ_ENGINE_VERSION_VARS.items():
         if engine not in services:
             environment[variable] = ""

@@ -139,7 +139,7 @@ class TestFq10Performance(FederatedQueryVersionedMixin):
         """Record test start time and metadata.
 
         The entry name is automatically suffixed with the current version label
-        (e.g. ``PERF-001_latency[my8.0-pg16-inf3.0]``) so multi-version runs
+        (e.g. ``PERF-001_latency[my8.0-pg18.6-inf3.0]``) so multi-version runs
         produce one distinct row per (scenario, version) combination in the
         performance summary.
         """

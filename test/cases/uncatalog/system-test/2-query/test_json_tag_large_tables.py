@@ -45,6 +45,7 @@ class TestJsonTagLargeTables:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:

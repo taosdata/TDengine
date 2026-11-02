@@ -36,6 +36,37 @@ typedef struct SPhysiPlanContext {
   bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
 } SPhysiPlanContext;
 
+// Stable-table join rewrites keep the two logical inputs below a single
+// GROUP_CACHE node.  Physical plans use the same shape with a physical
+// GROUP_CACHE node.  Keep the unwrapping and arity check in one place so
+// callers cannot silently treat an invalid one-child join as a normal join.
+static inline int32_t planGetJoinInputs(SNodeList* pChildren, int32_t groupCacheType,
+                                        SNodeList** ppInputs) {
+  if (NULL == pChildren || NULL == ppInputs) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  SNodeList* pInputs = pChildren;
+  if (1 == LIST_LENGTH(pInputs) &&
+      NULL != nodesListGetNode(pInputs, 0) &&
+      groupCacheType == nodeType(nodesListGetNode(pInputs, 0))) {
+    SNode* pGroupCache = nodesListGetNode(pInputs, 0);
+    if (QUERY_NODE_LOGIC_PLAN_GROUP_CACHE == groupCacheType) {
+      pInputs = ((SGroupCacheLogicNode*)pGroupCache)->node.pChildren;
+    } else if (QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE == groupCacheType) {
+      pInputs = ((SGroupCachePhysiNode*)pGroupCache)->node.pChildren;
+    } else {
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+  }
+  if (2 != LIST_LENGTH(pInputs)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+
+  *ppInputs = pInputs;
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef enum EJoinInputSide {
   JOIN_INPUT_SIDE_NONE = 0,
   JOIN_INPUT_SIDE_LEFT,

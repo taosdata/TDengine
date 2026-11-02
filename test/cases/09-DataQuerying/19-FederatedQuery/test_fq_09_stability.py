@@ -138,7 +138,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         """Record test start time and metadata into results list.
 
         The entry name is automatically suffixed with the current version label
-        (e.g. ``STAB-001[my8.0-pg16-inf3.0]``) so multi-version runs produce
+        (e.g. ``STAB-001[my8.0-pg18.6-inf3.0]``) so multi-version runs produce
         one distinct row per (scenario, version) combination in the summary.
         """
         ver_label = self._version_label()

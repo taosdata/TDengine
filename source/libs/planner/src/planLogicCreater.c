@@ -2044,10 +2044,26 @@ static int32_t buildJoinInputProps(SJoinPropsStore* pStore,
     return createRelationInputProps(pStore, pNode, &pProps);
   }
 
+  SNodeList* pJoinInputs = NULL;
+  int32_t inputCode = planGetJoinInputs(pNode->pChildren, QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, &pJoinInputs);
+  if (TSDB_CODE_SUCCESS != inputCode) {
+    // The stable-table rewrite is the only valid one-child JOIN shape; all
+    // other arities are malformed logical plans.
+    return inputCode;
+  }
+
+  // Stable-table join optimization wraps GroupCache in a single-input Join.
+  // Its output is a relation here; the real inputs are used by physical plan
+  // creation, while join properties describe the rewritten output relation.
+  if (pJoinInputs != pNode->pChildren) {
+    SJoinInputProps* pProps = NULL;
+    return createRelationInputProps(pStore, pNode, &pProps);
+  }
+
   SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
   SLogicNode* pInputs[2] = {
-      (SLogicNode*)nodesListGetNode(pNode->pChildren, 0),
-      (SLogicNode*)nodesListGetNode(pNode->pChildren, 1),
+      (SLogicNode*)nodesListGetNode(pJoinInputs, 0),
+      (SLogicNode*)nodesListGetNode(pJoinInputs, 1),
   };
   SJoinInputProps* pInputProps[2] = {NULL, NULL};
   int32_t code = TSDB_CODE_SUCCESS;

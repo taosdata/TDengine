@@ -3431,18 +3431,15 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
 }
 
 static int32_t getJoinDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
-  if (2 == pChildren->length) {
-    *ppDesc = ((SPhysiNode*)nodesListGetNode(pChildren, idx))->pOutputDataBlockDesc;
-  } else if (1 == pChildren->length &&
-             nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE) {
-    SGroupCachePhysiNode* pGrpCache = (SGroupCachePhysiNode*)nodesListGetNode(pChildren, 0);
-    *ppDesc = ((SPhysiNode*)nodesListGetNode(pGrpCache->node.pChildren, idx))->pOutputDataBlockDesc;
-  } else {
-    planError("Invalid join children num:%d or child type:%d", pChildren->length,
-              nodeType(nodesListGetNode(pChildren, 0)));
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  SNodeList* pInputs = NULL;
+  int32_t code = planGetJoinInputs(pChildren, QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, &pInputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("Invalid join children num:%d or child type:%d", LIST_LENGTH(pChildren),
+              LIST_LENGTH(pChildren) > 0 ? nodeType(nodesListGetNode(pChildren, 0)) : -1);
+    return code;
   }
 
+  *ppDesc = ((SPhysiNode*)nodesListGetNode(pInputs, idx))->pOutputDataBlockDesc;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3759,14 +3756,24 @@ static const char* getLogicNodeTargetAlias(const SLogicNode* pLogicNode) {
   return getLogicNodeTableAlias(pLogicNode);
 }
 
-static void getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, const char** ppLeftAlias,
-                                     const char** ppRightAlias) {
+static int32_t getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, const char** ppLeftAlias,
+                                        const char** ppRightAlias) {
+  SNodeList* pInputs = NULL;
+  int32_t code = planGetJoinInputs(pJoinLogicNode->node.pChildren, QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, &pInputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("Invalid logical join children num:%d or child type:%d", LIST_LENGTH(pJoinLogicNode->node.pChildren),
+              LIST_LENGTH(pJoinLogicNode->node.pChildren) > 0
+                  ? nodeType(nodesListGetNode(pJoinLogicNode->node.pChildren, 0))
+                  : -1);
+    return code;
+  }
   const SLogicNode* pLeftLogic =
-      (const SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 0);
+      (const SLogicNode*)nodesListGetNode(pInputs, 0);
   const SLogicNode* pRightLogic =
-      (const SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 1);
+      (const SLogicNode*)nodesListGetNode(pInputs, 1);
   *ppLeftAlias = getLogicNodeTableAlias(pLeftLogic);
   *ppRightAlias = getLogicNodeTableAlias(pRightLogic);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* pJoin, int64_t leftDataBlockId,
@@ -3777,7 +3784,10 @@ static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* 
   // resolve to the wrong descriptor and ends in "Planner slot key not found".
   const char* leftAlias = NULL;
   const char* rightAlias = NULL;
-  getJoinChildTableAliases(pJoin, &leftAlias, &rightAlias);
+  int32_t code = getJoinChildTableAliases(pJoin, &leftAlias, &rightAlias);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   return setNodeSlotIdWithAliases(pCxt, leftDataBlockId, rightDataBlockId, leftAlias, rightAlias, pNode, pOutput);
 }
 
@@ -4016,8 +4026,17 @@ static int32_t fqAppendJoinConditionTargets(SPhysiPlanContext* pCxt,
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t appended = 0;
   SSHashObj* pTables[2] = {NULL, NULL};
+  SNodeList* pInputs = NULL;
+  code = planGetJoinInputs(pJoinLogicNode->node.pChildren, QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, &pInputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("Invalid logical join children num:%d or child type:%d", LIST_LENGTH(pJoinLogicNode->node.pChildren),
+              LIST_LENGTH(pJoinLogicNode->node.pChildren) > 0
+                  ? nodeType(nodesListGetNode(pJoinLogicNode->node.pChildren, 0))
+                  : -1);
+    return code;
+  }
   for (int32_t i = 0; i < 2 && TSDB_CODE_SUCCESS == code; ++i) {
-    SNode* pChild = nodesListGetNode(pJoinLogicNode->node.pChildren, i);
+    SNode* pChild = nodesListGetNode(pInputs, i);
     code = collectTableAliasFromNodes(pChild, &pTables[i]);
     if (TSDB_CODE_SUCCESS == code) {
       code = collectSourceTableAliasFromNodes(pChild, &pTables[i]);

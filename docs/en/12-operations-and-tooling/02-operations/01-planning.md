@@ -205,6 +205,9 @@ In addition to the service listening ports above, depending on the deployment an
 | TSDB    | snode checkpoint backup | 873 | TCP | rsync protocol (configurable via `rsyncPort`) |
 | TSDB    | taosExplorer backup plan S3 dump | Configured S3 endpoint | HTTPS | Uploads backup files to S3 or compatible object storage; AWS S3 typically uses 443, while self-hosted MinIO and similar use the actual endpoint port |
 | taosX   | Subscribe to external MQTT broker | 1883 | TCP | `mqtt://` data source (such as Sparkplug B); the opposite direction to taosMqtt 6057, which provides the MQTT subscription service on this host |
+| taosX   | Kepware OPC UA data source | 49320 | TCP | Outbound Kepware OPC UA Server port (configurable) |
+| taosX   | Kepware Config API (HTTP) | 57412 | TCP | Outbound Kepware project and tag metadata API (configurable) |
+| taosX   | Kepware Config API (HTTPS) | 57512 | TCP | Outbound Config API HTTPS port (configurable) |
 | IDMP    | SMTP email sending | 465 | TCP | Outbound (configurable via `CAPABILITY_MAIL_SMTP_PORT`) |
 | IDMP    | Redis connection | 6379 | TCP | Outbound. Required in cluster mode (`tda.redis.enabled=true`): distributed locks, ID generation, caching, and cross-node event delivery (Redis Stream / SSE event bridge); disabled by default in standalone mode and only required when explicitly enabled (configurable via `IDMP_REDIS_URL`) |
 | taosX   | Data source connections | As needed | TCP | MySQL 3306, PostgreSQL 5432, MongoDB 27017, SQL Server 1433, Oracle 1521, OpenTSDB 4242, etc., depending on the configured data sources |
