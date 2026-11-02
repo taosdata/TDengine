@@ -7409,6 +7409,7 @@ static int32_t createPartitionPhysiNodeImpl(SPhysiPlanContext* pCxt, SNodeList* 
   SNodeList* pPartitionKeys = NULL;
   int32_t    code = rewritePrecalcExprs(pCxt, pPartLogicNode->pPartitionKeys, &pPrecalcExprs, &pPartitionKeys);
   pPart->phasedMode = pPartLogicNode->phasedMode;
+  pPart->extWinGroupBatch = pPartLogicNode->extWinGroupBatch;
   pPart->needBlockOutputTsOrder = pPartLogicNode->needBlockOutputTsOrder;
   SDataBlockDescNode* pChildTupe = NULL;
   if (TSDB_CODE_SUCCESS == code) {

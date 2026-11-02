@@ -987,6 +987,18 @@ static bool isSplitScanHint(const SToken* pToken) {
          0 == strncasecmp(pToken->z, kSplitScanHint, pToken->n);
 }
 
+static bool isExtWinPartitionBatchHint(const SToken* pToken) {
+  static const char kExtWinPartitionBatchHint[] = "EXTWIN_PARTITION_BATCH";
+  return pToken->n == (int32_t)strlen(kExtWinPartitionBatchHint) &&
+         0 == strncasecmp(pToken->z, kExtWinPartitionBatchHint, pToken->n);
+}
+
+static bool isNoExtWinPartitionBatchHint(const SToken* pToken) {
+  static const char kNoExtWinPartitionBatchHint[] = "NO_EXTWIN_PARTITION_BATCH";
+  return pToken->n == (int32_t)strlen(kNoExtWinPartitionBatchHint) &&
+         0 == strncasecmp(pToken->z, kNoExtWinPartitionBatchHint, pToken->n);
+}
+
 static EJoinAlgorithm getHintJoinAlgo(SNodeList* pHintList) {
   if (!pHintList) return JOIN_ALGO_UNKNOWN;
 
@@ -1044,6 +1056,12 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
     case HINT_NO_BATCH_SCAN:
     case HINT_FAST_INTERVAL:
     case HINT_EX_INTERVAL:
+      break;
+    case HINT_EXTWIN_PARTITION_BATCH:
+    case HINT_NO_EXTWIN_PARTITION_BATCH:
+      if (paramNum != 0) return true;
+      // Ignore duplicates. The planner gives NO priority in either order.
+      if (hasHint(*ppHintList, opt)) return false;
       break;
     case HINT_INTERVAL_LIMIT:
       if (paramNum != 0 || hasHint(*ppHintList, HINT_INTERVAL_LIMIT)) return true;
@@ -1280,6 +1298,24 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_ID:
+        if (!inParamList && isNoExtWinPartitionBatchHint(&t0)) {
+          lastComma = false;
+          if (0 != opt) {
+            quit = true;
+            break;
+          }
+          opt = HINT_NO_EXTWIN_PARTITION_BATCH;
+          break;
+        }
+        if (!inParamList && isExtWinPartitionBatchHint(&t0)) {
+          lastComma = false;
+          if (0 != opt) {
+            quit = true;
+            break;
+          }
+          opt = HINT_EXTWIN_PARTITION_BATCH;
+          break;
+        }
         if (!inParamList && isFastIntervalHint(&t0)) {
           lastComma = false;
           if (0 != opt || inParamList) {

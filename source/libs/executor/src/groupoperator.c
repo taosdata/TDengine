@@ -3021,11 +3021,16 @@ static void partitionClearOutputResources(SPartitionOperatorInfo* pInfo) {
 
 STATIC_EXCEPT_TEST void clearPartitionOperator(
     SPartitionOperatorInfo* pInfo) {
-  int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
-  if (pInfo->spillStat.spillCount > 0 || pInfo->spillStat.spillFailures > 0) {
+  if (pInfo->spillStat.spillCount > 0 || pInfo->spillStat.spillFailures > 0 ||
+      pInfo->extWinGroupBatch) {
+    // This is the number of groups still held at clear time, not a total for
+    // completed external-window batches (which release groups as they drain).
+    int32_t size = taosArrayGetSize(pInfo->sortedGroupArray);
     int64_t flushPages = 0;
     int64_t loadPages = 0;
-    int64_t reportedFileSize = pInfo->phasedMode
+    // Group batches reset spill.fileSize after draining. Keep the cumulative
+    // bytes written across batches for the final report.
+    int64_t reportedFileSize = (pInfo->phasedMode || pInfo->extWinGroupBatch)
                                    ? pInfo->spillStat.spillBytes
                                    : pInfo->spill.fileSize;
     partitionGetPageClassIoStats(pInfo, &flushPages, &loadPages);
@@ -3287,7 +3292,7 @@ static SSDataBlock* partitionLoadNextBlock(SOperatorInfo* pOperator) {
       pInfo->spill.fragmentIndex = 0;
     }
     if (pInfo->groupIndex >= taosArrayGetSize(pInfo->sortedGroupArray)) {
-      if (pInfo->phasedMode) {
+      if (pInfo->phasedMode || pInfo->extWinGroupBatch) {
         return NULL;
       }
       setOperatorCompleted(pOperator);
@@ -3496,8 +3501,8 @@ static int32_t partitionProcessInputBlock(SOperatorInfo* pOperator,
   return terrno;
 }
 
-static int32_t partitionHoldPhaseBlock(SPartitionOperatorInfo* pInfo,
-                                       const SSDataBlock* pBlock) {
+static int32_t partitionHoldBoundaryBlock(SPartitionOperatorInfo* pInfo,
+                                          const SSDataBlock* pBlock) {
   if (pInfo->pHeldBlock != NULL) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
@@ -3571,7 +3576,7 @@ static int32_t partitionCollectPhasedBatch(SOperatorInfo* pOperator) {
         pInfo->pHeldBlock = NULL;
         return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
       }
-      return partitionHoldPhaseBlock(pInfo, pBlock);
+      return partitionHoldBoundaryBlock(pInfo, pBlock);
     }
 
     code = partitionProcessInputBlock(pOperator, pBlock);
@@ -3593,7 +3598,7 @@ static int32_t partitionCollectPhasedBatch(SOperatorInfo* pOperator) {
   return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
 }
 
-static void partitionClearPhasedBatch(SPartitionOperatorInfo* pInfo) {
+static void partitionClearBatch(SPartitionOperatorInfo* pInfo) {
   partitionClearSpillBuckets(pInfo);
   partitionCleanupGroupSet(pInfo->pGroupSet);
   taosHashClear(pInfo->pGroupSet);
@@ -3608,11 +3613,166 @@ static void partitionClearPhasedBatch(SPartitionOperatorInfo* pInfo) {
   blockDataCleanup(pInfo->binfo.pRes);
 }
 
+static int32_t partitionCollectExtWinGroupBatch(SOperatorInfo* pOperator) {
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  // This batch query consumes one ordered MAIN scan. Unlike Interp's phased
+  // partition, its boundary is a table group ID, not a scan phase transition.
+  while (pInfo->phaseState == PARTITION_PHASE_READING) {
+    int32_t code = TSDB_CODE_SUCCESS;
+    bool held = pInfo->pHeldBlock != NULL;
+    // A downstream block stays owned by its operator; only pHeldBlock is ours.
+    SSDataBlock* pBlock = pInfo->pHeldBlock;
+    if (!held) {
+      code = getNextBlockFromDownstreamChecked(pOperator, 0, true, &pBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+    if (pBlock == NULL) {
+      pInfo->inputDone = true;
+      pInfo->phaseState = PARTITION_PHASE_DRAINED;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (pBlock->info.dataLoad != 1 || pBlock->info.id.groupId == 0 ||
+        pBlock->info.scanPhase != SCAN_PHASE_MAIN) {
+      qError("%s %s invalid batch input, dataLoad:%d, groupId:%" PRIu64
+             ", phase:%d, rows:%" PRId64 ", held:%d", GET_TASKID(pInfo->pTaskInfo),
+             __func__, pBlock->info.dataLoad, pBlock->info.id.groupId,
+             pBlock->info.scanPhase, pBlock->info.rows, held);
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _error;
+    }
+
+    uint64_t groupId = pBlock->info.id.groupId;
+    if (!pInfo->outerEpochSet) {
+      pInfo->outerEpoch = groupId;
+      pInfo->outerEpochSet = true;
+    } else if (groupId < pInfo->outerEpoch) {
+      qError("%s %s outer group regressed, groupId:%" PRIu64
+             ", outerEpoch:%" PRIu64 ", held:%d",
+             GET_TASKID(pInfo->pTaskInfo), __func__, groupId,
+             pInfo->outerEpoch, held);
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _error;
+    } else if (groupId > pInfo->outerEpoch) {
+      if (held) {
+        // Drain advances outerEpoch to the held boundary before collection.
+        qError("%s %s held group exceeds current epoch, groupId:%" PRIu64
+               ", outerEpoch:%" PRIu64 ", held:%d",
+               GET_TASKID(pInfo->pTaskInfo), __func__, groupId,
+               pInfo->outerEpoch, held);
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _error;
+      }
+      return partitionHoldBoundaryBlock(pInfo, pBlock);
+    }
+
+    code = partitionProcessInputBlock(pOperator, pBlock);
+    if (held) {
+      blockDataDestroy(pInfo->pHeldBlock);
+      pInfo->pHeldBlock = NULL;
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    continue;
+
+_error:
+    if (held) {
+      blockDataDestroy(pInfo->pHeldBlock);
+      pInfo->pHeldBlock = NULL;
+    }
+    return code;
+  }
+  return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+}
+
+STATIC_EXCEPT_TEST int32_t partitionFinishExtWinGroupDrain(SOperatorInfo* pOperator) {
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  if (pInfo->phaseState != PARTITION_PHASE_DRAINED ||
+      (pInfo->pHeldBlock == NULL && !pInfo->inputDone)) {
+    qError("%s %s invalid drain state, phaseState:%d, held:%d, inputDone:%d",
+           GET_TASKID(pInfo->pTaskInfo), __func__, pInfo->phaseState,
+           pInfo->pHeldBlock != NULL, pInfo->inputDone);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  // DRAINED means either a held next-group boundary or exhausted input.
+  if (pInfo->pHeldBlock != NULL &&
+      pInfo->pHeldBlock->info.id.groupId <= pInfo->outerEpoch) {
+    // A held boundary must be the next, strictly greater table group.
+    // Discarding it and continuing would silently lose query rows.
+    qError("%s %s held boundary out of order, groupId:%" PRIu64
+           ", outerEpoch:%" PRIu64, GET_TASKID(pInfo->pTaskInfo),
+           __func__, pInfo->pHeldBlock->info.id.groupId, pInfo->outerEpoch);
+    blockDataDestroy(pInfo->pHeldBlock);
+    pInfo->pHeldBlock = NULL;
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  partitionClearBatch(pInfo);
+  pOperator->status = OP_OPENED;
+  if (pInfo->pHeldBlock != NULL) {
+    pInfo->outerEpoch = pInfo->pHeldBlock->info.id.groupId;
+    pInfo->inputDone = false;
+    pInfo->phaseState = PARTITION_PHASE_READING;
+    return TSDB_CODE_SUCCESS;
+  }
+  pInfo->phaseState = PARTITION_PHASE_DONE;
+  setOperatorCompleted(pOperator);
+  clearPartitionOperator(pInfo);
+  return TSDB_CODE_SUCCESS;
+}
+
+STATIC_EXCEPT_TEST int32_t extWinGroupBatchPartitionNext(
+    SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  QRY_PARAM_CHECK(ppRes);
+  SPartitionOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  *ppRes = NULL;
+  detachOperatorRoutingParam(pOperator);
+  if (pOperator->status == OP_EXEC_DONE ||
+      pInfo->phaseState == PARTITION_PHASE_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  while (true) {
+    if (pOperator->status == OP_RES_TO_RETURN) {
+      SSDataBlock* pBlock = buildPartitionResult(pOperator);
+      if (pBlock != NULL) {
+        // Output groups use the full partition key. External Window resolves
+        // baseGId against its trigger-group map (or its single-group fallback).
+        // A stale scan group ID must not be reused for that binding.
+        pBlock->info.id.baseGId = 0;
+        pBlock->info.scanPhase = SCAN_PHASE_MAIN;
+        *ppRes = pBlock;
+        return TSDB_CODE_SUCCESS;
+      }
+      code = partitionFinishExtWinGroupDrain(pOperator);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pInfo->phaseState == PARTITION_PHASE_DONE) {
+        return TSDB_CODE_SUCCESS;
+      }
+      continue;
+    }
+    code = partitionCollectExtWinGroupBatch(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = partitionPrepareOutput(pOperator);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  pTaskInfo->code = code;
+  T_LONG_JMP(pTaskInfo->env, code);
+  return code;
+}
+
 static int32_t partitionFinishPhasedDrain(SOperatorInfo* pOperator) {
   SPartitionOperatorInfo* pInfo = pOperator->info;
   EPartitionPhaseState drainedState = pInfo->phaseState;
 
-  partitionClearPhasedBatch(pInfo);
+  partitionClearBatch(pInfo);
   pOperator->status = OP_OPENED;
   pInfo->batchBlockCount = 0;
 
@@ -3890,6 +4050,11 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   pInfo->pTaskInfo = pTaskInfo;
   pInfo->memBudgetBytes = PARTITION_DEFAULT_BUF_SIZE;
   pInfo->phasedMode = pPartNode->phasedMode;
+  pInfo->extWinGroupBatch = pPartNode->extWinGroupBatch;
+  if (pInfo->phasedMode && pInfo->extWinGroupBatch) {
+    code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+    goto _error;
+  }
   pInfo->curPhase = SCAN_PHASE_MAIN;
   pInfo->phaseState = PARTITION_PHASE_READING;
 
@@ -3959,8 +4124,12 @@ int32_t createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNo
   setOperatorInfo(pOperator, "PartitionOperator", QUERY_NODE_PHYSICAL_PLAN_PARTITION, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);
 
-  __optr_fn_t nextFn = pInfo->phasedMode ? phasedHashPartitionNext
-                                         : hashPartitionNext;
+  __optr_fn_t nextFn = hashPartitionNext;
+  if (pInfo->phasedMode) {
+    nextFn = phasedHashPartitionNext;
+  } else if (pInfo->extWinGroupBatch) {
+    nextFn = extWinGroupBatchPartitionNext;
+  }
   pOperator->fpSet = createOperatorFpSet(
       optrDummyOpenFn, nextFn, NULL, destroyPartitionOperatorInfo,
       optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);

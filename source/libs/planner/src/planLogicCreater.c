@@ -10090,6 +10090,19 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   pPartition->node.groupAction = GROUP_ACTION_SET;
   pPartition->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  // Syntax only selects a candidate. Post-split optimization checks the
+  // Window -> Partition -> TableMergeScan topology and scan ordering. The
+  // positive hint explicitly selects the default policy and does not override
+  // eligibility; only NO disables this candidate.
+  // External Window's FILL belongs to pWindow, not pSelect->pFill, and is
+  // evaluated per partition after this input grouping.
+  pPartition->extWinGroupBatch =
+      pSelect->pWindow != NULL &&
+      nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW &&
+      !pSelect->isDistinct &&
+      pSelect->pOrderByList == NULL && pSelect->pHaving == NULL &&
+      pSelect->pLimit == NULL && pSelect->pSlimit == NULL &&
+      !getOptHint(pSelect->pHint, HINT_NO_EXTWIN_PARTITION_BATCH);
 
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets));
 
