@@ -255,11 +255,41 @@ ensure_influx() {
     fi
 }
 
+# libodbc.so.2 is linked to libltdl.so.7 with RUNPATH $ORIGIN. unixODBC does
+# not build libltdl, and tdengine-ci:0.4 does not install it, so it has to sit
+# in the same directory as libodbc before taosd starts.
+ensure_libltdl() {
+    [ "${OS}" != "Darwin" ] || return 0
+    has_any libltdl.so.7 libltdl.so && return 0
+    if [ "$(id -u)" -eq 0 ] && command -v apt-get >/dev/null 2>&1; then
+        echo "[fq-runtime] installing libltdl7 into ${RUNTIME_DIR}" >&2
+        DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null || true
+        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libltdl7 >/dev/null || true
+    fi
+    copy_glob /usr/lib/x86_64-linux-gnu 'libltdl.so*' || true
+    copy_glob /usr/lib/aarch64-linux-gnu 'libltdl.so*' || true
+    copy_glob /lib/x86_64-linux-gnu 'libltdl.so*' || true
+    copy_glob /lib/aarch64-linux-gnu 'libltdl.so*' || true
+    copy_glob /usr/lib64 'libltdl.so*' || true
+    copy_glob /usr/local/lib 'libltdl.so*' || true
+    if [ -n "${STAGE_SCRIPT}" ] && [ -f "${STAGE_SCRIPT}" ]; then
+        local odbc
+        for odbc in "${RUNTIME_DIR}/libodbc.so.2" "${RUNTIME_DIR}/libodbc.so"; do
+            [ -e "${odbc}" ] || continue
+            bash "${STAGE_SCRIPT}" copy-ldd "${odbc}" "${RUNTIME_DIR}" || true
+            break
+        done
+    fi
+}
+
 ensure_odbc() {
     if [ "${OS}" = "Darwin" ]; then
         has_any libodbc.2.dylib libodbc.dylib && return 0
     else
-        has_any libodbc.so.2 libodbc.so && return 0
+        if has_any libodbc.so.2 libodbc.so; then
+            ensure_libltdl
+            return 0
+        fi
     fi
 
     copy_glob "${STAGED_DIR}" 'libodbc.so*' 'libodbc*.dylib*' || true
@@ -280,6 +310,10 @@ ensure_odbc() {
             copy_glob /usr/lib/aarch64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
             copy_glob /lib/x86_64-linux-gnu 'libodbc.so*' 'libodbcinst.so*' || true
         fi
+    fi
+
+    if [ "${OS}" != "Darwin" ]; then
+        ensure_libltdl
     fi
 
     if [ "${OS}" = "Darwin" ]; then

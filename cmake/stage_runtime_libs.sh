@@ -255,12 +255,21 @@ fix_linux_rpaths() {
 should_skip_ldd_dep() {
   local dep=$1
   local base
+  base="$(basename "${dep}")"
+  # unixODBC's libodbc.so.2 needs libltdl.so.7, but the external build does
+  # not produce it. Debian installs it under /usr/lib/<triplet>, which the
+  # /usr/lib skip below would drop. tdengine-ci:0.4 does not ship libltdl, so
+  # the copy next to libodbc is what $ORIGIN resolves at runtime.
+  case "${base}" in
+    libltdl.so*)
+      return 1
+      ;;
+  esac
   case "${dep}" in
     /System/Library/*|/usr/lib/*)
       return 0
       ;;
   esac
-  base="$(basename "${dep}")"
   case "${base}" in
     libstdc++.so*|libgcc_s.so*|libasan.so*|libubsan.so*|libtsan.so*|liblsan.so*)
       return 0
