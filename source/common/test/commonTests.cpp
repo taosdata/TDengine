@@ -184,6 +184,135 @@ TEST(testCase, colDataAssign_zero_rows_without_source) {
   EXPECT_EQ(colDataAssign(&dst, NULL, 1, NULL), TSDB_CODE_INVALID_PARA);
 }
 
+TEST(testCase, colDataSetNItems_repeats_fixed_and_variable_values) {
+  const int32_t rowCounts[] = {1, 2, 3, 7, 8, 9, 1025};
+
+  for (int32_t count : rowCounts) {
+    SColumnInfoData fixed = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+    SColumnInfoData variable = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 2);
+    ASSERT_EQ(colInfoDataEnsureCapacity(&fixed, count + 2, true), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colInfoDataEnsureCapacity(&variable, count + 2, true), TSDB_CODE_SUCCESS);
+
+    int64_t value = 123456789;
+    char    text[32] = {0};
+    STR_TO_VARSTR(text, "meter_42")
+    ASSERT_EQ(colDataSetNItems(&fixed, 1, (const char*)&value, count, 1, false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetNItems(&variable, 1, text, count, 1, false), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(variable.varmeta.length, (uint32_t)(count * varDataTLen(text)));
+
+    for (int32_t row = 1; row <= count; ++row) {
+      EXPECT_EQ(variable.varmeta.offset[row], (row - 1) * varDataTLen(text));
+      const char* fixedData = colDataGetData(&fixed, row);
+      ASSERT_NE(fixedData, nullptr);
+      EXPECT_EQ(*(const int64_t*)fixedData, value);
+      const char* actual = colDataGetData(&variable, row);
+      ASSERT_NE(actual, nullptr);
+      EXPECT_EQ(varDataTLen(actual), varDataTLen(text));
+      EXPECT_EQ(memcmp(actual, text, varDataTLen(text)), 0);
+    }
+
+    colDataDestroy(&fixed);
+    colDataDestroy(&variable);
+  }
+}
+
+TEST(testCase, doCopyNItems_rejects_nonpositive_item_length) {
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 2, true), TSDB_CODE_SUCCESS);
+  int64_t value = 42;
+  EXPECT_EQ(doCopyNItems(&column, 0, (const char*)&value, -1, 2, false), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(doCopyNItems(&column, 0, NULL, sizeof(value), 1, false), TSDB_CODE_INVALID_PARA);
+  // Zero rows are a no-op, including when the item length is invalid.
+  EXPECT_EQ(doCopyNItems(&column, 0, (const char*)&value, -1, 0, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(doCopyNItems(&column, 0, (const char*)&value, 0, 2, false), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(doCopyNItems(&column, 0, (const char*)&value, 0, 0, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(doCopyNItems(&column, 0, (const char*)&value, sizeof(value), 0, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(doCopyNItems(&column, 1, (const char*)&value, sizeof(value), 1, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(*(int64_t*)colDataGetData(&column, 1), value);
+  colDataDestroy(&column);
+}
+
+TEST(testCase, colDataSetNItems_rejects_oversized_variable_reservation) {
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 2, true), TSDB_CODE_SUCCESS);
+  char text[32] = {0};
+  STR_TO_VARSTR(text, "meter_42")
+  EXPECT_EQ(colDataSetNItems(&column, 0, text, 2, UINT32_MAX, false), TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+  EXPECT_EQ(colDataSetNItems(&column, 0, NULL, 1, 1, false), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(column.varmeta.length, 0);
+  colDataDestroy(&column);
+}
+
+TEST(testCase, colDataSetNItems_accepts_empty_variable_value_at_offset) {
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 3, true), TSDB_CODE_SUCCESS);
+  char empty[VARSTR_HEADER_SIZE] = {0};
+  ASSERT_EQ(colDataSetNItems(&column, 1, empty, 2, 1, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(column.varmeta.length, 2 * varDataTLen(empty));
+  EXPECT_EQ(column.varmeta.offset[1], 0);
+  EXPECT_EQ(column.varmeta.offset[2], (int32_t)varDataTLen(empty));
+  colDataDestroy(&column);
+}
+
+TEST(testCase, doCopyNItems_grows_variable_payload_and_checks_limit) {
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  std::unique_ptr<SColumnInfoData, decltype(&colDataDestroy)> columnGuard(&column, colDataDestroy);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 3, true), TSDB_CODE_SUCCESS);
+  char text[32] = {0};
+  STR_TO_VARSTR(text, "meter_42")
+  int32_t itemLen = varDataTLen(text);
+  ASSERT_EQ(doCopyNItems(&column, 0, text, itemLen, 1, false), TSDB_CODE_SUCCESS);
+  uint32_t beforeLen = column.varmeta.length;
+  // Simulate a valid column whose payload allocation ends exactly at its used length.
+  // The offset array remains allocated for all three rows.
+  char* exactData = (char*)taosMemoryRealloc(column.pData, beforeLen);
+  if (exactData == nullptr) {
+    FAIL() << "failed to shrink variable payload";
+  }
+  column.pData = exactData;
+  column.varmeta.allocLen = beforeLen;
+  ASSERT_EQ(doCopyNItems(&column, 1, column.pData, itemLen, 2, false), TSDB_CODE_SUCCESS);
+  EXPECT_GE(column.varmeta.allocLen, beforeLen + (uint32_t)(2 * itemLen));
+  EXPECT_EQ(column.varmeta.length, beforeLen + (uint32_t)(2 * itemLen));
+  EXPECT_EQ(column.varmeta.offset[1], (int32_t)beforeLen);
+  EXPECT_EQ(column.varmeta.offset[2], (int32_t)(beforeLen + itemLen));
+
+  uint32_t savedLength = column.varmeta.length;
+  uint32_t savedAllocLen = column.varmeta.allocLen;
+  int32_t savedOffset = column.varmeta.offset[0];
+  // The range check returns before any write or allocation; restore the synthetic length immediately.
+  column.varmeta.length = INT32_MAX - BLOBSTR_HEADER_SIZE;
+  int32_t limitCode = doCopyNItems(&column, 0, text, itemLen, 1, false);
+  column.varmeta.length = savedLength;
+  EXPECT_EQ(limitCode, TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+  EXPECT_EQ(column.varmeta.allocLen, savedAllocLen);
+  EXPECT_EQ(column.varmeta.offset[0], savedOffset);
+}
+
+TEST(testCase, colDataSetNItems_rebases_self_referenced_variable_value) {
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 32, 1);
+  std::unique_ptr<SColumnInfoData, decltype(&colDataDestroy)> columnGuard(&column, colDataDestroy);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&column, 3, true), TSDB_CODE_SUCCESS);
+  char text[32] = {0};
+  STR_TO_VARSTR(text, "meter_42")
+  int32_t itemLen = varDataTLen(text);
+  ASSERT_EQ(colDataSetNItems(&column, 0, text, 1, 1, false), TSDB_CODE_SUCCESS);
+  uint32_t beforeLen = column.varmeta.length;
+  char* exactData = (char*)taosMemoryRealloc(column.pData, beforeLen);
+  if (exactData == nullptr) {
+    FAIL() << "failed to shrink variable payload";
+  }
+  column.pData = exactData;
+  column.varmeta.allocLen = beforeLen;
+  ASSERT_EQ(colDataSetNItems(&column, 1, column.pData, 2, 1, false), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(column.varmeta.length, beforeLen + (uint32_t)(2 * itemLen));
+  for (int32_t row = 1; row < 3; ++row) {
+    const char* actual = colDataGetData(&column, row);
+    ASSERT_NE(actual, nullptr);
+    EXPECT_EQ(memcmp(actual, text, itemLen), 0);
+  }
+}
+
 TEST(testCase, colDataAssignNRows_clears_stale_null_bitmap) {
   SColumnInfoData src = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
   SColumnInfoData dst = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);

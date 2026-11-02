@@ -255,16 +255,49 @@ int32_t initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
 // Describe only the current filtered, single-table input. The ordinary AVG/SUM/
 // COUNT implementations can then consume these statistics without new merge states.
 static int32_t bindConstTagInput(SqlFunctionCtx* pCtx, const SExprInfo* pExpr, SSDataBlock* pBlock) {
-  if (pBlock->pConstTagCols == NULL || pExpr->base.numOfParams != 1 ||
-      pExpr->base.pParam[0].type != FUNC_PARAM_TYPE_COLUMN) {
+  // A block without a table UID has no negotiated per-table value.
+  if (pBlock->info.id.uid == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pBlock->pConstTagCols != NULL && fmGetFuncTypeFromId(pCtx->functionId) == FUNCTION_TYPE_GROUP_KEY &&
+      pExpr->base.numOfParams == 1 && pExpr->base.pParam != NULL &&
+      pExpr->base.pParam[0].type == FUNC_PARAM_TYPE_COLUMN && pExpr->base.pParam[0].pCol != NULL) {
+    int32_t slotId = pExpr->base.pParam[0].pCol->slotId;
+    if (pBlock->pDataBlock == NULL || slotId < 0 || slotId >= taosArrayGetSize(pBlock->pDataBlock)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+    SConstTagColumn* pConst = blockDataGetConstTagColumn(pBlock, slotId);
+    if (pCol != NULL && pCol->info.noData && pConst != NULL) {
+      if (pConst->uid != pBlock->info.id.uid || pConst->uid == 0) {
+        qError("constant group key uid mismatch, slot:%d blockUid:%" PRIu64 " valueUid:%" PRIu64,
+               slotId, pBlock->info.id.uid, pConst->uid);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (pConst->column.info.type != pCol->info.type || pConst->column.info.bytes != pCol->info.bytes) {
+        qError("constant group key type mismatch, slot:%d constType:%d constBytes:%d inputType:%d inputBytes:%d",
+               slotId, pConst->column.info.type, pConst->column.info.bytes, pCol->info.type, pCol->info.bytes);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      // groupConstValueFunction reads the owned value directly and preserves its
+      // one-row semantics; the generic stats binding below serves other aggregates.
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  if (pBlock->pConstTagCols == NULL || pExpr->base.numOfParams != 1 || pExpr->base.pParam == NULL ||
+      pExpr->base.pParam[0].type != FUNC_PARAM_TYPE_COLUMN || pExpr->base.pParam[0].pCol == NULL) {
     return TSDB_CODE_SUCCESS;
   }
   int32_t slotId = pExpr->base.pParam[0].pCol->slotId;
+  if (pBlock->pDataBlock == NULL || slotId < 0 || slotId >= taosArrayGetSize(pBlock->pDataBlock)) {
+    return TSDB_CODE_SUCCESS;
+  }
   SConstTagColumn* pConst = blockDataGetConstTagColumn(pBlock, slotId);
   if (pConst == NULL) return TSDB_CODE_SUCCESS;
+  SColumnInfoData* pSourceCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (pSourceCol == NULL || !pSourceCol->info.noData) return TSDB_CODE_SUCCESS;
   if (pBlock->info.id.uid == 0 || pConst->uid != pBlock->info.id.uid) {
-    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-    return pCol->info.noData ? TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR : TSDB_CODE_SUCCESS;
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
   SInputColumnInfoData* pInput = &pCtx->input;

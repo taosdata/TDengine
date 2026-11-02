@@ -1118,16 +1118,44 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
     QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-    colInfoDataCleanup(pColInfoData, pBlock->info.rows);
-
     int32_t functionId = pExpr1->pExpr->_function.functionId;
+    bool constGroupKey = pBlock->info.id.uid != 0 && !pBlock->info.blankFill &&
+                         blockDataGetConstTagColumn(pBlock, dstSlotId) != NULL;
+    if (!constGroupKey) {
+      pColInfoData->info.noData = false;
+      colInfoDataCleanup(pColInfoData, pBlock->info.rows);
+    }
 
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
       int32_t fType = pExpr1->pExpr->_function.functionType;
       if (fType == FUNCTION_TYPE_TBNAME) {
         const char* pName = useTableListTbname ? pTbname : val.pName;
-        code = setTbNameColData(pBlock, pColInfoData, functionId, pName);
+        if (constGroupKey) {
+          SColumnInfoData* pConstCol = getConstTagOutputColumn(pBlock, dstSlotId);
+          if (pConstCol == NULL) {
+            pColInfoData->info.noData = false;
+            code = setTbNameColData(pBlock, pColInfoData, functionId, pName);
+          } else {
+            char buf[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+            QUERY_CHECK_NULL(pName, code, lino, _end, TSDB_CODE_INVALID_PARA);
+            size_t nameLen = strlen(pName);
+            QUERY_CHECK_CONDITION(nameLen <= sizeof(buf) - VARSTR_HEADER_SIZE, code, lino, _end,
+                                  TSDB_CODE_QRY_NOT_ENOUGH_BUFFER);
+            STR_WITH_MAXSIZE_TO_VARSTR(buf, pName, sizeof(buf));
+            if (varDataTLen(buf) > pConstCol->info.bytes) {
+              // Match the ordinary tbname path when the scan schema is narrower than the value.
+              SConstTagColumn* pConst = blockDataGetConstTagColumn(pBlock, dstSlotId);
+              pConst->uid = 0;
+              pColInfoData->info.noData = false;
+              code = setTbNameColData(pBlock, pColInfoData, functionId, pName);
+            } else {
+              code = colDataSetVal(pConstCol, 0, buf, false);
+            }
+          }
+        } else {
+          code = setTbNameColData(pBlock, pColInfoData, functionId, pName);
+        }
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (fType == FUNCTION_TYPE_VGID) {
         code = setVgIdColData(pBlock, pColInfoData, functionId, pTask->id.vgId);
@@ -3897,6 +3925,37 @@ _end:
   return code;
 }
 
+static int32_t doTableScanNextWithConstGroupKey(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  int32_t code = doTableScanNext(pOperator, ppRes);
+  if (code != TSDB_CODE_SUCCESS || *ppRes == NULL || (*ppRes)->pConstTagCols == NULL ||
+      (*ppRes)->info.rows == 0 || (*ppRes)->info.blankFill || skipSetTagColumnData(pOperator)) {
+    return code;
+  }
+
+  bool needsValue = false;
+  for (int32_t i = 0; i < taosArrayGetSize((*ppRes)->pConstTagCols); ++i) {
+    SConstTagColumn* pConst = taosArrayGet((*ppRes)->pConstTagCols, i);
+    SColumnInfoData* pCol = pConst == NULL ? NULL : taosArrayGet((*ppRes)->pDataBlock, pConst->slotId);
+    if (pCol != NULL && pCol->info.noData && pConst->uid != (*ppRes)->info.id.uid) {
+      needsValue = true;
+      break;
+    }
+  }
+  if (!needsValue) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STableScanInfo* pInfo = pOperator->info;
+  // Some scan paths return a block without passing through loadDataBlock.
+  // Fill only a negotiated constant whose value was not supplied there.
+  code = doSetTagColumnData(&pInfo->base, *ppRes, pOperator->pTaskInfo, (*ppRes)->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    pOperator->pTaskInfo->code = code;
+    qError("failed to set constant group key, code:%s", tstrerror(code));
+    T_LONG_JMP(pOperator->pTaskInfo->env, code);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static void captureReaderCost(const STableScanBase* pBase, SFileBlockLoadRecorder* pCurrent) {
   *pCurrent = (SFileBlockLoadRecorder){0};
   if (pBase->dataReader != NULL && pBase->readerAPI.tsdReaderSetExecInfo != NULL) {
@@ -4395,7 +4454,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   pInfo->filesetDelimited = pTableScanNode->filesetDelimited;
   pInfo->groupSort = pTableScanNode->groupSort;
 
-  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNext,
+  pOperator->fpSet = createOperatorFpSet(prepareTableScan, doTableScanNextWithConstGroupKey,
                                          NULL, destroyTableScanOperatorInfo,
                                          optrDefaultBufFn,
                                          getTableScannerExecInfo,

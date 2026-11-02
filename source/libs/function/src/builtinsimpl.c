@@ -10540,10 +10540,56 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
   int32_t               valueRowIndex = -1;
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  if (pInputCol == NULL) {
+    pInfo->isNull = true;
+    pInfo->hasResult = true;
+    goto _group_value_over;
+  }
+  bool                 constGroupKey = false;
+  if (pInputCol->info.noData && pCtx->pSrcBlock != NULL && pCtx->pExpr != NULL &&
+      pCtx->pExpr->base.pParam != NULL &&
+      fmGetFuncTypeFromId(pCtx->functionId) == FUNCTION_TYPE_GROUP_KEY &&
+      pCtx->pExpr->base.numOfParams == 1 && pCtx->pExpr->base.pParam[0].type == FUNC_PARAM_TYPE_COLUMN &&
+      pCtx->pExpr->base.pParam[0].pCol != NULL) {
+    int32_t slotId = pCtx->pExpr->base.pParam[0].pCol->slotId;
+    SConstTagColumn* pConst = blockDataGetConstTagColumn(pCtx->pSrcBlock, slotId);
+    if (pConst != NULL) {
+      if (pCtx->pSrcBlock->info.id.uid == 0) {
+        pInfo->isNull = true;
+        pInfo->hasResult = true;
+        goto _group_value_over;
+      }
+      if (pCtx->pSrcBlock->pDataBlock == NULL) {
+        qError("constant group key source column missing, slot:%d", slotId);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, slotId);
+      if (pSrcCol != pInputCol) {
+        qError("constant group key source mismatch, slot:%d", slotId);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (pConst->uid == 0 || pConst->uid != pCtx->pSrcBlock->info.id.uid) {
+        qError("constant group key uid mismatch, slot:%d blockUid:%" PRIu64 " valueUid:%" PRIu64,
+               slotId, pCtx->pSrcBlock->info.id.uid, pConst->uid);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (pConst->column.info.type != pInputCol->info.type || pConst->column.info.bytes != pInputCol->info.bytes) {
+        qError("constant group key type mismatch, slot:%d constType:%d/%d inputType:%d/%d", slotId,
+               pConst->column.info.type, pConst->column.info.bytes, pInputCol->info.type, pInputCol->info.bytes);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      pInputCol = &pConst->column;
+      constGroupKey = true;
+    }
+  }
 
   // try to find a non-null value
-  if (NULL != pInputCol->pData) {
-    if (isWindow) {
+  if (pInputCol != NULL && NULL != pInputCol->pData) {
+    if (constGroupKey) {
+      if (pInput->numOfRows > 0 && !colDataIsNull_s(pInputCol, 0)) {
+        valueRowIndex = 0;
+      }
+    } else if (isWindow) {
       // for 'window', non-null value can appear at any row of any data block
       int64_t startIndex = pInput->startRowIndex;
       int64_t endIndex = pInput->startRowIndex + pInput->numOfRows - 1;
