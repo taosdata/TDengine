@@ -28,8 +28,9 @@ Design notes:
 
 Environment requirements:
     - Enterprise edition with federatedQueryEnable = 1.
-    - For full coverage: MySQL 5.7+8.0, PostgreSQL 12+14+16, InfluxDB v3,
-      SQL Server 2019+2022, Oracle 19c+26ai.
+    - For full coverage: MySQL 5.7+8.0, PostgreSQL 14+ (default 18.6;
+      PostgreSQL 16 remains selectable), InfluxDB v3, SQL Server 2019+2022,
+      Oracle 19c+26ai.
 
 Oracle (FQOR-COMP-001..008, FQOR-TYPE-018):
     - Oracle has no database level: DATABASE carries the Easy Connect service
@@ -258,7 +259,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     pass
 
     # ------------------------------------------------------------------
-    # COMP-002  PostgreSQL 12/14/16 compatibility
+    # COMP-002  PostgreSQL version compatibility (default 18.6; 16 selectable)
     # ------------------------------------------------------------------
 
     def test_fq_comp_002_pg_version_compat(self):
@@ -266,7 +267,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
 
         TS: Core query and mapping behavior consistent
 
-        Iterates over FQ_PG_VERSIONS (default: 16).
+        Iterates over FQ_PG_VERSIONS (default: 18.6).
 
         Catalog:
             - Query:FederatedCompatibility

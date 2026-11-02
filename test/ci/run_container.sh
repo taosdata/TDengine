@@ -431,9 +431,14 @@ function _stage_fq_ext_env_cache() {
     fi
 
     local _apt_src
+    # Stage the PGDG deb caches for every supported PG major.  18.6 is the
+    # default test version; 16 remains selectable.
     for _apt_src in "${SOURCEDIR}"/fq-apt-pg16-*.tar.gz "${SOURCEDIR}"/fq-apt-postgis-pg16-*.tar.gz \
+                    "${SOURCEDIR}"/fq-apt-pg18-*.tar.gz "${SOURCEDIR}"/fq-apt-postgis-pg18-*.tar.gz \
                     /data0/compat-packages/fq-apt-pg16-*.tar.gz \
-                    /data0/compat-packages/fq-apt-postgis-pg16-*.tar.gz; do
+                    /data0/compat-packages/fq-apt-postgis-pg16-*.tar.gz \
+                    /data0/compat-packages/fq-apt-pg18-*.tar.gz \
+                    /data0/compat-packages/fq-apt-postgis-pg18-*.tar.gz; do
         [ -s "$_apt_src" ] || continue
         _stage_fq_tarball_from_compat "$shared_cache_dir" "$thread_cache_dir" \
             "$(basename "$_apt_src")" "$_apt_src" || true

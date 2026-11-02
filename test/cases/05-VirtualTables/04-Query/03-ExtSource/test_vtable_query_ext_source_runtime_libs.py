@@ -144,19 +144,34 @@ def _path_is_under(path, root):
         return False
 
 
+def _hidden_runtime_roots():
+    """Directories extConnectorLoadRuntimeLibrary() can resolve a provider from.
+
+    The loader probes the bundled lib/ and driver/ directories first and then
+    the hard-coded /usr/local/lib fallback.  A client left in that fallback
+    (or a link there pointing at a system copy) keeps the provider usable
+    after the build-tree hide, so the same files are hidden there too.
+    """
+    roots = [_runtime_lib_dir()]
+    if sys.platform != "win32" and os.path.isdir("/usr/local/lib"):
+        roots.append("/usr/local/lib")
+    return roots
+
+
 def _provider_runtime_files(provider):
-    runtime_dir = _runtime_lib_dir()
     files = []
     if sys.platform == "win32":
         patterns = _PROVIDER_RUNTIME_PATTERNS_WINDOWS[provider]
     else:
         patterns = _PROVIDER_RUNTIME_PATTERNS[provider]
-    for pattern in patterns:
-        files.extend(glob.glob(os.path.join(runtime_dir, pattern)))
-        files.extend(glob.glob(os.path.join(runtime_dir, "**", pattern), recursive=True))
+    roots = _hidden_runtime_roots()
+    for root in roots:
+        for pattern in patterns:
+            files.extend(glob.glob(os.path.join(root, pattern)))
+            files.extend(glob.glob(os.path.join(root, "**", pattern), recursive=True))
     files.extend(_resolved_runtime_dep_files(provider))
     return _existing_runtime_files(
-        path for path in files if _path_is_under(path, runtime_dir)
+        path for path in files if any(_path_is_under(path, root) for root in roots)
     )
 
 

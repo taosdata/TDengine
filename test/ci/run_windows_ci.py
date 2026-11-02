@@ -292,8 +292,8 @@ def ensure_libpq_runtime(environment):
         print(f"[windows-ci] EXT_LIBPQ_ROOT={root}", flush=True)
         return
 
-    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "16").split(",") if item.strip()]
-    version = versions[0] if versions else "16"
+    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "18.6").split(",") if item.strip()]
+    version = versions[0] if versions else "18.6"
     target = federated_query_base_dir() / "pg" / version
     if (target / "include" / "libpq-fe.h").exists():
         environment["EXT_LIBPQ_ROOT"] = str(target)
@@ -302,7 +302,8 @@ def ensure_libpq_runtime(environment):
 
     # Keep the package table in sync with ensure_ext_env.ps1: both stage the
     # identical EnterpriseDB ZIP so the build and the tests share one runtime.
-    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1"}
+    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1",
+                "18.6": "18.6-1"}
     tag = version.replace(".", "")
     url = environment.get(f"FQ_PG_TARBALL_{tag}")
     if not url:

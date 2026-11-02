@@ -245,7 +245,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         tdLog.debug(f"start to execute {__file__}")
 
     @pytest.mark.parametrize("action", ["start", "stop", "kill"])
-    @pytest.mark.parametrize("service,version", [("mysql", "8.0"), ("pg", "16"),
+    @pytest.mark.parametrize("service,version", [("mysql", "8.0"),
+                                                ("pg", "18.6"), ("pg", "16"),
                                                 ("influx", "3.0"), ("sqlserver", "2022"),
                                                 ("oracle", "26ai")])
     def test_external_lifecycle_requires_lease_controller(self, monkeypatch, action,
@@ -849,6 +850,14 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         driver_root = os.path.join(os.path.dirname(base), "driver")
         if os.path.isdir(driver_root):
             roots.append(driver_root)
+        if sys.platform != "win32":
+            # extConnectorLoadRuntimeLibrary() probes the hard-coded
+            # /usr/local/lib fallback after the bundled directories.  A client
+            # left there by an earlier build keeps the provider resolvable
+            # after the build-tree hide, which would defeat the gate check.
+            system_lib = "/usr/local/lib"
+            if os.path.isdir(system_lib):
+                roots.append(system_lib)
         return roots
 
     def _path_is_under(self, path, root):
@@ -860,6 +869,21 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             real_path = os.path.realpath(path)
             real_root = os.path.realpath(root)
             return os.path.commonpath([real_path, real_root]) == real_root
+        except ValueError:
+            return False
+
+    @staticmethod
+    def _entry_is_under(path, root):
+        """Directory-entry containment, without following the final symlink.
+
+        Hiding works by moving the directory entry, so a link that points
+        outside the root (e.g. /usr/local/lib/libpq.so.5 -> /usr/lib/...)
+        must still be treated as living in the root: the engine resolves the
+        library by that path and only removing the link makes it unreachable.
+        """
+        try:
+            return os.path.commonpath([os.path.abspath(path),
+                                       os.path.abspath(root)]) == os.path.abspath(root)
         except ValueError:
             return False
 
@@ -1068,7 +1092,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             candidates.extend(self._resolved_runtime_dep_files(provider))
         candidates = self._existing_runtime_files(
             path for path in candidates
-            if any(self._path_is_under(path, root) for root in roots))
+            if any(self._entry_is_under(path, root) for root in roots))
         # Hiding the libraries means moving them out of every resolution root.
         # A read-only root cannot be cleaned (EROFS/EXDEV), and a partial hide
         # would leave the provider resolvable, making the gate assertion
@@ -1875,4 +1899,4 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         ExtSrcEnv.ensure_env()
         self._with_std_sources(
             "fq19_runtime_ssdrv", self._check_sqlserver_driver_missing,
-            skip_mysql=True, skip_pg=True, skip_influx=True)
+            skip_mysql=True, skip_pg=True, skip_influx=True, skip_oracle=True)
