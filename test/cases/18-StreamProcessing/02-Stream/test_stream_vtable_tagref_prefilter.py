@@ -390,3 +390,87 @@ class TestStreamVtableTagRefPreFilter:
         finally:
             tdSql.execute(f"drop database if exists {db} force")
             tdSql.execute(f"drop database if exists {src_db} force")
+
+    def test_pseudo_col_fixed_width_null_tag_keeps_grouping_alive(self):
+        """A fixed-width TAG that resolves to NULL must not break the pseudo-column block
+
+        The pseudo-column response builds one column per requested TAG cid. A TAG
+        reference whose source TAG has no value resolves successfully with a zero-length
+        payload, so the column width has to fall back to the type width. Deriving it from
+        the payload length produced a 1-byte INT column, which the reader's block decoder
+        rejects, and the trigger aborted the group check instead of emitting a window.
+
+        Catalog:
+            - Streams:VirtualTable
+
+        Since: v3.4.3.6
+
+        Labels: common,ci,stream,vtable
+
+        Feishu: None
+
+        History:
+            - 2026-11-02 Created. A referenced fixed-width TAG with a NULL value made the
+              pseudo-column block undecodable, so every group of the stream stalled.
+        """
+        db = "vtb_fixed_null"
+        src_db = "vtb_fixed_null_src"
+        stream = "s_fixed_null"
+
+        tdCom.create_snode_if_not_exists()
+        try:
+            tdSql.execute(f"create database {src_db} vgroups 1")
+            tdSql.execute(f"create database {db} vgroups 1")
+            tdSql.execute(f"use {db}")
+
+            # Tag reference source: cfg_null keeps its TAG unset, so it resolves to NULL.
+            tdSql.execute("create stable cfg_st (ts timestamp, dummy int) tags (code int)")
+            tdSql.execute("create table cfg_null using cfg_st tags (null)")
+            tdSql.execute("create table cfg_ok using cfg_st tags (7)")
+            tdSql.execute("insert into cfg_null values (now, 0)")
+            tdSql.execute("insert into cfg_ok values (now, 0)")
+
+            tdSql.execute(
+                f"create stable {src_db}.meters (ts timestamp, v double, st tinyint) tags (dev varchar(32))"
+            )
+            tdSql.execute(f"create table {src_db}.well1 using {src_db}.meters tags ('W-1')")
+
+            # `code` is fixed-width, `dev` is variable-width: the request asks for both.
+            tdSql.execute(
+                "create stable vst (ts timestamp, v double, st tinyint) "
+                "tags (`code` int, `dev` varchar(32)) virtual 1"
+            )
+            tdSql.execute(
+                f"create vtable vt_null (v from {src_db}.well1.v, st from {src_db}.well1.st) "
+                "using vst tags (from cfg_null.code, 'DEV-1')"
+            )
+            tdSql.execute(
+                f"create vtable vt_ok (v from {src_db}.well1.v, st from {src_db}.well1.st) "
+                "using vst tags (from cfg_ok.code, 'DEV-2')"
+            )
+
+            # `code` has to be a grouping column, otherwise the read path never asks for
+            # its value and the pseudo-column block would not carry the fixed-width TAG.
+            tdSql.execute(
+                f"create stream {stream} event_window(start with st > 0 end with st <= 0) "
+                "from vst partition by tbname, `dev`, `code` "
+                "into res tags(`dev` varchar(32) as `dev`) as "
+                "select _twstart as ws, count(*) as n from %%tbname "
+                "where ts >= _twstart and ts < _twend",
+                queryTimes=1,
+            )
+            tdStream.checkStreamStatus(stream)
+
+            ts = int(time.time() * 1000) // 1000 * 1000
+            tdSql.execute(f"insert into {src_db}.well1 values ({ts}, 100.5, 1) ({ts + 1000}, 100.6, 1)")
+            tdSql.execute(f"insert into {src_db}.well1 values ({ts + 2000}, 100.7, 0)")
+
+            # Both virtual tables read the same source table, so two groups each fire one
+            # window of two rows. A broken pseudo-column block leaves the result empty, while a
+            # merged group would keep sum(n) at 4 but collapse the row split.
+            tdSql.checkResultsByArray(f"select sum(n) from {db}.res", [(4,)], retry=60)
+            tdSql.checkResultsByArray(f"select count(*) from {db}.res", [(2,)], retry=1)
+        finally:
+            tdSql.execute(f"drop stream if exists {db}.{stream}")
+            tdSql.execute(f"drop database if exists {db} force")
+            tdSql.execute(f"drop database if exists {src_db} force")
