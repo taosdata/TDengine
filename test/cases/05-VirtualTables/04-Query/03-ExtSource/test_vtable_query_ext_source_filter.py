@@ -90,6 +90,8 @@ class TestVTableQueryExtSourceFilter:
 
     @pytest.fixture(autouse=True)
     def prepare_backend(self, backend):
+        if os.name == "nt" and backend == "oracle":
+            pytest.skip("Windows federated-query Oracle support is deferred")
         VtableQueryUtil._EXT_SOURCE_ADAPTERS[backend]().ensure_running()
         ExtSrcEnv.ensure_qnode()
         source = f"vfilter_query_{backend}"

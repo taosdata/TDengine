@@ -846,7 +846,12 @@ class ExtSrcEnv:
         # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
         # of them, so a provider missing from this list would only be detected
         # later, as an unreachable host inside a case (Oracle TS 5.5).
-        value = os.getenv("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
+        # Windows Oracle provisioning is deferred; Linux keeps its Oracle
+        # coverage. Explicit service selections still apply to custom runs.
+        default = "mysql,pg,influx,sqlserver"
+        if os.name != "nt":
+            default += ",oracle"
+        value = os.getenv("FQ_REQUIRED_SERVICES", default)
         services = set() if value == "none" else set(value.split(","))
         if services - {"mysql", "pg", "influx", "sqlserver", "oracle"}:
             raise ValueError("invalid FQ_REQUIRED_SERVICES")
@@ -885,6 +890,8 @@ class ExtSrcEnv:
         here = os.path.dirname(os.path.abspath(__file__))
 
         env = _fq_subprocess_env()
+        if os.name == "nt":
+            env["FQ_SERVICES_TO_RESET"] = ",".join(sorted(services)) or "none"
         env["FQ_MYSQL_VERSIONS"] = ",".join(cls.MYSQL_VERSIONS) if "mysql" in services else ""
         env["FQ_PG_VERSIONS"] = ",".join(cls.PG_VERSIONS) if "pg" in services else ""
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS) if "influx" in services else ""
