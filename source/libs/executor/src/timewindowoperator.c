@@ -4152,6 +4152,102 @@ static int32_t resetIntervalOperState(SOperatorInfo* pOper) {
   return resetInterval(pOper, pInfo);
 }
 
+// Only an eligible interval consumer negotiates this scan-local value. Other
+// window operators keep using the ordinary pseudo-column path.
+static int32_t enableConstGroupKeyForInterval(SOperatorInfo* pScan, SExprSupp* pWindowSup,
+                                               const SIntervalPhysiNode* pInterval) {
+  if (pScan == NULL || pScan->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN || pScan->dynamicTask ||
+      pScan->pPhyNode == NULL || pScan->info == NULL || pInterval->fastInterval || pInterval->exInterval ||
+      pInterval->window.pExprs != NULL || pInterval->window.pProjs != NULL ||
+      pScan->exprSupp.pFilterInfo != NULL || pScan->pTaskInfo == NULL ||
+      pScan->pTaskInfo->localFetch.directBlock || pScan->pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH ||
+      pWindowSup == NULL || pWindowSup->pCtx == NULL ||
+      pWindowSup->pExprInfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const STableScanPhysiNode* pScanNode = pScan->pPhyNode;
+  STableScanInfo* pScanInfo = pScan->info;
+  if (pScanNode->scan.node.pConditions != NULL || pScanNode->scan.node.pLimit != NULL ||
+      pScanNode->scan.node.pSlimit != NULL || pScanNode->scan.node.dynamicOp ||
+      pScanInfo->virtualStableScan || pScanInfo->pBatchColMap != NULL ||
+      pScanInfo->base.pseudoSup.numOfExprs != 1 || pScanInfo->base.pseudoSup.pExprInfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  const SExprInfo* pPseudo = &pScanInfo->base.pseudoSup.pExprInfo[0];
+  if (pPseudo->pExpr == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  bool isTbname = pPseudo->pExpr->nodeType == QUERY_NODE_FUNCTION &&
+                  pPseudo->pExpr->_function.functionType == FUNCTION_TYPE_TBNAME;
+  bool isTag = pPseudo->pExpr->nodeType == QUERY_NODE_COLUMN && pPseudo->base.numOfParams == 1 &&
+               pPseudo->base.pParam != NULL && pPseudo->base.pParam[0].type == FUNC_PARAM_TYPE_COLUMN &&
+               pPseudo->base.pParam[0].pCol != NULL &&
+               pPseudo->base.pParam[0].pCol->colType == COLUMN_TYPE_TAG;
+  if (!isTbname && !isTag) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t slotId = pPseudo->base.resSchema.slotId;
+  int32_t groupKeyCount = 0;
+  for (int32_t i = 0; i < pWindowSup->numOfExprs; ++i) {
+    const SExprInfo* pExpr = &pWindowSup->pExprInfo[i];
+    bool isGroupKey = fmGetFuncTypeFromId(pWindowSup->pCtx[i].functionId) == FUNCTION_TYPE_GROUP_KEY;
+    if (pExpr->base.numOfParams > 0 && pExpr->base.pParam == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+    for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
+      const SFunctParam* pParam = &pExpr->base.pParam[j];
+      if (pParam->type != FUNC_PARAM_TYPE_COLUMN || pParam->pCol == NULL || pParam->pCol->slotId != slotId) {
+        continue;
+      }
+      if (!isGroupKey || j != 0 || pExpr->base.numOfParams != 1) {
+        return TSDB_CODE_SUCCESS;
+      }
+      ++groupKeyCount;
+    }
+  }
+  if (groupKeyCount != 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSDataBlock* pBlock = pScanInfo->pResBlock;
+  if (pBlock == NULL || pBlock->pDataBlock == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (slotId < 0 || slotId >= taosArrayGetSize(pBlock->pDataBlock)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+  if (pCol == NULL || pBlock->pConstTagCols != NULL ||
+      (isTbname && !IS_VAR_DATA_TYPE(pCol->info.type)) ||
+      (isTag && (pCol->info.type == TSDB_DATA_TYPE_JSON || IS_DECIMAL_TYPE(pCol->info.type)))) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // The interval operator owns the scan during construction; its failure path destroys
+  // the downstream block and this negotiated column together.
+  pBlock->pConstTagCols = taosArrayInit(1, sizeof(SConstTagColumn));
+  if (pBlock->pConstTagCols == NULL) {
+    return terrno;
+  }
+  SConstTagColumn col = {.slotId = slotId, .column = {.info = pCol->info}};
+  int32_t code = colInfoDataEnsureCapacity(&col.column, 1, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    colDataDestroy(&col.column);
+    taosArrayDestroy(pBlock->pConstTagCols);
+    pBlock->pConstTagCols = NULL;
+    return code;
+  }
+  if (taosArrayPush(pBlock->pConstTagCols, &col) == NULL) {
+    code = terrno;
+    colDataDestroy(&col.column);
+    taosArrayDestroy(pBlock->pConstTagCols);
+    pBlock->pConstTagCols = NULL;
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo,
                                    SOperatorInfo** pOptrInfo) {
   QRY_PARAM_CHECK(pOptrInfo);
@@ -4286,6 +4382,8 @@ int32_t createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode
     pTableScanInfo->base.pdInfo.interval = pInfo->interval;
     pTableScanInfo->base.pdInfo.pExprSup = &pOperator->exprSupp;
     pTableScanInfo->base.pdInfo.pAggSup = &pInfo->aggSup;
+    code = enableConstGroupKeyForInterval(downstream, pSup, pPhyNode);
+    QUERY_CHECK_CODE(code, lino, _error);
   }
 
   pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResultNext, NULL, destroyIntervalOperatorInfo,
