@@ -148,6 +148,7 @@ class TagCluster:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
@@ -492,6 +493,7 @@ class TestTagIndexAdvance:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:
