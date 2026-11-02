@@ -5,7 +5,7 @@ description: Onboard Kepware Server automatically during installation, or use ta
 toc_max_heading_level: 5
 ---
 
-[Kepware Server](https://www.ptc.com/en/products/kepware) is PTC's industrial connectivity platform. It provides communication drivers for more than 250 industrial protocols, including Modbus, Siemens S7, OPC UA, and BACnet. This guide uses Kepware Server 7.1 as an example and describes how to read Kepware points through the taosX OPC UA connector and write them to TDengine.
+[Kepware Server](https://www.ptc.com/en/products/kepware) is PTC's industrial connectivity platform. It provides communication drivers for more than 150 industrial protocols, including Modbus, Siemens S7, OPC UA, and BACnet. This guide uses Kepware Server 7.1 as an example and describes how to read Kepware points through the taosX OPC UA connector and write them to TDengine. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
 
 This guide describes two onboarding methods:
 

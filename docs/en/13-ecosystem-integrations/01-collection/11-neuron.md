@@ -23,7 +23,7 @@ This guide describes three ways to write data collected by Neuron to TDengine:
 | One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard |
 | Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration |
 
-All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest data from the more than 70 industrial protocols supported by Neuron, subject to the version and license.
+All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately, subject to the version and license. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 

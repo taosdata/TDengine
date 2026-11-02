@@ -11,18 +11,18 @@ TDengine 通过 taosExplorer 与 taosX，支持在浏览器中配置任务，以
 
 下图展示了零代码接入平台的系统架构。
 
-![零代码数据接入架构图](../../assets/no-code-ingestion-01.webp)
+![零代码数据接入架构图](../../assets/no-code-ingestion-01.svg)
 
 ## 支持的数据源
 
-目前 TDengine 支持的数据源如下表：
+目前 TDengine 支持的数据源如下表。与 Neuron、Kepware 集成后可接入的数百种工业协议不列入此表，见 [接入更多工业协议](#经工业连接平台接入更多工业协议)。
 
 | 数据源 | 支持版本 | 描述 |
 | --- | --- | --- |
 | Aveva PI System | PI AF Server Version 2.10.9.593 或以上 | 工业数据管理和分析平台，前身为 OSIsoft PI System，它能够实时采集、整合、分析和可视化工业数据，助力企业实现智能化决策和精细化管理 |
 | Aveva Historian | AVEVA Historian 2020 RS SP1 | 工业大数据分析软件，前身为 Wonderware Historian，专为工业环境设计，用于存储、管理和分析来自各种工业设备、传感器的实时和历史数据 |
 | OPC DA |  Matrikon OPC version: 1.7.2.7433  | OPC 是 Open Platform Communications 的缩写，是一种开放式、标准化的通信协议，用于不同厂商的自动化设备之间进行数据交换。它最初由微软公司开发，旨在解决工业控制领域中不同设备之间互操作性差的问题；OPC 协议最初于 1996 年发布，当时称为 OPC DA（Data Access），主要用于实时数据采集和控制。 |
-| OPC UA |  KeepWare KEPServerEx 6.5 | 2006 年，OPC 基金会发布了 OPC UA（Unified Architecture）标准，它是一种基于服务的面向对象的协议，具有更高的灵活性和可扩展性，已成为 OPC 协议的主流版本 |
+| OPC UA | Kepware KEPServerEx 6.5 | 2006 年，OPC 基金会发布了 OPC UA（Unified Architecture）标准，它是一种基于服务的面向对象的协议，具有更高的灵活性和可扩展性，已成为 OPC 协议的主流版本。此行是 OPC UA 连接器的验证版本；Kepware 接入的安装、扫描和任务配置见 [与 Kepware 集成](../../13-ecosystem-integrations/01-collection/12-kepware.md) |
 | MQTT | emqx: 3.0.0 到 5.7.1<br/> hivemq: 4.0.0 到 4.31.0<br/> mosquitto: 1.4.4 到 2.0.18 | Message Queuing Telemetry Transport 的缩写，一种基于发布/订阅模式的轻量级通讯协议，专为低开销、低带宽占用的即时通讯设计，广泛适用于物联网、小型设备、移动应用等领域。 |
 | Kafka | 2.11 ~ 3.8.0  | 由 Apache 软件基金会开发的一个开源流处理平台，主要用于处理实时数据，并提供一个统一、高通量、低延迟的消息系统。它具备高速度、可伸缩性、持久性和分布式设计等特点，使得它能够在每秒处理数十万次的读写操作，支持上千个客户端，同时保持数据的可靠性和可用性。 |
 | InfluxDB | 1.7、1.8、2.0-2.7 | InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量时间序列数据进行了优化。|
@@ -40,6 +40,15 @@ TDengine 通过 taosExplorer 与 taosX，支持在浏览器中配置任务，以
 | pSpace | - | 工业实时数据库/中间件，用于采集与转发过程数据。 |
 | TDengine 查询 | 2.4+, 3.0+ | TDengine 旧版本数据查询方式写入新集群。 |
 | TDengine 数据订阅 | 3.0+ | 使用 TMQ 订阅指定数据库或超级表的数据。 |
+
+## 经工业连接平台接入更多工业协议
+
+上表是 taosX 直接连接的数据源。企业版通过与 Neuron、Kepware 这两类软件集成，可以接入数百种工业协议。购买 TDengine 企业版后，这两款软件的许可证可由涛思数据代为采购。
+
+| 平台 | 写入方式 | 说明 |
+| --- | --- | --- |
+| Neuron | Neuron 采集后，经 eKuiper 以 InfluxDB v1 行协议写入 | [与 Neuron 集成](../../13-ecosystem-integrations/01-collection/11-neuron.md) |
+| Kepware | taosX 通过 OPC UA 连接器采集 Kepware 点位 | [与 Kepware 集成](../../13-ecosystem-integrations/01-collection/12-kepware.md) |
 
 ## 数据提取、过滤和转换
 
