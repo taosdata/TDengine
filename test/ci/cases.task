@@ -1807,8 +1807,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/06-TaosBackup/test_taosbackup_maxcols.py -B
 
 # 82-UnitTest
-
-# 200,,n,cases,bash 82-UnitTest/test.sh
+# Non-ASAN build, one attempt. The suite matches the Linux unit-test job.
+200,1,n,cases,CASE_TIMEOUT=3600 bash 82-UnitTest/test.sh
 
 
 
