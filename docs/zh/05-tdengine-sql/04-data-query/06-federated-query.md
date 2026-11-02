@@ -1037,7 +1037,7 @@ FederatedScan on mysql_prod.power.sensor_data
 | 数据库 | 支持版本 | 测试版本 | 说明 |
 | ---------- | --- | --- | --- |
 | MySQL      | 5.7、8.x | 8.0 | 推荐使用 8.0 及以上。MariaDB 10.x 兼容，但不做专项测试。 |
-| PostgreSQL | 14 及以上 | 16 | 需要支持标准 SQL 特性集。 |
+| PostgreSQL | 14 及以上 | 16、18.6 | 需要支持标准 SQL 特性集。 |
 | InfluxDB   | v3.x | v3.0 | 不支持 v1.x 和 v2.x。 |
 | SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
 | Oracle     | 11.2.0.3 / 11.2.0.4、12c、18c、19c、21c、23ai、26ai | 11.2.0.4、26ai | 依赖包同时提供 Instant Client 19c 与 23ai 两套客户端，安装时按服务端版本选择生效客户端；同一部署同一时间只有一套客户端生效。 |

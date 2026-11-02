@@ -1037,7 +1037,7 @@ Supported and tested external database versions are as follows:
 | Database   | Supported Versions | Tested Version | Notes |
 | ---------- | ------------------ | -------------- | ----- |
 | MySQL      | 5.7, 8.x           | 8.0            | Version 8.0 and above recommended. MariaDB 10.x is compatible but not specifically tested. |
-| PostgreSQL | 14 and above       | 16             | Requires support for the standard SQL feature set. |
+| PostgreSQL | 14 and above       | 16, 18.6       | Requires support for the standard SQL feature set. |
 | InfluxDB   | v3.x               | v3.0           | v1.x and v2.x are not supported. |
 | SQL Server | 2019 (15.x), 2022 (16.x) | 2022 | Requires Microsoft ODBC Driver 18 for SQL Server; only on-premises deployments and self-managed IaaS instances are supported. |
 | Oracle     | 11.2.0.3 / 11.2.0.4, 12c, 18c, 19c, 21c, 23ai, 26ai | 11.2.0.4, 26ai | The runtime package ships both Instant Client 19c and 23ai; the installer selects the active client for the server version, and only one client is active per deployment at a time. |
