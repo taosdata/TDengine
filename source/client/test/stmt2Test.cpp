@@ -1982,7 +1982,7 @@ TEST(stmt2Case, stmt2_fixed_table_and_tags_rebind_after_exec_error) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
   do_query(taos, "drop database if exists stmt2_fixed_tags_rebind");
-  do_query(taos, "create database stmt2_fixed_tags_rebind precision 'ms' duration 1 keep 1");
+  do_query(taos, "create database stmt2_fixed_tags_rebind precision 'ms' duration 1d keep 3d");
   do_query(taos, "create stable stmt2_fixed_tags_rebind.stb (ts timestamp, v int) tags(t1 int)");
 
   TAOS_STMT2_OPTION option = {0};
