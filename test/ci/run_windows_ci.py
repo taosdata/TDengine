@@ -569,7 +569,9 @@ def federated_query_services(environment):
     selection that way keeps the script's own defaults (Oracle 26ai included)
     from installing engines this run never uses.
     """
-    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
+    # Oracle provisioning under the Windows runner service is not supported
+    # yet. Keep the other four providers in the default smoke coverage.
+    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver")
     services = set() if value == "none" else set(value.split(","))
     unknown = services - set(FQ_ENGINE_VERSION_VARS)
     if unknown:
@@ -592,6 +594,7 @@ def provision_federated_query_env(source_dir, environment):
         return
     environment = dict(environment)
     services = federated_query_services(environment)
+    environment["FQ_SERVICES_TO_RESET"] = ",".join(sorted(services)) or "none"
     for engine, variable in FQ_ENGINE_VERSION_VARS.items():
         if engine not in services:
             environment[variable] = ""

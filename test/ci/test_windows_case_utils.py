@@ -33,6 +33,77 @@ from windows_case_utils import (
 )
 
 
+class TestWindowsOracleDeferral(unittest.TestCase):
+    fq_dir = (Path(__file__).parents[1] /
+              "cases/09-DataQuerying/19-FederatedQuery")
+
+    def test_provisioning_defaults_keep_four_supported_providers(self):
+        tree = ast.parse(Path(__file__).with_name("run_windows_ci.py").read_text())
+        nodes = [node for node in tree.body if isinstance(node, (ast.Assign, ast.FunctionDef))
+                 and ((isinstance(node, ast.FunctionDef) and node.name == "federated_query_services")
+                      or (isinstance(node, ast.Assign) and any(
+                          isinstance(target, ast.Name) and target.id == "FQ_ENGINE_VERSION_VARS"
+                          for target in node.targets)))]
+        namespace = {}
+        exec(compile(ast.Module(body=nodes, type_ignores=[]), "services", "exec"), namespace)
+        services = namespace["federated_query_services"]
+        self.assertEqual(services({}), {"mysql", "pg", "influx", "sqlserver"})
+        self.assertEqual(services({"FQ_REQUIRED_SERVICES": "none"}), set())
+
+    def test_shared_service_default_preserves_linux_oracle(self):
+        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text())
+        original = next(node for node in tree.body
+                        if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
+        method = next(node for node in original.body
+                      if isinstance(node, ast.FunctionDef) and node.name == "required_services")
+        cls = ast.ClassDef(name="Env", bases=[], keywords=[], body=[method], decorator_list=[])
+        for platform in ("nt", "posix"):
+            namespace = {"os": SimpleNamespace(name=platform, getenv=lambda key, default: default)}
+            code = ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[]))
+            exec(compile(code, "services", "exec"), namespace)
+            actual = namespace["Env"].required_services()
+            self.assertEqual("oracle" in actual, platform != "nt")
+            self.assertTrue({"mysql", "pg", "influx", "sqlserver"} <= actual)
+
+    def test_baseline_projection_removes_only_complete_oracle_cases(self):
+        tree = ast.parse((self.fq_dir / "test_fq_01_external_source.py").read_text())
+        method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                      and node.name == "_fw_without_oracle_baseline")
+        method.decorator_list = []
+        namespace = {"re": re}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), "baseline", "exec"), namespace)
+        project = namespace[method.name]
+        separator = "=" * 96
+        def block(label):
+            return f"{separator}\nCASE START: {label}\n{separator}\nSQL\n{separator}\nCASE END: {label}\n{separator}\n"
+        mysql, oracle, pg = block("CASE-001[MYS]"), block("CASE-OREXT001[ORA]"), block("CASE-002[POS]")
+        self.assertEqual(project(mysql + oracle + pg), mysql + pg)
+        self.assertEqual(project(mysql + pg), mysql + pg)
+        golden = next((self.fq_dir / "ans").glob("test_fq_01_external_source_framework_*.txt")).read_text()
+        projected = project(golden)
+        self.assertIn("CASE-OREXT001[ORA]", golden)
+        self.assertNotIn("[ORA]", projected)
+        for label in re.findall(r"^CASE START: ([^\n]+)$", golden, re.MULTILINE):
+            if not label.endswith("[ORA]"):
+                self.assertIn(f"CASE START: {label}\n", projected)
+
+    def test_oracle_filter_skip_precedes_backend_start(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py")
+        tree = ast.parse(source.read_text())
+        method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+                      and node.name == "prepare_backend")
+        method.decorator_list = []
+        adapters = Mock()
+        namespace = {"os": SimpleNamespace(name="nt"),
+                     "pytest": SimpleNamespace(skip=Mock(side_effect=unittest.SkipTest("deferred"))),
+                     "VtableQueryUtil": SimpleNamespace(_EXT_SOURCE_ADAPTERS=adapters)}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), "fixture", "exec"), namespace)
+        with self.assertRaises(unittest.SkipTest):
+            next(namespace[method.name](None, "oracle"))
+        adapters.assert_not_called()
+
+
 class TestVisualStudioEnvironment(unittest.TestCase):
     def test_multiline_mr_description_is_preserved_without_creating_variables(self):
         import json
