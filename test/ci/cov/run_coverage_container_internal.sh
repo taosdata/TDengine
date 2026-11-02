@@ -358,16 +358,91 @@ composite_cmd="${CONTAINER_TESTDIR}/test/ci/run_case.sh -d \"$exec_dir\" -c \"$c
 
 echo "执行复合命令: $composite_cmd"
 
-docker run \
-    -e COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY}" \
-    -v $REP_MOUNT_PARAM \
-    -v $REP_MOUNT_DEBUG \
-    -v $REP_MOUNT_LIB \
-    -v $MOUNT_DIR \
-    -v ${SOURCEDIR}:/usr/local/src/ \
-    -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
-    -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.4} bash -c "$composite_cmd"
+# shellcheck source=../../cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh
+source "${REPDIR}/test/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
+
+# Coverage checks out TDinternal/community only. Use the same runner lookup as
+# run_container.sh so federated cases get a database lease instead of 127.0.0.1.
+_fq_ci_resolve_runner() {
+    if [[ -n "${FQ_CI_RUNNER:-}" && -f "${FQ_CI_RUNNER}" ]]; then
+        echo "${FQ_CI_RUNNER}"
+        return 0
+    fi
+    local community_root candidate
+    community_root="$(cd "$REPDIR" && pwd -P)"
+    candidate="$(dirname "$(dirname "$community_root")")/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
+    if [[ -f "$candidate" ]]; then
+        echo "$candidate"
+        return 0
+    fi
+    if [[ -n "${FQ_CI_TOOLS_DIR:-}" && -f "${FQ_CI_TOOLS_DIR}/fq/run-ci.py" ]]; then
+        echo "${FQ_CI_TOOLS_DIR}/fq/run-ci.py"
+        return 0
+    fi
+    candidate="/root/tsdb/tools/cicd/tsdb-test-pipeline/fq/run-ci.py"
+    if [[ -f "$candidate" ]]; then
+        echo "$candidate"
+        return 0
+    fi
+    return 1
+}
+
+fq_runner=()
+fq_default_services=()
+if fq_ci_needs_databases "$cmd" && [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]]; then
+    FQ_RUNNER="$(_fq_ci_resolve_runner)" || {
+        echo "ERROR: FQ container runner not found. Set FQ_CI_RUNNER to tools/cicd/tsdb-test-pipeline/fq/run-ci.py" >&2
+        exit 1
+    }
+    fq_cert_dir="${REPDIR}/test/cases/09-DataQuerying/19-FederatedQuery/certs"
+    if [[ ! -d "${fq_cert_dir}" ]]; then
+        echo "ERROR: FQ cert dir missing: ${fq_cert_dir}" >&2
+        exit 1
+    fi
+    # Tasks that omit FQ_REQUIRED_SERVICES still talk to MySQL, PostgreSQL,
+    # Influx and SQL Server. Leave Oracle off unless the task asks for it.
+    if [[ "$cmd" != *FQ_REQUIRED_SERVICES=* ]]; then
+        fq_default_services=(-e FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver)
+    fi
+    export FQ_CI_PLACEMENT="${FQ_CI_PLACEMENT:-local-first}"
+    export FQ_CI_LOCAL_MAX_SLOTS="${FQ_CI_LOCAL_MAX_SLOTS:-auto}"
+    export FQ_CI_PREPARE_TIMEOUT="${FQ_CI_PREPARE_TIMEOUT:-1200}"
+    export FQ_CI_AIO_MAX_NR="${FQ_CI_AIO_MAX_NR:-4194304}"
+    export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
+    # The lease timer wraps the container, including lcov after the case.
+    fq_case_timeout=1230
+    if [[ "${extra_param}" =~ -o[[:space:]]+([0-9]+) ]]; then
+        fq_case_timeout="${BASH_REMATCH[1]}"
+    fi
+    export FQ_CI_CASE_TIMEOUT="${FQ_CI_CASE_TIMEOUT:-$((fq_case_timeout + 900))}"
+    echo "[FQ CI] lease runner: ${FQ_RUNNER}"
+    fq_runner=(python3 "${FQ_RUNNER}" --artifacts "${MOUNT_SOURCE}/fq-artifacts/attempt-${FQ_CI_ATTEMPT:-1}"
+               --cert-dir "${fq_cert_dir}" --)
+fi
+
+docker_cmd=(docker run)
+if [[ ${#fq_default_services[@]} -gt 0 ]]; then
+    docker_cmd+=("${fq_default_services[@]}")
+fi
+docker_cmd+=(
+    -e "COVERAGE_LCOV_EVERY=${COVERAGE_LCOV_EVERY}"
+    -v "${REP_MOUNT_PARAM}"
+    -v "${REP_MOUNT_DEBUG}"
+    -v "${REP_MOUNT_LIB}"
+    -v "${MOUNT_DIR}"
+    -v "${SOURCEDIR}:/usr/local/src/"
+    -v "${TMP_DIR}/thread_volume/${thread_no}/sim:${SIM_DIR}"
+    -v "${TMP_DIR}/thread_volume/${thread_no}/coredump:${coredump_dir}"
+    --rm --ulimit core=-1
+    "${DOCKER_IMAGE_NAME:-tdengine-ci:0.4}"
+    bash -c "${composite_cmd}"
+)
+
+if [[ ${#fq_runner[@]} -gt 0 ]]; then
+    "${fq_runner[@]}" "${docker_cmd[@]}"
+else
+    "${docker_cmd[@]}"
+fi
 
 ret=$?
 
