@@ -14,18 +14,18 @@ TDengine is equipped with a visual data management tool—taosExplorer. With tao
 
 The diagram below shows the system architecture of the zero-code integration platform.
 
-![Zero-code data connectors](../../assets/no-code-ingestion-01.webp)
+![Zero-code data connectors](../../assets/no-code-ingestion-01.svg)
 
 ## Supported Data Sources
 
-The data sources currently supported by TDengine are as follows:
+The data sources currently supported by TDengine are listed below. The hundreds of industrial protocols available through Neuron and Kepware are not included in this table. See [More Industrial Protocols](#more-industrial-protocols).
 
 | Data Source | Supported Version | Description |
 | --- | --- | --- |
 | Aveva PI System | PI AF Server Version 2.10.9.593 or above | An industrial data management and analytics platform, formerly known as OSIsoft PI System, capable of real-time collection, integration, analysis, and visualization of industrial data, helping enterprises achieve intelligent decision-making and refined management |
 | Aveva Historian | AVEVA Historian 2020 RS SP1 | Industrial big data analytics software, formerly known as Wonderware Historian, designed for industrial environments to store, manage, and analyze real-time and historical data from various industrial devices and sensors |
 | OPC DA |  Matrikon OPC version: 1.7.2.7433  | Abbreviation for Open Platform Communications, an open, standardized communication protocol for data exchange between automation devices from different manufacturers. Initially developed by Microsoft, it was aimed at addressing interoperability issues in the industrial control field; the OPC protocol was first released in 1996, then known as OPC DA (Data Access), mainly for real-time data collection and control. |
-| OPC UA |  KeepWare KEPServerEx 6.5 | In 2006, the OPC Foundation released the OPC UA (Unified Architecture) standard, a service-oriented, object-oriented protocol with higher flexibility and scalability, which has become the mainstream version of the OPC protocol |
+| OPC UA | Kepware KEPServerEx 6.5 | In 2006, the OPC Foundation released the OPC UA (Unified Architecture) standard, a service-oriented, object-oriented protocol with higher flexibility and scalability, which has become the mainstream version of the OPC protocol. This row records the OPC UA connector validation version. For Kepware installation, scanning, and task setup, see [Integration with Kepware](../../13-ecosystem-integrations/01-collection/12-kepware.md). |
 | MQTT | emqx: 3.0.0 to 5.7.1<br/> hivemq: 4.0.0 to 4.31.0<br/> mosquitto: 1.4.4 to 2.0.18 | Abbreviation for Message Queuing Telemetry Transport, a lightweight communication protocol based on the publish/subscribe pattern, designed for low overhead, low bandwidth usage instant messaging, widely applicable in IoT, small devices, mobile applications, and other fields. |
 | Kafka | 2.11 ~ 3.8.0  | An open-source stream processing platform developed by the Apache Software Foundation, primarily used for processing real-time data and providing a unified, high-throughput, low-latency messaging system. It features high speed, scalability, persistence, and a distributed design, enabling it to handle hundreds of thousands of read/write operations per second, support thousands of clients, while maintaining data reliability and availability. |
 | InfluxDB | 1.7, 1.8, 2.0-2.7 | A popular open-source time-series database optimized for handling large volumes of time-series data.|
@@ -38,6 +38,15 @@ The data sources currently supported by TDengine are as follows:
 | CSV | -  | Abbreviation for Comma Separated Values, a plain text file format separated by commas, commonly used in spreadsheet or database software. |
 | TDengine Query | 2.4+, 3.0+ | Query from older version of TDengine and write into new cluster. |
 | TDengine Data Subscription | 3.0+ | Use TMQ for subscribing to specified databases or supertables from TDengine. |
+
+## More Industrial Protocols {#more-industrial-protocols}
+
+The table above lists data sources that taosX connects to directly. TDengine TSDB-Enterprise can integrate with Neuron and Kepware to ingest hundreds of industrial protocols. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the licenses for both products.
+
+| Platform | Write path | Reference |
+| --- | --- | --- |
+| Neuron | Neuron collects the data, and eKuiper writes it as InfluxDB v1 line protocol | [Integration with Neuron](../../13-ecosystem-integrations/01-collection/11-neuron.md) |
+| Kepware | taosX collects Kepware points through the OPC UA connector | [Integration with Kepware](../../13-ecosystem-integrations/01-collection/12-kepware.md) |
 
 ## Data Extraction, Filtering, and Transformation
 

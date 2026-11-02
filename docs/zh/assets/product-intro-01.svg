@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6fb0"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect width="1280" height="760" fill="#ffffff"/>
+
+  <rect x="40" y="28" width="360" height="78" rx="12" fill="#eef6ff" stroke="#7eadd8" stroke-width="1.6"/>
+  <text x="220" y="58" text-anchor="middle" font-size="20" font-weight="700" fill="#1d4e89">Partner A</text>
+  <text x="220" y="84" text-anchor="middle" font-size="16" fill="#355f8a">Share aggregated results</text>
+
+  <rect x="460" y="28" width="360" height="78" rx="12" fill="#eef6ff" stroke="#7eadd8" stroke-width="1.6"/>
+  <text x="640" y="58" text-anchor="middle" font-size="20" font-weight="700" fill="#1d4e89">Partner B</text>
+  <text x="640" y="84" text-anchor="middle" font-size="16" fill="#355f8a">Share a set of tables</text>
+
+  <rect x="880" y="28" width="360" height="78" rx="12" fill="#eef6ff" stroke="#7eadd8" stroke-width="1.6"/>
+  <text x="1060" y="58" text-anchor="middle" font-size="20" font-weight="700" fill="#1d4e89">Partner C</text>
+  <text x="1060" y="84" text-anchor="middle" font-size="16" fill="#355f8a">Share the whole database</text>
+
+  <path d="M640 196 V150 H220 V112" fill="none" stroke="#2f6fb0" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <path d="M640 196 V112" fill="none" stroke="#2f6fb0" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <path d="M640 196 V150 H1060 V112" fill="none" stroke="#2f6fb0" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+
+  <rect x="390" y="196" width="500" height="150" rx="16" fill="#1d4e89"/>
+  <text x="640" y="252" text-anchor="middle" font-size="40" font-weight="700" fill="#ffffff">TDengine</text>
+  <text x="640" y="288" text-anchor="middle" font-size="16" fill="#d6e6f7">Time-Series Database for Industrial IoT</text>
+  <text x="640" y="316" text-anchor="middle" font-size="16" fill="#d6e6f7">AWS / Azure / GCP / On-Prem</text>
+
+  <rect x="40" y="220" width="280" height="64" rx="12" fill="#fff4ec" stroke="#e0b089" stroke-width="1.6"/>
+  <text x="180" y="258" text-anchor="middle" font-size="18" fill="#8a4b12">Tableau / Power BI</text>
+  <rect x="40" y="304" width="280" height="64" rx="12" fill="#fff4ec" stroke="#e0b089" stroke-width="1.6"/>
+  <text x="180" y="342" text-anchor="middle" font-size="16" fill="#8a4b12">ML/AI or Other Analytics Apps</text>
+  <line x1="320" y1="252" x2="390" y2="252" stroke="#c4843c" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <line x1="320" y1="336" x2="390" y2="300" stroke="#c4843c" stroke-width="1.8" stroke-dasharray="5 4"/>
+
+  <rect x="960" y="220" width="280" height="64" rx="12" fill="#f8eef8" stroke="#d7a8d4" stroke-width="1.6"/>
+  <text x="1100" y="258" text-anchor="middle" font-size="18" fill="#7a3d78">Grafana</text>
+  <rect x="960" y="304" width="280" height="64" rx="12" fill="#f8eef8" stroke="#d7a8d4" stroke-width="1.6"/>
+  <text x="1100" y="342" text-anchor="middle" font-size="18" fill="#7a3d78">Seeq</text>
+  <line x1="890" y1="252" x2="960" y2="252" stroke="#a85aa4" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <line x1="890" y1="300" x2="960" y2="336" stroke="#a85aa4" stroke-width="1.8" stroke-dasharray="5 4"/>
+
+  <path d="M130 468 V430 H1150" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M380 468 V430" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M640 468 V430" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M900 468 V430" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M1150 468 V430" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M640 430 V356" fill="none" stroke="#2f6fb0" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+  <rect x="30" y="468" width="200" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="130" y="522" text-anchor="middle" font-size="20" font-weight="700" fill="#1d6b32">PI System</text>
+  <text x="130" y="556" text-anchor="middle" font-size="16" fill="#2f6b3a">Historian</text>
+  <text x="130" y="584" text-anchor="middle" font-size="16" fill="#2f6b3a">Site A</text>
+
+  <rect x="280" y="468" width="200" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="380" y="522" text-anchor="middle" font-size="20" font-weight="700" fill="#1d6b32">OPC</text>
+  <text x="380" y="556" text-anchor="middle" font-size="16" fill="#2f6b3a">OPC UA / OPC DA</text>
+  <text x="380" y="584" text-anchor="middle" font-size="16" fill="#2f6b3a">Site B</text>
+
+  <rect x="530" y="468" width="220" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="640" y="522" text-anchor="middle" font-size="20" font-weight="700" fill="#1d6b32">MQTT</text>
+  <text x="640" y="556" text-anchor="middle" font-size="16" fill="#2f6b3a">MQTT Broker</text>
+  <text x="640" y="584" text-anchor="middle" font-size="16" fill="#2f6b3a">Site C</text>
+
+  <rect x="800" y="468" width="200" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="900" y="516" text-anchor="middle" font-size="20" font-weight="700" fill="#1d6b32">Neuron</text>
+  <text x="900" y="550" text-anchor="middle" font-size="15" fill="#2f6b3a">70+ / 100+ protocols</text>
+  <text x="900" y="578" text-anchor="middle" font-size="15" fill="#2f6b3a">Site D</text>
+
+  <rect x="1050" y="468" width="200" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="1150" y="516" text-anchor="middle" font-size="20" font-weight="700" fill="#1d6b32">Kepware</text>
+  <text x="1150" y="550" text-anchor="middle" font-size="15" fill="#2f6b3a">150+ drivers</text>
+  <text x="1150" y="578" text-anchor="middle" font-size="15" fill="#2f6b3a">Site E</text>
+</svg>

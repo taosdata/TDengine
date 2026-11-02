@@ -5,7 +5,7 @@ description: 在安装时自动接入 Kepware Server，或通过 taosExplorer �
 toc_max_heading_level: 5
 ---
 
-[Kepware Server](https://www.ptc.com/en/products/kepware) 是 PTC 的工业连接平台，提供覆盖 250+ 工业协议的通信驱动，包括 Modbus、Siemens S7、OPC UA、BACnet 等。本文以 Kepware Server 7.1 为例，介绍如何通过 taosX 的 OPC UA 连接器读取 Kepware 点位，并写入 TDengine。
+[Kepware Server](https://www.ptc.com/en/products/kepware) 是 PTC 的工业连接平台，提供 150 多种工业协议的通信驱动，包括 Modbus、Siemens S7、OPC UA、BACnet 等。本文以 Kepware Server 7.1 为例，介绍如何通过 taosX 的 OPC UA 连接器读取 Kepware 点位，并写入 TDengine。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
 
 本文介绍两种接入方式：
 

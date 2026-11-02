@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="480" viewBox="0 0 1600 480">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6fb0"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect width="1600" height="480" fill="#ffffff"/>
+
+  <rect x="180" y="24" width="520" height="96" rx="14" fill="#eef2ff" stroke="#9aa8e8" stroke-width="1.6"/>
+  <text x="440" y="62" text-anchor="middle" font-size="24" font-weight="700" fill="#24356b">TDengine</text>
+  <text x="440" y="92" text-anchor="middle" font-size="16" fill="#3d4d86">Deployed in cloud or central location</text>
+
+  <line x1="700" y1="72" x2="820" y2="72" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="820" y="24" width="560" height="96" rx="14" fill="#eef2ff" stroke="#9aa8e8" stroke-width="1.6"/>
+  <text x="1100" y="62" text-anchor="middle" font-size="24" font-weight="700" fill="#24356b">TDengine</text>
+  <text x="1100" y="92" text-anchor="middle" font-size="16" fill="#3d4d86">Replicated to another cloud or region</text>
+
+  <path d="M120 268 V220 H1440" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M340 268 V220" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M560 268 V220" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M780 268 V220" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M1000 268 V220" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M1220 268 V220" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M1440 268 V220" fill="none" stroke="#2f6fb0" stroke-width="1.8"/>
+  <path d="M440 220 V128" fill="none" stroke="#2f6fb0" stroke-width="1.8" marker-end="url(#arrow)"/>
+
+  <rect x="24" y="268" width="192" height="168" rx="12" fill="#eef8ee" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="120" y="312" text-anchor="middle" font-size="16" font-weight="700" fill="#1d6b32">Edge TDengine</text>
+  <text x="120" y="346" text-anchor="middle" font-size="15" fill="#2f6b3a">OPC</text>
+  <text x="120" y="372" text-anchor="middle" font-size="15" fill="#2f6b3a">MQTT</text>
+
+  <rect x="244" y="268" width="192" height="168" rx="12" fill="#eef8ee" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="340" y="312" text-anchor="middle" font-size="16" font-weight="700" fill="#1d6b32">Edge TDengine</text>
+  <text x="340" y="346" text-anchor="middle" font-size="15" fill="#2f6b3a">OPC</text>
+  <text x="340" y="372" text-anchor="middle" font-size="15" fill="#2f6b3a">PI System</text>
+
+  <rect x="464" y="268" width="192" height="168" rx="12" fill="#eef8ee" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="560" y="312" text-anchor="middle" font-size="16" font-weight="700" fill="#1d6b32">Edge TDengine</text>
+  <text x="560" y="346" text-anchor="middle" font-size="15" fill="#2f6b3a">PI System</text>
+  <text x="560" y="372" text-anchor="middle" font-size="15" fill="#2f6b3a">Wonderware</text>
+
+  <rect x="684" y="268" width="192" height="168" rx="12" fill="#fff6ea" stroke="#e0b089" stroke-width="1.6"/>
+  <text x="780" y="356" text-anchor="middle" font-size="18" font-weight="700" fill="#8a4b12">PI System</text>
+
+  <rect x="904" y="268" width="192" height="168" rx="12" fill="#fffbe8" stroke="#e2c56a" stroke-width="1.6"/>
+  <text x="1000" y="356" text-anchor="middle" font-size="18" font-weight="700" fill="#7a5b10">MQTT</text>
+
+  <rect x="1124" y="268" width="192" height="168" rx="12" fill="#f7fbff" stroke="#7eadd8" stroke-width="1.6"/>
+  <text x="1220" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#1d4e89">Neuron</text>
+  <text x="1220" y="356" text-anchor="middle" font-size="14" fill="#355f8a">100+ protocols</text>
+
+  <rect x="1344" y="268" width="192" height="168" rx="12" fill="#f7fbff" stroke="#7eadd8" stroke-width="1.6"/>
+  <text x="1440" y="322" text-anchor="middle" font-size="18" font-weight="700" fill="#1d4e89">Kepware</text>
+  <text x="1440" y="356" text-anchor="middle" font-size="14" fill="#355f8a">150+ drivers</text>
+</svg>

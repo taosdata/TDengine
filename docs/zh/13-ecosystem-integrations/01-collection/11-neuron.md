@@ -23,7 +23,7 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 | 一键接入 | 需要 | 已部署 Neuron 或 NeuronEX | 需要向导 |
 | 手工接入 | 需要 | 已部署，需要自定义标签或转换 | 需要手工配置 |
 
-三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的 70 多种工业协议，具体以版本及授权为准。
+三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，具体以版本及授权为准。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
