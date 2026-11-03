@@ -73,7 +73,15 @@ static void cleanExpiredCounterMetrics(taos_counter_t *counter, SHashObj *pValid
   }
 
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
-  if (keys) taosMemoryFree(keys);
+  // [TD-SEC-2026-ITEM84] taos_counter_get_vgroup_ids now returns a *copy* of each key string
+  // (ownership transferred to the caller). Free every copied string before the array to avoid a
+  // persistent, per-cycle memory leak across all write metrics counters.
+  if (keys) {
+    for (int i = 0; i < list_size; i++) {
+      if (keys[i]) taosMemoryFree(keys[i]);
+    }
+    taosMemoryFree(keys);
+  }
 }
 
 int32_t initMetricsManager() {

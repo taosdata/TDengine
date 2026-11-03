@@ -228,7 +228,14 @@ void vmCleanExpriedSamples(SVnodeMgmt *pMgmt) {
   }
   (void)taosThreadRwlockUnlock(&pMgmt->hashLock);
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
-  if (keys) taosMemoryFree(keys);
+  // [TD-SEC-2026-ITEM84] taos_counter_get_vgroup_ids now returns a *copy* of each key string
+  // (to avoid a use-after-free on the live sample map). Free every copied string before the array.
+  if (keys) {
+    for (int i = 0; i < list_size; i++) {
+      if (keys[i]) taosMemoryFree(keys[i]);
+    }
+    taosMemoryFree(keys);
+  }
   return;
 }
 

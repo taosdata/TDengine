@@ -81,12 +81,24 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
   *list_size = key_list->size;
   int r = 0;
   *vgroup_ids = (int32_t *)taos_malloc(*list_size * sizeof(int32_t));
-  if (vgroup_ids == NULL) {
+  // [TD-SEC-2026-ITEM84] Test the allocated pointer (*vgroup_ids), not the out-param itself
+  // (which is the caller's &var and therefore always non-NULL). The original checks were dead code:
+  // had the malloc actually failed, the loop below would have dereferenced NULL and crashed.
+  // Nothing has been allocated yet on this path, so just NULL the sibling out-param and return;
+  // both callers only free non-NULL out-params, so they safely skip.
+  if (*vgroup_ids == NULL) {
+    *keys = NULL;
     (void)pthread_rwlock_unlock(self->rwlock);
     return 1;
   }
   *keys = (char **)taos_malloc(*list_size * sizeof(char *));
-  if (keys == NULL) {
+  // [TD-SEC-2026-ITEM84] Same fix: test *keys, not the out-param. The first array (*vgroup_ids) was
+  // already allocated, so free it and NULL both out-params; otherwise vmHandle.c (which does NOT free
+  // on r != 0) would leak it, while metrics.c would safely skip the NULLs.
+  if (*keys == NULL) {
+    taos_free(*vgroup_ids);
+    *vgroup_ids = NULL;
+    *keys = NULL;
     (void)pthread_rwlock_unlock(self->rwlock);
     return 1;
   }
@@ -95,7 +107,28 @@ int taos_counter_get_vgroup_ids(taos_counter_t *self, char ***keys, int32_t **vg
     char   *key = (char *)current_key->item;
     int32_t vgroup_id = taos_metric_formatter_get_vgroup_id(key);
     (*vgroup_ids)[index] = vgroup_id;
-    (*keys)[index] = key;
+    // [TD-SEC-2026-ITEM84] Copy the key string instead of returning the raw pointer that lives
+    // inside self->samples->keys. The caller (vmCleanExpriedSamples) uses the keys AFTER this
+    // function drops self->rwlock; a concurrent rehash (taos_map_set -> taos_map_ensure_space)
+    // would otherwise free the original node and leave the returned pointers dangling
+    // (use-after-free / CWE-416) when the caller later passes them to taos_counter_delete.
+    // The caller is responsible for freeing each copied string (see vmHandle.c).
+    char *key_copy = (char *)taos_malloc(strlen(key) + 1);
+    if (key_copy == NULL) {
+      for (int j = 0; j < index; j++) {
+        taos_free((*keys)[j]);
+      }
+      taos_free(*keys);
+      taos_free(*vgroup_ids);
+      // [TD-SEC-2026-ITEM84] Reset the out-params so callers (which free them again on r != 0)
+      // do not double-free the arrays we just freed.
+      *keys = NULL;
+      *vgroup_ids = NULL;
+      (void)pthread_rwlock_unlock(self->rwlock);
+      return 1;
+    }
+    memcpy(key_copy, key, strlen(key) + 1);
+    (*keys)[index] = key_copy;
     index++;
   }
   (void)pthread_rwlock_unlock(self->rwlock);

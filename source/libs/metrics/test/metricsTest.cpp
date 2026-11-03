@@ -146,8 +146,14 @@ bool MetricsTest::CheckVgroupMetricsExist(int32_t vgId, int64_t clusterId, int32
   
   // Clean up allocated memory
   if (vgroup_ids) taosMemoryFree(vgroup_ids);
-  if (keys) taosMemoryFree(keys);
-  
+  // [TD-SEC-2026-ITEM84] each key string is now a copy owned by the caller; free them individually.
+  if (keys) {
+    for (int i = 0; i < list_size; i++) {
+      if (keys[i]) taosMemoryFree(keys[i]);
+    }
+    taosMemoryFree(keys);
+  }
+
   return found;
 }
 
