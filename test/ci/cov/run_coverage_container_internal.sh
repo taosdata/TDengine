@@ -405,7 +405,14 @@ if fq_ci_needs_databases "$cmd" && [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]]; the
         fq_default_services=(-e FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver)
     fi
     export FQ_CI_PLACEMENT="${FQ_CI_PLACEMENT:-local-first}"
-    export FQ_CI_LOCAL_MAX_SLOTS="${FQ_CI_LOCAL_MAX_SLOTS:-auto}"
+    # Do not share /tmp/tsdb-fq-ci-slots. That directory also holds the tsdb
+    # runner, and a full set of quarantined slots makes try_local_lease fail
+    # before docker starts. Coverage keeps its own pool and a port base above
+    # the runner's 23000 range. Two slots match the runner's own default so a
+    # coverage host is not asked to start one database stack per CPU.
+    export FQ_CI_LOCAL_LOCK_DIR="${FQ_CI_LOCAL_LOCK_DIR:-/tmp/tdengine-coverage-fq-slots}"
+    export FQ_CI_LOCAL_PORT_BASE="${FQ_CI_LOCAL_PORT_BASE:-26000}"
+    export FQ_CI_LOCAL_MAX_SLOTS="${FQ_CI_LOCAL_MAX_SLOTS:-2}"
     export FQ_CI_PREPARE_TIMEOUT="${FQ_CI_PREPARE_TIMEOUT:-1200}"
     export FQ_CI_AIO_MAX_NR="${FQ_CI_AIO_MAX_NR:-4194304}"
     export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
@@ -415,6 +422,10 @@ if fq_ci_needs_databases "$cmd" && [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]]; the
         fq_case_timeout="${BASH_REMATCH[1]}"
     fi
     export FQ_CI_CASE_TIMEOUT="${FQ_CI_CASE_TIMEOUT:-$((fq_case_timeout + 900))}"
+    # Admission denial is not a test result. The tsdb scheduler retries outside
+    # the case; coverage calls the runner directly, so wait here until a slot
+    # is free. The case timeout still bounds only the docker process.
+    fq_lease_wait="${FQ_CI_LEASE_WAIT:-10800}"
     echo "[FQ CI] lease runner: ${FQ_RUNNER}"
     fq_runner=(python3 "${FQ_RUNNER}" --artifacts "${MOUNT_SOURCE}/fq-artifacts/attempt-${FQ_CI_ATTEMPT:-1}"
                --cert-dir "${fq_cert_dir}" --)
@@ -439,12 +450,29 @@ docker_cmd+=(
 )
 
 if [[ ${#fq_runner[@]} -gt 0 ]]; then
-    "${fq_runner[@]}" "${docker_cmd[@]}"
+    python3 "${FQ_RUNNER}" --reap-local || true
+    fq_lease_deadline=$((SECONDS + fq_lease_wait))
+    while true; do
+        fq_lease_log=$(mktemp)
+        "${fq_runner[@]}" "${docker_cmd[@]}" 2>&1 | tee "$fq_lease_log"
+        ret=${PIPESTATUS[0]}
+        if [[ $ret -eq 0 ]] || ! grep -q 'runner-local FQ reservation unavailable' "$fq_lease_log"; then
+            rm -f "$fq_lease_log"
+            break
+        fi
+        rm -f "$fq_lease_log"
+        if (( SECONDS >= fq_lease_deadline )); then
+            echo "[FQ CI] coverage waited ${fq_lease_wait}s and still has no local database lease" >&2
+            break
+        fi
+        echo "[FQ CI] local database lease denied; reaping coverage slots and retrying" >&2
+        python3 "${FQ_RUNNER}" --reap-local || true
+        sleep $(( (RANDOM % 5) + 5 ))
+    done
 else
     "${docker_cmd[@]}"
+    ret=$?
 fi
-
-ret=$?
 
 # 检查覆盖率信息是否生成成功
 echo "检查覆盖率信息生成结果..."
