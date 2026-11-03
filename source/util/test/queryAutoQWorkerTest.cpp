@@ -167,6 +167,20 @@ TEST_F(QueryAutoQWorkerTest, RealUsageBlockingWorkload) {
   ASSERT_GE(GET_RUNNING_N(pool.activeRunningN), 0);
 }
 
+TEST_F(QueryAutoQWorkerTest, SingleThreadBlockingRounds) {
+  pool.min = 1;
+  pool.max = 1;
+
+  ASSERT_TRUE(initPool(blockingProcessFp));
+  // Reuse the backup workers between small concurrent bursts, as correlated
+  // roots do when starting a new child or retrying after cancellation.
+  for (int32_t round = 0; round < 200; ++round) {
+    ASSERT_TRUE(submitMessages(3));
+    ASSERT_TRUE(waitForCount(processedCount, (round + 1) * 3, 3000))
+        << "round " << round;
+  }
+}
+
 static void mixedProcessFp(SQueueInfo *pQInfo, void *pMsg) {
   auto *self = (QueryAutoQWorkerTest *)pQInfo->ahandle;
   int32_t val = *(int32_t *)pMsg;
