@@ -408,11 +408,12 @@ if fq_ci_needs_databases "$cmd" && [[ "${FQ_CI_CONTAINER_ENV:-1}" == "1" ]]; the
     # Do not share /tmp/tsdb-fq-ci-slots. That directory also holds the tsdb
     # runner, and a full set of quarantined slots makes try_local_lease fail
     # before docker starts. Coverage keeps its own pool and a port base above
-    # the runner's 23000 range. Two slots match the runner's own default so a
-    # coverage host is not asked to start one database stack per CPU.
+    # the runner's 23000 range. Eight slots use the idle capacity on the
+    # coverage host (40 CPUs, ~200 GiB free). Memory admission in run-ci.py
+    # still refuses a stack that would not fit.
     export FQ_CI_LOCAL_LOCK_DIR="${FQ_CI_LOCAL_LOCK_DIR:-/tmp/tdengine-coverage-fq-slots}"
     export FQ_CI_LOCAL_PORT_BASE="${FQ_CI_LOCAL_PORT_BASE:-26000}"
-    export FQ_CI_LOCAL_MAX_SLOTS="${FQ_CI_LOCAL_MAX_SLOTS:-2}"
+    export FQ_CI_LOCAL_MAX_SLOTS="${FQ_CI_LOCAL_MAX_SLOTS:-8}"
     export FQ_CI_PREPARE_TIMEOUT="${FQ_CI_PREPARE_TIMEOUT:-1200}"
     export FQ_CI_AIO_MAX_NR="${FQ_CI_AIO_MAX_NR:-4194304}"
     export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
