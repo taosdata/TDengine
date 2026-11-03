@@ -13,7 +13,7 @@ accelerate==0.34.2
 # 0.31.x keeps hf-xet optional; newer releases require an arm64 wheel that
 # is incompatible with Ubuntu 18.04 / glibc 2.27.
 huggingface-hub==0.31.4
-fsspec==2023.10.0
+fsspec==2026.6.0
 numpy==1.26.4
 pandas==2.1.4
 scipy==1.11.4

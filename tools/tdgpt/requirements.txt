@@ -5,7 +5,7 @@ click==8.4.2
 contourpy==1.3.3 ; python_version >= "3.11"
 cycler==0.12.1
 fonttools==4.63.0
-fsspec==2024.2.0
+fsspec==2026.6.0
 itsdangerous==2.2.0
 Jinja2==3.1.6
 joblib==1.5.3
