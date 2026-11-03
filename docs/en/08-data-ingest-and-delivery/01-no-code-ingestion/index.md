@@ -330,6 +330,10 @@ The task list can display the following states:
 
 An empty health status means that no data has entered the task yet.
 
+## Resource Usage Control
+
+If a task drives taosX or taosX-Agent memory, CPU, or network usage too high, configure `[resource]` in `taosx.toml` or `agent.toml` to set bandwidth, memory, and CPU limits for the data plane. See [Resource Usage Control](../06-resource-control.md) for configuration, recommended settings, and limitations.
+
 ## Resume Tasks from Checkpoints
 
 Most taosX data sources can resume from the last persisted checkpoint:

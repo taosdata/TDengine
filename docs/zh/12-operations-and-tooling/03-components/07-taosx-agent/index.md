@@ -30,6 +30,7 @@ taosX-Agent 是 TDengine TSDB Enterprise 的一个组件，作为 taosX 的代�
 | 高可用       | 同时连接多个 taosX，某个 taosX 停机后任务改派到其他 taosX 继续采集。详见 [高可用](./03-high-availability.md)          |
 | 存储转发     | 网络中断时将采集数据持久化到本地磁盘，网络恢复后自动补发，确保数据零丢失，详见 [存储转发](./02-store-and-forward.md) |
 | 多实例部署   | 同一台机器可部署多个 Agent 实例，通过 instanceId 区分                                                             |
+| 资源限制     | 支持 `[resource]` 配置，限制 Agent 自身及连接器子进程的内存、CPU 和写入带宽。详见 [配置参考](./01-configuration.md#资源限制) |
 
 ## 获取 taosX-Agent
 

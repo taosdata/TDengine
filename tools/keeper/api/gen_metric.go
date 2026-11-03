@@ -623,6 +623,10 @@ func get_sub_table_name(stbName string, tagMap map[string]string) string {
 			if checkKeysExist(tagMap, "taosx_id", "action", "outcome") {
 				return fmt.Sprintf("rpc_%s_%s_%s", tagMap["taosx_id"], tagMap["action"], tagMap["outcome"])
 			}
+		case "taosx_resource":
+			if checkKeysExist(tagMap, "taosx_id") {
+				return fmt.Sprintf("resource_%s", tagMap["taosx_id"])
+			}
 		default:
 			if strings.HasPrefix(stbName, "taosx_task_") {
 				ds_name := stbName[len("taosx_task_"):]
