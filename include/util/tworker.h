@@ -148,6 +148,8 @@ typedef struct SQueryAutoQWorkerPool {
   int32_t       min;
   int32_t       maxInUse;
 
+  // Serialize execution-slot transfers with waiter registration.
+  TdThreadMutex schedulingLock;
   int64_t       activeRunningN; // 4 bytes for activeN, 4 bytes for runningN
   // activeN are running workers and workers waiting at reading new queue msgs
   // runningN are workers processing queue msgs, not include blocking/waitingAfterBlock/waitingBeforeProcessMsg workers.

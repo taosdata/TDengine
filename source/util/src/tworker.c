@@ -813,6 +813,7 @@ static bool tQueryAutoQWorkerTryDecActive(void *p, int32_t minActive) {
 }
 
 static void tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
+  (void)taosThreadMutexLock(&pPool->schedulingLock);
   while (1) {
     // Self-healing: correct negative running to prevent CAS livelock
     tQueryAutoQWorkerHealRunning(pPool, "waitingCheck");
@@ -821,6 +822,7 @@ static void tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
     int32_t running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
     while (running < pPool->num) {
       if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active, &running, running + 1)) {
+        (void)taosThreadMutexUnlock(&pPool->schedulingLock);
         return;
       }
       if (running < 0) break;  // re-enter outer loop for healing
@@ -833,6 +835,7 @@ static void tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
   // to wait for process
   (void)taosThreadMutexLock(&pPool->waitingBeforeProcessMsgLock);
   (void)atomic_fetch_add_32(&pPool->waitingBeforeProcessMsgN, 1);
+  (void)taosThreadMutexUnlock(&pPool->schedulingLock);
   if (!pPool->exit) (void)taosThreadCondWait(&pPool->waitingBeforeProcessMsgCond, &pPool->waitingBeforeProcessMsgLock);
   // recovered from waiting
   (void)taosThreadMutexUnlock(&pPool->waitingBeforeProcessMsgLock);
@@ -840,8 +843,15 @@ static void tQueryAutoQWorkerWaitingCheck(SQueryAutoQWorkerPool *pPool) {
 }
 
 bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQWorker *pWorker) {
-  if (tQueryAutoQWorkerTrySignalWaitingAfterBlock(pPool) || tQueryAutoQWorkerTrySignalWaitingBeforeProcess(pPool) ||
-      tQueryAutoQWorkerTryDecActive(pPool, pPool->num)) {
+  (void)taosThreadMutexLock(&pPool->schedulingLock);
+  bool recycle = tQueryAutoQWorkerTrySignalWaitingAfterBlock(pPool) ||
+                 tQueryAutoQWorkerTrySignalWaitingBeforeProcess(pPool) ||
+                 tQueryAutoQWorkerTryDecActive(pPool, pPool->num);
+  if (!recycle) {
+    (void)atomicSafeDecRunning(pPool, "recycleWorker");
+  }
+  (void)taosThreadMutexUnlock(&pPool->schedulingLock);
+  if (recycle) {
     (void)taosThreadMutexLock(&pPool->poolLock);
     if (pPool->exit) {
       (void)taosThreadMutexUnlock(&pPool->poolLock);
@@ -888,7 +898,6 @@ bool tQueryAutoQWorkerTryRecycleWorker(SQueryAutoQWorkerPool *pPool, SQueryAutoQ
 
     return true;
   } else {
-    atomicSafeDecRunning(pPool, "recycleWorker");
     return true;
   }
 }
@@ -899,6 +908,7 @@ int32_t tQueryAutoQWorkerInit(SQueryAutoQWorkerPool *pool) {
   pool->exit = false;
 
   (void)taosThreadMutexInit(&pool->poolLock, NULL);
+  (void)taosThreadMutexInit(&pool->schedulingLock, NULL);
   (void)taosThreadMutexInit(&pool->backupLock, NULL);
   (void)taosThreadMutexInit(&pool->waitingAfterBlockLock, NULL);
   (void)taosThreadMutexInit(&pool->waitingBeforeProcessMsgLock, NULL);
@@ -1024,6 +1034,7 @@ void tQueryAutoQWorkerCleanup(SQueryAutoQWorkerPool *pPool) {
   (void)taosThreadMutexUnlock(&pPool->poolLock);
 
   (void)taosThreadMutexDestroy(&pPool->poolLock);
+  (void)taosThreadMutexDestroy(&pPool->schedulingLock);
   (void)taosThreadMutexDestroy(&pPool->backupLock);
   (void)taosThreadMutexDestroy(&pPool->waitingAfterBlockLock);
   (void)taosThreadMutexDestroy(&pPool->waitingBeforeProcessMsgLock);
@@ -1100,7 +1111,9 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
   while (backup > 0) {
     int32_t backupNew = atomic_val_compare_exchange_32(&pool->backupNum, backup, backup - 1);
     if (backupNew == backup) {
+      (void)taosThreadMutexLock(&pool->backupLock);
       (void)taosThreadCondSignal(&pool->backupCond);
+      (void)taosThreadMutexUnlock(&pool->backupLock);
       return TSDB_CODE_SUCCESS;
     }
     backup = backupNew;
@@ -1139,21 +1152,28 @@ static int32_t tQueryAutoQWorkerAddWorker(SQueryAutoQWorkerPool *pool) {
 
 static int32_t tQueryAutoQWorkerBeforeBlocking(void *p) {
   SQueryAutoQWorkerPool *pPool = p;
+  (void)taosThreadMutexLock(&pPool->schedulingLock);
   if (tQueryAutoQWorkerTrySignalWaitingAfterBlock(p) || tQueryAutoQWorkerTrySignalWaitingBeforeProcess(p) ||
       tQueryAutoQWorkerTryDecActive(p, pPool->num)) {
   } else {
     int32_t code = tQueryAutoQWorkerAddWorker(pPool);
     if (code != TSDB_CODE_SUCCESS) {
+      (void)taosThreadMutexUnlock(&pPool->schedulingLock);
       return code;
     }
     atomicSafeDecRunning(pPool, "beforeBlocking");
   }
 
+  (void)taosThreadMutexUnlock(&pPool->schedulingLock);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tQueryAutoQWorkerRecoverFromBlocking(void *p) {
   SQueryAutoQWorkerPool *pPool = p;
+  // A slot must either be claimed here or handed to a registered waiter.
+  // Without the shared lock, a releaser can miss this waiter and decrement
+  // running just before it starts sleeping, leaving no worker to wake it.
+  (void)taosThreadMutexLock(&pPool->schedulingLock);
   int64_t                val64 = pPool->activeRunningN;
   int32_t                running = GET_RUNNING_N(val64), active = GET_ACTIVE_N(val64);
   while (running < pPool->num) {
@@ -1166,11 +1186,13 @@ static int32_t tQueryAutoQWorkerRecoverFromBlocking(void *p) {
       continue;
     }
     if (atomicCompareExchangeActiveAndRunning(&pPool->activeRunningN, &active, active + 1, &running, running + 1)) {
+      (void)taosThreadMutexUnlock(&pPool->schedulingLock);
       return TSDB_CODE_SUCCESS;
     }
   }
   (void)taosThreadMutexLock(&pPool->waitingAfterBlockLock);
   (void)atomic_fetch_add_32(&pPool->waitingAfterBlockN, 1);
+  (void)taosThreadMutexUnlock(&pPool->schedulingLock);
   if (!pPool->exit) (void)taosThreadCondWait(&pPool->waitingAfterBlockCond, &pPool->waitingAfterBlockLock);
   (void)taosThreadMutexUnlock(&pPool->waitingAfterBlockLock);
   if (pPool->exit) return TSDB_CODE_QRY_QWORKER_QUIT;
