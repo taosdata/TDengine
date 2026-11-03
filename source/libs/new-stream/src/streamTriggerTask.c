@@ -18088,10 +18088,11 @@ static int32_t stBuildNestedCacheScopeKey(const SStreamCacheScope *pScope, SNest
   for (int32_t i = 0; i < scopeCount; ++i) {
     const SScopeInstanceId *pSource = taosArrayGet(pScope->lineage.pScopes, i);
     if (pSource == NULL) return TSDB_CODE_INVALID_PARA;
-    pKey->scopes[i] = (SScopeInstanceId){.layerIndex = pSource->layerIndex,
-                                         .triggerType = pSource->triggerType,
-                                         .openingTs = pSource->openingTs,
-                                         .nativeDiscriminator = pSource->nativeDiscriminator};
+    // Keep the padding zeroed: the whole key is compared as bytes by the hash table.
+    pKey->scopes[i].layerIndex = pSource->layerIndex;
+    pKey->scopes[i].triggerType = pSource->triggerType;
+    pKey->scopes[i].openingTs = pSource->openingTs;
+    pKey->scopes[i].nativeDiscriminator = pSource->nativeDiscriminator;
   }
   return TSDB_CODE_SUCCESS;
 }
