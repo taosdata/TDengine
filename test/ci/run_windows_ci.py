@@ -187,22 +187,45 @@ def remove_stale_git_index_lock(source_dir):
 
 
 def sync_source(source_dir):
-    if run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir).returncode:
-        fail("git fetch origin failed")
-    remove_stale_git_index_lock(source_dir)
-    for command in (("git", "reset", "--hard"), ("git", "clean", "-ffd")):
-        if run(command, cwd=source_dir).returncode:
-            fail(f"{' '.join(command)} failed")
-    # Build the exact commit GitLab checked out, including MR head pipelines.
-    # Local runner checkouts do not expose GitLab's synthetic MR merge refs.
-    # Fetch by SHA also handles detached HEADs with no corresponding branch.
+    source_dir = source_dir.resolve()
+    runner_dir = Path(os.environ.get("CI_PROJECT_DIR", REPOSITORY_ROOT)).resolve()
+    if source_dir == runner_dir:
+        fail("Windows test workspace must be separate from the runner checkout")
     checkout_ref = os.environ["CI_COMMIT_SHA"]
-    if run(["git", "fetch", "origin", checkout_ref], cwd=source_dir).returncode:
-        fail("git fetch pipeline commit failed")
-    for command in (("git", "checkout", "--detach", "-f", checkout_ref), ("git", "reset", "--hard", checkout_ref), ("git", "clean", "-ffd")):
+    # A runner checkout is shallow and its boundaries change on every job.
+    # Never accumulate those histories in the persistent build workspace.
+    # Validate fresh metadata before replacing it; ignored dependency caches stay.
+    source_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="windows-ci-git-", dir=source_dir.parent) as temporary:
+        staging = Path(temporary)
+        remote = runner_dir.as_uri()
+        for command in (
+            ["git", "init", str(staging)],
+            ["git", "-c", "gc.auto=0", "fetch", "--depth=1", remote, checkout_ref],
+            ["git", "update-ref", "HEAD", "FETCH_HEAD"],
+            ["git", "fsck", "--connectivity-only"],
+        ):
+            if run(command, cwd=staging).returncode:
+                fail("unable to prepare pipeline commit metadata; existing workspace retained")
+        # Keep origin local: no job token is persisted in the shared workspace.
+        if run(["git", "remote", "add", "origin", str(runner_dir)], cwd=staging).returncode:
+            fail("unable to configure workspace origin")
+        metadata = source_dir / ".git"
+        if (metadata.is_symlink() or getattr(metadata, "is_junction", lambda: False)()
+                or (metadata.exists() and not metadata.is_dir())):
+            fail("refusing to replace linked workspace metadata")
+        if metadata.exists():
+            def writable_retry(function, path, error):
+                os.chmod(path, 0o700)
+                function(path)
+            shutil.rmtree(metadata, onerror=writable_retry)
+        shutil.move(str(staging / ".git"), str(metadata))
+    for command in (
+        ["git", "checkout", "--detach", "-f", checkout_ref],
+        ["git", "clean", "-ffd"],
+    ):
         if run(command, cwd=source_dir).returncode:
             fail(f"{' '.join(command)} failed")
-
     print("[windows-ci] source sync complete; Windows CI does not update taos-ui submodules")
 
 
@@ -1041,6 +1064,7 @@ def main():
     ctest_failures = []
     pytest_result = 1
     pytest_failures = []
+    tests_started = False
     try:
         if arguments.skip_build:
             if os.environ.get("CI_COMMIT_SHA") or os.environ.get("WIN_BOOTSTRAP_SOURCE") == "true":
@@ -1049,6 +1073,7 @@ def main():
             print("[windows-ci] build is skipped; reusing existing Windows build output")
         else:
             build(arguments.source_dir, arguments.debug_dir)
+        tests_started = True
         if arguments.skip_ctest:
             print("[windows-ci] ctest skipped for this explicit continuation run")
             ctest_result = 0
@@ -1071,7 +1096,10 @@ def main():
     finally:
         stop_processes()
         stop_build_processes()
-        collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+        if tests_started:
+            collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+        else:
+            print("[windows-ci] preparation failed; previous test reports are not collected")
     return result
 
 
