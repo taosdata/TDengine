@@ -42,7 +42,7 @@ static int32_t tsdbOpenFileImpl(STsdbFD *pFD) {
     }
 
     if (tsSsEnabled && pFD->lcn > 1 && !strncmp(path + strlen(path) - 5, ".data", 5)) {
-      char lc_path[TSDB_FILENAME_LEN];
+      char lc_path[TSDB_PATH_LEN];
       tstrncpy(lc_path, path, TSDB_FQDN_LEN);
 
       int32_t     vid = 0;
@@ -394,7 +394,7 @@ static int32_t tsdbReadFileBlock(STsdbFD *pFD, int64_t offset, int64_t size, uin
       int64_t toRead = TMIN(szChunk - offset % szChunk, size - n);
       nRead = toRead;
 
-      char path[TSDB_FILENAME_LEN];
+      char path[TSDB_PATH_LEN];
       snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 ".%d.data", vid, pFD->fid, vid, pFD->fid, pFD->cid,
                chunk);
 
@@ -599,7 +599,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   int32_t       lino = 0;
   SDataFReader *pReader = NULL;
   int32_t       szPage = pTsdb->pVnode->config.tsdbPageSize;
-  char          fname[TSDB_FILENAME_LEN];
+  char          fname[TSDB_PATH_LEN];
 
   // alloc
   pReader = (SDataFReader *)taosMemoryCalloc(1, sizeof(*pReader));
@@ -801,7 +801,7 @@ struct SDelFReader {
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb) {
   int32_t      code = 0;
   int32_t      lino = 0;
-  char         fname[TSDB_FILENAME_LEN];
+  char         fname[TSDB_PATH_LEN];
   SDelFReader *pDelFReader = NULL;
 
   // alloc

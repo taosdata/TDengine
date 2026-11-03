@@ -302,7 +302,7 @@ static int32_t tsdbSecureEraseDataFile(STsdb *pTsdb, const STFileSet *fset,
   if (taosArrayGetSize(pRecords) == 0) goto _exit;
 
   /* Open the .data file for read+write to overwrite blocks in-place */
-  char     dataFname[TSDB_FILENAME_LEN] = {0};
+  char     dataFname[TSDB_PATH_LEN] = {0};
   tsdbTFileName(pTsdb, &fset->farr[TSDB_FTYPE_DATA]->f[0], dataFname);
 
   STsdbFD *pFD  = NULL;
@@ -395,7 +395,7 @@ static int32_t tsdbSecureEraseOneSttFile(STsdb *pTsdb, const STFile *pFile,
   if (taosArrayGetSize(pBlks) == 0) goto _exit;
 
   /* Open STT file for read+write */
-  char    sttFname[TSDB_FILENAME_LEN] = {0};
+  char    sttFname[TSDB_PATH_LEN] = {0};
   tsdbTFileName(pTsdb, pFile, sttFname);
 
   STsdbFD *pFD  = NULL;

@@ -1313,7 +1313,10 @@ class TestTaosBackupBasic:
             tdLog.exit("taosBackup not found!")
 
         self.makeDir(tmpdir)
-        # Backup only 2022 data
+        # Backup only 2022 data. Double quotes are required instead of single
+        # quotes: the harness runs commands through os.system(), and Windows
+        # cmd.exe passes single quotes to the program verbatim, which makes the
+        # time-range value split into two argv tokens and argsInit() fail.
         etool.taosdump(
             "-D db -o %s -T 1 -S \"2022-01-01 00:00:00.000\" -E \"2022-12-31 23:59:59.999\""
             % tmpdir
@@ -1719,6 +1722,8 @@ class TestTaosBackupBasic:
         assert fileContent2.count("taosDump version") == 1, "backup.log was appended instead of truncated on rerun"
 
         # --- log-open failure must only warn, never fail the backup ---
+        # A directory in place of backup.log makes the tool's log open fail on
+        # every platform ("mkdir -p" is not available under the Windows shell).
         bad_dir = os.path.join(tempfile.mkdtemp(), "taosbackup_log_bad")
         os.makedirs(os.path.join(bad_dir, "backup.log"))
         result = subprocess.run(

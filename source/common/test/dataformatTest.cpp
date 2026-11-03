@@ -1833,6 +1833,7 @@ static void checkRowKeyRoundTrip(bool sparse, bool varKey, int32_t nPks, int32_t
     } else {
       v.val = 1000 + (int64_t)i;
     }
+
     // COL_VAL_VALUE / COL_VAL_NONE are C compound literals; MSVC rejects them
     // in C++ (C4576), so the same values are assembled field by field here.
     SColVal cv;

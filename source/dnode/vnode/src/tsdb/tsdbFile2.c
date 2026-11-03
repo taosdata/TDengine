@@ -304,7 +304,7 @@ static void tsdbTFileObjRemoveLC(STFileObj *fobj) {
 
 #ifdef USE_SHARED_STORAGE
   // remove local last chunk file
-  char lc_path[TSDB_FILENAME_LEN];
+  char lc_path[TSDB_PATH_LEN];
   tstrncpy(lc_path, fobj->fname, TSDB_FQDN_LEN);
 
   char *dot = strrchr(lc_path, '.');
@@ -367,7 +367,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
       // NOTE: the case 'if (f->mid != 0)' is not handled at present, this may be
       //       needed in the future.
       snprintf(fname,                                              //
-               TSDB_FILENAME_LEN,                                  //
+               TSDB_PATH_LEN,                                  //
                "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%s",  //
                tfsGetDiskPath(pTfs, f->did),                       //
                TD_DIRSEP,                                          //
@@ -383,7 +383,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
     } else {
       if (f->mid == 0) {
         snprintf(fname,                              //
-                TSDB_FILENAME_LEN,                  //
+                TSDB_PATH_LEN,                  //
                 "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
                 tfsGetDiskPath(pTfs, f->did),       //
                 TD_DIRSEP,                          //
@@ -395,7 +395,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
                 g_tfile_info[f->type].suffix);
       } else {
         snprintf(fname,                          //
-                TSDB_FILENAME_LEN,                  //
+                TSDB_PATH_LEN,                  //
                 "%s%s%s%sv%df%dver%" PRId64 ".m%d.%s",  //
                 tfsGetDiskPath(pTfs, f->did),       //
                 TD_DIRSEP,                          //
@@ -411,7 +411,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   } else {
      if (f->mid == 0) {
       snprintf(fname,                          //
-              TSDB_FILENAME_LEN,              //
+              TSDB_PATH_LEN,              //
               "%s%sv%df%dver%" PRId64 ".%s",  //
               pTsdb->path,                    //
               TD_DIRSEP,                      //
@@ -421,7 +421,7 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
               g_tfile_info[f->type].suffix);
     } else {
       snprintf(fname,                          //
-              TSDB_FILENAME_LEN,              //
+              TSDB_PATH_LEN,              //
               "%s%sv%df%dver%" PRId64 ".m%d.%s",  //
               pTsdb->path,                    //
               TD_DIRSEP,                      //
@@ -444,7 +444,7 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   if (f->mid == 0) {
     if (pTfs) {
       snprintf(fname,                                 //
-              TSDB_FILENAME_LEN,                     //
+              TSDB_PATH_LEN,                     //
               "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
               tfsGetDiskPath(pTfs, f->did),          //
               TD_DIRSEP,                             //
@@ -457,7 +457,7 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
               g_tfile_info[f->type].suffix);
     } else {
       snprintf(fname,                             //
-              TSDB_FILENAME_LEN,                 //
+              TSDB_PATH_LEN,                 //
               "%s%sv%df%dver%" PRId64 ".%d.%s",  //
               pTsdb->path,                       //
               TD_DIRSEP,                         //
@@ -470,7 +470,7 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   } else {
     if (pTfs) {
       snprintf(fname,                                 //
-              TSDB_FILENAME_LEN,                     //
+              TSDB_PATH_LEN,                     //
               "%s%s%s%sv%df%dver%" PRId64 ".m%d.%d.%s",  //
               tfsGetDiskPath(pTfs, f->did),          //
               TD_DIRSEP,                             //
@@ -484,7 +484,7 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
               g_tfile_info[f->type].suffix);
     } else {
       snprintf(fname,                             //
-              TSDB_FILENAME_LEN,                 //
+              TSDB_PATH_LEN,                 //
               "%s%sv%df%dver%" PRId64 ".m%d.%d.%s",  //
               pTsdb->path,                       //
               TD_DIRSEP,                         //

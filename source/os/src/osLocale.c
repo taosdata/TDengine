@@ -32,6 +32,10 @@
 #pragma comment(lib, "Mswsock.lib ")
 #endif
 
+#include <locale.h>
+#if defined(_MSC_VER) && _MSC_VER >= 1924
+#include <mbctype.h>  // _setmbcp / _MB_CP_UTF8 (VS2019 16.4+ only)
+#endif
 #include <objbase.h>
 #pragma warning(push)
 #pragma warning(disable : 4091)
@@ -109,7 +113,24 @@ int32_t taosSetSystemLocale(const char *inLocale) {
 void taosGetSystemLocale(char *outLocale, char *outCharset) {
   if (outLocale == NULL || outCharset == NULL) return;
 #ifdef WINDOWS
-  char *locale = setlocale(LC_CTYPE, "en_US.UTF-8");
+  // The server and the client both work in UTF-8, but MSVC starts in the "C"
+  // locale where MB_CUR_MAX is 1. The regex engine used by NCHAR MATCH and
+  // regexp_*() relies on the CRT multibyte helpers, so '.' would consume a
+  // single byte and patterns such as '^....$' never match a four-character
+  // NCHAR value. Switch the CRT to the UTF-8 code page and, when the OS
+  // supports it, to the ".UTF-8" locale. MSVC does not understand POSIX
+  // spellings such as "en_US.UTF-8". _MB_CP_UTF8 only exists in VS2019 16.4+;
+  // older toolchains (VS2017) have neither the macro nor UTF-8 CRT support, so
+  // skip the switch and rely on the locale fallback below.
+#if defined(_MSC_VER) && _MSC_VER >= 1924
+  if (_setmbcp(_MB_CP_UTF8) != 0) {
+    uWarn("failed to set the multibyte code page to UTF-8");
+  }
+#endif
+  char *locale = setlocale(LC_CTYPE, ".UTF-8");
+  if (locale == NULL) {
+    locale = setlocale(LC_CTYPE, "en-US");
+  }
   if (locale != NULL) {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);
   }

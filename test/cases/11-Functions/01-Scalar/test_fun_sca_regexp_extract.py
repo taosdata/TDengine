@@ -15,6 +15,9 @@
 
 from new_test_framework.utils import tdLog, tdSql
 import datetime
+import platform
+
+IS_WINDOWS = platform.system().lower() == 'windows'
 
 
 class TestFunRegexpExtract:
@@ -315,10 +318,96 @@ class TestFunRegexpExtract:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
+    def _check_engine_consistency(self):
+        """REGEXP engine consistency across platforms.
+
+        The matching backend differs per platform: Linux matches with the POSIX
+        ERE engine from the C library, Windows with PCRE2 (the Windows CRT engine
+        counts bytes, so '.' could never match a multi byte character).  Pattern
+        validation, in contrast, calls regcomp() on both platforms.  The cases
+        below pin what each platform does today for the constructs in that
+        overlap, so a change to either backend - or to the validation path -
+        fails here instead of surfacing as a platform specific bug report.
+
+        Nothing here is meant to make the two platforms agree; the two
+        divergent cases document the current difference and are expected to be
+        updated if the engines are ever unified.
+        """
+        # -----------------------------------------------------------------
+        # Cases the two engines already agree on: same expectation everywhere.
+        # -----------------------------------------------------------------
+        # RXE-ENG-001: two capture groups
+        tdSql.query("SELECT REGEXP_EXTRACT('ab', '(a)(b)', 1), REGEXP_EXTRACT('ab', '(a)(b)', 2)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'a')
+        tdSql.checkData(0, 1, 'b')
+
+        # RXE-ENG-002: greedy trailing group under anchors
+        tdSql.query("SELECT REGEXP_EXTRACT('abc', '^(a)(.*)$', 1), REGEXP_EXTRACT('abc', '^(a)(.*)$', 2)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'a')
+        tdSql.checkData(0, 1, 'bc')
+
+        # RXE-ENG-003: '.' counts characters and anchors hold
+        tdSql.query("SELECT REGEXP_EXTRACT('abc', '^a.c$', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'abc')
+
+        # RXE-ENG-004: alternation whose branches cannot both match
+        tdSql.query("SELECT REGEXP_EXTRACT('dog', 'cat|dog', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'dog')
+
+        # RXE-ENG-005: POSIX character class inside a bracket expression
+        tdSql.query("SELECT REGEXP_EXTRACT('x123y', '[[:digit:]]+', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '123')
+
+        # RXE-ENG-006: optional quantifier
+        tdSql.query("SELECT REGEXP_EXTRACT('color', 'colou?r', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'color')
+
+        # RXE-ENG-007: repetition count that cannot match -> NULL
+        tdSql.query("SELECT REGEXP_EXTRACT('1234', '^[0-9]{2,3}$', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        # RXE-ENG-008: which alternative participated in the match
+        tdSql.query("SELECT REGEXP_EXTRACT('dog', '(cat)|(dog)', 2)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'dog')
+
+        # -----------------------------------------------------------------
+        # Known divergence: POSIX takes the leftmost-longest match, PCRE2 the
+        # leftmost-first one.  'a|ab' against 'ab' therefore yields 'ab' on
+        # Linux and 'a' on Windows.
+        # -----------------------------------------------------------------
+        if IS_WINDOWS:
+            expected_alternation = 'a'
+        else:
+            expected_alternation = 'ab'
+        tdSql.query("SELECT REGEXP_EXTRACT('ab', 'a|ab', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, expected_alternation)
+
+        # -----------------------------------------------------------------
+        # Known divergence: an escape such as '\\d' is a literal 'd' for POSIX
+        # ERE (no match against '5') but a digit class for PCRE2.
+        # -----------------------------------------------------------------
+        if IS_WINDOWS:
+            expected_digit_escape = '5'
+        else:
+            expected_digit_escape = None
+        tdSql.query("SELECT REGEXP_EXTRACT('5', '\\d', 0)")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, expected_digit_escape)
+
     def all_test(self, dbname="db"):
         self._check_basic(dbname)
         self._check_error(dbname)
         self._check_doc_examples()
+        self._check_engine_consistency()
 
     def test_fun_sca_regexp_extract(self):
         """Fun: regexp_extract()

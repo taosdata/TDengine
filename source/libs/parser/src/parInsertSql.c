@@ -4064,8 +4064,14 @@ static int32_t parseDataFromFileImpl(SInsertParseContext* pCxt, SVnodeModifyOpSt
       return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is exclusive", NULL);
     }
   } else {
-    // On error, also clean up saved CSV parser
+    // On error, also clean up saved CSV parser and release the file handle.
+    // Only closing the parser leaked the handle, so a rejected file (for
+    // example a CSV that starts with a UTF-16 BOM) stayed open: on Windows that
+    // keeps the caller from deleting or rewriting the file until taosd exits.
     destroySavedCsvParser(pStmt);
+    if (TSDB_CODE_SUCCESS != taosCloseFile(&pStmt->fp)) {
+      parserWarn("QID:0x%" PRIx64 ", failed to close file.", pCxt->pComCxt->requestId);
+    }
     if (code == TSDB_CODE_TSC_SQL_SYNTAX_ERROR) {
       return code;
     }

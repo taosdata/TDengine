@@ -1084,14 +1084,38 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   //     incoming is treated as "not a forgery signal" rather than a hard failure. This keeps the check
   //     effective against forged status carrying a WRONG non-empty machineId while staying compatible
   //     with normal dnode startup heartbeats.
+  //   * Windows only: the grant library changed which hardware source it prefers (variant 1 in
+  //     3.4.1.0, variant 3 now), so a legitimate in-place upgrade reports a different code for the
+  //     same machine; a forward-only variant change is accepted and rebound; see below.
   // On platforms where no machineId is available the stored value stays empty and this gate is a no-op.
   if (pDnode != NULL && pDnode->machineId[0] != '\0' && statusReq.machineId[0] != '\0') {
     if (memcmp(pDnode->machineId, statusReq.machineId, TSDB_MACHINE_ID_LEN) != 0) {
-      mError("dnode:%d, %s, status machineId mismatch (possible forged heartbeat), "
-             "stored:%s incoming:%s",
-             statusReq.dnodeId, statusReq.dnodeEp, pDnode->machineId, statusReq.machineId);
-      code = TSDB_CODE_MND_AUTH_FAILURE;
-      TAOS_CHECK_GOTO(code, &lino, _OVER);
+#ifdef WINDOWS
+      /*
+       * Windows only: the grant library switched the hardware source it prefers
+       * (3.4.1.0 reports variant 1, the current build variant 3), so the code an
+       * upgraded dnode reports differs from the stored one although the machine
+       * did not change.  Accept only a forward move between known variants and
+       * let the rebind below persist the new value; every other difference is
+       * still treated as a forged heartbeat.  Other platforms keep the strict
+       * comparison below because their machine code is unchanged across
+       * upgrades.
+       */
+      if (taosMachineCodeVariantMovedForward(pDnode->machineId, statusReq.machineId)) {
+        int32_t storedVariant   = taosMachineCodeSourceVariant(pDnode->machineId);
+        int32_t incomingVariant = taosMachineCodeSourceVariant(statusReq.machineId);
+        mWarn("dnode:%d, %s, machine code source variant changed from %d to %d, rebinding, stored:%s incoming:%s",
+              statusReq.dnodeId, statusReq.dnodeEp, storedVariant, incomingVariant, pDnode->machineId,
+              statusReq.machineId);
+      } else
+#endif
+      {
+        mError("dnode:%d, %s, status machineId mismatch (possible forged heartbeat), "
+               "stored:%s incoming:%s",
+               statusReq.dnodeId, statusReq.dnodeEp, pDnode->machineId, statusReq.machineId);
+        code = TSDB_CODE_MND_AUTH_FAILURE;
+        TAOS_CHECK_GOTO(code, &lino, _OVER);
+      }
     }
   }
 

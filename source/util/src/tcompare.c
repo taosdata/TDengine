@@ -29,6 +29,9 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "types.h"
+#if defined(WINDOWS) && defined(USE_PCRE2)
+#include "tpcre2.h"
+#endif
 
 int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -1427,22 +1430,74 @@ void DestroyRegexCache() {
   sRegexCache.regexCacheTmr = NULL;
 }
 
-int32_t checkRegexPattern(const char *pPattern) {
+// Validate a pattern with the engine that will actually execute it.
+//
+// On Windows the match runs through PCRE2 (see winRegexExec), so validation has
+// to use PCRE2 too: compiling with regcomp() would reject constructs PCRE2
+// accepts - '(?:...)' , '\b', lazy quantifiers - and accept constructs PCRE2
+// reads differently, leaving "the pattern compiled" and "the pattern works"
+// unrelated statements.  Every other platform keeps the POSIX engine for both
+// steps, so its behaviour is unchanged.
+int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen) {
+  if (errBuf != NULL && errLen > 0) {
+    errBuf[0] = '\0';
+  }
+
   if (pPattern == NULL) {
+    if (errBuf != NULL && errLen > 0) {
+      (void)snprintf(errBuf, errLen, "pattern is NULL");
+    }
     return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
   }
 
+#if defined(WINDOWS) && defined(USE_PCRE2)
+  // Mirror winRegexExec(): the text path compiles with PCRE2_UTF and falls back
+  // to a plain byte compile for binary payloads, so accept a pattern if either
+  // of the two compiles.
+  int32_t    errorCode = 0;
+  PCRE2_SIZE errorOffset = 0;
+  pcre2_code *code =
+      pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, PCRE2_UTF, &errorCode, &errorOffset, NULL);
+  if (code != NULL) {
+    pcre2_code_free(code);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t    rawErrorCode = 0;
+  PCRE2_SIZE rawErrorOffset = 0;
+  pcre2_code *rawCode =
+      pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, 0, &rawErrorCode, &rawErrorOffset, NULL);
+  if (rawCode != NULL) {
+    pcre2_code_free(rawCode);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  PCRE2_UCHAR msg[256] = {0};
+  (void)pcre2_get_error_message(errorCode, msg, sizeof(msg));
+  if (errBuf != NULL && errLen > 0) {
+    (void)snprintf(errBuf, errLen, "%s at offset %d", (const char *)msg, (int32_t)errorOffset);
+  }
+  uError("Failed to compile regex pattern %s. reason %s", pPattern, (const char *)msg);
+  return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+#else
   regex_t regex;
-  int32_t cflags = REG_EXTENDED;
-  int32_t ret = regcomp(&regex, pPattern, cflags);
+  int32_t ret = regcomp(&regex, pPattern, REG_EXTENDED);
   if (ret != 0) {
     char msgbuf[256] = {0};
     (void)regerror(ret, &regex, msgbuf, tListLen(msgbuf));
+    if (errBuf != NULL && errLen > 0) {
+      (void)snprintf(errBuf, errLen, "%s", msgbuf);
+    }
     uError("Failed to compile regex pattern %s. reason %s", pPattern, msgbuf);
     return TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
   }
   regfree(&regex);
   return TSDB_CODE_SUCCESS;
+#endif
+}
+
+int32_t checkRegexPattern(const char *pPattern) {
+  return checkRegexPatternEx(pPattern, NULL, 0);
 }
 
 int32_t getRegComp(const char *pPattern, HashRegexPtr **regexRet) {
@@ -1574,12 +1629,216 @@ int32_t threadGetRegComp(regex_t **regex, const char *pPattern) {
 }
 #endif
 
-static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
-  int32_t ret = 0;
-  char    msgbuf[256] = {0};
+#if defined(WINDOWS) && defined(USE_PCRE2)
+/*
+ * The CRT regex engine available on Windows is byte oriented: '.' consumes a
+ * single byte, so a pattern such as '^....$' can never match a four character
+ * string that is stored as twelve UTF-8 bytes. The POSIX engines used on the
+ * other platforms count characters instead. Match with PCRE2 in UTF mode here
+ * so that '.' and the quantifiers count code points, while keeping the POSIX
+ * path untouched on the platforms that already behave correctly.
+ */
+typedef struct SWinRegexSlot {
+  char       *pattern;
+  pcre2_code *utfCode; /* compiled with PCRE2_UTF, used for text payloads */
+  pcre2_code *rawCode; /* compiled without PCRE2_UTF, fallback for binary payloads */
+} SWinRegexSlot;
 
+static threadlocal SWinRegexSlot gWinRegexSlot = {0};
+
+static void winRegexSlotReset(void) {
+  if (gWinRegexSlot.utfCode != NULL) {
+    pcre2_code_free(gWinRegexSlot.utfCode);
+  }
+  if (gWinRegexSlot.rawCode != NULL) {
+    pcre2_code_free(gWinRegexSlot.rawCode);
+  }
+  taosMemoryFree(gWinRegexSlot.pattern);
+  gWinRegexSlot.pattern = NULL;
+  gWinRegexSlot.utfCode = NULL;
+  gWinRegexSlot.rawCode = NULL;
+}
+
+static pcre2_code *winRegexCompile(const char *pPattern, bool utf) {
+  if (gWinRegexSlot.pattern == NULL || strcmp(gWinRegexSlot.pattern, pPattern) != 0) {
+    winRegexSlotReset();
+    gWinRegexSlot.pattern = taosStrdup(pPattern);
+    if (gWinRegexSlot.pattern == NULL) {
+      return NULL;
+    }
+  }
+
+  pcre2_code **slot = utf ? &gWinRegexSlot.utfCode : &gWinRegexSlot.rawCode;
+  if (*slot != NULL) {
+    return *slot;
+  }
+
+  int32_t    errorCode = 0;
+  PCRE2_SIZE errorOffset = 0;
+  *slot = pcre2_compile((PCRE2_SPTR)pPattern, PCRE2_ZERO_TERMINATED, utf ? PCRE2_UTF : 0, &errorCode, &errorOffset,
+                        NULL);
+  if (*slot == NULL) {
+    PCRE2_UCHAR msg[256] = {0};
+    (void)pcre2_get_error_message(errorCode, msg, sizeof(msg));
+    uDebug("failed to compile regex pattern %s, utf:%d, reason:%s", pPattern, utf, (char *)msg);
+  }
+  return *slot;
+}
+
+/* returns 0 on a match and 1 otherwise, mirroring doExecRegexMatch() */
+static int32_t winRegexExec(const char *pString, const char *pPattern, bool tryUtf) {
+  if (tryUtf) {
+    pcre2_code *code = winRegexCompile(pPattern, true);
+    if (code != NULL) {
+      pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(code, NULL);
+      if (matchData != NULL) {
+        int32_t rc = pcre2_match(code, (PCRE2_SPTR)pString, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
+        pcre2_match_data_free(matchData);
+        if (rc >= 0) {
+          return 0;
+        }
+        if (rc == PCRE2_ERROR_NOMATCH) {
+          return 1;
+        }
+        /* Invalid UTF-8 subject or unsupported construct: retry as raw bytes. */
+        uDebug("utf-8 regex match failed for pattern %s, rc:%d", pPattern, rc);
+      }
+    }
+  }
+
+  pcre2_code *code = winRegexCompile(pPattern, false);
+  if (code == NULL) {
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    return 1;
+  }
+
+  pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(code, NULL);
+  if (matchData == NULL) {
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    return 1;
+  }
+
+  int32_t rc = pcre2_match(code, (PCRE2_SPTR)pString, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
+  pcre2_match_data_free(matchData);
+  if (rc >= 0) {
+    return 0;
+  }
+
+  if (rc != PCRE2_ERROR_NOMATCH) {
+    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+    uDebug("failed to match %s with pattern %s, rc:%d", pString, pPattern, rc);
+  }
+  return 1;
+}
+
+/* Same as winRegexExec() but reports the offsets of capture group groupIdx. */
+static int32_t winRegexExecGroups(const char *pString, const char *pPattern, int32_t groupIdx, int32_t *pStart,
+                                  int32_t *pLen) {
+  *pStart = -1;
+  *pLen = 0;
+
+  for (int32_t attempt = 0; attempt < 2; ++attempt) {
+    bool        utf = (attempt == 0);
+    pcre2_code *code = winRegexCompile(pPattern, utf);
+    if (code == NULL) {
+      continue;
+    }
+
+    pcre2_match_data *matchData = pcre2_match_data_create_from_pattern(code, NULL);
+    if (matchData == NULL) {
+      terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+      return terrno;
+    }
+
+    int32_t rc = pcre2_match(code, (PCRE2_SPTR)pString, PCRE2_ZERO_TERMINATED, 0, 0, matchData, NULL);
+    if (rc == PCRE2_ERROR_NOMATCH) {
+      pcre2_match_data_free(matchData);
+      return 1;
+    }
+    if (rc < 0) {
+      pcre2_match_data_free(matchData);
+      uDebug("failed to match %s with pattern %s, rc:%d", pString, pPattern, rc);
+      continue;  /* retry in raw byte mode */
+    }
+
+    uint32_t         count = pcre2_get_ovector_count(matchData);
+    PCRE2_SIZE      *ov = pcre2_get_ovector_pointer(matchData);
+    if (groupIdx >= 0 && (uint32_t)groupIdx < count && ov[2 * groupIdx] != PCRE2_UNSET) {
+      *pStart = (int32_t)ov[2 * groupIdx];
+      *pLen = (int32_t)(ov[2 * groupIdx + 1] - ov[2 * groupIdx]);
+    }
+    pcre2_match_data_free(matchData);
+    return 0;
+  }
+
+  terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+  return terrno;
+}
+
+/*
+ * UCS-4 to UTF-8. Converting to UTF-8 instead of the configured server charset
+ * keeps the code point semantics of the regex independent from the client and
+ * server locale, which is what PCRE2 in UTF mode expects.
+ */
+static int32_t winUcs4ToUtf8(const void *pUcs4, size_t ucs4Len, char **ppOut) {
+  *ppOut = NULL;
+  if (ucs4Len == 0) {
+    *ppOut = taosMemoryMalloc(1);
+    if (*ppOut == NULL) {
+      return -1;
+    }
+    (*ppOut)[0] = 0;
+    return 0;
+  }
+
+  size_t       count = ucs4Len / sizeof(TdUcs4);
+  const char  *src = (const char *)pUcs4;
+  char        *out = taosMemoryMalloc(count * 4 + 1);
+  if (out == NULL) {
+    return -1;
+  }
+
+  size_t pos = 0;
+  for (size_t i = 0; i < count; ++i) {
+    uint32_t cp = 0;
+    memcpy(&cp, src + i * sizeof(TdUcs4), sizeof(TdUcs4));
+    if (cp <= 0x7F) {
+      out[pos++] = (char)cp;
+    } else if (cp <= 0x7FF) {
+      out[pos++] = (char)(0xC0 | (cp >> 6));
+      out[pos++] = (char)(0x80 | (cp & 0x3F));
+    } else if (cp <= 0xFFFF) {
+      out[pos++] = (char)(0xE0 | (cp >> 12));
+      out[pos++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+      out[pos++] = (char)(0x80 | (cp & 0x3F));
+    } else {
+      out[pos++] = (char)(0xF0 | (cp >> 18));
+      out[pos++] = (char)(0x80 | ((cp >> 12) & 0x3F));
+      out[pos++] = (char)(0x80 | ((cp >> 6) & 0x3F));
+      out[pos++] = (char)(0x80 | (cp & 0x3F));
+    }
+  }
+  out[pos] = 0;
+  *ppOut = out;
+  return (int32_t)pos;
+}
+#endif
+
+static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
+  // An empty pattern is not a usable regular expression: treat it as "no
+  // match" so that every regex engine behaves the same. POSIX platforms reach
+  // the same result through the regex cache, which rejects zero-length keys,
+  // while engines that accept "" (e.g. the MSVC build) would otherwise match
+  // every string.
+  if (pPattern == NULL || pPattern[0] == '\0') {
+    return 1;
+  }
+
+#if defined(WINDOWS) && defined(USE_PCRE2)
+  return winRegexExec(pString, pPattern, true);
+#else
   regex_t *regex = NULL;
-  ret = threadGetRegComp(&regex, pPattern);
+  int32_t  ret = threadGetRegComp(&regex, pPattern);
   if (ret != 0) {
     return ret;
   }
@@ -1587,12 +1846,73 @@ static int32_t doExecRegexMatch(const char *pString, const char *pPattern) {
   regmatch_t pmatch[1];
   ret = regexec(regex, pString, 1, pmatch, 0);
   if (ret != 0 && ret != REG_NOMATCH) {
+    char msgbuf[256] = {0};
     terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
     (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
     uDebug("Failed to match %s with pattern %s, reason %s", pString, pPattern, msgbuf)
   }
 
   return (ret == 0) ? 0 : 1;
+#endif
+}
+
+int32_t taosExecRegexMatch(const char *pString, const char *pPattern) {
+  return doExecRegexMatch(pString, pPattern);
+}
+
+int32_t taosExecRegexMatchGroups(const char *pString, const char *pPattern, int32_t groupIdx, int32_t *pStart,
+                                 int32_t *pLen) {
+  *pStart = -1;
+  *pLen = 0;
+
+  if (pString == NULL || pPattern == NULL || pPattern[0] == '\0') {
+    return 1;
+  }
+
+#if defined(WINDOWS) && defined(USE_PCRE2)
+  return winRegexExecGroups(pString, pPattern, groupIdx, pStart, pLen);
+#else
+  if (groupIdx < 0) {
+    return 1;
+  }
+
+  regex_t *regex = NULL;
+  int32_t  ret = threadGetRegComp(&regex, pPattern);
+  if (ret != 0) {
+    return ret;
+  }
+
+  int32_t nmatch = groupIdx + 1;
+  // Called once per row by regexp_extract: keep the common small group counts off
+  // the heap so a large result set does not pay a malloc/free per row.
+  regmatch_t smallBuf[16];
+  regmatch_t *pmatch = smallBuf;
+  if (nmatch > (int32_t)(sizeof(smallBuf) / sizeof(smallBuf[0]))) {
+    pmatch = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
+    if (pmatch == NULL) {
+      return terrno;
+    }
+  }
+  (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
+
+  ret = regexec(regex, pString, nmatch, pmatch, 0);
+  if (ret == 0) {
+    if (pmatch[groupIdx].rm_so != -1) {
+      *pStart = (int32_t)pmatch[groupIdx].rm_so;
+      *pLen = (int32_t)(pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so);
+    }
+    if (pmatch != smallBuf) taosMemoryFree(pmatch);
+    return 0;
+  }
+
+  if (pmatch != smallBuf) taosMemoryFree(pmatch);
+  if (ret == REG_NOMATCH) {
+    return 1;
+  }
+
+  terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+  return terrno;
+#endif
 }
 
 static int32_t compareRegexMatch(const char *pLeft, size_t leftLen, const char *pRight, size_t rightLen) {
@@ -1634,6 +1954,28 @@ int32_t compareBlobRegexNMatch(const void *pLeft, const void *pRight) {
 }
 
 int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
+#if defined(WINDOWS) && defined(USE_PCRE2)
+  /* Feed PCRE2 valid UTF-8 built straight from the UCS-4 payload instead of the
+   * server charset, so the match does not depend on the locale in use. */
+  char *pattern = NULL;
+  char *str = NULL;
+
+  if (winUcs4ToUtf8(varDataVal(pPattern), varDataLen(pPattern), &pattern) < 0) {
+    return 1;  // terrno has been set
+  }
+
+  if (winUcs4ToUtf8(varDataVal(pString), varDataLen(pString), &str) < 0) {
+    taosMemoryFree(pattern);
+    return 1;  // terrno has been set
+  }
+
+  int32_t ret = doExecRegexMatch(str, pattern);
+
+  taosMemoryFree(str);
+  taosMemoryFree(pattern);
+
+  return (ret == 0) ? 0 : 1;
+#else
   size_t len = varDataLen(pPattern);
   char  *pattern = taosMemoryMalloc(len + 1);
   if (NULL == pattern) {
@@ -1677,6 +2019,7 @@ int32_t comparewcsRegexMatch(const void *pString, const void *pPattern) {
   taosMemoryFree(pattern);
 
   return (ret == 0) ? 0 : 1;
+#endif
 }
 
 int32_t comparewcsRegexNMatch(const void *pLeft, const void *pRight) {

@@ -63,8 +63,8 @@ static void doScan(SMeta *pMeta) {
   int32_t code;
 
   // open file to write
-  char path[TSDB_FILENAME_LEN] = {0};
-  snprintf(path, TSDB_FILENAME_LEN - 1, "%s%s", pMeta->path, TD_DIRSEP "scan.txt");
+  char path[TSDB_PATH_LEN] = {0};
+  snprintf(path, TSDB_PATH_LEN - 1, "%s%s", pMeta->path, TD_DIRSEP "scan.txt");
   TdFilePtr fp = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (fp == NULL) {
     metaError("failed to open file:%s, reason:%s", path, tstrerror(terrno));
@@ -159,13 +159,13 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   int32_t lino = 0;
   int32_t offset;
   int32_t pathLen = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
-  char    indexFullPath[128] = {0};
+  char    path[TSDB_PATH_LEN] = {0};
+  char    indexFullPath[TSDB_PATH_LEN] = {0};
 
   // create handle
-  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_PATH_LEN);
   offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+  snprintf(path + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 
   if (strncmp(metaDir, VNODE_META_TMP_DIR, strlen(VNODE_META_TMP_DIR)) == 0) {
     taosRemoveDir(path);
@@ -292,9 +292,9 @@ _exit:
 }
 
 void vnodeGetMetaPath(SVnode *pVnode, const char *metaDir, char *fname) {
-  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, fname, TSDB_PATH_LEN);
   int32_t offset = strlen(fname);
-  snprintf(fname + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
+  snprintf(fname + offset, TSDB_PATH_LEN - offset - 1, "%s%s", TD_DIRSEP, metaDir);
 }
 
 static bool metaShouldForceRepair(SVnode *pVnode, EDmRepairStrategy *pStrategy) {
@@ -336,8 +336,8 @@ static int32_t metaCopyDirRecursive(const char *srcDir, const char *dstDir) {
       continue;
     }
 
-    char srcPath[TSDB_FILENAME_LEN] = {0};
-    char dstPath[TSDB_FILENAME_LEN] = {0};
+    char srcPath[TSDB_PATH_LEN] = {0};
+    char dstPath[TSDB_PATH_LEN] = {0};
     snprintf(srcPath, sizeof(srcPath), "%s%s%s", srcDir, TD_DIRSEP, name);
     snprintf(dstPath, sizeof(dstPath), "%s%s%s", dstDir, TD_DIRSEP, name);
 
@@ -379,8 +379,8 @@ static int32_t metaBuildRepairBackupDir(SVnode *pVnode, char *buf, int32_t bufLe
 }
 
 static int32_t metaBackupCurrentMeta(SVnode *pVnode) {
-  char metaDir[TSDB_FILENAME_LEN] = {0};
-  char backupDir[TSDB_FILENAME_LEN] = {0};
+  char metaDir[TSDB_PATH_LEN] = {0};
+  char backupDir[TSDB_PATH_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
 
@@ -676,9 +676,9 @@ static int32_t metaForceRepair(SMeta **ppMeta, EDmRepairStrategy repairStrategy)
   SMeta  *pMeta = *ppMeta;
   SVnode *pVnode = pMeta->pVnode;
   bool    cleanupTmpDirOnError = false;
-  char    metaDir[TSDB_FILENAME_LEN] = {0};
-  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
-  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
+  char    metaDir[TSDB_PATH_LEN] = {0};
+  char    metaTempDir[TSDB_PATH_LEN] = {0};
+  char    metaBackupDir[TSDB_PATH_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, VNODE_META_TMP_DIR, metaTempDir);
@@ -784,9 +784,9 @@ _exit:
 
 static int32_t metaRollbackFromRepair(SVnode *pVnode) {
   int32_t code = TSDB_CODE_SUCCESS;
-  char    metaDir[TSDB_FILENAME_LEN] = {0};
-  char    metaBackupDir[TSDB_FILENAME_LEN] = {0};
-  char    metaTempDir[TSDB_FILENAME_LEN] = {0};
+  char    metaDir[TSDB_PATH_LEN] = {0};
+  char    metaBackupDir[TSDB_PATH_LEN] = {0};
+  char    metaTempDir[TSDB_PATH_LEN] = {0};
 
   vnodeGetMetaPath(pVnode, VNODE_META_DIR, metaDir);
   vnodeGetMetaPath(pVnode, VNODE_META_BACKUP_DIR, metaBackupDir);

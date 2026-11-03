@@ -174,7 +174,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
   int64_t size = 0;
-  char    fname[TSDB_FILENAME_LEN] = {0};
+  char    fname[TSDB_PATH_LEN] = {0};
 
   // SDelFile
   if (pTsdb->fs.pDelFile) {
@@ -274,16 +274,16 @@ void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
 
   // CURRENT
   if (current) {
-    vnodeGetPrimaryPath(pVnode, false, current, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryPath(pVnode, false, current, TSDB_PATH_LEN);
     offset = strlen(current);
-    snprintf(current + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
+    snprintf(current + offset, TSDB_PATH_LEN - offset - 1, "%s%s%sCURRENT", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
   }
 
   // CURRENT.t
   if (current_t) {
-    vnodeGetPrimaryPath(pVnode, false, current_t, TSDB_FILENAME_LEN);
+    vnodeGetPrimaryPath(pVnode, false, current_t, TSDB_PATH_LEN);
     offset = strlen(current_t);
-    snprintf(current_t + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%sCURRENT.t", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
+    snprintf(current_t + offset, TSDB_PATH_LEN - offset - 1, "%s%s%sCURRENT.t", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
   }
 }
 
@@ -339,7 +339,7 @@ _exit:
 
 static int32_t tsdbRemoveFileSet(STsdb *pTsdb, SDFileSet *pSet) {
   int32_t code = 0;
-  char    fname[TSDB_FILENAME_LEN] = {0};
+  char    fname[TSDB_PATH_LEN] = {0};
 
   int32_t nRef = atomic_sub_fetch_32(&pSet->pHeadF->nRef, 1);
   if (nRef == 0) {
@@ -437,7 +437,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
   int32_t lino = 0;
   int32_t nRef = 0;
   bool    sameDisk = ((pSetOld->diskId.level == pSetNew->diskId.level) && (pSetOld->diskId.id == pSetNew->diskId.id));
-  char    fname[TSDB_FILENAME_LEN] = {0};
+  char    fname[TSDB_PATH_LEN] = {0};
 
   // head
   SHeadFile *pHeadF = pSetOld->pHeadF;
@@ -603,7 +603,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t lino = 0;
 
   int32_t nRef = 0;
-  char    fname[TSDB_FILENAME_LEN] = {0};
+  char    fname[TSDB_PATH_LEN] = {0};
 
   // SDelFile
   if (pFS->pDelFile) {
@@ -708,8 +708,8 @@ static int32_t tsdbFSCommit(STsdb *pTsdb) {
   int32_t lino = 0;
   STsdbFS fs = {0};
 
-  char current[TSDB_FILENAME_LEN] = {0};
-  char current_t[TSDB_FILENAME_LEN] = {0};
+  char current[TSDB_PATH_LEN] = {0};
+  char current_t[TSDB_PATH_LEN] = {0};
   tsdbGetCurrentFName(pTsdb, current, current_t);
 
   if (!taosCheckExistFile(current_t)) goto _exit;
@@ -740,7 +740,7 @@ static int32_t tsdbFSRollback(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  char current_t[TSDB_FILENAME_LEN] = {0};
+  char current_t[TSDB_PATH_LEN] = {0};
   tsdbGetCurrentFName(pTsdb, NULL, current_t);
   tsdbRemoveFile(current_t);
 
@@ -761,8 +761,8 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // open impl
-  char current[TSDB_FILENAME_LEN] = {0};
-  char current_t[TSDB_FILENAME_LEN] = {0};
+  char current[TSDB_PATH_LEN] = {0};
+  char current_t[TSDB_PATH_LEN] = {0};
   tsdbGetCurrentFName(pTsdb, current, current_t);
 
   if (taosCheckExistFile(current)) {

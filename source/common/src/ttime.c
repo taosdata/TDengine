@@ -265,7 +265,15 @@ static bool normalizeOffsetTzCommon(const char *val, char *buf, int32_t bufLen) 
   }
 
   /* Use "UTC" as the abbreviation for all fixed-offset timezones.
-   * POSIX sign convention: + = west, - = east. */
+   * POSIX sign convention: + = west, - = east.
+   *
+   * The documented behaviour, and what every existing test asserts
+   * (test_tz_config_display, test_tz_scalar_functions), is the POSIX reading: a
+   * bare "+08:00" means UTC-8.  The sign is carried through unchanged so that
+   * every platform backend - including the Windows one, whose
+   * parseTimezoneOffset() treats a "<abbr>+N" suffix as east-negative - decodes
+   * the same offset.  Flipping it on one platform only would make "+08:00" mean
+   * UTC+8 on Windows and UTC-8 on Linux, a 16 hour divergence. */
   if (minutes == 0) {
     snprintf(buf, bufLen, "<UTC>%c%d", sign, hours);
   } else {

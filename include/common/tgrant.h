@@ -85,6 +85,23 @@ int32_t grantCheckExpire(EGrantType grant);
 int32_t tGetMachineId(char **result);
 bool    grantCheckDualReplicaDnodes(void *pMnode);
 
+/*
+ * A machine code is a fixed-width base64 string whose first byte is the index of the
+ * hardware source the grant library derived the digest from - the "machine code(N)"
+ * that `taosd -k` prints - followed by that source's digest. A release may change
+ * which source the library prefers, so the same machine reports a different code
+ * after an upgrade.
+ *
+ * taosMachineCodeSourceVariant() returns that index, or -1 when the value is not a
+ * machine code this build understands. taosMachineCodeVariantMovedForward() reports
+ * whether the two values are one of the source migrations a release actually shipped
+ * (see the table in tgrant.c), i.e. the same machine after an upgrade rather than a
+ * forged or rolled-back heartbeat. Any other difference stays a mismatch even when the
+ * incoming variant is numerically larger.
+ */
+int32_t taosMachineCodeSourceVariant(const char *machineId);
+bool    taosMachineCodeVariantMovedForward(const char *stored, const char *incoming);
+
 // #ifndef GRANTS_CFG
 #ifdef TD_ENTERPRISE
 #define GRANTS_SCHEMA                                                                                              \

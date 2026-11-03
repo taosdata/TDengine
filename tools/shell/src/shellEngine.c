@@ -1370,6 +1370,14 @@ void shellSourceFile(const char *file) {
     }
     line[--read_len] = '\0';
 
+    // Strip a trailing CR (CRLF line ending) before the backslash-continuation
+    // check below: with CRLF input the line otherwise ends with '\r' after the
+    // backslash, so "select 1 \" fails to be recognised as a continuation and
+    // the backslash is submitted as a bogus token.
+    if (read_len > 0 && line[read_len - 1] == '\r') {
+      line[--read_len] = '\0';
+    }
+
     if (read_len == 0 || shellIsCommentLine(line)) {  // line starts with #
       continue;
     }
@@ -1379,10 +1387,6 @@ void shellSourceFile(const char *file) {
       memcpy(cmd + cmd_len, line, read_len);
       cmd_len += read_len;
       continue;
-    }
-
-    if (line[read_len - 1] == '\r') {
-      line[--read_len] = '\0';
     }
 
     memcpy(cmd + cmd_len, line, read_len);

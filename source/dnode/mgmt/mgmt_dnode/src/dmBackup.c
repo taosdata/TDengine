@@ -678,7 +678,18 @@ static int32_t dmBackupWriteFile(const SBackupDnodeReq *pReq, const char *unitDi
   (void)snprintf(outPath, sizeof(outPath), "%s%s%s", unitDir, TD_DIRSEP, pMf->relPath);
 
   tstrncpy(dirPath, outPath, sizeof(dirPath));
+  // relPath may contain '/' separators (e.g. "data/sdb.data" from mnode,
+  // "checkpoint/<id>.ck" from snode) even though the local separator on Windows
+  // is '\\'.  Look for the last of either so the intermediate directory is
+  // actually created; otherwise writing "...\mnode\data/sdb.data" fails with
+  // ERROR_PATH_NOT_FOUND because the "data" subdir was never made.
   char *pSep = strrchr(dirPath, TD_DIRSEP[0]);
+#ifdef WINDOWS
+  char *pAltSep = strrchr(dirPath, '/');
+  if (pAltSep != NULL && (pSep == NULL || pAltSep > pSep)) {
+    pSep = pAltSep;
+  }
+#endif
   if (pSep != NULL) {
     *pSep = '\0';
     if (!taosDirExist(dirPath) && (code = taosMulMkDir(dirPath)) != 0) {

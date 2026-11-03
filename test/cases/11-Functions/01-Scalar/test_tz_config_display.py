@@ -42,13 +42,13 @@ ERR_INVALID_FUNCTION_PARAM = 0x2803
 ERR_INVALID_DNODE_CFG = 0x03B2
 ERR_INVALID_CFG = 0x0119
 
-IS_WINDOWS = sys.platform.startswith('win')
-SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
-    IS_WINDOWS,
-    reason='Windows does not support SET TIMEZONE cases in this suite',
-)
-
-pytestmark = [SKIP_WINDOWS_SET_TIMEZONE]
+# NOTE: this suite used to be skipped on Windows as a whole, because the Windows
+# backend was believed to lack SET TIMEZONE support.  The real difference was a
+# sign flip in normalizeOffsetTzCommon(): a bare '+08:00' produced '<UTC>-8' on
+# Windows but '<UTC>+8' on Linux, so the fixed-offset expectations below (POSIX
+# semantics, '+08:00' -> ISO '-08:00') only ever ran on Linux.  The flip is gone,
+# so the same assertions must now hold on both platforms and Windows stays in the
+# matrix.
 
 class _SetTimezoneMixin:
     """SET TIMEZONE '<timezone_string>' syntax tests."""

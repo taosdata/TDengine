@@ -292,7 +292,7 @@ static int32_t uploadFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t vid = TD_VID(rtner->tsdb->pVnode), mid = getSsMigrateId(rtner->tsdb);
   STFile* f = fobj->f;
   
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   snprintf(path, sizeof(path), "vnode%d/f%d/v%df%dver%" PRId64 ".m%d%s", vid, f->fid, vid, f->fid, f->cid, mid, ext);
 
   int code = tssUploadFileToDefault(path, fobj->fname, 0, -1);
@@ -315,7 +315,7 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
   int32_t vid = TD_VID(rtner->tsdb->pVnode);
   STFile* f = fobj->f;
   
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   snprintf(path, sizeof(path), "vnode%d/f%d/%s", vid, f->fid, fname);
   int code = tssDownloadFileFromDefault(path, fobj->fname, 0, -1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -328,7 +328,7 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
 
 
 static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
-  char prefix[TSDB_FILENAME_LEN];
+  char prefix[TSDB_PATH_LEN];
   snprintf(prefix, sizeof(prefix), "vnode%d/f%d/", vid, fset->fid);
 
   SArray* paths = taosArrayInit(10, sizeof(char*));
@@ -342,7 +342,20 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
   for(int i = 0; i < taosArrayGetSize(paths); i++) {
       char* p = *(char**)taosArrayGet(paths, i);
       const char* ext = strrchr(p, '.');
-      const char* rname = strrchr(p, '/') + 1;
+      // The fs backend returns paths relative to baseDir.  On Windows the
+      // directory prefix uses '/' while the backend appends the local '\\'
+      // separator, so a returned path can be "vnode2/f1736/\v2f1736...".
+      // Locate the last of either separator, otherwise the leading '\\' is
+      // kept in rname and every file (including manifests.json) fails to
+      // match and is deleted as garbage.
+      const char* rname = strrchr(p, '/');
+#ifdef WINDOWS
+      const char* altSep = strrchr(p, '\\');
+      if (altSep != NULL && (rname == NULL || altSep > rname)) {
+        rname = altSep;
+      }
+#endif
+      rname = (rname == NULL) ? p : rname + 1;
       bool remove = true;
       int32_t vgId = 0, fid = 0, mid = 0, cn = 0;
       int64_t cid = 0;
@@ -421,7 +434,7 @@ static int32_t downloadDataFileLastChunk(SRTNer* rtner, STFileObj* fobj) {
   SVnodeCfg *pCfg = &rtner->tsdb->pVnode->config;
   STFile *f = fobj->f;
 
-  char lpath[TSDB_FILENAME_LEN], rpath[TSDB_FILENAME_LEN];
+  char lpath[TSDB_PATH_LEN], rpath[TSDB_PATH_LEN];
   tsdbTFileLastChunkName(rtner->tsdb, f, lpath);
   char* fname = strrchr(lpath, TD_DIRSEP_CHAR) + 1;
 
@@ -452,7 +465,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   STFile *f = fobj->f;
   STFileOp op = {.optype = TSDB_FOP_MODIFY, .fid = f->fid, .of = *f};
 
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   if (f->lcn <= 1) {
     tstrncpy(path, fobj->fname, sizeof(path));
   } else {
@@ -486,7 +499,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
     }
 
     // only include the migration id in the last chunk filename
-    char rpath[TSDB_FILENAME_LEN];
+    char rpath[TSDB_PATH_LEN];
     if (i == totalChunks) {
         snprintf(rpath, sizeof(rpath), "vnode%d/f%d/v%df%dver%" PRId64 ".m%d.%d.data", vid, f->fid, vid, f->fid, f->cid,
                  mid, i);
@@ -532,7 +545,7 @@ static int32_t uploadDataFile(SRTNer* rtner, STFileObj* fobj) {
   }
 
   // copy the last chunk to the new file
-  char newPath[TSDB_FILENAME_LEN];
+  char newPath[TSDB_PATH_LEN];
   tsdbTFileLastChunkName(rtner->tsdb, &op.nf, newPath);
 
   int64_t offset = (int64_t)(totalChunks - lcn) * szChunk;
@@ -601,7 +614,7 @@ static bool shouldMigrate(SRTNer *rtner, int32_t *pCode) {
     return false; // compact in progress
   }
 
-  char path[TSDB_FILENAME_LEN];
+  char path[TSDB_PATH_LEN];
   if (flocal->f->lcn <= 1) {
     tstrncpy(path, flocal->fname, sizeof(path));
   } else {
@@ -973,7 +986,7 @@ int32_t tsdbListSsMigrateFileSets(STsdb *tsdb, SArray* fidArr) {
       continue;
     }
 
-    char path[TSDB_FILENAME_LEN];
+    char path[TSDB_PATH_LEN];
     if (fdata->f->lcn <= 1) {
       tstrncpy(path, fdata->fname, sizeof(path));
     } else {

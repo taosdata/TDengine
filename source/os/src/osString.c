@@ -980,11 +980,14 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
-  int32_t tmp = strtol(str, pEnd, radix);
+  /* Parse through 64 bits: on Windows (LLP64) strtol() is a 32-bit parse, so a
+   * value such as the connection id 0xcb03f7f1 saturated to LONG_MAX instead of
+   * keeping its bit pattern. */
+  int64_t tmp = strtoll(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
-  return tmp;
+  return (int32_t)tmp;
 }
 
 uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
@@ -992,11 +995,11 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
     terrno = TSDB_CODE_INVALID_PARA;
     return 0;
   }
-  uint32_t tmp = strtol(str, pEnd, radix);
+  uint64_t tmp = strtoull(str, pEnd, radix);
 #if defined(DARWIN) || defined(_ALPINE)
   if (ERRNO == EINVAL) SET_ERRNO(0);
 #endif
-  return tmp;
+  return (uint32_t)tmp;
 }
 
 int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {

@@ -131,10 +131,10 @@ typedef struct {
 
 static void tsdbGetRocksPath(STsdb *pTsdb, char *path) {
   SVnode *pVnode = pTsdb->pVnode;
-  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_PATH_LEN);
 
   int32_t offset = strlen(path);
-  snprintf(path + offset, TSDB_FILENAME_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
+  snprintf(path + offset, TSDB_PATH_LEN - offset - 1, "%s%s%scache.rdb", TD_DIRSEP, pTsdb->name, TD_DIRSEP);
 }
 
 static const char *myCmpName(void *state) {
@@ -295,7 +295,7 @@ static int32_t tsdbOpenRocksCache(STsdb *pTsdb) {
   }
 
   char *err = NULL;
-  char  cachePath[TSDB_FILENAME_LEN] = {0};
+  char  cachePath[TSDB_PATH_LEN] = {0};
   tsdbGetRocksPath(pTsdb, cachePath);
 
   rocksdb_t *db = rocksdb_open(options, cachePath, &err);

@@ -168,7 +168,7 @@ struct TestFileObj {
   int32_t       state;
   int32_t       ref;
   int32_t       nlevel;
-  char          fname[TSDB_FILENAME_LEN];
+  char          fname[TSDB_PATH_LEN];
 };
 
 int main(int argc, char **argv) {
@@ -423,7 +423,7 @@ class TsdbRepairFileIssueTest : public ::testing::Test {
 
   void TearDown() override { taosRemoveFile(path_); }
 
-  char        path_[TSDB_FILENAME_LEN] = {0};
+  char        path_[TSDB_PATH_LEN] = {0};
   TestFileObj fobj_ = {};
 };
 
@@ -488,7 +488,7 @@ class TsdbForceRepairCommitTest : public ::testing::Test {
 
     ASSERT_EQ(tsem_init(&fs_.canEdit, 0, 1), 0);
 
-    char currentTmp[TSDB_FILENAME_LEN] = {0};
+    char currentTmp[TSDB_PATH_LEN] = {0};
     current_fname(&tsdb_, currentTmp, TSDB_FCURRENT_M);
 
     TdFilePtr fp = taosCreateFile(currentTmp, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
@@ -502,8 +502,8 @@ class TsdbForceRepairCommitTest : public ::testing::Test {
     taosRemoveDir(rootPath_);
   }
 
-  char        rootPath_[TSDB_FILENAME_LEN] = {0};
-  char        tsdbPath_[TSDB_FILENAME_LEN] = {0};
+  char        rootPath_[TSDB_PATH_LEN] = {0};
+  char        tsdbPath_[TSDB_PATH_LEN] = {0};
   SVnode      vnode_ = {};
   STsdb       tsdb_ = {};
   STFileSystem fs_ = {};

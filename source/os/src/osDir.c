@@ -809,7 +809,31 @@ void taosGetCwd(char *buf, int32_t len) {
   char *unused __attribute__((unused));
   unused = getcwd(buf, len - 1);
 #else
-  tstrncpy(buf, "not implemented on windows", len);
+  // Resolve the process working directory so that callers such as taosdump
+  // can build "<cwd>/restore.log". GetCurrentDirectoryA() writes nothing when
+  // the buffer is too small -- it returns the required length instead -- so a
+  // large len return cannot be treated as a filled buffer.
+  DWORD n = GetCurrentDirectoryA((DWORD)len, buf);
+  if (n == 0) {
+    buf[0] = '\0';
+    return;
+  }
+  if (n >= (DWORD)len) {
+    char *full = (char *)taosMemoryMalloc(n + 1);
+    if (full == NULL) {
+      buf[0] = '\0';
+      return;
+    }
+    DWORD m = GetCurrentDirectoryA(n + 1, full);
+    if (m == 0 || m > n) {
+      buf[0] = '\0';
+    } else {
+      // Truncation is preferable to returning uninitialised bytes; the result is
+      // always NUL-terminated.
+      snprintf(buf, (size_t)len, "%s", full);
+    }
+    taosMemoryFree(full);
+  }
 #endif
 }
 
@@ -1031,40 +1055,64 @@ int32_t taosMkDirW(const char *dirname) {
 
 int32_t taosMulMkDirW(const char *dirname) {
   if (dirname == NULL || strlen(dirname) >= TDDIRMAXLEN) return -1;
-  char    temp[TDDIRMAXLEN];
-  char   *pos = temp;
-  int32_t code = 0;
-  if (_fullpath(temp, dirname, TDDIRMAXLEN) == NULL) {
+  if (taosDirExistW(dirname)) return 0;
+
+  // Resolve the path to wide characters before calling _wfullpath: the ANSI
+  // _fullpath interprets the buffer using the process code page, which mangles
+  // UTF-8 CJK names on systems whose ACP is not UTF-8 (e.g. GBK/936).
+  WCHAR wdir[TDDIRMAXLEN] = {0};
+  if (taosPathToWide(dirname, wdir, TDDIRMAXLEN) == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+
+  WCHAR wfull[TDDIRMAXLEN] = {0};
+  if (_wfullpath(wfull, wdir, TDDIRMAXLEN) == NULL) {
     terrno = TAOS_SYSTEM_ERROR(ERRNO);
     return terrno;
   }
-  if (temp[1] == ':') pos += 3;
 
-  if (taosDirExistW(temp)) return 0;
-
-  if (strncmp(temp, TD_DIRSEP, 1) == 0) {
-    pos += 1;
-  } else if (strncmp(temp, "." TD_DIRSEP, 2) == 0) {
-    pos += 2;
+  WCHAR *pos = wfull;
+  if (wfull[0] == L'\\' && wfull[1] == L'\\') {
+    // UNC path, either "\\\\server\\share\\dir" or the long-path form
+    // "\\\\?\\C:\\dir".  The server/share (or device) prefix cannot be created by
+    // _wmkdir, and truncating in front of the first separator would call
+    // _wmkdir(L"") - an empty name that always fails - so the whole call used
+    // to give up on any UNC path.  Walk past the prefix and only create the
+    // components below it.
+    int32_t separatorsNeeded = (wfull[2] == L'?' || wfull[2] == L'.') ? 1 : 2;
+    int32_t separators = 0;
+    pos = wfull + 2;
+    for (; *pos != L'\0'; pos++) {
+      if (*pos == L'\\' || *pos == L'/') {
+        if (++separators == separatorsNeeded) {
+          pos++;
+          break;
+        }
+      }
+    }
+    if (*pos == L'\0') return 0;  // nothing below the share to create
+  } else if (wfull[1] == L':') {
+    pos += 3;  // skip the "C:\" drive prefix
   }
 
-  for (; *pos != '\0'; pos++) {
-    if (*pos == TD_DIRSEP[0]) {
-      *pos = '\0';
-      code = taosMkDirW(temp);
-      if (code != 0) {
-        terrno = code;
-        return code;
+  for (; *pos != L'\0'; pos++) {
+    if (*pos == L'\\' || *pos == L'/') {
+      WCHAR saved = *pos;
+      *pos = L'\0';
+      if (_wmkdir(wfull) != 0 && ERRNO != EEXIST) {
+        *pos = saved;
+        terrno = TAOS_SYSTEM_ERROR(ERRNO);
+        return terrno;
       }
-      *pos = TD_DIRSEP[0];
+      *pos = saved;
     }
   }
 
-  if (*(pos - 1) != TD_DIRSEP[0]) {
-    code = taosMkDirW(temp);
-    if (code != 0) {
-      terrno = code;
-      return code;
+  if (*(pos - 1) != L'\\' && *(pos - 1) != L'/') {
+    if (_wmkdir(wfull) != 0 && ERRNO != EEXIST) {
+      terrno = TAOS_SYSTEM_ERROR(ERRNO);
+      return terrno;
     }
   }
 

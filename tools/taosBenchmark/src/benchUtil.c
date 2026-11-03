@@ -1564,6 +1564,96 @@ void encodeAuthBase64() {
         g_arguments->base64_buf[encoded_len - 1 - l] = '=';
 }
 
+/*
+ * A REST reply may be sent with "Transfer-Encoding: chunked", i.e. the body is a
+ * sequence of "<hex-size>\r\n<data>\r\n" blocks closed by a zero-size block.
+ * Walking that framing is the only reliable way to know the body is complete:
+ * the previous check ("the last non-newline byte is '0'") also matches a data
+ * block that happens to end with the character '0'.  That only stayed unnoticed
+ * on the platforms whose loopback delivers the whole reply in one recv(); when
+ * the reply is split, the body was cut off mid-JSON and the parser reported
+ * "Cannot parse response into json".
+ *
+ * Returns 1 when the terminating zero-size block has been seen, 0 when more data
+ * is needed and -1 when the framing is malformed.
+ */
+static int32_t restChunkedBodyComplete(const char *body, int64_t len) {
+  int64_t pos = 0;
+  while (pos < len) {
+    int64_t size = 0;
+    int32_t digits = 0;
+    while (pos < len) {
+      char    c = body[pos];
+      int32_t v;
+      if (c >= '0' && c <= '9') {
+        v = c - '0';
+      } else if (c >= 'a' && c <= 'f') {
+        v = c - 'a' + 10;
+      } else if (c >= 'A' && c <= 'F') {
+        v = c - 'A' + 10;
+      } else {
+        break;
+      }
+      /* A chunk size is a hex length: at most 16 digits.  Stop claiming digits
+       * once that many have been seen so a malformed (or hostile) response
+       * cannot spin here just by saying "this line is hexadecimal". */
+      if (digits >= 16) return -1;
+      size = size * 16 + v;
+      ++digits;
+      ++pos;
+    }
+    if (digits == 0) return -1;
+    while (pos < len && body[pos] != '\n') ++pos;  /* skip extensions up to CRLF */
+    if (pos >= len) return 0;
+    ++pos;
+    if (size == 0) return 1;
+    if (pos + size > len) return 0;
+    pos += size;
+    if (pos < len && body[pos] == '\r') ++pos;
+    if (pos < len && body[pos] == '\n') ++pos;
+  }
+  return 0;
+}
+
+/* Drop the chunk framing in place and return the resulting body length. */
+static int64_t restDechunkBody(char *body, int64_t len) {
+  int64_t src = 0;
+  int64_t dst = 0;
+  while (src < len) {
+    int64_t size = 0;
+    int32_t digits = 0;
+    while (src < len) {
+      char    c = body[src];
+      int32_t v;
+      if (c >= '0' && c <= '9') {
+        v = c - '0';
+      } else if (c >= 'a' && c <= 'f') {
+        v = c - 'a' + 10;
+      } else if (c >= 'A' && c <= 'F') {
+        v = c - 'A' + 10;
+      } else {
+        break;
+      }
+      size = size * 16 + v;
+      ++digits;
+      ++src;
+    }
+    if (digits == 0) break;
+    while (src < len && body[src] != '\n') ++src;
+    if (src >= len) break;
+    ++src;
+    if (size == 0) break;
+    if (src + size > len) size = len - src;  /* defensive: truncated tail */
+    if (dst != src) memmove(body + dst, body + src, (size_t)size);
+    dst += size;
+    src += size;
+    if (src < len && body[src] == '\r') ++src;
+    if (src < len && body[src] == '\n') ++src;
+  }
+  body[dst] = '\0';
+  return dst;
+}
+
 int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
                      int protocol, uint16_t rest_port, bool tcp, int sockfd,
                      char* filePath,
@@ -1633,6 +1723,14 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
 
     if (protocol == TSDB_SML_TELNET_PROTOCOL
             && iface == SML_REST_IFACE && tcp) {
+        /* telnet tcp has no per-request acknowledgement, but a short write
+         * still means the batch did not reach the adapter.  Report it instead
+         * of unconditionally claiming success. */
+        if (sent != req_str_len) {
+            errorPrint("telnet tcp short write, expected %d bytes, sent %d\n",
+                       req_str_len, sent);
+            goto free_of_postImpl;
+        }
         code = 0;
         goto free_of_postImpl;
     }
@@ -1650,29 +1748,49 @@ int postProceSqlImpl(char *sqlstr, char* dbName, int precision, int iface,
                 resp_len - received, 0);
         responseBuf[resp_len] = 0;
         debugPrint("response buffer: %s\n", responseBuf);
+        if (bytes > 0) {
+            received += bytes;
+        }
         if (NULL != strstr(responseBuf, resEncodingChunk)) {
             chunked = true;
         }
-        int64_t index = strlen(responseBuf) - 1;
-        while (responseBuf[index] == '\n' || responseBuf[index] == '\r') {
-            index--;
-        }
-        debugPrint("index: %" PRId64 "\n", index);
-        if (chunked && responseBuf[index] == '0') {
-            code = 0;
-            break;
-        }
-        if (!chunked && responseBuf[index] == '}') {
-            code = 0;
-            break;
+
+        char *bodyStart = strstr(responseBuf, "\r\n\r\n");
+        if (chunked) {
+            /* Wait for the real terminating chunk instead of guessing from the
+             * last byte, otherwise a data block ending in '0' ends the read. */
+            if (bodyStart != NULL) {
+                int32_t done =
+                    restChunkedBodyComplete(bodyStart + 4,
+                                            (int64_t)strlen(bodyStart + 4));
+                if (done > 0) {
+                    (void)restDechunkBody(bodyStart + 4,
+                                          (int64_t)strlen(bodyStart + 4));
+                    code = 0;
+                    break;
+                }
+                if (done < 0) {
+                    errorPrint("invalid chunked response: %s\n", responseBuf);
+                    goto free_of_postImpl;
+                }
+            }
+        } else {
+            int64_t index = (int64_t)strlen(responseBuf) - 1;
+            while (index >= 0 &&
+                   (responseBuf[index] == '\n' || responseBuf[index] == '\r')) {
+                index--;
+            }
+            debugPrint("index: %" PRId64 "\n", index);
+            if (index >= 0 && responseBuf[index] == '}') {
+                code = 0;
+                break;
+            }
         }
 
         if (bytes <= 0) {
             errorPrint("%s", "reading no response from socket\n");
             goto free_of_postImpl;
         }
-
-        received += bytes;
 
         if (g_arguments->test_mode == INSERT_TEST) {
             if (strlen(responseBuf)) {

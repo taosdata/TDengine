@@ -982,7 +982,9 @@ static int32_t parseOffsetString(const char* offset_str, int64_t* offset_seconds
    
    int64_t offset = (int64_t)hours * 3600 + (int64_t)minutes * 60;
 
-   *offset_seconds = (sign == '+') ? offset : -offset;
+   // "+08:00" is east of UTC, and offset_seconds uses the POSIX convention
+   // (east-negative, west-positive), so the sign has to be inverted here.
+   *offset_seconds = (sign == '+') ? -offset : offset;
 
   if (display_name != NULL) {
     snprintf(display_name, name_len, "UTC%c%02d:%02d (UTC, %c%02d%02d)",
@@ -990,6 +992,19 @@ static int32_t parseOffsetString(const char* offset_str, int64_t* offset_seconds
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+// A session timezone may be a bare offset ("+08:00") instead of a zone name.
+// Such names have no abbreviation in the Windows registry, so callers must fall
+// back to formatting them from the numeric offset alone.
+static bool isFixedOffsetZoneName(const char *zoneName) {
+  if (zoneName == NULL || zoneName[0] == '\0') {
+    return false;
+  }
+  if (zoneName[0] == '+' || zoneName[0] == '-') {
+    return true;
+  }
+  return strncasecmp(zoneName, "UTC", 3) == 0 && (zoneName[3] == '+' || zoneName[3] == '-');
 }
 
 // Get timezone offset from Windows registry
@@ -1155,6 +1170,7 @@ timezone_t tzalloc(const char* tzname) {
 
 static volatile LONG gZoneCacheLock = 0;
 static char          gZoneCacheName[TD_TIMEZONE_LEN * 2] = {0};
+static char          gZoneCacheMiss[TD_TIMEZONE_LEN * 2] = {0};
 static bool          gZoneCacheValid = false;
 static DYNAMIC_TIME_ZONE_INFORMATION gZoneCacheInfo;
 
@@ -1173,7 +1189,14 @@ static bool lookupDynamicZone(const char *target, DYNAMIC_TIME_ZONE_INFORMATION 
     zoneCacheUnlock();
     return true;
   }
+  /* Enumeration below walks every zone in the registry, and this is reached once
+   * per local-time conversion; remember names Windows does not know so a session
+   * with an unmapped name does not pay for it on every row. */
+  bool knownMiss = (gZoneCacheMiss[0] != '\0' && _stricmp(gZoneCacheMiss, target) == 0);
   zoneCacheUnlock();
+  if (knownMiss) {
+    return false;
+  }
 
   /* TimeZoneKeyName is a WCHAR array, so the comparison has to be wide. */
   WCHAR targetW[128] = {0};
@@ -1193,10 +1216,15 @@ static bool lookupDynamicZone(const char *target, DYNAMIC_TIME_ZONE_INFORMATION 
       tstrncpy(gZoneCacheName, target, sizeof(gZoneCacheName));
       gZoneCacheInfo  = info;
       gZoneCacheValid = true;
+      gZoneCacheMiss[0] = '\0';
       zoneCacheUnlock();
       return true;
     }
   }
+
+  zoneCacheLock();
+  tstrncpy(gZoneCacheMiss, target, sizeof(gZoneCacheMiss));
+  zoneCacheUnlock();
   return false;
 }
 
@@ -1244,6 +1272,90 @@ bool taosWindowsZoneToEpoch(const char *zoneName, int32_t year, int32_t mon, int
   } else {
     *pEpoch = (time_t)(-(int64_t)((epochFileTime - fileTime.QuadPart) / 10000000ULL));
   }
+  return true;
+}
+
+/* Fill *pLocal with the zone's local broken-down time for the UTC instant
+ * `utc`, applying the zone's daylight-saving rules.
+ *
+ * This is the mirror of taosWindowsZoneToEpoch().  WindowsTimezoneObj stores a
+ * single offset_seconds (the standard-time offset), which is wrong for every
+ * instant inside a daylight-saving period, so UTC -> local callers must ask the
+ * dynamic zone data instead of adding that offset.  Returns false when the zone
+ * name cannot be resolved (bare "+08:00" style zones have no rules) or the
+ * instant is outside the Win32 calendar range, so callers can fall back to the
+ * fixed offset. */
+bool taosWindowsEpochToZoneTm(time_t utc, const char *zoneName, struct tm *pLocal) {
+  if (zoneName == NULL || zoneName[0] == '\0' || pLocal == NULL) {
+    return false;
+  }
+
+  /* Fixed offsets have no daylight-saving rules, so there is nothing to look up:
+   * the caller's stored offset is already exact.  This is the common case for
+   * "UTC", "UTC+8" and the "<UTC>-8" strings produced by tzalloc(), and it keeps
+   * them off the registry-enumeration path. */
+  if (zoneName[0] == '+' || zoneName[0] == '-' || zoneName[0] == '<' ||
+      strncasecmp(zoneName, "UTC", 3) == 0) {
+    return false;
+  }
+
+  const char *mapped = taosIanaNameToWindows(zoneName);
+  const char *target = (mapped != NULL && mapped[0] != '\0') ? mapped : zoneName;
+
+  DYNAMIC_TIME_ZONE_INFORMATION info;
+  if (!lookupDynamicZone(target, &info)) {
+    return false;
+  }
+
+  const uint64_t epochFileTime = 116444736000000000ULL; /* 1970-01-01T00:00:00Z */
+  uint64_t       utcFileTime;
+  if (utc >= 0) {
+    utcFileTime = epochFileTime + (uint64_t)utc * 10000000ULL;
+  } else {
+    uint64_t delta = (uint64_t)(-(int64_t)utc) * 10000000ULL;
+    if (delta > epochFileTime) {
+      return false;
+    }
+    utcFileTime = epochFileTime - delta;
+  }
+
+  FILETIME utcFt;
+  utcFt.dwLowDateTime  = (DWORD)(utcFileTime & 0xFFFFFFFFULL);
+  utcFt.dwHighDateTime = (DWORD)(utcFileTime >> 32);
+
+  SYSTEMTIME utcSt;
+  if (!FileTimeToSystemTime(&utcFt, &utcSt)) {
+    return false;
+  }
+
+  SYSTEMTIME localSt;
+  if (!SystemTimeToTzSpecificLocalTimeEx(&info, &utcSt, &localSt)) {
+    return false;
+  }
+
+  memset(pLocal, 0, sizeof(*pLocal));
+  pLocal->tm_sec   = localSt.wSecond;
+  pLocal->tm_min   = localSt.wMinute;
+  pLocal->tm_hour  = localSt.wHour;
+  pLocal->tm_mday  = localSt.wDay;
+  pLocal->tm_mon   = localSt.wMonth - 1;
+  pLocal->tm_year  = localSt.wYear - 1900;
+  pLocal->tm_wday  = localSt.wDayOfWeek;
+  {
+    static const int daysBeforeMonth[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    bool leap = (localSt.wYear % 4 == 0 && localSt.wYear % 100 != 0) || (localSt.wYear % 400 == 0);
+    pLocal->tm_yday = daysBeforeMonth[localSt.wMonth - 1] + localSt.wDay - 1 + ((leap && localSt.wMonth > 2) ? 1 : 0);
+  }
+  /* Report whether the daylight rules were actually applied: the zone's
+   * standard-time offset is Bias + StandardBias minutes west of UTC. */
+  int64_t standardEast = -(int64_t)(info.Bias + info.StandardBias) * 60;
+  int64_t appliedEast  = (int64_t)localSt.wHour * 3600 + (int64_t)localSt.wMinute * 60 + localSt.wSecond -
+                         ((int64_t)utcSt.wHour * 3600 + (int64_t)utcSt.wMinute * 60 + utcSt.wSecond);
+  /* The two wall clocks may sit on adjacent days; fold the difference back into
+   * the +/-24h range before comparing. */
+  while (appliedEast > 24 * 3600) appliedEast -= 24 * 3600;
+  while (appliedEast < -24 * 3600) appliedEast += 24 * 3600;
+  pLocal->tm_isdst = (appliedEast == standardEast) ? 0 : 1;
   return true;
 }
 
@@ -1642,14 +1754,21 @@ int32_t taosFormatTimezoneStr(time_t t, const char *tz, timezone_t sp, char *out
     taosThreadMutexUnlock(&obj->mutex);
 
     char abbrev[TD_TIMEZONE_LEN] = {0};
-    if (zoneName[0] != '\0' && windowsZoneAbbrev(zoneName, abbrev, sizeof(abbrev))) {
+    bool haveAbbrev = (zoneName[0] != '\0') && windowsZoneAbbrev(zoneName, abbrev, sizeof(abbrev));
+    // A bare offset such as "+08:00" has no registry entry, but the string is
+    // still formattable from the numeric offset. Failing here used to leave the
+    // handle absent from pTimezoneNameMap, which made TIMEZONE() fall back to
+    // the process-wide default instead of the session timezone.
+    if (haveAbbrev || isFixedOffsetZoneName(zoneName)) {
       int32_t offset = (int32_t)(-fixedOffset); /* east-positive by default */
-      (void)windowsZoneOffsetAt(zoneName, t, &offset);
+      if (haveAbbrev) {
+        (void)windowsZoneOffsetAt(zoneName, t, &offset);
+      }
       int32_t minutes = offset / 60;
       char    sign    = minutes < 0 ? '-' : '+';
       int32_t absMin  = minutes < 0 ? -minutes : minutes;
-      (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %c%02d%02d)", tz, abbrev,
-                     sign, absMin / 60, absMin % 60);
+      (void)snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %c%02d%02d)", tz,
+                     haveAbbrev ? abbrev : zoneName, sign, absMin / 60, absMin % 60);
       uDebug("[tz] system timezone:%s", outTimezoneStr);
       return TSDB_CODE_SUCCESS;
     }

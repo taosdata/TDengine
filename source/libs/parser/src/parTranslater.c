@@ -37824,6 +37824,18 @@ static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt
         pModifyStmt->fileProcessing = true;
       } else {
         pModifyStmt->fileProcessing = false;
+        /*
+         * The whole csv has been consumed.  Release the handle now instead of
+         * waiting for the statement to be destroyed: the caller can delete or
+         * rewrite the file as soon as the statement returns, and on Windows an
+         * open handle makes that fail with a sharing violation
+         * (PermissionError [WinError 32]).  taosCloseFile() clears the pointer,
+         * so a later statement destroy and a re-execution that reopens the file
+         * are both unaffected.
+         */
+        if (pModifyStmt->fp != NULL && TSDB_CODE_SUCCESS != taosCloseFile(&pModifyStmt->fp)) {
+          parserWarn("failed to close the csv file of create table ... file, code:%s", tstrerror(terrno));
+        }
       }
     }
   }
@@ -37921,7 +37933,8 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   pModifyStmt->destroyParseFileCxt = destructParseFileContext;
   pModifyStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (NULL == pModifyStmt->pVgroupsHashObj) {
-    return terrno;
+    code = terrno;
+    goto _ERR;
   }
   taosHashSetFreeFp(pModifyStmt->pVgroupsHashObj, destroyCreateTbReqBatch);
 
@@ -37929,14 +37942,12 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
 
   code = prepareReadCsvFile(pCxt, pCreateStmt, pModifyStmt);
   if (TSDB_CODE_SUCCESS != code) {
-    taosHashCleanup(pModifyStmt->pVgroupsHashObj);
-    return code;
+    goto _ERR;
   }
 
   code = createSubTableFromFile(&pCxt->msgBuf, pCxt->pParseCxt, pModifyStmt);
   if (TSDB_CODE_SUCCESS != code) {
-    taosHashCleanup(pModifyStmt->pVgroupsHashObj);
-    return code;
+    goto _ERR;
   }
 
   SArray* pBufArray = NULL;
@@ -37946,8 +37957,7 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
     if (TSDB_CODE_INVALID_MSG_LEN == code) {
       parserError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
     }
-    taosHashCleanup(pModifyStmt->pVgroupsHashObj);
-    return code;
+    goto _ERR;
   }
 
   pModifyStmt->pDataBlocks = pBufArray;
@@ -37955,6 +37965,15 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   pQuery->pRoot = (SNode*)pModifyStmt;
 
   return TSDB_CODE_SUCCESS;
+
+_ERR:
+  // The statement has not been attached to the query yet, so no other frame
+  // will release it. Destroying it here closes the opened csv file, which
+  // Windows keeps locked until the last handle is closed, and frees the parse
+  // context. Without it a rejected file (e.g. an unsupported BOM) could not be
+  // deleted by the caller after the error was returned.
+  nodesDestroyNode((SNode*)pModifyStmt);
+  return code;
 }
 
 int32_t continueCreateTbFromFile(SParseContext* pParseCxt, SQuery** pQuery) {

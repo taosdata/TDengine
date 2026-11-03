@@ -229,7 +229,7 @@ int32_t tsdbDataFileReaderOpen(const char *fname[], const SDataFileReaderConfig 
   } else {
     for (int32_t i = 0; i < TSDB_FTYPE_MAX; ++i) {
       if (config->files[i].exist) {
-        char fname1[TSDB_FILENAME_LEN];
+        char fname1[TSDB_PATH_LEN];
         tsdbTFileName(config->tsdb, &config->files[i].file, fname1);
         int32_t lcn = config->files[i].file.lcn;
         TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd[i], lcn), &lino, _exit);
@@ -1877,7 +1877,7 @@ static int32_t tsdbDataFileWriterOpenDataFD(SDataFileWriter *writer) {
   for (int32_t i = 0; i < ARRAY_SIZE(ftypes); ++i) {
     int32_t ftype = ftypes[i];
 
-    char    fname[TSDB_FILENAME_LEN];
+    char    fname[TSDB_PATH_LEN];
     int32_t flag = TD_FILE_READ | TD_FILE_WRITE;
 
     if (writer->files[ftype].size == 0) {
@@ -2040,7 +2040,7 @@ static int32_t tsdbDataFileWriterOpenTombFD(SDataFileWriter *writer) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  char    fname[TSDB_FILENAME_LEN];
+  char    fname[TSDB_PATH_LEN];
   int32_t ftype = TSDB_FTYPE_TOMB;
 
   int32_t flag = (TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);

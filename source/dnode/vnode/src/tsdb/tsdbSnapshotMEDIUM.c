@@ -58,7 +58,7 @@ struct STsdbSnapMediumWriter {
 
   // current file being written
   TdFilePtr pFD;
-  char      tmpFname[TSDB_FILENAME_LEN];
+  char      tmpFname[TSDB_PATH_LEN];
 };
 
 // ==================== Helper: convert STFile to SMediumSnapFileInfo ====================
@@ -720,7 +720,7 @@ int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data) {
 
     // For reading, use leader's actual file path (from leader's file state)
     // Find the actual file in leader's fsetArr
-    char fname[TSDB_FILENAME_LEN] = {0};
+    char fname[TSDB_PATH_LEN] = {0};
     bool found = false;
     STFileSet  target = {.fid = entry->fileInfo.fid};
     STFileSet *pTarget = &target;
@@ -736,7 +736,7 @@ int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data) {
             STFile *lf = fobj->f;
             // STT key: (fid, ftype, level, minVer, maxVer) per spec 2.4.2
             if (lf->minVer == entry->fileInfo.minVer && lf->maxVer == entry->fileInfo.maxVer) {
-              tstrncpy(fname, fobj->fname, TSDB_FILENAME_LEN);
+              tstrncpy(fname, fobj->fname, TSDB_PATH_LEN);
               found = true;
               break;
             }
@@ -746,7 +746,7 @@ int32_t tsdbSnapMediumRead(STsdbSnapMediumReader *reader, uint8_t **data) {
       } else {
         int32_t ftype = entry->fileInfo.ftype;
         if (ftype >= 0 && ftype < TSDB_FTYPE_MAX && fset->farr[ftype] != NULL) {
-          tstrncpy(fname, fset->farr[ftype]->fname, TSDB_FILENAME_LEN);
+          tstrncpy(fname, fset->farr[ftype]->fname, TSDB_PATH_LEN);
           found = true;
         }
       }
@@ -1013,11 +1013,11 @@ static int32_t tsdbSnapMediumWriteData(STsdbSnapMediumWriter *writer, SSnapDataH
       tf.stt[0].level = fi->level;
     }
 
-    char finalFname[TSDB_FILENAME_LEN] = {0};
+    char finalFname[TSDB_PATH_LEN] = {0};
     tsdbTFileName(writer->tsdb, &tf, finalFname);
 
     // Temp file: append ".tmp"
-    snprintf(writer->tmpFname, TSDB_FILENAME_LEN, "%s.tmp", finalFname);
+    snprintf(writer->tmpFname, TSDB_PATH_LEN, "%s.tmp", finalFname);
 
     tsdbInfo("vgId:%d, open file %s", TD_VID(writer->tsdb->pVnode), writer->tmpFname);
     writer->pFD = taosOpenFile(writer->tmpFname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
@@ -1072,7 +1072,7 @@ static int32_t tsdbSnapMediumWriteData(STsdbSnapMediumWriter *writer, SSnapDataH
       tf.stt[0].level = fi->level;
     }
 
-    char finalFname[TSDB_FILENAME_LEN] = {0};
+    char finalFname[TSDB_PATH_LEN] = {0};
     tsdbTFileName(writer->tsdb, &tf, finalFname);
 
     tsdbInfo("vgId:%d, finalize file %s, size:%" PRId64, TD_VID(writer->tsdb->pVnode), finalFname, actualSize);
@@ -1207,7 +1207,7 @@ int32_t tsdbBuildMediumSnapFileList(STsdb *tsdb, SMediumSnapFileList *pList) {
       tfileToMediumInfo(fobj->f, fset->fid, info);
 
       // Check if file exists on disk
-      char fname[TSDB_FILENAME_LEN] = {0};
+      char fname[TSDB_PATH_LEN] = {0};
       tsdbTFileName(tsdb, fobj->f, fname);
       if (taosStatFile(fname, NULL, NULL, NULL) != 0) {
         info->missing = 1;
@@ -1223,7 +1223,7 @@ int32_t tsdbBuildMediumSnapFileList(STsdb *tsdb, SMediumSnapFileList *pList) {
         SMediumSnapFileInfo *info = &pList->aFiles[idx];
         tfileToMediumInfo(fobj->f, fset->fid, info);
 
-        char fname[TSDB_FILENAME_LEN] = {0};
+        char fname[TSDB_PATH_LEN] = {0};
         tsdbTFileName(tsdb, fobj->f, fname);
         if (taosStatFile(fname, NULL, NULL, NULL) != 0) {
           info->missing = 1;

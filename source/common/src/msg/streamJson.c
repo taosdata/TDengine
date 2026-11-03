@@ -948,7 +948,7 @@ static int32_t jsonToStreamWindowPlan(const SJson* pJson, SCMCreateStreamReq* pR
     goto _exit;
   }
   for (int32_t i = 0; i < numLayers; ++i) {
-    SStreamWindowLayerSpec emptyLayer = {};
+    SStreamWindowLayerSpec emptyLayer = {0};
     SJson*                 pLayerJson = tjsonGetArrayItem(pLayers, i);
     if (pLayerJson == NULL) {
       code = TSDB_CODE_INVALID_PARA;

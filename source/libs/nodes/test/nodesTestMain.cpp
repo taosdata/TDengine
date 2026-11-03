@@ -505,7 +505,22 @@ TEST(NodesTest, nonCanonicalTimezoneNamesAreNotCached) {
     expectTimezoneUsable(pTz, (time_t)1735689600);
     tzfree((timezone_t)pTz);
   }
-  EXPECT_GT(decoded, 0) << "at least one alias spelling should resolve on this system";
+
+  // Whether a redundant separator is tolerated is a property of the underlying tz
+  // library, not of the cache: the bundled Windows tzcode rejects "Asia//Shanghai"
+  // outright while the Linux one resolves it. Require the decode result to agree
+  // with what the library itself accepts instead of assuming one behaviour on
+  // every platform.
+  timezone_t probe = NULL;
+  bool       libAcceptsAlias =
+      (TSDB_CODE_SUCCESS == taosValidateTimezone("Asia//Shanghai", &probe));
+  if (libAcceptsAlias) {
+    EXPECT_NE(nullptr, probe);
+    tzfree(probe);
+    EXPECT_GT(decoded, 0) << "the tz library resolves the alias spelling, so it must decode";
+  } else {
+    EXPECT_EQ(0, decoded) << "the tz library rejects every alias spelling, so none may decode";
+  }
 
   // Repeating the same alias keeps handing out fresh handles instead of growing the cache.
   void* pFirst = nullptr;

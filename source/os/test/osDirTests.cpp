@@ -642,3 +642,37 @@ TEST(osDirTests, taosExpandDirErrorCases) {
 #endif
   EXPECT_STREQ(fullpath, "unchanged");
 }
+
+#ifdef WINDOWS
+// taosMulMkDirW used to skip only a "C:\" drive prefix.  For a UNC path the
+// first character is a separator, so the walk truncated the buffer to an empty
+// string and called _wmkdir(L""), which fails every time: no directory below a
+// network share could ever be created.  The prefix now walks past the share and
+// only creates what is below it.
+TEST(osDirTests, taosMulMkDirWHandlesUncSharePrefix) {
+  WCHAR tmp[MAX_PATH] = {0};
+  ASSERT_NE(GetTempPathW(MAX_PATH, tmp), 0);
+
+  // "\\localhost\<drive>$" is the administrative share of the local drive, so
+  // the test does not depend on an external server.  It only resolves for an
+  // elevated process; otherwise the share is absent and there is nothing to
+  // assert about prefix handling.
+  char unc[TD_PATH_MAX] = {0};
+  char shareRoot[TD_PATH_MAX] = {0};
+  snprintf(shareRoot, sizeof(shareRoot), "\\\\localhost\\%c$", (char)tmp[0]);
+  snprintf(unc, sizeof(unc), "%s\\tdengine-unc-test\\nested\\leaf", shareRoot);
+
+  terrno = 0;
+  int32_t code = taosMulMkDirW(unc);
+  if (code != 0) {
+    GTEST_SKIP() << "local administrative share unavailable, terrno=" << terrno;
+  }
+  EXPECT_TRUE(taosDirExist(unc));
+
+  // Cleanup walks the same prefix logic.
+  taosRemoveDir(unc);
+  char    shareDeep[TD_PATH_MAX] = {0};
+  snprintf(shareDeep, sizeof(shareDeep), "%s\\tdengine-unc-test", shareRoot);
+  taosRemoveDir(shareDeep);
+}
+#endif

@@ -60,7 +60,7 @@ static int32_t vnodeMkDir(STfs *pTfs, const char *path) {
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs *pTfs) {
   int32_t    code = 0;
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
 
   // check config
   if ((code = vnodeCheckCfg(pCfg)) < 0) {
@@ -73,7 +73,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, int32_t diskPrimary, STfs
     vError("vgId:%d, failed to prepare vnode dir since %s, path: %s", pCfg->vgId, strerror(ERRNO), path);
     return TAOS_SYSTEM_ERROR(ERRNO);
   }
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   if (pCfg) {
     info.config = *pCfg;
@@ -114,7 +114,7 @@ bool vnodeShouldRemoveWal(SVnode *pVnode) { return pVnode->config.walCfg.clearFi
 
 int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
   int32_t    ret = 0;
 
   // [TD-SEC-2026-034] the loops below use replica/learnerReplica as bounds on the fixed-size
@@ -128,7 +128,7 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
     return -1;
   }
 
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -198,8 +198,8 @@ int32_t vnodeAlterReplica(const char *path, SAlterVnodeReplicaReq *pReq, int32_t
 }
 
 static int32_t vnodeVgroupIdLen(int32_t vgId) {
-  char tmp[TSDB_FILENAME_LEN];
-  (void)snprintf(tmp, TSDB_FILENAME_LEN, "%d", vgId);
+  char tmp[TSDB_PATH_LEN];
+  (void)snprintf(tmp, TSDB_PATH_LEN, "%d", vgId);
   return strlen(tmp);
 }
 
@@ -209,10 +209,10 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 
   char oldRname[TSDB_FILENAME_LEN] = {0};
   char newRname[TSDB_FILENAME_LEN] = {0};
-  char tsdbPath[TSDB_FILENAME_LEN] = {0};
-  char tsdbFilePrefix[TSDB_FILENAME_LEN] = {0};
-  snprintf(tsdbPath, TSDB_FILENAME_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
-  snprintf(tsdbFilePrefix, TSDB_FILENAME_LEN, "tsdb%sv", TD_DIRSEP);
+  char tsdbPath[TSDB_PATH_LEN] = {0};
+  char tsdbFilePrefix[TSDB_PATH_LEN] = {0};
+  snprintf(tsdbPath, TSDB_PATH_LEN, "%s%stsdb", srcPath, TD_DIRSEP);
+  snprintf(tsdbFilePrefix, TSDB_PATH_LEN, "tsdb%sv", TD_DIRSEP);
   int32_t prefixLen = strlen(tsdbFilePrefix);
 
   STfsDir *tsdbDir = NULL;
@@ -267,10 +267,10 @@ int32_t vnodeRenameVgroupId(const char *srcPath, const char *dstPath, int32_t sr
 int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnodeHashRangeReq *pReq,
                             int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
   int32_t    ret = 0;
 
-  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -329,10 +329,10 @@ int32_t vnodeAlterHashRange(const char *srcPath, const char *dstPath, SAlterVnod
 int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t srcVgId, int32_t dstVgId,
                              int32_t diskPrimary, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
   int32_t    code = 0;
 
-  vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(dstPath, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
   if (vnodeLoadInfo(dir, &info) == 0) {
     if (info.config.vgId != dstVgId) {
       vError("vgId:%d, unexpected vnode config.vgId:%d", dstVgId, info.config.vgId);
@@ -341,7 +341,7 @@ int32_t vnodeRestoreVgroupId(const char *srcPath, const char *dstPath, int32_t s
     return dstVgId;
   }
 
-  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(srcPath, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
   if ((code = vnodeLoadInfo(dir, &info)) < 0) {
     vError("vgId:%d, failed to read vnode config from %s since %s", srcVgId, srcPath, tstrerror(terrno));
     return code;
@@ -373,8 +373,8 @@ void vnodeDestroy(int32_t vgId, const char *path, STfs *pTfs, int32_t nodeId) {
 #ifdef USE_SHARED_STORAGE
   if (nodeId > 0 && vgId > 0 && tsSsEnabled) {
     // we should only do this on the leader node, but it is ok to do this on all nodes
-    char prefix[TSDB_FILENAME_LEN];
-    snprintf(prefix, TSDB_FILENAME_LEN, "vnode%d/", vgId);
+    char prefix[TSDB_PATH_LEN];
+    snprintf(prefix, TSDB_PATH_LEN, "vnode%d/", vgId);
     int32_t code = tssDeleteFileByPrefixFromDefault(prefix);
     if (code < 0) {
       vError("vgId:%d, failed to remove vnode files from shared storage since %s", vgId, tstrerror(code));
@@ -400,8 +400,8 @@ static int32_t vnodeCheckDisk(int32_t diskPrimary, STfs *pTfs) {
 SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMountTfs, SMsgCb msgCb, bool force) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN] = {0};
-  char       tdir[TSDB_FILENAME_LEN * 2] = {0};
+  char       dir[TSDB_PATH_LEN] = {0};
+  char       tdir[TSDB_PATH_LEN * 2] = {0};
   int32_t    ret = 0;
   bool       mounted = pMountTfs != NULL;
   terrno = TSDB_CODE_SUCCESS;
@@ -410,7 +410,7 @@ SVnode *vnodeOpen(const char *path, int32_t diskPrimary, STfs *pTfs, STfs *pMoun
     vError("failed to open vnode from %s since %s. diskPrimary:%d", path, terrstr(), diskPrimary);
     return NULL;
   }
-  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryDir(path, diskPrimary, pTfs, dir, TSDB_PATH_LEN);
 
   info.config = vnodeCfgDefault;
 

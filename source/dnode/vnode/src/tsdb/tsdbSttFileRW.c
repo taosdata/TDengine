@@ -56,7 +56,7 @@ int32_t tsdbSttFileReaderOpen(const char *fname, const SSttFileReaderConfig *con
   if (fname) {
     TAOS_CHECK_GOTO(tsdbOpenFile(fname, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   } else {
-    char fname1[TSDB_FILENAME_LEN];
+    char fname1[TSDB_PATH_LEN];
     tsdbTFileName(config->tsdb, config->file, fname1);
     TAOS_CHECK_GOTO(tsdbOpenFile(fname1, config->tsdb, TD_FILE_READ, &reader[0]->fd, 0), &lino, _exit);
   }
@@ -853,7 +853,7 @@ static int32_t tsdbSttFWriterDoOpen(SSttFileWriter *writer) {
 
   // open file
   int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  char    fname[TSDB_FILENAME_LEN];
+  char    fname[TSDB_PATH_LEN];
 
   tsdbTFileName(writer->config->tsdb, writer->file, fname);
   TAOS_CHECK_GOTO(tsdbOpenFile(fname, writer->config->tsdb, flag, &writer->fd, 0), &lino, _exit);
@@ -933,7 +933,7 @@ _exit:
 }
 
 static int32_t tsdbSttFWriterCloseAbort(SSttFileWriter *writer) {
-  char fname[TSDB_FILENAME_LEN];
+  char fname[TSDB_PATH_LEN];
   tsdbTFileName(writer->config->tsdb, writer->file, fname);
   tsdbCloseFile(&writer->fd);
   tsdbRemoveFile(fname);

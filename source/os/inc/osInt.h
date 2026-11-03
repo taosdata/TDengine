@@ -56,6 +56,13 @@ typedef struct WindowsTimezoneObj {
  * fixed-offset conversion. */
 bool taosWindowsZoneToEpoch(const char *zoneName, int32_t year, int32_t mon, int32_t day,
                             int32_t hour, int32_t min, int32_t sec, time_t *pEpoch);
+
+/* Convert a UTC instant to the named zone's local broken-down time, applying
+ * the zone's daylight-saving rules (Windows dynamic time zone data).  This is
+ * the mirror of taosWindowsZoneToEpoch(); WindowsTimezoneObj only stores the
+ * standard-time offset, which is wrong inside a DST period.  Returns false when
+ * the zone cannot be resolved, so callers can fall back to that fixed offset. */
+bool taosWindowsEpochToZoneTm(time_t utc, const char *zoneName, struct tm *pLocal);
 #endif
 
 #ifdef __cplusplus

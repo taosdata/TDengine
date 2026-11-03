@@ -97,7 +97,13 @@ int taos_options(TSDB_OPTION option, const void *arg, ...) {
   return ret;
 }
 
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+/* Windows used to keep only the session timezone *name*, which meant
+ * optionInfo.timezone stayed NULL and every consumer that needs a handle
+ * (TIMEZONE(), window boundary computation) silently fell back to the
+ * process-wide default -- i.e. SET TIMEZONE had no effect at all. Windows has
+ * its own tzalloc()/tzfree() in osTimezone.c, so the same cache and handle can
+ * be used on every platform that is not TD_ASTRA. */
+#if !defined(TD_ASTRA)
 static void freeTz(void *p) {
   timezone_t tz = *(timezone_t *)p;
   tzfree(tz);
@@ -105,7 +111,7 @@ static void freeTz(void *p) {
 #endif
 
 int32_t tzInit() {
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   pTimezoneMap = taosHashInit(0, MurmurHash3_32, false, HASH_ENTRY_LOCK);
   if (pTimezoneMap == NULL) {
     return terrno;
@@ -121,7 +127,7 @@ int32_t tzInit() {
 }
 
 void tzCleanup() {
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   taosHashCleanup(pTimezoneMap);
   taosHashCleanup(pTimezoneNameMap);
 #endif
@@ -154,7 +160,7 @@ static void buildSessionTimezoneName(const char* inputName,
   tstrncpy(sessionName, normalizedName, sessionNameLen);
 }
 
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
 static timezone_t setConnectionTz(const char* val, char* sessionName,
                                   int32_t sessionNameLen) {
   char       normalizedName[TD_TIMEZONE_LEN] = {0};
@@ -235,7 +241,7 @@ int32_t tscPrepareSessionTimezone(const char* timezoneName,
   }
 
   char sessionName[TD_TIMEZONE_LEN] = {0};
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   timezone_t timezone = setConnectionTz(timezoneName, sessionName,
                                         sizeof(sessionName));
   if (timezone == NULL) {
@@ -264,7 +270,7 @@ void tscCommitSessionTimezone(STscObj* pObj, const SPreparedTimezone* pPrepared)
     return;
   }
 
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   pObj->optionInfo.timezone = pPrepared->timezone;
 #endif
   tstrncpy(pObj->optionInfo.timezoneName, pPrepared->timezoneName,
@@ -296,12 +302,10 @@ int32_t tscInitSessionTimezone(STscObj *pObj) {
   (void)pObj;
   return TSDB_CODE_SUCCESS;
 #else
-#ifndef WINDOWS
   if (pTimezoneMap == NULL) {
     /* tzInit() not yet called; skip silently */
     return TSDB_CODE_SUCCESS;
   }
-#endif
 
   /* Extract the IANA name from tsTimezoneStr.
    * The string has the form "Name (Abbrev, +HHMM)". */
@@ -354,12 +358,6 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
     return terrno = TSDB_CODE_INVALID_PARA;
   }
 
-#ifdef WINDOWS
-  if (option == TSDB_OPTION_CONNECTION_TIMEZONE) {
-    return terrno = TSDB_CODE_NOT_SUPPORTED_IN_WINDOWS;
-  }
-#endif
-
   if (option < TSDB_OPTION_CONNECTION_CLEAR || option >= TSDB_MAX_OPTIONS_CONNECTION) {
     return terrno = TSDB_CODE_INVALID_PARA;
   }
@@ -399,7 +397,7 @@ static int32_t setConnectionOption(TAOS *taos, TSDB_OPTION_CONNECTION option, co
   }
 #endif
   if (option == TSDB_OPTION_CONNECTION_TIMEZONE || option == TSDB_OPTION_CONNECTION_CLEAR) {
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
     if (val != NULL) {
       if (val[0] == 0) {
         val = "UTC";
@@ -549,7 +547,7 @@ void taos_cleanup(void) {
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
 
-#if !defined(WINDOWS) && !defined(TD_ASTRA)
+#if !defined(TD_ASTRA)
   tzCleanup();
 #endif
   tmqMgmtClose();
