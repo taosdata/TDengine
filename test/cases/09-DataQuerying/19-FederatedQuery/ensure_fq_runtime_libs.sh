@@ -197,7 +197,10 @@ ensure_mysql() {
 }
 
 ensure_pg() {
-    local ver="${FQ_PG_RUNTIME_VERSION:-$(first_csv_value "${FQ_PG_VERSIONS:-16}")}"
+    local ver="${FQ_PG_RUNTIME_VERSION:-$(first_csv_value "${FQ_PG_VERSIONS:-18.6}")}"
+    # System PG installs live under the major-version directory; the test
+    # version tag may carry a minor (e.g. 18.6).
+    local ver_major="${ver%%.*}"
     if [ "${OS}" = "Darwin" ]; then
         has_any libpq.5.dylib libpq.dylib && return 0
     else
@@ -207,7 +210,7 @@ ensure_pg() {
     copy_glob "${STAGED_DIR}" 'libpq.so*' 'libpq*.dylib*' || true
     copy_glob "${REPO_ROOT}/.externals/install/ext_libpq/${TD_CONFIG_NAME:-Debug}/lib" 'libpq.so*' 'libpq*.dylib*' || true
     copy_glob "${FQ_BASE_DIR}/pg/${ver}/lib" 'libpq.so*' 'libpq*.dylib*' || true
-    copy_glob "/usr/lib/postgresql/${ver}/lib" 'libpq.so*' || true
+    copy_glob "/usr/lib/postgresql/${ver_major}/lib" 'libpq.so*' || true
     copy_glob /usr/lib/x86_64-linux-gnu 'libpq.so*' || true
     copy_glob /usr/lib/aarch64-linux-gnu 'libpq.so*' || true
     copy_glob /usr/local/lib 'libpq.so*' 'libpq*.dylib*' || true
@@ -217,7 +220,7 @@ ensure_pg() {
     if ! has_any libpq.so.5 libpq.so libpq.5.dylib libpq.dylib; then
         bootstrap_ext_env pg || true
         copy_glob "${FQ_BASE_DIR}/pg/${ver}/lib" 'libpq.so*' 'libpq*.dylib*' || true
-        copy_glob "/usr/lib/postgresql/${ver}/lib" 'libpq.so*' || true
+        copy_glob "/usr/lib/postgresql/${ver_major}/lib" 'libpq.so*' || true
         copy_glob /usr/lib/x86_64-linux-gnu 'libpq.so*' || true
         copy_glob /usr/lib/aarch64-linux-gnu 'libpq.so*' || true
         copy_glob /usr/local/lib 'libpq.so*' 'libpq*.dylib*' || true

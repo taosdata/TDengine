@@ -69,7 +69,7 @@ class RestfulTest(TestCase):
         self.assertEqual(res["protocol"], 1.0)
 
         d = res["details"]
-        self.assertEqual(len(d), 7)
+        self.assertEqual(len(d), 8)
 
     def test_clustering_all_noise(self):
         """test clustering api returns an empty centers list for all noise"""

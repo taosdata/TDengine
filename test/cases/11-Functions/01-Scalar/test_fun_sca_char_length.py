@@ -15,7 +15,6 @@
 
 from new_test_framework.utils import tdLog, tdSql
 
-import imp
 import datetime
 
 
@@ -256,6 +255,7 @@ class TestCharLength:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

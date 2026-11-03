@@ -46,10 +46,11 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(__file__), '..', '09-DataQuerying', '19-FederatedQuery'))
 
 # Convenience: propagate generic FQ_{PG,MYSQL,INFLUX}_PORT to the
-# versioned variants that ExtSrcEnv reads (FQ_PG_PORT_16 etc.) so users
+# versioned variants that ExtSrcEnv reads (FQ_PG_PORT_186 etc.) so users
 # can point at a locally-running instance with a single env var.
+_pg_primary_version = (os.environ.get("FQ_PG_VERSIONS") or "18.6").split(",")[0].strip()
 for _proto, _ver_tag in (
-        ("PG",     "16"),
+        ("PG",     _pg_primary_version.replace(".", "")),
         ("MYSQL",  "80"),
         ("INFLUX", "30")):
     _generic = os.environ.get(f"FQ_{_proto}_PORT")

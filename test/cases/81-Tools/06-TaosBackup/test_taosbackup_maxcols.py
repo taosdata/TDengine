@@ -36,6 +36,7 @@ Part 3 - MEDIUMBLOB type backup/restore round-trip.
 """
 
 import os
+import shutil
 
 from new_test_framework.utils import tdLog, tdSql, etool
 
@@ -78,7 +79,7 @@ class TestTaosBackupMaxcols:
         if not os.path.exists(path):
             os.makedirs(path)
         else:
-            os.system("rm -rf %s" % path)
+            shutil.rmtree(path)
             os.makedirs(path)
 
     def _genWideName(self, prefix, idx, length=64):

@@ -57,6 +57,10 @@ def _find_binary():
     src = os.path.normpath(src)
     if not os.path.isfile(src):
         raise RuntimeError("Cannot find tmq_taosx_txn.c source: %s" % src)
+    if os.name == 'nt':
+        from new_test_framework.utils.eutil import build_windows_test_program
+        TMQ_TAOSX_TXN_BIN = build_windows_test_program(src, 'tmq_taosx_txn', tdCom.getBuildPath())
+        return TMQ_TAOSX_TXN_BIN
     dst = "/tmp/tmq_taosx_txn"
     cmd = [
         "gcc", "-o", dst, src,
@@ -144,7 +148,9 @@ class TestTaosxTxnMixedNontxn:
         4. nontxn_conflict_then_retry_after_rollback
 
         Since: v3.3.6.0
+
         Labels: common,ci
+
         Jira: TD-XXXXX
         """
         self.s30_nontxn_txn_nontxn_alter_chain()

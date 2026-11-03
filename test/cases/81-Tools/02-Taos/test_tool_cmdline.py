@@ -28,6 +28,9 @@ class TestFullopt:
         'slowLogScope':"query"
     }
 
+    def teardown_class(cls):
+        etool.stop_background_binaries()
+
     def insertData(self):
         tdLog.info(f"insert data.")
 
@@ -111,7 +114,8 @@ class TestFullopt:
 
         # -s
         sdb = "./sdb.json"
-        eos.delFile(sdb)
+        if os.path.exists(sdb):
+            os.remove(sdb)
         etool.exeBinFile("taosd", f"-s -c {cfg}")
 
 
@@ -149,7 +153,7 @@ class TestFullopt:
         rlist = self.taos("-n client")
         self.checkListString(rlist, "total succ:  100/100")
         if platform.system().lower() == 'windows':
-           os.system("taskkill /f /im taos.exe")
+           etool.stop_background_binaries("taos")
         else:
             eos.exe("pkill -9 taos")
 
@@ -157,7 +161,7 @@ class TestFullopt:
         etool.exeBinFile("taos", f'-p', wait=False)
         time.sleep(1)
         if platform.system().lower() == 'windows':
-           os.system("taskkill /f /im taos.exe")
+           etool.stop_background_binaries("taos")
         else:
             eos.exe("pkill -9 taos")
 
@@ -171,6 +175,7 @@ class TestFullopt:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -198,6 +203,7 @@ class TestFullopt:
         Since: v3.0.0.0
 
         Labels: common,ci,ignore,integration,functional
+
         Jira: None
 
         History:

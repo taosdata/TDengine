@@ -59,10 +59,6 @@ from .shared.types import TdDataType
 
 # Config.init()
 
-# Require Python 3
-if sys.version_info[0] < 3:
-    raise Exception("Must be using Python 3")
-
 # Global variables, tried to keep a small number.
 
 # Command-line/Environment Configurations, will set a bit later

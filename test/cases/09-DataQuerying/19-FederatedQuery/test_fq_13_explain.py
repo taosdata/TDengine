@@ -5039,12 +5039,26 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'check_args': {'min_scans': 2,
                  'remote_any_count_eq': [('Remote SQL:', 2)],
                  'remote_any_not_has': ['JOIN'],
-                 'local_has': {'mysql_pg': ['Projection', 'Inner Join', 'Data Exchange'],
-                               'mysql_influx': ['Projection', 'Inner Join'],
-                               'pg_influx': ['Projection', 'Inner Join'], 'mysql_sqlserver': ['Projection', 'Inner Join', 'Data Exchange'], 'pg_sqlserver': ['Projection', 'Inner Join', 'Data Exchange'], 'influx_sqlserver': ['Projection', 'Inner Join'], 'mysql_oracle': ['Projection', 'Inner Join'], 'pg_oracle': ['Projection', 'Inner Join'], 'influx_oracle': ['Projection', 'Inner Join'], 'sqlserver_oracle': ['Projection', 'Inner Join']},
-                 'local_not_has': {'mysql_pg': [],
+                 'local_has': {'mysql_pg': ['Projection', 'Inner Join', 'algo=Merge'],
+                               'mysql_sqlserver': ['Projection', 'Inner Join', 'algo=Merge'],
+                               'pg_sqlserver': ['Projection', 'Inner Join', 'algo=Merge'],
+                               'mysql_influx': ['Projection', 'Inner Join', 'algo=Merge'],
+                               'pg_influx': ['Projection', 'Inner Join', 'algo=Merge'],
+                               'influx_sqlserver': ['Projection', 'Inner Join', 'algo=Merge'],
+                               'mysql_oracle': ['Projection', 'Inner Join'],
+                               'pg_oracle': ['Projection', 'Inner Join'],
+                               'influx_oracle': ['Projection', 'Inner Join'],
+                               'sqlserver_oracle': ['Projection', 'Inner Join']},
+                 'local_not_has': {'mysql_pg': ['Data Exchange'],
+                                   'mysql_sqlserver': ['Data Exchange'],
+                                   'pg_sqlserver': ['Data Exchange'],
                                    'mysql_influx': ['Data Exchange'],
-                                   'pg_influx': ['Data Exchange'], 'mysql_sqlserver': [], 'pg_sqlserver': [], 'influx_sqlserver': ['Data Exchange'], 'mysql_oracle': [], 'pg_oracle': [], 'influx_oracle': [], 'sqlserver_oracle': []}}},
+                                   'pg_influx': ['Data Exchange'],
+                                   'influx_sqlserver': ['Data Exchange'],
+                                   'mysql_oracle': [],
+                                   'pg_oracle': [],
+                                   'influx_oracle': [],
+                                   'sqlserver_oracle': []}}},
  {'id': 'EXP-join_inner_with_where-01',
   'sql': 'select s.`time`, s.voltage, r.area from {SRC}.sensor s inner join {SRC}.region_info r on '
          's.`time` = r.`time` and s.region = r.region where s.voltage > 220.0',
@@ -15928,6 +15942,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         _exec_time_re = re.compile(r'Execution Time: [\d.]+ ms')
         _elapsed_re = re.compile(r'elapsed=[\d.]+ms')
         _remote_blocks_re = re.compile(r'(Remote rows=\d+, )blocks=\d+(, elapsed=<TIME>ms)')
+        _filter_efficiency_re = re.compile(r'(efficiency=)[\d.]+%')
         _exec_cost_line_re = re.compile(r'Exec cost: .+')
         _exec_cost_dt_re = re.compile(
             r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+')
@@ -16010,6 +16025,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             t = _exec_time_re.sub('Execution Time: <TIME> ms', t)
             t = _elapsed_re.sub('elapsed=<TIME>ms', t)
             t = _remote_blocks_re.sub(r'\1blocks=<BLOCKS>\2', t)
+            t = _filter_efficiency_re.sub(r'\1<NUM>%', t)
             t = _exec_cost_line_re.sub(_mask_exec_cost, t)
             t = _remote_ts_re.sub("'<NOW>'", t)
             t = _remote_today_re.sub("'<TODAY>'", t)
@@ -16027,7 +16043,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 if sys.platform == 'win32' and '(influxdb)' in block
                 else block
                 for block in re.split(r'(?=### )', t))
-            return t
+            # EXPLAIN may append spaces after equal-condition labels.  They
+            # carry no plan information and vary with the formatter path.
+            return '\n'.join(line.rstrip() for line in t.split('\n'))
 
         normalized_output = normalize(output)
 

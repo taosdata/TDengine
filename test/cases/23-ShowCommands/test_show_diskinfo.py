@@ -91,6 +91,14 @@ class TestShowDiskInfo:
     # ------------------- system-test/0-others ----------------
     #
     def get_disk_usage(self, path):
+        if platform.system() == 'Windows':
+            if not os.path.isdir(path):
+                raise FileNotFoundError(path)
+            def on_error(error):
+                raise error
+            return sum(os.path.getsize(os.path.join(root, name))
+                       for root, _, files in os.walk(path, onerror=on_error)
+                       for name in files)
         try:
             result = subprocess.run(['du', '-sb', path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             if result.returncode == 0:

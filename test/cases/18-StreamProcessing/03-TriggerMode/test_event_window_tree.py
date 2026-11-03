@@ -808,14 +808,17 @@ class TestEventWindowTree:
         tdStream.ensureSnode()
         tdSql.prepare(dbname="ewtree_parent_tf_no_dup_open", vgroups=1)
         tdSql.execute("create table t (ts timestamp, current int, voltage int)")
+        # Different paths and open/close events can share a local clock tick.
         tdSql.execute(
             "create stream s_parent_tf_no_dup_open "
             "event_window(start with ((current >= 12 true_for(count 3), voltage < 100 true_for(count 1)), "
             "current < 0 true_for(count 1)) end with voltage < 200) "
             "true_for(count 2) "
             "from t stream_options(event_type(window_open|window_close)) "
-            "into r_parent_tf_no_dup_open (start_ts, event_time primary key, path, end_ts, current) "
-            "as select _twstart, cast(_tlocaltime as bigint), _event_condition_path, _twend, current "
+            "into r_parent_tf_no_dup_open (start_ts, event_key primary key, path, end_ts, current) "
+            "as select _twstart, "
+            "concat(_event_condition_path, cast(_twend as varchar(64)), cast(_tlocaltime as varchar(64))), "
+            "_event_condition_path, _twend, current "
             "from t where ts = _twstart"
         )
         tdStream.checkStreamStatus()
@@ -861,14 +864,17 @@ class TestEventWindowTree:
         tdSql.execute("insert into t values ('2025-01-01 00:00:00.000', 12, 230)")
         tdSql.execute("insert into t values ('2025-01-01 00:00:01.000', 12, 230)")
         tdSql.execute("insert into t values ('2025-01-01 00:00:02.000', 12, 190)")
+        # Preserve every condition path even when replay emits events together.
         tdSql.execute(
             "create stream s_history_parent_tf_no_dup_open "
             "event_window(start with ((current >= 12 true_for(count 3), voltage < 100 true_for(count 1)), "
             "current < 0 true_for(count 1)) end with voltage < 200) "
             "true_for(count 2) "
             "from t stream_options(fill_history|event_type(window_open|window_close)) "
-            "into r_history_parent_tf_no_dup_open (start_ts, event_time primary key, path, end_ts, current) "
-            "as select _twstart, cast(_tlocaltime as bigint), _event_condition_path, _twend, current "
+            "into r_history_parent_tf_no_dup_open (start_ts, event_key primary key, path, end_ts, current) "
+            "as select _twstart, "
+            "concat(_event_condition_path, cast(_twend as varchar(64)), cast(_tlocaltime as varchar(64))), "
+            "_event_condition_path, _twend, current "
             "from t where ts = _twstart"
         )
         tdStream.checkStreamStatus()

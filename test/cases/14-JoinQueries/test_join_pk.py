@@ -17,6 +17,10 @@ from new_test_framework.utils import tdLog, tdSql, tdCom
 import os
 
 class TestJoinPk:
+    # Snapshot plans embed firstDayOfWeek; pin it instead of inheriting the
+    # runner's locale. The checked plans use Sunday (0).
+    updatecfgDict = {"clientCfg": {"timezone": "Asia/Shanghai", "firstDayOfWeek": 0}}
+
 
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
@@ -382,7 +386,10 @@ class TestJoinPk:
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.ans")
 
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+        tdCom.compare_testcase_result(
+            self.sqlFile, self.ansFile, testCase,
+            result_transform=tdCom.normalize_windows_shanghai_explain,
+        )
      
     def join_with_const_condition(self):
         tdLog.info("test join with constant condition")

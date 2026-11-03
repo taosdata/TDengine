@@ -84,7 +84,14 @@ def _setup_windows_taos_dll_dir():
     candidates = []
     env_bin = os.getenv("TAOS_BIN_PATH")
     if env_bin:
-        candidates.append(Path(env_bin))
+        candidate = Path(env_bin).resolve()
+        missing = [name for name in ("taosd.exe", "taos.dll") if not (candidate / name).is_file()]
+        if missing:
+            raise pytest.UsageError(
+                f"TAOS_BIN_PATH={candidate} is missing Windows test artifacts: "
+                f"{', '.join(missing)}. Build the selected revision before running tests."
+            )
+        candidates.append(candidate)
 
     for parent in Path(__file__).resolve().parents:
         candidate = parent / "debug" / "build" / "bin"
@@ -676,6 +683,12 @@ def before_test_class(request):
                     if_success = False
         if if_success and not request.session.skip_stop:
             tdLog.info(f"successfully executed")
+            # ci/pytest.sh greps this marker from the captured stdout.  Under
+            # LD_PRELOAD=libasan the LeakSanitizer exit path can terminate the
+            # interpreter before Python flushes its (block-buffered) stdout,
+            # losing the marker and failing an otherwise green file.
+            sys.stdout.flush()
+            sys.stderr.flush()
             request.session.before_test.destroy(request.cls.yaml_file)
 
 

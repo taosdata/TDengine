@@ -4770,7 +4770,7 @@ _return:
 }
 
 /*
- * Resolve all root refs stored in one column-ref array through layered systable scans.
+ * Resolve required data roots and tag refs through layered systable scans.
  *
  * @param pOperator   dyn operator context
  * @param pTargetOp   operator used to read `ins_vc_cols`
@@ -4798,6 +4798,10 @@ static int32_t dynResolveColRefArrayBySysScan(SOperatorInfo* pOperator, SOperato
     SColRefInfo* pColRef = taosArrayGet(pColRefInfo, i);
     QUERY_CHECK_NULL(pColRef, code, line, _return, terrno);
 
+    if (pColRef->refType == 0 && !colNeedScan(pOperator, pColRef->colId)) {
+      continue;
+    }
+
     code = dynAddPendingRootRef(pOperator, pCtx->pPendingMap, pCtx->pRootRefs, pColRef->colrefName);
     QUERY_CHECK_CODE(code, line, _return);
   }
@@ -4816,7 +4820,7 @@ _return:
 }
 
 /*
- * Resolve all root refs stored in virtual-super-table child arrays.
+ * Resolve required data roots and tag refs stored in virtual-super-table child arrays.
  *
  * @param pOperator dyn operator context
  * @param pTargetOp operator used to read `ins_vc_cols`
@@ -4852,6 +4856,10 @@ static int32_t dynResolveChildTableRefsBySysScan(SOperatorInfo* pOperator, SOper
     for (int32_t j = 0; j < taosArrayGetSize(pColRefArray); ++j) {
       SColRefInfo* pColRef = taosArrayGet(pColRefArray, j);
       QUERY_CHECK_NULL(pColRef, code, line, _return, terrno);
+
+      if (pColRef->refType == 0 && !colNeedScan(pOperator, pColRef->colId)) {
+        continue;
+      }
 
       code = dynAddPendingRootRef(pOperator, pCtx->pPendingMap, pCtx->pRootRefs, pColRef->colrefName);
       QUERY_CHECK_CODE(code, line, _return);
@@ -6635,6 +6643,13 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
 
+          // Filter root visibility before resolving refs: an invisible owned
+          // source must neither add timestamps nor fail a supertable query.
+          if (pVtbScan->isSuperTable && info.refType == 0 && (col_id_t)info.colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+            destroyColRefInfo(&info);
+            continue;
+          }
+
           if (pInfo->qType == DYN_QTYPE_VTB_SCAN) {
             if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
               qTrace("dynQueryCtrl tb uid filter, info uid:%" PRIu64 ", dyn tb uid:%" PRIu64, info.uid,
@@ -6788,22 +6803,10 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
   code = dynResolveColRefArrayBySysScan(pOperator, pSystableScanOp, pInfo->vtbScan.colRefInfo);
   QUERY_CHECK_CODE(code, line, _return);
 
-  // Rebuild curOrgTbVg from runtime chain resolution so that processOrgTbVg
-  // can diff it against the plan-time baseline existOrgTbVg and trigger
-  // redeploy when the chain terminal vg differs from what the planner
-  // recorded (e.g. a multi-hop cross-vgroup vtable chain whose terminal
-  // physical table lives on a different vgroup than the planner assumed).
-  //
-  // Use curOrgTbVg == NULL as the "not yet runtime-verified" sentinel:
-  // existOrgTbVg is always pre-populated from plan-time pOrgVgIds at
-  // operator init, so it can never serve as a first-run indicator.
-  // curOrgTbVg starts NULL and becomes non-NULL after the first call to
-  // dynCollectResolvedOrgTbVgFromArray, making it a reliable once-per-open
-  // trigger that avoids repeated full chain resolution on steady-state calls.
-  if (rversion != pVtbScan->rversion || pVtbScan->curOrgTbVg == NULL) {
-    code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
-    QUERY_CHECK_CODE(code, line, _return);
-  }
+  // A referenced table can be rebound without changing the root's version.
+  // Match deployment to the chain we just resolved before scanning its data.
+  code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
+  QUERY_CHECK_CODE(code, line, _return);
   code = processOrgTbVg(pVtbScan, pTaskInfo, rversion);
   QUERY_CHECK_CODE(code, line, _return);
 

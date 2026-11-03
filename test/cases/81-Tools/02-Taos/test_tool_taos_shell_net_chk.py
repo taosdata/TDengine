@@ -20,6 +20,9 @@ import sys
 import time
 import socket
 import platform
+import subprocess
+import psutil
+from new_test_framework.utils.eutil import start_test_process
 if platform.system().lower() == 'windows':
     import wexpect as taosExpect
 else:
@@ -32,12 +35,14 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
         tdLog.exit("taos test key is null!")
 
     if platform.system().lower() == 'windows':
-        taosCmd = buildPath + '\\build\\bin\\taos.exe '
-        taosCmd = taosCmd.replace('\\','\\\\')
+        args = [os.path.join(buildPath, 'build', 'bin', 'taos.exe')]
+        if cfgDir:
+            args += ['-c', cfgDir]
+        taosCmd = subprocess.list2cmdline(args)
     else:
         taosCmd = buildPath + '/build/bin/taos '
-    if len(cfgDir) != 0:
-        taosCmd = taosCmd + '-c ' + cfgDir
+        if len(cfgDir) != 0:
+            taosCmd = taosCmd + '-c ' + cfgDir
 
     taosCmd = taosCmd + ' -' + key
     if len(value) != 0:
@@ -142,6 +147,7 @@ class TestTaosShellNetChk:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -156,11 +162,7 @@ class TestTaosShellNetChk:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        if platform.system().lower() == 'windows':
-            cfgPath = buildPath + "\..\sim\psim\cfg"
-            cfgPath = cfgPath.replace('\\','\\\\')
-        else:
-            cfgPath = buildPath + "/../sim/psim/cfg"
+        cfgPath = tdDnodes.sim.cfgDir
         tdLog.info("cfgPath: %s" % cfgPath)
 
         checkNetworkStatus = ['0: unavailable', '1: network ok', '2: service ok', '3: service degraded', '4: exiting']
@@ -208,24 +210,41 @@ class TestTaosShellNetChk:
         # stop taosd
         tdDnodes.stop(1)
 
+        server_process = None
         try:
             role   = 'server'
             if platform.system().lower() == 'windows':
-                taosCmd = 'mintty -h never -w hide ' + buildPath + '\\build\\bin\\taos.exe -c ' + keyDict['c']
-                taosCmd = taosCmd.replace('\\','\\\\')
-                taosCmd = taosCmd + ' -n ' + role
+                server_process = start_test_process(
+                    [os.path.join(buildPath, 'build', 'bin', 'taos.exe'),
+                     '-c', cfgPath, '-P', self.serverPort, '-n', role],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                deadline = time.monotonic() + 15
+                while time.monotonic() < deadline:
+                    if server_process.poll() is not None:
+                        tdLog.exit(f'network test server exited: {server_process.returncode}')
+                    connections = psutil.Process(server_process.pid).net_connections(kind='tcp')
+                    if any(c.status == psutil.CONN_LISTEN and
+                           c.laddr.port == int(self.serverPort) for c in connections):
+                        break
+                    time.sleep(0.1)
+                else:
+                    tdLog.exit('network test server did not start listening within 15s')
             else:
                 taosCmd = 'nohup ' + buildPath + '/build/bin/taos -c ' + keyDict['c']
                 taosCmd = taosCmd + ' -n ' + role + ' > /dev/null 2>&1 &'
-            print (taosCmd)
-            os.system(taosCmd)
+                print (taosCmd)
+                os.system(taosCmd)
 
             pktLen = '2000'
             pktNum = '10'
             role   = 'client'
             if platform.system().lower() == 'windows':
-                taosCmd = buildPath + '\\build\\bin\\taos.exe -h 127.0.0.1 -c ' + keyDict['c']
-                taosCmd = taosCmd.replace('\\','\\\\')
+                taosCmd = subprocess.list2cmdline([
+                    os.path.join(buildPath, 'build', 'bin', 'taos.exe'),
+                    '-h', '127.0.0.1', '-c', cfgPath, '-P', self.serverPort,
+                ])
             else:
                 taosCmd = buildPath + '/build/bin/taos -c ' + keyDict['c']
             taosCmd = taosCmd + ' -n ' + role + ' -l ' + pktLen + ' -N ' +  pktNum
@@ -250,8 +269,10 @@ class TestTaosShellNetChk:
                 tdLog.exit('taos -n client fail!')
         finally:
             if platform.system().lower() == 'windows':
-                tdLog.info("ps -a | grep taos | awk \'{print $2}\' | xargs kill -9")
-                os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
+                if server_process is not None:
+                    if server_process.poll() is None:
+                        server_process.kill()
+                    server_process.wait(timeout=10)
             else:
                 tdLog.info("pkill -9 taos")
                 # os.system('pkill -9 taos')

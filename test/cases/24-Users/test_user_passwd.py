@@ -13,7 +13,9 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, tdCom, etool
+from new_test_framework.utils.eutil import build_windows_test_program
+from pathlib import Path
 import os
 import platform
 import subprocess
@@ -25,19 +27,10 @@ import taos
 
 class TestPasswd:
     def apiPath(self):
-        apiPath = None
-        currentFilePath = os.path.dirname(os.path.realpath(__file__))
-        tdLog.info(f"current file path: {currentFilePath}")
-        if (os.sep.join(["community", "test"]) in currentFilePath):
-            testFilePath = currentFilePath[:currentFilePath.find(os.sep.join(["community", "test"]))+ len(os.sep.join(["community", "test"]))]
-        else:
-            testFilePath = currentFilePath[:currentFilePath.find(os.sep.join(["TDengine", "test"]))+ len(os.sep.join(["TDengine", "test"]))]
-        tdLog.info(f"test file path: {testFilePath}")
-        for root, dirs, files in os.walk(testFilePath):
-            if ("passwdTest.c" in files):
-                apiPath = root
-                break
-        return apiPath
+        api_path = Path(__file__).resolve().parents[2] / 'new_test_framework' / 'script' / 'api'
+        if not (api_path / 'passwdTest.c').is_file():
+            tdLog.exit(f"passwdTest.c not found in {api_path}")
+        return str(api_path)
 
     def test_passwd(self):
         """Password call c unit test
@@ -57,24 +50,27 @@ class TestPasswd:
         """
         apiPath = self.apiPath()
         tdLog.info(f"api path: {apiPath}")
-        if platform.system().lower() == 'linux':
+        if platform.system().lower() == 'windows':
+            test_program = build_windows_test_program(
+                Path(apiPath) / 'passwdTest.c', 'passwdTest', tdCom.getBuildPath())
+        elif platform.system().lower() == 'linux':
             p = subprocess.Popen(f"cd {apiPath} && make -f makefile_partial", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
             if 0 != p.returncode:
                 tdLog.exit("Test script passwdTest.c make failed")
+            test_program = os.path.join(apiPath, 'passwdTest')
         else:
             p = subprocess.Popen(f"cd {apiPath} && jom -f makefile_partial_win64.mak", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             out, err = p.communicate()
             if 0 != p.returncode:
                 tdLog.exit("Test script passwdTest.c make failed")
+            test_program = os.path.join(apiPath, 'passwdTest')
         
-        p = subprocess.Popen(f"ls {apiPath}", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out, err = p.communicate()
-        tdLog.info(f"test files: {out}")
+        tdLog.info(f"test files: {os.listdir(apiPath)}")
         if apiPath:
-            test_file_cmd = os.sep.join([apiPath, "passwdTest localhost"])
+            test_file_cmd = [test_program, 'localhost']
             try:
-                p = subprocess.Popen(test_file_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                p = subprocess.Popen(test_file_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if 0 != p.returncode:
                     tdLog.exit("Failed to run passwd test with output: %s \n error: %s" % (out, err))

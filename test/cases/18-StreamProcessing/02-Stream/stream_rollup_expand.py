@@ -126,6 +126,7 @@ class TestStreamRollupExpand:
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/6979200215
         History:
             - 2026-05-19 Created
+            - 2026-10-30 Wait for shared group counts after asynchronous updates
         """
 
         self.prepare_expand_data()
@@ -143,11 +144,11 @@ class TestStreamRollupExpand:
         self.wait_subtables("rs_e3", 4)
         got = self.query_column("select distinct loc from rs_e3 order by loc")
         assert sorted(got) == ["A", "A.B", "A.B.C", "A.B.D"]
-        tdSql.query("select cnt from rs_e3 where loc='A'")
+        tdSql.checkResultsByArray("select cnt from rs_e3 where loc='A'", [[2]], retry=60)
         assert tdSql.getData(0, 0) == 2
-        tdSql.query("select cnt from rs_e3 where loc='A.B'")
+        tdSql.checkResultsByArray("select cnt from rs_e3 where loc='A.B'", [[2]], retry=60)
         assert tdSql.getData(0, 0) == 2
-        tdSql.query("select cnt from rs_e3 where loc='A.B.C'")
+        tdSql.checkResultsByArray("select cnt from rs_e3 where loc='A.B.C'", [[1]], retry=60)
         assert tdSql.getData(0, 0) == 1
 
     def test_rollup_expand_middle_node_has_data(self):
@@ -161,6 +162,7 @@ class TestStreamRollupExpand:
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/6979200215
         History:
             - 2026-05-19 Created
+            - 2026-10-30 Wait for shared group counts after asynchronous updates
         """
 
         self.prepare_expand_data()
@@ -176,11 +178,11 @@ class TestStreamRollupExpand:
         tdSql.execute("insert into t_mid values (1700000000000, 1.0)")
         tdSql.execute("insert into t_leaf values (1700000000000, 2.0)")
         self.wait_subtables("rs_e4", 3)
-        tdSql.query("select cnt from rs_e4 where loc='A'")
+        tdSql.checkResultsByArray("select cnt from rs_e4 where loc='A'", [[2]], retry=60)
         assert tdSql.getData(0, 0) == 2
-        tdSql.query("select cnt from rs_e4 where loc='A.B'")
+        tdSql.checkResultsByArray("select cnt from rs_e4 where loc='A.B'", [[2]], retry=60)
         assert tdSql.getData(0, 0) == 2
-        tdSql.query("select cnt from rs_e4 where loc='A.B.C'")
+        tdSql.checkResultsByArray("select cnt from rs_e4 where loc='A.B.C'", [[1]], retry=60)
         assert tdSql.getData(0, 0) == 1
 
     def test_rollup_expand_unique_prefix_count(self):
@@ -240,6 +242,7 @@ class TestStreamRollupExpand:
         Feishu: https://project.feishu.cn/taosdata_td/feature/detail/6979200215
         History:
             - 2026-05-19 Created
+            - 2026-10-30 Wait for asynchronous rollup counts before checking each group
         """
 
         self.prepare_expand_data()
@@ -258,13 +261,13 @@ class TestStreamRollupExpand:
             tdSql.execute(f"insert into t2 values ({1700000000000 + i * 100}, 2.0)")
 
         self.wait_subtables("rs_e6", 4)
-        tdSql.query("select cnt from rs_e6 where loc='A'")
+        tdSql.checkResultsByArray("select cnt from rs_e6 where loc='A'", [[5]], retry=60)
         assert tdSql.getData(0, 0) == 5
-        tdSql.query("select cnt from rs_e6 where loc='A.B'")
+        tdSql.checkResultsByArray("select cnt from rs_e6 where loc='A.B'", [[5]], retry=60)
         assert tdSql.getData(0, 0) == 5
-        tdSql.query("select cnt from rs_e6 where loc='A.B.C'")
+        tdSql.checkResultsByArray("select cnt from rs_e6 where loc='A.B.C'", [[3]], retry=60)
         assert tdSql.getData(0, 0) == 3
-        tdSql.query("select cnt from rs_e6 where loc='A.B.D'")
+        tdSql.checkResultsByArray("select cnt from rs_e6 where loc='A.B.D'", [[2]], retry=60)
         assert tdSql.getData(0, 0) == 2
 
 

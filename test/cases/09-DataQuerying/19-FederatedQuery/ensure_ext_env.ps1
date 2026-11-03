@@ -56,7 +56,7 @@
     ENVIRONMENT VARIABLES (all optional)
       FQ_BASE_DIR            install/data root   default %LOCALAPPDATA%\taostest\fq
       FQ_MYSQL_VERSIONS      comma list          default "8.0"
-      FQ_PG_VERSIONS         comma list          default "16"
+      FQ_PG_VERSIONS         comma list          default "18.6" (16 remains selectable)
       FQ_INFLUX_VERSIONS     comma list          default "3.0"
       FQ_SQLSERVER_VERSIONS  comma list          default "2022" (2019 uses port 1434)
       FQ_SQLSERVER_HOST      engine host         default 127.0.0.1
@@ -69,7 +69,7 @@
       FQ_PG_MIRROR           base URL for PG ZIP downloads
       FQ_INFLUX_MIRROR       base URL for InfluxDB releases
       FQ_MYSQL_TARBALL_<VV>  full URL override (VV = 57/80/84)
-      FQ_PG_TARBALL_<VV>     full URL override (VV = 14/15/16/17)
+      FQ_PG_TARBALL_<VV>     full URL override (VV = 14/15/16/17/186)
       FQ_INFLUX_TARBALL_<VV> full URL override (VV = 30/35)
       FQ_ORACLE_VERSIONS     comma list          default "26ai"
       FQ_ORACLE_HOST         engine host         default 127.0.0.1
@@ -135,7 +135,7 @@ function Get-EnvList {
 }
 
 $MysqlVersions  = Get-EnvList 'FQ_MYSQL_VERSIONS'  '8.0'
-$PgVersions     = Get-EnvList 'FQ_PG_VERSIONS'     '16'
+$PgVersions     = Get-EnvList 'FQ_PG_VERSIONS'     '18.6'
 $InfluxVersions = Get-EnvList 'FQ_INFLUX_VERSIONS' '3.0'
 
 $MysqlUser  = Get-EnvOr 'FQ_MYSQL_USER' 'root'
@@ -387,10 +387,11 @@ function Get-MysqlPort {
 function Get-PgPort {
     param([string]$Ver)
     switch ($Ver) {
-        '14' { return [int](Get-EnvOr 'FQ_PG_PORT_14' 15433) }
-        '15' { return [int](Get-EnvOr 'FQ_PG_PORT_15' 15435) }
-        '16' { return [int](Get-EnvOr 'FQ_PG_PORT_16' 15434) }
-        '17' { return [int](Get-EnvOr 'FQ_PG_PORT_17' 15436) }
+        '14'   { return [int](Get-EnvOr 'FQ_PG_PORT_14' 15433) }
+        '15'   { return [int](Get-EnvOr 'FQ_PG_PORT_15' 15435) }
+        '16'   { return [int](Get-EnvOr 'FQ_PG_PORT_16' 15434) }
+        '17'   { return [int](Get-EnvOr 'FQ_PG_PORT_17' 15436) }
+        '18.6' { return [int](Get-EnvOr 'FQ_PG_PORT_186' 15437) }
         default { throw "Unknown PG version: $Ver" }
     }
 }
@@ -833,10 +834,11 @@ function Get-PgUrl {
 
     # EnterpriseDB Windows ZIP (no installer required)
     $minorMap = @{
-        '14' = '14.17-1'
-        '15' = '15.12-1'
-        '16' = '16.8-1'
-        '17' = '17.4-1'
+        '14'   = '14.17-1'
+        '15'   = '15.12-1'
+        '16'   = '16.8-1'
+        '17'   = '17.4-1'
+        '18.6' = '18.6-1'
     }
     if (-not $minorMap.ContainsKey($Ver)) { throw "Unsupported PG version: $Ver" }
     $patch = $minorMap[$Ver]

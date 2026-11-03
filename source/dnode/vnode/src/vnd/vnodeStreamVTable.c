@@ -109,14 +109,20 @@ bool streamVTableInfoHasColumnRef(const SStreamMsgVTableInfo *pVTableInfo) {
   return false;
 }
 
-static const SColRef *streamFindColRefByCid(const SColRefWrapper *pCols, col_id_t cid) {
-  if (pCols == NULL || pCols->pColRef == NULL) {
-    return NULL;
-  }
+static int32_t streamVTableColRefCount(const SMetaEntry *pEntry, bool includeOwn) {
+  return pEntry->colRef.nCols + (includeOwn && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? pEntry->own.nOwnCols : 0);
+}
 
-  for (int32_t i = 0; i < pCols->nCols; ++i) {
-    if (pCols->pColRef[i].id == cid) {
-      return &pCols->pColRef[i];
+static SColRef *streamVTableColRefAt(const SMetaEntry *pEntry, int32_t index) {
+  return index < pEntry->colRef.nCols ? &pEntry->colRef.pColRef[index]
+                                      : &pEntry->own.pOwnColRefs[index - pEntry->colRef.nCols];
+}
+
+static const SColRef *streamFindColRefByCid(const SMetaEntry *pEntry, col_id_t cid) {
+  for (int32_t i = 0; i < streamVTableColRefCount(pEntry, true); ++i) {
+    const SColRef *pRef = streamVTableColRefAt(pEntry, i);
+    if (pRef->id == cid) {
+      return pRef;
     }
   }
   return NULL;
@@ -226,9 +232,9 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
   vTable->uid = uid;
   vTable->gId = gid;
 
-  // Pull schema version + colRef from meta. cids==NULL means "all columns of
-  // this vtable", in which case we also need me.colRef.pColRef as the iteration
-  // source. Soft-fail (leave version=0 / nCols=0) if the entry is gone.
+  // cids==NULL means all columns visible from the trigger source. A supertable
+  // exposes inherited refs only, even though the metadata entry is a child.
+  // Soft-fail (leave version=0 / nCols=0) if the entry is gone.
   int32_t version  = 0;
   bool    haveMeta = false;
   code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionUid(metaReader, ver, uid);
@@ -257,22 +263,22 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
                __func__, uid, gid, vTable->tbName);
 
   if (cids == NULL) {
-    // "All columns" mode: enumerate the vtable's own pColRef.
-    int32_t nAll = haveMeta ? metaReader->me.colRef.nCols : 0;
+    int32_t nAll =
+        haveMeta ? streamVTableColRefCount(&metaReader->me, sStreamReaderInfo->tableType != TSDB_SUPER_TABLE) : 0;
     vTable->cols.nCols   = nAll;
     vTable->cols.version = version;
     if (nAll > 0) {
       vTable->cols.pColRef = taosMemoryCalloc(nAll, sizeof(SColRef));
       STREAM_CHECK_NULL_GOTO(vTable->cols.pColRef, terrno);
       for (int32_t j = 0; j < nAll; ++j) {
-        col_id_t cid = metaReader->me.colRef.pColRef[j].id;
+        const SColRef *pSourceRef = streamVTableColRefAt(&metaReader->me, j);
+        col_id_t       cid = pSourceRef->id;
         vTable->cols.pColRef[j].id = cid;
         if (pRes == NULL || pRes->colMap == NULL) continue;
         SColResolveItem **pp = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &cid, sizeof(cid));
         if (pp == NULL || *pp == NULL) continue;
         SColResolveItem *item = *pp;
-        code = streamFillResolvedColRef(pVnode, sStreamReaderInfo, uid, &vTable->cols.pColRef[j], item,
-                                        &metaReader->me.colRef.pColRef[j]);
+        code = streamFillResolvedColRef(pVnode, sStreamReaderInfo, uid, &vTable->cols.pColRef[j], item, pSourceRef);
         STREAM_CHECK_RET_GOTO(code);
       }
     }
@@ -290,7 +296,7 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
       SColResolveItem **pp = (SColResolveItem **)tSimpleHashGet(pRes->colMap, &cid, sizeof(cid));
       if (pp == NULL || *pp == NULL) continue;
       SColResolveItem *item = *pp;
-      const SColRef *pSourceRef = haveMeta ? streamFindColRefByCid(&metaReader->me.colRef, cid) : NULL;
+      const SColRef   *pSourceRef = haveMeta ? streamFindColRefByCid(&metaReader->me, cid) : NULL;
       code = streamFillResolvedColRef(pVnode, sStreamReaderInfo, uid, &vTable->cols.pColRef[i], item, pSourceRef);
       STREAM_CHECK_RET_GOTO(code);
     }
@@ -876,6 +882,16 @@ static int32_t vnodeFindVTableColRef(SVnode *pVnode, const SMetaEntry *pVtbEntry
     return 0;
   }
 
+  // A referenced child exposes its own columns regardless of the root source.
+  if (kind == STREAM_VREF_KIND_COL && pVtbEntry->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    for (int32_t i = 0; i < pVtbEntry->own.nOwnCols; ++i) {
+      if (strncmp(pVtbEntry->own.pOwnColSchemas[i].name, colName, TSDB_COL_NAME_LEN) == 0) {
+        *ppFoundRef = &pVtbEntry->own.pOwnColRefs[i];
+        return 0;
+      }
+    }
+  }
+
   const SColRefWrapper *pWrap = &pVtbEntry->colRef;
   SColRef              *pArr  = (kind == STREAM_VREF_KIND_TAG) ? pWrap->pTagRef : pWrap->pColRef;
   int32_t               nArr  = (kind == STREAM_VREF_KIND_TAG) ? pWrap->nTagRefs : pWrap->nCols;
@@ -1327,7 +1343,7 @@ static int32_t streamPushResolveWorkItem(SArray *workList, SResolveWorkItem *ite
 }
 
 // Push initial work-items for a single vtable uid. Each requested cid (col or tag)
-// is resolved against the local vtable entry's pColRef / pTagRef:
+// is resolved against the local vtable entry's inherited/owned refs or pTagRef:
 //   - COL hasRef=true   -> push next-hop work-item
 //   - COL hasRef=false  -> directly write terminal SColResolveItem{hasRef=false} into colMap
 //   - TAG hasRef=true   -> push next-hop work-item
@@ -1336,12 +1352,12 @@ static int32_t streamPushResolveWorkItem(SArray *workList, SResolveWorkItem *ite
 //                          and write a terminal STagValue into tagMap (no work-item).
 //                          Virtual normal tables have no tag concept and fail.
 //
-// colCids == NULL means "all columns of this vtable" (used by the only-ts trigger
-// path where the request carries just the primary-key TS but the response must
-// describe every column ref). tagCids == NULL is treated as "no tag".
+// colCids == NULL means all visible columns (includeOwn distinguishes a direct
+// child source from a supertable source). tagCids == NULL is treated as "no tag".
 // Returns 0 on success; non-zero means whole-uid skip (table missing / cid missing / OOM).
 static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SArray *colCids, SArray *tagCids,
-                                                int64_t txnId, SArray *workList, SSHashObj *uid2Result) {
+                                                bool includeOwn, int64_t txnId, SArray *workList,
+                                                SSHashObj *uid2Result) {
   int32_t     code = 0;
   SMetaReader mr   = {0};
   metaReaderDoInit(&mr, pVnode->pMeta, META_READER_LOCK, txnId);
@@ -1373,11 +1389,10 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
     goto _end;
   }
 
-  // Resolve column cids against pColRef. When colCids==NULL, iterate every
-  // entry of this vtable's pColRef directly (no per-cid lookup needed).
+  // Only the root's visible columns contribute timestamps in all-column mode.
   if (colCids == NULL) {
-    for (int32_t j = 0; j < mr.me.colRef.nCols; ++j) {
-      SColRef *pRef = &mr.me.colRef.pColRef[j];
+    for (int32_t j = 0; j < streamVTableColRefCount(&mr.me, includeOwn); ++j) {
+      const SColRef *pRef = streamVTableColRefAt(&mr.me, j);
       col_id_t cid  = pRef->id;
       code = streamValidateVTableColRef(pRef);
       if (code != TSDB_CODE_SUCCESS) goto _end;
@@ -1419,13 +1434,7 @@ static int32_t streamPushInitialWorkItemsForUid(SVnode *pVnode, int64_t uid, SAr
     int32_t nCol = (int32_t)taosArrayGetSize(colCids);
     for (int32_t i = 0; i < nCol; ++i) {
       col_id_t cid    = *(col_id_t *)taosArrayGet(colCids, i);
-      SColRef *pFound = NULL;
-      for (int32_t j = 0; j < mr.me.colRef.nCols; ++j) {
-        if (mr.me.colRef.pColRef[j].id == cid) {
-          pFound = &mr.me.colRef.pColRef[j];
-          break;
-        }
-      }
+      const SColRef *pFound = streamFindColRefByCid(&mr.me, cid);
       if (pFound == NULL) {
         stWarn("vgId:%d %s uid=%" PRId64 " COL cid=%d NOT_IN_COLREF -> uid skip",
                TD_VID(pVnode), __func__, uid, cid);
@@ -3377,8 +3386,9 @@ int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCac
       }
 
       int64_t uid = *(int64_t *)taosArrayGet(vtbUids, uidIdx);
-      int32_t rc  = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, txnId,
-                                                     workList, uid2Result);
+      bool    includeOwn = pReaderInfo == NULL || pReaderInfo->tableType != TSDB_SUPER_TABLE;
+      int32_t rc = streamPushInitialWorkItemsForUid(pVnode, uid, virtColCids, virtTagCids, includeOwn, txnId, workList,
+                                                    uid2Result);
       if (rc != 0) {
         stError("vgId:%d %s seed uid=%" PRId64 " push rc=0x%x -> propagate (strict)",
                 TD_VID(pVnode), __func__, uid, rc);

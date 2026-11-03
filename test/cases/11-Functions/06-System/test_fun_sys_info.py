@@ -19,6 +19,7 @@
 import os
 import subprocess
 import time
+import re
 
 from new_test_framework.utils import tdDnodes, tdLog, tdSql
 
@@ -46,13 +47,11 @@ class TestSysinfo:
                 os.path.dirname(os.getcwd()), "cmake", "version.cmake"
             )
             tdLog.info(f"version_c_file: {version_c_file}")
-            version_info = str(
-                subprocess.run(
-                    f'cat {version_c_file} |grep "SET(BUILD_VER_NUMBER "',
-                    shell=True,
-                    capture_output=True,
-                ).stdout.decode("utf8")
-            ).split('"')[1]
+            with open(version_c_file, encoding='utf-8') as version_file:
+                match = re.search(r'SET\(BUILD_VER_NUMBER\s+"([^"]+)"', version_file.read(), re.IGNORECASE)
+            if match is None:
+                raise RuntimeError(f'BUILD_VER_NUMBER not found in {version_c_file}')
+            version_info = match.group(1)
             version_info = version_info + ".enterprise"
             tdSql.checkData(0, 0, version_info)
 
@@ -82,6 +81,7 @@ class TestSysinfo:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -99,6 +99,7 @@ class TestSysinfo:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -116,6 +117,7 @@ class TestSysinfo:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -135,6 +137,7 @@ class TestSysinfo:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -155,6 +158,7 @@ class TestSysinfo:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

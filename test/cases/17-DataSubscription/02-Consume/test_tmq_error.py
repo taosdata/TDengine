@@ -24,6 +24,8 @@ import platform
 from new_test_framework.utils import tdLog, tdSql, tdDnodes, tmqCom, tdCom
 import sys
 import os
+import shutil
+from pathlib import Path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 class actionType(Enum):
@@ -202,10 +204,21 @@ class TestCase:
         tdDnodes.stop(1)
         
         time.sleep(5)
-        dataPath = buildPath + "/../sim/dnode1/data/*"
-        shellCmd = 'rm -rf ' + dataPath
-        tdLog.info(shellCmd)
-        os.system(shellCmd)
+        if os.name == 'nt':
+            data_path = Path(tdCom.work_dir) / 'dnode1' / 'data'
+            if not data_path.is_dir():
+                tdLog.exit(f'Dnode data directory not found: {data_path}')
+            tdLog.info(f'Removing dnode data: {data_path}')
+            for entry in data_path.iterdir():
+                if entry.is_dir():
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+        else:
+            dataPath = buildPath + "/../sim/dnode1/data/*"
+            shellCmd = 'rm -rf ' + dataPath
+            tdLog.info(shellCmd)
+            os.system(shellCmd)
         #tdDnodes.start(1)
         tdDnodes.starttaosd(1)
         time.sleep(5)
@@ -273,6 +286,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

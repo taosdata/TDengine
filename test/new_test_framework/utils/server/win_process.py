@@ -14,9 +14,11 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import ntpath
 import subprocess
 import logging
 import signal
+import sys
 import psutil
 from time import sleep
 import time
@@ -42,27 +44,52 @@ def _resolve_stop_timeout(default_timeout):
 
 
 def _send_ctrl_break_event(pid):
-    """通过独立子进程发送 CTRL_BREAK_EVENT，避免信号泄漏到当前 Python 进程"""
-    # 在独立 console 中执行，这样 CTRL_BREAK_EVENT 不会影响当前进程
-    script = f"import os, signal; os.kill({pid}, signal.CTRL_BREAK_EVENT)"
-    p = subprocess.Popen(
-        ["python", "-c", script],
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+    """Send CTRL_BREAK inside the private console created for this taosd."""
+    # os.kill can terminate the target when GenerateConsoleCtrlEvent fails.
+    # Call the WinAPI directly and check every operation instead.
+    script = (
+        "import ctypes,os,sys,time\n"
+        "k=ctypes.WinDLL('kernel32',use_last_error=True)\n"
+        "k.FreeConsole()\n"
+        "if not k.AttachConsole(int(sys.argv[1])):\n"
+        "    raise ctypes.WinError(ctypes.get_last_error())\n"
+        "processes=(ctypes.c_ulong*256)()\n"
+        "count=k.GetConsoleProcessList(processes,len(processes))\n"
+        "if not count or count>len(processes):\n"
+        "    raise RuntimeError('Cannot verify target console ownership')\n"
+        "if set(processes[:count]) != {int(sys.argv[1]),os.getpid()}:\n"
+        "    raise RuntimeError('Refusing CTRL_BREAK on a shared console')\n"
+        "handler=ctypes.WINFUNCTYPE(ctypes.c_int,ctypes.c_ulong)(lambda event: True)\n"
+        "if not k.SetConsoleCtrlHandler(handler,True):\n"
+        "    raise ctypes.WinError(ctypes.get_last_error())\n"
+        "if not k.GenerateConsoleCtrlEvent(1,0):\n"
+        "    raise ctypes.WinError(ctypes.get_last_error())\n"
+        "time.sleep(0.2)\n"
     )
-    p.wait(timeout=5)
+    result = subprocess.run(
+        [sys.executable, "-c", script, str(pid)],
+        creationflags=subprocess.CREATE_NEW_CONSOLE,
+        capture_output=True, text=True, errors='replace', timeout=5,
+    )
+    if result.returncode:
+        raise RuntimeError(f'Cannot signal taosd process {pid}: {result.stderr}')
 
 
 def start_taosd_windows(taosd_path, config_dir, log=None):
-    """Windows 平台启动 taosd，使用 CREATE_NEW_PROCESS_GROUP 以支持优雅停止"""
+    """Give taosd its own console so stop signals cannot reach other tests."""
     _log = log or logger
-    proc = subprocess.Popen(
-        [taosd_path, "-c", config_dir],
-        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
+    startup = subprocess.STARTUPINFO()
+    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startup.wShowWindow = subprocess.SW_HIDE
+    # No caller drains console pipes. Keep diagnostics without blocking startup
+    # when the default configuration dump fills the Windows pipe buffer.
+    console_path = os.path.join(config_dir, "taosd-console.log")
+    with open(console_path, "ab") as console:
+        proc = subprocess.Popen(
+            [taosd_path, "-c", config_dir],
+            creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startup,
+            stdout=console, stderr=subprocess.STDOUT,
+        )
     _log.info(f"taosd started with PID: {proc.pid}")
     return proc
 
@@ -124,6 +151,53 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
         return False
 
 
+def force_stop_taosd_windows(config_dir, timeout=30, log=None):
+    """Kill only taosd instances using this configuration and await their exit."""
+    if not config_dir:
+        raise ValueError("A config directory is required to force stop taosd")
+    _log = log or logger
+    target_config = ntpath.normcase(ntpath.normpath(config_dir))
+    targets = []
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            if (proc.info["name"] or "").lower() not in {"taosd", "taosd.exe"}:
+                continue
+            arguments = proc.cmdline()
+            for index, argument in enumerate(arguments):
+                if argument == "-c" and index + 1 < len(arguments):
+                    config = arguments[index + 1]
+                elif argument.startswith("-c") and len(argument) > 2:
+                    config = argument[2:]
+                else:
+                    continue
+                config = ntpath.normcase(ntpath.normpath(config.strip('"')))
+                if config == target_config:
+                    targets.append(proc)
+                    break
+        except psutil.NoSuchProcess:
+            continue
+        except psutil.AccessDenied as error:
+            raise RuntimeError(f"Cannot inspect taosd process {proc.pid}") from error
+
+    for proc in targets:
+        try:
+            _log.info(f"Force killing taosd process {proc.pid} for {config_dir}")
+            proc.kill()
+        except psutil.NoSuchProcess:
+            continue
+        except psutil.AccessDenied as error:
+            raise RuntimeError(f"Cannot force kill taosd process {proc.pid}") from error
+
+    _, alive = psutil.wait_procs(targets, timeout=timeout)
+    if alive:
+        raise RuntimeError(
+            f"Force stop failed for {config_dir}: processes "
+            f"{[proc.pid for proc in alive]} still running after {timeout}s"
+        )
+    _log.info(f"Force stop confirmed for {config_dir}: {len(targets)} process(es) exited")
+    return len(targets)
+
+
 def _find_taosd_pid(dnode_index=None, config_dir=None):
     """查找指定 taosd 进程 PID
 
@@ -131,22 +205,29 @@ def _find_taosd_pid(dnode_index=None, config_dir=None):
     - config_dir: 在 cmdline 中匹配 config 目录路径（精确）
     - dnode_index: 在 cmdline 中匹配 dnode{index}（兼容）
     """
-    match_key = config_dir.replace('\\', '/').lower() if config_dir else None
+    match_key = ntpath.normcase(ntpath.normpath(config_dir.strip('"'))) if config_dir else None
     # 先只按 name 快速过滤，避免遍历所有进程的 cmdline（Windows 上获取 cmdline 很慢）
     for proc in psutil.process_iter(['pid', 'name']):
         try:
-            if 'taosd' not in (proc.info['name'] or '').lower():
+            if (proc.info['name'] or '').lower() not in {'taosd', 'taosd.exe'}:
                 continue
             # 只对 taosd 进程获取 cmdline
             cmdline = proc.cmdline()
             if not cmdline:
                 continue
-            # 将 cmdline 各参数用空格拼接，统一为正斜杠并转小写，避免 Windows 路径格式不一致
-            cmdline_str = ' '.join(cmdline).replace('\\', '/').lower()
-            if match_key and match_key in cmdline_str:
-                return proc.info['pid']
-            if dnode_index is not None and f'dnode{dnode_index}' in cmdline_str:
-                return proc.info['pid']
+            for index, argument in enumerate(cmdline):
+                if argument == '-c' and index + 1 < len(cmdline):
+                    config = cmdline[index + 1]
+                elif argument.startswith('-c') and len(argument) > 2:
+                    config = argument[2:]
+                else:
+                    continue
+                config = ntpath.normcase(ntpath.normpath(config.strip('"')))
+                if match_key is not None:
+                    if config == match_key:
+                        return proc.info['pid']
+                elif dnode_index is not None and f'dnode{dnode_index}' in config.split('\\'):
+                    return proc.info['pid']
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
     return None

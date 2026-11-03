@@ -268,7 +268,8 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
 static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname,
                                                        int32_t* pNumOfRows, const SSDataBlock* dataBlock, char* tName,
                                                        char* stName, SSchemaWrapper* schemaRow, char* tableType,
-                                                       SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId);
+                                                       SColRefWrapper* colRef, const SVChildOwnSchema* pOwn,
+                                                       tb_uid_t uid, int32_t vgId);
 
 static int32_t sysTableUserColsFillOneVirtualTableCol(const char* dbname, int32_t* pNumOfRows,
                                                       const SSDataBlock* dataBlock, char* tName, char* stName,
@@ -1705,8 +1706,10 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
       continue;
     }
 
+    const SVChildOwnSchema* pOwn = pInfo->pCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE ? &pInfo->pCur->mr.me.own : NULL;
     int32_t nTagRefs = (colRef != NULL) ? colRef->nTagRefs : 0;
-    if ((numOfRows + schemaRow->nCols + nTagRefs) > pOperator->resultInfo.capacity) {
+    int32_t                 nCols = schemaRow->nCols + nTagRefs + (pOwn != NULL ? pOwn->nOwnCols : 0);
+    if ((numOfRows + nCols) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
       numOfRows = 0;
 
@@ -1715,9 +1718,11 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         break;
       }
     }
+    code = blockDataEnsureCapacity(pDataBlock, numOfRows + nCols);
+    QUERY_CHECK_CODE(code, lino, _end);
     // if pInfo->pRes->info.rows == 0, also need to add the meta to pDataBlock
     code = sysTableUserColsFillOneVirtualTableCols(pInfo, dbname, &numOfRows, pDataBlock, tableName, stableName,
-                                                   schemaRow, typeName, colRef, pInfo->pCur->mr.me.uid,
+                                                   schemaRow, typeName, colRef, pOwn, pInfo->pCur->mr.me.uid,
                                                    pOperator->pTaskInfo->id.vgId);
     QUERY_CHECK_CODE(code, lino, _end);
   }
@@ -4073,7 +4078,8 @@ _end:
 static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* pInfo, const char* dbname,
                                                        int32_t* pNumOfRows, const SSDataBlock* dataBlock, char* tName,
                                                        char* stName, SSchemaWrapper* schemaRow, char* tableType,
-                                                       SColRefWrapper* colRef, tb_uid_t uid, int32_t vgId) {
+                                                       SColRefWrapper* colRef, const SVChildOwnSchema* pOwn,
+                                                       tb_uid_t uid, int32_t vgId) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   TAOS_UNUSED(pInfo);
@@ -4088,6 +4094,16 @@ static int32_t sysTableUserColsFillOneVirtualTableCols(const SSysTableScanInfo* 
     code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tName, stName, schemaRow, colRef,
                                                   uid, vgId, i);
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (pOwn != NULL && pOwn->nOwnCols > 0) {
+    SSchemaWrapper ownSchema = {.nCols = pOwn->nOwnCols, .pSchema = pOwn->pOwnColSchemas};
+    SColRefWrapper ownRefs = {.nCols = pOwn->nOwnCols, .version = colRef->version, .pColRef = pOwn->pOwnColRefs};
+    for (int32_t i = 0; i < pOwn->nOwnCols; ++i) {
+      code = sysTableUserColsFillOneVirtualTableCol(dbname, pNumOfRows, dataBlock, tName, stName, &ownSchema, &ownRefs,
+                                                    uid, vgId, i);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   // Emit tag-ref rows (colType=1) for DynQueryCtrl to resolve referenced tags.

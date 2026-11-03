@@ -521,16 +521,16 @@ class ExtSrcEnv:
     # Version lists — override via comma-separated env vars.
     # Default: one reference version per engine.
     # Supported:  MySQL 5.7/8.x | PostgreSQL 14+  | InfluxDB 3.x
-    # CI-tested:  MySQL 5.7/8.0/8.4 | pg 14/15/16/17 | InfluxDB 3.0/3.5
+    # CI-tested:  MySQL 5.7/8.0/8.4 | pg 14/15/16/17/18.6 | InfluxDB 3.0/3.5
     #   FQ_MYSQL_VERSIONS   e.g. "5.7,8.0,8.4"   (default "8.0")
-    #   FQ_PG_VERSIONS      e.g. "14,15,16,17"   (default "16")
+    #   FQ_PG_VERSIONS      e.g. "16,18.6"       (default "18.6")
     #   FQ_INFLUX_VERSIONS  e.g. "3.0,3.5"       (default "3.0")
     # ------------------------------------------------------------------
     MYSQL_VERSIONS  = [v.strip() for v in
                        os.getenv("FQ_MYSQL_VERSIONS", "8.0").split(",")
                        if v.strip()]
     PG_VERSIONS     = [v.strip() for v in
-                       os.getenv("FQ_PG_VERSIONS", "16").split(",")
+                       os.getenv("FQ_PG_VERSIONS", "18.6").split(",")
                        if v.strip()]
     INFLUX_VERSIONS = [v.strip() for v in
                        os.getenv("FQ_INFLUX_VERSIONS", "3.0").split(",")
@@ -559,10 +559,11 @@ class ExtSrcEnv:
         "8.4": int(os.getenv("FQ_MYSQL_PORT_84", "13307")),
     }
     _PG_VERSION_PORTS = {
-        "14":  int(os.getenv("FQ_PG_PORT_14", "15433")),
-        "15":  int(os.getenv("FQ_PG_PORT_15", "15435")),
-        "16":  int(os.getenv("FQ_PG_PORT_16", "15434")),
-        "17":  int(os.getenv("FQ_PG_PORT_17", "15436")),
+        "14":   int(os.getenv("FQ_PG_PORT_14", "15433")),
+        "15":   int(os.getenv("FQ_PG_PORT_15", "15435")),
+        "16":   int(os.getenv("FQ_PG_PORT_16", "15434")),
+        "17":   int(os.getenv("FQ_PG_PORT_17", "15436")),
+        "18.6": int(os.getenv("FQ_PG_PORT_186", "15437")),
     }
     _INFLUX_VERSION_PORTS = {
         "1.8": int(os.getenv("FQ_INFLUX_PORT_18", "18085")),
@@ -696,7 +697,9 @@ class ExtSrcEnv:
         Existing baselines describe local endpoints.  In a lease the endpoint
         of every provider is rewritten to the local default the baseline was
         captured with, so a slot on another host or port still matches.  A
-        local run only rewrites Oracle: the two supported server generations
+        local run rewrites only Oracle and, when the version-default port was
+        used, PostgreSQL (the 18.6 slot listens on 15437 while the baselines
+        keep 15434).  The two supported Oracle server generations
         (11.2.0.4 on 18320/ORCL, 26ai on 18322/FREEPDB1) run side by side and
         share one baseline wherever plan and rows agree — the per-version
         overlay selected by ``oracle_versioned_path`` covers the cases where
@@ -710,6 +713,15 @@ class ExtSrcEnv:
                     1433, "TaosFq!2026"),
                    ("oracle", cls.ORACLE_HOST, cls.ORACLE_PORT, cls.ORACLE_PASS,
                     18322, "taosdata"))
+        # Local PostgreSQL runs use one dedicated port per version (18.6 ->
+        # 15437) while the checked-in plan/result baselines keep the historical
+        # 16-era 15434 endpoint.  Canonicalise only the version's default port
+        # so an explicit, unexpected port override still differs.
+        local_providers = {"oracle"}
+        if not external:
+            pg_default_port = cls._PG_VERSION_PORTS.get(cls.PG_VERSIONS[0])
+            if pg_default_port is not None and cls.PG_PORT == pg_default_port:
+                local_providers.add("postgresql")
         lines = []
         metadata = None
         source_query = False
@@ -726,7 +738,7 @@ class ExtSrcEnv:
                     "external source" in line.lower() or
                     "information_schema.ins_ext_sources" in line.lower())):
                 for provider, host, port, password, canonical_port, canonical_password in sources:
-                    if not external and provider != "oracle":
+                    if not external and provider not in local_providers:
                         continue
                     for host_key in ("host", "`host`"):
                         line = line.replace(f"{host_key}='{host}'", f"{host_key}='127.0.0.1'")
@@ -735,7 +747,7 @@ class ExtSrcEnv:
                         line = line.replace(f"password='{password}'", f"password='{canonical_password}'")
             if line.lstrip().startswith("Source:"):
                 for provider, host, port, password, canonical_port, canonical_password in sources:
-                    if not external and provider != "oracle":
+                    if not external and provider not in local_providers:
                         continue
                     line = line.replace(f"Source: {host}:{port} ",
                                         f"Source: 127.0.0.1:{canonical_port} ")
@@ -752,7 +764,7 @@ class ExtSrcEnv:
                 columns = line.rstrip("\n").split("|")
                 if len(columns) == len(metadata):
                     for provider, host, port, password, canonical_port, canonical_password in sources:
-                        if not external and provider != "oracle":
+                        if not external and provider not in local_providers:
                             continue
                         if "type" not in metadata or columns[metadata["type"]] == provider:
                             if columns[metadata["host"]] == host:
@@ -770,7 +782,7 @@ class ExtSrcEnv:
                 # anchors the host/port/database cells safely.
                 columns = line.rstrip("\n").split("|")
                 for provider, host, port, password, canonical_port, canonical_password in sources:
-                    if not external and provider != "oracle":
+                    if not external and provider not in local_providers:
                         continue
                     if (len(columns) >= 4 and columns[1] == provider
                             and columns[2] == host and columns[3] == str(port)):
@@ -846,7 +858,12 @@ class ExtSrcEnv:
         # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
         # of them, so a provider missing from this list would only be detected
         # later, as an unreachable host inside a case (Oracle TS 5.5).
-        value = os.getenv("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
+        # Windows Oracle provisioning is deferred; Linux keeps its Oracle
+        # coverage. Explicit service selections still apply to custom runs.
+        default = "mysql,pg,influx,sqlserver"
+        if os.name != "nt":
+            default += ",oracle"
+        value = os.getenv("FQ_REQUIRED_SERVICES", default)
         services = set() if value == "none" else set(value.split(","))
         if services - {"mysql", "pg", "influx", "sqlserver", "oracle"}:
             raise ValueError("invalid FQ_REQUIRED_SERVICES")
@@ -885,6 +902,8 @@ class ExtSrcEnv:
         here = os.path.dirname(os.path.abspath(__file__))
 
         env = _fq_subprocess_env()
+        if os.name == "nt":
+            env["FQ_SERVICES_TO_RESET"] = ",".join(sorted(services)) or "none"
         env["FQ_MYSQL_VERSIONS"] = ",".join(cls.MYSQL_VERSIONS) if "mysql" in services else ""
         env["FQ_PG_VERSIONS"] = ",".join(cls.PG_VERSIONS) if "pg" in services else ""
         env["FQ_INFLUX_VERSIONS"] = ",".join(cls.INFLUX_VERSIONS) if "influx" in services else ""
@@ -4155,7 +4174,7 @@ class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
     details automatically — no changes to test bodies needed.
 
     ``self._version_label()`` returns a human-readable string such as
-    ``'my8.0-pg16-inf3.0'`` that test result helpers can append to scenario
+    ``'my8.0-pg18.6-inf3.0'`` that test result helpers can append to scenario
     names so the final summary shows per-scenario × per-version rows.
 
     When only default single versions are configured each test runs exactly
@@ -4183,7 +4202,7 @@ class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
         self._active_influx_ver = None
 
     def _version_label(self):
-        """Return the current version-combo label, e.g. ``'my8.0-pg16-inf3.0'``.
+        """Return the current version-combo label, e.g. ``'my8.0-pg18.6-inf3.0'``.
 
         Call from ``_start_test`` / ``_record_pass`` / ``_record_fail`` to tag
         every result record with the version under test, so the final summary

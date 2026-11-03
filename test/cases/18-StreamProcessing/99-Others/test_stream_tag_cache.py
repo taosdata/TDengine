@@ -14,6 +14,8 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import time
+import os
+import re
 
 from new_test_framework.utils import tdSql, tdLog, tdStream, StreamItem
 from new_test_framework.utils.eos import run
@@ -191,12 +193,16 @@ class TestStreamTagCache:
         log_file = sc.dnodeLogPath(1) + "/taosdlog.0"
         max_cnt = 0
         for i in range(retry):
-            cmd = f"grep '{pattern}' {log_file} | wc -l"
-            output, error = run(cmd, show=False)
-            try:
-                max_cnt = max(max_cnt, int(output))
-            except ValueError:
-                tdLog.info(f"grep log count failed: {cmd} out={output} err={error}")
+            if os.name == 'nt':
+                with open(log_file, encoding='utf-8', errors='replace') as log:
+                    max_cnt = max(max_cnt, sum(re.search(pattern, line) is not None for line in log))
+            else:
+                cmd = f"grep '{pattern}' {log_file} | wc -l"
+                output, error = run(cmd, show=False)
+                try:
+                    max_cnt = max(max_cnt, int(output))
+                except ValueError:
+                    tdLog.info(f"grep log count failed: {cmd} out={output} err={error}")
             if i + 1 < retry:
                 time.sleep(1)
         return max_cnt

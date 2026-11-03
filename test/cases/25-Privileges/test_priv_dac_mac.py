@@ -773,8 +773,9 @@ class TestCase:
 
         # Prepare CSV file with valid data
         csv_dir = tempfile.mkdtemp(prefix="mac_file_test_")
-        csv_file = os.path.join(csv_dir, "test_insert.csv")
-        with open(csv_file, 'w') as f:
+        # SQL string literals interpret backslashes as escapes.
+        csv_file = os.path.join(csv_dir, "test_insert.csv").replace(os.sep, '/')
+        with open(csv_file, 'w', encoding='utf-8') as f:
             f.write("now,100\n")
 
         try:

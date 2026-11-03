@@ -49,14 +49,16 @@ class TestCase:
     # -v 1 : 1 vgroup  -a 1 : replica=1  -B 1 : batch size 1
     # ------------------------------------------------------------------
     def _startBenchmark(self, benchmarkPath, cfg_dir):
-        cmd = (
-            f'{benchmarkPath} -c "{cfg_dir}" -y -d {self.dbName}'
-            f" -t {_TABLE_COUNT} -n {_ROWS_PER_TBL} -v 1 -a 1 -B 1 -k 1000 -z 1000"
-        )
+        cmd = [
+            benchmarkPath, "-c", cfg_dir, "-y", "-d", self.dbName,
+            "-t", str(_TABLE_COUNT), "-n", str(_ROWS_PER_TBL),
+            "-v", "1", "-a", "1", "-B", "1", "-k", "1000", "-z", "1000",
+        ]
         tdLog.info(f"starting taosBenchmark: {cmd}")
-        kwargs = dict(shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Keep the actual writer PID so cleanup finishes before restoring logs.
+        kwargs = dict(stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if platform.system().lower() != "windows":
-            kwargs["preexec_fn"] = os.setsid
+            kwargs["start_new_session"] = True
         return subprocess.Popen(cmd, **kwargs)
 
     # ------------------------------------------------------------------
@@ -225,10 +227,11 @@ class TestCase:
                 tdLog.info("waiting for taosBenchmark to finish writing...")
                 try:
                     benchProc.wait(timeout=7200)
-                    tdLog.info("taosBenchmark write finished")
-                except subprocess.TimeoutExpired:
-                    tdLog.info("taosBenchmark timed out, terminating")
-                    benchProc.terminate()
+                except subprocess.TimeoutExpired as exc:
+                    raise AssertionError("taosBenchmark did not finish within 7200 seconds") from exc
+                if benchProc.returncode != 0:
+                    raise AssertionError(f"taosBenchmark failed: exit={benchProc.returncode}")
+                tdLog.info("taosBenchmark write finished")
 
             finally:
                 if benchProc.poll() is None:

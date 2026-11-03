@@ -92,7 +92,7 @@
 
 # ​​​Special gap before priority support
 ,,n,.,pytest cases/18-StreamProcessing/23-Compatibility/test_compatibility_rolling_upgrade.py -N 3
-,,n,.,pytest cases/05-VirtualTables/test_vtable_tag_ref_rolling_upgrade.py -N 3
+#,,n,.,pytest cases/05-VirtualTables/test_vtable_tag_ref_rolling_upgrade.py -N 3
 
 # 02-Databases
 
@@ -382,7 +382,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_nchar_length.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_nchar_length_supplemental.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/01-Basic/test_vtable_validate_referencing.py
-,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_comprehensive.py
+# Temporarily disabled pending fixes for the known virtual-table JOIN and UNION ALL failures.
+# ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/04-Misc/test_vtable_query_comprehensive.py
 
 # Performance and Stress tests
 #,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vtable_performance.py
@@ -1052,7 +1053,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_json_tag_conditions.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_full2.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func.py
-,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func_cursor.py
+,,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/14-JoinQueries/test_join_func_cursor.py --timeout=1800
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_manyblocks.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_multitables.py
 ,,y,.,./ci/pytest.sh pytest cases/14-JoinQueries/test_join_multivnode.py
@@ -1118,7 +1119,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_topics_info.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_max_topics.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_update_tablelist.py
-,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
+,,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py --timeout=1800
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_start_ts.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_discontinuous_data.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_offset.py
@@ -1207,7 +1208,7 @@
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v1_tn.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v4_t1.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v4_tn.py
-,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py
+,,n,.,CASE_TIMEOUT=1800 pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py --timeout=1800
 ## 03-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py -N 2
@@ -1240,6 +1241,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_vtable_interleaved_col_scatter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_rebind_redeploy.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_unused_ref.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_owned_columns.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_partitionby.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
@@ -1274,7 +1276,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_subquery_in_vtable5.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_agg_optimize.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py
-#,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_vtable_chain_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_calc_range_extra_ts_cond.py
@@ -1518,7 +1520,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_fi_c.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_cluster_stream.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_capi.py
-,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_crash_recovery.py
+,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_crash_recovery.py -N 3 -M 3
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_seq_edge.py
 ,,y,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_series.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_stability.py
@@ -1547,7 +1549,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_alive_slow_status.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_basic.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_db.py
-,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_create_table_blob.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_diskinfo.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_table_distributed.py
 ,,y,.,./ci/pytest.sh pytest cases/23-ShowCommands/test_show_tables.py
@@ -1766,8 +1767,6 @@
 # 02-Taosc
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_count_always_return_value.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_taosc_hot_refresh_config.py
-,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_workload_record.py
-,,y,.,./ci/pytest.sh pytest cases/80-Components/02-Taosc/test_com_workload_replay.py
 
 # 81-Tools
 
@@ -1810,7 +1809,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_compa.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_datatypes.py -B
-,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_long_ddl.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_primarykey.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_privilege.py

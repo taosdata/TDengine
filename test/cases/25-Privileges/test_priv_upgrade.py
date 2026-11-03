@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import pytest, os, time, shutil, sys
+import subprocess
 from new_test_framework.utils import (
     tdLog,
     tdSql,
@@ -115,6 +116,13 @@ class TestRBACUpgrade:
         """
         tdLog.info("Stopping all taosd processes...")
         tdDnodes.stopAll()
+        if os.name == "nt":
+            from new_test_framework.utils.server.win_process import stop_taosd_windows, _find_taosd_pid
+            for path in self.getDnodePath():
+                cfg = os.path.join(path, "cfg")
+                if _find_taosd_pid(config_dir=cfg) and not stop_taosd_windows(config_dir=cfg, timeout=60, log=tdLog):
+                    raise RuntimeError(f"Version-upgrade dnode did not stop: {cfg}")
+            return
         os.system("pkill -x taosd >/dev/null 2>&1")
         for retry in range(10):
             ret = os.system("pgrep -x taosd >/dev/null 2>&1")
@@ -128,26 +136,39 @@ class TestRBACUpgrade:
             time.sleep(1)
         tdLog.exit("Failed to stop all taosd processes within 10s")
 
+    def runCli(self, cli_prefix, sql, check=True):
+        bin_dir, lib_dir = cli_prefix
+        env = os.environ.copy()
+        if os.name == "nt":
+            env.pop("LD_PRELOAD", None)
+            env.pop("LD_LIBRARY_PATH", None)
+            env["PATH"] = os.pathsep.join([bin_dir, lib_dir, env.get("PATH", "")])
+        else:
+            env["LD_LIBRARY_PATH"] = lib_dir
+        proc = subprocess.run(
+            [os.path.join(bin_dir, "taos.exe" if os.name == "nt" else "taos"),
+             "-h", "localhost", "-P", "6030", "-s", sql],
+            env=env, capture_output=True, encoding="utf-8", errors="replace", timeout=30,
+        )
+        output = proc.stdout + proc.stderr
+        if check and (proc.returncode or "DB error:" in output):
+            raise RuntimeError(f"CLI failed ({proc.returncode}): {sql}\n{output}")
+        return proc
+
     def wait_dnodes_ready(self, old_taos_cli, expected_count, timeout=60):
         """Wait for all dnodes to be ready with active polling."""
-        tdLog.info(f"Waiting for {expected_count} dnodes (timeout {timeout}s)...")
-        start = time.time()
-        last_ready = 0
-        while time.time() - start < timeout:
-            ret = os.system(f"{old_taos_cli} -s 'SHOW DNODES' > /tmp/check_dnodes.txt 2>&1")
-            if ret == 0:
-                with open('/tmp/check_dnodes.txt') as f:
-                    output = f.read()
-                    ready_count = output.count('ready')
-                    if ready_count != last_ready:
-                        tdLog.info(f"  {ready_count}/{expected_count} dnodes ready")
-                        last_ready = ready_count
-                    if ready_count >= expected_count:
-                        tdLog.info(f"All {expected_count} dnodes ready!")
-                        return True
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            proc = self.runCli(old_taos_cli, "SHOW DNODES", check=False)
+            if proc.returncode == 0 and proc.stdout.count("ready") >= expected_count:
+                return True
             time.sleep(2)
         tdLog.exit(f"Dnodes not ready within {timeout}s")
         return False
+
+    def teardown_class(cls):
+        if os.name == "nt":
+            cls().stop_all_taosd()
 
     @pytest.mark.parametrize("dnode_count,mnode_replica", [
         (1, 1),  # Single node
@@ -184,6 +205,7 @@ class TestRBACUpgrade:
 
         History:
             - 2026-08-11: Initial version from Kaili Xu.
+            - 2026-10-30 Use checked CLI arguments and Windows config-specific lifecycle.
 
         Note:
             Run without -N/-M parameters, this case manages the cluster itself.
@@ -196,6 +218,7 @@ class TestRBACUpgrade:
         baseVersion = "3.3.6.0"
 
         tdLog.info("Step 1: Stopping all dnodes...")
+        tdSql.close()
         self.stop_all_taosd()
 
         # Step 1: Install old version and create cluster
@@ -211,7 +234,7 @@ class TestRBACUpgrade:
 
         old_bin_dir = tdCb.old_bin_dir
         old_lib_dir = tdCb.old_lib_dir
-        _old_taos = f"LD_LIBRARY_PATH={old_lib_dir} {old_bin_dir}/taos"
+        _old_taos = (old_bin_dir, old_lib_dir)
 
         # Create dnodes (skip for single node)
         if dnode_count > 1:
@@ -219,8 +242,8 @@ class TestRBACUpgrade:
             for i in range(2, dnode_count + 1):
                 port = 6030 + (i - 1) * 100
                 tdLog.info(f"  Creating dnode {i} on port {port}...")
-                ret = os.system(f"{_old_taos} -s \"CREATE DNODE 'localhost:{port}'\" 2>&1 | grep -q 'Create OK'")
-                if ret != 0:
+                proc = self.runCli(_old_taos, f"CREATE DNODE 'localhost:{port}'")
+                if "Create OK" not in proc.stdout:
                     tdLog.exit(f"Failed to create dnode {i}")
 
             # Wait for dnodes ready
@@ -231,32 +254,17 @@ class TestRBACUpgrade:
             tdLog.info(f"Step 4: Creating {mnode_replica}-replica mnode...")
             for i in range(2, mnode_replica + 1):
                 tdLog.info(f"  Creating mnode on dnode {i}...")
-                ret = os.system(f"{_old_taos} -s 'CREATE MNODE ON DNODE {i}' 2>&1 | grep -q 'Create OK'")
-                if ret != 0:
+                proc = self.runCli(_old_taos, f"CREATE MNODE ON DNODE {i}")
+                if "Create OK" not in proc.stdout:
                     tdLog.exit(f"Failed to create mnode on dnode {i}")
             time.sleep(3)
 
-            # Verify mnodes created
-            tdLog.info("  Verifying mnodes...")
-            ret = os.system(f"{_old_taos} -s 'SHOW MNODES' > /tmp/old_mnodes.txt 2>&1")
-            if ret == 0:
-                with open('/tmp/old_mnodes.txt') as f:
-                    mnodes_output = f.read()
-                    tdLog.info(f"  Current mnodes:\n{mnodes_output}")
-                    # Count ready mnodes
-                    ready_mnodes = mnodes_output.count('ready')
-                    if ready_mnodes < mnode_replica:
-                        tdLog.info(f"  WARNING: Only {ready_mnodes}/{mnode_replica} mnodes are ready")
-            else:
-                tdLog.info("  Warning: Failed to show mnodes")
-        else:
-            # For single mnode, still show it for clarity
-            tdLog.info(f"Step 4: Using single-replica mnode (default)")
-            ret = os.system(f"{_old_taos} -s 'SHOW MNODES' > /tmp/old_mnodes.txt 2>&1")
-            if ret == 0:
-                with open('/tmp/old_mnodes.txt') as f:
-                    mnodes_output = f.read()
-                    tdLog.info(f"  Current mnodes:\n{mnodes_output}")
+        # Preserve the mnode readiness diagnostic without shared /tmp files.
+        proc = self.runCli(_old_taos, "SHOW MNODES")
+        tdLog.info(f"  Current mnodes:\n{proc.stdout}")
+        ready_mnodes = proc.stdout.count("ready")
+        if ready_mnodes < mnode_replica:
+            tdLog.info(f"  WARNING: Only {ready_mnodes}/{mnode_replica} mnodes are ready")
 
         # Step 2: Prepare test data and users
         tdLog.info("Step 5: Preparing test data and users...")
@@ -286,7 +294,18 @@ class TestRBACUpgrade:
             cmd = (f"LD_LIBRARY_PATH={new_lib_dir} {buildPath}/build/bin/taosd "
                    f"-c {dnode_path}cfg/ > /dev/null 2>&1 &")
             tdLog.info(f"  Starting dnode{i} on new version: {cmd}")
-            os.system(cmd)
+            if os.name == "nt":
+                env = os.environ.copy()
+                env["PATH"] = os.path.join(buildPath, "build", "bin") + os.pathsep + env.get("PATH", "")
+                with open(os.path.join(dnode_path, "log", "upgrade-startup.log"), "ab") as output:
+                    subprocess.Popen(
+                        [os.path.join(buildPath, "build", "bin", "taosd.exe"),
+                         "-c", os.path.join(dnode_path, "cfg")],
+                        env=env, stdout=output, stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NEW_CONSOLE,
+                    )
+            else:
+                os.system(cmd)
         time.sleep(3)
 
         # Wait for upgraded cluster to be ready
@@ -335,37 +354,43 @@ class TestRBACUpgrade:
         tdLog.printNoPrefix(f"{'='*80}\n")
 
     def prepareUserAndPrivileges(self, baseVersion, old_taos_cli, replica):
-        """Create test users and grant privileges."""
-        tdLog.info("  Creating test database...")
-
-        # Create test database
-        os.system(f"{old_taos_cli} -s 'CREATE DATABASE IF NOT EXISTS test_rbac REPLICA {replica}' >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s 'CREATE TABLE IF NOT EXISTS test_rbac.meters (ts TIMESTAMP, current FLOAT, voltage INT) TAGS (location BINARY(64))' >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s 'CREATE TABLE IF NOT EXISTS test_rbac.d1 USING test_rbac.meters TAGS (\"beijing\")' >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s \"INSERT INTO test_rbac.d1 VALUES (now, 10.2, 220)\" >/dev/null 2>&1")
-
-        tdLog.info("  Creating test users...")
-        # User WITH privileges
-        os.system(f"{old_taos_cli} -s 'DROP USER IF EXISTS user_with_perms' >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s \"CREATE USER user_with_perms PASS 'Test@1234'\" >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s 'GRANT READ ON test_rbac.* TO user_with_perms' >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s 'GRANT WRITE ON test_rbac.* TO user_with_perms' >/dev/null 2>&1")
-
-        # User WITHOUT privileges
-        os.system(f"{old_taos_cli} -s 'DROP USER IF EXISTS user_no_perms' >/dev/null 2>&1")
-        os.system(f"{old_taos_cli} -s \"CREATE USER user_no_perms PASS 'Test@5678'\" >/dev/null 2>&1")
-
-        os.system(f"{old_taos_cli} -s 'FLUSH DATABASE test_rbac' >/dev/null 2>&1")
+        """Create test users and grant privileges, checking every CLI result."""
+        # 3.3.6 does not parse DROP USER IF EXISTS. Accept only the documented
+        # missing-user error when cleaning the two fixture users.
+        for user in ("user_with_perms", "user_no_perms"):
+            self.dropOldUser(old_taos_cli, user)
+        for sql in [
+            f"CREATE DATABASE IF NOT EXISTS test_rbac REPLICA {replica}",
+            "CREATE TABLE IF NOT EXISTS test_rbac.meters (ts TIMESTAMP, current FLOAT, voltage INT) TAGS (location BINARY(64))",
+            'CREATE TABLE IF NOT EXISTS test_rbac.d1 USING test_rbac.meters TAGS ("beijing")',
+            "INSERT INTO test_rbac.d1 VALUES (now, 10.2, 220)",
+            "CREATE USER user_with_perms PASS 'Test@1234'",
+            "GRANT READ ON test_rbac.* TO user_with_perms",
+            "GRANT WRITE ON test_rbac.* TO user_with_perms",
+            "CREATE USER user_no_perms PASS 'Test@5678'",
+            "FLUSH DATABASE test_rbac",
+        ]:
+            self.runCli(old_taos_cli, sql)
         tdLog.info("  Users and database ready")
+
+    def dropOldUser(self, old_taos_cli, user):
+        proc = self.runCli(old_taos_cli, f"DROP USER {user}", check=False)
+        output = proc.stdout + proc.stderr
+        if proc.returncode == 0 and "DB error:" not in output:
+            return
+        if "DB error:" in output and any(code in output.lower()
+                                         for code in ("[0x80000351]", "[0x0351]")):
+            return
+        raise RuntimeError(f"Cannot drop old-version fixture user {user}: {output}")
 
     def captureBaselineState(self, old_taos_cli):
         """Capture state before upgrade."""
-        baseline = {}
-        ret = os.system(f"{old_taos_cli} -s 'SELECT COUNT(*) FROM information_schema.ins_roles WHERE name LIKE \"SYS%\"' > /tmp/baseline_roles.txt 2>&1")
-        baseline['old_roles_queryable'] = (ret == 0)
-        ret = os.system(f"{old_taos_cli} -s 'SELECT `roles` FROM information_schema.ins_users WHERE name=\"root\"' > /tmp/baseline_root_roles.txt 2>&1")
-        baseline['root_roles_queryable'] = (ret == 0)
-        return baseline
+        roles = self.runCli(old_taos_cli,
+            'SELECT COUNT(*) FROM information_schema.ins_roles WHERE name LIKE "SYS%"', check=False)
+        root = self.runCli(old_taos_cli,
+            'SELECT `roles` FROM information_schema.ins_users WHERE name="root"', check=False)
+        return {'old_roles_queryable': roles.returncode == 0 and "DB error:" not in roles.stdout + roles.stderr,
+                'root_roles_queryable': root.returncode == 0 and "DB error:" not in root.stdout + root.stderr}
 
     def waitBuiltinRolesUpgraded(self, timeout=120):
         """Poll until the mnode has finished creating the builtin roles.

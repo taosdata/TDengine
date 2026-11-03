@@ -363,16 +363,14 @@ class TestTaoscAutoCreateTableJson:
         major_ver = client_ver.split(".")[0]
 
         binPath = etool.benchMarkFile()
-        cmd = (
-            "%s -f %s/json/taosc_insert_table-creating-interval.json -g 2>&1| grep sleep | wc -l"
-            % (binPath, os.path.dirname(__file__))
-        )
-        tdLog.info("%s" % cmd)
-
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-
-        if int(sleepTimes) != 8:
-            tdLog.exit("expected sleep times 8, actual %d" % int(sleepTimes))
+        cmd = [binPath, "-f", os.path.join(os.path.dirname(__file__),
+               "json", "taosc_insert_table-creating-interval.json"), "-g"]
+        tdLog.info(str(cmd))
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, check=True)
+        sleepTimes = sum("sleep" in line for line in result.stdout.splitlines())
+        if sleepTimes != 8:
+            tdLog.exit("expected sleep times 8, actual %d" % sleepTimes)
 
         if major_ver == "3":
             tdSql.query(
