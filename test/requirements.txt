@@ -33,6 +33,6 @@ toml==0.10.2
 tzlocal==5.3.1
 wexpect
 setuptools; sys_platform != "win32"
-setuptools==80.9.0; sys_platform == "win32"
+setuptools==84.1.0; sys_platform == "win32"
 pyotp
 pywinpty==3.1.0; sys_platform == "win32"
