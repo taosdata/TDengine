@@ -5,7 +5,7 @@ description: Onboard Kepware Server automatically during installation, or use ta
 toc_max_heading_level: 5
 ---
 
-[Kepware Server](https://www.ptc.com/en/products/kepware) is PTC's industrial connectivity platform. It provides communication drivers for more than 150 industrial protocols, including Modbus, Siemens S7, OPC UA, and BACnet. This guide uses Kepware Server 7.1 as an example and describes how to read Kepware points through the taosX OPC UA connector and write them to TDengine. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the Kepware software license.
+[Kepware Server](https://www.ptc.com/en/products/kepware) is PTC's industrial connectivity platform. It provides communication drivers for more than 150 industrial protocols, including Modbus, Siemens S7, OPC UA, and BACnet. Named drivers are listed in [Driver Details](#driver-details). This guide uses Kepware Server 7.1 as an example and describes how to read Kepware points through the taosX OPC UA connector and write them to TDengine. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the Kepware software license.
 
 This guide describes two onboarding methods:
 
@@ -369,3 +369,213 @@ Notes:
 - Only one integration can be created for the same Kepware instance and the same database. Do not split the same instance and database into multiple integrations.
 - Point selection is performed per point. Points are not routed to different databases by Channel or Device automatically; select points separately in each integration.
 - The same points can be written to different databases, but this duplicates reads and writes and is generally not recommended.
+
+## Driver Details
+
+The names below are taken mainly from the [Kepware Advanced Manufacturing Suite](https://www.ptc.com/en/store/products/kepware/suites/advanced-manufacturing-suite) and the [ThingWorx Kepware Server driver list](https://support.ptc.com/help/thingworx/thingworx_kepware_server/r8.5.2/en/ThingWorx/Drivers.html). Individual driver descriptions are in [Kepware drivers help](https://support.ptc.com/help/kepware/drivers/en/).
+
+**PLCs and Motion**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| Allen-Bradley 1609 UPS |  |  |
+| Allen-Bradley Bulletin 900 |  |  |
+| Allen-Bradley ControlLogix Ethernet | Ethernet |  |
+| Allen-Bradley ControlLogix Unsolicited |  |  |
+| Allen-Bradley DF1 |  |  |
+| Allen-Bradley Ethernet | Ethernet |  |
+| Allen-Bradley Micro800 Ethernet | Ethernet |  |
+| Allen-Bradley Micro800 Serial | Serial |  |
+| Allen-Bradley Unsolicited Ethernet | Ethernet |  |
+| Aromat Ethernet | Ethernet |  |
+| Aromat Serial | Serial |  |
+| AutomationDirect DirectNET |  |  |
+| AutomationDirect EBC |  |  |
+| AutomationDirect ECOM |  |  |
+| AutomationDirect K Sequence | Serial<br/>Ethernet | Koyo K Sequence<br/>DL-05<br/>DL-06<br/>DL-105<br/>DL-230<br/>DL-240<br/>DL-250<br/>DL-260<br/>DL-350<br/>DL-430<br/>DL-440<br/>DL-450<br/>SG<br/>SL |
+| AutomationDirect Productivity Series Ethernet | Ethernet |  |
+| Beckhoff TwinCAT |  |  |
+| CODESYS Ethernet | Ethernet |  |
+| Cutler-Hammer D50/D300 |  |  |
+| Cutler-Hammer ELC Ethernet | Ethernet |  |
+| Cutler-Hammer ELC Serial | Serial |  |
+| Fuji Flex |  |  |
+| IDEC Serial | Serial |  |
+| Keyence KV Ethernet | Ethernet |  |
+| Mitsubishi Ethernet | Ethernet |  |
+| Mitsubishi FX |  |  |
+| Mitsubishi FX Net |  |  |
+| Mitsubishi Serial | Serial |  |
+| Omron FINS Ethernet | Ethernet |  |
+| Omron FINS Serial | Serial |  |
+| Omron Host Link |  |  |
+| Omron NJ Ethernet | Ethernet |  |
+| Omron Process Suite |  |  |
+| Omron Toolbus |  |  |
+| Siemens S5 |  |  |
+| Siemens S5 3964R |  |  |
+| Siemens S7 MPI | MPI |  |
+| Siemens S7 Plus Ethernet | Ethernet |  |
+| Siemens S7-200 |  |  |
+| Siemens TCP/IP Ethernet | Ethernet |  |
+| Siemens TCP/IP Unsolicited Ethernet | Ethernet |  |
+| Simatic/TI 505 Ethernet | Ethernet |  |
+| Simatic/TI 505 Serial | Serial |  |
+| Square D |  |  |
+| Telemecanique Uni-Telway |  |  |
+| Toshiba Ethernet | Ethernet |  |
+| Toshiba Serial | Serial |  |
+| Toyopuc PC3/PC2 Ethernet | Ethernet |  |
+| Toyopuc Serial | Serial |  |
+| WAGO Ethernet | Ethernet |  |
+| Yaskawa Memobus Plus | Memobus Plus |  |
+| Yaskawa MP Series Ethernet | Ethernet |  |
+| Yaskawa MP Series Serial | Serial |  |
+| Allen-Bradley Data Highway Plus | Data Highway Plus |  |
+
+**Modbus**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| Enron Modbus |  |  |
+| Lufkin Modbus |  |  |
+| Modbus ASCII |  |  |
+| Modbus Ethernet | Ethernet |  |
+| Modbus Plus | Modbus Plus |  |
+| Modbus Serial | Serial |  |
+| Modbus Unsolicited Serial | Serial |  |
+
+**OPC and Open Interfaces**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| Custom Interface |  |  |
+| DDE Client |  |  |
+| InTouch Client |  |  |
+| MQTT Client |  |  |
+| ODBC Client |  |  |
+| OPC DA Client |  |  |
+| OPC UA Client |  |  |
+| OPC XML-DA Client |  |  |
+| Universal Device Driver (UDD) |  |  |
+| User Configurable (U-CON) |  |  |
+
+**Power and Energy**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| DNP Client Ethernet | Ethernet |  |
+| DNP Client Serial | Serial |  |
+| IEC 60870-5-101 Client |  |  |
+| IEC 60870-5-104 Client |  |  |
+| IEC 61850 MMS Client |  |  |
+| Ping |  |  |
+| SNMP |  |  |
+
+**CNC and Manufacturing**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| EUROMAP 63 |  |  |
+| Fanuc Focas Ethernet | Ethernet |  |
+| Fanuc Focas HSSB | HSSB |  |
+| Intelligent Actuator (IA) Super SEL |  |  |
+| Mitsubishi CNC Ethernet | Ethernet |  |
+| MTConnect |  |  |
+| Torque Tool Ethernet | Ethernet |  |
+
+**Building**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| BACnet/IP | BACnet/IP |  |
+
+**Process, Metering, and Instruments**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| ABB Totalflow |  |  |
+| Analog Devices |  |  |
+| Bristol/IP |  |  |
+| Contrex M-Series |  |  |
+| Contrex Serial | Serial |  |
+| Dataforth isoLynx |  |  |
+| Fisher ROC Ethernet | Ethernet |  |
+| Fisher ROC Plus Ethernet | Ethernet |  |
+| Fisher ROC Plus Serial | Serial |  |
+| Fisher ROC Serial | Serial |  |
+| Honeywell HC900 Ethernet | Ethernet |  |
+| Honeywell UDC Ethernet | Ethernet |  |
+| Honeywell UDC Serial | Serial |  |
+| Mettler Toledo |  |  |
+| Micro-DCI |  |  |
+| OMNI Flow Computer |  |  |
+| Partlow ASCII |  |  |
+| Philips P8/PC20 |  |  |
+| Scanivalve Ethernet | Ethernet |  |
+| Thermo Westronics Ethernet | Ethernet |  |
+| Thermo Westronics Serial | Serial | SV100<br/>SV180<br/>SM100<br/>1200/1600/3000 |
+| Weatherford 8500 |  |  |
+| WITS Level 0 Active |  |  |
+| WITS Level 0 Passive |  |  |
+| Yokogawa Controller |  |  |
+| Yokogawa CX |  |  |
+| Yokogawa Darwin Ethernet | Ethernet | DA100-1<br/>DA100-2<br/>DC100-1<br/>DC100-2<br/>DR131<br/>DR231<br/>DR232<br/>DR241<br/>DR242 |
+| Yokogawa Darwin Serial | Serial | DA100-1<br/>DA100-2<br/>DC100-1<br/>DC100-2<br/>DR131<br/>DR231<br/>DR232<br/>DR241<br/>DR242 |
+| Yokogawa DX Ethernet | Ethernet |  |
+| Yokogawa DX Serial | Serial |  |
+| Yokogawa DXP |  |  |
+| Yokogawa GX Ethernet | Ethernet |  |
+| Yokogawa HR |  |  |
+| Yokogawa MW | Ethernet | MW100 |
+| Yokogawa MX |  |  |
+| Yokogawa YS100 |  |  |
+
+**Other Devices and Systems**
+
+| Driver | Interface | Devices and notes |
+| --- | --- | --- |
+| Advanced Simulator |  |  |
+| Alstom Redundant Ethernet | Ethernet |  |
+| BUSWARE Ethernet | Ethernet |  |
+| GE CCM |  |  |
+| GE EGD |  |  |
+| GE Ethernet | Ethernet |  |
+| GE SNP |  |  |
+| GE SNPX |  |  |
+| IOtech PointScan 100 |  |  |
+| Krauss Maffei MC4 Ethernet | Ethernet |  |
+| Memory Based |  |  |
+| Optimation OptiLogic |  |  |
+| Opto 22 Ethernet | Ethernet |  |
+| SattBus Ethernet | Ethernet |  |
+| SIXNET EtherTRAK | Ethernet |  |
+| SIXNET UDR |  |  |
+| System Monitor |  |  |
+| TIWAY Host Adapter |  |  |
+| Triconex Ethernet | Ethernet |  |
+| Hilscher Universal |  |  |
+| SattBus Serial | Serial |  |
+
+**Device Series Covered by One Driver**
+
+These devices are named on a driver page but do not have their own driver name. They are not part of the 143 named drivers above.
+
+| Device series | Driver | Interface | Devices and notes |
+| --- | --- | --- | --- |
+| Modicon | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Daniel | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Instromet | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Dynamic Fluid Meters | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Roxar RFM | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Mailbox | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Elliot | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| Fluenta FGM | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| DGH DAQ | Modbus Ethernet<br/>Modbus Serial<br/>related drivers | Ethernet<br/>Serial |  |
+| DL-05<br/>DL-06<br/>DL-105<br/>DL-230<br/>DL-240<br/>DL-250<br/>DL-260<br/>DL-350<br/>DL-430<br/>DL-440<br/>DL-450 | AutomationDirect K Sequence | Serial<br/>Ethernet |  |
+| SG<br/>SL | AutomationDirect K Sequence | Serial<br/>Ethernet |  |
+| SV100<br/>SV180<br/>SM100<br/>1200/1600/3000 | Thermo Westronics Serial | Serial |  |
+| DA100-1<br/>DA100-2<br/>DC100-1<br/>DC100-2 | Yokogawa Darwin Ethernet<br/>Yokogawa Darwin Serial | Ethernet<br/>Serial |  |
+| DR131<br/>DR231<br/>DR232<br/>DR241<br/>DR242 | Yokogawa Darwin Ethernet<br/>Yokogawa Darwin Serial | Ethernet<br/>Serial |  |
+| MW100 | Yokogawa MW | Ethernet |  |
+| MP | Yokogawa Darwin Ethernet<br/>Yokogawa Darwin Serial | Ethernet<br/>Serial |  |

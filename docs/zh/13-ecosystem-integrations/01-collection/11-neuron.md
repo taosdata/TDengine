@@ -23,7 +23,7 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 | 一键接入 | 需要 | 已部署 Neuron 或 NeuronEX | 需要向导 |
 | 手工接入 | 需要 | 已部署，需要自定义标签或转换 | 需要手工配置 |
 
-三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，具体以版本及授权为准。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
+三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，可核对的名称见[南向驱动明细](#南向驱动明细)。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -588,3 +588,196 @@ Neuron 与 eKuiper 平均各使用约 6.6 个逻辑核；Neuron 驻留内存约 
 - [eKuiper sink 缓存与发送机制](https://ekuiper.org/docs/zh/latest/guide/sinks/overview.html)
 - [Neuron 开源版文档](https://docs.emqx.com/zh/neuron/latest/)
 - [NeuronEX 配置说明](https://docs.emqx.com/zh/neuronex/latest/configuration/introduction.html)
+
+## 南向驱动明细
+
+以下名称摘自 EMQX Neuron [南向驱动](https://docs.emqx.com/zh/emqx-neuron/latest/introduction/driver-list/driver-list.html) 和 [数据表](https://assets.emqx.com/resources/datasheet/EMQX%20Neuron%20DataSheet%202026-EN.pdf)。参数、地址格式和连接示例以对应驱动文档为准。
+
+**Modbus 系列**
+
+| 协议或驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| Modbus TCP | 以太网 | - |
+| Modbus RTU | 串口 | - |
+| Modbus RTU over TCP | 以太网 | 见 Modbus RTU 的以太网链路 |
+| Modbus Ascii | 串口 | - |
+
+**PLC 与运动控制**
+
+| 协议或驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| CIP Ethernet/IP | 以太网 | CIP，通用工业协议 |
+| Siemens S7 ISO TCP | 以太网 | 西门子 S200<br/>S200smart<br/>S1200<br/>S1500 |
+| Siemens S7 ISOTCP for 300/400 | 以太网 | S7-300/400 |
+| Siemens MPI | 串口 | 支持西门子 MPI 接口的设备 |
+| Siemens FetchWrite | 以太网 | 带 CP443 网络扩展模块的西门子 PLC |
+| Allen-Bradley DF1 | 串口 | - |
+| Allen-Bradley CIP EtherNet/IP | 以太网 | CIP，通用工业协议 |
+| Allen-Bradley 5000 EtherNet/IP | 以太网 | ControlLogix 55xx<br/>CompactLogix 53xx |
+| Allen-Bradley ControlLogix 5500 | 以太网 | - |
+| Allen-Bradley MicroLogix 1400 | 以太网 | - |
+| Schneider PLC Modbus RTU | 串口 | 通用 Modbus RTU |
+| Schneider PLC Modbus TCP | 以太网 | 通用 Modbus TCP |
+| Inovance PLC Modbus TCP | 以太网 | 汇川 PLC |
+| XINJE PLC Modbus RTU | 串口 | 信捷 XC/XD/XL 系列 |
+| HollySys PLC Modbus TCP | 以太网 | HollySys LK/LE 系列 |
+| HollySys PLC Modbus RTU | 串口 | HollySys LK/LE 系列 |
+| ABB COMLI | 串口 | 与 ABB PLC 通信 |
+| Omron Host Link | 串口 | Host Link C-mode |
+| Omron FINS on TCP | 以太网 | 欧姆龙 PLC |
+| Omron FINS on UDP | 以太网 | 欧姆龙 PLC |
+| Mitsubishi 1E | 以太网 | 三菱 A 系列<br/>FX3U<br/>FX3G<br/>iQ-F |
+| Mitsubishi 3E | 以太网 | 三菱 Q 系列（MC）<br/>iQ-F（SLMP）<br/>iQ-L |
+| Mitsubishi 4E | 以太网 | 三菱 iQ-F（SLMP）<br/>iQ-R |
+| Mitsubishi FX | 串口 | 三菱 FX0<br/>FX2<br/>FX3 等 |
+| Panasonic Mewtocol | 以太网 | 松下 FP-XH<br/>FP0H |
+| Beckhoff ADS | 以太网 | 倍福 TwinCAT PLC |
+| Keyence CIP Ethernet/IP | 以太网 | CIP，通用工业协议 |
+| Keyence MC Protocol | 以太网 | 三菱 MC 协议 |
+| Delta Modbus TCP | 以太网 | 台达 DVP<br/>AS 系列 |
+| KUKA Ethernet KRL TCP | 以太网 | 库卡设备 |
+| GE SRTP | 以太网 | 支持 SRTP 的 GE PLC |
+| MTconnect | 以太网 | 通过 HTTP 访问 MTConnect Agent |
+| Codesys V3 | 以太网 | CODESYS V3 平台 |
+
+**OPC**
+
+| 协议或驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| OPC UA | 以太网 | - |
+| OPC DA | 以太网 | 通过 NeuronHUB 访问 |
+
+**电力与能源**
+
+| 协议或驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| DL/T645-1997 | 串口 | 中国电力仪表标准 |
+| DL/T645-2007 | 串口 | 中国电力仪表标准 |
+| IEC 60870-5-101 | 串口<br/>以太网 | - |
+| IEC 60870-5-102 | 串口<br/>以太网 | - |
+| IEC 60870-5-103 | 串口<br/>以太网 | - |
+| IEC 60870-5-104 | 以太网 | - |
+| IEC 61850 | 以太网 | - |
+| DNP 3.0 | 以太网 | - |
+
+**楼宇与环保**
+
+| 协议或驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| BACnet IP | 以太网 | - |
+| KNXnet IP | 以太网 | - |
+| HJ212-2017 | 以太网/串口 | 环保行业标准 |
+
+**其他**
+
+| 协议或驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| NON A11 | 串口 | 农业机械标准 |
+| SECS GEM HSMS | 以太网 | 半导体行业协议 |
+| SNMP | 以太网 | 交换机<br/>服务器等网络设备 |
+| NeuronHUB | 以太网 | Windows 侧代理，<br/>用于 OPC DA<br/>OPC AE<br/>GE Historian 及部分 CNC |
+
+**CNC 设备对照**
+
+下表是官方页面上的设备型号对照。其中一部分复用已有驱动，不另计为新的协议族。
+
+| 厂商 | 型号 | 接口 | 对应驱动 | 说明 |
+| --- | --- | --- | --- | --- |
+| 发那科 FANUC | 0i<br/>30i<br/>31i<br/>32i<br/>35i | 以太网 | Fanuc Focas Ethernet | 串口方式暂不支持采集 |
+| 西门子 Siemens | 802D SL<br/>808 | 以太网 | Siemens MPI | - |
+| 西门子 Siemens | 828D<br/>840DSL | 以太网 | OPC UA | CNC 软件版本不低于 4.5 SP3 |
+| 三菱 Mitsubishi | M70<br/>M80<br/>M700<br/>M800<br/>E70 | 以太网 | NeuronHUB | - |
+| 海德汉 HEIDENHAIN | TNC640<br/>iTNC530 | 以太网 | HEIDENHAIN CNC | - |
+| 凯恩帝 KND | K2000<br/>K1000 C/Ci/F/Fi<br/>K1000TTCi | 以太网 | KND CNC | - |
+| 广州数控 | GSK-980 等 | 以太网 | Modbus TCP | - |
+| 新代 SYNTEC | 新代 CNC 设备 | 以太网 | NeuronHUB | - |
+| 德玛吉森精机 DMG MORI | DMG MORI 设备 | 以太网 | MTconnect | 设备需支持 MTConnect |
+| 兄弟 Brother | Brother CNC 设备 | 以太网 | Brother CNC | - |
+| 马扎克 Mazak | Mazak CNC 设备 | 以太网 | Mazak CNC | - |
+
+**南向总表未单列的驱动**
+
+下面这些名称有独立说明页。南向总表只在 CNC 对照或 NeuronHUB 备注里提到它们，没有各自占一行。
+
+| 驱动 | 接口 | 覆盖设备 | 说明 |
+| --- | --- | --- | --- |
+| Fanuc Focas Ethernet | 以太网 | FANUC 0i<br/>30i<br/>31i<br/>32i<br/>35i | [Fanuc Focas Ethernet](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/fanuc-focas/fanuc-focas.html)。串口方式暂不支持 |
+| HEIDENHAIN CNC | 以太网 | TNC640<br/>iTNC530 | [HEIDENHAIN CNC](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/heidenhain-cnc/heidenhain-cnc.html)，经 LSV2 |
+| KND CNC | 以太网 | K2000<br/>K1000 C/Ci/F/Fi<br/>K1000TTCi | [KND CNC](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/knd/knd.html) |
+| Brother CNC | 以太网<br/>串口 | Brother 加工中心 | [Brother CNC](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/brother-cnc/brother-cnc.html) |
+| Mazak CNC | UDP | Mazak CNC | [Mazak CNC](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/mazak-udp/mazak-udp.html) |
+| OPC AE | 以太网 | Windows 上的 OPC AE | 经 [NeuronHUB](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/neuhub/neuhub.md) 接入，不是单独的 Linux 南向驱动 |
+| GE Historian | 以太网 | GE Historian | 同上，经 NeuronHUB |
+| SYNTEC CNC | 以太网 | 新代 CNC | [SYNTEC CNC](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/neuhub/syntec-cnc.html)，经 NeuronHUB |
+| MITSUBISHI CNC | 以太网 | NeuronHUB 参数页写 M700L<br/>M700M<br/>M800L<br/>M800M | [MITSUBISHI CNC](https://docs.emqx.com/zh/emqx-neuron/latest/configuration/south-devices/neuhub/mitsubishi-cnc.html)。<br/>南向总表还列出 M70<br/>M80<br/>M700<br/>M800<br/>E70 |
+
+**按设备系列拆开**
+
+官方没有公布「100 多种」的逐条原文。下表 64 条，只拆南向总表和各驱动页里点名的 PLC 子系列、CNC 型号。同一驱动覆盖多个系列时，每个系列占一行，不表示 Neuron 里有同名的独立插件。未在页面上写全名的系列没有列入。Modbus、OPC UA、IEC 60870、BACnet、SECS GEM 等没有子系列的协议，仍见上面的南向总表。
+
+| 设备系列 | 所属驱动 | 接口 | 设备与说明 |
+| --- | --- | --- | --- |
+| S200 | Siemens S7 ISO TCP | 以太网 | 西门子 S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S200smart | Siemens S7 ISO TCP | 以太网 | 西门子 S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S1200 | Siemens S7 ISO TCP | 以太网 | 西门子 S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S1500 | Siemens S7 ISO TCP | 以太网 | 西门子 S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S7-300 | Siemens S7 ISOTCP for 300/400 | 以太网 | S7-300/400 |
+| S7-400 | Siemens S7 ISOTCP for 300/400 | 以太网 | S7-300/400 |
+| ControlLogix 55xx | Allen-Bradley 5000 EtherNet/IP | 以太网 | ControlLogix 55xx<br/>CompactLogix 53xx |
+| CompactLogix 53xx | Allen-Bradley 5000 EtherNet/IP | 以太网 | ControlLogix 55xx<br/>CompactLogix 53xx |
+| ControlLogix 5500 | Allen-Bradley ControlLogix 5500 | 以太网 |  |
+| MicroLogix 1400 | Allen-Bradley MicroLogix 1400 | 以太网 |  |
+| XC | XINJE PLC Modbus RTU | 串口 | 信捷 XC/XD/XL 系列 |
+| XD | XINJE PLC Modbus RTU | 串口 | 信捷 XC/XD/XL 系列 |
+| XL | XINJE PLC Modbus RTU | 串口 | 信捷 XC/XD/XL 系列 |
+| LK | HollySys PLC Modbus TCP | 以太网 | HollySys LK/LE 系列 |
+| LE | HollySys PLC Modbus TCP | 以太网 | HollySys LK/LE 系列 |
+| LK | HollySys PLC Modbus RTU | 串口 | HollySys LK/LE 系列 |
+| LE | HollySys PLC Modbus RTU | 串口 | HollySys LK/LE 系列 |
+| A 系列 | Mitsubishi 1E | 以太网 | 三菱 A 系列<br/>FX3U<br/>FX3G<br/>iQ-F |
+| FX3U | Mitsubishi 1E | 以太网 | 三菱 A 系列<br/>FX3U<br/>FX3G<br/>iQ-F |
+| FX3G | Mitsubishi 1E | 以太网 | 三菱 A 系列<br/>FX3U<br/>FX3G<br/>iQ-F |
+| iQ-F | Mitsubishi 1E | 以太网 | 三菱 A 系列<br/>FX3U<br/>FX3G<br/>iQ-F |
+| Q 系列（MC） | Mitsubishi 3E | 以太网 | 三菱 Q 系列（MC）<br/>iQ-F（SLMP）<br/>iQ-L |
+| iQ-F（SLMP） | Mitsubishi 3E | 以太网 | 三菱 Q 系列（MC）<br/>iQ-F（SLMP）<br/>iQ-L |
+| iQ-L | Mitsubishi 3E | 以太网 | 三菱 Q 系列（MC）<br/>iQ-F（SLMP）<br/>iQ-L |
+| iQ-F（SLMP） | Mitsubishi 4E | 以太网 | 三菱 iQ-F（SLMP）<br/>iQ-R |
+| iQ-R | Mitsubishi 4E | 以太网 | 三菱 iQ-F（SLMP）<br/>iQ-R |
+| FX0 | Mitsubishi FX | 串口 | 三菱 FX0<br/>FX2<br/>FX3 等 |
+| FX2 | Mitsubishi FX | 串口 | 三菱 FX0<br/>FX2<br/>FX3 等 |
+| FX3 | Mitsubishi FX | 串口 | 三菱 FX0<br/>FX2<br/>FX3 等 |
+| FP-XH | Panasonic Mewtocol | 以太网 | 松下 FP-XH<br/>FP0H |
+| FP0H | Panasonic Mewtocol | 以太网 | 松下 FP-XH<br/>FP0H |
+| DVP | Delta Modbus TCP | 以太网 | 台达 DVP<br/>AS 系列 |
+| AS | Delta Modbus TCP | 以太网 | 台达 DVP<br/>AS 系列 |
+| FANUC 0i | Fanuc Focas Ethernet | 以太网 | 串口方式暂不支持采集 |
+| FANUC 30i | Fanuc Focas Ethernet | 以太网 | 串口方式暂不支持采集 |
+| FANUC 31i | Fanuc Focas Ethernet | 以太网 | 串口方式暂不支持采集 |
+| FANUC 32i | Fanuc Focas Ethernet | 以太网 | 串口方式暂不支持采集 |
+| FANUC 35i | Fanuc Focas Ethernet | 以太网 | 串口方式暂不支持采集 |
+| Siemens 802D SL | Siemens MPI | 以太网 |  |
+| Siemens 808 | Siemens MPI | 以太网 |  |
+| Siemens 828D | OPC UA | 以太网 | CNC 软件版本不低于 4.5 SP3 |
+| Siemens 840DSL | OPC UA | 以太网 | CNC 软件版本不低于 4.5 SP3 |
+| Mitsubishi M70 | NeuronHUB | 以太网 |  |
+| Mitsubishi M80 | NeuronHUB | 以太网 |  |
+| Mitsubishi M700 | NeuronHUB | 以太网 |  |
+| Mitsubishi M800 | NeuronHUB | 以太网 |  |
+| Mitsubishi E70 | NeuronHUB | 以太网 |  |
+| HEIDENHAIN TNC640 | HEIDENHAIN CNC | 以太网 |  |
+| HEIDENHAIN iTNC530 | HEIDENHAIN CNC | 以太网 |  |
+| KND K2000 | KND CNC | 以太网 |  |
+| KND K1000 C | KND CNC | 以太网 |  |
+| KND K1000 Ci | KND CNC | 以太网 |  |
+| KND K1000 F | KND CNC | 以太网 |  |
+| KND K1000 Fi | KND CNC | 以太网 |  |
+| KND K1000TTCi | KND CNC | 以太网 |  |
+| GSK-980 | Modbus TCP | 以太网 |  |
+| SYNTEC CNC | NeuronHUB | 以太网 |  |
+| DMG MORI | MTconnect | 以太网 | 设备需支持 MTConnect |
+| Brother CNC | Brother CNC | 以太网 |  |
+| Mazak CNC | Mazak CNC | 以太网 |  |
+| Mitsubishi M700L | NeuronHUB / MITSUBISHI CNC | 以太网 |  |
+| Mitsubishi M700M | NeuronHUB / MITSUBISHI CNC | 以太网 |  |
+| Mitsubishi M800L | NeuronHUB / MITSUBISHI CNC | 以太网 |  |
+| Mitsubishi M800M | NeuronHUB / MITSUBISHI CNC | 以太网 |  |

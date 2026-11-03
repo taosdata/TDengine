@@ -5,7 +5,7 @@ description: 在安装时自动接入 Kepware Server，或通过 taosExplorer �
 toc_max_heading_level: 5
 ---
 
-[Kepware Server](https://www.ptc.com/en/products/kepware) 是 PTC 的工业连接平台，提供 150 多种工业协议的通信驱动，包括 Modbus、Siemens S7、OPC UA、BACnet 等。本文以 Kepware Server 7.1 为例，介绍如何通过 taosX 的 OPC UA 连接器读取 Kepware 点位，并写入 TDengine。购买 TDengine 企业版后，Kepware 的软件许可证可由涛思数据代为采购。
+[Kepware Server](https://www.ptc.com/en/products/kepware) 是 PTC 的工业连接平台，提供 150 多种工业协议的通信驱动，包括 Modbus、Siemens S7、OPC UA、BACnet 等，可核对的名称见[驱动明细](#驱动明细)。本文以 Kepware Server 7.1 为例，介绍如何通过 taosX 的 OPC UA 连接器读取 Kepware 点位，并写入 TDengine。购买 TDengine 企业版后，Kepware 的软件许可证可由涛思数据代为采购。
 
 本文介绍两种接入方式：
 
@@ -371,3 +371,213 @@ taosExplorer 向导中的「客户端证书」和「客户端私钥」填写的�
 - 同一个 Kepware 实例的同一个数据库只能创建一个接入；不能把同一实例、同一数据库拆成多个接入；
 - 点位选择是点位级的，不会按 Channel 或 Device 自动路由到不同数据库，需要在每个接入中分别勾选；
 - 同一批点位可以写入不同数据库，但会重复读取和写入，通常不建议。
+
+## 驱动明细
+
+以下名称主要摘自 [Kepware Advanced Manufacturing Suite](https://www.ptc.com/en/store/products/kepware/suites/advanced-manufacturing-suite) 和 [ThingWorx Kepware Server 驱动列表](https://support.ptc.com/help/thingworx/thingworx_kepware_server/r8.5.2/en/ThingWorx/Drivers.html)。单驱动说明见 [Kepware drivers help](https://support.ptc.com/help/kepware/drivers/en/)。
+
+**PLC 与运动控制**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| Allen-Bradley 1609 UPS |  |  |
+| Allen-Bradley Bulletin 900 |  |  |
+| Allen-Bradley ControlLogix Ethernet | 以太网 |  |
+| Allen-Bradley ControlLogix Unsolicited |  |  |
+| Allen-Bradley DF1 |  |  |
+| Allen-Bradley Ethernet | 以太网 |  |
+| Allen-Bradley Micro800 Ethernet | 以太网 |  |
+| Allen-Bradley Micro800 Serial | 串口 |  |
+| Allen-Bradley Unsolicited Ethernet | 以太网 |  |
+| Aromat Ethernet | 以太网 |  |
+| Aromat Serial | 串口 |  |
+| AutomationDirect DirectNET |  |  |
+| AutomationDirect EBC |  |  |
+| AutomationDirect ECOM |  |  |
+| AutomationDirect K Sequence | 串口<br/>以太网 | Koyo K Sequence<br/>DL-05<br/>DL-06<br/>DL-105<br/>DL-230<br/>DL-240<br/>DL-250<br/>DL-260<br/>DL-350<br/>DL-430<br/>DL-440<br/>DL-450<br/>SG<br/>SL |
+| AutomationDirect Productivity Series Ethernet | 以太网 |  |
+| Beckhoff TwinCAT |  |  |
+| CODESYS Ethernet | 以太网 |  |
+| Cutler-Hammer D50/D300 |  |  |
+| Cutler-Hammer ELC Ethernet | 以太网 |  |
+| Cutler-Hammer ELC Serial | 串口 |  |
+| Fuji Flex |  |  |
+| IDEC Serial | 串口 |  |
+| Keyence KV Ethernet | 以太网 |  |
+| Mitsubishi Ethernet | 以太网 |  |
+| Mitsubishi FX |  |  |
+| Mitsubishi FX Net |  |  |
+| Mitsubishi Serial | 串口 |  |
+| Omron FINS Ethernet | 以太网 |  |
+| Omron FINS Serial | 串口 |  |
+| Omron Host Link |  |  |
+| Omron NJ Ethernet | 以太网 |  |
+| Omron Process Suite |  |  |
+| Omron Toolbus |  |  |
+| Siemens S5 |  |  |
+| Siemens S5 3964R |  |  |
+| Siemens S7 MPI | MPI |  |
+| Siemens S7 Plus Ethernet | 以太网 |  |
+| Siemens S7-200 |  |  |
+| Siemens TCP/IP Ethernet | 以太网 |  |
+| Siemens TCP/IP Unsolicited Ethernet | 以太网 |  |
+| Simatic/TI 505 Ethernet | 以太网 |  |
+| Simatic/TI 505 Serial | 串口 |  |
+| Square D |  |  |
+| Telemecanique Uni-Telway |  |  |
+| Toshiba Ethernet | 以太网 |  |
+| Toshiba Serial | 串口 |  |
+| Toyopuc PC3/PC2 Ethernet | 以太网 |  |
+| Toyopuc Serial | 串口 |  |
+| WAGO Ethernet | 以太网 |  |
+| Yaskawa Memobus Plus | Memobus Plus |  |
+| Yaskawa MP Series Ethernet | 以太网 |  |
+| Yaskawa MP Series Serial | 串口 |  |
+| Allen-Bradley Data Highway Plus | Data Highway Plus |  |
+
+**Modbus**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| Enron Modbus |  |  |
+| Lufkin Modbus |  |  |
+| Modbus ASCII |  |  |
+| Modbus Ethernet | 以太网 |  |
+| Modbus Plus | Modbus Plus |  |
+| Modbus Serial | 串口 |  |
+| Modbus Unsolicited Serial | 串口 |  |
+
+**OPC 与开放接口**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| Custom Interface |  |  |
+| DDE Client |  |  |
+| InTouch Client |  |  |
+| MQTT Client |  |  |
+| ODBC Client |  |  |
+| OPC DA Client |  |  |
+| OPC UA Client |  |  |
+| OPC XML-DA Client |  |  |
+| Universal Device Driver (UDD) |  |  |
+| User Configurable (U-CON) |  |  |
+
+**电力与能源**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| DNP Client Ethernet | 以太网 |  |
+| DNP Client Serial | 串口 |  |
+| IEC 60870-5-101 Client |  |  |
+| IEC 60870-5-104 Client |  |  |
+| IEC 61850 MMS Client |  |  |
+| Ping |  |  |
+| SNMP |  |  |
+
+**数控与制造**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| EUROMAP 63 |  |  |
+| Fanuc Focas Ethernet | 以太网 |  |
+| Fanuc Focas HSSB | HSSB |  |
+| Intelligent Actuator (IA) Super SEL |  |  |
+| Mitsubishi CNC Ethernet | 以太网 |  |
+| MTConnect |  |  |
+| Torque Tool Ethernet | 以太网 |  |
+
+**楼宇**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| BACnet/IP | BACnet/IP |  |
+
+**流程、计量与仪表**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| ABB Totalflow |  |  |
+| Analog Devices |  |  |
+| Bristol/IP |  |  |
+| Contrex M-Series |  |  |
+| Contrex Serial | 串口 |  |
+| Dataforth isoLynx |  |  |
+| Fisher ROC Ethernet | 以太网 |  |
+| Fisher ROC Plus Ethernet | 以太网 |  |
+| Fisher ROC Plus Serial | 串口 |  |
+| Fisher ROC Serial | 串口 |  |
+| Honeywell HC900 Ethernet | 以太网 |  |
+| Honeywell UDC Ethernet | 以太网 |  |
+| Honeywell UDC Serial | 串口 |  |
+| Mettler Toledo |  |  |
+| Micro-DCI |  |  |
+| OMNI Flow Computer |  |  |
+| Partlow ASCII |  |  |
+| Philips P8/PC20 |  |  |
+| Scanivalve Ethernet | 以太网 |  |
+| Thermo Westronics Ethernet | 以太网 |  |
+| Thermo Westronics Serial | 串口 | SV100<br/>SV180<br/>SM100<br/>1200/1600/3000 |
+| Weatherford 8500 |  |  |
+| WITS Level 0 Active |  |  |
+| WITS Level 0 Passive |  |  |
+| Yokogawa Controller |  |  |
+| Yokogawa CX |  |  |
+| Yokogawa Darwin Ethernet | 以太网 | DA100-1<br/>DA100-2<br/>DC100-1<br/>DC100-2<br/>DR131<br/>DR231<br/>DR232<br/>DR241<br/>DR242 |
+| Yokogawa Darwin Serial | 串口 | DA100-1<br/>DA100-2<br/>DC100-1<br/>DC100-2<br/>DR131<br/>DR231<br/>DR232<br/>DR241<br/>DR242 |
+| Yokogawa DX Ethernet | 以太网 |  |
+| Yokogawa DX Serial | 串口 |  |
+| Yokogawa DXP |  |  |
+| Yokogawa GX Ethernet | 以太网 |  |
+| Yokogawa HR |  |  |
+| Yokogawa MW | 以太网 | MW100 |
+| Yokogawa MX |  |  |
+| Yokogawa YS100 |  |  |
+
+**其他设备与系统**
+
+| 驱动 | 接口 | 设备与说明 |
+| --- | --- | --- |
+| Advanced Simulator |  |  |
+| Alstom Redundant Ethernet | 以太网 |  |
+| BUSWARE Ethernet | 以太网 |  |
+| GE CCM |  |  |
+| GE EGD |  |  |
+| GE Ethernet | 以太网 |  |
+| GE SNP |  |  |
+| GE SNPX |  |  |
+| IOtech PointScan 100 |  |  |
+| Krauss Maffei MC4 Ethernet | 以太网 |  |
+| Memory Based |  |  |
+| Optimation OptiLogic |  |  |
+| Opto 22 Ethernet | 以太网 |  |
+| SattBus Ethernet | 以太网 |  |
+| SIXNET EtherTRAK | 以太网 |  |
+| SIXNET UDR |  |  |
+| System Monitor |  |  |
+| TIWAY Host Adapter |  |  |
+| Triconex Ethernet | 以太网 |  |
+| Hilscher Universal |  |  |
+| SattBus Serial | 串口 |  |
+
+**同一驱动覆盖的设备系列**
+
+下面是驱动说明页里点名、但没有单独驱动名的设备。不计入上面的 143 条。
+
+| 设备系列 | 所属驱动 | 接口 | 设备与说明 |
+| --- | --- | --- | --- |
+| Modicon | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Daniel | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Instromet | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Dynamic Fluid Meters | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Roxar RFM | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Mailbox | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Elliot | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| Fluenta FGM | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| DGH DAQ | Modbus Ethernet<br/>Modbus Serial 等 | 以太网<br/>串口 |  |
+| DL-05<br/>DL-06<br/>DL-105<br/>DL-230<br/>DL-240<br/>DL-250<br/>DL-260<br/>DL-350<br/>DL-430<br/>DL-440<br/>DL-450 | AutomationDirect K Sequence | 串口<br/>以太网 |  |
+| SG<br/>SL | AutomationDirect K Sequence | 串口<br/>以太网 |  |
+| SV100<br/>SV180<br/>SM100<br/>1200/1600/3000 | Thermo Westronics Serial | 串口 |  |
+| DA100-1<br/>DA100-2<br/>DC100-1<br/>DC100-2 | Yokogawa Darwin Ethernet<br/>Yokogawa Darwin Serial | 以太网<br/>串口 |  |
+| DR131<br/>DR231<br/>DR232<br/>DR241<br/>DR242 | Yokogawa Darwin Ethernet<br/>Yokogawa Darwin Serial | 以太网<br/>串口 |  |
+| MW100 | Yokogawa MW | 以太网 |  |
+| MP | Yokogawa Darwin Ethernet<br/>Yokogawa Darwin Serial | 以太网<br/>串口 |  |

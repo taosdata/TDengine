@@ -23,7 +23,7 @@ This guide describes three ways to write data collected by Neuron to TDengine:
 | One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard |
 | Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration |
 
-All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately, subject to the version and license. After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
+All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Southbound Driver Details](#southbound-driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -588,3 +588,196 @@ These results support capacity planning and do not represent TDengine's write li
 - [eKuiper Sink Cache and Sending Mechanism](https://ekuiper.org/docs/en/latest/guide/sinks/overview.html)
 - [Neuron Open Source Documentation](https://docs.emqx.com/en/neuron/latest/)
 - [NeuronEX Configuration](https://docs.emqx.com/en/neuronex/latest/configuration/introduction.html)
+
+## Southbound Driver Details
+
+The names below are taken from the EMQX Neuron [southbound driver list](https://docs.emqx.com/en/emqx-neuron/latest/introduction/driver-list/driver-list.html) and the [datasheet](https://assets.emqx.com/resources/datasheet/EMQX%20Neuron%20DataSheet%202026-EN.pdf). Connection parameters, address formats, and examples follow the driver documentation.
+
+**Modbus**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| Modbus TCP | Ethernet | - |
+| Modbus RTU | Serial | - |
+| Modbus RTU over TCP | Ethernet | Ethernet link for Modbus RTU |
+| Modbus Ascii | Serial | - |
+
+**PLCs and Motion**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| CIP Ethernet/IP | Ethernet | CIP, Common Industrial Protocol |
+| Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| Siemens S7 ISOTCP for 300/400 | Ethernet | S7-300/400 |
+| Siemens MPI | Serial | Devices with a Siemens MPI interface |
+| Siemens FetchWrite | Ethernet | Siemens PLCs with a CP443 network module |
+| Allen-Bradley DF1 | Serial | - |
+| Allen-Bradley CIP EtherNet/IP | Ethernet | CIP, Common Industrial Protocol |
+| Allen-Bradley 5000 EtherNet/IP | Ethernet | ControlLogix 55xx<br/>CompactLogix 53xx |
+| Allen-Bradley ControlLogix 5500 | Ethernet | - |
+| Allen-Bradley MicroLogix 1400 | Ethernet | - |
+| Schneider PLC Modbus RTU | Serial | Generic Modbus RTU |
+| Schneider PLC Modbus TCP | Ethernet | Generic Modbus TCP |
+| Inovance PLC Modbus TCP | Ethernet | Inovance PLCs |
+| XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| HollySys PLC Modbus TCP | Ethernet | HollySys LK and LE series |
+| HollySys PLC Modbus RTU | Serial | HollySys LK and LE series |
+| ABB COMLI | Serial | Communication with ABB PLCs |
+| Omron Host Link | Serial | Host Link C-mode |
+| Omron FINS on TCP | Ethernet | Omron PLCs |
+| Omron FINS on UDP | Ethernet | Omron PLCs |
+| Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| Mitsubishi 4E | Ethernet | Mitsubishi iQ-F (SLMP) and iQ-R |
+| Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| Panasonic Mewtocol | Ethernet | Panasonic FP-XH and FP0H |
+| Beckhoff ADS | Ethernet | Beckhoff TwinCAT PLCs |
+| Keyence CIP Ethernet/IP | Ethernet | CIP, Common Industrial Protocol |
+| Keyence MC Protocol | Ethernet | Mitsubishi MC protocol |
+| Delta Modbus TCP | Ethernet | Delta DVP and AS series |
+| KUKA Ethernet KRL TCP | Ethernet | KUKA devices |
+| GE SRTP | Ethernet | GE PLCs that support SRTP |
+| MTconnect | Ethernet | Access an MTConnect agent over HTTP |
+| Codesys V3 | Ethernet | CODESYS V3 platform |
+
+**OPC**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| OPC UA | Ethernet | - |
+| OPC DA | Ethernet | Accessed through NeuronHUB |
+
+**Power and Energy**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| DL/T645-1997 | Serial | Chinese electricity-meter standard |
+| DL/T645-2007 | Serial | Chinese electricity-meter standard |
+| IEC 60870-5-101 | Serial, Ethernet | - |
+| IEC 60870-5-102 | Serial, Ethernet | - |
+| IEC 60870-5-103 | Serial, Ethernet | - |
+| IEC 60870-5-104 | Ethernet | - |
+| IEC 61850 | Ethernet | - |
+| DNP 3.0 | Ethernet | - |
+
+**Building and Environment**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| BACnet IP | Ethernet | - |
+| KNXnet IP | Ethernet | - |
+| HJ212-2017 | Ethernet / serial | Chinese environmental monitoring standard |
+
+**Other**
+
+| Protocol or driver | Interface | Devices and notes |
+| --- | --- | --- |
+| NON A11 | Serial | Agricultural machinery standard |
+| SECS GEM HSMS | Ethernet | Semiconductor protocol |
+| SNMP | Ethernet | Switches<br/>servers<br/>other network devices |
+| NeuronHUB | Ethernet | Windows-side agent for OPC DA<br/>OPC AE<br/>GE Historian<br/>some CNC controllers |
+
+**CNC Devices**
+
+The official page maps these device models to drivers. Some reuse an existing driver and are not a separate protocol family.
+
+| Vendor | Model | Interface | Driver | Notes |
+| --- | --- | --- | --- | --- |
+| FANUC | 0i, 30i, 31i, 32i, 35i | Ethernet | Fanuc Focas Ethernet | Serial collection is not supported yet |
+| Siemens | 802D SL, 808 | Ethernet | Siemens MPI | - |
+| Siemens | 828D, 840DSL | Ethernet | OPC UA | CNC software version 4.5 SP3 or later |
+| Mitsubishi | M70, M80, M700, M800, E70 | Ethernet | NeuronHUB | - |
+| HEIDENHAIN | TNC640, iTNC530 | Ethernet | HEIDENHAIN CNC | - |
+| KND | K2000<br/>K1000 C/Ci/F/Fi<br/>K1000TTCi | Ethernet | KND CNC | - |
+| GSK | GSK-980 and similar models | Ethernet | Modbus TCP | - |
+| SYNTEC | SYNTEC CNC devices | Ethernet | NeuronHUB | - |
+| DMG MORI | DMG MORI devices | Ethernet | MTconnect | The device must support MTConnect |
+| Brother | Brother CNC devices | Ethernet | Brother CNC | - |
+| Mazak | Mazak CNC devices | Ethernet | Mazak CNC | - |
+
+**Drivers Not Listed as Their Own Row**
+
+These names have their own documentation pages. The southbound list mentions them only in the CNC mapping or in the NeuronHUB notes, not as separate rows.
+
+| Driver | Interface | Devices | Notes |
+| --- | --- | --- | --- |
+| Fanuc Focas Ethernet | Ethernet | FANUC 0i<br/>30i<br/>31i<br/>32i<br/>35i | [Fanuc Focas Ethernet](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/fanuc-focas/fanuc-focas.html). Serial collection is not supported yet |
+| HEIDENHAIN CNC | Ethernet | TNC640, iTNC530 | [HEIDENHAIN CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/heidenhain-cnc/heidenhain-cnc.html), over LSV2 |
+| KND CNC | Ethernet | K2000<br/>K1000 C/Ci/F/Fi<br/>K1000TTCi | [KND CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/knd/knd.html) |
+| Brother CNC | Ethernet, serial | Brother machining centers | [Brother CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/brother-cnc/brother-cnc.html) |
+| Mazak CNC | UDP | Mazak CNC | [Mazak CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/mazak-udp/mazak-udp.html) |
+| OPC AE | Ethernet | OPC AE on Windows | Collected through [NeuronHUB](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/neuhub/neuhub.md), not as a native Linux southbound driver |
+| GE Historian | Ethernet | GE Historian | Same path, through NeuronHUB |
+| SYNTEC CNC | Ethernet | SYNTEC CNC | [SYNTEC CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/neuhub/syntec-cnc.html), through NeuronHUB |
+| MITSUBISHI CNC | Ethernet | The NeuronHUB parameter page names M700L<br/>M700M<br/>M800L<br/>M800M | [MITSUBISHI CNC](https://docs.emqx.com/en/emqx-neuron/latest/configuration/south-devices/neuhub/mitsubishi-cnc.html). The southbound list also names M70<br/>M80<br/>M700<br/>M800<br/>E70 |
+
+**Device Series**
+
+EMQ does not publish an itemized list for the "more than 100" figure. The 64 rows below split out PLC sub-series and CNC models named on the southbound list and the individual driver pages. When one driver covers several series, each series is a row. That does not mean Neuron has a separate plugin of the same name. Series that are not named in full are omitted. Protocols without sub-series, such as Modbus, OPC UA, IEC 60870, BACnet, and SECS GEM, remain in the tables above.
+
+| Device series | Driver | Interface | Devices and notes |
+| --- | --- | --- | --- |
+| S200 | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S200smart | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S1200 | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S1500 | Siemens S7 ISO TCP | Ethernet | Siemens S200<br/>S200smart<br/>S1200<br/>S1500 |
+| S7-300 | Siemens S7 ISOTCP for 300/400 | Ethernet | S7-300/400 |
+| S7-400 | Siemens S7 ISOTCP for 300/400 | Ethernet | S7-300/400 |
+| ControlLogix 55xx | Allen-Bradley 5000 EtherNet/IP | Ethernet | ControlLogix 55xx<br/>CompactLogix 53xx |
+| CompactLogix 53xx | Allen-Bradley 5000 EtherNet/IP | Ethernet | ControlLogix 55xx<br/>CompactLogix 53xx |
+| ControlLogix 5500 | Allen-Bradley ControlLogix 5500 | Ethernet |  |
+| MicroLogix 1400 | Allen-Bradley MicroLogix 1400 | Ethernet |  |
+| XC | XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| XD | XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| XL | XINJE PLC Modbus RTU | Serial | Xinje XC, XD, and XL series |
+| LK | HollySys PLC Modbus TCP | Ethernet | HollySys LK and LE series |
+| LE | HollySys PLC Modbus TCP | Ethernet | HollySys LK and LE series |
+| LK | HollySys PLC Modbus RTU | Serial | HollySys LK and LE series |
+| LE | HollySys PLC Modbus RTU | Serial | HollySys LK and LE series |
+| A series | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| FX3U | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| FX3G | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| iQ-F | Mitsubishi 1E | Ethernet | Mitsubishi A series<br/>FX3U<br/>FX3G<br/>iQ-F |
+| Q series (MC) | Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| iQ-F (SLMP) | Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| iQ-L | Mitsubishi 3E | Ethernet | Mitsubishi Q series (MC)<br/>iQ-F (SLMP)<br/>iQ-L |
+| iQ-F (SLMP) | Mitsubishi 4E | Ethernet | Mitsubishi iQ-F (SLMP) and iQ-R |
+| iQ-R | Mitsubishi 4E | Ethernet | Mitsubishi iQ-F (SLMP) and iQ-R |
+| FX0 | Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| FX2 | Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| FX3 | Mitsubishi FX | Serial | Mitsubishi FX0<br/>FX2<br/>FX3<br/>similar series |
+| FP-XH | Panasonic Mewtocol | Ethernet | Panasonic FP-XH and FP0H |
+| FP0H | Panasonic Mewtocol | Ethernet | Panasonic FP-XH and FP0H |
+| DVP | Delta Modbus TCP | Ethernet | Delta DVP and AS series |
+| AS | Delta Modbus TCP | Ethernet | Delta DVP and AS series |
+| FANUC 0i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 30i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 31i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 32i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| FANUC 35i | Fanuc Focas Ethernet | Ethernet | Serial collection is not supported yet |
+| Siemens 802D SL | Siemens MPI | Ethernet |  |
+| Siemens 808 | Siemens MPI | Ethernet |  |
+| Siemens 828D | OPC UA | Ethernet | CNC software version 4.5 SP3 or later |
+| Siemens 840DSL | OPC UA | Ethernet | CNC software version 4.5 SP3 or later |
+| Mitsubishi M70 | NeuronHUB | Ethernet |  |
+| Mitsubishi M80 | NeuronHUB | Ethernet |  |
+| Mitsubishi M700 | NeuronHUB | Ethernet |  |
+| Mitsubishi M800 | NeuronHUB | Ethernet |  |
+| Mitsubishi E70 | NeuronHUB | Ethernet |  |
+| HEIDENHAIN TNC640 | HEIDENHAIN CNC | Ethernet |  |
+| HEIDENHAIN iTNC530 | HEIDENHAIN CNC | Ethernet |  |
+| KND K2000 | KND CNC | Ethernet |  |
+| KND K1000 C | KND CNC | Ethernet |  |
+| KND K1000 Ci | KND CNC | Ethernet |  |
+| KND K1000 F | KND CNC | Ethernet |  |
+| KND K1000 Fi | KND CNC | Ethernet |  |
+| KND K1000TTCi | KND CNC | Ethernet |  |
+| GSK-980 | Modbus TCP | Ethernet |  |
+| SYNTEC CNC | NeuronHUB | Ethernet |  |
+| DMG MORI | MTconnect | Ethernet | The device must support MTConnect |
+| Brother CNC | Brother CNC | Ethernet |  |
+| Mazak CNC | Mazak CNC | Ethernet |  |
+| Mitsubishi M700L | NeuronHUB / MITSUBISHI CNC | Ethernet |  |
+| Mitsubishi M700M | NeuronHUB / MITSUBISHI CNC | Ethernet |  |
+| Mitsubishi M800L | NeuronHUB / MITSUBISHI CNC | Ethernet |  |
+| Mitsubishi M800M | NeuronHUB / MITSUBISHI CNC | Ethernet |  |

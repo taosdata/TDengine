@@ -18,6 +18,8 @@ extend-exclude = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.svg", "*.ico
 
 [default.extend-identifiers]
 BACnet = "BACnet"
+EtherTRAK = "EtherTRAK"
+Optimation = "Optimation"
 DEFOMMNL049ba = "DEFOMMNL049ba"
 4c71ba2 = "4c71ba2"
 ine = "ine"
@@ -25,6 +27,8 @@ datas = "datas"
 
 [default.extend-words]
 BRIN = "BRIN"
+Optimation = "Optimation"
+TRAK = "TRAK"
 OT = "OT"
 MAPE = "MAPE"
 mosquitto = "mosquitto"
