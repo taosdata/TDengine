@@ -101,6 +101,12 @@ taosX 的配置文件（默认 `/etc/taos/taosx.toml`）中与 monitor 相关的
 | port           | --monitor-port     | MONITOR_PORT      | taosKeeper 服务的端口                                   |          | 6043                                     |
 | interval       | --monitor-interval | MONITOR_INTERVAL  | taosX 发送 metrics 数据到 taosKeeper 的时间间隔，单位秒 | 1-10     | 10                                       |
 
+### 资源治理指标
+
+配置 `[resource]` 资源限制后，taosX 还会上报 `stable=taosx_resource` 的资源治理指标，taosKeeper 按 `taosx_id` 写入对应子表。“TDinsight for taosX”面板中的 Resource Governor 行展示 RSS、暂停状态和 max-pause 次数；指标含义见 [taosX 资源治理指标](../03-components/06-taosx.md#资源治理)。
+
+taosX-Agent 不导出 `resource_*` 指标，也不提供本地 metrics 接口；可通过 Agent 日志观察资源治理事件。Agent 连接器子进程指标按其连接 endpoint 的真实 `taosx_id` 上报。
+
 ### 基于 TDinsight 监控 taosX
 
 “TDinsight for taosX”是专门为 taosX 监控创建的 Grafana 面板。使用前需要先导入这个面板。

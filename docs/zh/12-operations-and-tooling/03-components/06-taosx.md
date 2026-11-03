@@ -469,6 +469,15 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 - `rest_api_threads`：rest api 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `grpc_threads`：grpc 服务的运行时线程数。默认线程数为`当前服务器内核*2`。
 - `scheduler_threads`：scheduler 任务服务的运行时线程数。默认线程数为`当前服务器内核*2`。
+- `resource.enabled`：是否启用资源治理器；未配置 `[resource]` 时不启用，配置该 section 后默认启用。设为 `false` 可完整关闭治理器。
+- `resource.maxWriteMBps`：数据面写入带宽上限，单位 MB/s（1 MB = 1024 * 1024 字节）；`0` 表示不限制。使用令牌桶限速，允许 1 秒突发；控制面流量（DDL、元数据、IPC ack/control、心跳、xnode/agent 管理）不计费。
+- `resource.maxMemoryMB`：taosX 进程及其已注册连接器子进程的 RSS 软预算，单位 MiB；达到预算后暂停数据面读取，已进入管道的批次继续写入并排空。`0` 表示自动读取进程 cgroup 的内存限制（cgroup v2 优先 `memory.high`，其次 `memory.max`；v1 使用 `memory.limit_in_bytes`）；没有 cgroup 限制时不启用内存限制。显式值超过 cgroup 限制时会按 cgroup 限制截断并输出告警。
+- `resource.maxPauseSecs`：任意资源限制单次暂停的上限，单位秒；达到上限后强制放行并输出告警、增加 `resource_brake_max_pause_total` 计数。`0` 表示使用默认值 10 秒。该参数用于避免工作集或碎片导致任务永久停住。
+- `resource.maxCpuPercent`：taosX 进程及其子进程的 CPU 高水位，单位是全部 CPU 核数的百分比；超过后暂停数据面写入。`0` 表示不限制。
+- `resource.cpuResumePercent`：CPU 恢复水位，必须小于 `maxCpuPercent`；`0` 表示使用 `maxCpuPercent * 0.8`。
+- `resource.maxCpuCores`：每个运行时线程池的最大 worker 数；`0` 表示不限制。该参数只调整 tokio 运行时线程数，不是 CPU 使用率上限；需要控制 CPU 占用请使用 `maxCpuPercent`。
+- `resource.cgroupPath`：可选的 cgroup 目录；默认从 `/proc/self/cgroup` 解析当前进程的 cgroup。
+- `resource.cpuPriority`：可选的 Linux nice 值，取值范围 `1` 到 `19`，仅降低进程优先级；其他平台会告警并忽略。
 - `monitor.fqdn`：`taosKeeper` 服务的 FQDN，没有默认值，置空则关闭监控功能。
 - `monitor.port`：`taosKeeper` 服务的端口，默认`6043`。
 - `monitor.interval`：向 `taosKeeper` 发送指标的频率，默认为每 10 秒一次，只有 1 到 10 之间的值才有效。
@@ -488,6 +497,9 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 # data dir
 #data_dir = "/var/lib/taos/taosx" # on linux/macOS
 #data_dir = "C:\\TDengine\\data\\taosx" # on windows
+
+# resource limits: see the [resource] section below for details
+# [resource] is independent of [serve] and applies to both serve and run modes.
 
 # number of threads used for tokio workers, default to 0 (means cores * 2)
 #jobs = 0
@@ -542,6 +554,33 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 # Not re-loadable at runtime; restart taosX after changing this value or
 # replacing the key file.
 #xnode_dsn_private_key_file = "/etc/taos/xnode-dsn-private.pem"
+
+# Data-plane resource limits. All values default to disabled (0).
+[resource]
+# Egress limit for data-plane writes, MB/s (1 MB = 1024 * 1024 bytes).
+# Token bucket with 1s burst; control-plane traffic is not charged.
+#maxWriteMBps = 0
+
+# Soft RSS budget for this process plus registered connector children, MiB.
+# 0 = use the process cgroup memory limit; no cgroup limit = disabled.
+# Exceeding the budget pauses source reads; writes keep draining.
+#maxMemoryMB = 0
+
+# Maximum time a memory or CPU brake may stay paused before resuming anyway.
+# 0 = default 10 seconds.
+#maxPauseSecs = 10
+
+# High CPU watermark as a percentage of all cores; 0 = disabled.
+#maxCpuPercent = 0
+
+# CPU resume watermark; 0 = maxCpuPercent * 0.8. Must be < maxCpuPercent.
+#cpuResumePercent = 0
+
+# Optional cgroup directory; default: resolve /proc/self/cgroup.
+#cgroupPath = "/sys/fs/cgroup"
+
+# Linux only: nice value 1..=19; ignored with a warning elsewhere.
+#cpuPriority = 0
 
 [monitor]
 # FQDN of taosKeeper service, no default value
@@ -601,6 +640,17 @@ taosx run -f "taos+ws://root:taosdata@localhost:6041/test?query=select * from te
 #"actix_server::accept" = "warn"
 #"taos::query" = "warn"
 ```
+
+### 资源限制
+
+`[resource]` 用于限制 taosX 进程及其已注册连接器子进程的数据面资源占用，适用于 Kafka 积压消费、大量 CSV 写入、批量迁移等可能造成内存、CPU 或网络峰值的场景。未配置 `[resource]` 时治理器完全关闭；配置该 section 后 `maxMemoryMB=0` 会读取 cgroup 预算。保留 section 但需要关闭时设置 `resource.enabled = false`。
+
+- **带宽**：`maxWriteMBps` 对交给 sink 的 payload/Arrow 字节使用令牌桶限速，桶容量为 1 秒速率，允许短突发。原生 TDengine 写入、IPC、Kafka/MQTT sink、本地备份/Parquet 导出等数据面写路径接入限速；DDL、元数据、IPC ack/control、心跳、xnode/agent 管理流量不计费。
+- **内存**：`maxMemoryMB` 是软预算，不承诺 RSS 硬上限。达到预算后暂停数据面**读取**，已进入管道的批次继续写入并排空；工作集高于预算时按 `maxPauseSecs` 周期暂停/放行，并输出告警和 `resource_brake_max_pause_total` 计数。需要硬上限时请配合 cgroup 或容器内存限制。
+- **CPU**：`maxCpuPercent` 是占空比式的反馈控制，超过高水位后暂停数据面写入，低于 `cpuResumePercent` 后恢复；暂停同样受 `maxPauseSecs` 约束。`maxCpuCores` 只调整 tokio 运行时 worker 数，不能替代 CPU 使用率上限。
+- **生效范围**：每个 taosX 进程独立生效；`taosx serve`、`taosx run` 和 `taosx-agent` 分别读取自己的配置文件。修改 `[resource]` 或 cgroup 限制后需重启进程生效。
+
+资源限制的编排建议、指标和限制说明请参考 [资源占用控制](../../08-data-ingest-and-delivery/06-resource-control.md)。taosX-Agent 的相同配置见 [taosX-Agent 配置参考](./07-taosx-agent/01-configuration.md#资源限制)。
 
 ### 启动
 
@@ -720,6 +770,21 @@ taosX 会将监控指标上报给 taosKeeper，这些监控指标会被 taosKeep
 | process_memory_percent     | taosX 进程占用内存百分比，单位 %                                             |
 | process_disk_read_bytes    | taosX 进程在一个监控周期（比如 10s）内从硬盘读取的字节数的平均值，单位 bytes/s |
 | process_disk_written_bytes | taosX 进程在一个监控周期（比如 10s）内写到硬盘的字节数的平均值，单位 bytres/s  |
+
+### 资源治理
+
+配置 `[resource]` 后，taosX 会额外上报 `stable=taosx_resource` 的资源治理指标；taosKeeper 按 `taosx_id` 写入对应子表。启用 `[monitor]` 后，这些指标会和 taosX 其他监控指标一起上报。
+
+| 字段 | 描述 |
+| --- | --- |
+| resource_rss_bytes | 进程及其已注册子进程的总 RSS，单位 bytes |
+| resource_cpu_percent | 进程及其已注册子进程的 CPU 使用率，占全部核数的百分比 |
+| resource_egress_bytes_total | 已计入限速的累计数据面写入字节数 |
+| resource_bucket_wait_ms_total | 令牌桶累计等待时间，单位毫秒 |
+| resource_brake_paused | 当前是否有资源限制正在暂停数据面（1/0） |
+| resource_brake_total | 资源限制累计进入暂停状态的次数 |
+| resource_brake_max_pause_total | 内存限制达到 `maxPauseSecs` 后强制放行的次数 |
+| resource_cpu_brake_max_pause_total | CPU 限制达到 `maxPauseSecs` 后强制放行的次数 |
 
 ### Agent
 

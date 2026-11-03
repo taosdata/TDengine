@@ -372,6 +372,16 @@ func TestGetSubTableName(t *testing.T) {
 			want:    "",
 		},
 		{
+			stbName: "taosx_resource",
+			tagMap:  map[string]string{"taosx_id": "123"},
+			want:    "resource_123",
+		},
+		{
+			stbName: "taosx_resource",
+			tagMap:  map[string]string{},
+			want:    "",
+		},
+		{
 			stbName: "taosd_cluster_info",
 			tagMap:  map[string]string{"cluster_id": "123"},
 			want:    "cluster_123",

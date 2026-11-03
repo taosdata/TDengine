@@ -17,6 +17,24 @@ The taosX-Agent configuration file is located at `/etc/taos/agent.toml` (Linux) 
 | `in_memory_cache_capacity` | No | `64` | Maximum number of message batches that can be cached in memory. Must be greater than 0 |
 | `keep_online` | No | `true` | Whether to keep the Agent running and attempt to reconnect when the taosX service is unavailable or the connection is lost |
 
+## Resource Limits
+
+Agent supports the same `[resource]` configuration as taosX to limit data-plane resource usage for the Agent process and its registered connector children. Limits apply independently to each Agent process and require an Agent restart after changes. The governor is disabled when `[resource]` is absent; set `resource.enabled = false` for a complete rollback.
+
+| Parameter | Required | Default | Description |
+| --- | --- | --- | --- |
+| `resource.enabled` | No | `true` (when `[resource]` exists) | Whether to enable the resource governor; `false` disables it completely |
+| `resource.maxWriteMBps` | No | `0` | Data-plane egress limit in MB/s; `0` disables the limit |
+| `resource.maxMemoryMB` | No | `0` | Soft RSS budget for the process and children in MiB; `0` derives the limit from cgroup, and no cgroup limit disables it |
+| `resource.maxPauseSecs` | No | `10` | Maximum pause duration for any brake in seconds; taosX resumes with a warning when reached |
+| `resource.maxCpuPercent` | No | `0` | CPU high watermark as a percentage of all cores; crossing it pauses data-plane writes; `0` disables the limit |
+| `resource.cpuResumePercent` | No | `0` | CPU resume watermark; `0` uses `maxCpuPercent * 0.8` and must be lower than `maxCpuPercent` |
+| `resource.maxCpuCores` | No | `0` | Maximum Agent runtime worker threads; `0` means unlimited. This is not a CPU usage cap |
+| `resource.cgroupPath` | No | — | Optional cgroup directory; by default resolved from `/proc/self/cgroup` |
+| `resource.cpuPriority` | No | `0` | Optional Linux nice value from `1` to `19`; ignored with a warning on other platforms |
+
+For full behavior and recommendations, see [Resource Usage Control](../../../08-data-ingest-and-delivery/06-resource-control.md). The Agent does not export `resource_*` metrics and does not provide a local metrics endpoint; use the Agent log to observe `resource ... armed`, pause/resume, and max-pause events. Connector subprocess metrics use the real `taosx_id` of the endpoint they are connected to.
+
 ## Client Port Range
 
 When Agent creates a connection to taosX, the client randomly uses a port. You can limit the port range with the `[client_port_range]` configuration:
@@ -64,6 +82,17 @@ token = "your-agent-token-here"
 
 # Keep the agent running and reconnect when taosX is unavailable
 keep_online = true
+
+# Resource limits (enable as needed)
+[resource]
+# maxWriteMBps = 0
+# maxMemoryMB = 0
+# maxPauseSecs = 10
+# maxCpuPercent = 0
+# cpuResumePercent = 0
+# maxCpuCores = 0
+# cgroupPath = "/sys/fs/cgroup"
+# cpuPriority = 0
 
 # Client port range
 [client_port_range]

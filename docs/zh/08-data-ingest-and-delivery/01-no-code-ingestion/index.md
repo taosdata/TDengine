@@ -359,6 +359,10 @@ between_time_range(ts, -604800, 0)
 
 当健康状态为空时，表示尚未有数据开始入库。
 
+## 资源占用控制
+
+如果任务导致 taosX 或 taosX-Agent 的内存、CPU、网络占用过高，可以在 `taosx.toml` 或 `agent.toml` 中配置 `[resource]`，为数据面设置带宽、内存和 CPU 上限。配置方式、推荐参数和限制说明请参考 [资源占用控制](../06-resource-control.md)。
+
 ## 任务断点恢复
 
 目前 taosX 大部分数据源支持从上次写入的断点中恢复
