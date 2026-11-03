@@ -61,16 +61,18 @@ class ClusterComCheck:
             tdLog.debug(tdSql.queryResult)
             tdLog.exit("it find cluster with %d dnodes but  check that there dnodes are not ready within %ds ! "% (dnodeNumbers, timeout))
 
-    def checkDbRows(self,dbNumbers):
+    def checkDbRows(self,dbNumbers,retryTimes=5):
         dbNumbers=int(dbNumbers)
         count=0
-        while count < 5:
+        while count < retryTimes:
             tdSql.query("select * from information_schema.ins_databases where name!='collectd' ;")
             count+=1
             if tdSql.checkRows(dbNumbers+2):
                 tdLog.success("we find %d databases and expect %d in clusters! " %(tdSql.queryRows,dbNumbers+2))
                 return True
             else:
+                tdLog.debug("retry checkDbRows, current retry count: %d, expected database rows: %d, actual rows: %d" % (count, dbNumbers+2, tdSql.queryRows))
+                time.sleep(5)
                 continue
         else :
             tdLog.debug(tdSql.queryResult)
