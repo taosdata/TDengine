@@ -34,9 +34,14 @@ typedef struct SCalcConstContext {
   // Preserve timestamp projections while folding nested temporal JOIN inputs;
   // the planner selects the effective keys and prunes unused candidates.
   bool                keepTemporalCandidates;
+  // Set while folding an EXPLAIN payload.  LIMIT 0 must not mark that payload
+  // empty: EXPLAIN still has to produce the plan, even though the executed
+  // statement would return no rows.
+  bool                explainQuery;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
+static bool isEmptyResultQuery(SNode* pStmt);
 
 static int32_t calcConstSubquery(SCalcConstContext* pCxt, STempTableNode* pTempTable) {
   return calcConstQuery(pCxt, pTempTable->pSubquery, true);
@@ -460,14 +465,39 @@ static int32_t calcConstSelectWithoutFrom(SCalcConstContext* pCxt, SSelectStmt* 
   return code;
 }
 
+static EDealRes findCountLikeFunction(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    int32_t funcId = pFunc->hasOriginalFunc ? pFunc->originalFuncId : pFunc->funcId;
+    if (fmIsCountLikeFunc(funcId)) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+// An ungrouped COUNT-like aggregate produces one row for empty input.  GROUP
+// BY / PARTITION BY / window queries do not: an empty input yields no groups.
+static bool countMayReturnEmptyInputRow(SSelectStmt* pSelect) {
+  if (NULL != pSelect->pGroupByList || NULL != pSelect->pPartitionByList ||
+      NULL != pSelect->pWindow) {
+    return false;
+  }
+  bool hasCount = pSelect->hasCountFunc;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, findCountLikeFunction, &hasCount);
+  return hasCount;
+}
+
 static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   int32_t code = calcConstFromTable(pCxt, pSelect->pFromTable);
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
-      ((STempTableNode*)pSelect->pFromTable)->pSubquery != NULL &&
-      QUERY_NODE_SELECT_STMT == nodeType(((STempTableNode*)pSelect->pFromTable)->pSubquery) &&
-      ((SSelectStmt*)((STempTableNode*)pSelect->pFromTable)->pSubquery)->isEmptyResult) {
-    pSelect->isEmptyResult = true;
-    return code;
+  bool    emptyInput = pSelect->isEmptyResult;
+  bool    emptyFromSubquery = false;
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable)) {
+    // Re-check the child after folding it: an empty derived table is an empty
+    // *input* for this SELECT, not necessarily an empty result of it.
+    emptyFromSubquery = isEmptyResultQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery);
+    emptyInput = pSelect->timeRange.skey > pSelect->timeRange.ekey;
   }
   if (pSelect->mixSysTableAndActualTable) {
     return code;
@@ -476,7 +506,7 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
     code = calcConstProjections(pCxt, pSelect, subquery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstStmtCondition(pCxt, &pSelect->pWhere, &pSelect->isEmptyResult);
+    code = calcConstStmtCondition(pCxt, &pSelect->pWhere, &emptyInput);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstList(pSelect->pPartitionByList);
@@ -488,6 +518,13 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
     code = calcConstGroupBy(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    bool countReturnsRow = countMayReturnEmptyInputRow(pSelect);
+    bool topLevel = !pSelect->isSubquery && E_SUB_QUERY_NOT_SET == pSelect->subQType;
+    // COUNT over an empty derived table still returns one row of 0.  Keep the
+    // top-level predicate shortcut unchanged: a constant-false predicate on
+    // the statement itself still produces an empty result.
+    pSelect->isEmptyResult = (emptyFromSubquery && !countReturnsRow) ||
+                             (emptyInput && (topLevel || !countReturnsRow));
     code = calcConstStmtCondition(pCxt, &pSelect->pHaving, &pSelect->isEmptyResult);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -503,7 +540,40 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
 }
 
 
+// LIMIT 0 can never produce a row.  A LIMIT placeholder is considered only
+// after translate has stored its bound value; an unbound placeholder must not
+// be mistaken for zero.
+static bool limitIsZero(const SLimitNode* pLimit) {
+  if (NULL == pLimit || NULL == pLimit->limit) {
+    return false;
+  }
+  const SValueNode* pValue = pLimit->limit;
+  return pValue->translate && !pValue->isNull && 0 == pValue->datum.i;
+}
+
+// LIMIT 0 only shortens the statement's own result.  The root check decides
+// whether the client can skip execution; inner SELECTs still publish their
+// emptiness through SSelectStmt::isEmptyResult, while calcConstSelectFrom
+// keeps an ungrouped COUNT over an empty input returning its one row of 0.
+// EXPLAIN is excluded: it still has to render the plan of a LIMIT 0 query.
+static bool limitIsZeroAtRoot(SNode* pStmt) {
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      return limitIsZero(((SSelectStmt*)pStmt)->pLimit);
+    case QUERY_NODE_SET_OPERATOR: {
+      const SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      return NULL != pSetOp->pLimit && QUERY_NODE_LIMIT == nodeType(pSetOp->pLimit) &&
+             limitIsZero((const SLimitNode*)pSetOp->pLimit);
+    }
+    default:
+      return false;
+  }
+}
+
 static bool isEmptyResultQuery(SNode* pStmt) {
+  if (NULL == pStmt) {
+    return false;
+  }
   bool isEmptyResult = false;
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
@@ -567,6 +637,12 @@ static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bo
 
   if (TSDB_CODE_SUCCESS == code && pSelect->pSubQueries && pSelect->pSubQueries->length > 0) {
     code = calcSubQueries(pCxt, pSelect->pSubQueries);
+  }
+
+  // A LIMIT 0 SELECT publishes itself as empty so parent set operators can
+  // prune it.  Under EXPLAIN the payload must keep planning normally.
+  if (TSDB_CODE_SUCCESS == code && !pCxt->explainQuery && limitIsZero(pSelect->pLimit)) {
+    pSelect->isEmptyResult = true;
   }
 
   return code;
@@ -747,9 +823,13 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
     case QUERY_NODE_SELECT_STMT:
       code = calcConstSelect(pCxt, (SSelectStmt*)pStmt, subquery);
       break;
-    case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_EXPLAIN_STMT: {
+      bool previous = pCxt->explainQuery;
+      pCxt->explainQuery = true;
       code = calcConstQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery, subquery);
+      pCxt->explainQuery = previous;
       break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       code = calcConstSetOperator(pCxt, (SSetOperator*)pStmt, subquery);
       break;
@@ -957,7 +1037,7 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     resetProjectNullType(pQuery->pRoot);
-    if (isEmptyResultQuery(pQuery->pRoot)) {
+    if (isEmptyResultQuery(pQuery->pRoot) || limitIsZeroAtRoot(pQuery->pRoot)) {
       pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
     }
     code = rewriteScalarSubQResValue(pParseCxt, pQuery);

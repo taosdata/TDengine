@@ -1038,6 +1038,51 @@ TEST_F(ParserSelectTest, limit) {
   run("(SELECT c1, c2 FROM t1 LIMIT 10)");
 }
 
+TEST_F(ParserSelectTest, limitZeroUsesEmptyResult) {
+  useDb("root", "test");
+
+  run("SELECT c1, c2 FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT c1, c2 FROM t1 LIMIT 0 OFFSET 5");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT c1, c2 FROM t1 LIMIT 5, 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT c1, c2 FROM t1 LIMIT 1");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  run("SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  run("SELECT COUNT(*) FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  // LIMIT 0 narrows the inner statement's own result.  An aggregate over that
+  // empty input still owes the client its single row of 0, so the outer COUNT
+  // must run; the same applies to a constant-false predicate in the same
+  // position.
+  run("SELECT COUNT(*) FROM (SELECT c1 FROM t1 LIMIT 0)");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  run("SELECT COUNT(*) FROM (SELECT c1 FROM t1 WHERE 0=1)");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  // A non-aggregate outer statement has no row to preserve and can inherit
+  // the empty result from its derived table.
+  run("SELECT c1 FROM (SELECT c1 FROM t1 LIMIT 0)");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+
+  // EXPLAIN must keep planning a LIMIT 0 query, while the existing empty-plan
+  // behavior for a constant-false predicate remains unchanged.
+  run("EXPLAIN SELECT c1, c2 FROM t1 LIMIT 0");
+  ASSERT_EQ(QUERY_EXEC_MODE_SCHEDULE, getLastExecMode());
+
+  run("EXPLAIN SELECT c1, c2 FROM t1 WHERE 0=1");
+  ASSERT_EQ(QUERY_EXEC_MODE_EMPTY_RESULT, getLastExecMode());
+}
+
 TEST_F(ParserSelectTest, slimitWithoutFromMatchesLegacyBehavior) {
   useDb("root", "test");
 

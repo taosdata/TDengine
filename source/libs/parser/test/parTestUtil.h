@@ -46,6 +46,9 @@ class ParserTestBase : public testing::Test {
   void login(const std::string& user);
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql, int32_t expect = TSDB_CODE_SUCCESS, ParserStage checkStage = PARSER_STAGE_TRANSLATE);
+  // Exec mode produced by the last successful internal parse/translate/
+  // calculateConstant pipeline.  Used to assert the empty-result shortcut.
+  int32_t getLastExecMode() const;
   // Parse-only check (no translate/catalog). For grammar that cannot be
   // exercise through the full translate path in the unit-test mock catalog
   // (e.g. virtual tables), or when only the parse tree is of interest.

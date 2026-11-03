@@ -18288,6 +18288,16 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->offset);
   }
 
+  if (TSDB_CODE_SUCCESS == code &&
+      ((NULL != pSelect->pLimit && NULL != pSelect->pLimit->limit &&
+        IS_SIGNED_NUMERIC_TYPE(pSelect->pLimit->limit->node.resType.type) &&
+        pSelect->pLimit->limit->datum.i < 0) ||
+       (NULL != pSelect->pSlimit && NULL != pSelect->pSlimit->limit &&
+        IS_SIGNED_NUMERIC_TYPE(pSelect->pSlimit->limit->node.resType.type) &&
+        pSelect->pSlimit->limit->datum.i < 0))) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_LIMIT_LESS_ZERO);
+  }
+
   if ((TSDB_CODE_SUCCESS == code) &&
       ((NULL != pSelect->pLimit && pSelect->pLimit->offset && pSelect->pLimit->offset->datum.i < 0) ||
        (NULL != pSelect->pSlimit && pSelect->pSlimit->offset && pSelect->pSlimit->offset->datum.i < 0))) {
@@ -19873,6 +19883,11 @@ static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
   if (TSDB_CODE_SUCCESS == code && pLimit && pLimit->offset) {
     code = translateExpr(pCxt, (SNode**)&pLimit->offset);
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != pLimit && NULL != pLimit->limit &&
+      IS_SIGNED_NUMERIC_TYPE(pLimit->limit->node.resType.type) && pLimit->limit->datum.i < 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_LIMIT_LESS_ZERO);
+  }
+
   if (TSDB_CODE_SUCCESS == code && (NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }

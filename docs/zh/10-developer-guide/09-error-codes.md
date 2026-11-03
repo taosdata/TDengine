@@ -639,6 +639,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x800026C8 | Correlated aggregate owner is not a SELECT query                                                       | 聚合提升的拥有者不是 SELECT 查询块                      | 保留 SQL 和日志并上报问题                                   |
 | 0x800026C9 | Correlated aggregate owner clause not found                                                           | 聚合提升找不到拥有者所在的 SQL 子句                     | 保留 SQL 和日志并上报问题                                   |
 | 0x800026E8 | Virtual table two-pass scan is not supported for this query                                            | 虚拟表上的重扫函数（如 PERCENTILE）查询形状不支持：聚合/窗口未直接位于虚拟扫描之上（中间存在 PROJECT/JOIN/SORT/PARTITION），或源表为外部（联邦）表 | 改写查询，使聚合/窗口直接作用于虚拟表                        |
+| 0x800026E9 | limit cannot be less than 0                                                                            | limit 值非法                                            | 检查并修正 SQL 语句                    |
 | 0x800026FF | Parser internal error                                                                                  | 解析器内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002700 | Planner internal error                                                                                 | 计划期内部错误                                          | 保留现场和日志，github 上报 issue      |
 | 0x80002701 | Expect ts equal                                                                                        | JOIN 条件校验失败                                       | 保留现场和日志，github 上报 issue      |

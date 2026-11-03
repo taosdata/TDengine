@@ -94,6 +94,8 @@ class ParserTestBaseImpl {
 
   void login(const std::string& user) { caseEnv_.user_ = user; }
 
+  int32_t getLastExecMode() const { return lastExecMode_; }
+
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
@@ -345,6 +347,7 @@ class ParserTestBaseImpl {
 
   void doCalculateConstant(SParseContext* pCxt, SQuery* pQuery) {
     DO_WITH_THROW(calculateConstant, pCxt, pQuery);
+    lastExecMode_ = pQuery->execMode;
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
 
@@ -659,6 +662,7 @@ class ParserTestBaseImpl {
   caseEnv         caseEnv_;
   stmtEnv         stmtEnv_;
   stmtRes         res_;
+  int32_t         lastExecMode_ = -1;
   ParserTestBase* pBase_;
   int32_t         sqlNo_;
   int32_t         sqlNum_;
@@ -687,6 +691,8 @@ void ParserTestBase::runAsyncOnly(const std::string& sql, int32_t expect, Parser
 void ParserTestBase::runClonedAst(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->runClonedAst(sql, expect, checkStage);
 }
+
+int32_t ParserTestBase::getLastExecMode() const { return impl_->getLastExecMode(); }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }
 

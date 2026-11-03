@@ -888,6 +888,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_ONE_JSON_TAG,         "Only one tag if ther
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_NUM_OF_COL,      "Query block has incorrect number of result columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL,   "Incorrect TIMESTAMP value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OFFSET_LESS_ZERO,          "soffset/offset cannot be less than 0")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_LIMIT_LESS_ZERO,           "limit cannot be less than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY,  "slimit/soffset are only available for PARTITION/GROUP BY query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TOPIC_QUERY,        "Invalid topic query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_STABLE,        "Cannot drop super table in batch")
