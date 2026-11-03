@@ -3568,26 +3568,48 @@ finally:
                     and "ORA-03001" not in str(e) and "ORA-00972" not in str(e)):
                 raise
 
-    def _oracle_kill_user_sessions(self, cfg, user):
-        """Terminate every session the account still holds.
-
-        Dropping a source releases its pooled connections asynchronously; while
-        one is still alive DROP USER fails with ORA-01940 and a fresh fixture
-        cannot be created.  The admin side terminates them explicitly.
-        """
+    def _oracle_user_sessions(self, cfg, user):
+        """Return the (SID, SERIAL#) pairs of every session the account holds."""
         output = ExtSrcEnv._oracle_sql(
             cfg,
             "SELECT SID || ',' || SERIAL# FROM V$SESSION WHERE USERNAME = "
             f"'{user.upper()}' ORDER BY SID",
             user=ExtSrcEnv.ORACLE_ADMIN_USER,
             password=ExtSrcEnv.ORACLE_ADMIN_PASS)
+        sessions = []
         for line in output.splitlines():
             pair = line.strip()
             if "," not in pair or not pair.split(",", 1)[0].isdigit():
                 continue
-            self._oracle_admin_ddl(
-                cfg, f"ALTER SYSTEM KILL SESSION '{pair}' IMMEDIATE",
-                ignore_ora=("ORA-00030", "ORA-00031"))
+            sessions.append(pair)
+        return sessions
+
+    def _oracle_kill_user_sessions(self, cfg, user, timeout_s=60.0):
+        """Terminate every session the account holds, waiting until none is left.
+
+        ALTER SYSTEM KILL SESSION ... IMMEDIATE is asynchronous: Oracle may
+        answer ORA-00031 ("session marked for kill") while the session is still
+        listed in V$SESSION, and a DROP USER issued at that moment fails with
+        ORA-01940.  The kill is therefore treated as complete only when a fresh
+        snapshot observes no session left.  Re-checks are immediate — one
+        sqlplus round trip each, with no sleep and no backoff — so a session
+        that disappears quickly is noticed on the very next pass, and one that
+        outlives ``timeout_s`` fails with the surviving SID/SERIAL# instead of
+        surfacing later as ORA-01940 from DROP USER.
+        """
+        deadline = _time.monotonic() + timeout_s
+        while True:
+            sessions = self._oracle_user_sessions(cfg, user)
+            if not sessions:
+                return
+            for pair in sessions:
+                self._oracle_admin_ddl(
+                    cfg, f"ALTER SYSTEM KILL SESSION '{pair}' IMMEDIATE",
+                    ignore_ora=("ORA-00030", "ORA-00031"))
+            if _time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"Oracle sessions for {user} are still alive after KILL "
+                    f"SESSION ({timeout_s:g}s): {', '.join(sessions)}")
 
     def _oracle_scratch_user(self, cfg, user, password):
         """(Re)create a bare Oracle account that may only open a session."""
@@ -3829,6 +3851,7 @@ finally:
         History:
             - 2026-10-23 wpan Add Oracle to the per-dialect privilege matrix
             - 2026-10-27 wpan Terminate the scratch account's sessions before DROP USER (ORA-01940)
+            - 2026-11-03 wpan Wait for the killed sessions to disappear before DROP USER (ORA-00031)
 
         """
         cfg = self._oracle_cfg()
