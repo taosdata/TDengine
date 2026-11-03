@@ -1,5 +1,5 @@
 [{
-    "host":"192.168.1.47",
+    "host":"192.168.1.46",
     "username":"root",
     "workdir":"/var/lib/jenkins/workspace",
     "thread":20
