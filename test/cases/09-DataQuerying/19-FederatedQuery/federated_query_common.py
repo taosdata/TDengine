@@ -2228,25 +2228,30 @@ class ExtSrcEnv:
 
         Startup is measured in minutes: a cold instance creates its database
         on first start, and an existing one still has to open the PDB.
+
+        The external lease controller reports success as soon as the container
+        healthcheck passes, which can be before the database accepts a user
+        session (ORA-01033 during startup).  Both modes therefore share the
+        same application-level readiness probe below.
         """
-        if cls._external_service_action("start", "oracle", ver):
-            return True
         import subprocess
         import time
-        env = _fq_subprocess_env()
-        env["FQ_SERVICES_TO_RESET"] = "oracle"
-        env["FQ_ORACLE_VERSIONS"] = str(ver)
-        # Quick restart reuses the container and its data, which is what the
-        # disruption scenarios need: the tables created at file start must
-        # still be there once the instance is back.
-        env["FQ_ORACLE_QUICK_RESTART"] = "1"
-        if sys.platform == "win32":
-            subprocess.run(cls._ext_env_script_cmd(), env=env,
-                           capture_output=True, encoding="utf-8",
-                           errors="replace", timeout=900)
-        else:
-            subprocess.run(["bash", cls._fq_env_script()], env=env,
-                           capture_output=True, text=True, timeout=900)
+        external = cls._external_service_action("start", "oracle", ver)
+        if not external:
+            env = _fq_subprocess_env()
+            env["FQ_SERVICES_TO_RESET"] = "oracle"
+            env["FQ_ORACLE_VERSIONS"] = str(ver)
+            # Quick restart reuses the container and its data, which is what the
+            # disruption scenarios need: the tables created at file start must
+            # still be there once the instance is back.
+            env["FQ_ORACLE_QUICK_RESTART"] = "1"
+            if sys.platform == "win32":
+                subprocess.run(cls._ext_env_script_cmd(), env=env,
+                               capture_output=True, encoding="utf-8",
+                               errors="replace", timeout=900)
+            else:
+                subprocess.run(["bash", cls._fq_env_script()], env=env,
+                               capture_output=True, text=True, timeout=900)
         cfg = next((c for c in cls.oracle_version_configs() if c.version == ver), None)
         if cfg is None:
             return False
