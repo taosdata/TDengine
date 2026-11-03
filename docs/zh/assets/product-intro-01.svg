@@ -68,7 +68,7 @@
 
   <rect x="800" y="468" width="200" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>
   <text x="900" y="516" text-anchor="middle" font-size="20" font-weight="700" fill="#1d6b32">Neuron</text>
-  <text x="900" y="550" text-anchor="middle" font-size="15" fill="#2f6b3a">70+ / 100+ protocols</text>
+  <text x="900" y="550" text-anchor="middle" font-size="15" fill="#2f6b3a">100+ protocols</text>
   <text x="900" y="578" text-anchor="middle" font-size="15" fill="#2f6b3a">Site D</text>
 
   <rect x="1050" y="468" width="200" height="150" rx="12" fill="#f3faf3" stroke="#8fbf8f" stroke-width="1.6"/>

@@ -133,6 +133,69 @@ SELECT * FROM quality_results ORDER BY window_start;
 
 第一个窗口的 `avg_current = 15`，说明 `quality = 1` 的记录仍参与了平均值计算。`NOTIFY ... WHERE` 不等同于 `PRE_FILTER` 或计算查询中的 `WHERE`：后两者会分别过滤触发数据或计算输入，而通知条件只筛选结果通知。
 
+### 用标签作为运行中可修改的阈值 {#dynamic-threshold}
+
+以下示例把设备 `d1` 的上限 `hi` 保存在配置表 `cfg_d1` 的标签中，虚拟子表 `v1` 通过标签引用读取该上限。流运行期间修改 `cfg_d1` 的标签值，后续计算即按新上限判断。适用条件和注意事项见 [运行中更新计算阈值](./02-instructions.md#update-threshold)。
+
+执行前需有可用的 snode。先创建表和流：
+
+```sql
+CREATE DATABASE thresh_demo VGROUPS 1 PRECISION 'ms';
+USE thresh_demo;
+
+CREATE STABLE src (ts TIMESTAMP, vol DOUBLE) TAGS (device VARCHAR(32));
+CREATE TABLE d1 USING src TAGS ('d1');
+
+CREATE STABLE cfg (ts TIMESTAMP, dummy INT) TAGS (hi DOUBLE);
+CREATE TABLE cfg_d1 USING cfg TAGS (80.0);
+INSERT INTO cfg_d1 VALUES (NOW, 0);
+
+CREATE STABLE vst (ts TIMESTAMP, vol DOUBLE)
+  TAGS (device VARCHAR(32), hi DOUBLE) VIRTUAL 1;
+CREATE VTABLE v1 (vol FROM d1.vol)
+  USING vst TAGS ('d1', cfg_d1.hi);
+
+CREATE STREAM s_hi
+  COUNT_WINDOW(1) FROM vst PARTITION BY tbname
+  INTO thresh_alarm
+  AS SELECT _twend AS ts,
+            LAST(vol) AS vol,
+            LAST(hi) AS hi,
+            CASE WHEN LAST(vol) > LAST(hi) THEN 1 ELSE 0 END AS over_limit
+     FROM %%tbname;
+```
+
+流按虚拟子表分组，`hi` 只在计算查询中使用，不作为分组列。确认流的 `Trigger` 任务为 `Running` 后，写入第一条数据：
+
+```sql
+SELECT stream_name, status FROM information_schema.ins_stream_tasks
+WHERE type = 'Trigger';
+
+INSERT INTO d1 VALUES ('2026-01-01 00:00:00', 90);
+```
+
+将上限改为 100，再写入一条相同的数值：
+
+```sql
+ALTER TABLE cfg_d1 SET TAG hi = 100.0;
+INSERT INTO d1 VALUES ('2026-01-01 00:00:01', 90);
+```
+
+查询结果：
+
+```sql
+SELECT ts, vol, hi, over_limit FROM thresh_alarm ORDER BY ts;
+```
+
+| ts | vol | hi | over_limit |
+| --- | --- | --- | --- |
+| 2026-01-01 00:00:00.000 | 90 | 80 | 1 |
+| 2026-01-01 00:00:01.000 | 90 | 100 | 0 |
+
+第一行在修改前计算，保持原结果；第二行使用新上限。
+
+如果阈值直接作为触发子表的标签，例如在 `src` 上定义 `hi` 标签，流按 `tbname` 分组并以 `src` 为触发表，则用 `ALTER TABLE d1 SET TAG hi = 100.0` 修改即可，规则相同。若流写成 `PARTITION BY hi`，该修改会被拒绝。
+
 ### 计数窗口触发
 
 - 表 tb1 每写入 1 行数据时，计算表 tb2 在同一时刻前 5 分钟内 col1 的平均值，计算结果写入表 tb3。

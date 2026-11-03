@@ -135,6 +135,69 @@ SELECT * FROM quality_results ORDER BY window_start;
 
 The first window's `avg_current = 15` shows that the row with `quality = 1` still contributes to the average. `NOTIFY ... WHERE` is not equivalent to `PRE_FILTER` or a `WHERE` clause in the computation query: those filter trigger data or computation input, respectively, while the notification condition filters only result notifications.
 
+#### Use a Tag as a Runtime-Modifiable Threshold {#dynamic-threshold}
+
+The following example stores the upper limit `hi` of device `d1` in a tag of the configuration table `cfg_d1`. Virtual child table `v1` reads that limit through a tag reference. After `cfg_d1`'s tag value changes while the stream is running, later calculations use the new limit. For the applicable conditions and notes, see [Update a Calculation Threshold at Runtime](./02-instructions.md#update-threshold).
+
+An snode must be available before you run the example. Create the tables and the stream first:
+
+```sql
+CREATE DATABASE thresh_demo VGROUPS 1 PRECISION 'ms';
+USE thresh_demo;
+
+CREATE STABLE src (ts TIMESTAMP, vol DOUBLE) TAGS (device VARCHAR(32));
+CREATE TABLE d1 USING src TAGS ('d1');
+
+CREATE STABLE cfg (ts TIMESTAMP, dummy INT) TAGS (hi DOUBLE);
+CREATE TABLE cfg_d1 USING cfg TAGS (80.0);
+INSERT INTO cfg_d1 VALUES (NOW, 0);
+
+CREATE STABLE vst (ts TIMESTAMP, vol DOUBLE)
+  TAGS (device VARCHAR(32), hi DOUBLE) VIRTUAL 1;
+CREATE VTABLE v1 (vol FROM d1.vol)
+  USING vst TAGS ('d1', cfg_d1.hi);
+
+CREATE STREAM s_hi
+  COUNT_WINDOW(1) FROM vst PARTITION BY tbname
+  INTO thresh_alarm
+  AS SELECT _twend AS ts,
+            LAST(vol) AS vol,
+            LAST(hi) AS hi,
+            CASE WHEN LAST(vol) > LAST(hi) THEN 1 ELSE 0 END AS over_limit
+     FROM %%tbname;
+```
+
+The stream is grouped by virtual child table. `hi` is used only in the calculation query and is not a grouping column. After the stream's `Trigger` task is `Running`, insert the first row:
+
+```sql
+SELECT stream_name, status FROM information_schema.ins_stream_tasks
+WHERE type = 'Trigger';
+
+INSERT INTO d1 VALUES ('2026-01-01 00:00:00', 90);
+```
+
+Change the upper limit to 100, then insert the same value again:
+
+```sql
+ALTER TABLE cfg_d1 SET TAG hi = 100.0;
+INSERT INTO d1 VALUES ('2026-01-01 00:00:01', 90);
+```
+
+Query the result:
+
+```sql
+SELECT ts, vol, hi, over_limit FROM thresh_alarm ORDER BY ts;
+```
+
+| ts | vol | hi | over_limit |
+| --- | --- | --- | --- |
+| 2026-01-01 00:00:00.000 | 90 | 80 | 1 |
+| 2026-01-01 00:00:01.000 | 90 | 100 | 0 |
+
+The first row was calculated before the change and keeps its original result. The second row uses the new upper limit.
+
+If the threshold is a tag of the trigger child table itself, for example a `hi` tag defined on `src`, and the stream is grouped by `tbname` with `src` as the trigger table, change it with `ALTER TABLE d1 SET TAG hi = 100.0`. The same rules apply. If the stream is written as `PARTITION BY hi`, that change is rejected.
+
 #### Count Window Trigger
 
 - Each time one row is written into table tb1, compute the average value of column col1 in table tb2 over the past 5 minutes up to that moment, and write the result into table tb3.
