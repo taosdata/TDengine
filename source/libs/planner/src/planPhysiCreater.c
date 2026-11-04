@@ -2902,6 +2902,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     PLAN_ERR_JRET(terrno);
   }
   PLAN_ERR_JRET(fqInitFederatedScanSource(pScan, pExtNode));
+  if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    pScan->scanRange = pScanLogicNode->scanRange;
+  }
   // Stream calc scans carry the SELECT time range on the logic node; keep it on
   // the physical node so the ETR can evaluate time-returning bounds per fetch.
   PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pTimeRange, &pScan->pTimeRange));
@@ -3094,6 +3097,20 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         if (NULL != pOutputName && '\0' != pOutputName[0]) {
           tstrncpy(pScan->pColTypeMappings[colIdx].colName, pOutputName,
                    sizeof(pScan->pColTypeMappings[colIdx].colName));
+        }
+        if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8 &&
+            nodeType(pExpr) == QUERY_NODE_COLUMN && pExtNode->pExtMeta != NULL) {
+          const char* pRawName = ((SColumnNode*)pExpr)->colName;
+          for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+            const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
+            if (strcmp(pCol->colName, pRawName) != 0) continue;
+            tstrncpy(pScan->pColTypeMappings[colIdx].colName, pCol->colName,
+                     sizeof(pScan->pColTypeMappings[colIdx].colName));
+            tstrncpy(pScan->pColTypeMappings[colIdx].extTypeName, pCol->extTypeName,
+                     sizeof(pScan->pColTypeMappings[colIdx].extTypeName));
+            pScan->pColTypeMappings[colIdx].tsPrecision = pExtNode->pExtMeta->tsPrecision;
+            break;
+          }
         }
         planDebug("FQ-ColMappings[%d]: outputIdx=%d outputName=%s source=%s",
                   colIdx, outputIdx,

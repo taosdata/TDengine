@@ -31,7 +31,7 @@ import pytest
 
 from new_test_framework.utils import tdCom, tdDnodes, tdLog, tdSql
 
-from federated_query_common import ExtSrcEnv, FederatedQueryTestMixin, _code, _fq_subprocess_env
+from federated_query_common import ExtSrcEnv, FederatedQueryVersionedMixin, _code, _fq_subprocess_env, influx_versions
 
 
 TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT = _code("TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT")
@@ -240,15 +240,16 @@ def _odbcinst_registers_driver18():
     return False
 
 
-class TestFq19RuntimeLibs(FederatedQueryTestMixin):
+class TestFq19RuntimeLibs(FederatedQueryVersionedMixin):
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
     @pytest.mark.parametrize("action", ["start", "stop", "kill"])
     @pytest.mark.parametrize("service,version", [("mysql", "8.0"),
                                                 ("pg", "18.6"), ("pg", "16"),
-                                                ("influx", "3.0"), ("sqlserver", "2022"),
-                                                ("oracle", "26ai")])
+                                                ("influx", "3.0"), ("influx", "1.8"),
+                                                ("sqlserver", "2022"), ("oracle", "26ai")])
     def test_external_lifecycle_requires_lease_controller(self, monkeypatch, action,
                                                         service, version):
         """External fault operations fail explicitly without a lease owner.
@@ -386,6 +387,27 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         assert "host='127.0.0.1' port=1433 password='TaosFq!2026'" in sqlserver_normalized
         assert "host='wrong' port=1434 password='bad'" in sqlserver_normalized
         assert sqlserver_normalized.endswith("RESULT:\nsqlserver\n25003\n")
+        with monkeypatch.context() as influx:
+            influx.setattr(ExtSrcEnv, "INFLUX_VERSIONS", ["1.8"])
+            influx.setattr(ExtSrcEnv, "INFLUX_USER", "lease-admin")
+            influx.setattr(ExtSrcEnv, "INFLUX_PASS", "lease'password")
+            template = "create external source s type='influxdb' user='admin'"
+            runtime = self._rewrite_influx_source_credentials(template)
+            assert "user='lease-admin' password='lease''password'" in runtime
+            assert self._rewrite_influx_source_credentials(template + " password=''") == runtime
+            explicit = template + " password='wrong-password'"
+            assert self._rewrite_influx_source_credentials(explicit) == explicit
+            quoted = template + " password=''''"
+            assert self._rewrite_influx_source_credentials(quoted) == quoted
+            missing_type = template.replace(" type='influxdb'", "")
+            assert self._rewrite_influx_source_credentials(missing_type) == missing_type
+            influx_text = (f"SQL: {runtime}\n"
+                           "source_name|type|host|user\ns|influxdb|127.0.0.1|lease-admin\n---\n"
+                           "SQL: select user from ordinary_table\nuser\nlease-admin\n")
+            normalized = ExtSrcEnv.baseline_environment(influx_text)
+            assert "user='admin' password='taosdata'" in normalized
+            assert "s|influxdb|127.0.0.1|admin" in normalized
+            assert normalized.endswith("user\nlease-admin\n")
         monkeypatch.setenv("FQ_ENV_MODE", "local")
         assert ExtSrcEnv.baseline_environment(text) == text
         print("external baseline normalization ......................... [ passed ]")
@@ -692,7 +714,8 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             ),
         ]
 
-    def test_influx_http_uses_runtime_missing_query_check(self, monkeypatch):
+    @pytest.mark.parametrize("influx_version", ["3.0", "1.8"])
+    def test_influx_http_uses_runtime_missing_query_check(self, monkeypatch, influx_version):
         """Use the runtime-missing query check for HTTP InfluxDB sources.
 
         Verify that an HTTP InfluxDB source uses the same provider-error path as
@@ -704,9 +727,10 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         calls = []
 
         class Cfg:
+            version = influx_version
             host = "127.0.0.1"
             port = 18086
-            token = "tok"
+            token = "" if version == "1.8" else "tok"
 
         def fake_runtime_missing(provider, src, table, missing_create_src, missing_create_sql):
             calls.append((
@@ -719,6 +743,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
             ))
 
         monkeypatch.setattr(self, "_influx_cfg", lambda: Cfg)
+        monkeypatch.setattr(self, "_influx_configs", lambda: [Cfg])
         monkeypatch.setattr(self, "_cleanup_src", lambda src: calls.append(("cleanup", src)))
         monkeypatch.setattr(self, "_check_remote_count", lambda src: calls.append(("remote_count", src)))
         monkeypatch.setattr(self, "_check_runtime_missing_uses_provider_error", fake_runtime_missing)
@@ -728,6 +753,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         monkeypatch.setattr(tdSql, "execute", lambda sql: calls.append(("execute", sql)))
 
         self._with_influx_http_source(self._check_influx_http_missing_runtime)
+        assert sum(call[0] == "runtime_missing" for call in calls) == 1
 
         assert any(
             call[0] == "execute"
@@ -1301,10 +1327,19 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
                 with self._without_provider_runtime_libs({provider}):
                     self._restart_taosd()
                     _check_provider_missing(missing_create_src, missing_create_sql)
-                    tdSql.error(
-                        f"select count(*) from {src}.{table}",
-                        expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
-                    )
+                    if provider == "influxdb" and self._influx_cfg().version == "1.8":
+                        # The native HTTP provider is linked into extconnector.
+                        self._check_remote_count(src)
+                        for version in ("3", ""):
+                            tdSql.error(
+                                f"ALTER EXTERNAL SOURCE {src} SET OPTIONS('version'='{version}')",
+                                expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+                        self._check_remote_count(src)
+                    else:
+                        tdSql.error(
+                            f"select count(*) from {src}.{table}",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+                        )
             finally:
                 self._restart_taosd()
 
@@ -1341,6 +1376,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         provider, missing_src, missing_sql = self._missing_create_sql_for_src(src)
         self._check_runtime_missing_uses_provider_error(provider, src, "src_t", missing_src, missing_sql)
 
+    @influx_versions()
     def _with_influx_http_source(self, callback):
         cfg = self._influx_cfg()
         src = "fq19_runtime_influx_http"
@@ -1350,11 +1386,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         try:
             lines = [f"src_t val={i}i {1704067200000000000 + i * 60000000000}" for i in range(5)]
             ExtSrcEnv.influx_write_cfg(cfg, db, lines)
-            tdSql.execute(
-                f"create external source {src} type='influxdb' "
-                f"host='{cfg.host}' port={cfg.port} user='u' password='' database={db} "
-                f"options('api_token'='{cfg.token}','protocol'='http')"
-            )
+            self._mk_influx_real(src, database=db, protocol="http")
             callback(src)
         finally:
             self._cleanup_src(src)
@@ -1443,6 +1475,7 @@ class TestFq19RuntimeLibs(FederatedQueryTestMixin):
         1. Verify missing runtime libraries reject CREATE EXTERNAL SOURCE
         2. Verify existing external-source queries reject missing runtime libraries
         3. Verify InfluxDB HTTP also fails without its runtime plugin
+        4. Verify native InfluxDB 1.8 works without that plugin and rejects ALTER to unavailable 3.x
 
         Catalog:
             - FederatedQuery

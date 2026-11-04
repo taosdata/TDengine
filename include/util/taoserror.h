@@ -1504,7 +1504,8 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY    TAOS_DEF_ERROR_CODE(0, 0x642A)  // Internal: apply session overlay demotion and retry
 #define TSDB_CODE_EXT_PUSHDOWN_BASELINE          TAOS_DEF_ERROR_CODE(0, 0x642B)  // Internal: force baseline path
 #define TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN    TAOS_DEF_ERROR_CODE(0, 0x642C)  // Internal: baseline path still triggered pushdown demotion
-// 0x642D-0x64FF reserved for extension
+#define TSDB_CODE_EXT_SCHEMA_CONFLICT             TAOS_DEF_ERROR_CODE(0, 0x642D)  // Connector: ambiguous external column types or roles
+// 0x642E-0x64FF reserved for extension
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)

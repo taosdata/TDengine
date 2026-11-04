@@ -3496,7 +3496,7 @@ _influx_binary_url() {
                 Linux-x86_64)  arch_str="linux_amd64" ;;
                 Linux-aarch64) arch_str="linux_arm64" ;;
                 Darwin-x86_64) arch_str="darwin_amd64" ;;
-                Darwin-arm64)  arch_str="darwin_arm64" ;;
+                Darwin-arm64)  arch_str="darwin_amd64" ;;
                 *)             arch_str="linux_amd64" ;;
             esac
             local base_v1="${FQ_INFLUX_MIRROR:-https://dl.influxdata.com/influxdb/releases}"
@@ -3548,6 +3548,10 @@ ensure_influx() {
             rm -f "$pidfile"
         fi
         _kill_matching "influxdb3 serve.*${port}" KILL
+        if [[ "$ver" == "1.8" ]]; then
+            _kill_matching "influxd.*${base}/influxdb.conf" KILL
+            _wait_procs_gone "influxd.*${base}/influxdb.conf" 100 || return 1
+        fi
         # Verify: wait until all influxdb3 processes for this port are truly gone
         _wait_procs_gone "influxdb3 serve.*${port}" 100 \
             || warn "InfluxDB ${ver}: process may linger; continuing..."
@@ -3598,6 +3602,10 @@ ensure_influx() {
     if [[ -x "${bin}/influxdb3" ]] || [[ -x "${bin}/influxd" ]]; then
         # Binary found but not running — hard reset handles start + wipe + token.
         info "InfluxDB ${ver}: installation found — hard reset (wipe → start)."
+        if [[ "$ver" == "1.8" ]]; then
+            _influx_start "$ver" "$port" "$base"
+            wait_port "$port" 90 || return 1
+        fi
         _influx_reset_env "$ver" "$port" "$base"
         return 0
     fi
@@ -3656,8 +3664,10 @@ _influx_install() {
     # later as "no binary found"; discard it and re-resolve instead.  Re-resolve
     # only after a discard, so a plain download failure is not retried twice.
     local discards=0
+    # Consume the full listing: grep -q can close the pipe before GNU tar
+    # finishes and turn a valid 1.8 archive into a pipefail/SIGPIPE failure.
     while [[ -n "$tarball" && -s "$tarball" && $discards -lt 2 ]] && \
-          ! tar -tzf "$tarball" 2>/dev/null | grep -qE '(^|/)(influxdb3|influxd)(\.exe)?$'; do
+          ! tar -tzf "$tarball" 2>/dev/null | grep -E '(^|/)(influxdb3|influxd)(\.exe)?$' >/dev/null; do
         warn "InfluxDB ${ver}: $(basename "$tarball") is not a usable InfluxDB archive" \
              "($(du -h "$tarball" 2>/dev/null | cut -f1)); discarding and re-resolving."
         rm -f "$tarball"
@@ -3795,6 +3805,7 @@ _influx_ensure_token() {
     # In the test_fq_01 baseline comparison, apiv3_... tokens are normalised
     # to "test-token" for stable comparison across test runs.
     local ver="$1" port="$2" base="$3"
+    [[ "$ver" == "1.8" ]] && return 0
     local token_file="${base}/admin_token.txt"
 
     # Quick path: token file already present with a valid apiv3_ token.
@@ -3860,6 +3871,10 @@ _influx_start() {
                 mkdir -p "${data}/meta" "${data}/data" "${data}/wal"
                 local cfg_file="${base}/influxdb.conf"
                 cat > "$cfg_file" <<EOF
+reporting-disabled = true
+bind-address = "127.0.0.1:$((port + 100))"
+[monitor]
+  store-enabled = false
 [meta]
   dir = "${data}/meta"
 
@@ -3898,7 +3913,7 @@ _influx_reset_env() {
             local dbs db
             dbs=$(curl -sf --max-time 5 \
                 "http://127.0.0.1:${port}/query?q=SHOW+DATABASES" 2>/dev/null | \
-                sed -nE 's/.*"values":\[\["([^"]+)".*/\1/p' || true)
+                python3 -c 'import json,sys; print("\n".join(row[0] for r in json.load(sys.stdin).get("results",[]) for s in r.get("series",[]) for row in s.get("values",[])))' || true)
             for db in $dbs; do
                 [[ "$db" == "_internal" ]] && continue
                 curl -sf -X POST "http://127.0.0.1:${port}/query" \
@@ -4938,7 +4953,7 @@ _teardown_influx() {
     local base="${FQ_BASE_DIR}/influxdb/${ver}"
     local pidfile="${base}/run/influxd.pid"
     info "InfluxDB ${ver} @ ${port}: stopping ..."
-    _stop_daemon "$pidfile" "influxdb3.*${base}"
+    _stop_daemon "$pidfile" "influx(db3|d).*${base}"
     # Remove all files in the log directory (keep the directory itself).
     find "${base}/log" -maxdepth 1 -type f -delete 2>/dev/null || true
     info "InfluxDB ${ver}: stopped and logs cleared."

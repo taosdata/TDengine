@@ -281,7 +281,7 @@ _CASES = [
      False, TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, {}),
 
     # ── InfluxDB 1.8: protocol incompatibility (i18, from fq_05 local_033) ───
-    # InfluxDB 1.x has no /api/v3/query_sql; HTTP 404 → TSDB_CODE_OPS_NOT_SUPPORT.
+    # A source configured for 3.x must still reject the 1.8 HTTP endpoint.
     # Skipped automatically when "1.8" is NOT in FQ_INFLUX_VERSIONS.
     ("i18-01",
      "SELECT * FROM {I18}.testdb.m",
@@ -502,6 +502,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
       p04    — PostgreSQL PARTITION BY TBNAME  (negative, EXT_SYNTAX_UNSUPPORTED)
     """
 
+
     # ── External source names ────────────────────────────────────────────────
     _SRC_I_TAG  = "fq18_itag"
     _SRC_I_CPU  = "fq18_s04_i"
@@ -545,6 +546,14 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
+        tmp = TestFq18SourceSpecific()
+        tmp._drop_influx_sources(tmp._SRC_I_TAG, tmp._SRC_I_CPU)
+        for cfg in ExtSrcEnv.influx_version_configs():
+            for bucket in (self._I_TAG_DB, self._I_CPU_DB):
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(cfg, bucket)
+                except Exception as exc:
+                    tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         self._cleanup_src(
             self._SRC_I_TAG, self._SRC_I_CPU,
             self._SRC_M_INFO, self._SRC_M_PUSH, self._SRC_P_PUSH,
@@ -554,8 +563,6 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             self._SRC_O_IDENT,
         )
         for fn in [
-            lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), self._I_TAG_DB),
-            lambda: ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), self._I_CPU_DB),
             lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_INFO_DB),
             lambda: ExtSrcEnv.mysql_drop_db_cfg(self._mysql_cfg(), self._M_PUSH_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._P_PUSH_DB),
@@ -572,24 +579,28 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         TestFq18SourceSpecific._i18_available    = False
         ExtSrcEnv.teardown_env()
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         """Create all external sources once (shared across all test methods)."""
         if TestFq18SourceSpecific._class_setup_done:
+            self._mk_influx_sources(self._SRC_I_TAG, database=self._I_TAG_DB)
+            self._mk_influx_sources(self._SRC_I_CPU, database=self._I_CPU_DB)
             return
 
         # ── InfluxDB tags-partition source (itag group) ───────────────────────
         self._cleanup_src(self._SRC_I_TAG)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), self._I_TAG_DB)
-        ExtSrcEnv.influx_write_cfg(
-            self._influx_cfg(), self._I_TAG_DB, _INFLUX_ITAG_LINES)
-        self._mk_influx_real(self._SRC_I_TAG, database=self._I_TAG_DB)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, self._I_TAG_DB)
+            ExtSrcEnv.influx_write_cfg(
+                influx_cfg, self._I_TAG_DB, _INFLUX_ITAG_LINES)
+        self._mk_influx_sources(self._SRC_I_TAG, database=self._I_TAG_DB)
 
         # ── InfluxDB CPU source (i04 / PARTITION BY TBNAME group) ────────────
         self._cleanup_src(self._SRC_I_CPU)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), self._I_CPU_DB)
-        ExtSrcEnv.influx_write_cfg(
-            self._influx_cfg(), self._I_CPU_DB, _INFLUX_S04_LINES)
-        self._mk_influx_real(self._SRC_I_CPU, database=self._I_CPU_DB)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, self._I_CPU_DB)
+            ExtSrcEnv.influx_write_cfg(
+                influx_cfg, self._I_CPU_DB, _INFLUX_S04_LINES)
+        self._mk_influx_sources(self._SRC_I_CPU, database=self._I_CPU_DB)
 
         # ── MySQL INFORMATION_SCHEMA source (minfo group) ─────────────────────
         self._cleanup_src(self._SRC_M_INFO)
@@ -656,8 +667,8 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
 
         # ── InfluxDB 1.8 source (i18 group, conditional) ─────────────────────
         # Only created when "1.8" is listed in FQ_INFLUX_VERSIONS.
-        # Uses protocol='http' so the HTTP connector probes /api/v3/query_sql
-        # which returns HTTP 404 on InfluxDB 1.x → TSDB_CODE_OPS_NOT_SUPPORT.
+        # Keep this protocol-mismatch case explicitly configured for 3.x.
+        # The regular Influx sources above exercise native 1.8 when selected.
         influx18_cfgs = [
             c for c in ExtSrcEnv.influx_version_configs() if c.version == "1.8"
         ]
@@ -672,6 +683,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
                     "",
                     database=None,
                     protocol="http",
+                    version="3",
                 )
             )
             TestFq18SourceSpecific._i18_available = True
@@ -727,52 +739,56 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             ordered    = opts.get("ordered", True)
             min_count  = opts.get("min_count")
             sql        = self._fmt(sql_template)
-            t0         = _time.monotonic()
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    t0         = _time.monotonic()
 
-            rows      = None
-            qerr      = None
-            try:
-                tdSql.query(sql, queryTimes=3)
-                rows = list(tdSql.queryResult)
-                if min_count is not None:
-                    actual = int(rows[0][0]) if rows else 0
-                    if actual < min_count:
-                        det = f"Expected count >= {min_count}, got {actual}"
-                        failed.append((case_id, sql_template, det))
-                        tdLog.info(
-                            f"[{case_id:<9s} POS] FAIL  {sql_template[:70]}  "
-                            f"[{_time.monotonic() - t0:.2f}s]  {det}"
-                        )
-                    else:
+                    rows      = None
+                    qerr      = None
+                    try:
+                        tdSql.query(sql, queryTimes=3)
+                        rows = list(tdSql.queryResult)
+                        if min_count is not None:
+                            actual = int(rows[0][0]) if rows else 0
+                            if actual < min_count:
+                                det = f"Expected count >= {min_count}, got {actual}"
+                                failed.append((case_id, sql_template, det))
+                                tdLog.info(
+                                    f"[{case_id:<9s} POS] FAIL  {sql_template[:70]}  "
+                                    f"[{_time.monotonic() - t0:.2f}s]  {det}"
+                                )
+                            else:
+                                tdLog.info(
+                                    f"[{case_id:<9s} POS] PASS  {sql_template[:70]}  "
+                                    f"[{_time.monotonic() - t0:.2f}s]  count={actual} >= {min_count}"
+                                )
+                            continue
+                        if not ordered:
+                            rows = sorted(rows, key=lambda r: [str(x) for x in r])
+                        elapsed = _time.monotonic() - t0
                         tdLog.info(
                             f"[{case_id:<9s} POS] PASS  {sql_template[:70]}  "
-                            f"[{_time.monotonic() - t0:.2f}s]  count={actual} >= {min_count}"
+                            f"[{elapsed:.2f}s]  rows={len(rows)}"
                         )
-                    continue
-                if not ordered:
-                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
-                elapsed = _time.monotonic() - t0
-                tdLog.info(
-                    f"[{case_id:<9s} POS] PASS  {sql_template[:70]}  "
-                    f"[{elapsed:.2f}s]  rows={len(rows)}"
-                )
-            except Exception as exc:
-                elapsed = _time.monotonic() - t0
-                _ea = getattr(exc, "args", ())
-                errno = (
-                    _ea[-1] if len(_ea) >= 2 and isinstance(_ea[-1], int) else
-                    getattr(exc, "errno", None)
-                )
-                qerr = QueryError(errno, str(_ea[0]) if _ea else str(exc), sql, exc)
-                tdLog.info(
-                    f"[{case_id:<9s} POS] FAIL  {sql_template[:70]}  "
-                    f"[{elapsed:.2f}s]  {qerr.err_info}"
-                )
-                failed.append((case_id, sql_template, str(qerr)))
+                    except Exception as exc:
+                        elapsed = _time.monotonic() - t0
+                        _ea = getattr(exc, "args", ())
+                        errno = (
+                            _ea[-1] if len(_ea) >= 2 and isinstance(_ea[-1], int) else
+                            getattr(exc, "errno", None)
+                        )
+                        qerr = QueryError(errno, str(_ea[0]) if _ea else str(exc), sql, exc)
+                        tdLog.info(
+                            f"[{case_id:<9s} POS] FAIL  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]  {qerr.err_info}"
+                        )
+                        failed.append((case_id, sql_template, str(qerr)))
 
-            serialized = parity_serialize_case(
-                case_id, sql_template, True, rows, qerr, float_cols, ordered)
-            serialized_blocks.append(serialized)
+                    serialized = parity_serialize_case(
+                        case_id, sql_template, True, rows, qerr, float_cols, ordered)
+                    serialized_blocks.append(serialized)
 
         # ── baseline comparison ──────────────────────────────────────────────
         baseline_file = self._BASELINE_FILE
@@ -787,6 +803,7 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             if os.path.isfile(baseline_file):
                 with open(baseline_file, "r") as f:
                     baseline_content = f.read()
+                baseline_content = self._expand_influx_baseline(baseline_content)
                 if tmp_content != baseline_content:
                     tmp_lines  = tmp_content.splitlines()
                     base_lines = baseline_content.splitlines()
@@ -842,21 +859,25 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
                 continue
 
             sql = self._fmt(sql_template)
-            t0  = _time.monotonic()
-            try:
-                tdSql.error(sql, expectedErrno=expected_errno)
-                elapsed = _time.monotonic() - t0
-                tdLog.info(
-                    f"[{case_id:<9s} NEG] PASS  {sql_template[:70]}  "
-                    f"[{elapsed:.2f}s]"
-                )
-            except Exception as exc:
-                elapsed = _time.monotonic() - t0
-                tdLog.info(
-                    f"[{case_id:<9s} NEG] FAIL  {sql_template[:70]}  "
-                    f"[{elapsed:.2f}s]  {exc}"
-                )
-                failed.append((case_id, sql_template, str(exc)))
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    t0  = _time.monotonic()
+                    try:
+                        tdSql.error(sql, expectedErrno=expected_errno)
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(
+                            f"[{case_id:<9s} NEG] PASS  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]"
+                        )
+                    except Exception as exc:
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(
+                            f"[{case_id:<9s} NEG] FAIL  {sql_template[:70]}  "
+                            f"[{elapsed:.2f}s]  {exc}"
+                        )
+                        failed.append((case_id, sql_template, str(exc)))
         return failed
 
     # -----------------------------------------------------------------------

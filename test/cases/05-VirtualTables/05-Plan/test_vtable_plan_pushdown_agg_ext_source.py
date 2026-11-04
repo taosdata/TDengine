@@ -164,11 +164,12 @@ class TestVTablePlanPushdownAggExtSource:
         )
 
         influx = cls.adapters["influx"]
+        influx_user, influx_password = ExtSrcEnv.influx_source_credentials(influx.version)
         tdSql.execute(
             f"create external source {_EXTERNAL_SOURCES['influx']} "
             f"type='influxdb' host='{influx.host}' port={influx.port} "
-            f"user='u' password='' database={_EXTERNAL_DB} "
-            f"options('api_token'='{influx.token}','protocol'='flight_sql')"
+            f"user='{influx_user}' password='{influx_password}' database={_EXTERNAL_DB} "
+            f"options({ExtSrcEnv.influx_source_options(influx.version)})"
         )
 
         sqlserver = cls.adapters["sqlserver"]
@@ -315,16 +316,16 @@ class TestVTablePlanPushdownAggExtSource:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(
+        VtableQueryUtil.compare_ext_source_plan_testcase_result(
             input_file, answer_file, test_case,
-            result_transform=ExtSrcEnv.baseline_environment,
         )
         print("federated pushdownAgg plans ................ [ passed ]")
 
     def test_pushdown_agg_ext_source(self):
-        """Push virtual-table aggregates into local and external scans.
+        """Validate virtual-table aggregates across local and external scans.
 
-        1. Cover MySQL, PostgreSQL, InfluxDB and Oracle aggregate pushdown.
+        1. Cover MySQL, PostgreSQL, InfluxDB 3.x and Oracle aggregate pushdown,
+           plus native InfluxDB 1.8 local aggregation.
         2. Cover local-plus-external and mixed-external source plans,
            including the Oracle single-source and all-source virtual tables.
         3. Verify merged aggregate results and output-column order.

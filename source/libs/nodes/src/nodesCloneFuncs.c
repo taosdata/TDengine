@@ -1680,6 +1680,9 @@ static int32_t extTableNodeCopy(const SExtTableNode* pSrc, SExtTableNode* pDst) 
   COPY_CHAR_ARRAY_FIELD(remoteTableName);
   COPY_SCALAR_FIELD(srcNameFromPath);
   COPY_SCALAR_FIELD(nsFromPathOnly);
+  CLONE_NODE_FIELD(pSeriesCondition);
+  CLONE_NODE_LIST_FIELD(pInfluxSchema);
+  COPY_CHAR_ARRAY_FIELD(influxRp);
   // pExtMeta: deep-copied so the planner can translate TDengine column names to
   // remote column names (e.g. 'ts'  ->  'time' for InfluxDB) before serialization.
   if (pSrc->pExtMeta) {

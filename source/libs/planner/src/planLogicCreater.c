@@ -30,6 +30,7 @@
 #include "ttime.h"
 
 #include <stdarg.h>
+#include <string.h>
 
 // primary key column always the second column if exists
 #define PRIMARY_COLUMN_SLOT 1
@@ -990,6 +991,155 @@ static bool extTimeRangeOwnedByAlias(SNode* pTimeRange, const char* pAlias) {
 }
 
 
+static bool extTbnameKeyBelongsToTable(const SNode* pKey,
+                                      const SSelectStmt* pSelect,
+                                      const SRealTableNode* pTable) {
+  const char* pAlias = NULL;
+  if (QUERY_NODE_FUNCTION == nodeType(pKey) &&
+      FUNCTION_TYPE_TBNAME == ((const SFunctionNode*)pKey)->funcType) {
+    const SFunctionNode* pFunc = (const SFunctionNode*)pKey;
+    if (NULL != pFunc->pParameterList) {
+      if (1 != LIST_LENGTH(pFunc->pParameterList)) return false;
+      SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+      if (NULL == pParam || QUERY_NODE_VALUE != nodeType(pParam)) return false;
+      pAlias = ((const SValueNode*)pParam)->literal;
+      if (NULL == pAlias) return false;
+    } else if (!pFunc->node.asAlias) {
+      // Column-derived TBNAME nodes can retain their qualifier only in
+      // userAlias. Explicit AS names cannot supply a table qualifier.
+      const char* pSuffix = strrchr(pFunc->node.userAlias, '.');
+      if (NULL != pSuffix && 0 == strcmp(pSuffix, ".tbname")) {
+        size_t aliasLen = (size_t)(pSuffix - pFunc->node.userAlias);
+        return strlen(pTable->table.tableAlias) == aliasLen &&
+               0 == strncmp(pFunc->node.userAlias,
+                            pTable->table.tableAlias, aliasLen);
+      }
+    }
+  } else if (QUERY_NODE_COLUMN == nodeType(pKey) &&
+             COLUMN_TYPE_TBNAME == ((const SColumnNode*)pKey)->colType) {
+    const SColumnNode* pCol = (const SColumnNode*)pKey;
+    if (0 != pCol->tableId && pCol->tableId != pTable->pMeta->uid) {
+      return false;
+    }
+    pAlias = pCol->tableAlias;
+  } else {
+    return false;
+  }
+  if (NULL != pAlias && '\0' != pAlias[0]) {
+    return 0 == strcmp(pAlias, pTable->table.tableAlias);
+  }
+  return pSelect->pFromTable == (const SNode*)pTable;
+}
+
+static int32_t makeInflux18TagGroupingKeys(SRealTableNode* pTable,
+                                          const SGroupingSetNode* pGrouping,
+                                          SNodeList** ppKeys) {
+  const SExtTableMeta* pMeta =
+      ((const SExtTableNode*)pTable->pExtTableNode)->pExtMeta;
+  if (NULL == pMeta || NULL == pMeta->pCols) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  int32_t schemaCount = pTable->pMeta->tableInfo.numOfColumns +
+                        pTable->pMeta->tableInfo.numOfTags;
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (!pMeta->pCols[i].isTag) continue;
+    const SSchema* pSchema = NULL;
+    for (int32_t j = 0; j < schemaCount; ++j) {
+      if (0 == strcmp(pTable->pMeta->schema[j].name,
+                      pMeta->pCols[i].colName)) {
+        pSchema = &pTable->pMeta->schema[j];
+        break;
+      }
+    }
+    if (NULL == pSchema) {
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      break;
+    }
+    SColumnNode* pCol = (SColumnNode*)createFirstCol(pTable, pSchema);
+    if (NULL == pCol) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
+    pCol->tableType = pTable->pMeta->tableType;
+    tstrncpy(pCol->dbName, pTable->table.dbName, sizeof(pCol->dbName));
+    tstrncpy(pCol->node.aliasName, pCol->colName,
+             sizeof(pCol->node.aliasName));
+    tstrncpy(pCol->node.userAlias, pCol->colName,
+             sizeof(pCol->node.userAlias));
+    SNode* pNew = (SNode*)pCol;
+    if (NULL != pGrouping) {
+      SGroupingSetNode* pNewGrouping = NULL;
+      code = nodesMakeNode(QUERY_NODE_GROUPING_SET, (SNode**)&pNewGrouping);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode(pNew);
+        break;
+      }
+      pNewGrouping->groupingSetType = pGrouping->groupingSetType;
+      code = nodesListMakeStrictAppend(&pNewGrouping->pParameterList, pNew);
+      if (TSDB_CODE_SUCCESS != code) {
+        nodesDestroyNode((SNode*)pNewGrouping);
+        break;
+      }
+      pNew = (SNode*)pNewGrouping;
+    }
+    code = nodesListMakeStrictAppend(ppKeys, pNew);
+    if (TSDB_CODE_SUCCESS != code) break;
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyList(*ppKeys);
+    *ppKeys = NULL;
+  }
+  return code;
+}
+
+static int32_t rewriteInflux18TbnameKeyList(SNodeList* pKeys,
+                                           SSelectStmt* pSelect,
+                                           SRealTableNode* pTable) {
+  SNode* pKey = NULL;
+  FOREACH(pKey, pKeys) {
+    SGroupingSetNode* pGrouping = NULL;
+    SNode* pActual = pKey;
+    if (QUERY_NODE_GROUPING_SET == nodeType(pKey)) {
+      pGrouping = (SGroupingSetNode*)pKey;
+      if (1 != LIST_LENGTH(pGrouping->pParameterList)) continue;
+      pActual = nodesListGetNode(pGrouping->pParameterList, 0);
+    }
+    if (NULL == pActual ||
+        !extTbnameKeyBelongsToTable(pActual, pSelect, pTable)) continue;
+    SNodeList* pTags = NULL;
+    int32_t code = makeInflux18TagGroupingKeys(pTable, pGrouping, &pTags);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    // Tagless measurements retain their existing local single-group key.
+    if (NULL == pTags) continue;
+    // Each GROUP BY wrapper must keep one expression: physical planning reads
+    // its first parameter. PARTITION BY receives the same plain Tag tuple.
+    nodesListInsertList(pKeys, cell, pTags);
+    (void)nodesListErase(pKeys, cell);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rewriteInflux18TbnameGrouping(SSelectStmt* pSelect,
+                                            SRealTableNode* pTable) {
+  const SExtTableNode* pExt = (const SExtTableNode*)pTable->pExtTableNode;
+  if (NULL == pSelect->pFromTable ||
+      QUERY_NODE_VIRTUAL_TABLE == nodeType(pSelect->pFromTable) ||
+      EXT_SOURCE_INFLUXDB != pExt->sourceType ||
+      EXT_SQL_DIALECT_INFLUXDB_1_8 != pExt->capability.dialect) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Ordinary 3.x TBNAME grouping uses all Tag values. Expand those same keys
+  // before collection so native scans fetch hidden raw Tags for local grouping.
+  int32_t code = rewriteInflux18TbnameKeyList(pSelect->pPartitionByList,
+                                             pSelect, pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteInflux18TbnameKeyList(pSelect->pGroupByList,
+                                       pSelect, pTable);
+  }
+  return code;
+}
+
 // ---------------------------------------------------------------------------
 // createExternalScanLogicNode: builds an SScanLogicNode for an external table
 // (scanType == SCAN_TYPE_EXTERNAL).  Called when pRealTable->pExtTableNode != NULL.
@@ -1009,6 +1159,11 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   SExtTableNode*  pExtNode = (SExtTableNode*)pRealTable->pExtTableNode;
   SScanLogicNode* pScan = NULL;
   int32_t code = fqEnsurePgExtSchemaNode(pExtNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  code = rewriteInflux18TbnameGrouping(pSelect, pRealTable);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
@@ -1045,7 +1200,11 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   // Collect external columns first. The synthetic external STableMeta flattens
   // tags into ordinary columns, so raw metadata classifies them below.
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_COL,
+    // _TAGS expands to Tag column nodes. Native scans must fetch these raw
+    // columns as well so local projections have their input slots.
+    ECollectColType collectType = pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8
+                                      ? COLLECT_COL_TYPE_ALL : COLLECT_COL_TYPE_COL;
+    code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, collectType,
                                &pScan->pScanCols);
   }
 
@@ -3900,7 +4059,8 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
     pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
     if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType ||
-        EXT_SOURCE_SQLSERVER == pExtTableNode->sourceType || EXT_SOURCE_ORACLE == pExtTableNode->sourceType) {
+        EXT_SOURCE_SQLSERVER == pExtTableNode->sourceType || EXT_SOURCE_ORACLE == pExtTableNode->sourceType ||
+        EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtTableNode->capability.dialect) {
       SExtTableNode* pScanTable = (SExtTableNode*)pExtScan->pExtTableNode;
       // Keep each condition group's slot identity distinct without changing the remote table name.
       snprintf(pScanTable->table.tableAlias, sizeof(pScanTable->table.tableAlias), "_vtb_ext_%d",
@@ -3914,7 +4074,10 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
       code = nodesStringToNode(pColRef->tagCondJson, &pTagCond);
       QUERY_CHECK_CODE(code, lino, _return);
       QUERY_CHECK_NULL(pTagCond, code, lino, _return, TSDB_CODE_INVALID_MSG);
-      if (pExtTableNode->sourceType == EXT_SOURCE_INFLUXDB) {
+      if (pExtTableNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+        SExtTableNode* pScanTable = (SExtTableNode*)pExtScan->pExtTableNode;
+        TSWAP(pScanTable->pSeriesCondition, pTagCond);
+      } else if (pExtTableNode->sourceType == EXT_SOURCE_INFLUXDB) {
         code = extScanAugmentInfluxSeriesCond(&pTagCond, pExtTableNode->pExtMeta);
         QUERY_CHECK_CODE(code, lino, _return);
       }

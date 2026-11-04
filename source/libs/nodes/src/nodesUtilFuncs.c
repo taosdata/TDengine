@@ -3208,6 +3208,8 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_EXTERNAL_TABLE: {
       SExtTableNode* pExtTbl = (SExtTableNode*)pNode;
+      nodesDestroyNode(pExtTbl->pSeriesCondition);
+      nodesDestroyList(pExtTbl->pInfluxSchema);
       extCapDestroy(&pExtTbl->capability);
       if (pExtTbl->pExtMeta) {
         taosMemoryFree(pExtTbl->pExtMeta->pCols);
@@ -6207,4 +6209,26 @@ SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) {
   snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", pExpr->userAlias);
   pCol->node.relatedTo = pExpr->relatedTo;
   return pCol;
+}
+
+int32_t nodesCaptureInfluxSchema(SExtTableNode* pTable) {
+  if (pTable == NULL || pTable->pExtMeta == NULL) return TSDB_CODE_INVALID_PARA;
+  nodesDestroyList(pTable->pInfluxSchema);
+  pTable->pInfluxSchema = NULL;
+  tstrncpy(pTable->influxRp, pTable->pExtMeta->retentionPolicy, sizeof(pTable->influxRp));
+  for (int32_t i = 0; i < pTable->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pDef = &pTable->pExtMeta->pCols[i];
+    SColumnNode* pCol = NULL;
+    int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+    if (code == TSDB_CODE_SUCCESS) {
+      tstrncpy(pCol->colName, pDef->colName, sizeof(pCol->colName));
+      pCol->colType = pDef->isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
+      code = extTypeNameToTDengineType(pTable->sourceType, pDef->extTypeName,
+                                       pDef->extCharsetName, &pCol->node.resType);
+    }
+    if (code == TSDB_CODE_SUCCESS) code = nodesListMakeStrictAppend(&pTable->pInfluxSchema, (SNode*)pCol);
+    else nodesDestroyNode((SNode*)pCol);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return TSDB_CODE_SUCCESS;
 }

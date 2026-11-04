@@ -141,6 +141,7 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
+    INFLUX18_QUOTED_IDENTIFIER,
 )
 
 
@@ -15721,6 +15722,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     and compares against golden baseline files.
     """
 
+
     # Keep EXPLAIN output deterministic regardless of prior tests.
     # The pytest framework reads class-level updatecfgDict, not cfg.
     updatecfgDict = {
@@ -15795,8 +15797,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
         ExtSrcEnv.influx_create_db(_INFLUX_BUCKET)
         ExtSrcEnv.influx_write(_INFLUX_BUCKET, _INFLUX_LINES)
-        self._cleanup_src(_SRC_INFLUX)
-        self._mk_influx_real(_SRC_INFLUX, database=_INFLUX_BUCKET)
+        self._mk_influx_sources(_SRC_INFLUX, database=_INFLUX_BUCKET)
 
         self._setup_ascii_length_sources()
 
@@ -15835,8 +15836,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self._rebuild_sources()
         return True
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq13Explain._class_setup_done:
+            self._mk_influx_sources(_SRC_INFLUX, database=_INFLUX_BUCKET)
             return
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -15858,10 +15860,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         self._mk_pg_real(_SRC_PG, database=_PG_DB)
 
         # -- InfluxDB (sensor measurement) --
-        ExtSrcEnv.influx_create_db(_INFLUX_BUCKET)
-        ExtSrcEnv.influx_write(_INFLUX_BUCKET, _INFLUX_LINES)
-        self._cleanup_src(_SRC_INFLUX)
-        self._mk_influx_real(_SRC_INFLUX, database=_INFLUX_BUCKET)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_BUCKET)
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_BUCKET, _INFLUX_LINES)
+        self._mk_influx_sources(_SRC_INFLUX, database=_INFLUX_BUCKET)
 
         # -- Dedicated ASCII/VARCHAR sources used to validate the non-NCHAR
         #    LENGTH rewrite branch without perturbing the shared 3-source corpus.
@@ -15879,7 +15881,13 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         TestFq13Explain._class_setup_done = True
 
     def teardown_class(self):
+        for cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, _INFLUX_BUCKET)
+            except Exception as exc:
+                tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         tmp = TestFq13Explain()
+        tmp._drop_influx_sources(_SRC_INFLUX)
         for src in [_SRC_MYSQL, _SRC_PG, _SRC_INFLUX, _SRC_MYSQL_ASCII,
                     _SRC_PG_ASCII, _SRC_SQLSERVER, _SRC_ORACLE]:
             tmp._cleanup_src(src)
@@ -15888,7 +15896,6 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             (ExtSrcEnv.mysql_drop_db_cfg, (tmp._mysql_cfg(), _MYSQL_ASCII_DB)),
             (ExtSrcEnv.pg_drop_db_cfg, (tmp._pg_cfg(), _PG_DB)),
             (ExtSrcEnv.pg_drop_db_cfg, (tmp._pg_cfg(), _PG_ASCII_DB)),
-            (ExtSrcEnv.influx_drop_db, (_INFLUX_BUCKET,)),
             (ExtSrcEnv.sqlserver_drop_db, (_SQLSERVER_DB,)),
         ]:
             try:
@@ -16591,6 +16598,49 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
     # Validators
     # ------------------------------------------------------------------
 
+    def _uses_influx18(self, src_info):
+        return self._influx_cfg().version == "1.8" and self._influx_source_name(_SRC_INFLUX) in (
+            src_info.get("src"), src_info.get("src2"))
+
+    def _validate_influx18(self, case_id, mode, lines, case_def, src_info):
+        """Check the raw-scan contract for every existing Influx query case.
+
+        3.x pushdown goldens describe a different plan. Keep those goldens
+        unchanged and validate the 1.8 scan boundary in all four modes;
+        ANALYZE also executes each query's local computation.
+        """
+        errors = []
+        native_scan = False
+        native_scans = 0
+        remote_count = 0
+        identifier = INFLUX18_QUOTED_IDENTIFIER
+        raw_select = re.compile(
+            rf'SELECT\s+{identifier}(?:\s*,\s*{identifier})*\s+FROM\s+'
+            rf'{identifier}\.{identifier}\.{identifier}\s*', re.I)
+        for line in lines:
+            if "-> " in line:
+                native_scan = "Federated Scan on " + self._influx_source_name(_SRC_INFLUX) + "." in line
+                if native_scan:
+                    native_scans += 1
+                    if "influxdb-1.8" not in line:
+                        errors.append((case_id, "version", line))
+            if native_scan and "Remote SQL:" in line:
+                remote_count += 1
+                remote = line.split("Remote SQL:", 1)[1].strip()
+                if not raw_select.fullmatch(remote):
+                    errors.append((case_id, "raw_scan", remote))
+        if native_scans == 0:
+            errors.append((case_id, "federated_scan", "InfluxDB 1.8 scan missing"))
+        if mode in ANALYZE_MODES and mode in VERBOSE_MODES and native_scans and not remote_count:
+            errors.append((case_id, "remote_sql", "Executed scan has no Remote SQL"))
+        args = case_def.get("check_args", {})
+        for value in _per_src(args.get("no_data_leak", []), src_info.get("label", "")):
+            if any(value in line for line in lines):
+                errors.append((case_id, "no_data_leak", value))
+        if mode in ANALYZE_MODES and not any("rows=" in line for line in lines):
+            errors.append((case_id, "analyze_metrics", "Execution row counts missing"))
+        return errors
+
     def _validate(self, case_id, mode, lines, case_def, src_info):
         """Run all validators in case_def['checks'] for the given mode.
 
@@ -16604,6 +16654,8 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         warnings. ``type_mapping`` stays informational because the
         current explain output does not emit that section.
         """
+        if self._uses_influx18(src_info):
+            return self._validate_influx18(case_id, mode, lines, case_def, src_info)
         checks = case_def.get("checks", [])
         raw_args = case_def.get("check_args", {})
         # Resolve per-source expectations: a check-arg value may be a plain
@@ -17070,7 +17122,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             SRC=src_info["src"], DB=src_info["db"],
         )
 
-    def _expand_sources(self, case_def):
+    def _expand_source_templates(self, case_def):
         """Yield (expanded_id, src_info) for a case definition.
 
         Every statement runs against ALL external sources.
@@ -17088,6 +17140,16 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         elif sources_type == "cross":
             for pair in _CROSS_PAIRS:
                 yield f"{case_def['id']}_{pair['label']}", pair, sources_type
+
+    def _expand_sources(self, case_def):
+        for case_id, info, source_type in self._expand_source_templates(case_def):
+            yield case_id, info, source_type, None
+            for cfg in self._influx_configs()[1:]:
+                aliases = getattr(type(self), '_influx_aliases', {}).get(cfg.version, {})
+                mapped = {key: self._replace_influx_sources(value, aliases) if isinstance(value, str) else value
+                          for key, value in info.items()}
+                if mapped != info:
+                    yield case_id + '@inf' + cfg.version, mapped, source_type, cfg
 
     @staticmethod
     def _iter_case_sqls(case_def, key):
@@ -17113,6 +17175,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         os.makedirs(self._ANS_DIR, exist_ok=True)
         baseline_file = self._baseline_path(baseline_name)
         blocks = []
+        influx18_ids = set()
         failed = []
         mode_label = _MODE_LABELS[mode]
 
@@ -17162,129 +17225,138 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                 expect_err_spec = case_def.get("expect_err", False)
                 raw_args = case_def.get("check_args", {})
 
-                for expanded_id, src_info, src_type in \
+                for expanded_id, src_info, src_type, cfg in \
                         self._expand_sources(case_def):
-                    if _id_filters and not any(part in expanded_id for part in _id_filters):
-                        continue
-                    is_ss_block = "sqlserver" in expanded_id.lower()
-                    # An Oracle block is any block of the Oracle pass: the
-                    # single-source Oracle leg and the three cross pairs whose
-                    # label has no "sqlserver".  The sqlserver_oracle pair keeps
-                    # running with the SQL Server blocks and their skip.
-                    is_oracle_block = ("oracle" in expanded_id.lower() and
-                                       not is_ss_block)
-                    if is_ss_block and _SS_LOCAL_CHAR_RE.search(sql_tpl.lower()):
-                        tdLog.info(
-                            f"[{expanded_id:<24s}] SKIP  SQL Server character "
-                            f"semantics covered by test_fq_20_sqlserver_semantics")
-                        continue
-                    block_phase = 2 if is_oracle_block else (1 if is_ss_block else 0)
-                    if phase != block_phase:
-                        continue
-                    # Per-source expect_err: accepts bool (all sources) or
-                    # dict{label:bool} (per-source).  Resolve for this source.
-                    src_label = src_info.get("label", "")
-                    expect_err = _per_src(expect_err_spec, src_label)
-                    expect_err_contains = _per_src(
-                        raw_args.get("expect_err_contains", []), src_label)
-                    if isinstance(expect_err_contains, str):
-                        expect_err_contains = [expect_err_contains]
-                    sql = self._make_real_sql(sql_tpl, src_info, src_type)
-                    for attempt in range(2):
-                        t0 = _time.monotonic()
-                        try:
-                            self._exec_case_sqls(case_def, "pre_sql", src_info, src_type, expanded_id)
-                            lines = self._exec_explain(sql, mode)
-                            elapsed = _time.monotonic() - t0
-                            if expect_err:
-                                # EXPLAIN succeeded but we expected it to fail —
-                                # this is an unexpected success (regression).
-                                msg = (f"[{_MODE_LABELS[mode]}] EXPLAIN unexpectedly "
-                                       f"succeeded (expect_err=True): {sql}")
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] FAIL  expect_err: {msg}  "
-                                    f"[{elapsed:.2f}s]")
-                                failed.append((expanded_id, "expect_err", msg))
-                                # Still serialize the result for the baseline record.
-                                blocks.append(self._serialize_explain(
-                                    expanded_id, sql, lines))
-                            else:
-                                errs = self._validate(expanded_id, mode, lines,
-                                                      case_def, src_info)
-                                blocks.append(self._serialize_explain(
-                                    expanded_id, sql, lines))
-                                if errs:
-                                    for eid, chk, msg in errs:
-                                        tdLog.info(
-                                            f"[{eid:<24s}] FAIL  {chk}: {msg}  "
-                                            f"[{elapsed:.2f}s]")
-                                        failed.append((eid, chk, msg))
-                                else:
+                    with self._using_influx(cfg):
+                        if _id_filters and not any(part in expanded_id for part in _id_filters):
+                            continue
+                        is_ss_block = "sqlserver" in expanded_id.lower()
+                        # An Oracle block is any block of the Oracle pass: the
+                        # single-source Oracle leg and the three cross pairs whose
+                        # label has no "sqlserver".  The sqlserver_oracle pair keeps
+                        # running with the SQL Server blocks and their skip.
+                        is_oracle_block = ("oracle" in expanded_id.lower() and
+                                           not is_ss_block)
+                        if is_ss_block and _SS_LOCAL_CHAR_RE.search(sql_tpl.lower()):
+                            tdLog.info(
+                                f"[{expanded_id:<24s}] SKIP  SQL Server character "
+                                f"semantics covered by test_fq_20_sqlserver_semantics")
+                            continue
+                        block_phase = 2 if is_oracle_block else (1 if is_ss_block else 0)
+                        if phase != block_phase:
+                            continue
+                        # Per-source expect_err: accepts bool (all sources) or
+                        # dict{label:bool} (per-source).  Resolve for this source.
+                        src_label = src_info.get("label", "")
+                        if self._uses_influx18(src_info):
+                            influx18_ids.add(expanded_id)
+                        expect_err = _per_src(expect_err_spec, src_label)
+                        expect_err_contains = _per_src(
+                            raw_args.get("expect_err_contains", []), src_label)
+                        if isinstance(expect_err_contains, str):
+                            expect_err_contains = [expect_err_contains]
+                        sql = self._make_real_sql(sql_tpl, src_info, src_type)
+                        for attempt in range(2):
+                            t0 = _time.monotonic()
+                            try:
+                                self._exec_case_sqls(case_def, "pre_sql", src_info, src_type, expanded_id)
+                                lines = self._exec_explain(sql, mode)
+                                elapsed = _time.monotonic() - t0
+                                if expect_err:
+                                    # EXPLAIN succeeded but we expected it to fail —
+                                    # this is an unexpected success (regression).
+                                    msg = (f"[{_MODE_LABELS[mode]}] EXPLAIN unexpectedly "
+                                           f"succeeded (expect_err=True): {sql}")
                                     tdLog.info(
-                                        f"[{expanded_id:<24s}] PASS  "
-                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
-                            break
-                        except Exception as e:
-                            elapsed = _time.monotonic() - t0
-                            if self._maybe_recover_case(expanded_id, sql, e, attempt):
-                                continue
-                            if expect_err:
-                                err_text = str(e)
-                                missing = [
-                                    kw for kw in expect_err_contains
-                                    if kw not in err_text
-                                ]
-                                if missing:
-                                    msg = (
-                                        f"[{_MODE_LABELS[mode]}] Expected error "
-                                        f"missing {missing}: {err_text}"
-                                    )
-                                    tdLog.info(
-                                        f"[{expanded_id:<24s}] FAIL  "
-                                        f"expect_err_contains: {msg}  "
+                                        f"[{expanded_id:<24s}] FAIL  expect_err: {msg}  "
                                         f"[{elapsed:.2f}s]")
-                                    failed.append(
-                                        (expanded_id, "expect_err_contains", msg))
-                                # Expected failure — record as POS block (error text
-                                # captured in baseline for change detection).
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] PASS(expected-err)  "
-                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
-                                blocks.append(self._serialize_err(
-                                    expanded_id, sql, str(e)))
-                            else:
-                                # Unexpected failure — this is a real test failure.
-                                tdLog.info(
-                                    f"[{expanded_id:<24s}] FAIL(exec-err)  "
-                                    f"{sql_tpl[:55]}  [{elapsed:.2f}s]  {e}")
-                                blocks.append(self._serialize_err(
-                                    expanded_id, sql, str(e)))
-                                failed.append((expanded_id, "exec_err", str(e)))
-                            break
-                    try:
-                        self._exec_case_sqls(case_def, "post_sql", src_info, src_type, expanded_id)
-                    except Exception as e:
-                        tdLog.info(
-                            f"[{expanded_id:<24s}] FAIL(post-sql)  "
-                            f"{sql_tpl[:55]}  {e}")
-                        failed.append((expanded_id, "post_sql", str(e)))
-                    # Determinism guard: every case that issued a `use
-                    # <source>` runs in its own session, so its resolution
-                    # context cannot influence the render of a later case.
-                    # (The extra FROM_UNIXTIME wrap these baselines once showed
-                    # came from the baseline normaliser, not from the planner;
-                    # the reset keeps the raw plan text independent of case
-                    # order regardless.)
-                    if self._iter_case_sqls(case_def, "pre_sql"):
-                        self._reset_td_session()
+                                    failed.append((expanded_id, "expect_err", msg))
+                                    # Still serialize the result for the baseline record.
+                                    blocks.append(self._serialize_explain(
+                                        expanded_id, sql, lines))
+                                else:
+                                    errs = self._validate(expanded_id, mode, lines,
+                                                          case_def, src_info)
+                                    blocks.append(self._serialize_explain(
+                                        expanded_id, sql, lines))
+                                    if errs:
+                                        for eid, chk, msg in errs:
+                                            tdLog.info(
+                                                f"[{eid:<24s}] FAIL  {chk}: {msg}  "
+                                                f"[{elapsed:.2f}s]")
+                                            failed.append((eid, chk, msg))
+                                    else:
+                                        tdLog.info(
+                                            f"[{expanded_id:<24s}] PASS  "
+                                            f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
+                                break
+                            except Exception as e:
+                                elapsed = _time.monotonic() - t0
+                                if self._maybe_recover_case(expanded_id, sql, e, attempt):
+                                    continue
+                                if expect_err:
+                                    err_text = str(e)
+                                    missing = [
+                                        kw for kw in expect_err_contains
+                                        if kw not in err_text
+                                    ]
+                                    if missing:
+                                        msg = (
+                                            f"[{_MODE_LABELS[mode]}] Expected error "
+                                            f"missing {missing}: {err_text}"
+                                        )
+                                        tdLog.info(
+                                            f"[{expanded_id:<24s}] FAIL  "
+                                            f"expect_err_contains: {msg}  "
+                                            f"[{elapsed:.2f}s]")
+                                        failed.append(
+                                            (expanded_id, "expect_err_contains", msg))
+                                    # Expected failure — record as POS block (error text
+                                    # captured in baseline for change detection).
+                                    tdLog.info(
+                                        f"[{expanded_id:<24s}] PASS(expected-err)  "
+                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]")
+                                    blocks.append(self._serialize_err(
+                                        expanded_id, sql, str(e)))
+                                else:
+                                    # Unexpected failure — this is a real test failure.
+                                    tdLog.info(
+                                        f"[{expanded_id:<24s}] FAIL(exec-err)  "
+                                        f"{sql_tpl[:55]}  [{elapsed:.2f}s]  {e}")
+                                    blocks.append(self._serialize_err(
+                                        expanded_id, sql, str(e)))
+                                    failed.append((expanded_id, "exec_err", str(e)))
+                                break
+                        try:
+                            self._exec_case_sqls(case_def, "post_sql", src_info, src_type, expanded_id)
+                        except Exception as e:
+                            tdLog.info(
+                                f"[{expanded_id:<24s}] FAIL(post-sql)  "
+                                f"{sql_tpl[:55]}  {e}")
+                            failed.append((expanded_id, "post_sql", str(e)))
+                        # Determinism guard: every case that issued a `use
+                        # <source>` runs in its own session, so its resolution
+                        # context cannot influence the render of a later case.
+                        # (The extra FROM_UNIXTIME wrap these baselines once showed
+                        # came from the baseline normaliser, not from the planner;
+                        # the reset keeps the raw plan text independent of case
+                        # order regardless.)
+                        if self._iter_case_sqls(case_def, "pre_sql"):
+                            self._reset_td_session()
 
-        output = ExtSrcEnv.baseline_environment("\n".join(blocks) + "\n")
+        # Native 1.8 blocks have been checked against the raw-scan contract.
+        # Compare every unaffected source against its existing 3.x-era golden.
+        baseline_blocks = [block for block in blocks
+                           if block.split("\n", 1)[0][4:].split(" ")[0] not in influx18_ids]
+        output = ExtSrcEnv.baseline_environment("\n".join(baseline_blocks) + "\n")
         # When either filter is active, extract only the matching blocks from
         # the baseline so we compare like-for-like (filtered subset vs subset).
-        if _case_filter or _id_filter:
+        if not baseline_blocks:
+            pass
+        elif _case_filter or _id_filter or influx18_ids:
             # Collect the expanded_ids that were actually executed.
             executed_ids = set()
-            for b in blocks:
+            for b in baseline_blocks:
                 first_line = b.split("\n")[0]
                 if first_line.startswith("### "):
                     # Every serialized block is "### <expanded_id> <kind>"; the

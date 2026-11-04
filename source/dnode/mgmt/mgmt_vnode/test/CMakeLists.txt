@@ -28,4 +28,11 @@ target_include_directories(
 # dnode-module symbols mgmt_dnode pulls in unresolved
 target_link_libraries(vmReplicaCfgTest PRIVATE os util common dnode)
 
+if(TD_LINUX)
+    # This test bypasses taosd's main, so GNU ld does not extract the dnode
+    # startup object. Root the real entry point before scanning the management
+    # and core archives to resolve their back-references to each other.
+    target_link_options(vmReplicaCfgTest PRIVATE "LINKER:--undefined=dmInit")
+endif()
+
 add_test(NAME vmReplicaCfgTest COMMAND vmReplicaCfgTest)

@@ -477,6 +477,7 @@ typedef struct SFederatedScanExplainInfo {
   bool    batchMode;                                // true when runtime input is a source batch
   int32_t batchTables;                              // number of remote tables in the active batch
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];     // registered external source batch key
+  char    influxRp[TSDB_EXT_INFLUX_RP_LEN]; // namespace of the displayed runtime SQL
 } SFederatedScanExplainInfo;
 
 typedef struct STUidTagInfo {

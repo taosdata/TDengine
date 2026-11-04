@@ -46,6 +46,13 @@ int32_t extConnectorOpen(const SExtSourceCfg *cfg, SExtConnectorHandle **ppHandl
 
 void extConnectorClose(SExtConnectorHandle *pHandle) { (void)pHandle; }
 
+int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExtInfluxScanSpec *pSpec, char **ppSQL) {
+  (void)pHandle;
+  (void)pSpec;
+  if (ppSQL != NULL) *ppSQL = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
 int32_t extConnectorGetTableSchema(SExtConnectorHandle *pHandle, const SExtTableNode *pTable,
                                    SExtTableMeta **ppOut) {
   (void)pHandle;

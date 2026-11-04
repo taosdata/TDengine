@@ -21,6 +21,8 @@ if(TD_ENTERPRISE)
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorQuery.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorRuntime.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxPlugin.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxV1.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extInfluxHttpCommon.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorMySQL.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorPG.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorSQLServer.c
@@ -43,6 +45,8 @@ target_link_libraries(
   PRIVATE os util common qcom nodes
 )
 
+DEP_ext_cjson(extconnector)
+
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
   target_link_options(extconnector INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
 endif()
@@ -51,6 +55,7 @@ endif()
 # ExternalProject_Add; see community/cmake/external.cmake for build rules)
 # ──────────────────────────────────────────────────────────────────────────────
 if(TD_ENTERPRISE)
+  DEP_ext_curl(extconnector)
   if(BUILD_WITH_MARIADB)
     target_compile_definitions(extconnector PRIVATE HAVE_MARIADB_C)
     message(STATUS "ExtConnector: MySQL provider enabled with runtime libmariadb loading")
@@ -74,7 +79,7 @@ if(TD_ENTERPRISE)
     target_compile_definitions(extconnector PRIVATE HAVE_ARROW)
     message(STATUS "ExtConnector: InfluxDB provider enabled via optional runtime plugin")
   else()
-    message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB provider disabled")
+    message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB 1.8 HTTP enabled; 3.x provider disabled")
   endif()
 
   if(BUILD_WITH_ODBC)
@@ -429,6 +434,7 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW)
   # Flight there), so the plugin is built with only the HTTP transport.  The
   # provider registration and dispatch layer are identical on every platform.
   add_library(taos_ext_influx_arrow SHARED
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extInfluxHttpCommon.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxDispatch.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxHttp.cpp
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInflux.cpp

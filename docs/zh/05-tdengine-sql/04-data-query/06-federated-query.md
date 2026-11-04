@@ -10,7 +10,7 @@ toc_max_heading_level: 3
 
 ## 功能范围
 
-联邦查询仅可用于独立的 `SELECT` 查询，支持 MySQL、PostgreSQL、InfluxDB v3、SQL Server（2019 / 2022）和 Oracle（11g Release 2 及以上）作为外部数据源。除没有对应概念或无法映射类型的场景外，外部表可使用 TDengine 的全部查询功能，并可与本地表或其他外部源表组合查询。
+联邦查询仅可用于独立的 `SELECT` 查询，支持 MySQL、PostgreSQL、InfluxDB 1.8.x（OSS）和 3.x、SQL Server（2019 / 2022）和 Oracle（11g Release 2 及以上）作为外部数据源。除没有对应概念或无法映射类型的场景外，外部表可使用 TDengine 的全部查询功能，并可与本地表或其他外部源表组合查询。
 
 ### 支持能力
 
@@ -45,9 +45,11 @@ toc_max_heading_level: 3
 
 ### 联邦查询依赖库
 
-使用联邦查询前，必须安装与 TDengine 版本匹配的联邦查询依赖库安装包，并在实际执行联邦查询的服务器上完成安装。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 使用 Apache Arrow Flight SQL 运行库，SQL Server 使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，Oracle 使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见[版本和兼容性](#外部数据库版本)）。
+使用联邦查询前，应按外部源类型，在实际执行联邦查询的服务器上安装与 TDengine 版本匹配的联邦查询依赖库安装包。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 3.x 使用 Apache Arrow Flight SQL 运行库，SQL Server 使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，Oracle 使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见[版本和兼容性](#外部数据库版本)）。
 
-**注意事项**：未安装对应运行库时，无法创建或查询相应类型的外部数据源。升级 TDengine 时，应同时升级版本匹配的联邦查询依赖库安装包。
+InfluxDB 1.8 支持随企业版 TDengine 提供，无需额外安装 InfluxDB 客户端库或 Arrow 运行库。
+
+**注意事项**：对于需要第三方运行库的数据源，未安装对应运行库时，无法创建或查询相应类型的外部数据源。升级 TDengine 时，应同时升级版本匹配的联邦查询依赖库安装包。
 
 ### 联邦查询插件包（第三方运行库）
 
@@ -185,12 +187,22 @@ PostgreSQL 专属参数如下：
 
 #### InfluxDB 参数
 
-InfluxDB 专属参数如下：
+InfluxDB 1.8 和 3.x 均使用 `TYPE = 'influxdb'`，通过 `version` 区分版本：
 
 | 参数 | 取值 | 默认值 | 说明 |
-| ----------- | --- | --- | --- |
-| `api_token` | 字符串 | 空 | InfluxDB 必填的认证 Token。设置该参数时，`USER` 和 `PASSWORD` 可以为空。展示时脱敏。 |
-| `protocol`  | `flight_sql` 或 `http` | `flight_sql` | 与 InfluxDB 通信的协议。`flight_sql` 使用 Arrow Flight SQL（gRPC），`http` 使用 HTTP API；两种协议均支持通用 TLS 参数。 |
+| --- | --- | --- | --- |
+| `version` | `3` 或 `1.8` | `3` | 访问 InfluxDB 1.8 时必须显式设置为 `1.8`；省略时沿用 3.x 行为。 |
+| `protocol` | `flight_sql` 或 `http` | 3.x 为 `flight_sql`；1.8 为 `http` | 1.8 仅支持 HTTP；3.x 支持 Arrow Flight SQL（gRPC）和 HTTP API。 |
+| `api_token` | 字符串 | 空 | 3.x 的认证 Token，设置后 `USER` 和 `PASSWORD` 可以为空，展示时脱敏；1.8 不接受非空值，使用 `USER` 和 `PASSWORD` 进行 HTTP Basic 认证。 |
+| `retention_policy` | 非空 RP 名称，区分大小写 | 目标 database 的默认 RP | 仅适用于 1.8，指定读取的保留策略（Retention Policy，RP）。3.x 不接受此选项。 |
+
+InfluxDB 1.8 不接受非空 `SCHEMA`、`tls_client_cert` 或 `tls_client_key`。支持 `tls_enabled`、`tls_ca_cert` 和通用超时参数；`tls_ca_cert` 可以是 CA 证书文件路径或 PEM 文本。服务端关闭认证时，`USER` 和 `PASSWORD` 可以为空。
+
+RP 决定访问哪个保留策略中的 Measurement 数据。显式指定 `retention_policy` 时使用该 RP，不存在时报错，不回退到其他 RP；省略时使用本次访问的 database 的默认 RP，显式访问其他 database 时不会沿用源默认 database 的 RP。直接查询和虚拟表引用均使用同一规则，RP 不增加外部表、列引用或 `SERIES` 目标的路径层级。访问不同 RP 时，需要分别创建外部数据源。
+
+可用 `ALTER EXTERNAL SOURCE influx18_prod SET OPTIONS ('retention_policy' = '')` 删除显式 RP 配置，恢复使用目标 database 的默认 RP。远端默认 RP 变化后，执行 `REFRESH EXTERNAL SOURCE influx18_prod` 更新缓存。
+
+创建或修改外部源时校验配置格式及参数组合，不校验远端 database、RP 或 Measurement 是否存在；查询或查看外部表结构时才进行相关校验。建立连接时会检查服务器报告的版本，不匹配时报错，不自动切换为其他版本。
 
 #### SQL Server 参数
 
@@ -255,6 +267,23 @@ OPTIONS (
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
 );
+
+-- InfluxDB 1.8：HTTP Basic 认证，显式选择 RP
+CREATE EXTERNAL SOURCE influx18_prod
+TYPE = 'influxdb'
+HOST = 'influx18.example.com'
+PORT = 8086
+USER = 'readonly'
+PASSWORD = 'your_password'
+DATABASE = telegraf
+OPTIONS (
+    'version' = '1.8',
+    'protocol' = 'http',
+    'retention_policy' = 'autogen'
+);
+
+-- 直接查询：表路径不包含 RP
+SELECT time, value FROM influx18_prod.telegraf.meters;
 
 -- SQL Server 2022：指定默认 database 和 schema，启用 TLS 并校验服务端证书
 CREATE EXTERNAL SOURCE sqlserver_prod
@@ -487,7 +516,7 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 | Oracle     | Schema | 一个查询命名空间。 |
 | Oracle     | Table、View、Materialized View | 普通表。视图可不含时间戳列；无时间线时的规则见 [无时间线的外部表](#无时间线的外部表)。 |
 
-MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触发器，以及 SQL Server 的同义词、存储过程、触发器、索引、约束和 SQL Server Agent 对象不参与联邦查询。InfluxDB 的 Bucket 和 Retention Policy 为存储策略，不影响联邦查询。Oracle 的同义词、序列、PL/SQL 包/过程/函数、触发器、索引、约束和调度对象不参与联邦查询，同义词出现在路径中时按对象不存在处理。
+MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触发器，以及 SQL Server 的同义词、存储过程、触发器、索引、约束和 SQL Server Agent 对象不参与联邦查询。InfluxDB 1.8 的 RP 决定读取的数据范围，由外部源的 `retention_policy` 指定，省略时使用目标 database 的默认 RP；3.x 按 database 和 Measurement 访问，数据保留期限由 InfluxDB 管理，不使用该选项。两个版本均不在联邦查询路径中增加独立的 RP 层级。Oracle 的同义词、序列、PL/SQL 包/过程/函数、触发器、索引、约束和调度对象不参与联邦查询，同义词出现在路径中时按对象不存在处理。
 
 **说明**：标识符大小写遵循外部数据库规则：MySQL 默认不区分大小写；PostgreSQL 默认折叠为小写，使用引号时保留原始大小写；InfluxDB 区分大小写；SQL Server 由对象所在 database 的排序规则决定，跨 database 时可能不同，使用方括号或双引号引用的标识符保留原始名称；Oracle 未加引号的标识符折叠为大写，使用双引号时保留原始大小写。
 
@@ -575,6 +604,8 @@ SELECT * FROM oracle_prod.TELEMETRY.device_info;
 | Oracle     | `source_name.table` | `source_name.schema.table` |
 
 两段式路径使用创建外部数据源时指定的默认 `DATABASE` 或 `SCHEMA`；未设置默认值时必须使用完整路径。
+
+**InfluxDB 1.8 路径说明**：例如 `influx18_prod.telegraf.meters` 仍为三段式表路径，不写 RP；RP 来自外部源配置或目标 database 的默认值。
 
 **SQL Server 路径说明**：三段式 `source_name.schema.table` 的中间段为 schema，database 取默认值；四段式 `source_name.database.schema.table` 依次给出 database 和 schema。四段式路径只能访问同一 SQL Server 实例上、登录账号有权限的其他 database，不支持跨实例访问。
 
@@ -774,7 +805,7 @@ WHERE ts >= '2026-03-01 00:00:00'
 ORDER BY ts;
 ```
 
-当外部源具备等价语义时，系统优先在源端执行可等价的计算，以减少数据传输；外部源不具备等价语义或源端执行失败时，系统读取必要原始数据并在本地完成计算。执行位置只影响性能，不影响正常完成查询的结果。
+当外部源具备等价语义且连接器支持相应下推时，系统优先在源端执行可等价的计算，以减少数据传输；外部源不具备等价语义或源端执行失败时，系统读取必要原始数据并在本地完成计算。执行位置只影响性能，不影响正常完成查询的结果。
 
 ### 功能限制
 
@@ -796,6 +827,10 @@ MySQL、PostgreSQL、SQL Server 和 Oracle 外部表不支持 `SELECT TAGS ...`�
 
 外部访问必须通过外部数据源对象完成，路径必须遵循数据源类型约束，TDengine 既有功能限制同样适用于联邦查询。
 
+#### InfluxDB 1.8 类型冲突
+
+同一 Measurement 中，同名 Field 跨 shard 存在不同类型、Field 与 Tag 同名，或列名仅大小写不同且本地无法区分时，查询返回 `TSDB_CODE_EXT_SCHEMA_CONFLICT`。同一 Measurement 在其他 RP 中存在 Field 类型冲突时，也可能被拒绝。应统一类型或拆分 Measurement、消除名称冲突，再执行 `REFRESH EXTERNAL SOURCE`。
+
 ### 性能退化场景
 
 以下查询可以使用，但在外部源没有等价语义时会读取更多原始数据并在本地计算，大数据量场景可能出现性能退化：
@@ -806,7 +841,7 @@ MySQL、PostgreSQL、SQL Server 和 Oracle 外部表不支持 `SELECT TAGS ...`�
 - 标量和聚合 UDF。
 - 其他外部源没有直接等价语义的函数、运算符和功能。
 
-**注意事项**：应通过缩小时间范围、增加过滤条件和减少返回列来降低外部读取量；同时检查外部数据库的慢查询和索引状态。
+**注意事项**：对于支持相应源端执行能力的数据源，可通过缩小时间范围、增加过滤条件和减少返回列来降低外部读取量；同时检查外部数据库的慢查询和索引状态。
 
 ## 虚拟表引用外部列
 
@@ -854,7 +889,7 @@ tag_value:
 
 ### InfluxDB SERIES 列引用
 
-对于 InfluxDB，可在创建虚拟普通表或虚拟子表时使用 `SERIES` 声明，将一个别名绑定到由 Tag 条件确定的具体 Series：
+对于 InfluxDB 1.8 和 3.x，均可在创建虚拟普通表或虚拟子表时使用 `SERIES` 声明，将一个别名绑定到由 Tag 条件确定的具体 Series：
 
 ```sql
 SERIES series_alias AS source_name.database_name.measurement_name
@@ -877,6 +912,31 @@ CREATE VTABLE v_a1 (
 )
 SERIES s1 AS influx_source.metrics.meters (device = 'd1');
 ```
+
+对于上文的 `influx18_prod`，RP 已由外部源配置为 `autogen`，`SERIES` 目标仍写为 `influx18_prod.telegraf.meters`。假设 `meters` 仅包含 `device` 一个 Tag，且 `value` 为浮点 Field，以下示例同时创建虚拟普通表、虚拟超级表和虚拟子表：
+
+```sql
+CREATE DATABASE IF NOT EXISTS influx18_demo PRECISION 'ns';
+USE influx18_demo;
+
+CREATE VTABLE v_influx18 (
+  ts TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+
+CREATE STABLE vst_influx18 (ts TIMESTAMP, value DOUBLE)
+TAGS (device BINARY(32)) VIRTUAL 1;
+
+CREATE VTABLE vc_influx18 (value FROM s1.value)
+USING vst_influx18 TAGS ('d1')
+SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+
+SELECT ts, value FROM v_influx18 ORDER BY ts;
+SELECT ts, value FROM vst_influx18 ORDER BY ts;
+```
+
+本地数据库使用纳秒精度，以保留 InfluxDB 的时间精度。`device = 'd1'` 是列引用的 Series 定位条件，即使查询未写 `WHERE`，读取的数据也只来自该 Series；虚拟子表的本地 `TAGS ('d1')` 不能替代 `SERIES` 声明中的 Tag 条件。
 
 可以使用 `ALTER VTABLE` 为已有虚拟表增加 `SERIES`、绑定列、解除绑定并删除 `SERIES`：
 
@@ -964,6 +1024,8 @@ INTERVAL(1h);
 
 联邦查询支持使用 `EXPLAIN` 命令进行计划展示与执行过程分析。
 
+InfluxDB 1.8 的扫描节点会显示 `InfluxDB version=1.8 RP=...`。如果 RP 在执行时确定，`EXPLAIN` 可能显示 `RP=(runtime)`；可使用 `EXPLAIN ANALYZE` 查看扫描实际使用的 RP。
+
 ```sql
 EXPLAIN
 SELECT ts, voltage, current
@@ -996,6 +1058,7 @@ FederatedScan on mysql_prod.power.sensor_data
 | `TSDB_CODE_EXT_OBJECT_NOT_FOUND`   | 外部数据库、schema、表或列不存在。 |
 | `TSDB_CODE_EXT_SYNTAX_UNSUPPORTED` | 查询语法错误、方言不兼容或使用了外部表不支持的伪列。 |
 | `TSDB_CODE_EXT_TYPE_NOT_MAPPABLE`  | 外部列类型无法映射。 |
+| `TSDB_CODE_EXT_SCHEMA_CONFLICT` | InfluxDB 1.8 的 Field 类型、Field/Tag 角色或列名存在冲突。 |
 | `TSDB_CODE_EXT_RESOURCE_EXHAUSTED` | 外部源受到并发、配额、内存或限流等资源限制。 |
 | `TSDB_CODE_EXT_TXN_CONFLICT`       | 外部源事务或锁冲突。 |
 | `TSDB_CODE_EXT_REMOTE_INTERNAL`    | 外部源内部错误或未分类错误。 |
@@ -1038,7 +1101,7 @@ FederatedScan on mysql_prod.power.sensor_data
 | ---------- | --- | --- | --- |
 | MySQL      | 5.7、8.x | 8.0 | 推荐使用 8.0 及以上。MariaDB 10.x 兼容，但不做专项测试。 |
 | PostgreSQL | 14 及以上 | 16、18.6 | 需要支持标准 SQL 特性集。 |
-| InfluxDB   | v3.x | v3.0 | 不支持 v1.x 和 v2.x。 |
+| InfluxDB | 1.8.x（OSS）、3.x | 1.8.10、3.0 | 1.8 须显式配置 `version='1.8'`；其他 1.x、2.x，以及 1.8 的 Enterprise 和云兼容接口不在支持范围内。 |
 | SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
 | Oracle     | 11.2.0.3 / 11.2.0.4、12c、18c、19c、21c、23ai、26ai | 11.2.0.4、26ai | 依赖包同时提供 Instant Client 19c 与 23ai 两套客户端，安装时按服务端版本选择生效客户端；同一部署同一时间只有一套客户端生效。 |
 
@@ -1048,7 +1111,9 @@ FederatedScan on mysql_prod.power.sensor_data
 
 ### 安装、升级和卸载
 
-**说明**：除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库（SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 也随包分发，无需单独注册；Oracle 的 Instant Client 19c / 23ai 同样随包分发），应安装在实际执行联邦查询服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
+**说明**：使用需要第三方运行库的外部源时，除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库（SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 也随包分发，无需单独注册；Oracle 的 Instant Client 19c / 23ai 同样随包分发），应安装在实际执行联邦查询服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
+
+使用 InfluxDB 1.8 时，参与解析和执行的 `taosc` 与 `taosd` 均需使用包含该功能的企业版；无需额外安装 Arrow 或 InfluxDB 客户端库。
 
 建议按以下顺序检查：
 

@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import hashlib
+import json
 import re
 import shlex
 import sys
@@ -96,10 +97,13 @@ def parse_case_line(line):
     return pytest_cmd, timeout
 
 
-def pytest_log_name(command):
+def pytest_log_name(command, environment=None):
     """Use a bounded Windows-safe name that distinguishes pytest selectors."""
     case_file = shlex.split(command)[1].rsplit("/", 1)[-1].split("::", 1)[0]
-    digest = hashlib.sha256(command.encode("utf-8")).hexdigest()[:16]
+    identity = command
+    if environment:
+        identity += "\0" + json.dumps(environment, sort_keys=True)
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
     return f"{case_file}-{digest}.log"
 
 

@@ -609,6 +609,9 @@ typedef struct SExtTableNode {
   //         (SQL Server, DS 5.3.5) must re-render (2b) unless the raw text is
   //         namespace-complete.
   bool                  nsFromPathOnly;
+  SNode*                pSeriesCondition;  // explicit virtual SERIES binding; never a user WHERE
+  SNodeList*            pInfluxSchema; // optional raw-column types and Field/Tag roles
+  char                  influxRp[TSDB_EXT_INFLUX_RP_LEN]; // metadata-bound namespace
 } SExtTableNode;
 
 #define JOIN_JLIMIT_MAX_VALUE 1024

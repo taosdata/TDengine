@@ -10,7 +10,7 @@ External access is defined through External Source objects. These objects store 
 
 ## Feature Scope
 
-Federated Query is available only for standalone `SELECT` queries and supports MySQL, PostgreSQL, InfluxDB v3, SQL Server (2019 / 2022), and Oracle (11g Release 2 and later) as external data sources. Except where there is no corresponding concept or types cannot be mapped, external tables support the full range of TDengine query capabilities and can be combined with local tables or tables from other external sources.
+Federated Query is available only for standalone `SELECT` queries and supports MySQL, PostgreSQL, InfluxDB 1.8.x (OSS) and 3.x, SQL Server (2019 / 2022), and Oracle (11g Release 2 and later) as external data sources. Except where there is no corresponding concept or types cannot be mapped, external tables support the full range of TDengine query capabilities and can be combined with local tables or tables from other external sources.
 
 ### Supported Capabilities
 
@@ -45,9 +45,11 @@ Before use, enable `federatedQueryEnable` on both the client and server. Connect
 
 ### Federated Query Runtime Libraries
 
-Before using Federated Query, you must install the federated query runtime library package that matches your TDengine version on every server that actually executes federated queries. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, Apache Arrow Flight SQL runtime libraries for InfluxDB, unixODBC plus Microsoft ODBC Driver 18 for SQL Server for SQL Server, and unixODBC plus Oracle Instant Client for Oracle (two client generations, 19c and 23ai; the installer selects the active one for the server version, see [Version and Compatibility](#external-database-versions)).
+Before using Federated Query, install the runtime library package required by your external source types on every server that executes federated queries. The package must match your TDengine version. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, Apache Arrow Flight SQL runtime libraries for InfluxDB 3.x, unixODBC plus Microsoft ODBC Driver 18 for SQL Server for SQL Server, and unixODBC plus Oracle Instant Client for Oracle (two client generations, 19c and 23ai; the installer selects the active one for the server version, see [Version and Compatibility](#external-database-versions)).
 
-**Note**: Without the corresponding runtime libraries, you cannot create or query external data sources of the respective types. When upgrading TDengine, upgrade the federated query runtime library package to a matching version as well.
+InfluxDB 1.8 support is included in TDengine Enterprise Edition and does not require additional InfluxDB client libraries or Arrow runtime libraries.
+
+**Note**: For source types that require third-party runtime libraries, you cannot create or query them without the corresponding libraries. When upgrading TDengine, upgrade the federated query runtime library package to a matching version as well.
 
 ### Federated Query Plugin Package (Third-Party Runtime Libraries)
 
@@ -185,12 +187,22 @@ PostgreSQL-specific parameters are as follows:
 
 #### InfluxDB Parameters
 
-InfluxDB-specific parameters are as follows:
+InfluxDB 1.8 and 3.x both use `TYPE = 'influxdb'`. Select the version with `version`:
 
-| Parameter   | Value | Default | Description |
-| ----------- | ----- | ------- | ----------- |
-| `api_token` | String | Empty | Required InfluxDB authentication token. When this parameter is set, `USER` and `PASSWORD` may be empty. Masked when displayed. |
-| `protocol`  | `flight_sql` or `http` | `flight_sql` | Protocol for communicating with InfluxDB. `flight_sql` uses Arrow Flight SQL (gRPC); `http` uses the HTTP API. Both protocols support common TLS parameters. |
+| Parameter | Value | Default | Description |
+| --- | --- | --- | --- |
+| `version` | `3` or `1.8` | `3` | Set explicitly to `1.8` to access InfluxDB 1.8. Omitting it preserves 3.x behavior. |
+| `protocol` | `flight_sql` or `http` | `flight_sql` for 3.x; `http` for 1.8 | 1.8 supports HTTP only. 3.x supports Arrow Flight SQL (gRPC) and the HTTP API. |
+| `api_token` | String | Empty | Authentication token for 3.x; `USER` and `PASSWORD` may be empty when it is set. Masked when displayed. 1.8 rejects nonempty values and uses `USER` and `PASSWORD` for HTTP Basic authentication. |
+| `retention_policy` | Nonempty, case-sensitive RP name | Default RP of the target database | For 1.8 only. Selects the Retention Policy (RP) to read. 3.x rejects this option. |
+
+InfluxDB 1.8 rejects nonempty `SCHEMA`, `tls_client_cert`, and `tls_client_key` values. It supports `tls_enabled`, `tls_ca_cert`, and the common timeout options. `tls_ca_cert` accepts a CA certificate file path or PEM text. `USER` and `PASSWORD` may be empty when authentication is disabled on the server.
+
+An RP selects which data is read for a Measurement. An explicit `retention_policy` selects that RP; a missing RP returns an error instead of falling back to another RP. Otherwise, the default RP of the database being accessed is used. Accessing another database does not reuse the default RP of the source's default database. Direct queries and virtual table references follow the same rule. RP does not add a segment to table paths, column references, or `SERIES` targets. Create separate external sources to access different RPs.
+
+Use `ALTER EXTERNAL SOURCE influx18_prod SET OPTIONS ('retention_policy' = '')` to remove an explicit RP and resume using the target database's default RP. After changing the default RP on InfluxDB, run `REFRESH EXTERNAL SOURCE influx18_prod` to refresh cached metadata.
+
+Creating or altering a source validates configuration syntax and option combinations, without checking whether the remote database, RP, or Measurement exists. Those checks occur when querying or describing an external table. Connections check the version reported by the server and report a mismatch instead of automatically switching versions.
 
 #### SQL Server Parameters
 
@@ -255,6 +267,23 @@ OPTIONS (
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
 );
+
+-- InfluxDB 1.8: HTTP Basic authentication with an explicit RP
+CREATE EXTERNAL SOURCE influx18_prod
+TYPE = 'influxdb'
+HOST = 'influx18.example.com'
+PORT = 8086
+USER = 'readonly'
+PASSWORD = 'your_password'
+DATABASE = telegraf
+OPTIONS (
+    'version' = '1.8',
+    'protocol' = 'http',
+    'retention_policy' = 'autogen'
+);
+
+-- Direct query: the table path does not include the RP
+SELECT time, value FROM influx18_prod.telegraf.meters;
 
 -- SQL Server 2022: default database and schema, TLS with server certificate verification
 CREATE EXTERNAL SOURCE sqlserver_prod
@@ -487,7 +516,7 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 | Oracle          | Schema          | A single query namespace. |
 | Oracle          | Table, View, Materialized View | Regular table. Views are not required to contain a timestamp column; see [External Tables Without a Timeline](#external-tables-without-a-timeline) for rules when no timeline is present. |
 
-Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and triggers in PostgreSQL, and synonyms, stored procedures, triggers, indexes, constraints, and SQL Server Agent objects in SQL Server, do not participate in federated query. InfluxDB Buckets and Retention Policies are storage policies and do not affect federated query. Oracle synonyms, sequences, PL/SQL packages/procedures/functions, triggers, indexes, constraints, and scheduler objects do not participate in federated query; a synonym in a path is treated as a missing object.
+Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and triggers in PostgreSQL, and synonyms, stored procedures, triggers, indexes, constraints, and SQL Server Agent objects in SQL Server, do not participate in federated query. For InfluxDB 1.8, the RP determines which data is read: `retention_policy` on the external source selects it explicitly, or the target database's default RP is used when the option is omitted. InfluxDB 3.x is accessed by database and Measurement, with data retention managed by InfluxDB; this option does not apply. Neither version adds a separate RP segment to federated query paths. Oracle synonyms, sequences, PL/SQL packages/procedures/functions, triggers, indexes, constraints, and scheduler objects do not participate in federated query; a synonym in a path is treated as a missing object.
 
 **Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive; SQL Server follows the collation of the database containing the object, which may differ across databases, and identifiers quoted with brackets or double quotes preserve their original names; Oracle folds unquoted identifiers to upper case and preserves the original case when double quotes are used.
 
@@ -575,6 +604,8 @@ In the `FROM` clause of a query, external table paths resolve to the table level
 | Oracle          | `source_name.table`     | `source_name.schema.table` |
 
 Two-part paths use the default `DATABASE` or `SCHEMA` specified when creating the external data source; when no default is set, the full path must be used.
+
+**InfluxDB 1.8 path notes**: `influx18_prod.telegraf.meters` remains a three-part table path, without an RP segment. The RP comes from the source configuration or the target database default.
 
 **SQL Server path notes**: In a three-part path `source_name.schema.table`, the middle segment is the schema and the database comes from the default value; a four-part path `source_name.database.schema.table` specifies the database and schema in order. Four-part paths can only access other databases on the same SQL Server instance that the login can access; cross-instance access is not supported.
 
@@ -774,7 +805,7 @@ WHERE ts ≥ '2026-03-01 00:00:00'
 ORDER BY ts;
 ```
 
-When the external source supports equivalent semantics, the system prefers to execute equivalent computations at the source to reduce data transfer. When the external source lacks equivalent semantics or source-side execution fails, the system reads the necessary raw data and completes computation locally. Execution location affects performance only and does not change the results of successfully completed queries.
+When the external source supports equivalent semantics and the connector supports the corresponding pushdown, the system prefers to execute equivalent computations at the source to reduce data transfer. When the external source lacks equivalent semantics or source-side execution fails, the system reads the necessary raw data and completes computation locally. Execution location affects performance only and does not change the results of successfully completed queries.
 
 ### Feature Limitations
 
@@ -796,6 +827,10 @@ The total number of columns and Tags on an external table or Measurement may exc
 
 External access must go through external data source objects; paths must follow data source type constraints; existing TDengine feature limitations apply equally to federated query.
 
+#### InfluxDB 1.8 Schema Conflicts
+
+Queries return `TSDB_CODE_EXT_SCHEMA_CONFLICT` if a Measurement has different types for the same Field across shards, a Field/Tag name collision, or column names that differ only by case and cannot be distinguished locally. A Field type conflict in another RP of the same Measurement may also cause rejection. Unify the types or split the Measurement, resolve name conflicts, then run `REFRESH EXTERNAL SOURCE`.
+
 ### Performance Degradation Scenarios
 
 The following queries are supported but may read more raw data and compute locally when the external source lacks equivalent semantics, which can cause performance degradation at large data volumes:
@@ -806,7 +841,7 @@ The following queries are supported but may read more raw data and compute local
 - Scalar and aggregate UDFs.
 - Other functions, operators, and features without direct equivalents in the external source.
 
-**Note**: Reduce external read volume by narrowing time ranges, adding filter conditions, and reducing returned columns; also check slow queries and index status on the external database.
+**Note**: For sources that support the corresponding remote execution, narrow time ranges, add filters, and reduce returned columns to lower external read volume. Also check slow queries and index status on the external database.
 
 ## Virtual Tables Referencing External Columns
 
@@ -854,7 +889,7 @@ tag_value:
 
 ### InfluxDB SERIES Column References
 
-For InfluxDB, a `SERIES` declaration can be appended when creating a virtual regular table or virtual subtable. It binds an alias to a specific series selected by tag conditions:
+For both InfluxDB 1.8 and 3.x, a `SERIES` declaration can be appended when creating a virtual regular table or virtual subtable. It binds an alias to a specific series selected by tag conditions:
 
 ```sql
 SERIES series_alias AS source_name.database_name.measurement_name
@@ -877,6 +912,31 @@ CREATE VTABLE v_a1 (
 )
 SERIES s1 AS influx_source.metrics.meters (device = 'd1');
 ```
+
+The `influx18_prod` source above selects RP `autogen`, while its `SERIES` target remains `influx18_prod.telegraf.meters`. Assuming `meters` has only the `device` Tag and a floating-point Field named `value`, the following example creates a virtual regular table, a virtual supertable, and a virtual subtable:
+
+```sql
+CREATE DATABASE IF NOT EXISTS influx18_demo PRECISION 'ns';
+USE influx18_demo;
+
+CREATE VTABLE v_influx18 (
+  ts TIMESTAMP,
+  value DOUBLE FROM s1.value
+)
+SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+
+CREATE STABLE vst_influx18 (ts TIMESTAMP, value DOUBLE)
+TAGS (device BINARY(32)) VIRTUAL 1;
+
+CREATE VTABLE vc_influx18 (value FROM s1.value)
+USING vst_influx18 TAGS ('d1')
+SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+
+SELECT ts, value FROM v_influx18 ORDER BY ts;
+SELECT ts, value FROM vst_influx18 ORDER BY ts;
+```
+
+The local database uses nanosecond precision to preserve InfluxDB timestamp precision. `device = 'd1'` identifies the referenced Series even when the query has no `WHERE` clause. The virtual subtable's local `TAGS ('d1')` does not replace the Tag conditions in the `SERIES` declaration.
 
 Use `ALTER VTABLE` to add a `SERIES` to an existing virtual table, bind a column to it, remove the binding, and then remove the `SERIES`:
 
@@ -964,6 +1024,8 @@ INTERVAL(1h);
 
 Federated Query supports the `EXPLAIN` command for plan display and execution analysis.
 
+For InfluxDB 1.8, the scan displays `InfluxDB version=1.8 RP=...`. If the RP is resolved during execution, `EXPLAIN` may show `RP=(runtime)`; use `EXPLAIN ANALYZE` to see the RP used by the scan.
+
 ```sql
 EXPLAIN
 SELECT ts, voltage, current
@@ -996,6 +1058,7 @@ External source runtime errors are as follows:
 | `TSDB_CODE_EXT_OBJECT_NOT_FOUND`   | External database, schema, table, or column does not exist. |
 | `TSDB_CODE_EXT_SYNTAX_UNSUPPORTED` | Query syntax error, dialect incompatibility, or use of pseudo-columns not supported on external tables. |
 | `TSDB_CODE_EXT_TYPE_NOT_MAPPABLE`  | External column type cannot be mapped. |
+| `TSDB_CODE_EXT_SCHEMA_CONFLICT` | InfluxDB 1.8 has conflicting Field types, Field/Tag roles, or column names. |
 | `TSDB_CODE_EXT_RESOURCE_EXHAUSTED` | External source limited by concurrency, quota, memory, throttling, or other resource constraints. |
 | `TSDB_CODE_EXT_TXN_CONFLICT`       | External source transaction or lock conflict. |
 | `TSDB_CODE_EXT_REMOTE_INTERNAL`    | Internal or uncategorized error on the external source. |
@@ -1038,7 +1101,7 @@ Supported and tested external database versions are as follows:
 | ---------- | ------------------ | -------------- | ----- |
 | MySQL      | 5.7, 8.x           | 8.0            | Version 8.0 and above recommended. MariaDB 10.x is compatible but not specifically tested. |
 | PostgreSQL | 14 and above       | 16, 18.6       | Requires support for the standard SQL feature set. |
-| InfluxDB   | v3.x               | v3.0           | v1.x and v2.x are not supported. |
+| InfluxDB | 1.8.x (OSS) and 3.x | 1.8.10, 3.0 | 1.8 requires `version='1.8'`. Other 1.x versions, 2.x, and 1.8 Enterprise or cloud-compatible interfaces are outside the support scope. |
 | SQL Server | 2019 (15.x), 2022 (16.x) | 2022 | Requires Microsoft ODBC Driver 18 for SQL Server; only on-premises deployments and self-managed IaaS instances are supported. |
 | Oracle     | 11.2.0.3 / 11.2.0.4, 12c, 18c, 19c, 21c, 23ai, 26ai | 11.2.0.4, 26ai | The runtime package ships both Instant Client 19c and 23ai; the installer selects the active client for the server version, and only one client is active per deployment at a time. |
 
@@ -1048,7 +1111,9 @@ Supported and tested external database versions are as follows:
 
 ### Installation, Upgrade, and Uninstall
 
-**Note**: In addition to the main TDengine installation package, you must install the federated query runtime library package (or the Federated Query plugin package from the download center) that matches your TDengine version. This package provides runtime libraries for external connectors (unixODBC and Microsoft ODBC Driver 18 for SQL Server are also shipped in the package and do not need separate registration; the Oracle Instant Client 19c / 23ai is shipped in the package as well) and should be installed on every machine that executes federated queries and hosts `taosc`; upgrade it in sync with TDengine.
+**Note**: For external source types that require third-party runtime libraries, install a federated query runtime library package that matches your TDengine version (or the Federated Query plugin package from the download center), in addition to the main TDengine installation package. This package provides runtime libraries for external connectors (unixODBC and Microsoft ODBC Driver 18 for SQL Server are also shipped in the package and do not need separate registration; the Oracle Instant Client 19c / 23ai is shipped in the package as well) and should be installed on every machine that executes federated queries and hosts `taosc`; upgrade it in sync with TDengine.
+
+For InfluxDB 1.8, all `taosc` clients and `taosd` nodes involved in parsing and execution must use an Enterprise Edition version that includes 1.8 support. No additional Arrow or InfluxDB client libraries are required.
 
 Verify the following in order:
 

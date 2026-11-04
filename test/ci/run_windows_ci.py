@@ -812,6 +812,16 @@ def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter="", su
         return run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite)
 
 
+def federated_query_influx_versions(task_text, environment):
+    configured = environment.get('FQ_INFLUX_VERSIONS', '3.0')
+    if not configured:
+        return ''
+    versions = configured.split(',')
+    for value in re.findall(r'\bFQ_INFLUX_VERSIONS=([^\s]+)', task_text):
+        versions.extend(value.strip("\"'").split(','))
+    return ','.join(dict.fromkeys(version.strip() for version in versions if version.strip()))
+
+
 def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite="smoke"):
     test_dir = source_dir / "source" / "taos-community" / "test"
     task_file = log_dir / "windows-cases.task"
@@ -827,7 +837,9 @@ def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, sui
         raise ValueError("Windows test selection is empty")
     if suite == "smoke" and any(case in contents for case in FQ_SMOKE_CASES):
         ensure_fq_pytest_dependencies(environment)
-        provision_federated_query_env(source_dir, environment)
+        provision_environment = dict(environment)
+        provision_environment['FQ_INFLUX_VERSIONS'] = federated_query_influx_versions(contents, environment)
+        provision_federated_query_env(source_dir, provision_environment)
     print(f"[windows-ci] selected test suite: {suite}", flush=True)
     prior_failures = 0
     resume_file = os.environ.get("WIN_PYTEST_RESUME_FILE")

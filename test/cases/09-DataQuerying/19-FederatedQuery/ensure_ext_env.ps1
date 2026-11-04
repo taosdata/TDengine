@@ -399,6 +399,7 @@ function Get-PgPort {
 function Get-InfluxPort {
     param([string]$Ver)
     switch ($Ver -replace '\.', '') {
+        '18' { return [int](Get-EnvOr 'FQ_INFLUX_PORT_18' 18085) }
         '30' { return [int](Get-EnvOr 'FQ_INFLUX_PORT_30' 18086) }
         '35' { return [int](Get-EnvOr 'FQ_INFLUX_PORT_35' 18087) }
         default { throw "Unknown InfluxDB version: $Ver" }
@@ -1096,6 +1097,10 @@ function Get-InfluxUrl {
     $override = [System.Environment]::GetEnvironmentVariable("FQ_INFLUX_TARBALL_$tag")
     if ($override) { return $override }
 
+    if ($Ver -eq '1.8') {
+        $mirror = Get-EnvOr 'FQ_INFLUX_MIRROR' 'https://dl.influxdata.com/influxdb/releases'
+        return "$mirror/influxdb-1.8.10_windows_amd64.zip"
+    }
     $patch = switch ($Ver) {
         '3.0' { '3.0.3' }
         '3.5' { '3.4.0' }
@@ -1161,6 +1166,30 @@ function Start-Influx {
     }
 
     Info "InfluxDB ${Ver}: starting on port $Port ..."
+    if ($Ver -eq '1.8') {
+        $nativeData = $dataDir.Replace('\', '/')
+        $cfgFile = Join-Path $Base 'influxdb.conf'
+        $backupPort = $Port + 100
+        $config = @"
+reporting-disabled = true
+bind-address = "127.0.0.1:$backupPort"
+[meta]
+  dir = "$nativeData/meta"
+[data]
+  dir = "$nativeData/data"
+  wal-dir = "$nativeData/wal"
+[http]
+  bind-address = "127.0.0.1:$Port"
+  auth-enabled = false
+[monitor]
+  store-enabled = false
+"@
+        [IO.File]::WriteAllText($cfgFile, $config)
+        Start-BackgroundProcess -Exe $influxd.FullName -ArgList '-config', $cfgFile `
+            -LogFile (Join-Path $logDir 'influxd.log') -PidFile $pidFile | Out-Null
+        return
+    }
+
     # Auth-enabled, mirroring ensure_ext_env.sh: catalog tokens are enforced so
     # the FQ auth scenarios can verify that wrong credentials fail.  The admin
     # token is created by Ensure-InfluxToken once the server is up.
@@ -1194,6 +1223,7 @@ function Test-InfluxAuthEnabled {
 # Create the admin token via the CLI and store it where the tests read it.
 function Ensure-InfluxToken {
     param([string]$Ver, [int]$Port, [string]$Base)
+    if ($Ver -eq '1.8') { return }
     $tokenFile = Join-Path $Base 'admin_token.txt'
     if ((Test-Path $tokenFile) -and ((Get-Content $tokenFile -Raw -ErrorAction SilentlyContinue) -match '^apiv3_')) {
         return
@@ -1219,6 +1249,13 @@ function Ensure-InfluxToken {
 # FQ case sat in ensure_ext_env until the 7200s pytest watchdog fired).
 function Test-InfluxResponsive {
     param([string]$Ver, [int]$Port, [int]$TimeoutSec = 10)
+    if ($Ver -eq '1.8') {
+        try {
+            $result = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
+                -Body @{q='SHOW DATABASES'} -TimeoutSec $TimeoutSec -ErrorAction Stop
+            return ($null -ne $result.results -and -not $result.error -and -not $result.results[0].error)
+        } catch { return $false }
+    }
     $headers = @{}
     $tokenFile = Join-Path (Join-Path $FqBase "influxdb\$Ver") 'admin_token.txt'
     if (Test-Path $tokenFile) {
@@ -1238,6 +1275,23 @@ function Test-InfluxResponsive {
 function Reset-InfluxEnv {
     param([string]$Ver, [int]$Port)
     Info "InfluxDB ${Ver} @ ${Port}: resetting test databases ..."
+    if ($Ver -eq '1.8') {
+        $result = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
+            -Body @{q='SHOW DATABASES'} -TimeoutSec 10 -ErrorAction Stop
+        foreach ($statement in $result.results) {
+            foreach ($series in $statement.series) {
+                foreach ($row in $series.values) {
+                    $database = $row[0]
+                    if ($database -eq '_internal') { continue }
+                    $quoted = $database.Replace('\', '\\').Replace('"', '\"')
+                    Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
+                        -Body @{q="DROP DATABASE `"$quoted`""} -TimeoutSec 10 -ErrorAction Stop | Out-Null
+                }
+            }
+        }
+        return
+    }
+
     # The server enforces tokens, so the catalog API needs the admin token.
     $headers = @{}
     $tokenFile = Join-Path (Join-Path $FqBase "influxdb\$Ver") 'admin_token.txt'
@@ -1276,7 +1330,7 @@ function Ensure-Influx {
     Info "InfluxDB ${Ver}: port=$port, base=$base"
 
     if (Test-PortOpen $port) {
-        $authEnabled = Test-InfluxAuthEnabled $port
+        $authEnabled = if ($Ver -eq '1.8') { $true } else { Test-InfluxAuthEnabled $port }
         $responsive  = $authEnabled -and (Test-InfluxResponsive $Ver $port)
         if ($responsive) {
             Info "InfluxDB ${Ver}: port $port open — already running, resetting test env."

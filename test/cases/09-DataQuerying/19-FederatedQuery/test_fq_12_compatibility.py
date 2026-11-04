@@ -888,14 +888,23 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                     bucket,
                     protocol="http",
                 )
+                query_sql = "select region, val, score from {}.{}.meas order by time"
+                if ver_cfg.version == "1.8":
+                    tdSql.error(self._mk_influx_source_sql(
+                        src_flight, ver_cfg.host, ver_cfg.port, "", database=bucket,
+                        protocol="flight_sql", version="1.8"))
+                    tdSql.query(query_sql.format(src_http, bucket))
+                    assert tdSql.queryResult == [("north", 1.5, 10), ("south", 2.5, 20), ("east", 3.5, 30)]
+                    tdSql.query(f"explain analyze verbose true select sum(score) from {src_http}.{bucket}.meas where score>10")
+                    remote = [str(row[0]) for row in tdSql.queryResult if "Remote SQL:" in str(row[0])]
+                    assert remote and all("WHERE" not in sql.upper() and "SUM(" not in sql.upper() for sql in remote)
+                    continue
                 self._mk_influx_real_ver(
                     src_flight,
                     ver_cfg,
                     bucket,
                     protocol="flight_sql",
                 )
-
-                query_sql = "select region, val, score from {}.{}.meas order by time"
 
                 tdSql.query(query_sql.format(src_http, bucket))
                 tdSql.checkRows(3)
@@ -1564,7 +1573,6 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         """
         mysql_cfg = self._mysql_cfg()
         pg_cfg = self._pg_cfg()
-        influx_cfg = self._influx_cfg()
         ss_cfg = self._sqlserver_cfg()
         o_cfg = self._oracle_cfg()
         m_src, p_src, i_src, s_src, o_src = (
@@ -1572,9 +1580,11 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         m_db, p_db, i_db, s_db = (
             "comp006_mdb", "comp006_pdb", "comp006_idb", "comp006_sdb")
         o_table = "COMP006_T"
-        markers = {m_src: 101, p_src: 102, i_src: 103, s_src: 104, o_src: 105}
+        influx_sources = list(self._influx_source_specs(i_src))
+        markers = {m_src: 101, p_src: 102, s_src: 104, o_src: 105}
+        markers.update({name: 103 + index * 100 for index, (_, name) in enumerate(influx_sources)})
         prev_active = getattr(self, "_active_oracle_ver", None)
-        self._cleanup(m_src, p_src, i_src, s_src, o_src)
+        self._cleanup(*markers)
         ExtSrcEnv.oracle_drop_table_cfg(o_cfg, o_table)
         try:
             # ----- MySQL -----
@@ -1597,11 +1607,13 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             self._mk_pg_real(p_src, database=p_db, schema="public")
 
             # ----- InfluxDB -----
-            ExtSrcEnv.influx_create_db_cfg(influx_cfg, i_db)
-            ExtSrcEnv.influx_write_cfg(influx_cfg, i_db, [
-                "comp006_t code=103i 1704067200000000000",
-            ])
-            self._mk_influx_real(i_src, database=i_db)
+            for influx_cfg, name in influx_sources:
+                with self._using_influx(influx_cfg):
+                    ExtSrcEnv.influx_create_db_cfg(influx_cfg, i_db)
+                    ExtSrcEnv.influx_write_cfg(influx_cfg, i_db, [
+                        f"comp006_t code={markers[name]}i 1704067200000000000",
+                    ])
+                    self._mk_influx_real(name, database=i_db)
 
             # ----- SQL Server -----
             ExtSrcEnv.sqlserver_create_db_cfg(ss_cfg, s_db)
@@ -1628,7 +1640,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             refs = [
                 (m_src, f"{m_src}.comp006_t"),
                 (p_src, f"{p_src}.comp006_t"),
-                (i_src, f"{i_src}.comp006_t"),
+                *((name, f"{name}.comp006_t") for _, name in influx_sources),
                 (s_src, f"{s_src}.comp006_t"),
                 (o_src, f"{o_src}.comp006_t"),
             ]
@@ -1637,12 +1649,12 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, markers[name])
 
-            # One query, five providers.
+            # One query includes every configured InfluxDB version alongside the other providers.
             union_sql = " union all ".join(
                 f"select code from {ref}" for _, ref in refs) + " order by code"
             tdSql.query(union_sql)
-            tdSql.checkRows(5)
-            for row, expected in enumerate([101, 102, 103, 104, 105]):
+            tdSql.checkRows(len(markers))
+            for row, expected in enumerate(sorted(markers.values())):
                 tdSql.checkData(row, 0, expected)
 
             # Metadata is per-source: type, address, user and namespace.
@@ -1651,12 +1663,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 "select source_name, `type`, host, `port`, `user`, `database` "
                 "from information_schema.ins_ext_sources "
                 "where source_name in "
-                f"('{m_src}','{p_src}','{i_src}','{s_src}','{o_src}') "
+                "(" + ",".join(f"'{name}'" for name in markers) + ") "
                 "order by source_name")
-            tdSql.checkRows(5)
-            # Rows come back ordered by source name: i < m < o < p < s.
+            tdSql.checkRows(len(markers))
+            # Metadata rows are ordered by source name, including each Influx alias.
             expected_rows = [
-                (i_src, "influxdb", influx_cfg.host, influx_cfg.port, "u", i_db),
+                *((name, "influxdb", cfg.host, cfg.port,
+                   ExtSrcEnv.influx_source_credentials(cfg.version)[0] if cfg.version == "1.8" else "u", i_db)
+                  for cfg, name in influx_sources),
                 (m_src, "mysql", mysql_cfg.host, mysql_cfg.port,
                  mysql_cfg.user, m_db),
                 (o_src, "oracle", o_cfg.host, o_cfg.port,
@@ -1666,7 +1680,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 (s_src, "sqlserver", ss_cfg.host, ss_cfg.port,
                  ss_cfg.user, s_db),
             ]
-            for row, (name, typ, host, port, user, database) in enumerate(expected_rows):
+            for row, (name, typ, host, port, user, database) in enumerate(sorted(expected_rows)):
                 tdSql.checkData(row, 0, name)
                 tdSql.checkData(row, 1, typ)
                 tdSql.checkData(row, 2, host)
@@ -1674,12 +1688,12 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 tdSql.checkData(row, 4, user)
                 tdSql.checkData(row, 5, database)
         finally:
-            self._cleanup(m_src, p_src, i_src, s_src, o_src)
+            self._cleanup(*markers)
             self._active_oracle_ver = prev_active
             for drop_fn, args in (
                     (ExtSrcEnv.mysql_drop_db_cfg, (mysql_cfg, m_db)),
                     (ExtSrcEnv.pg_drop_db_cfg, (pg_cfg, p_db)),
-                    (ExtSrcEnv.influx_drop_db_cfg, (influx_cfg, i_db)),
+                    *((ExtSrcEnv.influx_drop_db_cfg, (cfg, i_db)) for cfg, _ in influx_sources),
                     (ExtSrcEnv.sqlserver_drop_db_cfg, (ss_cfg, s_db))):
                 try:
                     drop_fn(*args)

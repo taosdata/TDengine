@@ -55,7 +55,7 @@ from new_test_framework.utils import tdLog, tdSql
 from federated_query_common import (
     ExtSrcEnv,
     FederatedQueryCaseHelper,
-    FederatedQueryTestMixin,
+    FederatedQueryVersionedMixin,
     _code,
 )
 
@@ -1495,7 +1495,7 @@ _EDGE_CASES = [
 # Test class
 # =====================================================================
 
-class TestFq04TimezonePrecision(FederatedQueryTestMixin):
+class TestFq04TimezonePrecision(FederatedQueryVersionedMixin):
     """Timezone & precision full-coverage test for federated query.
 
     Groups:
@@ -1510,6 +1510,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         test_negative            — neg: time-parsing errors
         test_edge_cases          — edge: overflow/clamp/silent behaviors
     """
+
 
     updatecfgDict = {
         "federatedQueryEnable": 1,
@@ -1544,8 +1545,9 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
     # ── Setup ──
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq04TimezonePrecision._class_setup_done:
+            self._mk_influx_sources(_SRC_I, database=_INFLUX_DB)
             return
         self.helper = FederatedQueryCaseHelper(__file__)
         self.helper.require_external_source_feature()
@@ -1585,10 +1587,10 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         self._mk_pg_real(_SRC_P, database=_PG_DB)
 
         # InfluxDB
-        i_cfg = self._influx_cfg()
-        ExtSrcEnv.influx_write_cfg(i_cfg, _INFLUX_DB, _INFLUX_LINES)
-        self._cleanup_src(_SRC_I)
-        self._mk_influx_real(_SRC_I, database=_INFLUX_DB)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_DB)
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_DB, _INFLUX_LINES)
+        self._mk_influx_sources(_SRC_I, database=_INFLUX_DB)
 
         # SQL Server (mirrors the MySQL fixture 1:1 — see _SQLSERVER_SETUP)
         s_cfg = self._sqlserver_cfg()
@@ -1600,7 +1602,13 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         tdLog.info("[fq04] Data setup complete.")
 
     def teardown_class(self):
+        for cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, _INFLUX_DB)
+            except Exception as exc:
+                tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         tmp = TestFq04TimezonePrecision()
+        tmp._drop_influx_sources(_SRC_I)
         tmp._cleanup_src(_SRC_M, _SRC_P, _SRC_I, _SRC_S)
         for db in [_LOCAL_DB_MS, _LOCAL_DB_US, _LOCAL_DB_NS]:
             tdSql.execute(f"DROP DATABASE IF EXISTS {db}")
@@ -1630,7 +1638,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         truthful to the real query result of each source.
         """
         blocks, failed = [], []
-        source_runs = ([("LOCAL", local_tbl)] if local_tbl else []) + list(ext_sources)
+        source_runs = ([("LOCAL", local_tbl)] if local_tbl else []) + self._expand_influx_source_list(ext_sources, label_versions=False)
 
         for entry in cases:
             case_id   = entry[0]
@@ -1668,6 +1676,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                          ordered=True,
                          expect=None):
         """Execute one SQL against one concrete source table and serialize it."""
+        case_id = self._influx_case_id(case_id, table_name)
         prefix = f"[{case_id:<18s} POS]"
         sql = sql_template.format(tbl=table_name)
         t0 = _time.monotonic()
@@ -1769,7 +1778,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
             if use_parity and local_tbl and ext_sources:
                 # Source-truth mode for parity catalog: execute and serialize each source.
-                source_runs = [("LOCAL", local_tbl)] + list(ext_sources)
+                source_runs = [("LOCAL", local_tbl)] + self._expand_influx_source_list(ext_sources, label_versions=False)
                 for src_label, src_tbl in source_runs:
                     src_case_id = self._source_case_id(case_id, src_label)
                     passed, detail, serialized = self._run_source_case(
@@ -1789,24 +1798,28 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
                 # Baseline-only mode
                 t0 = _time.monotonic()
                 sql = self._fmt(sql_template)
-                try:
-                    tdSql.query(sql, queryTimes=1)
-                    rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
-                    if not ordered:
-                        rows = sorted(
-                            rows,
-                            key=lambda row: tuple("" if v is None else str(v) for v in row),
-                        )
-                    self._check_expect(case_id, rows, expect)
-                    serialized = self._serialize_pos(case_id, sql_template, rows,
-                                                     non_deterministic=non_deterministic)
-                    blocks.append(serialized)
-                    elapsed = _time.monotonic() - t0
-                    tdLog.info(f"[{case_id:<10s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
-                except Exception as e:
-                    elapsed = _time.monotonic() - t0
-                    tdLog.info(f"[{case_id:<10s} POS] ERR   {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
-                    blocks.append(self._serialize_err(case_id, sql_template, str(e)))
+                original_case_id = case_id
+                for cfg, sql, suffix in self._influx_query_variants(sql):
+                    with self._using_influx(cfg):
+                        case_id = original_case_id + suffix
+                        try:
+                            tdSql.query(sql, queryTimes=1)
+                            rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
+                            if not ordered:
+                                rows = sorted(
+                                    rows,
+                                    key=lambda row: tuple("" if v is None else str(v) for v in row),
+                                )
+                            self._check_expect(case_id, rows, expect)
+                            serialized = self._serialize_pos(case_id, sql_template, rows,
+                                                             non_deterministic=non_deterministic)
+                            blocks.append(serialized)
+                            elapsed = _time.monotonic() - t0
+                            tdLog.info(f"[{case_id:<10s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
+                        except Exception as e:
+                            elapsed = _time.monotonic() - t0
+                            tdLog.info(f"[{case_id:<10s} POS] ERR   {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
+                            blocks.append(self._serialize_err(case_id, sql_template, str(e)))
 
         # Baseline comparison
         output = "\n".join(blocks) + "\n"
@@ -1862,25 +1875,29 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
             t0 = _time.monotonic()
             sql = self._fmt(sql_template)
-            try:
-                tdSql.query(sql, queryTimes=1)
-                rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
-                if not ordered:
-                    rows = sorted(
-                        rows,
-                        key=lambda row: tuple("" if v is None else str(v) for v in row),
-                    )
-                self._check_expect(tagged_id, rows, expect)
-                serialized = self._serialize_pos(tagged_id, sql_template, rows,
-                                                 non_deterministic=non_deterministic)
-                blocks.append(serialized)
-                elapsed = _time.monotonic() - t0
-                tdLog.info(f"[{tagged_id:<20s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
-            except Exception as e:
-                elapsed = _time.monotonic() - t0
-                tdLog.info(f"[{tagged_id:<20s} POS] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
-                blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
-                failed.append((tagged_id, sql_template, str(e)))
+            original_case_id = tagged_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    tagged_id = original_case_id + suffix
+                    try:
+                        tdSql.query(sql, queryTimes=1)
+                        rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
+                        if not ordered:
+                            rows = sorted(
+                                rows,
+                                key=lambda row: tuple("" if v is None else str(v) for v in row),
+                            )
+                        self._check_expect(tagged_id, rows, expect)
+                        serialized = self._serialize_pos(tagged_id, sql_template, rows,
+                                                         non_deterministic=non_deterministic)
+                        blocks.append(serialized)
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(f"[{tagged_id:<20s} POS] PASS  {sql_template[:70]}  [{elapsed:.2f}s]")
+                    except Exception as e:
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(f"[{tagged_id:<20s} POS] FAIL  {sql_template[:70]}  [{elapsed:.2f}s]  {e}")
+                        blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
+                        failed.append((tagged_id, sql_template, str(e)))
 
     @staticmethod
     def _check_expect(case_id, rows, expect):
@@ -2025,6 +2042,7 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
 
         with open(baseline_file, "r") as f:
             baseline = f.read()
+        baseline = self._expand_influx_baseline(baseline)
         if normalize(output) != normalize(baseline):
             out_lines = output.splitlines()
             base_lines = baseline.splitlines()
@@ -2100,18 +2118,22 @@ class TestFq04TimezonePrecision(FederatedQueryTestMixin):
         for case_id, sql_template in tz_cases:
             tagged_id = f"{tz_label}-{case_id}"
             sql = self._fmt(sql_template)
-            t0 = _time.monotonic()
-            try:
-                tdSql.query(sql, queryTimes=1)
-                rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
-                blocks.append(self._serialize_pos(tagged_id, sql_template, rows))
-                elapsed = _time.monotonic() - t0
-                tdLog.info(f"[{tagged_id:<16s} POS] PASS  [{elapsed:.2f}s]")
-            except Exception as e:
-                elapsed = _time.monotonic() - t0
-                tdLog.info(f"[{tagged_id:<16s} POS] FAIL  {e}  [{elapsed:.2f}s]")
-                failed.append((tagged_id, sql_template, str(e)))
-                blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
+            original_case_id = tagged_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    tagged_id = original_case_id + suffix
+                    t0 = _time.monotonic()
+                    try:
+                        tdSql.query(sql, queryTimes=1)
+                        rows = self._normalize_timestamp_rows(tdSql.queryResult or [], tdSql.cursor.description)
+                        blocks.append(self._serialize_pos(tagged_id, sql_template, rows))
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(f"[{tagged_id:<16s} POS] PASS  [{elapsed:.2f}s]")
+                    except Exception as e:
+                        elapsed = _time.monotonic() - t0
+                        tdLog.info(f"[{tagged_id:<16s} POS] FAIL  {e}  [{elapsed:.2f}s]")
+                        failed.append((tagged_id, sql_template, str(e)))
+                        blocks.append(self._serialize_err(tagged_id, sql_template, str(e)))
 
         # ── Time-function parity (formerly test_time_functions) ──
         tf_blocks, tf_failed = self._run_parity_phase(

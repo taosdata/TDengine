@@ -549,12 +549,20 @@ def create_sqlserver_remote_table(table, matrix, schema="dbo", rows=None,
         f"{n} {t}" for n, t, _ in matrix)
     create_sqlserver_table(_SS_DB, table, cols, rows=rows, schema=schema)
 
+def _influx_type_fixture():
+    values = {"c_int": "1i", "c_uint": "2u", "c_float": "3.5",
+              "c_str": '"x"', "c_bool": "true"}
+    if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+        del values["c_uint"]
+    return values, {name: _INF_COMPAT[name] for name in values}
+
+
 def create_influx_remote_table(meas):
-    # Influx is schema-on-write — emit one row so all fields exist.
+    # Influx is schema-on-write — emit one row so all supported fields exist.
+    values, _ = _influx_type_fixture()
+    fields = ",".join(f"{name}={value}" for name, value in values.items())
     create_influx_measurement(_INF_DB, [
-        f"{meas},tag1=a "
-        f"c_int=1i,c_uint=2u,c_float=3.5,c_str=\"x\",c_bool=true "
-        f"1700000000000000000"
+        f"{meas},tag1=a {fields} 1700000000000000000"
     ])
 
 def create_oracle_remote_table(table, matrix, rows=None, ts_type="TIMESTAMP(3)",
@@ -817,10 +825,11 @@ class TestVtableCreateExtSource:
             "my", _MY_COMPAT,
             lambda c: f"{_MY_SRC}.{_MY_DB}.t_typematrix_my.{c}")
 
-        # (c) Influx type matrix: 5 LP types × 17 TDengine local types.
+        # (c) Preserve every available LP type across all local types.
         create_influx_remote_table("t_typematrix_inf")
+        _, influx_compat = _influx_type_fixture()
         self._check_type_compat_matrix(
-            "inf", _INF_COMPAT,
+            "inf", influx_compat,
             lambda c: f"{_INF_SRC}.{_INF_DB}.t_typematrix_inf.{c}")
 
         # (c2) SQL Server type matrix: 28 remote types × 17 TDengine local

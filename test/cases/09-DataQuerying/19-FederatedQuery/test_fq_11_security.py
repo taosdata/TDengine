@@ -97,6 +97,7 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
+    influx18_basic_gate,
     TSDB_CODE_PAR_SYNTAX_ERROR,
     TSDB_CODE_MND_EXTERNAL_SOURCE_ALREADY_EXISTS,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
@@ -106,6 +107,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
     TSDB_CODE_EXT_CONFIG_PARAM_INVALID,
     TSDB_CODE_EXT_AUTH_FAILED,
+    TSDB_CODE_EXT_CONNECT_FAILED,
     FQ_CA_CERT,
     FQ_MYSQL_CA_CERT,
     FQ_MYSQL_CLIENT_CERT,
@@ -116,8 +118,12 @@ from federated_query_common import (
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_TABLE_NOT_EXIST,
     TSDB_CODE_EXT_DB_NOT_EXIST,
+    TSDB_CODE_EXT_QUERY_TIMEOUT,
+    TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
+    TSDB_CODE_EXT_REMOTE_INTERNAL,
     TSDB_CODE_EXT_CONNECT_FAILED,
     TSDB_CODE_MND_DB_NOT_EXIST,
+    influx_versions,
 )
 
 # SHOW EXTERNAL SOURCES column indices
@@ -137,6 +143,7 @@ _MASKED = "******"
 
 class TestFq11Security(FederatedQueryVersionedMixin):
     """FS-aligned security tests with full coverage (SEC-015/019 deprecated)."""
+
 
     # All source names created across tests — used by teardown_class for global cleanup
     _ALL_SOURCES = [
@@ -166,10 +173,12 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
         # Pre-cleanup: remove any leftover state from previous runs
         self._cleanup(*TestFq11Security._ALL_SOURCES)
+        TestFq11Security()._drop_influx_sources("sec002_influx")
 
     def teardown_class(self):
         """Global cleanup — remove all external sources created by any test."""
         self._cleanup(*TestFq11Security._ALL_SOURCES)
+        TestFq11Security()._drop_influx_sources("sec002_influx")
         tdSql.execute("drop user if exists sec004_user")
 
     # ------------------------------------------------------------------
@@ -185,6 +194,106 @@ class TestFq11Security(FederatedQueryVersionedMixin):
 
     def _row_text(self, row_idx):
         return "|".join(str(c) for c in tdSql.queryResult[row_idx])
+
+    def _influx_metadata_options(self, api_token="x"):
+        if self._influx_cfg().version == "1.8":
+            return "'version'='1.8'"
+        return f"'api_token'='{api_token}'"
+
+    def _assert_influx_auth_failure_masked(self, sql, secret):
+        try:
+            tdSql.cursor.execute(sql)
+            tdSql.cursor.fetchall()
+        except Exception as error:
+            assert secret not in str(error), "InfluxDB credential leaked in error message"
+            errno = getattr(error, "errno", None)
+            errno_low16 = (errno & 0xFFFF) if isinstance(errno, int) else None
+            assert errno == TSDB_CODE_EXT_AUTH_FAILED or errno_low16 == (TSDB_CODE_EXT_AUTH_FAILED & 0xFFFF), (
+                f"invalid Basic credentials should fail with AUTH_FAILED, got errno={errno}")
+        else:
+            raise AssertionError("invalid Basic credentials unexpectedly succeeded")
+
+    def do_influx18_option_effectiveness(self):
+        cfg = self._influx_cfg()
+        database = "sec014_opt_idb"
+        names = [f"sec014_influx18_{suffix}" for suffix in
+                 ("http", "bad_auth", "http_upper", "tls", "flight", "flight_upper", "token")]
+        self._cleanup(*names)
+        ExtSrcEnv.influx_create_db_cfg(cfg, database)
+        try:
+            ExtSrcEnv.influx_write_cfg(cfg, database, ["src_t,site=sec014 val=1i 1704067200000000000"])
+            with influx18_basic_gate(cfg) as (port, seen):
+                for name, protocol in ((names[0], "http"), (names[2], "HTTP")):
+                    tdSql.execute(self._mk_influx_source_sql(
+                        name, "127.0.0.1", port, "", database=database, protocol=protocol,
+                        user="basic18", password="basic18_test_password"))
+                    tdSql.query(f"select count(*) from {name}.{database}.src_t")
+                    tdSql.checkData(0, 0, 1)
+                assert seen, "HTTP query did not reach the Basic authentication fixture"
+
+                tdSql.execute(self._mk_influx_source_sql(
+                    names[1], "127.0.0.1", port, "", database=database,
+                    user="basic18", password="__bad_password__"))
+                self._assert_influx_auth_failure_masked(
+                    f"select count(*) from {names[1]}.{database}.src_t", "__bad_password__")
+
+                for name, protocol in ((names[4], "flight_sql"), (names[5], "FLIGHT_SQL")):
+                    tdSql.error(self._mk_influx_source_sql(
+                        name, "127.0.0.1", port, "", database=database, protocol=protocol,
+                        user="basic18", password="basic18_test_password"),
+                        expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                tdSql.error(self._mk_influx_source_sql(
+                    names[6], "127.0.0.1", port, "__bad_token__", database=database),
+                    expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                tdSql.query("show external sources")
+                existing = {str(row[_COL_NAME]) for row in tdSql.queryResult}
+                assert not existing.intersection(names[4:]), "rejected options left source metadata"
+
+                tdSql.execute(self._mk_influx_source_sql(
+                    names[3], "127.0.0.1", port, "", database=database,
+                    user="basic18", password="basic18_test_password",
+                    extra_options="'tls_enabled'='true','tls_ca_cert'='/tmp/fq_nonexistent_influx_ca.pem'"))
+                tdSql.error(f"select count(*) from {names[3]}.{database}.src_t",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+        finally:
+            self._cleanup(*names)
+            ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+
+    def do_influx18_default_protocol_and_tls(self):
+        cfg = self._influx_cfg()
+        database = "sec027_opt_idb"
+        names = ["sec027_influx18_default", "sec027_influx18_http_tls", "sec027_influx18_flight_tls"]
+        self._cleanup(*names)
+        ExtSrcEnv.influx_create_db_cfg(cfg, database)
+        try:
+            ExtSrcEnv.influx_write_cfg(cfg, database, ["src_t,site=sec027 val=1i 1704067200000000000"])
+            with influx18_basic_gate(cfg) as (port, seen):
+                tdSql.execute(
+                    f"create external source {names[0]} type='influxdb' host='127.0.0.1' port={port} "
+                    f"user='basic18' password='basic18_test_password' database='{database}' "
+                    "options('version'='1.8')")
+                assert not seen, "CREATE SOURCE contacted the remote server"
+                tdSql.query(f"select count(*) from {names[0]}.{database}.src_t")
+                tdSql.checkData(0, 0, 1)
+                row_idx = self._find_row(names[0])
+                assert row_idx >= 0
+                options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
+                assert "protocol" not in options_col
+
+                tdSql.execute(self._mk_influx_source_sql(
+                    names[1], "127.0.0.1", port, "", database=database,
+                    user="basic18", password="basic18_test_password",
+                    extra_options="'tls_enabled'='true','tls_ca_cert'='/tmp/fq_nonexistent_influx_http_ca.pem'"))
+                tdSql.error(f"select count(*) from {names[1]}.{database}.src_t",
+                            expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                tdSql.error(self._mk_influx_source_sql(
+                    names[2], "127.0.0.1", port, "", database=database, protocol="flight_sql",
+                    extra_options="'tls_enabled'='true','tls_ca_cert'='/tmp/fq_nonexistent_influx_flight_ca.pem'"),
+                    expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+                assert self._find_row(names[2]) == -1
+        finally:
+            self._cleanup(*names)
+            ExtSrcEnv.influx_drop_db_cfg(cfg, database)
 
     def _normal_user_sql(self, user, config=None):
         conn = taos.connect(host=self.host, port=self.port, user=user,
@@ -482,7 +591,7 @@ finally:
         2. For each: SHOW EXTERNAL SOURCES → password column must be masked
         3. DESCRIBE EXTERNAL SOURCE → password field must be masked
         4. Create PG source → same masking check
-        5. Create InfluxDB source with api_token → token must be masked
+        5. Create InfluxDB source with api_token (3.x) or Basic password (1.8) → secret masked
         6. Negative: create source with empty password → should succeed, still masked
         7. ALTER source password → new password also masked
 
@@ -501,7 +610,6 @@ finally:
         """
         cfg_mysql = self._mysql_cfg()
         cfg_pg = self._pg_cfg()
-        cfg_influx = self._influx_cfg()
         names = [
             "sec001_mysql_simple", "sec001_mysql_special", "sec001_pg",
             "sec001_influx", "sec001_empty_pwd",
@@ -540,16 +648,29 @@ finally:
         text = self._row_text(idx)
         assert "pg_secret_pw" not in text, "PG password leaked in SHOW"
 
-        # --- 3. InfluxDB source with api_token ---
-        tdSql.execute(
-            f"create external source sec001_influx type='influxdb' "
-            f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
-            f"database='telegraf' options('api_token'='influx_super_secret_token_xyz', 'protocol'='flight_sql')"
-        )
-        idx = self._find_row("sec001_influx")
-        assert idx >= 0
-        text = self._row_text(idx)
-        assert "influx_super_secret_token_xyz" not in text, "InfluxDB api_token leaked"
+        for cfg_influx in self._influx_configs():
+            with self._using_influx(cfg_influx):
+                self._cleanup("sec001_influx")
+                # --- 3. InfluxDB source with api_token ---
+                if cfg_influx.version == "1.8":
+                    tdSql.execute(self._mk_influx_source_sql(
+                        "sec001_influx", cfg_influx.host, cfg_influx.port, "", database="telegraf",
+                        user="admin", password="influx_super_secret_token_xyz"))
+                else:
+                    tdSql.execute(
+                        f"create external source sec001_influx type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='telegraf' options('api_token'='influx_super_secret_token_xyz', 'protocol'='flight_sql')"
+                    )
+                idx = self._find_row("sec001_influx")
+                assert idx >= 0
+                text = self._row_text(idx)
+                assert "influx_super_secret_token_xyz" not in text, "InfluxDB api_token leaked"
+                if cfg_influx.version == "1.8":
+                    assert "*" in str(tdSql.queryResult[idx][_COL_PASSWORD]), "InfluxDB Basic password not masked"
+                    tdSql.query("describe external source sec001_influx")
+                    assert "influx_super_secret_token_xyz" not in str(tdSql.queryResult), \
+                        "InfluxDB Basic password leaked in DESCRIBE"
 
         # --- 4. Empty password --- system rejects empty passwords for MySQL
         tdSql.error(
@@ -585,7 +706,7 @@ finally:
         Multi-dimensional coverage:
         1. MySQL: password masked in SHOW and DESCRIBE
         2. PG: password masked; schema is NOT sensitive (should show)
-        3. InfluxDB: api_token masked
+        3. InfluxDB: api_token (3.x) or Basic password (1.8) masked
         4. MySQL with TLS options (ca_cert path, client_key path):
            a. Paths ARE shown (not secret), but client_key content if any → masked
         5. SHOW column-level check: only password column is masked
@@ -607,8 +728,8 @@ finally:
         """
         cfg_mysql = self._mysql_cfg()
         cfg_pg = self._pg_cfg()
-        cfg_influx = self._influx_cfg()
-        names = ["sec002_mysql", "sec002_pg", "sec002_influx", "sec002_tls"]
+        influx_names = {name: cfg.version for cfg, name in self._influx_source_specs("sec002_influx")}
+        names = ["sec002_mysql", "sec002_pg", "sec002_tls", *influx_names]
         self._cleanup(*names)
 
         tdSql.execute(
@@ -620,11 +741,18 @@ finally:
             f"host='{cfg_pg.host}' port={cfg_pg.port} user='pg_user' password='pg_hidden' "
             f"database='pgdb' schema='my_schema'"
         )
-        tdSql.execute(
-            f"create external source sec002_influx type='influxdb' "
-            f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
-            f"database='mydb' options('api_token'='secret_influx_tk', 'protocol'='flight_sql')"
-        )
+        for cfg_influx, influx_name in self._influx_source_specs("sec002_influx"):
+            with self._using_influx(cfg_influx):
+                if cfg_influx.version == "1.8":
+                    tdSql.execute(self._mk_influx_source_sql(
+                        influx_name, cfg_influx.host, cfg_influx.port, "", database="mydb",
+                        user="admin", password="secret_influx_tk"))
+                else:
+                    tdSql.execute(
+                        f"create external source {influx_name} type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='mydb' options('api_token'='secret_influx_tk', 'protocol'='flight_sql')"
+                    )
         tdSql.execute(
             f"create external source sec002_tls type='mysql' "
             f"host='{cfg_mysql.host}' port={cfg_mysql.port} user='tls_user' password='tls_pwd' database='db' "
@@ -640,9 +768,11 @@ finally:
 
             # Password column must be masked
             pwd_val = str(row[_COL_PASSWORD])
-            if name == "sec002_influx":
-                # InfluxDB might store token differently; check both password and options
-                pass
+            if name in influx_names:
+                if influx_names[name] == "1.8":
+                    assert "secret_influx_tk" not in pwd_val and "*" in pwd_val, \
+                        "InfluxDB Basic password not masked"
+                # The full-row check below also covers the 3.x token options.
             else:
                 assert "hidden_pwd" not in pwd_val and "pg_hidden" not in pwd_val \
                     and "tls_pwd" not in pwd_val, \
@@ -660,10 +790,11 @@ finally:
                     "schema should be visible, it is not sensitive"
 
         # Full text check for token in InfluxDB
-        idx = self._find_row("sec002_influx")
-        assert idx >= 0
-        full_text = self._row_text(idx)
-        assert "secret_influx_tk" not in full_text, "InfluxDB token leaked in SHOW"
+        for name in influx_names:
+            idx = self._find_row(name)
+            assert idx >= 0
+            full_text = self._row_text(idx)
+            assert "secret_influx_tk" not in full_text, "InfluxDB token leaked in SHOW"
 
         # TLS: ca_cert path can be visible, but password must be hidden
         idx = self._find_row("sec002_tls")
@@ -692,7 +823,7 @@ finally:
         Multi-dimensional coverage:
         1. Create source with known password, trigger error (query unreachable)
         2. Verify the error message returned to client does not contain password
-        3. Create source with api_token, trigger error → token not in message
+        3. InfluxDB token (3.x) or Basic password (1.8) not in error message
         4. ALTER source with new password, trigger error → neither old nor new in message
         5. Negative: verify error DOES contain useful info (source name/type) for debugging
 
@@ -713,7 +844,6 @@ finally:
 
         """
         cfg_mysql = self._mysql_cfg()
-        cfg_influx = self._influx_cfg()
         cfg_ss = self._sqlserver_cfg()
         names = ["sec003_mysql", "sec003_influx", "sec003_sqlserver"]
         self._cleanup(*names)
@@ -734,18 +864,29 @@ finally:
             assert "LogSecret99" not in err_msg, \
                 "password leaked in error message"
 
-        # InfluxDB with api_token
-        tdSql.execute(
-            f"create external source sec003_influx type='influxdb' "
-            f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
-            f"database='mydb' options('api_token'='TokenInLog123', 'protocol'='flight_sql')"
-        )
-        try:
-            tdSql.query("select * from sec003_influx.mydb.m1")
-        except Exception as e:
-            err_msg = str(e)
-            assert "TokenInLog123" not in err_msg, \
-                "api_token leaked in error message"
+        for cfg_influx in self._influx_configs():
+            with self._using_influx(cfg_influx):
+                self._cleanup("sec003_influx")
+                if cfg_influx.version == "1.8":
+                    with influx18_basic_gate(cfg_influx) as (port, _):
+                        tdSql.execute(self._mk_influx_source_sql(
+                            "sec003_influx", "127.0.0.1", port, "", database="mydb",
+                            user="basic18", password="TokenInLog123"))
+                        self._assert_influx_auth_failure_masked(
+                            "select * from sec003_influx.mydb.m1", "TokenInLog123")
+                else:
+                    # InfluxDB with api_token
+                    tdSql.execute(
+                        f"create external source sec003_influx type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='mydb' options('api_token'='TokenInLog123', 'protocol'='flight_sql')"
+                    )
+                    try:
+                        tdSql.query("select * from sec003_influx.mydb.m1")
+                    except Exception as e:
+                        err_msg = str(e)
+                        assert "TokenInLog123" not in err_msg, \
+                            "api_token leaked in error message"
 
         # ALTER password and trigger again
         tdSql.execute(
@@ -1364,14 +1505,18 @@ finally:
     # SEC-014  Influx option effectiveness: api_token/protocol
     # ------------------------------------------------------------------
 
+    @influx_versions()
     def test_fq_sec_014_influx_option_effectiveness_api_token_and_protocol(self):
-        """Behavior checks for InfluxDB option effectiveness (api_token/protocol).
+        """InfluxDB token/Basic credentials and supported protocol options are consumed.
 
                 Goal: if option consumption is broken, query path must fail.
 
         Since: v3.4.0.0
         """
         cfg_influx = self._influx_cfg()
+        if cfg_influx.version == "1.8":
+            self.do_influx18_option_effectiveness()
+            return
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_http_ok = f"sec014_influx_http_ok_{run_tag}"
         src_token_bad = f"sec014_influx_token_bad_{run_tag}"
@@ -1531,23 +1676,26 @@ finally:
                 expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
             )
 
-            tdSql.execute(
-                f"create external source {src_influx} type='influxdb' "
-                "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
-                "options('api_token'='x', 'protocol'='http')"
-            )
-            tdSql.error(
-                f"alter external source {src_influx} set options('unknown_opt'='x')",
-                expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
-            )
-
             tdSql.query(f"describe external source {src_pg}")
             pg_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
             assert "unknown_opt" not in pg_text
 
-            tdSql.query(f"describe external source {src_influx}")
-            influx_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
-            assert "unknown_opt" not in influx_text
+            for cfg_influx in self._influx_configs():
+                with self._using_influx(cfg_influx):
+                    self._cleanup(src_influx)
+                    tdSql.execute(
+                        f"create external source {src_influx} type='influxdb' "
+                        "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                        f"options({self._influx_metadata_options()}, 'protocol'='http')"
+                    )
+                    tdSql.error(
+                        f"alter external source {src_influx} set options('unknown_opt'='x')",
+                        expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
+                    )
+
+                    tdSql.query(f"describe external source {src_influx}")
+                    influx_text = "\n".join("|".join(str(c) for c in row) for row in tdSql.queryResult)
+                    assert "unknown_opt" not in influx_text
         finally:
             self._cleanup(src_pg, src_influx)
 
@@ -1594,7 +1742,9 @@ finally:
         src_mysql = f"sec022b_mysql_empty_opt_{run_tag}"
         src_pg = f"sec022b_pg_empty_opt_{run_tag}"
         src_influx = f"sec022b_influx_empty_opt_{run_tag}"
-        self._cleanup(src_mysql, src_pg, src_influx)
+        influx_sources = list(self._influx_source_specs(src_influx))
+        influx_names = [name for _, name in influx_sources]
+        self._cleanup(src_mysql, src_pg, *influx_names)
 
         try:
             tdSql.execute(
@@ -1607,14 +1757,16 @@ finally:
                 "host='127.0.0.1' port=5432 user='u' password='p' database='db' schema='public' "
                 "options('sslmode'='', 'read_timeout_ms'='')"
             )
-            tdSql.execute(
-                f"create external source {src_influx} type='influxdb' "
-                "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
-                "options('api_token'='x', 'protocol'='', 'connect_timeout_ms'='')"
-            )
+            for cfg_influx, influx_name in influx_sources:
+                with self._using_influx(cfg_influx):
+                    tdSql.execute(
+                        f"create external source {influx_name} type='influxdb' "
+                        "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                        f"options({self._influx_metadata_options()}, 'protocol'='', 'connect_timeout_ms'='')"
+                    )
 
             tdSql.query("show external sources")
-            for src in [src_mysql, src_pg, src_influx]:
+            for src in ([src_mysql, src_pg, *influx_names]):
                 row_idx = self._find_row(src)
                 assert row_idx >= 0
                 options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
@@ -1629,12 +1781,13 @@ finally:
             assert "sslmode" not in pg_opts
             assert "read_timeout_ms" not in pg_opts
 
-            influx_opts = str(tdSql.queryResult[self._find_row(src_influx)][_COL_OPTIONS])
-            assert "api_token" in influx_opts
-            assert "protocol" not in influx_opts
-            assert "connect_timeout_ms" not in influx_opts
+            for cfg_influx, influx_name in influx_sources:
+                influx_opts = str(tdSql.queryResult[self._find_row(influx_name)][_COL_OPTIONS])
+                assert ("version" if cfg_influx.version == "1.8" else "api_token") in influx_opts
+                assert "protocol" not in influx_opts
+                assert "connect_timeout_ms" not in influx_opts
         finally:
-            self._cleanup(src_mysql, src_pg, src_influx)
+            self._cleanup(src_mysql, src_pg, *influx_names)
 
     # ------------------------------------------------------------------
     # SEC-013B  Option effectiveness: PostgreSQL read_timeout
@@ -1720,7 +1873,9 @@ finally:
         src_pg = f"sec023_pg_timeout_zero_{run_tag}"
         src_influx = f"sec023_influx_timeout_zero_{run_tag}"
         src_ss = f"sec023_ss_timeout_zero_{run_tag}"
-        self._cleanup(src_mysql, src_pg, src_influx, src_ss)
+        influx_sources = list(self._influx_source_specs(src_influx))
+        influx_names = [name for _, name in influx_sources]
+        self._cleanup(src_mysql, src_pg, *influx_names, src_ss)
 
         try:
             tdSql.execute(
@@ -1733,11 +1888,13 @@ finally:
                 "host='127.0.0.1' port=5432 user='u' password='p' database='db' schema='public' "
                 "options('connect_timeout_ms'='0', 'read_timeout_ms'='0', 'sslmode'='disable')"
             )
-            tdSql.execute(
-                f"create external source {src_influx} type='influxdb' "
-                "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
-                "options('api_token'='x', 'connect_timeout_ms'='0', 'read_timeout_ms'='0')"
-            )
+            for cfg_influx, influx_name in influx_sources:
+                with self._using_influx(cfg_influx):
+                    tdSql.execute(
+                        f"create external source {influx_name} type='influxdb' "
+                        "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
+                        f"options({self._influx_metadata_options()}, 'connect_timeout_ms'='0', 'read_timeout_ms'='0')"
+                    )
             tdSql.execute(
                 f"create external source {src_ss} type='sqlserver' "
                 f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
@@ -1747,7 +1904,7 @@ finally:
             )
 
             tdSql.query("show external sources")
-            for src in [src_mysql, src_pg, src_influx, src_ss]:
+            for src in ([src_mysql, src_pg, *influx_names, src_ss]):
                 row_idx = self._find_row(src)
                 assert row_idx >= 0
                 options_col = str(tdSql.queryResult[row_idx][_COL_OPTIONS])
@@ -1755,12 +1912,13 @@ finally:
                 assert "read_timeout_ms" in options_col
                 assert "0" in options_col
         finally:
-            self._cleanup(src_mysql, src_pg, src_influx, src_ss)
+            self._cleanup(src_mysql, src_pg, *influx_names, src_ss)
 
     # ------------------------------------------------------------------
     # SEC-024  tls_enabled invalid value rejected
     # ------------------------------------------------------------------
 
+    @influx_versions()
     def test_fq_sec_024_influx_tls_enabled_invalid_value_rejected(self):
         """Influx tls_enabled must be boolean-like; invalid value is rejected in DDL.
 
@@ -1776,14 +1934,14 @@ finally:
             tdSql.error(
                 "create external source sec024_influx_tls_bad_create "
                 "type='influxdb' host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
-                "options('api_token'='x', 'protocol'='http', 'tls_enabled'='not_bool')",
+                f"options({self._influx_metadata_options()}, 'protocol'='http', 'tls_enabled'='not_bool')",
                 expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR,
             )
 
             tdSql.execute(
                 f"create external source {src_ok} type='influxdb' "
                 "host='127.0.0.1' port=8086 user='admin' password='' database='telegraf' "
-                "options('api_token'='x', 'protocol'='http', 'tls_enabled'='false')"
+                f"options({self._influx_metadata_options()}, 'protocol'='http', 'tls_enabled'='false')"
             )
             tdSql.error(
                 f"alter external source {src_ok} set options('tls_enabled'='not_bool')",
@@ -1900,14 +2058,18 @@ finally:
     # SEC-027  Influx default protocol + FlightSQL TLS consumption
     # ------------------------------------------------------------------
 
+    @influx_versions()
     def test_fq_sec_027_influx_default_protocol_and_flightsql_tls_consumption(self):
-        """Influx source without protocol uses default behavior; FlightSQL path consumes TLS options.
+        """Influx defaults and TLS options are consumed by the version-specific protocol.
 
         Verify the default protocol path and the FlightSQL TLS path both behave.
 
         Since: v3.4.0.0
         """
         cfg_influx = self._influx_cfg()
+        if cfg_influx.version == "1.8":
+            self.do_influx18_default_protocol_and_tls()
+            return
         run_tag = str(int(_time.time() * 1000))[-6:]
         src_default = f"sec027_influx_default_{run_tag}"
         src_flight_tls = f"sec027_influx_flight_tls_{run_tag}"
@@ -2223,7 +2385,6 @@ finally:
         """
         cfg_mysql = self._mysql_cfg()
         cfg_pg = self._pg_cfg()
-        cfg_influx = self._influx_cfg()
         cfg_ss = self._sqlserver_cfg()
         cfg_or = self._oracle_cfg()
         run_tag = str(int(_time.time() * 1000))[-6:]
@@ -2278,18 +2439,6 @@ finally:
                 f"options('sslmode'='disable')",
             ),
             (
-                f"sec020_influx_token_{run_tag}",
-                f"create external source sec020_influx_token_{run_tag} type='influxdb' "
-                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' database='telegraf' "
-                f"options('api_token'='sec020_token')",
-            ),
-            (
-                f"sec020_influx_protocol_{run_tag}",
-                f"create external source sec020_influx_protocol_{run_tag} type='influxdb' "
-                f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' database='telegraf' "
-                f"options('protocol'='http')",
-            ),
-            (
                 f"sec020_ss_trust_{run_tag}",
                 f"create external source sec020_ss_trust_{run_tag} type='sqlserver' "
                 f"host='{cfg_ss.host}' port={cfg_ss.port} user='{cfg_ss.user}' password='{cfg_ss.password}' "
@@ -2315,18 +2464,47 @@ finally:
             ),
         ]
 
+        rejected = []
+        for cfg_influx in self._influx_configs():
+            with self._using_influx(cfg_influx):
+                version_tag = run_tag + '_' + cfg_influx.version.replace('.', '_')
+                options = self._influx_metadata_options(api_token='sec020_token')
+                protocol = "'protocol'='http'"
+                if cfg_influx.version == '1.8':
+                    protocol = "'version'='1.8'," + protocol
+                for kind, values in (('token', options), ('protocol', protocol)):
+                    source = f"sec020_influx_{kind}_{version_tag}"
+                    cases.append((source,
+                        f"create external source {source} type='influxdb' "
+                        f"host='{cfg_influx.host}' port={cfg_influx.port} user='admin' password='' "
+                        f"database='telegraf' options({values})"))
+                if cfg_influx.version == '1.8':
+                    source = f"sec020_influx_rp_{version_tag}"
+                    cases.append((source, self._mk_influx_source_sql(
+                        source, cfg_influx.host, cfg_influx.port, "", database="telegraf",
+                        extra_options="'retention_policy'='autogen'")))
+                    for option in ("'api_token'='sec020_token'",
+                                   "'tls_client_cert'='/tmp/sec020_client.pem','tls_client_key'='/tmp/sec020_client.key'"):
+                        source = f"sec020_influx_rejected_{len(rejected)}_{version_tag}"
+                        rejected.append((source, self._mk_influx_source_sql(
+                            source, cfg_influx.host, cfg_influx.port, "", database="telegraf", extra_options=option)))
+
         names = [name for name, _ in cases]
-        self._cleanup(*names)
+        rejected_names = [name for name, _ in rejected]
+        self._cleanup(*names, *rejected_names)
+        try:
+            for _, sql in rejected:
+                tdSql.error(sql, expectedErrno=TSDB_CODE_EXT_SYNTAX_UNSUPPORTED)
+            for _, sql in cases:
+                tdSql.execute(sql)
 
-        for _, sql in cases:
-            tdSql.execute(sql)
-
-        tdSql.query("show external sources")
-        existing = {str(r[_COL_NAME]) for r in tdSql.queryResult}
-        for name in names:
-            assert name in existing, f"source should be created for option acceptance case: {name}"
-
-        self._cleanup(*names)
+            tdSql.query("show external sources")
+            existing = {str(r[_COL_NAME]) for r in tdSql.queryResult}
+            assert not existing.intersection(rejected_names), "rejected options left source metadata"
+            for name in names:
+                assert name in existing, f"source should be created for option acceptance case: {name}"
+        finally:
+            self._cleanup(*names, *rejected_names)
 
     # ------------------------------------------------------------------
     # SEC-007  Auth failure blocking
@@ -4313,3 +4491,140 @@ finally:
         finally:
             self._cleanup(*names)
             self._oracle_drop_table_as(cfg, table)
+
+    def do_influx18_auth_and_version(self):
+        if self._influx_cfg().version != "1.8":
+            pytest.skip("This case verifies the native InfluxDB 1.8 contract")
+        timestamp = 1700000000000000001
+        database = "fq11_influx18_auth_and_version"
+        lines = [
+            f"sparse,site=a value=1i {timestamp}",
+            f"sparse,site=b other=2i {timestamp + 1}",
+            f"sparse,site=a value=3i {timestamp + 2}",
+        ]
+        with self._influx_fixture(database, lines) as (cfg, source):
+            source = source + "_auth"
+            try:
+                with influx18_basic_gate(cfg) as (port, seen):
+                    tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {source}")
+                    tdSql.execute(f"CREATE EXTERNAL SOURCE {source} TYPE='influxdb' HOST='127.0.0.1' "
+                                  f"PORT={port} USER='basic18' PASSWORD='basic18_test_password' "
+                                  f"DATABASE={database} OPTIONS('version'='1.8')")
+                    assert not seen, "CREATE SOURCE contacted the remote server"
+                    self._check_query_rows(f"SELECT COUNT(*) FROM {source}.{database}.sparse", [(3,)])
+                    for user, password in [("basic18", "incorrect"), ("", "")]:
+                        if user:
+                            tdSql.execute(f"ALTER EXTERNAL SOURCE {source} SET USER='{user}', PASSWORD='{password}'")
+                        else:
+                            tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+                            tdSql.execute(f"CREATE EXTERNAL SOURCE {source} TYPE='influxdb' HOST='127.0.0.1' "
+                                          f"PORT={port} USER='' PASSWORD='' DATABASE={database} OPTIONS('version'='1.8')")
+                        tdSql.error(f"SELECT * FROM {source}.{database}.sparse", expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+                    tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+                for version in ["3.0.3", "2.7.6", None]:
+                    with influx18_basic_gate(cfg, reported_version=version) as (port, _):
+                        tdSql.execute(f"CREATE EXTERNAL SOURCE {source} TYPE='influxdb' HOST='127.0.0.1' "
+                                      f"PORT={port} USER='basic18' PASSWORD='basic18_test_password' "
+                                      f"DATABASE={database} OPTIONS('version'='1.8')")
+                        query = f"SELECT COUNT(*) FROM {source}.{database}.sparse"
+                        if version is None:
+                            self._check_query_rows(query, [(3,)])
+                        else:
+                            tdSql.error(query, expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+                        tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+                from urllib.parse import parse_qs, urlsplit
+                fault = {}
+
+                def override_response(path):
+                    sql = parse_qs(urlsplit(path).query).get("q", [""])[0]
+                    if fault and sql.startswith(fault["prefix"]):
+                        if fault.get("delay"):
+                            _time.sleep(fault["delay"])
+                        return fault["status"], json.dumps({"error": fault["message"]}).encode()
+                    return None
+
+                with influx18_basic_gate(cfg, response_override=override_response) as (port, _):
+                    tdSql.execute(self._mk_influx_source_sql(
+                        source, "127.0.0.1", port, "", database=database,
+                        user="basic18", password="basic18_test_password"))
+                    query = f"SELECT * FROM {source}.{database}.sparse"
+                    for prefix, status, message, errno in [
+                        ("SHOW MEASUREMENTS", 400, "database not found: review_metadata", TSDB_CODE_EXT_DB_NOT_EXIST),
+                        ("SELECT", 400, "error parsing query: review_select", TSDB_CODE_EXT_SYNTAX_UNSUPPORTED),
+                        ("SELECT", 404, "retention policy not found: review_rp", TSDB_CODE_EXT_DB_NOT_EXIST),
+                        ("SELECT", 500, "review remote failure", TSDB_CODE_EXT_REMOTE_INTERNAL),
+                    ]:
+                        fault.update(prefix=prefix, status=status, message=message)
+                        tdSql.execute(f"REFRESH EXTERNAL SOURCE {source}")
+                        tdSql.error(query, expectedErrno=errno)
+                        if prefix == "SELECT":
+                            assert message in tdSql.error_info, tdSql.error_info
+                    tdSql.execute(f"ALTER EXTERNAL SOURCE {source} SET OPTIONS("
+                                  "'connect_timeout_ms'='500','read_timeout_ms'='1000')")
+                    fault.update(prefix="SELECT", status=500, message="delayed response", delay=3)
+                    tdSql.error(query, expectedErrno=TSDB_CODE_EXT_QUERY_TIMEOUT)
+                    tdSql.execute(f"DROP EXTERNAL SOURCE {source}")
+            finally:
+                tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {source}")
+        print("InfluxDB 1.8 auth_and_version ................ [ passed ]")
+
+    @influx_versions("1.8")
+    def test_influx18_auth_and_version(self):
+        """Check plaintext Basic credentials and explicit or absent version headers.
+
+        1. Verify Basic authentication and reject missing or incorrect credentials.
+        2. Reject non-1.8 version headers and allow absent version headers.
+        3. Preserve metadata and streaming HTTP errors, including timeouts before response headers.
+        4. Verify HTTPS with CA files and inline PEM, and reject wrong CA or hostname.
+
+        Catalog:
+            - FederatedQuery
+
+        Since: v3.5.0.0
+
+        Labels: common, ci, influx18
+
+        Jira: None
+
+        History:
+            - 2026-10-29 Cover Basic authentication and HTTP version validation
+
+        """
+        self.do_influx18_auth_and_version()
+        self.do_influx18_tls()
+
+    def do_influx18_tls(self):
+        import ssl
+        import shutil
+        openssl = shutil.which("openssl")
+        assert openssl, "The external-source TLS fixture requires openssl"
+        with self._influx_fixture("fq11_influx18_tls", ["rows value=18i 1700000000000000000"]) as (cfg, _):
+            with tempfile.TemporaryDirectory(prefix="fq-influx18-tls-") as directory:
+                key, cert = Path(directory) / "key.pem", Path(directory) / "cert.pem"
+                subprocess.run([openssl, "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                                "-keyout", str(key), "-out", str(cert), "-days", "2",
+                                "-subj", "/CN=localhost", "-addext", "subjectAltName=DNS:localhost"],
+                               check=True, capture_output=True)
+                context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                context.load_cert_chain(cert, key)
+                with influx18_basic_gate(cfg, tls_context=context) as (port, _):
+                    for name, host, ca, valid in [
+                        ("file", "localhost", str(cert), True),
+                        ("inline", "localhost", cert.read_text(), True),
+                        ("hostname", "127.0.0.1", str(cert), False),
+                        ("ca", "localhost", FQ_PG_CA_CERT, False),
+                    ]:
+                        source = "fq11_influx18_tls_" + name
+                        try:
+                            tdSql.execute(self._mk_influx_source_sql(
+                                source, host, port, "", database="fq11_influx18_tls",
+                                user="basic18", password="basic18_test_password",
+                                extra_options=f"'tls_enabled'='true','tls_ca_cert'='{ca}'"))
+                            query = f"SELECT value FROM {source}.fq11_influx18_tls.rows"
+                            if valid:
+                                self._check_query_rows(query, [(18,)])
+                            else:
+                                tdSql.error(query, expectedErrno=TSDB_CODE_EXT_CONNECT_FAILED)
+                        finally:
+                            self._cleanup_src(source)
+        print("InfluxDB 1.8 TLS verification ................ [ passed ]")
