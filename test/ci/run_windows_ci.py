@@ -102,22 +102,36 @@ def tail(path, lines=200):
     print("\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]))
 
 
+def stop_process_images(names):
+    errors = []
+    for name in names:
+        print(f"[windows-ci] stopping {name}.exe (timeout=15s)", flush=True)
+        try:
+            result = subprocess.run(
+                ["taskkill", "/f", "/t", "/im", f"{name}.exe"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, errors="replace", timeout=15, check=False,
+            )
+        except subprocess.TimeoutExpired:
+            message = f"cleanup timed out stopping {name}.exe after 15s"
+            print(f"[windows-ci] {message}", flush=True)
+            errors.append(message)
+            continue
+        # taskkill returns 128 when no matching process is running.
+        print(f"[windows-ci] stop {name}.exe: exit={result.returncode}; {result.stdout.strip()}", flush=True)
+        if result.returncode not in (0, 128):
+            errors.append(f"cleanup failed stopping {name}.exe: exit={result.returncode}")
+    if errors:
+        raise RuntimeError("; ".join(errors))
+
+
 def stop_processes():
     # Kill the server tree first, then catch UDF processes whose parent has exited.
-    for name in ("taosd", "taosudf", "taos", "taosBenchmark", "taosadapter", "taoskeeper"):
-        result = subprocess.run(
-            ["taskkill", "/f", "/t", "/im", f"{name}.exe"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, errors="replace", check=False,
-        )
-        # taskkill returns 128 when no matching process is running.
-        if result.returncode != 128:
-            print(f"[windows-ci] stop {name}.exe: exit={result.returncode}; {result.stdout.strip()}", flush=True)
+    stop_process_images(("taosd", "taosudf", "taos", "taosBenchmark", "taosadapter", "taoskeeper"))
 
 
 def stop_build_processes():
-    for name in ("cargo", "rustc", "git", "go", "jom", "cmake", "nmake", "cl", "link", "lib"):
-        subprocess.run(["taskkill", "/f", "/t", "/im", f"{name}.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    stop_process_images(("cargo", "rustc", "git", "go", "jom", "cmake", "nmake", "cl", "link", "lib"))
 
 
 def remove_build_directory(debug_dir):
@@ -765,6 +779,40 @@ def stop_owned_fq_mysql(existing, source_dir):
                 pass
 
 
+def running_fq_influx():
+    import psutil
+
+    binaries = {path.resolve() for pattern in ("*/bin/influxdb3.exe", "*/bin/influxd.exe")
+                for path in (federated_query_base_dir() / "influxdb").glob(pattern)}
+    instances = {}
+    for process in psutil.process_iter(["pid", "exe", "create_time"]):
+        try:
+            if process.info["exe"] and Path(process.info["exe"]).resolve() in binaries:
+                instances[(process.pid, process.info["create_time"])] = Path(process.info["exe"]).resolve()
+        except (OSError, psutil.Error):
+            continue
+    return instances
+
+
+def stop_owned_fq_influx(existing):
+    import psutil
+
+    for (pid, created), executable in running_fq_influx().items():
+        if (pid, created) in existing or executable in existing.values():
+            continue
+        try:
+            process = psutil.Process(pid)
+            # The PID may have been reused since discovery. Never kill its new owner.
+            if process.create_time() != created:
+                continue
+            print(f"[windows-ci] stopping owned InfluxDB pid={pid}: {executable}", flush=True)
+            process.kill()
+            process.wait(timeout=30)
+            print(f"[windows-ci] stopped owned InfluxDB pid={pid}", flush=True)
+        except psutil.NoSuchProcess:
+            pass
+
+
 @contextmanager
 def managed_fq_services(source_dir):
     # Preserve instances that were already running before this validation.
@@ -772,25 +820,29 @@ def managed_fq_services(source_dir):
     # pytest exits; close only the instances started during our run.
     existing = running_fq_postgres()
     existing_mysql = running_fq_mysql()
+    existing_influx = running_fq_influx()
     try:
         yield
     finally:
         try:
             stop_owned_fq_mysql(existing_mysql, source_dir)
         finally:
-            for data_dir in running_fq_postgres().keys() - existing.keys():
-                pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
-                try:
-                    result = subprocess.run(
-                        [str(pg_ctl), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
-                        capture_output=True, text=True, errors="replace", timeout=60,
-                        check=False,
-                    )
-                    print(f"[windows-ci] stop owned PostgreSQL {data_dir}: "
-                          f"exit={result.returncode}; {result.stdout.strip()} {result.stderr.strip()}",
-                          flush=True)
-                except (OSError, subprocess.TimeoutExpired) as error:
-                    print(f"[windows-ci] unable to stop owned PostgreSQL {data_dir}: {error}", flush=True)
+            try:
+                for data_dir in running_fq_postgres().keys() - existing.keys():
+                    pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
+                    try:
+                        result = subprocess.run(
+                            [str(pg_ctl), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
+                            capture_output=True, text=True, errors="replace", timeout=60,
+                            check=False,
+                        )
+                        print(f"[windows-ci] stop owned PostgreSQL {data_dir}: "
+                              f"exit={result.returncode}; {result.stdout.strip()} {result.stderr.strip()}",
+                              flush=True)
+                    except (OSError, subprocess.TimeoutExpired) as error:
+                        print(f"[windows-ci] unable to stop owned PostgreSQL {data_dir}: {error}", flush=True)
+            finally:
+                stop_owned_fq_influx(existing_influx)
 
 
 def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter="", suite="smoke"):
@@ -1106,12 +1158,22 @@ def main():
     except Exception as error:
         print(f"[windows-ci] failed: {error}")
     finally:
-        stop_processes()
-        stop_build_processes()
+        for name, cleanup in (("stop_processes", stop_processes), ("stop_build_processes", stop_build_processes)):
+            started = time.monotonic()
+            print(f"[windows-ci] finalization start: {name}", flush=True)
+            try:
+                cleanup()
+            except Exception as error:
+                print(f"[windows-ci] finalization failed: {name}: {error}", flush=True)
+                result = 1
+            print(f"[windows-ci] finalization end: {name} ({time.monotonic() - started:.1f}s)", flush=True)
         if tests_started:
+            print("[windows-ci] finalization start: collect_artifacts", flush=True)
             collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+            print("[windows-ci] finalization end: collect_artifacts", flush=True)
         else:
-            print("[windows-ci] preparation failed; previous test reports are not collected")
+            print("[windows-ci] preparation failed; previous test reports are not collected", flush=True)
+    print(f"[windows-ci] exiting with result={result}", flush=True)
     return result
 
 

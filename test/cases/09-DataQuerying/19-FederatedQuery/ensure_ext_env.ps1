@@ -299,22 +299,34 @@ function Start-BackgroundProcess {
     $comspec = if ($env:ComSpec) { $env:ComSpec }
                else { Join-Path $env:SystemRoot 'System32\cmd.exe' }
 
-    $procInfo = [System.Diagnostics.ProcessStartInfo]::new()
-    $procInfo.FileName        = $comspec
-    $procInfo.Arguments       = '/d /s /c "' + $inner + '"'
-    $procInfo.UseShellExecute = $false
-    $procInfo.CreateNoWindow  = $true
-
-    foreach ($ep in $EnvPairs) {
-        $kv = $ep -split '=', 2
-        if ($kv.Count -eq 2) {
-            $procInfo.EnvironmentVariables[$kv[0]] = $kv[1]
+    # The cmd wrapper lives as long as the engine. CreateProcess with inherited
+    # handles keeps the Runner trace pipe open even when the engine redirects
+    # its output to a file. ShellExecute starts a separate hidden console and
+    # does not inherit those handles. No PowerShell output callbacks are used.
+    $savedEnvironment = @{}
+    try {
+        # ShellExecute cannot accept a custom environment block. Scope overrides to
+        # process creation, then restore the provisioning script's environment.
+        foreach ($ep in $EnvPairs) {
+            $kv = $ep -split '=', 2
+            if ($kv.Count -eq 2) {
+                if (-not $savedEnvironment.ContainsKey($kv[0])) {
+                    $savedEnvironment[$kv[0]] = [Environment]::GetEnvironmentVariable($kv[0], 'Process')
+                }
+                [Environment]::SetEnvironmentVariable($kv[0], $kv[1], 'Process')
+            }
+        }
+        $procInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $procInfo.FileName        = $comspec
+        $procInfo.Arguments       = '/d /s /c "' + $inner + '"'
+        $procInfo.UseShellExecute = $true
+        $procInfo.WindowStyle     = [System.Diagnostics.ProcessWindowStyle]::Hidden
+        $proc = [System.Diagnostics.Process]::Start($procInfo)
+    } finally {
+        foreach ($key in $savedEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($key, $savedEnvironment[$key], 'Process')
         }
     }
-
-    $proc = [System.Diagnostics.Process]::new()
-    $proc.StartInfo = $procInfo
-    $null = $proc.Start()
 
     # The pid worth recording is the engine's, not cmd.exe's: Stop-ByPidFile
     # must terminate something whose death the engine notices.  cmd.exe also
