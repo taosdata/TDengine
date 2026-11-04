@@ -162,6 +162,120 @@ class TestTaosShellHex:
         self.checkHexToFile("select char(255)", '"0xFF"')
         self.checkHexToFile("select char(99, 167)", '"0x63A7"')
 
+    def checkBlobType(self):
+        """BLOB / MEDIUMBLOB text display and hex fallback, plus GEOMETRY dump.
+
+        Covers the shell rendering touched by this feature:
+        1. printable BLOB / MEDIUMBLOB -> shown as text on screen
+        2. non-printable BLOB / MEDIUMBLOB -> shown as \\x hex on screen
+        3. -H forces hex even for printable BLOB
+        4. the same rules apply to >> file dump (CSV quoting, quote doubling)
+        5. GEOMETRY >> file dump emits uppercase hex (buf-vs-tmp and signedness)
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        """
+        tdLog.info("check blob / mediumblob text display and geometry dump")
+
+        db = "shell_blob"
+        tb = "t"      # one BLOB column (a table allows only one BLOB)
+        tmb = "tm"     # one MEDIUMBLOB column
+        tbg = "tg"     # GEOMETRY column
+
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} vgroups 1")
+        tdSql.execute(f"create table {db}.{tb} (ts timestamp, b blob)")
+        tdSql.execute(f"create table {db}.{tmb} (ts timestamp, mb mediumblob)")
+        tdSql.execute(f"create table {db}.{tbg} (ts timestamp, g geometry(64))")
+
+        # BLOB: printable rows (plain text + embedded double quote) and a
+        # non-printable row (\\x hex literal writes raw bytes including 0x00)
+        tdSql.execute(
+            f"insert into {db}.{tb} values "
+            "('2024-01-01 00:00:00.001', 'hello blob') "
+            "('2024-01-01 00:00:00.002', 'a\"b') "
+            "('2024-01-01 00:00:00.003', '\\xDEAD00')"
+        )
+
+        # MEDIUMBLOB: printable + non-printable
+        tdSql.execute(
+            f"insert into {db}.{tmb} values "
+            "('2024-01-01 00:00:00.001', 'hello mediumblob') "
+            "('2024-01-01 00:00:00.002', 'plain mediumblob') "
+            "('2024-01-01 00:00:00.003', '\\x00FF00')"
+        )
+
+        tdSql.execute(
+            f"insert into {db}.{tbg} values ('2024-01-01 00:00:00.001', 'POINT(1 1)')"
+        )
+
+        # 1. screen: printable BLOB / MEDIUMBLOB -> text
+        rlist = self.taos(f'-s "select b from {db}.{tb}"')
+        self.checkListString(rlist, "hello blob")
+        self.checkListString(rlist, 'a"b')
+
+        rlist = self.taos(f'-s "select mb from {db}.{tmb}"')
+        self.checkListString(rlist, "hello mediumblob")
+        self.checkListString(rlist, "plain mediumblob")
+
+        # 2. screen: non-printable BLOB / MEDIUMBLOB -> \\x hex
+        rlist = self.taos(f'-s "select b from {db}.{tb}"')
+        self.checkListString(rlist, "\\xDEAD00")
+
+        rlist = self.taos(f'-s "select mb from {db}.{tmb}"')
+        self.checkListString(rlist, "\\x00FF00")
+
+        # 3. screen: -H forces hex even for printable BLOB
+        rlist = self.taos(f'{self.HEX_OPTION} -s "select b from {db}.{tb}"')
+        if any("hello blob" in line for line in rlist):
+            tdLog.exit("-H should force hex for printable BLOB, but text found")
+        self.checkListString(rlist, "\\x68656C6C6F20626C6F62")
+
+        # 4. file dump: printable -> CSV quoted text, quote doubled; non-printable -> hex
+        outfile = "shell_blob.csv"
+        self.deleteFile(outfile)
+        self.taos(f'-s "select b from {db}.{tb}>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        self.checkListString(rlist, "hello blob")
+        self.checkListString(rlist, 'a""b')
+        self.checkListString(rlist, "\\xDEAD00")
+        self.deleteFile(outfile)
+
+        self.taos(f'-s "select mb from {db}.{tmb}>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        self.checkListString(rlist, "hello mediumblob")
+        self.checkListString(rlist, "\\x00FF00")
+        self.deleteFile(outfile)
+
+        # 5. file dump with -H: printable BLOB forced to hex
+        self.taos(f'{self.HEX_OPTION} -s "select b from {db}.{tb}>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        if any("hello blob" in line for line in rlist):
+            tdLog.exit("-H should force hex in file dump, but text found")
+        self.checkListString(rlist, "\\x68656C6C6F20626C6F62")
+        self.deleteFile(outfile)
+
+        # 6. geometry >> file dump: the encoded WKB hex (uppercase), not the
+        #    previously empty uninitialized buffer; bytes >= 0x80 (0xF0) stay
+        #    two digits instead of sign-extending to FFFFFFxx.
+        outfile = "shell_geom.csv"
+        self.deleteFile(outfile)
+        self.taos(f'-s "select g from {db}.{tbg}>>{outfile}"')
+        rlist = self.readFileToList(outfile)
+        self.checkListString(rlist, "0101000000")  # WKB point magic, little-endian
+        self.checkListString(rlist, "F03F")        # high byte 0xF0 rendered correctly
+        if any("FFFFF" in line for line in rlist):
+            tdLog.exit("geometry dump contains sign-extended bytes (signedness bug)")
+        self.deleteFile(outfile)
+
+        # 7. screen geometry still shows WKT text
+        rlist = self.taos(f'-s "select g from {db}.{tbg}"')
+        self.checkListString(rlist, "POINT")
+
+        tdSql.execute(f"drop database if exists {db}")
+
     # run
     def test_tool_taos_shell_hex(self):
         """taos shell hex display for non-printable BINARY
@@ -181,6 +295,7 @@ class TestTaosShellHex:
         Since: v3.4.1.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -206,3 +321,5 @@ class TestTaosShellHex:
         self.checkHexFileOutput()
         # invalid multibyte fallback
         self.checkInvalidMultibyteFallbackHex()
+        # blob and medium blob show
+        self.checkBlobType()
