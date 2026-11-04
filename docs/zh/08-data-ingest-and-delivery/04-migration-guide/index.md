@@ -9,3 +9,4 @@ description: 从其他时序数据库迁移到 TDengine 的评估、实施和验
 迁移指南侧重端到端实施流程。特定数据源的连接器配置、协议语法和组件参数，请参阅相应专题文档。
 
 - [从 InfluxDB 迁移到 TDengine](./01-influxdb.md)
+- [从 WinCC + PI 系统迁移到 TDengine](./02-wincc-pi.md)
