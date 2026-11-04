@@ -281,3 +281,83 @@ class TestStreamVtableTagRefRefresh:
 
         """
         self.do_tag_ref_source_tag_change_refreshes_stream_calculation()
+
+    def do_count_window_threshold_from_referenced_tag(self):
+        db = "stream_vtb_tagref_threshold"
+        tdCom.create_snode_if_not_exists()
+        tdSql.execute(f"drop database if exists {db}")
+
+        try:
+            tdSql.execute(f"create database {db} precision '{self.precision}' vgroups 1")
+            tdSql.execute(f"use {db}")
+            tdSql.execute(
+                "create stable src (ts timestamp, vol double) tags (device varchar(32))"
+            )
+            tdSql.execute("create table d1 using src tags ('d1')")
+            tdSql.execute("create table d2 using src tags ('d2')")
+            tdSql.execute(
+                "create stable cfg (ts timestamp, dummy int) tags (hi double)"
+            )
+            tdSql.execute("create table cfg_d1 using cfg tags (80.0)")
+            tdSql.execute("create table cfg_d2 using cfg tags (95.0)")
+            tdSql.execute("insert into cfg_d1 values (1767225600000, 0)")
+            tdSql.execute("insert into cfg_d2 values (1767225600000, 0)")
+            tdSql.execute(
+                "create stable vst (ts timestamp, vol double) "
+                "tags (device varchar(32), hi double) virtual 1"
+            )
+            tdSql.execute("create vtable v1 (vol from d1.vol) using vst tags ('d1', cfg_d1.hi)")
+            tdSql.execute("create vtable v2 (vol from d2.vol) using vst tags ('d2', cfg_d2.hi)")
+            tdSql.execute(
+                "create stream s_threshold count_window(1) from vst partition by tbname "
+                "into thresh_alarm as "
+                "select _twend as ts, last(vol) as vol, last(hi) as hi, "
+                "case when last(vol) > last(hi) then 1 else 0 end as over_limit "
+                "from %%tbname"
+            )
+            tdLog.info("wait for the trigger task before writing source data")
+            tdStream.checkStreamStatus("s_threshold")
+
+            tdLog.info("each virtual child evaluates its own referenced threshold")
+            tdSql.execute("insert into d1 values (1767225601000, 90)")
+            tdSql.execute("insert into d2 values (1767225601000, 90)")
+            tdSql.checkResultsByArray(
+                f"select vol, hi, over_limit from {db}.thresh_alarm order by hi",
+                [(90.0, 80.0, 1), (90.0, 95.0, 0)],
+                retry=60,
+            )
+
+            tdLog.info("the next window uses the updated referenced threshold")
+            tdSql.execute("alter table cfg_d1 set tag hi = 100.0")
+            tdSql.execute("insert into d1 values (1767225602000, 90)")
+            tdSql.checkResultsByArray(
+                f"select vol, hi, over_limit from {db}.thresh_alarm order by hi, ts",
+                [(90.0, 80.0, 1), (90.0, 95.0, 0), (90.0, 100.0, 0)],
+                retry=60,
+            )
+        finally:
+            tdSql.execute(f"drop database if exists {db} force")
+
+        print("tag-ref count-window referenced threshold .... [ passed ]")
+
+    def test_count_window_threshold_from_referenced_tag(self):
+        """A count-window stream evaluates a referenced config tag as its threshold.
+
+        1. Creates a virtual child whose threshold tag references a config child table tag
+        2. Writes the first source row and requires the calculated threshold comparison
+        3. Updates the config tag and requires the next window to use the new threshold
+
+        Catalog:
+            - Streams:VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,stream,vtable
+
+        Jira: 7154128508
+
+        History:
+            - 2026-11-03 GitHub Copilot Added regression for the first-write SIGSEGV
+
+        """
+        self.do_count_window_threshold_from_referenced_tag()
