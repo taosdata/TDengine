@@ -12,6 +12,13 @@ OPC 是工业自动化领域和其他行业中安全可靠地交换数据的互�
 
 TDengine 可以高效地从 OPC UA 服务器读取数据并将其写入 TDengine，以实现实时数据入库。
 
+## 前置条件
+
+开始前，请先确认满足 [数据接入前置条件](../00-prerequisites.md)，重点包括：
+
+- **网络连通**：确保 taosX（直连模式）或 taosX-Agent（代理模式）能访问 OPC UA 服务地址。使用代理时，需分别保证 taosX-Agent → taosX（gRPC 默认端口 `6055`）、taosX-Agent → OPC UA 服务器两段网络连通，放行与检查方法见 [数据接入前置条件](../00-prerequisites.md#检查端口连通性)。
+- **安全证书**：如果 OPC UA 服务器要求证书认证（安全模式为 `Sign` 或 `SignAndEncrypt`），需提前生成客户端证书并让服务端信任，见 [生成 taosX OPC UA 客户端证书](./01-client-certificate.md)。
+
 ## 数据接入
 
 ### 新增数据源
@@ -338,7 +345,8 @@ A&E 采集的数据入库规则（超级表 / 子表命名、字段类型映射�
 
 ## 相关文档
 
+- [数据接入前置条件](../00-prerequisites.md)：直连/代理拓扑与网络端口要求
 - [安装 taosX-Agent](../01-install-agent.md)：远程代理安装；任务变更一般无需重装 Agent
-- [OPC-DA](../06-opcda.md)：DA 侧元数据、采集间隔与任务维护说明（与 UA 对照）
+- [OPC-DA](../06-opcda/index.md)：DA 侧元数据、采集间隔与任务维护说明（与 UA 对照）
 - [TDengine IDMP](../../../19-tdengine-idmp/index.md)：点位标签与工业元数据管理（推荐）
 - [数据接入（Xnode）](../../../05-tdengine-sql/08-cluster-management/02-xnode.md)：用 SQL 管理接入节点、任务与 Agent
