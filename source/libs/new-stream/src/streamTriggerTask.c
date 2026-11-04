@@ -1214,6 +1214,7 @@ static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContex
 static void    stHistoryContextClearExecution(SSTriggerHistoryContext *pContext);
 static void    stHistoryContextDestroy(void *ptr);
 static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext);
+static int32_t stTriggerTaskResumeVtableCalcRequests(SStreamTriggerTask *pTask, int64_t sessionId);
 static int32_t stTriggerTaskHandleManualAttemptOutcome(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq,
                                                        const SStreamRecalcAttemptOutcome *pOutcome);
 static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp,
@@ -2165,7 +2166,8 @@ static SRWLatch gStreamTriggerWaitLatch;
 static SList    gStreamTriggerWaitList;
 static tmr_h    gStreamTriggerTimerId = NULL;
 
-static int32_t stTriggerTaskAddWaitSession(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime) {
+static int32_t stTriggerTaskAddWaitSessionForReason(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime,
+                                                    EStreamTriggerWaitReason reason) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
 
@@ -2174,6 +2176,7 @@ static int32_t stTriggerTaskAddWaitSession(SStreamTriggerTask *pTask, int64_t se
       .taskId = pTask->task.taskId,
       .sessionId = sessionId,
       .resumeTime = resumeTime,
+      .reason = reason,
   };
   taosWLockLatch(&gStreamTriggerWaitLatch);
   code = tdListAppend(&gStreamTriggerWaitList, &info);
@@ -2187,6 +2190,10 @@ _end:
     ST_TASK_DLOG("add session %" PRIx64 " to wait list, resumeTime:%" PRId64, sessionId, resumeTime);
   }
   return code;
+}
+
+static int32_t stTriggerTaskAddWaitSession(SStreamTriggerTask *pTask, int64_t sessionId, int64_t resumeTime) {
+  return stTriggerTaskAddWaitSessionForReason(pTask, sessionId, resumeTime, STREAM_TRIGGER_WAIT_GENERIC);
 }
 
 static SSTriggerRecalcRequest *stTriggerTaskFindBackoffRecalc(SStreamTriggerTask *pTask, uint64_t chainId) {
@@ -2311,6 +2318,7 @@ static int32_t stTriggerTaskResumeManualRecalc(SStreamTriggerTask *pTask, uint64
 
 static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   int64_t    now = taosGetTimestampNs();
+  int64_t    monoNow = taosGetMonoTimestampNs();
   SListIter  iter = {0};
   SListNode *pNode = NULL;
   SList      readylist = {0};
@@ -2322,7 +2330,8 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
-    if (!pInfo->queued && pInfo->controlMsgId == 0 && pInfo->resumeTime <= now) {
+    int64_t                clockNow = pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY ? monoNow : now;
+    if (!pInfo->queued && pInfo->controlMsgId == 0 && pInfo->resumeTime <= clockNow) {
       TD_DLIST_POP(&gStreamTriggerWaitList, pNode);
       TD_DLIST_APPEND(&readylist, pNode);
     }
@@ -2354,10 +2363,11 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
     bool                 queued = false;
     bool                 manual = pInfo->manualRecalcChainId != 0;
     bool                 manualPending = false;
-    SSTriggerCtrlRequest req = {.type = STRIGGER_CTRL_START,
-                                .streamId = pInfo->streamId,
-                                .taskId = pInfo->taskId,
-                                .sessionId = pInfo->sessionId};
+    SSTriggerCtrlRequest req = {
+        .type = pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY ? STRIGGER_CTRL_CALC_RETRY : STRIGGER_CTRL_START,
+        .streamId = pInfo->streamId,
+        .taskId = pInfo->taskId,
+        .sessionId = pInfo->sessionId};
     SRpcMsg              msg = {.msgType = TDMT_STREAM_TRIGGER_CTRL};
     msg.contLen = tSerializeSTriggerCtrlRequest(NULL, 0, &req);
     if (msg.contLen > 0) {
@@ -2417,7 +2427,8 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
       taosMemoryFreeClear(pNode);
     } else {
       rpcFreeCont(msg.pCont);
-      pInfo->resumeTime = now + STREAM_TRIGGER_NOTICE_RETRY_NS;
+      pInfo->resumeTime =
+          (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY ? monoNow : now) + STREAM_TRIGGER_NOTICE_RETRY_NS;
       stWarn("retry trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64 " at:%" PRId64,
              pInfo->streamId, pInfo->taskId, pInfo->sessionId, pInfo->resumeTime);
       taosWLockLatch(&gStreamTriggerWaitLatch);
@@ -5904,6 +5915,8 @@ static int32_t stTriggerTaskAcquireRequests(SStreamTriggerTask *pTask, int64_t s
   SSTriggerCalcSlot *pSlot = TD_DLIST_HEAD(&pNode->idleSlots);
   QUERY_CHECK_NULL(pSlot, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
   if (++pSlot->generation == 0) ++pSlot->generation;
+  pSlot->vtableRetryAtMs = 0;
+  pSlot->vtableRetryDelayMs = 0;
 
   SSTriggerCalcRequest *pReq = &pSlot->req;
   pReq->assembledParamCount = 0;
@@ -6295,6 +6308,8 @@ static int32_t stTriggerTaskReleaseRequests(SStreamTriggerTask *pTask, SSTrigger
   tSimpleHashClear(pReq->pGroupCalcInfos);
   tSimpleHashClear(pReq->pGroupReadInfos);
   *pRunningCnt -= 1;
+  pSlot->vtableRetryAtMs = 0;
+  pSlot->vtableRetryDelayMs = 0;
   if (++pSlot->generation == 0) ++pSlot->generation;
   TD_DLIST_APPEND(&pNode->idleSlots, pSlot);
 
@@ -13665,6 +13680,7 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     QUERY_CHECK_CODE(code, lino, _end);
     debugSessionId = req.sessionId;
     switch (req.type) {
+      case STRIGGER_CTRL_CALC_RETRY:
       case STRIGGER_CTRL_START: {
         if (atomic_load_32((int32_t *)&pStreamTask->status) == STREAM_STATUS_FAILED) {
           code = atomic_load_32(&pStreamTask->errorCode);
@@ -13675,9 +13691,20 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
           while (atomic_load_8(&pTask->realtimeStarted) == 0) {
             taosMsleep(5);
           }
+          if (req.type == STRIGGER_CTRL_CALC_RETRY) {
+            // A retry wake must not repeat pending pulls or ordinary timer waits.
+            code = stTriggerTaskResumeVtableCalcRequests(pTask, req.sessionId);
+            QUERY_CHECK_CODE(code, lino, _end);
+            break;
+          }
           code = stRealtimeContextCheck(pTask->pRealtimeContext);
           QUERY_CHECK_CODE(code, lino, _end);
         } else if (req.sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) {
+          if (req.type == STRIGGER_CTRL_CALC_RETRY) {
+            code = stTriggerTaskResumeVtableCalcRequests(pTask, req.sessionId);
+            QUERY_CHECK_CODE(code, lino, _end);
+            break;
+          }
           SListNode *pWaitNode = stTriggerTaskTakeManualWaitNode(pTask, TRACE_GET_MSGID(&pRsp->info.traceId));
           if (pWaitNode != NULL) {
             StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pWaitNode->data;
@@ -18376,8 +18403,8 @@ static SStreamRunnerTarget *stFindNestedCalcRunner(SStreamTriggerTask *pTask, co
   return NULL;
 }
 
-static int32_t stTriggerTaskRetryVtableCalcRequest(SStreamTriggerTask *pTask, int64_t sessionId,
-                                                   SSTriggerCalcRequest *pReq) {
+static int32_t stTriggerTaskSendVtableCalcRequest(SStreamTriggerTask *pTask, int64_t sessionId,
+                                                  SSTriggerCalcRequest *pReq) {
   if (pTask == NULL || pReq == NULL) return TSDB_CODE_INVALID_PARA;
   SStreamRunnerTarget *pRunner = stFindNestedCalcRunner(pTask, pReq);
   if (pRunner == NULL) return TSDB_CODE_INTERNAL_ERROR;
@@ -18396,6 +18423,61 @@ static int32_t stTriggerTaskRetryVtableCalcRequest(SStreamTriggerTask *pTask, in
   msg.info.ahandle = NULL;
   stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_RUNNER_RETRY, 1, streamTaskGetMonotonicUs());
   ST_TASK_DLOG("retry vtable calc request on node:%d task:%" PRIx64, pRunner->addr.nodeId, pRunner->addr.taskId);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stTriggerTaskRetryVtableCalcRequest(SStreamTriggerTask *pTask, int64_t sessionId,
+                                                   SSTriggerCalcRequest *pReq) {
+  uint64_t generation = 0;
+  if (!stTriggerTaskFindCalcRequestGeneration(pTask, pReq, &generation) || generation == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  SSTriggerCalcSlot *pSlot = (SSTriggerCalcSlot *)pReq;
+  if (pSlot->vtableRetryAtMs != 0) return TSDB_CODE_SUCCESS;
+
+  // Keep the logical request and execId: the runner owns the original redeploy timeout.
+  int32_t delayMs =
+      pSlot->vtableRetryDelayMs == 0 ? STREAM_TRIGGER_CHECK_INTERVAL_MS : TMIN(pSlot->vtableRetryDelayMs * 2, 5000);
+  int64_t retryAtMs = taosGetMonoTimestampMs() + delayMs;
+  int32_t code = stTriggerTaskAddWaitSessionForReason(pTask, sessionId, retryAtMs * NANOSECOND_PER_MSEC,
+                                                      STREAM_TRIGGER_WAIT_CALC_RETRY);
+  if (code == TSDB_CODE_SUCCESS) {
+    pSlot->vtableRetryDelayMs = delayMs;
+    pSlot->vtableRetryAtMs = retryAtMs;
+  }
+  return code;
+}
+
+static int32_t stTriggerTaskResumeVtableCalcRequests(SStreamTriggerTask *pTask, int64_t sessionId) {
+  int64_t nowMs = taosGetMonoTimestampMs();
+  for (int32_t i = 0; i < taosArrayGetSize(pTask->pCalcNodes); ++i) {
+    SSTriggerCalcNode *pNode = taosArrayGet(pTask->pCalcNodes, i);
+    for (int32_t j = 0; j < taosArrayGetSize(pNode->pSlots); ++j) {
+      SSTriggerCalcSlot *pSlot = taosArrayGet(pNode->pSlots, j);
+      // Other sessions can allocate/release slots while this session handles its CTRL wake.
+      taosWLockLatch(&pTask->calcPoolLock);
+      bool due = pSlot->req.sessionId == sessionId && pSlot->vtableRetryAtMs != 0 && pSlot->vtableRetryAtMs <= nowMs;
+      // Clear before sending; duplicate CTRL wakes cannot send the same attempt twice.
+      if (due) pSlot->vtableRetryAtMs = 0;
+      taosWUnLockLatch(&pTask->calcPoolLock);
+      if (!due) continue;
+      SSTriggerCalcRequest *pReq = &pSlot->req;
+      int32_t               code = stTriggerTaskSendVtableCalcRequest(pTask, sessionId, pReq);
+      if (code != TSDB_CODE_SUCCESS) {
+        // CTRL has no response handle for the common failure tail. Settle progress before release clears it.
+        if (pReq->manualAttempt.chainId == 0 && pReq->progressStepId != 0) {
+          int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pReq->progressStepId, code);
+          if (trackerCode != TSDB_CODE_SUCCESS) {
+            ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pReq->progressStepId,
+                         tstrerror(trackerCode));
+          }
+        }
+        int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pReq, false);
+        stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_FAILURE, 1, streamTaskGetMonotonicUs());
+        return releaseCode == TSDB_CODE_SUCCESS ? code : releaseCode;
+      }
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 

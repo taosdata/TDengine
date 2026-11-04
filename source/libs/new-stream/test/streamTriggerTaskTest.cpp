@@ -97,6 +97,7 @@ int32_t stRealtimeContextUpdateExtCompletedCutoffs(SSTriggerRealtimeContext* pCo
 
 static void destroyPoolDropRequest(SSTriggerDropRequest** ppRequest) {
   if (ppRequest == nullptr || *ppRequest == nullptr) return;
+  tDestroySSTriggerDropRequest(*ppRequest);
   taosMemoryFreeClear(*ppRequest);
 }
 
@@ -4344,14 +4345,21 @@ class RealtimePipelineHarness {
 
   int32_t dispatchSerializedRealtimeStartCode() {
     if (context() == nullptr) return TSDB_CODE_INVALID_PARA;
-    return dispatchSerializedSessionStartCode(context()->sessionId);
+    return dispatchSerializedSessionControlCode(context()->sessionId);
   }
 
-  int32_t dispatchSerializedSessionStartCode(int64_t sessionId) {
-    SSTriggerCtrlRequest request = {.type = STRIGGER_CTRL_START,
-                                    .streamId = task_.task.streamId,
-                                    .taskId = task_.task.taskId,
-                                    .sessionId = sessionId};
+  int32_t dispatchSerializedRealtimeRetryCode(int64_t* pErrorTaskId = nullptr) {
+    if (context() == nullptr) return TSDB_CODE_INVALID_PARA;
+    return dispatchSerializedSessionControlCode(context()->sessionId, STRIGGER_CTRL_CALC_RETRY, pErrorTaskId);
+  }
+
+  int32_t dispatchSerializedSessionControlCode(int64_t sessionId, ESTriggerCtrlType type = STRIGGER_CTRL_START,
+                                               int64_t* pErrorTaskId = nullptr) {
+    SSTriggerCtrlRequest request = {};
+    request.type = type;
+    request.streamId = task_.task.streamId;
+    request.taskId = task_.task.taskId;
+    request.sessionId = sessionId;
     int32_t              len = tSerializeSTriggerCtrlRequest(nullptr, 0, &request);
     if (len <= 0) return len < 0 ? len : TSDB_CODE_INVALID_MSG;
     void* payload = rpcMallocCont(len);
@@ -4364,6 +4372,7 @@ class RealtimePipelineHarness {
     SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_CTRL, .pCont = payload, .contLen = len};
     int64_t errorTaskId = 0;
     int32_t code = stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+    if (pErrorTaskId != nullptr) *pErrorTaskId = errorTaskId;
     rpcFreeCont(payload);
     return code;
   }
@@ -11532,7 +11541,7 @@ TEST_F(StreamNestedRecoveryTest, ActiveAndRetiredRecoveryOwnersGateHistoryAndRec
     history.pCalcReq = reinterpret_cast<SSTriggerCalcRequest*>(uintptr_t{1});
     ASSERT_EQ(nullptr, harness.task()->pHistoryContext);
     harness.task()->pHistoryContext = &history;
-    EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedSessionStartCode(kRecoveryHistorySessionId));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedSessionControlCode(kRecoveryHistorySessionId));
     EXPECT_EQ(reinterpret_cast<SSTriggerCalcRequest*>(uintptr_t{1}), history.pCalcReq);
     harness.task()->pHistoryContext = nullptr;
 
@@ -13320,11 +13329,14 @@ class NestedHistoryHarness {
 
   int32_t startHistoryRequest() { return dispatchControl(kHistorySession); }
 
-  int32_t dispatchSerializedHistoryStart() {
-    SSTriggerCtrlRequest request = {.type = STRIGGER_CTRL_START,
-                                    .streamId = task_.task.streamId,
-                                    .taskId = task_.task.taskId,
-                                    .sessionId = kHistorySession};
+  int32_t dispatchSerializedHistoryStart() { return dispatchSerializedHistoryControl(STRIGGER_CTRL_START); }
+
+  int32_t dispatchSerializedHistoryControl(ESTriggerCtrlType type, int64_t* pErrorTaskId = nullptr) {
+    SSTriggerCtrlRequest request = {};
+    request.type = type;
+    request.streamId = task_.task.streamId;
+    request.taskId = task_.task.taskId;
+    request.sessionId = kHistorySession;
     int32_t              len = tSerializeSTriggerCtrlRequest(nullptr, 0, &request);
     OwnedRpcPayload      payload = OwnedRpcPayload::allocate(len);
     if (len <= 0 || payload.get() == nullptr || tSerializeSTriggerCtrlRequest(payload.get(), len, &request) != len) {
@@ -13332,7 +13344,9 @@ class NestedHistoryHarness {
     }
     SRpcMsg response = {.msgType = TDMT_STREAM_TRIGGER_CTRL, .pCont = payload.get(), .contLen = len};
     int64_t errorTaskId = 0;
-    return stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+    int32_t code = stTriggerTaskProcessRsp(&task_.task, &response, &errorTaskId);
+    if (pErrorTaskId != nullptr) *pErrorTaskId = errorTaskId;
+    return code;
   }
 
   int32_t respondFirstTs(TSKEY ts = kScanStart) {
@@ -13585,6 +13599,26 @@ class NestedHistoryHarness {
 
   int32_t respondPullError(CapturedPullAttempt& attempt, int32_t code) {
     return dispatchAttempt(attempt, TDMT_STREAM_TRIGGER_PULL_RSP, code, OwnedRpcPayload(), 0);
+  }
+
+  int32_t respondGroupColValue(CapturedPullAttempt& attempt, int64_t value) {
+    SStreamGroupInfo info = {};
+    info.gInfo = taosArrayInit(1, sizeof(SStreamGroupValue));
+    if (info.gInfo == nullptr) return terrno;
+    SStreamGroupValue groupValue = {};
+    groupValue.data.type = TSDB_DATA_TYPE_BIGINT;
+    groupValue.data.val = value;
+    if (taosArrayPush(info.gInfo, &groupValue) == nullptr) {
+      taosArrayDestroy(info.gInfo);
+      return terrno;
+    }
+    int32_t         len = tSerializeSStreamGroupInfo(nullptr, 0, &info, kReaderNodeId);
+    OwnedRpcPayload payload = OwnedRpcPayload::allocate(len);
+    int32_t         actual = payload.get() == nullptr ? TSDB_CODE_OUT_OF_MEMORY
+                                                      : tSerializeSStreamGroupInfo(payload.get(), len, &info, kReaderNodeId);
+    taosArrayDestroy(info.gInfo);
+    if (actual != len) return actual < 0 ? actual : TSDB_CODE_INVALID_MSG;
+    return dispatchAttempt(attempt, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_SUCCESS, std::move(payload), len);
   }
 
   static uintptr_t requestAddress(const CapturedPullAttempt& attempt) { return attempt.requestAddress; }
@@ -16278,6 +16312,153 @@ static void prepareOrdinaryHistoryRows(NestedHistoryHarness&                    
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondTriggerGroupRows(groups));
+}
+
+TEST_F(StreamHistoryBatchTest, AutomaticHistoryVtableRetryWaitsAndCompletesOriginalRequest) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  NestedHistoryHarness harness;
+  prepareOrdinaryHistoryRows(harness, {{NestedHistoryHarness::kGid, 1}});
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  auto* handle = static_cast<SSTriggerAHandle*>(harness.calcAttempt(0)->pSendInfo->param);
+  EXPECT_EQ(0, handle->manualAttempt.chainId);
+  const uint64_t step = handle->progressStepId;
+  const uint64_t token = handle->progressRequestToken;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  EXPECT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  EXPECT_EQ(1, harness.calcAttemptCount());
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  EXPECT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryControl(STRIGGER_CTRL_CALC_RETRY));
+  ASSERT_EQ(2, harness.calcAttemptCount());
+  handle = static_cast<SSTriggerAHandle*>(harness.calcAttempt(1)->pSendInfo->param);
+  EXPECT_EQ(step, handle->progressStepId);
+  EXPECT_EQ(token, handle->progressRequestToken);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(1));
+  int64_t running = -1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskGetRunningReq(harness.task(), NestedHistoryHarness::kHistorySession, &running));
+  EXPECT_EQ(0, running);
+}
+
+TEST_F(StreamHistoryBatchTest, AutomaticHistoryVtableRetryFailureFailsTriggerAndRetiresProgress) {
+  for (bool failPreparation : {false, true}) {
+    SCOPED_TRACE(failPreparation ? "prepare failure" : "send failure");
+    gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+    Stub clockStub;
+    clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+    NestedHistoryHarness harness;
+    prepareOrdinaryHistoryRows(harness, {{NestedHistoryHarness::kGid, 1}});
+    ScopedTriggerTaskMapRegistration registration(harness.task());
+    ASSERT_TRUE(registration.install());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+    ASSERT_EQ(1, harness.calcAttemptCount());
+    auto* handle = static_cast<SSTriggerAHandle*>(harness.calcAttempt(0)->pSendInfo->param);
+    ASSERT_EQ(0U, handle->manualAttempt.chainId);
+    const uint64_t step = handle->progressStepId;
+    const uint64_t token = handle->progressRequestToken;
+    ASSERT_NE(0U, step);
+    ASSERT_NE(0U, token);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+    // The step still has a pending Runner and has closed Reader registration.
+    ASSERT_EQ(TSDB_CODE_INVALID_MSG, stRecalcTrackerAddReader(harness.task()->pRecalcTracker, step, token + 1));
+
+    const int32_t expectedCode = failPreparation ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    Stub          allocStub;
+    if (failPreparation) {
+      gNestedHistoryAllocStub = &allocStub;
+      gNestedHistoryAhandleAllocFailures = 1;
+      gNestedHistoryAhandleAllocCalls = 0;
+      allocStub.set(taosMemCalloc, failNestedHistoryAhandleCalloc);
+    } else {
+      harness.failNextCalcSend(expectedCode);
+    }
+    gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+    int64_t       errorTaskId = 0;
+    const int32_t code = harness.dispatchSerializedHistoryControl(STRIGGER_CTRL_CALC_RETRY, &errorTaskId);
+    if (failPreparation) {
+      allocStub.reset(taosMemCalloc);
+      gNestedHistoryAllocStub = nullptr;
+      gNestedHistoryAhandleAllocFailures = 0;
+      EXPECT_EQ(1, gNestedHistoryAhandleAllocCalls);
+    }
+    EXPECT_EQ(expectedCode, code);
+    EXPECT_EQ(harness.task()->task.taskId, errorTaskId);
+    // Follow smWorker's error routing with no local Runner in the task map.
+    streamHandleTaskError(harness.task()->task.streamId, errorTaskId, code);
+    EXPECT_EQ(STREAM_STATUS_FAILED, harness.task()->task.status);
+    EXPECT_EQ(expectedCode, harness.task()->task.errorCode);
+    int64_t running = -1;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              stTriggerTaskGetRunningReq(harness.task(), NestedHistoryHarness::kHistorySession, &running));
+    EXPECT_EQ(0, running);
+    // A failed step is retired: registration cannot find it, and late completion is a no-op.
+    EXPECT_EQ(TSDB_CODE_NOT_FOUND, stRecalcTrackerAddReader(harness.task()->pRecalcTracker, step, token + 1));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stRecalcTrackerCompleteRunner(harness.task()->pRecalcTracker, step, token));
+    bool    historyValid = false;
+    int32_t historyProgress = -1;
+    SArray* snapshots = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              stRecalcTrackerCopySnapshot(harness.task()->pRecalcTracker, &historyValid, &historyProgress, &snapshots));
+    taosArrayDestroy(snapshots);
+    EXPECT_TRUE(historyValid);
+    EXPECT_EQ(0, historyProgress);
+    EXPECT_EQ(0, atomic_load_8(&harness.task()->historyFinished));
+  }
+}
+
+TEST_F(StreamHistoryBatchTest, VtableRetryDoesNotRepeatPendingGroupColumnPull) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionUnitCount, 0,
+                             NestedHistoryHarness::kScanStart + NestedHistoryHarness::kHistoryStep, false, 0, true,
+                             false, 4, false, false, false));
+  harness.task()->multiGroupBatch = false;
+  harness.task()->hasPartitionBy = true;
+  ASSERT_TRUE(harness.setHistoryEffectPolicy(STRIGGER_EVENT_WINDOW_CLOSE, STRIGGER_EVENT_WINDOW_NONE, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            harness.respondTriggerGroupRows({{NestedHistoryHarness::kGid, 1}, {NestedHistoryHarness::kGid + 1, 1}}));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+  auto* firstPull = harness.findPull(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession);
+  ASSERT_NE(nullptr, firstPull);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondGroupColValue(*firstPull, 10));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  auto* secondPull = harness.findPull(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession);
+  ASSERT_NE(nullptr, secondPull);
+  ASSERT_EQ(STRIGGER_CONTEXT_SEND_CALC_REQ, harness.historyContext()->status);
+  ASSERT_FALSE(harness.historyContext()->notifyGroupColValuePending);
+  const int32_t pulls = harness.pullAttemptCount(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+
+  ScopedNestedHistoryTimerTask timerTask(harness.task());
+  clockStub.set(streamAcquireTask, captureNestedHistoryTimerAcquire);
+  clockStub.set(streamReleaseTask, captureNestedHistoryTimerRelease);
+  clockStub.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(1, harness.pendingControlCount(NestedHistoryHarness::kHistorySession));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchQueuedControl(NestedHistoryHarness::kHistorySession));
+  ASSERT_EQ(2, harness.calcAttemptCount());
+  EXPECT_EQ(pulls, harness.pullAttemptCount(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession));
+  EXPECT_EQ(STRIGGER_CONTEXT_SEND_CALC_REQ, harness.historyContext()->status);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondGroupColValue(*secondPull, 20));
+  ASSERT_EQ(3, harness.calcAttemptCount());
+  EXPECT_EQ(0, harness.pullAttemptCount(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession, true));
+  auto* duplicate = harness.findPull(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession);
+  if (duplicate != nullptr) EXPECT_EQ(TSDB_CODE_SUCCESS, harness.respondGroupColValue(*duplicate, 20));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(1));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(2));
 }
 
 TEST_F(StreamHistoryBatchTest, HistoryNeedsRunnerBeforeConsumingHeadGroup) {
@@ -22263,6 +22444,9 @@ TEST_F(StreamTriggerTaskTest, AutomaticRealtimeCalcFailureIsFatalWithoutRetry) {
 }
 
 TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesWithoutDuplicateSameGroupOwnership) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
                            STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, true));
@@ -22273,7 +22457,9 @@ TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesWithoutDupli
   ASSERT_EQ(1, harness.calcAttemptCount());
 
   EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
-  ASSERT_EQ(2, harness.calcAttemptCount());
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(1, harness.calcAttemptCount());
   int64_t runningRequests = -1;
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &runningRequests));
@@ -22283,6 +22469,22 @@ TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesWithoutDupli
                                                                     RealtimePipelineHarness::kGid, &dropRequest));
   EXPECT_EQ(nullptr, dropRequest);
   destroyPoolDropRequest(&dropRequest);
+  clockStub.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  clockStub.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  clockStub.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  harness.failNextQueuePut(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  EXPECT_EQ(1, harness.calcAttemptCount());
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  bool processed = false;
+  ASSERT_TRUE(harness.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  ASSERT_EQ(2, harness.calcAttemptCount());
+  ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+  EXPECT_EQ(2, harness.calcAttemptCount());
   EXPECT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
 
   ASSERT_EQ(TSDB_CODE_SUCCESS,
@@ -22292,6 +22494,158 @@ TEST_F(StreamTriggerTaskTest, AutomaticRealtimeVtableRedeployRetriesWithoutDupli
                                                                     RealtimePipelineHarness::kGid, &dropRequest));
   ASSERT_NE(nullptr, dropRequest);
   destroyPoolDropRequest(&dropRequest);
+}
+
+TEST_F(StreamTriggerTaskTest, VtableRetryBackoffIsCappedAndPreservesLogicalRequestUntilTimeout) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, true));
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+  ASSERT_TRUE(harness.feedGroups({{42, 1001, {1000, 2000}, {1, 2}, 2}}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  auto*    original = static_cast<SSTriggerAHandle*>(harness.calcAttempt(0)->pSendInfo->param);
+  void*    request = original->param;
+  uint64_t generation = harness.calcAttempt(0)->pSendInfo->requestObjRefId;
+  int32_t  attempt = 0;
+  for (int64_t delayMs : {1000, 2000, 4000, 5000, 5000}) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(attempt, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+    gRealtimePipelineClockNs += (delayMs - 1) * NANOSECOND_PER_MSEC;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeRetryCode());
+    EXPECT_EQ(attempt + 1, harness.calcAttemptCount());
+    gRealtimePipelineClockNs += NANOSECOND_PER_MSEC;
+    ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+    EXPECT_EQ(attempt + 1, harness.calcAttemptCount());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeRetryCode());
+    ASSERT_EQ(attempt + 2, harness.calcAttemptCount());
+    ++attempt;
+    auto* retry = static_cast<SSTriggerAHandle*>(harness.calcAttempt(attempt)->pSendInfo->param);
+    EXPECT_EQ(request, retry->param);
+    EXPECT_EQ(generation, harness.calcAttempt(attempt)->pSendInfo->requestObjRefId);
+    EXPECT_EQ(harness.calcAttempt(0)->decoded.execId, harness.calcAttempt(attempt)->decoded.execId);
+  }
+  EXPECT_EQ(TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT,
+            harness.dispatchCalcAttempt(attempt, TSDB_CODE_STREAM_VTABLE_REDEPLOY_TIMEOUT));
+  int64_t running = -1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &running));
+  EXPECT_EQ(0, running);
+  gRealtimePipelineClockNs += 10000 * NANOSECOND_PER_MSEC;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeRetryCode());
+  EXPECT_EQ(attempt + 1, harness.calcAttemptCount());
+}
+
+TEST_F(StreamTriggerTaskTest, VtableRetryDoesNotDuplicatePeriodWait) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, true));
+  harness.task()->triggerType = STREAM_TRIGGER_PERIOD;
+  harness.task()->multiGroupBatch = false;
+  harness.task()->interval = {};
+  harness.task()->interval.timezone = harness.task()->timezone;
+  harness.task()->interval.firstDayOfWeek = 1;
+  harness.task()->interval.sliding = 60 * NANOSECOND_PER_SEC;
+  harness.task()->interval.intervalUnit = 's';
+  harness.task()->interval.slidingUnit = 's';
+  harness.task()->interval.precision = TSDB_TIME_PRECISION_NANO;
+  harness.retainCalcAttempts();
+  clockStub.set(streamAcquireTask, captureRealtimePipelineTimerAcquire);
+  clockStub.set(streamReleaseTask, captureRealtimePipelineTimerRelease);
+  clockStub.set(streamTmrStart, ignoreRealtimePipelineTimerStart);
+  ASSERT_NE(nullptr, gRealtimePipelineWaitTimerCallback);
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+  gRealtimePipelineClockNs = 60 * NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(1, harness.queuedRealtimeStartCount());
+  bool processed = false;
+  ASSERT_TRUE(harness.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  ASSERT_TRUE(harness.feedGroups({{42, 1001, {1000, 2000}, {1, 2}, 2}}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(STRIGGER_CONTEXT_IDLE, harness.context()->status);
+  ASSERT_EQ(120 * NANOSECOND_PER_SEC, harness.context()->periodWindow.ekey);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  ASSERT_EQ(1, harness.queuedControlCount());
+  ASSERT_TRUE(harness.processNextControl(&processed));
+  ASSERT_TRUE(processed);
+  ASSERT_EQ(2, harness.calcAttemptCount());
+  EXPECT_EQ(STRIGGER_CONTEXT_IDLE, harness.context()->status);
+
+  gRealtimePipelineClockNs = 120 * NANOSECOND_PER_SEC;
+  invokeRealtimePipelineWaitTimer(gRealtimePipelineWaitTimerCallback);
+  EXPECT_EQ(1, harness.queuedRealtimeStartCount());
+  ASSERT_TRUE(harness.processNextControl(&processed));
+  EXPECT_EQ(STRIGGER_CONTEXT_FETCH_META, harness.context()->status);
+  EXPECT_EQ(1, harness.pendingPullCount(STRIGGER_PULL_WAL_META_NEW));
+}
+
+TEST_F(StreamTriggerTaskTest, VtableRetrySendFailureReleasesRequest) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, true));
+  ScopedTriggerTaskMapRegistration registration(harness.task());
+  ASSERT_TRUE(registration.install());
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+  ASSERT_TRUE(harness.feedGroups({{42, 1001, {1000, 2000}, {1, 2}, 2}}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  harness.failNextCalcSend(TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  int64_t       errorTaskId = 0;
+  const int32_t code = harness.dispatchSerializedRealtimeRetryCode(&errorTaskId);
+  EXPECT_EQ(TSDB_CODE_RPC_NETWORK_UNAVAIL, code);
+  EXPECT_EQ(harness.task()->task.taskId, errorTaskId);
+  // Only the local Trigger is registered; its Runner is on another node.
+  streamHandleTaskError(harness.task()->task.streamId, errorTaskId, code);
+  EXPECT_EQ(STREAM_STATUS_FAILED, harness.task()->task.status);
+  EXPECT_EQ(code, harness.task()->task.errorCode);
+  int64_t running = -1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskGetRunningReq(harness.task(), harness.context()->sessionId, &running));
+  EXPECT_EQ(0, running);
+}
+
+TEST_F(StreamTriggerTaskTest, VtableRetryWakeDoesNotSendReleasedOrReusedSlot) {
+  gRealtimePipelineClockNs = 100 * NANOSECOND_PER_MSEC;
+  Stub clockStub;
+  clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                           STRIGGER_EVENT_WINDOW_NONE, 0, 1, true, 0, true));
+  harness.retainCalcAttempts();
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 1000));
+  ASSERT_TRUE(harness.feedGroups({{42, 1001, {1000, 2000}, {1, 2}, 2}}));
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  auto* handle = static_cast<SSTriggerAHandle*>(harness.calcAttempt(0)->pSendInfo->param);
+  auto* request = static_cast<SSTriggerCalcRequest*>(handle->param);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(harness.task(), &request, false));
+  SSTriggerCalcRequest* blocker = nullptr;
+  SSTriggerCalcRequest* reused = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(harness.task(), 700, 700, &blocker));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskAcquireRequest(harness.task(), harness.context()->sessionId, 99, &reused));
+  ASSERT_NE(nullptr, reused);
+  gRealtimePipelineClockNs += 1000 * NANOSECOND_PER_MSEC;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeRetryCode());
+  EXPECT_EQ(1, harness.calcAttemptCount());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(harness.task(), &reused, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(harness.task(), &blocker, false));
 }
 
 TEST_F(StreamTriggerTaskTest, AutomaticRealtimeTableNotCreateIsFatalWithoutRetry) {

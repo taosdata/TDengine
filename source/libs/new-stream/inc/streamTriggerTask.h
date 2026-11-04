@@ -896,6 +896,8 @@ void    stDestroyNestedPendingCalcNode(SListNode **ppNode);
 typedef struct SSTriggerCalcSlot {
   SSTriggerCalcRequest req;  // keep in the first place
   uint64_t             generation;
+  int64_t              vtableRetryAtMs;  // monotonic deadline; zero when no retry is pending
+  int32_t              vtableRetryDelayMs;
   TD_DLIST_NODE(SSTriggerCalcSlot);
 } SSTriggerCalcSlot;
 

@@ -1853,6 +1853,7 @@ void    tDestroySSTriggerDropRequest(SSTriggerDropRequest* pReq);
 typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_START = 0,
   STRIGGER_CTRL_STOP = 1,
+  STRIGGER_CTRL_CALC_RETRY = 2,
 } ESTriggerCtrlType;
 
 typedef enum {
